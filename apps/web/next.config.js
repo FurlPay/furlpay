@@ -1,4 +1,48 @@
 /** @type {import('next').NextConfig} */
+
+// ---------------------------------------------------------------------------
+// Security headers — the web-architecture equivalent of a mobile app's
+// hardening (TLS-only, anti-tamper, anti-clickjacking). Applied to every
+// response. The CSP allow-lists the app's known integrations (Google Fonts /
+// Identity, Stripe, Persona) and nothing else.
+// ---------------------------------------------------------------------------
+const csp = [
+  "default-src 'self'",
+  // Next.js streams inline bootstrap scripts; integrations load their own SDKs.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://apis.google.com https://*.withpersona.com",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src 'self' https://fonts.gstatic.com data:",
+  "img-src 'self' data: blob: https:",
+  // XHR/fetch to our own API + integration + market-data / RPC endpoints.
+  "connect-src 'self' https: wss:",
+  // Embedded checkout / KYC / sign-in surfaces.
+  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com",
+  "worker-src 'self' blob:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "upgrade-insecure-requests",
+].join("; ");
+
+const securityHeaders = [
+  { key: "Content-Security-Policy", value: csp },
+  { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains; preload" },
+  { key: "X-Content-Type-Options", value: "nosniff" },
+  { key: "X-Frame-Options", value: "DENY" },
+  { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+  // Allow-popups so Google Identity's sign-in popup still works.
+  { key: "Cross-Origin-Opener-Policy", value: "same-origin-allow-popups" },
+  {
+    key: "Permissions-Policy",
+    // Camera/mic for video KYC, geolocation for compliance, payment for card
+    // flows — same-origin only; everything else denied.
+    value:
+      "camera=(self), microphone=(self), geolocation=(self), payment=(self), usb=(), browsing-topics=()",
+  },
+  { key: "X-DNS-Prefetch-Control", value: "on" },
+];
+
 const nextConfig = {
   reactStrictMode: true,
   // Compile the shared TypeScript compliance package from the monorepo.
@@ -10,6 +54,9 @@ const nextConfig = {
     "@furlpay/security",
     "@furlpay/ledger",
   ],
+  async headers() {
+    return [{ source: "/:path*", headers: securityHeaders }];
+  },
 };
 
 module.exports = nextConfig;
