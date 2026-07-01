@@ -510,43 +510,41 @@ Verified locally:
 
 ## Roadmap
 
-### Phased plan
+### Production roadmap
 
 ```mermaid
-graph LR
-    subgraph P1["Phase 1 - Prototype (done)"]
-        A1["Monorepo + web app + API"]
-        A2["4 SDKs + CLI + MCP"]
-        A3["CCTP V2 intent router"]
-        A4["Tiered / reusable KYC"]
-        A5["Jurisdiction resolver"]
-        A6["Security: MPC, MFA, risk engine"]
-        A7["Brand logos + Lucide icons"]
-    end
+gantt
+    title Furlpay Production Roadmap
+    dateFormat YYYY-MM
+    axisFormat %b %Y
 
-    subgraph P2["Phase 2 - Finish prototype"]
-        B1["Real session / JWT + WebAuthn verify"]
-        B2["zod validation on all routes"]
-        B3["Server-Component migration"]
-        B4["Web / e2e tests"]
-        B5["Package desktop + extension"]
-    end
+    section Phase 1 - Prototype
+    Turborepo monorepo + web app + API      :done, f1a, 2026-04, 2026-05
+    4 SDKs + CLI + MCP server                :done, f1b, 2026-05, 2026-06
+    Compliance KYC AML MiCA GENIUS Travel    :done, f1c, 2026-05, 2026-06
+    Security MPC + step-up MFA + risk engine :done, f1d, 2026-06, 2026-07
+    CCTP V2 intent router                    :done, f1e, 2026-06, 2026-07
+    Tiered reusable KYC + jurisdiction       :done, f1f, 2026-06, 2026-07
+    Brand logos + Lucide icons               :done, f1g, 2026-06, 2026-07
 
-    subgraph P3["Phase 3 - Beta (make it real)"]
-        C1["Persistence: Postgres / per-user"]
-        C2["Live integrations (swap mocks)"]
-        C3["Settlement ledger + reconciliation"]
-        C4["Disputes / chargebacks / support"]
-    end
+    section Phase 2 - Finish prototype
+    Real session JWT + WebAuthn verify       :active, f2a, 2026-07, 2026-08
+    zod validation on all routes             :f2b, 2026-07, 2026-08
+    Server-Component data migration          :f2c, 2026-08, 2026-09
+    Web and e2e tests                        :f2d, 2026-08, 2026-09
+    Package desktop + extension              :f2e, 2026-09, 2026-10
 
-    subgraph P4["Phase 4 - Production"]
-        D1["Licensing: EMI/BaaS, sponsor bank, MTL"]
-        D2["Security audits + pen-test + SOC2"]
-        D3["Contract audits (Slither/Mythril)"]
-        D4["Public launch"]
-    end
+    section Phase 3 - Beta
+    Persistence Postgres + per-user          :f3a, 2026-09, 2026-11
+    Live integrations swap mocks             :f3b, 2026-10, 2027-01
+    Settlement ledger + reconciliation       :f3c, 2026-12, 2027-03
+    Disputes chargebacks support ops         :f3d, 2027-02, 2027-05
 
-    P1 --> P2 --> P3 --> P4
+    section Phase 4 - Production
+    Licensing EMI BaaS sponsor bank MTL      :f4a, 2026-10, 2027-06
+    Security audits pen-test SOC2            :f4b, 2027-03, 2027-07
+    On-chain contract audits                 :f4c, 2027-04, 2027-06
+    Public launch                            :milestone, f4d, 2027-08, 2027-08
 ```
 
 ### Status detail
