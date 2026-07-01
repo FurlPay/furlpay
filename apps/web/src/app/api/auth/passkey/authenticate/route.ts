@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateAuthenticationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { db } from "@/lib/store";
 import {
-  ORIGIN,
+  EXPECTED_ORIGINS,
+  EXPECTED_RPIDS,
   RP_ID,
   getCredentials,
   setChallenge,
@@ -44,8 +45,8 @@ export async function POST(req: NextRequest) {
     verification = await verifyAuthenticationResponse({
       response: body,
       expectedChallenge,
-      expectedOrigin: ORIGIN,
-      expectedRPID: RP_ID,
+      expectedOrigin: EXPECTED_ORIGINS,
+      expectedRPID: EXPECTED_RPIDS,
       credential: { id: cred.id, publicKey: cred.publicKey, counter: cred.counter },
     });
   } catch (e: any) {

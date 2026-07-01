@@ -9,12 +9,18 @@ import { SESSION_COOKIE, verifySession } from "@/lib/session";
 // (webhooks are authenticated by signature, checkout by merchant key).
 // ---------------------------------------------------------------------------
 
-const PUBLIC_PAGES = new Set(["/", "/login", "/signup"]);
-const PUBLIC_PAGE_PREFIXES = ["/docs", "/blog", "/legal"]; // public marketing/docs/blog/legal subtrees
+const PUBLIC_PAGES = new Set(["/", "/login", "/signup", "/actions.json"]);
+const PUBLIC_PAGE_PREFIXES = [
+  "/docs",
+  "/blog",
+  "/legal",
+  "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
+];
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
   "/api/webhooks",
   "/api/checkout",
+  "/api/actions", // Solana Actions/Blinks — consumed by unauthenticated Blink clients
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
 ];

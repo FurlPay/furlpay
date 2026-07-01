@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { generateRegistrationOptions, verifyRegistrationResponse } from "@simplewebauthn/server";
 import { db } from "@/lib/store";
 import {
-  ORIGIN,
+  EXPECTED_ORIGINS,
+  EXPECTED_RPIDS,
   RP_ID,
   RP_NAME,
   addCredential,
@@ -50,8 +51,8 @@ export async function POST(req: NextRequest) {
     verification = await verifyRegistrationResponse({
       response: body,
       expectedChallenge,
-      expectedOrigin: ORIGIN,
-      expectedRPID: RP_ID,
+      expectedOrigin: EXPECTED_ORIGINS,
+      expectedRPID: EXPECTED_RPIDS,
     });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });

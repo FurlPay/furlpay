@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/store";
+import { RP_ID, RP_NAME } from "@/lib/webauthn";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
 
 // POST /api/auth/webauthn — sandbox/demo passkey login that issues a real signed
@@ -16,10 +17,21 @@ export async function POST(req: NextRequest) {
       const challenge = crypto.randomBytes(32).toString("base64url");
       return NextResponse.json({
         challenge,
-        rp: { id: "furlpay.app", name: "Furlpay" },
+        // Resolved from server config (env / Vercel), not the request Host header.
+        rp: { id: RP_ID, name: RP_NAME },
         timeout: 60000,
         userVerification: "required",
       });
+    }
+    // Phase 2 issues a session WITHOUT cryptographically verifying the credential
+    // — it exists only for local sandbox demos. Disable it outside development so
+    // it can never be used as an authentication bypass; real ceremonies go through
+    // /api/auth/passkey/* (backed by @simplewebauthn/server).
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "Demo passkey route is disabled in production. Use /api/auth/passkey/*." },
+        { status: 404 }
+      );
     }
     // Phase 2: issue a signed session JWT (jose, HS256).
     const token = await signSession({ sub: db.user.id, safe: db.user.safeAddress });
