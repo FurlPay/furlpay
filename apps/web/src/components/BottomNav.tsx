@@ -21,19 +21,30 @@ export default function BottomNav() {
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-50 mx-auto max-w-[440px]">
-      <div className="mx-3 mb-3 flex items-center justify-around rounded-capsule border border-white/5 bg-black/85 px-1.5 py-2 backdrop-blur-xl">
+      {/* Fade the screen content out behind the floating bar. */}
+      <div className="pointer-events-none h-8 bg-gradient-to-t from-black to-transparent" />
+      <div className="mx-3 mb-5 flex items-center justify-around rounded-capsule border border-white/[0.07] bg-black/70 px-2 py-2 shadow-[0_12px_40px_-12px_rgba(0,0,0,0.9)] backdrop-blur-2xl">
         {TABS.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-2 rounded-capsule px-3 py-2 transition-colors ${
-                active ? "bg-white/[0.06] text-accent" : "text-textSecondary"
+              aria-label={label}
+              className={`tap flex flex-col items-center gap-1 rounded-2xl px-3.5 py-1.5 transition-colors ${
+                active ? "text-accent" : "text-textSecondary hover:text-white"
               }`}
             >
-              <Icon className="h-6 w-6" />
-              <span className={`text-[12px] font-medium ${active ? "block" : "hidden"}`}>
+              <span
+                className={`flex h-9 w-9 items-center justify-center rounded-xl transition-all ${
+                  active
+                    ? "bg-accent/15 shadow-[inset_0_0_0_1px_rgba(255,59,48,0.3)]"
+                    : ""
+                }`}
+              >
+                <Icon className="h-[22px] w-[22px]" />
+              </span>
+              <span className={`text-[10px] font-semibold tracking-tight ${active ? "opacity-100" : "opacity-70"}`}>
                 {label}
               </span>
             </Link>
