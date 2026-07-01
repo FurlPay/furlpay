@@ -47,6 +47,12 @@ function BlockView({ block }: { block: Block }) {
           {block.text}
         </blockquote>
       );
+    case "diagram":
+      return (
+        <div className="mb-6 overflow-x-auto rounded-xl border border-neon/20 bg-white/[0.02] p-5">
+          <pre className="font-mono text-[12.5px] leading-relaxed text-neon/90">{block.text}</pre>
+        </div>
+      );
     default:
       return null;
   }

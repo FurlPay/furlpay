@@ -9,7 +9,8 @@ export type Block =
   | { type: "p"; text: string }
   | { type: "ul"; items: string[] }
   | { type: "code"; lang: string; code: string }
-  | { type: "quote"; text: string };
+  | { type: "quote"; text: string }
+  | { type: "diagram"; text: string };
 
 export type Post = {
   slug: string;
@@ -24,186 +25,425 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // 1 -----------------------------------------------------------------
   {
     slug: "announcing-furlpay-connect",
-    title: "Announcing Furlpay Connect: Low-Cost B2B Stablecoin Settlement",
+    title: "Announcing Furlpay Connect: B2B Stablecoin Settlement",
     excerpt:
-      "Furlpay Connect lets platforms settle in stablecoins and pay out to local bank accounts in real time — cutting processing costs by up to 70% versus legacy card rails.",
+      "A single-integration gateway that slashes merchant settlement fees to a flat 0.5% and deposits local currency straight into your bank account.",
     category: "product-news",
-    date: "2026-06-30",
+    date: "2026-07-01",
     readMins: 4,
     author: "Furlpay Team",
     featured: true,
     body: [
       {
         type: "p",
-        text: "Today we're introducing Furlpay Connect — a settlement API that lets marketplaces, PSPs and online platforms accept stablecoin payments and pay out to local bank accounts in real time. No 2–3% interchange, no multi-day settlement windows.",
+        text: `Traditional merchant payment gateways are built on legacy 1970s rails. Between interchange fees, merchant discount rates (MDR) and chargeback liabilities, businesses routinely surrender 2.5% to 4.0% of their top-line revenue just to process digital card payments. Today, we're launching Furlpay Connect — a single-integration gateway that slashes settlement fees to a flat 0.5% and deposits local currency directly into your bank account.`,
       },
-      { type: "h2", text: "Why we built it" },
+      { type: "h2", text: "How it works" },
       {
         type: "p",
-        text: "Legacy card processing bundles interchange, scheme fees and cross-border markups into a 2–4% cost that platforms ultimately pass to their users. By settling in USDC and EURC on Base and Solana, then off-ramping through Wise rails, Connect collapses that stack.",
+        text: `Furlpay Connect sits between high-speed Layer 2 blockchains (Base, Solana, Arbitrum) and domestic bank routing networks (ACH, SEPA, RTP). When a customer checks out:`,
       },
       {
         type: "ul",
         items: [
-          "Up to 70% lower cost versus legacy card processors on cross-border flows",
-          "Real-time local settlement — IBAN, routing and account numbers via Wise",
-          "Zero gas for end users; sponsored through Furlpay paymasters",
+          `They sign a transaction using their Furlpay Passkey.`,
+          `Stablecoins (USDC or EURC) are instantly transferred to Furlpay's liquidity pool.`,
+          `Our backend automatically triggers a local payout through the Bridge.xyz API, depositing domestic currency into the merchant's bank account in seconds.`,
         ],
       },
-      { type: "h2", text: "Availability" },
       {
-        type: "p",
-        text: "Connect is rolling out to platforms in the EEA, UK and US first, with additional corridors following as our compliance coverage expands. Existing @furlpay/node users can request access from the dashboard today.",
+        type: "diagram",
+        text: `[ Customer Wallet ] ──(0.5% fee)──> [ Furlpay Pool ] ──(local rail)──> [ Merchant Bank Account ]`,
+      },
+      { type: "h2", text: "Why it wins" },
+      {
+        type: "ul",
+        items: [
+          `Near-zero fees: cut merchant discount fees by up to 80%.`,
+          `Zero volatility: merchants receive settlement in USD, EUR or GBP, shielded from asset volatility.`,
+          `Frictionless integration: drop Connect into your checkout with a single script tag or our headless TypeScript SDK.`,
+        ],
       },
     ],
   },
+
+  // 2 -----------------------------------------------------------------
   {
-    slug: "furlpay-connect-global-local-settlements",
-    title: "Furlpay Connect Launches Globally: Real-Time Local Bank Settlements for Stablecoin Transactions",
+    slug: "designing-2of2-mpc-key-generation",
+    title: "Designing 2-of-2 MPC Key Generation for Self-Custody",
     excerpt:
-      "A closer look at the settlement engine behind Connect — how stablecoin balances become local-currency payouts in seconds across dozens of corridors.",
-    category: "product-news",
-    date: "2026-06-18",
-    readMins: 5,
-    author: "Payments Team",
+      "No single private key is ever generated. Here's how Furlpay splits signing across a device passkey share and an HSM policy share.",
+    category: "engineering",
+    date: "2026-06-28",
+    readMins: 6,
+    author: "Security Engineering",
     body: [
+      { type: "h2", text: "The security dilemma" },
       {
         type: "p",
-        text: "Connect abstracts the on-chain leg entirely. A platform charges its customer in USDC; Furlpay handles conversion and delivers a local-currency payout to the recipient's bank account — often within seconds.",
+        text: `In Web3, users historically faced a harsh choice: trust a centralized exchange with their keys (custodial) or write down a 12-word seed phrase on paper (self-custodial). The former exposes users to exchange insolvency; the latter places the entire burden of key security on the user, leading to millions lost to misplaced papers and phishing attacks. Furlpay solves this by implementing 2-of-2 Multi-Party Computation (MPC).`,
       },
-      { type: "h2", text: "How a settlement flows" },
+      { type: "h2", text: "Under the hood: key splitting" },
+      {
+        type: "p",
+        text: `With MPC, a single private key is never generated in one place. Instead, during account setup, our backend runs a cryptographic protocol (distributed key generation) to produce two distinct key shares:`,
+      },
       {
         type: "ul",
         items: [
-          "Customer pays in USDC/EURC on Base or Solana",
-          "Furlpay nets the flow and quotes an FX rate through partner liquidity",
-          "Wise rails deliver the local-currency payout (IBAN / ACH / Faster Payments)",
+          `Share A (client-side): stored on the user's device, encrypted and accessible only via WebAuthn / passkey biometrics.`,
+          `Share B (server-side): managed inside Furlpay's Hardware Security Module (HSM) cluster, gated by policy rules.`,
         ],
+      },
+      {
+        type: "diagram",
+        text: `[ Client Device ] ─────> Share A  (biometric-gated)
+                            │
+                     (co-signing engine)
+                            │
+[ Furlpay HSM ]   ─────> Share B  (policy rules)`,
+      },
+      {
+        type: "p",
+        text: `To sign a transaction, the client app and the Furlpay HSM compute a signature cooperatively. Neither party ever reveals its share, and the complete private key is never assembled in memory. If our server is breached, the attacker cannot steal your funds because they lack Share A. If you lose your device, Furlpay assists recovery through a secure social/email verification protocol to regenerate your key shares.`,
       },
       {
         type: "quote",
-        text: "The goal is simple: developers integrate one API and their users never think about chains, gas or bridges.",
+        text: `Compromising one share yields nothing usable — an attacker must defeat both the device and the HSM policy at the same time.`,
       },
     ],
   },
+
+  // 3 -----------------------------------------------------------------
   {
-    slug: "navigating-mica-eea-auto-swap",
-    title: "Navigating MiCA in the EEA: Our Auto-Swap and Reserve Strategy",
+    slug: "navigating-mica-auto-swaps-eurc-usdc",
+    title: "Navigating MiCA: Why Furlpay Enforces Auto-Swaps to EURC/USDC",
     excerpt:
-      "How Furlpay keeps EEA users compliant under MiCA — auto-swapping non-compliant tokens and mapping every balance to an authorised e-money token.",
+      "With MiCA in full effect from July 1 2026, Furlpay's Dynamic Compliance Engine auto-swaps non-compliant stablecoins into authorised EMTs for EEA users.",
     category: "compliance",
-    date: "2026-06-12",
-    readMins: 6,
-    author: "Compliance Team",
-    body: [
-      {
-        type: "p",
-        text: "Under the EU Markets in Crypto-Assets (MiCA) regime, the tokens Furlpay settles in are treated as e-money tokens (EMTs) and asset-referenced tokens (ARTs). For EEA users, that shapes which stablecoins we hold and how.",
-      },
-      { type: "h2", text: "Auto-swap for compliant balances" },
-      {
-        type: "p",
-        text: "When an EEA user receives a token that isn't MiCA-authorised, the jurisdiction resolver flags it and offers an in-app auto-swap into a compliant EMT such as EURC — with the rate and fee shown before confirmation.",
-      },
-      { type: "h2", text: "Reserve transparency" },
-      {
-        type: "p",
-        text: "We publish monthly attestations for the issuers behind the EMTs we support, so enterprise partners can verify reserve backing without taking our word for it.",
-      },
-    ],
-  },
-  {
-    slug: "automating-fatf-travel-rule",
-    title: "Operating a Compliant On-Chain FinTech: How Furlpay Automates FATF Travel Rule Metadata Transmission",
-    excerpt:
-      "Travel Rule messaging shouldn't be a manual chore. Here's how Furlpay attaches originator and beneficiary data to qualifying transfers automatically.",
-    category: "compliance",
-    date: "2026-05-28",
+    date: "2026-06-25",
     readMins: 5,
     author: "Compliance Team",
     body: [
+      { type: "h2", text: "The regulatory landscape" },
       {
         type: "p",
-        text: "The FATF Travel Rule requires VASPs to exchange originator and beneficiary information for qualifying transfers. Furlpay attaches this metadata over the TRUST network automatically, keyed off the jurisdiction resolver.",
+        text: `As of July 1, 2026, the European Union's Markets in Crypto-Assets (MiCA) regulation is in full effect. One of its strictest provisions governs Electronic Money Tokens (EMTs) — commonly known as fiat-pegged stablecoins. To be legal in Europe, stablecoin issuers must hold a licence as a European Electronic Money Institution (EMI) or credit institution, maintaining 100% reserve segregation and publishing monthly audits.`,
       },
-      { type: "h2", text: "Where it fits in the request path" },
+      { type: "h2", text: "The USDT delisting wave" },
+      {
+        type: "p",
+        text: `Because of these requirements, many offshore, unregulated stablecoins (such as USDT) face restrictions or delisting across the EEA. To keep Furlpay 100% compliant while protecting users from regulatory blocks, we built a Dynamic Compliance Engine directly into the wallet routing layer:`,
+      },
+      {
+        type: "diagram",
+        text: `[ Inbound USDT ] ──(EEA user?)──> Yes ──> [ Auto-swap via Li.Fi ] ──> [ Compliant EURC/USDC Wallet ]
+                        └────────> No  ──> [ Standard USDT Deposit ]`,
+      },
+      {
+        type: "p",
+        text: `When a user in Europe receives a USDT payment or deposit, Furlpay detects the jurisdiction and automatically routes the transaction through on-chain liquidity (such as Uniswap or 1inch) to swap USDT for a fully authorised EMT — like EURC or Circle's USDC — before depositing it. European users can then spend seamlessly at Visa terminals without their cards being declined for regulatory reasons.`,
+      },
+    ],
+  },
+
+  // 4 -----------------------------------------------------------------
+  {
+    slug: "agentic-commerce-x402-ai-payments",
+    title: "Agentic Commerce: Securing Autonomous AI Payments with x402",
+    excerpt:
+      "Furlpay now supports the x402 Machine Payments Protocol, letting users delegate spend-limited sub-wallets to autonomous AI agents.",
+    category: "product-news",
+    date: "2026-06-20",
+    readMins: 5,
+    author: "Furlpay Team",
+    body: [
+      { type: "h2", text: "The AI economy" },
+      {
+        type: "p",
+        text: `We've entered the era of "agentic commerce." Users are no longer just using AI to write emails; they're deploying autonomous agents to manage businesses, buy software subscriptions and restock physical offices. But legacy card networks are structurally incapable of handling AI agents — they require human biometrics or 2FA checks to authorise a transaction.`,
+      },
+      { type: "h2", text: "Enter the x402 protocol" },
+      {
+        type: "p",
+        text: `To bridge this gap, Furlpay is proud to support the x402 Machine Payments Protocol, developed in collaboration with Stripe and Coinbase:`,
+      },
       {
         type: "code",
         lang: "typescript",
-        code: "// packages/compliance — attached transparently before broadcast\nconst rule = resolveTravelRule(originator, beneficiary, amount);\nif (rule.required) {\n  await trust.send({ originator, beneficiary, ref: transfer.id });\n}",
+        code: `// Authorize an AI agent to execute payments under strict limits
+const agentWallet = await Furlpay.agents.create({
+  ownerAddress: userSafeAddress,
+  spendingLimits: {
+    daily: 100.00,        // maximum $100 per day
+    perTransaction: 20.00 // maximum $20 per transaction
+  },
+  allowedMerchants: ["github.com", "openai.com", "vercel.com"]
+});`,
       },
       {
         type: "p",
-        text: "Route handlers stay jurisdiction-agnostic — the compliance package decides when the rule applies and handles the messaging.",
+        text: `Using x402, users delegate a sub-wallet to an AI agent. The agent signs micro-transactions on L2 networks using programmatic keys, but only within the limits set in the wallet contract. If the agent is compromised or goes rogue, it cannot spend beyond its daily allowance — bringing security and accountability to the machine economy.`,
       },
     ],
   },
+
+  // 5 -----------------------------------------------------------------
   {
-    slug: "cryptography-behind-2of2-mpc",
-    title: "Securing User Assets: The Cryptography Behind Furlpay's 2-of-2 MPC Key Generation",
+    slug: "erc-4337-paymasters-l2",
+    title: "Bypassing the Gas Crisis: ERC-4337 Paymasters on L2 Networks",
     excerpt:
-      "A developer-oriented walkthrough of how Furlpay splits signing across a device share and an HSM-policy share so no full private key ever exists.",
+      "Nobody should need ETH just to send USDC. How Furlpay uses ERC-4337 account abstraction and Paymasters to make gas disappear.",
     category: "engineering",
-    date: "2026-05-15",
-    readMins: 8,
+    date: "2026-06-15",
+    readMins: 5,
+    author: "Protocol Engineering",
+    body: [
+      { type: "h2", text: "The gas fee friction" },
+      {
+        type: "p",
+        text: `One of the largest hurdles to mainstream blockchain adoption is gas fees. Forcing a user to buy and hold ETH or MATIC just to transfer USDC is a poor experience. If a user holds $50 of USDC, they should be able to send it immediately — without buying a gas token first.`,
+      },
+      { type: "h2", text: "Account abstraction & Paymasters" },
+      {
+        type: "p",
+        text: `Furlpay leverages ERC-4337 account abstraction to solve this. Every Furlpay wallet is a deployed Safe smart-contract account. When a transaction is submitted:`,
+      },
+      {
+        type: "ul",
+        items: [
+          `The transaction is packaged as a UserOperation.`,
+          `It is sent to a Paymaster contract on-chain.`,
+          `The Paymaster pays the network gas fee (in ETH) to the validator.`,
+          `The Paymaster then deducts the equivalent value in USDC from the transaction — or sponsors the fee entirely for promotional tiers.`,
+        ],
+      },
+      {
+        type: "diagram",
+        text: `[ User Action ] ──(USDC)──> [ Paymaster Contract ] ──(ETH gas paid)──> [ Blockchain Network ]`,
+      },
+      {
+        type: "p",
+        text: `This gas abstraction makes stablecoin transactions feel exactly like traditional Web2 payments — smooth, fast and free of blockchain jargon.`,
+      },
+    ],
+  },
+
+  // 6 -----------------------------------------------------------------
+  {
+    slug: "wise-mid-market-fx-rates",
+    title: "Why Furlpay Integrates Wise for Mid-Market FX Rates",
+    excerpt:
+      "Most 'free' international transfers hide fees inside the exchange rate. Furlpay uses Wise's real mid-market rate with every fee shown upfront.",
+    category: "product-news",
+    date: "2026-06-10",
+    readMins: 4,
+    author: "Payments Team",
+    body: [
+      { type: "h2", text: "The FX fee scam" },
+      {
+        type: "p",
+        text: `Many neobanks and payment platforms claim to offer "free" international transfers, but they hide their fees in the exchange rate. They apply a marked-up rate and pocket the difference — which can cost users up to 3% of their transfer value.`,
+      },
+      { type: "h2", text: "Total transparency via Wise" },
+      {
+        type: "p",
+        text: `Furlpay is committed to total fee transparency. That's why we integrate directly with the Wise Business API for all fiat cross-border bank deposits (ACH, SEPA, SWIFT).`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Real mid-market rate: the exact rate you see on Google, with zero markups.`,
+          `Upfront fees: conversion fees (typically 0.3% to 0.5%) are shown clearly before you confirm.`,
+        ],
+      },
+      {
+        type: "diagram",
+        text: `[ User Stablecoins ] ──(Li.Fi swap)──> [ Fiat Account ] ──(Wise mid-market rate)──> [ Recipient Bank ]`,
+      },
+      {
+        type: "p",
+        text: `By combining stablecoin transfers with the Wise routing network, Furlpay lets you send money internationally at a fraction of the cost of traditional wires.`,
+      },
+    ],
+  },
+
+  // 7 -----------------------------------------------------------------
+  {
+    slug: "fractional-stock-investing-alpaca",
+    title: "Fractional US Stock Investing on Web3 Rails: The Alpaca SDK",
+    excerpt:
+      "Buy $1 of AAPL, TSLA or SPY straight from your Web3 dashboard. Fractional US equities via the Alpaca Brokerage-as-a-Service API.",
+    category: "product-news",
+    date: "2026-06-05",
+    readMins: 4,
+    author: "Investing Team",
+    body: [
+      { type: "h2", text: "Unifying your assets" },
+      {
+        type: "p",
+        text: `For most users, cash, stablecoins, crypto and stocks are scattered across different apps (Chase, Coinbase, Robinhood). This fragmentation makes it hard to track true net worth or move funds when markets shift. Furlpay solves it by bringing fractional stock investing directly into your Web3 dashboard.`,
+      },
+      { type: "h2", text: "Embedded brokerage-as-a-service" },
+      {
+        type: "p",
+        text: `Furlpay integrates the Alpaca Brokerage-as-a-Service API to enable seamless equity trading:`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Fractional shares: buy as little as $1 of common stocks and ETFs (AAPL, TSLA, SPY).`,
+          `Instant funding: sell stablecoins in your wallet and buy stocks immediately, without waiting for T+2 settlement.`,
+        ],
+      },
+      {
+        type: "code",
+        lang: "typescript",
+        code: `// Purchase fractional stock via Furlpay's investing client
+const order = await furlpay.investing.placeOrder({
+  symbol: 'AAPL',
+  notional: 10.00, // buy exactly $10 of Apple stock
+  side: 'buy',
+  type: 'market'
+});`,
+      },
+      {
+        type: "p",
+        text: `All accounts are opened directly with Alpaca Securities LLC, a regulated SEC broker-dealer, so your investments are protected by SIPC.`,
+      },
+    ],
+  },
+
+  // 8 -----------------------------------------------------------------
+  {
+    slug: "time-locked-preauthorization-escrows",
+    title: "Solving Card Declines: Time-Locked Pre-Authorization Escrows",
+    excerpt:
+      "Why self-custodial cards get declined at gas pumps and hotels — and how Furlpay's time-locked escrow contracts fix pre-authorization holds.",
+    category: "engineering",
+    date: "2026-06-01",
+    readMins: 5,
+    author: "Protocol Engineering",
+    body: [
+      { type: "h2", text: "The card hold problem" },
+      {
+        type: "p",
+        text: `Self-custodial debit cards frequently fail at gas pumps, hotels and car rental agencies. Traditional card networks require a pre-authorization hold (for example, locking $150 at the pump before fuel is dispensed). Because on-chain smart wallets can't easily support temporary hold states, these transactions are usually declined automatically.`,
+      },
+      { type: "h2", text: "The Furlpay escrow solution" },
+      {
+        type: "p",
+        text: `To solve this, Furlpay developed the Pre-Authorization Escrow Contract. When a merchant requests a hold, our backend creates an isolated, time-locked escrow and moves the hold amount from the user's wallet into it.`,
+      },
+      {
+        type: "diagram",
+        text: `[ Merchant pre-auth ] ──> [ Time-locked Escrow ] ──(final amount)──> [ Merchant ]
+                                 │
+                                 └──(remainder / 7-day expiry)──> [ User Wallet ]`,
+      },
+      {
+        type: "p",
+        text: `Once the final purchase amount settles, the escrow releases that amount to the merchant and returns the remaining balance to the user. If the merchant never claims the funds, the escrow automatically expires after 7 days, returning the entire deposit to the user — no stuck holds, no manual reversals.`,
+      },
+    ],
+  },
+
+  // 9 -----------------------------------------------------------------
+  {
+    slug: "death-of-the-seed-phrase-webauthn",
+    title: "The Death of the Seed Phrase: WebAuthn & Device Trust",
+    excerpt:
+      "Furlpay replaces the 12-word seed phrase with phishing-resistant WebAuthn passkeys bound to your device's secure hardware.",
+    category: "engineering",
+    date: "2026-05-28",
+    readMins: 5,
     author: "Security Engineering",
     body: [
+      { type: "h2", text: "The usability gap" },
       {
         type: "p",
-        text: "Furlpay wallets never materialise a single private key. Every signature is produced by a 2-of-2 multi-party computation between a device share and a server share held under HSM policy.",
+        text: `For decades, using cryptocurrency required writing down a 12- or 24-word seed phrase. Cryptographically secure, yes — but a massive usability gap for average users. Lose the paper and your funds are gone forever. Get tricked into typing it on a malicious site and your wallet is instantly drained.`,
       },
-      { type: "h2", text: "Key generation" },
+      { type: "h2", text: "Phishing-resistant WebAuthn" },
       {
         type: "p",
-        text: "During onboarding, the two parties run a distributed key generation (DKG) protocol. Each ends up with a secret share; the full key is never assembled, not even transiently, on either side.",
+        text: `Furlpay replaces seed phrases entirely by leveraging WebAuthn (FIDO2) credentials:`,
       },
       {
-        type: "ul",
-        items: [
-          "Device share — bound to hardware, unlocked by a WebAuthn passkey",
-          "Server share — released only when the Turnkey HSM policy passes",
-          "Neither share alone can produce a valid signature",
-        ],
+        type: "code",
+        lang: "javascript",
+        code: `// Register a new Furlpay account using local biometrics
+const credential = await navigator.credentials.create({
+  publicKey: {
+    challenge: serverChallenge,
+    rp: { name: "Furlpay" },
+    user: { id: userId, name: userName, displayName: userName },
+    pubKeyCredParams: [{ alg: -7, type: "public-key" }] // ES256
+  }
+});`,
       },
       {
-        type: "quote",
-        text: "If an attacker compromises one share, they get nothing usable — they must defeat both the device and the HSM policy simultaneously.",
+        type: "p",
+        text: `This API triggers the user's device — MacBook Touch ID, Windows Hello or a YubiKey — to generate a secure public-key credential. The private key stays locked inside the device's hardware security chip, protected from remote extraction and phishing. Furlpay associates the public key with your Safe smart wallet on-chain, letting you sign transactions with a fingerprint or face scan.`,
       },
     ],
   },
+
+  // 10 ----------------------------------------------------------------
   {
-    slug: "lessons-from-gnosis-pay-exploit",
-    title: "Lessons from the Gnosis Pay Exploit: Why Furlpay Uses Hybrid Off-Chain Policy Engines",
+    slug: "hybrid-off-chain-policy-guards",
+    title: "Securing the Ledger: Hybrid Off-Chain Policy Guards vs. Modular Bugs",
     excerpt:
-      "Following June 2026's Gnosis Pay incident, we explain the card-drain class of exploit and the architectural choices that prevent it on Furlpay.",
+      "Modular smart wallets expand the attack surface. Furlpay's hybrid guard pairs on-chain Safe wallets with an off-chain HSM policy engine.",
     category: "security",
-    date: "2026-06-25",
-    readMins: 7,
+    date: "2026-05-24",
+    readMins: 6,
     author: "Security Team",
     body: [
+      { type: "h2", text: "The risk of pure on-chain modularity" },
       {
         type: "p",
-        text: "In June 2026, an exploit drained funds from a set of Gnosis Pay cards. We think transparency serves users better than silence, so here's our read of the incident class — and why Furlpay's architecture is designed to prevent it.",
+        text: `Modern smart-contract wallets are designed to be modular. That flexibility lets developers add features like spending limits and time-locks — but it also expands the attack surface. If a single module contains a signature-verification flaw, an attacker can bypass the wallet's main security controls and drain its assets.`,
       },
-      { type: "h2", text: "The card-drain class of exploit" },
+      { type: "h2", text: "Furlpay's hybrid guard architecture" },
       {
         type: "p",
-        text: "Pure on-chain card modules often rely on standing token allowances. If the module or its allowance logic is subverted, an attacker can pull funds up to the approved amount. Unbounded or long-lived approvals turn a single flaw into a full drain.",
+        text: `To protect user assets from contract exploits, Furlpay implements a Hybrid Guard System that combines on-chain smart wallets with an off-chain security engine:`,
       },
-      { type: "h2", text: "Hybrid off-chain policy engine" },
+      {
+        type: "diagram",
+        text: `[ User Action ] ──> [ Policy Guard ] ──(verified?)──> Yes ──> [ HSM co-signs ] ──> [ Safe executes ]
+                                     └──────────────────> No  ──> [ Blocked ]`,
+      },
+      {
+        type: "p",
+        text: `Every transaction requires a 2-of-2 signature:`,
+      },
       {
         type: "ul",
         items: [
-          "No unbounded approvals — spend is capped per authorization at signing time",
-          "A hybrid off-chain policy engine gates each spend before any co-signature",
-          "Every settlement reconciles through the double-entry ledger — nothing moves without a matching entry",
+          `Signature 1: generated by the user's local passkey (client-side).`,
+          `Signature 2: generated by Furlpay's HSM backend (server-side).`,
         ],
       },
       {
         type: "p",
-        text: "The result: even a compromised on-chain component can't exceed a single pre-authorised amount, and anomalies surface immediately in reconciliation.",
+        text: `Before the HSM co-signs, it runs real-time security checks:`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Velocity limits — does this transaction exceed the user's typical patterns?`,
+          `Address screening — is the destination linked to high-risk wallets (via the Chainalysis API)?`,
+          `Sanctions checks — does the transaction comply with global regulatory guidelines?`,
+        ],
+      },
+      {
+        type: "p",
+        text: `If an attacker exploits a bug in a smart-contract module, they still can't drain your wallet — they lack the HSM's co-signature. This hybrid approach gives you the security of self-custody alongside the active protection of a traditional bank.`,
       },
     ],
   },
