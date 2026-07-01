@@ -59,8 +59,10 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  // Run on app pages + API, skip static assets and the OpenAPI file.
+  // Run on app pages + API; skip Next internals and any static asset with a
+  // file extension (images, og.png, svgo logos, fonts) so crawlers and social
+  // scrapers fetch them directly without hitting the auth redirect.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|openapi.json).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|json|xml|txt)).*)",
   ],
 };
