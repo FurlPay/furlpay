@@ -65,6 +65,43 @@ export const SEARCH_INDEX: SearchDoc[] = [
     keywords: ["webhooks/marqeta", "webhooks", "marqeta", "bridge", "wise", "callback", "signature verification"],
   },
 
+  // ---- Integrations ----------------------------------------------------
+  {
+    title: "Stripe Crypto checkout",
+    section: "Integrations",
+    href: "/docs/integrations/stripe-crypto",
+    snippet: "Accept stablecoin payments with the Stripe PaymentIntents API + Elements.",
+    keywords: ["stripe", "crypto", "stablecoin", "payment intent", "paymentintents", "elements", "usdc", "checkout", "bridge"],
+  },
+  {
+    title: "Stripe payouts & transfers",
+    section: "Integrations",
+    href: "/docs/integrations/stripe-crypto#payouts",
+    snippet: "B2B settlement payouts to merchant wallets via the Transfers API.",
+    keywords: ["stripe transfers", "payout", "b2b", "connect", "settlement", "merchant", "bridge rails"],
+  },
+  {
+    title: "Stripe webhook verification",
+    section: "Integrations",
+    href: "/docs/integrations/stripe-crypto#security",
+    snippet: "Verify the stripe-signature header with constructEvent before trusting events.",
+    keywords: ["stripe webhook", "constructEvent", "stripe-signature", "hmac", "payment_intent.succeeded", "signature verification"],
+  },
+  {
+    title: "Persona KYC & liveness",
+    section: "Integrations",
+    href: "/docs/integrations/persona-kyc",
+    snippet: "Embedded identity verification with selfie + government ID and PAD liveness.",
+    keywords: ["persona", "kyc", "identity", "liveness", "selfie", "biometric", "inquiry", "template id", "withpersona"],
+  },
+  {
+    title: "Persona webhooks & KYB",
+    section: "Integrations",
+    href: "/docs/integrations/persona-kyc#webhooks",
+    snippet: "Verify persona-signature, handle inquiry outcomes, and run KYB owner screening.",
+    keywords: ["persona webhook", "persona-signature", "inquiry.completed", "kyb", "business associated persons", "ubo", "inquiry search"],
+  },
+
   // ---- Compliance & Licensing ------------------------------------------
   {
     title: "MiCA roadmap",

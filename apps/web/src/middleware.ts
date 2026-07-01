@@ -15,6 +15,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth",
   "/api/webhooks",
   "/api/checkout",
+  "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
 ];
 

@@ -11,6 +11,7 @@ import {
 } from "@/lib/passkey";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import PhoneInput from "@/components/PhoneInput";
+import PersonaKycButton from "@/components/PersonaKycButton";
 
 interface KycResult {
   status: string;
@@ -61,6 +62,14 @@ export default function SignupPage() {
     } finally {
       setBusy(false);
     }
+  }
+
+  // Persona biometric flow completed → treat identity as verified and continue
+  // to phone OTP, mirroring the manual runKyc() path.
+  async function handlePersonaVerified(_inquiryId: string) {
+    setKyc({ status: "approved", provider: "Persona", reasons: [], completedInMs: 0 });
+    await sendCode();
+    setStep("otp");
   }
 
   async function sendCode() {
@@ -153,6 +162,21 @@ export default function SignupPage() {
             <div className="rounded-2xl bg-loss/15 p-3 text-[13px] text-loss">
               KYC rejected: {kyc.reasons.join(", ")}
             </div>
+          )}
+
+          {process.env.NEXT_PUBLIC_PERSONA_TEMPLATE_ID && (
+            <>
+              <div className="flex items-center gap-3 py-1 text-[11px] text-textMuted">
+                <div className="h-px flex-1 bg-white/10" /> or verify with biometrics{" "}
+                <div className="h-px flex-1 bg-white/10" />
+              </div>
+              <PersonaKycButton
+                userId={email || fullName || "furlpay-signup"}
+                disabled={!canVerify}
+                onSuccess={handlePersonaVerified}
+                onCancel={() => {}}
+              />
+            </>
           )}
         </div>
       )}

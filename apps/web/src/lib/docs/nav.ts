@@ -21,6 +21,13 @@ export const DOCS_NAV: DocSection[] = [
     ],
   },
   {
+    label: "Integrations",
+    items: [
+      { title: "Stripe Crypto", href: "/docs/integrations/stripe-crypto" },
+      { title: "Persona KYC", href: "/docs/integrations/persona-kyc" },
+    ],
+  },
+  {
     label: "Legal & Compliance",
     items: [{ title: "MiCA Roadmap", href: "/docs/compliance/mica" }],
   },
