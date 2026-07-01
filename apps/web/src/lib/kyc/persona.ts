@@ -46,6 +46,38 @@ export async function searchInquiries(query: string): Promise<unknown[]> {
   return data.data ?? [];
 }
 
+// KYB — Business Associated Persons report (updated June 22, 2026). Returns the
+// list of ultimate beneficial owners (UBOs) so callers can screen each owner
+// against TRM Labs / sanctions databases.
+export interface KybOwner {
+  name: string;
+  percentage: number;
+  role: string;
+  verification_status: string;
+}
+
+export async function getBusinessAssociatedPersons(reportId: string): Promise<KybOwner[]> {
+  const res = await fetch(`https://withpersona.com/api/v1/reports/${reportId}`, {
+    headers: {
+      Authorization: `Bearer ${process.env.PERSONA_API_KEY ?? ""}`,
+      "Persona-Version": "2026-06-09",
+    },
+  });
+  if (!res.ok) throw new Error(`Persona report fetch failed: ${res.status}`);
+  const data = await res.json();
+  return data?.data?.attributes?.ownership_information?.owners ?? [];
+}
+
+// Screen each UBO against an external risk provider (TRM Labs / sanctions).
+// `screen` returns true when the owner is flagged; the caller wires in the real
+// provider so this stays dependency-free.
+export async function screenOwners(
+  owners: KybOwner[],
+  screen: (name: string) => Promise<boolean>
+): Promise<Array<KybOwner & { flagged: boolean }>> {
+  return Promise.all(owners.map(async (o) => ({ ...o, flagged: await screen(o.name) })));
+}
+
 function hmac(secret: string, message: string): string {
   return crypto.createHmac("sha256", secret).update(message).digest("hex");
 }
