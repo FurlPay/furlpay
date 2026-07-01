@@ -238,9 +238,9 @@ function Footer() {
 
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/5 pt-6 text-[12px] text-textMuted">
           <Link href="/docs" className="hover:text-white">Terms</Link>
-          <Link href="/docs" className="hover:text-white">Privacy</Link>
-          <Link href="/docs" className="hover:text-white">SEC/FINRA disclosures</Link>
-          <Link href="/docs" className="hover:text-white">MiCA registrations</Link>
+          <Link href="/docs/security/mpc-webauthn" className="hover:text-white">Privacy</Link>
+          <Link href="/docs/compliance/mica" className="hover:text-white">SEC/FINRA disclosures</Link>
+          <Link href="/docs/compliance/mica" className="hover:text-white">MiCA registrations</Link>
           <span className="text-textMuted/70">
             BTG Begbies Traynor — historic liquidator reference note (for clarity).
           </span>
