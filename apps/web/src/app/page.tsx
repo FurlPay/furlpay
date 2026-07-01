@@ -200,15 +200,19 @@ function Footer() {
 
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/5 pt-6 text-[12px] text-textMuted">
           <Link href="/blog" className="hover:text-white">Blog</Link>
-          <Link href="/docs" className="hover:text-white">Terms</Link>
-          <Link href="/docs/security/mpc-webauthn" className="hover:text-white">Privacy</Link>
-          <Link href="/docs/compliance/mica" className="hover:text-white">SEC/FINRA disclosures</Link>
-          <Link href="/docs/compliance/mica" className="hover:text-white">MiCA registrations</Link>
-          <span className="text-textMuted/70">
+          <Link href="/legal/terms" className="hover:text-white">Terms</Link>
+          <Link href="/legal/privacy" className="hover:text-white">Privacy</Link>
+          <Link href="/legal/disclosures#securities" className="hover:text-white">SEC/FINRA disclosures</Link>
+          <Link href="/legal/disclosures#mica" className="hover:text-white">MiCA registrations</Link>
+          <Link href="/legal/disclosures#corporate-notice" className="text-textMuted/70 hover:text-white">
             BTG Begbies Traynor — historic liquidator reference note (for clarity).
-          </span>
+          </Link>
         </div>
-        <p className="mt-4 text-[11px] text-textMuted">© 2026 Furlpay. All rights reserved.</p>
+        <p className="mt-4 max-w-4xl text-[11px] leading-relaxed text-textMuted">
+          © 2026 Furlpay. All rights reserved. All securities products are offered through Alpaca Securities
+          LLC. All banking services are provided by FDIC-insured sponsor banks. Stablecoin conversions are
+          processed by Bridge.xyz.
+        </p>
       </div>
     </footer>
   );

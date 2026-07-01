@@ -3,11 +3,15 @@
 import { usePathname } from "next/navigation";
 import BottomNav from "@/components/BottomNav";
 
-// Layout switch. Marketing (/), the docs portal (/docs*) and the blog (/blog*)
-// render full-bleed so they can use the whole viewport; every other route keeps
-// the phone-frame app chrome (centered 440px column + bottom tab bar).
+// Layout switch. Marketing (/), the docs portal (/docs*), the blog (/blog*) and
+// the legal section (/legal*) render full-bleed so they can use the whole
+// viewport; every other route keeps the phone-frame app chrome (centered 440px
+// column + bottom tab bar).
 const FULL_BLEED = (pathname: string) =>
-  pathname === "/" || pathname.startsWith("/docs") || pathname.startsWith("/blog");
+  pathname === "/" ||
+  pathname.startsWith("/docs") ||
+  pathname.startsWith("/blog") ||
+  pathname.startsWith("/legal");
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

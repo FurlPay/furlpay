@@ -10,7 +10,7 @@ import { SESSION_COOKIE, verifySession } from "@/lib/session";
 // ---------------------------------------------------------------------------
 
 const PUBLIC_PAGES = new Set(["/", "/login", "/signup"]);
-const PUBLIC_PAGE_PREFIXES = ["/docs", "/blog"]; // public marketing/docs/blog subtrees
+const PUBLIC_PAGE_PREFIXES = ["/docs", "/blog", "/legal"]; // public marketing/docs/blog/legal subtrees
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
   "/api/webhooks",
