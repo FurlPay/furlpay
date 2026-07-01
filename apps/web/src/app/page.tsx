@@ -5,6 +5,7 @@ import StoreBadges from "@/components/marketing/StoreBadges";
 import CodePreview from "@/components/marketing/CodePreview";
 import PricingCards from "@/components/marketing/PricingCards";
 import PartnerMarquee from "@/components/marketing/PartnerMarquee";
+import SupportChatBubble from "@/components/marketing/SupportChatBubble";
 import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon } from "@/components/marketing/SocialIcons";
 
 // Furlpay marketing landing page (furlpay.app/). Premium OLED theme with green
@@ -20,6 +21,7 @@ export default function LandingPage() {
       <Security />
       <Pricing />
       <Footer />
+      <SupportChatBubble />
     </div>
   );
 }
