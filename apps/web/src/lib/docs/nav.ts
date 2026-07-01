@@ -21,6 +21,13 @@ export const DOCS_NAV: DocSection[] = [
     ],
   },
   {
+    label: "Payments",
+    items: [
+      { title: "Agentic Payments (x402)", href: "/docs/payments/agentic-x402" },
+      { title: "Solana Actions & Blinks", href: "/docs/payments/solana-actions" },
+    ],
+  },
+  {
     label: "Integrations",
     items: [
       { title: "Stripe Crypto", href: "/docs/integrations/stripe-crypto" },

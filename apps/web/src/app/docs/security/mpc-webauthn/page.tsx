@@ -31,10 +31,37 @@ export default function SecurityPage() {
 
       <H2 id="webauthn">WebAuthn passkeys</H2>
       <P>
-        Login uses <b>WebAuthn / FIDO2</b> passkeys — fingerprint or Face ID, no passwords. Credentials are
-        bound to the registrable domain via <Code>FURLPAY_RP_ID</Code>, so a phishing origin can never
-        replay them.
+        Login uses <b>WebAuthn / FIDO2</b> passkeys — fingerprint or Face ID, no passwords. The Relying
+        Party ID is resolved from explicit server configuration (<Code>FURLPAY_RP_ID</Code> / Vercel deploy
+        URL), <b>never</b> from the client-controlled <Code>Host</Code> header — the single most common
+        WebAuthn deployment mistake, and the one that lets a reverse-proxy phishing origin bind credentials.
+        Assertions verify against an allow-list of origins and RP IDs.
       </P>
+      <UL>
+        <LI>Registration and assertion run through <Code>@simplewebauthn/server</Code> (origin, challenge, and signature-counter checks).</LI>
+        <LI>Credentials are bound to the registrable eTLD+1, so they can never be replayed on another domain.</LI>
+      </UL>
+
+      <H2 id="sessions">Signed sessions</H2>
+      <P>
+        A successful passkey ceremony mints a short-lived, HttpOnly session cookie — a signed JWT
+        (<Code>jose</Code>, HS256) verified in edge middleware, so tampered or expired tokens are rejected
+        before any handler runs. The signing secret is <b>required</b> in production; the app refuses to
+        start with the weak development fallback.
+      </P>
+
+      <H2 id="agentic">Agentic payment security (x402)</H2>
+      <P>
+        Furlpay&apos;s x402 endpoints let AI agents pay per request — where the payment <i>is</i> the auth,
+        so payment verification is the entire security boundary. Our verifier is hardened against the four
+        attack classes documented in 2026 research (arXiv 2605.11781 / 2605.30998):
+      </P>
+      <UL>
+        <LI><b>Authorization</b> — every field (amount, recipient, network) is checked server-side; the client&apos;s copy of the quote is never trusted.</LI>
+        <LI><b>Binding</b> — each quote carries an HMAC over <Code>(resource, method, amount, expiry)</Code>, so a payment for one endpoint can&apos;t unlock another.</LI>
+        <LI><b>Replay</b> — quote IDs and EIP-3009 nonces are single-use with a short expiry window.</LI>
+        <LI><b>Web-layer</b> — the <Code>X-PAYMENT</Code> header is size-capped and strictly parsed; malformed input returns 400, never a free resource.</LI>
+      </UL>
 
       <H2 id="fraud">Real-time fraud — Sardine</H2>
       <P>

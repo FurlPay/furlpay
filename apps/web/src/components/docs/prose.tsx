@@ -116,6 +116,104 @@ export function EndpointTable({ rows }: { rows: { method: string; path: string; 
   );
 }
 
+export function Badge({ children, tone = "neon" }: { children: React.ReactNode; tone?: "neon" | "muted" }) {
+  const tones = {
+    neon: "border-neon/25 bg-neonSoft text-neon",
+    muted: "border-white/10 bg-white/[0.04] text-textSecondary",
+  };
+  return (
+    <span className={`rounded-md border px-2 py-0.5 font-mono text-[11px] font-semibold ${tones[tone]}`}>
+      {children}
+    </span>
+  );
+}
+
+export function Figure({ caption, children }: { caption?: string; children: React.ReactNode }) {
+  return (
+    <figure className="mb-6 overflow-hidden rounded-2xl border border-white/10 bg-[#0A0A0C]">
+      <div className="p-5">{children}</div>
+      {caption && (
+        <figcaption className="border-t border-white/5 bg-white/[0.02] px-5 py-2.5 text-[12px] text-textSecondary">
+          {caption}
+        </figcaption>
+      )}
+    </figure>
+  );
+}
+
+// Layered dependency graph. Each layer is a labelled row of nodes; layers stack
+// top-to-bottom with a downward connector, so upper layers depend on lower ones.
+export type GraphNode = { name: string; sub?: string };
+export type GraphLayer = { label: string; hint?: string; nodes: GraphNode[]; accent?: boolean };
+
+export function DepGraph({ layers, caption }: { layers: GraphLayer[]; caption?: string }) {
+  return (
+    <Figure caption={caption}>
+      <div className="space-y-2">
+        {layers.map((layer, i) => (
+          <div key={layer.label}>
+            <div
+              className={`rounded-xl border p-3 ${
+                layer.accent
+                  ? "border-neon/25 bg-neonSoft/40"
+                  : "border-white/10 bg-white/[0.03]"
+              }`}
+            >
+              <div className="mb-2 flex items-baseline justify-between">
+                <span className="text-[12px] font-bold uppercase tracking-wider text-textSecondary">
+                  {layer.label}
+                </span>
+                {layer.hint && <span className="text-[11px] text-textMuted">{layer.hint}</span>}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {layer.nodes.map((n) => (
+                  <div
+                    key={n.name}
+                    className={`rounded-lg border px-3 py-1.5 ${
+                      layer.accent
+                        ? "border-neon/30 bg-black/30"
+                        : "border-white/10 bg-black/40"
+                    }`}
+                  >
+                    <span className="font-mono text-[12px] font-semibold text-white/90">{n.name}</span>
+                    {n.sub && <span className="ml-2 text-[11px] text-textMuted">{n.sub}</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
+            {i < layers.length - 1 && (
+              <div className="flex justify-center py-0.5 text-textSecondary" aria-hidden>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                  <path d="M8 2v10M4 9l4 4 4-4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+    </Figure>
+  );
+}
+
+// Grid of workspace/module specification cards.
+export type Spec = { name: string; badge?: string; desc: string };
+
+export function SpecGrid({ specs }: { specs: Spec[] }) {
+  return (
+    <div className="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {specs.map((s) => (
+        <div key={s.name} className="rounded-xl border border-white/10 bg-white/[0.02] p-4">
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="font-mono text-[13px] font-bold text-neon">{s.name}</span>
+            {s.badge && <Badge tone="muted">{s.badge}</Badge>}
+          </div>
+          <p className="text-[13px] leading-relaxed text-textMuted">{s.desc}</p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Prev/next pager driven by the flat doc order.
 export function DocPager({ pathname }: { pathname: string }) {
   const { prev, next } = adjacentDocs(pathname);

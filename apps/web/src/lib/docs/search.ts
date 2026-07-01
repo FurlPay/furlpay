@@ -65,6 +65,29 @@ export const SEARCH_INDEX: SearchDoc[] = [
     keywords: ["webhooks/marqeta", "webhooks", "marqeta", "bridge", "wise", "callback", "signature verification"],
   },
 
+  // ---- Payments --------------------------------------------------------
+  {
+    title: "Agentic Payments (x402)",
+    section: "Payments",
+    href: "/docs/payments/agentic-x402",
+    snippet: "Pay-per-request USDC over HTTP 402 for AI agents — hardened verification.",
+    keywords: ["x402", "agentic payments", "http 402", "payment required", "ai agents", "usdc", "eip-3009", "pay per call", "X-PAYMENT", "coinbase"],
+  },
+  {
+    title: "x402 endpoint — GET /api/x402/fx",
+    section: "Payments",
+    href: "/docs/payments/agentic-x402#pay",
+    snippet: "Pay $0.01 USDC per mid-market FX quote via the x402 flow.",
+    keywords: ["/api/x402/fx", "x402 fx", "pay per call", "402 quote", "agent api", "micropayment"],
+  },
+  {
+    title: "Solana Actions & Blinks",
+    section: "Payments",
+    href: "/docs/payments/solana-actions",
+    snippet: "Shareable checkout links that unfurl into signable payment widgets.",
+    keywords: ["solana actions", "blinks", "actions.json", "dialect", "checkout link", "unfurl", "spl-token", "transferChecked", "dial.to"],
+  },
+
   // ---- Integrations ----------------------------------------------------
   {
     title: "Stripe Crypto checkout",
