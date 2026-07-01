@@ -277,10 +277,13 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function Logo() {
   return (
-    <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-neon shadow-glow-sm">
-      <svg viewBox="0 0 24 24" className="h-4 w-4 text-black" fill="none" stroke="currentColor" strokeWidth="3">
-        <path d="M5 5h14M5 12h10M5 19h6" strokeLinecap="round" />
-      </svg>
-    </span>
+    /* eslint-disable-next-line @next/next/no-img-element */
+    <img
+      src="/icon.png"
+      alt="Furlpay"
+      width={28}
+      height={28}
+      className="h-7 w-7 rounded-lg shadow-glow-sm"
+    />
   );
 }

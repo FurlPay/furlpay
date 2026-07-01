@@ -27,7 +27,7 @@ export const GET = async (
 
   const payload: ActionGetResponse = {
     type: "action",
-    icon: `${base}/furlpay-mark.svg`,
+    icon: `${base}/icon.png`,
     title: "Furlpay Secure Checkout",
     description: `Pay for order #${order.orderId} instantly on Solana with USDC or SOL — sub-second finality, sub-cent fees.`,
     label: `Pay $${price}`,

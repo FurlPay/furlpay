@@ -51,7 +51,7 @@ const JSON_LD = {
       "@id": `${SITE}/#org`,
       name: "Furlpay",
       url: SITE,
-      logo: `${SITE}/furlpay-mark.svg`,
+      logo: `${SITE}/icon.png`,
       email: "hello@furlpay.com",
       sameAs: [
         "https://github.com/FurlPay",

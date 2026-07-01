@@ -63,6 +63,6 @@ export const config = {
   // file extension (images, og.png, svgo logos, fonts) so crawlers and social
   // scrapers fetch them directly without hitting the auth redirect.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|json|xml|txt)).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|json|xml|txt)).*)",
   ],
 };
