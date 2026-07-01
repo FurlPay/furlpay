@@ -34,6 +34,7 @@ function Nav() {
         <nav className="hidden items-center gap-8 text-sm text-textSecondary md:flex">
           <a href="#features" className="transition-colors hover:text-white">Features</a>
           <Link href="/docs" className="transition-colors hover:text-white">Developer Docs</Link>
+          <Link href="/blog" className="transition-colors hover:text-white">Blog</Link>
           <a href="#pricing" className="transition-colors hover:text-white">Pricing</a>
           <a href="#security" className="transition-colors hover:text-white">Security</a>
         </nav>
@@ -198,6 +199,7 @@ function Footer() {
         </div>
 
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/5 pt-6 text-[12px] text-textMuted">
+          <Link href="/blog" className="hover:text-white">Blog</Link>
           <Link href="/docs" className="hover:text-white">Terms</Link>
           <Link href="/docs/security/mpc-webauthn" className="hover:text-white">Privacy</Link>
           <Link href="/docs/compliance/mica" className="hover:text-white">SEC/FINRA disclosures</Link>
