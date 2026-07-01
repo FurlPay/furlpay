@@ -31,6 +31,7 @@ and live KYC.
 ## Table of contents
 
 - [Overview](#overview)
+- [Architecture](#architecture)
 - [Feature summary](#feature-summary)
 - [Tech stack](#tech-stack)
 - [Icon system](#icon-system)
@@ -62,6 +63,108 @@ Furlpay unifies four products into one app:
 
 Underneath, a shared compliance package enforces MiCA and GENIUS stablecoin
 routing, KYC and AML screening, and the FATF Travel Rule.
+
+---
+
+## Architecture
+
+### System architecture
+
+```mermaid
+graph TD
+    subgraph Clients
+        WEB["Web app (Next.js)"]
+        DESK["Desktop (Tauri)"]
+        EXT["Browser extension (MV3)"]
+    end
+
+    subgraph Edge
+        MW["Auth middleware + session"]
+        WAF["Cloudflare WAF / TLS 1.3"]
+    end
+
+    subgraph API["API layer (Next.js route handlers)"]
+        AUTH["auth / webauthn"]
+        WAL["wallets / transfer"]
+        CARD["cards / settings / spend"]
+        INV["investing"]
+        BANK["banking"]
+        SWAP["swaps / intents"]
+        SEC["security / mfa"]
+        COMP["compliance / kyc / tier / jurisdiction"]
+        HOOK["webhooks"]
+    end
+
+    subgraph Packages["Shared packages"]
+        PSEC["@furlpay/security"]
+        PCOMP["@furlpay/compliance"]
+        PACC["@furlpay/account-kit"]
+        PTYPES["@furlpay/types"]
+        PUI["@furlpay/ui"]
+    end
+
+    subgraph Services["Service seams (mock now, live later)"]
+        MPC["MPC / HSM: Turnkey, Fireblocks"]
+        SAFE["Safe / ERC-4337 + Paymaster"]
+        CCTP["Circle CCTP V2"]
+        LIFI["Li.Fi / 1inch"]
+        WISE["Wise / Bridge rails"]
+        ALP["Alpaca brokerage"]
+        MQ["Marqeta card issuing"]
+        RISK["Sardine risk"]
+        AML["Chainalysis / TRM"]
+        KYCP["Persona / Sumsub"]
+    end
+
+    STORE["Ledger / store (in-memory now, Postgres later)"]
+
+    WEB --> MW
+    DESK --> MW
+    EXT --> MW
+    MW --> WAF --> API
+
+    API --> Packages
+    WAL --> PSEC --> MPC
+    WAL --> SAFE
+    SWAP --> CCTP
+    SWAP --> LIFI
+    COMP --> PCOMP --> AML
+    COMP --> KYCP
+    SEC --> PSEC --> RISK
+    CARD --> MQ
+    INV --> ALP
+    BANK --> WISE
+    HOOK --> PCOMP
+    API --> STORE
+```
+
+### High-value transfer flow
+
+```mermaid
+sequenceDiagram
+    participant U as User (passkey)
+    participant W as Web app
+    participant API as transfer API
+    participant R as Risk engine
+    participant S as Step-up MFA
+    participant P as Policy + AML
+    participant M as MPC (share A + B)
+    participant C as Chain
+
+    U->>W: Authorize transfer
+    W->>API: signature + device signals + mfaCode
+    API->>R: assessRisk(device, behavior)
+    R-->>API: allow / challenge / block
+    API->>S: requiresStepUp(amount >= $5000)?
+    S-->>API: verify TOTP / WebAuthn
+    API->>P: velocity + limits + AML screen
+    P-->>API: approved
+    API->>M: client share A + server share B co-sign
+    Note over M: server share refuses if policy failed
+    M-->>API: signature
+    API->>C: gas-sponsored transfer (Paymaster)
+    C-->>U: settled
+```
 
 ---
 
@@ -407,7 +510,48 @@ Verified locally:
 
 ## Roadmap
 
-Done:
+### Phased plan
+
+```mermaid
+graph LR
+    subgraph P1["Phase 1 - Prototype (done)"]
+        A1["Monorepo + web app + API"]
+        A2["4 SDKs + CLI + MCP"]
+        A3["CCTP V2 intent router"]
+        A4["Tiered / reusable KYC"]
+        A5["Jurisdiction resolver"]
+        A6["Security: MPC, MFA, risk engine"]
+        A7["Brand logos + Lucide icons"]
+    end
+
+    subgraph P2["Phase 2 - Finish prototype"]
+        B1["Real session / JWT + WebAuthn verify"]
+        B2["zod validation on all routes"]
+        B3["Server-Component migration"]
+        B4["Web / e2e tests"]
+        B5["Package desktop + extension"]
+    end
+
+    subgraph P3["Phase 3 - Beta (make it real)"]
+        C1["Persistence: Postgres / per-user"]
+        C2["Live integrations (swap mocks)"]
+        C3["Settlement ledger + reconciliation"]
+        C4["Disputes / chargebacks / support"]
+    end
+
+    subgraph P4["Phase 4 - Production"]
+        D1["Licensing: EMI/BaaS, sponsor bank, MTL"]
+        D2["Security audits + pen-test + SOC2"]
+        D3["Contract audits (Slither/Mythril)"]
+        D4["Public launch"]
+    end
+
+    P1 --> P2 --> P3 --> P4
+```
+
+### Status detail
+
+Done (Phase 1):
 
 - Official brand-logo components (CoinLogo, ChainLogo, CardNetworkLogo) wired
   into the dashboard and cards.
@@ -419,9 +563,12 @@ Done:
   (`/api/compliance/jurisdiction`).
 - Defense-in-depth security: 2-of-2 MPC, step-up MFA (TOTP), device risk engine.
 
-Next:
+Next (Phase 2):
 
-- Real session and JWT signing, zod request validation, and a full
-  Server-Component data-fetch migration.
+- Real session and JWT signing, true WebAuthn assertion verification.
+- zod request validation, and a full Server-Component data-fetch migration.
 - Wallet, exchange and market-data brand logos; secondary Material Symbols set.
-- Desktop and extension packaging and distribution.
+- Web / e2e tests; desktop and extension packaging and distribution.
+
+Later (Phase 3-4): persistence, live integrations, settlement ledger,
+licensing and partners, and security/compliance audits before any launch.
