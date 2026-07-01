@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Furlpay",
+  "version": "0.1.0",
+  "description": "Pay with stablecoins anywhere — injects the Furlpay checkout button and one-tap virtual cards.",
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Furlpay"
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://*/*"],
+      "js": ["src/content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "permissions": ["storage", "activeTab", "scripting"],
+  "host_permissions": ["https://api.furlpay.app/*"],
+  "icons": {
+    "16": "public/icon16.png",
+    "48": "public/icon48.png",
+    "128": "public/icon128.png"
+  }
+}

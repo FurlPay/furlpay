@@ -1,0 +1,25 @@
+{
+  "name": "furlpay-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Furlpay — the Stripe + Coinbase of stablecoins & fractional investing. Turborepo monorepo.",
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "sdks/node",
+    "mcp"
+  ],
+  "scripts": {
+    "dev": "turbo run dev --filter=@furlpay/web",
+    "build": "turbo run build --filter=!@furlpay/desktop",
+    "build:desktop": "turbo run build --filter=@furlpay/desktop",
+    "lint": "turbo run lint --filter=@furlpay/web",
+    "web": "npm run dev --workspace @furlpay/web",
+    "test": "npm run build --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/compliance",
+    "cli": "node packages/cli/bin/furlpay.js"
+  },
+  "devDependencies": {
+    "turbo": "2.0.9"
+  },
+  "packageManager": "npm@10.0.0"
+}

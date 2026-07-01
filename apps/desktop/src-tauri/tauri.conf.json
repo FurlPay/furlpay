@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Furlpay",
+  "version": "0.1.0",
+  "identifier": "app.furlpay.desktop",
+  "build": {
+    "beforeDevCommand": "npm run dev --workspace @furlpay/web",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build --workspace @furlpay/web",
+    "frontendDist": "../../web/.next"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Furlpay",
+        "width": 1200,
+        "height": 800,
+        "minWidth": 900,
+        "minHeight": 640,
+        "theme": "Dark"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' https://api.furlpay.app"
+    }
+  },
+  "bundle": {
+    "active": false,
+    "targets": "all",
+    "icon": []
+  }
+}

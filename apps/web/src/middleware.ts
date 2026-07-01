@@ -1,0 +1,45 @@
+import { NextRequest, NextResponse } from "next/server";
+
+// ---------------------------------------------------------------------------
+// Auth gate. A `furlpay_session` cookie is minted on passkey login/registration.
+//  - Protected PAGES without a session → redirect to /login.
+//  - Protected APIs without a session → 401 JSON.
+// Public: marketing/auth pages, auth + webhook + checkout + KYC endpoints
+// (webhooks are authenticated by signature, checkout by merchant key).
+// ---------------------------------------------------------------------------
+
+const PUBLIC_PAGES = new Set(["/", "/login", "/signup"]);
+const PUBLIC_API_PREFIXES = [
+  "/api/auth",
+  "/api/webhooks",
+  "/api/checkout",
+  "/api/compliance/kyc", // needed during signup, before a session exists
+];
+
+export function middleware(req: NextRequest) {
+  const { pathname } = req.nextUrl;
+  const hasSession = Boolean(req.cookies.get("furlpay_session")?.value);
+
+  const isApi = pathname.startsWith("/api");
+  const isPublicApi = PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
+
+  if (isApi) {
+    if (isPublicApi || hasSession) return NextResponse.next();
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Page routes
+  if (PUBLIC_PAGES.has(pathname) || hasSession) return NextResponse.next();
+
+  const url = req.nextUrl.clone();
+  url.pathname = "/login";
+  url.searchParams.set("next", pathname);
+  return NextResponse.redirect(url);
+}
+
+export const config = {
+  // Run on app pages + API, skip static assets and the OpenAPI file.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|openapi.json).*)",
+  ],
+};

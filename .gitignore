@@ -1,0 +1,24 @@
+# Dependencies
+node_modules
+
+# Build output
+.next
+out
+dist
+.turbo
+sdks/rust/target
+sdks/go/bin
+apps/desktop/src-tauri/target
+
+# Env / secrets (keep .env.example)
+.env
+.env.*
+!.env.example
+.airtable.env
+*.pem
+*.key
+
+# Misc
+*.log
+.DS_Store
+Thumbs.db

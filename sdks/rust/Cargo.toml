@@ -1,0 +1,15 @@
+[package]
+name = "furlpay"
+version = "0.1.0"
+edition = "2021"
+description = "Official Furlpay server-side SDK for Rust"
+license = "MIT"
+
+[dependencies]
+# Pure-Rust HMAC-SHA256 so webhook verification needs no OpenSSL.
+# (HTTP client left to the integrator; enable the `reqwest` feature for a
+# batteries-included client.)
+
+[lib]
+name = "furlpay"
+path = "src/lib.rs"

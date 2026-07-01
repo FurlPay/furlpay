@@ -1,0 +1,11 @@
+{
+  "name": "@furlpay/cli",
+  "version": "0.1.0",
+  "description": "Furlpay command-line interface — like stripe-cli, for stablecoins",
+  "license": "MIT",
+  "bin": {
+    "furlpay": "bin/furlpay.js"
+  },
+  "files": ["bin", "lib"],
+  "type": "commonjs"
+}

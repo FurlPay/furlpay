@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  web-and-node:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      - name: Lint web app
+        run: npm run lint --workspace @furlpay/web
+      - name: Build web app
+        run: npm run build --workspace @furlpay/web
+      - name: Build & test Node SDK
+        run: |
+          npm run build --workspace @furlpay/furlpay-node
+          npm test --workspace @furlpay/furlpay-node
+      - name: Test compliance package
+        run: npm test --workspace @furlpay/compliance
+
+  go-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.21"
+      - working-directory: sdks/go
+        run: go build ./...
+
+  rust-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - working-directory: sdks/rust
+        run: cargo test
+
+  python-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - working-directory: sdks/python
+        run: python -c "import furlpay; b='{}'; assert furlpay.construct_event(b, furlpay.sign_payload(b,'s'), 's') == {}"

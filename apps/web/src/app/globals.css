@@ -1,0 +1,38 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  background-color: #000000;
+  color: #ffffff;
+  font-family: "Inter", "Outfit", "Helvetica Neue", Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbars on horizontal carousels while keeping scroll behaviour. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@layer components {
+  .header-title {
+    @apply text-[32px] font-bold tracking-tighter text-textPrimary;
+  }
+  .action-label {
+    @apply text-[12px] font-medium text-textSecondary;
+  }
+  .surface-card {
+    @apply rounded-card bg-surface;
+  }
+}

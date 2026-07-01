@@ -1,0 +1,173 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Furlpay Core API",
+    "version": "0.1.0",
+    "description": "The Stripe + Coinbase of stablecoins & fractional investing. All endpoints run in sandbox/mock mode by default.",
+    "contact": { "name": "Furlpay Developers", "url": "https://furlpay.app/developer" }
+  },
+  "servers": [
+    { "url": "http://localhost:3000", "description": "Local sandbox" },
+    { "url": "https://api.furlpay.app", "description": "Production" }
+  ],
+  "security": [{ "bearerAuth": [] }],
+  "tags": [
+    { "name": "Auth" }, { "name": "Wallets" }, { "name": "Banking" },
+    { "name": "Cards" }, { "name": "Investing" }, { "name": "Swaps" },
+    { "name": "Compliance" }, { "name": "Webhooks" }
+  ],
+  "paths": {
+    "/api/auth/webauthn": {
+      "post": {
+        "tags": ["Auth"],
+        "summary": "Passkey challenge / registration / login",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/WebAuthnRequest" } } } },
+        "responses": { "200": { "description": "Challenge or session token" } }
+      }
+    },
+    "/api/wallets": {
+      "get": {
+        "tags": ["Wallets"],
+        "summary": "Get Safe balances and active modules",
+        "responses": { "200": { "description": "Wallet state", "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Wallet" } } } } }
+      }
+    },
+    "/api/wallets/transfer": {
+      "post": {
+        "tags": ["Wallets"],
+        "summary": "Gas-sponsored L2 stablecoin transfer",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TransferRequest" } } } },
+        "responses": {
+          "200": { "description": "Transaction hash" },
+          "403": { "description": "Blocked by AML policy" }
+        }
+      }
+    },
+    "/api/banking": {
+      "get": { "tags": ["Banking"], "summary": "List virtual accounts", "responses": { "200": { "description": "Accounts" } } },
+      "post": {
+        "tags": ["Banking"],
+        "summary": "Provision a virtual local account",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "type": "object", "properties": { "currency": { "type": "string", "enum": ["USD", "EUR", "GBP", "INR"] } }, "required": ["currency"] } } } },
+        "responses": { "200": { "description": "Account details" } }
+      }
+    },
+    "/api/cards": {
+      "get": { "tags": ["Cards"], "summary": "List cards", "responses": { "200": { "description": "Cards" } } },
+      "patch": { "tags": ["Cards"], "summary": "Update card", "responses": { "200": { "description": "Updated card" } } }
+    },
+    "/api/cards/settings": {
+      "post": {
+        "tags": ["Cards"],
+        "summary": "Real-time card controls (freeze / limits / channels / priority)",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/CardSettings" } } } },
+        "responses": { "200": { "description": "Success" } }
+      }
+    },
+    "/api/investing/order": {
+      "post": {
+        "tags": ["Investing"],
+        "summary": "Place a fractional stock/ETF order",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/OrderRequest" } } } },
+        "responses": { "200": { "description": "Order result" } }
+      }
+    },
+    "/api/investing/portfolio": {
+      "get": { "tags": ["Investing"], "summary": "Holdings, dividends & performance", "responses": { "200": { "description": "Portfolio" } } }
+    },
+    "/api/swaps": {
+      "post": {
+        "tags": ["Swaps"],
+        "summary": "Cheapest cross-chain swap route (Li.Fi / 1inch)",
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SwapRequest" } } } },
+        "responses": { "200": { "description": "Swap quote" } }
+      }
+    },
+    "/api/compliance/kyc": {
+      "post": { "tags": ["Compliance"], "summary": "Persona / Sumsub identity verification", "responses": { "200": { "description": "KYC result" } } }
+    },
+    "/api/compliance/travel-rule": {
+      "post": { "tags": ["Compliance"], "summary": "FATF Travel Rule metadata (Notabene / TRUST)", "responses": { "200": { "description": "Travel Rule payload" } } }
+    },
+    "/api/webhooks/marqeta": {
+      "post": { "tags": ["Webhooks"], "summary": "Card authorization request (JIT funding)", "responses": { "200": { "description": "Approve/decline" } } }
+    },
+    "/api/webhooks/bridge": {
+      "post": { "tags": ["Webhooks"], "summary": "Stablecoin deposit / payout state change", "responses": { "200": { "description": "Received" } } }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "API key" }
+    },
+    "schemas": {
+      "WebAuthnRequest": {
+        "type": "object",
+        "properties": {
+          "action": { "type": "string", "enum": ["register", "login"] },
+          "credential": { "type": "object", "nullable": true }
+        },
+        "required": ["action"]
+      },
+      "Wallet": {
+        "type": "object",
+        "properties": {
+          "safeAddress": { "type": "string" },
+          "modules": { "type": "array", "items": { "type": "object" } },
+          "balances": { "type": "array", "items": { "$ref": "#/components/schemas/Balance" } }
+        }
+      },
+      "Balance": {
+        "type": "object",
+        "properties": {
+          "token": { "type": "string", "enum": ["USDC", "USDT", "EURC", "PYUSD"] },
+          "amount": { "type": "string" },
+          "chain": { "type": "string" }
+        }
+      },
+      "TransferRequest": {
+        "type": "object",
+        "properties": {
+          "safeAddress": { "type": "string" },
+          "destination": { "type": "string" },
+          "amount": { "type": "number" },
+          "token": { "type": "string" },
+          "chain": { "type": "string" },
+          "signature": { "type": "string" }
+        },
+        "required": ["destination", "amount", "signature"]
+      },
+      "CardSettings": {
+        "type": "object",
+        "properties": {
+          "cardId": { "type": "string" },
+          "freeze": { "type": "boolean" },
+          "limits": { "type": "object", "properties": { "daily": { "type": "number" }, "perPurchase": { "type": "number" } } },
+          "priority": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["cardId"]
+      },
+      "OrderRequest": {
+        "type": "object",
+        "properties": {
+          "symbol": { "type": "string" },
+          "side": { "type": "string", "enum": ["buy", "sell"] },
+          "notional": { "type": "number" },
+          "type": { "type": "string", "enum": ["market", "limit"] }
+        },
+        "required": ["symbol", "side", "notional"]
+      },
+      "SwapRequest": {
+        "type": "object",
+        "properties": {
+          "fromToken": { "type": "string" },
+          "toToken": { "type": "string" },
+          "fromChain": { "type": "string" },
+          "toChain": { "type": "string" },
+          "amountIn": { "type": "number" }
+        },
+        "required": ["fromToken", "toToken", "fromChain", "amountIn"]
+      }
+    }
+  }
+}

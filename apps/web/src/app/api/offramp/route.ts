@@ -1,0 +1,29 @@
+import { NextRequest, NextResponse } from "next/server";
+import { quoteFx } from "@/lib/services/fx";
+import { db, newTx, recordTransaction } from "@/lib/store";
+
+// POST /api/offramp — quote / execute a stablecoin→fiat off-ramp via Wise rails.
+// body: { fromCurrency, toCurrency, amount, execute? }
+export async function POST(req: NextRequest) {
+  const { fromCurrency, toCurrency, amount, execute } = await req.json();
+  const quote = quoteFx(fromCurrency, toCurrency, amount);
+
+  if (execute) {
+    recordTransaction(
+      newTx({
+        category: "ramp",
+        direction: "out",
+        title: `Off-ramp to ${toCurrency}`,
+        subtitle: `Wise · ${quote.rail} · ${quote.feePct}% fee`,
+        amountUsd: amount,
+        status: "settled",
+      })
+    );
+    const fiat = db.fiatBalances.find((f) => f.currency === toCurrency);
+    if (fiat) {
+      fiat.amount += quote.amountTo;
+    }
+  }
+
+  return NextResponse.json({ quote, executed: !!execute });
+}
