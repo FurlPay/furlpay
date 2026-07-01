@@ -8,6 +8,7 @@ import { PageHeader, Pill, Spinner, usd } from "@/components/ui";
 import { PlusIcon, QrIcon, SwapIcon, ArrowDown, InvestIcon } from "@/components/icons";
 import TransactionList from "@/components/TransactionList";
 import SwapModal from "@/components/SwapModal";
+import { CoinLogo, ChainLogo } from "@furlpay/ui";
 
 interface Overview {
   user: { name: string; tier: string; region: string; safeAddress: string };
@@ -95,9 +96,12 @@ export default function HomePage() {
           ))}
           {data.tokenBalances.map((t) => (
             <div key={t.token + t.chain} className="min-w-[150px] shrink-0 surface-card p-4">
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-2">
+                <CoinLogo token={t.token} size={22} />
                 <p className="text-[13px] text-textSecondary">{t.token}</p>
-                <Pill>{t.chain}</Pill>
+                <span className="flex items-center gap-1 text-[11px] text-textMuted">
+                  <ChainLogo chain={t.chain} size={14} />
+                </span>
               </div>
               <p className="mt-1 text-xl font-bold">{t.amount.toLocaleString("en-US", { maximumFractionDigits: 2 })}</p>
               <p className="mt-2 text-[11px] text-textMuted">≈ {usd(t.usdValue)}</p>

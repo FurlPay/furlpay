@@ -350,10 +350,18 @@ Verified locally:
 
 ## Roadmap
 
-- Circle CCTP V2 adapter and intent-based cross-chain router.
+Done:
+
+- Official brand-logo components (CoinLogo, ChainLogo, CardNetworkLogo) wired
+  into the dashboard and cards.
+- Circle CCTP V2 adapter and intent-based cross-chain router (`/api/intents`):
+  native USDC via CCTP V2 burn-and-mint, everything else via Li.Fi.
+
+Next:
+
 - Reusable and tiered KYC to reduce on-ramp drop-off.
 - Jurisdiction resolver for per-region stablecoin and entity routing.
 - Real session and JWT signing, zod request validation, and a full
   Server-Component data-fetch migration.
-- Official brand-logo components for coins, chains, wallets, and card networks.
+- Wallet, exchange and market-data brand logos; secondary Material Symbols set.
 - Desktop and extension packaging and distribution.

@@ -1,6 +1,7 @@
 "use client";
 
 import { PaymentCard } from "@/lib/types";
+import { CardNetworkLogo } from "@furlpay/ui";
 
 // The swipable card element — aspect ratio 1.586, 18px radius, gradient skin.
 export default function VisaCard({ card }: { card: PaymentCard }) {
@@ -25,7 +26,7 @@ export default function VisaCard({ card }: { card: PaymentCard }) {
         <p className="font-mono text-lg tracking-[0.2em]">•••• •••• •••• {card.last4}</p>
         <div className="mt-2 flex items-center justify-between">
           <span className="text-[12px] opacity-75">Settles in {card.settlementCurrency}</span>
-          <span className="text-xl font-bold italic tracking-tight">{card.network.toUpperCase()}</span>
+          <span className="text-xl"><CardNetworkLogo network={card.network} /></span>
         </div>
       </div>
     </div>

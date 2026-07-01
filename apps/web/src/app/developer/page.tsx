@@ -13,6 +13,7 @@ const ENDPOINTS = [
   ["POST", "/api/investing/order", "Place fractional order"],
   ["GET", "/api/investing/portfolio", "Holdings & dividends"],
   ["POST", "/api/swaps", "Cross-chain swap quote"],
+  ["POST", "/api/intents", "Intent router (CCTP V2 / Li.Fi)"],
   ["POST", "/api/compliance/kyc", "Persona/Sumsub KYC"],
   ["POST", "/api/compliance/travel-rule", "FATF Travel Rule"],
   ["POST", "/api/webhooks/marqeta", "Card auth (JIT)"],

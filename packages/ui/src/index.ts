@@ -2,3 +2,4 @@
 export * from "./tokens";
 export { Button } from "./Button";
 export type { ButtonProps } from "./Button";
+export { CoinLogo, ChainLogo, CardNetworkLogo } from "./logos";
