@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, Landmark, Code2, ArrowUpRight } from "lucide-react";
+import { Bell, ArrowUpRight } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { FiatBalance, TokenBalance, Transaction } from "@/lib/types";
 import { Spinner, usd } from "@/components/ui";
@@ -10,6 +10,7 @@ import { QrIcon, SwapIcon, ArrowDown, InvestIcon } from "@/components/icons";
 import TransactionList from "@/components/TransactionList";
 import SwapModal from "@/components/SwapModal";
 import { CoinLogo, ChainLogo } from "@furlpay/ui";
+import FeatureHub from "@/components/FeatureHub";
 
 interface Overview {
   user: { name: string; tier: string; region: string; safeAddress: string };
@@ -106,21 +107,8 @@ export default function HomePage() {
         </QuickAction>
       </section>
 
-      {/* Platform shortcuts */}
-      <section className="mt-6 grid grid-cols-2 gap-3 px-5">
-        <PlatformCard
-          href="/banking"
-          title="Banking"
-          sub="IBAN / routing · Wise FX"
-          Icon={Landmark}
-        />
-        <PlatformCard
-          href="/developer"
-          title="Developers"
-          sub="API keys · webhooks · SDKs"
-          Icon={Code2}
-        />
-      </section>
+      {/* Super-app feature hub */}
+      <FeatureHub />
 
       {/* Accounts carousel */}
       <section className="mt-8">
@@ -214,30 +202,6 @@ function QuickAction({
       <span className="app-tile-icon h-11 w-11">{children}</span>
       <span className="text-[12px] font-semibold tracking-tight">{label}</span>
     </button>
-  );
-}
-
-function PlatformCard({
-  href,
-  title,
-  sub,
-  Icon,
-}: {
-  href: string;
-  title: string;
-  sub: string;
-  Icon: React.ComponentType<{ className?: string }>;
-}) {
-  return (
-    <Link href={href} className="tap surface-card flex flex-col gap-3 p-4">
-      <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/[0.06] text-white">
-        <Icon className="h-[18px] w-[18px]" />
-      </span>
-      <div>
-        <p className="font-semibold">{title}</p>
-        <p className="text-[12px] text-textSecondary">{sub}</p>
-      </div>
-    </Link>
   );
 }
 
