@@ -72,4 +72,40 @@ body {
   .hero-glow {
     background: radial-gradient(60% 50% at 50% 40%, rgba(0, 229, 153, 0.14), transparent 70%);
   }
+
+  /* Pointer-tracking border. The ::before paints a green radial gradient at the
+     cursor (--mx/--my) but is masked to the 1px border ring, so the bright
+     "line" slides along the edge as the mouse moves across the pricing grid. */
+  .card-spotlight {
+    @apply relative rounded-card border border-white/[0.08] bg-white/[0.02];
+  }
+  .card-spotlight.is-pop {
+    border-color: rgba(0, 229, 153, 0.35);
+  }
+  .card-spotlight::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: radial-gradient(
+      200px circle at var(--mx, 50%) var(--my, 50%),
+      rgba(0, 229, 153, 0.95),
+      rgba(0, 229, 153, 0.25) 40%,
+      transparent 72%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  /* Reveal every card's ring while the pointer is anywhere over the grid, so
+     moving between prices sweeps the highlight across all three cards. */
+  .spotlight-group:hover .card-spotlight::before {
+    opacity: 1;
+  }
 }

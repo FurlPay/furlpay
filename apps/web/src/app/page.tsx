@@ -3,6 +3,7 @@ import { CreditCard, TrendingUp, Landmark, Code2, ShieldCheck, Fingerprint, Cpu,
 import PhoneMockup from "@/components/marketing/PhoneMockup";
 import StoreBadges from "@/components/marketing/StoreBadges";
 import CodePreview from "@/components/marketing/CodePreview";
+import PricingCards from "@/components/marketing/PricingCards";
 import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon } from "@/components/marketing/SocialIcons";
 
 // Furlpay marketing landing page (furlpay.app/). Premium OLED theme with green
@@ -151,12 +152,6 @@ function Security() {
   );
 }
 
-const TIERS = [
-  { name: "Standard", price: "$0", tagline: "For everyday spending", feats: ["Virtual stablecoin card", "Local USD/EUR account", "Fractional investing"] },
-  { name: "Pro", price: "$9", tagline: "For power users", feats: ["Metal physical card", "Higher limits & velocity", "Priority FX rates"], highlight: true },
-  { name: "Ultra", price: "$29", tagline: "For builders & teams", feats: ["Full API + webhooks", "Dedicated MPC policy", "24/7 support"] },
-];
-
 function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
@@ -164,41 +159,7 @@ function Pricing() {
       <h2 className="mb-10 max-w-2xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
         Simple, transparent tiers.
       </h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        {TIERS.map((t) => (
-          <div
-            key={t.name}
-            className={t.highlight ? "glow-border p-7 shadow-glow" : "glass-card p-7"}
-          >
-            <div className="flex items-center justify-between">
-              <p className="text-[17px] font-bold">{t.name}</p>
-              {t.highlight && (
-                <span className="rounded-full bg-neon px-2.5 py-0.5 text-[10px] font-bold text-black">POPULAR</span>
-              )}
-            </div>
-            <p className="mt-3 text-[36px] font-extrabold tracking-tighter">
-              {t.price}
-              <span className="text-[14px] font-medium text-textSecondary">/mo</span>
-            </p>
-            <p className="mb-5 text-[13px] text-textSecondary">{t.tagline}</p>
-            <ul className="space-y-2 text-[13px] text-textSecondary">
-              {t.feats.map((f) => (
-                <li key={f} className="flex items-center gap-2">
-                  <span className="text-neon">✓</span> {f}
-                </li>
-              ))}
-            </ul>
-            <Link
-              href="/signup"
-              className={`mt-6 block rounded-pill py-2.5 text-center text-sm font-semibold ${
-                t.highlight ? "btn-green" : "btn-outline"
-              }`}
-            >
-              Get started
-            </Link>
-          </div>
-        ))}
-      </div>
+      <PricingCards />
     </section>
   );
 }
