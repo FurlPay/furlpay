@@ -1,5 +1,21 @@
 import Link from "next/link";
-import { CreditCard, TrendingUp, Landmark, Code2, ShieldCheck, Fingerprint, Cpu, Zap } from "lucide-react";
+import {
+  CreditCard,
+  TrendingUp,
+  Landmark,
+  Code2,
+  ShieldCheck,
+  Fingerprint,
+  Cpu,
+  Zap,
+  ArrowLeftRight,
+  Send,
+  PiggyBank,
+  BarChart3,
+  Puzzle,
+  Monitor,
+  Bot,
+} from "lucide-react";
 import PhoneMockup from "@/components/marketing/PhoneMockup";
 import StoreBadges from "@/components/marketing/StoreBadges";
 import CodePreview from "@/components/marketing/CodePreview";
@@ -93,6 +109,29 @@ const FEATURES = [
   { Icon: Code2, title: "Developer SDKs", body: "CLI tools, webhook listeners, and React Elements." },
 ];
 
+const MORE_FEATURES = [
+  { Icon: ArrowLeftRight, title: "Instant Convert", body: "Swap fiat ↔ crypto instantly. USDC to EUR, BTC to GBP — real-time FX." },
+  { Icon: Send, title: "Send & Receive", body: "Send stablecoins to any wallet, email, or phone. Receive via QR code." },
+  { Icon: PiggyBank, title: "Earn Yield", body: "Earn APY on idle USDC/EURC. Auto-compound, no lock-up period." },
+  { Icon: Fingerprint, title: "Passkey Security", body: "Passwordless WebAuthn login. 2-of-2 MPC custody. No seed phrases." },
+  { Icon: BarChart3, title: "Analytics & Insights", body: "Spending by category, MCC merchant tagging, CSV/PDF statements." },
+  { Icon: Puzzle, title: "Browser Extension", body: "One-click stablecoin checkout, card autofill, and QR scan-to-pay." },
+  { Icon: Monitor, title: "Desktop App", body: "Native Windows, macOS, and Linux via Tauri — full dashboard, lightweight." },
+  { Icon: Bot, title: "AI Agentic Payments", body: "x402 protocol — let AI agents pay for API calls from your balance." },
+];
+
+function FeatureCard({ Icon, title, body }: { Icon: typeof CreditCard; title: string; body: string }) {
+  return (
+    <div className="glass-card group p-6 transition-colors hover:border-neon/30">
+      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-neon/20 bg-neonSoft text-neon shadow-glow-sm">
+        <Icon className="h-5 w-5" />
+      </div>
+      <p className="text-[17px] font-bold">{title}</p>
+      <p className="mt-1.5 text-[13px] leading-relaxed text-textSecondary">{body}</p>
+    </div>
+  );
+}
+
 function Features() {
   return (
     <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
@@ -101,14 +140,17 @@ function Features() {
         Everything money can do — in one client.
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {FEATURES.map(({ Icon, title, body }) => (
-          <div key={title} className="glass-card group p-6 transition-colors hover:border-neon/30">
-            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-neon/20 bg-neonSoft text-neon shadow-glow-sm">
-              <Icon className="h-5 w-5" />
-            </div>
-            <p className="text-[17px] font-bold">{title}</p>
-            <p className="mt-1.5 text-[13px] leading-relaxed text-textSecondary">{body}</p>
-          </div>
+        {FEATURES.map((f) => (
+          <FeatureCard key={f.title} {...f} />
+        ))}
+      </div>
+
+      <p className="mb-6 mt-16 text-[13px] font-semibold uppercase tracking-[0.18em] text-textSecondary">
+        And everything else
+      </p>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {MORE_FEATURES.map((f) => (
+          <FeatureCard key={f.title} {...f} />
         ))}
       </div>
     </section>
