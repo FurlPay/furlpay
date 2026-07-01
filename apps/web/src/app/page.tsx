@@ -5,7 +5,7 @@ import StoreBadges from "@/components/marketing/StoreBadges";
 import CodePreview from "@/components/marketing/CodePreview";
 import PricingCards from "@/components/marketing/PricingCards";
 import PartnerMarquee from "@/components/marketing/PartnerMarquee";
-import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon } from "@/components/marketing/SocialIcons";
+import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon } from "@/components/marketing/SocialIcons";
 
 // Furlpay marketing landing page (furlpay.app/). Premium OLED theme with green
 // glow accents. Mostly a Server Component; interactive bits (phone carousel,
@@ -190,6 +190,7 @@ function Footer() {
               { Icon: XIcon, href: "https://x.com/furlpay", label: "X" },
               { Icon: DiscordIcon, href: "https://discord.gg/furlpay", label: "Discord" },
               { Icon: GitHubIcon, href: "https://github.com/furlpay", label: "GitHub" },
+              { Icon: InstagramIcon, href: "https://instagram.com/furlpay", label: "Instagram" },
               { Icon: TelegramIcon, href: "https://t.me/furlpay", label: "Telegram" },
             ].map(({ Icon, href, label }) => (
               <a
