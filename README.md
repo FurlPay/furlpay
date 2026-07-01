@@ -155,6 +155,7 @@ furlpay-monorepo/
     ui/            Design tokens and primitives
     types/         Shared domain primitives (chains, stablecoins, regions)
     compliance/    KYC, AML, MiCA, GENIUS, FCA, Travel Rule, webhook signatures
+    security/      2-of-2 MPC, RFC 6238 TOTP, step-up MFA, device/behavioral risk
     elements/      Embeddable checkout button and secure card input
     account-kit/   Safe deployment, paymaster config, escrow bindings
     cli/           Command-line interface
@@ -220,8 +221,9 @@ Payments and off-ramp:
 - `POST /api/checkout/session` merchant checkout session
 - `POST /api/offramp` fiat off-ramp quote and execution
 
-Compliance:
+Security and compliance:
 
+- `GET`/`POST /api/security/mfa` TOTP MFA status, enroll, verify, disable
 - `GET`/`POST /api/compliance` address screening and inbound routing
 - `POST /api/compliance/kyc` identity verification
 - `POST /api/compliance/travel-rule` FATF Travel Rule payload
@@ -284,15 +286,25 @@ The `@furlpay/compliance` package provides:
 
 ## Security model
 
-- Passkey (WebAuthn) authentication mints an HttpOnly session cookie.
-- Next.js middleware gates application pages and protected API routes; public
-  allowlist covers auth, webhooks, checkout, and signup KYC.
+Defense in depth. Full details in [SECURITY.md](./SECURITY.md).
+
+- Passkey (WebAuthn) authentication mints an HttpOnly session cookie; Next.js
+  middleware gates pages and protected APIs (public allowlist: auth, webhooks,
+  checkout, signup KYC).
+- 2-of-2 MPC signing model (`@furlpay/security`): client share bound to the
+  passkey, server share in an HSM; the server share refuses to co-sign unless
+  the off-chain policy gate approves (anti-Gnosis-Pay design).
+- Step-up MFA for high-value or sensitive actions: transfers >= USD 5,000 and
+  card/settlement/payee changes require a second factor. FIDO2 hardware keys
+  preferred; RFC 6238 TOTP as backup (`/api/security/mfa`, secret never
+  returned to the client).
+- Real-time device and behavioral risk engine (Sardine seam): automation and
+  remote-access tools hard-block; emulator/VPN/new-device raise a challenge.
 - Outbound transfers require a valid signature and pass AML screening before the
-  paymaster co-signs.
-- Card credential reveal requires biometric re-authentication.
-- Webhooks are signature-verified and idempotent by event id.
-- API responses project only required user fields; security and device data are
-  never exposed through the dashboard endpoint.
+  paymaster co-signs; card credential reveal requires biometric re-auth.
+- Webhooks are signature-verified (HMAC-SHA256) and idempotent by event id.
+- API responses project only required fields; TOTP secret and device data are
+  never exposed through read endpoints.
 
 ---
 

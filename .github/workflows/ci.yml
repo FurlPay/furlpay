@@ -24,6 +24,8 @@ jobs:
           npm test --workspace @furlpay/furlpay-node
       - name: Test compliance package
         run: npm test --workspace @furlpay/compliance
+      - name: Test security package
+        run: npm test --workspace @furlpay/security
 
   go-sdk:
     runs-on: ubuntu-latest

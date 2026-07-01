@@ -18,6 +18,8 @@ interface Profile {
     accountLocked: boolean;
     lastLogin: string;
     loginAlerts: boolean;
+    totpEnabled: boolean;
+    hardwareKeys: { name: string; addedAt: string }[];
     devices: Device[];
   };
   notifications: { transactions: boolean; security: boolean; priceAlerts: boolean; product: boolean };
@@ -90,6 +92,14 @@ export default function ProfilePage() {
           onClick={() => patch({ security: { biometricEnabled: !p.security.biometricEnabled } })} />
         <Toggle label="Login & activity alerts" on={p.security.loginAlerts}
           onClick={() => patch({ security: { loginAlerts: !p.security.loginAlerts } })} />
+        <Row label="Authenticator app (TOTP)" right={
+          <Pill tone={p.security.totpEnabled ? "gain" : "muted"}>{p.security.totpEnabled ? "Enabled" : "Off"}</Pill>
+        } />
+        <Row label="Hardware security keys" right={
+          <span className="text-[13px] text-textSecondary">
+            {p.security.hardwareKeys.length ? p.security.hardwareKeys.map((k) => k.name).join(", ") : "None"}
+          </span>
+        } />
         <Row label="Last login" right={<span className="text-[13px] text-textSecondary">{timeAgo(p.security.lastLogin)}</span>} />
         <button
           onClick={() => patch({ action: p.security.accountLocked ? "unlock" : "lock" })}

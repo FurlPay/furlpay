@@ -12,6 +12,7 @@
   "dependencies": {
     "@furlpay/account-kit": "*",
     "@furlpay/compliance": "*",
+    "@furlpay/security": "*",
     "@furlpay/types": "*",
     "@furlpay/ui": "*",
     "lucide-react": "^0.427.0",

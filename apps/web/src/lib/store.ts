@@ -27,6 +27,9 @@ interface AppState {
       accountLocked: boolean;
       lastLogin: string; // ISO
       loginAlerts: boolean;
+      totpEnabled: boolean;
+      totpSecret: string; // base32 (never returned to the client)
+      hardwareKeys: { name: string; addedAt: string }[];
       devices: { name: string; location: string; lastActive: string; current: boolean }[];
     };
     notifications: {
@@ -59,6 +62,9 @@ function seed(): AppState {
         accountLocked: false,
         lastLogin: new Date(Date.now() - 2 * 3600_000).toISOString(),
         loginAlerts: true,
+        totpEnabled: true,
+        totpSecret: "JBSWY3DPEHPK3PXP",
+        hardwareKeys: [{ name: "YubiKey 5C NFC", addedAt: new Date(Date.now() - 30 * 86400_000).toISOString() }],
         devices: [
           { name: "iPhone 17 Pro", location: "Amsterdam, NL", lastActive: new Date().toISOString(), current: true },
           { name: "MacBook Pro", location: "Amsterdam, NL", lastActive: new Date(Date.now() - 26 * 3600_000).toISOString(), current: false },

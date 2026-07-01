@@ -1,16 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { screenWallet } from "@furlpay/compliance";
+import { assessRisk, requiresStepUp, verifyTotp } from "@furlpay/security";
 import { db, newTx, recordTransaction } from "@/lib/store";
 import { verifyTransferSignature } from "@/lib/signature";
 
 // POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via Paymaster.
-// body: { safeAddress, destination, amount, token, chain, signature }
+// body: { safeAddress, destination, amount, token, chain, signature, mfaCode?, deviceSignals? }
 export async function POST(req: NextRequest) {
-  const { safeAddress, destination, amount, token, chain, signature } = await req.json();
+  const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = await req.json();
 
   if (!destination || !amount || !signature) {
     return NextResponse.json({ error: "destination, amount, signature required" }, { status: 400 });
+  }
+
+  // Device / behavioral risk gate (Sardine-style).
+  const risk = assessRisk(deviceSignals || {});
+  if (risk.action === "block") {
+    return NextResponse.json({ error: "Blocked by risk engine", risk }, { status: 403 });
+  }
+
+  // Step-up MFA for high-value transfers (>= $5000).
+  const stepUp = requiresStepUp({ action: "transfer", amountUsd: amount });
+  if (stepUp.required) {
+    if (!mfaCode) {
+      return NextResponse.json({ error: stepUp.reason, stepUpRequired: true, methods: stepUp.methods }, { status: 401 });
+    }
+    if (!db.user.security.totpEnabled || !verifyTotp(db.user.security.totpSecret, mfaCode)) {
+      return NextResponse.json({ error: "Invalid or missing MFA code", stepUpRequired: true }, { status: 401 });
+    }
   }
 
   // Verify the user-signed authorization before the Paymaster co-signs.

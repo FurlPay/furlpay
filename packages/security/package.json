@@ -1,0 +1,16 @@
+{
+  "name": "@furlpay/security",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Furlpay security layer: 2-of-2 MPC signing, RFC 6238 TOTP, step-up MFA, and device/behavioral risk scoring",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "build:test": "tsc -p tsconfig.json",
+    "test": "npm run build:test && node --test test/security.test.js"
+  },
+  "devDependencies": {
+    "typescript": "5.5.3"
+  }
+}

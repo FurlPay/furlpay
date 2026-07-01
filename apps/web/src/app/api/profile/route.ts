@@ -4,6 +4,8 @@ import { db } from "@/lib/store";
 // GET /api/profile — full profile + security + notification state.
 export async function GET() {
   const u = db.user;
+  // Never expose the TOTP secret to the client.
+  const { totpSecret, ...security } = u.security;
   return NextResponse.json({
     id: u.id,
     name: u.name,
@@ -12,7 +14,7 @@ export async function GET() {
     kycStatus: u.kycStatus,
     region: u.region,
     tier: u.tier,
-    security: u.security,
+    security,
     notifications: u.notifications,
   });
 }
