@@ -1,5 +1,18 @@
 # Furlpay
 
+![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)
+![Turborepo](https://img.shields.io/badge/Turborepo-2-EF4444?logo=turborepo&logoColor=white)
+![Lucide](https://img.shields.io/badge/Icons-Lucide-F56565?logo=lucide&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-SDK-000000?logo=rust&logoColor=white)
+![Go](https://img.shields.io/badge/Go-SDK-00ADD8?logo=go&logoColor=white)
+![Python](https://img.shields.io/badge/Python-SDK-3776AB?logo=python&logoColor=white)
+![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node-20-339933?logo=nodedotjs&logoColor=white)
+![License](https://img.shields.io/badge/status-prototype-orange)
+
 The Stripe + Coinbase of stablecoins and fractional investing. Furlpay is a
 stablecoin-first financial super-app plus a full developer ecosystem and a
 programmatic compliance stack, built as a Turborepo monorepo.
@@ -82,6 +95,35 @@ Platform:
 ---
 
 ## Tech stack
+
+Frontend and app
+![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.5-3178C6?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)
+![Lucide](https://img.shields.io/badge/Lucide-icons-F56565?logo=lucide&logoColor=white)
+
+Monorepo and tooling
+![Turborepo](https://img.shields.io/badge/Turborepo-2-EF4444?logo=turborepo&logoColor=white)
+![npm workspaces](https://img.shields.io/badge/npm-workspaces-CB3837?logo=npm&logoColor=white)
+![GitHub Actions](https://img.shields.io/badge/CI-GitHub_Actions-2088FF?logo=githubactions&logoColor=white)
+![ESLint](https://img.shields.io/badge/ESLint-8-4B32C3?logo=eslint&logoColor=white)
+
+SDKs and clients
+![Node.js](https://img.shields.io/badge/Node-20-339933?logo=nodedotjs&logoColor=white)
+![Python](https://img.shields.io/badge/Python-3.9+-3776AB?logo=python&logoColor=white)
+![Go](https://img.shields.io/badge/Go-1.21-00ADD8?logo=go&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-crate-000000?logo=rust&logoColor=white)
+
+Desktop, extension and AI
+![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
+![Chrome MV3](https://img.shields.io/badge/Extension-MV3-4285F4?logo=googlechrome&logoColor=white)
+![MCP](https://img.shields.io/badge/AI-MCP_server-8A2BE2)
+
+Web3 and rails
+![Circle CCTP](https://img.shields.io/badge/Circle-CCTP_V2-00D395?logo=circle&logoColor=white)
+![Safe](https://img.shields.io/badge/Safe-ERC--4337-12FF80)
+![WebAuthn](https://img.shields.io/badge/Auth-WebAuthn_Passkeys-FF6F00)
 
 Application:
 
@@ -226,6 +268,9 @@ Security and compliance:
 - `GET`/`POST /api/security/mfa` TOTP MFA status, enroll, verify, disable
 - `GET`/`POST /api/compliance` address screening and inbound routing
 - `POST /api/compliance/kyc` identity verification
+- `GET`/`POST /api/compliance/tier` tiered-KYC limits and gating
+- `POST /api/compliance/credential` issue / verify reusable KYC credential
+- `GET /api/compliance/jurisdiction` per-region regime, routing, and rail
 - `POST /api/compliance/travel-rule` FATF Travel Rule payload
 
 Webhooks (signature-verified, idempotent):
@@ -368,11 +413,14 @@ Done:
   into the dashboard and cards.
 - Circle CCTP V2 adapter and intent-based cross-chain router (`/api/intents`):
   native USDC via CCTP V2 burn-and-mint, everything else via Li.Fi.
+- Tiered, risk-based KYC with reusable "verify once, use everywhere"
+  credentials (`/api/compliance/tier`, `/api/compliance/credential`).
+- Jurisdiction resolver for per-region stablecoin, promotion, and rail routing
+  (`/api/compliance/jurisdiction`).
+- Defense-in-depth security: 2-of-2 MPC, step-up MFA (TOTP), device risk engine.
 
 Next:
 
-- Reusable and tiered KYC to reduce on-ramp drop-off.
-- Jurisdiction resolver for per-region stablecoin and entity routing.
 - Real session and JWT signing, zod request validation, and a full
   Server-Component data-fetch migration.
 - Wallet, exchange and market-data brand logos; secondary Material Symbols set.

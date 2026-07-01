@@ -20,6 +20,7 @@ interface AppState {
     email: string;
     safeAddress: string;
     kycStatus: "verified" | "pending" | "unverified";
+    kycTier: 0 | 1 | 2 | 3;
     region: "EEA" | "US" | "IN" | "GLOBAL";
     tier: "Standard" | "Pro" | "Ultra";
     security: {
@@ -55,6 +56,7 @@ function seed(): AppState {
       email: "ashutosh@furlpay.app",
       safeAddress: "0x7A9f...c31E",
       kycStatus: "verified",
+      kycTier: 2,
       region: "EEA",
       tier: "Pro",
       security: {

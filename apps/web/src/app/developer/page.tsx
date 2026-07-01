@@ -16,6 +16,9 @@ const ENDPOINTS = [
   ["POST", "/api/intents", "Intent router (CCTP V2 / Li.Fi)"],
   ["POST", "/api/security/mfa", "Enroll/verify TOTP MFA"],
   ["POST", "/api/compliance/kyc", "Persona/Sumsub KYC"],
+  ["GET", "/api/compliance/tier", "Tiered-KYC limits"],
+  ["POST", "/api/compliance/credential", "Reusable KYC credential"],
+  ["GET", "/api/compliance/jurisdiction", "Per-region policy resolver"],
   ["POST", "/api/compliance/travel-rule", "FATF Travel Rule"],
   ["POST", "/api/webhooks/marqeta", "Card auth (JIT)"],
 ];

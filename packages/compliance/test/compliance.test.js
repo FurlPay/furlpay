@@ -66,3 +66,35 @@ test("KYC verifies a valid adult identity", () => {
   const r = c.verifyIdentity({ fullName: "Jane Doe", dateOfBirth: "1990-01-01", documentNumber: "P123456", selfieProvided: true });
   assert.ok(["approved", "review"].includes(r.status));
 });
+
+test("tiered KYC: small amount needs no tier, large needs higher", () => {
+  assert.strictEqual(c.requiredTierForAmount(500), 0);
+  assert.strictEqual(c.requiredTierForAmount(50000), 2);
+  const gate = c.gateByTier(0, 50000, "transfer");
+  assert.strictEqual(gate.allowed, false);
+  assert.ok(gate.upgradeRequires.length > 0);
+});
+
+test("reusable credential issues, verifies, and rejects tampering", () => {
+  const attrs = { ageOver18: true, jurisdiction: "EEA", sanctionsClear: true, tier: 2 };
+  const cred = c.issueCredential("sub_1", attrs, "issuer_secret");
+  assert.strictEqual(c.verifyCredential(cred, "issuer_secret").valid, true);
+  assert.strictEqual(c.verifyCredential(cred, "wrong_secret").valid, false);
+  const proof = c.proveAttribute(cred, "jurisdiction", "issuer_secret");
+  assert.strictEqual(proof.value, "EEA");
+});
+
+test("jurisdiction resolves and applies MiCA routing", () => {
+  const j = c.resolveJurisdiction({ country: "DE" });
+  assert.strictEqual(j.regime, "EEA");
+  assert.ok(j.frameworks.includes("MiCA"));
+  const pol = c.jurisdictionPolicy({ country: "DE" }, "USDT");
+  assert.strictEqual(pol.stablecoin.allowed, false);
+  assert.strictEqual(pol.stablecoin.routedTo, "EURC");
+});
+
+test("jurisdiction: KYC region beats country signal", () => {
+  const j = c.resolveJurisdiction({ kycRegion: "US", country: "DE" });
+  assert.strictEqual(j.regime, "US");
+  assert.strictEqual(j.source, "kyc");
+});
