@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { EyeIcon, SnowflakeIcon, SlidersIcon, GearIcon } from "@/components/icons";
+import { UsdcIcon, EurcIcon, SolIcon, AppleIcon, TeslaIcon, UsdCashIcon } from "@/components/marketing/TokenIcons";
 
 // Floating Android phone showcasing the responsive Furlpay dashboard. Three
 // screens auto-advance in a carousel; dots allow manual selection.
@@ -61,22 +62,34 @@ function WalletScreen() {
       <p className="text-[11px] text-textSecondary">Total balance</p>
       <p className="text-[26px] font-extrabold tracking-tighter">$12,480.42</p>
       <p className="mb-3 text-[11px] font-semibold text-neon">+2.4% today</p>
-      <Row logo="🟢" name="USDC" sub="Base" val="$4,210.55" />
-      <Row logo="🔵" name="EURC" sub="Base" val="$1,068.60" />
-      <Row logo="🟣" name="SOL" sub="Solana" val="$1,890.00" />
+      <Row Icon={UsdcIcon} name="USDC" sub="Base" val="$4,210.55" />
+      <Row Icon={EurcIcon} name="EURC" sub="Base" val="$1,068.60" />
+      <Row Icon={SolIcon} name="SOL" sub="Solana" val="$1,890.00" />
       <p className="mb-1 mt-3 text-[10px] uppercase tracking-wide text-textMuted">Stocks</p>
-      <Row logo="🍎" name="AAPL" sub="3.4 shares" val="$789.17" up />
-      <Row logo="🚗" name="TSLA" sub="0.75 shares" val="$302.18" up />
+      <Row Icon={AppleIcon} name="AAPL" sub="3.4 shares" val="$789.17" up />
+      <Row Icon={TeslaIcon} name="TSLA" sub="0.75 shares" val="$302.18" up />
       <p className="mb-1 mt-3 text-[10px] uppercase tracking-wide text-textMuted">Cash</p>
-      <Row logo="💵" name="USD" sub="Local account" val="$3,200.00" />
+      <Row Icon={UsdCashIcon} name="USD" sub="Local account" val="$3,200.00" />
     </div>
   );
 }
 
-function Row({ logo, name, sub, val, up }: { logo: string; name: string; sub: string; val: string; up?: boolean }) {
+function Row({
+  Icon,
+  name,
+  sub,
+  val,
+  up,
+}: {
+  Icon: React.ComponentType<{ className?: string }>;
+  name: string;
+  sub: string;
+  val: string;
+  up?: boolean;
+}) {
   return (
     <div className="flex items-center gap-2.5 py-1.5">
-      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/[0.06] text-[13px]">{logo}</div>
+      <Icon className="h-8 w-8 shrink-0" />
       <div className="flex-1">
         <p className="text-[13px] font-semibold leading-tight">{name}</p>
         <p className="text-[10px] text-textSecondary">{sub}</p>
