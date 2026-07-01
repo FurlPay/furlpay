@@ -18,7 +18,7 @@ export async function GET() {
   const options = await generateAuthenticationOptions({
     rpID: RP_ID,
     allowCredentials: creds.map((c) => ({ id: c.id, transports: c.transports as any })),
-    userVerification: "preferred",
+    userVerification: "required",
   });
   setChallenge(user.id, options.challenge);
   return NextResponse.json(options);

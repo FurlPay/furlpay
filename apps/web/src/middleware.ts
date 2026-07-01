@@ -10,6 +10,7 @@ import { SESSION_COOKIE, verifySession } from "@/lib/session";
 // ---------------------------------------------------------------------------
 
 const PUBLIC_PAGES = new Set(["/", "/login", "/signup"]);
+const PUBLIC_PAGE_PREFIXES = ["/docs"]; // public marketing/docs subtrees
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
   "/api/webhooks",
@@ -32,7 +33,9 @@ export async function middleware(req: NextRequest) {
   }
 
   // Page routes
-  if (PUBLIC_PAGES.has(pathname) || hasSession) return NextResponse.next();
+  const isPublicPage =
+    PUBLIC_PAGES.has(pathname) || PUBLIC_PAGE_PREFIXES.some((p) => pathname.startsWith(p));
+  if (isPublicPage || hasSession) return NextResponse.next();
 
   const url = req.nextUrl.clone();
   url.pathname = "/login";

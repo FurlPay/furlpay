@@ -14,6 +14,10 @@ const config: Config = {
         // Brand accent (vibrant red/pink)
         accent: "#FF3B30",
         accentDeep: "#E02020",
+        // Marketing / docs brand (glowing green) — landing page + docs portal.
+        neon: "#00E599",
+        neonDeep: "#00B87A",
+        neonSoft: "#0A2A22",
         // Text hierarchy
         textPrimary: "#FFFFFF",
         textSecondary: "#8E8E93",
@@ -32,6 +36,19 @@ const config: Config = {
       },
       letterSpacing: {
         tighter: "-0.5px",
+      },
+      boxShadow: {
+        glow: "0 0 40px -8px rgba(0, 229, 153, 0.45)",
+        "glow-sm": "0 0 20px -6px rgba(0, 229, 153, 0.4)",
+      },
+      keyframes: {
+        float: {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-12px)" },
+        },
+      },
+      animation: {
+        float: "float 6s ease-in-out infinite",
       },
     },
   },

@@ -22,7 +22,13 @@ export async function GET() {
     userID: new TextEncoder().encode(user.id),
     userName: user.email,
     attestationType: "none",
-    authenticatorSelection: { residentKey: "preferred", userVerification: "preferred" },
+    // Prefer the built-in fingerprint/biometric sensor (platform authenticator)
+    // and require user verification so the credential is gated on the biometric.
+    authenticatorSelection: {
+      authenticatorAttachment: "platform",
+      residentKey: "preferred",
+      userVerification: "required",
+    },
     excludeCredentials: existing.map((c) => ({ id: c.id })),
   });
   setChallenge(user.id, options.challenge);

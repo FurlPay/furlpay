@@ -35,4 +35,41 @@ body {
   .surface-card {
     @apply rounded-card bg-surface;
   }
+
+  /* ---- Marketing / docs (green glassmorphic system) ------------------- */
+
+  /* Glassmorphic card: translucent fill, subtle border, backdrop blur. */
+  .glass-card {
+    @apply rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl;
+  }
+
+  /* Glowing green gradient border (via layered background-clip). */
+  .glow-border {
+    @apply relative rounded-card;
+    background:
+      linear-gradient(#0a0a0c, #0a0a0c) padding-box,
+      linear-gradient(135deg, rgba(0, 229, 153, 0.6), rgba(0, 229, 153, 0.05) 55%) border-box;
+    border: 1px solid transparent;
+  }
+
+  /* Solid green CTA with glow. */
+  .btn-green {
+    @apply rounded-pill bg-neon font-semibold text-black shadow-glow transition-transform;
+  }
+  .btn-green:hover {
+    @apply -translate-y-0.5;
+  }
+
+  /* Outline CTA. */
+  .btn-outline {
+    @apply rounded-pill border border-white/15 font-semibold text-textPrimary transition-colors;
+  }
+  .btn-outline:hover {
+    @apply border-neon/50 text-neon;
+  }
+
+  /* Radial green ambient glow used behind the hero + phone mockup. */
+  .hero-glow {
+    background: radial-gradient(60% 50% at 50% 40%, rgba(0, 229, 153, 0.14), transparent 70%);
+  }
 }

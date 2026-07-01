@@ -18,6 +18,10 @@ interface AppState {
     id: string;
     name: string;
     email: string;
+    phone?: string; // E.164
+    phoneVerified?: boolean;
+    authProvider?: "passkey" | "google" | "phone" | "email";
+    googleSub?: string; // stable Google account id, when linked
     safeAddress: string;
     kycStatus: "verified" | "pending" | "unverified";
     kycTier: 0 | 1 | 2 | 3;
@@ -183,6 +187,11 @@ export const db: AppState = globalForStore.__appState ?? (globalForStore.__appSt
 
 export function recordTransaction(t: Transaction) {
   db.transactions.unshift(t);
+}
+
+/** Merge identity/auth fields onto the current user (Google link, phone, etc.). */
+export function updateUser(patch: Partial<AppState["user"]>) {
+  Object.assign(db.user, patch);
 }
 
 export function newTx(partial: Omit<Transaction, "id" | "timestamp">): Transaction {

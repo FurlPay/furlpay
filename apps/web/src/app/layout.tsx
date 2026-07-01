@@ -1,10 +1,11 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import BottomNav from "@/components/BottomNav";
+import Shell from "@/components/Shell";
 
 export const metadata: Metadata = {
-  title: "Stablecoin Super-App",
-  description: "Stripe + Robinhood + Wise + Coinbase + Revolut, for stablecoins.",
+  title: "Furlpay — The On-Chain Financial Operating System",
+  description:
+    "Fusing stablecoin payments, global local accounts, and fractional stock investing into one beautiful web & desktop client. Phishing-resistant. Compliance-aware. Zero gas.",
 };
 
 export const viewport: Viewport = {
@@ -18,11 +19,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body>
-        {/* Phone-frame shell centered on larger screens. */}
-        <div className="mx-auto min-h-screen w-full max-w-[440px] bg-oled">
-          <main className="pb-28">{children}</main>
-          <BottomNav />
-        </div>
+        {/* Shell picks full-bleed (marketing/docs) vs phone-frame app chrome. */}
+        <Shell>{children}</Shell>
       </body>
     </html>
   );
