@@ -16,7 +16,21 @@ export function generateStaticParams() {
 export function generateMetadata({ params }: { params: { slug: string } }) {
   const post = getPost(params.slug);
   if (!post) return {};
-  return { title: `${post.title} — Furlpay Blog`, description: post.excerpt };
+  const url = `https://furlpay.com/blog/${post.slug}`;
+  return {
+    title: `${post.title} — Furlpay Blog`,
+    description: post.excerpt,
+    alternates: { canonical: url },
+    openGraph: {
+      type: "article",
+      url,
+      title: post.title,
+      description: post.excerpt,
+      publishedTime: post.date,
+      authors: [post.author],
+    },
+    twitter: { card: "summary_large_image", title: post.title, description: post.excerpt },
+  };
 }
 
 export default function ArticlePage({ params }: { params: { slug: string } }) {
@@ -26,8 +40,24 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
   const c = categoryById(post.category);
   const related = postsByCategory(post.category).filter((p) => p.slug !== post.slug).slice(0, 3);
 
+  // BlogPosting structured data for rich results.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "BlogPosting",
+    headline: post.title,
+    description: post.excerpt,
+    datePublished: post.date,
+    author: { "@type": "Organization", name: post.author, url: "https://furlpay.com" },
+    publisher: { "@id": "https://furlpay.com/#org" },
+    mainEntityOfPage: `https://furlpay.com/blog/${post.slug}`,
+  };
+
   return (
     <div className="mx-auto max-w-3xl">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <Link href="/blog" className="text-[13px] text-textSecondary transition-colors hover:text-neon">
         ← Back to blog
       </Link>

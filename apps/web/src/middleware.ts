@@ -9,7 +9,14 @@ import { SESSION_COOKIE, verifySession } from "@/lib/session";
 // (webhooks are authenticated by signature, checkout by merchant key).
 // ---------------------------------------------------------------------------
 
-const PUBLIC_PAGES = new Set(["/", "/login", "/signup", "/actions.json"]);
+const PUBLIC_PAGES = new Set([
+  "/",
+  "/login",
+  "/signup",
+  "/actions.json",
+  "/sitemap.xml", // SEO — must be crawlable
+  "/robots.txt",
+]);
 const PUBLIC_PAGE_PREFIXES = [
   "/docs",
   "/blog",
@@ -21,6 +28,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/webhooks",
   "/api/checkout",
   "/api/actions", // Solana Actions/Blinks — consumed by unauthenticated Blink clients
+  "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
 ];
