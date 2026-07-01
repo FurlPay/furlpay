@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 // ---------------------------------------------------------------------------
 // Auth gate. A `furlpay_session` cookie is minted on passkey login/registration.
@@ -16,9 +17,11 @@ const PUBLIC_API_PREFIXES = [
   "/api/compliance/kyc", // needed during signup, before a session exists
 ];
 
-export function middleware(req: NextRequest) {
+export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const hasSession = Boolean(req.cookies.get("furlpay_session")?.value);
+  // Verify the JWT signature (edge-safe via jose), not just cookie presence.
+  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  const hasSession = Boolean(claims);
 
   const isApi = pathname.startsWith("/api");
   const isPublicApi = PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));

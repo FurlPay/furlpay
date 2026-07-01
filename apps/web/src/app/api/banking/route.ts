@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/store";
+import { BankingSchema, parse } from "@/lib/schemas";
 
 // GET /api/banking — list provisioned virtual accounts.
 export async function GET() {
@@ -16,7 +17,9 @@ const PROVISION: Record<string, () => Record<string, string>> = {
 };
 
 export async function POST(req: NextRequest) {
-  const { currency } = await req.json();
+  const parsed = parse(BankingSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return parsed.res;
+  const { currency } = parsed.data;
   const gen = PROVISION[currency];
   if (!gen) return NextResponse.json({ error: "Unsupported currency" }, { status: 400 });
 

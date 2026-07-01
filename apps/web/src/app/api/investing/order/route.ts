@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db, newTx, recordTransaction } from "@/lib/store";
+import { recordMovement } from "@/lib/ledger";
 
 // POST /api/investing/order — place a fractional stock/ETF order (Alpaca).
 // Accepts EITHER `notional` (USD) OR `qty` (shares), never both (→ 400),
@@ -65,6 +66,8 @@ export async function POST(req: NextRequest) {
         status: "settled",
       })
     );
+    // Buy moves cash out; sell brings cash in.
+    recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${holding.symbol}`);
   }
 
   return NextResponse.json({

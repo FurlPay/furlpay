@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { db } from "@/lib/store";
+import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
 
-// POST /api/auth/webauthn — Passkey (WebAuthn) challenge + registration/login.
+// POST /api/auth/webauthn — sandbox/demo passkey login that issues a real signed
+// JWT session. For a full FIDO2 ceremony (real attestation/assertion), use the
+// /api/auth/passkey/* routes backed by @simplewebauthn/server.
 // body: { action: "register" | "login", credential?: {...} }
-// This models the server side of a passkey ceremony (Turnkey / Dynamic.xyz).
 export async function POST(req: NextRequest) {
   const { action, credential } = await req.json();
 
@@ -18,21 +21,18 @@ export async function POST(req: NextRequest) {
         userVerification: "required",
       });
     }
-    // Phase 2: verify the signed assertion (mocked) and mint a session token.
-    // On success a Safe smart account is deployed / resolved for the passkey.
-    const token = crypto.randomBytes(24).toString("base64url");
+    // Phase 2: issue a signed session JWT (jose, HS256).
+    const token = await signSession({ sub: db.user.id, safe: db.user.safeAddress });
     const res = NextResponse.json({
       success: true,
-      token,
-      safeAddress: "0x7A9f" + crypto.randomBytes(9).toString("hex") + "c31E",
+      safeAddress: db.user.safeAddress,
       newAccount: action === "register",
     });
-    // HttpOnly session cookie consumed by middleware to gate the app.
-    res.cookies.set("furlpay_session", token, {
+    res.cookies.set(SESSION_COOKIE, token, {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24 * 7,
+      maxAge: SESSION_MAX_AGE,
     });
     return res;
   }

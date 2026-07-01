@@ -4,15 +4,15 @@ import { screenWallet } from "@furlpay/compliance";
 import { assessRisk, requiresStepUp, verifyTotp } from "@furlpay/security";
 import { db, newTx, recordTransaction } from "@/lib/store";
 import { verifyTransferSignature } from "@/lib/signature";
+import { recordMovement } from "@/lib/ledger";
+import { TransferSchema, parse } from "@/lib/schemas";
 
 // POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via Paymaster.
 // body: { safeAddress, destination, amount, token, chain, signature, mfaCode?, deviceSignals? }
 export async function POST(req: NextRequest) {
-  const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = await req.json();
-
-  if (!destination || !amount || !signature) {
-    return NextResponse.json({ error: "destination, amount, signature required" }, { status: 400 });
-  }
+  const parsed = parse(TransferSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return parsed.res;
+  const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = parsed.data;
 
   // Device / behavioral risk gate (Sardine-style).
   const risk = assessRisk(deviceSignals || {});
@@ -68,5 +68,8 @@ export async function POST(req: NextRequest) {
     src.usdValue = src.amount;
   }
 
-  return NextResponse.json({ transactionHash, gasSponsored: true, screen });
+  // Double-entry: funds leave user cash.
+  const entry = recordMovement("out", amount, `Transfer ${token} to ${destination.slice(0, 10)}…`);
+
+  return NextResponse.json({ transactionHash, gasSponsored: true, screen, ledgerTxId: entry.id });
 }

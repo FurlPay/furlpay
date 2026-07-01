@@ -8,6 +8,7 @@ const nextConfig = {
     "@furlpay/account-kit",
     "@furlpay/ui",
     "@furlpay/security",
+    "@furlpay/ledger",
   ],
 };
 

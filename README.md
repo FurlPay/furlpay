@@ -526,13 +526,15 @@ gantt
     CCTP V2 intent router                    :done, f1e, 2026-06, 2026-07
     Tiered reusable KYC + jurisdiction       :done, f1f, 2026-06, 2026-07
     Brand logos + Lucide icons               :done, f1g, 2026-06, 2026-07
+    Double-entry ledger + derived balances   :done, f1h, 2026-06, 2026-07
 
     section Phase 2 - Finish prototype
-    Real session JWT + WebAuthn verify       :active, f2a, 2026-07, 2026-08
-    zod validation on all routes             :f2b, 2026-07, 2026-08
-    Server-Component data migration          :f2c, 2026-08, 2026-09
-    Web and e2e tests                        :f2d, 2026-08, 2026-09
-    Package desktop + extension              :f2e, 2026-09, 2026-10
+    Real session JWT signing (jose)          :done, f2a, 2026-07, 2026-07
+    zod validation on routes                 :done, f2b, 2026-07, 2026-07
+    Real WebAuthn ceremony (simplewebauthn)  :active, f2c, 2026-07, 2026-08
+    Server-Component data migration          :f2d, 2026-08, 2026-09
+    Web and e2e tests                        :f2e, 2026-08, 2026-09
+    Package desktop + extension              :f2f, 2026-09, 2026-10
 
     section Phase 3 - Beta
     Persistence Postgres + per-user          :f3a, 2026-09, 2026-11
@@ -561,10 +563,22 @@ Done (Phase 1):
   (`/api/compliance/jurisdiction`).
 - Defense-in-depth security: 2-of-2 MPC, step-up MFA (TOTP), device risk engine.
 
+Done (Phase 2 so far):
+
+- Real signed JWT sessions via `jose` (HS256), verified in edge middleware;
+  tampered/expired tokens rejected.
+- zod request validation on core money routes (transfer, intents, checkout,
+  banking) with structured 400s.
+- Real WebAuthn ceremony via `@simplewebauthn/server` (`/api/auth/passkey/*`):
+  registration + authentication options and verification (origin, challenge,
+  counter). Full assertion requires a browser authenticator.
+- Double-entry ledger (`@furlpay/ledger`): immutable balanced postings, derived
+  balances, reversals; wired into transfers, orders, and off-ramps; exposed at
+  `/api/ledger` with a trial-balance invariant.
+
 Next (Phase 2):
 
-- Real session and JWT signing, true WebAuthn assertion verification.
-- zod request validation, and a full Server-Component data-fetch migration.
+- Full Server-Component data-fetch migration; browser-driven WebAuthn e2e.
 - Wallet, exchange and market-data brand logos; secondary Material Symbols set.
 - Web / e2e tests; desktop and extension packaging and distribution.
 

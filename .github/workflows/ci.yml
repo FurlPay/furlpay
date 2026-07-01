@@ -26,6 +26,8 @@ jobs:
         run: npm test --workspace @furlpay/compliance
       - name: Test security package
         run: npm test --workspace @furlpay/security
+      - name: Test ledger package
+        run: npm test --workspace @furlpay/ledger
 
   go-sdk:
     runs-on: ubuntu-latest

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
 import { AccountKit } from "@furlpay/account-kit";
 import { db } from "@/lib/store";
 

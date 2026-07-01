@@ -1,19 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Intent, planIntent } from "@/lib/services/intentRouter";
+import { planIntent } from "@/lib/services/intentRouter";
 import { db, newTx, recordTransaction } from "@/lib/store";
+import { IntentSchema, parse } from "@/lib/schemas";
 
 // POST /api/intents — plan (and optionally execute) a cross-chain intent.
 // The router picks CCTP V2 for native USDC and Li.Fi for everything else.
 // body: Intent & { execute?: boolean }
 export async function POST(req: NextRequest) {
-  const body = (await req.json()) as Intent & { execute?: boolean };
-
-  if (!body.fromToken || !body.toToken || !body.fromChain || !body.toChain || !(body.amount > 0)) {
-    return NextResponse.json(
-      { error: "fromToken, toToken, fromChain, toChain and positive amount are required" },
-      { status: 400 }
-    );
-  }
+  const parsed = parse(IntentSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return parsed.res;
+  const body = parsed.data;
 
   let plan;
   try {

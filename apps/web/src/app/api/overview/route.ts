@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+export const dynamic = "force-dynamic";
 import { db } from "@/lib/store";
 
 // GET /api/overview — unified net worth across fiat + on-chain + equities.
