@@ -4,6 +4,7 @@ import PhoneMockup from "@/components/marketing/PhoneMockup";
 import StoreBadges from "@/components/marketing/StoreBadges";
 import CodePreview from "@/components/marketing/CodePreview";
 import PricingCards from "@/components/marketing/PricingCards";
+import PartnerMarquee from "@/components/marketing/PartnerMarquee";
 import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon } from "@/components/marketing/SocialIcons";
 
 // Furlpay marketing landing page (furlpay.app/). Premium OLED theme with green
@@ -66,6 +67,11 @@ function Hero() {
           <Link href="/docs" className="btn-outline w-full px-7 py-3.5 text-[16px] sm:w-auto">
             Explore Developer Docs
           </Link>
+        </div>
+
+        {/* Partner trust marquee, directly below the hero CTAs */}
+        <div className="mt-14">
+          <PartnerMarquee />
         </div>
 
         {/* Phone mockup center stage */}
