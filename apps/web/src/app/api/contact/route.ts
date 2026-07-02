@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { contactNotification, sendEmail } from "@/lib/email";
 
 // POST /api/contact — "Talk to us" lead capture. Public (unauthenticated).
 // Mock/demo: validates and records the lead in memory; a live build forwards it
@@ -51,7 +52,9 @@ export async function POST(req: NextRequest) {
   leads.unshift(lead);
   if (leads.length > 500) leads.length = 500;
 
-  // Live: await forwardToCrm(lead) / postToSlack(lead) / sendEmail(lead)
+  // Notify the team (mock-logs without RESEND_API_KEY). Live: also CRM/Slack.
+  const note = contactNotification(lead);
+  void sendEmail({ to: process.env.CONTACT_INBOX || "hello@furlpay.com", replyTo: email, ...note });
   console.log(`[contact] new lead: ${firstName} ${lastName} <${email}> · ${company}`);
 
   return NextResponse.json({ ok: true });

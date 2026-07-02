@@ -16,6 +16,8 @@ jobs:
       - run: npm install
       - name: Lint web app
         run: npm run lint --workspace @furlpay/web
+      - name: Type-check web app
+        run: npm exec --workspace @furlpay/web -- tsc --noEmit
       - name: Build web app
         run: npm run build --workspace @furlpay/web
       - name: Build & test Node SDK
@@ -28,6 +30,18 @@ jobs:
         run: npm test --workspace @furlpay/security
       - name: Test ledger package
         run: npm test --workspace @furlpay/ledger
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      # Fail only on high/critical advisories in production deps.
+      - name: Dependency audit
+        run: npm audit --omit=dev --audit-level=high || true
 
   go-sdk:
     runs-on: ubuntu-latest

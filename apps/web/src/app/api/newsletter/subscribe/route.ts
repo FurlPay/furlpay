@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { VALID_CATEGORIES, readSubscribers, writeSubscribers } from "@/lib/newsletter";
+import { newsletterWelcome, sendEmail } from "@/lib/email";
 
 export const dynamic = "force-dynamic";
 
@@ -72,6 +73,10 @@ export async function POST(req: NextRequest) {
     ip,
   });
   writeSubscribers(subscribers);
+
+  // Fire-and-forget welcome email (mock-logs without RESEND_API_KEY).
+  const welcome = newsletterWelcome(cats);
+  void sendEmail({ to: email, ...welcome });
 
   return NextResponse.json({
     success: true,

@@ -1,0 +1,33 @@
+name: Release (npm)
+
+# Publishes the Node SDK to npm with build provenance. Trigger by pushing a tag
+# like `node-v0.1.1`. Requires either npm Trusted Publishing configured for the
+# package, or an NPM_TOKEN repository secret.
+on:
+  push:
+    tags:
+      - "node-v*"
+
+permissions:
+  contents: read
+  id-token: write # OIDC — enables npm provenance / trusted publishing
+
+jobs:
+  publish-node-sdk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install
+      - name: Build & test
+        run: |
+          npm run build --workspace @furlpay/furlpay-node
+          npm test --workspace @furlpay/furlpay-node
+      - name: Publish with provenance
+        working-directory: sdks/node
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
