@@ -50,7 +50,16 @@ export async function verifyGoogleCredential(credential: string): Promise<Google
     };
   }
 
-  // Mock/dev: trust the payload without signature verification.
+  // Mock/dev only: trust the payload without signature verification. This path
+  // MUST never run in production — an unverified JWT means anyone can forge any
+  // identity and mint a session (full auth bypass). Refuse it, mirroring the
+  // production guard in lib/session.ts.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "Google sign-in is not configured for production. Set INTEGRATION_MODE=live and GOOGLE_CLIENT_ID."
+    );
+  }
+
   const p = decodeJwtPayload(credential);
   const sub = String(p.sub ?? "");
   const email = String(p.email ?? "");

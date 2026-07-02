@@ -23,6 +23,17 @@ export function otpIsLive(): boolean {
   return MODE === "live" && !!ACCOUNT_SID && !!AUTH_TOKEN && !!SERVICE_SID;
 }
 
+// The mock OTP path generates codes locally and echoes them to the caller — an
+// authentication bypass if it ever runs in production. Refuse to fall back to
+// mock in production, mirroring the guard in lib/session.ts.
+function assertLiveInProduction() {
+  if (process.env.NODE_ENV === "production" && !otpIsLive()) {
+    throw new Error(
+      "OTP is not configured for production. Set INTEGRATION_MODE=live and the TWILIO_* credentials."
+    );
+  }
+}
+
 // ---- Mock store: pending code per recipient, with a 10-minute expiry. --------
 interface Pending {
   code: string;
@@ -56,6 +67,7 @@ export async function startOtp(to: string, channel: OtpChannel = "sms"): Promise
     return { sent: v.status === "pending", channel };
   }
 
+  assertLiveInProduction();
   const code = sixDigits();
   pending.set(to, { code, expiresAt: Date.now() + TTL_MS, attempts: 0 });
   // Dev affordance: the code never leaves the server except in this log line.
@@ -79,6 +91,7 @@ export async function checkOtp(to: string, code: string): Promise<CheckResult> {
     return { approved: check.status === "approved", reason: check.status === "approved" ? undefined : "mismatch" };
   }
 
+  assertLiveInProduction();
   const rec = pending.get(to);
   if (!rec) return { approved: false, reason: "not_found" };
   if (Date.now() > rec.expiresAt) {
