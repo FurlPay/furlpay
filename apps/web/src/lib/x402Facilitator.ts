@@ -1,0 +1,122 @@
+import crypto from "crypto";
+import { X402_VERSION, type PaymentRequirements, type XPaymentPayload } from "@/lib/x402";
+
+// ---------------------------------------------------------------------------
+// x402 Facilitator — the verify + settle service that sits between AI agents
+// and the chain (the "Stripe for agent payments" middleware). Any x402 server
+// can point its middleware at this facilitator instead of running wallet/gas
+// infrastructure itself.
+//
+// Standard facilitator API surface:
+//   GET  /supported  → the (scheme, network) kinds this facilitator can settle
+//   POST /verify     → validate a payment payload against payment requirements
+//   POST /settle     → verify, then submit settlement on-chain (single-use)
+//
+// This is Furlpay's wedge: Solana Foundation is an x402 Foundation member, but
+// there is no production Solana-native facilitator — this fills that gap. Both
+// Solana and Base (EVM) are supported. Settlement is pluggable: the default is
+// a deterministic mock (runs with zero credentials); a live deployment injects
+// a real on-chain settler (RPC + sponsored fee payer).
+// ---------------------------------------------------------------------------
+
+export const SUPPORTED_KINDS = [
+  { x402Version: X402_VERSION, scheme: "exact", network: "solana" },
+  { x402Version: X402_VERSION, scheme: "exact", network: "base" },
+] as const;
+
+// Single-use nonce store (production: Redis with TTL) — replay protection.
+const g = globalThis as unknown as { __x402fac?: { usedNonces: Set<string> } };
+const store = g.__x402fac ?? (g.__x402fac = { usedNonces: new Set() });
+
+export interface FacilitatorRequest {
+  x402Version: number;
+  paymentPayload: XPaymentPayload;
+  paymentRequirements: PaymentRequirements;
+}
+
+export interface VerifyResult {
+  isValid: boolean;
+  payer?: string;
+  invalidReason?: string;
+}
+
+export interface SettleResult {
+  success: boolean;
+  transaction?: string;
+  network: string;
+  payer?: string;
+  errorReason?: string;
+}
+
+function supports(scheme: string, network: string): boolean {
+  return SUPPORTED_KINDS.some((k) => k.scheme === scheme && k.network === network);
+}
+
+/** Validate a payment payload against the requirements the resource server set. */
+export function verify(req: FacilitatorRequest): VerifyResult {
+  const { paymentPayload: p, paymentRequirements: r } = req;
+  const auth = p?.payload?.authorization;
+
+  if (req.x402Version !== X402_VERSION) return fail("unsupported_version");
+  if (!auth || typeof p?.payload?.signature !== "string") return fail("malformed_payload");
+  if (p.scheme !== r.scheme) return fail("scheme_mismatch");
+  if (p.network !== r.network) return fail("network_mismatch");
+  if (!supports(p.scheme, p.network)) return fail("unsupported_kind");
+
+  // Recipient must be exactly who the resource server asked to be paid.
+  if ((auth.to || "").toLowerCase() !== (r.payTo || "").toLowerCase()) return fail("recipient_mismatch");
+
+  // Amount must cover the required amount (atomic units).
+  try {
+    if (BigInt(auth.value) < BigInt(r.maxAmountRequired)) return fail("insufficient_amount");
+  } catch {
+    return fail("invalid_amount");
+  }
+
+  // Authorization validity window.
+  const now = Math.floor(Date.now() / 1000);
+  const vAfter = Number(auth.validAfter);
+  const vBefore = Number(auth.validBefore);
+  if (Number.isFinite(vAfter) && now < vAfter) return fail("not_yet_valid");
+  if (Number.isFinite(vBefore) && now > vBefore) return fail("authorization_expired");
+
+  return { isValid: true, payer: auth.from };
+}
+
+/** A settler submits a verified authorization on-chain and returns a tx id. */
+export type Settler = (req: FacilitatorRequest, payer: string) => Promise<string> | string;
+
+// Default mock settler — deterministic, no RPC. Replace via settle(req, realSettler).
+function mockSettler(req: FacilitatorRequest): string {
+  const bytes = crypto.randomBytes(32);
+  // Solana tx signatures are base58; EVM hashes are 0x-hex.
+  return req.paymentRequirements.network === "solana"
+    ? bytes.toString("base64url").slice(0, 44)
+    : "0x" + bytes.toString("hex");
+}
+
+/** Verify, then settle. Nonces are single-use, so replays are rejected. */
+export async function settle(req: FacilitatorRequest, settler: Settler = mockSettler): Promise<SettleResult> {
+  const network = req.paymentRequirements?.network ?? "unknown";
+  const v = verify(req);
+  if (!v.isValid) return { success: false, network, errorReason: v.invalidReason };
+
+  const nonce = req.paymentPayload.payload.authorization.nonce;
+  if (store.usedNonces.has(nonce)) {
+    return { success: false, network, payer: v.payer, errorReason: "nonce_already_used" };
+  }
+  store.usedNonces.add(nonce);
+
+  try {
+    const transaction = await settler(req, v.payer!);
+    return { success: true, transaction, network, payer: v.payer };
+  } catch (e) {
+    // Roll back the nonce so a transient settlement failure isn't a permanent burn.
+    store.usedNonces.delete(nonce);
+    return { success: false, network, payer: v.payer, errorReason: (e as Error).message || "settlement_failed" };
+  }
+}
+
+function fail(reason: string): VerifyResult {
+  return { isValid: false, invalidReason: reason };
+}
