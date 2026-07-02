@@ -308,6 +308,7 @@ function Footer() {
               ["Partners", "/partners"],
               ["Changelog", "/changelog"],
               ["Community", "/community"],
+              ["Careers", "/careers"],
               ["Talk to us", "/talk-to-us"],
             ]}
           />
