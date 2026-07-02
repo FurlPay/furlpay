@@ -22,6 +22,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/developer", priority: 0.8, changeFrequency: "weekly" as const },
     { path: "/developer/agents", priority: 0.8, changeFrequency: "weekly" as const },
     { path: "/careers", priority: 0.7, changeFrequency: "weekly" as const },
+    { path: "/marketplace", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/waitlist", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/grants", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/press", priority: 0.5, changeFrequency: "monthly" as const },
+    { path: "/status", priority: 0.4, changeFrequency: "weekly" as const },
+    { path: "/developer/keys", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/developer/webhooks", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/developer/events", priority: 0.6, changeFrequency: "monthly" as const },
 
     // — Product —
     { path: "/banking", priority: 0.8, changeFrequency: "monthly" as const },

@@ -25,6 +25,76 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // -1 ----------------------------------------------------------------
+  {
+    slug: "i-decompiled-robinhood-redotpay-indmoney",
+    title: "I decompiled Robinhood, RedotPay & INDmoney. Here's what's inside.",
+    excerpt:
+      "A source-level teardown of $91B+ of combined market cap — the architectures, SDKs, chart engines, and the one thing none of them have: native agentic payments.",
+    category: "engineering",
+    date: "2026-07-02",
+    readMins: 9,
+    author: "Furlpay Engineering",
+    featured: true,
+    body: [
+      {
+        type: "p",
+        text: `I pulled apart three of the biggest fintech apps on the planet — Robinhood (427 MB, 230+ native modules), RedotPay (66 MB, Flutter), and INDmoney (66 MB, native Android) — and read the decompiled source. Here's the honest map of how they're built, what they share, and the gap I'm building Furlpay into.`,
+      },
+      { type: "h2", text: "Robinhood — the 230-module monolith" },
+      {
+        type: "p",
+        text: `Robinhood is native Kotlin with 15+ DEX files and 22,460+ classes across 230+ feature modules. Six asset classes (equities, options, futures, crypto incl. perpetuals, prediction markets, FX), four chart engines (a custom Spark fork, an "advanced" indicator engine, one-day charts, and the next-gen "BlackWidow"), and a custom WebSocket library (Scarlet) for real-time data. Their AI lives in bolted-on "agentic" and "assistant" modules — added to a 13-year-old codebase.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Design system "Arsenal" — a dedicated team maintains it. Polish is a moat.`,
+          `Compliance is ~10-15% of headcount — that's how they hold so many licenses.`,
+          `The takeaway: massive breadth, but a monolith this size cannot pivot fast.`,
+        ],
+      },
+      { type: "h2", text: "RedotPay — the focused Flutter cannon" },
+      {
+        type: "p",
+        text: `RedotPay proves focus works: a single Flutter codebase, virtual/physical Visa cards, 40+ fiat currencies, and a laser focus on stablecoin card spend got them to a $1B valuation (eyeing a $4B IPO). But: zero public SDKs, zero open source, no developer platform, no AI/agentic layer, and centralized custody. They own consumer card volume — they can never become a platform.`,
+      },
+      { type: "h2", text: "INDmoney — India's investing super-app" },
+      {
+        type: "p",
+        text: `Native Android, 8 DEX files, ~33k classes. Notable is their dual chart engine: a fork of Robinhood's open-source Spark library for quick glances plus an embedded TradingView WebView for pros, toggled in settings. US stocks run through DriveWealth ("powered by"). No crypto, no cards, no agentic layer — a different market, but the dual-chart UX is the gold standard.`,
+      },
+      { type: "h2", text: "What all three share — and what none have" },
+      {
+        type: "diagram",
+        text: `[ Robinhood ]  native · 230 modules · 4 chart engines · AI retrofitted
+[ RedotPay  ]  Flutter · cards-only · closed-source · no SDK · no AI
+[ INDmoney  ]  native · dual-chart · DriveWealth · no crypto/cards/AI
+        └──────────────► none have: a facilitator + MCP + agent spend controls`,
+      },
+      {
+        type: "p",
+        text: `Every one of them allocates ~40-50% of headcount to engineering. Every consumer lane they occupy already has a $1B+ incumbent. And not one has native agentic payments — the x402 + MCP stack where software, not people, moves money. That lane has ~$50M in total funding and no clear winner.`,
+      },
+      { type: "h2", text: "Where Furlpay is different" },
+      {
+        type: "ul",
+        items: [
+          `Open source: 10 MIT repos (SDKs in 4 languages, CLI, Elements, MCP server, and the first Solana-native x402 facilitator).`,
+          `Agentic-native: an Agent Console with per-agent budgets, merchant allowlists, and human-in-the-loop approvals — corporate cards for AI agents.`,
+          `Web + desktop + extension, TradingView charts, 2-of-2 MPC self-custody, and MiCA/GENIUS/Travel-Rule compliance wired into the product.`,
+        ],
+      },
+      {
+        type: "quote",
+        text: `Stripe's dashboard is for merchants. Coinbase's is for traders. Furlpay's is for AI agents — and the humans who manage them.`,
+      },
+      {
+        type: "p",
+        text: `Everything I built is open at github.com/FurlPay, and the live product is furlpay.com. The teardown reports informed every architecture decision — breadth from Robinhood, focus from RedotPay, chart UX from INDmoney, and an agentic layer none of them have.`,
+      },
+    ],
+  },
   // 0 -----------------------------------------------------------------
   {
     slug: "five-ways-to-rob-an-ai-agent-securing-x402",

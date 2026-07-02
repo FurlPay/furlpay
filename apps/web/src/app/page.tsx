@@ -288,14 +288,16 @@ function Footer() {
               ["Earn", "/earn"],
               ["Credit", "/credit"],
               ["Pricing", "/pricing"],
+              ["Waitlist", "/waitlist"],
             ]}
           />
           <FooterCol
             title="Developers"
             links={[
               ["Docs", "/docs"],
-              ["Quickstart", "/docs/quickstart"],
-              ["x402 & agents", "/docs/payments/agentic-x402"],
+              ["Agent Console", "/developer/agents"],
+              ["API keys", "/developer/keys"],
+              ["Marketplace", "/marketplace"],
               ["Developer portal", "/developer"],
               ["GitHub", "https://github.com/FurlPay"],
             ]}
@@ -306,9 +308,11 @@ function Footer() {
               ["About", "/about"],
               ["Use cases", "/use-cases"],
               ["Partners", "/partners"],
-              ["Changelog", "/changelog"],
-              ["Community", "/community"],
               ["Careers", "/careers"],
+              ["Changelog", "/changelog"],
+              ["Grants", "/grants"],
+              ["Status", "/status"],
+              ["Press", "/press"],
               ["Talk to us", "/talk-to-us"],
             ]}
           />
