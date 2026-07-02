@@ -57,7 +57,10 @@ function Nav() {
           <a href="#pricing" className="transition-colors hover:text-white">Pricing</a>
           <a href="#security" className="transition-colors hover:text-white">Security</a>
         </nav>
-        <Link href="/dashboard" className="btn-green px-5 py-2 text-sm">Open App</Link>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Link href="/talk-to-us" className="btn-outline px-4 py-2 text-sm">Talk to us</Link>
+          <Link href="/dashboard" className="btn-green px-5 py-2 text-sm">Open App</Link>
+        </div>
       </div>
     </header>
   );
