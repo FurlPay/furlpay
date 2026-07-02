@@ -15,3 +15,10 @@ indmoney-apk/
 redotpay-apk/
 robinhood-apk/
 apktool-output/
+*.apkm
+*.apk
+*.aab
+*.zip
+
+# Android app project (build artifacts + signing keystore — never deploy)
+apps/android
