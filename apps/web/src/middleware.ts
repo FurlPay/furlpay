@@ -11,6 +11,8 @@ import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 const PUBLIC_PAGES = new Set([
   "/",
+  "/pricing",
+  "/about",
   "/login",
   "/signup",
   "/actions.json",

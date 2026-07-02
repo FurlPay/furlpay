@@ -8,6 +8,8 @@ const BASE = "https://furlpay.com";
 export default function sitemap(): MetadataRoute.Sitemap {
   const staticPages = [
     { path: "", priority: 1.0, changeFrequency: "weekly" as const },
+    { path: "/pricing", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/about", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/signup", priority: 0.9, changeFrequency: "monthly" as const },
     { path: "/login", priority: 0.5, changeFrequency: "monthly" as const },
     { path: "/developer", priority: 0.8, changeFrequency: "weekly" as const },

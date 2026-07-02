@@ -11,6 +11,8 @@ import CommandPalette from "@/components/CommandPalette";
 // column, live status bar + home indicator, bottom tab bar).
 const FULL_BLEED = (pathname: string) =>
   pathname === "/" ||
+  pathname === "/pricing" ||
+  pathname === "/about" ||
   pathname.startsWith("/docs") ||
   pathname.startsWith("/blog") ||
   pathname.startsWith("/legal");

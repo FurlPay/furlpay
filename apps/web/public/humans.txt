@@ -1,0 +1,13 @@
+/* TEAM */
+  Furlpay — hello@furlpay.com
+  GitHub: https://github.com/FurlPay
+  X: https://x.com/furlpay
+
+/* THANKS */
+  Built on Solana, Base, Circle (USDC/EURC), Safe, Turnkey, Alpaca, Wise.
+  Open standards: x402, Model Context Protocol (MCP), Solana Actions.
+
+/* SITE */
+  Standards: HTML5, TypeScript, Next.js
+  Components: React, Tailwind CSS, Turborepo
+  Charts: TradingView lightweight-charts

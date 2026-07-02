@@ -1,0 +1,10 @@
+# Furlpay responsible disclosure — https://furlpay.com/.well-known/security.txt
+Contact: mailto:hello@furlpay.com
+Preferred-Languages: en
+Canonical: https://furlpay.com/.well-known/security.txt
+Policy: https://github.com/FurlPay/furlpay-x402/blob/main/SECURITY.md
+Expires: 2027-01-01T00:00:00.000Z
+
+# Please do not open public GitHub issues for vulnerabilities.
+# Email hello@furlpay.com with a description and reproduction steps.
+# We aim to acknowledge reports within 48 hours and credit reporters.

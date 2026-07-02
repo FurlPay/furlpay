@@ -1,0 +1,46 @@
+# Furlpay
+
+> The on-chain financial operating system — stablecoin payments, global local
+> accounts, fractional stock investing, and agentic (AI) payments in one client.
+> Phishing-resistant (WebAuthn passkeys), 2-of-2 MPC custody, compliance-aware.
+
+Furlpay is both a consumer app and developer infrastructure. For AI agents, the
+most relevant surfaces are the x402 facilitator and the MCP server.
+
+## Agentic payments (x402)
+
+- x402 facilitator API: https://furlpay.com/api/x402/facilitator
+  - GET  /supported  — scheme/network kinds (solana, base)
+  - POST /verify     — validate a payment payload against requirements
+  - POST /settle     — verify + settle on-chain (single-use nonce, replay-safe)
+- Pay-per-call demo endpoint: https://furlpay.com/api/x402/fx (402 → quote)
+- Open-source middleware: https://github.com/FurlPay/furlpay-x402 (@furlpay/x402)
+- Docs: https://furlpay.com/docs/payments/agentic-x402
+
+## Solana Actions & Blinks
+
+- Discovery: https://furlpay.com/actions.json
+- Action API: https://furlpay.com/api/actions/pay/{orderId}
+- Docs: https://furlpay.com/docs/payments/solana-actions
+- Template: https://github.com/FurlPay/furlpay-solana-actions-template
+
+## Developer platform (open source: https://github.com/FurlPay)
+
+- Node SDK: https://github.com/FurlPay/furlpay-node (@furlpay/furlpay-node)
+- CLI: https://github.com/FurlPay/furlpay-cli (@furlpay/cli)
+- MCP server: https://github.com/FurlPay/furlpay-mcp-server (@furlpay/mcp-server)
+- Elements (React): https://github.com/FurlPay/furlpay-elements
+- Account Kit (Safe/ERC-4337): https://github.com/FurlPay/furlpay-account-kit
+- OpenAPI 3.1 spec: https://furlpay.com/openapi.json
+
+## Docs
+
+- Quickstart: https://furlpay.com/docs/quickstart
+- Architecture: https://furlpay.com/docs/architecture/monorepo
+- Security (MPC + WebAuthn): https://furlpay.com/docs/security/mpc-webauthn
+- Compliance (MiCA): https://furlpay.com/docs/compliance/mica
+
+## Contact
+
+- Email: hello@furlpay.com
+- Security: https://furlpay.com/.well-known/security.txt
