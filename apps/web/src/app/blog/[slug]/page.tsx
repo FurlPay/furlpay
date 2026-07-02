@@ -6,6 +6,7 @@ import CategoryBadge from "@/components/blog/CategoryBadge";
 import CoverArt from "@/components/blog/CoverArt";
 import ArticleBody from "@/components/blog/ArticleBody";
 import StoryCard from "@/components/blog/StoryCard";
+import NewsletterBanner from "@/components/blog/NewsletterBanner";
 
 export const revalidate = 3600; // ISR
 
@@ -76,6 +77,10 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
 
       <div className="mt-9">
         <ArticleBody blocks={post.body} />
+      </div>
+
+      <div className="mt-12">
+        <NewsletterBanner />
       </div>
 
       {related.length > 0 && (

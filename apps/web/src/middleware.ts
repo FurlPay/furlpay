@@ -29,6 +29,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/blog",
   "/legal",
   "/compare", // SEO comparison pages (public)
+  "/newsletter", // subscribe / manage preferences (public)
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
 ];
 const PUBLIC_API_PREFIXES = [
@@ -38,6 +39,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/actions", // Solana Actions/Blinks — consumed by unauthenticated Blink clients
   "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
   "/api/contact", // public "Talk to us" lead capture
+  "/api/newsletter", // public newsletter subscribe / unsubscribe
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
 ];

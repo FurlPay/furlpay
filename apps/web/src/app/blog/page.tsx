@@ -4,6 +4,7 @@ import { getFeatured, getSortedPosts, formatDate } from "@/lib/blog/posts";
 import StoryCard from "@/components/blog/StoryCard";
 import CategoryBadge from "@/components/blog/CategoryBadge";
 import CoverArt from "@/components/blog/CoverArt";
+import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
 
 export const revalidate = 3600; // ISR
 
@@ -22,7 +23,11 @@ export default function BlogFeed() {
       <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Featured story</p>
       <FeaturedCard />
 
-      <div className="mb-6 mt-14 flex items-end justify-between">
+      <div className="mt-10 mb-14">
+        <NewsletterSignup variant="inline" />
+      </div>
+
+      <div className="mb-6 flex items-end justify-between">
         <h2 className="text-[24px] font-extrabold tracking-tighter">Latest stories</h2>
       </div>
       <div className="columns-1 gap-5 sm:columns-2 lg:columns-3">
