@@ -1,0 +1,10 @@
+node_modules
+.next
+.turbo
+.vercel
+out
+dist
+target
+*.log
+.git
+.DS_Store
