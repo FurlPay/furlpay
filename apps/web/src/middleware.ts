@@ -14,6 +14,10 @@ const PUBLIC_PAGES = new Set([
   "/pricing",
   "/about",
   "/talk-to-us",
+  "/changelog",
+  "/community",
+  "/partners",
+  "/use-cases",
   "/login",
   "/signup",
   "/actions.json",
@@ -24,6 +28,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/docs",
   "/blog",
   "/legal",
+  "/compare", // SEO comparison pages (public)
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
 ];
 const PUBLIC_API_PREFIXES = [

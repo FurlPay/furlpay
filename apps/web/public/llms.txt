@@ -7,6 +7,18 @@
 Furlpay is both a consumer app and developer infrastructure. For AI agents, the
 most relevant surfaces are the x402 facilitator and the MCP server.
 
+## Capabilities
+
+- Stablecoin payments (USDC, EURC) on Solana and Base
+- Global local bank accounts (USD, EUR, GBP, INR)
+- Fractional stock investing via Alpaca
+- AI agentic payments via x402 protocol
+- Solana Actions & Blinks
+- Bill splitting & group payments
+- Crypto-backed credit lines
+- Rewards & cashback program
+- MPC + WebAuthn passkey custody (no seed phrases)
+
 ## Agentic payments (x402)
 
 - x402 facilitator API: https://furlpay.com/api/x402/facilitator
@@ -33,14 +45,83 @@ most relevant surfaces are the x402 facilitator and the MCP server.
 - Account Kit (Safe/ERC-4337): https://github.com/FurlPay/furlpay-account-kit
 - OpenAPI 3.1 spec: https://furlpay.com/openapi.json
 
-## Docs
+## Supported networks
 
+| Network  | Token | Settlement |
+|----------|-------|------------|
+| Solana   | USDC  | ~400ms     |
+| Solana   | EURC  | ~400ms     |
+| Base     | USDC  | ~2s        |
+| Base     | EURC  | ~2s        |
+
+## Docs — Documentation pages
+
+- Docs hub: https://furlpay.com/docs
+  Overview of all Furlpay developer documentation and guides.
 - Quickstart: https://furlpay.com/docs/quickstart
-- Architecture: https://furlpay.com/docs/architecture/monorepo
-- Security (MPC + WebAuthn): https://furlpay.com/docs/security/mpc-webauthn
-- Compliance (MiCA): https://furlpay.com/docs/compliance/mica
+  Step-by-step guide to integrate Furlpay payments in your app.
+- Architecture — Monorepo: https://furlpay.com/docs/architecture/monorepo
+  How the Furlpay codebase is structured as a Turborepo monorepo.
+- Architecture — API routes: https://furlpay.com/docs/architecture/api-routes
+  Overview of all API route handlers and their responsibilities.
+- Integrations — Stripe Crypto Onramp: https://furlpay.com/docs/integrations/stripe-crypto
+  Guide to the Stripe crypto onramp integration for fiat-to-crypto.
+- Integrations — Persona KYC: https://furlpay.com/docs/integrations/persona-kyc
+  Identity verification flow using Persona for KYC/AML compliance.
+- Payments — Agentic x402: https://furlpay.com/docs/payments/agentic-x402
+  How AI agents can make HTTP 402-based payments using x402 protocol.
+- Payments — Solana Actions: https://furlpay.com/docs/payments/solana-actions
+  Solana Actions & Blinks integration for shareable payment links.
+- Security — MPC + WebAuthn: https://furlpay.com/docs/security/mpc-webauthn
+  Passkey-based authentication and 2-of-2 MPC key custody model.
+- Compliance — MiCA: https://furlpay.com/docs/compliance/mica
+  EU Markets in Crypto-Assets regulation compliance details.
+
+## Marketing — Public pages
+
+- Homepage: https://furlpay.com/
+  Main landing page for Furlpay — one app for payments, banking, investing.
+- Pricing: https://furlpay.com/pricing
+  Pricing tiers, fee schedules, and plan comparison for Furlpay.
+- About: https://furlpay.com/about
+  Company mission, vision, and team information.
+- Developer: https://furlpay.com/developer
+  Developer landing page with SDKs, APIs, and integration resources.
+- Blog: https://furlpay.com/blog
+  Articles on fintech, crypto payments, and Furlpay product updates.
+
+## Legal — Policies and disclosures
+
+- Terms of Service: https://furlpay.com/legal/terms
+  Full terms governing use of the Furlpay platform and services.
+- Privacy Policy: https://furlpay.com/legal/privacy
+  How Furlpay collects, processes, stores, and shares personal data.
+- Cookie Policy: https://furlpay.com/legal/cookies
+  Cookie usage, categories, and opt-out instructions.
+- Risk Disclosure: https://furlpay.com/legal/risk-disclosure
+  Financial risk warnings for crypto, investing, and credit products.
+- AML/KYC Policy: https://furlpay.com/legal/aml-kyc
+  Anti-money laundering and know-your-customer compliance procedures.
+- Acceptable Use Policy: https://furlpay.com/legal/acceptable-use
+  Prohibited activities and acceptable use guidelines.
+- Agent Terms: https://furlpay.com/legal/agent-terms
+  Terms governing AI agent access to Furlpay APIs and x402 facilitator.
+- Disclosures: https://furlpay.com/legal/disclosures
+  Regulatory disclosures, licenses, and entity information.
+- Responsible Disclosure: https://furlpay.com/legal/responsible-disclosure
+  Security vulnerability reporting policy and safe harbor.
+
+## API — Machine-readable endpoints
+
+- OpenAPI spec: https://furlpay.com/openapi.json
+- Sitemap: https://furlpay.com/sitemap.xml
+- Security policy: https://furlpay.com/.well-known/security.txt
+- Solana Actions manifest: https://furlpay.com/actions.json
 
 ## Contact
 
 - Email: hello@furlpay.com
-- Security: https://furlpay.com/.well-known/security.txt
+- Security: security@furlpay.com
+- Security policy: https://furlpay.com/.well-known/security.txt
+- GitHub: https://github.com/FurlPay
+- X (Twitter): https://x.com/furlpay

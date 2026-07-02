@@ -14,6 +14,11 @@ const FULL_BLEED = (pathname: string) =>
   pathname === "/pricing" ||
   pathname === "/about" ||
   pathname === "/talk-to-us" ||
+  pathname === "/changelog" ||
+  pathname === "/community" ||
+  pathname === "/partners" ||
+  pathname === "/use-cases" ||
+  pathname.startsWith("/compare") ||
   pathname.startsWith("/docs") ||
   pathname.startsWith("/blog") ||
   pathname.startsWith("/legal");

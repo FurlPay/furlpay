@@ -4,13 +4,22 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export const LEGAL_NAV = [
+  // Core policies
   { title: "Terms of Service", href: "/legal/terms" },
   { title: "Privacy Policy", href: "/legal/privacy" },
   { title: "Cookie Policy", href: "/legal/cookies" },
   { title: "Risk Disclosure", href: "/legal/risk-disclosure" },
   { title: "AML / KYC Policy", href: "/legal/aml-kyc" },
   { title: "Acceptable Use", href: "/legal/acceptable-use" },
+  { title: "Refund & Cancellation", href: "/legal/refund" },
+  // Agentic & developer
   { title: "Agent Terms of Use", href: "/legal/agent-terms" },
+  { title: "Responsible Disclosure", href: "/legal/responsible-disclosure" },
+  // Compliance & data
+  { title: "Data Processing (DPA)", href: "/legal/dpa" },
+  { title: "Subprocessor List", href: "/legal/subprocessors" },
+  { title: "Travel Rule", href: "/legal/travel-rule" },
+  { title: "Grievance Redressal", href: "/legal/grievance" },
   { title: "Regulatory Disclosures", href: "/legal/disclosures" },
 ];
 

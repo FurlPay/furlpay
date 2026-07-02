@@ -1,0 +1,11 @@
+# Furlpay — https://furlpay.com/robots.txt
+User-agent: *
+Allow: /
+
+Disallow: /api/
+Disallow: /dashboard/
+Disallow: /profile/
+Disallow: /login/
+Disallow: /signup/
+
+Sitemap: https://furlpay.com/sitemap.xml

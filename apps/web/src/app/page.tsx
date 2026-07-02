@@ -249,15 +249,59 @@ function Footer() {
           </div>
         </div>
 
+        {/* Footer navigation */}
+        <div className="mt-12 grid grid-cols-2 gap-8 border-t border-white/5 pt-10 sm:grid-cols-4">
+          <FooterCol
+            title="Product"
+            links={[
+              ["Cards", "/cards"],
+              ["Banking", "/banking"],
+              ["Investing", "/investing"],
+              ["Earn", "/earn"],
+              ["Credit", "/credit"],
+              ["Pricing", "/pricing"],
+            ]}
+          />
+          <FooterCol
+            title="Developers"
+            links={[
+              ["Docs", "/docs"],
+              ["Quickstart", "/docs/quickstart"],
+              ["x402 & agents", "/docs/payments/agentic-x402"],
+              ["Developer portal", "/developer"],
+              ["GitHub", "https://github.com/FurlPay"],
+            ]}
+          />
+          <FooterCol
+            title="Company"
+            links={[
+              ["About", "/about"],
+              ["Use cases", "/use-cases"],
+              ["Partners", "/partners"],
+              ["Changelog", "/changelog"],
+              ["Community", "/community"],
+              ["Talk to us", "/talk-to-us"],
+            ]}
+          />
+          <FooterCol
+            title="Compare & legal"
+            links={[
+              ["Furlpay vs RedotPay", "/compare/redotpay"],
+              ["Blog", "/blog"],
+              ["Terms", "/legal/terms"],
+              ["Privacy", "/legal/privacy"],
+              ["Risk disclosure", "/legal/risk-disclosure"],
+              ["Disclosures", "/legal/disclosures"],
+            ]}
+          />
+        </div>
+
         <div className="mt-10 flex flex-wrap items-center gap-x-6 gap-y-2 border-t border-white/5 pt-6 text-[12px] text-textMuted">
-          <Link href="/blog" className="hover:text-white">Blog</Link>
-          <Link href="/legal/terms" className="hover:text-white">Terms</Link>
-          <Link href="/legal/privacy" className="hover:text-white">Privacy</Link>
+          <Link href="/legal/aml-kyc" className="hover:text-white">AML / KYC</Link>
+          <Link href="/legal/cookies" className="hover:text-white">Cookies</Link>
+          <Link href="/legal/agent-terms" className="hover:text-white">Agent terms</Link>
           <Link href="/legal/disclosures#securities" className="hover:text-white">SEC/FINRA disclosures</Link>
           <Link href="/legal/disclosures#mica" className="hover:text-white">MiCA registrations</Link>
-          <Link href="/legal/disclosures#corporate-notice" className="text-textMuted/70 hover:text-white">
-            BTG Begbies Traynor — historic liquidator reference note (for clarity).
-          </Link>
         </div>
         <p className="mt-4 max-w-4xl text-[11px] leading-relaxed text-textMuted">
           © 2026 Furlpay. All rights reserved. All securities products are offered through Alpaca Securities
@@ -272,6 +316,25 @@ function Footer() {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">{children}</p>
+  );
+}
+
+function FooterCol({ title, links }: { title: string; links: [string, string][] }) {
+  return (
+    <div>
+      <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.14em] text-textSecondary">{title}</p>
+      <ul className="space-y-2 text-[13px] text-textMuted">
+        {links.map(([label, href]) => (
+          <li key={label}>
+            {href.startsWith("http") ? (
+              <a href={href} className="transition-colors hover:text-white">{label}</a>
+            ) : (
+              <Link href={href} className="transition-colors hover:text-white">{label}</Link>
+            )}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

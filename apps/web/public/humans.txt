@@ -1,13 +1,24 @@
 /* TEAM */
-  Furlpay — hello@furlpay.com
+  Name: Furlpay
+  Contact: hello@furlpay.com
   GitHub: https://github.com/FurlPay
   X: https://x.com/furlpay
+  Location: Global (remote-first)
 
 /* THANKS */
   Built on Solana, Base, Circle (USDC/EURC), Safe, Turnkey, Alpaca, Wise.
-  Open standards: x402, Model Context Protocol (MCP), Solana Actions.
+  Open standards: x402, Model Context Protocol (MCP), Solana Actions & Blinks.
+  Identity: Persona (KYC/AML).
+  Payments: Stripe (crypto onramp).
 
 /* SITE */
-  Standards: HTML5, TypeScript, Next.js
-  Components: React, Tailwind CSS, Turborepo
+  Last updated: 2026-07-02
+  Standards: HTML5, CSS3, TypeScript, ECMAScript 2024
+  Frameworks: Next.js 15, React 19, Tailwind CSS 4
+  Build: Turborepo, pnpm workspaces
+  Components: Radix UI, Framer Motion
   Charts: TradingView lightweight-charts
+  Infrastructure: Vercel, PostgreSQL (Prisma ORM)
+  Blockchain: Solana (web3.js), Base/EVM (viem), ERC-4337 (Safe)
+  Auth: WebAuthn passkeys, 2-of-2 MPC (Turnkey)
+  AI: x402 facilitator, MCP server
