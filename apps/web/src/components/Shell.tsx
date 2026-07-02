@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import BottomNav from "@/components/BottomNav";
+import CommandPalette from "@/components/CommandPalette";
 
 // Layout switch. Marketing (/), the docs portal (/docs*), the blog (/blog*) and
 // the legal section (/legal*) render full-bleed so they can use the whole
@@ -34,6 +35,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
         <>
           <BottomNav />
           <div className="app-home-indicator fixed inset-x-0 bottom-0 z-40 mx-auto max-w-[440px]" />
+          <CommandPalette />
         </>
       )}
     </div>

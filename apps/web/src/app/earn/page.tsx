@@ -34,7 +34,12 @@ export default function EarnPage() {
       {/* Earnings hero */}
       <section className="px-5">
         <div className="app-hero p-5">
-          <p className="text-[13px] text-white/70">Total earned</p>
+          <div className="flex items-center justify-between">
+            <p className="text-[13px] text-white/70">Total earned</p>
+            <span className="rounded-full bg-neon/15 px-2.5 py-1 text-[11px] font-bold text-neon">
+              Up to 9.5% APY
+            </span>
+          </div>
           <p className="mt-1 text-[40px] font-extrabold leading-none tracking-tighter text-neon">
             {usd(summary.totalEarned)}
           </p>
@@ -43,6 +48,10 @@ export default function EarnPage() {
             <HeroStat label="Blended APY" value={`${summary.blendedApy}%`} />
             <HeroStat label="Est. / year" value={usd(summary.projectedYearly)} />
           </div>
+          <p className="mt-3 text-[11px] leading-relaxed text-white/60">
+            We route reserves into low-risk tokenized T-bills and lending vaults and pass the yield
+            through to you — no lock-up, withdraw anytime.
+          </p>
         </div>
       </section>
 

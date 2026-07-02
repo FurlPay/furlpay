@@ -12,20 +12,36 @@ const TIERS = [
     name: "Standard",
     price: "$0",
     tagline: "For everyday spending",
-    feats: ["Virtual stablecoin card", "Local USD/EUR account", "Fractional investing"],
+    feats: [
+      "1% stablecoin cashback",
+      "Up to 4% APY on idle USDC/EURC",
+      "Virtual stablecoin card",
+      "Local USD/EUR account",
+      "Fractional investing",
+    ],
   },
   {
     name: "Pro",
     price: "$9",
     tagline: "For power users",
-    feats: ["Metal physical card", "Higher limits & velocity", "Priority FX rates"],
+    feats: [
+      "2% cashback (up to $10k/mo)",
+      "Up to 6% APY on balances",
+      "Metal physical card",
+      "Higher limits & priority FX",
+    ],
     highlight: true,
   },
   {
     name: "Ultra",
     price: "$29",
     tagline: "For builders & teams",
-    feats: ["Full API + webhooks", "Dedicated MPC policy", "24/7 support"],
+    feats: [
+      "3% cashback + up to 8% APY",
+      "Portfolio-backed credit line",
+      "Full API + webhooks",
+      "Dedicated MPC policy · 24/7 support",
+    ],
   },
 ];
 
