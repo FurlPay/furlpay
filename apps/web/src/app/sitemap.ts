@@ -24,6 +24,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/blog", priority: 0.9, changeFrequency: "daily" as const },
     { path: "/legal/terms", priority: 0.3, changeFrequency: "yearly" as const },
     { path: "/legal/privacy", priority: 0.3, changeFrequency: "yearly" as const },
+    { path: "/legal/cookies", priority: 0.3, changeFrequency: "yearly" as const },
+    { path: "/legal/risk-disclosure", priority: 0.3, changeFrequency: "yearly" as const },
+    { path: "/legal/aml-kyc", priority: 0.3, changeFrequency: "yearly" as const },
+    { path: "/legal/acceptable-use", priority: 0.3, changeFrequency: "yearly" as const },
+    { path: "/legal/agent-terms", priority: 0.4, changeFrequency: "yearly" as const },
     { path: "/legal/disclosures", priority: 0.3, changeFrequency: "yearly" as const },
   ].map(({ path, priority, changeFrequency }) => ({
     url: `${BASE}${path}`,
