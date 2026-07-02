@@ -40,7 +40,7 @@ const FEATURES: Feature[] = [
   { label: "Developers", Icon: Code2, href: "/developer" },
   { label: "Learn", Icon: GraduationCap, href: "/docs" },
   { label: "Convert", Icon: ArrowLeftRight, href: "/dashboard" },
-  { label: "Loan", Icon: HandCoins, soon: true },
+  { label: "Credit", Icon: HandCoins, href: "/credit" },
   { label: "Top-Up", Icon: Smartphone, soon: true },
   { label: "Gifts", Icon: Gift, soon: true },
   { label: "Vouchers", Icon: Ticket, soon: true },
