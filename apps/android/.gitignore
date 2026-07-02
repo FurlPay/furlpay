@@ -1,0 +1,16 @@
+# Signing secrets — NEVER commit
+android.keystore
+*.keystore
+.signing-credentials.txt
+
+# Bubblewrap / Gradle build output
+app-release-signed.apk
+app-release-bundle.aab
+app-release-unsigned-aligned.apk
+build/
+.gradle/
+
+# Signed release artifacts (rebuilt via build.sh)
+furlpay-release.aab
+furlpay-release.apk
+*.idsig
