@@ -13,6 +13,7 @@ const PUBLIC_PAGES = new Set([
   "/",
   "/pricing",
   "/about",
+  "/talk-to-us",
   "/login",
   "/signup",
   "/actions.json",
@@ -31,6 +32,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/checkout",
   "/api/actions", // Solana Actions/Blinks — consumed by unauthenticated Blink clients
   "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
+  "/api/contact", // public "Talk to us" lead capture
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
 ];
