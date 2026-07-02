@@ -5,6 +5,16 @@ import { getJSON, sendJSON } from "@/lib/api";
 import { Holding } from "@/lib/types";
 import { PageHeader, Pill, Spinner, pct, usd } from "@/components/ui";
 import Modal from "@/components/Modal";
+import PriceChart from "@/components/PriceChart";
+
+// Rough US market hours (Mon–Fri, 13:30–20:00 UTC) for the live status pill.
+function marketOpen(): boolean {
+  const d = new Date();
+  const day = d.getUTCDay();
+  if (day === 0 || day === 6) return false;
+  const mins = d.getUTCHours() * 60 + d.getUTCMinutes();
+  return mins >= 13 * 60 + 30 && mins < 20 * 60;
+}
 
 interface Dividend {
   symbol: string;
@@ -30,24 +40,24 @@ export default function InvestPage() {
 
   if (!data) return <Spinner />;
   const summary = data.performance;
-  const up = summary.dayChange >= 0;
+  const open = marketOpen();
 
   return (
     <>
-      <PageHeader title="Investing" right={<Pill tone="accent">Alpaca</Pill>} />
+      <PageHeader
+        title="Investing"
+        right={
+          <span className="flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-semibold text-textSecondary">
+            <span className={`h-1.5 w-1.5 rounded-full ${open ? "bg-gain" : "bg-textMuted"}`} />
+            {open ? "Market open" : "Market closed"}
+          </span>
+        }
+      />
 
+      {/* Portfolio chart (TradingView lightweight-charts) */}
       <section className="px-5">
-        <p className="text-[13px] text-textSecondary">Portfolio value</p>
-        <p className="mt-1 text-5xl font-extrabold tracking-tighter">{usd(summary.marketValue)}</p>
-        <p className={`mt-1 font-semibold ${up ? "text-gain" : "text-loss"}`}>
-          {usd(summary.dayChange, { sign: true })} ({pct(summary.dayChangePct)}) today
-        </p>
-
-        {/* Simple sparkline-ish performance bar */}
-        <div className="mt-4 flex h-24 items-end gap-1">
-          {sampleSeries(up).map((h, i) => (
-            <div key={i} className={`flex-1 rounded-t ${up ? "bg-gain/70" : "bg-loss/70"}`} style={{ height: `${h}%` }} />
-          ))}
+        <div className="surface-card p-4">
+          <PriceChart seed="furlpay-portfolio" endValue={summary.marketValue} height={240} defaultTf="1M" />
         </div>
       </section>
 
@@ -170,10 +180,4 @@ function TradeModal({ holding, onClose, onDone }: { holding: Holding; onClose: (
       </button>
     </Modal>
   );
-}
-
-// Deterministic pseudo-series for the perf chart.
-function sampleSeries(up: boolean): number[] {
-  const base = [40, 45, 42, 50, 48, 55, 53, 60, 58, 66, 62, up ? 78 : 44];
-  return base;
 }

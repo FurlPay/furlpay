@@ -11,6 +11,7 @@ import TransactionList from "@/components/TransactionList";
 import SwapModal from "@/components/SwapModal";
 import { CoinLogo, ChainLogo } from "@furlpay/ui";
 import FeatureHub from "@/components/FeatureHub";
+import PriceChart from "@/components/PriceChart";
 
 interface Overview {
   user: { name: string; tier: string; region: string; safeAddress: string };
@@ -83,6 +84,13 @@ export default function HomePage() {
             <HeroStat label="Fiat" value={breakdown.fiat} />
             <HeroStat label="Invest" value={breakdown.equities} />
           </div>
+        </div>
+      </section>
+
+      {/* Portfolio performance chart */}
+      <section className="mt-5 px-5">
+        <div className="surface-card p-4">
+          <PriceChart seed="furlpay-networth" endValue={data.netWorth} height={200} defaultTf="1M" />
         </div>
       </section>
 
