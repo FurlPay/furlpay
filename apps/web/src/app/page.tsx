@@ -22,6 +22,7 @@ import CodePreview from "@/components/marketing/CodePreview";
 import PricingCards from "@/components/marketing/PricingCards";
 import PartnerMarquee from "@/components/marketing/PartnerMarquee";
 import SupportChatBubble from "@/components/marketing/SupportChatBubble";
+import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
 import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon } from "@/components/marketing/SocialIcons";
 
 // Furlpay marketing landing page (furlpay.app/). Premium OLED theme with green
@@ -36,6 +37,7 @@ export default function LandingPage() {
       <DeveloperPreview />
       <Security />
       <Pricing />
+      <NewsletterCTA />
       <Footer />
       <SupportChatBubble />
     </div>
@@ -214,6 +216,29 @@ function Pricing() {
         Simple, transparent tiers.
       </h2>
       <PricingCards />
+    </section>
+  );
+}
+
+function NewsletterCTA() {
+  return (
+    <section className="border-y border-white/5 bg-white/[0.015]">
+      <div className="mx-auto max-w-2xl px-6 py-20 text-center">
+        <SectionLabel>Newsletter</SectionLabel>
+        <h2 className="mx-auto max-w-xl text-[30px] font-extrabold tracking-tighter sm:text-[38px]">
+          Updates worth reading, from a team that ships.
+        </h2>
+        <p className="mx-auto mt-3 max-w-lg text-[15px] leading-relaxed text-textSecondary">
+          Product launches, engineering deep-dives, and a curated weekly digest. No spam, ever.
+        </p>
+        <div className="mx-auto mt-8 max-w-md">
+          <NewsletterSignup variant="minimal" />
+        </div>
+        <p className="mt-4 text-[12px] text-textMuted">
+          Want to pick specific topics?{" "}
+          <Link href="/newsletter" className="text-neon hover:underline">Manage preferences</Link>
+        </p>
+      </div>
     </section>
   );
 }

@@ -10,15 +10,6 @@ export const metadata: Metadata = {
   alternates: { canonical: "/newsletter" },
 };
 
-const COMPARISON = [
-  { category: "Product Updates", robinhood: true, coinbase: true, redotpay: true, furlpay: "✓" },
-  { category: "Engineering Blog", robinhood: false, coinbase: true, redotpay: false, furlpay: "✓" },
-  { category: "Policy Alerts", robinhood: "buried", coinbase: true, redotpay: false, furlpay: "proactive" },
-  { category: "Security Bulletins", robinhood: false, coinbase: false, redotpay: false, furlpay: "transparent" },
-  { category: "Weekly Digest", robinhood: false, coinbase: true, redotpay: false, furlpay: "✓" },
-  { category: "Open Source Updates", robinhood: false, coinbase: false, redotpay: false, furlpay: "✓" },
-] as const;
-
 const FAQ = [
   {
     q: "How often will I receive emails?",
@@ -37,12 +28,6 @@ const FAQ = [
     a: "Absolutely. We record explicit consent with a timestamp and category selection. You can modify or delete your data at any time by emailing privacy@furlpay.com.",
   },
 ];
-
-function cell(val: boolean | string) {
-  if (val === true) return <span className="text-textSecondary">✓</span>;
-  if (val === false) return <span className="text-textMuted">✗</span>;
-  return <span className="font-semibold text-neon">✓ ({val})</span>;
-}
 
 export default function NewsletterPage() {
   return (
@@ -64,39 +49,6 @@ export default function NewsletterPage() {
         {/* ── Signup card ────────────────────────────────────────── */}
         <div className="mt-14">
           <NewsletterSignup variant="card" />
-        </div>
-
-        {/* ── Comparison table ───────────────────────────────────── */}
-        <h2 className="mt-20 text-[24px] font-bold tracking-tighter">
-          How we compare
-        </h2>
-        <p className="mt-2 text-[15px] text-textSecondary">
-          Most fintech newsletters are marketing blasts. Ours is an accountability channel.
-        </p>
-
-        <div className="mt-6 overflow-x-auto rounded-card border border-white/10 bg-white/[0.02]">
-          <table className="w-full min-w-[600px] text-left text-[13px]">
-            <thead>
-              <tr className="border-b border-white/10 text-textMuted">
-                <th className="px-5 py-3 font-medium">Category</th>
-                <th className="px-5 py-3 font-medium">Robinhood</th>
-                <th className="px-5 py-3 font-medium">Coinbase</th>
-                <th className="px-5 py-3 font-medium">RedotPay</th>
-                <th className="px-5 py-3 font-medium">Furlpay</th>
-              </tr>
-            </thead>
-            <tbody>
-              {COMPARISON.map((row) => (
-                <tr key={row.category} className="border-b border-white/5 last:border-none">
-                  <td className="px-5 py-3 font-medium text-white">{row.category}</td>
-                  <td className="px-5 py-3">{cell(row.robinhood)}</td>
-                  <td className="px-5 py-3">{cell(row.coinbase)}</td>
-                  <td className="px-5 py-3">{cell(row.redotpay)}</td>
-                  <td className="px-5 py-3">{cell(row.furlpay)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         </div>
 
         {/* ── FAQ ────────────────────────────────────────────────── */}
