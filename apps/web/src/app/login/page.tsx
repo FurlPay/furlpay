@@ -17,6 +17,7 @@ export default function LoginPage() {
   const router = useRouter();
   const online = useOnline();
   const [busy, setBusy] = useState(false);
+  const [guestBusy, setGuestBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fingerprint, setFingerprint] = useState(false);
@@ -32,9 +33,9 @@ export default function LoginPage() {
     isFingerprintAvailable().then(setFingerprint);
   }, []);
 
-  function enterApp(msg = "Unlocked") {
+  function enterApp(msg = "Unlocked", delay = 500) {
     setStatus(msg);
-    setTimeout(() => router.push("/dashboard"), 500);
+    setTimeout(() => router.replace("/dashboard"), delay);
   }
 
   // Demo/guest mode — signs into the seeded demo account without credentials.
@@ -43,22 +44,24 @@ export default function LoginPage() {
   const guestEnabled = process.env.NEXT_PUBLIC_ALLOW_GUEST === "1";
 
   // Passkeys/OTP/Google all need the server — sign-in is impossible offline.
-  const locked = busy || !online;
+  const locked = busy || guestBusy || !online;
 
+  // Guest mode has its own pending flag so the fingerprint button doesn't flip
+  // to "Verifying…" (which reads as a biometric check) while the request runs,
+  // and redirects immediately on success — no verification, no delay.
   async function guestLogin() {
-    setBusy(true);
+    setGuestBusy(true);
     setError(null);
-    setStatus("Entering as guest…");
     const { ok, data } = await postJSON<{ verified?: boolean; error?: string }>(
       "/api/auth/guest",
       {}
     );
-    setBusy(false);
-    if (ok && data.verified) enterApp("Guest session");
-    else {
-      setStatus(null);
-      setError(data.error ?? "Guest login is disabled.");
+    if (ok && data.verified) {
+      enterApp("Guest session", 0);
+      return;
     }
+    setGuestBusy(false);
+    setError(data.error ?? "Guest login is disabled.");
   }
 
   async function passkeyLogin() {
@@ -190,7 +193,7 @@ export default function LoginPage() {
             disabled={locked}
             className="mt-1 text-[13px] font-medium text-textSecondary underline underline-offset-4 disabled:opacity-50"
           >
-            Continue as guest
+            {guestBusy ? "Entering as guest…" : "Continue as guest"}
           </button>
         )}
       </div>
