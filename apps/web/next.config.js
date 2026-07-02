@@ -57,6 +57,12 @@ const nextConfig = {
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },
+  async redirects() {
+    return [
+      // Retired blog post — send any lingering links to the blog.
+      { source: "/blog/i-decompiled-robinhood-redotpay-indmoney", destination: "/blog", permanent: true },
+    ];
+  },
 };
 
 module.exports = nextConfig;
