@@ -65,4 +65,20 @@ const nextConfig = {
   },
 };
 
-module.exports = nextConfig;
+// Serwist (service worker / PWA) — compiles src/sw.ts into public/sw.js at
+// build time and auto-registers it. ESM-only package, hence the dynamic import.
+module.exports = async () => {
+  const { default: withSerwistInit } = await import("@serwist/next");
+  const withSerwist = withSerwistInit({
+    swSrc: "src/sw.ts",
+    swDest: "public/sw.js",
+    // Dev builds skip the SW entirely — caching would mask hot reloads.
+    disable: process.env.NODE_ENV === "development",
+    // The offline fallback page must be precached for fallbacks{} in sw.ts to
+    // serve it. Fresh revision per build so updates propagate.
+    additionalPrecacheEntries: [
+      { url: "/~offline", revision: Date.now().toString(36) },
+    ],
+  });
+  return withSerwist(nextConfig);
+};

@@ -4,6 +4,8 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import BottomNav from "@/components/BottomNav";
 import CommandPalette from "@/components/CommandPalette";
+import OfflineBanner from "@/components/OfflineBanner";
+import CacheWarmer from "@/components/CacheWarmer";
 
 // Layout switch. Marketing (/), the docs portal (/docs*), the blog (/blog*) and
 // the legal section (/legal*) render full-bleed so they can use the whole
@@ -11,6 +13,7 @@ import CommandPalette from "@/components/CommandPalette";
 // column, live status bar + home indicator, bottom tab bar).
 const FULL_BLEED = (pathname: string) =>
   pathname === "/" ||
+  pathname === "/~offline" ||
   pathname === "/pricing" ||
   pathname === "/about" ||
   pathname === "/talk-to-us" ||
@@ -38,13 +41,23 @@ export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   if (FULL_BLEED(pathname)) {
-    return <div className="min-h-screen bg-oled">{children}</div>;
+    return (
+      <div className="min-h-screen bg-oled">
+        <OfflineBanner />
+        <CacheWarmer authed={false} />
+        {children}
+      </div>
+    );
   }
 
   const bare = BARE(pathname);
 
   return (
     <div className="app-ambient mx-auto min-h-screen w-full max-w-[440px]">
+      <OfflineBanner />
+      {/* Any non-bare app page sits behind the session middleware — safe to
+          warm the protected app-shell routes for offline. */}
+      <CacheWarmer authed={!bare} />
       {!bare && <StatusBar />}
       <main className={bare ? "" : "pb-32"}>{children}</main>
       {!bare && (

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import { postJSON } from "@/lib/api";
 
 // Stripe Crypto checkout for Furlpay Connect. Fetches a stablecoin-enabled
 // PaymentIntent from the backend, then renders Stripe Elements (which handles
@@ -21,14 +22,14 @@ export default function StripeCryptoCheckout({
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch("/api/payments/stripe/intent", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ amountInCents }),
+    // postJSON fails fast offline — a checkout can never start without a network.
+    postJSON<{ clientSecret?: string; error?: string }>("/api/payments/stripe/intent", {
+      amountInCents,
     })
-      .then((r) => r.json())
-      .then((d) =>
-        d.clientSecret ? setClientSecret(d.clientSecret) : setError(d.error || "Could not start checkout")
+      .then(({ data }) =>
+        data.clientSecret
+          ? setClientSecret(data.clientSecret)
+          : setError(data.error || "Could not start checkout")
       )
       .catch((e) => setError(e.message));
   }, [amountInCents]);

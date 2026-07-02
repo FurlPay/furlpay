@@ -9,11 +9,13 @@ import {
   passkeyErrorMessage,
 } from "@/lib/passkey";
 import { postJSON } from "@/lib/api";
+import { useOnline } from "@/lib/offline";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import PhoneInput from "@/components/PhoneInput";
 
 export default function LoginPage() {
   const router = useRouter();
+  const online = useOnline();
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +35,30 @@ export default function LoginPage() {
   function enterApp(msg = "Unlocked") {
     setStatus(msg);
     setTimeout(() => router.push("/dashboard"), 500);
+  }
+
+  // Demo/guest mode — signs into the seeded demo account without credentials.
+  // Rendered + accepted only when the deployment opts in with
+  // NEXT_PUBLIC_ALLOW_GUEST=1 (used for device testing and Play review access).
+  const guestEnabled = process.env.NEXT_PUBLIC_ALLOW_GUEST === "1";
+
+  // Passkeys/OTP/Google all need the server — sign-in is impossible offline.
+  const locked = busy || !online;
+
+  async function guestLogin() {
+    setBusy(true);
+    setError(null);
+    setStatus("Entering as guest…");
+    const { ok, data } = await postJSON<{ verified?: boolean; error?: string }>(
+      "/api/auth/guest",
+      {}
+    );
+    setBusy(false);
+    if (ok && data.verified) enterApp("Guest session");
+    else {
+      setStatus(null);
+      setError(data.error ?? "Guest login is disabled.");
+    }
   }
 
   async function passkeyLogin() {
@@ -91,7 +117,7 @@ export default function LoginPage() {
         {/* Fingerprint / passkey */}
         <button
           onClick={passkeyLogin}
-          disabled={busy}
+          disabled={locked}
           className="w-full rounded-pill bg-accent py-4 text-lg font-semibold disabled:opacity-60"
         >
           {busy ? "Verifying…" : fingerprint ? " Sign in with Fingerprint" : " Sign in with Passkey"}
@@ -107,7 +133,8 @@ export default function LoginPage() {
         {!showPhone ? (
           <button
             onClick={() => setShowPhone(true)}
-            className="w-full rounded-pill border border-white/15 py-3.5 font-semibold"
+            disabled={locked}
+            className="w-full rounded-pill border border-white/15 py-3.5 font-semibold disabled:opacity-60"
           >
              Sign in with phone number
           </button>
@@ -155,8 +182,24 @@ export default function LoginPage() {
             )}
           </div>
         )}
+
+        {/* Guest / demo — small, only when NEXT_PUBLIC_ALLOW_GUEST=1 */}
+        {guestEnabled && (
+          <button
+            onClick={guestLogin}
+            disabled={locked}
+            className="mt-1 text-[13px] font-medium text-textSecondary underline underline-offset-4 disabled:opacity-50"
+          >
+            Continue as guest
+          </button>
+        )}
       </div>
 
+      {!online && (
+        <p className="mt-4 text-sm text-[#FFD60A]">
+          You&apos;re offline — connect to the internet to sign in.
+        </p>
+      )}
       {status && <p className="mt-4 text-sm text-textSecondary">{status}</p>}
       {error && <p className="mt-4 text-sm text-loss">{error}</p>}
 

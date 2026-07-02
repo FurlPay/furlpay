@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getJSON, sendJSON } from "@/lib/api";
+import { getJSON, postJSON, sendJSON } from "@/lib/api";
 import { Holding } from "@/lib/types";
 import { PageHeader, Pill, Spinner, pct, usd } from "@/components/ui";
 import Modal from "@/components/Modal";
@@ -128,14 +128,10 @@ function TradeModal({ holding, onClose, onDone }: { holding: Holding; onClose: (
       const body: Record<string, unknown> = { symbol: holding.symbol, side, type: orderType, time_in_force: "day" };
       if (mode === "notional") body.notional = Number(amount);
       else body.qty = Number(amount);
-      const res = await fetch("/api/investing/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      // postJSON fails fast offline — orders are never queued without a network.
+      const res = await postJSON<{ error?: string }>("/api/investing/order", body);
       if (!res.ok) {
-        const j = await res.json().catch(() => ({}));
-        throw new Error(j.error || `Order rejected (${res.status})`);
+        throw new Error(res.data.error || `Order rejected (${res.status})`);
       }
       onDone(); onClose();
     } catch (e) {

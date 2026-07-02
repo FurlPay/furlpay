@@ -29,6 +29,7 @@ const PUBLIC_PAGES = new Set([
   "/actions.json",
   "/sitemap.xml", // SEO — must be crawlable
   "/robots.txt",
+  "/~offline", // SW offline fallback — precached by the service worker before login
 ]);
 const PUBLIC_PAGE_PREFIXES = [
   "/docs",
@@ -83,6 +84,6 @@ export const config = {
   // file extension (images, og.png, svgo logos, fonts) so crawlers and social
   // scrapers fetch them directly without hitting the auth redirect.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|json|xml|txt)).*)",
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|json|xml|txt)).*)",
   ],
 };

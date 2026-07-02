@@ -4,11 +4,15 @@ import type { MetadataRoute } from "next";
 // mobile so the installed web app shows the Furlpay mark.
 export default function manifest(): MetadataRoute.Manifest {
   return {
+    id: "/",
     name: "Furlpay",
     short_name: "Furlpay",
     description: "The on-chain financial operating system.",
     start_url: "/",
+    scope: "/",
     display: "standalone",
+    orientation: "portrait",
+    categories: ["finance"],
     background_color: "#000000",
     theme_color: "#000000",
     icons: [

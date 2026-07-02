@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getJSON, sendJSON } from "@/lib/api";
+import { clearOfflineData } from "@/lib/offline";
 import { PageHeader, Pill, Spinner, timeAgo } from "@/components/ui";
 
 interface Device { name: string; location: string; lastActive: string; current: boolean }
@@ -40,6 +41,8 @@ export default function ProfilePage() {
   }
 
   async function logout() {
+    // Wipe offline account data (IndexedDB + cached page HTML) with the session.
+    await clearOfflineData();
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
   }
