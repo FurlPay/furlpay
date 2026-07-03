@@ -1,12 +1,34 @@
 import * as React from "react";
 
 // ---------------------------------------------------------------------------
-// Brand logos for coins, chains and card networks. Self-contained inline SVGs
-// (license-safe, no external icon dependency) using each brand's palette and a
-// recognizable glyph. Rendered as circular badges sized by `size`.
+// Brand logos for coins, chains, stocks and card networks. Known assets use
+// the official brand artwork (sourced from TradingView's symbol-logo CDN,
+// self-hosted under apps/web/public/logos/ so there is no runtime dependency
+// on an external host). The square source art is cropped to a circle.
+// Unknown assets fall back to a self-contained inline SVG badge.
 // ---------------------------------------------------------------------------
 
 type LogoProps = { size?: number; className?: string; title?: string };
+
+// Assets with a real logo file under public/logos/<dir>/<key>.svg.
+const COIN_LOGOS = new Set(["USDC", "USDT", "EURC", "PYUSD", "DAI", "BTC", "ETH", "SOL"]);
+const CHAIN_LOGOS = new Set(["ethereum", "solana", "arbitrum", "polygon", "optimism", "avalanche", "gnosis"]);
+const STOCK_LOGOS = new Set(["AAPL", "NVDA", "TSLA", "VOO"]);
+
+function LogoImg({ src, size = 24, className, title }: LogoProps & { src: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={title ?? ""}
+      width={size}
+      height={size}
+      className={className}
+      style={{ borderRadius: "50%", display: "inline-block", objectFit: "cover" }}
+      draggable={false}
+    />
+  );
+}
 
 function Badge({
   bg,
@@ -47,45 +69,16 @@ const glyph = (t: string, dx = 12, dy = 16.5, size = 12) => (
   </text>
 );
 
-// ---- Coins / stablecoins ----
-const COINS: Record<string, React.ReactNode> = {
-  USDC: <Badge bg="#2775CA" title="USDC">{glyph("$")}</Badge>,
-  USDT: <Badge bg="#26A17B" title="USDT">{glyph("₮")}</Badge>,
-  EURC: <Badge bg="#2775CA" title="EURC">{glyph("€")}</Badge>,
-  PYUSD: <Badge bg="#00457C" title="PYUSD">{glyph("$")}</Badge>,
-  DAI: <Badge bg="#F5AC37" title="DAI">{glyph("D")}</Badge>,
-  BTC: <Badge bg="#F7931A" title="Bitcoin">{glyph("₿")}</Badge>,
-  ETH: (
-    <Badge bg="#627EEA" title="Ethereum">
-      <path d="M12 4l4.5 8L12 14.5 7.5 12 12 4z" fill="#fff" opacity="0.9" />
-      <path d="M12 15.4l4.5-2.6L12 20l-4.5-7.2 4.5 2.6z" fill="#fff" opacity="0.6" />
-    </Badge>
-  ),
-};
-
-// ---- Chains / networks ----
-const CHAINS: Record<string, React.ReactNode> = {
-  ethereum: COINS.ETH,
+// ---- Chain fallback badges (no official artwork available) ----
+const CHAIN_BADGES: Record<string, React.ReactNode> = {
   base: <Badge bg="#0052FF" title="Base"><circle cx="12" cy="12" r="5.5" fill="none" stroke="#fff" strokeWidth="2.2" /></Badge>,
-  arbitrum: <Badge bg="#12AAFF" title="Arbitrum">{glyph("A")}</Badge>,
-  polygon: <Badge bg="#8247E5" title="Polygon">{glyph("P")}</Badge>,
-  solana: (
-    <Badge gradient={["#9945FF", "#14F195"]} title="Solana">
-      <g fill="#fff">
-        <rect x="7" y="8" width="10" height="1.8" rx="0.9" transform="skewX(-18)" />
-        <rect x="6" y="11.1" width="10" height="1.8" rx="0.9" transform="skewX(18)" />
-        <rect x="7" y="14.2" width="10" height="1.8" rx="0.9" transform="skewX(-18)" />
-      </g>
-    </Badge>
-  ),
-  gnosis: <Badge bg="#3E6957" title="Gnosis">{glyph("G")}</Badge>,
-  optimism: <Badge bg="#FF0420" title="Optimism">{glyph("O")}</Badge>,
-  avalanche: <Badge bg="#E84142" title="Avalanche">{glyph("A")}</Badge>,
 };
 
 export function CoinLogo({ token, size = 24, className, title }: LogoProps & { token: string }) {
-  const node = COINS[token?.toUpperCase()];
-  if (node) return React.cloneElement(node as React.ReactElement, { size, className, title: title ?? token });
+  const t = (token ?? "").toUpperCase();
+  if (COIN_LOGOS.has(t)) {
+    return <LogoImg src={`/logos/coins/${t.toLowerCase()}.svg`} size={size} className={className} title={title ?? token} />;
+  }
   return (
     <Badge bg="#3A3A3C" size={size} className={className} title={title ?? token}>
       {glyph((token || "?").slice(0, 1).toUpperCase())}
@@ -94,11 +87,27 @@ export function CoinLogo({ token, size = 24, className, title }: LogoProps & { t
 }
 
 export function ChainLogo({ chain, size = 20, className, title }: LogoProps & { chain: string }) {
-  const node = CHAINS[chain?.toLowerCase()];
+  const c = (chain ?? "").toLowerCase();
+  if (CHAIN_LOGOS.has(c)) {
+    return <LogoImg src={`/logos/chains/${c}.svg`} size={size} className={className} title={title ?? chain} />;
+  }
+  const node = CHAIN_BADGES[c];
   if (node) return React.cloneElement(node as React.ReactElement, { size, className, title: title ?? chain });
   return (
     <Badge bg="#3A3A3C" size={size} className={className} title={title ?? chain}>
       {glyph((chain || "?").slice(0, 1).toUpperCase())}
+    </Badge>
+  );
+}
+
+export function StockLogo({ symbol, size = 24, className, title }: LogoProps & { symbol: string }) {
+  const s = (symbol ?? "").toUpperCase();
+  if (STOCK_LOGOS.has(s)) {
+    return <LogoImg src={`/logos/stocks/${s.toLowerCase()}.svg`} size={size} className={className} title={title ?? symbol} />;
+  }
+  return (
+    <Badge bg="#3A3A3C" size={size} className={className} title={title ?? symbol}>
+      {glyph((symbol || "?").slice(0, 2).toUpperCase(), 12, 15.5, 8)}
     </Badge>
   );
 }

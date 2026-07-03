@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { getJSON, postJSON, sendJSON } from "@/lib/api";
 import { Holding } from "@/lib/types";
 import { PageHeader, Pill, Spinner, pct, usd } from "@/components/ui";
+import { StockLogo } from "@furlpay/ui";
 import Modal from "@/components/Modal";
 import PriceChart from "@/components/PriceChart";
 
@@ -69,9 +70,7 @@ export default function InvestPage() {
             return (
               <li key={h.symbol}>
                 <button onClick={() => setTrade(h)} className="flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left hover:bg-white/[0.03]">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06] text-[13px] font-bold">
-                    {h.symbol.slice(0, 2)}
-                  </div>
+                  <StockLogo symbol={h.symbol} size={40} className="shrink-0" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold">{h.symbol}</p>
                     <p className="truncate text-[13px] text-textSecondary">{h.shares.toFixed(3)} sh · {h.name}</p>
@@ -93,9 +92,12 @@ export default function InvestPage() {
           <div className="space-y-2">
             {data.dividends.map((d) => (
               <div key={d.symbol + d.exDate} className="flex items-center justify-between surface-card px-4 py-3">
-                <div>
-                  <p className="font-semibold">{d.symbol}</p>
-                  <p className="text-[12px] text-textSecondary">ex-date {d.exDate}</p>
+                <div className="flex items-center gap-3">
+                  <StockLogo symbol={d.symbol} size={28} className="shrink-0" />
+                  <div>
+                    <p className="font-semibold">{d.symbol}</p>
+                    <p className="text-[12px] text-textSecondary">ex-date {d.exDate}</p>
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="font-semibold">{usd(d.amount)}</p>
