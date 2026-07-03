@@ -103,15 +103,17 @@ export default function InsightCover({
           style={{ background: signalColor, boxShadow: `0 0 10px 1px ${signalColor}AA` }}
         />
       )}
-      {/* watermark */}
-      <div className="absolute bottom-3 left-4 flex items-center gap-2">
-        <span className="flex h-5 w-5 items-center justify-center rounded bg-neon shadow-glow-sm">
-          <svg viewBox="0 0 24 24" className="h-3 w-3 text-black" fill="none" stroke="currentColor" strokeWidth="3">
-            <path d="M5 5h14M5 12h10M5 19h6" strokeLinecap="round" />
-          </svg>
-        </span>
-        <span className="text-[11px] font-semibold text-white/70">{label}</span>
-      </div>
+      {/* watermark (hidden in compact thumbnails that pass an empty label) */}
+      {label && (
+        <div className="absolute bottom-3 left-4 flex items-center gap-2">
+          <span className="flex h-5 w-5 items-center justify-center rounded bg-neon shadow-glow-sm">
+            <svg viewBox="0 0 24 24" className="h-3 w-3 text-black" fill="none" stroke="currentColor" strokeWidth="3">
+              <path d="M5 5h14M5 12h10M5 19h6" strokeLinecap="round" />
+            </svg>
+          </span>
+          <span className="text-[11px] font-semibold text-white/70">{label}</span>
+        </div>
+      )}
     </div>
   );
 }

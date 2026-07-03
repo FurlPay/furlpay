@@ -126,9 +126,9 @@ export default function InsightArticlePage({ params }: { params: { slug: string 
       {related.length > 0 && (
         <div className="mt-16 border-t border-white/5 pt-10">
           <h2 className="mb-6 text-[20px] font-bold tracking-tighter">Related research</h2>
-          <div className="columns-1 gap-5 sm:columns-3">
+          <div className="space-y-3">
             {related.map((r) => (
-              <InsightCard key={r.slug} article={r} />
+              <InsightCard key={r.slug} article={r} variant="compact" />
             ))}
           </div>
         </div>
