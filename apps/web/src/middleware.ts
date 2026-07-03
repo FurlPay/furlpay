@@ -34,6 +34,8 @@ const PUBLIC_PAGES = new Set([
 const PUBLIC_PAGE_PREFIXES = [
   "/docs",
   "/blog",
+  "/investing/insights", // FurlPay Research portal — public content, like /blog
+
   "/legal",
   "/compare", // SEO comparison pages (public)
   "/newsletter", // subscribe / manage preferences (public)
@@ -52,6 +54,8 @@ const PUBLIC_API_PREFIXES = [
   "/api/agents", // public Agent Console demo data
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
+  "/api/markets", // public market data — powers the research portal's pulse strip
+  "/api/insights", // public research metadata
 ];
 
 export async function middleware(req: NextRequest) {

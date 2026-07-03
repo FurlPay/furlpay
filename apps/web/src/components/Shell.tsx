@@ -32,6 +32,7 @@ const FULL_BLEED = (pathname: string) =>
   pathname.startsWith("/developer") ||
   pathname.startsWith("/docs") ||
   pathname.startsWith("/blog") ||
+  pathname.startsWith("/investing/insights") || // FurlPay Research portal (blog-style)
   pathname.startsWith("/legal");
 
 // Auth screens keep the frame but hide the status bar / tab bar chrome.
