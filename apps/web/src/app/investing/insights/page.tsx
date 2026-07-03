@@ -58,7 +58,7 @@ function FeaturedCard() {
       style={{ ["--cat" as string]: c.color }}
       className="group grid overflow-hidden rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all hover:border-[color:var(--cat)] hover:shadow-[0_0_44px_-16px_var(--cat)] lg:grid-cols-2"
     >
-      <InsightCover color={c.color} label={c.label} icon={c.icon} signal={a.signal} className="min-h-[220px] w-full lg:h-full" />
+      <InsightCover color={c.color} label={c.label} icon={c.icon} signal={a.signal} tickers={a.tickers} large className="min-h-[220px] w-full lg:h-full" />
       <div className="p-7 sm:p-9">
         <div className="flex flex-wrap items-center gap-2">
           <span

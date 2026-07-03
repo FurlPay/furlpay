@@ -84,7 +84,7 @@ export default function InsightArticlePage({ params }: { params: { slug: string 
         <TickerPills tickers={a.tickers} max={8} />
       </div>
 
-      {c && <InsightCover color={c.color} label={c.label} icon={c.icon} signal={a.signal} className="mt-7 h-56 w-full rounded-card sm:h-64" />}
+      {c && <InsightCover color={c.color} label={c.label} icon={c.icon} signal={a.signal} tickers={a.tickers} large className="mt-7 h-56 w-full rounded-card sm:h-64" />}
 
       <div className="mt-9">
         <InsightBody blocks={a.body} />

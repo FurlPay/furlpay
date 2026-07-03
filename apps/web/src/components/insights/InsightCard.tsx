@@ -16,7 +16,7 @@ export default function InsightCard({ article }: { article: InsightArticle }) {
       style={{ ["--cat" as string]: c.color }}
       className="group mb-5 block w-full break-inside-avoid overflow-hidden rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all hover:border-[color:var(--cat)] hover:shadow-[0_0_34px_-14px_var(--cat)]"
     >
-      <InsightCover color={c.color} label={c.label} icon={c.icon} signal={article.signal} className="h-36 w-full" />
+      <InsightCover color={c.color} label={c.label} icon={c.icon} signal={article.signal} tickers={article.tickers} className="h-36 w-full" />
       <div className="p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span
