@@ -1,8 +1,10 @@
 // ---------------------------------------------------------------------------
-// Live market quotes — CoinGecko (crypto) + Yahoo Finance spark (stocks/ETFs),
-// both keyless. Results are cached in-memory for 60s per server instance and
-// always start from the baked seed prices, so a provider outage or rate limit
-// degrades to recent-but-static data instead of failing.
+// Live market quotes. Equities: Alpaca Market Data snapshots (primary, when
+// ALPACA_API_KEY_ID / ALPACA_API_SECRET_KEY are configured — set via the
+// Vercel env vault, never committed) with Yahoo spark as keyless fallback.
+// Crypto: CoinGecko. Results are cached in-memory for 60s per server instance
+// and always start from the baked seed prices, so a provider outage or rate
+// limit degrades to recent-but-static data instead of failing.
 // ---------------------------------------------------------------------------
 
 import { CATALOG } from "./catalog";
@@ -45,7 +47,43 @@ async function fetchCrypto(): Promise<Map<string, Quote>> {
   return out;
 }
 
-async function fetchEquities(): Promise<Map<string, Quote>> {
+// Alpaca Market Data (https://docs.alpaca.markets) — multi-symbol snapshots
+// give latest trade + previous daily bar in one call. IEX feed on free plans.
+async function fetchEquitiesAlpaca(): Promise<Map<string, Quote>> {
+  const key = process.env.ALPACA_API_KEY_ID;
+  const secret = process.env.ALPACA_API_SECRET_KEY;
+  if (!key || !secret) throw new Error("Alpaca keys not configured");
+
+  const assets = CATALOG.filter((a) => a.kind !== "crypto");
+  const out = new Map<string, Quote>();
+  for (let i = 0; i < assets.length; i += 100) {
+    const chunk = assets.slice(i, i + 100);
+    const symbols = chunk.map((a) => a.symbol).join(",");
+    const res = await fetch(
+      `https://data.alpaca.markets/v2/stocks/snapshots?symbols=${encodeURIComponent(symbols)}&feed=iex`,
+      {
+        headers: { ...UA, "APCA-API-KEY-ID": key, "APCA-API-SECRET-KEY": secret },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      }
+    );
+    if (!res.ok) throw new Error(`Alpaca snapshots ${res.status}`);
+    const data = (await res.json()) as Record<
+      string,
+      { latestTrade?: { p?: number }; dailyBar?: { c?: number }; prevDailyBar?: { c?: number } }
+    >;
+    for (const a of chunk) {
+      const d = data[a.symbol];
+      const price = d?.latestTrade?.p ?? d?.dailyBar?.c;
+      const prev = d?.prevDailyBar?.c;
+      if (price && prev) {
+        out.set(a.symbol, { price, changePct: ((price - prev) / prev) * 100, live: true });
+      }
+    }
+  }
+  return out;
+}
+
+async function fetchEquitiesYahoo(): Promise<Map<string, Quote>> {
   const assets = CATALOG.filter((a) => a.kind !== "crypto");
   const out = new Map<string, Quote>();
   for (let i = 0; i < assets.length; i += 20) {
@@ -64,6 +102,19 @@ async function fetchEquities(): Promise<Map<string, Quote>> {
     }
   }
   return out;
+}
+
+// Alpaca first (real-time, keyed), Yahoo as the keyless fallback. A partial
+// Alpaca result (IEX feed misses some symbols) is topped up from Yahoo only
+// when it returned nothing at all — partial live data beats mixed providers.
+async function fetchEquities(): Promise<Map<string, Quote>> {
+  try {
+    const alpaca = await fetchEquitiesAlpaca();
+    if (alpaca.size > 0) return alpaca;
+  } catch {
+    /* not configured or unavailable → fall back */
+  }
+  return fetchEquitiesYahoo();
 }
 
 /** All quotes, seeded then overlaid with whatever live data is reachable. */
