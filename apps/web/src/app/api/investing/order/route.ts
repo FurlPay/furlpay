@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db, newTx, recordTransaction } from "@/lib/store";
 import { recordMovement } from "@/lib/ledger";
+import { bySymbol } from "@/lib/markets/catalog";
+import { quoteFor } from "@/lib/markets/quotes";
 
 // POST /api/investing/order — place a fractional stock/ETF order (Alpaca).
 // Accepts EITHER `notional` (USD) OR `qty` (shares), never both (→ 400),
@@ -41,8 +43,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "stop_price required for stop/stop_limit orders" }, { status: 400 });
   }
 
-  const holding = db.holdings.find((h) => h.symbol === String(symbol).toUpperCase());
-  if (!holding) return NextResponse.json({ error: "Symbol not found" }, { status: 404 });
+  const sym = String(symbol).toUpperCase();
+  let holding = db.holdings.find((h) => h.symbol === sym);
+  if (!holding) {
+    // First trade in a catalog asset opens a fresh position at the latest quote.
+    const asset = bySymbol.get(sym);
+    if (!asset || asset.kind === "crypto") {
+      return NextResponse.json({ error: "Symbol not found" }, { status: 404 });
+    }
+    const quote = await quoteFor(sym);
+    if (!quote) return NextResponse.json({ error: "No quote available" }, { status: 404 });
+    holding = { symbol: sym, name: asset.name, shares: 0, price: quote.price, changePct: quote.changePct, marketValue: 0 };
+    db.holdings.push(holding);
+  }
 
   const price = type === "limit" || type === "stop_limit" ? Number(limit_price) : holding.price;
   const filledQty = hasNotional ? Number(notional) / holding.price : Number(qty);

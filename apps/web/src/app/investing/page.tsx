@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import { getJSON, postJSON, sendJSON } from "@/lib/api";
 import { Holding } from "@/lib/types";
 import { PageHeader, Pill, Spinner, pct, usd } from "@/components/ui";
@@ -63,7 +64,12 @@ export default function InvestPage() {
       </section>
 
       <section className="mt-8">
-        <h2 className="mb-2 px-5 text-lg font-bold">Holdings</h2>
+        <div className="mb-2 flex items-center justify-between px-5">
+          <h2 className="text-lg font-bold">Holdings</h2>
+          <Link href="/markets" className="text-[12px] font-semibold text-accent">
+            Explore markets →
+          </Link>
+        </div>
         <ul className="space-y-1 px-2">
           {data.holdings.map((h) => {
             const hp = h.changePct >= 0;

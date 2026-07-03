@@ -134,7 +134,7 @@ export default function HomePage() {
         <QuickAction label="Scan & Pay" onClick={() => setScanner({ mode: "scan" })}>
           <ScanLine className="h-5 w-5" />
         </QuickAction>
-        <Link href="/investing" className="contents">
+        <Link href="/markets" className="contents">
           <QuickAction label="Buy Stocks">
             <InvestIcon />
           </QuickAction>

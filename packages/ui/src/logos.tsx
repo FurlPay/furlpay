@@ -1,3 +1,5 @@
+"use client";
+
 import * as React from "react";
 
 // ---------------------------------------------------------------------------
@@ -5,17 +7,21 @@ import * as React from "react";
 // the official brand artwork (sourced from TradingView's symbol-logo CDN,
 // self-hosted under apps/web/public/logos/ so there is no runtime dependency
 // on an external host). The square source art is cropped to a circle.
-// Unknown assets fall back to a self-contained inline SVG badge.
+// Assets without artwork fall back to a self-contained inline SVG badge —
+// LogoImg swaps to the fallback automatically if its file 404s.
 // ---------------------------------------------------------------------------
 
 type LogoProps = { size?: number; className?: string; title?: string };
 
-// Assets with a real logo file under public/logos/<dir>/<key>.svg.
-const COIN_LOGOS = new Set(["USDC", "USDT", "EURC", "PYUSD", "DAI", "BTC", "ETH", "SOL"]);
-const CHAIN_LOGOS = new Set(["ethereum", "solana", "arbitrum", "polygon", "optimism", "avalanche", "gnosis"]);
-const STOCK_LOGOS = new Set(["AAPL", "NVDA", "TSLA", "VOO"]);
-
-function LogoImg({ src, size = 24, className, title }: LogoProps & { src: string }) {
+function LogoImg({
+  src,
+  size = 24,
+  className,
+  title,
+  fallback,
+}: LogoProps & { src: string; fallback: React.ReactNode }) {
+  const [errored, setErrored] = React.useState(false);
+  if (errored) return <>{fallback}</>;
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -26,6 +32,7 @@ function LogoImg({ src, size = 24, className, title }: LogoProps & { src: string
       className={className}
       style={{ borderRadius: "50%", display: "inline-block", objectFit: "cover" }}
       draggable={false}
+      onError={() => setErrored(true)}
     />
   );
 }
@@ -74,41 +81,51 @@ const CHAIN_BADGES: Record<string, React.ReactNode> = {
   base: <Badge bg="#0052FF" title="Base"><circle cx="12" cy="12" r="5.5" fill="none" stroke="#fff" strokeWidth="2.2" /></Badge>,
 };
 
-export function CoinLogo({ token, size = 24, className, title }: LogoProps & { token: string }) {
-  const t = (token ?? "").toUpperCase();
-  if (COIN_LOGOS.has(t)) {
-    return <LogoImg src={`/logos/coins/${t.toLowerCase()}.svg`} size={size} className={className} title={title ?? token} />;
-  }
+function letterBadge(text: string, chars: number, size: number | undefined, className?: string, title?: string) {
   return (
-    <Badge bg="#3A3A3C" size={size} className={className} title={title ?? token}>
-      {glyph((token || "?").slice(0, 1).toUpperCase())}
+    <Badge bg="#3A3A3C" size={size} className={className} title={title}>
+      {chars === 1
+        ? glyph((text || "?").slice(0, 1).toUpperCase())
+        : glyph((text || "?").slice(0, 2).toUpperCase(), 12, 15.5, 8)}
     </Badge>
   );
+}
+
+/** Generic asset logo: tries `src` (when given), falls back to a letter badge. */
+export function AssetLogo({ src, label, size = 24, className, title }: LogoProps & { src?: string | null; label: string }) {
+  const fallback = letterBadge(label, 2, size, className, title ?? label);
+  if (!src) return fallback;
+  return <LogoImg src={src} size={size} className={className} title={title ?? label} fallback={fallback} />;
+}
+
+export function CoinLogo({ token, size = 24, className, title }: LogoProps & { token: string }) {
+  const t = (token ?? "").toUpperCase();
+  const fallback = letterBadge(t, 1, size, className, title ?? token);
+  if (!t) return fallback;
+  return <LogoImg src={`/logos/coins/${t.toLowerCase()}.svg`} size={size} className={className} title={title ?? token} fallback={fallback} />;
 }
 
 export function ChainLogo({ chain, size = 20, className, title }: LogoProps & { chain: string }) {
   const c = (chain ?? "").toLowerCase();
-  if (CHAIN_LOGOS.has(c)) {
-    return <LogoImg src={`/logos/chains/${c}.svg`} size={size} className={className} title={title ?? chain} />;
-  }
   const node = CHAIN_BADGES[c];
   if (node) return React.cloneElement(node as React.ReactElement, { size, className, title: title ?? chain });
-  return (
-    <Badge bg="#3A3A3C" size={size} className={className} title={title ?? chain}>
-      {glyph((chain || "?").slice(0, 1).toUpperCase())}
-    </Badge>
-  );
+  const fallback = letterBadge(c, 1, size, className, title ?? chain);
+  if (!c) return fallback;
+  return <LogoImg src={`/logos/chains/${c}.svg`} size={size} className={className} title={title ?? chain} fallback={fallback} />;
 }
 
 export function StockLogo({ symbol, size = 24, className, title }: LogoProps & { symbol: string }) {
   const s = (symbol ?? "").toUpperCase();
-  if (STOCK_LOGOS.has(s)) {
-    return <LogoImg src={`/logos/stocks/${s.toLowerCase()}.svg`} size={size} className={className} title={title ?? symbol} />;
-  }
+  const fallback = letterBadge(s, 2, size, className, title ?? symbol);
+  if (!s) return fallback;
   return (
-    <Badge bg="#3A3A3C" size={size} className={className} title={title ?? symbol}>
-      {glyph((symbol || "?").slice(0, 2).toUpperCase(), 12, 15.5, 8)}
-    </Badge>
+    <LogoImg
+      src={`/logos/stocks/${s.toLowerCase().replace(/\./g, "")}.svg`}
+      size={size}
+      className={className}
+      title={title ?? symbol}
+      fallback={fallback}
+    />
   );
 }
 
