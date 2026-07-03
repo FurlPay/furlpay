@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "crypto";
 import {
   Bill,
   FiatBalance,
@@ -6,6 +7,22 @@ import {
   TokenBalance,
   Transaction,
 } from "./types";
+
+// ---------------------------------------------------------------------------
+// User ids are UUIDs. The seeded demo user gets a DETERMINISTIC UUID (v5-style,
+// SHA-1 of a fixed namespace + email) so every serverless instance derives the
+// same id — sessions and webhooks minted on one instance stay valid on another.
+// Real signups must mint newUserId() (random UUID v4) instead.
+// ---------------------------------------------------------------------------
+
+function uuidFromKey(key: string): string {
+  const h = createHash("sha1").update(`furlpay:user:${key}`).digest("hex");
+  const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+/** Mint a fresh UUID for a newly registered user. */
+export const newUserId = (): string => randomUUID();
 
 // ---------------------------------------------------------------------------
 // In-memory data store. Acts as the app's "database" for the demo. In a real
@@ -55,7 +72,7 @@ interface AppState {
 function seed(): AppState {
   return {
     user: {
-      id: "usr_ashutosh",
+      id: uuidFromKey("ashutosh@furlpay.app"),
       name: "Ashutosh",
       email: "ashutosh@furlpay.app",
       safeAddress: "0x7A9f...c31E",
