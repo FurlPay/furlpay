@@ -256,6 +256,12 @@ function Footer() {
             <p className="mt-2 max-w-xs text-[13px] text-textSecondary">
               The on-chain financial operating system.
             </p>
+            <a
+              href="mailto:hello@furlpay.com"
+              className="mt-3 inline-block text-[13px] font-semibold text-neon transition-colors hover:text-white"
+            >
+              Say hello — hello@furlpay.com
+            </a>
           </div>
           <div className="flex items-center gap-3">
             {[
