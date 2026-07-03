@@ -21,6 +21,8 @@ export async function GET() {
 
   const marketValue = db.holdings.reduce((s, h) => s + h.marketValue, 0);
   const dayChange = db.holdings.reduce((s, h) => s + (h.marketValue * h.changePct) / 100, 0);
+  const costBasis = db.holdings.reduce((s, h) => s + (h.costBasis ?? 0), 0);
+  const totalReturn = marketValue - costBasis;
 
   // Illustrative dividend schedule.
   const dividends = [
@@ -35,6 +37,8 @@ export async function GET() {
       marketValue,
       dayChange,
       dayChangePct: marketValue ? (dayChange / marketValue) * 100 : 0,
+      totalReturn,
+      totalReturnPct: costBasis ? (totalReturn / costBasis) * 100 : 0,
     },
   });
 }

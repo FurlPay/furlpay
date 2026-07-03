@@ -36,7 +36,7 @@ interface Dividend { symbol: string; amount: number; status: string; exDate: str
 interface InvestData {
   holdings: Holding[];
   dividends: Dividend[];
-  performance: { marketValue: number; dayChange: number; dayChangePct: number };
+  performance: { marketValue: number; dayChange: number; dayChangePct: number; totalReturn: number; totalReturnPct: number };
 }
 interface InsightMeta {
   slug: string; title: string; category: string; date: string; readMins: number;
@@ -63,9 +63,7 @@ export default function InvestPage() {
   const { performance: perf } = data;
   const open = marketOpen();
   const dayUp = perf.dayChange >= 0;
-  // Demo cost basis → stable all-time return figure.
-  const costBasis = perf.marketValue / 1.152;
-  const totalReturn = perf.marketValue - costBasis;
+  const retUp = perf.totalReturn >= 0;
 
   // Allocation by asset kind (via catalog lookup).
   const alloc = new Map<string, number>();
@@ -112,7 +110,9 @@ export default function InvestPage() {
             </div>
             <div className="rounded-2xl bg-white/[0.08] px-3 py-2.5">
               <p className="text-[11px] text-white/60">Total return</p>
-              <p className="text-[15px] font-bold tracking-tight text-gain">+{usd(totalReturn)} (+15.2%)</p>
+              <p className={`text-[15px] font-bold tracking-tight ${retUp ? "text-gain" : "text-loss"}`}>
+                {retUp ? "+" : "−"}{usd(Math.abs(perf.totalReturn))} ({retUp ? "+" : ""}{perf.totalReturnPct.toFixed(1)}%)
+              </p>
             </div>
           </div>
         </div>

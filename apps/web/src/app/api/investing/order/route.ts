@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     }
     const quote = await quoteFor(sym);
     if (!quote) return NextResponse.json({ error: "No quote available" }, { status: 404 });
-    holding = { symbol: sym, name: asset.name, shares: 0, price: quote.price, changePct: quote.changePct, marketValue: 0 };
+    holding = { symbol: sym, name: asset.name, shares: 0, price: quote.price, changePct: quote.changePct, marketValue: 0, costBasis: 0 };
     db.holdings.push(holding);
   }
 
@@ -65,8 +65,15 @@ export async function POST(req: NextRequest) {
   const status = type === "market" ? "filled" : "pending";
 
   if (status === "filled") {
-    if (side === "buy") holding.shares += filledQty;
-    else holding.shares = Math.max(0, holding.shares - filledQty);
+    if (side === "buy") {
+      holding.shares += filledQty;
+      holding.costBasis += notionalUsd;
+    } else {
+      // Selling releases cost basis proportionally (average-cost method).
+      const sellFrac = holding.shares > 0 ? Math.min(1, filledQty / holding.shares) : 1;
+      holding.costBasis = Math.max(0, holding.costBasis * (1 - sellFrac));
+      holding.shares = Math.max(0, holding.shares - filledQty);
+    }
     holding.marketValue = holding.shares * holding.price;
 
     recordTransaction(

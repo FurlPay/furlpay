@@ -125,7 +125,7 @@ export default function AssetDetailPage() {
       {/* Chart */}
       <section className="mt-4 px-5">
         <div className="surface-card p-4">
-          <PriceChart seed={`asset-${asset.symbol}`} endValue={quote.price} height={210} defaultTf="1M" />
+          <PriceChart seed={`asset-${asset.symbol}`} symbol={asset.symbol} endValue={quote.price} height={210} defaultTf="1M" />
         </div>
       </section>
 
