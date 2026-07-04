@@ -35,7 +35,6 @@ export const POSTS: Post[] = [
     date: "2026-07-02",
     readMins: 7,
     author: "Furlpay Security",
-    featured: true,
     body: [
       {
         type: "p",
@@ -509,6 +508,335 @@ const credential = await navigator.credentials.create({
       {
         type: "p",
         text: `If an attacker exploits a bug in a smart-contract module, they still can't drain your wallet — they lack the HSM's co-signature. This hybrid approach gives you the security of self-custody alongside the active protection of a traditional bank.`,
+      },
+    ],
+  },
+
+  // 11 ----------------------------------------------------------------
+  {
+    slug: "furlpay-for-openbb-execution-layer",
+    title: "FurlPay for OpenBB: Giving the Open-Source Terminal an Execution Layer",
+    excerpt:
+      "OpenBB gives 50,000+ analysts and AI agents world-class financial data — but it can't move a dollar. Our new open-source plugin adds the missing half: screen an asset in OpenBB, then trade it, DCA into it, or settle agentic API revenue, all in stablecoins.",
+    category: "product-news",
+    date: "2026-07-04",
+    readMins: 6,
+    author: "Furlpay",
+    featured: true,
+    body: [
+      {
+        type: "p",
+        text: `Every serious financial-data platform in 2026 has converged on the same shape: rich data plus a Model Context Protocol (MCP) server so AI agents can query it. OpenBB shipped Workspace MCP. Morningstar's MCP server is live inside Claude, ChatGPT, and Copilot. Bloomberg is under pressure from a wave of $200-a-month AI alternatives. But every one of them stops at the same wall — they can research an asset, and they cannot act on it. The agent can tell you a fund is a five-star buy; it cannot buy it.`,
+      },
+      {
+        type: "p",
+        text: `That gap is exactly the shape of FurlPay. Today we're releasing furlpay-openbb-plugin — an open-source backend that drops FurlPay's execution layer directly into the OpenBB Workspace canvas an analyst already lives in.`,
+      },
+      { type: "h2", text: "Research → Execute, in one workspace" },
+      {
+        type: "p",
+        text: `The plugin registers as a standard OpenBB custom backend: it serves the widgets.json and apps.json that OpenBB expects, and ships a ready-made "Research to Execution" app with four tabs. It exposes two kinds of widgets — the data OpenBB users expect, and the execution OpenBB itself doesn't have.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Data widgets — portfolio summary, open positions with live P&L, stablecoin balances across Solana and Base, x402 paywall revenue, and recent payments.`,
+          `Action widgets — Place Order (buy or sell a fractional position, funded in USDC), Auto-Invest (schedule a recurring DCA), and Send Stablecoins. Each is an OpenBB input form that posts to the FurlPay API and refreshes a blotter with the result.`,
+        ],
+      },
+      {
+        type: "diagram",
+        text: `[ Screen an asset in OpenBB ] ──> [ Place Order / DCA form ] ──> [ FurlPay API ]
+                                                                        │
+                                          fractional · USDC-funded · 24/7 · on-chain settle`,
+      },
+      { type: "h2", text: "Why stablecoins make this work" },
+      {
+        type: "p",
+        text: `Because execution is fractional and stablecoin-funded, a $1 order works exactly like a $10,000 one — no bank rails, no market-hours gate, no minimums. An analyst in any country can screen the S&P 500 in OpenBB and dollar-cost-average into it with USDC from the same screen. The same rails settle agentic revenue: the x402 paywall widget shows per-resource calls and USDC earned, so an API that charges AI agents per call reconciles in the same dashboard where its owner trades.`,
+      },
+      { type: "h2", text: "Open source, clone-and-run" },
+      {
+        type: "p",
+        text: `The plugin is MIT-licensed and runs on deterministic demo data out of the box — add http://localhost:7777 as a custom backend and every widget renders immediately, no account required. Set a FurlPay API key and the same widgets go live against your real portfolio, wallets, and paywalls. A 12-test suite asserts the exact OpenBB contract so a green run means it will register and render.`,
+      },
+      {
+        type: "quote",
+        text: `Bloomberg has the data. Morningstar has the research. OpenBB has the terminal. None of them move money. That's the layer we build — and now it lives inside the terminal too.`,
+      },
+      {
+        type: "p",
+        text: `Get it at github.com/FurlPay/furlpay-openbb-plugin. It's the first of a series of composed integrations — pairing the open-source financial data stack with the one thing it's always been missing: rails that actually execute.`,
+      },
+    ],
+  },
+
+  // 12 ----------------------------------------------------------------
+  {
+    slug: "x402-guard-closing-all-five-free-riding-attacks",
+    title: "x402-guard v0.2: Closing All Five Free-Riding Attacks on Agentic Payments",
+    excerpt:
+      "A 2026 security paper catalogues five ways to free-ride an x402 facilitator, reaching resource-leakage ratios up to 100%. x402-guard now ships a tested defense for every one — as a zero-dependency library any facilitator can drop in.",
+    category: "security",
+    date: "2026-07-03",
+    readMins: 7,
+    author: "Furlpay Security",
+    body: [
+      {
+        type: "p",
+        text: `x402 decouples off-chain verification from on-chain settlement to get throughput. That gap is where the money leaks. "Free-Riding the Agentic Web: A Systematic Security Analysis of x402 Payments" (arXiv:2605.30998) tested official SDKs and a production deployment and found resource-leakage ratios up to 100% — attackers receiving the paid resource while paying little or nothing. It catalogues five distinct flaw classes. Most facilitators in the wild defend none of them.`,
+      },
+      {
+        type: "p",
+        text: `x402-guard is our answer: a zero-dependency TypeScript library that hardens the state machine around any x402 settler, independent of which facilitator or SDK you run. Version 0.2 closes all five classes, each with a test that reproduces the attack and proves it's blocked.`,
+      },
+      { type: "h2", text: "The five flaws — and the fix for each" },
+      {
+        type: "ul",
+        items: [
+          `F1 Cross-resource substitution — a payment minted for resource A unlocks an equal-priced resource B. Fix: commit H(method · uri · body) into the authorization and reject any mismatch. Near-universal in the wild: 38% of hosts expose same-price sibling resources.`,
+          `F2 Duplicate-settlement race — concurrent requests with one nonce all clear verification before any settles on-chain; each gets the service, one pays. Fix: atomic nonce linearization (Null → PENDING → SETTLED), and — critically — never roll a timed-out nonce back to replayable.`,
+          `F3 Allowance overdraft — under the "upto" scheme, N concurrent requests each read the full remaining balance and all proceed, spending N times the authorized amount. Fix: pessimistic reserve-commit — escrow the max atomically before execution, bill the actual, refund the rest.`,
+          `F4 Denial of settlement — an attacker floods the facilitator with slow settlements until honest ones time out, and the server that already delivered eats the loss. Fix: reserve settlement capacity before serving; overflow returns 429 instead of free service.`,
+          `F5 Hidden-compute pricing — pay-per-token cost is unknowable at quote time, so adversarial prompts maximize compute per fixed quote. Fix: an adaptive billing weight that learns the observed cost ratio and quotes enough headroom that the escrow always covers the bill — honest callers are refunded the difference.`,
+        ],
+      },
+      { type: "h2", text: "Why a library, and why failure-closed" },
+      {
+        type: "p",
+        text: `The subtle bug is the timeout. A naive facilitator deletes the nonce when settlement "fails" — but a facilitator timeout is not proof the transaction failed; it may still confirm on-chain. Freeing the nonce reopens it for replay. x402-guard distinguishes a settlement that provably did not land (safe to release) from one whose outcome is unknown (kept locked, never replayable). Every defense fails closed: when in doubt, refuse — never serve for free.`,
+      },
+      {
+        type: "diagram",
+        text: `[ settle request ] ──> reserve capacity (F4) ──> bind-check (F1) ──> atomic nonce claim (F2)
+                                                                              │
+                          confirmed ──> SETTLED    failed_no_tx ──> released    unknown ──> stays LOCKED`,
+      },
+      {
+        type: "p",
+        text: `The nonce and allowance stores are simple interfaces — the in-memory defaults are atomic within one process, and map directly onto Redis SETNX or a conditional SQL decrement for multi-instance facilitators. No dependencies, works on Base, Solana, or any x402 deployment.`,
+      },
+      {
+        type: "quote",
+        text: `Agentic commerce only works if machine payments are safe for the seller. Every one of these attacks steals from the API provider — quietly, at machine speed, thousands of times a minute.`,
+      },
+      {
+        type: "p",
+        text: `x402-guard is MIT-licensed and open source at github.com/FurlPay/x402-guard. The test suite reproduces each attack — including the paper's 20-concurrent-request race — and asserts it's defeated. As the x402 Foundation drives toward a v1.0 spec, these are the semantics we think belong in the standard.`,
+      },
+    ],
+  },
+
+  // 13 ----------------------------------------------------------------
+  {
+    slug: "letting-your-ai-agent-book-travel-travala-mcp-furlpay",
+    title: "Letting Your AI Agent Book Travel: Composing Travala's Travel MCP with FurlPay Payments",
+    excerpt:
+      "Travala launched its Agentic AI Travel Protocol on Base, enabling gasless USDC travel bookings. Here is how to compose their Travel MCP with FurlPay's wallets and x402 budget guards using TypeScript.",
+    category: "engineering",
+    date: "2026-07-04",
+    readMins: 5,
+    author: "FurlPay Engineering",
+    body: [
+      {
+        type: "p",
+        text: `In June 2026, Travala launched its Agentic AI Travel Protocol, introducing a remote Model Context Protocol (MCP) server accessible at https://travel-mcp.travala.com/mcp. This allows autonomous AI agents to search and reserve from over 2.2 million properties globally. However, search and selection are only half the battle. To complete the loop, the agent needs a secure payment mechanism that respects spending limits and doesn't require sharing raw API keys or card numbers.`,
+      },
+      {
+        type: "p",
+        text: `By composing Travala's Travel MCP with FurlPay's payment rails, developers can build agents that book travel autonomously. FurlPay acts as the payment and financial orchestration layer, allowing agents to request single-use payment authorizations using the x402 open standard on Base and Solana.`,
+      },
+      { type: "h2", text: "The Agentic Travel Flow" },
+      {
+        type: "diagram",
+        text: `[ AI Agent ] ──> Searches inventory via Travala Travel MCP (travel-mcp.travala.com/mcp)
+     │
+     ├──> Requests budget clearance from FurlPay wallet (ERC-7715 session keys)
+     │
+     └──> Signs & settles gasless USDC transaction via x402 on Base L2`,
+      },
+      { type: "h2", text: "Composing the MCP Tools" },
+      {
+        type: "p",
+        text: `Using FurlPay's client SDK, developers can implement an agent tool that handles the budget authorization and payment settlement. This allows the AI agent to verify that the booking quote matches the user's spending policies before executing the transaction.`,
+      },
+      {
+        type: "code",
+        lang: "typescript",
+        code: `import { FurlPayClient } from "@furlpay/furlpay-node";
+
+// Verify booking quote and generate on-chain x402 payment proof
+const client = new FurlPayClient({ apiKey: process.env.FURLPAY_SECRET_KEY });
+
+const quote = await client.travel.verifyQuote({
+  quoteId: "trvl_quote_9821379",
+  amount: 180.00,
+  currency: "USDC"
+});
+
+if (quote.isValid && quote.amount <= maxBudgetLimit) {
+  const paymentProof = await client.x402.createProof({
+    amount: quote.amount,
+    token: "USDC",
+    destination: "travala_facilitator"
+  });
+  console.log("Booking authorized. Transaction hash:", paymentProof.txHash);
+}`,
+      },
+      {
+        type: "quote",
+        text: `In the agentic web, search is performed by the machine, but authorization must remain anchored to the human. Composing the inventory provider with the payment gateway is the ultimate friction reducer for travel.`,
+      },
+      {
+        type: "p",
+        text: `Furthermore, developers who integrate these tools can capture Travala's 10% cbBTC (Coinbase Wrapped Bitcoin) rebate. FurlPay automatically routes these rebates back to the developer's wallet, creating a sustainable monetization channel for autonomous agents.`,
+      },
+    ],
+  },
+
+  // 14 ----------------------------------------------------------------
+  {
+    slug: "tradfi-goes-24-7-mastercard-stablecoin-settlement",
+    title: "TradFi Goes 24/7/365: Leveraging Mastercard's New Stablecoin Rails for Corporate Travel",
+    excerpt:
+      "Mastercard acquired BVNK for $1.8B and announced 24/7 intraday stablecoin settlement. Here is how FurlPay B2B Travels leverages these rails to issue programmatically locked virtual corporate debit cards.",
+    category: "product-news",
+    date: "2026-07-04",
+    readMins: 5,
+    author: "FurlPay Product",
+    body: [
+      {
+        type: "p",
+        text: `Traditional corporate travel booking is choked by legacy banking calendars. Weekend flight updates, last-minute room adjustments, or holiday travel bookings frequently fail because of settlement delays, leading to canceled reservations and accounting friction. With Mastercard's acquisition of BVNK and their expansion of settlement capabilities to support intraday, weekend, and holiday settlement for regulated stablecoins (USDC), the financial rails are finally matching the speed of travel.`,
+      },
+      {
+        type: "p",
+        text: `FurlPay B2B Travels integrates directly with these new 24/7 settlement rails, allowing companies to fund corporate travel accounts with stablecoins and instantly issue virtual travel cards to employees.`,
+      },
+      { type: "h2", text: "24/7 Stablecoin Settlement" },
+      {
+        type: "diagram",
+        text: `[ Corporate USDC Treasury ] ──(24/7/365 Intraday Rail)──> [ FurlPay Card Engine ]
+                                                             │
+                                                  (Single-Use Virtual Card)
+                                                             │
+                                                             ▼
+                                                [ Visa/Mastercard Network ]`,
+      },
+      { type: "h2", text: "Dynamic Spending Controls & MCC Locks" },
+      {
+        type: "p",
+        text: `When an employee requests travel authorization, FurlPay programmatically issues a single-use virtual card. By leveraging Mastercard's real-time settlement and our card issuing engine, we apply strict Merchant Category Code (MCC) locks. This guarantees the card can only be charged by travel merchants (e.g., lodging and airlines) and is capped at the exact amount of the booking, eliminating expense fraud by design.`,
+      },
+      {
+        type: "quote",
+        text: `TradFi is going 24/7. FurlPay's double-entry ledger and card issuing platform allow startups to instantly tap into this real-time payment network, using stablecoins to fund employee travel globally.`,
+      },
+    ],
+  },
+
+  // 15 ----------------------------------------------------------------
+  {
+    slug: "inside-the-visa-and-bridge-stablecoin-cards-rollout",
+    title: "Stablecoin Cards in 100+ Countries: Inside the Visa and Bridge Global Rollout",
+    excerpt:
+      "Visa and Stripe-owned Bridge have expanded their partnership to scale stablecoin-linked card issuing in over 100 countries. We explore how FurlPay utilizes this global network to enable instant fiat conversions at the checkout.",
+    category: "compliance",
+    date: "2026-07-04",
+    readMins: 6,
+    author: "FurlPay Compliance",
+    body: [
+      {
+        type: "p",
+        text: `Visa and Stripe-owned Bridge have expanded their partnership to bring stablecoin-linked card issuance to over 100 countries. This is a massive milestone for global travel, as it allows stablecoins (like USDC and USDT) to be spent seamlessly at millions of physical and digital merchants worldwide, with instant fiat conversion at the point of sale.`,
+      },
+      {
+        type: "p",
+        text: `FurlPay Travels leverages this global network to bridge Web3 wallets with legacy travel merchants (such as Airbnb, Booking.com, and local train networks) that do not yet accept crypto natively.`,
+      },
+      { type: "h2", text: "Real-Time Crypto-to-Fiat Conversion" },
+      {
+        type: "p",
+        text: `When a traveler checks out on FurlPay, the platform uses Bridge's API in the background to swap the traveler's stablecoins into the merchant's local currency (USD, EUR, or GBP) in real-time. The merchant receives a standard bank settlement, while the traveler avoids the friction of manual off-ramping or holding multiple fiat currencies.`,
+      },
+      { type: "h2", text: "Global Compliance and the Travel Rule" },
+      {
+        type: "p",
+        text: `Operating a cross-border travel network in 2026 requires strict adherence to international regulations, including the Financial Action Task Force (FATF) Travel Rule and the European Union's Markets in Crypto-Assets (MiCA) regulation. FurlPay's Dynamic Compliance Engine monitors every transaction:`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Auto-swapping non-compliant stablecoins into licensed EMTs (Electronic Money Tokens like EURC) for EEA users.`,
+          `Verifying originator and beneficiary identity for transactions exceeding $1,000.`,
+          `Performing real-time sanctions screening before cards are issued.`,
+        ],
+      },
+      {
+        type: "quote",
+        text: `Compliance isn't a blocker; it's the bridge that allows on-chain finance to scale to the physical world. By embedding Travel Rule verification directly into the checkout, we keep global travel safe and legal.`,
+      },
+    ],
+  },
+  // Open USD ----------------------------------------------------------
+  {
+    slug: "why-furlpay-is-adopting-open-usd",
+    title: "Why Furlpay Is Adopting Open USD — the Visa, Mastercard & Coinbase Stablecoin Standard",
+    excerpt:
+      "In July 2026, a 140-firm consortium — Visa, Mastercard, Stripe, Coinbase, BlackRock, BNY, Google and Ripple among them — launched Open USD (OUSD), a partner-governed stablecoin that shares reserve revenue and undercuts the single-issuer model. Here's why Furlpay is adding it as a settlement rail for travel and brokerage.",
+    category: "product-news",
+    date: "2026-07-04",
+    readMins: 6,
+    author: "Furlpay",
+    featured: true,
+    body: [
+      {
+        type: "p",
+        text: `On July 3, 2026, a new independent company called Open Standard launched Open USD (OUSD) — a fully-reserved US-dollar stablecoin backed by a consortium of more than 140 firms spanning banking, payments, tech and crypto: Visa, Mastercard, Stripe, Coinbase, BlackRock, BNY, Google, IBM, Ripple, OKX and Standard Chartered among them. The market reaction was immediate — Circle's stock fell roughly 13% within hours as traders priced OUSD as a direct competitor to USDC and USDT. This is the most significant stablecoin launch since USDC itself, and Furlpay is adopting it.`,
+      },
+      { type: "h2", text: "Why the industry wanted a neutral stablecoin" },
+      {
+        type: "p",
+        text: `Today's dominant stablecoins are single-issuer: one company mints the token, holds the reserves, and keeps the interest those reserves earn. That concentrates both counterparty risk and economics. OUSD is structured to break that model. It's operated by Open Standard — an independent company whose board is composed of the consortium's partners, with founding CEO Zach Abrams — so no single firm controls issuance. Businesses can mint and redeem OUSD at no cost and with no volume caps, and nearly all of the interest earned on the backing reserves flows to partners after a management fee, rather than to one issuer.`,
+      },
+      { type: "h2", text: "What's actually different about OUSD" },
+      {
+        type: "ul",
+        items: [
+          `Partner-governed, not single-issuer — reserve risk and revenue are distributed across the consortium, not held by one company.`,
+          `Free mint & redeem, no caps — treasuries can move in and out of OUSD without spread or volume limits, which matters for high-throughput settlement.`,
+          `Shared reserve revenue — the interest on reserves is returned to partners, changing the economics of every business that routes volume through it.`,
+          `Multi-chain from launch — OUSD goes live natively on Solana from day one, with Stellar, Base, Polygon and other chains following through 2026.`,
+        ],
+      },
+      { type: "h2", text: "How Furlpay uses OUSD" },
+      {
+        type: "p",
+        text: `Furlpay is a settlement-agnostic financial OS: the same API moves stablecoins for payments, fractional investing, and agentic x402 calls. Adding OUSD alongside USDC gives our users a neutral, institutional-grade dollar for two flows in particular — travel and brokerage.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Travel — Furlpay Travels settles bookings routed through Travala's Agentic AI Travel Protocol in gasless stablecoin on Base and Solana. OUSD's zero-cost mint/redeem and native Solana support make it a natural funding token for both agent-initiated x402 bookings and single-use Visa virtual cards.`,
+          `Brokerage — fractional stock and ETF orders (via Alpaca) are funded from the same wallet. Settling in a consortium-backed dollar reduces the conversion friction between on-chain balances and regulated brokerage rails.`,
+          `Micro-transactions — high-throughput, low-fee settlement on Solana and Base makes sub-cent flows economically viable: pay-per-call API data over x402, per-booking travel insurance, and agent tips.`,
+        ],
+      },
+      {
+        type: "diagram",
+        text: `[ Furlpay wallet: USDC · OUSD ]
+        │
+        ├─ x402 / Travala booking ─▶ gasless settle on Base/Solana ─▶ 10% cbBTC rebate
+        ├─ single-use Visa VCN ────▶ Visa × Bridge rails ───────────▶ 100+ countries
+        └─ Alpaca fractional order ▶ regulated brokerage settlement`,
+      },
+      {
+        type: "p",
+        text: `Because Furlpay never hard-codes a single settlement token, adopting OUSD is additive: existing USDC integrations keep working, and users gain a second dollar backed by the networks that already run global commerce. We'll roll OUSD support out first on Solana — where it launches natively — then Base, tracking Open Standard's own chain schedule.`,
+      },
+      {
+        type: "quote",
+        text: `The winning stablecoin for real-world commerce won't be the one with the best yield — it'll be the one payments networks, banks and merchants already trust. OUSD is that bet, and Furlpay is built to route it.`,
       },
     ],
   },
