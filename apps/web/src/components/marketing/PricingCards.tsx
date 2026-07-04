@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useRef } from "react";
+import { Check } from "lucide-react";
 
 // Pricing tiers with a pointer-tracking border. A single mousemove handler on
 // the grid updates each card's --mx/--my CSS vars (relative to that card), so
@@ -83,7 +84,7 @@ export default function PricingCards() {
           <ul className="space-y-2 text-[13px] text-textSecondary">
             {t.feats.map((f) => (
               <li key={f} className="flex items-center gap-2">
-                <span className="text-neon">✓</span> {f}
+                <Check className="h-4 w-4 shrink-0 text-neon" aria-hidden /> {f}
               </li>
             ))}
           </ul>

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import type { ComponentType } from "react";
+import { Code2, Bot, Building2 } from "lucide-react";
 import MarketingBar from "@/components/marketing/MarketingBar";
 
 export const metadata: Metadata = {
@@ -18,7 +20,7 @@ type UseCase = {
   features: Feature[];
   cta: { label: string; href: string };
   accent: string;
-  icon: string;
+  Icon: ComponentType<{ className?: string }>;
 };
 
 const USE_CASES: UseCase[] = [
@@ -35,7 +37,7 @@ const USE_CASES: UseCase[] = [
     ],
     cta: { label: "Read the docs", href: "/docs" },
     accent: "from-emerald-500/20 via-emerald-500/5 to-transparent",
-    icon: "⌨️",
+    Icon: Code2,
   },
   {
     badge: "AI Agents",
@@ -50,7 +52,7 @@ const USE_CASES: UseCase[] = [
     ],
     cta: { label: "Explore x402", href: "/docs/developer/x402" },
     accent: "from-blue-500/20 via-blue-500/5 to-transparent",
-    icon: "🤖",
+    Icon: Bot,
   },
   {
     badge: "Businesses",
@@ -65,7 +67,7 @@ const USE_CASES: UseCase[] = [
     ],
     cta: { label: "Contact sales", href: "mailto:sales@furlpay.com" },
     accent: "from-purple-500/20 via-purple-500/5 to-transparent",
-    icon: "🏢",
+    Icon: Building2,
   },
 ];
 
@@ -100,8 +102,8 @@ export default function UseCasesPage() {
               <div className="relative p-8 sm:p-10">
                 {/* Header */}
                 <div className="flex items-start gap-4">
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.06] text-2xl">
-                    {uc.icon}
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/[0.06] text-white">
+                    <uc.Icon className="h-6 w-6" />
                   </span>
                   <div>
                     <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neon">

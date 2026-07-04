@@ -2,13 +2,14 @@
 
 import { useState, FormEvent } from "react";
 import Link from "next/link";
+import { Package, Wrench, Scale, Lock, Newspaper } from "lucide-react";
 
 const CATEGORIES = [
-  { id: "product-updates", emoji: "📦", label: "Product Updates" },
-  { id: "engineering", emoji: "🔧", label: "Engineering" },
-  { id: "policy-changes", emoji: "⚖️", label: "Policy Changes" },
-  { id: "security-bulletins", emoji: "🔒", label: "Security Bulletins" },
-  { id: "weekly-digest", emoji: "📰", label: "Weekly Digest" },
+  { id: "product-updates", Icon: Package, label: "Product Updates" },
+  { id: "engineering", Icon: Wrench, label: "Engineering" },
+  { id: "policy-changes", Icon: Scale, label: "Policy Changes" },
+  { id: "security-bulletins", Icon: Lock, label: "Security Bulletins" },
+  { id: "weekly-digest", Icon: Newspaper, label: "Weekly Digest" },
 ];
 
 export default function UnsubscribePage() {
@@ -131,7 +132,7 @@ export default function UnsubscribePage() {
                       onChange={() => toggle(cat.id)}
                       className="sr-only"
                     />
-                    <span className="text-lg">{cat.emoji}</span>
+                    <cat.Icon className="h-5 w-5 text-textSecondary" aria-hidden />
                     <span className="text-[13px] text-white">{cat.label}</span>
                     {selected.includes(cat.id) && (
                       <span className="ml-auto text-[12px] text-red-400">remove</span>

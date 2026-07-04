@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import MarketingBar from "@/components/marketing/MarketingBar";
+import PartnerMark from "@/components/brand/PartnerMark";
 
 export const metadata: Metadata = {
   title: "Partners & Integrations",
@@ -11,6 +12,7 @@ export const metadata: Metadata = {
 
 type Partner = {
   name: string;
+  slug: string;
   role: string;
   description: string;
   category: "Infrastructure" | "Financial Services" | "Platform";
@@ -19,6 +21,7 @@ type Partner = {
 const PARTNERS: Partner[] = [
   {
     name: "Solana",
+    slug: "solana",
     role: "Settlement layer",
     description:
       "Sub-second finality, <$0.01 fees. Furlpay uses Solana as the primary settlement rail for USDC payments and x402 agentic transactions.",
@@ -26,6 +29,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Base",
+    slug: "base",
     role: "L2 settlement",
     description:
       "Coinbase's Ethereum L2 — EVM-compatible smart accounts, Safe wallets, and ERC-4337 account abstraction for gasless UX.",
@@ -33,6 +37,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Circle",
+    slug: "circle",
     role: "USDC & EURC issuer",
     description:
       "The backbone stablecoins of Furlpay. Fully-reserved, audited, and natively supported across Solana and Base.",
@@ -40,6 +45,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Turnkey",
+    slug: "turnkey",
     role: "MPC key custody",
     description:
       "Hardware-secured key shards with programmable policy gates. Powers Furlpay's 2-of-2 MPC custody model with passkey binding.",
@@ -47,6 +53,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Safe",
+    slug: "safe",
     role: "Smart accounts",
     description:
       "ERC-4337 smart account infrastructure for Base — enabling batched transactions, social recovery, and spending policies.",
@@ -54,6 +61,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Stripe",
+    slug: "stripe",
     role: "Fiat on/off-ramp",
     description:
       "Seamless fiat-to-crypto and crypto-to-fiat conversions. Powers the onboarding flow and bank withdrawal rails.",
@@ -61,6 +69,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Wise",
+    slug: "wise",
     role: "Multi-currency banking",
     description:
       "Local account details in 40+ currencies with real mid-market exchange rates. The banking layer behind Furlpay's global accounts.",
@@ -68,6 +77,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Alpaca",
+    slug: "alpaca",
     role: "Fractional investing",
     description:
       "Commission-free, fractional trading of 5,000+ US stocks and ETFs via API. Powers Furlpay's invest tab.",
@@ -75,6 +85,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Marqeta",
+    slug: "marqeta",
     role: "Card issuance",
     description:
       "Modern card issuing platform. Powers Furlpay's virtual Visa cards with real-time authorization, cashback, and spend controls.",
@@ -82,6 +93,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Bridge.xyz",
+    slug: "bridge",
     role: "Stablecoin orchestration",
     description:
       "APIs for stablecoin issuance, transfers, and conversions — enabling instant cross-chain and fiat settlement.",
@@ -89,6 +101,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Persona",
+    slug: "persona",
     role: "Identity verification",
     description:
       "Tiered KYC/KYB identity verification with document checks, selfie matching, and watchlist screening — compliant and fast.",
@@ -96,6 +109,7 @@ const PARTNERS: Partner[] = [
   },
   {
     name: "Vercel",
+    slug: "vercel",
     role: "Hosting & edge",
     description:
       "The Furlpay web app and marketing site run on Vercel's edge network — instant deploys, global CDN, and zero cold starts.",
@@ -127,6 +141,16 @@ export default function PartnersPage() {
           crypto, banking, and identity into one seamless product.
         </p>
 
+        <div className="mt-8 flex items-center gap-3 rounded-2xl border border-neon/20 bg-neon/[0.04] p-4">
+          <PartnerMark slug="furlpay" name="Furlpay" className="h-11 w-11" />
+          <div>
+            <p className="text-[15px] font-bold">Furlpay</p>
+            <p className="text-[13px] text-textMuted">
+              One product, composed from the {PARTNERS.length} partners below.
+            </p>
+          </div>
+        </div>
+
         {CATEGORIES.map((category) => (
           <section key={category} className="mt-16">
             <h2 className="mb-6 text-[20px] font-bold tracking-tighter">
@@ -144,13 +168,16 @@ export default function PartnersPage() {
                     className={`absolute inset-0 bg-gradient-to-br ${CATEGORY_COLORS[category]} opacity-0 transition-opacity group-hover:opacity-100`}
                   />
                   <div className="relative">
-                    <div className="flex items-baseline justify-between">
-                      <p className="text-[17px] font-bold">{partner.name}</p>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <PartnerMark slug={partner.slug} name={partner.name} className="h-11 w-11" />
+                        <p className="text-[17px] font-bold">{partner.name}</p>
+                      </div>
                       <span className="text-[11px] font-medium uppercase tracking-wider text-neon">
                         {partner.role}
                       </span>
                     </div>
-                    <p className="mt-2 text-[14px] leading-relaxed text-textSecondary">
+                    <p className="mt-3 text-[14px] leading-relaxed text-textSecondary">
                       {partner.description}
                     </p>
                   </div>

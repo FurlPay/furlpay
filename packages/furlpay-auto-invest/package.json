@@ -1,0 +1,40 @@
+{
+  "name": "@furlpay/auto-invest",
+  "version": "0.1.0",
+  "description": "Automated dollar-cost averaging (DCA) for FurlPay — schedule recurring stablecoin-funded stock/ETF buys. Zero runtime dependencies.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "furlpay",
+    "auto-invest",
+    "dca",
+    "dollar-cost-averaging",
+    "recurring",
+    "investing",
+    "stablecoin",
+    "usdc",
+    "fintech"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/auto-invest.test.js",
+    "example": "npx --yes tsx examples/run.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/furlpay/furlpay-auto-invest"
+  },
+  "homepage": "https://furlpay.com",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "5.5.3",
+    "@types/node": "20.14.10"
+  }
+}

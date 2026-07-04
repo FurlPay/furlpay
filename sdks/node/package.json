@@ -1,11 +1,14 @@
 {
   "name": "@furlpay/furlpay-node",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Official Furlpay server-side SDK for Node.js / TypeScript",
   "license": "MIT",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "src"],
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "node --test test/webhooks.test.js"

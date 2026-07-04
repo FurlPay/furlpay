@@ -1,35 +1,56 @@
 import Link from "next/link";
 import type { Metadata } from "next";
+import { Package } from "lucide-react";
 import MarketingBar from "@/components/marketing/MarketingBar";
+import {
+  DiscordIcon,
+  GitHubIcon,
+  XIcon,
+  LinkedInIcon,
+} from "@/components/marketing/SocialIcons";
+import type { ComponentType } from "react";
 
 export const metadata: Metadata = {
   title: "Community",
   description:
-    "Join the Furlpay community — contribute on GitHub, chat on Discord, follow on X, and explore 9+ open-source repos powering the financial operating system.",
+    "Join the Furlpay community — contribute on GitHub, chat on Discord, follow on X, and explore 11+ open-source repos powering the financial operating system.",
   alternates: { canonical: "/community" },
 };
 
-const SOCIAL = [
+const SOCIAL: {
+  name: string;
+  description: string;
+  href: string;
+  cta: string;
+  Icon: ComponentType<{ className?: string }>;
+}[] = [
   {
     name: "Discord",
     description: "Chat with the core team and other builders in real-time.",
     href: "https://discord.gg/furlpay",
     cta: "Join Discord",
-    icon: "💬",
+    Icon: DiscordIcon,
   },
   {
     name: "GitHub",
-    description: "Browse 9+ public repos — SDKs, CLI, MCP server, and more.",
+    description: "Browse 11+ public repos — SDKs, CLI, MCP server, and more.",
     href: "https://github.com/FurlPay",
     cta: "View repos",
-    icon: "🐙",
+    Icon: GitHubIcon,
   },
   {
     name: "X / Twitter",
     description: "Product updates, shipped features, and dev tips.",
     href: "https://x.com/furlpay",
     cta: "Follow @furlpay",
-    icon: "𝕏",
+    Icon: XIcon,
+  },
+  {
+    name: "LinkedIn",
+    description: "Company news, hiring, and the build-in-public journey.",
+    href: "https://linkedin.com/company/furlpay",
+    cta: "Follow Furlpay",
+    Icon: LinkedInIcon,
   },
 ];
 
@@ -43,6 +64,8 @@ const REPOS = [
   { name: "OpenAPI", description: "Full OpenAPI 3.1 spec — import into Postman, Insomnia, or codegen.", repo: "furlpay-openapi" },
   { name: "Solana Actions", description: "Template for Solana Actions & Blinks — deploy in minutes.", repo: "furlpay-solana-actions" },
   { name: "x402 Facilitator", description: "Reference x402 facilitator for agentic HTTP payments.", repo: "furlpay-x402" },
+  { name: "x402 Guard", description: "Facilitator-layer hardening — closes all five x402 free-riding attack classes.", repo: "x402-guard" },
+  { name: "OpenBB Plugin", description: "Execution layer for OpenBB Workspace — trade, DCA, and settle in stablecoins.", repo: "furlpay-openbb-plugin" },
 ];
 
 export default function CommunityPage() {
@@ -62,7 +85,7 @@ export default function CommunityPage() {
         </p>
 
         {/* Social links */}
-        <div className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {SOCIAL.map((s) => (
             <a
               key={s.name}
@@ -72,7 +95,7 @@ export default function CommunityPage() {
               className="glass-card group flex flex-col justify-between p-6 transition-colors hover:border-neon/30"
             >
               <div>
-                <span className="text-3xl">{s.icon}</span>
+                <s.Icon className="h-7 w-7 text-textSecondary transition-colors group-hover:text-neon" />
                 <p className="mt-3 text-[16px] font-bold">{s.name}</p>
                 <p className="mt-1.5 text-[14px] leading-relaxed text-textSecondary">
                   {s.description}
@@ -101,7 +124,7 @@ export default function CommunityPage() {
               className="group rounded-xl border border-white/10 bg-white/[0.02] p-5 transition-all hover:border-neon/25 hover:bg-white/[0.04]"
             >
               <div className="flex items-center gap-2">
-                <span className="text-[13px] text-textMuted">📦</span>
+                <Package className="h-3.5 w-3.5 text-textMuted" aria-hidden />
                 <p className="text-[14px] font-semibold group-hover:text-neon">{r.name}</p>
               </div>
               <p className="mt-1.5 text-[13px] leading-relaxed text-textSecondary">

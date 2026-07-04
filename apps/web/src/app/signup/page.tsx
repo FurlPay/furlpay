@@ -215,7 +215,7 @@ export default function SignupPage() {
       {step === "passkey" && (
         <div className="space-y-4 text-center">
           <div className="rounded-2xl bg-gain/15 p-3 text-[13px] text-gain">
-            Phone {phone} verified ✓
+            Phone {phone} verified
           </div>
           <p className="text-textSecondary">
             {fingerprint

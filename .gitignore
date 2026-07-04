@@ -33,3 +33,6 @@ indmoney-apk/
 redotpay-apk/
 robinhood-apk/
 apktool-output/
+
+# Python build artifacts
+*.egg-info/
