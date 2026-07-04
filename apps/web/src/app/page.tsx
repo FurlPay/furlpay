@@ -89,6 +89,12 @@ function Hero() {
           <Link href="/signup" className="btn-green w-full px-7 py-3.5 text-[16px] sm:w-auto">
             Get Started (Web App)
           </Link>
+          <Link
+            href="/travel"
+            className="group flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-gradient-to-r from-sky-500/20 to-teal-500/20 px-7 py-3.5 text-[16px] font-semibold text-white ring-1 ring-inset ring-sky-400/40 transition hover:from-sky-500/30 hover:to-teal-500/30 sm:w-auto"
+          >
+            <Plane className="h-4 w-4" /> Travel with Us
+          </Link>
           <Link href="/docs" className="btn-outline w-full px-7 py-3.5 text-[16px] sm:w-auto">
             Explore Developer Docs
           </Link>
