@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { POSTS } from "@/lib/blog/posts";
 import { CATEGORIES } from "@/lib/blog/categories";
+import { INSIGHTS } from "@/lib/insights/articles";
+import { INSIGHT_CATEGORIES } from "@/lib/insights/categories";
 
 const BASE = "https://furlpay.com";
 const NOW = new Date("2026-07-02");
@@ -53,8 +55,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/docs/compliance/mica", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/docs/security/mpc-webauthn", priority: 0.7, changeFrequency: "monthly" as const },
 
-    // — Blog —
+    // — Blog & Research —
     { path: "/blog", priority: 0.9, changeFrequency: "daily" as const },
+    { path: "/investing/insights", priority: 0.9, changeFrequency: "daily" as const },
 
     // — Legal —
     { path: "/legal/terms", priority: 0.3, changeFrequency: "yearly" as const },
@@ -87,5 +90,19 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
-  return [...staticPages, ...posts, ...categories];
+  const insights = INSIGHTS.map((a) => ({
+    url: `${BASE}/investing/insights/${a.slug}`,
+    lastModified: new Date(a.date),
+    changeFrequency: "monthly" as const,
+    priority: a.featured ? 0.8 : 0.7,
+  }));
+
+  const insightCategories = INSIGHT_CATEGORIES.map((c) => ({
+    url: `${BASE}/investing/insights/category/${c.id}`,
+    lastModified: NOW,
+    changeFrequency: "weekly" as const,
+    priority: 0.6,
+  }));
+
+  return [...staticPages, ...posts, ...categories, ...insights, ...insightCategories];
 }

@@ -16,6 +16,7 @@ const PROTECTED_ROUTES = [
   "/dashboard",
   "/banking",
   "/investing",
+  "/markets",
   "/cards",
   "/bills",
   "/profile",

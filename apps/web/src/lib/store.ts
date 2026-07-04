@@ -1,3 +1,4 @@
+import { createHash, randomUUID } from "crypto";
 import {
   Bill,
   FiatBalance,
@@ -6,6 +7,40 @@ import {
   TokenBalance,
   Transaction,
 } from "./types";
+
+// ---------------------------------------------------------------------------
+// User ids are UUIDs. The seeded demo user gets a DETERMINISTIC UUID (v5-style,
+// SHA-1 of a fixed namespace + email) so every serverless instance derives the
+// same id — sessions and webhooks minted on one instance stay valid on another.
+// Real signups must mint newUserId() (random UUID v4) instead.
+// ---------------------------------------------------------------------------
+
+function uuidFromKey(key: string): string {
+  const h = createHash("sha1").update(`furlpay:user:${key}`).digest("hex");
+  const variant = ((parseInt(h[16], 16) & 0x3) | 0x8).toString(16);
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-5${h.slice(13, 16)}-${variant}${h.slice(17, 20)}-${h.slice(20, 32)}`;
+}
+
+/** Mint a fresh UUID for a newly registered user. */
+export const newUserId = (): string => randomUUID();
+
+/** Deterministic, full-length (20-byte) EVM address for the demo user's Safe.
+ *  Real deployments derive this from the actual Safe deployment. */
+function safeAddressFromKey(key: string): string {
+  return "0x" + createHash("sha256").update(`furlpay:safe:${key}`).digest("hex").slice(0, 40);
+}
+
+/** Deterministic per-user TOTP secret (RFC 4648 base32, 20 bytes) — replaces
+ *  the former shared demo constant. Real enrollment mints a random secret. */
+function totpSecretFromKey(key: string): string {
+  const ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const bytes = createHash("sha256").update(`furlpay:totp:${key}`).digest().subarray(0, 20);
+  let bits = "";
+  for (const b of bytes) bits += b.toString(2).padStart(8, "0");
+  let out = "";
+  for (let i = 0; i + 5 <= bits.length; i += 5) out += ALPHABET[parseInt(bits.slice(i, i + 5), 2)];
+  return out;
+}
 
 // ---------------------------------------------------------------------------
 // In-memory data store. Acts as the app's "database" for the demo. In a real
@@ -55,10 +90,10 @@ interface AppState {
 function seed(): AppState {
   return {
     user: {
-      id: "usr_ashutosh",
+      id: uuidFromKey("ashutosh@furlpay.app"),
       name: "Ashutosh",
       email: "ashutosh@furlpay.app",
-      safeAddress: "0x7A9f...c31E",
+      safeAddress: safeAddressFromKey("ashutosh@furlpay.app"),
       kycStatus: "verified",
       kycTier: 2,
       region: "EEA",
@@ -69,7 +104,7 @@ function seed(): AppState {
         lastLogin: new Date(Date.now() - 2 * 3600_000).toISOString(),
         loginAlerts: true,
         totpEnabled: true,
-        totpSecret: "JBSWY3DPEHPK3PXP",
+        totpSecret: totpSecretFromKey("ashutosh@furlpay.app"),
         hardwareKeys: [{ name: "YubiKey 5C NFC", addedAt: new Date(Date.now() - 30 * 86400_000).toISOString() }],
         devices: [
           { name: "iPhone 17 Pro", location: "Amsterdam, NL", lastActive: new Date().toISOString(), current: true },
@@ -110,10 +145,11 @@ function seed(): AppState {
       },
     ],
     holdings: [
-      { symbol: "AAPL", name: "Apple Inc.", shares: 3.4, price: 232.11, changePct: 0.82, marketValue: 789.17 },
-      { symbol: "NVDA", name: "NVIDIA Corp.", shares: 1.1, price: 1284.5, changePct: 2.14, marketValue: 1412.95 },
-      { symbol: "VOO", name: "Vanguard S&P 500 ETF", shares: 2.0, price: 548.2, changePct: -0.34, marketValue: 1096.4 },
-      { symbol: "TSLA", name: "Tesla Inc.", shares: 0.75, price: 402.9, changePct: 1.05, marketValue: 302.18 },
+      // costBasis = what the user actually paid; live prices re-mark marketValue.
+      { symbol: "AAPL", name: "Apple Inc.", shares: 3.4, price: 232.11, changePct: 0.82, marketValue: 789.17, costBasis: 702.1 },
+      { symbol: "NVDA", name: "NVIDIA Corp.", shares: 1.1, price: 1284.5, changePct: 2.14, marketValue: 1412.95, costBasis: 1188.0 },
+      { symbol: "VOO", name: "Vanguard S&P 500 ETF", shares: 2.0, price: 548.2, changePct: -0.34, marketValue: 1096.4, costBasis: 1004.6 },
+      { symbol: "TSLA", name: "Tesla Inc.", shares: 0.75, price: 402.9, changePct: 1.05, marketValue: 302.18, costBasis: 286.9 },
     ],
     cards: [
       {

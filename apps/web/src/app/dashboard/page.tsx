@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Bell, ArrowUpRight, Search } from "lucide-react";
+import { Bell, ArrowUpRight, Search, ScanLine, Plus, Copy, Check, Landmark, QrCode, Users, Sprout } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { FiatBalance, TokenBalance, Transaction } from "@/lib/types";
 import { Spinner, usd } from "@/components/ui";
-import { QrIcon, SwapIcon, ArrowDown, InvestIcon } from "@/components/icons";
+import { SwapIcon, ArrowDown, InvestIcon, CardIcon } from "@/components/icons";
 import TransactionList from "@/components/TransactionList";
 import SwapModal from "@/components/SwapModal";
+import ScanToPay, { ScanMode } from "@/components/ScanToPay";
+import Modal from "@/components/Modal";
 import { CoinLogo, ChainLogo } from "@furlpay/ui";
 import FeatureHub from "@/components/FeatureHub";
 import PriceChart from "@/components/PriceChart";
@@ -32,6 +34,8 @@ function greeting(): string {
 export default function HomePage() {
   const [data, setData] = useState<Overview | null>(null);
   const [swapOpen, setSwapOpen] = useState(false);
+  const [depositOpen, setDepositOpen] = useState(false);
+  const [scanner, setScanner] = useState<{ mode: ScanMode; manual?: boolean } | null>(null);
 
   const load = useCallback(() => {
     getJSON<Overview>("/api/overview").then(setData).catch(console.error);
@@ -42,6 +46,7 @@ export default function HomePage() {
   if (!data) return <Spinner />;
 
   const { breakdown } = data;
+  const available = breakdown.crypto + breakdown.fiat;
   const initial = data.user.name.trim().charAt(0).toUpperCase() || "U";
 
   return (
@@ -58,6 +63,13 @@ export default function HomePage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            aria-label="Scan to pay"
+            onClick={() => setScanner({ mode: "scan" })}
+            className="tap flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04]"
+          >
+            <ScanLine className="h-5 w-5 text-textSecondary" />
+          </button>
           <button
             aria-label="Search"
             onClick={() => window.dispatchEvent(new Event("furlpay:search"))}
@@ -79,7 +91,7 @@ export default function HomePage() {
       <section className="px-5">
         <div className="app-hero p-5">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] text-white/70">Total net worth</p>
+            <p className="text-[13px] text-white/70">Est. total value</p>
             <span className="rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-semibold text-white/80">
               {data.user.tier} · {data.user.region}
             </span>
@@ -88,7 +100,21 @@ export default function HomePage() {
             {usd(data.netWorth)}
           </p>
 
-          <div className="mt-5 grid grid-cols-3 gap-2">
+          <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/[0.08] py-2.5 pl-4 pr-2.5 backdrop-blur-sm">
+            <div>
+              <p className="text-[11px] text-white/60">Available balance</p>
+              <p className="text-[17px] font-bold tracking-tight">{usd(available)}</p>
+            </div>
+            <button
+              aria-label="Add money"
+              onClick={() => setDepositOpen(true)}
+              className="tap flex h-10 w-10 items-center justify-center rounded-full bg-white text-black shadow-[0_6px_16px_-6px_rgba(255,255,255,0.5)]"
+            >
+              <Plus className="h-5 w-5" strokeWidth={2.5} />
+            </button>
+          </div>
+
+          <div className="mt-3 grid grid-cols-3 gap-2">
             <HeroStat label="On-chain" value={breakdown.crypto} />
             <HeroStat label="Fiat" value={breakdown.fiat} />
             <HeroStat label="Invest" value={breakdown.equities} />
@@ -105,23 +131,36 @@ export default function HomePage() {
 
       {/* Quick actions */}
       <section className="mt-5 grid grid-cols-4 gap-3 px-5">
-        <QuickAction label="Pay" onClick={() => alert("QR / payment-link pay (demo)")}>
-          <QrIcon />
+        <QuickAction label="Scan & Pay" onClick={() => setScanner({ mode: "scan" })}>
+          <ScanLine className="h-5 w-5" />
         </QuickAction>
-        <Link href="/investing" className="contents">
-          <QuickAction label="Buy Stock">
+        <Link href="/markets" className="contents">
+          <QuickAction label="Buy Stocks">
             <InvestIcon />
           </QuickAction>
         </Link>
         <QuickAction label="Swap" onClick={() => setSwapOpen(true)}>
           <SwapIcon />
         </QuickAction>
-        <QuickAction
-          label="Receive"
-          onClick={() => alert(`Deposit to Safe:\n${data.user.safeAddress}`)}
-        >
+        <QuickAction label="Receive" onClick={() => setScanner({ mode: "myqr" })}>
           <ArrowDown />
         </QuickAction>
+        <QuickAction label="Add money" onClick={() => setDepositOpen(true)}>
+          <Plus className="h-5 w-5" />
+        </QuickAction>
+        <Link href="/cards" className="contents">
+          <QuickAction label="Cards">
+            <CardIcon />
+          </QuickAction>
+        </Link>
+        <QuickAction label="P2P" onClick={() => setScanner({ mode: "scan", manual: true })}>
+          <Users className="h-5 w-5" />
+        </QuickAction>
+        <Link href="/earn" className="contents">
+          <QuickAction label="Earn">
+            <Sprout className="h-5 w-5" />
+          </QuickAction>
+        </Link>
       </section>
 
       {/* Super-app feature hub */}
@@ -171,6 +210,7 @@ export default function HomePage() {
           ))}
           <button
             aria-label="Add account"
+            onClick={() => setDepositOpen(true)}
             className="tap flex w-[64px] shrink-0 snap-start flex-col items-center justify-center rounded-[18px] border border-dashed border-white/15 text-textSecondary"
           >
             <span className="text-2xl leading-none">+</span>
@@ -192,6 +232,26 @@ export default function HomePage() {
       </section>
 
       <SwapModal open={swapOpen} onClose={() => setSwapOpen(false)} onDone={load} />
+
+      <ScanToPay
+        open={!!scanner}
+        mode={scanner?.mode ?? "scan"}
+        manualEntry={scanner?.manual}
+        onClose={() => setScanner(null)}
+        onDone={load}
+        user={{ name: data.user.name, safeAddress: data.user.safeAddress }}
+        balances={data.tokenBalances}
+      />
+
+      <DepositModal
+        open={depositOpen}
+        onClose={() => setDepositOpen(false)}
+        fiatBalances={data.fiatBalances}
+        onShowQr={() => {
+          setDepositOpen(false);
+          setScanner({ mode: "myqr" });
+        }}
+      />
     </>
   );
 }
@@ -219,6 +279,115 @@ function QuickAction({
       <span className="app-tile-icon h-11 w-11">{children}</span>
       <span className="text-[12px] font-semibold tracking-tight">{label}</span>
     </button>
+  );
+}
+
+// Deposit sheet — crypto QR, bank transfer details, or card on-ramp.
+function DepositModal({
+  open,
+  onClose,
+  fiatBalances,
+  onShowQr,
+}: {
+  open: boolean;
+  onClose: () => void;
+  fiatBalances: FiatBalance[];
+  onShowQr: () => void;
+}) {
+  const [bankOpen, setBankOpen] = useState(false);
+
+  return (
+    <Modal open={open} onClose={onClose} title="Add money">
+      <div className="space-y-2">
+        <DepositRow
+          icon={<QrCode className="h-5 w-5" />}
+          title="Deposit crypto"
+          sub="Show your QR — USDC, EURC & more"
+          onClick={onShowQr}
+        />
+        <DepositRow
+          icon={<Landmark className="h-5 w-5" />}
+          title="Bank transfer"
+          sub="Free · arrives in minutes"
+          onClick={() => setBankOpen((b) => !b)}
+        />
+        {bankOpen && (
+          <div className="space-y-2 rounded-2xl bg-white/[0.04] p-3">
+            {fiatBalances
+              .filter((f) => f.localDetails)
+              .map((f) => (
+                <BankDetails key={f.currency} balance={f} />
+              ))}
+          </div>
+        )}
+        <Link href="/banking" className="block" onClick={onClose}>
+          <DepositRow
+            icon={<Plus className="h-5 w-5" />}
+            title="Buy with card"
+            sub="Visa / Mastercard on-ramp"
+          />
+        </Link>
+      </div>
+    </Modal>
+  );
+}
+
+function DepositRow({
+  icon,
+  title,
+  sub,
+  onClick,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  sub: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button onClick={onClick} className="tap flex w-full items-center gap-3 rounded-2xl bg-surface px-4 py-3.5 text-left">
+      <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.06]">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-semibold">{title}</span>
+        <span className="block text-[12px] text-textSecondary">{sub}</span>
+      </span>
+      <ArrowUpRight className="h-4 w-4 text-textMuted" />
+    </button>
+  );
+}
+
+function BankDetails({ balance }: { balance: FiatBalance }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const d = balance.localDetails!;
+  const rows = [
+    d.iban && (["IBAN", d.iban] as const),
+    d.swift && (["SWIFT", d.swift] as const),
+    d.routingNumber && (["Routing", d.routingNumber] as const),
+    d.accountNumber && (["Account", d.accountNumber] as const),
+  ].filter(Boolean) as [string, string][];
+
+  async function copy(label: string, value: string) {
+    await navigator.clipboard.writeText(value).catch(() => {});
+    setCopied(label);
+    setTimeout(() => setCopied(null), 1500);
+  }
+
+  return (
+    <div>
+      <p className="mb-1 text-[11px] font-semibold text-textSecondary">{balance.currency}</p>
+      {rows.map(([label, value]) => (
+        <button
+          key={label}
+          onClick={() => copy(label, value)}
+          className="flex w-full items-center justify-between rounded-xl px-2 py-1.5 text-left hover:bg-white/[0.04]"
+        >
+          <span className="text-[12px] text-textMuted">{label}</span>
+          <span className="flex items-center gap-1.5 font-mono text-[12px]">
+            {value}
+            {copied === label ? <Check className="h-3.5 w-3.5 text-gain" /> : <Copy className="h-3.5 w-3.5 text-textMuted" />}
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 

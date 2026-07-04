@@ -30,6 +30,8 @@ export interface Holding {
   price: number;
   changePct: number; // daily % change
   marketValue: number;
+  /** Total amount paid for the current shares (drives real P&L). */
+  costBasis: number;
 }
 
 export type CardKind = "virtual" | "physical";

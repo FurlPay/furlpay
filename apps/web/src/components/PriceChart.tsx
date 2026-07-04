@@ -17,19 +17,34 @@ import { generateSeries, TIMEFRAMES, type Timeframe } from "@/lib/chartData";
 // Dual-mode price chart (TradingView lightweight-charts v5): area ⇄ candlestick
 // with a 1D–ALL timeframe selector and crosshair scrubbing that reports the
 // hovered value/change to the parent — the pattern INDmoney and Robinhood use.
+// Pass `symbol` to load REAL OHLC history from /api/markets/bars (Alpaca /
+// CoinGecko); without it — or if history is unavailable — the seeded synthetic
+// series renders instead (portfolio/net-worth charts have no market history).
 
 const UP = "#00E599";
 const DOWN = "#FF3B30";
 
+interface Candle { time: number; open: number; high: number; low: number; close: number }
+interface SeriesData {
+  line: { time: number; value: number }[];
+  candles: Candle[];
+  first: number;
+  last: number;
+  changeAbs: number;
+}
+
 export default function PriceChart({
   seed,
   endValue,
+  symbol,
   height = 240,
   defaultTf = "1M",
   prefix = "$",
 }: {
   seed: string;
   endValue: number;
+  /** Catalog symbol — enables real market history. */
+  symbol?: string;
   height?: number;
   defaultTf?: Timeframe;
   prefix?: string;
@@ -37,12 +52,38 @@ export default function PriceChart({
   const [tf, setTf] = useState<Timeframe>(defaultTf);
   const [mode, setMode] = useState<"area" | "candles">("area");
   const [hover, setHover] = useState<number | null>(null);
+  const [real, setReal] = useState<SeriesData | null>(null);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<ISeriesApi<"Area" | "Candlestick"> | null>(null);
 
-  const data = useMemo(() => generateSeries(seed, tf, endValue), [seed, tf, endValue]);
+  // Real history when a symbol is given; synthetic otherwise / on failure.
+  useEffect(() => {
+    setReal(null);
+    if (!symbol) return;
+    let stale = false;
+    fetch(`/api/markets/bars?symbol=${encodeURIComponent(symbol)}&tf=${tf}`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((j: { candles: Candle[] }) => {
+        if (stale || !j.candles?.length) return;
+        const candles = j.candles;
+        setReal({
+          candles,
+          line: candles.map((c) => ({ time: c.time, value: c.close })),
+          first: candles[0].open || candles[0].close,
+          last: candles[candles.length - 1].close,
+          changeAbs: candles[candles.length - 1].close - (candles[0].open || candles[0].close),
+        });
+      })
+      .catch(() => {});
+    return () => {
+      stale = true;
+    };
+  }, [symbol, tf]);
+
+  const synthetic = useMemo(() => generateSeries(seed, tf, endValue), [seed, tf, endValue]);
+  const data: SeriesData = real ?? synthetic;
   const up = data.changeAbs >= 0;
   const color = up ? UP : DOWN;
 
