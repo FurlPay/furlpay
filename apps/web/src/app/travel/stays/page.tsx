@@ -7,6 +7,7 @@ import { ChevronLeft, SlidersHorizontal } from "lucide-react";
 import { sendJSON } from "@/lib/api";
 import { Spinner } from "@/components/ui";
 import PropertyCard from "@/components/travel/PropertyCard";
+import SkeletonCards from "@/components/travel/SkeletonCards";
 import type { Stay } from "@/lib/travel/data";
 
 type SortId = "price" | "-price" | "rating" | "stars";
@@ -125,7 +126,7 @@ function StaysResults() {
         {/* Results */}
         <div>
           {loading ? (
-            <Spinner />
+            <SkeletonCards count={6} imageH="h-40" />
           ) : filtered.length === 0 ? (
             <p className="py-16 text-center text-sm text-textSecondary">No stays match your filters.</p>
           ) : (
