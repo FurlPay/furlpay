@@ -22,7 +22,7 @@ export interface Flight {
   date: string;
   cabin: string;
   totalUsd: number;
-  source: "travala" | "demo";
+  source: "travala" | "demo" | "duffel";
 }
 
 /** A payment authorization FurlPay hands back for a booking. */
@@ -54,7 +54,32 @@ export interface Booking {
   authorization: Authorization;
   /** 10% cbBTC developer rebate accrued on Travala-routed bookings. */
   rebate?: RebateAccrual;
+  /** Present when a MandateVerifier gated this booking (TAP-style trust chain). */
+  trust?: { agentKeyId?: string; mandateId?: string; remainingUsd?: number };
   createdAt: string;
+}
+
+/** Outcome of verifying a booking token against a user-signed mandate. */
+export interface TrustDecision {
+  ok: boolean;
+  reason?: string;
+  agentKeyId?: string;
+  mandateId?: string;
+  /** USD allowance left on the mandate after this booking. */
+  remainingUsd?: number;
+}
+
+/**
+ * TAP-style trust gate. `@furlpay/agent-trust`'s AgentTrust implements this
+ * shape directly (Ed25519 identities, user-signed mandates, RFC 9421
+ * signatures); any object with the same method plugs in — the package itself
+ * stays zero-dependency.
+ */
+export interface MandateVerifier {
+  verifyBookingToken(
+    token: string,
+    claims: { amountUsd: number; mcc?: string; source: string },
+  ): TrustDecision | Promise<TrustDecision>;
 }
 
 export interface RebateAccrual {
@@ -72,8 +97,21 @@ export interface TravelOptions {
   furlpayBaseUrl?: string;
   /** Travala Travel MCP endpoint. Default https://travel-mcp.travala.com/mcp */
   travalaMcpUrl?: string;
+  /**
+   * Duffel API token for live real-time flight search (free test tokens at
+   * duffel.com — `duffel_test_…` works). When set, travel_search_flights
+   * returns live Duffel offers; Travala/demo remains the fallback.
+   */
+  duffelApiKey?: string;
   /** Developer wallet that receives the 7% cbBTC rebate split. */
   developerWallet?: string;
   /** Override fetch (Node 18+ has a global fetch). */
   fetchImpl?: typeof fetch;
+  /**
+   * Optional TAP-style trust gate (e.g. `new AgentTrust()` from
+   * `@furlpay/agent-trust`). When set, every authorizeBooking call MUST carry
+   * a valid `mandateToken` — an agent-signed intent under a user-signed
+   * mandate — before any payment credential is issued.
+   */
+  trust?: MandateVerifier;
 }

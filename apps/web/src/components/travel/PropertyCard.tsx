@@ -69,7 +69,9 @@ export default function PropertyCard({ stay, nights }: { stay: Stay; nights: num
           </Link>
         </div>
         {stay.roomsLeft <= 3 && (
-          <p className="mt-2 text-[11px] font-semibold text-loss">Only {stay.roomsLeft} rooms left</p>
+          <p className="mt-2 text-[11px] font-semibold text-loss">
+            Only {stay.roomsLeft} {stay.roomsLeft === 1 ? "room" : "rooms"} left
+          </p>
         )}
       </div>
     </div>

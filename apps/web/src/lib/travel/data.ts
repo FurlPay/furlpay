@@ -140,7 +140,19 @@ export const DESTINATION_CATEGORIES: DestinationCategory[] = [
   },
 ];
 
-const BRANDS = ["Marriott", "Hilton", "IHG", "Accor", "Hyatt", "Aman", "Four Seasons"];
+// Brand tiers keep generated inventory coherent: a luxury flag never lands on
+// a hostel, and prices/ratings track the tier so the "4–5★ editor's picks"
+// promise holds up to inspection.
+const LUXURY_BRANDS = ["Aman", "Four Seasons", "Ritz-Carlton", "Mandarin Oriental"];
+const UPSCALE_BRANDS = ["Marriott", "Hilton", "IHG", "Accor", "Hyatt", "Kempinski"];
+const BRANDS = [...UPSCALE_BRANDS, ...LUXURY_BRANDS];
+// Rough relative price levels so a Maldives resort never prices like a Kerala
+// guesthouse (display-only, mirrors real ADR spreads).
+const CITY_PRICE_TIER: Record<string, number> = {
+  Maldives: 2.1, "New York": 1.75, "Swiss Alps": 1.6, London: 1.55, "Reykjavík": 1.5,
+  Dubai: 1.45, Tokyo: 1.25, Rome: 1.15, Kyoto: 1.1, Lisbon: 0.95, "Cancún": 0.95,
+  "Cape Town": 0.85, Bali: 0.75, Patagonia: 0.9, "Costa Rica": 0.85, Petra: 0.7, Kerala: 0.55,
+};
 const AMENITIES = ["WiFi", "Pool", "Gym", "Spa", "Parking", "Kitchen", "Breakfast", "Beach access"];
 const GRADIENTS = [
   "from-sky-500/40 to-indigo-600/40",
@@ -176,27 +188,58 @@ export function generateStays(
   const c = titleCase(city || "Anywhere");
   const seed = hash(c.toLowerCase());
   const count = opts.count ?? 12;
+  const tier = CITY_PRICE_TIER[c] ?? 1;
+  const area = (i: number) => ["Central", "Riverside", "Bay", "Old Town", "Harbour", "Gardens"][i % 6];
   let stays: Stay[] = Array.from({ length: count }, (_, i) => {
     const s = ((seed >> (i % 24)) ^ (i * 2654435761)) >>> 0;
-    const brand = BRANDS[(seed + i) % BRANDS.length];
-    const nightly = round2(70 + (s % 380)); // ~$70–$450
-    const stars = 3 + ((s >>> 3) % 3);
+    // Tier mix: ~2/10 luxury, 5/10 upscale, 2/10 villa, 1/10 hostel.
+    const pick = s % 10;
+    let brand: string, name: string, type: StayType, stars: number, base: number, rating: number;
+    if (pick < 2) {
+      brand = LUXURY_BRANDS[(s >>> 2) % LUXURY_BRANDS.length];
+      type = (["Resort", "Hotel"] as StayType[])[s % 2];
+      stars = 5;
+      base = 380 + (s % 400); // $380–$780 before city tier
+      rating = 4.6 + ((s >>> 5) % 4) / 10; // 4.6–4.9
+      name = `${brand} ${c} ${area(i)}`;
+    } else if (pick < 7) {
+      brand = UPSCALE_BRANDS[(s >>> 2) % UPSCALE_BRANDS.length];
+      type = (["Hotel", "Resort", "Apartment"] as StayType[])[s % 3];
+      stars = 4 + (s >>> 4) % 2;
+      base = 140 + (s % 220); // $140–$360
+      rating = 4.2 + ((s >>> 5) % 6) / 10; // 4.2–4.7
+      name = `${brand} ${c} ${area(i)}`;
+    } else if (pick < 9) {
+      brand = "Independent";
+      type = "Villa";
+      stars = 4;
+      base = 180 + (s % 240); // $180–$420
+      rating = 4.3 + ((s >>> 5) % 6) / 10; // 4.3–4.8
+      name = `${c} ${area(i)} Villas`;
+    } else {
+      brand = "Independent";
+      type = "Hostel";
+      stars = 3;
+      base = 28 + (s % 42); // $28–$70
+      rating = 4.0 + ((s >>> 5) % 6) / 10; // 4.0–4.5
+      name = `${c} ${area(i)} Backpackers`;
+    }
     return {
       id: `stay_${(seed % 0xffff).toString(16)}_${i}`,
-      name: `${brand} ${c} ${["Central", "Riverside", "Bay", "Old Town", "Harbour", "Gardens"][i % 6]}`,
+      name,
       brand,
       city: c,
       country: "—",
-      type: TYPES[s % TYPES.length],
+      type,
       stars,
-      rating: round2(3.8 + ((s >>> 5) % 12) / 10),
+      rating: round2(Math.min(rating, 5)),
       reviews: 120 + (s % 4200),
-      nightlyUsd: nightly,
+      nightlyUsd: round2(base * tier),
       image: GRADIENTS[i % GRADIENTS.length],
       amenities: AMENITIES.filter((_, k) => (s >>> k) & 1).slice(0, 5),
       roomsLeft: 1 + (s % 8),
       freeCancellation: (s & 1) === 0,
-      eco: (s & 2) === 0,
+      eco: s % 4 === 0,
     };
   });
   if (opts.minStars) stays = stays.filter((x) => x.stars >= opts.minStars!);
@@ -277,7 +320,7 @@ export function featuredDeals(): Deal[] {
       id: `deal_${i}`,
       city,
       country,
-      name: `${BRANDS[(s) % BRANDS.length]} ${city}`,
+      name: `${UPSCALE_BRANDS[(s) % UPSCALE_BRANDS.length]} ${city}`,
       stars: 4 + (s % 2),
       nightlyUsd: round2(75 + (s % 120)),
       discountPct: 15 + (s % 30),

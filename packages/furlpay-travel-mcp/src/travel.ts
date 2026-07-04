@@ -1,9 +1,11 @@
+import { DuffelClient } from "./duffel";
 import { FurlPayPay, MCC } from "./furlpay";
 import { TravalaClient } from "./travala";
 import {
   Booking,
   BookingSource,
   Flight,
+  MandateVerifier,
   RebateAccrual,
   Stay,
   TravelOptions,
@@ -28,7 +30,9 @@ const DEVELOPER_SHARE = 0.7;
  */
 export class TravelClient {
   private readonly travala: TravalaClient;
+  private readonly duffel: DuffelClient;
   private readonly pay: FurlPayPay;
+  private readonly trust?: MandateVerifier;
   private readonly developerWallet?: string;
   private readonly bookings = new Map<string, Booking>();
   /** Per-agent USDC spend caps for autonomous booking. */
@@ -41,12 +45,18 @@ export class TravelClient {
       process.env.TRAVALA_API_KEY,
       fetchImpl,
     );
+    this.duffel = new DuffelClient(
+      opts.duffelApiKey || process.env.DUFFEL_API_KEY,
+      undefined,
+      fetchImpl,
+    );
     this.pay = new FurlPayPay(
       opts.furlpayApiKey || process.env.FURLPAY_API_KEY,
       opts.furlpayBaseUrl,
       fetchImpl,
     );
     this.developerWallet = opts.developerWallet || process.env.FURLPAY_DEVELOPER_WALLET;
+    this.trust = opts.trust;
   }
 
   get live(): boolean {
@@ -59,7 +69,20 @@ export class TravelClient {
     return this.travala.searchStays(p);
   }
 
-  searchFlights(p: { from: string; to: string; date: string }): Promise<Flight[]> {
+  /**
+   * Flights: Duffel first when a key is set (live NDC/GDS/LCC offers from
+   * 300+ airlines — free test mode), falling back to Travala/demo on any
+   * Duffel failure so the loop never breaks.
+   */
+  async searchFlights(p: { from: string; to: string; date: string; cabin?: string }): Promise<Flight[]> {
+    if (this.duffel.live) {
+      try {
+        const offers = await this.duffel.searchFlights(p);
+        if (offers.length) return offers;
+      } catch {
+        // fall through to Travala/demo
+      }
+    }
     return this.travala.searchFlights(p);
   }
 
@@ -80,7 +103,10 @@ export class TravelClient {
   /**
    * Authorize a booking. `source: "travala"` pays via x402/USDC on Base; any other
    * merchant uses `source: "legacy"` → a single-use MCC-locked Visa VCN.
-   * Enforces the agent budget before authorizing.
+   * Enforces the agent budget before authorizing. When a MandateVerifier is
+   * configured, the booking must also present a valid `mandateToken`: the
+   * signed intent must match the exact amount/mcc/source being executed, so a
+   * compromised or over-eager agent cannot spend outside its user's grant.
    */
   async authorizeBooking(params: {
     amountUsd: number;
@@ -89,8 +115,26 @@ export class TravelClient {
     mcc?: string;
     agentId?: string;
     reference?: string;
+    /** TAP-style booking token from @furlpay/agent-trust createBookingToken(). */
+    mandateToken?: string;
   }): Promise<Booking> {
     if (params.amountUsd <= 0) throw new Error("amountUsd must be > 0");
+
+    const mcc = params.mcc ?? (params.source === "legacy" ? MCC.LODGING : undefined);
+
+    let trust: Booking["trust"];
+    if (this.trust) {
+      if (!params.mandateToken) {
+        throw new Error("mandateToken required: this server verifies agent mandates before authorizing");
+      }
+      const decision = await this.trust.verifyBookingToken(params.mandateToken, {
+        amountUsd: params.amountUsd,
+        mcc,
+        source: params.source,
+      });
+      if (!decision.ok) throw new Error(`mandate rejected: ${decision.reason ?? "verification failed"}`);
+      trust = { agentKeyId: decision.agentKeyId, mandateId: decision.mandateId, remainingUsd: decision.remainingUsd };
+    }
 
     const agentId = params.agentId ?? "agent_default";
     const budget = this.budgets.get(agentId);
@@ -104,7 +148,7 @@ export class TravelClient {
       route: params.source,
       amountUsd: params.amountUsd,
       currency: params.currency,
-      mcc: params.mcc ?? (params.source === "legacy" ? MCC.LODGING : undefined),
+      mcc,
     });
 
     const booking: Booking = {
@@ -115,6 +159,7 @@ export class TravelClient {
       status: "authorized",
       authorization,
       rebate: params.source === "travala" ? this.accrueRebate("", params.amountUsd) : undefined,
+      trust,
       createdAt: new Date().toISOString(),
     };
     if (booking.rebate) booking.rebate.bookingId = booking.id;

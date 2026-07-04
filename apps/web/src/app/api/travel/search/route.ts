@@ -11,6 +11,7 @@ import {
   CarCategory,
   ActivityCategory,
 } from "@/lib/travel/data";
+import { searchDuffelFlights } from "@/lib/travel/duffel";
 
 // POST /api/travel/search — search travel inventory.
 // Body: { type: "stays"|"flights"|"cars"|"activities", city, checkIn, checkOut,
@@ -38,12 +39,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (kind === "flights") {
-    const flights: Flight[] = generateFlights(
-      body.from ?? "",
-      body.to ?? "",
-      body.date ?? "",
-      (body.cabin as Flight["cabin"]) ?? "Economy",
-    );
+    const cabin = (body.cabin as Flight["cabin"]) ?? "Economy";
+    // Live Duffel offers when DUFFEL_API_KEY is set; demo generator otherwise.
+    const live = await searchDuffelFlights(body.from ?? "", body.to ?? "", body.date ?? "", cabin);
+    if (live?.length) {
+      return NextResponse.json({ type: "flights", count: live.length, results: live, source: "duffel" });
+    }
+    const flights: Flight[] = generateFlights(body.from ?? "", body.to ?? "", body.date ?? "", cabin);
     return NextResponse.json({ type: "flights", count: flights.length, results: flights, source: "demo" });
   }
 
