@@ -8,7 +8,8 @@ import { CITY_PHOTOS, type Stay } from "@/lib/travel/data";
 export default function PropertyCard({ stay, nights }: { stay: Stay; nights: number }) {
   const total = stay.nightlyUsd * nights;
   const href = `/travel/checkout?ref=${stay.id}&name=${encodeURIComponent(stay.name)}&amount=${total}&nights=${nights}`;
-  const photo = CITY_PHOTOS[stay.city];
+  // Real property photo (Duffel Stays) beats the generic city shot.
+  const photo = stay.photo ?? CITY_PHOTOS[stay.city];
   return (
     <div className="group overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/20">
       <div className={`relative h-40 overflow-hidden bg-gradient-to-br ${stay.image}`}>

@@ -17,9 +17,16 @@ export default function FlightCard({ flight }: { flight: Flight }) {
     <div className="rounded-card border border-white/10 bg-charcoal p-4 transition hover:border-white/20">
       <div className="flex items-center justify-between gap-4">
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-white">
-            {flight.carrierCode}
-          </span>
+          {flight.logoUrl ? (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-1.5">
+              {/* Brand-compliant SVG from Duffel's assets CDN */}
+              <img src={flight.logoUrl} alt={flight.carrier} loading="lazy" className="h-full w-full object-contain" />
+            </span>
+          ) : (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-xs font-bold text-white">
+              {flight.carrierCode}
+            </span>
+          )}
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">{flight.carrier}</p>
             <p className="text-[11px] text-textSecondary">
