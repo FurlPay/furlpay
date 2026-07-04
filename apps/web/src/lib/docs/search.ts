@@ -12,6 +12,36 @@ export type SearchDoc = {
 };
 
 export const SEARCH_INDEX: SearchDoc[] = [
+  // ---- Agentic Commerce (agent-trust + travels) --------------------------
+  {
+    title: "Agent Trust & Mandates (TAP)",
+    section: "Payments",
+    href: "/docs/payments/agent-trust",
+    snippet: "User-signed spend mandates, Ed25519 agent identity, replay-safe booking tokens, RFC 9421 signatures.",
+    keywords: ["agent-trust", "@furlpay/agent-trust", "tap", "trusted agent protocol", "mandate", "mandates", "spend mandate", "ed25519", "rfc 9421", "http message signatures", "booking token", "know your agent", "kya", "visa tap"],
+  },
+  {
+    title: "Signed agent escrow (RFC 9421)",
+    section: "Payments",
+    href: "/docs/payments/agent-trust#escrow",
+    snippet: "POST /api/agents/keys registers an agent key; POST /api/escrow accepts signed agent requests without a session.",
+    keywords: ["POST /api/agents/keys", "POST /api/escrow", "escrow", "signature-input", "content-digest", "pre-auth hold", "agent authentication", "signed request"],
+  },
+  {
+    title: "FurlPay Travels (Travel MCP)",
+    section: "Payments",
+    href: "/docs/payments/travels-mcp",
+    snippet: "MCP server: live Duffel flights + Travala hotels, mandate-gated bookings, x402/USDC or single-use Visa VCN.",
+    keywords: ["travel", "travels", "@furlpay/travel-mcp", "travel-mcp", "travala", "duffel", "flights", "hotels", "stays", "vcn", "virtual card", "mcc", "7011", "4511", "cbbtc", "rebate", "travel_authorize_booking", "mandateToken", "booking"],
+  },
+  {
+    title: "Live flight search (Duffel)",
+    section: "Payments",
+    href: "/docs/payments/travels-mcp#duffel",
+    snippet: "DUFFEL_API_KEY enables live NDC/GDS/LCC offers from 300+ airlines with brand-compliant airline logos.",
+    keywords: ["duffel", "DUFFEL_API_KEY", "flight search", "offers", "ndc", "gds", "lcc", "airline logos", "logo_symbol_url", "POST /api/travel/search", "amadeus sunset", "kiwi tequila"],
+  },
+
   // ---- Monorepo Architecture -------------------------------------------
   {
     title: "Monorepo layout",

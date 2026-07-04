@@ -24,6 +24,8 @@ export const DOCS_NAV: DocSection[] = [
     label: "Payments",
     items: [
       { title: "Agentic Payments (x402)", href: "/docs/payments/agentic-x402" },
+      { title: "Agent Trust & Mandates (TAP)", href: "/docs/payments/agent-trust" },
+      { title: "FurlPay Travels (Travel MCP)", href: "/docs/payments/travels-mcp" },
       { title: "Solana Actions & Blinks", href: "/docs/payments/solana-actions" },
     ],
   },
