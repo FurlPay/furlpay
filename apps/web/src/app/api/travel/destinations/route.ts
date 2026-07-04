@@ -1,8 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-import { DESTINATION_CATEGORIES } from "@/lib/travel/data";
+import { DESTINATION_CATEGORIES, DESTINATIONS, destinationsByCategory } from "@/lib/travel/data";
 
-// GET /api/travel/destinations — destination categories for discovery.
-export async function GET() {
-  return NextResponse.json({ categories: DESTINATION_CATEGORIES });
+// GET /api/travel/destinations — destination categories + curated destinations.
+// Optional ?category=<slug> filters destinations to one category.
+export async function GET(req: NextRequest) {
+  const category = req.nextUrl.searchParams.get("category");
+  const destinations = category ? destinationsByCategory(category) : DESTINATIONS;
+  return NextResponse.json({ categories: DESTINATION_CATEGORIES, destinations });
 }

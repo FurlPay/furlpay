@@ -21,6 +21,7 @@ export type Post = {
   readMins: number;
   author: string;
   featured?: boolean;
+  cover?: string; // real photo URL (hotlinked Unsplash CDN); CSS art fallback when absent
   body: Block[];
 };
 
@@ -630,10 +631,11 @@ const credential = await navigator.credentials.create({
   // 13 ----------------------------------------------------------------
   {
     slug: "letting-your-ai-agent-book-travel-travala-mcp-furlpay",
+    cover: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1600&q=70",
     title: "Letting Your AI Agent Book Travel: Composing Travala's Travel MCP with FurlPay Payments",
     excerpt:
       "Travala launched its Agentic AI Travel Protocol on Base, enabling gasless USDC travel bookings. Here is how to compose their Travel MCP with FurlPay's wallets and x402 budget guards using TypeScript.",
-    category: "engineering",
+    category: "travel",
     date: "2026-07-04",
     readMins: 5,
     author: "FurlPay Engineering",
@@ -697,10 +699,11 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
   // 14 ----------------------------------------------------------------
   {
     slug: "tradfi-goes-24-7-mastercard-stablecoin-settlement",
+    cover: "https://images.unsplash.com/photo-1449034446853-66c86144b0ad?auto=format&fit=crop&w=1600&q=70",
     title: "TradFi Goes 24/7/365: Leveraging Mastercard's New Stablecoin Rails for Corporate Travel",
     excerpt:
       "Mastercard acquired BVNK for $1.8B and announced 24/7 intraday stablecoin settlement. Here is how FurlPay B2B Travels leverages these rails to issue programmatically locked virtual corporate debit cards.",
-    category: "product-news",
+    category: "travel",
     date: "2026-07-04",
     readMins: 5,
     author: "FurlPay Product",
@@ -738,10 +741,11 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
   // 15 ----------------------------------------------------------------
   {
     slug: "inside-the-visa-and-bridge-stablecoin-cards-rollout",
+    cover: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?auto=format&fit=crop&w=1600&q=70",
     title: "Stablecoin Cards in 100+ Countries: Inside the Visa and Bridge Global Rollout",
     excerpt:
       "Visa and Stripe-owned Bridge have expanded their partnership to scale stablecoin-linked card issuing in over 100 countries. We explore how FurlPay utilizes this global network to enable instant fiat conversions at the checkout.",
-    category: "compliance",
+    category: "travel",
     date: "2026-07-04",
     readMins: 6,
     author: "FurlPay Compliance",
@@ -781,10 +785,11 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
   // Open USD ----------------------------------------------------------
   {
     slug: "why-furlpay-is-adopting-open-usd",
+    cover: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=1600&q=70",
     title: "Why Furlpay Is Adopting Open USD — the Visa, Mastercard & Coinbase Stablecoin Standard",
     excerpt:
       "In July 2026, a 140-firm consortium — Visa, Mastercard, Stripe, Coinbase, BlackRock, BNY, Google and Ripple among them — launched Open USD (OUSD), a partner-governed stablecoin that shares reserve revenue and undercuts the single-issuer model. Here's why Furlpay is adding it as a settlement rail for travel and brokerage.",
-    category: "product-news",
+    category: "travel",
     date: "2026-07-04",
     readMins: 6,
     author: "Furlpay",

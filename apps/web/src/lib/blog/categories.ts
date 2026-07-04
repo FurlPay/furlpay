@@ -1,7 +1,7 @@
 // Blog publication tracks. Colours come straight from the 2026 brand blog
 // framework — used for category badges, card glow and cover art.
 
-export type CategoryId = "product-news" | "engineering" | "compliance" | "security";
+export type CategoryId = "product-news" | "engineering" | "compliance" | "security" | "travel";
 
 export type Category = {
   id: CategoryId;
@@ -34,6 +34,12 @@ export const CATEGORIES: Category[] = [
     label: "Security",
     color: "#FF3B30",
     blurb: "Post-mortems, audits and patch notes — reported transparently.",
+  },
+  {
+    id: "travel",
+    label: "Travel",
+    color: "#32ADE6",
+    blurb: "FurlPay Travels — agentic booking, stablecoin settlement and crypto travel rails.",
   },
 ];
 

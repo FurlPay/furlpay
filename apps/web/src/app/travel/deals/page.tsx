@@ -1,0 +1,141 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import Link from "next/link";
+import { ChevronLeft, Flame, Timer, BadgePercent, Gift } from "lucide-react";
+import { getJSON } from "@/lib/api";
+import { Pill, Spinner } from "@/components/ui";
+import type { Deal } from "@/lib/travel/data";
+
+// Flash-deal window resets every 6h so the countdown is always live.
+function nextWindowEnd(): number {
+  const SIX_H = 6 * 3600 * 1000;
+  return Math.ceil(Date.now() / SIX_H) * SIX_H;
+}
+
+export default function DealsPage() {
+  const [deals, setDeals] = useState<Deal[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [now, setNow] = useState(Date.now());
+  const [endsAt] = useState(nextWindowEnd);
+
+  useEffect(() => {
+    getJSON<{ deals: Deal[] }>("/api/travel/deals")
+      .then((d) => setDeals(d.deals))
+      .catch(() => setDeals([]))
+      .finally(() => setLoading(false));
+  }, []);
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const remaining = Math.max(0, Math.floor((endsAt - now) / 1000));
+  const hh = String(Math.floor(remaining / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((remaining % 3600) / 60)).padStart(2, "0");
+  const ss = String(remaining % 60).padStart(2, "0");
+
+  const best = deals.length ? Math.max(...deals.map((d) => d.discountPct)) : 0;
+
+  return (
+    <div className="mx-auto max-w-6xl px-5 pb-24 pt-6">
+      <Link href="/travel" className="mb-3 inline-flex items-center gap-1 text-sm text-textSecondary hover:text-white">
+        <ChevronLeft className="h-4 w-4" /> Travel
+      </Link>
+
+      {/* Hero */}
+      <div className="rounded-card border border-white/10 bg-gradient-to-br from-rose-500/[0.14] via-charcoal to-amber-500/[0.10] p-6 sm:p-8">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="mb-2 flex items-center gap-2">
+              <Pill tone="accent">Flash sale</Pill>
+              {best > 0 && <Pill tone="gain">Up to {best}% off</Pill>}
+            </div>
+            <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight text-white">
+              <Flame className="h-7 w-7 text-accent" /> Featured deals
+            </h1>
+            <p className="mt-2 max-w-lg text-sm text-textSecondary">
+              Hand-picked stays with limited-time discounts. Prices locked at checkout for 15 minutes — pay with USDC,
+              SOL or BTC and still earn 2% cashback on the discounted price.
+            </p>
+          </div>
+          <div className="rounded-card border border-white/10 bg-black/40 px-5 py-4 text-center">
+            <p className="flex items-center justify-center gap-1 text-[11px] uppercase tracking-wider text-textSecondary">
+              <Timer className="h-3.5 w-3.5" /> Deals refresh in
+            </p>
+            <p className="mt-1 font-mono text-3xl font-bold text-accent">
+              {hh}:{mm}:{ss}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Deal grid */}
+      <div className="mt-8">
+        {loading ? (
+          <Spinner />
+        ) : deals.length === 0 ? (
+          <p className="py-16 text-center text-sm text-textSecondary">No live deals right now — check back soon.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[...deals]
+              .sort((a, b) => b.discountPct - a.discountPct)
+              .map((d) => {
+                const original = Math.round((d.nightlyUsd / (1 - d.discountPct / 100)) * 100) / 100;
+                return (
+                  <Link
+                    key={d.id}
+                    href={`/travel/checkout?ref=${d.id}&name=${encodeURIComponent(d.name)}&amount=${d.nightlyUsd}&nights=1`}
+                    className="group overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/25 hover:shadow-glow-sm"
+                  >
+                    <div className="relative h-36 overflow-hidden">
+                      <img
+                        src={d.photo}
+                        alt={`${d.name}, ${d.city}`}
+                        loading="lazy"
+                        className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                      <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-[11px] font-bold text-white">
+                        <BadgePercent className="h-3 w-3" /> {d.discountPct}% OFF
+                      </span>
+                      <span className="absolute bottom-3 right-3 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
+                        Pay {d.payToken}
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      <p className="text-sm font-semibold text-white">{d.city}, {d.country}</p>
+                      <p className="text-[11px] text-textSecondary">
+                        {d.name} · {d.stars}★
+                      </p>
+                      <div className="mt-2 flex items-end gap-2">
+                        <p className="text-xl font-bold text-white">${d.nightlyUsd}</p>
+                        <p className="pb-0.5 text-xs text-textSecondary line-through">${original}</p>
+                        <p className="pb-0.5 text-[11px] text-textSecondary">/night</p>
+                      </div>
+                      <p className="mt-2 text-[11px] font-semibold text-emerald-400">
+                        + 2% back in USDC · rate locks for 15:00 at checkout
+                      </p>
+                    </div>
+                  </Link>
+                );
+              })}
+          </div>
+        )}
+      </div>
+
+      {/* Cross-sell */}
+      <div className="mt-10 flex flex-wrap items-center justify-center gap-2 text-sm">
+        <Link href="/travel/stays" className="rounded-lg border border-white/15 px-4 py-2 font-semibold text-white transition hover:bg-white/[0.06]">
+          Search all stays
+        </Link>
+        <Link href="/travel/destinations" className="rounded-lg border border-white/15 px-4 py-2 font-semibold text-white transition hover:bg-white/[0.06]">
+          Browse destinations
+        </Link>
+        <Link href="/travel/gift-cards" className="rounded-lg border border-white/15 px-4 py-2 font-semibold text-white transition hover:bg-white/[0.06]">
+          <span className="flex items-center gap-1.5"><Gift className="h-4 w-4" /> Gift a trip</span>
+        </Link>
+      </div>
+    </div>
+  );
+}

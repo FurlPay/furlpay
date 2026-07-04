@@ -1,11 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-import { generateStays, generateFlights, nights, StayType, Flight } from "@/lib/travel/data";
+import {
+  generateStays,
+  generateFlights,
+  generateCars,
+  generateActivities,
+  nights,
+  StayType,
+  Flight,
+  CarCategory,
+  ActivityCategory,
+} from "@/lib/travel/data";
 
 // POST /api/travel/search — search travel inventory.
 // Body: { type: "stays"|"flights"|"cars"|"activities", city, checkIn, checkOut,
-//         maxNightlyUsd?, minStars?, propertyType?, guests? }
-// Returns stays today; flights/cars/activities are stubbed for the next phase.
+//         maxNightlyUsd?, minStars?, propertyType?, guests?, category? }
 export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => ({}));
   const kind = body.type ?? "stays";
@@ -38,5 +47,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ type: "flights", count: flights.length, results: flights, source: "demo" });
   }
 
-  return NextResponse.json({ type: kind, results: [], note: "Coming soon in the next phase.", source: "demo" });
+  if (kind === "cars") {
+    const cars = generateCars(body.city ?? "", {
+      category: body.category as CarCategory | undefined,
+      maxDailyUsd: body.maxDailyUsd ? Number(body.maxDailyUsd) : undefined,
+      count: 14,
+    });
+    const days = nights(body.pickUp ?? body.checkIn, body.dropOff ?? body.checkOut);
+    return NextResponse.json({ type: "cars", city: body.city ?? "", days, count: cars.length, results: cars, source: "demo" });
+  }
+
+  if (kind === "activities") {
+    const activities = generateActivities(body.city ?? "", {
+      category: body.category as ActivityCategory | undefined,
+      maxPriceUsd: body.maxPriceUsd ? Number(body.maxPriceUsd) : undefined,
+    });
+    return NextResponse.json({ type: "activities", city: body.city ?? "", count: activities.length, results: activities, source: "demo" });
+  }
+
+  return NextResponse.json({ type: kind, results: [], note: "Unknown search type.", source: "demo" }, { status: 400 });
 }
