@@ -18,6 +18,9 @@ import {
   BookOpen,
   Luggage,
   MessageCircleQuestion,
+  Map,
+  Newspaper,
+  UtensilsCrossed,
 } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { Pill } from "@/components/ui";
@@ -220,6 +223,9 @@ export default function TravelHubPage() {
             { href: "/travel/gift-cards", Icon: Gift, tint: "text-rose-400 bg-rose-400/10", title: "Gift Cards", body: "$25–$500, instant email delivery." },
             { href: "/travel/refer", Icon: Users, tint: "text-sky-400 bg-sky-400/10", title: "Invite & Earn", body: "$25 per referral in travel credits." },
             { href: "/travel/business", Icon: Building2, tint: "text-violet-400 bg-violet-400/10", title: "Business Travel", body: "Team wallets, VCNs & policies." },
+            { href: "/travel/itineraries", Icon: Map, tint: "text-orange-400 bg-orange-400/10", title: "Bookable Itineraries", body: "Day-by-day plans you can book." },
+            { href: "/travel/blogs", Icon: Newspaper, tint: "text-indigo-400 bg-indigo-400/10", title: "Stories & Vlogs", body: "Deep dives, guides & bookable video." },
+            { href: "/travel/restaurants", Icon: UtensilsCrossed, tint: "text-lime-400 bg-lime-400/10", title: "Restaurants", body: "Crypto-friendly dining by city." },
             { href: "/travel/guides", Icon: BookOpen, tint: "text-emerald-400 bg-emerald-400/10", title: "Travel Guides", body: "Tips, tutorials & destination guides." },
             { href: "/travel/my-trips", Icon: Luggage, tint: "text-teal-400 bg-teal-400/10", title: "My Trips", body: "Upcoming, past & cancelled bookings." },
             { href: "/travel/crypto-travel", Icon: Coins, tint: "text-yellow-400 bg-yellow-400/10", title: "Crypto Travel 101", body: "How paying with crypto works." },

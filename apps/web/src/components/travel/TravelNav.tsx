@@ -6,12 +6,17 @@ import { usePathname } from "next/navigation";
 const LINKS: Array<{ href: string; label: string; exact?: boolean }> = [
   { href: "/travel", label: "Overview", exact: true },
   { href: "/travel/stays", label: "Stays" },
+  { href: "/travel/hotels", label: "Hotels" },
   { href: "/travel/flights", label: "Flights" },
   { href: "/travel/car-rentals", label: "Cars" },
   { href: "/travel/activities", label: "Activities" },
+  { href: "/travel/restaurants", label: "Restaurants" },
   { href: "/travel/destinations", label: "Destinations" },
+  { href: "/travel/itineraries", label: "Itineraries" },
   { href: "/travel/deals", label: "Deals" },
   { href: "/travel/guides", label: "Guides" },
+  { href: "/travel/blogs", label: "Stories" },
+  { href: "/travel/vlogs", label: "Vlogs" },
   { href: "/travel/rewards", label: "Rewards" },
 ];
 
