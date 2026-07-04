@@ -21,6 +21,7 @@ import {
 import { sendJSON } from "@/lib/api";
 import { Spinner } from "@/components/ui";
 import ActivityCard from "@/components/travel/ActivityCard";
+import SkeletonCards from "@/components/travel/SkeletonCards";
 import { ACTIVITY_CATEGORIES, type Activity, type ActivityCategory } from "@/lib/travel/data";
 
 const CATEGORY_ICONS: Record<ActivityCategory, LucideIcon> = {
@@ -122,7 +123,7 @@ function ActivitiesResults() {
       {/* Results */}
       <div className="mt-6">
         {loading ? (
-          <Spinner />
+          <SkeletonCards count={6} imageH="h-32" />
         ) : filtered.length === 0 ? (
           <p className="py-16 text-center text-sm text-textSecondary">No experiences in this category yet.</p>
         ) : (

@@ -7,6 +7,7 @@ import { ChevronLeft, SlidersHorizontal, MapPin, CalendarDays, Search } from "lu
 import { sendJSON } from "@/lib/api";
 import { Spinner } from "@/components/ui";
 import CarRentalCard from "@/components/travel/CarRentalCard";
+import SkeletonCards from "@/components/travel/SkeletonCards";
 import type { CarRental, CarCategory } from "@/lib/travel/data";
 
 const CATEGORIES: Array<CarCategory | "Any"> = ["Any", "Economy", "Compact", "SUV", "Luxury", "Van"];
@@ -171,7 +172,7 @@ function CarsResults() {
         {/* Results */}
         <div>
           {loading ? (
-            <Spinner />
+            <SkeletonCards count={6} imageH="h-32" />
           ) : filtered.length === 0 ? (
             <p className="py-16 text-center text-sm text-textSecondary">No cars match your filters.</p>
           ) : (
