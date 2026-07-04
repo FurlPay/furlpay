@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Mail, MessageSquare, Building2 } from "lucide-react";
 import MarketingBar from "@/components/marketing/MarketingBar";
 import ContactForm from "@/components/marketing/ContactForm";
+import ScheduleCallButton from "@/components/marketing/ScheduleCallButton";
 
 export const metadata: Metadata = {
   title: "Talk to us",
@@ -52,6 +53,9 @@ export default function TalkToUsPage() {
                 hello@furlpay.com
               </a>
             </p>
+
+            {/* Or skip the form entirely — book time with the founder. */}
+            <ScheduleCallButton />
           </div>
 
           {/* Right: form */}

@@ -33,6 +33,11 @@ const card = await client.cards.issue({
         <LI>Issue 2-of-2 MPC virtual cards and control them via <Code>POST /api/cards/settings</Code>.</LI>
         <LI>Open local IBAN / routing accounts and move money across rails.</LI>
         <LI>Place fractional stock &amp; ETF orders via <Code>POST /api/investing/order</Code>.</LI>
+        <LI>
+          Give an AI agent a wallet — MCP server, LangChain tools, x402 pay-per-call and TAP-style spend
+          mandates. Start at{" "}
+          <a href="/docs/agents" className="text-neon hover:underline">For AI Agents</a>.
+        </LI>
       </UL>
 
       <H2 id="keys">API keys</H2>
