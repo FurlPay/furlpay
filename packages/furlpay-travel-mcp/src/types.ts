@@ -22,7 +22,7 @@ export interface Flight {
   date: string;
   cabin: string;
   totalUsd: number;
-  source: "travala" | "demo";
+  source: "travala" | "demo" | "duffel";
 }
 
 /** A payment authorization FurlPay hands back for a booking. */
@@ -97,6 +97,12 @@ export interface TravelOptions {
   furlpayBaseUrl?: string;
   /** Travala Travel MCP endpoint. Default https://travel-mcp.travala.com/mcp */
   travalaMcpUrl?: string;
+  /**
+   * Duffel API token for live real-time flight search (free test tokens at
+   * duffel.com — `duffel_test_…` works). When set, travel_search_flights
+   * returns live Duffel offers; Travala/demo remains the fallback.
+   */
+  duffelApiKey?: string;
   /** Developer wallet that receives the 7% cbBTC rebate split. */
   developerWallet?: string;
   /** Override fetch (Node 18+ has a global fetch). */

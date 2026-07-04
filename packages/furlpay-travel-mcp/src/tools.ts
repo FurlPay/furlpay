@@ -29,13 +29,15 @@ export function buildTools(client: TravelClient): McpTool[] {
     },
     {
       name: "travel_search_flights",
-      description: "Search flights via Travala for a route and date. Returns quotes with a quoteId.",
+      description:
+        "Search flights for a route and date. With DUFFEL_API_KEY set, returns live real-time offers (NDC/GDS/LCC, 300+ airlines via Duffel); otherwise Travala/demo inventory. Returns quotes with a quoteId.",
       inputSchema: {
         type: "object",
         properties: {
           from: { type: "string", description: "Origin IATA code" },
           to: { type: "string", description: "Destination IATA code" },
           date: { type: "string", description: "YYYY-MM-DD" },
+          cabin: { type: "string", enum: ["economy", "premium_economy", "business", "first"] },
         },
         required: ["from", "to", "date"],
       },

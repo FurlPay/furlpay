@@ -1,6 +1,6 @@
 {
   "name": "@furlpay/travel-mcp",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "FurlPay Travels â€” an MCP server composing Travala's Travel MCP (search) with FurlPay payment rails (x402/USDC on Base or single-use MCC-locked Visa VCN). Captures the 10% cbBTC developer rebate. Zero runtime dependencies.",
   "license": "MIT",
   "main": "dist/index.js",

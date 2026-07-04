@@ -1,3 +1,4 @@
+import { DuffelClient } from "./duffel";
 import { FurlPayPay, MCC } from "./furlpay";
 import { TravalaClient } from "./travala";
 import {
@@ -29,6 +30,7 @@ const DEVELOPER_SHARE = 0.7;
  */
 export class TravelClient {
   private readonly travala: TravalaClient;
+  private readonly duffel: DuffelClient;
   private readonly pay: FurlPayPay;
   private readonly trust?: MandateVerifier;
   private readonly developerWallet?: string;
@@ -41,6 +43,11 @@ export class TravelClient {
     this.travala = new TravalaClient(
       opts.travalaMcpUrl || process.env.TRAVALA_MCP_URL,
       process.env.TRAVALA_API_KEY,
+      fetchImpl,
+    );
+    this.duffel = new DuffelClient(
+      opts.duffelApiKey || process.env.DUFFEL_API_KEY,
+      undefined,
       fetchImpl,
     );
     this.pay = new FurlPayPay(
@@ -62,7 +69,20 @@ export class TravelClient {
     return this.travala.searchStays(p);
   }
 
-  searchFlights(p: { from: string; to: string; date: string }): Promise<Flight[]> {
+  /**
+   * Flights: Duffel first when a key is set (live NDC/GDS/LCC offers from
+   * 300+ airlines — free test mode), falling back to Travala/demo on any
+   * Duffel failure so the loop never breaks.
+   */
+  async searchFlights(p: { from: string; to: string; date: string; cabin?: string }): Promise<Flight[]> {
+    if (this.duffel.live) {
+      try {
+        const offers = await this.duffel.searchFlights(p);
+        if (offers.length) return offers;
+      } catch {
+        // fall through to Travala/demo
+      }
+    }
     return this.travala.searchFlights(p);
   }
 

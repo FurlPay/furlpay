@@ -1,5 +1,6 @@
 export { TravelClient, MCC } from "./travel";
 export { TravalaClient } from "./travala";
+export { DuffelClient } from "./duffel";
 export { FurlPayPay } from "./furlpay";
 export { buildTools } from "./tools";
 export type { McpTool } from "./tools";

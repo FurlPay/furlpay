@@ -134,6 +134,64 @@ test("no verifier configured → bookings work without a token (back-compat)", a
   assert.strictEqual(bk.trust, undefined);
 });
 
+// -- Duffel live flight search -----------------------------------------------
+
+const DUFFEL_OFFER = (id, amount, carrier) => ({
+  id,
+  total_amount: String(amount),
+  total_currency: "USD",
+  owner: { iata_code: carrier, name: carrier },
+  slices: [{ segments: [{ departing_at: "2026-08-01T09:15:00", passengers: [{ cabin_class: "economy" }] }] }],
+});
+
+function duffelFetch(offers, status = 200) {
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push({ url, init });
+    return {
+      ok: status === 200,
+      status,
+      json: async () => (status === 200 ? { data: { offers } } : { errors: [{ message: "boom" }] }),
+    };
+  };
+  return { fetchImpl, calls };
+}
+
+test("duffel: live offers returned cheapest-first with source 'duffel'", async () => {
+  const { fetchImpl, calls } = duffelFetch([
+    DUFFEL_OFFER("off_2", 410.5, "BA"),
+    DUFFEL_OFFER("off_1", 189.99, "U2"),
+  ]);
+  const c = new TravelClient({ duffelApiKey: "duffel_test_x", fetchImpl });
+  const flights = await c.searchFlights({ from: "lhr", to: "jfk", date: "2026-08-01" });
+  assert.strictEqual(flights[0].quoteId, "off_1");
+  assert.strictEqual(flights[0].totalUsd, 189.99);
+  assert.strictEqual(flights[0].carrier, "U2");
+  assert.strictEqual(flights[0].source, "duffel");
+  assert.strictEqual(flights[0].from, "LHR");
+  // request shape: v2 offer_requests with one adult + slice
+  const body = JSON.parse(calls[0].init.body);
+  assert.strictEqual(calls[0].init.headers["Duffel-Version"], "v2");
+  assert.deepStrictEqual(body.data.passengers, [{ type: "adult" }]);
+  assert.strictEqual(body.data.slices[0].origin, "LHR");
+});
+
+test("duffel: API failure falls back to demo inventory", async () => {
+  const { fetchImpl } = duffelFetch([], 500);
+  const c = new TravelClient({ duffelApiKey: "duffel_test_x", fetchImpl });
+  const flights = await c.searchFlights({ from: "LHR", to: "JFK", date: "2026-08-01" });
+  assert.ok(flights.length > 0);
+  assert.strictEqual(flights[0].source, "demo");
+});
+
+test("duffel: no key → demo inventory, no network", async () => {
+  let networkCalls = 0;
+  const c = new TravelClient({ fetchImpl: async () => (networkCalls++, { ok: true, json: async () => ({}) }) });
+  const flights = await c.searchFlights({ from: "LHR", to: "JFK", date: "2026-08-01" });
+  assert.strictEqual(flights[0].source, "demo");
+  assert.strictEqual(networkCalls, 0);
+});
+
 test("MCP tools are well-formed and cover the flow", () => {
   const tools = buildTools(new TravelClient());
   const names = tools.map((t) => t.name);

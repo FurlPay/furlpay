@@ -29,6 +29,7 @@ Maintained by [FurlPay](https://furlpay.com) · MIT licensed.
       "env": {
         "FURLPAY_API_KEY": "fp_live_sk_...",     // omit for demo mode
         "TRAVALA_API_KEY": "...",                // omit for demo inventory
+        "DUFFEL_API_KEY": "duffel_test_...",     // live flight offers (free test token, duffel.com)
         "FURLPAY_DEVELOPER_WALLET": "0xYourWallet" // receives the 7% cbBTC split
       }
     }
@@ -106,6 +107,19 @@ const legacy = await travel.authorizeBooking({ amountUsd: 130, source: "legacy",
 
 travel.listRebates();   // { developerTotalUsd, treasuryTotalUsd, accruals }
 ```
+
+## Live flight data (new in 0.3.0)
+
+Set `DUFFEL_API_KEY` and `travel_search_flights` returns **live real-time
+offers** — NDC + GDS + LCC content from 300+ airlines via
+[Duffel](https://duffel.com/docs), cheapest first. Free test tokens
+(`duffel_test_…`) work out of the box against Duffel's sandbox inventory.
+Any Duffel failure falls back to Travala/demo, so the agent loop never breaks.
+
+Why Duffel in mid-2026: Amadeus Self-Service shuts down July 17 2026, Kiwi's
+Tequila is closed to new partners, and Expedia/Booking gate API access behind
+commercial review — Duffel is the one top-1% supplier a developer can start
+on today with no contract.
 
 ## How the routes map to reality
 
