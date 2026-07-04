@@ -98,6 +98,42 @@ test("listRebates aggregates developer + treasury, excludes cancelled", async ()
   assert.strictEqual(r.accruals.length, 2);
 });
 
+test("trust gate: booking without a mandateToken is rejected when a verifier is set", async () => {
+  const c = new TravelClient({ trust: { verifyBookingToken: async () => ({ ok: true }) } });
+  await assert.rejects(() => c.authorizeBooking({ amountUsd: 100, source: "travala" }), /mandateToken required/);
+});
+
+test("trust gate: verifier rejection blocks authorization with its reason", async () => {
+  const c = new TravelClient({
+    trust: { verifyBookingToken: async () => ({ ok: false, reason: "mandate expired" }) },
+  });
+  await assert.rejects(
+    () => c.authorizeBooking({ amountUsd: 100, source: "travala", mandateToken: "tok" }),
+    /mandate rejected: mandate expired/,
+  );
+});
+
+test("trust gate: verifier sees the resolved MCC and exact claims; decision lands on the booking", async () => {
+  let seen;
+  const c = new TravelClient({
+    trust: {
+      verifyBookingToken: async (token, claims) => {
+        seen = { token, claims };
+        return { ok: true, agentKeyId: "ak_test", mandateId: "mnd_test", remainingUsd: 400 };
+      },
+    },
+  });
+  const bk = await c.authorizeBooking({ amountUsd: 320, source: "legacy", mandateToken: "tok_1" });
+  assert.strictEqual(seen.token, "tok_1");
+  assert.deepStrictEqual(seen.claims, { amountUsd: 320, mcc: "7011", source: "legacy" }); // MCC defaulted before verify
+  assert.deepStrictEqual(bk.trust, { agentKeyId: "ak_test", mandateId: "mnd_test", remainingUsd: 400 });
+});
+
+test("no verifier configured → bookings work without a token (back-compat)", async () => {
+  const bk = await new TravelClient().authorizeBooking({ amountUsd: 50, source: "travala" });
+  assert.strictEqual(bk.trust, undefined);
+});
+
 test("MCP tools are well-formed and cover the flow", () => {
   const tools = buildTools(new TravelClient());
   const names = tools.map((t) => t.name);

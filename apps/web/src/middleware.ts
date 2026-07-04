@@ -71,6 +71,13 @@ export async function middleware(req: NextRequest) {
 
   if (isApi) {
     if (isPublicApi || hasSession) return NextResponse.next();
+    // Agent-initiated escrow calls authenticate with RFC 9421 signatures
+    // instead of a session cookie. Pass them through to the route, which
+    // verifies the signature against registered agent keys and 401s any
+    // invalid/unknown/tampered one (lib/agentTrustGate).
+    if (pathname.startsWith("/api/escrow") && req.headers.get("signature-input")) {
+      return NextResponse.next();
+    }
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

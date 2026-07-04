@@ -42,7 +42,7 @@ async function handle(line: string): Promise<void> {
         result: {
           protocolVersion: "2024-11-05",
           capabilities: { tools: {} },
-          serverInfo: { name: "furlpay-travels", version: "0.1.0" },
+          serverInfo: { name: "furlpay-travels", version: "0.2.0" },
         },
       });
     }

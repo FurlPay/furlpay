@@ -57,7 +57,7 @@ export function buildTools(client: TravelClient): McpTool[] {
     {
       name: "travel_authorize_booking",
       description:
-        "Authorize payment for a booking within the agent's budget. source='travala' pays via x402/USDC on Base and accrues the 10% cbBTC rebate; source='legacy' issues a single-use, MCC-locked Visa virtual card for Web2 merchants (Airbnb, Skyscanner).",
+        "Authorize payment for a booking within the agent's budget. source='travala' pays via x402/USDC on Base and accrues the 10% cbBTC rebate; source='legacy' issues a single-use, MCC-locked Visa virtual card for Web2 merchants (Airbnb, Skyscanner). If the server enforces agent mandates (TAP-style), pass the mandateToken created with @furlpay/agent-trust — it must sign this exact amount/mcc/source.",
       inputSchema: {
         type: "object",
         properties: {
@@ -67,6 +67,11 @@ export function buildTools(client: TravelClient): McpTool[] {
           mcc: { type: "string", description: "Merchant Category Code lock for the legacy route, e.g. 7011 (lodging)" },
           agentId: { type: "string" },
           reference: { type: "string", description: "Quote/booking reference" },
+          mandateToken: {
+            type: "string",
+            description:
+              "TAP-style booking token: agent-signed intent under a user-signed spend mandate (@furlpay/agent-trust createBookingToken). Required when the server has a MandateVerifier configured.",
+          },
         },
         required: ["amountUsd", "source"],
       },

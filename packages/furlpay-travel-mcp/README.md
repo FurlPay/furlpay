@@ -48,6 +48,39 @@ Maintained by [FurlPay](https://furlpay.com) · MIT licensed.
 | `travel_cancel_booking` | Cancel & void the authorization |
 | `travel_list_rebates` | Accumulated 10% cbBTC rebates (7% dev / 3% treasury) |
 
+## Trusted-agent mode (new in 0.2.0)
+
+Visa's [Trusted Agent Protocol](https://github.com/visa/trusted-agent-protocol) went
+production-live in July 2026: agent-initiated payments carry cryptographic proof of
+agent identity **and** user consent. This server supports the same model via
+[`@furlpay/agent-trust`](https://github.com/FurlPay/agent-trust) — configure a
+`MandateVerifier` and every `travel_authorize_booking` call must present a
+`mandateToken`: an agent-signed intent under a user-signed spend mandate
+(budget cap, MCC allowlist, expiry, single-use, replay-safe).
+
+```ts
+import { TravelClient } from "@furlpay/travel-mcp";
+import { AgentTrust, generateKeypair, issueMandate, createBookingToken } from "@furlpay/agent-trust";
+
+const trust = new AgentTrust();
+trust.registerUser(user.publicKeyPem);
+trust.registerAgent(agent.publicKeyPem);
+
+const travel = new TravelClient({ trust }); // bookings now REQUIRE a valid mandateToken
+
+const mandate = issueMandate({ /* user signs: $500 cap, MCC 7011+4511, 7-day expiry */ });
+const mandateToken = createBookingToken({ mandate, /* agent signs THIS exact intent */
+  intent: { amountUsd: 320, source: "legacy", mcc: "7011" } });
+
+const booking = await travel.authorizeBooking({ amountUsd: 320, source: "legacy", mandateToken });
+// booking.trust = { agentKeyId, mandateId, remainingUsd }
+```
+
+The verifier checks the full chain — user signed the mandate, mandate names this
+agent, agent signed this exact amount/mcc/source, constraints hold, nonce never
+seen — before any x402 proof or virtual card is issued. Without a verifier
+configured, behavior is unchanged (back-compat).
+
 ## Use as a library
 
 ```ts
