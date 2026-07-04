@@ -35,7 +35,18 @@ const STEPS = [
   { Icon: Plane, title: "Travel", body: "Receive your confirmation and e-ticket instantly." },
 ];
 
-const PARTNERS = ["Travala", "Visa", "Mastercard", "Solana", "USDC", "Coinbase", "Phantom", "Alpaca"];
+// Circular brand marks: self-hosted under /public/logos (TradingView symbol
+// marks for listed brands, org avatars for the rest) — no external requests.
+const PARTNERS: Array<{ name: string; logo: string }> = [
+  { name: "Travala", logo: "/logos/partners/travala.jpg" },
+  { name: "Visa", logo: "/logos/stocks/v.svg" },
+  { name: "Mastercard", logo: "/logos/stocks/ma.svg" },
+  { name: "Solana", logo: "/logos/chains/solana.svg" },
+  { name: "USDC", logo: "/logos/coins/usdc.svg" },
+  { name: "Coinbase", logo: "/logos/stocks/coin.svg" },
+  { name: "Phantom", logo: "/logos/partners/phantom.png" },
+  { name: "Alpaca", logo: "/logos/partners/alpaca.png" },
+];
 
 export default function TravelHubPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
@@ -252,9 +263,14 @@ export default function TravelHubPage() {
       {/* Partners */}
       <section className="mt-10">
         <p className="mb-3 text-center text-[11px] uppercase tracking-wider text-textSecondary">Payments & partners</p>
-        <div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-sm font-semibold text-white/40">
+        <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4">
           {PARTNERS.map((p) => (
-            <span key={p}>{p}</span>
+            <span key={p.name} className="flex items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-full bg-white ring-1 ring-white/15">
+                <img src={p.logo} alt={p.name} loading="lazy" className="h-full w-full object-cover" />
+              </span>
+              <span className="text-sm font-semibold text-white/60">{p.name}</span>
+            </span>
           ))}
         </div>
       </section>
