@@ -100,6 +100,22 @@ function Hero() {
           </Link>
         </div>
 
+        {/* FurlPay Travels in action — phone capture, autoplays muted on loop
+            (muted + playsInline is what lets browsers autoplay it on scroll). */}
+        <div className="mt-14 flex justify-center">
+          <div className="relative w-[280px] overflow-hidden rounded-[2rem] border border-white/15 bg-black shadow-[0_0_80px_-20px_rgba(57,255,20,0.25)] sm:w-[320px]">
+            <video
+              src="/media/travels-phone.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              className="block h-auto w-full"
+            />
+          </div>
+        </div>
+
         {/* Partner trust marquee, directly below the hero CTAs */}
         <div className="mt-14">
           <PartnerMarquee />
