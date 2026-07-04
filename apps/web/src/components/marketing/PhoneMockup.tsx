@@ -141,7 +141,7 @@ function ChatScreen() {
         <Bubble>
           Sending <b>$25.00 USDC</b> to Sarah (0x9f…c31E) on Base. Gas sponsored. Confirm with fingerprint?
         </Bubble>
-        <Bubble me>Yes ✅</Bubble>
+        <Bubble me>Yes</Bubble>
         <Bubble>
           Done — <span className="text-neon">settled in 1.9s</span>. New USDC balance: $4,185.55.
         </Bubble>

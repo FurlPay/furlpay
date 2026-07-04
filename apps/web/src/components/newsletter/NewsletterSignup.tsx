@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, FormEvent } from "react";
+import { Package, Wrench, Scale, Lock, Newspaper, Check } from "lucide-react";
 
 const CATEGORIES = [
-  { id: "product-updates", emoji: "📦", label: "Product Updates", desc: "New features, launches" },
-  { id: "engineering", emoji: "🔧", label: "Engineering", desc: "Technical deep-dives, open source" },
-  { id: "policy-changes", emoji: "⚖️", label: "Policy Changes", desc: "Terms, privacy, compliance updates" },
-  { id: "security-bulletins", emoji: "🔒", label: "Security Bulletins", desc: "Security advisories, patches" },
-  { id: "weekly-digest", emoji: "📰", label: "Weekly Digest", desc: "Curated newsletter, market insights" },
+  { id: "product-updates", Icon: Package, label: "Product Updates", desc: "New features, launches" },
+  { id: "engineering", Icon: Wrench, label: "Engineering", desc: "Technical deep-dives, open source" },
+  { id: "policy-changes", Icon: Scale, label: "Policy Changes", desc: "Terms, privacy, compliance updates" },
+  { id: "security-bulletins", Icon: Lock, label: "Security Bulletins", desc: "Security advisories, patches" },
+  { id: "weekly-digest", Icon: Newspaper, label: "Weekly Digest", desc: "Curated newsletter, market insights" },
 ] as const;
 
 type CategoryId = (typeof CATEGORIES)[number]["id"];
@@ -113,7 +114,7 @@ export default function NewsletterSignup({ variant = "card" }: { variant?: Varia
                       onChange={() => toggleCategory(cat.id)}
                       className="sr-only"
                     />
-                    <span>{cat.emoji}</span>
+                    <cat.Icon className="h-4 w-4" aria-hidden />
                     <span>{cat.label}</span>
                   </label>
                 ))}
@@ -178,13 +179,13 @@ export default function NewsletterSignup({ variant = "card" }: { variant?: Varia
                   onChange={() => toggleCategory(cat.id)}
                   className="sr-only"
                 />
-                <span className="text-lg">{cat.emoji}</span>
+                <cat.Icon className="h-5 w-5 text-textSecondary" aria-hidden />
                 <div>
                   <p className="text-[13px] font-semibold text-white">{cat.label}</p>
                   <p className="text-[11px] text-textMuted">{cat.desc}</p>
                 </div>
                 {categories.includes(cat.id) && (
-                  <span className="ml-auto text-[13px] text-neon">✓</span>
+                  <Check className="ml-auto h-4 w-4 text-neon" aria-hidden />
                 )}
               </label>
             ))}

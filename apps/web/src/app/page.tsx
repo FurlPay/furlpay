@@ -62,6 +62,12 @@ function Nav() {
           <a href="#security" className="transition-colors hover:text-white">Security</a>
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
+          <Link
+            href="/travel"
+            className="hidden items-center gap-1.5 rounded-pill border border-white/15 bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:border-white/40 sm:flex"
+          >
+            <Plane className="h-4 w-4" /> Travel with Us
+          </Link>
           <Link href="/talk-to-us" className="btn-outline px-4 py-2 text-sm">Talk to us</Link>
           <Link href="/dashboard" className="btn-green px-5 py-2 text-sm">Open App</Link>
         </div>
@@ -88,12 +94,6 @@ function Hero() {
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/signup" className="btn-green w-full px-7 py-3.5 text-[16px] sm:w-auto">
             Get Started (Web App)
-          </Link>
-          <Link
-            href="/travel"
-            className="group flex w-full items-center justify-center gap-2 rounded-full border border-transparent bg-gradient-to-r from-sky-500/20 to-teal-500/20 px-7 py-3.5 text-[16px] font-semibold text-white ring-1 ring-inset ring-sky-400/40 transition hover:from-sky-500/30 hover:to-teal-500/30 sm:w-auto"
-          >
-            <Plane className="h-4 w-4" /> Travel with Us
           </Link>
           <Link href="/docs" className="btn-outline w-full px-7 py-3.5 text-[16px] sm:w-auto">
             Explore Developer Docs
@@ -187,8 +187,8 @@ function TravelBand() {
               every booking. Powered by Travala · settled via x402.
             </p>
             <div className="mt-5 flex flex-wrap gap-3">
-              <Link href="/travel" className="btn-green px-6 py-3 text-sm">Explore destinations</Link>
-              <Link href="/travel/stays" className="btn-outline px-6 py-3 text-sm">Book now →</Link>
+              <Link href="/travel/destinations" className="btn-green px-6 py-3 text-sm">Explore destinations</Link>
+              <Link href="/travel" className="btn-outline px-6 py-3 text-sm">Book now →</Link>
             </div>
           </div>
           <div className="flex shrink-0 gap-3 text-center">

@@ -15,7 +15,7 @@ export default function StoryCard({ post }: { post: Post }) {
       style={{ ["--cat" as string]: c.color }}
       className="group mb-5 block w-full break-inside-avoid overflow-hidden rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all hover:border-[color:var(--cat)] hover:shadow-[0_0_34px_-14px_var(--cat)]"
     >
-      <CoverArt color={c.color} label={c.label} className="h-40 w-full" />
+      <CoverArt color={c.color} label={c.label} photo={post.cover} className="h-40 w-full" />
       <div className="p-5">
         <CategoryBadge id={post.category} />
         <h3 className="mt-3 text-[17px] font-bold leading-snug tracking-tight text-textPrimary transition-colors">

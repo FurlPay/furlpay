@@ -2,7 +2,23 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, CalendarCheck, Wallet, Coins, Plane, Bot, ArrowRight, Sparkles } from "lucide-react";
+import {
+  Search,
+  CalendarCheck,
+  Wallet,
+  Coins,
+  Plane,
+  Bot,
+  ArrowRight,
+  Sparkles,
+  Trophy,
+  Gift,
+  Users,
+  Building2,
+  BookOpen,
+  Luggage,
+  MessageCircleQuestion,
+} from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { Pill } from "@/components/ui";
 import TravelHero from "@/components/travel/TravelHero";
@@ -35,7 +51,7 @@ export default function TravelHubPage() {
   const ss = String(remaining % 60).padStart(2, "0");
 
   return (
-    <div className="mx-auto max-w-5xl px-5 pb-24 pt-8">
+    <div className="mx-auto max-w-6xl px-5 pb-24 pt-8">
       {/* Hero */}
       <div className="mb-3 flex items-center gap-2">
         <Pill tone="accent">FurlPay Travels</Pill>
@@ -54,21 +70,39 @@ export default function TravelHubPage() {
 
       {/* Destination categories */}
       <section className="mt-12">
-        <h2 className="mb-4 text-xl font-bold text-white">Explore by vibe</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white">Explore by vibe</h2>
+          <Link href="/travel/destinations" className="text-sm text-neon hover:underline">
+            All destinations →
+          </Link>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {DESTINATION_CATEGORIES.map((c) => (
             <Link
               key={c.slug}
-              href={`/travel/stays?city=${encodeURIComponent(c.examples[0])}`}
-              className={`group relative overflow-hidden rounded-card border border-white/10 bg-gradient-to-br ${c.gradient} p-5 transition hover:border-white/25`}
+              href={`/travel/destinations/${c.slug}`}
+              className="group relative min-h-[190px] overflow-hidden rounded-card border border-white/10 transition hover:border-white/30 hover:shadow-glow-sm"
             >
-              <div className="absolute right-3 top-3">
-                <Pill tone="gain">{c.tag}</Pill>
+              <img
+                src={c.photo}
+                alt={c.title}
+                loading="lazy"
+                className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-black/10" />
+              <div className="relative flex h-full min-h-[190px] flex-col p-5">
+                <div className="flex justify-end">
+                  <Pill tone="gain">{c.tag}</Pill>
+                </div>
+                <div className="mt-auto">
+                  <h3 className="text-lg font-bold text-white">{c.title}</h3>
+                  <p className="text-xs text-white/75">{c.blurb}</p>
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className="text-[11px] text-white/60">{c.examples.join(" · ")}</p>
+                    <ArrowRight className="h-4 w-4 shrink-0 text-white transition group-hover:translate-x-1" />
+                  </div>
+                </div>
               </div>
-              <h3 className="mt-8 text-lg font-bold text-white">{c.title}</h3>
-              <p className="text-xs text-white/70">{c.blurb}</p>
-              <p className="mt-3 text-[11px] text-white/60">{c.examples.join(" · ")}</p>
-              <ArrowRight className="mt-3 h-4 w-4 text-white transition group-hover:translate-x-1" />
             </Link>
           ))}
         </div>
@@ -80,22 +114,34 @@ export default function TravelHubPage() {
           <h2 className="flex items-center gap-2 text-xl font-bold text-white">
             <Sparkles className="h-5 w-5 text-accent" /> Flash deals
           </h2>
-          <span className="rounded-full bg-accent/15 px-3 py-1 font-mono text-xs font-semibold text-accent">
-            Ends in {hh}:{mm}:{ss}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="rounded-full bg-accent/15 px-3 py-1 font-mono text-xs font-semibold text-accent">
+              Ends in {hh}:{mm}:{ss}
+            </span>
+            <Link href="/travel/deals" className="text-sm text-neon hover:underline">
+              View all deals →
+            </Link>
+          </div>
         </div>
         <div className="flex snap-x gap-4 overflow-x-auto pb-2">
           {deals.map((d) => (
             <Link
               key={d.id}
               href={`/travel/checkout?ref=${d.id}&name=${encodeURIComponent(d.name)}&amount=${d.nightlyUsd}&nights=1`}
-              className="w-56 shrink-0 snap-start overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/20"
+              className="group w-56 shrink-0 snap-start overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/25 hover:shadow-glow-sm"
             >
-              <div className={`relative h-28 bg-gradient-to-br ${d.image}`}>
+              <div className="relative h-28 overflow-hidden">
+                <img
+                  src={d.photo}
+                  alt={`${d.name}, ${d.city}`}
+                  loading="lazy"
+                  className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
                 <span className="absolute left-2 top-2 rounded-full bg-accent px-2 py-0.5 text-[11px] font-bold text-white">
                   {d.discountPct}% OFF
                 </span>
-                <span className="absolute bottom-2 right-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-semibold text-white">
+                <span className="absolute bottom-2 right-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-semibold text-white">
                   Pay {d.payToken}
                 </span>
               </div>
@@ -116,7 +162,7 @@ export default function TravelHubPage() {
       {/* How it works */}
       <section className="mt-12">
         <h2 className="mb-4 text-xl font-bold text-white">How FurlPay Travel works</h2>
-        <div className="grid gap-3 sm:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {STEPS.map((s, i) => (
             <div key={s.title} className="rounded-card border border-white/10 bg-charcoal p-4">
               <div className="mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-neon/15 text-neon">
@@ -163,6 +209,38 @@ export default function TravelHubPage() {
             <p className="mt-1 text-[11px] text-textSecondary">{s.label}</p>
           </div>
         ))}
+      </section>
+
+      {/* More from Travels */}
+      <section className="mt-12">
+        <h2 className="mb-4 text-xl font-bold text-white">More from FurlPay Travels</h2>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { href: "/travel/rewards", Icon: Trophy, tint: "text-amber-400 bg-amber-400/10", title: "Travel Rewards", body: "2–7% USDC cashback, four tiers." },
+            { href: "/travel/gift-cards", Icon: Gift, tint: "text-rose-400 bg-rose-400/10", title: "Gift Cards", body: "$25–$500, instant email delivery." },
+            { href: "/travel/refer", Icon: Users, tint: "text-sky-400 bg-sky-400/10", title: "Invite & Earn", body: "$25 per referral in travel credits." },
+            { href: "/travel/business", Icon: Building2, tint: "text-violet-400 bg-violet-400/10", title: "Business Travel", body: "Team wallets, VCNs & policies." },
+            { href: "/travel/guides", Icon: BookOpen, tint: "text-emerald-400 bg-emerald-400/10", title: "Travel Guides", body: "Tips, tutorials & destination guides." },
+            { href: "/travel/my-trips", Icon: Luggage, tint: "text-teal-400 bg-teal-400/10", title: "My Trips", body: "Upcoming, past & cancelled bookings." },
+            { href: "/travel/crypto-travel", Icon: Coins, tint: "text-yellow-400 bg-yellow-400/10", title: "Crypto Travel 101", body: "How paying with crypto works." },
+            { href: "/travel/help", Icon: MessageCircleQuestion, tint: "text-fuchsia-400 bg-fuchsia-400/10", title: "Help & FAQ", body: "Bookings, refunds & rate locks." },
+          ].map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="group rounded-card border border-white/10 bg-charcoal p-4 transition hover:border-white/25 hover:shadow-glow-sm"
+            >
+              <span className={`flex h-9 w-9 items-center justify-center rounded-lg ${l.tint}`}>
+                <l.Icon className="h-[18px] w-[18px]" />
+              </span>
+              <p className="mt-2.5 flex items-center gap-1 text-sm font-semibold text-white">
+                {l.title}
+                <ArrowRight className="h-3.5 w-3.5 text-neon opacity-0 transition group-hover:translate-x-0.5 group-hover:opacity-100" />
+              </p>
+              <p className="mt-1 text-[11px] text-textSecondary">{l.body}</p>
+            </Link>
+          ))}
+        </div>
       </section>
 
       {/* Partners */}

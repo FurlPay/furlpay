@@ -1,0 +1,40 @@
+{
+  "name": "@furlpay/market-data",
+  "version": "0.1.0",
+  "description": "Real-time stock/ETF market data for FurlPay — Alpha Vantage + Nasdaq Data Link aggregator with a deterministic demo fallback. Zero runtime dependencies.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "furlpay",
+    "market-data",
+    "stocks",
+    "etf",
+    "quotes",
+    "ohlcv",
+    "alpha-vantage",
+    "nasdaq-data-link",
+    "fintech"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/market-data.test.js",
+    "example": "npx --yes tsx examples/quote.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/furlpay/furlpay-market-data"
+  },
+  "homepage": "https://furlpay.com",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "5.5.3",
+    "@types/node": "20.14.10"
+  }
+}

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Check } from "lucide-react";
 import MarketingBar from "@/components/marketing/MarketingBar";
 import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
 
@@ -30,7 +31,7 @@ export default function WaitlistPage() {
         <ul className="mx-auto mt-8 max-w-sm space-y-2 text-left">
           {PERKS.map((p) => (
             <li key={p} className="flex items-center gap-2 text-[14px] text-textMuted">
-              <span className="text-neon">✓</span> {p}
+              <Check className="h-4 w-4 shrink-0 text-neon" aria-hidden /> {p}
             </li>
           ))}
         </ul>

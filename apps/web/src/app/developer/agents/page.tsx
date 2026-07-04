@@ -102,8 +102,8 @@ export default function AgentConsole() {
                     Max/tx {usd(p.maxPerTx)} · Daily {usd(p.daily)} · Auto-approve under {usd(p.autoApproveUnder)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {p.allow.map((x) => <span key={x} className="rounded-full bg-neon/10 px-2 py-0.5 text-[11px] text-neon">✓ {x}</span>)}
-                    {p.block.map((x) => <span key={x} className="rounded-full bg-loss/10 px-2 py-0.5 text-[11px] text-loss">✕ {x}</span>)}
+                    {p.allow.map((x) => <span key={x} className="inline-flex items-center gap-1 rounded-full bg-neon/10 px-2 py-0.5 text-[11px] text-neon"><Check className="h-3 w-3" aria-hidden /> {x}</span>)}
+                    {p.block.map((x) => <span key={x} className="inline-flex items-center gap-1 rounded-full bg-loss/10 px-2 py-0.5 text-[11px] text-loss"><X className="h-3 w-3" aria-hidden /> {x}</span>)}
                   </div>
                 </div>
               ))}

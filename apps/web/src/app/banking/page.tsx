@@ -247,7 +247,7 @@ function ReceiveModal({ accounts, onClose }: { accounts: FiatBalance[]; onClose:
         {acct.localDetails && Object.entries(acct.localDetails).map(([k, v]) => (
           <button key={k} onClick={() => copy(String(v))} className="flex w-full items-center justify-between text-left text-[13px]">
             <span className="capitalize text-textSecondary">{k.replace(/([A-Z])/g, " $1")}</span>
-            <span className="font-mono">{copied === String(v) ? "Copied ✓" : String(v)}</span>
+            <span className="font-mono">{copied === String(v) ? "Copied" : String(v)}</span>
           </button>
         ))}
       </div>

@@ -3,14 +3,26 @@
 import Link from "next/link";
 import { Star, MapPin } from "lucide-react";
 import { Pill } from "@/components/ui";
-import type { Stay } from "@/lib/travel/data";
+import { CITY_PHOTOS, type Stay } from "@/lib/travel/data";
 
 export default function PropertyCard({ stay, nights }: { stay: Stay; nights: number }) {
   const total = stay.nightlyUsd * nights;
   const href = `/travel/checkout?ref=${stay.id}&name=${encodeURIComponent(stay.name)}&amount=${total}&nights=${nights}`;
+  const photo = CITY_PHOTOS[stay.city];
   return (
-    <div className="overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/20">
-      <div className={`relative h-40 bg-gradient-to-br ${stay.image}`}>
+    <div className="group overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/20">
+      <div className={`relative h-40 overflow-hidden bg-gradient-to-br ${stay.image}`}>
+        {photo && (
+          <>
+            <img
+              src={photo}
+              alt={stay.name}
+              loading="lazy"
+              className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/45 to-transparent" />
+          </>
+        )}
         <div className="absolute left-3 top-3 flex gap-1.5">
           <Pill tone="gain">2% back in USDC</Pill>
           {stay.eco && <Pill tone="accent">Eco</Pill>}

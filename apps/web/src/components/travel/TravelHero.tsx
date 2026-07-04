@@ -26,8 +26,13 @@ export default function TravelHero() {
     if (tab === "stays") {
       const q = new URLSearchParams({ city, checkIn, checkOut, guests: String(guests) });
       router.push(`/travel/stays?${q.toString()}`);
+    } else if (tab === "cars") {
+      const q = new URLSearchParams({ city, pickUp: checkIn, dropOff: checkOut });
+      router.push(`/travel/car-rentals?${q.toString()}`);
+    } else if (tab === "activities") {
+      router.push(`/travel/activities?city=${encodeURIComponent(city)}`);
     } else {
-      router.push(`/travel/${tab}`);
+      router.push(`/travel/flights`);
     }
   }
 

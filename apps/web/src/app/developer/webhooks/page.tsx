@@ -74,7 +74,7 @@ export default function WebhooksPage() {
                   on ? (agentic ? "border-neon/40 bg-neonSoft text-neon" : "border-white/20 bg-white/[0.08] text-white") : "border-white/10 text-textSecondary"
                 }`}
               >
-                {on ? "✓ " : ""}{e}
+                {on && <Check className="mr-1 inline h-3 w-3" aria-hidden />}{e}
               </button>
             );
           })}

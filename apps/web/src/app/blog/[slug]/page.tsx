@@ -73,7 +73,7 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
         By {post.author} · {formatDate(post.date)} · {post.readMins} min read
       </p>
 
-      {c && <CoverArt color={c.color} label={c.label} className="mt-7 h-56 w-full rounded-card sm:h-64" />}
+      {c && <CoverArt color={c.color} label={c.label} photo={post.cover} className="mt-7 h-56 w-full rounded-card sm:h-64" />}
 
       <div className="mt-9">
         <ArticleBody blocks={post.body} />

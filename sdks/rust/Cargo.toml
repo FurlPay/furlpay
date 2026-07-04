@@ -2,8 +2,13 @@
 name = "furlpay"
 version = "0.1.0"
 edition = "2021"
-description = "Official Furlpay server-side SDK for Rust"
+description = "Official Furlpay server-side SDK for Rust — stablecoin payments & dependency-free webhook verification"
 license = "MIT"
+repository = "https://github.com/furlpay/furlpay-rust"
+homepage = "https://furlpay.com"
+readme = "README.md"
+keywords = ["payments", "stablecoin", "fintech", "webhooks", "solana"]
+categories = ["api-bindings", "finance", "cryptography"]
 
 [dependencies]
 # Pure-Rust HMAC-SHA256 so webhook verification needs no OpenSSL.

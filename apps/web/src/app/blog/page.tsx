@@ -49,7 +49,7 @@ function FeaturedCard() {
       style={{ ["--cat" as string]: c.color }}
       className="group grid overflow-hidden rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl transition-all hover:border-[color:var(--cat)] hover:shadow-[0_0_44px_-16px_var(--cat)] lg:grid-cols-2"
     >
-      <CoverArt color={c.color} label={c.label} className="min-h-[220px] w-full lg:h-full" />
+      <CoverArt color={c.color} label={c.label} photo={post.cover} className="min-h-[220px] w-full lg:h-full" />
       <div className="p-7 sm:p-9">
         <CategoryBadge id={post.category} />
         <h3 className="mt-4 text-[26px] font-extrabold leading-tight tracking-tighter sm:text-[32px]">

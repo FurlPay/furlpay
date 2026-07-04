@@ -1,9 +1,13 @@
 {
   "name": "@furlpay/mcp-server",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Model Context Protocol server exposing Furlpay tools to AI coding assistants",
   "license": "MIT",
   "type": "commonjs",
-  "bin": { "furlpay-mcp": "server.js" },
-  "files": ["server.js"]
+  "bin": {
+    "furlpay-mcp": "server.js"
+  },
+  "files": [
+    "server.js"
+  ]
 }

@@ -1,11 +1,13 @@
 {
   "name": "@furlpay/elements",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Embeddable Furlpay UI widgets — secure checkout & card credential display",
   "license": "MIT",
   "main": "src/index.tsx",
   "types": "src/index.tsx",
-  "exports": { ".": "./src/index.tsx" },
+  "exports": {
+    ".": "./src/index.tsx"
+  },
   "peerDependencies": {
     "react": ">=18",
     "react-dom": ">=18"

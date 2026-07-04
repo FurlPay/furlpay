@@ -581,7 +581,7 @@ function MyQrView({ user }: { user: { name: string; safeAddress: string } }) {
       .catch(() => setQr(null));
   }, [user.safeAddress]);
 
-  const shareText = `Pay me on Furlpay 💸 — my wallet address: ${user.safeAddress}`;
+  const shareText = `Pay me on Furlpay — my wallet address: ${user.safeAddress}`;
 
   async function nativeShare() {
     try {

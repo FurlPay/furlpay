@@ -36,7 +36,7 @@ const order = await client.investing.order({
       </P>
       <CodeBlock lang="bash">{`furlpay listen --forward-to localhost:3000/api/webhooks/furlpay
 
-# ⚡ ready — forwarding events
+# ready — forwarding events
 # whsec_… (use this to verify signatures)`}</CodeBlock>
 
       <H2 id="elements">4. Drop in the checkout widget</H2>
