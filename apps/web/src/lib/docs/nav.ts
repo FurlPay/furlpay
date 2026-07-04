@@ -11,6 +11,7 @@ export const DOCS_NAV: DocSection[] = [
     items: [
       { title: "Introduction", href: "/docs" },
       { title: "Quickstart", href: "/docs/quickstart" },
+      { title: "For AI Agents", href: "/docs/agents" },
     ],
   },
   {

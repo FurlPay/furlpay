@@ -14,6 +14,13 @@ export type SearchDoc = {
 export const SEARCH_INDEX: SearchDoc[] = [
   // ---- Agentic Commerce (agent-trust + travels) --------------------------
   {
+    title: "For AI Agents — quickstart",
+    section: "Getting Started",
+    href: "/docs/agents",
+    snippet: "Give an agent a wallet in 5 minutes: MCP config, LangChain tools, x402 pay-per-call, and your first mandate.",
+    keywords: ["ai agents", "agent quickstart", "mcp", "mcp-server", "claude", "cursor", "langchain", "llamaindex", "give agent a wallet", "agent wallet", "x402", "budget", "mandate"],
+  },
+  {
     title: "Agent Trust & Mandates (TAP)",
     section: "Payments",
     href: "/docs/payments/agent-trust",

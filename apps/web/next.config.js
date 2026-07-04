@@ -15,8 +15,8 @@ const csp = [
   "img-src 'self' data: blob: https:",
   // XHR/fetch to our own API + integration + market-data / RPC endpoints.
   "connect-src 'self' https: wss:",
-  // Embedded checkout / KYC / sign-in surfaces.
-  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com",
+  // Embedded checkout / KYC / sign-in / scheduling surfaces.
+  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com https://calendly.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
