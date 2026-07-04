@@ -19,6 +19,8 @@ export interface Stay {
   reviews: number;
   nightlyUsd: number;
   image: string; // gradient token (no external assets)
+  /** Real property photo (Duffel Stays) — preferred over the city fallback. */
+  photo?: string;
   amenities: string[];
   roomsLeft: number;
   freeCancellation: boolean;
@@ -154,6 +156,39 @@ const CITY_PRICE_TIER: Record<string, number> = {
   "Cape Town": 0.85, Bali: 0.75, Patagonia: 0.9, "Costa Rica": 0.85, Petra: 0.7, Kerala: 0.55,
 };
 const AMENITIES = ["WiFi", "Pool", "Gym", "Spa", "Parking", "Kitchen", "Breakfast", "Beach access"];
+// Property photography pools (validated 200s), rotated per stay so cards look
+// distinct until live Duffel Stays photos take over (feature pending account
+// enablement — searchDuffelStays already maps accommodation.photos[0]).
+const LUXURY_PHOTOS = [
+  unsplash("photo-1566073771259-6a8506099945"), // resort pool at dusk
+  unsplash("photo-1571003123894-1f0594d2b5d9"), // infinity pool
+  unsplash("photo-1520250497591-112f2f40a3f4"), // beach resort
+  unsplash("photo-1445019980597-93fa8acb246c"), // pool villa
+];
+const UPSCALE_PHOTOS = [
+  unsplash("photo-1582719508461-905c673771fd"), // hotel room
+  unsplash("photo-1551882547-ff40c63fe5fa"), // hotel exterior
+  unsplash("photo-1564501049412-61c2a3083791"), // king bed
+  unsplash("photo-1611892440504-42a792e24d32"), // modern room
+  unsplash("photo-1618773928121-c32242e63f39"), // suite
+  unsplash("photo-1590490360182-c33d57733427"), // bright room
+];
+const BUDGET_PHOTOS = [
+  unsplash("photo-1555854877-bab0e564b8d5"), // hostel dorm
+  unsplash("photo-1578683010236-d716f9a3f461"), // compact room
+];
+// Search anchors for Duffel Stays (live hotel search needs coordinates).
+export const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
+  Tokyo: { lat: 35.6762, lng: 139.6503 }, Bali: { lat: -8.6705, lng: 115.2126 },
+  London: { lat: 51.5074, lng: -0.1278 }, Dubai: { lat: 25.2048, lng: 55.2708 },
+  Maldives: { lat: 4.1755, lng: 73.5093 }, Rome: { lat: 41.9028, lng: 12.4964 },
+  Kyoto: { lat: 35.0116, lng: 135.7681 }, "New York": { lat: 40.7128, lng: -74.006 },
+  "Cancún": { lat: 21.1619, lng: -86.8515 }, Lisbon: { lat: 38.7223, lng: -9.1393 },
+  "Cape Town": { lat: -33.9249, lng: 18.4241 }, "Reykjavík": { lat: 64.1466, lng: -21.9426 },
+  "Swiss Alps": { lat: 46.0207, lng: 7.7491 }, "Costa Rica": { lat: 9.9281, lng: -84.0907 },
+  Kerala: { lat: 9.9312, lng: 76.2673 }, Petra: { lat: 30.3285, lng: 35.4444 },
+  Patagonia: { lat: -50.3379, lng: -72.2648 },
+};
 const GRADIENTS = [
   "from-sky-500/40 to-indigo-600/40",
   "from-fuchsia-500/40 to-purple-700/40",
@@ -194,7 +229,7 @@ export function generateStays(
     const s = ((seed >> (i % 24)) ^ (i * 2654435761)) >>> 0;
     // Tier mix: ~2/10 luxury, 5/10 upscale, 2/10 villa, 1/10 hostel.
     const pick = s % 10;
-    let brand: string, name: string, type: StayType, stars: number, base: number, rating: number;
+    let brand: string, name: string, type: StayType, stars: number, base: number, rating: number, photo: string;
     if (pick < 2) {
       brand = LUXURY_BRANDS[(s >>> 2) % LUXURY_BRANDS.length];
       type = (["Resort", "Hotel"] as StayType[])[s % 2];
@@ -202,6 +237,7 @@ export function generateStays(
       base = 380 + (s % 400); // $380–$780 before city tier
       rating = 4.6 + ((s >>> 5) % 4) / 10; // 4.6–4.9
       name = `${brand} ${c} ${area(i)}`;
+      photo = LUXURY_PHOTOS[(s >>> 3) % LUXURY_PHOTOS.length];
     } else if (pick < 7) {
       brand = UPSCALE_BRANDS[(s >>> 2) % UPSCALE_BRANDS.length];
       type = (["Hotel", "Resort", "Apartment"] as StayType[])[s % 3];
@@ -209,6 +245,7 @@ export function generateStays(
       base = 140 + (s % 220); // $140–$360
       rating = 4.2 + ((s >>> 5) % 6) / 10; // 4.2–4.7
       name = `${brand} ${c} ${area(i)}`;
+      photo = UPSCALE_PHOTOS[(s >>> 3) % UPSCALE_PHOTOS.length];
     } else if (pick < 9) {
       brand = "Independent";
       type = "Villa";
@@ -216,6 +253,7 @@ export function generateStays(
       base = 180 + (s % 240); // $180–$420
       rating = 4.3 + ((s >>> 5) % 6) / 10; // 4.3–4.8
       name = `${c} ${area(i)} Villas`;
+      photo = LUXURY_PHOTOS[(s >>> 4) % LUXURY_PHOTOS.length];
     } else {
       brand = "Independent";
       type = "Hostel";
@@ -223,6 +261,7 @@ export function generateStays(
       base = 28 + (s % 42); // $28–$70
       rating = 4.0 + ((s >>> 5) % 6) / 10; // 4.0–4.5
       name = `${c} ${area(i)} Backpackers`;
+      photo = BUDGET_PHOTOS[(s >>> 3) % BUDGET_PHOTOS.length];
     }
     return {
       id: `stay_${(seed % 0xffff).toString(16)}_${i}`,
@@ -236,6 +275,7 @@ export function generateStays(
       reviews: 120 + (s % 4200),
       nightlyUsd: round2(base * tier),
       image: GRADIENTS[i % GRADIENTS.length],
+      photo,
       amenities: AMENITIES.filter((_, k) => (s >>> k) & 1).slice(0, 5),
       roomsLeft: 1 + (s % 8),
       freeCancellation: (s & 1) === 0,
@@ -262,6 +302,8 @@ export interface Flight {
   cabin: "Economy" | "Premium" | "Business" | "First";
   priceUsd: number;
   baggage: string;
+  /** Brand-compliant SVG airline logo (Duffel assets CDN). */
+  logoUrl?: string;
 }
 
 const CARRIERS: Array<[string, string]> = [

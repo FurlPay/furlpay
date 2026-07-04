@@ -11,7 +11,7 @@ import {
   CarCategory,
   ActivityCategory,
 } from "@/lib/travel/data";
-import { searchDuffelFlights } from "@/lib/travel/duffel";
+import { searchDuffelFlights, searchDuffelStays } from "@/lib/travel/duffel";
 
 // POST /api/travel/search — search travel inventory.
 // Body: { type: "stays"|"flights"|"cars"|"activities", city, checkIn, checkOut,
@@ -21,20 +21,30 @@ export async function POST(req: NextRequest) {
   const kind = body.type ?? "stays";
 
   if (kind === "stays") {
-    const stays = generateStays(body.city ?? "", {
-      maxNightlyUsd: body.maxNightlyUsd ? Number(body.maxNightlyUsd) : undefined,
-      minStars: body.minStars ? Number(body.minStars) : undefined,
-      type: body.propertyType as StayType | undefined,
-      count: 16,
-    });
     const n = nights(body.checkIn, body.checkOut);
+    // Live Duffel Stays (real properties + photos) when the key is set and the
+    // city is a known anchor; demo generator otherwise. Filters apply to both.
+    let stays = await searchDuffelStays(body.city ?? "", body.checkIn, body.checkOut, Number(body.guests) || 2);
+    const source = stays?.length ? "duffel" : "demo";
+    if (!stays?.length) {
+      stays = generateStays(body.city ?? "", {
+        maxNightlyUsd: body.maxNightlyUsd ? Number(body.maxNightlyUsd) : undefined,
+        minStars: body.minStars ? Number(body.minStars) : undefined,
+        type: body.propertyType as StayType | undefined,
+        count: 16,
+      });
+    } else {
+      if (body.minStars) stays = stays.filter((x) => x.stars >= Number(body.minStars));
+      if (body.propertyType) stays = stays.filter((x) => x.type === body.propertyType);
+      if (body.maxNightlyUsd) stays = stays.filter((x) => x.nightlyUsd <= Number(body.maxNightlyUsd));
+    }
     return NextResponse.json({
       type: "stays",
       city: body.city ?? "",
       nights: n,
       count: stays.length,
       results: stays,
-      source: "demo",
+      source,
     });
   }
 
