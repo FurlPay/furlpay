@@ -1,0 +1,45 @@
+{
+  "name": "@furlpay/travel-mcp",
+  "version": "0.1.0",
+  "description": "FurlPay Travels — an MCP server composing Travala's Travel MCP (search) with FurlPay payment rails (x402/USDC on Base or single-use MCC-locked Visa VCN). Captures the 10% cbBTC developer rebate. Zero runtime dependencies.",
+  "license": "MIT",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "furlpay-travel-mcp": "dist/server.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "keywords": [
+    "furlpay",
+    "travala",
+    "travel",
+    "mcp",
+    "x402",
+    "agentic-payments",
+    "stablecoin",
+    "usdc",
+    "virtual-cards",
+    "cbbtc"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/travel.test.js",
+    "example": "npx --yes tsx examples/book.ts",
+    "start": "npm run build && node dist/server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/furlpay/furlpay-travel-mcp"
+  },
+  "homepage": "https://furlpay.com",
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "typescript": "5.5.3",
+    "@types/node": "20.14.10"
+  }
+}

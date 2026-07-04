@@ -41,6 +41,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/newsletter", // subscribe / manage preferences (public)
   "/developer", // public developer portal + Agent Console demo
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
+  "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
 ];
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
@@ -56,6 +57,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/compliance/kyc", // needed during signup, before a session exists
   "/api/markets", // public market data — powers the research portal's pulse strip
   "/api/insights", // public research metadata
+  "/api/travel", // FurlPay Travels — public search/deals/booking demo surface
 ];
 
 export async function middleware(req: NextRequest) {

@@ -15,6 +15,7 @@ import {
   Puzzle,
   Monitor,
   Bot,
+  Plane,
 } from "lucide-react";
 import PhoneMockup from "@/components/marketing/PhoneMockup";
 import StoreBadges from "@/components/marketing/StoreBadges";
@@ -23,7 +24,7 @@ import PricingCards from "@/components/marketing/PricingCards";
 import PartnerMarquee from "@/components/marketing/PartnerMarquee";
 import SupportChatBubble from "@/components/marketing/SupportChatBubble";
 import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
-import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon } from "@/components/marketing/SocialIcons";
+import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon, LinkedInIcon } from "@/components/marketing/SocialIcons";
 
 // Furlpay marketing landing page (furlpay.app/). Premium OLED theme with green
 // glow accents. Mostly a Server Component; interactive bits (phone carousel,
@@ -34,6 +35,7 @@ export default function LandingPage() {
       <Nav />
       <Hero />
       <Features />
+      <TravelBand />
       <DeveloperPreview />
       <Security />
       <Pricing />
@@ -162,6 +164,45 @@ function Features() {
   );
 }
 
+function TravelBand() {
+  return (
+    <section className="mx-auto max-w-6xl px-6 py-16">
+      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-sky-500/[0.14] via-charcoal to-teal-500/[0.12] p-8 sm:p-10">
+        <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="max-w-xl">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
+              <Plane className="h-3.5 w-3.5" /> Travel with Us
+            </span>
+            <h2 className="mt-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+              Book 2.2M+ stays &amp; flights with crypto.
+            </h2>
+            <p className="mt-2 text-sm text-white/70">
+              Pay with USDC, SOL, BTC or 100+ tokens and earn <span className="font-semibold text-neon">2% cashback</span> on
+              every booking. Powered by Travala · settled via x402.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <Link href="/travel" className="btn-green px-6 py-3 text-sm">Explore destinations</Link>
+              <Link href="/travel/stays" className="btn-outline px-6 py-3 text-sm">Book now →</Link>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-3 text-center">
+            {[
+              { v: "2.2M+", l: "Stays & flights" },
+              { v: "230+", l: "Countries" },
+              { v: "2%", l: "Cashback" },
+            ].map((s) => (
+              <div key={s.l} className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
+                <p className="text-xl font-bold text-white">{s.v}</p>
+                <p className="mt-0.5 text-[11px] text-white/60">{s.l}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function DeveloperPreview() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-20">
@@ -266,8 +307,9 @@ function Footer() {
           <div className="flex items-center gap-3">
             {[
               { Icon: XIcon, href: "https://x.com/furlpay", label: "X" },
+              { Icon: LinkedInIcon, href: "https://linkedin.com/company/furlpay", label: "LinkedIn" },
               { Icon: DiscordIcon, href: "https://discord.gg/furlpay", label: "Discord" },
-              { Icon: GitHubIcon, href: "https://github.com/furlpay", label: "GitHub" },
+              { Icon: GitHubIcon, href: "https://github.com/FurlPay", label: "GitHub" },
               { Icon: InstagramIcon, href: "https://instagram.com/furlpay", label: "Instagram" },
               { Icon: TelegramIcon, href: "https://t.me/furlpay", label: "Telegram" },
             ].map(({ Icon, href, label }) => (
