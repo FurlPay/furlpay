@@ -80,8 +80,13 @@ X-PAYMENT-RESPONSE: eyJzdWNjZXNzIjp0cnVl…
       </UL>
 
       <Callout title="Standards landscape">
-        x402 (Coinbase / Cloudflare) has by far the most deployed traffic, alongside AP2 (Google), MPP
-        (Stripe / Tempo), and TAP (Visa). Furlpay implements x402 today on Base and Solana.
+        x402 (Coinbase / Cloudflare, Linux Foundation since April 2026) has by far the most deployed
+        traffic, alongside AP2 (Google), MPP (Stripe / Tempo), and TAP (Visa, production-live July 2026).
+        Furlpay implements x402 today on Base and Solana, and ships a TAP-aligned trust layer — see{" "}
+        <a href="/docs/payments/agent-trust" className="text-neon underline underline-offset-2">
+          Agent Trust &amp; Mandates
+        </a>
+        .
       </Callout>
 
       <DocPager pathname="/docs/payments/agentic-x402" />
