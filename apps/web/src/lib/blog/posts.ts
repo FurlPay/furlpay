@@ -853,7 +853,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       "Online travel is a $719B market racing toward $1.3T, and Booking, Airbnb and Trip.com are all rebuilding as super-apps. But the layer none of them own — money movement — is where the race gets decided.",
     category: "travel",
     date: "2026-07-05",
-    readMins: 8,
+    readMins: 9,
     author: "FurlPay Travels",
     body: [
       {
@@ -879,11 +879,18 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
         type: "p",
         text: `The next booking interface is conversational. Sabre, PayPal and MindTrip are assembling an end-to-end agentic pipeline — conversational planning over 420+ airlines and 2M hotels with payment inside the chat. Google has said plainly it has no intention of becoming an OTA; it wants to hand qualified intent to whoever can complete the transaction. And in the most telling move of the year, OpenAI pulled native travel checkout from ChatGPT after finding users happily plan in chat but balk at typing card numbers into it. Planning is solved. Trust at the moment money moves is not.`,
       },
+      { type: "h2", text: "Walking the 2026 booking funnel, stage by stage" },
       {
-        type: "diagram",
-        text: `2026 booking funnel, where trust breaks:
-[ inspiration ] → [ AI planning ] → [ selection ] → [ PAYMENT ] → [ in-trip ] → [ refunds ]
-      ✓ solved        ✓ solved         ✓ solved       ✗ trust gap     ~ super-apps    ✗ credit traps`,
+        type: "p",
+        text: `Trace a 2026 trip from first daydream to final refund and you can see exactly where trust holds and where it breaks. Inspiration is a solved stage: TikTok, Instagram and AI-curated feeds surface destinations more effectively than any brochure ever did, and travelers arrive at platforms already knowing roughly what they want. Planning is solved too — conversational AI over inventories like Sabre's 420+ airlines and 2M hotels turns a week of tab-juggling into a ten-minute chat, and tools like Booking.com's Smart Filters translate a sentence into structured search. Selection follows the same arc: with deep inventory, verified reviews and LLM-ranked results, picking the right hotel or flight is no longer where users struggle or platforms differentiate.`,
+      },
+      {
+        type: "p",
+        text: `Then comes payment, and the funnel snaps. This is the trust gap: users who happily planned an entire itinerary in a chat interface refuse to type a card number into that same chat — the exact behavior that made OpenAI pull native travel checkout from ChatGPT. There is no cryptographic authorization standard the average traveler trusts an agent with, so the most automated funnel in history still ends with a human hesitating over a card form. Every stage upstream has been optimized; the moment money actually moves is the one moment platforms haven't earned.`,
+      },
+      {
+        type: "p",
+        text: `The two stages after payment are where the earlier cracks compound. In-trip is only partially solved — this is the super-app battleground, where Airbnb bolts on groceries and airport transfers, Trip.com stitches rail and cancellation guarantees, and everyone races to own the traveler mid-journey; useful, but fragmented and still maturing. Refunds, the final stage, is where trust breaks outright: this is credit-trap territory, where price-match payouts arrive as expiring wallet credit, guarantees are capped and hedged with screenshot rules, and getting actual cash back requires a support call. A funnel that starts with frictionless AI inspiration ends with your own money held hostage as a retention token — and that asymmetry, not inventory or search, is the real weakness of the 2026 booking stack.`,
       },
       { type: "h2", text: "Our bet: settle like software" },
       {
