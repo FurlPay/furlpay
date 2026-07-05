@@ -17,7 +17,6 @@ import {
   Bot,
   Plane,
 } from "lucide-react";
-import PhoneMockup from "@/components/marketing/PhoneMockup";
 import StoreBadges from "@/components/marketing/StoreBadges";
 import CodePreview from "@/components/marketing/CodePreview";
 import PricingCards from "@/components/marketing/PricingCards";
@@ -121,9 +120,7 @@ function Hero() {
           <PartnerMarquee />
         </div>
 
-        {/* Phone mockup center stage */}
-        <div className="mt-16 flex flex-col items-center gap-10">
-          <PhoneMockup />
+        <div className="mt-16 flex justify-center">
           <StoreBadges />
         </div>
       </div>
