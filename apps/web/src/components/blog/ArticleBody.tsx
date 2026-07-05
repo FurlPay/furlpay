@@ -11,6 +11,31 @@ export default function ArticleBody({ blocks }: { blocks: Block[] }) {
   );
 }
 
+// Inline markdown-style links — [text](url) — inside p, ul and quote blocks,
+// so citations render as real anchors. External links open in a new tab.
+function Inline({ text }: { text: string }) {
+  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (!m) return <span key={i}>{part}</span>;
+        const external = m[2].startsWith("http");
+        return (
+          <a
+            key={i}
+            href={m[2]}
+            {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            className="text-neon underline decoration-neon/40 underline-offset-2 hover:decoration-neon"
+          >
+            {m[1]}
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
 function BlockView({ block }: { block: Block }) {
   switch (block.type) {
     case "h2":
@@ -18,14 +43,20 @@ function BlockView({ block }: { block: Block }) {
         <h2 className="mb-3 mt-10 text-[22px] font-bold tracking-tighter text-textPrimary">{block.text}</h2>
       );
     case "p":
-      return <p className="mb-4 text-[15px] leading-relaxed text-textMuted">{block.text}</p>;
+      return (
+        <p className="mb-4 text-[15px] leading-relaxed text-textMuted">
+          <Inline text={block.text} />
+        </p>
+      );
     case "ul":
       return (
         <ul className="mb-4 space-y-2 text-[15px] leading-relaxed text-textMuted">
           {block.items.map((item, i) => (
             <li key={i} className="flex gap-2.5">
               <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-neon/70" />
-              <span>{item}</span>
+              <span>
+                <Inline text={item} />
+              </span>
             </li>
           ))}
         </ul>
@@ -44,7 +75,7 @@ function BlockView({ block }: { block: Block }) {
     case "quote":
       return (
         <blockquote className="mb-6 border-l-2 border-neon/60 pl-4 text-[16px] italic leading-relaxed text-textMuted">
-          {block.text}
+          <Inline text={block.text} />
         </blockquote>
       );
     case "diagram":
