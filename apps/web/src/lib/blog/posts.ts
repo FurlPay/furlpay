@@ -845,6 +845,108 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
     ],
   },
+  // ------------------------------------------------------------------
+  {
+    slug: "travel-super-app-race-2026-payments-decide",
+    title: "The 2026 Travel Super-App Race Will Be Decided at the Payment Step",
+    excerpt:
+      "Online travel is a $719B market racing toward $1.3T, and Booking, Airbnb and Trip.com are all rebuilding as super-apps. But the layer none of them own — money movement — is where the race gets decided.",
+    category: "travel",
+    date: "2026-07-05",
+    readMins: 8,
+    author: "FurlPay Travels",
+    body: [
+      {
+        type: "p",
+        text: `Online travel booking is projected to grow from roughly $719 billion in 2026 to over $1.3 trillion by 2033 — a 9% compound annual clip — and the way people book has already tipped: mobile drives more than 63% of global online bookings and 68% of travel searches. The strategic response from the big three platforms is identical in ambition and different in execution: stop being a booking site, become the operating system for the whole trip.`,
+      },
+      { type: "h2", text: "Three super-app strategies" },
+      {
+        type: "ul",
+        items: [
+          `Trip.com is the transactional consolidator — flights across ~5,000 cities, 1.4M hotels, direct rail APIs (Eurostar, National Rail) with a "Split Tickets" engine that segments journeys to find cheaper fares, and a flight-hotel cancellation guarantee stitching verticals together.`,
+          `Airbnb's Summer 2026 release pivots from home-sharing to full-service travel: boutique hotels in 20 gateway cities, plus Instacart groceries, Welcome Pickups airport transfers, and Bounce luggage storage embedded directly in the post-booking flow.`,
+          `Booking.com layers GPT-4o-mini "Smart Filters" over the industry's deepest structured inventory — you describe the hotel in a sentence, the LLM applies the filter boxes for you.`,
+        ],
+      },
+      { type: "h2", text: "The cracks are all money-shaped" },
+      {
+        type: "p",
+        text: `Look at where travelers actually get angry with these platforms in 2026 and a pattern emerges. Booking.com's Best Rate Guarantee pays out in Booking Wallet credit — after claims survive single-screenshot rules and currency-conversion nitpicks — and cashing out takes a support call. Airbnb's boutique-hotel price match refunds exclusively in travel credit, capped at $400, expiring in twelve months. Genius loyalty discounts are routinely funded by inflated base rates, so logged-in members sometimes pay more than an incognito window. None of these are search problems or inventory problems. They are all payment problems: platforms treating refunds and rewards as retention leverage instead of money.`,
+      },
+      { type: "h2", text: "Agentic booking makes payments the whole ballgame" },
+      {
+        type: "p",
+        text: `The next booking interface is conversational. Sabre, PayPal and MindTrip are assembling an end-to-end agentic pipeline — conversational planning over 420+ airlines and 2M hotels with payment inside the chat. Google has said plainly it has no intention of becoming an OTA; it wants to hand qualified intent to whoever can complete the transaction. And in the most telling move of the year, OpenAI pulled native travel checkout from ChatGPT after finding users happily plan in chat but balk at typing card numbers into it. Planning is solved. Trust at the moment money moves is not.`,
+      },
+      {
+        type: "diagram",
+        text: `2026 booking funnel, where trust breaks:
+[ inspiration ] → [ AI planning ] → [ selection ] → [ PAYMENT ] → [ in-trip ] → [ refunds ]
+      ✓ solved        ✓ solved         ✓ solved       ✗ trust gap     ~ super-apps    ✗ credit traps`,
+      },
+      { type: "h2", text: "Our bet: settle like software" },
+      {
+        type: "p",
+        text: `FurlPay Travels is built on the premise that the payment layer — not inventory breadth — is the durable differentiator. Agents pay over x402 with cryptographic authorization instead of a card number in a chat box. Refunds and price-match payouts settle as USDC cash to your wallet in under a minute — never as credit that expires. And this week we shipped two features straight from this thesis: Price Alerts with an honest success-rate model and auto-book from your USDC balance when your target lands, and a Price Match Guarantee that pays the difference in withdrawable USDC, not a coupon.`,
+      },
+      {
+        type: "quote",
+        text: `Super-apps compete on how much of the trip they capture. We compete on what every leg of the trip runs on: money that moves at machine speed and stays yours.`,
+      },
+    ],
+  },
+  // ------------------------------------------------------------------
+  {
+    slug: "polite-sanitization-ai-review-summaries",
+    title: "Polite Sanitization: When AI Review Summaries Hide the Warnings That Matter",
+    excerpt:
+      "2026 investigations caught AI review summaries describing a food-poisoning-lawsuit resort as 'spotless' and systemic harassment as 'minor service lapses.' Here's why models flatten danger — and how verified, settlement-bound reviews fix it.",
+    category: "travel",
+    date: "2026-07-04",
+    readMins: 6,
+    author: "FurlPay Travels",
+    body: [
+      {
+        type: "p",
+        text: `Reviews are the currency of online travel, and in 2026 that currency is being debased from two directions at once. On the supply side, industry studies estimate 15–20% of visible online reviews are now AI-generated fakes. On the interpretation side, the AI summaries platforms bolt on top have developed a failure mode consumer researchers call "polite sanitization" — and it is worse than fake reviews, because it launders real ones.`,
+      },
+      { type: "h2", text: "What the investigations found" },
+      {
+        type: "ul",
+        items: [
+          `A consumer-group audit found an AI summary describing a Cape Verde resort as "spotless" with "rave reviews for diverse dining" — omitting that the property faced high-court litigation from hundreds of guests over mass food poisoning and documented rodent activity.`,
+          `Another summary called hotel staff "friendly" while the underlying reviews contained repeated reports from female guests of systemic harassment, compressed by the model into "minor service lapses."`,
+        ],
+      },
+      {
+        type: "p",
+        text: `The mechanism is boring and structural. Generative models are trained mostly on neutral-to-positive consumer language, and summarization optimizes for the statistical center of a corpus. Fear, disgust and physical danger are edge cases by definition — so the model averages them away. A hundred five-star reviews and three reports of rats in the kitchen summarize to "guests love the food." No one lied; the truth just got smoothed.`,
+      },
+      { type: "h2", text: "The industry's answer: verify harder" },
+      {
+        type: "p",
+        text: `Booking.com's May 2026 update shows where platforms are heading: reviews only count within 28 days of a verified checkout, scores roll over a 24-month window with a recency boost, and the first month of enforcement purged 7,800 unverifiable reviews. Verification is the right instinct — but it only fixes the supply side. A perfectly verified corpus still gets sanitized by the summary layer on top.`,
+      },
+      { type: "h2", text: "How FurlPay Travels handles it" },
+      {
+        type: "ul",
+        items: [
+          `Settlement-bound reviews: a review can only be attached to a booking that settled on-chain. The payment receipt is the proof of stay — there is no review form without a matching settlement, so synthetic review farms have nothing to attach to.`,
+          `Safety flags are never averaged: reports tagged hygiene, safety or harassment bypass summarization entirely and surface verbatim, with counts — "3 guests reported pest activity in the last 90 days" — even when the overall score is 4.8.`,
+          `Summaries state coverage, not vibes: every AI digest on a property page discloses how many verified stays it draws from and links the raw reviews it compressed.`,
+        ],
+      },
+      {
+        type: "quote",
+        text: `An AI summary that reads well and hides a health hazard isn't a summary — it's a liability with good manners. The fix is structural: bind reviews to settled payments, and never let safety signals pass through an averaging function.`,
+      },
+      {
+        type: "p",
+        text: `Trust infrastructure is payments infrastructure. The same on-chain receipt that makes our refunds instant makes our reviews attributable — one primitive, two problems solved.`,
+      },
+    ],
+  },
 ];
 
 const MONTHS = [
