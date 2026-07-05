@@ -24,9 +24,15 @@ const KIND_LABEL = { stablecoin: "Stablecoin", crypto: "Crypto", equity: "Equity
 
 export default function CreditPage() {
   const [data, setData] = useState<CreditData | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   useEffect(() => {
     getJSON<CreditData>("/api/credit").then(setData).catch(console.error);
   }, []);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 4000);
+    return () => clearTimeout(t);
+  }, [notice]);
   if (!data) return <Spinner />;
 
   const healthy = data.healthFactor === null || data.healthFactor >= 1.5;
@@ -69,18 +75,23 @@ export default function CreditPage() {
 
           <div className="mt-4 flex gap-3">
             <button
-              onClick={() => alert("Draw from credit line (demo) — funds land as USDC instantly.")}
+              onClick={() => setNotice("Draw from credit line (demo) — funds land as USDC instantly.")}
               className="tap flex-1 rounded-pill bg-neon py-3 text-[14px] font-bold text-black"
             >
               Borrow
             </button>
             <button
-              onClick={() => alert("Repay credit line (demo).")}
+              onClick={() => setNotice("Repay credit line (demo).")}
               className="tap flex-1 rounded-pill border border-white/20 py-3 text-[14px] font-semibold"
             >
               Repay
             </button>
           </div>
+          {notice && (
+            <p className="mt-3 rounded-2xl bg-white/10 px-3 py-2 text-center text-[12px] text-white/80" role="status">
+              {notice}
+            </p>
+          )}
         </div>
       </section>
 

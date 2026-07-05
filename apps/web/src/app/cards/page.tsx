@@ -240,26 +240,44 @@ function EscrowModal({ cardId, onClose, onDone }: { cardId: string; onClose: () 
   const [holds, setHolds] = useState<any[]>([]);
   const [merchant, setMerchant] = useState("Marriott Hotels");
   const [amount, setAmount] = useState("150");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const r = await getJSON<{ holds: any[] }>("/api/escrow");
-    setHolds(r.holds);
+    try {
+      const r = await getJSON<{ holds: any[] }>("/api/escrow");
+      setHolds(r.holds);
+    } catch {
+      setError("Couldn't load holds.");
+    }
   }, []);
   useEffect(() => { load(); }, [load]);
 
-  async function create() {
-    await sendJSON("/api/escrow", { action: "create", cardId, merchant, amount: Number(amount) });
-    await load(); onDone();
+  async function run(op: () => Promise<unknown>, failMsg: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      await op();
+      await load();
+      onDone();
+    } catch {
+      setError(failMsg);
+    } finally {
+      setBusy(false);
+    }
   }
-  async function capture(id: string, authorized: number) {
-    const finalAmount = Math.round(authorized * 0.8 * 100) / 100;
-    await sendJSON("/api/escrow", { action: "capture", id, finalAmount });
-    await load(); onDone();
-  }
-  async function release(id: string) {
-    await sendJSON("/api/escrow", { action: "release", id });
-    await load(); onDone();
-  }
+  const create = () =>
+    run(
+      () => sendJSON("/api/escrow", { action: "create", cardId, merchant, amount: Number(amount) }),
+      "Couldn't create the hold. Try again."
+    );
+  const capture = (id: string, authorized: number) =>
+    run(
+      () => sendJSON("/api/escrow", { action: "capture", id, finalAmount: Math.round(authorized * 0.8 * 100) / 100 }),
+      "Couldn't capture the hold. Try again."
+    );
+  const release = (id: string) =>
+    run(() => sendJSON("/api/escrow", { action: "release", id }), "Couldn't release the hold. Try again.");
 
   return (
     <Modal open title="Pre-authorization escrow" onClose={onClose}>
@@ -268,9 +286,12 @@ function EscrowModal({ cardId, onClose, onDone }: { cardId: string; onClose: () 
       </p>
       <div className="mb-3 flex gap-2">
         <input value={merchant} onChange={(e) => setMerchant(e.target.value)} className="flex-1 rounded-2xl bg-surface px-4 py-3 text-sm outline-none" />
-        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-24 rounded-2xl bg-surface px-4 py-3 text-sm outline-none" />
+        <input type="number" min={0} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-24 rounded-2xl bg-surface px-4 py-3 text-sm outline-none" />
       </div>
-      <button onClick={create} className="mb-4 w-full rounded-pill bg-accent py-3 font-semibold">Create hold</button>
+      {error && <p className="mb-3 rounded-2xl bg-loss/15 p-3 text-[13px] text-loss">{error}</p>}
+      <button onClick={create} disabled={busy || !merchant.trim() || !(Number(amount) > 0)} className="mb-4 w-full rounded-pill bg-accent py-3 font-semibold disabled:opacity-50">
+        {busy ? "Working…" : "Create hold"}
+      </button>
 
       <div className="max-h-64 space-y-2 overflow-y-auto">
         {holds.map((h) => (
@@ -285,8 +306,8 @@ function EscrowModal({ cardId, onClose, onDone }: { cardId: string; onClose: () 
             </p>
             {h.status === "held" && (
               <div className="mt-2 flex gap-2">
-                <button onClick={() => capture(h.id, h.authorizedAmount)} className="flex-1 rounded-pill bg-white/10 py-2 text-[13px] font-semibold">Capture 80%</button>
-                <button onClick={() => release(h.id)} className="flex-1 rounded-pill bg-white/10 py-2 text-[13px] font-semibold">Release</button>
+                <button onClick={() => capture(h.id, h.authorizedAmount)} disabled={busy} className="flex-1 rounded-pill bg-white/10 py-2 text-[13px] font-semibold disabled:opacity-50">Capture 80%</button>
+                <button onClick={() => release(h.id)} disabled={busy} className="flex-1 rounded-pill bg-white/10 py-2 text-[13px] font-semibold disabled:opacity-50">Release</button>
               </div>
             )}
           </div>

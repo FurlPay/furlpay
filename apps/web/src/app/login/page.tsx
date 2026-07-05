@@ -35,7 +35,11 @@ export default function LoginPage() {
 
   function enterApp(msg = "Unlocked", delay = 500) {
     setStatus(msg);
-    setTimeout(() => router.replace("/dashboard"), delay);
+    // Middleware sends users here as /login?next=<protected page> — return them
+    // there after auth. Same-origin paths only, so the param can't open-redirect.
+    const next = new URLSearchParams(window.location.search).get("next");
+    const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+    setTimeout(() => router.replace(dest), delay);
   }
 
   // Demo/guest mode — signs into the seeded demo account without credentials.
@@ -173,7 +177,7 @@ export default function LoginPage() {
                 )}
                 <button
                   onClick={verifyCode}
-                  disabled={busy || code.length < 4}
+                  disabled={busy || code.length !== 6}
                   className="w-full rounded-pill bg-accent py-3 font-semibold disabled:opacity-50"
                 >
                   {busy ? "Verifying…" : "Verify & sign in"}

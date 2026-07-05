@@ -44,6 +44,7 @@ function Checkout() {
   const [lock, setLock] = useState(15 * 60);
   const [booking, setBooking] = useState<Booking | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setLock((l) => (l > 0 ? l - 1 : 0)), 1000);
@@ -54,6 +55,7 @@ function Checkout() {
 
   async function pay() {
     setBusy(true);
+    setError(null);
     const m = METHODS.find((x) => x.id === method)!;
     try {
       const res = await sendJSON<{ booking: Booking }>("/api/travel/book", {
@@ -65,6 +67,8 @@ function Checkout() {
         method: m.title,
       });
       setBooking(res.booking);
+    } catch {
+      setError("Payment couldn't be authorized — you were not charged. Please try again.");
     } finally {
       setBusy(false);
     }
@@ -193,12 +197,15 @@ function Checkout() {
           </label>
 
           <button
-            disabled={!agree || busy || lock === 0}
-            onClick={pay}
+            disabled={busy || (lock > 0 && !agree)}
+            onClick={lock === 0 ? () => setLock(15 * 60) : pay}
             className="mt-4 w-full rounded-xl bg-neon py-3.5 text-sm font-bold text-black transition enabled:hover:bg-neonDeep disabled:opacity-40"
           >
-            {busy ? "Authorizing…" : lock === 0 ? "Rate expired — refresh" : `Complete booking — Pay $${total.toLocaleString()}`}
+            {busy ? "Authorizing…" : lock === 0 ? "Rate expired — refresh rate" : `Complete booking — Pay $${total.toLocaleString()}`}
           </button>
+          {error && (
+            <p className="mt-3 rounded-lg bg-loss/15 px-3 py-2 text-center text-xs text-loss">{error}</p>
+          )}
           <p className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-textSecondary">
             <ShieldCheck className="h-3 w-3 text-neon" /> Secured by FurlPay · Travel Rule &amp; KYC enforced over $1,000
           </p>

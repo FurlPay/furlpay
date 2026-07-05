@@ -84,19 +84,26 @@ function OffRampPanel() {
   const [quote, setQuote] = useState<FxQuote | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function getQuote() {
     setBusy(true);
+    setError(null);
     try {
       const r = await sendJSON<{ quote: FxQuote }>("/api/offramp", { fromCurrency: "USD", toCurrency: to, amount: Number(amount) });
       setQuote(r.quote); setDone(false);
+    } catch {
+      setError("Couldn't fetch a quote. Check your connection and try again.");
     } finally { setBusy(false); }
   }
   async function execute() {
     setBusy(true);
+    setError(null);
     try {
       await sendJSON("/api/offramp", { fromCurrency: "USD", toCurrency: to, amount: Number(amount), execute: true });
       setDone(true);
+    } catch {
+      setError("Off-ramp failed — nothing was sent. Try again.");
     } finally { setBusy(false); }
   }
 
@@ -106,7 +113,7 @@ function OffRampPanel() {
         Off-ramp USDC to a local bank at the Wise mid-market rate + flat fee — no crypto spread.
       </p>
       <label className="mb-1 block text-[12px] text-textSecondary">You off-ramp (USDC)</label>
-      <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className="mb-3 w-full rounded-2xl bg-surface px-4 py-3 text-lg font-semibold outline-none" />
+      <input type="number" min={0} inputMode="decimal" value={amount} onChange={(e) => { setAmount(e.target.value); setQuote(null); }} className="mb-3 w-full rounded-2xl bg-surface px-4 py-3 text-lg font-semibold outline-none" />
 
       <label className="mb-1 block text-[12px] text-textSecondary">Deposit to</label>
       <select value={to} onChange={(e) => { setTo(e.target.value); setQuote(null); }} className="mb-4 w-full rounded-2xl bg-surface px-4 py-3 font-semibold outline-none">
@@ -123,10 +130,12 @@ function OffRampPanel() {
         </div>
       )}
 
+      {error && <p className="mb-3 rounded-2xl bg-loss/15 p-3 text-[13px] text-loss">{error}</p>}
+
       {done ? (
         <div className="rounded-pill bg-gain/15 py-3.5 text-center font-semibold text-gain">Off-ramp sent via {quote?.rail} </div>
       ) : !quote ? (
-        <button onClick={getQuote} disabled={busy} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
+        <button onClick={getQuote} disabled={busy || !(Number(amount) > 0)} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
           {busy ? "Quoting…" : "Get quote"}
         </button>
       ) : (

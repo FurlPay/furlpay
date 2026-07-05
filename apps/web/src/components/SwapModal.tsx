@@ -24,14 +24,31 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
   const [amount, setAmount] = useState("100");
   const [quote, setQuote] = useState<Quote | null>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const amt = Number(amount);
+  const sameToken = fromToken === toToken;
+  const valid = amt > 0 && !sameToken;
+
+  // A quote is only good for the inputs it priced — invalidate it on any change.
+  function update<T>(setter: (v: T) => void) {
+    return (v: T) => {
+      setter(v);
+      setQuote(null);
+      setError(null);
+    };
+  }
 
   async function getQuote() {
     setBusy(true);
+    setError(null);
     try {
       const r = await sendJSON<{ quote: Quote }>("/api/swaps", {
-        fromToken, toToken, fromChain, amountIn: Number(amount),
+        fromToken, toToken, fromChain, amountIn: amt,
       });
       setQuote(r.quote);
+    } catch {
+      setError("Couldn't fetch a route. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -39,13 +56,16 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
 
   async function execute() {
     setBusy(true);
+    setError(null);
     try {
       await sendJSON("/api/swaps", {
-        fromToken, toToken, fromChain, amountIn: Number(amount), execute: true,
+        fromToken, toToken, fromChain, amountIn: amt, execute: true,
       });
       setQuote(null);
       onDone();
       onClose();
+    } catch {
+      setError("Swap failed — nothing was moved. Try again.");
     } finally {
       setBusy(false);
     }
@@ -61,12 +81,14 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
       <div className="mb-3 flex gap-2">
         <input
           type="number"
+          min={0}
+          inputMode="decimal"
           value={amount}
-          onChange={(e) => setAmount(e.target.value)}
+          onChange={(e) => update(setAmount)(e.target.value)}
           className="flex-1 rounded-2xl bg-surface px-4 py-3 text-lg font-semibold outline-none"
         />
-        <Select value={fromToken} onChange={(v) => setFromToken(v as Stablecoin)} options={TOKENS} />
-        <Select value={fromChain} onChange={(v) => setFromChain(v as Chain)} options={CHAINS} />
+        <Select value={fromToken} onChange={(v) => update(setFromToken)(v as Stablecoin)} options={TOKENS} />
+        <Select value={fromChain} onChange={(v) => update(setFromChain)(v as Chain)} options={CHAINS} />
       </div>
 
       <label className="mb-1 block text-[12px] text-textSecondary">You receive</label>
@@ -74,8 +96,15 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
         <div className="flex-1 rounded-2xl bg-surface px-4 py-3 text-lg font-semibold text-textSecondary">
           {quote ? quote.amountOut : "—"}
         </div>
-        <Select value={toToken} onChange={(v) => setToToken(v as Stablecoin)} options={TOKENS} />
+        <Select value={toToken} onChange={(v) => update(setToToken)(v as Stablecoin)} options={TOKENS} />
       </div>
+
+      {sameToken && (
+        <p className="mb-3 text-[12px] text-loss">Pick two different tokens to swap.</p>
+      )}
+      {error && (
+        <p className="mb-3 rounded-2xl bg-loss/15 p-3 text-[13px] text-loss">{error}</p>
+      )}
 
       {quote && (
         <div className="mb-4 space-y-1 rounded-2xl bg-white/[0.04] p-4 text-[13px] text-textSecondary">
@@ -88,11 +117,11 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
       )}
 
       {!quote ? (
-        <button onClick={getQuote} disabled={busy} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
+        <button onClick={getQuote} disabled={busy || !valid} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
           {busy ? "Fetching best route…" : "Get quote"}
         </button>
       ) : (
-        <button onClick={execute} disabled={busy} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
+        <button onClick={execute} disabled={busy || !valid} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
           {busy ? "Swapping…" : "Confirm swap"}
         </button>
       )}
