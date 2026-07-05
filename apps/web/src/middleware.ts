@@ -58,6 +58,8 @@ const PUBLIC_API_PREFIXES = [
   "/api/markets", // public market data — powers the research portal's pulse strip
   "/api/insights", // public research metadata
   "/api/travel", // FurlPay Travels — public search/deals/booking demo surface
+  "/api/chain", // public chain registry — status, gas, contracts, USDC directory
+  "/api/payments/fees", // public fee estimator — merchants compare vs card interchange
 ];
 
 export async function middleware(req: NextRequest) {

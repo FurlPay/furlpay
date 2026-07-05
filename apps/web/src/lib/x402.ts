@@ -24,14 +24,21 @@ import crypto from "crypto";
 //      malformed input returns 400, never a 5xx or a free resource.
 //
 // Settlement is mocked (INTEGRATION_MODE=mock) — swap `settle()` for a real
-// facilitator (e.g. Coinbase's) to go live. USDC on Base by default.
+// facilitator to go live. USDC on Arbitrum One by default: the deepest
+// stablecoin liquidity of any L2 and Furlpay's settlement rail.
 // ---------------------------------------------------------------------------
 
 export const X402_VERSION = 1;
-export const NETWORK = process.env.X402_NETWORK || "base";
-// USDC on Base mainnet.
+export const NETWORK = process.env.X402_NETWORK || "arbitrum";
+// Canonical USDC per supported network (native issuance, not bridged).
+export const NETWORK_USDC: Record<string, string> = {
+  arbitrum: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  "arbitrum-sepolia": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+  base: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  solana: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+};
 export const USDC_ASSET =
-  process.env.X402_USDC_ADDRESS || "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+  process.env.X402_USDC_ADDRESS || NETWORK_USDC[NETWORK] || NETWORK_USDC.arbitrum;
 // Treasury receiving per-call payments.
 export const PAY_TO =
   process.env.X402_PAY_TO || "0x209693Bc6afc0C5328bA36FaF03C514EF312287C";

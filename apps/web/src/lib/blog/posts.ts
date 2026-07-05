@@ -28,6 +28,84 @@ export type Post = {
 export const POSTS: Post[] = [
   // 0 -----------------------------------------------------------------
   {
+    slug: "integrating-furlpay-with-arbitrum",
+    title: "Integrating Furlpay with Arbitrum: Payments, x402 and Contracts on the Largest L2",
+    excerpt:
+      "Furlpay's settlement stack is going Arbitrum-first. Here is exactly what we shipped — an x402 facilitator that settles on Arbitrum, a unified USDC payments API, a chain registry, and four Solidity contracts with a green 17-test suite — and what ships next.",
+    category: "engineering",
+    date: "2026-07-05",
+    readMins: 9,
+    author: "Furlpay Engineering",
+    featured: true,
+    body: [
+      {
+        type: "p",
+        text: `Arbitrum One has quietly become the institutional settlement layer of Ethereum. The network has processed over 2.1 billion lifetime transactions, secures roughly $20B in value, and holds the deepest stablecoin liquidity of any L2 — which is why Mastercard chose it for 24/7 stablecoin settlement and why Robinhood built its tokenized-stock chain on Arbitrum Orbit. January's ArbOS "Dia" upgrade added predictable gas pricing on top. For a payments company whose pitch is "0.5% USDC rails instead of 3.5% card interchange," this is the rail you settle on.`,
+      },
+      {
+        type: "p",
+        text: `This week we made Furlpay Arbitrum-first. This post is the engineering log: what shipped, how it fits together, and what is still in front of us before the Arbitrum Open House in London (July 10-12).`,
+      },
+      { type: "h2", text: "What shipped: the API layer" },
+      {
+        type: "ul",
+        items: [
+          `x402 on Arbitrum — our facilitator now verifies and settles agentic payments on arbitrum and arbitrum-sepolia alongside Base and Solana, and quotes default to native USDC on Arbitrum One (0xaf88...5831). The hardening we published in "Five Ways to Rob an AI Agent" carries over unchanged: HMAC-bound quotes, single-use nonces, strict web-layer parsing.`,
+          `A unified payments API — POST /api/payments/create returns a 0.5% fee quote plus EIP-712 typed data; /execute verifies the payer's signature, screens both parties against sanctions lists, and settles on Arbitrum One. Receipts link straight to Arbiscan. Batch, refund, history and a public fee estimator round out the surface.`,
+          `A chain registry — /api/chain/status, /gas-price, /contracts, /usdc/supply and /tx lookups across Arbitrum One (42161), Arbitrum Sepolia (421614), Robinhood Chain (4663), Base and Ethereum. Mock-first, so the whole stack runs with zero credentials; flip INTEGRATION_MODE=live for real JSON-RPC.`,
+          `An x402 resource catalog — agents can now discover what Furlpay sells (GET /api/x402/resources), quote any resource without triggering a 402 (/price), and confirm settlements (/settlement/:tx). Third-party servers onboard their own priced endpoints via /register.`,
+        ],
+      },
+      { type: "h2", text: "What shipped: the contracts" },
+      {
+        type: "p",
+        text: `Four Solidity contracts, OpenZeppelin 5 throughout, compiled for the Cancun EVM target Arbitrum supports, with a 17-test suite covering the full lifecycle of each — payments, replays, expiry, wrong-signer rejection, fee ceilings, escrow release and refund paths, and EIP-3009 settlement.`,
+      },
+      {
+        type: "diagram",
+        text: `apps/web (Next.js API)                    packages/contracts (Arbitrum One)
+POST /api/payments/create  ── EIP-712 ──>  FurlPayRouter.pay()      0.5% fee, nonce replay guard
+POST /api/x402/facilitator/settle ──────>  X402Facilitator.settle() EIP-3009, resource-bound log
+POST /api/travel/bookings  ─── USDC ───>   FurlPayEscrow            oracle release / timed refund
+                                     └──>  BookingReceipt (ERC-721) minted to the traveler`,
+      },
+      {
+        type: "ul",
+        items: [
+          `FurlPayRouter — a payer signs a Payment authorization off-chain (the exact typed data our API already emits); a relayer submits it. The merchant receives amount minus fee, the treasury accrues the fee, and the contract enforces a hard 1% fee ceiling on-chain regardless of what any API quotes. Nonces are single-use; authorizations expire.`,
+          `X402Facilitator — forwards EIP-3009 transferWithAuthorization to USDC, so the facilitator never holds funds or keys, then writes an indexed settlement record binding the payment to a hash of the resource it bought. Coinbase's hosted facilitator and PayAI already settle x402 on Arbitrum; ours differs by indexing settlements on-chain and binding them to resources, which is what /api/x402/settlement serves back to agents.`,
+          `FurlPayEscrow — travel bookings fund in USDC and release on oracle-confirmed check-in, refund inside the cancellation window, or release permissionlessly after a 7-day grace period so providers are never hostage to a dead oracle.`,
+          `BookingReceipt — an ERC-721 minted on funding whose tokenId is the booking id, so proof-of-purchase is verifiable straight from the booking reference.`,
+        ],
+      },
+      { type: "h2", text: "Design decisions worth stealing" },
+      {
+        type: "ul",
+        items: [
+          `Sign off-chain, settle on-chain. Users and agents never pay gas to authorize; a relayer batches submissions. Arbitrum's post-Dia fee floor makes the relayer's cost per settlement fractions of a cent.`,
+          `Compliance before the chain. Both legs of every payment pass sanctions screening server-side before any transaction is submitted — the same pattern institutional settlers use, and the reason the contract layer can stay simple.`,
+          `Fee ceilings belong on-chain. The API quotes 0.5%, but the router refuses anything above 1% cryptographically. If our API is ever compromised, the blast radius is bounded by the contract.`,
+          `Mock-first infrastructure. Every endpoint runs deterministically with zero credentials and switches to live RPC with one environment variable. Demos never depend on testnet faucets cooperating.`,
+        ],
+      },
+      { type: "h2", text: "What is left" },
+      {
+        type: "ul",
+        items: [
+          `Deploy to Arbitrum Sepolia, then One — the deploy script already prints the FURLPAY_* environment variables the web app reads; the contract directory flips from "pending deployment" to live addresses the moment they exist.`,
+          `The relayer — a small service that takes executed API payments and submits them to FurlPayRouter, completing the off-chain-to-on-chain loop.`,
+          `Merchant API and compliance endpoints — checkout sessions, payouts, webhooks, and public sanctions-screening routes on top of the screening engine that already guards /execute.`,
+          `ERC-4337 passkey wallets — our WebAuthn authentication already exists; wiring it to a smart account with a USDC paymaster removes the last piece of gas UX entirely.`,
+          `The Orbit question — Robinhood validated launch-on-One, migrate-to-Orbit. If Furlpay's settlement volume justifies a dedicated chain with compliance hooks at the sequencer level, the Nitro stack is the obvious path.`,
+        ],
+      },
+      {
+        type: "p",
+        text: `The pattern behind all of it: stablecoin settlement is consolidating on Arbitrum, agentic payments are consolidating on x402, and Furlpay sits at the intersection — the payment rail where both humans and machines transact, with compliance built in rather than bolted on. If you are at the Open House in London, come find us; the contracts will be on Sepolia by then.`,
+      },
+    ],
+  },
+  {
     slug: "five-ways-to-rob-an-ai-agent-securing-x402",
     title: "Five Ways to Rob an AI Agent: How Furlpay Hardens x402 Payments",
     excerpt:
