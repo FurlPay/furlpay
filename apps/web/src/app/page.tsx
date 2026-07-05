@@ -22,6 +22,7 @@ import CodePreview from "@/components/marketing/CodePreview";
 import PricingCards from "@/components/marketing/PricingCards";
 import PartnerMarquee from "@/components/marketing/PartnerMarquee";
 import SupportChatBubble from "@/components/marketing/SupportChatBubble";
+import ScheduleCallButton from "@/components/marketing/ScheduleCallButton";
 import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
 import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon, LinkedInIcon } from "@/components/marketing/SocialIcons";
 
@@ -69,6 +70,7 @@ function Nav() {
           </Link>
           <Link href="/talk-to-us" className="btn-outline px-4 py-2 text-sm">Talk to us</Link>
           <Link href="/dashboard" className="btn-green px-5 py-2 text-sm">Open App</Link>
+          <ScheduleCallButton className="hidden items-center gap-1.5 rounded-pill border border-white/15 bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:border-white/40 md:flex" />
         </div>
       </div>
     </header>

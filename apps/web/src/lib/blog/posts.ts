@@ -10,7 +10,11 @@ export type Block =
   | { type: "ul"; items: string[] }
   | { type: "code"; lang: string; code: string }
   | { type: "quote"; text: string }
-  | { type: "diagram"; text: string };
+  | { type: "diagram"; text: string }
+  // Comparison/data tables. The first cell of each row renders as a row
+  // header; highlightCol tints one column (0-indexed into headers/rows) —
+  // used to spotlight the Furlpay column in competitive matrices.
+  | { type: "table"; headers: string[]; rows: string[][]; highlightCol?: number };
 
 export type Post = {
   slug: string;
@@ -27,6 +31,136 @@ export type Post = {
 
 export const POSTS: Post[] = [
   // 0 -----------------------------------------------------------------
+  {
+    slug: "why-we-built-furlpay-stablecoins-agents-arbitrum",
+    title: "Why We Built Furlpay Around Stablecoin Payments, AI Agents and Arbitrum",
+    excerpt:
+      "Merchant payment fees run 1.5-3.5% on card rails. Stablecoin payments on Arbitrum cost a fraction of that — and the industry's biggest players are moving the same direction. Here is the thesis behind Furlpay, what we have built so far, and where we fit in the payments landscape.",
+    category: "product-news",
+    date: "2026-07-05",
+    readMins: 8,
+    author: "Furlpay Team",
+    body: [
+      {
+        type: "p",
+        text: `Furlpay is a stablecoin payments, travel and investing platform. You can book from 2.2M+ hotels and flights, pay in USDC, and hold a portfolio — in one app, secured by passkeys instead of seed phrases. Under the hood, every payment settles on Arbitrum, and every API we expose can be called and paid for by an AI agent as easily as by a person.`,
+      },
+      {
+        type: "p",
+        text: `We did not arrive at this stack by accident. Over the past eighteen months, the largest names in payments have been converging on the same ingredients: Mastercard brought [24/7 stablecoin settlement to Arbitrum](https://blog.arbitrum.foundation/), Robinhood launched [its own chain on Arbitrum Orbit](https://robinhoodchain.blockscout.com), Coinbase created the [x402 payment protocol](https://docs.cdp.coinbase.com/x402/welcome) for AI agents, and Visa is building agent-trust infrastructure with [Cloudflare](https://developers.cloudflare.com/agents/agentic-payments/x402/). These moves validate a broader trend: programmable payments and stablecoin infrastructure are going mainstream. Furlpay is built for that same direction — focused on combining payments, travel and investing into a single consumer product.`,
+      },
+      { type: "h2", text: "The problem: merchant payment fees on card rails" },
+      {
+        type: "p",
+        text: `When a customer pays $150 by card, the merchant typically receives $144.75 to $147.75. The difference — interchange, network assessments and acquirer margin — usually lands between 1.5% and 3.5%, and it funds rewards programs, fraud losses and several layers of intermediaries.`,
+      },
+      {
+        type: "p",
+        text: `A stablecoin transfer has none of those layers. The money moves directly from payer to merchant on-chain. On Arbitrum, the entire cost is Furlpay's 0.5% fee plus roughly half a cent of gas.`,
+      },
+      {
+        type: "table",
+        headers: ["Rail", "Cost on $150", "Rate"],
+        rows: [
+          ["Cards (typical range)", "$2.25 - $5.25", "1.5% - 3.5% merchant discount"],
+          ["Coinbase Commerce", "$1.50", "1% flat"],
+          ["Furlpay (USDC on Arbitrum)", "$0.75", "0.5% + ~$0.004 gas"],
+        ],
+        highlightCol: 0,
+      },
+      {
+        type: "p",
+        text: `The Furlpay figure is live, not projected — you can query it right now at [furlpay.com/api/payments/fees/estimate](https://furlpay.com/api/payments/fees/estimate?amount=150). Card figures are typical merchant discount ranges based on public information; actual pricing varies by issuer, category and geography. For a travel merchant on ten-percent margins, the gap is a meaningful share of the profit on every booking.`,
+      },
+      { type: "h2", text: "What we built: stablecoin payments with a 0.5% fee" },
+      {
+        type: "p",
+        text: `Our payments API creates a quote, hands the payer's wallet an EIP-712 authorization to sign, screens both sides against sanctions lists, and settles in USDC on Arbitrum One. Receipts link straight to Arbiscan.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Compliance before the chain — KYC tiers, sanctions screening on both legs of every payment, FATF Travel Rule payloads and MiCA-aware jurisdiction rules run server-side before any transaction is submitted.`,
+          `A hard ceiling in the contract — our router is designed to refuse any fee above 1% on-chain, whatever the API quotes, so the trust boundary is cryptographic rather than organizational.`,
+          `Batch payouts, refunds and a public fee estimator round out the merchant surface.`,
+        ],
+      },
+      { type: "h2", text: "Agentic commerce: AI agents as paying customers" },
+      {
+        type: "p",
+        text: `The fastest-growing payments customer of 2026 is not a person. The [x402 protocol](https://www.x402.org/) revives HTTP's 402 status code so an AI agent can pay per request in USDC — no account, no card on file. Coinbase and Cloudflare created it, and adoption has been rapid across Base and Solana.`,
+      },
+      {
+        type: "p",
+        text: `Furlpay runs its own x402 facilitator on Arbitrum, Base and Solana. We designed it around the attack classes documented in recent x402 security research (see ["Free-Riding the Agentic Web"](https://arxiv.org/abs/2605.30998)): quotes are cryptographically bound to the resource they price, nonces are single-use, and malformed payment headers fail closed. Agents discover what Furlpay sells through our resource catalog and MCP servers, and can search, book and pay for travel autonomously.`,
+      },
+      {
+        type: "p",
+        text: `We are not alone here, and that is the point. Visa's Trusted Agent Protocol and Mastercard's Agent Pay bring agents to card rails; Coinbase operates a hosted facilitator across several chains. Agentic payments is the youngest layer of the stack — positions are far from settled, and we believe a focused, security-first implementation can be genuinely competitive.`,
+      },
+      { type: "h2", text: "Why Arbitrum" },
+      {
+        type: "p",
+        text: `Arbitrum One offers deep stablecoin liquidity, sub-cent transaction fees with predictable gas pricing after the [ArbOS Dia upgrade](https://docs.arbitrum.io/run-arbitrum-node/arbos-releases/overview), and Ethereum-grade security. It is also where institutional settlement is consolidating — the same rail Mastercard chose for stablecoin settlement and Robinhood chose for its tokenized-stock chain.`,
+      },
+      {
+        type: "p",
+        text: `Our smart contracts — a payment router, an x402 settlement facilitator, a travel booking escrow and ERC-721 booking receipts — are [open source on GitHub](https://github.com/Ashutosh0x/furlpay) with a passing test suite, heading to Arbitrum Sepolia next. Renting block space on Arbitrum rather than running our own chain keeps our costs near zero while we grow; the option to graduate to a dedicated Orbit chain later stays open.`,
+      },
+      { type: "h2", text: "Where Furlpay fits in the payments landscape" },
+      {
+        type: "p",
+        text: `We are not trying to replace card networks, exchanges or brokerages — they serve billions of people well. Our observation is simpler: few platforms combine real-world commerce, agentic payments and compliance-first stablecoin rails in a single product, and we believe that whitespace is worth building into.`,
+      },
+      {
+        type: "table",
+        headers: ["Layer", "Established players", "Furlpay's approach"],
+        rows: [
+          [
+            "Merchant payments",
+            "Card networks settle between banks at a 1.5-3.5% merchant cost",
+            "Direct USDC settlement on Arbitrum at 0.5% + gas",
+          ],
+          [
+            "Agentic payments",
+            "Visa TAP and Mastercard Agent Pay extend card rails; Coinbase hosts an x402 facilitator",
+            "Self-hosted x402 facilitator hardened against published attack classes, with agent spend mandates",
+          ],
+          [
+            "Consumer product",
+            "Exchanges trade crypto; brokerages trade stocks; travel platforms take cards",
+            "Travel, investing and payments in one passkey-secured app, bookable by humans or agents",
+          ],
+          [
+            "Developer platform",
+            "Enterprise onboarding at the networks; strong self-serve tooling at Coinbase",
+            "Open APIs, SDKs in four languages, MCP servers and MIT-licensed packages",
+          ],
+        ],
+        highlightCol: 2,
+      },
+      { type: "h2", text: "What we are honest about" },
+      {
+        type: "p",
+        text: `Furlpay is early. The product is live at furlpay.com with real authentication and real APIs, but several integrations run in demo mode, our contracts are tested rather than deployed, and we have no payment volume yet. The incumbents have distribution, licenses and balance sheets we do not.`,
+      },
+      {
+        type: "p",
+        text: `What we have is speed, focus and timing. The proof points ahead of us, in order: deploy the contracts to Arbitrum Sepolia and then Arbitrum One; complete a real end-to-end agentic booking — agent finds a hotel via MCP, pays via x402, escrow releases on-chain, receipt minted; and sign a first design partner who accepts USDC through the merchant rail.`,
+      },
+      { type: "h2", text: "Try it" },
+      {
+        type: "ul",
+        items: [
+          `Explore travel with USDC checkout at [furlpay.com/travel](/travel).`,
+          `Building something? Start at the [developer portal](/developer) and the [docs](/docs).`,
+          `Query the live fee estimator: [furlpay.com/api/payments/fees/estimate?amount=150](https://furlpay.com/api/payments/fees/estimate?amount=150).`,
+          `Read the contracts and SDKs [on GitHub](https://github.com/Ashutosh0x/furlpay).`,
+          `Talk to us directly — [furlpay.com/talk-to-us](/talk-to-us). We will be at the Arbitrum Open House in London, July 10-12.`,
+        ],
+      },
+    ],
+  },
   {
     slug: "integrating-furlpay-with-arbitrum",
     title: "Integrating Furlpay with Arbitrum: Payments, x402 and Contracts on the Largest L2",

@@ -11,6 +11,31 @@ export default function ArticleBody({ blocks }: { blocks: Block[] }) {
   );
 }
 
+// Inline markdown-style links — [text](url) — inside p, ul and quote blocks,
+// so citations render as real anchors. External links open in a new tab.
+function Inline({ text }: { text: string }) {
+  const parts = text.split(/(\[[^\]]+\]\([^)]+\))/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const m = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
+        if (!m) return <span key={i}>{part}</span>;
+        const external = m[2].startsWith("http");
+        return (
+          <a
+            key={i}
+            href={m[2]}
+            {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            className="text-neon underline decoration-neon/40 underline-offset-2 hover:decoration-neon"
+          >
+            {m[1]}
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
 function BlockView({ block }: { block: Block }) {
   switch (block.type) {
     case "h2":
@@ -18,14 +43,20 @@ function BlockView({ block }: { block: Block }) {
         <h2 className="mb-3 mt-10 text-[22px] font-bold tracking-tighter text-textPrimary">{block.text}</h2>
       );
     case "p":
-      return <p className="mb-4 text-[15px] leading-relaxed text-textMuted">{block.text}</p>;
+      return (
+        <p className="mb-4 text-[15px] leading-relaxed text-textMuted">
+          <Inline text={block.text} />
+        </p>
+      );
     case "ul":
       return (
         <ul className="mb-4 space-y-2 text-[15px] leading-relaxed text-textMuted">
           {block.items.map((item, i) => (
             <li key={i} className="flex gap-2.5">
               <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-neon/70" />
-              <span>{item}</span>
+              <span>
+                <Inline text={item} />
+              </span>
             </li>
           ))}
         </ul>
@@ -44,13 +75,59 @@ function BlockView({ block }: { block: Block }) {
     case "quote":
       return (
         <blockquote className="mb-6 border-l-2 border-neon/60 pl-4 text-[16px] italic leading-relaxed text-textMuted">
-          {block.text}
+          <Inline text={block.text} />
         </blockquote>
       );
     case "diagram":
       return (
         <div className="mb-6 overflow-x-auto rounded-xl border border-neon/20 bg-white/[0.02] p-5">
           <pre className="font-mono text-[12.5px] leading-relaxed text-neon/90">{block.text}</pre>
+        </div>
+      );
+    case "table":
+      return (
+        <div className="mb-6 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.02]">
+          <table className="w-full min-w-[720px] border-collapse text-left text-[13px] leading-relaxed">
+            <thead>
+              <tr className="border-b border-white/10">
+                {block.headers.map((h, i) => (
+                  <th
+                    key={i}
+                    className={`px-4 py-3 align-top text-[12px] font-semibold uppercase tracking-wider text-textSecondary ${
+                      block.highlightCol === i ? "bg-neon/10 text-neon" : ""
+                    }`}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, r) => (
+                <tr key={r} className="border-b border-white/5 last:border-b-0">
+                  {row.map((cell, c) =>
+                    c === 0 ? (
+                      <th
+                        key={c}
+                        className="min-w-[120px] px-4 py-3 align-top text-[12px] font-semibold uppercase tracking-wider text-textSecondary"
+                      >
+                        {cell}
+                      </th>
+                    ) : (
+                      <td
+                        key={c}
+                        className={`min-w-[170px] px-4 py-3 align-top text-textMuted ${
+                          block.highlightCol === c ? "bg-neon/[0.06] text-textPrimary" : ""
+                        }`}
+                      >
+                        {cell}
+                      </td>
+                    )
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       );
     default:

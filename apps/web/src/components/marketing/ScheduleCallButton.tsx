@@ -11,7 +11,7 @@ const CALENDLY_URL =
   "?hide_landing_page_details=1&hide_gdpr_banner=1&embed_type=Inline" +
   "&background_color=08080a&text_color=ffffff&primary_color=00e599";
 
-export default function ScheduleCallButton() {
+export default function ScheduleCallButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
 
@@ -28,11 +28,15 @@ export default function ScheduleCallButton() {
 
   return (
     <>
-      {/* Same geometry as the form's btn-green CTA, in black. */}
+      {/* Default: same geometry as the form's btn-green CTA, in black.
+          Callers (e.g. the landing nav) can swap the geometry via className. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="mt-6 flex w-full items-center justify-center gap-2 rounded-pill border border-white/15 bg-black py-3.5 text-[15px] font-semibold text-white transition-transform hover:-translate-y-0.5 hover:border-white/30 sm:w-auto sm:px-8"
+        className={
+          className ??
+          "mt-6 flex w-full items-center justify-center gap-2 rounded-pill border border-white/15 bg-black py-3.5 text-[15px] font-semibold text-white transition-transform hover:-translate-y-0.5 hover:border-white/30 sm:w-auto sm:px-8"
+        }
       >
         <CalendarClock className="h-4 w-4 text-neon" />
         Schedule your call
@@ -40,14 +44,14 @@ export default function ScheduleCallButton() {
 
       {open && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/85 p-6 backdrop-blur-sm"
           onClick={close}
           role="dialog"
           aria-modal="true"
           aria-label="Schedule a call with the Furlpay founder"
         >
           <div
-            className="relative flex h-[min(720px,92vh)] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-charcoal shadow-[0_0_120px_-30px_rgba(0,229,153,0.35)]"
+            className="relative flex h-[min(600px,82vh)] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-charcoal shadow-[0_0_120px_-30px_rgba(0,229,153,0.35)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">

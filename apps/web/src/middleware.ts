@@ -60,6 +60,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/travel", // FurlPay Travels — public search/deals/booking demo surface
   "/api/chain", // public chain registry — status, gas, contracts, USDC directory
   "/api/payments/fees", // public fee estimator — merchants compare vs card interchange
+  "/api/discord", // Discord interactions — auth IS the Ed25519 signature (401 otherwise)
 ];
 
 export async function middleware(req: NextRequest) {
