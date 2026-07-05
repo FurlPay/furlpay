@@ -10,7 +10,11 @@ export type Block =
   | { type: "ul"; items: string[] }
   | { type: "code"; lang: string; code: string }
   | { type: "quote"; text: string }
-  | { type: "diagram"; text: string };
+  | { type: "diagram"; text: string }
+  // Comparison/data tables. The first cell of each row renders as a row
+  // header; highlightCol tints one column (0-indexed into headers/rows) —
+  // used to spotlight the Furlpay column in competitive matrices.
+  | { type: "table"; headers: string[]; rows: string[][]; highlightCol?: number };
 
 export type Post = {
   slug: string;
@@ -27,6 +31,227 @@ export type Post = {
 
 export const POSTS: Post[] = [
   // 0 -----------------------------------------------------------------
+  {
+    slug: "furlpay-vs-coinbase-robinhood-visa-mastercard",
+    title: "One Codebase Against Four Giants: Furlpay vs Coinbase, Robinhood, Visa and Mastercard",
+    excerpt:
+      "A thirteen-dimension comparison of Furlpay against the four companies that define payments and investing — and why every strategic move they made in the last eighteen months validates the rails we are building: stablecoin settlement, Arbitrum, and agentic payments.",
+    category: "product-news",
+    date: "2026-07-05",
+    readMins: 12,
+    author: "Furlpay Strategy",
+    body: [
+      {
+        type: "p",
+        text: `Furlpay is a solo-built stablecoin payments, travel and investing platform. Coinbase, Robinhood, Visa and Mastercard are trillion-dollar-scale incumbents. Comparing them side by side sounds absurd until you notice the pattern: every strategic move those four made in the last eighteen months — Mastercard settling stablecoins on Arbitrum, Robinhood building its chain on Arbitrum Orbit, Coinbase creating x402, Visa shipping agent-trust infrastructure — lands on exactly the rails Furlpay is built on. This post is our full competitive briefing, published as-is, with the reasoning behind each section. Everything in the Furlpay column reflects what is actually built and live at furlpay.com today, not a roadmap.`,
+      },
+      { type: "h2", text: "The five players" },
+      {
+        type: "p",
+        text: `First, who we are comparing. Two are card networks that move value between banks and take a slice of every swipe. One is the default US crypto exchange that now owns its own L2. One is the brokerage that taught a generation to invest and just launched its own chain. And one is us. The asymmetry is the point — the interesting question is not "who is bigger" but "who occupies which position, and which positions are still empty."`,
+      },
+      {
+        type: "table",
+        headers: ["Company", "What they are", "Founded and scale"],
+        rows: [
+          ["Furlpay", "Stablecoin payments, travel and investing super-app on Arbitrum", "2026 · solo founder · pre-seed"],
+          ["Coinbase", "Crypto exchange, Base L2, x402 co-creator, USDC ecosystem anchor", "2012 · public (COIN) · 100M+ users"],
+          ["Robinhood", "Zero-commission brokerage; Robinhood Chain on Arbitrum Orbit", "2013 · public (HOOD) · ~25M funded accounts"],
+          ["Visa", "Card network; USDC settlement pilots; Trusted Agent Protocol", "1958 · public (V) · 4.5B credentials"],
+          ["Mastercard", "Card network; stablecoin settlement live on Arbitrum since June 2026", "1966 · public (MA) · ~3.5B cards"],
+        ],
+        highlightCol: 0,
+      },
+      { type: "h2", text: "What a $150 payment costs the merchant" },
+      {
+        type: "p",
+        text: `This is the economic wedge in one picture, and it is worth explaining why it exists. When a customer pays $150 by card, the merchant does not receive $150. They pay a merchant discount rate — interchange set by the network and paid mostly to the issuing bank, plus network assessments, plus the acquirer's margin — which typically lands between 1.5% and 3.5% depending on card type, channel and merchant category. That structure funds rewards points, fraud losses and four layers of intermediaries. A stablecoin transfer on Arbitrum has none of those layers: the money moves directly from payer to merchant on-chain, and the entire cost is Furlpay's 0.5% fee plus roughly half a cent of gas.`,
+      },
+      {
+        type: "table",
+        headers: ["Rail", "Cost on $150", "Rate"],
+        rows: [
+          ["Visa (card)", "$2.25 – $5.25", "1.5% – 3.5% merchant discount"],
+          ["Mastercard (card)", "$2.25 – $5.25", "1.5% – 3.5% merchant discount"],
+          ["Coinbase Commerce", "$1.50", "1% flat"],
+          ["Furlpay (USDC on Arbitrum)", "$0.75", "0.5% + ~$0.004 gas"],
+          ["Robinhood", "—", "No merchant acceptance rail"],
+        ],
+        highlightCol: 0,
+      },
+      {
+        type: "p",
+        text: `The Furlpay figure is not a projection — it is verifiable live: furlpay.com/api/payments/fees/estimate returns $0.75 plus $0.004 gas on a $150 payment. For a travel merchant operating on ten-percent margins, the difference between $5.25 and $0.75 per $150 booking is not a rounding error; it is a third of their profit on the transaction.`,
+      },
+      { type: "h2", text: "The full matrix" },
+      {
+        type: "p",
+        text: `Thirteen dimensions, from settlement rails to open source. A few notes on how to read it: "Core rail" is the machinery that actually moves money, and it explains everything else about each company. "Chain strategy" separates owners (Coinbase, Robinhood) from tenants (Furlpay, Mastercard) — owners keep sequencer economics, tenants keep flexibility. "Agentic payments" is the newest column and the one where positions are least settled. And "Maturity" is deliberately blunt about where we stand.`,
+      },
+      {
+        type: "table",
+        headers: ["Dimension", "Furlpay", "Coinbase", "Robinhood", "Visa", "Mastercard"],
+        rows: [
+          [
+            "Core rail",
+            "USDC on Arbitrum One — 0.5% fee, EIP-712 signed payments, sub-second settlement; chain-abstracted intake via CCTP V2 from Ethereum, Base, Polygon, Solana",
+            "Exchange order books + Base L2 sequencer; Coinbase Commerce for merchants (1%); onramp/offramp APIs",
+            "Brokerage clearing (PFOF); Robinhood Chain for tokenized assets — not a payments rail",
+            "VisaNet — batch net settlement between issuers and acquirers, T+1–2; USDC settlement pilots for treasury legs",
+            "Banknet — same model; 24/7 stablecoin settlement live on Arbitrum (USDC, PYUSD, RLUSD and others) in US + LatAm",
+          ],
+          [
+            "Stablecoin strategy",
+            "Settlement currency, not a product. Native USDC (0xaf88…5831), plus USDT, EURC, PYUSD, DAI held in a double-entry ledger; MiCA auto-swap EURC/USDC logic built",
+            "Co-founded USDC with Circle; earns yield on USDC reserves; USDC is Base's economic engine",
+            "Uses stablecoins for funding legs; reportedly exploring its own USD token via Bitstamp rails",
+            "Settlement pilots since 2021 (Ethereum, Solana); stablecoin-linked card programs with issuers",
+            "Six stablecoins accepted for settlement on Arbitrum; Multi-Token Network for bank tokenized deposits",
+          ],
+          [
+            "Chain strategy",
+            "Arbitrum-first tenant. Contracts target Arbitrum One/Sepolia; Robinhood Chain (4663) indexed for stock-token data; an Orbit chain is the long-term option, not the premise",
+            "Owns Base outright — left the OP Superchain in Feb 2026 for its own unified stack, keeping 100% of sequencer revenue",
+            "Owns Robinhood Chain (Arbitrum Orbit, 100ms blocks, mainnet July 1 2026); pays Arbitrum DAO 10% of net chain revenue under AEP",
+            "Chain-agnostic — settles on Ethereum and Solana; no owned chain",
+            "Chain-agnostic — chose Arbitrum for settlement scale; also Ethereum, Solana, Polygon, Base, XRPL",
+          ],
+          [
+            "Agentic payments",
+            "x402 facilitator live on Arbitrum, Base, Solana with published hardening against all five arXiv attack classes (x402-guard); TAP-aligned agent mandates with RFC 9421 signatures (agent-trust); MCP servers so agents can search, book and pay",
+            "Created x402 with Cloudflare; CDP hosted facilitator on five chains, 119M+ transactions on Base; AgentKit",
+            "No public agentic payments product",
+            "Trusted Agent Protocol (with Cloudflare) + Visa Intelligent Commerce — agent identity rides existing card rails",
+            "Agent Pay (April 2025) — agentic tokens on card rails; partnered with Microsoft, IBM",
+          ],
+          [
+            "Investing",
+            "Hub built: live equity quotes (Alpaca), ETF/crypto catalogs, screener, portfolio and demo orders; Robinhood Chain stock-token data indexed for a 24/7 tokenized view",
+            "Crypto trading at scale; equities only via tokenized pilots outside the US",
+            "The category leader — stocks, ETFs, options, crypto, retirement; tokenized stocks in 120+ countries (ex-US) on its own chain",
+            "Not a broker",
+            "Not a broker",
+          ],
+          [
+            "Travel & commerce",
+            "The differentiator. 2.2M+ properties and flights across 230+ countries, USDC checkout, on-chain escrow with oracle release, ERC-721 booking receipts, 2% USDC cashback, business travel policies, agent-bookable via MCP + x402",
+            "None — Commerce is a checkout button, not a marketplace",
+            "None",
+            "Co-brand travel cards through issuers; no owned inventory",
+            "Priceless experiences marketing platform; no owned inventory",
+          ],
+          [
+            "Wallet & auth",
+            "Passkey-first: WebAuthn login live on furlpay.com, 2-of-2 MPC signing, TOTP step-up, Safe/ERC-4337 account kit with USDC paymaster bindings — no seed phrases anywhere",
+            "Custodial exchange accounts + smart wallets (passkey) + self-custody Coinbase Wallet",
+            "Custodial brokerage + Robinhood Wallet app; BitGo custody for chain assets",
+            "No consumer wallet — tokenization (network tokens) behind issuer apps",
+            "No consumer wallet — Click to Pay + Crypto Credential naming layer",
+          ],
+          [
+            "Compliance",
+            "Built-in from day one: KYC tiers, OFAC screening on both legs of every payment before settlement, FATF Travel Rule payloads, MiCA/GENIUS jurisdiction engine, immutable audit events — all in code, demoable today",
+            "Licensed exchange (NYDFS BitLicense et al.); institutional-grade custody compliance",
+            "FINRA broker-dealer; state money-transmitter licenses; crypto under evolving SEC/CFTC regimes",
+            "The gold standard — decades of network rules, chargebacks, dispute resolution baked into the rail",
+            "Same tier as Visa; Crypto Credential adds verified naming for chain transfers",
+          ],
+          [
+            "Developer platform",
+            "~120 API endpoints across payments, x402, travel, investing, chain, compliance; SDKs in Node, Python, Go, Rust; LangChain, LlamaIndex, OpenBB integrations; CLI; public docs and Agent Console at furlpay.com/developer",
+            "CDP: wallets, onramp, x402 facilitator, AgentKit, Base node infra — arguably crypto's best dev platform",
+            "Consumer-first; limited public trading API; chain is EVM-open by nature",
+            "Visa Developer: tokenization, Visa Direct, risk APIs — enterprise onboarding, not self-serve",
+            "Mastercard Developers: similar enterprise gateway model",
+          ],
+          [
+            "Open source",
+            "MIT-licensed packages shipping today: x402-guard, agent-trust, account-kit, SDKs, MCP servers — plus 4 Solidity contracts (17 passing tests) awaiting testnet deploy",
+            "x402 spec + reference code, OP-stack lineage of Base (now a proprietary unified stack), CDP SDKs",
+            "Minimal — chain tooling inherits Arbitrum Nitro's BSL licensing",
+            "Effectively none (specs via EMVCo)",
+            "Effectively none (specs via EMVCo)",
+          ],
+          [
+            "Revenue model",
+            "0.5% payment fee + travel booking margin + x402 micropayment facilitation; on-chain fee ceiling hard-capped at 1% in the router contract",
+            "Trading fees + spread, USDC reserve interest share, Base sequencer margin (~$74M/yr), subscriptions",
+            "PFOF + net interest + Gold subscriptions + crypto spread; chain fees new in 2026",
+            "Assessments on volume (~0.13%) + value-added services; issuers keep interchange",
+            "Same structure; settlement and MTN services expanding the pie",
+          ],
+          [
+            "Distribution",
+            "Zero installed base — distribution must come from agentic traffic (MCP/x402 discovery), travel SEO, developer open source and the Arbitrum ecosystem",
+            "100M+ retail accounts, the default US crypto brand",
+            "~25M funded accounts, dominant among young US investors",
+            "150M+ merchant locations; every bank",
+            "Comparable acceptance network; every bank",
+          ],
+          [
+            "Maturity",
+            "Demo-stage, honestly: live product at furlpay.com with mock-first integrations, real auth and real APIs; contracts tested but not yet deployed; no payment volume yet",
+            "14 years, profitable, S&P 500",
+            "13 years, profitable, S&P 500",
+            "68 years, ~$15T annual volume",
+            "60 years, ~$9T annual volume",
+          ],
+        ],
+        highlightCol: 1,
+      },
+      { type: "h2", text: "Reading the matrix: three structural observations" },
+      {
+        type: "ul",
+        items: [
+          `Rails converge, products don't. All five players are converging on the same settlement substrate — stablecoins on fast chains — but from opposite ends. The networks are retrofitting it under card rails; Coinbase built the chain; Robinhood built the assets. Nobody built the consumer product that spends stablecoins on real-world services. That cell of the matrix — travel and commerce — has exactly one non-empty entry.`,
+          `Owning a chain versus renting one is the defining fork. Coinbase keeps 100% of Base's sequencer economics but had to leave the OP Superchain to get it. Robinhood pays Arbitrum 10% of net chain revenue for sovereignty with security inherited from Ethereum. Furlpay rents block space on Arbitrum One for fractions of a cent — no sequencer revenue, but no chain to operate either. At our stage, renting is unambiguously correct; the matrix shows what graduating looks like.`,
+          `Agentic payments is the only column where the giants are less than two years ahead. Cards took the networks decades; exchanges took Coinbase a decade. x402 shipped in 2025. Visa's TAP and Mastercard's Agent Pay wrap agents around card rails and inherit card costs; Coinbase's facilitator is hosted and unhardened at the edges the research literature documents. A small team can still be genuinely competitive here — which is why it is Furlpay's spearhead.`,
+        ],
+      },
+      { type: "h2", text: "Where Furlpay wins today" },
+      {
+        type: "ul",
+        items: [
+          `The intersection is empty. Nobody else combines real-world commerce (travel), agentic x402 payments and compliance-first stablecoin rails in one product. Coinbase has the rails but no commerce; Robinhood has assets but no payments; the networks have merchants but at up to seven times the cost.`,
+          `Security depth on x402. Published hardening against all five documented attack classes, plus TAP-aligned agent mandates — ahead of most facilitators, including the hosted ones.`,
+          `Cost. $0.75 versus up to $5.25 on a $150 payment is not a rounding error for a travel merchant on ten-percent margins.`,
+          `Speed of iteration. The entire Arbitrum integration — APIs, four contracts, tests, and the announcement post — shipped in one day. Incumbent payment products move in quarters.`,
+        ],
+      },
+      { type: "h2", text: "Where the giants win" },
+      {
+        type: "p",
+        text: `An honest briefing names the other side of the ledger, because these are the objections every grant reviewer and investor will raise.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Trust and distribution. Visa and Mastercard are accepted at 150M+ locations; Coinbase and Robinhood own the consumer relationship. Furlpay starts at zero.`,
+          `Regulatory moats. Licenses, chargeback regimes and dispute resolution took the networks decades. Furlpay's compliance engine is code, not a license portfolio.`,
+          `Balance sheet. Coinbase earns on USDC reserves; Robinhood on net interest. Furlpay's 0.5% has to fund everything.`,
+          `Owned chains. Coinbase keeps 100% of Base's sequencer economics; Robinhood controls its own block space. Furlpay is a tenant on Arbitrum — cheaper, but not sovereign.`,
+        ],
+      },
+      { type: "h2", text: "What Furlpay must prove next" },
+      {
+        type: "p",
+        text: `A comparison is only useful if it changes what you do on Monday. Ours reduces to four proof points, in order.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Deploy the contracts — Arbitrum Sepolia this week, Arbitrum One after. "Pending deployment" convinces no one at the Open House.`,
+          `First real settled payment end-to-end: an agent discovers a hotel via MCP, pays via x402, escrow releases on-chain, receipt NFT minted.`,
+          `One design partner — a travel supplier or API seller accepting USDC through the merchant rail beats any deck.`,
+          `Ride the validation: Mastercard settling on Arbitrum and Robinhood building on Orbit are the two loudest possible endorsements of Furlpay's exact stack. Grant applications and the July 10–12 Arbitrum Open House in London are the venue.`,
+        ],
+      },
+      {
+        type: "p",
+        text: `Compiled from public sources (company documentation, filings, Arbitrum Foundation and ecosystem reporting, July 2026) and the Furlpay monorepo. Card-network merchant costs are typical merchant discount ranges; actual pricing varies by issuer, category and geography. Figures marked "live" are verifiable against furlpay.com endpoints. This is a strategy document, not investment advice.`,
+      },
+    ],
+  },
   {
     slug: "integrating-furlpay-with-arbitrum",
     title: "Integrating Furlpay with Arbitrum: Payments, x402 and Contracts on the Largest L2",

@@ -53,6 +53,52 @@ function BlockView({ block }: { block: Block }) {
           <pre className="font-mono text-[12.5px] leading-relaxed text-neon/90">{block.text}</pre>
         </div>
       );
+    case "table":
+      return (
+        <div className="mb-6 overflow-x-auto rounded-xl border border-white/10 bg-white/[0.02]">
+          <table className="w-full min-w-[720px] border-collapse text-left text-[13px] leading-relaxed">
+            <thead>
+              <tr className="border-b border-white/10">
+                {block.headers.map((h, i) => (
+                  <th
+                    key={i}
+                    className={`px-4 py-3 align-top text-[12px] font-semibold uppercase tracking-wider text-textSecondary ${
+                      block.highlightCol === i ? "bg-neon/10 text-neon" : ""
+                    }`}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, r) => (
+                <tr key={r} className="border-b border-white/5 last:border-b-0">
+                  {row.map((cell, c) =>
+                    c === 0 ? (
+                      <th
+                        key={c}
+                        className="min-w-[120px] px-4 py-3 align-top text-[12px] font-semibold uppercase tracking-wider text-textSecondary"
+                      >
+                        {cell}
+                      </th>
+                    ) : (
+                      <td
+                        key={c}
+                        className={`min-w-[170px] px-4 py-3 align-top text-textMuted ${
+                          block.highlightCol === c ? "bg-neon/[0.06] text-textPrimary" : ""
+                        }`}
+                      >
+                        {cell}
+                      </td>
+                    )
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
     default:
       return null;
   }
