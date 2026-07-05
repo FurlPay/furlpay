@@ -12,21 +12,41 @@ import { X402_VERSION, type PaymentRequirements, type XPaymentPayload } from "@/
 //   POST /verify     → validate a payment payload against payment requirements
 //   POST /settle     → verify, then submit settlement on-chain (single-use)
 //
-// This is Furlpay's wedge: Solana Foundation is an x402 Foundation member, but
-// there is no production Solana-native facilitator — this fills that gap. Both
-// Solana and Base (EVM) are supported. Settlement is pluggable: the default is
-// a deterministic mock (runs with zero credentials); a live deployment injects
-// a real on-chain settler (RPC + sponsored fee payer).
+// This is Furlpay's wedge: x402 has reference facilitators on Base and Solana,
+// but none on Arbitrum — despite Arbitrum One holding the deepest stablecoin
+// liquidity of any L2. This facilitator settles on Arbitrum One (native USDC),
+// Arbitrum Sepolia (testnet), Base and Solana. Settlement is pluggable: the
+// default is a deterministic mock (runs with zero credentials); a live
+// deployment injects a real on-chain settler (RPC + sponsored fee payer).
 // ---------------------------------------------------------------------------
 
 export const SUPPORTED_KINDS = [
+  { x402Version: X402_VERSION, scheme: "exact", network: "arbitrum" },
+  { x402Version: X402_VERSION, scheme: "exact", network: "arbitrum-sepolia" },
   { x402Version: X402_VERSION, scheme: "exact", network: "solana" },
   { x402Version: X402_VERSION, scheme: "exact", network: "base" },
 ] as const;
 
-// Single-use nonce store (production: Redis with TTL) — replay protection.
-const g = globalThis as unknown as { __x402fac?: { usedNonces: Set<string> } };
-const store = g.__x402fac ?? (g.__x402fac = { usedNonces: new Set() });
+export interface SettlementRecord {
+  transaction: string;
+  network: string;
+  payer: string;
+  payTo: string;
+  amountAtomic: string;
+  resource: string;
+  settledAt: string;
+}
+
+// Single-use nonce store + settlement log (production: Redis / Postgres).
+const g = globalThis as unknown as {
+  __x402fac?: { usedNonces: Set<string>; settlements: Map<string, SettlementRecord> };
+};
+const store =
+  g.__x402fac ?? (g.__x402fac = { usedNonces: new Set(), settlements: new Map() });
+
+export function getSettlement(tx: string): SettlementRecord | undefined {
+  return store.settlements.get(tx);
+}
 
 export interface FacilitatorRequest {
   x402Version: number;
@@ -109,6 +129,15 @@ export async function settle(req: FacilitatorRequest, settler: Settler = mockSet
 
   try {
     const transaction = await settler(req, v.payer!);
+    store.settlements.set(transaction, {
+      transaction,
+      network,
+      payer: v.payer!,
+      payTo: req.paymentRequirements.payTo,
+      amountAtomic: req.paymentPayload.payload.authorization.value,
+      resource: req.paymentRequirements.resource,
+      settledAt: new Date().toISOString(),
+    });
     return { success: true, transaction, network, payer: v.payer };
   } catch (e) {
     // Roll back the nonce so a transient settlement failure isn't a permanent burn.

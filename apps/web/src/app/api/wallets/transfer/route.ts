@@ -48,6 +48,15 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Funds check before anything is recorded — a transfer can't overdraw.
+  const src = db.tokenBalances.find((b) => b.token === token && b.chain === chain);
+  if (!src || src.amount < amount) {
+    return NextResponse.json(
+      { error: `Insufficient ${token} balance on ${chain}.`, available: src?.amount ?? 0 },
+      { status: 400 }
+    );
+  }
+
   const transactionHash = "0x" + crypto.randomBytes(32).toString("hex");
   recordTransaction(
     newTx({
@@ -62,11 +71,11 @@ export async function POST(req: NextRequest) {
     })
   );
 
-  const src = db.tokenBalances.find((b) => b.token === token && b.chain === chain);
-  if (src) {
-    src.amount = Math.max(0, src.amount - amount);
-    src.usdValue = src.amount;
-  }
+  // Deduct in token units, re-mark USD value at the balance's unit price so
+  // non-USD tokens (e.g. EURC) keep their FX rate instead of collapsing to 1:1.
+  const unitUsd = src.amount > 0 ? src.usdValue / src.amount : 1;
+  src.amount -= amount;
+  src.usdValue = Math.round(src.amount * unitUsd * 100) / 100;
 
   // Double-entry: funds leave user cash.
   const entry = recordMovement("out", amount, `Transfer ${token} to ${destination.slice(0, 10)}…`);

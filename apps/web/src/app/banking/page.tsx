@@ -36,17 +36,23 @@ export default function BankingPage() {
   const [busy, setBusy] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const [modal, setModal] = useState<null | "send" | "receive" | "convert" | "direct">(null);
+  const [pageError, setPageError] = useState<string | null>(null);
 
   const load = useCallback(() => {
-    getJSON<{ accounts: FiatBalance[] }>("/api/banking").then((r) => setAccounts(r.accounts));
+    getJSON<{ accounts: FiatBalance[] }>("/api/banking")
+      .then((r) => setAccounts(r.accounts))
+      .catch(() => setPageError("Couldn't load your accounts. Pull to refresh or try again later."));
   }, []);
   useEffect(() => load(), [load]);
 
   async function provision(currency: string) {
     setBusy(true);
+    setPageError(null);
     try {
       await sendJSON("/api/banking", { currency });
       load();
+    } catch {
+      setPageError(`Couldn't open the ${currency} account. Try again.`);
     } finally {
       setBusy(false);
     }
@@ -58,7 +64,13 @@ export default function BankingPage() {
     setTimeout(() => setCopied(null), 1200);
   }
 
-  if (!accounts.length) return <Spinner />;
+  if (!accounts.length) {
+    return pageError ? (
+      <p className="px-5 py-16 text-center text-sm text-loss">{pageError}</p>
+    ) : (
+      <Spinner />
+    );
+  }
 
   const totalUsd = accounts.reduce((s, a) => s + a.usdValue, 0);
   const missing = ["USD", "EUR", "GBP", "INR"].filter((c) => !accounts.find((a) => a.currency === c));
@@ -144,6 +156,8 @@ export default function BankingPage() {
         </div>
       </section>
 
+      {pageError && <p className="mt-4 px-5 text-center text-sm text-loss">{pageError}</p>}
+
       {/* Open new account */}
       {missing.length > 0 && (
         <section className="mt-7 px-5">
@@ -200,6 +214,8 @@ function SendModal({ accounts, onClose }: { accounts: FiatBalance[]; onClose: ()
 
   const rails = RAILS[from] ?? ["SWIFT"];
   const amt = Number(amount) || 0;
+  const available = accounts.find((a) => a.currency === from)?.amount ?? 0;
+  const overBalance = amt > available;
   const feePct = rail === "SWIFT" ? 0.012 : 0.004;
   const fee = Math.max(0.2, amt * feePct);
   const arrival = rail.includes("Instant") || rail === "UPI" || rail === "Faster Payments" ? "in seconds" : rail === "SWIFT" ? "1–2 business days" : "same day";
@@ -218,14 +234,19 @@ function SendModal({ accounts, onClose }: { accounts: FiatBalance[]; onClose: ()
             <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="DE89 3704 0044 0532 0130 00" className={inputCls} />
           </Field>
           <Field label={`Amount (${from})`}>
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
+            <input type="number" min={0} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
           </Field>
+          {overBalance && (
+            <p className="text-[12px] text-loss">
+              Exceeds your balance of {sym(from)}{available.toLocaleString("en-US", { maximumFractionDigits: 2 })}.
+            </p>
+          )}
           <div className="rounded-2xl bg-white/[0.04] p-3 text-[13px]">
             <Row k="Fee" v={`${sym(from)}${fee.toFixed(2)}`} />
             <Row k="Arrives" v={arrival} />
             <Row k="Recipient gets" v={`${sym(from)}${Math.max(0, amt - fee).toFixed(2)}`} bold />
           </div>
-          <button onClick={() => setDone(true)} disabled={!to.trim() || amt <= 0} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
+          <button onClick={() => setDone(true)} disabled={!to.trim() || amt <= 0 || overBalance} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
             Send {sym(from)}{amt.toLocaleString()}
           </button>
         </div>
@@ -262,6 +283,8 @@ function ConvertModal({ accounts, onClose }: { accounts: FiatBalance[]; onClose:
   const [amount, setAmount] = useState("100");
   const [done, setDone] = useState(false);
   const amt = Number(amount) || 0;
+  const available = accounts.find((a) => a.currency === from)?.amount ?? 0;
+  const overBalance = amt > available;
   const out = convert(amt, from, to);
   const rate = convert(1, from, to);
   return (
@@ -275,13 +298,18 @@ function ConvertModal({ accounts, onClose }: { accounts: FiatBalance[]; onClose:
             <Select label="To" value={to} onChange={setTo} options={["USD", "EUR", "GBP", "INR"]} />
           </div>
           <Field label={`Amount (${from})`}>
-            <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
+            <input type="number" min={0} inputMode="decimal" value={amount} onChange={(e) => setAmount(e.target.value)} className={inputCls} />
           </Field>
+          {overBalance && (
+            <p className="text-[12px] text-loss">
+              Exceeds your balance of {sym(from)}{available.toLocaleString("en-US", { maximumFractionDigits: 2 })}.
+            </p>
+          )}
           <div className="rounded-2xl bg-white/[0.04] p-3 text-[13px]">
             <Row k="Rate (mid-market)" v={`1 ${from} = ${rate.toFixed(4)} ${to}`} />
             <Row k="You get" v={`${sym(to)}${out.toFixed(2)}`} bold />
           </div>
-          <button onClick={() => setDone(true)} disabled={from === to || amt <= 0} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
+          <button onClick={() => setDone(true)} disabled={from === to || amt <= 0 || overBalance} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
             Convert
           </button>
         </div>

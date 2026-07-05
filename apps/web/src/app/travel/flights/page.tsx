@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Plane, ArrowRight, Search } from "lucide-react";
+import { ChevronLeft, Plane, ArrowRight, Search, Bell, Radio } from "lucide-react";
 import { sendJSON } from "@/lib/api";
 import { Spinner } from "@/components/ui";
 import FlightCard from "@/components/travel/FlightCard";
@@ -13,20 +13,33 @@ const CABINS: Flight["cabin"][] = ["Economy", "Premium", "Business", "First"];
 export default function FlightsPage() {
   const [from, setFrom] = useState("LHR");
   const [to, setTo] = useState("JFK");
-  const [date, setDate] = useState("");
+  // Default two weeks out — live fare search needs a real date, and an empty
+  // one silently drops the search to sample data.
+  const [date, setDate] = useState(() => new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10));
   const [cabin, setCabin] = useState<Flight["cabin"]>("Economy");
   const [results, setResults] = useState<Flight[] | null>(null);
+  const [source, setSource] = useState<string>("demo");
   const [loading, setLoading] = useState(false);
 
   async function search() {
     setLoading(true);
     try {
-      const d = await sendJSON<{ results: Flight[] }>("/api/travel/search", { type: "flights", from, to, date, cabin });
+      const d = await sendJSON<{ results: Flight[]; source?: string }>("/api/travel/search", {
+        type: "flights", from, to, date, cabin,
+      });
       setResults(d.results);
+      setSource(d.source ?? "demo");
     } finally {
       setLoading(false);
     }
   }
+
+  // Cheapest is always first (results arrive price-sorted); fastest gets its
+  // own badge when it's a different itinerary.
+  const fastestId = useMemo(() => {
+    if (!results?.length) return undefined;
+    return [...results].sort((a, b) => a.durationMin - b.durationMin)[0].id;
+  }, [results]);
 
   return (
     <div className="mx-auto max-w-3xl px-5 pb-24 pt-6">
@@ -94,7 +107,31 @@ export default function FlightsPage() {
         ) : results.length === 0 ? (
           <p className="py-10 text-center text-sm text-textSecondary">No flights found.</p>
         ) : (
-          results.map((f) => <FlightCard key={f.id} flight={f} />)
+          <>
+            <div className="flex items-center justify-between">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+                  source === "duffel" ? "bg-emerald-400/10 text-emerald-400" : "bg-white/[0.06] text-textSecondary"
+                }`}
+              >
+                <Radio className="h-3 w-3" />
+                {source === "duffel" ? "Live fares · Duffel" : "Sample fares — live feed unavailable for this route"}
+              </span>
+              <Link
+                href="/travel/alerts"
+                className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-neon hover:underline"
+              >
+                <Bell className="h-3.5 w-3.5" /> Track this route&apos;s price
+              </Link>
+            </div>
+            {results.map((f, i) => (
+              <FlightCard
+                key={f.id}
+                flight={f}
+                badge={i === 0 ? "Cheapest" : f.id === fastestId ? "Fastest" : undefined}
+              />
+            ))}
+          </>
         )}
       </div>
     </div>

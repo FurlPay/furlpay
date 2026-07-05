@@ -28,6 +28,84 @@ export type Post = {
 export const POSTS: Post[] = [
   // 0 -----------------------------------------------------------------
   {
+    slug: "integrating-furlpay-with-arbitrum",
+    title: "Integrating Furlpay with Arbitrum: Payments, x402 and Contracts on the Largest L2",
+    excerpt:
+      "Furlpay's settlement stack is going Arbitrum-first. Here is exactly what we shipped — an x402 facilitator that settles on Arbitrum, a unified USDC payments API, a chain registry, and four Solidity contracts with a green 17-test suite — and what ships next.",
+    category: "engineering",
+    date: "2026-07-05",
+    readMins: 9,
+    author: "Furlpay Engineering",
+    featured: true,
+    body: [
+      {
+        type: "p",
+        text: `Arbitrum One has quietly become the institutional settlement layer of Ethereum. The network has processed over 2.1 billion lifetime transactions, secures roughly $20B in value, and holds the deepest stablecoin liquidity of any L2 — which is why Mastercard chose it for 24/7 stablecoin settlement and why Robinhood built its tokenized-stock chain on Arbitrum Orbit. January's ArbOS "Dia" upgrade added predictable gas pricing on top. For a payments company whose pitch is "0.5% USDC rails instead of 3.5% card interchange," this is the rail you settle on.`,
+      },
+      {
+        type: "p",
+        text: `This week we made Furlpay Arbitrum-first. This post is the engineering log: what shipped, how it fits together, and what is still in front of us before the Arbitrum Open House in London (July 10-12).`,
+      },
+      { type: "h2", text: "What shipped: the API layer" },
+      {
+        type: "ul",
+        items: [
+          `x402 on Arbitrum — our facilitator now verifies and settles agentic payments on arbitrum and arbitrum-sepolia alongside Base and Solana, and quotes default to native USDC on Arbitrum One (0xaf88...5831). The hardening we published in "Five Ways to Rob an AI Agent" carries over unchanged: HMAC-bound quotes, single-use nonces, strict web-layer parsing.`,
+          `A unified payments API — POST /api/payments/create returns a 0.5% fee quote plus EIP-712 typed data; /execute verifies the payer's signature, screens both parties against sanctions lists, and settles on Arbitrum One. Receipts link straight to Arbiscan. Batch, refund, history and a public fee estimator round out the surface.`,
+          `A chain registry — /api/chain/status, /gas-price, /contracts, /usdc/supply and /tx lookups across Arbitrum One (42161), Arbitrum Sepolia (421614), Robinhood Chain (4663), Base and Ethereum. Mock-first, so the whole stack runs with zero credentials; flip INTEGRATION_MODE=live for real JSON-RPC.`,
+          `An x402 resource catalog — agents can now discover what Furlpay sells (GET /api/x402/resources), quote any resource without triggering a 402 (/price), and confirm settlements (/settlement/:tx). Third-party servers onboard their own priced endpoints via /register.`,
+        ],
+      },
+      { type: "h2", text: "What shipped: the contracts" },
+      {
+        type: "p",
+        text: `Four Solidity contracts, OpenZeppelin 5 throughout, compiled for the Cancun EVM target Arbitrum supports, with a 17-test suite covering the full lifecycle of each — payments, replays, expiry, wrong-signer rejection, fee ceilings, escrow release and refund paths, and EIP-3009 settlement.`,
+      },
+      {
+        type: "diagram",
+        text: `apps/web (Next.js API)                    packages/contracts (Arbitrum One)
+POST /api/payments/create  ── EIP-712 ──>  FurlPayRouter.pay()      0.5% fee, nonce replay guard
+POST /api/x402/facilitator/settle ──────>  X402Facilitator.settle() EIP-3009, resource-bound log
+POST /api/travel/bookings  ─── USDC ───>   FurlPayEscrow            oracle release / timed refund
+                                     └──>  BookingReceipt (ERC-721) minted to the traveler`,
+      },
+      {
+        type: "ul",
+        items: [
+          `FurlPayRouter — a payer signs a Payment authorization off-chain (the exact typed data our API already emits); a relayer submits it. The merchant receives amount minus fee, the treasury accrues the fee, and the contract enforces a hard 1% fee ceiling on-chain regardless of what any API quotes. Nonces are single-use; authorizations expire.`,
+          `X402Facilitator — forwards EIP-3009 transferWithAuthorization to USDC, so the facilitator never holds funds or keys, then writes an indexed settlement record binding the payment to a hash of the resource it bought. Coinbase's hosted facilitator and PayAI already settle x402 on Arbitrum; ours differs by indexing settlements on-chain and binding them to resources, which is what /api/x402/settlement serves back to agents.`,
+          `FurlPayEscrow — travel bookings fund in USDC and release on oracle-confirmed check-in, refund inside the cancellation window, or release permissionlessly after a 7-day grace period so providers are never hostage to a dead oracle.`,
+          `BookingReceipt — an ERC-721 minted on funding whose tokenId is the booking id, so proof-of-purchase is verifiable straight from the booking reference.`,
+        ],
+      },
+      { type: "h2", text: "Design decisions worth stealing" },
+      {
+        type: "ul",
+        items: [
+          `Sign off-chain, settle on-chain. Users and agents never pay gas to authorize; a relayer batches submissions. Arbitrum's post-Dia fee floor makes the relayer's cost per settlement fractions of a cent.`,
+          `Compliance before the chain. Both legs of every payment pass sanctions screening server-side before any transaction is submitted — the same pattern institutional settlers use, and the reason the contract layer can stay simple.`,
+          `Fee ceilings belong on-chain. The API quotes 0.5%, but the router refuses anything above 1% cryptographically. If our API is ever compromised, the blast radius is bounded by the contract.`,
+          `Mock-first infrastructure. Every endpoint runs deterministically with zero credentials and switches to live RPC with one environment variable. Demos never depend on testnet faucets cooperating.`,
+        ],
+      },
+      { type: "h2", text: "What is left" },
+      {
+        type: "ul",
+        items: [
+          `Deploy to Arbitrum Sepolia, then One — the deploy script already prints the FURLPAY_* environment variables the web app reads; the contract directory flips from "pending deployment" to live addresses the moment they exist.`,
+          `The relayer — a small service that takes executed API payments and submits them to FurlPayRouter, completing the off-chain-to-on-chain loop.`,
+          `Merchant API and compliance endpoints — checkout sessions, payouts, webhooks, and public sanctions-screening routes on top of the screening engine that already guards /execute.`,
+          `ERC-4337 passkey wallets — our WebAuthn authentication already exists; wiring it to a smart account with a USDC paymaster removes the last piece of gas UX entirely.`,
+          `The Orbit question — Robinhood validated launch-on-One, migrate-to-Orbit. If Furlpay's settlement volume justifies a dedicated chain with compliance hooks at the sequencer level, the Nitro stack is the obvious path.`,
+        ],
+      },
+      {
+        type: "p",
+        text: `The pattern behind all of it: stablecoin settlement is consolidating on Arbitrum, agentic payments are consolidating on x402, and Furlpay sits at the intersection — the payment rail where both humans and machines transact, with compliance built in rather than bolted on. If you are at the Open House in London, come find us; the contracts will be on Sepolia by then.`,
+      },
+    ],
+  },
+  {
     slug: "five-ways-to-rob-an-ai-agent-securing-x402",
     title: "Five Ways to Rob an AI Agent: How Furlpay Hardens x402 Payments",
     excerpt:
@@ -842,6 +920,115 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       {
         type: "quote",
         text: `The winning stablecoin for real-world commerce won't be the one with the best yield — it'll be the one payments networks, banks and merchants already trust. OUSD is that bet, and Furlpay is built to route it.`,
+      },
+    ],
+  },
+  // ------------------------------------------------------------------
+  {
+    slug: "travel-super-app-race-2026-payments-decide",
+    title: "The 2026 Travel Super-App Race Will Be Decided at the Payment Step",
+    excerpt:
+      "Online travel is a $719B market racing toward $1.3T, and Booking, Airbnb and Trip.com are all rebuilding as super-apps. But the layer none of them own — money movement — is where the race gets decided.",
+    category: "travel",
+    date: "2026-07-05",
+    readMins: 9,
+    author: "FurlPay Travels",
+    body: [
+      {
+        type: "p",
+        text: `Online travel booking is projected to grow from roughly $719 billion in 2026 to over $1.3 trillion by 2033 — a 9% compound annual clip — and the way people book has already tipped: mobile drives more than 63% of global online bookings and 68% of travel searches. The strategic response from the big three platforms is identical in ambition and different in execution: stop being a booking site, become the operating system for the whole trip.`,
+      },
+      { type: "h2", text: "Three super-app strategies" },
+      {
+        type: "ul",
+        items: [
+          `Trip.com is the transactional consolidator — flights across ~5,000 cities, 1.4M hotels, direct rail APIs (Eurostar, National Rail) with a "Split Tickets" engine that segments journeys to find cheaper fares, and a flight-hotel cancellation guarantee stitching verticals together.`,
+          `Airbnb's Summer 2026 release pivots from home-sharing to full-service travel: boutique hotels in 20 gateway cities, plus Instacart groceries, Welcome Pickups airport transfers, and Bounce luggage storage embedded directly in the post-booking flow.`,
+          `Booking.com layers GPT-4o-mini "Smart Filters" over the industry's deepest structured inventory — you describe the hotel in a sentence, the LLM applies the filter boxes for you.`,
+        ],
+      },
+      { type: "h2", text: "The cracks are all money-shaped" },
+      {
+        type: "p",
+        text: `Look at where travelers actually get angry with these platforms in 2026 and a pattern emerges. Booking.com's Best Rate Guarantee pays out in Booking Wallet credit — after claims survive single-screenshot rules and currency-conversion nitpicks — and cashing out takes a support call. Airbnb's boutique-hotel price match refunds exclusively in travel credit, capped at $400, expiring in twelve months. Genius loyalty discounts are routinely funded by inflated base rates, so logged-in members sometimes pay more than an incognito window. None of these are search problems or inventory problems. They are all payment problems: platforms treating refunds and rewards as retention leverage instead of money.`,
+      },
+      { type: "h2", text: "Agentic booking makes payments the whole ballgame" },
+      {
+        type: "p",
+        text: `The next booking interface is conversational. Sabre, PayPal and MindTrip are assembling an end-to-end agentic pipeline — conversational planning over 420+ airlines and 2M hotels with payment inside the chat. Google has said plainly it has no intention of becoming an OTA; it wants to hand qualified intent to whoever can complete the transaction. And in the most telling move of the year, OpenAI pulled native travel checkout from ChatGPT after finding users happily plan in chat but balk at typing card numbers into it. Planning is solved. Trust at the moment money moves is not.`,
+      },
+      { type: "h2", text: "Walking the 2026 booking funnel, stage by stage" },
+      {
+        type: "p",
+        text: `Trace a 2026 trip from first daydream to final refund and you can see exactly where trust holds and where it breaks. Inspiration is a solved stage: TikTok, Instagram and AI-curated feeds surface destinations more effectively than any brochure ever did, and travelers arrive at platforms already knowing roughly what they want. Planning is solved too — conversational AI over inventories like Sabre's 420+ airlines and 2M hotels turns a week of tab-juggling into a ten-minute chat, and tools like Booking.com's Smart Filters translate a sentence into structured search. Selection follows the same arc: with deep inventory, verified reviews and LLM-ranked results, picking the right hotel or flight is no longer where users struggle or platforms differentiate.`,
+      },
+      {
+        type: "p",
+        text: `Then comes payment, and the funnel snaps. This is the trust gap: users who happily planned an entire itinerary in a chat interface refuse to type a card number into that same chat — the exact behavior that made OpenAI pull native travel checkout from ChatGPT. There is no cryptographic authorization standard the average traveler trusts an agent with, so the most automated funnel in history still ends with a human hesitating over a card form. Every stage upstream has been optimized; the moment money actually moves is the one moment platforms haven't earned.`,
+      },
+      {
+        type: "p",
+        text: `The two stages after payment are where the earlier cracks compound. In-trip is only partially solved — this is the super-app battleground, where Airbnb bolts on groceries and airport transfers, Trip.com stitches rail and cancellation guarantees, and everyone races to own the traveler mid-journey; useful, but fragmented and still maturing. Refunds, the final stage, is where trust breaks outright: this is credit-trap territory, where price-match payouts arrive as expiring wallet credit, guarantees are capped and hedged with screenshot rules, and getting actual cash back requires a support call. A funnel that starts with frictionless AI inspiration ends with your own money held hostage as a retention token — and that asymmetry, not inventory or search, is the real weakness of the 2026 booking stack.`,
+      },
+      { type: "h2", text: "Our bet: settle like software" },
+      {
+        type: "p",
+        text: `FurlPay Travels is built on the premise that the payment layer — not inventory breadth — is the durable differentiator. Agents pay over x402 with cryptographic authorization instead of a card number in a chat box. Refunds and price-match payouts settle as USDC cash to your wallet in under a minute — never as credit that expires. And this week we shipped two features straight from this thesis: Price Alerts with an honest success-rate model and auto-book from your USDC balance when your target lands, and a Price Match Guarantee that pays the difference in withdrawable USDC, not a coupon.`,
+      },
+      {
+        type: "quote",
+        text: `Super-apps compete on how much of the trip they capture. We compete on what every leg of the trip runs on: money that moves at machine speed and stays yours.`,
+      },
+    ],
+  },
+  // ------------------------------------------------------------------
+  {
+    slug: "polite-sanitization-ai-review-summaries",
+    title: "Polite Sanitization: When AI Review Summaries Hide the Warnings That Matter",
+    excerpt:
+      "2026 investigations caught AI review summaries describing a food-poisoning-lawsuit resort as 'spotless' and systemic harassment as 'minor service lapses.' Here's why models flatten danger — and how verified, settlement-bound reviews fix it.",
+    category: "travel",
+    date: "2026-07-04",
+    readMins: 6,
+    author: "FurlPay Travels",
+    body: [
+      {
+        type: "p",
+        text: `Reviews are the currency of online travel, and in 2026 that currency is being debased from two directions at once. On the supply side, industry studies estimate 15–20% of visible online reviews are now AI-generated fakes. On the interpretation side, the AI summaries platforms bolt on top have developed a failure mode consumer researchers call "polite sanitization" — and it is worse than fake reviews, because it launders real ones.`,
+      },
+      { type: "h2", text: "What the investigations found" },
+      {
+        type: "ul",
+        items: [
+          `A consumer-group audit found an AI summary describing a Cape Verde resort as "spotless" with "rave reviews for diverse dining" — omitting that the property faced high-court litigation from hundreds of guests over mass food poisoning and documented rodent activity.`,
+          `Another summary called hotel staff "friendly" while the underlying reviews contained repeated reports from female guests of systemic harassment, compressed by the model into "minor service lapses."`,
+        ],
+      },
+      {
+        type: "p",
+        text: `The mechanism is boring and structural. Generative models are trained mostly on neutral-to-positive consumer language, and summarization optimizes for the statistical center of a corpus. Fear, disgust and physical danger are edge cases by definition — so the model averages them away. A hundred five-star reviews and three reports of rats in the kitchen summarize to "guests love the food." No one lied; the truth just got smoothed.`,
+      },
+      { type: "h2", text: "The industry's answer: verify harder" },
+      {
+        type: "p",
+        text: `Booking.com's May 2026 update shows where platforms are heading: reviews only count within 28 days of a verified checkout, scores roll over a 24-month window with a recency boost, and the first month of enforcement purged 7,800 unverifiable reviews. Verification is the right instinct — but it only fixes the supply side. A perfectly verified corpus still gets sanitized by the summary layer on top.`,
+      },
+      { type: "h2", text: "How FurlPay Travels handles it" },
+      {
+        type: "ul",
+        items: [
+          `Settlement-bound reviews: a review can only be attached to a booking that settled on-chain. The payment receipt is the proof of stay — there is no review form without a matching settlement, so synthetic review farms have nothing to attach to.`,
+          `Safety flags are never averaged: reports tagged hygiene, safety or harassment bypass summarization entirely and surface verbatim, with counts — "3 guests reported pest activity in the last 90 days" — even when the overall score is 4.8.`,
+          `Summaries state coverage, not vibes: every AI digest on a property page discloses how many verified stays it draws from and links the raw reviews it compressed.`,
+        ],
+      },
+      {
+        type: "quote",
+        text: `An AI summary that reads well and hides a health hazard isn't a summary — it's a liability with good manners. The fix is structural: bind reviews to settled payments, and never let safety signals pass through an averaging function.`,
+      },
+      {
+        type: "p",
+        text: `Trust infrastructure is payments infrastructure. The same on-chain receipt that makes our refunds instant makes our reviews attributable — one primitive, two problems solved.`,
       },
     ],
   },

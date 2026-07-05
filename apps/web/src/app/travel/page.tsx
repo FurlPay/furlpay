@@ -25,6 +25,7 @@ import {
 import { getJSON } from "@/lib/api";
 import { Pill } from "@/components/ui";
 import TravelHero from "@/components/travel/TravelHero";
+import TripMatchSearch from "@/components/travel/TripMatchSearch";
 import { DESTINATION_CATEGORIES, TRAVEL_STATS, type Deal } from "@/lib/travel/data";
 
 const STEPS = [
@@ -81,6 +82,9 @@ export default function TravelHubPage() {
       <div className="mt-5">
         <TravelHero />
       </div>
+
+      {/* Furl AI Trip Match — natural-language destination search */}
+      <TripMatchSearch />
 
       {/* Destination categories */}
       <section className="mt-12">
@@ -141,7 +145,7 @@ export default function TravelHubPage() {
           {deals.map((d) => (
             <Link
               key={d.id}
-              href={`/travel/checkout?ref=${d.id}&name=${encodeURIComponent(d.name)}&amount=${d.nightlyUsd}&nights=1`}
+              href={`/travel/checkout?kind=stay&ref=${d.id}&name=${encodeURIComponent(d.name)}&amount=${d.nightlyUsd}&nights=1&img=${encodeURIComponent(d.photo)}`}
               className="group w-56 shrink-0 snap-start overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/25 hover:shadow-glow-sm"
             >
               <div className="relative h-28 overflow-hidden">
@@ -230,6 +234,8 @@ export default function TravelHubPage() {
         <h2 className="mb-4 text-xl font-bold text-white">More from FurlPay Travels</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
+            { href: "/travel/alerts", Icon: Sparkles, tint: "text-cyan-400 bg-cyan-400/10", title: "Price Alerts", body: "Name your price — auto-book on the dip." },
+            { href: "/travel/price-match", Icon: Coins, tint: "text-green-400 bg-green-400/10", title: "Price Match", body: "Found it cheaper? Refund in USDC cash." },
             { href: "/travel/rewards", Icon: Trophy, tint: "text-amber-400 bg-amber-400/10", title: "Travel Rewards", body: "2–7% USDC cashback, four tiers." },
             { href: "/travel/gift-cards", Icon: Gift, tint: "text-rose-400 bg-rose-400/10", title: "Gift Cards", body: "$25–$500, instant email delivery." },
             { href: "/travel/refer", Icon: Users, tint: "text-sky-400 bg-sky-400/10", title: "Invite & Earn", body: "$25 per referral in travel credits." },

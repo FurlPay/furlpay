@@ -22,3 +22,14 @@ apktool-output/
 
 # Android app project (build artifacts + signing keystore — never deploy)
 apps/android
+
+# Local scratch experiments (not part of the app; breaks typecheck on Vercel)
+apps/web/scratch
+
+# Marketing workspace + raw demo videos at repo root only (anchored — the app
+# has its own src/components/marketing that must deploy)
+/marketing
+/*.mp4
+
+# Contracts workspace (compiled/deployed via Hardhat, not Vercel)
+packages/contracts

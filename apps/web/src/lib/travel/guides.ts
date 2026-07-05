@@ -295,6 +295,47 @@ export const GUIDES: Guide[] = [
     ],
     cta: { label: "Browse city destinations", href: "/travel/destinations/cities" },
   },
+  {
+    slug: "flight-price-alerts-done-right",
+    title: "Flight Price Alerts, Done Right: Targets, Success Rates and Auto-Book",
+    category: "Tutorials",
+    excerpt:
+      "Stop refreshing fare pages at 2am. How to set a realistic target price, read the green/yellow/red success indicator, and let auto-book settle the ticket from your USDC balance the moment the fare dips.",
+    readMins: 5,
+    date: "2026-07-05",
+    sections: [
+      {
+        paragraphs: [
+          "Every traveler has a version of the same ritual: open the fare page, wince, close it, repeat tomorrow. Price alerts replace the ritual with a target — but most alert tools just email you after the good fare is gone. FurlPay's alerts add two things: an honest probability that your target will ever hit, and the option to book automatically the second it does.",
+        ],
+      },
+      {
+        h2: "Step 1 — Set a target, not a wish",
+        paragraphs: [
+          "Create an alert from Travels → Price Alerts with your route, date and target price. The success indicator responds immediately: green means your target sits within the fare range this route actually trades in; yellow means it needs a proper dip; red means the market would have to break for you to see it. If you're red, you don't need an alert — you need a different date or a nearby airport.",
+        ],
+        bullets: [
+          "Green (70%+): realistic — fares at or below your target occur regularly on this route",
+          "Yellow (40–70%): possible — needs a promotional dip before your travel date",
+          "Red (under 40%): long shot — consider shifting dates or raising the target",
+        ],
+      },
+      {
+        h2: "Step 2 — Give the alert runway",
+        paragraphs: [
+          "The model weighs how many days remain before travel: more runway means more fare dips to catch, so the same target scores higher 45 days out than 5 days out. Set alerts as soon as a trip is even likely — watching costs nothing, and you can delete the alert in one tap if plans change.",
+        ],
+      },
+      {
+        h2: "Step 3 — Turn on auto-book (the part nobody else has)",
+        paragraphs: [
+          "With auto-book enabled, hitting your target doesn't send you a notification to race — it settles the booking from your USDC balance instantly, using your saved traveler profile and a spending cap you approved once. Fare dips last minutes; wallets settle in seconds. That's the whole edge.",
+          "And if the price drops again after you've booked? The Price Match Guarantee refunds the difference in USDC cash — so booking early never punishes you.",
+        ],
+      },
+    ],
+    cta: { label: "Set your first price alert", href: "/travel/alerts" },
+  },
 ];
 
 export function getGuide(slug: string): Guide | undefined {
