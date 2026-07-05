@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { ChevronLeft, Wallet, CreditCard, Coins, Bot, ShieldCheck, Lock, CheckCircle2 } from "lucide-react";
+import { ChevronLeft, Wallet, CreditCard, Coins, Bot, ShieldCheck, Lock, CheckCircle2, Plane } from "lucide-react";
 import { sendJSON } from "@/lib/api";
 import { Spinner, Pill } from "@/components/ui";
 import { RATES, CASHBACK_RATE, type PayToken } from "@/lib/travel/data";
@@ -28,6 +28,12 @@ function Checkout() {
   const ref = params.get("ref") ?? "";
   const nights = Number(params.get("nights")) || 3;
   const roomRate = Number(params.get("amount")) || 540;
+  // What's being bought drives the header art and line-item copy.
+  const kind = params.get("kind") === "flight" ? "flight" : "stay";
+  const img = params.get("img") ?? "";
+  const carrier = params.get("carrier") ?? "";
+  const meta = params.get("meta") ?? "";
+  const isFlight = kind === "flight";
 
   const taxes = Math.round(roomRate * 0.1 * 100) / 100;
   const cashback = Math.round((roomRate + taxes) * CASHBACK_RATE * 100) / 100;
@@ -92,19 +98,55 @@ function Checkout() {
 
   return (
     <div className="mx-auto max-w-4xl px-5 pb-24 pt-6">
-      <Link href="/travel/stays" className="mb-3 inline-flex items-center gap-1 text-sm text-textSecondary hover:text-white">
+      <Link
+        href={isFlight ? "/travel/flights" : "/travel/stays"}
+        className="mb-3 inline-flex items-center gap-1 text-sm text-textSecondary hover:text-white"
+      >
         <ChevronLeft className="h-4 w-4" /> Back to results
       </Link>
       <h1 className="text-2xl font-bold text-white">Checkout</h1>
 
       <div className="mt-5 grid gap-6 lg:grid-cols-[1fr_1fr]">
         {/* Summary */}
-        <div className="h-fit rounded-card border border-white/10 bg-charcoal p-5">
+        <div className="h-fit overflow-hidden rounded-card border border-white/10 bg-charcoal">
+          {/* Header art: hotel photo banner, or airline logo card for flights */}
+          {!isFlight && img && (
+            <div className="relative h-36 w-full overflow-hidden">
+              <img src={img} alt={name} className="absolute inset-0 h-full w-full object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
+              <p className="absolute bottom-3 left-4 text-base font-bold text-white">{name}</p>
+            </div>
+          )}
+          {isFlight && (
+            <div className="flex items-center gap-3 border-b border-white/10 bg-white/[0.03] px-5 py-4">
+              {img ? (
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white p-2">
+                  <img src={img} alt={carrier || name} className="h-full w-full object-contain" />
+                </span>
+              ) : (
+                <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/[0.06]">
+                  <Plane className="h-5 w-5 text-neon" />
+                </span>
+              )}
+              <div className="min-w-0">
+                {carrier && <p className="truncate text-sm font-semibold text-white">{carrier}</p>}
+                <p className="text-base font-bold text-white">{name}</p>
+                {meta && <p className="truncate text-[11px] text-textSecondary">{meta}</p>}
+              </div>
+            </div>
+          )}
+
+          <div className="p-5">
           <p className="text-sm font-semibold text-white">Booking summary</p>
-          <p className="mt-3 text-base font-bold text-white">{name}</p>
-          <p className="text-xs text-textSecondary">{nights} nights · 2 adults</p>
+          {!img && !isFlight && <p className="mt-3 text-base font-bold text-white">{name}</p>}
+          <p className="mt-1 text-xs text-textSecondary">
+            {isFlight ? "1 adult · one-way" : `${nights} nights · 2 adults`}
+          </p>
           <div className="mt-4 space-y-1.5 border-t border-white/10 pt-4 text-sm">
-            <Row label={`Room rate (${nights} nights)`} value={`$${roomRate.toLocaleString()}`} />
+            <Row
+              label={isFlight ? "Fare" : `Room rate (${nights} nights)`}
+              value={`$${roomRate.toLocaleString()}`}
+            />
             <Row label="Taxes & fees" value={`$${taxes.toLocaleString()}`} />
             <Row label="FurlPay cashback (2%)" value={`-$${cashback.toLocaleString()}`} highlight />
             <div className="mt-2 flex items-center justify-between border-t border-white/10 pt-2">
@@ -118,6 +160,7 @@ function Checkout() {
           <p className="mt-4 flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-2 text-[11px] text-textSecondary">
             <Lock className="h-3 w-3" /> Rate locked for {mm}:{ss}
           </p>
+          </div>
         </div>
 
         {/* Payment */}

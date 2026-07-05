@@ -35,9 +35,17 @@ function dur(min: number): string {
 }
 
 export default function FlightCard({ flight, badge }: { flight: Flight; badge?: string }) {
-  const href = `/travel/checkout?ref=${flight.id}&name=${encodeURIComponent(
-    `${flight.carrierCode} ${flight.from}→${flight.to}`,
-  )}&amount=${flight.priceUsd}&nights=0`;
+  // Checkout renders the airline logo + itinerary line above the summary.
+  const meta = `${flight.date} · ${dur(flight.durationMin)} · ${
+    flight.stops === 0 ? "Direct" : `${flight.stops} stop`
+  } · ${flight.cabin}`;
+  const href =
+    `/travel/checkout?kind=flight&ref=${flight.id}` +
+    `&name=${encodeURIComponent(`${flight.from} → ${flight.to}`)}` +
+    `&carrier=${encodeURIComponent(flight.carrier)}` +
+    `&meta=${encodeURIComponent(meta)}` +
+    (flight.logoUrl ? `&img=${encodeURIComponent(flight.logoUrl)}` : "") +
+    `&amount=${flight.priceUsd}&nights=0`;
   return (
     <div
       className={`relative rounded-card border bg-charcoal p-4 transition hover:border-white/20 ${

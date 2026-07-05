@@ -85,7 +85,7 @@ export default function DealsPage() {
                 return (
                   <Link
                     key={d.id}
-                    href={`/travel/checkout?ref=${d.id}&name=${encodeURIComponent(d.name)}&amount=${d.nightlyUsd}&nights=1`}
+                    href={`/travel/checkout?kind=stay&ref=${d.id}&name=${encodeURIComponent(d.name)}&amount=${d.nightlyUsd}&nights=1&img=${encodeURIComponent(d.photo)}`}
                     className="group overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/25 hover:shadow-glow-sm"
                   >
                     <div className="relative h-36 overflow-hidden">
