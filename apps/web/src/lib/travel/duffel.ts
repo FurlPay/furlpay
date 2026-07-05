@@ -28,6 +28,16 @@ function minutesBetween(a?: string, b?: string): number {
   return Math.round((end - start) / 60_000);
 }
 
+// Duffel durations are ISO 8601 (e.g. "PT8H10M"). Departure/arrival timestamps
+// are local wall-clock times, so subtracting them silently drops the timezone
+// shift (LHR→JFK would show ~3h instead of ~8h) — always prefer the duration
+// field and only fall back to timestamp math when it's absent.
+function iso8601Minutes(duration?: string): number {
+  const m = String(duration ?? "").match(/^P(?:(\d+)D)?T?(?:(\d+)H)?(?:(\d+)M)?/);
+  if (!m) return 0;
+  return (Number(m[1]) || 0) * 1440 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0);
+}
+
 export async function searchDuffelFlights(
   from: string,
   to: string,
@@ -65,6 +75,10 @@ export async function searchDuffelFlights(
         const first = segments[0] ?? {};
         const last = segments[segments.length - 1] ?? {};
         const stops = Math.max(0, segments.length - 1);
+        const durationMin =
+          iso8601Minutes(slice.duration) ||
+          segments.reduce((sum, s) => sum + iso8601Minutes(s?.duration), 0) ||
+          minutesBetween(first.departing_at, last.arriving_at);
         return {
           id: String(o.id ?? ""),
           carrier: String(o.owner?.name ?? "Airline"),
@@ -74,7 +88,7 @@ export async function searchDuffelFlights(
           date: String(first.departing_at ?? date).slice(0, 10),
           departTime: hhmm(first.departing_at),
           arriveTime: hhmm(last.arriving_at),
-          durationMin: minutesBetween(first.departing_at, last.arriving_at),
+          durationMin,
           stops,
           cabin,
           logoUrl: o.owner?.logo_symbol_url ?? undefined,

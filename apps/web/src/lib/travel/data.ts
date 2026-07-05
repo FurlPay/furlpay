@@ -311,10 +311,43 @@ const CARRIERS: Array<[string, string]> = [
   ["Qatar Airways", "QR"], ["Delta", "DL"], ["Singapore Airlines", "SQ"],
 ];
 
+// Coordinates for common IATA airports so demo fares have real flight times.
+// Unknown codes fall back to a bounded hash estimate.
+const AIRPORT_COORDS: Record<string, { lat: number; lng: number }> = {
+  LHR: { lat: 51.47, lng: -0.45 }, LGW: { lat: 51.15, lng: -0.19 }, JFK: { lat: 40.64, lng: -73.78 },
+  EWR: { lat: 40.69, lng: -74.17 }, LAX: { lat: 33.94, lng: -118.41 }, SFO: { lat: 37.62, lng: -122.38 },
+  ORD: { lat: 41.97, lng: -87.91 }, MIA: { lat: 25.8, lng: -80.29 }, CDG: { lat: 49.01, lng: 2.55 },
+  AMS: { lat: 52.31, lng: 4.76 }, FRA: { lat: 50.04, lng: 8.56 }, MAD: { lat: 40.5, lng: -3.57 },
+  BCN: { lat: 41.3, lng: 2.08 }, FCO: { lat: 41.8, lng: 12.24 }, LIS: { lat: 38.77, lng: -9.13 },
+  ZRH: { lat: 47.46, lng: 8.55 }, IST: { lat: 41.26, lng: 28.74 }, DXB: { lat: 25.25, lng: 55.36 },
+  DOH: { lat: 25.27, lng: 51.61 }, DEL: { lat: 28.56, lng: 77.1 }, BOM: { lat: 19.09, lng: 72.87 },
+  BLR: { lat: 13.2, lng: 77.71 }, SIN: { lat: 1.36, lng: 103.99 }, BKK: { lat: 13.69, lng: 100.75 },
+  HKG: { lat: 22.31, lng: 113.91 }, NRT: { lat: 35.77, lng: 140.39 }, HND: { lat: 35.55, lng: 139.78 },
+  ICN: { lat: 37.46, lng: 126.44 }, SYD: { lat: -33.95, lng: 151.18 }, MEL: { lat: -37.67, lng: 144.84 },
+  DPS: { lat: -8.75, lng: 115.17 }, GRU: { lat: -23.44, lng: -46.47 }, MEX: { lat: 19.44, lng: -99.07 },
+  YYZ: { lat: 43.68, lng: -79.63 }, CAI: { lat: 30.12, lng: 31.41 }, JNB: { lat: -26.14, lng: 28.25 },
+  SJO: { lat: 9.99, lng: -84.21 }, COK: { lat: 10.15, lng: 76.4 },
+};
+
+function greatCircleKm(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad;
+  const dLng = (b.lng - a.lng) * rad;
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
 function hhmm(minsFromMidnight: number): string {
   const h = Math.floor(minsFromMidnight / 60) % 24;
   const m = minsFromMidnight % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+/** Brand SVG from Duffel's public airline-asset CDN (same source the live path uses). */
+function airlineLogoUrl(iata: string): string {
+  return `https://assets.duffel.com/img/airlines/for-light-background/full-color-logo/${iata}.svg`;
 }
 
 export function generateFlights(
@@ -323,30 +356,45 @@ export function generateFlights(
   date: string,
   cabin: Flight["cabin"] = "Economy",
 ): Flight[] {
-  const seed = hash(`${from}-${to}-${cabin}`.toUpperCase());
+  const origin = (from || "LHR").toUpperCase().slice(0, 3);
+  const dest = (to || "JFK").toUpperCase().slice(0, 3);
+  const seed = hash(`${origin}-${dest}-${cabin}`);
   const cabinMult = { Economy: 1, Premium: 1.6, Business: 3.2, First: 5.5 }[cabin];
+
+  // Realistic route model: great-circle distance → cruise time at ~830 km/h
+  // plus 40 min taxi/climb. Unknown airports get a bounded hash estimate.
+  const a = AIRPORT_COORDS[origin];
+  const b = AIRPORT_COORDS[dest];
+  const distanceKm = a && b ? greatCircleKm(a, b) : 800 + (seed % 8000);
+  const directMin = Math.round((distanceKm / 830) * 60) + 40;
+
   return Array.from({ length: 6 }, (_, i) => {
     const s = ((seed >> (i % 20)) ^ (i * 2246822519)) >>> 0;
     const [carrier, code] = CARRIERS[(seed + i) % CARRIERS.length];
+    // Long-haul routes mix in one-stop itineraries; short hops stay direct.
+    const stops = distanceKm > 6500 ? (i % 3 === 2 ? 1 : 0) : distanceKm > 2500 && i % 4 === 3 ? 1 : 0;
+    const duration = directMin + (stops ? 90 + (s % 120) : 0) + (s % 25);
     const depart = 300 + (s % 900); // 05:00–20:00
-    const duration = 90 + (s % 780); // 1.5h–14.5h
-    const stops = s % 5 === 0 ? 1 : 0;
+    // Fare ≈ base + per-km rate with per-carrier variance; stops fly cheaper.
+    const perKm = 0.075 + ((s % 45) / 1000);
+    const fare = (55 + distanceKm * perKm) * (stops ? 0.82 : 1) * cabinMult;
     return {
       id: `flt_${(seed % 0xffff).toString(16)}_${i}`,
       carrier,
       carrierCode: code,
-      from: (from || "LHR").toUpperCase().slice(0, 3),
-      to: (to || "JFK").toUpperCase().slice(0, 3),
+      from: origin,
+      to: dest,
       date: date || new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
       departTime: hhmm(depart),
       arriveTime: hhmm(depart + duration),
       durationMin: duration,
       stops,
       cabin,
-      priceUsd: round2((160 + (s % 640)) * cabinMult),
+      priceUsd: round2(fare),
       baggage: stops === 0 ? "1 carry-on + 1 checked" : "1 carry-on",
+      logoUrl: airlineLogoUrl(code),
     };
-  }).sort((a, b) => a.priceUsd - b.priceUsd);
+  }).sort((x, y) => x.priceUsd - y.priceUsd);
 }
 
 export function featuredDeals(): Deal[] {
