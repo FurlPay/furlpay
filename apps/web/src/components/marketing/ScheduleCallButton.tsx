@@ -44,14 +44,14 @@ export default function ScheduleCallButton({ className }: { className?: string }
 
       {open && (
         <div
-          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/85 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-[80] grid place-items-center overflow-y-auto bg-black/85 p-6 backdrop-blur-sm"
           onClick={close}
           role="dialog"
           aria-modal="true"
           aria-label="Schedule a call with the Furlpay founder"
         >
           <div
-            className="relative flex h-[min(720px,92vh)] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-charcoal shadow-[0_0_120px_-30px_rgba(0,229,153,0.35)]"
+            className="relative flex h-[min(600px,82vh)] w-full max-w-[680px] flex-col overflow-hidden rounded-2xl border border-white/10 bg-charcoal shadow-[0_0_120px_-30px_rgba(0,229,153,0.35)]"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-3.5">
