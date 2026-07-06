@@ -46,6 +46,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/resources", // guides, tools (fee calculator), glossary (public)
   "/trust", // trust & security center (public)
   "/contact", // contact page (public)
+  "/hotels", // programmatic crypto-hotel city landing pages (public)
   "/compare", // SEO comparison pages (public)
   "/newsletter", // subscribe / manage preferences (public)
   "/developer", // public developer portal + Agent Console demo

@@ -3,6 +3,7 @@ import { POSTS } from "@/lib/blog/posts";
 import { CATEGORIES } from "@/lib/blog/categories";
 import { INSIGHTS } from "@/lib/insights/articles";
 import { INSIGHT_CATEGORIES } from "@/lib/insights/categories";
+import { CITIES } from "@/lib/cities";
 
 const BASE = "https://furlpay.com";
 const NOW = new Date("2026-07-02");
@@ -65,6 +66,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/resources/tools/roi-calculator", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/resources/tools/gas-estimator", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/resources/tools/stablecoin-comparison", priority: 0.7, changeFrequency: "monthly" as const },
+
+    // — Crypto hotels (city landing pages) —
+    { path: "/hotels", priority: 0.8, changeFrequency: "monthly" as const },
 
     // — United Kingdom (en-GB) —
     { path: "/uk", priority: 0.9, changeFrequency: "monthly" as const },
@@ -151,5 +155,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
-  return [...staticPages, ...posts, ...categories, ...insights, ...insightCategories];
+  const cityHotels = CITIES.map((c) => ({
+    url: `${BASE}/hotels/${c.slug}`,
+    lastModified: NOW,
+    changeFrequency: "monthly" as const,
+    priority: 0.6,
+  }));
+
+  return [...staticPages, ...posts, ...categories, ...insights, ...insightCategories, ...cityHotels];
 }
