@@ -19,6 +19,7 @@ const PUBLIC_PAGES = new Set([
   "/partners",
   "/use-cases",
   "/careers",
+  "/ambassadors",
   "/status",
   "/press",
   "/waitlist",
@@ -54,6 +55,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/contact", // public "Talk to us" lead capture
   "/api/newsletter", // public newsletter subscribe / unsubscribe
   "/api/careers", // public talent-pipeline interest capture
+  "/api/ambassadors", // public creator-program applications
   "/api/agents", // public Agent Console demo data
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists

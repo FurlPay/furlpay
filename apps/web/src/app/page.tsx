@@ -377,6 +377,7 @@ function Footer() {
               ["About", "/about"],
               ["Use cases", "/use-cases"],
               ["Partners", "/partners"],
+              ["Creator Program", "/ambassadors"],
               ["Careers", "/careers"],
               ["Changelog", "/changelog"],
               ["Grants", "/grants"],
