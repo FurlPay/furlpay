@@ -1829,6 +1829,129 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
     ],
   },
+  {
+    slug: "rwa-tokenized-economy-needs-a-settlement-layer",
+    title: "The Tokenized Economy Still Needs a Cash Register: Stablecoins as the RWA Settlement Layer",
+    excerpt:
+      "Roughly $27B of real-world assets are now on-chain and BlackRock's BUIDL alone passed $2.5B. But a tokenized Treasury or hotel share is only half a market — it still needs a payment rail. Here is where stablecoin settlement fits, and where Furlpay honestly does and does not play.",
+    category: "product-news",
+    date: "2026-07-07",
+    cover: "https://images.unsplash.com/photo-1620266757065-5814239881fd?auto=format&fit=crop&w=1600&q=80",
+    readMins: 7,
+    author: "Furlpay Team",
+    body: [
+      {
+        type: "p",
+        text: `Real-world asset (RWA) tokenization stopped being a thesis and became a balance sheet in 2026. On-chain RWA value sits around $26–36B depending on how you count, tokenized US Treasuries alone are roughly $12.9B, and BlackRock's tokenized money-market fund (BUIDL) passed $2.5B in May. Boston Consulting Group and Ripple project the broader market reaching $18.9T by 2033 — a number worth treating as a direction, not a promise, given how wide the published estimates run.`,
+      },
+      {
+        type: "p",
+        text: `Ahead of the RWA Week panel "Who Owns the Tokenized Economy" (8 July 2026), it is worth being precise about one layer everyone assumes and few build: settlement. A tokenized asset is a claim. Turning that claim into money still needs a payment rail — and that is a different problem from issuing the token.`,
+      },
+      { type: "h2", text: "Tokenization solves ownership, not payment" },
+      {
+        type: "p",
+        text: `Tokenizing an asset answers "who owns this, and can I transfer a fraction of it." It does not answer "how does the coupon get paid, how does a buyer settle, how does a guest actually pay the hotel whose shares were just tokenized." Those are settlement questions, and today they mostly fall back to bank wires (multi-day) or card rails (1.5–3.5% and chargeback-prone) — the exact frictions tokenization set out to remove.`,
+      },
+      {
+        type: "table",
+        headers: ["Layer", "What it does", "Who builds it"],
+        rows: [
+          ["Issuance", "Mints the token that represents the asset", "Ondo, Franklin Templeton, BlackRock/Securitize"],
+          ["Marketplace", "Lists and trades the tokenized asset", "InvestaX, tokenization platforms, exchanges"],
+          ["Settlement", "Moves money for the trade, coupon or real-world use", "Stablecoin payment rails"],
+        ],
+        highlightCol: 2,
+      },
+      { type: "h2", text: "Where stablecoins fit — and where Furlpay does" },
+      {
+        type: "p",
+        text: `Stablecoins are the natural settlement asset for tokenized markets: dollar-stable, borderless, final in about a second on a network like Arbitrum. Furlpay builds that settlement layer — a USDC payments API that settles on Arbitrum for a flat 0.5%, plus an x402 facilitator so machines and platforms can pay per call. That is the honest edge of what we do.`,
+      },
+      {
+        type: "p",
+        text: `We should be equally clear about what we do not do. Furlpay is not an RWA issuer. We do not tokenize hotels, issue fractional property shares, or operate a securities marketplace, and nothing here is an offer of any tokenized investment. Our role is upstream of ownership and downstream of it: the rail that moves dollars when a tokenized asset needs to be paid for, or when the real-world business behind it — a hotel, an airline, a merchant — takes a payment.`,
+      },
+      { type: "h2", text: "The concrete example: tokenized hospitality" },
+      {
+        type: "p",
+        text: `Take a hotel whose ownership is tokenized so global investors can hold a fraction. That structure is only compelling if the underlying property runs efficiently — and a property that still pays 3% plus FX on every international guest is leaking yield the tokenization was supposed to unlock. A hotel accepting USDC at 0.5% ([see how](/solutions/hotels)) improves the real cash flows the token is a claim on. Settlement and ownership are two ends of the same asset.`,
+      },
+      { type: "h2", text: "Public rails, regulated wrappers" },
+      {
+        type: "p",
+        text: `The regulatory direction reinforces this. The US GENIUS Act, the EU's MiCA, Japan's June 2026 recognition of USDC as an Electronic Payment Instrument, and Dubai's VARA regime all point the same way: regulated wrappers on top of public blockchains, not walled-garden chains. Settlement infrastructure that is compliance-aware on a public network is exactly the shape those frameworks reward. Furlpay states its own regulatory status plainly on each market's trust page rather than overclaiming it.`,
+      },
+      {
+        type: "quote",
+        text: `A tokenized asset without a settlement rail is a share certificate you cannot cash. The tokenized economy will be owned by whoever makes the money move — cheaply, instantly, and within the rules.`,
+      },
+      {
+        type: "p",
+        text: `Furlpay is not a bank and is not an issuer of securities or tokenized real-world assets. Crypto assets are high risk and can lose value. Market figures are third-party estimates as of mid-2026 and vary by source. This article is information, not financial or legal advice.`,
+      },
+    ],
+  },
+  {
+    slug: "usdc-legal-in-japan-2026-what-it-means-for-payments",
+    title: "USDC's Legal Path in Japan: What the June 2026 Stablecoin Rules Mean for Payments",
+    excerpt:
+      "From 1 June 2026, qualifying foreign stablecoins can be distributed in Japan under the Payment Services Act — with USDC's pathway running through SBI VC Trade. Here is what actually changed, why USDT still can't clear the bar, and what it means for hotels and merchants.",
+    category: "compliance",
+    date: "2026-07-07",
+    cover: "https://images.unsplash.com/photo-1540959733332-eab4deabeeaf?auto=format&fit=crop&w=1600&q=80",
+    readMins: 7,
+    author: "Compliance Team",
+    body: [
+      {
+        type: "p",
+        text: `For years, using a dollar stablecoin to pay in Japan sat in a grey zone. That changed in June 2026. Under an update to the Payment Services Act effective 1 June 2026, qualifying foreign stablecoins can now be distributed in Japan through licensed intermediaries, regulated by the Financial Services Agency (JFSA) as Electronic Payment Instruments (EPI). For a business deciding whether to accept USDC, that is the legal clarity that was missing.`,
+      },
+      { type: "h2", text: "What actually changed" },
+      {
+        type: "p",
+        text: `Japan's framework treats fiat-backed stablecoins as Electronic Payment Instruments, and a foreign stablecoin can only be offered through a registered Electronic Payment Instrument Exchange Service Provider (EPIESP) after clearing a JFSA "equivalence" test on its issuer and reserves. The practical result is a short, curated list of stablecoins that are actually usable on licensed platforms.`,
+      },
+      {
+        type: "table",
+        headers: ["Stablecoin", "Status in Japan", "Pathway"],
+        rows: [
+          ["USDC", "Usable via licensed distribution", "SBI VC Trade (registered EPIESP) + Circle"],
+          ["RLUSD", "First foreign stablecoin to clear JFSA equivalence", "SBI VC Trade / Ripple, June 2026"],
+          ["JPYC", "Legal domestic yen stablecoin", "JPYC Inc. (licensed issuer)"],
+          ["USDT", "Not available on licensed platforms", "No registered distributor"],
+        ],
+        highlightCol: 0,
+      },
+      {
+        type: "p",
+        text: `Two nuances the headlines flatten. First, USDC's route to market is its distribution partnership with SBI VC Trade, which registered as an EPIESP — the token is usable, but through that regulated channel rather than freely. Second, Ripple's RLUSD was actually the first foreign-issued stablecoin to formally clear the JFSA equivalence test in June 2026, also via SBI. USDT, by contrast, has no licensed distributor and remains effectively unavailable on regulated Japanese platforms.`,
+      },
+      { type: "h2", text: "Why it matters for hotels and merchants" },
+      {
+        type: "p",
+        text: `Japan drew over 40 million inbound visitors in 2025, a growing share of whom carry stablecoins. A hotel, ryokan or merchant that accepts USDC through a compliant pathway can serve that demand while cutting processing from the 3–4% typical of Japanese cards (plus FX on foreign cards) to a flat 0.5%, settled in about a second with no chargebacks. Retail precedent already exists — major electronics chains have accepted crypto for years — so acceptance is not the leap it once was.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Legal clarity: USDC is a recognised Electronic Payment Instrument, not a grey-area asset.`,
+          `Lower cost: 0.5% versus 3–4% card-plus-FX on inbound guests.`,
+          `Finality: on-chain settlement removes chargebacks on high-value ryokan and hotel stays.`,
+          `Omotenashi: one less point of friction at checkout, complementing service rather than replacing it.`,
+        ],
+      },
+      { type: "h2", text: "Furlpay's honest status in Japan" },
+      {
+        type: "p",
+        text: `Furlpay is a payments platform, not a stablecoin issuer or a JFSA-registered exchange. We are not registered with the JFSA as a Crypto-Asset Exchange Service Provider or an EPIESP, and we do not claim to be — those registrations require a local presence and are how distribution is licensed in Japan. We are evaluating a licensed-intermediary pathway and state exactly where we stand on our [Japan trust page](/jp/trust). See how acceptance works for [Japanese hotels](/jp/solutions/hotels).`,
+      },
+      {
+        type: "p",
+        text: `Furlpay is not a bank and is not registered with the JFSA. Crypto assets are high risk, are not legal tender, and can lose value. Regulatory details are accurate to the best of our knowledge as of July 2026 and continue to develop; consult qualified Japanese counsel about your specific situation. This article is information, not legal advice.`,
+      },
+    ],
+  },
 ];
 
 const MONTHS = [

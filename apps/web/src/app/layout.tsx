@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Script from "next/script";
 import "./globals.css";
 import Shell from "@/components/Shell";
+import ConsentManager from "@/components/ConsentManager";
 
 // Search-console / analytics ids come from env so they never hardcode secrets
 // and are easy to set per-environment in Vercel. All optional — unset → no-op.
@@ -106,17 +107,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* Google Analytics 4 — loads only when NEXT_PUBLIC_GA4_ID is set. */}
         {GA_ID && (
           <>
+            {/* Consent Mode v2: default everything to denied BEFORE gtag.js
+                loads, so no analytics/ad cookies are set until the visitor
+                opts in via ConsentManager. Must run before the config below. */}
+            <Script id="consent-default" strategy="beforeInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{analytics_storage:'denied',ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',wait_for_update:500});`}
+            </Script>
             <Script
               src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
               strategy="afterInteractive"
             />
             <Script id="ga4-init" strategy="afterInteractive">
-              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`}
+              {`gtag('js',new Date());gtag('config','${GA_ID}');`}
             </Script>
           </>
         )}
         {/* Shell picks full-bleed (marketing/docs) vs phone-frame app chrome. */}
         <Shell>{children}</Shell>
+        {GA_ID && <ConsentManager />}
       </body>
     </html>
   );

@@ -88,6 +88,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/ae/trust", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/ae/compare/stripe", priority: 0.7, changeFrequency: "monthly" as const },
 
+    // — Japan (en-JP) —
+    { path: "/jp", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/jp/products/payments", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/jp/solutions/hotels", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/jp/solutions/airlines", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/jp/pricing", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/jp/trust", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/jp/compare/stripe", priority: 0.7, changeFrequency: "monthly" as const },
+
     // — Comparisons —
     { path: "/compare/bitpay", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/compare/coinbase-commerce", priority: 0.7, changeFrequency: "monthly" as const },

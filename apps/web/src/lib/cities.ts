@@ -6,7 +6,7 @@
 export type City = {
   slug: string;
   name: string;
-  country: "United States" | "United Kingdom" | "United Arab Emirates";
+  country: "United States" | "United Kingdom" | "United Arab Emirates" | "Japan";
   currency: string; // symbol used in copy
   hotelsHref: string; // regional /solutions/hotels handoff
   // One-to-two sentence, factual reason this city fits crypto hotel payments.
@@ -46,12 +46,33 @@ export const CITIES: City[] = [
   { slug: "denver", name: "Denver", country: "United States", currency: "$", hotelsHref: "/solutions/hotels",
     context: "Denver is a fast-growing US destination and a rising crypto community hub, with heavy seasonal and events-driven tourism.",
     angle: "Seasonal peaks make cash-flow and instant settlement especially valuable." },
+  { slug: "nashville", name: "Nashville", country: "United States", currency: "$", hotelsHref: "/solutions/hotels",
+    context: "Nashville is one of the fastest-growing US tourism markets, sits in a no-income-tax state, and draws constant music, bachelorette and events travel that fills boutique and downtown hotels.",
+    angle: "High-occupancy, high-turnover leisure bookings mean per-transaction card fees add up across thousands of short stays." },
+  { slug: "atlanta", name: "Atlanta", country: "United States", currency: "$", hotelsHref: "/solutions/hotels",
+    context: "Atlanta is a major US convention and business-travel hub — home to the world's busiest airport and fintech events like Fintech South — with heavy international connecting traffic.",
+    angle: "Convention blocks concentrate large, corporate-expensed bookings where fast settlement and no chargebacks matter." },
+  { slug: "honolulu", name: "Honolulu", country: "United States", currency: "$", hotelsHref: "/solutions/hotels",
+    context: "Honolulu has one of the highest international-guest shares of any US city, with large volumes of Japanese and Asia-Pacific visitors whose cards carry steep foreign-transaction and FX fees.",
+    angle: "When most guests pay on foreign cards, removing FX and interchange on those bookings is the single biggest saving." },
+  { slug: "boston", name: "Boston", country: "United States", currency: "$", hotelsHref: "/solutions/hotels",
+    context: "Boston is a dense tech, biotech and university city that draws steady international academic and business travel, with a digitally native visitor base comfortable with stablecoins.",
+    angle: "Conference and university-calendar demand brings a high share of overseas guests paying with foreign cards." },
   { slug: "london", name: "London", country: "United Kingdom", currency: "£", hotelsHref: "/uk/solutions/hotels",
     context: "London runs one of the world's largest hotel markets with a very high share of international guests, whose cards carry foreign-transaction and FX fees.",
     angle: "Overseas demand is the norm, so removing FX on those bookings compounds quickly." },
   { slug: "dubai", name: "Dubai", country: "United Arab Emirates", currency: "AED ", hotelsHref: "/ae/solutions/hotels",
     context: "Dubai has the highest international-guest share and among the highest room rates globally, and luxury properties such as Palazzo Versace Dubai already accept crypto.",
     angle: "Ultra-luxury, cross-border bookings are exactly where card fees and FX bite hardest." },
+  { slug: "tokyo", name: "Tokyo", country: "Japan", currency: "¥", hotelsHref: "/jp/solutions/hotels",
+    context: "Tokyo anchors Japan's 40M+ inbound tourism, and since June 2026 USDC is a legal Electronic Payment Instrument — so international guests can pay in dollar-stable crypto compliantly.",
+    angle: "High-rate city hotels serving heavy inbound demand feel card interchange and FX on nearly every foreign booking." },
+  { slug: "kyoto", name: "Kyoto", country: "Japan", currency: "¥", hotelsHref: "/jp/solutions/hotels",
+    context: "Kyoto's luxury ryokans and machiya draw affluent international travellers paying ¥50,000–¥200,000 a night, a segment hit hardest by card FX and cross-border fees.",
+    angle: "Premium ryokan stays are large, cross-border tickets where a flat 0.5% beats card-plus-FX by the widest margin." },
+  { slug: "osaka", name: "Osaka", country: "Japan", currency: "¥", hotelsHref: "/jp/solutions/hotels",
+    context: "Osaka is a major inbound gateway with dense Asia-Pacific visitor traffic and a fast-growing hotel supply serving foreign-card-paying guests.",
+    angle: "High volumes of short international stays mean per-transaction card fees compound quickly." },
 ];
 
 export function getCity(slug: string): City | undefined {

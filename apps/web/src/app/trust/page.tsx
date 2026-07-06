@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Furlpay's approach to security and compliance: passkey (WebAuthn) auth, 2-of-2 MPC custody, sanctions screening, Travel Rule support, MiCA-aware design, and open-source code.",
   alternates: {
     canonical: "/trust",
-    languages: { "en-US": "/trust", "en-GB": "/uk/trust", "en-AE": "/ae/trust", "x-default": "/trust" },
+    languages: { "en-US": "/trust", "en-GB": "/uk/trust", "en-AE": "/ae/trust", "en-JP": "/jp/trust", "x-default": "/trust" },
   },
 };
 

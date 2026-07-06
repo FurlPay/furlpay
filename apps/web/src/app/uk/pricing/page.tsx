@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Transparent UK pricing in GBP. Merchant payments at a flat 0.5% per transaction, a free consumer tier, and a custom enterprise plan with volume rates and an SLA.",
   alternates: {
     canonical: "/uk/pricing",
-    languages: { "en-GB": "/uk/pricing", "en-US": "/pricing", "en-AE": "/ae/pricing", "x-default": "/pricing" },
+    languages: { "en-GB": "/uk/pricing", "en-US": "/pricing", "en-AE": "/ae/pricing", "en-JP": "/jp/pricing", "x-default": "/pricing" },
   },
 };
 

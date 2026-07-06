@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "Furlpay vs Stripe for UK business: 1.5% + 20p (UK cards) or 2.9% + 30p (international) versus 0.5% USDC on Arbitrum, with no chargebacks and instant settlement. When each fits.",
   alternates: {
     canonical: "/uk/compare/stripe",
-    languages: { "en-GB": "/uk/compare/stripe", "en-US": "/compare/stripe", "en-AE": "/ae/compare/stripe", "x-default": "/compare/stripe" },
+    languages: { "en-GB": "/uk/compare/stripe", "en-US": "/compare/stripe", "en-AE": "/ae/compare/stripe", "en-JP": "/jp/compare/stripe", "x-default": "/compare/stripe" },
   },
 };
 

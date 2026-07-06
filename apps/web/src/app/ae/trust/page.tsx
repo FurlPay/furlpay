@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Furlpay's UAE regulatory status, virtual-asset risk information, and security posture. Honest status: not currently VARA-licensed and evaluating licensing.",
   alternates: {
     canonical: "/ae/trust",
-    languages: { "en-US": "/trust", "en-GB": "/uk/trust", "en-AE": "/ae/trust", "x-default": "/trust" },
+    languages: { "en-US": "/trust", "en-GB": "/uk/trust", "en-AE": "/ae/trust", "en-JP": "/jp/trust", "x-default": "/trust" },
   },
 };
 

@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "Furlpay vs Stripe for UAE business: card processing plus FX versus 0.5% USDC on Arbitrum, with no chargebacks and instant settlement. When each one fits a Dubai business.",
   alternates: {
     canonical: "/ae/compare/stripe",
-    languages: { "en-US": "/compare/stripe", "en-GB": "/uk/compare/stripe", "en-AE": "/ae/compare/stripe", "x-default": "/compare/stripe" },
+    languages: { "en-US": "/compare/stripe", "en-GB": "/uk/compare/stripe", "en-AE": "/ae/compare/stripe", "en-JP": "/jp/compare/stripe", "x-default": "/compare/stripe" },
   },
 };
 

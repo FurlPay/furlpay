@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Furlpay for the UAE: accept USDC stablecoin payments at 0.5% instead of 2.9–3.5% card fees. For Dubai hotels, airlines and merchants. Aligned with Dubai's cashless 2026 vision.",
   alternates: {
     canonical: "/ae",
-    languages: { "en-US": "/", "en-GB": "/uk", "en-AE": "/ae", "x-default": "/" },
+    languages: { "en-US": "/", "en-GB": "/uk", "en-AE": "/ae", "en-JP": "/jp", "x-default": "/" },
   },
 };
 

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Simple, transparent pricing for Furlpay — stablecoin cards, cashback up to 3%, yield up to 8% APY, fractional investing, and a full developer API.",
   alternates: {
     canonical: "/pricing",
-    languages: { "en-US": "/pricing", "en-GB": "/uk/pricing", "en-AE": "/ae/pricing", "x-default": "/pricing" },
+    languages: { "en-US": "/pricing", "en-GB": "/uk/pricing", "en-AE": "/ae/pricing", "en-JP": "/jp/pricing", "x-default": "/pricing" },
   },
 };
 

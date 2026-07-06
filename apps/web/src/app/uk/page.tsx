@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Furlpay for the UK: accept USDC stablecoin payments at 0.5% instead of 2.9–3.5% card fees. For UK hotels, airlines and merchants. Settled on Arbitrum, priced in GBP.",
   alternates: {
     canonical: "/uk",
-    languages: { "en-GB": "/uk", "en-US": "/", "x-default": "/" },
+    languages: { "en-GB": "/uk", "en-US": "/", "en-AE": "/ae", "en-JP": "/jp", "x-default": "/" },
   },
 };
 

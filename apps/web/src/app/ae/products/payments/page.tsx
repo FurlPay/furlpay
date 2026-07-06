@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Accept USDC stablecoin payments in Dubai and the UAE at 0.5% instead of 2.9–3.5% card fees. Sub-second settlement on Arbitrum, no chargebacks, and no FX on international customers.",
   alternates: {
     canonical: "/ae/products/payments",
-    languages: { "en-US": "/products/payments", "en-GB": "/uk/products/payments", "en-AE": "/ae/products/payments", "x-default": "/products/payments" },
+    languages: { "en-US": "/products/payments", "en-GB": "/uk/products/payments", "en-AE": "/ae/products/payments", "en-JP": "/jp/products/payments", "x-default": "/products/payments" },
   },
 };
 
