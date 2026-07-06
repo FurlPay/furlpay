@@ -83,14 +83,15 @@ function Hero() {
       <div className="hero-glow pointer-events-none absolute inset-0" />
       <div className="mx-auto max-w-6xl px-6 pb-10 pt-16 text-center">
         <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-[12px] text-textSecondary">
-          <span className="h-1.5 w-1.5 rounded-full bg-neon" /> Live on Base, Solana, Arbitrum &amp; more
+          <span className="h-1.5 w-1.5 rounded-full bg-neon" /> Settled on Arbitrum · live on Base, Solana &amp; more
         </div>
         <h1 className="mx-auto max-w-3xl text-[44px] font-extrabold leading-[1.03] tracking-tighter sm:text-[64px]">
           The On-Chain Financial <span className="text-neon">Operating System.</span>
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-[16px] leading-relaxed text-textSecondary sm:text-[18px]">
-          Fusing stablecoin payments, global local accounts, and fractional stock investing into one
-          beautiful web &amp; desktop client. Phishing-resistant. Compliance-aware. Zero gas.
+          Stablecoin payments, travel booking, and investing in one client — settled on Arbitrum. Pay in USDC,
+          book 2.2M+ stays and flights, and let AI agents pay per-request via x402. Phishing-resistant.
+          Compliance-aware. Zero gas.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/signup" className="btn-green w-full px-7 py-3.5 text-[16px] sm:w-auto">
@@ -99,6 +100,12 @@ function Hero() {
           <Link href="/docs" className="btn-outline w-full px-7 py-3.5 text-[16px] sm:w-auto">
             Explore Developer Docs
           </Link>
+        </div>
+        {/* Funnel entry points — creators, platforms, community */}
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-textSecondary">
+          <Link href="/ambassadors" className="transition-colors hover:text-neon">For creators →</Link>
+          <Link href="/payouts" className="transition-colors hover:text-neon">For platforms →</Link>
+          <Link href="/discord" className="transition-colors hover:text-neon">Join the community →</Link>
         </div>
 
         {/* FurlPay Travels in action — phone capture, autoplays muted on loop
@@ -329,10 +336,10 @@ function Footer() {
             {[
               { Icon: XIcon, href: "https://x.com/furlpay", label: "X" },
               { Icon: LinkedInIcon, href: "https://linkedin.com/company/furlpay", label: "LinkedIn" },
-              { Icon: DiscordIcon, href: "https://discord.gg/furlpay", label: "Discord" },
-              { Icon: GitHubIcon, href: "https://github.com/FurlPay", label: "GitHub" },
+              { Icon: DiscordIcon, href: "/discord", label: "Discord" },
+              { Icon: TelegramIcon, href: "/telegram", label: "Telegram" },
+              { Icon: GitHubIcon, href: "https://github.com/Ashutosh0x/furlpay", label: "GitHub" },
               { Icon: InstagramIcon, href: "https://instagram.com/furlpay", label: "Instagram" },
-              { Icon: TelegramIcon, href: "https://t.me/furlpay", label: "Telegram" },
             ].map(({ Icon, href, label }) => (
               <a
                 key={label}
@@ -347,7 +354,7 @@ function Footer() {
         </div>
 
         {/* Footer navigation */}
-        <div className="mt-12 grid grid-cols-2 gap-8 border-t border-white/5 pt-10 sm:grid-cols-4">
+        <div className="mt-12 grid grid-cols-2 gap-8 border-t border-white/5 pt-10 sm:grid-cols-3 lg:grid-cols-5">
           <FooterCol
             title="Product"
             links={[
@@ -368,7 +375,18 @@ function Footer() {
               ["API keys", "/developer/keys"],
               ["Marketplace", "/marketplace"],
               ["Developer portal", "/developer"],
-              ["GitHub", "https://github.com/FurlPay"],
+              ["GitHub", "https://github.com/Ashutosh0x/furlpay"],
+            ]}
+          />
+          <FooterCol
+            title="Community"
+            links={[
+              ["Discord", "/discord"],
+              ["Telegram", "/telegram"],
+              ["Creator Program", "/ambassadors"],
+              ["Payouts (B2B)", "/payouts"],
+              ["X / Twitter", "https://x.com/furlpay"],
+              ["Newsletter", "/newsletter"],
             ]}
           />
           <FooterCol

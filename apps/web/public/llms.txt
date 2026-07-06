@@ -1,30 +1,61 @@
 # Furlpay
 
-> The on-chain financial operating system — stablecoin payments, global local
-> accounts, fractional stock investing, and agentic (AI) payments in one client.
-> Phishing-resistant (WebAuthn passkeys), 2-of-2 MPC custody, compliance-aware.
+> The on-chain financial operating system — stablecoin payments, travel booking,
+> global local accounts, fractional stock investing, and agentic (AI) payments in
+> one client. Settled on Arbitrum. Phishing-resistant (WebAuthn passkeys), 2-of-2
+> MPC custody, compliance-aware.
 
 Furlpay is both a consumer app and developer infrastructure. For AI agents, the
-most relevant surfaces are the x402 facilitator and the MCP server.
+most relevant surfaces are the x402 facilitator, the travel booking API, and the
+MCP server — an agent can search flights and stays, pay per-request in USDC, and
+receive an on-chain receipt.
 
 ## Capabilities
 
-- Stablecoin payments (USDC, EURC) on Solana and Base
+- Stablecoin payments (USDC, EURC) — settled on Arbitrum One (0.5% fee), plus Base and Solana
+- Travel booking — 2.2M+ hotels and flights across 230+ countries, pay in USDC, 2% cashback
 - Global local bank accounts (USD, EUR, GBP, INR)
 - Fractional stock investing via Alpaca
-- AI agentic payments via x402 protocol
+- AI agentic payments via x402 protocol (Arbitrum, Base, Solana)
+- Chain-abstracted intake via Circle CCTP V2 (Ethereum, Base, Polygon, Solana → Arbitrum)
+- Creator Program — up to 10% commission for travel creators, paid weekly in USDC
+- Furlpay Payouts — instant USDC payout rails (B2B, for creator programs and marketplaces)
 - Solana Actions & Blinks
-- Bill splitting & group payments
-- Crypto-backed credit lines
-- Rewards & cashback program
+- Crypto-backed credit lines, rewards & cashback
 - MPC + WebAuthn passkey custody (no seed phrases)
+
+## Travel booking (agent-bookable)
+
+- Search + book 2.2M+ stays and flights; pay in USDC on Arbitrum, earn 2% cashback
+- On-chain booking escrow with oracle release; ERC-721 booking receipts
+- Agent flow: discover via MCP → pay via x402 → escrow releases on-chain → receipt mints
+- Travel hub: https://furlpay.com/travel
+
+## Creator Program (travel creators)
+
+- Up to 10% commission, paid weekly in USDC — no 60-150 day holds, no bank minimums
+- 90-day cookie window; followers earn 2% USDC cashback
+- Apply: https://furlpay.com/ambassadors
+
+## Furlpay Payouts (B2B)
+
+- Instant USDC payouts for creator programs, OTAs and marketplaces — global, $0 minimum
+- https://furlpay.com/payouts
+
+## Community
+
+- Discord: https://furlpay.com/discord
+- Telegram bot: https://t.me/FurlpayBot (also https://furlpay.com/telegram)
 
 ## Agentic payments (x402)
 
 - x402 facilitator API: https://furlpay.com/api/x402/facilitator
-  - GET  /supported  — scheme/network kinds (solana, base)
+  - GET  /supported  — scheme/network kinds (arbitrum, arbitrum-sepolia, base, solana)
   - POST /verify     — validate a payment payload against requirements
   - POST /settle     — verify + settle on-chain (single-use nonce, replay-safe)
+- x402 resource catalog: https://furlpay.com/api/x402/resources (agent-discoverable)
+- Payment fee estimate: https://furlpay.com/api/payments/fees/estimate?amount=150
+- Chain status: https://furlpay.com/api/chain/status
 - Pay-per-call demo endpoint: https://furlpay.com/api/x402/fx (402 → quote)
 - Open-source middleware: https://github.com/FurlPay/furlpay-x402 (@furlpay/x402)
 - Docs: https://furlpay.com/docs/payments/agentic-x402
@@ -47,12 +78,13 @@ most relevant surfaces are the x402 facilitator and the MCP server.
 
 ## Supported networks
 
-| Network  | Token | Settlement |
-|----------|-------|------------|
-| Solana   | USDC  | ~400ms     |
-| Solana   | EURC  | ~400ms     |
-| Base     | USDC  | ~2s        |
-| Base     | EURC  | ~2s        |
+| Network      | Token | Settlement | Role                    |
+|--------------|-------|------------|-------------------------|
+| Arbitrum One | USDC  | ~250ms     | Primary settlement rail |
+| Base         | USDC  | ~2s        | x402 + bridge source    |
+| Solana       | USDC  | ~400ms     | x402 + payments         |
+| Ethereum     | USDC  | ~12s       | Bridge source (CCTP V2) |
+| Polygon      | USDC  | ~2s        | Bridge source (CCTP V2) |
 
 ## Docs — Documentation pages
 

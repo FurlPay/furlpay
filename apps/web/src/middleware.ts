@@ -20,6 +20,7 @@ const PUBLIC_PAGES = new Set([
   "/use-cases",
   "/careers",
   "/ambassadors",
+  "/payouts",
   "/status",
   "/press",
   "/waitlist",

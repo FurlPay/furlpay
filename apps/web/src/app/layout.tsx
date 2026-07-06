@@ -54,9 +54,12 @@ const JSON_LD = {
       logo: `${SITE}/icon.png`,
       email: "hello@furlpay.com",
       sameAs: [
-        "https://github.com/FurlPay",
+        "https://github.com/Ashutosh0x/furlpay",
         "https://x.com/furlpay",
         "https://instagram.com/furlpay",
+        "https://linkedin.com/company/furlpay",
+        "https://discord.gg/PUExXrMt3z",
+        "https://t.me/FurlpayBot",
       ],
     },
     {
