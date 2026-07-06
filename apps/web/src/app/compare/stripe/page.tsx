@@ -7,7 +7,7 @@ export const metadata: Metadata = {
     "Furlpay vs Stripe: 2.9% + 30¢ card fees versus 0.5% USDC on Arbitrum, with no chargebacks, instant settlement, and x402 agentic payments. When each one is the right tool.",
   alternates: {
     canonical: "/compare/stripe",
-    languages: { "en-US": "/compare/stripe", "en-GB": "/uk/compare/stripe", "x-default": "/compare/stripe" },
+    languages: { "en-US": "/compare/stripe", "en-GB": "/uk/compare/stripe", "en-AE": "/ae/compare/stripe", "x-default": "/compare/stripe" },
   },
 };
 

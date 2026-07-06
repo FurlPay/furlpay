@@ -54,6 +54,16 @@ receive an on-chain receipt.
 - UK trust & FCA status (not yet FCA authorised; gateway opens 30 Sep 2026): https://furlpay.com/uk/trust
 - UK vs Stripe: https://furlpay.com/uk/compare/stripe
 
+## United Arab Emirates (en-AE)
+
+- UAE hub — USDC payment gateway for Dubai business: https://furlpay.com/ae
+- UAE payments — accept USDC at 0.5%: https://furlpay.com/ae/products/payments
+- UAE hotels — crypto payments for Dubai hotels: https://furlpay.com/ae/solutions/hotels
+- UAE airlines — USDC ticket settlement: https://furlpay.com/ae/solutions/airlines
+- UAE pricing (AED): https://furlpay.com/ae/pricing
+- UAE trust & VARA status (not VARA-licensed; evaluating): https://furlpay.com/ae/trust
+- UAE vs Stripe: https://furlpay.com/ae/compare/stripe
+
 ## Tools
 
 - Fee savings calculator (card vs USDC): https://furlpay.com/resources/tools/fee-calculator

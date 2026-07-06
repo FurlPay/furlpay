@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "UK airlines and booking platforms can accept USDC on Arbitrum at 0.5% — no FX loss on cross-border fares, instant confirmation, and no chargebacks on high-value tickets.",
   alternates: {
     canonical: "/uk/solutions/airlines",
-    languages: { "en-GB": "/uk/solutions/airlines", "en-US": "/solutions/airlines", "x-default": "/solutions/airlines" },
+    languages: { "en-GB": "/uk/solutions/airlines", "en-US": "/solutions/airlines", "en-AE": "/ae/solutions/airlines", "x-default": "/solutions/airlines" },
   },
 };
 

@@ -40,6 +40,7 @@ const PUBLIC_PAGE_PREFIXES = [
 
   "/legal",
   "/uk", // UK market landing pages (public)
+  "/ae", // UAE/Dubai market landing pages (public)
   "/products", // SEO product landing pages (public)
   "/solutions", // SEO audience/solution landing pages (public)
   "/resources", // guides, tools (fee calculator), glossary (public)
