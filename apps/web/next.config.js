@@ -61,6 +61,19 @@ const nextConfig = {
     return [
       // Retired blog post — send any lingering links to the blog.
       { source: "/blog/i-decompiled-robinhood-redotpay-indmoney", destination: "/blog", permanent: true },
+      // Branded Discord links (temporary redirects so the target can change
+      // without stale caching). /discord → join the community server;
+      // /discord/bot → add the Furlpay bot to your own server.
+      { source: "/discord", destination: "https://discord.gg/PUExXrMt3z", permanent: false },
+      {
+        source: "/discord/bot",
+        destination: "https://discord.com/oauth2/authorize?client_id=1523364052116705400",
+        permanent: false,
+      },
+      // Branded Telegram links.
+      { source: "/telegram", destination: "https://t.me/FurlpayBot", permanent: false },
+      { source: "/telegram/group", destination: "https://t.me/FurlPay", permanent: false },
+      { source: "/telegram/channel", destination: "https://t.me/furlpayofficial", permanent: false },
     ];
   },
 };

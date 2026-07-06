@@ -1,0 +1,28 @@
+import { NextRequest, NextResponse } from "next/server";
+import { handleUpdate, type TgUpdate } from "@/lib/telegram";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// POST /api/telegram/webhook — Telegram delivers every update here. Auth is a
+// shared secret: setWebhook is registered with a secret_token, which Telegram
+// echoes in the X-Telegram-Bot-Api-Secret-Token header on every call. We reject
+// anything without the matching secret, then reply inline in the HTTP response
+// (Telegram executes the returned method — one round trip, no token needed).
+export async function POST(req: NextRequest) {
+  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  if (!secret || req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  }
+
+  let update: TgUpdate;
+  try {
+    update = await req.json();
+  } catch {
+    return NextResponse.json({ ok: true }); // ignore malformed, don't retry
+  }
+
+  const reply = await handleUpdate(update);
+  // Returning the method object makes Telegram send it; empty 200 = no reply.
+  return NextResponse.json(reply ?? { ok: true });
+}

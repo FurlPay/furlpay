@@ -11,11 +11,18 @@ if (!TOKEN) {
   process.exit(1);
 }
 
+// 2026: integration_types + contexts make commands user-installable, so the
+// bot works in DMs and any server a member installs it to, not just guilds it
+// was added to.  integration_types: 0=guild install, 1=user install.
+// contexts: 0=guild, 1=bot DM, 2=private channel / group DM.
+const EVERYWHERE = { integration_types: [0, 1], contexts: [0, 1, 2] };
+
 const commands = [
-  { name: "help", description: "What the Furlpay bot can do" },
+  { name: "help", description: "What the Furlpay bot can do", ...EVERYWHERE },
   {
     name: "docs",
     description: "Furlpay developer documentation",
+    ...EVERYWHERE,
     options: [
       {
         type: 3, // STRING
@@ -32,10 +39,11 @@ const commands = [
       },
     ],
   },
-  { name: "status", description: "Live network status — Arbitrum, Base, Ethereum and more" },
+  { name: "status", description: "Live network status — Arbitrum, Base, Ethereum and more", ...EVERYWHERE },
   {
     name: "fees",
     description: "What a USDC payment costs vs card rails",
+    ...EVERYWHERE,
     options: [
       {
         type: 10, // NUMBER
@@ -47,9 +55,43 @@ const commands = [
       },
     ],
   },
-  { name: "blog", description: "Latest posts from the Furlpay blog" },
-  { name: "github", description: "Furlpay open-source repos and SDKs" },
-  { name: "travel", description: "Book stays and flights with USDC" },
+  { name: "blog", description: "Latest posts from the Furlpay blog", ...EVERYWHERE },
+  { name: "github", description: "Furlpay open-source repos and SDKs", ...EVERYWHERE },
+  { name: "travel", description: "Book stays and flights with USDC", ...EVERYWHERE },
+  { name: "quote", description: "Live price for a crypto asset",
+    ...EVERYWHERE,
+    options: [
+      { type: 3, name: "symbol", description: "Ticker, e.g. BTC, ETH, ARB", required: true },
+    ],
+  },
+  { name: "roadmap", description: "What Furlpay is building next", ...EVERYWHERE },
+  {
+    name: "flights",
+    description: "Search flights, pay in USDC with 2% cashback",
+    ...EVERYWHERE,
+    options: [
+      { type: 3, name: "from", description: "Origin airport", required: true, autocomplete: true },
+      { type: 3, name: "to", description: "Destination airport", required: true, autocomplete: true },
+      { type: 3, name: "date", description: "Departure date YYYY-MM-DD (default: 2 weeks out)", required: false },
+      {
+        type: 3, name: "cabin", description: "Cabin class", required: false,
+        choices: [
+          { name: "Economy", value: "Economy" },
+          { name: "Premium", value: "Premium" },
+          { name: "Business", value: "Business" },
+          { name: "First", value: "First" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ask",
+    description: "Ask the Furlpay docs a question",
+    ...EVERYWHERE,
+    options: [
+      { type: 3, name: "question", description: "What do you want to know?", required: true },
+    ],
+  },
 ];
 
 const res = await fetch(`https://discord.com/api/v10/applications/${APP_ID}/commands`, {

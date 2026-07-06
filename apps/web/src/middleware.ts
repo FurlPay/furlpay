@@ -19,6 +19,7 @@ const PUBLIC_PAGES = new Set([
   "/partners",
   "/use-cases",
   "/careers",
+  "/ambassadors",
   "/status",
   "/press",
   "/waitlist",
@@ -42,6 +43,8 @@ const PUBLIC_PAGE_PREFIXES = [
   "/developer", // public developer portal + Agent Console demo
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
   "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
+  "/discord", // branded Discord links → external redirects (see next.config redirects)
+  "/telegram", // branded Telegram links → external redirects (see next.config redirects)
 ];
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
@@ -52,6 +55,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/contact", // public "Talk to us" lead capture
   "/api/newsletter", // public newsletter subscribe / unsubscribe
   "/api/careers", // public talent-pipeline interest capture
+  "/api/ambassadors", // public creator-program applications
   "/api/agents", // public Agent Console demo data
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
@@ -61,6 +65,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/chain", // public chain registry — status, gas, contracts, USDC directory
   "/api/payments/fees", // public fee estimator — merchants compare vs card interchange
   "/api/discord", // Discord interactions — auth IS the Ed25519 signature (401 otherwise)
+  "/api/telegram", // Telegram webhook — auth IS the secret_token header (401 otherwise)
 ];
 
 export async function middleware(req: NextRequest) {

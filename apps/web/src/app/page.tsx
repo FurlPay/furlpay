@@ -58,8 +58,8 @@ function Nav() {
           <a href="#features" className="transition-colors hover:text-white">Features</a>
           <Link href="/docs" className="transition-colors hover:text-white">Developer Docs</Link>
           <Link href="/blog" className="transition-colors hover:text-white">Blog</Link>
+          <Link href="/ambassadors" className="transition-colors hover:text-white">Creators</Link>
           <a href="#pricing" className="transition-colors hover:text-white">Pricing</a>
-          <a href="#security" className="transition-colors hover:text-white">Security</a>
         </nav>
         <div className="flex items-center gap-2 sm:gap-3">
           <Link
@@ -377,6 +377,7 @@ function Footer() {
               ["About", "/about"],
               ["Use cases", "/use-cases"],
               ["Partners", "/partners"],
+              ["Creator Program", "/ambassadors"],
               ["Careers", "/careers"],
               ["Changelog", "/changelog"],
               ["Grants", "/grants"],
