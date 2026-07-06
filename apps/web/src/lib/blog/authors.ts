@@ -19,9 +19,9 @@ export type Author = {
 
 const FOUNDER: Author = {
   name: "Ashutosh Kumar Singh",
-  role: "Founder & Engineer, Furlpay",
-  credentials: "Security researcher · published CVEs",
-  bio: "Ashutosh is the founder of Furlpay and a security researcher credited with published CVEs. He builds Furlpay's payment rails, wallet security (2-of-2 MPC and WebAuthn passkeys), and the x402 agentic-payment infrastructure. He writes here about stablecoin payments, Arbitrum, and the security of on-chain money.",
+  role: "Software Engineer at Skyhigh Security",
+  credentials: "Contributor at Google DeepMind",
+  bio: "Ashutosh is a Software Engineer at Skyhigh Security and a contributor at Google DeepMind. He builds Furlpay's payment rails, wallet security (2-of-2 MPC and WebAuthn passkeys), and the x402 agentic-payment infrastructure. He writes here about stablecoin payments, Arbitrum, and the security of on-chain money.",
   url: "https://github.com/Ashutosh0x",
   sameAs: [
     "https://github.com/Ashutosh0x",
