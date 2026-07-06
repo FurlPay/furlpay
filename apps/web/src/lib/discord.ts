@@ -2,6 +2,8 @@ import crypto from "crypto";
 import { CHAIN_REGISTRY, chainStatus } from "@/lib/services/chainRegistry";
 import { estimateFees } from "@/lib/services/payments";
 import { getSortedPosts } from "@/lib/blog/posts";
+import { bySymbol } from "@/lib/markets/catalog";
+import { getQuotes } from "@/lib/markets/quotes";
 
 // ---------------------------------------------------------------------------
 // Discord HTTP interactions for the Furlpay app (Application ID in env).
@@ -20,13 +22,28 @@ const DISCORD_PUBLIC_KEY =
 // Interaction types
 export const PING = 1;
 export const APPLICATION_COMMAND = 2;
+export const MESSAGE_COMPONENT = 3;
 // Callback types
 export const PONG = 1;
 export const CHANNEL_MESSAGE_WITH_SOURCE = 4;
+export const UPDATE_MESSAGE = 7; // edit the message a component is attached to
 
 const EPHEMERAL = 1 << 6;
 const BRAND_GREEN = 0x00e599;
 const SITE = "https://furlpay.com";
+
+// Message component builders (buttons). Style 5 = link button (opens a URL).
+function linkButton(label: string, url: string) {
+  return { type: 2, style: 5, label, url };
+}
+function actionRow(...components: unknown[]) {
+  return { type: 1, components };
+}
+const GET_STARTED_ROW = actionRow(
+  linkButton("Open App", `${SITE}/dashboard`),
+  linkButton("Developer Docs", `${SITE}/docs`),
+  linkButton("GitHub", "https://github.com/Ashutosh0x/furlpay")
+);
 
 /** Verify Discord's Ed25519 signature over timestamp + raw body. */
 export function verifyDiscordSignature(
@@ -104,11 +121,14 @@ export async function handleCommand(i: Interaction): Promise<Reply> {
             { name: "/docs [topic]", value: "Developer documentation links", inline: true },
             { name: "/status", value: "Live chain status (Arbitrum first)", inline: true },
             { name: "/fees <amount>", value: "USDC payment fee vs card rails", inline: true },
+            { name: "/quote <symbol>", value: "Live crypto price", inline: true },
             { name: "/blog", value: "Latest from the Furlpay blog", inline: true },
             { name: "/github", value: "Open-source repos and SDKs", inline: true },
             { name: "/travel", value: "Book stays and flights with USDC", inline: true },
+            { name: "/roadmap", value: "What we are building next", inline: true },
           ]),
         ],
+        components: [GET_STARTED_ROW],
         flags: EPHEMERAL,
       });
 
@@ -193,9 +213,44 @@ export async function handleCommand(i: Interaction): Promise<Reply> {
         embeds: [
           embed(
             "Furlpay Travels",
-            `Book 2.2M+ stays and flights across 230+ countries, pay in USDC, earn 2% cashback.\n${SITE}/travel`
+            `Book 2.2M+ stays and flights across 230+ countries, pay in USDC, earn 2% cashback.`
           ),
         ],
+        components: [actionRow(linkButton("Explore travel", `${SITE}/travel`))],
+      });
+
+    case "quote": {
+      const symbol = String(opt(i, "symbol") ?? "").toUpperCase().trim();
+      const asset = bySymbol.get(symbol);
+      if (!asset) {
+        return reply({ content: `Unknown symbol "${symbol}". Try BTC, ETH or ARB.`, flags: EPHEMERAL });
+      }
+      const quotes = await getQuotes();
+      const q = quotes.get(symbol) ?? { price: 0, changePct: 0, live: false };
+      const arrow = q.changePct >= 0 ? "▲" : "▼";
+      return reply({
+        embeds: [
+          embed(`${asset.name} (${symbol})`, "", [
+            { name: "Price", value: `$${q.price.toLocaleString("en-US", { maximumFractionDigits: 6 })}`, inline: true },
+            { name: "24h", value: `${arrow} ${Math.abs(q.changePct).toFixed(2)}%`, inline: true },
+            { name: "Source", value: q.live ? "Live" : "Reference", inline: true },
+          ]),
+        ],
+        components: [actionRow(linkButton(`View ${symbol}`, `${SITE}/markets/${symbol}`))],
+      });
+    }
+
+    case "roadmap":
+      return reply({
+        embeds: [
+          embed("What Furlpay is building next", "", [
+            { name: "Contracts on Arbitrum", value: "Deploy FurlPayRouter, escrow and x402 facilitator to Sepolia, then One", inline: false },
+            { name: "End-to-end agentic booking", value: "Agent finds a hotel via MCP, pays via x402, escrow releases on-chain", inline: false },
+            { name: "Merchant rail", value: "Checkout, payouts and webhooks for businesses accepting USDC", inline: false },
+            { name: "Passkey smart wallets", value: "ERC-4337 accounts with a USDC paymaster — gasless by default", inline: false },
+          ]),
+        ],
+        components: [actionRow(linkButton("Follow on the blog", `${SITE}/blog`), linkButton("Talk to us", `${SITE}/talk-to-us`))],
       });
 
     default:
