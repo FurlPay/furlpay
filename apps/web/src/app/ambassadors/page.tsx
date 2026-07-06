@@ -112,7 +112,7 @@ const COMPARE: [string, string, string][] = [
 export default function AmbassadorsPage() {
   return (
     <div className="min-h-screen bg-black text-textPrimary">
-      <MarketingBar />
+      <MarketingBar active="ambassadors" />
 
       {/* Hero */}
       <section className="relative overflow-hidden">

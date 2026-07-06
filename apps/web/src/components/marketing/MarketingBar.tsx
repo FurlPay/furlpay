@@ -4,7 +4,7 @@ import Link from "next/link";
 export default function MarketingBar({
   active,
 }: {
-  active?: "pricing" | "about" | "changelog" | "community" | "compare" | "partners" | "use-cases" | "talk-to-us";
+  active?: "pricing" | "about" | "changelog" | "community" | "compare" | "partners" | "use-cases" | "talk-to-us" | "ambassadors";
 }) {
   const link = (href: string, label: string, key: string) => (
     <Link
@@ -27,7 +27,7 @@ export default function MarketingBar({
           <Link href="/#features" className="transition-colors hover:text-white">Features</Link>
           <Link href="/docs" className="transition-colors hover:text-white">Docs</Link>
           {link("/pricing", "Pricing", "pricing")}
-          {link("/about", "About", "about")}
+          {link("/ambassadors", "Creators", "ambassadors")}
           {link("/community", "Community", "community")}
           {link("/changelog", "Changelog", "changelog")}
         </nav>
