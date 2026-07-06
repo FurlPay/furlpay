@@ -18,7 +18,7 @@ export default function Page() {
       atomicAnswer={
         <>
           Furlpay is a BitPay alternative that settles <strong className="text-white">USDC on
-          Arbitrum for 0.5%</strong>, versus BitPay's roughly 1% merchant settlement fee. Furlpay is
+          Arbitrum for 0.5%</strong>, versus BitPay&apos;s roughly 1% merchant settlement fee. Furlpay is
           open-source and AI-native (x402), uses passkey wallets with no seed phrase, and adds travel
           and investing in one account.
         </>

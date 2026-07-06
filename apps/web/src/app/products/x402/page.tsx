@@ -75,7 +75,7 @@ export default function X402Page() {
         <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
           <strong className="text-white">x402</strong> lets an AI agent request a resource, receive a{" "}
           <strong className="text-white">402 Payment Required</strong> response, pay in USDC, and
-          retry — no API keys, no human checkout. Furlpay's facilitator handles verification and
+          retry — no API keys, no human checkout. Furlpay&apos;s facilitator handles verification and
           settlement on Arbitrum.
         </p>
 
