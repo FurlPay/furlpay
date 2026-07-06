@@ -36,8 +36,10 @@ export interface TgUpdate {
   message?: {
     message_id: number;
     text?: string;
+    message_thread_id?: number;
     chat: { id: number; type: string };
     from?: { first_name?: string; username?: string };
+    new_chat_members?: { id: number; first_name?: string; is_bot?: boolean }[];
   };
 }
 
@@ -65,8 +67,29 @@ function parse(text: string): { cmd: string; args: string[] } {
 
 export async function handleUpdate(update: TgUpdate): Promise<TgReply | null> {
   const msg = update.message;
-  if (!msg?.text || !msg.text.startsWith("/")) return null;
+  if (!msg) return null;
   const chatId = msg.chat.id;
+
+  // Welcome new members (compliant — only fires when someone joins on their
+  // own). Skip when the joiner is a bot (including ourselves).
+  if (msg.new_chat_members?.length) {
+    const humans = msg.new_chat_members.filter((m) => !m.is_bot);
+    if (!humans.length) return null;
+    const names = humans.map((m) => m.first_name || "there").join(", ");
+    const reply = sendMessage(
+      chatId,
+      `<b>Welcome, ${esc(names)}!</b>\n\nYou're in the Furlpay community. Start with /help, or jump in:\n• Pay in USDC — /fees 150\n• Search flights — /flights LHR JFK\n• Ask the docs — /ask how does x402 work`,
+      keyboard(
+        [{ text: "Docs", url: `${SITE}/docs` }, { text: "Discord", url: `${SITE}/discord` }],
+        [{ text: "Open App", url: `${SITE}/dashboard` }]
+      )
+    );
+    // Keep the welcome inside the topic they joined into, if any.
+    if (msg.message_thread_id) reply.message_thread_id = msg.message_thread_id;
+    return reply;
+  }
+
+  if (!msg.text || !msg.text.startsWith("/")) return null;
   const { cmd, args } = parse(msg.text);
   const name = msg.from?.first_name || "there";
 

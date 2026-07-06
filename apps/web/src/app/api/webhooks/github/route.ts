@@ -126,5 +126,23 @@ export async function POST(request: Request) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ username: "Furlpay GitHub", embeds: [embed] }),
   });
-  return NextResponse.json({ received: true, forwarded: res.ok });
+
+  // Cross-post to the Telegram channel when configured (bot token + channel).
+  let telegram = false;
+  const tgToken = process.env.TELEGRAM_BOT_TOKEN;
+  const tgChat = process.env.TELEGRAM_CHANNEL_ID; // e.g. @furlpayofficial
+  if (tgToken && tgChat) {
+    const escHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    const text = `<b>${escHtml(embed.title)}</b>${embed.url ? `\n${embed.url}` : ""}${
+      embed.description ? `\n\n${escHtml(embed.description).slice(0, 800)}` : ""
+    }`;
+    const tg = await fetch(`https://api.telegram.org/bot${tgToken}/sendMessage`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ chat_id: tgChat, text, parse_mode: "HTML", disable_web_page_preview: true }),
+    });
+    telegram = tg.ok;
+  }
+
+  return NextResponse.json({ received: true, forwarded: res.ok, telegram });
 }

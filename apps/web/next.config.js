@@ -70,6 +70,10 @@ const nextConfig = {
         destination: "https://discord.com/oauth2/authorize?client_id=1523364052116705400",
         permanent: false,
       },
+      // Branded Telegram links.
+      { source: "/telegram", destination: "https://t.me/FurlpayBot", permanent: false },
+      { source: "/telegram/group", destination: "https://t.me/FurlPay", permanent: false },
+      { source: "/telegram/channel", destination: "https://t.me/furlpayofficial", permanent: false },
     ];
   },
 };
