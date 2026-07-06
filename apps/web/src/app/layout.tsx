@@ -51,7 +51,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    site: "@furlpay",
+    site: "@furlpayglobal",
     title: TITLE,
     description: DESCRIPTION,
     images: ["/og.png"],
@@ -72,7 +72,8 @@ const JSON_LD = {
       email: "hello@furlpay.com",
       sameAs: [
         "https://github.com/Ashutosh0x/furlpay",
-        "https://x.com/furlpay",
+        "https://x.com/furlpayglobal",
+        "https://www.youtube.com/@furlpay",
         "https://instagram.com/furlpay",
         "https://linkedin.com/company/furlpay",
         "https://discord.gg/PUExXrMt3z",

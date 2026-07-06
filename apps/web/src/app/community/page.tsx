@@ -7,6 +7,7 @@ import {
   GitHubIcon,
   XIcon,
   LinkedInIcon,
+  YouTubeIcon,
 } from "@/components/marketing/SocialIcons";
 import type { ComponentType } from "react";
 
@@ -41,8 +42,8 @@ const SOCIAL: {
   {
     name: "X / Twitter",
     description: "Product updates, shipped features, and dev tips.",
-    href: "https://x.com/furlpay",
-    cta: "Follow @furlpay",
+    href: "https://x.com/furlpayglobal",
+    cta: "Follow @furlpayglobal",
     Icon: XIcon,
   },
   {
@@ -51,6 +52,13 @@ const SOCIAL: {
     href: "https://linkedin.com/company/furlpay",
     cta: "Follow Furlpay",
     Icon: LinkedInIcon,
+  },
+  {
+    name: "YouTube",
+    description: "Product demos, walkthroughs, and the build-in-public journey.",
+    href: "https://www.youtube.com/@furlpay",
+    cta: "Subscribe",
+    Icon: YouTubeIcon,
   },
 ];
 

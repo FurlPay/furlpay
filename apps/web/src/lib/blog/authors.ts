@@ -25,7 +25,7 @@ const FOUNDER: Author = {
   url: "https://github.com/Ashutosh0x",
   sameAs: [
     "https://github.com/Ashutosh0x",
-    "https://x.com/furlpay",
+    "https://x.com/furlpayglobal",
     "https://linkedin.com/company/furlpay",
   ],
   isPerson: true,
@@ -47,7 +47,7 @@ function teamAuthor(name: string): Author {
     sameAs: [
       "https://furlpay.com",
       "https://github.com/Ashutosh0x/furlpay",
-      "https://x.com/furlpay",
+      "https://x.com/furlpayglobal",
     ],
     isPerson: false,
   };

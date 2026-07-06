@@ -24,7 +24,7 @@ import PartnerMarquee from "@/components/marketing/PartnerMarquee";
 import SupportChatBubble from "@/components/marketing/SupportChatBubble";
 import ScheduleCallButton from "@/components/marketing/ScheduleCallButton";
 import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
-import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon, LinkedInIcon } from "@/components/marketing/SocialIcons";
+import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon, LinkedInIcon, YouTubeIcon } from "@/components/marketing/SocialIcons";
 
 // Furlpay marketing landing page (furlpay.app/). Premium OLED theme with green
 // glow accents. Mostly a Server Component; interactive bits (phone carousel,
@@ -334,12 +334,13 @@ function Footer() {
           </div>
           <div className="flex items-center gap-3">
             {[
-              { Icon: XIcon, href: "https://x.com/furlpay", label: "X" },
+              { Icon: XIcon, href: "https://x.com/furlpayglobal", label: "X" },
               { Icon: LinkedInIcon, href: "https://linkedin.com/company/furlpay", label: "LinkedIn" },
               { Icon: DiscordIcon, href: "/discord", label: "Discord" },
               { Icon: TelegramIcon, href: "/telegram", label: "Telegram" },
               { Icon: GitHubIcon, href: "https://github.com/Ashutosh0x/furlpay", label: "GitHub" },
               { Icon: InstagramIcon, href: "https://instagram.com/furlpay", label: "Instagram" },
+              { Icon: YouTubeIcon, href: "https://www.youtube.com/@furlpay", label: "YouTube" },
             ].map(({ Icon, href, label }) => (
               <a
                 key={label}
@@ -397,7 +398,8 @@ function Footer() {
               ["Telegram", "/telegram"],
               ["Creator Program", "/ambassadors"],
               ["Payouts (B2B)", "/payouts"],
-              ["X / Twitter", "https://x.com/furlpay"],
+              ["X / Twitter", "https://x.com/furlpayglobal"],
+              ["YouTube", "https://www.youtube.com/@furlpay"],
               ["Newsletter", "/newsletter"],
             ]}
           />

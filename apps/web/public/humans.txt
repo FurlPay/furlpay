@@ -2,7 +2,8 @@
   Name: Furlpay
   Contact: hello@furlpay.com
   GitHub: https://github.com/FurlPay
-  X: https://x.com/furlpay
+  X: https://x.com/furlpayglobal
+  YouTube: https://www.youtube.com/@furlpay
   Location: Global (remote-first)
 
 /* THANKS */

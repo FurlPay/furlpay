@@ -226,4 +226,5 @@ receive an on-chain receipt.
 - Security: security@furlpay.com
 - Security policy: https://furlpay.com/.well-known/security.txt
 - GitHub: https://github.com/FurlPay
-- X (Twitter): https://x.com/furlpay
+- X (Twitter): https://x.com/furlpayglobal
+- YouTube: https://www.youtube.com/@furlpay
