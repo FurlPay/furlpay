@@ -65,6 +65,33 @@ const commands = [
     ],
   },
   { name: "roadmap", description: "What Furlpay is building next", ...EVERYWHERE },
+  {
+    name: "flights",
+    description: "Search flights, pay in USDC with 2% cashback",
+    ...EVERYWHERE,
+    options: [
+      { type: 3, name: "from", description: "Origin airport", required: true, autocomplete: true },
+      { type: 3, name: "to", description: "Destination airport", required: true, autocomplete: true },
+      { type: 3, name: "date", description: "Departure date YYYY-MM-DD (default: 2 weeks out)", required: false },
+      {
+        type: 3, name: "cabin", description: "Cabin class", required: false,
+        choices: [
+          { name: "Economy", value: "Economy" },
+          { name: "Premium", value: "Premium" },
+          { name: "Business", value: "Business" },
+          { name: "First", value: "First" },
+        ],
+      },
+    ],
+  },
+  {
+    name: "ask",
+    description: "Ask the Furlpay docs a question",
+    ...EVERYWHERE,
+    options: [
+      { type: 3, name: "question", description: "What do you want to know?", required: true },
+    ],
+  },
 ];
 
 const res = await fetch(`https://discord.com/api/v10/applications/${APP_ID}/commands`, {
