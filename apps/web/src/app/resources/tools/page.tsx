@@ -14,8 +14,9 @@ export const metadata: Metadata = {
 
 const TOOLS = [
   { title: "Fee savings calculator", body: "Compare card processing fees against USDC on Arbitrum and see your annual savings.", href: "/resources/tools/fee-calculator", live: true },
-  { title: "Gas cost estimator", body: "Estimate Arbitrum gas costs versus Ethereum and Base for a payment.", href: "#", live: false },
-  { title: "Stablecoin comparison", body: "Compare USDC, USDT, EURC, and DAI across chains.", href: "#", live: false },
+  { title: "ROI calculator", body: "Full annual ROI: fee savings, chargebacks avoided, and settlement speed, by international mix.", href: "/resources/tools/roi-calculator", live: true },
+  { title: "Gas cost estimator", body: "Estimate Arbitrum gas costs versus Ethereum, Base, Polygon, and Solana for a payment.", href: "/resources/tools/gas-estimator", live: true },
+  { title: "Stablecoin comparison", body: "Compare USDC, USDT, EURC, and DAI across issuer, reserves, and use case.", href: "/resources/tools/stablecoin-comparison", live: true },
 ];
 
 export default function ToolsPage() {

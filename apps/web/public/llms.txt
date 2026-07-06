@@ -67,6 +67,9 @@ receive an on-chain receipt.
 ## Tools
 
 - Fee savings calculator (card vs USDC): https://furlpay.com/resources/tools/fee-calculator
+- ROI calculator (fees + chargebacks + settlement, by international mix): https://furlpay.com/resources/tools/roi-calculator
+- Gas cost estimator (Arbitrum vs Ethereum vs Base vs Polygon vs Solana): https://furlpay.com/resources/tools/gas-estimator
+- Stablecoin comparison (USDC vs USDT vs EURC vs DAI): https://furlpay.com/resources/tools/stablecoin-comparison
 
 ## Comparisons
 

@@ -1386,6 +1386,259 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
     ],
   },
+  // 26 ----------------------------------------------------------------
+  {
+    slug: "usdc-on-arbitrum-complete-guide",
+    title: "USDC on Arbitrum: The Complete Guide for Businesses (2026)",
+    excerpt:
+      "USDC on Arbitrum One settles in about a second for a fraction of a cent of gas — the combination that makes 0.5% payment pricing viable. Here is how it works, why it matters, and how to accept it.",
+    category: "product-news",
+    date: "2026-07-06",
+    readMins: 7,
+    author: "Furlpay Team",
+    cover: "https://images.unsplash.com/photo-1639762681485-074b7f938ba0?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `USDC is a dollar-pegged stablecoin issued by Circle. Arbitrum One is an Ethereum Layer 2. Put them together and you get the single most practical rail for stablecoin payments in 2026: digital dollars that move in about a second for a fraction of a cent, with Ethereum-grade security underneath. This guide explains what that means for a business and how to accept it.`,
+      },
+      { type: "h2", text: "What is USDC on Arbitrum?" },
+      {
+        type: "p",
+        text: `USDC on Arbitrum is the same dollar-pegged token you know, issued natively on the Arbitrum One network (Chain ID 42161) rather than on Ethereum mainnet. Arbitrum batches many transactions and posts proofs back to Ethereum, so it inherits Ethereum's security while spreading the mainnet cost across everyone. The result is a transfer that finalises in roughly a second and costs a tiny fraction of a cent in gas.`,
+      },
+      {
+        type: "table",
+        headers: ["", "USDC on Ethereum", "USDC on Arbitrum"],
+        rows: [
+          ["Typical gas per transfer", "$1 – $5+", "~$0.002 – $0.005"],
+          ["Settlement time", "~12 seconds+", "~1 second"],
+          ["Security model", "Ethereum L1", "Ethereum L1 (via L2 proofs)"],
+        ],
+        highlightCol: 2,
+      },
+      { type: "h2", text: "Why the network matters more than the coin" },
+      {
+        type: "p",
+        text: `A stablecoin is only as cheap to accept as the chain it settles on. The same USDC that costs several dollars to move on Ethereum mainnet costs a fraction of a cent on Arbitrum. That difference is the whole game for payments: it is what allows a 0.5% flat fee and even per-request micropayments, which would be impossible if every transfer cost a dollar in gas. You can compare chains yourself with our [gas cost estimator](/resources/tools/gas-estimator).`,
+      },
+      { type: "h2", text: "Who is already building here" },
+      {
+        type: "p",
+        text: `Arbitrum is not a fringe choice. Mastercard brought 24/7 stablecoin settlement to Arbitrum, Robinhood built its own chain on Arbitrum Orbit, and Circle supports native USDC on Arbitrum directly. For a business, that ecosystem maturity means liquidity, tooling, and institutional comfort — not an experiment.`,
+      },
+      { type: "h2", text: "How to accept USDC on Arbitrum" },
+      {
+        type: "ul",
+        items: [
+          `Create a payment via the Furlpay API or a hosted checkout link.`,
+          `The customer authorises the transfer from a passkey wallet (an EIP-712 signature) — no seed phrase.`,
+          `Both sides are screened against sanctions lists, then USDC settles on Arbitrum in about a second.`,
+          `You receive a signed receipt linked to Arbiscan for reconciliation.`,
+        ],
+      },
+      {
+        type: "p",
+        text: `The whole flow costs a flat 0.5% plus sub-cent gas, with no chargebacks. See how it works on the [payments product page](/products/payments), or read the honest cost breakdown in [Crypto vs Card Fees](/blog/crypto-vs-card-fees-the-real-math).`,
+      },
+      {
+        type: "quote",
+        text: `USDC gives you dollar stability. Arbitrum gives you speed and near-zero fees. Neither is enough alone — together they are the first stablecoin rail that actually competes with cards on cost.`,
+      },
+      {
+        type: "p",
+        text: `This article is informational and not financial advice. Stablecoins carry issuer and peg risk and can lose value.`,
+      },
+    ],
+  },
+  // 27 ----------------------------------------------------------------
+  {
+    slug: "arbitrum-vs-base-for-payments",
+    title: "Arbitrum vs Base for Payments: Which Layer 2 Should You Settle On?",
+    excerpt:
+      "Both are strong Ethereum Layer 2s with sub-cent fees. For stablecoin payments the deciding factors are settlement finality, ecosystem maturity, and where institutional volume already lives. Here is the honest comparison.",
+    category: "engineering",
+    date: "2026-07-06",
+    readMins: 6,
+    author: "Furlpay Team",
+    cover: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `Arbitrum and Base are both excellent Ethereum Layer 2 networks, both settle USDC for a fraction of a cent, and either would beat card rails on cost. So for a payments business the question is not "which is good" — both are — but which is the better default to settle on. This is our honest take, and why Furlpay chose Arbitrum.`,
+      },
+      {
+        type: "table",
+        headers: ["Factor", "Arbitrum One", "Base"],
+        rows: [
+          ["Type", "Optimistic rollup (Ethereum L2)", "Optimistic rollup (Ethereum L2)"],
+          ["Gas per USDC transfer", "~$0.002 – $0.005", "~$0.003 – $0.008"],
+          ["Backing", "Offchain Labs / Arbitrum DAO", "Coinbase"],
+          ["Institutional footprint", "Mastercard settlement, Robinhood Chain", "Coinbase ecosystem, growing"],
+          ["Native USDC", "Yes (Circle)", "Yes (Circle)"],
+        ],
+        highlightCol: 1,
+      },
+      { type: "h2", text: "Where they are the same" },
+      {
+        type: "p",
+        text: `Both are optimistic rollups securing to Ethereum, both have native Circle-issued USDC, and both offer sub-cent gas and fast confirmation. For most integrations the developer experience is similar, and Circle's CCTP lets USDC move between them. If your customers or partners are already on Base — for example, deep in the Coinbase ecosystem — settling on Base is entirely reasonable.`,
+      },
+      { type: "h2", text: "Why Furlpay defaults to Arbitrum" },
+      {
+        type: "ul",
+        items: [
+          `Institutional volume already lives there: Mastercard runs 24/7 stablecoin settlement on Arbitrum, and Robinhood built its chain on Arbitrum Orbit.`,
+          `Mature Orbit ecosystem: a clear path to an app-specific chain later without changing rails.`,
+          `Consistently low, predictable fees for high-frequency payment and agent workloads.`,
+        ],
+      },
+      {
+        type: "p",
+        text: `None of this makes Base a bad choice — it is a strong network with a large ecosystem. It is a question of defaults, and for a payments and settlement product the institutional gravity around Arbitrum tipped it for us. We go deeper on the rail itself in [USDC on Arbitrum](/blog/usdc-on-arbitrum-complete-guide).`,
+      },
+      { type: "h2", text: "The practical answer" },
+      {
+        type: "p",
+        text: `Settle where your money and counterparties already are, and where fees are predictably tiny. For most businesses accepting stablecoin payments in 2026, that is Arbitrum — but Base is a close, legitimate second, and multi-chain via CCTP means you are not locked in either way.`,
+      },
+      {
+        type: "quote",
+        text: `Both chains make the gas cost a rounding error. So pick on ecosystem and finality, not on a tenth of a cent — and settle where the institutions already do.`,
+      },
+      {
+        type: "p",
+        text: `This article is informational and not financial advice.`,
+      },
+    ],
+  },
+  // 28 ----------------------------------------------------------------
+  {
+    slug: "crypto-payments-for-hotels-2026",
+    title: "Crypto Payments for Hotels: The Complete 2026 Guide",
+    excerpt:
+      "International guests, high room rates, and card FX fees make hotels a natural fit for stablecoin payments. Palazzo Versace and Emirates already accept crypto. Here is how any hotel can, at 0.5% and zero chargebacks.",
+    category: "product-news",
+    date: "2026-07-06",
+    readMins: 8,
+    author: "Furlpay Team",
+    cover: "https://images.unsplash.com/photo-1566073771259-6a8506099945?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `Hotels sit at the intersection of every reason stablecoin payments make sense: a high share of international guests, large average transaction sizes, painful foreign-exchange fees on foreign cards, and costly no-show chargebacks. In 2026 the early movers are already here — and any hotel can follow at a flat 0.5% with no chargebacks.`,
+      },
+      { type: "h2", text: "Who is already accepting crypto" },
+      {
+        type: "ul",
+        items: [
+          `Palazzo Versace Dubai accepts Bitcoin, Ethereum and BNB for rooms, dining and spa via a Binance partnership.`,
+          `Emirates and Dubai Duty Free have signed with Crypto.com to accept crypto payments, including stablecoins.`,
+          `Trip.com integrated USDT and USDC payments for flights and hotels globally.`,
+          `Major chains including Marriott, Hilton and Accor are exploring blockchain payments for international guests.`,
+        ],
+      },
+      { type: "h2", text: "Why hotels specifically benefit" },
+      {
+        type: "table",
+        headers: ["Pain point", "On cards", "On USDC (Furlpay)"],
+        rows: [
+          ["Processing fee", "2.9% – 3.5%", "0.5% flat"],
+          ["International guest FX", "1% – 3% extra", "None (dollar-stable)"],
+          ["Settlement", "2 – 4 days", "~1 second"],
+          ["No-show chargebacks", "Common + dispute fees", "None (on-chain final)"],
+        ],
+        highlightCol: 2,
+      },
+      {
+        type: "p",
+        text: `On a property doing $2M a year in card volume, moving eligible bookings to 0.5% keeps roughly $60,000 that would otherwise go to card networks — before counting avoided chargebacks. Model your own number with the [fee calculator](/resources/tools/fee-calculator) or [ROI calculator](/resources/tools/roi-calculator).`,
+      },
+      { type: "h2", text: "How it works without changing your PMS" },
+      {
+        type: "p",
+        text: `You do not rip out your property-management system. Furlpay adds a hosted checkout or API alongside it: the guest pays in USDC on Arbitrum from a passkey wallet, you receive a signed receipt, and funds settle in about a second. Refunds are issued deliberately through the API, and a single USDC ledger keeps reconciliation clean.`,
+      },
+      { type: "h2", text: "Getting started" },
+      {
+        type: "p",
+        text: `Start with the [hotels solution page](/solutions/hotels), or the regional versions for [UK hotels](/uk/solutions/hotels) and [Dubai hotels](/ae/solutions/hotels). A pilot on a single property, run alongside your existing card acceptance, is the low-risk way to prove the savings before rolling out.`,
+      },
+      {
+        type: "quote",
+        text: `Your guests already arrive with crypto wallets and international cards. Accepting USDC turns their most expensive-to-process payments into your cheapest — at 0.5%, settled instantly, with no chargebacks.`,
+      },
+      {
+        type: "p",
+        text: `Furlpay is not a bank. Figures are illustrative estimates and vary by property. This article is informational, not financial advice.`,
+      },
+    ],
+  },
+  // 29 ----------------------------------------------------------------
+  {
+    slug: "fca-crypto-regulations-2026",
+    title: "FCA Crypto Regulations 2026: What UK Businesses Need to Know",
+    excerpt:
+      "The FCA published final crypto rules on 30 June 2026. The authorisation gateway opens 30 September 2026 and the regime becomes mandatory on 25 October 2027. Here is what UK businesses should understand — plainly.",
+    category: "compliance",
+    date: "2026-07-06",
+    readMins: 7,
+    author: "Furlpay Team",
+    cover: "https://images.unsplash.com/photo-1529101091764-c3526daf38fe?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `The UK is building one of the world's clearest crypto regimes, and 2026 is the pivotal year. The FCA published its final core rules on 30 June 2026, the authorisation gateway opens on 30 September 2026, and the new regime becomes mandatory on 25 October 2027. This is a plain-English summary for UK businesses — not legal advice.`,
+      },
+      { type: "h2", text: "The timeline that matters" },
+      {
+        type: "table",
+        headers: ["Date", "What happens"],
+        rows: [
+          ["4 Feb 2026", "The FSMA (Cryptoassets) Regulations 2026 bring crypto into the FCA's remit"],
+          ["30 Jun 2026", "FCA publishes final core rules and guidance"],
+          ["30 Sep 2026", "Authorisation gateway opens; firms can apply (until 28 Feb 2027)"],
+          ["25 Oct 2027", "New regime becomes mandatory"],
+        ],
+        highlightCol: 0,
+      },
+      {
+        type: "p",
+        text: `The FCA is offering pre-application support meetings from July 2026, so serious firms are engaging now rather than waiting for the gateway to open.`,
+      },
+      { type: "h2", text: "Who needs to be authorised" },
+      {
+        type: "p",
+        text: `Firms carrying out regulated cryptoasset activities in the UK — trading platforms, intermediaries, custodians, stablecoin issuers, and firms arranging staking — will need FCA authorisation. If your business only accepts a stablecoin as payment for goods or services, your obligations differ from those of a crypto exchange, but you should still take advice on where you sit.`,
+      },
+      { type: "h2", text: "The financial promotions rule you cannot ignore" },
+      {
+        type: "p",
+        text: `Separately from authorisation, marketing cryptoassets to UK consumers has been regulated since October 2023 under the financial promotions regime. A promotion must be made by an FCA-authorised person, approved by an authorised "section 21 approver", or fall under an exemption — otherwise it can be a criminal offence. Promotions must carry a prescribed risk warning, cannot offer incentives that induce investment, and give first-time investors a 24-hour cooling-off period.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `If you market crypto to UK consumers, line up an authorised approver or a clear exemption first.`,
+          `Use the FCA's prescribed risk-warning wording.`,
+          `Do not offer referral bonuses or cashback that incentivise investment in cryptoassets to UK consumers.`,
+        ],
+      },
+      { type: "h2", text: "How Furlpay approaches it" },
+      {
+        type: "p",
+        text: `We state our position honestly: Furlpay is not yet FCA authorised, because the gateway does not open until 30 September 2026. Our UK pages carry the prescribed risk warning and an accurate status, and we are preparing for the regime. You can read our current position on the [UK trust page](/uk/trust).`,
+      },
+      {
+        type: "quote",
+        text: `The UK is not banning crypto — it is professionalising it. Firms that treat authorisation and honest promotions as a feature, not a chore, will be the ones enterprises and regulators trust.`,
+      },
+      {
+        type: "p",
+        text: `This article is information, not legal or financial advice. Dates and rules are accurate as of July 2026 and may change; consult qualified counsel about your specific situation.`,
+      },
+    ],
+  },
 ];
 
 const MONTHS = [
