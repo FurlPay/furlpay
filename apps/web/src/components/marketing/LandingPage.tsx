@@ -21,6 +21,7 @@ export type LandingProps = {
   secondary?: { href: string; label: string };
   cta: { title: string; subtitle?: string; primary?: { href: string; label: string }; secondary?: { href: string; label: string } };
   disclaimer?: string;
+  banner?: ReactNode; // rendered prominently right under the hero (e.g. FCA risk warning)
   children?: ReactNode; // optional extra sections between features and FAQ
 };
 
@@ -37,6 +38,8 @@ export default function LandingPage(p: LandingProps) {
           primary={p.primary}
           secondary={p.secondary}
         />
+
+        {p.banner}
 
         <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
           {p.atomicAnswer}

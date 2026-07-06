@@ -39,6 +39,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/investing/insights", // FurlPay Research portal — public content, like /blog
 
   "/legal",
+  "/uk", // UK market landing pages (public)
   "/products", // SEO product landing pages (public)
   "/solutions", // SEO audience/solution landing pages (public)
   "/resources", // guides, tools (fee calculator), glossary (public)

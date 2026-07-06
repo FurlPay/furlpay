@@ -44,6 +44,16 @@ receive an on-chain receipt.
 - Hotels — accept USDC at 0.5%, no chargebacks, runs beside your PMS: https://furlpay.com/solutions/hotels
 - Airlines — USDC ticket settlement, no FX loss on cross-border fares: https://furlpay.com/solutions/airlines
 
+## United Kingdom (en-GB)
+
+- UK hub — USDC payment gateway for UK business: https://furlpay.com/uk
+- UK payments — accept USDC at 0.5%: https://furlpay.com/uk/products/payments
+- UK hotels — crypto payments for UK hotels: https://furlpay.com/uk/solutions/hotels
+- UK airlines — USDC ticket settlement: https://furlpay.com/uk/solutions/airlines
+- UK pricing (GBP): https://furlpay.com/uk/pricing
+- UK trust & FCA status (not yet FCA authorised; gateway opens 30 Sep 2026): https://furlpay.com/uk/trust
+- UK vs Stripe: https://furlpay.com/uk/compare/stripe
+
 ## Tools
 
 - Fee savings calculator (card vs USDC): https://furlpay.com/resources/tools/fee-calculator

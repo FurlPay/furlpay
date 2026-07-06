@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 export type CompareProps = {
   competitor: string; // display name, e.g. "BitPay"
   slug: string; // e.g. "bitpay"
+  crumbBase?: string; // path prefix for the breadcrumb, default "/compare"
   title: string; // H1
   subtitle: ReactNode;
   atomicAnswer: ReactNode;
@@ -26,8 +27,8 @@ export default function ComparePage(p: CompareProps) {
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },
-          { name: "Compare", path: `/compare/${p.slug}` },
-          { name: `Furlpay vs ${p.competitor}`, path: `/compare/${p.slug}` },
+          { name: "Compare", path: `${p.crumbBase ?? "/compare"}/${p.slug}` },
+          { name: `Furlpay vs ${p.competitor}`, path: `${p.crumbBase ?? "/compare"}/${p.slug}` },
         ])}
       />
       <main className="mx-auto max-w-4xl px-6 pb-24 pt-14">

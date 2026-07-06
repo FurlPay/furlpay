@@ -375,7 +375,7 @@ function Footer() {
               ["E-commerce", "/solutions/ecommerce"],
               ["Enterprise", "/solutions/enterprise"],
               ["AI agents", "/solutions/ai-agents"],
-              ["Fee calculator", "/resources/tools/fee-calculator"],
+              ["UK 🇬🇧", "/uk"],
             ]}
           />
           <FooterCol

@@ -8,7 +8,10 @@ export const metadata: Metadata = {
   title: "Pricing",
   description:
     "Simple, transparent pricing for Furlpay — stablecoin cards, cashback up to 3%, yield up to 8% APY, fractional investing, and a full developer API.",
-  alternates: { canonical: "/pricing" },
+  alternates: {
+    canonical: "/pricing",
+    languages: { "en-US": "/pricing", "en-GB": "/uk/pricing", "x-default": "/pricing" },
+  },
 };
 
 const FAQ = [
