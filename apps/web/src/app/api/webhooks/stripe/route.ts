@@ -13,7 +13,16 @@ export const runtime = "nodejs";
 export async function POST(request: Request) {
   const payload = await request.text();
   const sig = request.headers.get("stripe-signature");
-  const secret = process.env.STRIPE_WEBHOOK_SECRET || "whsec_placeholder";
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+
+  // Fail closed: the placeholder fallback is public (in-repo), so verifying
+  // against it in production would let anyone forge signed events. Require a
+  // real secret in production — mirrors the guard in lib/session.ts.
+  if (!secret || secret === "whsec_placeholder") {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
+    }
+  }
 
   if (!sig) {
     return NextResponse.json({ error: "Missing stripe-signature header" }, { status: 400 });
@@ -21,7 +30,8 @@ export async function POST(request: Request) {
 
   let event: Stripe.Event;
   try {
-    event = getStripe().webhooks.constructEvent(payload, sig, secret);
+    // In dev only (production is guarded above) fall back to the placeholder.
+    event = getStripe().webhooks.constructEvent(payload, sig, secret || "whsec_placeholder");
   } catch (err: any) {
     return NextResponse.json(
       { error: `Webhook signature verification failed: ${err.message}` },

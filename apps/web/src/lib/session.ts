@@ -48,6 +48,7 @@ export async function verifySession(token: string | undefined | null): Promise<S
     const { payload } = await jwtVerify(token, secretKey(), {
       issuer: "furlpay",
       audience: "furlpay-app",
+      algorithms: [ALG], // pin HS256 — never honour a header-chosen algorithm
     });
     return payload as SessionClaims;
   } catch {

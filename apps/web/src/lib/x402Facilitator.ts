@@ -140,8 +140,11 @@ export async function settle(req: FacilitatorRequest, settler: Settler = mockSet
     });
     return { success: true, transaction, network, payer: v.payer };
   } catch (e) {
-    // Roll back the nonce so a transient settlement failure isn't a permanent burn.
-    store.usedNonces.delete(nonce);
+    // Fail closed: a settler error/timeout is NOT proof the on-chain settlement
+    // did not land, so we keep the nonce burned rather than freeing it. Freeing
+    // it would reopen the authorization for replay against a settlement that may
+    // yet confirm (the F2/duplicate-settlement class). EIP-3009 retries use a
+    // fresh nonce, so a burned nonce never blocks a legitimate re-attempt.
     return { success: false, network, payer: v.payer, errorReason: (e as Error).message || "settlement_failed" };
   }
 }
