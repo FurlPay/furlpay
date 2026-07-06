@@ -42,6 +42,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/developer", // public developer portal + Agent Console demo
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
   "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
+  "/discord", // branded Discord links → external redirects (see next.config redirects)
 ];
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
