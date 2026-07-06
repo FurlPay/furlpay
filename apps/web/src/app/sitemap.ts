@@ -59,7 +59,12 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/contact", priority: 0.6, changeFrequency: "monthly" as const },
 
     // — Interactive tools (backlink + conversion surface) —
+    { path: "/resources", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/resources/tools", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/resources/tools/fee-calculator", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/resources/tools/roi-calculator", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/resources/tools/gas-estimator", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/resources/tools/stablecoin-comparison", priority: 0.7, changeFrequency: "monthly" as const },
 
     // — United Kingdom (en-GB) —
     { path: "/uk", priority: 0.9, changeFrequency: "monthly" as const },
