@@ -72,6 +72,54 @@ export default function TrustPage() {
           </div>
         </Section>
 
+        <Section title="Compliance status">
+          <p className="mb-5 max-w-2xl text-[14px] leading-relaxed text-textSecondary">
+            We publish where we actually are — not aspirational badges. Controls marked live run in
+            production today; formal certifications on the roadmap are dated as they progress.
+          </p>
+          <div className="divide-y divide-white/[0.06] rounded-2xl border border-white/10">
+            {[
+              { item: "Sanctions screening on every payment", status: "Live" },
+              { item: "Travel Rule information support", status: "Live" },
+              { item: "MiCA-aligned design (EURC auto-swap, jurisdiction handling)", status: "Live" },
+              { item: "Passkey (WebAuthn) auth + 2-of-2 MPC custody", status: "Live" },
+              { item: "GDPR alignment (privacy policy, DPA, subprocessors)", status: "Live" },
+              { item: "Responsible disclosure & safe harbor", status: "Live" },
+              { item: "SOC 2 Type II", status: "In progress" },
+              { item: "Independent penetration test", status: "Planned" },
+              { item: "Smart-contract audit", status: "Planned" },
+              { item: "SSO / SAML for enterprise accounts", status: "Planned" },
+            ].map((row) => (
+              <div key={row.item} className="flex items-center justify-between gap-4 p-4">
+                <span className="text-[14px] text-textSecondary">{row.item}</span>
+                <StatusPill status={row.status} />
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-[11px] text-textMuted">
+            Status as of July 2026. Enterprise customers can request current documentation under NDA
+            via <Link href="/talk-to-us" className="text-neon">sales</Link>.
+          </p>
+        </Section>
+
+        <Section title="For enterprise security teams">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              { title: "Per-transaction audit trail", body: "Every payment produces a signed, Arbiscan-verifiable receipt and an immutable on-chain record for audit and reconciliation." },
+              { title: "Jurisdiction & KYC controls", body: "Enforce jurisdiction blocks and KYC-tier gating per policy, applied before settlement." },
+              { title: "Reconciliation exports", body: "Structured payment and settlement data (CSV / ISO 20022) for finance and ERP reconciliation." },
+              { title: "Incident response", body: "Documented response process, a public status page, and disclosure via our responsible-disclosure policy." },
+              { title: "Data handling", body: "Documented retention and deletion, a subprocessors list, and DPA available for enterprise contracts." },
+              { title: "Open-source auditability", body: "Core SDKs, CLI, MCP server, and x402 facilitator are MIT-licensed, so your team can review the payment path directly." },
+            ].map((f) => (
+              <div key={f.title} className="glass-card p-6">
+                <h3 className="text-[15px] font-bold">{f.title}</h3>
+                <p className="mt-2 text-[13px] leading-relaxed text-textSecondary">{f.body}</p>
+              </div>
+            ))}
+          </div>
+        </Section>
+
         <Section title="Policies & disclosures">
           <div className="flex flex-wrap gap-3 text-[14px]">
             {[
@@ -99,5 +147,21 @@ export default function TrustPage() {
         </p>
       </main>
     </div>
+  );
+}
+
+// Honest, colour-coded compliance status. Green = live in production,
+// amber = actively in progress, muted = planned/roadmap.
+function StatusPill({ status }: { status: string }) {
+  const tone =
+    status === "Live"
+      ? "border-neon/30 bg-neon/10 text-neon"
+      : status === "In progress"
+        ? "border-yellow-400/30 bg-yellow-400/10 text-yellow-300"
+        : "border-white/15 bg-white/5 text-textMuted";
+  return (
+    <span className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold ${tone}`}>
+      {status}
+    </span>
   );
 }

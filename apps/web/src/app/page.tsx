@@ -370,9 +370,9 @@ function Footer() {
           <FooterCol
             title="Solutions"
             links={[
+              ["Hotels", "/solutions/hotels"],
+              ["Airlines", "/solutions/airlines"],
               ["E-commerce", "/solutions/ecommerce"],
-              ["SaaS", "/solutions/saas"],
-              ["Freelancers", "/solutions/freelancers"],
               ["Enterprise", "/solutions/enterprise"],
               ["AI agents", "/solutions/ai-agents"],
               ["Fee calculator", "/resources/tools/fee-calculator"],
