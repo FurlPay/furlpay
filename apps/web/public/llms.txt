@@ -41,6 +41,8 @@ receive an on-chain receipt.
 - Enterprise — 24/7 USDC settlement with compliance: https://furlpay.com/solutions/enterprise
 - AI agents — x402 + MCP payment infrastructure: https://furlpay.com/solutions/ai-agents
 - Travel agencies — white-label crypto travel booking: https://furlpay.com/solutions/travel-agencies
+- Hotels — accept USDC at 0.5%, no chargebacks, runs beside your PMS: https://furlpay.com/solutions/hotels
+- Airlines — USDC ticket settlement, no FX loss on cross-border fares: https://furlpay.com/solutions/airlines
 
 ## Tools
 

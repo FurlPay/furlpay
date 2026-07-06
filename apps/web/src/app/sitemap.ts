@@ -51,6 +51,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/solutions/enterprise", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/solutions/ai-agents", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/solutions/travel-agencies", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/solutions/hotels", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/solutions/airlines", priority: 0.8, changeFrequency: "monthly" as const },
 
     // — Trust & Contact —
     { path: "/trust", priority: 0.7, changeFrequency: "monthly" as const },
