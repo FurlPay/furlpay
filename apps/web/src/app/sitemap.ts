@@ -22,6 +22,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/compare/redotpay", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/partners", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/use-cases", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/hackathon", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/swag", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/developer", priority: 0.8, changeFrequency: "weekly" as const },
     { path: "/developer/agents", priority: 0.8, changeFrequency: "weekly" as const },
     { path: "/careers", priority: 0.7, changeFrequency: "weekly" as const },

@@ -397,6 +397,8 @@ function Footer() {
               ["Discord", "/discord"],
               ["Telegram", "/telegram"],
               ["Creator Program", "/ambassadors"],
+              ["Build Challenge", "/hackathon"],
+              ["Swag Center", "/swag"],
               ["Payouts (B2B)", "/payouts"],
               ["X / Twitter", "https://x.com/furlpayglobal"],
               ["YouTube", "https://www.youtube.com/@furlpay"],

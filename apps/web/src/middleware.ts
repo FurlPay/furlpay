@@ -49,6 +49,8 @@ const PUBLIC_PAGE_PREFIXES = [
   "/contact", // contact page (public)
   "/hotels", // programmatic crypto-hotel city landing pages (public)
   "/compare", // SEO comparison pages (public)
+  "/hackathon", // FurlPay Build Challenge landing + submissions (public)
+  "/swag", // FurlPay Swag Center store (public)
   "/newsletter", // subscribe / manage preferences (public)
   "/developer", // public developer portal + Agent Console demo
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
@@ -63,6 +65,8 @@ const PUBLIC_API_PREFIXES = [
   "/api/actions", // Solana Actions/Blinks — consumed by unauthenticated Blink clients
   "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
   "/api/contact", // public "Talk to us" lead capture
+  "/api/hackathon", // public Build Challenge submissions
+  "/api/swag", // public Swag Center redemption/order requests
   "/api/newsletter", // public newsletter subscribe / unsubscribe
   "/api/careers", // public talent-pipeline interest capture
   "/api/ambassadors", // public creator-program applications
