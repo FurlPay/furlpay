@@ -1,8 +1,21 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ShoppingBag, Plus, Minus, X, Check, Loader2, Coins } from "lucide-react";
-import { SWAG, type SwagItem, type SwagCategory } from "@/lib/swag";
+import {
+  ShoppingBag, Plus, Minus, X, Check, Loader2, Coins,
+  Shirt, Backpack, Laptop, GlassWater, Coffee, Sticker, type LucideIcon,
+} from "lucide-react";
+import { SWAG, type SwagItem, type SwagCategory, type SwagIconName } from "@/lib/swag";
+
+// Map catalog icon keys → Lucide components (used for the tile fallback + cart).
+const ICONS: Record<SwagIconName, LucideIcon> = {
+  shirt: Shirt, backpack: Backpack, laptop: Laptop, bottle: GlassWater, mug: Coffee, sticker: Sticker,
+};
+
+function SwagIcon({ name, className }: { name: SwagIconName; className?: string }) {
+  const Icon = ICONS[name];
+  return <Icon className={className} aria-hidden />;
+}
 
 type Line = { slug: string; qty: number; size?: string };
 type CartLine = { key: string; item: SwagItem; qty: number; size?: string };
@@ -164,7 +177,7 @@ export default function SwagStore() {
                     onError={() => setBroken((b) => ({ ...b, [item.slug]: true }))}
                   />
                 ) : (
-                  <span className="text-[56px]" aria-hidden>{item.emoji}</span>
+                  <SwagIcon name={item.icon} className="h-16 w-16 text-textSecondary/50" />
                 )}
                 {item.badge && (
                   <span className="absolute left-3 top-3 rounded-full bg-neon px-2 py-0.5 text-[10px] font-bold text-black">{item.badge}</span>
@@ -221,7 +234,7 @@ export default function SwagStore() {
               {stage === "done" ? (
                 <div className="text-center">
                   <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-neon/20"><Check className="h-6 w-6 text-neon" /></div>
-                  <p className="text-[15px] font-bold">Request <span className="text-neon">{orderId}</span> is in 🎉</p>
+                  <p className="text-[15px] font-bold">Request <span className="text-neon">{orderId}</span> is in.</p>
                   <p className="mx-auto mt-2 max-w-xs text-[13px] text-textMuted">
                     We&apos;ve emailed your redemption to <strong className="text-white">hello@furlpay.com</strong> and will verify
                     your points and confirm shipping to your address. No points are deducted until we confirm.
@@ -234,7 +247,7 @@ export default function SwagStore() {
                   <ul className="space-y-3">
                     {lines.map((l) => (
                       <li key={l.key} className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                        <span className="text-[26px]" aria-hidden>{l.item.emoji}</span>
+                        <SwagIcon name={l.item.icon} className="h-6 w-6 shrink-0 text-textSecondary" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[14px] font-semibold">{l.item.name}</p>
                           <p className="text-[12px] text-textMuted">{l.size ? `Size ${l.size} · ` : ""}{l.item.points} pts each</p>

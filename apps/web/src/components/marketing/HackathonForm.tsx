@@ -82,7 +82,7 @@ export default function HackathonForm() {
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-neon/20">
           <Check className="h-6 w-6 text-neon" />
         </div>
-        <h3 className="text-lg font-bold text-textPrimary">You&apos;re in the gallery 🎉</h3>
+        <h3 className="text-lg font-bold text-textPrimary">You&apos;re in the gallery</h3>
         <p className="mx-auto mt-2 max-w-md text-[14px] text-textMuted">
           <strong className="text-white">{projectName || "Your project"}</strong> is submitted to the{" "}
           {TRACKS.find((t) => t.id === track)?.label} track. We review on a rolling basis and feature
