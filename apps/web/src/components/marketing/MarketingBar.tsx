@@ -24,7 +24,7 @@ export default function MarketingBar({
           <span className="text-xl font-extrabold tracking-tighter">Furlpay</span>
         </Link>
         <nav className="hidden items-center gap-8 text-sm text-textSecondary md:flex">
-          <Link href="/#features" className="transition-colors hover:text-white">Features</Link>
+          <Link href="/products" className="transition-colors hover:text-white">Products</Link>
           <Link href="/docs" className="transition-colors hover:text-white">Docs</Link>
           {link("/pricing", "Pricing", "pricing")}
           {link("/ambassadors", "Creators", "ambassadors")}

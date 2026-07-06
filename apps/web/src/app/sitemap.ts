@@ -35,15 +35,35 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/developer/webhooks", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/developer/events", priority: 0.6, changeFrequency: "monthly" as const },
 
-    // — Product —
-    { path: "/banking", priority: 0.8, changeFrequency: "monthly" as const },
-    { path: "/investing", priority: 0.8, changeFrequency: "monthly" as const },
-    { path: "/earn", priority: 0.8, changeFrequency: "monthly" as const },
-    { path: "/cards", priority: 0.8, changeFrequency: "monthly" as const },
-    { path: "/bills", priority: 0.7, changeFrequency: "monthly" as const },
-    { path: "/credit", priority: 0.7, changeFrequency: "monthly" as const },
-    { path: "/rewards", priority: 0.7, changeFrequency: "monthly" as const },
-    { path: "/analytics", priority: 0.6, changeFrequency: "monthly" as const },
+    // — Products (marketing landing pages) —
+    { path: "/products", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/products/payments", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/products/merchant", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/products/travel", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/products/investing", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/products/wallet", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/products/x402", priority: 0.8, changeFrequency: "monthly" as const },
+
+    // — Solutions (audience landing pages) —
+    { path: "/solutions/ecommerce", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/solutions/saas", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/solutions/freelancers", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/solutions/enterprise", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/solutions/ai-agents", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/solutions/travel-agencies", priority: 0.7, changeFrequency: "monthly" as const },
+
+    // — Trust & Contact —
+    { path: "/trust", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/contact", priority: 0.6, changeFrequency: "monthly" as const },
+
+    // — Interactive tools (backlink + conversion surface) —
+    { path: "/resources/tools/fee-calculator", priority: 0.8, changeFrequency: "monthly" as const },
+
+    // — Comparisons —
+    { path: "/compare/bitpay", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/compare/coinbase-commerce", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/compare/travala", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/compare/stripe", priority: 0.7, changeFrequency: "monthly" as const },
 
     // — Docs —
     { path: "/docs", priority: 0.9, changeFrequency: "weekly" as const },
