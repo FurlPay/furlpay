@@ -7,7 +7,10 @@ export const metadata: Metadata = {
   title: "Crypto Payment Gateway for Airlines — USDC Ticket Settlement",
   description:
     "Airlines and booking platforms can accept USDC on Arbitrum at 0.5% — no FX loss on cross-border fares, instant confirmation, and no chargebacks on high-value tickets. API-first.",
-  alternates: { canonical: "/solutions/airlines" },
+  alternates: {
+    canonical: "/solutions/airlines",
+    languages: { "en-US": "/solutions/airlines", "en-GB": "/uk/solutions/airlines", "x-default": "/solutions/airlines" },
+  },
 };
 
 export default function AirlinesPage() {

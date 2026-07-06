@@ -7,7 +7,10 @@ export const metadata: Metadata = {
   title: "Crypto Payment Gateway for Hotels — Accept USDC at 0.5%",
   description:
     "Let your hotel accept USDC stablecoin payments at 0.5% instead of 2.9–3.5% card fees. No FX on international guests, ~1-second settlement, and no chargebacks. API alongside your PMS.",
-  alternates: { canonical: "/solutions/hotels" },
+  alternates: {
+    canonical: "/solutions/hotels",
+    languages: { "en-US": "/solutions/hotels", "en-GB": "/uk/solutions/hotels", "x-default": "/solutions/hotels" },
+  },
 };
 
 export default function HotelsPage() {

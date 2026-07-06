@@ -12,7 +12,10 @@ export const metadata: Metadata = {
   title: "Crypto Payment Gateway — Accept USDC on Arbitrum (0.5%)",
   description:
     "Furlpay is a crypto payment gateway for accepting USDC stablecoin payments on Arbitrum at 0.5% per transaction. Sub-second settlement, a live fee API, and passkey-secured wallets.",
-  alternates: { canonical: "/products/payments" },
+  alternates: {
+    canonical: "/products/payments",
+    languages: { "en-US": "/products/payments", "en-GB": "/uk/products/payments", "x-default": "/products/payments" },
+  },
   openGraph: { type: "website", url: URL, title: "Crypto Payment Gateway — USDC on Arbitrum" },
 };
 

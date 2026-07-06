@@ -61,6 +61,15 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // — Interactive tools (backlink + conversion surface) —
     { path: "/resources/tools/fee-calculator", priority: 0.8, changeFrequency: "monthly" as const },
 
+    // — United Kingdom (en-GB) —
+    { path: "/uk", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/uk/products/payments", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/uk/solutions/hotels", priority: 0.9, changeFrequency: "monthly" as const },
+    { path: "/uk/solutions/airlines", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/uk/pricing", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/uk/trust", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/uk/compare/stripe", priority: 0.7, changeFrequency: "monthly" as const },
+
     // — Comparisons —
     { path: "/compare/bitpay", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/compare/coinbase-commerce", priority: 0.7, changeFrequency: "monthly" as const },

@@ -10,7 +10,10 @@ export const metadata: Metadata = {
   title: "Trust & Security Center — How Furlpay Protects You",
   description:
     "Furlpay's approach to security and compliance: passkey (WebAuthn) auth, 2-of-2 MPC custody, sanctions screening, Travel Rule support, MiCA-aware design, and open-source code.",
-  alternates: { canonical: "/trust" },
+  alternates: {
+    canonical: "/trust",
+    languages: { "en-US": "/trust", "en-GB": "/uk/trust", "x-default": "/trust" },
+  },
 };
 
 const PILLARS = [
