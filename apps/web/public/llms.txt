@@ -24,6 +24,46 @@ receive an on-chain receipt.
 - Crypto-backed credit lines, rewards & cashback
 - MPC + WebAuthn passkey custody (no seed phrases)
 
+## Products (landing pages)
+
+- Payments — crypto payment gateway, USDC on Arbitrum at 0.5%: https://furlpay.com/products/payments
+- Merchant — accept stablecoin payments, hosted checkout, no chargebacks: https://furlpay.com/products/merchant
+- Travel — book 2.2M+ hotels and flights, pay in USDC: https://furlpay.com/products/travel
+- Investing — fractional US stocks, ETFs, and crypto: https://furlpay.com/products/investing
+- Wallet — passkey MPC wallet, no seed phrase: https://furlpay.com/products/wallet
+- x402 — payments for AI agents over HTTP: https://furlpay.com/products/x402
+
+## Solutions (by audience)
+
+- E-commerce — crypto payments for online stores: https://furlpay.com/solutions/ecommerce
+- SaaS — stablecoin subscription and usage billing: https://furlpay.com/solutions/saas
+- Freelancers — get paid in USDC globally: https://furlpay.com/solutions/freelancers
+- Enterprise — 24/7 USDC settlement with compliance: https://furlpay.com/solutions/enterprise
+- AI agents — x402 + MCP payment infrastructure: https://furlpay.com/solutions/ai-agents
+- Travel agencies — white-label crypto travel booking: https://furlpay.com/solutions/travel-agencies
+
+## Tools
+
+- Fee savings calculator (card vs USDC): https://furlpay.com/resources/tools/fee-calculator
+
+## Comparisons
+
+- Furlpay vs Stripe (2.9%+30c cards vs 0.5% USDC): https://furlpay.com/compare/stripe
+- Furlpay vs BitPay: https://furlpay.com/compare/bitpay
+- Furlpay vs Coinbase Commerce (0.5% vs 1%): https://furlpay.com/compare/coinbase-commerce
+- Furlpay vs Travala (crypto travel): https://furlpay.com/compare/travala
+
+## Guides (blog)
+
+- Crypto vs card fees, the real math: https://furlpay.com/blog/crypto-vs-card-fees-the-real-math
+- How crypto payments work (business primer): https://furlpay.com/blog/how-crypto-payments-work
+- USDC vs USDT for payments: https://furlpay.com/blog/usdc-vs-usdt-for-payments
+
+## Trust
+
+- Trust & security center: https://furlpay.com/trust
+- Contact: https://furlpay.com/contact
+
 ## Travel booking (agent-bookable)
 
 - Search + book 2.2M+ stays and flights; pay in USDC on Arbitrum, earn 2% cashback

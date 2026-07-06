@@ -7,6 +7,8 @@ import CoverArt from "@/components/blog/CoverArt";
 import ArticleBody from "@/components/blog/ArticleBody";
 import StoryCard from "@/components/blog/StoryCard";
 import NewsletterBanner from "@/components/blog/NewsletterBanner";
+import AuthorBio from "@/components/blog/AuthorBio";
+import { getAuthor } from "@/lib/blog/authors";
 
 export const revalidate = 3600; // ISR
 
@@ -41,14 +43,18 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
   const c = categoryById(post.category);
   const related = postsByCategory(post.category).filter((p) => p.slug !== post.slug).slice(0, 3);
 
-  // BlogPosting structured data for rich results.
+  // BlogPosting structured data for rich results. Author resolves to a real
+  // credentialed Person where we have one (E-E-A-T for YMYL), else an Org byline.
+  const a = getAuthor(post.author);
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
     headline: post.title,
     description: post.excerpt,
     datePublished: post.date,
-    author: { "@type": "Organization", name: post.author, url: "https://furlpay.com" },
+    author: a.isPerson
+      ? { "@type": "Person", name: a.name, url: a.url, jobTitle: a.role, sameAs: a.sameAs }
+      : { "@type": "Organization", name: a.name, url: "https://furlpay.com", sameAs: a.sameAs },
     publisher: { "@id": "https://furlpay.com/#org" },
     mainEntityOfPage: `https://furlpay.com/blog/${post.slug}`,
   };
@@ -78,6 +84,8 @@ export default function ArticlePage({ params }: { params: { slug: string } }) {
       <div className="mt-9">
         <ArticleBody blocks={post.body} />
       </div>
+
+      <AuthorBio author={post.author} />
 
       <div className="mt-12">
         <NewsletterBanner />

@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 import "./globals.css";
 import Shell from "@/components/Shell";
+
+// Search-console / analytics ids come from env so they never hardcode secrets
+// and are easy to set per-environment in Vercel. All optional — unset → no-op.
+const GA_ID = process.env.NEXT_PUBLIC_GA4_ID;
+const GSC_VERIFICATION = process.env.NEXT_PUBLIC_GSC_VERIFICATION;
+const BING_VERIFICATION = process.env.NEXT_PUBLIC_BING_VERIFICATION;
 
 const SITE = "https://furlpay.com";
 const TITLE = "Furlpay — The On-Chain Financial Operating System";
@@ -23,7 +30,16 @@ export const metadata: Metadata = {
     "MiCA",
     "account abstraction",
   ],
-  alternates: { canonical: "/" },
+  alternates: {
+    canonical: "/",
+    // Single global English site; declare regional variants at x-default so
+    // Google serves the same content to US and India English queries.
+    languages: { "en-US": "/", "en-IN": "/", "x-default": "/" },
+  },
+  verification: {
+    ...(GSC_VERIFICATION ? { google: GSC_VERIFICATION } : {}),
+    ...(BING_VERIFICATION ? { other: { "msvalidate.01": BING_VERIFICATION } } : {}),
+  },
   openGraph: {
     type: "website",
     url: SITE,
@@ -87,6 +103,18 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
         />
+        {/* Google Analytics 4 — loads only when NEXT_PUBLIC_GA4_ID is set. */}
+        {GA_ID && (
+          <>
+            <Script
+              src={`https://www.googletagmanager.com/gtag/js?id=${GA_ID}`}
+              strategy="afterInteractive"
+            />
+            <Script id="ga4-init" strategy="afterInteractive">
+              {`window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${GA_ID}');`}
+            </Script>
+          </>
+        )}
         {/* Shell picks full-bleed (marketing/docs) vs phone-frame app chrome. */}
         <Shell>{children}</Shell>
       </body>
