@@ -1639,6 +1639,196 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
     ],
   },
+  // 30 ----------------------------------------------------------------
+  {
+    slug: "genius-act-2026-what-businesses-need-to-know",
+    title: "The GENIUS Act: What US Businesses Need to Know About Stablecoins in 2026",
+    excerpt:
+      "The GENIUS Act, signed in July 2025, is the first US federal law for payment stablecoins. It regulates issuers like Circle — not merchants — and gives businesses the legal clarity to accept USDC with confidence. Here is the plain-English version.",
+    category: "compliance",
+    date: "2026-07-06",
+    readMins: 7,
+    author: "Furlpay Team",
+    cover: "https://images.unsplash.com/photo-1591994843349-f415893b3a6b?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `For years the biggest blocker to stablecoin payments in the US was not technology — it was legal uncertainty. That changed on 18 July 2025, when the GENIUS Act was signed into law. It is the first federal framework for payment stablecoins, and for a business deciding whether to accept USDC, it is the green light that was missing.`,
+      },
+      { type: "h2", text: "What the GENIUS Act actually does" },
+      {
+        type: "p",
+        text: `The GENIUS Act (Guiding and Establishing National Innovation for U.S. Stablecoins) creates a federal regime for "payment stablecoins" — dollar-pegged tokens like USDC used for payments. It defines who is allowed to issue them and the rules they must follow.`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Only permitted issuers may issue a payment stablecoin for US persons — a subsidiary of an insured depository institution, or a federally or state-qualified issuer.`,
+          `100% reserve backing in liquid assets such as US dollars and short-dated Treasuries, with monthly public disclosure of reserves.`,
+          `Issuers are subject to the Bank Secrecy Act — real AML, sanctions screening and customer identification programs.`,
+          `Compliant payment stablecoins are carved out of the federal "security" and "commodity" definitions, removing a major source of ambiguity.`,
+        ],
+      },
+      { type: "h2", text: "The key point: it regulates issuers, not merchants" },
+      {
+        type: "p",
+        text: `This is the part most summaries get wrong. The GENIUS Act's obligations fall on the issuer of the stablecoin — for USDC, that is Circle — not on the merchant who accepts it. A hotel or shop accepting USDC is not becoming a regulated stablecoin issuer. What the law gives that business is confidence that the dollar it is being paid in sits inside a federal framework with reserve and disclosure requirements behind it.`,
+      },
+      {
+        type: "quote",
+        text: `The GENIUS Act does not make accepting USDC complicated. It makes the USDC you accept trustworthy — federally regulated, fully reserved, and transparently disclosed.`,
+      },
+      { type: "h2", text: "What it means for your business" },
+      {
+        type: "table",
+        headers: ["Before", "After the GENIUS Act"],
+        rows: [
+          ["\"Is this even legal?\"", "Federal framework for payment stablecoins"],
+          ["Unclear reserve backing", "100% reserves + monthly disclosure required"],
+          ["Security/commodity ambiguity", "Carved out for compliant payment stablecoins"],
+          ["Patchwork by state", "A federal baseline"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: `In practice, the legal clarity is what unlocks enterprise adoption. It is a large part of why so many US merchants now accept crypto, and why accepting USDC is a defensible decision for a CFO rather than a risky one.`,
+      },
+      { type: "h2", text: "How Furlpay fits" },
+      {
+        type: "p",
+        text: `Furlpay is a payments platform, not a stablecoin issuer — we help businesses accept USDC (issued by Circle under the GENIUS Act framework) on Arbitrum for a flat 0.5%. We are honest about our own status and do not claim to be a GENIUS Act issuer. See how acceptance works on the [payments page](/products/payments) and the honest cost breakdown in [Crypto vs Card Fees](/blog/crypto-vs-card-fees-the-real-math).`,
+      },
+      {
+        type: "p",
+        text: `This article is information, not legal advice. The GENIUS Act was signed 18 July 2025 and its implementing rules continue to develop; consult qualified counsel about your specific situation.`,
+      },
+    ],
+  },
+  // 31 ----------------------------------------------------------------
+  {
+    slug: "2026-card-fee-changes-hotels",
+    title: "The 2026 Card Fee Changes Hotels Should Watch — and the USDC Alternative",
+    excerpt:
+      "April 2026 brought a wave of card network fee changes — new Mastercard transaction fees, Visa's Level 2 sunset, and revised hotel interchange. Here is what actually changed, honestly, and how USDC at 0.5% compares.",
+    category: "product-news",
+    date: "2026-07-06",
+    readMins: 6,
+    author: "Furlpay Team",
+    cover: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `Card acceptance costs rarely go down, and April 2026 continued the trend with a set of specific network changes. There was no single dramatic "fees doubled" headline — the reality is more granular, and worth understanding accurately before anyone pitches you a scare story. Here is what actually changed, and how a flat-0.5% USDC rail compares.`,
+      },
+      { type: "h2", text: "What actually changed in April 2026" },
+      {
+        type: "ul",
+        items: [
+          `Mastercard introduced a new Force Post Transaction Fee of about nine cents per transaction in the US, and pricing changes to the Digital Enablement Fee (a minimum around $0.025 on transactions up to $100).`,
+          `Mastercard added a new Fallback Avoidance fee.`,
+          `Visa began sunsetting its standalone Level 2 (CEDP) interchange incentive for commercial cards, effective mid-April 2026 — relevant to business-card acceptance.`,
+          `Discover revised a number of Hotel/Car Rental interchange rates in its April release.`,
+        ],
+      },
+      {
+        type: "p",
+        text: `None of these is a blanket rate hike, but together they nudge effective acceptance costs up and make card pricing harder to predict — especially for hotels, which sit in specific interchange programs and take a lot of commercial and international cards.`,
+      },
+      { type: "h2", text: "Why hotels feel it most" },
+      {
+        type: "p",
+        text: `Hotels combine three expensive ingredients: large average tickets, a high share of international and commercial cards, and meaningful chargeback exposure from cancellations and no-shows. Small per-transaction and interchange changes therefore land harder here than in most retail.`,
+      },
+      {
+        type: "table",
+        headers: ["", "Cards (2026)", "USDC on Furlpay"],
+        rows: [
+          ["Headline cost", "~2.9% – 3.5% + new per-tx fees", "0.5% flat"],
+          ["International cards", "+ cross-border + FX", "No FX (dollar-stable)"],
+          ["Settlement", "2 – 4 days", "~1 second"],
+          ["Chargebacks", "Yes + dispute fees", "None (final)"],
+          ["Fee predictability", "Changes each release", "One flat rate"],
+        ],
+        highlightCol: 2,
+      },
+      { type: "h2", text: "The honest takeaway" },
+      {
+        type: "p",
+        text: `You do not need to drop cards — most guests will still tap a card, and you should let them. The point is to add a cheaper, predictable rail for the guests who can use it. USDC on Arbitrum is a flat 0.5% that does not change every April, settles instantly, and cannot be charged back. On a property doing $2M a year, moving even part of that volume is real money. Model it with the [ROI calculator](/resources/tools/roi-calculator), or read the [hotels guide](/blog/crypto-payments-for-hotels-2026).`,
+      },
+      {
+        type: "quote",
+        text: `Card fees are not going to stop drifting up. The hedge is not to fight every interchange release — it is to offer a second rail whose price you actually control.`,
+      },
+      {
+        type: "p",
+        text: `Figures are illustrative and based on publicly reported April 2026 network changes; your effective rates vary by processor, card mix and category. This is information, not financial advice.`,
+      },
+    ],
+  },
+  // 32 ----------------------------------------------------------------
+  {
+    slug: "dubai-cashless-2026-hotels-crypto",
+    title: "Dubai Cashless 2026: How Hotels Can Accept Crypto Payments",
+    excerpt:
+      "Dubai is targeting a largely cashless economy, Emirates and Dubai Duty Free are enabling crypto, and Palazzo Versace already accepts it. Here is how any Dubai hotel can accept USDC at 0.5% — and the honest regulatory picture.",
+    category: "travel",
+    date: "2026-07-06",
+    readMins: 7,
+    author: "FurlPay Travels",
+    cover: "https://images.unsplash.com/photo-1512453979798-5ea266f8880c?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `Few cities are moving toward digital payments as deliberately as Dubai. With a stated goal of a largely cashless economy and a stream of high-value international guests, Dubai's hotels are an almost perfect fit for stablecoin payments — and several of the emirate's biggest names are already there.`,
+      },
+      { type: "h2", text: "The market is already moving" },
+      {
+        type: "ul",
+        items: [
+          `Emirates and Dubai Duty Free have signed agreements with Crypto.com to accept crypto payments, including stablecoins.`,
+          `Palazzo Versace Dubai accepts Bitcoin, Ethereum and BNB for rooms, dining and spa via a Binance partnership.`,
+          `The UAE has launched DDSC, a Central Bank–approved dirham-backed stablecoin, now available on VARA-regulated platforms.`,
+          `Dubai's broader agenda targets a large majority of transactions going cashless.`,
+        ],
+      },
+      { type: "h2", text: "Why Dubai hotels benefit more than most" },
+      {
+        type: "p",
+        text: `Dubai combines the highest international-guest share and among the highest room rates in the world. That is precisely the mix where card interchange and foreign-exchange fees take the biggest absolute bite. Accepting USDC — dollar-stable, borderless — removes the FX cost and drops processing to a flat 0.5%.`,
+      },
+      {
+        type: "table",
+        headers: ["Pain point", "On cards", "On USDC (Furlpay)"],
+        rows: [
+          ["Processing fee", "2.9% – 3.5%", "0.5% flat"],
+          ["International-guest FX", "1% – 3% extra", "None"],
+          ["Settlement", "2 – 4 days", "~1 second"],
+          ["Chargebacks", "Common + fees", "None (final)"],
+        ],
+        highlightCol: 2,
+      },
+      { type: "h2", text: "How a Dubai hotel accepts USDC" },
+      {
+        type: "p",
+        text: `Furlpay adds a hosted checkout or API alongside the property's PMS. The guest pays in USDC on Arbitrum from a passkey wallet, the hotel gets a signed receipt, and funds settle in about a second. See the [Dubai hotels page](/ae/solutions/hotels) for the full picture.`,
+      },
+      { type: "h2", text: "The honest regulatory note" },
+      {
+        type: "p",
+        text: `Dubai's Virtual Assets Regulatory Authority (VARA) requires a licence to offer virtual asset services in or from the emirate. Furlpay is not currently VARA-licensed and is evaluating licensing; our Dubai pages state this plainly and carry a virtual-asset risk note. Any hotel exploring crypto acceptance should confirm its own regulatory position — see our [UAE trust page](/ae/trust).`,
+      },
+      {
+        type: "quote",
+        text: `Dubai's guests already arrive with crypto wallets and foreign cards. Accepting USDC turns their most expensive-to-process payments into the cheapest — at 0.5%, instantly, with no FX.`,
+      },
+      {
+        type: "p",
+        text: `Furlpay is not a bank and is not currently VARA-licensed. Virtual assets are high risk and can lose value. This article is information, not financial or legal advice.`,
+      },
+    ],
+  },
 ];
 
 const MONTHS = [

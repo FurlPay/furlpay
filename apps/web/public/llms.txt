@@ -64,6 +64,11 @@ receive an on-chain receipt.
 - UAE trust & VARA status (not VARA-licensed; evaluating): https://furlpay.com/ae/trust
 - UAE vs Stripe: https://furlpay.com/ae/compare/stripe
 
+## Crypto hotels (city guides)
+
+- All cities: https://furlpay.com/hotels
+- Pay for hotels with crypto in Miami / New York / Las Vegas / Austin / San Francisco / Los Angeles / Orlando / Chicago / Seattle / Denver / London / Dubai — e.g. https://furlpay.com/hotels/miami and https://furlpay.com/hotels/dubai
+
 ## Tools
 
 - Fee savings calculator (card vs USDC): https://furlpay.com/resources/tools/fee-calculator
