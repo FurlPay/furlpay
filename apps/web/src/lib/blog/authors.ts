@@ -19,9 +19,9 @@ export type Author = {
 
 const FOUNDER: Author = {
   name: "Ashutosh Kumar Singh",
-  role: "Software Engineer at Skyhigh Security",
-  credentials: "Contributor at Google DeepMind",
-  bio: "Ashutosh is a Software Engineer at Skyhigh Security and a contributor at Google DeepMind. He builds Furlpay's payment rails, wallet security (2-of-2 MPC and WebAuthn passkeys), and the x402 agentic-payment infrastructure. He writes here about stablecoin payments, Arbitrum, and the security of on-chain money.",
+  role: "Software Engineer at Skyhigh Security · Building Furlpay",
+  credentials: "NeurIPS 2026 author · Google DeepMind contributor · ex-Quantiphi",
+  bio: "Ashutosh is a Software Engineer at Skyhigh Security (previously Quantiphi), working across ML systems and cloud infrastructure. He is a contributor to Google DeepMind and a NeurIPS 2026 author, and is building Furlpay — its payment rails, wallet security (2-of-2 MPC and WebAuthn passkeys), and x402 agentic-payment infrastructure. He writes here about stablecoin payments, Arbitrum, and the security of on-chain money.",
   url: "https://github.com/Ashutosh0x",
   sameAs: [
     "https://github.com/Ashutosh0x",
