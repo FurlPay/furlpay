@@ -376,6 +376,7 @@ function Footer() {
               ["Enterprise", "/solutions/enterprise"],
               ["AI agents", "/solutions/ai-agents"],
               ["UK 🇬🇧", "/uk"],
+              ["Dubai / UAE 🇦🇪", "/ae"],
             ]}
           />
           <FooterCol

@@ -12,7 +12,7 @@ export const metadata: Metadata = {
     "Furlpay's UK regulatory status, cryptoasset risk information, and security posture. Honest status: not yet FCA authorised — the authorisation gateway opens 30 September 2026.",
   alternates: {
     canonical: "/uk/trust",
-    languages: { "en-GB": "/uk/trust", "en-US": "/trust", "x-default": "/trust" },
+    languages: { "en-GB": "/uk/trust", "en-US": "/trust", "en-AE": "/ae/trust", "x-default": "/trust" },
   },
 };
 

@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     "Accept USDC stablecoin payments in the UK at 0.5% instead of 2.9–3.5% card fees. Sub-second settlement on Arbitrum, no chargebacks, and no FX on international customers.",
   alternates: {
     canonical: "/uk/products/payments",
-    languages: { "en-GB": "/uk/products/payments", "en-US": "/products/payments", "x-default": "/products/payments" },
+    languages: { "en-GB": "/uk/products/payments", "en-US": "/products/payments", "en-AE": "/ae/products/payments", "x-default": "/products/payments" },
   },
 };
 
