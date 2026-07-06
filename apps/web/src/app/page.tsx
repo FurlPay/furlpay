@@ -354,17 +354,28 @@ function Footer() {
         </div>
 
         {/* Footer navigation */}
-        <div className="mt-12 grid grid-cols-2 gap-8 border-t border-white/5 pt-10 sm:grid-cols-3 lg:grid-cols-5">
+        <div className="mt-12 grid grid-cols-2 gap-8 border-t border-white/5 pt-10 sm:grid-cols-3 lg:grid-cols-6">
           <FooterCol
-            title="Product"
+            title="Products"
             links={[
-              ["Cards", "/cards"],
-              ["Banking", "/banking"],
-              ["Investing", "/investing"],
-              ["Earn", "/earn"],
-              ["Credit", "/credit"],
+              ["Payments", "/products/payments"],
+              ["Merchant", "/products/merchant"],
+              ["Travel", "/products/travel"],
+              ["Investing", "/products/investing"],
+              ["Wallet", "/products/wallet"],
+              ["x402 for agents", "/products/x402"],
               ["Pricing", "/pricing"],
-              ["Waitlist", "/waitlist"],
+            ]}
+          />
+          <FooterCol
+            title="Solutions"
+            links={[
+              ["E-commerce", "/solutions/ecommerce"],
+              ["SaaS", "/solutions/saas"],
+              ["Freelancers", "/solutions/freelancers"],
+              ["Enterprise", "/solutions/enterprise"],
+              ["AI agents", "/solutions/ai-agents"],
+              ["Fee calculator", "/resources/tools/fee-calculator"],
             ]}
           />
           <FooterCol
@@ -393,26 +404,26 @@ function Footer() {
             title="Company"
             links={[
               ["About", "/about"],
+              ["Trust & security", "/trust"],
               ["Use cases", "/use-cases"],
               ["Partners", "/partners"],
-              ["Creator Program", "/ambassadors"],
               ["Careers", "/careers"],
               ["Changelog", "/changelog"],
               ["Grants", "/grants"],
-              ["Status", "/status"],
               ["Press", "/press"],
-              ["Talk to us", "/talk-to-us"],
+              ["Contact", "/contact"],
             ]}
           />
           <FooterCol
             title="Compare & legal"
             links={[
-              ["Furlpay vs RedotPay", "/compare/redotpay"],
+              ["vs Stripe", "/compare/stripe"],
+              ["vs BitPay", "/compare/bitpay"],
+              ["vs Coinbase Commerce", "/compare/coinbase-commerce"],
+              ["vs Travala", "/compare/travala"],
               ["Blog", "/blog"],
               ["Terms", "/legal/terms"],
               ["Privacy", "/legal/privacy"],
-              ["Risk disclosure", "/legal/risk-disclosure"],
-              ["Disclosures", "/legal/disclosures"],
             ]}
           />
         </div>

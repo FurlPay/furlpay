@@ -1166,6 +1166,226 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
     ],
   },
+  // 23 ----------------------------------------------------------------
+  {
+    slug: "crypto-vs-card-fees-the-real-math",
+    title: "Crypto vs Card Fees: The Real Math on Every $100,000 in Sales",
+    excerpt:
+      "Credit cards take 2.9%-3.5% of every sale. USDC on Arbitrum takes 0.5%. On $100,000 in volume that is roughly a $3,000 difference. Here is the honest, line-by-line math — including the costs each side hides.",
+    category: "product-news",
+    date: "2026-07-06",
+    readMins: 7,
+    author: "Furlpay Team",
+    featured: true,
+    cover: "https://images.unsplash.com/photo-1554224155-6726b3ff858f?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `Payment fees are the tax nobody quotes you at signup. They sit at 2.9% plus 30 cents on most card transactions, and by the end of the year they are one of the largest line items a small business never negotiated. Stablecoin payments change that number by an order of magnitude. This is the real math — not a marketing figure — with the parts each rail would rather you not add up.`,
+      },
+      { type: "h2", text: "How much do card payments actually cost?" },
+      {
+        type: "p",
+        text: `A US card payment costs a merchant roughly 2.9% + $0.30 online (the standard published rate at processors like Stripe), and a blended 3.5% is a fair estimate once you include international cards, premium rewards cards, and chargeback fees. That fee is really three stacked fees: interchange paid to the card-issuing bank, network assessments paid to Visa or Mastercard, and the processor's own margin.`,
+      },
+      {
+        type: "table",
+        headers: ["On $100,000 in sales", "Card (2.9% + 30¢)", "Card (3.5% blended)", "Furlpay (USDC, 0.5%)"],
+        rows: [
+          ["Percentage fee", "$2,900", "$3,500", "$500"],
+          ["Per-transaction fee*", "~$400", "included", "~$5 gas"],
+          ["Chargeback exposure", "Yes", "Yes", "None"],
+          ["Total cost", "~$3,300", "~$3,500", "~$505"],
+        ],
+        highlightCol: 3,
+      },
+      {
+        type: "p",
+        text: `*Assumes an average ticket around $75, so $100,000 is roughly 1,330 transactions at $0.30 each. The exact number moves with your average order value — a store selling $15 items pays far more in fixed per-transaction fees than one selling $500 items.`,
+      },
+      { type: "h2", text: "What does a USDC payment on Arbitrum cost?" },
+      {
+        type: "p",
+        text: `A USDC payment on Furlpay costs a flat 0.5% plus Arbitrum gas, which runs between a tenth of a cent and half a cent per transaction. There is no interchange because there is no card-issuing bank, no network assessment because there is no card network, and no chargeback reserve because on-chain payments are final. You can verify a live quote right now at [furlpay.com/api/payments/fees/estimate](https://furlpay.com/api/payments/fees/estimate?amount=150).`,
+      },
+      {
+        type: "diagram",
+        text: `$100,000 in card sales  →  you keep ~$96,700\n$100,000 in USDC sales  →  you keep ~$99,495\n                              ─────────────────\n                              ~$2,795 more, per $100k`,
+      },
+      { type: "h2", text: "The costs each side hides" },
+      {
+        type: "p",
+        text: `Honest comparisons have to include the awkward parts. Cards hide the cost of chargebacks and multi-day settlement holds: a disputed transaction can cost you the sale plus a $15-$25 dispute fee, and a rolling reserve ties up cash you have already earned. Stablecoins hide a different cost: your customer needs USDC and a wallet. Furlpay narrows that gap with passkey wallets that need no seed phrase and a checkout that guides funding, but card acceptance is still more universal today. The right framing is not "crypto replaces cards everywhere" — it is "offer USDC as the cheaper option and keep the 0.5% instead of the 3%."`,
+      },
+      {
+        type: "ul",
+        items: [
+          `Card costs that do not show on the sticker: chargeback fees, rolling reserves, cross-border surcharges, and PCI compliance overhead.`,
+          `Stablecoin costs that do not show on the sticker: customer wallet friction and the operational work of holding or converting USDC — both shrinking as passkey wallets mature.`,
+          `Where the math is decisive: high volume, low margin, cross-border, and recurring or machine-to-machine payments.`,
+        ],
+      },
+      { type: "h2", text: "When cards still win" },
+      {
+        type: "p",
+        text: `If most of your customers will only ever tap a card, a 0.5% rail they do not use saves nothing. Cards win on ubiquity, on familiar dispute rights, and on the long tail of local payment methods that processors like Stripe support. That is why most businesses adding stablecoin acceptance run it alongside cards rather than instead of them — see our full breakdown in [Furlpay vs Stripe](/compare/stripe).`,
+      },
+      { type: "h2", text: "Run your own number" },
+      {
+        type: "p",
+        text: `The figures above scale linearly, so the savings on your volume are easy to estimate: multiply your annual card volume by roughly 3% to see what you would keep at 0.5%. Or use the interactive [fee savings calculator](/resources/tools/fee-calculator) to plug in your volume and average ticket, and read our [payments product page](/products/payments) for how settlement works end to end.`,
+      },
+      {
+        type: "quote",
+        text: `The card fee is not a law of nature. It is the price of a specific set of intermediaries. Remove the intermediaries and 3% becomes 0.5% — the same dollars, minus the toll.`,
+      },
+      {
+        type: "p",
+        text: `Furlpay is not a bank. Card figures are typical published rates and vary by issuer, card type, merchant category, and geography; the Furlpay figure is live and verifiable but excludes any conversion you choose to do between USDC and local currency. This article is informational, not financial advice.`,
+      },
+    ],
+  },
+  // 24 ----------------------------------------------------------------
+  {
+    slug: "usdc-vs-usdt-for-payments",
+    title: "USDC vs USDT for Payments: Which Stablecoin Should a Business Accept?",
+    excerpt:
+      "USDT is bigger; USDC is more transparent. For accepting payments, reserve quality, attestations, and regulatory posture matter more than market cap. Here is how the two compare where it counts for merchants.",
+    category: "compliance",
+    date: "2026-07-06",
+    readMins: 6,
+    author: "Furlpay Team",
+    cover: "https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `USDT (Tether) and USDC (Circle) are both dollar-pegged stablecoins, and both let a business get paid in something that holds its value between the sale and the settlement. But they are not interchangeable when you are the one accepting them. The differences that matter for a merchant are reserve quality, attestation cadence, regulatory posture, and which chains they are cheap to move on — not which has the larger market cap.`,
+      },
+      { type: "h2", text: "The short answer" },
+      {
+        type: "p",
+        text: `For accepting payments in the US and EU, USDC is generally the safer default: it publishes monthly third-party attestations, holds reserves in cash and short-dated US Treasuries, and is issued by a US-regulated company that has leaned into compliance frameworks like MiCA. USDT has the deepest liquidity and widest exchange support globally, which matters if your counterparties are international, but its reserve disclosures are less granular. Furlpay settles in USDC on Arbitrum for exactly these reasons.`,
+      },
+      {
+        type: "table",
+        headers: ["Factor", "USDC (Circle)", "USDT (Tether)"],
+        rows: [
+          ["Issuer", "Circle (US-regulated)", "Tether (offshore)"],
+          ["Reserves", "Cash + short-dated US Treasuries", "Mixed; less granular disclosure"],
+          ["Attestations", "Monthly, third-party", "Quarterly, less detailed"],
+          ["Regulatory posture", "Proactive (MiCA, US frameworks)", "Broad global usage, lighter disclosure"],
+          ["Liquidity", "Deep, growing", "Deepest globally"],
+          ["Best for", "US/EU merchants, compliance", "International reach, exchanges"],
+        ],
+        highlightCol: 1,
+      },
+      { type: "h2", text: "Why reserve transparency matters to a merchant" },
+      {
+        type: "p",
+        text: `When you accept a stablecoin, you are briefly holding a claim on the issuer's reserves. If the peg wobbles because the market doubts those reserves, you eat the difference on money you have already earned. USDC's monthly attestations and Treasury-heavy reserves make that tail risk easier to reason about. This is the same reason we wrote about [reserve transparency and MiCA](/blog/navigating-mica-auto-swaps-eurc-usdc) — the compliance posture is not paperwork, it is what backs the dollar you just got paid.`,
+      },
+      { type: "h2", text: "The chain matters as much as the coin" },
+      {
+        type: "p",
+        text: `A stablecoin is only as cheap to accept as the network it settles on. USDC on Ethereum mainnet can cost several dollars in gas per transfer; the same USDC on Arbitrum costs a fraction of a cent. That is why Furlpay settles USDC on Arbitrum One (Chain ID 42161) rather than mainnet — the coin is dollar-stable and the rail is sub-cent. Read [USDC on Arbitrum](/blog/integrating-furlpay-with-arbitrum) for the integration details.`,
+      },
+      { type: "h2", text: "So which should you accept?" },
+      {
+        type: "ul",
+        items: [
+          `Selling mostly to US and EU customers, or care about audit and compliance: accept USDC.`,
+          `Selling to a global, crypto-native audience that already holds USDT on exchanges: supporting USDT can reduce customer friction.`,
+          `Either way, settle on a low-fee chain like Arbitrum — the network choice affects your cost more than the coin choice does.`,
+        ],
+      },
+      {
+        type: "quote",
+        text: `Market cap tells you how popular a stablecoin is. Attestations and reserves tell you how safe it is to be paid in one. For a merchant, the second question is the one that costs money.`,
+      },
+      {
+        type: "p",
+        text: `This article is informational and not financial or legal advice. Stablecoins carry issuer and peg risk and are not deposit-insured. Compare how acceptance works on our [payments](/products/payments) and [merchant](/products/merchant) pages.`,
+      },
+    ],
+  },
+  // 25 ----------------------------------------------------------------
+  {
+    slug: "how-crypto-payments-work",
+    title: "How Do Crypto Payments Work? A Plain-English Guide for Businesses",
+    excerpt:
+      "No jargon: what actually happens when a customer pays a business in USDC, how settlement differs from cards, what a wallet and gas are, and why on-chain payments are final. A practical primer for merchants.",
+    category: "product-news",
+    date: "2026-07-06",
+    readMins: 8,
+    author: "Furlpay Team",
+    cover: "https://images.unsplash.com/photo-1518546305927-5a555bb7020d?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `Crypto payments sound complicated and are mostly not. Stripped of jargon, a stablecoin payment is a customer moving digital dollars from their account to yours over a shared ledger, in about a second, for a fraction of a cent. This guide explains what actually happens, in order, and how it differs from the card payment you already understand.`,
+      },
+      { type: "h2", text: "What is a crypto payment, really?" },
+      {
+        type: "p",
+        text: `A crypto payment is a transfer of value recorded on a blockchain — a shared, tamper-evident ledger that many computers agree on. For payments, the value being moved is usually a stablecoin like USDC, which is pegged one-to-one to the US dollar. So "crypto payment" here does not mean volatile Bitcoin; it means a digital dollar that settles on rails that happen to be built on blockchain technology.`,
+      },
+      { type: "h2", text: "The five steps of a USDC payment" },
+      {
+        type: "ul",
+        items: [
+          `1. Quote: your checkout requests a price. Furlpay creates a payment for, say, $150 in USDC and returns the details.`,
+          `2. Authorize: the customer's wallet signs an authorization (an EIP-712 signature) approving the transfer. No card number changes hands.`,
+          `3. Screen: both sides are checked against sanctions lists before anything settles — compliance happens inline.`,
+          `4. Settle: the USDC moves from customer to merchant on Arbitrum and finalizes in about a second.`,
+          `5. Receipt: you get a signed receipt linking to Arbiscan, the public record of the payment, for your books.`,
+        ],
+      },
+      {
+        type: "diagram",
+        text: `Customer wallet ──authorize──▶ Furlpay ──screen──▶ Arbitrum ──settle──▶ Merchant\n        (signs)              (quote + compliance)     (~1 second)        (receipt)`,
+      },
+      { type: "h2", text: "What is a wallet? What is gas?" },
+      {
+        type: "p",
+        text: `A wallet is the app that holds the customer's digital dollars and produces the signature that authorizes a payment. Traditional wallets make you back up a twelve-word "seed phrase," which is easy to lose or get phished. Furlpay uses passkey wallets instead — the same Face ID or fingerprint mechanism you already use to sign in — so there is no seed phrase. Gas is the tiny network fee paid to process a transaction; on Arbitrum it is a fraction of a cent, and Furlpay can sponsor it so customers do not need to hold a separate token to pay it. We wrote about [replacing the seed phrase with passkeys](/blog/death-of-the-seed-phrase-webauthn) if you want the security detail.`,
+      },
+      { type: "h2", text: "How is this different from a card payment?" },
+      {
+        type: "table",
+        headers: ["", "Card payment", "USDC payment"],
+        rows: [
+          ["Who is in the middle", "Issuer, network, processor", "Almost no one"],
+          ["Settlement time", "2-3 business days", "~1 second"],
+          ["Typical fee", "2.9% + 30¢", "0.5% + sub-cent gas"],
+          ["Reversible?", "Yes (chargebacks)", "No (final on-chain)"],
+          ["Works across borders", "With FX fees", "Natively, dollar-stable"],
+        ],
+        highlightCol: 2,
+      },
+      {
+        type: "p",
+        text: `The finality point cuts both ways. No chargebacks means no friendly fraud and no dispute fees for you — but it also means refunds are something you issue deliberately through the API, not something a bank claws back. For a fuller cost breakdown, see [Crypto vs Card Fees: The Real Math](/blog/crypto-vs-card-fees-the-real-math).`,
+      },
+      { type: "h2", text: "Do my customers need to understand any of this?" },
+      {
+        type: "p",
+        text: `No — and that is the point. A good stablecoin checkout feels closer to a card checkout than to a crypto app: the customer approves with a passkey and the payment settles. The blockchain, the gas, and the screening happen underneath. Your job as a merchant is to add the checkout; Furlpay handles the rest.`,
+      },
+      { type: "h2", text: "Getting started" },
+      {
+        type: "p",
+        text: `You can accept your first USDC payment from a hosted checkout link without writing code, or integrate the API in an afternoon. Start with the [quickstart](/docs/quickstart), read how [merchant acceptance](/products/merchant) works, or estimate your savings with the [fee calculator](/resources/tools/fee-calculator).`,
+      },
+      {
+        type: "quote",
+        text: `A stablecoin payment is just digital dollars moving directly from one account to another, recorded once, and final. Everything else is plumbing you do not have to see.`,
+      },
+      {
+        type: "p",
+        text: `Furlpay is not a bank. This guide is informational and not financial advice. On-chain payments are final; issue refunds deliberately through the API.`,
+      },
+    ],
+  },
 ];
 
 const MONTHS = [

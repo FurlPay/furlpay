@@ -39,6 +39,11 @@ const PUBLIC_PAGE_PREFIXES = [
   "/investing/insights", // FurlPay Research portal — public content, like /blog
 
   "/legal",
+  "/products", // SEO product landing pages (public)
+  "/solutions", // SEO audience/solution landing pages (public)
+  "/resources", // guides, tools (fee calculator), glossary (public)
+  "/trust", // trust & security center (public)
+  "/contact", // contact page (public)
   "/compare", // SEO comparison pages (public)
   "/newsletter", // subscribe / manage preferences (public)
   "/developer", // public developer portal + Agent Console demo
@@ -67,6 +72,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/payments/fees", // public fee estimator — merchants compare vs card interchange
   "/api/discord", // Discord interactions — auth IS the Ed25519 signature (401 otherwise)
   "/api/telegram", // Telegram webhook — auth IS the secret_token header (401 otherwise)
+  "/api/account/fund", // x402 account funding — auth IS the payment (settles or 402s)
 ];
 
 export async function middleware(req: NextRequest) {
