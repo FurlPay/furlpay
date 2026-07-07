@@ -104,6 +104,11 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/compare/coinbase-commerce", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/compare/travala", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/compare/stripe", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/compare/trip-com", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/compare/booking-com", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/compare/expedia", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/compare/airbnb", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/compare/getyourguide", priority: 0.7, changeFrequency: "monthly" as const },
 
     // — Docs —
     { path: "/docs", priority: 0.9, changeFrequency: "weekly" as const },

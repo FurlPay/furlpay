@@ -30,6 +30,67 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // Trip.com stablecoins — timely news post -----------------------------
+  {
+    slug: "trip-com-stablecoin-payments-what-it-signals",
+    title: "Trip.com Now Takes Stablecoins — What It Signals for Travel Payments in 2026",
+    excerpt:
+      "Trip.com added USDT/USDC checkout in 2026, joining Travala, Wego and Meta's creator payouts in a broad shift to stablecoin money movement. Here is what changed, why it matters, and where Furlpay fits — USDC-native settlement, agentic booking, and a single-use Visa card for merchants that still take fiat only.",
+    category: "travel",
+    date: "2026-07-07",
+    readMins: 7,
+    author: "Furlpay Team",
+    featured: true,
+    body: [
+      {
+        type: "p",
+        text: `Stablecoin payments reached mainstream travel in 2026. Trip.com — one of the world's largest online travel agencies — integrated stablecoin checkout, letting travelers pay for global flights and hotels in USDT and USDC. It is the clearest signal yet that paying for travel with dollar-stable crypto is no longer a niche: it is becoming a standard payment option at the top of the industry.`,
+      },
+      { type: "h2", text: "What Trip.com announced" },
+      {
+        type: "p",
+        text: `Trip.com [officially integrated stablecoin payments](https://www.okx.com/en-us/learn/trip-com-launches-stablecoin-payments-for-global-travel-bookings), allowing users worldwide to pay for flights and hotels using USDT and USDC. It follows a wave of the same move across the sector: [Wego added USDC, USDT, PYUSD and EURC](https://blog.wego.com/stablecoins-for-travel/) for flights and hotels, and [Travala now accepts 27 coins including USDC on Base](https://coinmarketcap.com/academy/article/travalas-travel-mcp-brings-ai-hotel-booking-to-base-with-usdc) with an AI booking protocol settling over the x402 standard.`,
+      },
+      {
+        type: "p",
+        text: `The context is bigger than travel. In April 2026, [Meta began paying creators in USDC](https://www.coindesk.com/business/2026/04/29/tech-giant-meta-starts-paying-some-creators-in-stablecoin-with-stripe-s-support) via Stripe on Solana and Polygon, with a rollout planned across roughly 160 countries. When the largest OTAs and the largest social platform both move money in stablecoins in the same year, the direction is set.`,
+      },
+      { type: "h2", text: "Why it matters" },
+      {
+        type: "p",
+        text: `Stablecoins fix problems that fiat travel rails were never built for. Cross-border payments settle in seconds instead of days, without wire fees or exchange-rate friction. Payouts reach anyone with a wallet, regardless of local banking. And when settlement happens on-chain, every payment carries a verifiable receipt — useful for expenses, reconciliation, and attribution disputes.`,
+      },
+      {
+        type: "p",
+        text: `Agentic commerce is accelerating the same shift. The total value of agentic transactions is [projected to reach $8 billion in 2026](https://www.investing.com/news/cryptocurrency-news/travala-launches-worlds-first-endtoend-agentic-ai-travel-protocol-4741454) and scale toward an estimated $3.5 trillion by 2031. AI agents cannot fill in a card form and wait three days for settlement — they need internet-native, pay-per-request money. That is exactly what stablecoins over x402 provide.`,
+      },
+      {
+        type: "table",
+        headers: ["Platform", "Stablecoins accepted", "On-chain settlement"],
+        rows: [
+          ["Trip.com", "USDT / USDC (2026)", "Off-chain processor"],
+          ["Travala", "27 coins incl. USDC on Base", "USDC on Base"],
+          ["Wego", "USDC / USDT / PYUSD / EURC", "Off-chain processor"],
+          ["Booking.com · Expedia · Airbnb", "Fiat only (no direct crypto)", "No"],
+          ["Furlpay", "USDC-native + single-use Visa VCN", "USDC on Arbitrum, receipt"],
+        ],
+        highlightCol: 2,
+      },
+      { type: "h2", text: "Where Furlpay fits" },
+      {
+        type: "p",
+        text: `Most OTAs that "accept stablecoins" bolt a crypto checkout onto a fiat processor. Furlpay is built the other way around: USDC is the settlement currency, so every booking on 2.2M+ stays and flights returns an Arbiscan-verifiable receipt. For any merchant that still takes cards only — an airline, a hotel chain, an Airbnb host — Furlpay issues a [single-use, MCC-locked Visa virtual card](/compare/airbnb) funded by your USDC, so your stablecoins reach merchants with no crypto integration at all.`,
+      },
+      {
+        type: "p",
+        text: `It is also agentic by default: an AI agent can search and book travel and pay per resource over x402 within a user-signed budget. And it turns the creator side of travel into stablecoin income — the [Furlpay Creator Program](/ambassadors) pays up to 10% in USDC weekly with no minimum payout, a 90-day cookie, and 2% USDC cashback for followers. Compare the details on our [Furlpay vs Trip.com](/compare/trip-com) and [Furlpay vs Booking.com](/compare/booking-com) pages.`,
+      },
+      {
+        type: "quote",
+        text: `The question in 2026 is no longer whether travel takes stablecoins — Trip.com, Travala and Wego already do. It is whether payments settle on-chain, work for AI agents, and pay creators fairly. That is the layer Furlpay is built for.`,
+      },
+    ],
+  },
   // 0 -----------------------------------------------------------------
   {
     slug: "why-we-built-furlpay-stablecoins-agents-arbitrum",
