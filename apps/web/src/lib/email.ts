@@ -95,3 +95,33 @@ export function contactNotification(lead: {
     text: `New lead: ${lead.firstName} ${lead.lastName} <${lead.email}> · ${lead.company}\n${lead.message ?? ""}`,
   };
 }
+
+export function creatorWelcome(
+  name: string,
+  email: string,
+  opts?: { tier?: string; commission?: number; referralCode?: string; travelShopUrl?: string }
+): { subject: string; html: string; text: string } {
+  const tier = opts?.tier || "Explorer";
+  const commission = opts?.commission ?? 6;
+  const dashboardUrl = `https://furlpay.com/ambassadors/dashboard?email=${encodeURIComponent(email)}`;
+  const shopUrl = opts?.travelShopUrl || "https://furlpay.com/travel";
+  const code = opts?.referralCode;
+
+  // 2026 best practice: one primary CTA (open the dashboard); details follow.
+  return {
+    subject: "You're in — welcome to the Furlpay Creator Program ✈️",
+    html: shell(
+      "You're enrolled.",
+      `<p style="font-size:14px;line-height:1.6;color:#bbb">Hi ${name},</p>
+       <p style="font-size:14px;line-height:1.6;color:#bbb">Welcome to the <b>Furlpay Creator Program</b>. You're enrolled in the <b>${tier}</b> tier — <b>${commission}% commission</b>, paid weekly in USDC, plus <b>2% cashback</b> for your followers.</p>
+       ${code ? `<p style="font-size:14px;line-height:1.6;color:#bbb">Your referral code: <b style="color:#00E599">${code}</b></p>` : ""}
+       <p style="margin:24px 0">
+         <a href="${dashboardUrl}" style="display:inline-block;background:#00E599;color:#000;font-weight:700;font-size:14px;text-decoration:none;padding:12px 24px;border-radius:24px">Open your dashboard</a>
+       </p>
+       <p style="font-size:14px;line-height:1.6;color:#bbb">Your dashboard is live now — track clicks, bookings and weekly USDC payouts on-chain, and launch your Travel Shop (<a href="${shopUrl}" style="color:#00E599">${shopUrl.replace(/^https?:\/\//, "")}</a>) to start earning.</p>
+       <p style="font-size:13px;line-height:1.6;color:#888;margin-top:16px">One quick step before your first payout: complete identity verification (Persona) from your dashboard. Questions? Just reply to this email or join our Discord.</p>`
+    ),
+    text: `Hi ${name},\n\nWelcome to the Furlpay Creator Program! You're enrolled in the ${tier} tier (${commission}% commission, weekly USDC, 2% follower cashback).${code ? `\n\nReferral code: ${code}` : ""}\n\nOpen your dashboard: ${dashboardUrl}\nYour Travel Shop: ${shopUrl}\n\nOne step before your first payout: complete identity verification (Persona) from your dashboard.\n\nHappy traveling,\nFurlpay Team`,
+  };
+}
+

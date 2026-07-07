@@ -20,6 +20,7 @@ const PUBLIC_PAGES = new Set([
   "/use-cases",
   "/careers",
   "/ambassadors",
+  "/ambassadors/dashboard", // per-creator dashboard, reached via emailed ?email= link
   "/payouts",
   "/status",
   "/press",
