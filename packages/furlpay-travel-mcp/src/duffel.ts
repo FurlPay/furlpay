@@ -1,4 +1,5 @@
 import { Flight } from "./types";
+import { sanitizeExternalText, sanitizeId } from "./sanitize";
 
 /**
  * Duffel flight search client (live real-time inventory).
@@ -70,13 +71,16 @@ export class DuffelClient {
 
   private toFlight(offer: any, p: { from: string; to: string; date: string; cabin?: string }): Flight {
     const segment = offer?.slices?.[0]?.segments?.[0];
+    // Duffel offers are external inventory — sanitize free-text fields (carrier
+    // name/cabin) before they reach the agent; the offer id is allowlisted so
+    // it stays a valid, payload-free order reference.
     return {
-      quoteId: String(offer.id ?? ""),
-      carrier: String(offer.owner?.iata_code ?? offer.owner?.name ?? "XX"),
+      quoteId: sanitizeId(offer.id ?? ""),
+      carrier: sanitizeExternalText(offer.owner?.iata_code ?? offer.owner?.name ?? "XX", { maxLen: 40 }) || "XX",
       from: p.from.toUpperCase(),
       to: p.to.toUpperCase(),
       date: String(segment?.departing_at ?? p.date).slice(0, 10),
-      cabin: String(segment?.passengers?.[0]?.cabin_class ?? normalizeCabin(p.cabin)),
+      cabin: sanitizeExternalText(segment?.passengers?.[0]?.cabin_class ?? normalizeCabin(p.cabin), { maxLen: 24 }) || "economy",
       // NOTE: Duffel prices in the offer's total_currency (test mode may not
       // be USD). We surface the numeric amount; production conversion belongs
       // in the FurlPay pricing layer, not here.

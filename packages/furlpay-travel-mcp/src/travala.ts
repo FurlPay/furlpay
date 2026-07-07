@@ -1,4 +1,5 @@
 import { Flight, Stay } from "./types";
+import { sanitizeExternalText, sanitizeId } from "./sanitize";
 
 /**
  * Thin client for the Travala Travel MCP (search side of the composition).
@@ -136,11 +137,14 @@ export class TravalaClient {
 
 function normaliseStay(r: any, p: { city: string; checkIn: string; checkOut: string }, nights: number): Stay {
   const nightly = Number(r.nightlyUsd ?? r.price ?? 0);
+  // r is attacker-controllable inventory from an external MCP — sanitize every
+  // free-text field before it reaches the agent (IPI defense); ids get the
+  // stricter allowlist so booking keys stay stable but payload-free.
   return {
-    quoteId: String(r.quoteId ?? r.id ?? ""),
-    name: String(r.name ?? "Hotel"),
-    brand: String(r.brand ?? "Independent"),
-    city: String(r.city ?? p.city),
+    quoteId: sanitizeId(r.quoteId ?? r.id ?? ""),
+    name: sanitizeExternalText(r.name ?? "Hotel", { maxLen: 140 }) || "Hotel",
+    brand: sanitizeExternalText(r.brand ?? "Independent", { maxLen: 60 }) || "Independent",
+    city: sanitizeExternalText(r.city ?? p.city, { maxLen: 80 }) || p.city,
     stars: Number(r.stars ?? 3),
     checkIn: p.checkIn,
     checkOut: p.checkOut,
@@ -153,12 +157,12 @@ function normaliseStay(r: any, p: { city: string; checkIn: string; checkOut: str
 
 function normaliseFlight(r: any, p: { from: string; to: string; date: string }): Flight {
   return {
-    quoteId: String(r.quoteId ?? r.id ?? ""),
-    carrier: String(r.carrier ?? "XX"),
+    quoteId: sanitizeId(r.quoteId ?? r.id ?? ""),
+    carrier: sanitizeExternalText(r.carrier ?? "XX", { maxLen: 40 }) || "XX",
     from: p.from.toUpperCase(),
     to: p.to.toUpperCase(),
     date: p.date,
-    cabin: String(r.cabin ?? "economy"),
+    cabin: sanitizeExternalText(r.cabin ?? "economy", { maxLen: 24 }) || "economy",
     totalUsd: Number(r.totalUsd ?? r.price ?? 0),
     source: "travala",
   };

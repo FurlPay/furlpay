@@ -12,17 +12,23 @@ export async function POST(req: NextRequest) {
   if (!parsed.ok) return parsed.res;
   const body = parsed.data;
 
-  const { record, gasEstimateUsd, contract, chainId, signData } = await createPayment({
+  // Idempotency-Key (RFC-style header): a retry with the same key returns the
+  // same intent instead of minting a duplicate — the retry-storm guard.
+  const idempotencyKey = req.headers.get("Idempotency-Key")?.slice(0, 200) || undefined;
+
+  const { record, replayed, gasEstimateUsd, contract, chainId, signData } = await createPayment({
     amount: body.amount,
     sourceChain: body.sourceChain ?? "arbitrum",
     recipient: body.recipient,
     metadata: body.metadata,
+    idempotencyKey,
   });
 
   return NextResponse.json(
     {
       paymentId: record.id,
       status: record.status,
+      replayed,
       amountUsdc: record.amountUsdc.toFixed(2),
       feeUsdc: record.feeUsdc.toFixed(2),
       gasEstimateUsd,
@@ -31,6 +37,7 @@ export async function POST(req: NextRequest) {
       expiresAt: record.expiresAt,
       signData,
     },
-    { status: 201 }
+    // 200 on an idempotent replay, 201 when a new intent was created.
+    { status: replayed ? 200 : 201 }
   );
 }

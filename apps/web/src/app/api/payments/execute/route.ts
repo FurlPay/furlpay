@@ -13,6 +13,17 @@ export async function POST(req: NextRequest) {
   const { paymentId, payer, signature } = parsed.data;
 
   const result = executePayment(paymentId, payer, signature);
+
+  // Paused for human compliance review (HITL): 202 Accepted, not an error —
+  // the client should poll GET /api/payments/:id until it settles or blocks.
+  if (result.pending && result.record) {
+    const r = result.record;
+    return NextResponse.json(
+      { paymentId: r.id, status: r.status, reviewReason: r.reviewReason, pending: true },
+      { status: 202 }
+    );
+  }
+
   if (!result.ok) {
     return NextResponse.json(
       { error: result.error, payment: result.record ?? null },
@@ -23,6 +34,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     paymentId: r.id,
     status: r.status,
+    replayed: result.replayed ?? false,
     transactionHash: r.transactionHash,
     settlementChain: r.settlementChain,
     settledAt: r.settledAt,

@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/travel.test.js",
+    "test": "npm run build && node --test test/travel.test.js test/sanitize.test.js",
     "example": "npx --yes tsx examples/book.ts",
     "start": "npm run build && node dist/server.js"
   },
