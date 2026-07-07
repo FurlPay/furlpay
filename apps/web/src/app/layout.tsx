@@ -13,7 +13,7 @@ const BING_VERIFICATION = process.env.NEXT_PUBLIC_BING_VERIFICATION;
 const SITE = "https://furlpay.com";
 const TITLE = "Furlpay — The On-Chain Financial Operating System";
 const DESCRIPTION =
-  "Fusing stablecoin payments, global local accounts, and fractional stock investing into one beautiful web & desktop client. Phishing-resistant. Compliance-aware. Zero gas.";
+  "Stablecoin payments, global local accounts, and fractional stock investing in one web and desktop client, with passkey security and no gas fees.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),

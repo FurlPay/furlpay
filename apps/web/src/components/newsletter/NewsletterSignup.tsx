@@ -146,7 +146,7 @@ export default function NewsletterSignup({ variant = "card" }: { variant?: Varia
             Subscribe to Furlpay updates
           </h3>
           <p className="mt-2 max-w-lg text-[15px] leading-relaxed text-textSecondary">
-            Choose what you want to hear about. We respect your inbox — no spam, ever.
+            Choose what you want to hear about, and unsubscribe whenever you like.
           </p>
         </>
       )}

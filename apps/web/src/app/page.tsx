@@ -81,17 +81,14 @@ function Hero() {
   return (
     <section className="relative">
       <div className="hero-glow pointer-events-none absolute inset-0" />
-      <div className="mx-auto max-w-6xl px-6 pb-10 pt-16 text-center">
-        <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-1.5 text-[12px] text-textSecondary">
-          <span className="h-1.5 w-1.5 rounded-full bg-neon" /> Settled on Arbitrum · live on Base, Solana &amp; more
-        </div>
+      <div className="mx-auto max-w-6xl px-6 pb-10 pt-20 text-center">
         <h1 className="mx-auto max-w-3xl text-[44px] font-extrabold leading-[1.03] tracking-tighter sm:text-[64px]">
           The On-Chain Financial <span className="text-neon">Operating System.</span>
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-[16px] leading-relaxed text-textSecondary sm:text-[18px]">
-          Stablecoin payments, travel booking, and investing in one client — settled on Arbitrum. Pay in USDC,
-          book 2.2M+ stays and flights, and let AI agents pay per-request via x402. Phishing-resistant.
-          Compliance-aware. Zero gas.
+          Stablecoin payments, travel booking, and investing in a single client, settled on Arbitrum.
+          Pay in USDC, book over two million stays and flights, and let AI agents pay per request via x402 —
+          with passkey security and no gas fees.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/signup" className="btn-green w-full px-7 py-3.5 text-[16px] sm:w-auto">
@@ -170,9 +167,8 @@ function FeatureCard({ Icon, title, body }: { Icon: typeof CreditCard; title: st
 function Features() {
   return (
     <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
-      <SectionLabel>The core modules</SectionLabel>
       <h2 className="mb-10 max-w-2xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
-        Everything money can do — in one client.
+        Everything money can do, in one client.
       </h2>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {FEATURES.map((f) => (
@@ -180,7 +176,7 @@ function Features() {
         ))}
       </div>
 
-      <p className="mb-6 mt-16 text-[13px] font-semibold uppercase tracking-[0.18em] text-textSecondary">
+      <p className="mb-6 mt-16 text-[15px] font-semibold text-textSecondary">
         And everything else
       </p>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -234,7 +230,6 @@ function TravelBand() {
 function DeveloperPreview() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-20">
-      <SectionLabel>Developer-first</SectionLabel>
       <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <h2 className="max-w-xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
           Issue a card in a few lines.
@@ -250,7 +245,7 @@ function DeveloperPreview() {
 
 const SECURITY = [
   { Icon: Cpu, title: "2-of-2 MPC + HSM", body: "Turnkey HSM policy co-signs every spend. No single key ever exists." },
-  { Icon: Fingerprint, title: "WebAuthn passkeys", body: "Phishing-resistant fingerprint / Face ID login. No passwords, ever." },
+  { Icon: Fingerprint, title: "WebAuthn passkeys", body: "Phishing-resistant fingerprint or Face ID login, with no passwords to steal." },
   { Icon: ShieldCheck, title: "Real-time fraud", body: "Sardine biometric + device risk scoring gates every transfer." },
   { Icon: Zap, title: "Exploit-hardened", body: "Policy engine designed to prevent Gnosis Pay-class card exploits." },
 ];
@@ -259,7 +254,6 @@ function Security() {
   return (
     <section id="security" className="scroll-mt-20 border-y border-white/5 bg-white/[0.015]">
       <div className="mx-auto max-w-6xl px-6 py-20">
-        <SectionLabel>Security architecture</SectionLabel>
         <h2 className="mb-10 max-w-2xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
           Custody-grade security, consumer-grade UX.
         </h2>
@@ -280,7 +274,6 @@ function Security() {
 function Pricing() {
   return (
     <section id="pricing" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
-      <SectionLabel>Pricing</SectionLabel>
       <h2 className="mb-10 max-w-2xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
         Simple, transparent tiers.
       </h2>
@@ -293,12 +286,12 @@ function NewsletterCTA() {
   return (
     <section className="border-y border-white/5 bg-white/[0.015]">
       <div className="mx-auto max-w-2xl px-6 py-20 text-center">
-        <SectionLabel>Newsletter</SectionLabel>
         <h2 className="mx-auto max-w-xl text-[30px] font-extrabold tracking-tighter sm:text-[38px]">
           Updates worth reading, from a team that ships.
         </h2>
         <p className="mx-auto mt-3 max-w-lg text-[15px] leading-relaxed text-textSecondary">
-          Product launches, engineering deep-dives, and a curated weekly digest. No spam, ever.
+          Product launches, engineering deep-dives, and a weekly digest you can actually skim.
+          Unsubscribe anytime.
         </p>
         <div className="mx-auto mt-8 max-w-md">
           <NewsletterSignup variant="minimal" />
@@ -447,12 +440,6 @@ function Footer() {
         </p>
       </div>
     </footer>
-  );
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">{children}</p>
   );
 }
 
