@@ -120,6 +120,15 @@ body {
     @apply border-neon/50 text-neon;
   }
 
+  /* Navbar CTA geometry. One fixed height + padding + radius + type so every
+     header button lines up edge-to-edge; only color/emphasis is layered per
+     button. Kept separate from btn-green/btn-outline (those are sized per
+     call site in the hero and elsewhere). */
+  .nav-btn {
+    @apply inline-flex h-12 items-center justify-center gap-2 whitespace-nowrap
+           rounded-pill px-5 text-[15px] font-semibold leading-none transition;
+  }
+
   /* Radial green ambient glow used behind the hero + phone mockup. */
   .hero-glow {
     background: radial-gradient(60% 50% at 50% 40%, rgba(0, 229, 153, 0.14), transparent 70%);

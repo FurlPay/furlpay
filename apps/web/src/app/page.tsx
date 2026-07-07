@@ -61,16 +61,26 @@ function Nav() {
           <Link href="/ambassadors" className="transition-colors hover:text-white">Creators</Link>
           <a href="#pricing" className="transition-colors hover:text-white">Pricing</a>
         </nav>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-4">
           <Link
             href="/travel"
-            className="hidden items-center gap-1.5 rounded-pill border border-white/15 bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:border-white/40 sm:flex"
+            className="nav-btn hidden border border-white/15 bg-black text-white hover:border-white/40 sm:inline-flex"
           >
             <Plane className="h-4 w-4" /> Travel with Us
           </Link>
-          <Link href="/talk-to-us" className="btn-outline px-4 py-2 text-sm">Talk to us</Link>
-          <Link href="/dashboard" className="btn-green px-5 py-2 text-sm">Open App</Link>
-          <ScheduleCallButton className="hidden items-center gap-1.5 rounded-pill border border-white/15 bg-black px-4 py-2 text-sm font-semibold text-white transition-colors hover:border-white/40 md:flex" />
+          <Link
+            href="/talk-to-us"
+            className="nav-btn border border-white/15 text-textPrimary hover:border-neon/50 hover:text-neon"
+          >
+            Talk to us
+          </Link>
+          <Link
+            href="/dashboard"
+            className="nav-btn bg-neon text-black shadow-glow hover:-translate-y-0.5"
+          >
+            Open App
+          </Link>
+          <ScheduleCallButton className="nav-btn hidden border border-white/15 bg-black text-white hover:border-white/40 md:inline-flex" />
         </div>
       </div>
     </header>
