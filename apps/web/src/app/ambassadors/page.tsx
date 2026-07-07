@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Zap, Globe, ShieldCheck, Coins, Store, LinkIcon, BarChart3, Users, Plane } from "lucide-react";
 import MarketingBar from "@/components/marketing/MarketingBar";
 import AmbassadorForm from "@/components/marketing/AmbassadorForm";
+import { XIcon, InstagramIcon, YouTubeIcon, LinkedInIcon, DiscordIcon, TelegramIcon, GitHubIcon } from "@/components/marketing/SocialIcons";
 
 export const metadata: Metadata = {
   title: "Creator Program — Earn USDC for Travel Content | Furlpay",
@@ -107,6 +108,17 @@ const COMPARE: [string, string, string][] = [
   ["Cookie window", "30 days typical", "90 days"],
   ["Follower cashback", "Discount code only", "2% USDC + your code"],
   ["Transparency", "Black-box dashboard", "On-chain, verifiable"],
+];
+
+// Furlpay's own channels — creators follow, tag and get featured here.
+const SOCIALS = [
+  { Icon: InstagramIcon, href: "https://instagram.com/furlpay", label: "Instagram" },
+  { Icon: XIcon, href: "https://x.com/furlpayglobal", label: "X" },
+  { Icon: YouTubeIcon, href: "https://www.youtube.com/@furlpay", label: "YouTube" },
+  { Icon: LinkedInIcon, href: "https://linkedin.com/company/furlpay", label: "LinkedIn" },
+  { Icon: DiscordIcon, href: "/discord", label: "Discord" },
+  { Icon: TelegramIcon, href: "/telegram", label: "Telegram" },
+  { Icon: GitHubIcon, href: "https://github.com/Ashutosh0x/furlpay", label: "GitHub" },
 ];
 
 export default function AmbassadorsPage() {
@@ -293,6 +305,31 @@ export default function AmbassadorsPage() {
           Questions? <Link href="/talk-to-us" className="text-neon underline underline-offset-2">Talk to us</Link> or join the{" "}
           <a href="/discord" className="text-neon underline underline-offset-2">Discord</a>.
         </p>
+      </section>
+
+      {/* Follow Furlpay — tag us to get featured */}
+      <section className="mx-auto max-w-4xl px-6 pb-20">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.02] px-6 py-8 text-center">
+          <h3 className="text-[18px] font-bold text-textPrimary">Follow Furlpay</h3>
+          <p className="mx-auto mt-2 max-w-md text-[14px] text-textMuted">
+            Tag <span className="text-neon">@furlpay</span> in your travel content — the best posts get featured
+            across our channels, and creators reach them here first.
+          </p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            {SOCIALS.map(({ Icon, href, label }) => (
+              <a
+                key={label}
+                href={href}
+                aria-label={label}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.03] text-textSecondary transition-colors hover:border-neon/40 hover:text-neon"
+              >
+                <Icon className="h-5 w-5" />
+              </a>
+            ))}
+          </div>
+        </div>
       </section>
     </div>
   );
