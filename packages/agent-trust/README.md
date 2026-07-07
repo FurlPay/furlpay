@@ -94,8 +94,19 @@ const { keyId } = verifyRequest({ method: "POST", url, body, headers, resolvePub
 | `issueMandate(params)` | User signs constraints binding one agent key |
 | `verifyMandate(sm, userPem)` | Decode + verify a signed mandate |
 | `createBookingToken(params)` | Agent wraps the mandate around one signed intent (fresh nonce) |
-| `AgentTrust` | Stateful verifier: key registry, budget decrement, single-use consumption, replay set |
+| `mintCapability(params)` | Agent mints a single-use, audience-bound capability for one tool-server call |
+| `AgentTrust` | Stateful verifier: key registry, budget decrement, single-use consumption, replay set. `verifyBookingToken` (spend) + `verifyCapability` (tool-server access) |
 | `signRequest` / `verifyRequest` | RFC 9421 HTTP message signatures |
+
+## Capability tokens (tool-server tier)
+
+The mandate says *what* an agent may spend; a **capability** says *which* tool-server it may call, for *how long*, and exactly *once*. `mintCapability` produces a short-lived, `audience`-restricted token the agent presents per call; `AgentTrust.verifyCapability(token, { audience, action, presenterKeyId })` accepts it only when:
+
+- the `audience` equals **this** server's id (a token leaked from one tool-server can't be replayed at another),
+- the `presenterKeyId` — the agent key that authenticated the request (e.g. the `keyid` returned by `verifyRequest`) — is the **same key that minted the token** (proof-of-possession; a stolen token is useless to another holder),
+- it hasn't expired, its `action` matches, its `maxUsd` is within the server ceiling, and its `jti` hasn't been burned (single-use via the same `NonceStore`).
+
+Together with `signRequest`/`verifyRequest`, this is the multi-tier chain: **mandate** (user consent + budget) → **request signature** (who is calling now) → **capability** (this call, this server, once).
 | `NonceStore` | Pluggable replay store (in-memory default; back with Redis `SETNX` across instances) |
 
 ## Security model
