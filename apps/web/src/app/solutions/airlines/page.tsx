@@ -11,6 +11,20 @@ export const metadata: Metadata = {
     canonical: "/solutions/airlines",
     languages: { "en-US": "/solutions/airlines", "en-GB": "/uk/solutions/airlines", "en-AE": "/ae/solutions/airlines", "en-JP": "/jp/solutions/airlines", "x-default": "/solutions/airlines" },
   },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/solutions/airlines",
+    siteName: "Furlpay",
+    title: "Crypto Payment Gateway for Airlines — USDC Ticket Settlement",
+    description: "Airlines and booking platforms can accept USDC on Arbitrum at 0.5% — no FX loss on cross-border fares, instant confirmation, and no chargebacks on high-value tickets. API-first.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Crypto Payment Gateway for Airlines — USDC Ticket Settlement",
+    description: "Airlines and booking platforms can accept USDC on Arbitrum at 0.5% — no FX loss on cross-border fares, instant confirmation, and no chargebacks on high-value tickets. API-first.",
+    images: ["/og.png"],
+  },
 };
 
 export default function AirlinesPage() {

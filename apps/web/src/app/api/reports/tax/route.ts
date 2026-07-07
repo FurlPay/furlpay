@@ -1,0 +1,26 @@
+import { NextRequest, NextResponse } from "next/server";
+import { buildTaxCsv } from "@/lib/services/reports";
+
+export const dynamic = "force-dynamic";
+
+// GET /api/reports/tax?year=2026&format=csv — realized disposal events
+// (Form-8949 style) as a downloadable CSV, or JSON when format=json.
+export function GET(req: NextRequest) {
+  const p = req.nextUrl.searchParams;
+  const yearParam = p.get("year");
+  const year = yearParam ? Number(yearParam) : undefined;
+  const format = p.get("format") ?? "csv";
+
+  const csv = buildTaxCsv(Number.isFinite(year) ? year : undefined);
+
+  if (format === "json") {
+    return NextResponse.json({ year: year ?? "all", csv });
+  }
+
+  return new NextResponse(csv, {
+    headers: {
+      "content-type": "text/csv; charset=utf-8",
+      "content-disposition": `attachment; filename="furlpay-tax-${year ?? "all"}.csv"`,
+    },
+  });
+}

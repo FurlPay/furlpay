@@ -11,6 +11,7 @@ import {
 import { postJSON } from "@/lib/api";
 import { useOnline } from "@/lib/offline";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import AppleSignInButton from "@/components/AppleSignInButton";
 import PhoneInput from "@/components/PhoneInput";
 
 export default function LoginPage() {
@@ -132,6 +133,12 @@ export default function LoginPage() {
 
         {/* Google */}
         <GoogleSignInButton
+          onSuccess={(r) => enterApp(`Signed in as ${r.email}`)}
+          onError={(m) => setError(m)}
+        />
+
+        {/* Apple */}
+        <AppleSignInButton
           onSuccess={(r) => enterApp(`Signed in as ${r.email}`)}
           onError={(m) => setError(m)}
         />

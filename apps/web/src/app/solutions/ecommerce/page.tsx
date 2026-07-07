@@ -11,6 +11,20 @@ export const metadata: Metadata = {
   description:
     "Add USDC stablecoin payments to your online store for 0.5% instead of 2.9–3.5% card fees. Hosted checkout, no chargebacks, and signed on-chain receipts. Works with any stack.",
   alternates: { canonical: "/solutions/ecommerce" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/solutions/ecommerce",
+    siteName: "Furlpay",
+    title: "Crypto Payments for E-commerce — Accept USDC at Checkout",
+    description: "Add USDC stablecoin payments to your online store for 0.5% instead of 2.9–3.5% card fees. Hosted checkout, no chargebacks, and signed on-chain receipts. Works with any stack.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Crypto Payments for E-commerce — Accept USDC at Checkout",
+    description: "Add USDC stablecoin payments to your online store for 0.5% instead of 2.9–3.5% card fees. Hosted checkout, no chargebacks, and signed on-chain receipts. Works with any stack.",
+    images: ["/og.png"],
+  },
 };
 
 const FEATURES = [

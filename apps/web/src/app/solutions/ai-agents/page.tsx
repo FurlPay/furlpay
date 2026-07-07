@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Give AI agents a way to pay. Furlpay's x402 facilitator and MCP server let agents discover, negotiate, and settle USDC micropayments on Arbitrum — no API keys, no human checkout.",
   alternates: { canonical: "/solutions/ai-agents" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/solutions/ai-agents",
+    siteName: "Furlpay",
+    title: "Payment Infrastructure for AI Agents — x402 & MCP",
+    description: "Give AI agents a way to pay. Furlpay's x402 facilitator and MCP server let agents discover, negotiate, and settle USDC micropayments on Arbitrum — no API keys, no human checkout.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Payment Infrastructure for AI Agents — x402 & MCP",
+    description: "Give AI agents a way to pay. Furlpay's x402 facilitator and MCP server let agents discover, negotiate, and settle USDC micropayments on Arbitrum — no API keys, no human checkout.",
+    images: ["/og.png"],
+  },
 };
 
 export default function AiAgentsSolutionPage() {

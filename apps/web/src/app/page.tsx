@@ -425,9 +425,11 @@ function Footer() {
           <FooterCol
             title="Compare & legal"
             links={[
+              ["All comparisons", "/compare"],
+              ["vs Trip.com", "/compare/trip-com"],
+              ["vs Booking.com", "/compare/booking-com"],
+              ["vs Airbnb", "/compare/airbnb"],
               ["vs Stripe", "/compare/stripe"],
-              ["vs BitPay", "/compare/bitpay"],
-              ["vs Coinbase Commerce", "/compare/coinbase-commerce"],
               ["vs Travala", "/compare/travala"],
               ["Blog", "/blog"],
               ["Terms", "/legal/terms"],

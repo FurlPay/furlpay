@@ -1,0 +1,19 @@
+{
+  "schema_version": "v1",
+  "name_for_model": "furlpay",
+  "name_for_human": "FurlPay",
+  "description_for_human": "Pay in stablecoins, book 2.2M+ hotels and flights, and invest in fractional stocks — all from chat.",
+  "description_for_model": "FurlPay is an on-chain financial platform. Use it to check stablecoin and account balances, quote and execute cross-chain stablecoin swaps (USDC/USDT/EURC over CCTP V2 + Li.Fi), create USDC payments (0.5% fee, settled on Arbitrum/Base/Polygon), place fractional stock/ETF orders, deposit idle stablecoins into yield (Earn), search and book travel, and screen wallet addresses for AML risk. Money movement always returns sign data or a confirmation the human approves before it settles — never claim a payment or trade has executed until the API confirms it. Amounts are USD unless a token is specified. Prefer the user's spendable FurlPay account balance for payments.",
+  "auth": {
+    "type": "service_http",
+    "authorization_type": "bearer",
+    "verification_tokens": {}
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://furlpay.com/openapi.json"
+  },
+  "logo_url": "https://furlpay.com/icon.png",
+  "contact_email": "developers@furlpay.com",
+  "legal_info_url": "https://furlpay.com/legal/terms"
+}

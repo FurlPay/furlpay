@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Bill SaaS customers in USDC on Arbitrum for 0.5%. Recurring authorizations, usage-based metering, global payments without card declines, and webhooks for your billing system.",
   alternates: { canonical: "/solutions/saas" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/solutions/saas",
+    siteName: "Furlpay",
+    title: "Stablecoin Billing for SaaS — USDC Subscriptions & Usage",
+    description: "Bill SaaS customers in USDC on Arbitrum for 0.5%. Recurring authorizations, usage-based metering, global payments without card declines, and webhooks for your billing system.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Stablecoin Billing for SaaS — USDC Subscriptions & Usage",
+    description: "Bill SaaS customers in USDC on Arbitrum for 0.5%. Recurring authorizations, usage-based metering, global payments without card declines, and webhooks for your billing system.",
+    images: ["/og.png"],
+  },
 };
 
 export default function SaasSolutionPage() {

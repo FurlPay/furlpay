@@ -7,7 +7,7 @@ import { recordMovement } from "@/lib/ledger";
 // body: { fromCurrency, toCurrency, amount, execute? }
 export async function POST(req: NextRequest) {
   const { fromCurrency, toCurrency, amount, execute } = await req.json();
-  const quote = quoteFx(fromCurrency, toCurrency, amount);
+  const quote = await quoteFx(fromCurrency, toCurrency, amount);
 
   if (execute) {
     recordTransaction(

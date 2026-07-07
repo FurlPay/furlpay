@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Enterprise-grade stablecoin settlement: 24/7 USDC payouts on Arbitrum, sanctions screening and Travel Rule support, signed receipts, and SLAs. The same rails Mastercard chose.",
   alternates: { canonical: "/solutions/enterprise" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/solutions/enterprise",
+    siteName: "Furlpay",
+    title: "Enterprise Stablecoin Settlement API — 24/7 USDC on Arbitrum",
+    description: "Enterprise-grade stablecoin settlement: 24/7 USDC payouts on Arbitrum, sanctions screening and Travel Rule support, signed receipts, and SLAs. The same rails Mastercard chose.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Enterprise Stablecoin Settlement API — 24/7 USDC on Arbitrum",
+    description: "Enterprise-grade stablecoin settlement: 24/7 USDC payouts on Arbitrum, sanctions screening and Travel Rule support, signed receipts, and SLAs. The same rails Mastercard chose.",
+    images: ["/og.png"],
+  },
 };
 
 export default function EnterpriseSolutionPage() {

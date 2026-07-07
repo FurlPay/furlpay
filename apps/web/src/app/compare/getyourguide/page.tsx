@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Furlpay vs GetYourGuide for travel creators: GetYourGuide's affiliate baseline is ~8% paid in fiat monthly. Furlpay's creator program pays up to 10% in USDC weekly with no minimum, 2% follower cashback, and on-chain attribution.",
   alternates: { canonical: "/compare/getyourguide" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/getyourguide",
+    siteName: "Furlpay",
+    title: "Furlpay vs GetYourGuide — Creator Payouts & Crypto Pay (2026)",
+    description: "Furlpay vs GetYourGuide for travel creators: GetYourGuide's affiliate baseline is ~8% paid in fiat monthly. Furlpay's creator program pays up to 10% in USDC weekly with no minimum, 2% follower cashback, and on-chain attribution.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs GetYourGuide — Creator Payouts & Crypto Pay (2026)",
+    description: "Furlpay vs GetYourGuide for travel creators: GetYourGuide's affiliate baseline is ~8% paid in fiat monthly. Furlpay's creator program pays up to 10% in USDC weekly with no minimum, 2% follower cashback, and on-chain attribution.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {

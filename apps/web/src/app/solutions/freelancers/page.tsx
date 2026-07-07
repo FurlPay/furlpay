@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Invoice clients anywhere and get paid in USDC on Arbitrum — no 3–5 day wire delays, no 5–7% remittance fees, and no waiting on PayPal holds. Settle to a local account or hold USD-stable.",
   alternates: { canonical: "/solutions/freelancers" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/solutions/freelancers",
+    siteName: "Furlpay",
+    title: "Get Paid in USDC Globally — Furlpay for Freelancers",
+    description: "Invoice clients anywhere and get paid in USDC on Arbitrum — no 3–5 day wire delays, no 5–7% remittance fees, and no waiting on PayPal holds. Settle to a local account or hold USD-stable.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Get Paid in USDC Globally — Furlpay for Freelancers",
+    description: "Invoice clients anywhere and get paid in USDC on Arbitrum — no 3–5 day wire delays, no 5–7% remittance fees, and no waiting on PayPal holds. Settle to a local account or hold USD-stable.",
+    images: ["/og.png"],
+  },
 };
 
 export default function FreelancersSolutionPage() {

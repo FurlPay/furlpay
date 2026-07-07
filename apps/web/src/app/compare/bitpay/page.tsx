@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Furlpay vs BitPay: 0.5% USDC on Arbitrum vs BitPay's ~1% settlement, plus AI-native x402 payments, a passkey wallet, travel, and investing. See the full comparison.",
   alternates: { canonical: "/compare/bitpay" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/bitpay",
+    siteName: "Furlpay",
+    title: "Furlpay vs BitPay — Best BitPay Alternative for USDC (2026)",
+    description: "Furlpay vs BitPay: 0.5% USDC on Arbitrum vs BitPay's ~1% settlement, plus AI-native x402 payments, a passkey wallet, travel, and investing. See the full comparison.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs BitPay — Best BitPay Alternative for USDC (2026)",
+    description: "Furlpay vs BitPay: 0.5% USDC on Arbitrum vs BitPay's ~1% settlement, plus AI-native x402 payments, a passkey wallet, travel, and investing. See the full comparison.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {

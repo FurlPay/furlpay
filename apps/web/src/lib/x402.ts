@@ -35,6 +35,9 @@ export const NETWORK_USDC: Record<string, string> = {
   arbitrum: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
   "arbitrum-sepolia": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
   base: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  // Polygon PoS native USDC (Circle-issued, not bridged USDC.e) — high
+  // stablecoin volume + CCTP V2 support, so it settles the same as Arbitrum.
+  polygon: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
   solana: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
 };
 export const USDC_ASSET =

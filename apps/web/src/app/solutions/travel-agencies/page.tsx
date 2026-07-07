@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Offer crypto travel booking under your own brand. Access 2.2M+ properties, settle bookings in USDC on Arbitrum, and run team policies, reports, and virtual cards via the Furlpay API.",
   alternates: { canonical: "/solutions/travel-agencies" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/solutions/travel-agencies",
+    siteName: "Furlpay",
+    title: "White-Label Travel Booking — Crypto Travel for Agencies",
+    description: "Offer crypto travel booking under your own brand. Access 2.2M+ properties, settle bookings in USDC on Arbitrum, and run team policies, reports, and virtual cards via the Furlpay API.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "White-Label Travel Booking — Crypto Travel for Agencies",
+    description: "Offer crypto travel booking under your own brand. Access 2.2M+ properties, settle bookings in USDC on Arbitrum, and run team policies, reports, and virtual cards via the Furlpay API.",
+    images: ["/og.png"],
+  },
 };
 
 export default function TravelAgenciesSolutionPage() {

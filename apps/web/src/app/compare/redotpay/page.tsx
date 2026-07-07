@@ -7,6 +7,20 @@ export const metadata: Metadata = {
   description:
     "How does Furlpay compare to RedotPay? Open-source, AI-native, MPC custody, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
   alternates: { canonical: "/compare/redotpay" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/redotpay",
+    siteName: "Furlpay",
+    title: "Furlpay vs RedotPay — Feature Comparison",
+    description: "How does Furlpay compare to RedotPay? Open-source, AI-native, MPC custody, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs RedotPay — Feature Comparison",
+    description: "How does Furlpay compare to RedotPay? Open-source, AI-native, MPC custody, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
+    images: ["/og.png"],
+  },
 };
 
 const ROWS: { feature: string; furlpay: string; redotpay: string; furlpayWins: boolean }[] = [

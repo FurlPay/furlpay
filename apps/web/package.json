@@ -12,6 +12,7 @@
   "dependencies": {
     "@furlpay/account-kit": "*",
     "@furlpay/agent-trust": "*",
+    "@furlpay/ap2": "*",
     "@furlpay/compliance": "*",
     "@furlpay/ledger": "*",
     "@furlpay/security": "*",

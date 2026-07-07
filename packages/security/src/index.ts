@@ -5,3 +5,4 @@ export * from "./totp";
 export * from "./mpc";
 export * from "./stepUp";
 export * from "./risk";
+export * from "./scam";

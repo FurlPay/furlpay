@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Furlpay vs Travala for booking travel with crypto: USDC on Arbitrum with on-chain receipts, a passkey wallet, AI trip planning, and one account for payments and investing.",
   alternates: { canonical: "/compare/travala" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/travala",
+    siteName: "Furlpay",
+    title: "Furlpay vs Travala — Crypto Travel Alternative (2026)",
+    description: "Furlpay vs Travala for booking travel with crypto: USDC on Arbitrum with on-chain receipts, a passkey wallet, AI trip planning, and one account for payments and investing.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs Travala — Crypto Travel Alternative (2026)",
+    description: "Furlpay vs Travala for booking travel with crypto: USDC on Arbitrum with on-chain receipts, a passkey wallet, AI trip planning, and one account for payments and investing.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {

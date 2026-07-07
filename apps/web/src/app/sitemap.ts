@@ -6,7 +6,8 @@ import { INSIGHT_CATEGORIES } from "@/lib/insights/categories";
 import { CITIES } from "@/lib/cities";
 
 const BASE = "https://furlpay.com";
-const NOW = new Date("2026-07-02");
+// Dynamic so lastmod reflects the actual build/deploy, not a frozen date.
+const NOW = new Date();
 
 // Search engines discover every public page from here (linked via robots.txt).
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -72,6 +73,28 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // — Crypto hotels (city landing pages) —
     { path: "/hotels", priority: 0.8, changeFrequency: "monthly" as const },
 
+    // — FurlPay Travels (public funnel + content) —
+    { path: "/travel", priority: 0.9, changeFrequency: "weekly" as const },
+    { path: "/travel/flights", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/travel/stays", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/travel/hotels", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/travel/deals", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/travel/activities", priority: 0.7, changeFrequency: "weekly" as const },
+    { path: "/travel/car-rentals", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/travel/restaurants", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/travel/gift-cards", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/travel/crypto-travel", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/travel/destinations", priority: 0.7, changeFrequency: "weekly" as const },
+    { path: "/travel/guides", priority: 0.7, changeFrequency: "weekly" as const },
+    { path: "/travel/itineraries", priority: 0.7, changeFrequency: "weekly" as const },
+    { path: "/travel/rewards", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/travel/business", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/travel/refer", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/travel/blogs", priority: 0.6, changeFrequency: "weekly" as const },
+    { path: "/travel/vlogs", priority: 0.6, changeFrequency: "weekly" as const },
+    { path: "/travel/help", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/travel/price-match", priority: 0.6, changeFrequency: "monthly" as const },
+
     // — United Kingdom (en-GB) —
     { path: "/uk", priority: 0.9, changeFrequency: "monthly" as const },
     { path: "/uk/products/payments", priority: 0.9, changeFrequency: "monthly" as const },
@@ -100,6 +123,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/jp/compare/stripe", priority: 0.7, changeFrequency: "monthly" as const },
 
     // — Comparisons —
+    { path: "/compare", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/compare/bitpay", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/compare/coinbase-commerce", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/compare/travala", priority: 0.7, changeFrequency: "monthly" as const },

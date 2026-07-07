@@ -11,6 +11,20 @@ export const metadata: Metadata = {
     canonical: "/solutions/hotels",
     languages: { "en-US": "/solutions/hotels", "en-GB": "/uk/solutions/hotels", "en-AE": "/ae/solutions/hotels", "en-JP": "/jp/solutions/hotels", "x-default": "/solutions/hotels" },
   },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/solutions/hotels",
+    siteName: "Furlpay",
+    title: "Crypto Payment Gateway for Hotels — Accept USDC at 0.5%",
+    description: "Let your hotel accept USDC stablecoin payments at 0.5% instead of 2.9–3.5% card fees. No FX on international guests, ~1-second settlement, and no chargebacks. API alongside your PMS.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Crypto Payment Gateway for Hotels — Accept USDC at 0.5%",
+    description: "Let your hotel accept USDC stablecoin payments at 0.5% instead of 2.9–3.5% card fees. No FX on international guests, ~1-second settlement, and no chargebacks. API alongside your PMS.",
+    images: ["/og.png"],
+  },
 };
 
 export default function HotelsPage() {

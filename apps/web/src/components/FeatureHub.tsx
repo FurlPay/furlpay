@@ -17,6 +17,7 @@ import {
   Repeat,
   CreditCard,
   Plane,
+  Sparkles,
 } from "lucide-react";
 
 // The super-app feature grid — Furlpay's answer to the RedotPay hub. Real
@@ -30,6 +31,7 @@ type Feature = {
 };
 
 const FEATURES: Feature[] = [
+  { label: "Co-Pilot", Icon: Sparkles, href: "/chat" },
   { label: "Travel", Icon: Plane, href: "/travel" },
   { label: "Earn", Icon: PiggyBank, href: "/earn" },
   { label: "Rewards", Icon: Trophy, href: "/rewards" },
@@ -41,7 +43,7 @@ const FEATURES: Feature[] = [
   { label: "Security", Icon: ShieldCheck, href: "/profile" },
   { label: "Developers", Icon: Code2, href: "/developer" },
   { label: "Learn", Icon: GraduationCap, href: "/docs" },
-  { label: "Convert", Icon: ArrowLeftRight, href: "/dashboard" },
+  { label: "Convert", Icon: ArrowLeftRight, href: "/swaps" },
   { label: "Credit", Icon: HandCoins, href: "/credit" },
   { label: "Top-Up", Icon: Smartphone, soon: true },
   { label: "Gifts", Icon: Gift, soon: true },

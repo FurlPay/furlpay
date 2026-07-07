@@ -9,6 +9,20 @@ export const metadata: Metadata = {
     canonical: "/compare/stripe",
     languages: { "en-US": "/compare/stripe", "en-GB": "/uk/compare/stripe", "en-AE": "/ae/compare/stripe", "en-JP": "/jp/compare/stripe", "x-default": "/compare/stripe" },
   },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/stripe",
+    siteName: "Furlpay",
+    title: "Furlpay vs Stripe — Card Fees vs 0.5% USDC Payments (2026)",
+    description: "Furlpay vs Stripe: 2.9% + 30¢ card fees versus 0.5% USDC on Arbitrum, with no chargebacks, instant settlement, and x402 agentic payments. When each one is the right tool.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs Stripe — Card Fees vs 0.5% USDC Payments (2026)",
+    description: "Furlpay vs Stripe: 2.9% + 30¢ card fees versus 0.5% USDC on Arbitrum, with no chargebacks, instant settlement, and x402 agentic payments. When each one is the right tool.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {

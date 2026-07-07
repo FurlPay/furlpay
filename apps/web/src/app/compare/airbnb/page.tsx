@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "How to pay for Airbnb with stablecoins: Airbnb bills in fiat, but Furlpay issues a single-use, MCC-locked Visa virtual card funded by your USDC so you can book Airbnb and other card-only stays with stablecoins — with on-chain receipts and creator payouts.",
   alternates: { canonical: "/compare/airbnb" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/airbnb",
+    siteName: "Furlpay",
+    title: "Furlpay vs Airbnb — Pay for Stays with USDC (2026)",
+    description: "How to pay for Airbnb with stablecoins: Airbnb bills in fiat, but Furlpay issues a single-use, MCC-locked Visa virtual card funded by your USDC so you can book Airbnb and other card-only stays with stablecoins — with on-chain receipts and creator payouts.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs Airbnb — Pay for Stays with USDC (2026)",
+    description: "How to pay for Airbnb with stablecoins: Airbnb bills in fiat, but Furlpay issues a single-use, MCC-locked Visa virtual card funded by your USDC so you can book Airbnb and other card-only stays with stablecoins — with on-chain receipts and creator payouts.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {

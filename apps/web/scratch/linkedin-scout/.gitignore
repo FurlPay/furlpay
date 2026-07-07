@@ -1,0 +1,8 @@
+node_modules/
+dist/
+
+# Sensitive — never commit session cookies, API keys, or scraped lead data
+cookies.json
+.env
+data/
+*.csv

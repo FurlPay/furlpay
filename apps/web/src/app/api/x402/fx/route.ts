@@ -63,7 +63,7 @@ export async function GET(req: NextRequest) {
   }
 
   // Paid — serve the resource and attach the settlement receipt.
-  const fx = quoteFx(from, to, amount);
+  const fx = await quoteFx(from, to, amount);
   const res = NextResponse.json({ paid: true, payer: result.payer, quote: fx });
   res.headers.set("X-PAYMENT-RESPONSE", settlementHeader(result.payer, result.txHash));
   return res;

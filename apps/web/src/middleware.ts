@@ -82,6 +82,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/discord", // Discord interactions — auth IS the Ed25519 signature (401 otherwise)
   "/api/telegram", // Telegram webhook — auth IS the secret_token header (401 otherwise)
   "/api/account/fund", // x402 account funding — auth IS the payment (settles or 402s)
+  "/api/onramp", // headless on-ramp — publishable-key scoped, embedded by partners
 ];
 
 export async function middleware(req: NextRequest) {

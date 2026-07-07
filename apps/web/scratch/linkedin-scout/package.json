@@ -1,0 +1,27 @@
+{
+  "name": "linkedin-scout",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FurlPay LinkedIn Lead Gen Scout — cookie-based Playwright scraper with stealth, human-like delays, and CSV export.",
+  "type": "module",
+  "scripts": {
+    "scout": "tsx src/scout.ts",
+    "warm": "tsx src/warm.ts",
+    "export": "tsx src/exportCsv.ts",
+    "post": "tsx src/post.ts",
+    "api-test": "tsx src/linkedinApi.ts",
+    "get-token": "tsx src/getToken.ts",
+    "setup": "npx playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0",
+    "playwright-extra": "^4.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "csv-stringify": "^6.5.2"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  }
+}

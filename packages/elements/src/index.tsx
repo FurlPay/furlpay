@@ -118,3 +118,6 @@ export function FurlpaySecureCardInput({
 }
 
 export const FurlpayElements = { FurlpayCheckoutButton, FurlpaySecureCardInput };
+
+// Headless on-ramp SDK (no UI) — partners drive their own checkout.
+export * from "./onramp";

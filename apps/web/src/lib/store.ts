@@ -55,8 +55,9 @@ interface AppState {
     email: string;
     phone?: string; // E.164
     phoneVerified?: boolean;
-    authProvider?: "passkey" | "google" | "phone" | "email";
+    authProvider?: "passkey" | "google" | "apple" | "phone" | "email";
     googleSub?: string; // stable Google account id, when linked
+    appleSub?: string; // stable Apple account id (sub), when linked
     safeAddress: string;
     kycStatus: "verified" | "pending" | "unverified";
     kycTier: 0 | 1 | 2 | 3;

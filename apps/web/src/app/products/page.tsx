@@ -10,6 +10,20 @@ export const metadata: Metadata = {
   description:
     "Explore Furlpay's products: USDC payments on Arbitrum at 0.5%, crypto travel booking, fractional investing, a passkey wallet, x402 agentic payments, and merchant acceptance.",
   alternates: { canonical: "/products" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/products",
+    siteName: "Furlpay",
+    title: "Products — Payments, Travel, Investing & Agentic Payments",
+    description: "Explore Furlpay's products: USDC payments on Arbitrum at 0.5%, crypto travel booking, fractional investing, a passkey wallet, x402 agentic payments, and merchant acceptance.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Products — Payments, Travel, Investing & Agentic Payments",
+    description: "Explore Furlpay's products: USDC payments on Arbitrum at 0.5%, crypto travel booking, fractional investing, a passkey wallet, x402 agentic payments, and merchant acceptance.",
+    images: ["/og.png"],
+  },
 };
 
 const PRODUCTS = [

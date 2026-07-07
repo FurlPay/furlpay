@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Furlpay vs Coinbase Commerce: 0.5% on Arbitrum vs 1%, with AI-native x402 payments, a passkey wallet, fiat settlement, travel, and investing. Full side-by-side comparison.",
   alternates: { canonical: "/compare/coinbase-commerce" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/coinbase-commerce",
+    siteName: "Furlpay",
+    title: "Furlpay vs Coinbase Commerce — Alternative for USDC (2026)",
+    description: "Furlpay vs Coinbase Commerce: 0.5% on Arbitrum vs 1%, with AI-native x402 payments, a passkey wallet, fiat settlement, travel, and investing. Full side-by-side comparison.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs Coinbase Commerce — Alternative for USDC (2026)",
+    description: "Furlpay vs Coinbase Commerce: 0.5% on Arbitrum vs 1%, with AI-native x402 payments, a passkey wallet, fiat settlement, travel, and investing. Full side-by-side comparison.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {

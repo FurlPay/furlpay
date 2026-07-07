@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Furlpay vs Expedia: Expedia bills in fiat, Furlpay lets you book 2.2M+ stays and flights and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking, and a creator program paying up to 10% weekly.",
   alternates: { canonical: "/compare/expedia" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/expedia",
+    siteName: "Furlpay",
+    title: "Furlpay vs Expedia — Book Travel with USDC (2026)",
+    description: "Furlpay vs Expedia: Expedia bills in fiat, Furlpay lets you book 2.2M+ stays and flights and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking, and a creator program paying up to 10% weekly.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs Expedia — Book Travel with USDC (2026)",
+    description: "Furlpay vs Expedia: Expedia bills in fiat, Furlpay lets you book 2.2M+ stays and flights and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking, and a creator program paying up to 10% weekly.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {

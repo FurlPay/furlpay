@@ -1,0 +1,41 @@
+{
+  "name": "@furlpay/ap2",
+  "version": "0.1.0",
+  "description": "AP2 (Agent Payments Protocol) adapter for FurlPay — verify Intent & Cart Mandates and bridge approved carts to x402 / FurlPay stablecoin settlement. Zero runtime dependencies (Node Ed25519).",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "prepare": "npm run build",
+    "test": "npm run build && node --test"
+  },
+  "keywords": [
+    "ap2",
+    "agent-payments-protocol",
+    "agentic-payments",
+    "ai-agents",
+    "mandates",
+    "intent-mandate",
+    "cart-mandate",
+    "x402",
+    "stablecoin",
+    "furlpay"
+  ],
+  "repository": { "type": "git", "url": "https://github.com/furlpay/ap2" },
+  "homepage": "https://furlpay.com",
+  "engines": { "node": ">=18" },
+  "publishConfig": { "access": "public" },
+  "devDependencies": {
+    "typescript": "5.5.3",
+    "@types/node": "20.14.10"
+  }
+}

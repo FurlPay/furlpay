@@ -18,7 +18,7 @@ export interface ChainConfig {
   chainId: number;
   rpcUrl: string;
   explorer: string;
-  nativeToken: "ETH" | "SOL";
+  nativeToken: "ETH" | "SOL" | "POL";
   role: "settlement" | "testnet" | "data" | "bridge-source";
   usdc?: { native: string; bridged?: string };
 }
@@ -75,6 +75,17 @@ export const CHAIN_REGISTRY: ChainConfig[] = [
     nativeToken: "ETH",
     role: "bridge-source",
     usdc: { native: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48" },
+  },
+  {
+    id: "polygon",
+    name: "Polygon PoS",
+    chainId: 137,
+    rpcUrl: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
+    explorer: "https://polygonscan.com",
+    nativeToken: "POL",
+    // Second settlement rail: native USDC + CCTP V2, deep liquidity, sub-cent gas.
+    role: "settlement",
+    usdc: { native: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" },
   },
 ];
 
@@ -150,6 +161,7 @@ const MOCK_BASE_BLOCKS: Record<string, { height: number; msPerBlock: number }> =
   robinhood: { height: 4_200_000, msPerBlock: 100 },
   base: { height: 32_000_000, msPerBlock: 2000 },
   ethereum: { height: 23_000_000, msPerBlock: 12000 },
+  polygon: { height: 62_000_000, msPerBlock: 2100 },
 };
 const EPOCH = Date.UTC(2026, 6, 1); // Jul 1 2026
 

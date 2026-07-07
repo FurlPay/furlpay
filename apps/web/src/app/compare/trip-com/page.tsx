@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Furlpay vs Trip.com for booking travel with stablecoins. Trip.com added USDT/USDC in 2026; Furlpay settles in USDC on Arbitrum with on-chain receipts, agentic x402 booking, single-use Visa cards, and a creator program that pays up to 10% weekly.",
   alternates: { canonical: "/compare/trip-com" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/trip-com",
+    siteName: "Furlpay",
+    title: "Furlpay vs Trip.com — Pay for Travel with USDC (2026)",
+    description: "Furlpay vs Trip.com for booking travel with stablecoins. Trip.com added USDT/USDC in 2026; Furlpay settles in USDC on Arbitrum with on-chain receipts, agentic x402 booking, single-use Visa cards, and a creator program that pays up to 10% weekly.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs Trip.com — Pay for Travel with USDC (2026)",
+    description: "Furlpay vs Trip.com for booking travel with stablecoins. Trip.com added USDT/USDC in 2026; Furlpay settles in USDC on Arbitrum with on-chain receipts, agentic x402 booking, single-use Visa cards, and a creator program that pays up to 10% weekly.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {

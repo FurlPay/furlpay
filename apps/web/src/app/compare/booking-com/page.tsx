@@ -6,6 +6,20 @@ export const metadata: Metadata = {
   description:
     "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book 2.2M+ stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
   alternates: { canonical: "/compare/booking-com" },
+  openGraph: {
+    type: "website",
+    url: "https://furlpay.com/compare/booking-com",
+    siteName: "Furlpay",
+    title: "Furlpay vs Booking.com — Book Hotels with USDC (2026)",
+    description: "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book 2.2M+ stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
+    images: [{ url: "/og.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Furlpay vs Booking.com — Book Hotels with USDC (2026)",
+    description: "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book 2.2M+ stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
+    images: ["/og.png"],
+  },
 };
 
 export default function Page() {
