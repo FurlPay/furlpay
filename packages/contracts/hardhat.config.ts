@@ -19,6 +19,17 @@ const config: HardhatUserConfig = {
     },
   },
   networks: {
+    // Local node. When ARBITRUM_FORK_RPC is set (an archive RPC, e.g. Alchemy),
+    // it forks Arbitrum One so tests run against real USDC + the real Chainalysis
+    // oracle. Unset → a plain in-memory node (normal unit tests don't fork).
+    hardhat: process.env.ARBITRUM_FORK_RPC
+      ? {
+          forking: {
+            url: process.env.ARBITRUM_FORK_RPC,
+            ...(process.env.ARBITRUM_FORK_BLOCK ? { blockNumber: Number(process.env.ARBITRUM_FORK_BLOCK) } : {}),
+          },
+        }
+      : {},
     arbitrumSepolia: {
       url: process.env.ARBITRUM_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc",
       chainId: 421614,

@@ -7,6 +7,7 @@ export * from "./kycTiers";
 export * from "./reusableCredential";
 export * from "./jurisdiction";
 export * from "./aml";
+export * from "./sourceOfFunds";
 export * from "./travelRule";
 export * from "./stablecoinPolicy";
 export * from "./promotions";

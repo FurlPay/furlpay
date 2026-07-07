@@ -1,0 +1,23 @@
+{
+  "name": "@furlpay/agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "x402 AI agent demo — autonomously books hotels by paying USDC on Arbitrum via the x402 protocol",
+  "type": "module",
+  "scripts": {
+    "demo": "tsx src/bookHotel.ts",
+    "demo:server": "tsx src/hotelServer.ts",
+    "demo:compliance": "tsx src/compliance/demo.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.110.0",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.17.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "5.5.3"
+  }
+}

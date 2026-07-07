@@ -37,6 +37,7 @@
     "serwist": "^9.5.11",
     "stripe": "^17.7.0",
     "twilio": "^5.13.1",
+    "viem": "^2.54.6",
     "zod": "^3.23.8"
   },
   "devDependencies": {

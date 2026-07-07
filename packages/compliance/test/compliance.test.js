@@ -31,10 +31,17 @@ test("USDC allowed in EEA", () => {
   assert.strictEqual(c.evaluateStablecoin("USDC", "EEA").allowed, true);
 });
 
-test("AML blocks known OFAC address", () => {
-  const r = c.screenWallet("0x000000000000000000000000000000000000dead");
+test("AML blocks a real OFAC SDN address", () => {
+  // A real address from the bundled OFAC SDN snapshot.
+  const r = c.screenWallet("0x0330070fd38ec3bb94f58fa55d40368271e9e54a");
   assert.strictEqual(r.action, "block");
   assert.strictEqual(r.sanctioned, true);
+});
+
+test("AML allows a clean address", () => {
+  const r = c.screenWallet("0x1111111111111111111111111111111111111111");
+  assert.strictEqual(r.action, "allow");
+  assert.strictEqual(r.sanctioned, false);
 });
 
 test("Travel Rule required above $1000", () => {

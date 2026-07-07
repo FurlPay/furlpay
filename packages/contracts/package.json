@@ -7,7 +7,11 @@
     "compile": "hardhat compile",
     "test": "hardhat test",
     "deploy:sepolia": "hardhat run scripts/deploy.ts --network arbitrumSepolia",
-    "deploy:arbitrum": "hardhat run scripts/deploy.ts --network arbitrumOne"
+    "deploy:arbitrum": "hardhat run scripts/deploy.ts --network arbitrumOne",
+    "deploy:compliance:sepolia": "hardhat run scripts/deploy-compliance.ts --network arbitrumSepolia",
+    "deploy:compliance:arbitrum": "hardhat run scripts/deploy-compliance.ts --network arbitrumOne",
+    "seed:sanctions:sepolia": "hardhat run scripts/seed-sanctions.ts --network arbitrumSepolia",
+    "seed:sanctions:arbitrum": "hardhat run scripts/seed-sanctions.ts --network arbitrumOne"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-chai-matchers": "^2.1.2",
