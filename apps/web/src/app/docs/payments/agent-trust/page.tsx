@@ -120,6 +120,45 @@ await fetch("https://furlpay.com/api/escrow", {
   body,
 });`}</CodeBlock>
 
+      <H2 id="capabilities">Capability tokens: per-call, one server, once</H2>
+      <P>
+        A mandate says <b>what</b> an agent may spend; a <b>capability</b> says <b>which</b> tool-server it
+        may call, <b>for how long</b>, and <b>exactly once</b>. It is the third tier of the multi-tier
+        session model — a short-lived, audience-restricted token the agent mints per call, so an
+        intercepted token can&apos;t be replayed by another holder or against another server:
+      </P>
+      <CodeBlock lang="typescript">{`import { mintCapability } from "@furlpay/agent-trust";
+
+// Agent mints a single-use capability for ONE tool-server call:
+const cap = mintCapability({
+  agentPrivateKeyPem: agent.privateKeyPem,
+  agentPublicKeyPem:  agent.publicKeyPem,
+  audience: "https://travel-mcp.furlpay.com",   // valid at this server only
+  action:   "pay:travala",
+  maxUsd:   400,
+  ttlSeconds: 120,                               // minted per call, not held
+});
+
+// Tool-server side — accepts the token only when every check passes:
+const d = await trust.verifyCapability(cap, {
+  audience: "https://travel-mcp.furlpay.com",    // must be THIS server
+  action:   "pay:travala",
+  presenterKeyId: verified.keyId,                // PoP: same key that minted it
+  maxUsd:   1000,                                // server ceiling
+});
+// → { ok: true, agentKeyId, jti, audience, action, maxUsd } — and the jti burns`}</CodeBlock>
+      <P><Code>verifyCapability</Code> rejects, with a specific reason, any token that:</P>
+      <UL>
+        <LI><b>Wrong audience</b> — minted for a different tool-server (no cross-server replay).</LI>
+        <LI><b>Wrong presenter</b> — presented by a key other than the one that minted it (proof-of-possession; pair with <Code>verifyRequest</Code> to bind the request to that key).</LI>
+        <LI><b>Expired</b>, <b>action mismatch</b>, or a <Code>maxUsd</Code> above the server ceiling.</LI>
+        <LI><b>Replayed</b> — the <Code>jti</Code> burns on first success via the same nonce store as bookings.</LI>
+      </UL>
+      <P>
+        Together the tiers form one chain: <b>mandate</b> (user consent + budget) → <b>request signature</b>{" "}
+        (who is calling now) → <b>capability</b> (this call, this server, once).
+      </P>
+
       <H2 id="escrow">Live in the Furlpay API</H2>
       <P>Two production routes speak this protocol today:</P>
       <UL>
@@ -154,7 +193,7 @@ curl -X POST https://furlpay.com/api/escrow \\
         Mastercard Agent Pay and the x402 Foundation (Linux Foundation — Visa, Mastercard, Amex, Stripe
         members) all converge on the same idea: signed agent identity + user mandates. Furlpay ships an
         MIT-licensed implementation you can run today — zero dependencies, Ed25519 via node:crypto,
-        21-test suite. <Code>npm i @furlpay/agent-trust</Code>
+        30-test suite (mandates, capability tokens, RFC 9421). <Code>npm i @furlpay/agent-trust</Code>
       </Callout>
 
       <DocPager pathname="/docs/payments/agent-trust" />

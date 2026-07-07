@@ -35,6 +35,27 @@ export const SEARCH_INDEX: SearchDoc[] = [
     keywords: ["POST /api/agents/keys", "POST /api/escrow", "escrow", "signature-input", "content-digest", "pre-auth hold", "agent authentication", "signed request"],
   },
   {
+    title: "Capability tokens (single-use, audience-bound)",
+    section: "Payments",
+    href: "/docs/payments/agent-trust#capabilities",
+    snippet: "mintCapability / verifyCapability: short-lived, single-use, audience-restricted, proof-of-possession tokens per tool-server call.",
+    keywords: ["capability", "capability token", "mintCapability", "verifyCapability", "dpop", "proof of possession", "audience", "single use", "session key", "tool server", "multi-tier session", "presenterKeyId", "jti"],
+  },
+  {
+    title: "Prompt-injection defense (travel-mcp)",
+    section: "Payments",
+    href: "/docs/payments/travels-mcp#ipi",
+    snippet: "sanitizeExternalText strips hidden HTML/CSS, zero-width chars, injection imperatives, and Morse/hex/base64 smuggling from untrusted inventory.",
+    keywords: ["prompt injection", "indirect prompt injection", "ipi", "sanitize", "sanitizeExternalText", "sanitizeId", "hidden css", "zero-width", "bidi", "morse", "jailbreak", "untrusted inventory", "llm security", "agent hijack"],
+  },
+  {
+    title: "USDC payments & HITL compliance review",
+    section: "API Routes",
+    href: "/docs/architecture/api-routes#payments",
+    snippet: "Idempotency-Key retry-storm guard on /api/payments/create; human-in-the-loop review pauses payments over threshold or high-risk before settlement.",
+    keywords: ["/api/payments/create", "/api/payments/execute", "/api/payments/review", "idempotency", "idempotency-key", "retry storm", "double charge", "hitl", "human in the loop", "compliance review", "pending_review", "threshold", "high-risk jurisdiction", "pause payment"],
+  },
+  {
     title: "FurlPay Travels (Travel MCP)",
     section: "Payments",
     href: "/docs/payments/travels-mcp",

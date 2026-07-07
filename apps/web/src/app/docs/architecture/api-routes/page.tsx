@@ -1,4 +1,4 @@
-import { DocTitle, Lead, H2, P, Code, CodeBlock, EndpointTable, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, EndpointTable, Callout, DocPager } from "@/components/docs/prose";
 
 export const metadata = { title: "Furlpay Docs — API Routes" };
 
@@ -65,6 +65,58 @@ curl https://furlpay.com/api/x402/fx?from=USD&to=EUR&amount=100 \\
         documented in 2026 x402 research. See{" "}
         <Code>/docs/payments/agentic-x402</Code> for the full flow.
       </P>
+
+      <H2 id="payments">USDC payments &amp; compliance review</H2>
+      <P>
+        The unified USDC payment service settles on Arbitrum One (0.5% fee vs 1.5–3.5% card interchange).
+        The flow is <Code>create</Code> (quote + EIP-712 sign data) → <Code>execute</Code> (signature →
+        settle); both legs are OFAC-screened before anything touches the chain.
+      </P>
+      <EndpointTable
+        rows={[
+          { method: "POST", path: "/api/payments/create", desc: "Create a USDC payment intent (honors Idempotency-Key)" },
+          { method: "POST", path: "/api/payments/execute", desc: "Submit the EIP-712 signature and settle" },
+          { method: "GET", path: "/api/payments/:id", desc: "Poll payment status" },
+          { method: "GET", path: "/api/payments/review", desc: "Human-in-the-loop review queue (session-gated)" },
+          { method: "POST", path: "/api/payments/review", desc: "Approve / reject a paused payment (session-gated)" },
+        ]}
+      />
+      <P>
+        <b>Idempotency.</b> <Code>create</Code> honors an <Code>Idempotency-Key</Code> header — a retry
+        with the same key returns the same intent (HTTP 200 with <Code>replayed: true</Code>) instead of
+        minting a duplicate. This is the retry-storm guard: agents that resubmit after a dropped receipt,
+        or fan-outs of sub-agents sharing a coordinated key, never generate a double charge.{" "}
+        <Code>execute</Code> is idempotent too — a retry against an already-settled payment replays the
+        original receipt rather than erroring.
+      </P>
+      <P>
+        <b>Human-in-the-loop (HITL) compliance gateway.</b> A payment that clears sanctions screening but
+        crosses a regulatory threshold does not settle automatically — it pauses at{" "}
+        <Code>pending_review</Code> and <Code>execute</Code> returns <Code>202 Accepted</Code>. A payment
+        pauses when:
+      </P>
+      <UL>
+        <LI>its value is at or above <Code>FURLPAY_HITL_THRESHOLD_USD</Code> (default $3,000), or</LI>
+        <LI>either counterparty screens as elevated risk, or</LI>
+        <LI>its <Code>metadata.jurisdiction</Code> is in <Code>FURLPAY_HIGH_RISK_JURISDICTIONS</Code>.</LI>
+      </UL>
+      <P>
+        The compliance inbox is notified, and a human officer approves or rejects via{" "}
+        <Code>/api/payments/review</Code> (session-gated, so the decision is always attributable to a
+        person) before funds move on-chain. Agents research and flag; humans make the final call.
+      </P>
+      <CodeBlock lang="bash">{`# create with an idempotency key (safe to retry verbatim)
+curl -X POST https://furlpay.com/api/payments/create \\
+  -H "content-type: application/json" \\
+  -H "Idempotency-Key: sess_9f3c-booking-42" \\
+  -d '{ "amount": 5000, "recipient": "0xabc…", "metadata": { "jurisdiction": "US" } }'
+
+# execute → 202 pending_human_review when it crosses the $3k threshold
+# officer approves it:
+curl -X POST https://furlpay.com/api/payments/review \\
+  -H "content-type: application/json" \\
+  --cookie "furlpay_session=…" \\
+  -d '{ "paymentId": "pay_…", "decision": "approve" }'`}</CodeBlock>
 
       <H2 id="actions">Solana Actions &amp; Blinks</H2>
       <P>
