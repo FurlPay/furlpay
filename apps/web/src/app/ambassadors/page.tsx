@@ -159,6 +159,23 @@ export default function AmbassadorsPage() {
         </div>
       </section>
 
+      {/* Creator reel — autoplaying travel content */}
+      <section className="mx-auto max-w-5xl px-6 pt-6">
+        <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]">
+          {/* Muted + playsInline so browsers allow autoplay; loops silently. */}
+          <video
+            className="h-auto w-full"
+            src="/travel-content.mp4"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            aria-label="Furlpay creator travel content"
+          />
+        </div>
+      </section>
+
       {/* The wedge */}
       <section className="mx-auto max-w-6xl px-6 py-16">
         <h2 className="text-center text-[28px] font-extrabold tracking-tighter sm:text-[36px]">
