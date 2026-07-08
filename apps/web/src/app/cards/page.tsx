@@ -55,9 +55,17 @@ export default function CardsPage() {
       <PageHeader
         title="Cards"
         right={
-          <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.08]">
-            <PlusIcon className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            <a
+              href="/cards/approve"
+              className="flex h-10 items-center rounded-full bg-white/[0.08] px-4 text-sm text-white/80"
+            >
+              Approvals
+            </a>
+            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.08]">
+              <PlusIcon className="h-5 w-5" />
+            </button>
+          </div>
         }
       />
 

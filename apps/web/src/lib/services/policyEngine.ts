@@ -1,5 +1,5 @@
 import { db } from "../store";
-import { PaymentCard, PolicyDecision } from "../types";
+import { PaymentCard, PolicyDecision, Transaction } from "../types";
 import { screenAddress } from "./compliance";
 
 // ---------------------------------------------------------------------------
@@ -21,6 +21,9 @@ interface SpendRequest {
   amountUsd: number;
   mcc?: string;
   destinationAddress?: string;
+  /** The CARD OWNER's transaction history for the velocity window. Falls back
+   *  to the demo account for legacy callers — pass this on every real path. */
+  transactions?: Transaction[];
 }
 
 export function evaluateSpend(req: SpendRequest): PolicyDecision {
@@ -35,13 +38,17 @@ export function evaluateSpend(req: SpendRequest): PolicyDecision {
   if (!withinPerPurchase) reasons.push(`Exceeds per-purchase limit ($${req.card.limits.perPurchase})`);
   if (!withinDaily) reasons.push("Exceeds remaining daily limit");
 
-  // 2. Velocity check (last hour of card spend across the account)
+  // 2. Velocity check (last hour of card spend across the account).
+  // Only money that actually moved counts: a declined authorization spent
+  // nothing, and counting it would let an attacker (or one fat-fingered
+  // amount) lock the card by stacking declines.
   const since = Date.now() - VELOCITY_WINDOW_MS;
-  const recentSpend = db.transactions
+  const recentSpend = (req.transactions ?? db.transactions)
     .filter(
       (t) =>
         t.category === "card" &&
         t.direction === "out" &&
+        t.status !== "declined" &&
         new Date(t.timestamp).getTime() >= since
     )
     .reduce((sum, t) => sum + t.amountUsd, 0);

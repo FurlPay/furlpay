@@ -14,7 +14,13 @@ export async function POST(req: NextRequest) {
   const card = auth.account.cards.find((c) => c.id === cardId);
   if (!card) return NextResponse.json({ error: "Card not found" }, { status: 404 });
 
-  const decision = evaluateSpend({ card, amountUsd, mcc, destinationAddress });
+  const decision = evaluateSpend({
+    card,
+    amountUsd,
+    mcc,
+    destinationAddress,
+    transactions: auth.account.transactions,
+  });
 
   const tx = newTx({
     category: "card",

@@ -102,3 +102,59 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// ---------------------------------------------------------------------------
+// Web Push — 3DS2 out-of-band transaction approvals.
+// The card-auth webhook pushes { title, body, url, tag, data } payloads; the
+// notification deep-links into /cards/approve where the user resolves the
+// challenge with a passkey (biometric) assertion. In the Android TWA these
+// render as native notifications via FCM.
+// ---------------------------------------------------------------------------
+
+interface FurlpayPushPayload {
+  title?: string;
+  body?: string;
+  url?: string;
+  tag?: string;
+  data?: Record<string, unknown>;
+}
+
+self.addEventListener("push", (event) => {
+  let payload: FurlpayPushPayload = {};
+  try {
+    payload = event.data?.json() ?? {};
+  } catch {
+    payload = { body: event.data?.text() };
+  }
+  const title = payload.title ?? "Furlpay";
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body: payload.body ?? "",
+      tag: payload.tag,
+      icon: "/icon.png",
+      badge: "/icon.png",
+      // Approvals are time-critical: keep the notification up until acted on.
+      requireInteraction: true,
+      data: { url: payload.url ?? "/", ...payload.data },
+    } as NotificationOptions)
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url: string = (event.notification.data as { url?: string })?.url ?? "/";
+  event.waitUntil(
+    (async () => {
+      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      // Focus an existing app window and navigate it, else open a new one.
+      for (const client of clients) {
+        if ("focus" in client) {
+          await client.focus();
+          if ("navigate" in client) await (client as WindowClient).navigate(url);
+          return;
+        }
+      }
+      await self.clients.openWindow(url);
+    })()
+  );
+});

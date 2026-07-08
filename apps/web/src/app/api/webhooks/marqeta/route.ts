@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ jit_funding: { approved: false, reason: "unknown card" } });
       }
       const { account, card } = owned;
-      const decision = evaluateSpend({ card, amountUsd, mcc });
+      const decision = evaluateSpend({ card, amountUsd, mcc, transactions: account.transactions });
       if (decision.approved) card.limits.dailySpent += amountUsd;
 
       recordTransaction(
