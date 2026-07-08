@@ -140,11 +140,28 @@ receive an on-chain receipt.
 ## Developer platform (open source: https://github.com/FurlPay)
 
 - Node SDK: https://github.com/FurlPay/furlpay-node (@furlpay/furlpay-node)
-- CLI: https://github.com/FurlPay/furlpay-cli (@furlpay/cli)
+- CLI: https://github.com/FurlPay/furlpay-cli (@furlpay/cli) — terminal client + `furlpay mcp` server mode (18 tools); listed on the official MCP Registry as io.github.FurlPay/furlpay-cli
 - MCP server: https://github.com/FurlPay/furlpay-mcp-server (@furlpay/mcp-server)
 - Elements (React): https://github.com/FurlPay/furlpay-elements
 - Account Kit (Safe/ERC-4337): https://github.com/FurlPay/furlpay-account-kit
 - OpenAPI 3.1 spec: https://furlpay.com/openapi.json
+- Postman collection: https://github.com/FurlPay/furlpay-openapi (collections/)
+
+## Integrations — add FurlPay to any agent framework
+
+Each page is an answer-first quickstart (install command + runnable snippet);
+all packages are MIT and run in demo mode without an API key.
+
+- Vercel AI SDK (@furlpay/vercel-ai, npm): https://furlpay.com/integrations/vercel-ai
+- LangChain (furlpay-langchain, PyPI): https://furlpay.com/integrations/langchain
+- LlamaIndex (furlpay-llamaindex, PyPI): https://furlpay.com/integrations/llamaindex
+- CrewAI (furlpay-crewai): https://furlpay.com/integrations/crewai
+- OpenAI Agents SDK (furlpay-openai-agents): https://furlpay.com/integrations/openai-agents
+- Pydantic AI (furlpay-pydanticai): https://furlpay.com/integrations/pydantic-ai
+- Claude / MCP clients (@furlpay/cli mcp): https://furlpay.com/integrations/claude-mcp
+- OpenBB Workspace (furlpay-openbb-plugin): https://furlpay.com/integrations/openbb
+- Node.js SDK: https://furlpay.com/integrations/node
+- Python SDK: https://furlpay.com/integrations/python
 
 ## Supported networks
 

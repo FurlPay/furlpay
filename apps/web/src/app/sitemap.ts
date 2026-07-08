@@ -4,6 +4,7 @@ import { CATEGORIES } from "@/lib/blog/categories";
 import { INSIGHTS } from "@/lib/insights/articles";
 import { INSIGHT_CATEGORIES } from "@/lib/insights/categories";
 import { CITIES } from "@/lib/cities";
+import { INTEGRATIONS } from "@/lib/integrations/frameworks";
 
 const BASE = "https://furlpay.com";
 // Dynamic so lastmod reflects the actual build/deploy, not a frozen date.
@@ -133,6 +134,14 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/compare/expedia", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/compare/airbnb", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/compare/getyourguide", priority: 0.7, changeFrequency: "monthly" as const },
+
+    // — Integrations (pSEO — one page per agent framework/SDK) —
+    { path: "/integrations", priority: 0.8, changeFrequency: "weekly" as const },
+    ...INTEGRATIONS.map((i) => ({
+      path: `/integrations/${i.slug}`,
+      priority: 0.7,
+      changeFrequency: "monthly" as const,
+    })),
 
     // — Docs —
     { path: "/docs", priority: 0.9, changeFrequency: "weekly" as const },

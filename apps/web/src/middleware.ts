@@ -50,6 +50,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/contact", // contact page (public)
   "/hotels", // programmatic crypto-hotel city landing pages (public)
   "/compare", // SEO comparison pages (public)
+  "/integrations", // pSEO framework-integration quickstarts (public)
   "/hackathon", // FurlPay Build Challenge landing + submissions (public)
   "/swag", // FurlPay Swag Center store (public)
   "/newsletter", // subscribe / manage preferences (public)
