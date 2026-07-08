@@ -127,8 +127,8 @@ async function scrapeSearchPage(page: import("playwright").Page, segment: string
 async function run(): Promise<void> {
   const { segment, url, label } = parseArgs();
   banner(`LinkedIn Scout — ${label}`);
-  console.log(`🔍 Search URL: ${url}`);
-  console.log(`📁 Segment:    ${segment}\n`);
+  console.log(`Search URL: ${url}`);
+  console.log(`Segment:    ${segment}\n`);
 
   // Launch a visible Chromium (headless: false is safer against detection)
   const browser = await chromium.launch({
@@ -158,7 +158,7 @@ async function run(): Promise<void> {
   const page = await context.newPage();
 
   // First visit LinkedIn homepage to establish the session
-  console.log("🌐 Establishing LinkedIn session …");
+  console.log("Establishing LinkedIn session …");
   await page.goto("https://www.linkedin.com/feed/", { waitUntil: "domcontentloaded" });
   await sleep(3000);
 
@@ -181,7 +181,7 @@ async function run(): Promise<void> {
     if (allLeads.length >= MAX_LEADS_PER_RUN) break;
 
     const pageUrl = pageNum === 1 ? url : `${url}&page=${pageNum}`;
-    console.log(`📄 Page ${pageNum}/${MAX_SEARCH_PAGES} — navigating …`);
+    console.log(`Page ${pageNum}/${MAX_SEARCH_PAGES} — navigating …`);
     await page.goto(pageUrl, { waitUntil: "domcontentloaded" });
 
     const leads = await scrapeSearchPage(page, segment);
@@ -189,7 +189,7 @@ async function run(): Promise<void> {
     allLeads.push(...leads);
 
     if (leads.length === 0) {
-      console.log("   ⚠️  No results on this page — stopping pagination.");
+      console.log("   WARNING: No results on this page — stopping pagination.");
       break;
     }
 
@@ -207,7 +207,7 @@ async function run(): Promise<void> {
   if (allLeads.length > 0) {
     saveLeads(segment, allLeads);
   } else {
-    console.log("\n⚠️  No leads scraped. LinkedIn may have changed its HTML structure.");
+    console.log("\nWARNING: No leads scraped. LinkedIn may have changed its HTML structure.");
     console.log("   Try inspecting the search page manually and updating the selectors in scout.ts.");
   }
 

@@ -1,4 +1,4 @@
-# 🤖 FurlPay x402 AI Agent Demo
+# FurlPay x402 AI Agent Demo
 
 > **Built for:** Arbitrum Founder House London — July 10-12, 2026
 > **Track:** Best Agentic Project ($10K / $6K / $4K)
@@ -33,7 +33,7 @@ An AI agent that **autonomously books hotel rooms** by paying USDC on Arbitrum v
 │              │  + X-Payment-Proof: tx  │                  │
 │              │ ──────────────────────→ │                  │
 │              │ ←────────────────────── │                  │
-│              │   200 OK + booking! 🎉  │                  │
+│              │   200 OK + booking!    │                  │
 └─────────────┘                         └──────────────────┘
 ```
 
@@ -66,33 +66,33 @@ npx tsx src/bookHotel.ts
 
 ```
 ╔══════════════════════════════════════════════════════════════╗
-║   🤖  FurlPay x402 AI Agent                                 ║
+║   FurlPay x402 AI Agent                                     ║
 ║   Protocol: x402/1.0                                         ║
 ║   Network:  Arbitrum Sepolia                                 ║
 ║   Task:     Book a hotel room autonomously                   ║
 ╚══════════════════════════════════════════════════════════════╝
 
-📋 Step 1: Listing available hotels...
+Step 1: Listing available hotels...
    • Tokyo Grand Hotel (Tokyo, Japan) — 250 USDC/night
    • Shoreditch Boutique Hotel (London, UK) — 180 USDC/night
    • Dubai Marina Luxury Resort (Dubai, UAE) — 450 USDC/night
 
-🏨 Step 2: Requesting tokyo-grand room 101...
+Step 2: Requesting tokyo-grand room 101...
 
-💳 Step 3: Received HTTP 402 — Payment Required!
+Step 3: Received HTTP 402 — Payment Required!
    Protocol:    x402/1.0
    Amount:      250 USDC
    Recipient:   0x7099...79C8
 
-🔐 Step 4: Signing EIP-3009 USDC authorization...
+Step 4: Signing EIP-3009 USDC authorization...
    Authorization signed!
 
-⛓️  Step 5: Settling on X402Facilitator (Arbitrum Sepolia)...
+Step 5: Settling on X402Facilitator (Arbitrum Sepolia)...
    ✅ Settled in block 12345678!
 
-🔄 Step 6: Retrying request with payment proof...
+Step 6: Retrying request with payment proof...
 
-🎉 BOOKING CONFIRMED!
+BOOKING CONFIRMED
    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
    Booking ID:  BK-1720281600-101
    Hotel:       Tokyo Grand Hotel
@@ -103,7 +103,7 @@ npx tsx src/bookHotel.ts
 
    The AI agent autonomously booked a hotel room
    by paying USDC on Arbitrum via the x402 protocol.
-   No human intervention required. 🤖
+   No human intervention required.
 ```
 
 ## x402 Protocol Specification
@@ -138,4 +138,4 @@ and any AI agent to pay, using stablecoins on Arbitrum.
 
 ---
 
-*Built with 🖤 for Arbitrum Founder House London 2026*
+*Built for Arbitrum Founder House London 2026*

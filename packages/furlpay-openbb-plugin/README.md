@@ -20,11 +20,11 @@ Every incumbent in 2026 ships data + MCP and stops there — [OpenBB](https://op
 | **Stablecoin Balances** | table | USDC + tokens across Solana and Base |
 | **x402 Paywall Revenue** | table + chart | Per-resource agentic API calls and USDC revenue |
 | **Recent Payments** | table | Latest checkout / card / x402 payments |
-| **Place Order** ⚡ | form | Buy/sell a fractional position, funded in USDC |
-| **Auto-Invest (DCA)** ⚡ | form | Schedule a recurring stablecoin buy |
-| **Send Stablecoins** ⚡ | form | Send USDC/USDT to a wallet or FurlPay handle |
+| **Place Order** ▸ | form | Buy/sell a fractional position, funded in USDC |
+| **Auto-Invest (DCA)** ▸ | form | Schedule a recurring stablecoin buy |
+| **Send Stablecoins** ▸ | form | Send USDC/USDT to a wallet or FurlPay handle |
 
-⚡ = **action widget** — the execution OpenBB itself doesn't have. Each form POSTs to FurlPay and refreshes a blotter table with the result.
+▸ = **action widget** — the execution OpenBB itself doesn't have. Each form POSTs to FurlPay and refreshes a blotter table with the result.
 
 ## Quickstart
 

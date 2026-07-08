@@ -2,7 +2,7 @@
 
 A local, cookie-based LinkedIn People Search scraper + official API content publisher built with **Playwright + Stealth** and the **LinkedIn REST API**. Designed for safe, low-volume B2B prospecting during your 30-day LinkedIn Premium sprint.
 
-> ⚠️ **Disclaimer:** Automating LinkedIn browsing may violate their Terms of Service. The scraping features are designed for low-volume, educational purposes. The API posting features use LinkedIn's official REST API and are fully compliant.
+> **Disclaimer:** Automating LinkedIn browsing may violate their Terms of Service. The scraping features are designed for low-volume, educational purposes. The API posting features use LinkedIn's official REST API and are fully compliant.
 
 ---
 
@@ -39,7 +39,7 @@ npm run api-test
 
 ## Commands
 
-### 🔍 Scrape Leads
+### Scrape Leads
 ```bash
 # Scrape AI Agent CTOs (Segment A — default)
 npm run scout
@@ -54,7 +54,7 @@ npm run scout -- --segment segmentC
 npm run scout -- --url "https://www.linkedin.com/search/results/people/?keywords=..." --segment custom
 ```
 
-### 👤 Warm Up Profiles
+### Warm Up Profiles
 Visit scraped profiles to appear in their "Who viewed your profile" feed:
 ```bash
 # Visit first 15 profiles from Segment A
@@ -64,7 +64,7 @@ npm run warm
 npm run warm -- --segment segmentB --limit 10
 ```
 
-### 📊 Export Leads to CSV
+### Export Leads to CSV
 ```bash
 # Export all segments to a single CSV
 npm run export -- --all
@@ -73,24 +73,24 @@ npm run export -- --all
 npm run export -- --segment segmentA
 ```
 
-### 📝 Publish Posts to Company Page
+### Publish Posts to Company Page
 Posts use the official LinkedIn REST API (Community Management API):
 ```bash
 # View available pre-drafted posts
 npm run post
 
 # Publish a specific draft (0-4)
-npm run post -- --draft 0    # 🤖 x402 Protocol security post
-npm run post -- --draft 1    # 💰 FurlPay Connect interchange savings
-npm run post -- --draft 2    # 🔐 WebAuthn / Death of the Seed Phrase
-npm run post -- --draft 3    # 📊 Build in Public — Portfolio Heatmap
-npm run post -- --draft 4    # 🇪🇺 MiCA Compliance Auto-Swap Engine
+npm run post -- --draft 0    # x402 Protocol security post
+npm run post -- --draft 1    # FurlPay Connect interchange savings
+npm run post -- --draft 2    # WebAuthn / Death of the Seed Phrase
+npm run post -- --draft 3    # Build in Public — Portfolio Heatmap
+npm run post -- --draft 4    # MiCA Compliance Auto-Swap Engine
 
 # Publish custom text
 npm run post -- --text "Your custom post content here"
 ```
 
-### 🔑 Test API Connection
+### Test API Connection
 ```bash
 npm run api-test
 ```
@@ -161,11 +161,11 @@ All posts follow the **Hook-Connection-Value-CTA** formula:
 
 | # | Topic | Pillar | Article Link |
 |---|---|---|---|
-| 0 | 🤖 x402 Protocol Security | Agentic Economy | `/blog/five-ways-to-rob-an-ai-agent` |
-| 1 | 💰 FurlPay Connect (0.5% fees) | Product Launch | `/blog/announcing-furlpay-connect` |
-| 2 | 🔐 Death of the Seed Phrase | Build in Public | `/blog/death-of-the-seed-phrase-webauthn` |
-| 3 | 📊 Portfolio Heatmap | Build in Public | — |
-| 4 | 🇪🇺 MiCA Auto-Swap Engine | Compliance | `/blog/navigating-mica-auto-swaps-eurc-usdc` |
+| 0 | x402 Protocol Security | Agentic Economy | `/blog/five-ways-to-rob-an-ai-agent` |
+| 1 | FurlPay Connect (0.5% fees) | Product Launch | `/blog/announcing-furlpay-connect` |
+| 2 | Death of the Seed Phrase | Build in Public | `/blog/death-of-the-seed-phrase-webauthn` |
+| 3 | Portfolio Heatmap | Build in Public | — |
+| 4 | MiCA Auto-Swap Engine | Compliance | `/blog/navigating-mica-auto-swaps-eurc-usdc` |
 
 ---
 

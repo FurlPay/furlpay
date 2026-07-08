@@ -88,7 +88,7 @@ fingerprint**. Replace it with the real one:
 4. Confirm `assetlinks.json` is live *before* release, or the app opens with a
    visible address bar.
 
-## ⚠️ Google Play policy — financial app
+## Google Play policy — financial app
 
 Furlpay is a payments/finance app, so Play's **Financial Services** policy
 applies and is stricter than for a normal app. Expect to:

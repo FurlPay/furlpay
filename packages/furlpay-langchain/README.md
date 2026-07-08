@@ -46,14 +46,14 @@ export FURLPAY_API_BASE=https://sandbox.api.furlpay.com/v1   # optional sandbox
 | `furlpay_place_investment_order` | Buy/sell fractional stocks, ETFs, crypto in USDC |
 | `furlpay_get_swap_quote` | Quote a swap, e.g. SOL → USDC |
 | `furlpay_get_x402_config` | Discover x402 chains, tokens, and limits |
-| **`furlpay_pay_for_resource`** ⚡ | **Autonomously pay for a 402-gated API within a USDC budget and return its content** |
+| **`furlpay_pay_for_resource`** ▸ | **Autonomously pay for a 402-gated API within a USDC budget and return its content** |
 | `furlpay_set_agent_budget` | Cap an agent's x402 spend per day/week/month |
 | `furlpay_get_agent_budget` | Read an agent's budget and spend-to-date |
 | `furlpay_create_x402_paywall` | Protect a resource so agents pay per call |
 | `furlpay_verify_x402_payment` | Verify an inbound x402 proof (merchant side) |
 | `furlpay_settle_x402_payment` | Settle a verified x402 payment (merchant side) |
 
-⚡ `furlpay_pay_for_resource` is the headline: it lets an agent *buy* metered data
+▸ `furlpay_pay_for_resource` is the headline: it lets an agent *buy* metered data
 or API access over [x402](https://furlpay.com/docs/x402) — the payment primitive
 API keys can't express — while `set_agent_budget` keeps it from overspending.
 

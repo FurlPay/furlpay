@@ -11,7 +11,7 @@ These charge for compute/data/inference and need per-call machine billing.
 | **Talp** | $20M pre-seed, ~Jul 2 2026 | AI personas simulating customers — API product | Programmatic billing as they productize |
 | **Crusoe** | ~$3B in talks, ~Jul 3 2026 | AI infra / data centers | Larger/late — lower priority, but infra-adjacent |
 
-> ⚠️ **Orthogonal** ($4.3M seed) builds AI-agent *discovery + payments* infrastructure. That overlaps FurlPay's x402 layer — treat as **coopetition**: possible integration partner, possible competitor. Do not pitch as a customer without scoping overlap first.
+> **Orthogonal** ($4.3M seed) builds AI-agent *discovery + payments* infrastructure. That overlaps FurlPay's x402 layer — treat as **coopetition**: possible integration partner, possible competitor. Do not pitch as a customer without scoping overlap first.
 
 ## Segment B prospects — cross-border money movers (Connect fit)
 Platforms that move large volumes and eat interchange/SWIFT fees — ideal for flat 0.5% settlement.

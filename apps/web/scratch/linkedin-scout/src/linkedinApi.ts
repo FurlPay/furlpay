@@ -266,11 +266,11 @@ async function main() {
     return;
   }
 
-  console.log("🔑 Access token found.");
-  console.log(`🏢 Organization ID: ${ORG_ID}\n`);
+  console.log("Access token found.");
+  console.log(`Organization ID: ${ORG_ID}\n`);
 
   // Member identity — works with the openid/profile scopes this app has.
-  console.log("👤 Verifying member identity (openid/profile scopes)…");
+  console.log("Verifying member identity (openid/profile scopes)…");
   const urn = await getMemberUrn();
   if (urn) {
     console.log(`   ✅ Authenticated as ${urn}`);
@@ -282,14 +282,14 @@ async function main() {
 
   // Org endpoints — need the Community Management API product, which this
   // app doesn't have yet. Expected to fail until LinkedIn approves it.
-  console.log("\n📊 Fetching Company Page follower stats (needs r_organization_social)…");
+  console.log("\nFetching Company Page follower stats (needs r_organization_social)…");
   const stats = await getFollowerStats();
   if (stats) {
     console.log(`   Total followers:   ${stats.totalFollowers}`);
     console.log(`   Organic followers: ${stats.organicFollowers}`);
     console.log(`   Paid followers:    ${stats.paidFollowers}`);
   } else {
-    console.log("   ⚠️ Org access not granted yet. To unlock Company Page posting/stats:");
+    console.log("   WARNING: Org access not granted yet. To unlock Company Page posting/stats:");
     console.log("      developer.linkedin.com → your app → Products → request 'Community");
     console.log("      Management API', then re-run get-token to pick up the org scopes.");
   }

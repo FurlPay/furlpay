@@ -111,7 +111,7 @@ export function saveLeads(segment: string, leads: Lead[]): void {
   const merged = [...existing, ...fresh];
   fs.writeFileSync(file, JSON.stringify(merged, null, 2));
   console.log(
-    `💾 Saved ${fresh.length} new leads (${merged.length} total) → ${file}`
+    `Saved ${fresh.length} new leads (${merged.length} total) → ${file}`
   );
 }
 

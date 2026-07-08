@@ -1,7 +1,7 @@
 {
   "name": "@furlpay/cli",
-  "version": "0.1.1",
-  "description": "Furlpay command-line interface — like stripe-cli, for stablecoins",
+  "version": "0.2.0",
+  "description": "FurlPay CLI — stablecoin payments, investing, travel booking, yield and webhook tooling from your terminal. MCP server included.",
   "license": "MIT",
   "bin": {
     "furlpay": "bin/furlpay.js"
@@ -10,5 +10,15 @@
     "bin",
     "lib"
   ],
-  "type": "commonjs"
+  "type": "commonjs",
+  "keywords": [
+    "furlpay",
+    "stablecoin",
+    "payments",
+    "usdc",
+    "cli",
+    "mcp",
+    "webhooks",
+    "investing"
+  ]
 }

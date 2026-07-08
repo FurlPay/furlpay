@@ -34,7 +34,7 @@ async function run(): Promise<void> {
   const leads = loadLeads(segment);
 
   if (leads.length === 0) {
-    console.log(`\n⚠️  No leads found for segment "${segment}". Run 'npm run scout' first.\n`);
+    console.log(`\nWARNING: No leads found for segment "${segment}". Run 'npm run scout' first.\n`);
     process.exit(0);
   }
 
@@ -72,7 +72,7 @@ async function run(): Promise<void> {
 
   for (let i = 0; i < batch.length; i++) {
     const lead = batch[i];
-    console.log(`\n👤 [${i + 1}/${batch.length}] Visiting: ${lead.name}`);
+    console.log(`\n[${i + 1}/${batch.length}] Visiting: ${lead.name}`);
     console.log(`   ${lead.profileUrl}`);
 
     try {
@@ -91,7 +91,7 @@ async function run(): Promise<void> {
 
       console.log(`   ✅ Visited and scrolled.`);
     } catch (err) {
-      console.log(`   ⚠️  Error visiting profile: ${(err as Error).message}`);
+      console.log(`   WARNING: Error visiting profile: ${(err as Error).message}`);
     }
 
     // Long human-like pause between profiles (20–40 seconds)

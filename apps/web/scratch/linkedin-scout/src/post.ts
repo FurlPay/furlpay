@@ -109,7 +109,7 @@ What features would you want in an all-in-one investing and payments app?
     visibility: "PUBLIC",
   },
   {
-    label: "🇪🇺 MiCA Compliance — Auto-Swap Engine",
+    label: "MiCA Compliance — Auto-Swap Engine",
     commentary: `If your platform serves European users and handles stablecoins, you need to read this.
 
 As of July 1, 2026 — MiCA is FULLY in effect.
@@ -162,7 +162,7 @@ async function run(): Promise<void> {
 
   if (customText) {
     post = { commentary: customText, visibility: "PUBLIC" };
-    console.log("📝 Custom text post:");
+    console.log("Custom text post:");
     console.log(`   "${customText.slice(0, 100)}…"\n`);
   } else {
     const idx = draftIndex ?? 0;
@@ -175,7 +175,7 @@ async function run(): Promise<void> {
 
     const draft = DRAFTS[idx];
     post = draft;
-    console.log(`📝 Posting draft #${idx}: ${draft.label}`);
+    console.log(`Posting draft #${idx}: ${draft.label}`);
     console.log(`   "${draft.commentary.slice(0, 120)}…"\n`);
 
     if (!draftIndex && draftIndex !== 0) {
@@ -186,7 +186,7 @@ async function run(): Promise<void> {
     }
   }
 
-  console.log(`📤 Publishing to LinkedIn as ${as === "organization" ? "FurlPay Company Page" : "your profile"}…`);
+  console.log(`Publishing to LinkedIn as ${as === "organization" ? "FurlPay Company Page" : "your profile"}…`);
   const result = await createPost(post, as);
 
   if (result.success) {

@@ -43,7 +43,7 @@ function run(): void {
   if (all || !segment) {
     const segments = getAllSegments();
     if (segments.length === 0) {
-      console.log("\n⚠️  No lead data found. Run 'npm run scout' first.\n");
+      console.log("\nWARNING: No lead data found. Run 'npm run scout' first.\n");
       process.exit(0);
     }
     for (const seg of segments) {
@@ -58,7 +58,7 @@ function run(): void {
   }
 
   if (leads.length === 0) {
-    console.log("⚠️  No leads to export.\n");
+    console.log("WARNING: No leads to export.\n");
     process.exit(0);
   }
 
@@ -84,7 +84,7 @@ function run(): void {
 
   ensureDataDir();
   fs.writeFileSync(outputFile, csv);
-  console.log(`📊 Exported ${unique.length} unique leads → ${outputFile}\n`);
+  console.log(`Exported ${unique.length} unique leads → ${outputFile}\n`);
 }
 
 run();

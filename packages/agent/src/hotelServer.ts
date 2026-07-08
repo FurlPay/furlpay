@@ -129,7 +129,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
           txHash: paymentProof,
           checkIn: new Date(Date.now() + 86400000).toISOString().split("T")[0],
           checkOut: new Date(Date.now() + 172800000).toISOString().split("T")[0],
-          message: "🎉 Booking confirmed! Your AI agent successfully paid via x402 protocol.",
+          message: "Booking confirmed. Your AI agent successfully paid via x402 protocol.",
         }));
         console.log(`✅ Booking confirmed: ${hotel.name} Room ${roomId} → ${bookingId}`);
         return;
@@ -144,7 +144,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
     const amountWei = BigInt(hotel.priceUSDC) * BigInt(1e6); // USDC has 6 decimals
     const resourceHash = ethers.keccak256(ethers.toUtf8Bytes(`${hotelId}/${roomId}`));
 
-    console.log(`\n💳 402 Payment Required: ${hotel.name} Room ${roomId}`);
+    console.log(`\n402 Payment Required: ${hotel.name} Room ${roomId}`);
     console.log(`   Amount: ${hotel.priceUSDC} USDC (${amountWei.toString()} wei)`);
     console.log(`   Resource: ${resourceHash}`);
 
@@ -203,7 +203,7 @@ async function handleRequest(req: IncomingMessage, res: ServerResponse) {
         "GET /api/hotels/:id/rooms/:roomId — Book a room (returns 402 → pay → retry with proof)",
         "GET /api/settlements — View settled payments",
       ],
-      builtFor: "Arbitrum Founder House London 2026 🇬🇧",
+      builtFor: "Arbitrum Founder House London 2026",
     }));
     return;
   }
@@ -247,7 +247,7 @@ async function verifyPayment(txHash: string, hotelId: string, roomId: string): P
     }
 
     // Fallback: accept any successful tx to the facilitator (demo mode)
-    console.log(`⚠️ Demo mode: accepting tx ${txHash.slice(0, 10)}...`);
+    console.log(`Demo mode: accepting tx ${txHash.slice(0, 10)}...`);
     settledPayments.set(txHash, { hotel: hotelId, room: roomId, timestamp: Date.now() });
     return true;
   } catch (err) {
@@ -264,7 +264,7 @@ server.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   🏨  FurlPay x402 Hotel Demo Server                        ║
+║   FurlPay x402 Hotel Demo Server                            ║
 ║                                                              ║
 ║   Protocol: x402/1.0                                         ║
 ║   Network:  Arbitrum Sepolia                                 ║
@@ -273,7 +273,7 @@ server.listen(PORT, () => {
 ║   Try: curl http://localhost:${PORT}/api/hotels                ║
 ║   Book: curl http://localhost:${PORT}/api/hotels/tokyo-grand/rooms/101  ║
 ║                                                              ║
-║   Built for: Arbitrum Founder House London 2026 🇬🇧           ║
+║   Built for: Arbitrum Founder House London 2026             ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 `);

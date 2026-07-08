@@ -76,10 +76,10 @@ async function run(): Promise<void> {
   authUrl.searchParams.set("scope", SCOPES);
   authUrl.searchParams.set("state", "furlpay_oauth_" + Date.now());
 
-  console.log("🔑 Step 1: Open this URL in your browser:\n");
+  console.log("Step 1: Open this URL in your browser:\n");
   console.log(`   ${authUrl.toString()}\n`);
-  console.log("🔑 Step 2: Sign in and click 'Allow'");
-  console.log("🔑 Step 3: You'll be redirected to localhost — the script will capture the code.\n");
+  console.log("Step 2: Sign in and click 'Allow'");
+  console.log("Step 3: You'll be redirected to localhost — the script will capture the code.\n");
   console.log("⏳ Waiting for callback on http://localhost:3000/callback …\n");
 
   // Start a local server to capture the redirect
@@ -91,7 +91,7 @@ async function run(): Promise<void> {
   }
 
   console.log(`✅ Got authorization code: ${code.slice(0, 20)}…\n`);
-  console.log("📤 Exchanging for access token…\n");
+  console.log("Exchanging for access token…\n");
 
   // Exchange auth code for access token
   const tokenRes = await fetch("https://www.linkedin.com/oauth/v2/accessToken", {
@@ -120,13 +120,13 @@ async function run(): Promise<void> {
     scope?: string;
   };
 
-  console.log("🎉 SUCCESS! Here is your access token:\n");
+  console.log("SUCCESS! Here is your access token:\n");
   console.log("═".repeat(60));
   console.log(tokenData.access_token);
   console.log("═".repeat(60));
   console.log(`\n⏰ Expires in: ${Math.round(tokenData.expires_in / 86400)} days`);
   if (tokenData.scope) {
-    console.log(`📋 Scopes: ${tokenData.scope}`);
+    console.log(`Scopes: ${tokenData.scope}`);
   }
 
   // Auto-save to .env
@@ -146,7 +146,7 @@ async function run(): Promise<void> {
   }
 
   fs.writeFileSync(ENV_PATH, envContent);
-  console.log(`\n💾 Token saved to ${ENV_PATH}`);
+  console.log(`\nToken saved to ${ENV_PATH}`);
   console.log("\n✅ You're all set! Try: npm run api-test");
 }
 
@@ -187,7 +187,7 @@ function waitForAuthCode(): Promise<string | null> {
     });
 
     server.listen(3000, () => {
-      console.log("🌐 Local server running on http://localhost:3000");
+      console.log("Local server running on http://localhost:3000");
     });
 
     // Timeout after 5 minutes

@@ -45,7 +45,7 @@ async function main() {
   console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   🤖  FurlPay x402 AI Agent                                 ║
+║   FurlPay x402 AI Agent                                     ║
 ║                                                              ║
 ║   Protocol: x402/1.0                                         ║
 ║   Network:  Arbitrum Sepolia                                 ║
@@ -59,7 +59,7 @@ async function main() {
   console.log(`Agent wallet: ${agent.address}`);
 
   // ── Step 1: List available hotels ────────────────────────────────────────
-  console.log("\n📋 Step 1: Listing available hotels...");
+  console.log("\nStep 1: Listing available hotels...");
   const hotelsRes = await fetch(`${HOTEL_API}/api/hotels`);
   const { hotels } = await hotelsRes.json() as { hotels: Array<{ id: string; name: string; city: string; priceUSDC: number }> };
   
@@ -71,12 +71,12 @@ async function main() {
   // ── Step 2: Request a specific room ──────────────────────────────────────
   const targetHotel = "tokyo-grand";
   const targetRoom = "101";
-  console.log(`\n🏨 Step 2: Requesting ${targetHotel} room ${targetRoom}...`);
+  console.log(`\nStep 2: Requesting ${targetHotel} room ${targetRoom}...`);
 
   const roomRes = await fetch(`${HOTEL_API}/api/hotels/${targetHotel}/rooms/${targetRoom}`);
   
   if (roomRes.status === 402) {
-    console.log(`\n💳 Step 3: Received HTTP 402 — Payment Required!`);
+    console.log(`\nStep 3: Received HTTP 402 — Payment Required!`);
     
     // Parse x402 payment headers
     const paymentAmount = roomRes.headers.get("x-payment-amount")!;
@@ -99,20 +99,20 @@ async function main() {
     console.log(`\n   Agent USDC balance: ${Number(balance) / 1e6} USDC`);
 
     if (balance < BigInt(paymentAmount)) {
-      console.log(`\n   ⚠️  Insufficient USDC balance for payment.`);
+      console.log(`\n   WARNING: Insufficient USDC balance for payment.`);
       console.log(`   Need: ${Number(paymentAmount) / 1e6} USDC`);
       console.log(`   Have: ${Number(balance) / 1e6} USDC`);
       console.log(`\n   To continue the demo, mint test USDC or fund the agent wallet.`);
       console.log(`   Agent address: ${agent.address}`);
       
       // Demo mode: simulate the payment
-      console.log(`\n   🎭 Demo mode: Simulating payment...`);
+      console.log(`\n   Demo mode: Simulating payment...`);
       await simulatePayment(targetHotel, targetRoom);
       return;
     }
 
     // ── Step 4: Sign EIP-3009 authorization ──────────────────────────────
-    console.log(`\n🔐 Step 4: Signing EIP-3009 USDC authorization...`);
+    console.log(`\nStep 4: Signing EIP-3009 USDC authorization...`);
 
     const nonce = ethers.hexlify(ethers.randomBytes(32));
     const validAfter = 0;
@@ -154,7 +154,7 @@ async function main() {
     console.log(`   Valid:   now → ${new Date(validBefore * 1000).toISOString()}`);
 
     // ── Step 5: Submit to X402Facilitator on Arbitrum ─────────────────────
-    console.log(`\n⛓️  Step 5: Settling on X402Facilitator (Arbitrum Sepolia)...`);
+    console.log(`\nStep 5: Settling on X402Facilitator (Arbitrum Sepolia)...`);
 
     const facilitator = new ethers.Contract(paymentFacilitator, FACILITATOR_ABI, agent);
     
@@ -177,7 +177,7 @@ async function main() {
     console.log(`   Gas used: ${receipt!.gasUsed.toString()}`);
 
     // ── Step 6: Retry with payment proof ─────────────────────────────────
-    console.log(`\n🔄 Step 6: Retrying request with payment proof...`);
+    console.log(`\nStep 6: Retrying request with payment proof...`);
 
     const bookingRes = await fetch(`${HOTEL_API}/api/hotels/${targetHotel}/rooms/${targetRoom}`, {
       headers: { "X-Payment-Proof": tx.hash },
@@ -185,7 +185,7 @@ async function main() {
 
     if (bookingRes.status === 200) {
       const booking = await bookingRes.json();
-      console.log(`\n🎉 BOOKING CONFIRMED!`);
+      console.log(`\nBOOKING CONFIRMED`);
       console.log(`   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
       console.log(`   Booking ID:  ${(booking as any).bookingId}`);
       console.log(`   Hotel:       ${(booking as any).hotel}`);
@@ -198,7 +198,7 @@ async function main() {
       console.log(`   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
       console.log(`\n   The AI agent autonomously booked a hotel room`);
       console.log(`   by paying USDC on Arbitrum via the x402 protocol.`);
-      console.log(`   No human intervention required. 🤖\n`);
+      console.log(`   No human intervention required.\n`);
     } else {
       console.log(`   ❌ Booking failed: ${bookingRes.status}`);
     }
@@ -211,7 +211,7 @@ async function main() {
 
 // ── Demo mode: simulate without on-chain tx ─────────────────────────────────
 async function simulatePayment(hotelId: string, roomId: string) {
-  console.log(`\n🎭 Simulating x402 payment flow...`);
+  console.log(`\nSimulating x402 payment flow...`);
   
   const fakeTxHash = `0x${Buffer.from(ethers.randomBytes(32)).toString("hex")}`;
   console.log(`   Simulated TX: ${fakeTxHash}`);
@@ -222,14 +222,14 @@ async function simulatePayment(hotelId: string, roomId: string) {
 
   if (bookingRes.status === 200) {
     const booking = await bookingRes.json();
-    console.log(`\n🎉 DEMO BOOKING CONFIRMED!`);
+    console.log(`\nDEMO BOOKING CONFIRMED`);
     console.log(`   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
     console.log(`   Booking ID:  ${(booking as any).bookingId}`);
     console.log(`   Hotel:       ${(booking as any).hotel}`);
     console.log(`   Room:        ${(booking as any).room?.type}`);
     console.log(`   Paid:        ${(booking as any).amountPaid}`);
     console.log(`   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-    console.log(`\n   ⚠️  This was a simulated demo. For the real flow,`);
+    console.log(`\n   Note: this was a simulated demo. For the real flow,`);
     console.log(`   fund the agent with testnet USDC and deploy contracts.`);
   }
 }

@@ -30,7 +30,7 @@ All methods here are sanctioned — public tools, native LinkedIn features, and 
 | Stripe's give-away-the-insight authority content | ✅ | Fits your x402 security depth exactly |
 | Coinbase's "showcase builders on our infra" | ✅ | Tag Base/Safe ecosystems, mutual promotion |
 | Circle's trust/compliance framing (MiCA) | ✅ | You have a real MiCA/compliance angle |
-| Travala's constant giveaways | ⚠️ | Off-brand for a B2B infra seller; skip |
+| Travala's constant giveaways | Caution | Off-brand for a B2B infra seller; skip |
 
 ## Live pull (optional next step)
 The LinkedIn MCP in this session can fetch real company profiles/posts for Stripe, Coinbase, Circle (read-only, authenticated). Say the word and I'll pull current follower counts, recent posts, and engagement for a fresh benchmark instead of the static snapshot above.
