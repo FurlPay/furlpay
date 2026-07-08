@@ -1,4 +1,4 @@
-import { CITY_COORDS, Flight, Stay, StayType, nights as nightsBetween } from "./data";
+import { CITY_COORDS, Flight, Stay, StayType, CarRental, CarCategory, carModelPhoto, nights as nightsBetween } from "./data";
 
 // Live flight search via Duffel (mid-2026 the one self-serve top-tier supplier:
 // Amadeus Self-Service sunsets 2026-07-17, Kiwi Tequila is closed to new
@@ -196,6 +196,126 @@ export async function searchDuffelStays(
       .filter((s) => s.nightlyUsd > 0)
       .sort((a, b) => b.rating - a.rating)
       .slice(0, 16);
+  } catch {
+    return null;
+  }
+}
+
+// ── Duffel Cars: live rentals across 40+ brands (launched April 2026) ───────
+//
+// Same token and conventions as flights/stays: null on missing key, unknown
+// city or any failure — callers fall back to the demo generator. Duffel does
+// not document the full rate schema publicly, so the mapper reads every field
+// defensively and drops rates it can't price.
+
+// Quotes move with supplier inventory; cache briefly so paging/filtering the
+// same search doesn't burn through the API quota. 60s TTL per (city, dates).
+const CARS_CACHE_TTL_MS = 60_000;
+const g = globalThis as unknown as { __duffelCarsCache?: Map<string, { at: number; cars: CarRental[] }> };
+const carsCache = (): Map<string, { at: number; cars: CarRental[] }> => (g.__duffelCarsCache ??= new Map());
+
+function toCarCategory(raw?: string): CarCategory {
+  const t = String(raw ?? "").toLowerCase();
+  if (t.includes("suv") || t.includes("crossover")) return "SUV";
+  if (t.includes("lux") || t.includes("premium") || t.includes("executive")) return "Luxury";
+  if (t.includes("van") || t.includes("mini") && t.includes("bus") || t.includes("people")) return "Van";
+  if (t.includes("econ") || t.includes("mini") || t.includes("small")) return "Economy";
+  return "Compact";
+}
+
+function toFuel(raw?: string): CarRental["fuel"] {
+  const t = String(raw ?? "").toLowerCase();
+  if (t.includes("elect") || t === "ev") return "Electric";
+  if (t.includes("hybrid")) return "Hybrid";
+  if (t.includes("diesel")) return "Diesel";
+  return "Petrol";
+}
+
+export async function searchDuffelCars(
+  city: string,
+  pickUp?: string,
+  dropOff?: string,
+): Promise<CarRental[] | null> {
+  const apiKey = process.env.DUFFEL_API_KEY;
+  const coords = CITY_COORDS[city];
+  if (!apiKey || !coords) return null;
+  const pickDate = pickUp || new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+  const dropDate = dropOff || new Date(Date.parse(pickDate) + 3 * 86_400_000).toISOString().slice(0, 10);
+  const days = Math.max(1, nightsBetween(pickDate, dropDate));
+
+  const cacheKey = `${city}:${pickDate}:${dropDate}`;
+  const hit = carsCache().get(cacheKey);
+  if (hit && Date.now() - hit.at < CARS_CACHE_TTL_MS) return hit.cars;
+
+  try {
+    const res = await fetch(`${BASE}/cars/search`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Duffel-Version": "v2",
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        data: {
+          pickup_date: pickDate,
+          pickup_time: "10:00",
+          dropoff_date: dropDate,
+          dropoff_time: "10:00",
+          pickup_location: {
+            radius: 10,
+            geographic_coordinates: { latitude: coords.lat, longitude: coords.lng },
+          },
+          dropoff_location: {
+            radius: 10,
+            geographic_coordinates: { latitude: coords.lat, longitude: coords.lng },
+          },
+          driver: { age: 30, residence_country_code: "US" },
+        },
+      }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json: any = await res.json();
+    const rates: any[] = json?.data?.results ?? json?.data?.rates ?? json?.data ?? [];
+    if (!Array.isArray(rates) || !rates.length) return null;
+
+    const cars = rates
+      .map((r, i): CarRental => {
+        const v = r?.vehicle ?? r?.car ?? {};
+        const name = String(v.name ?? v.model ?? "Rental car");
+        // "Toyota RAV4 or similar" → make "Toyota", model "RAV4 or similar"-trimmed
+        const cleaned = name.replace(/\s+or similar.*$/i, "").trim();
+        const [make, ...rest] = cleaned.split(" ");
+        const total = Number(r?.total_amount ?? r?.price?.amount ?? 0);
+        const transmission = String(v.transmission ?? "").toLowerCase().includes("man") ? "Manual" : "Automatic";
+        return {
+          id: String(r.id ?? `duffel_car_${i}`),
+          make: make || "Rental",
+          model: rest.join(" ") || "car",
+          category: toCarCategory(v.category ?? v.class ?? v.acriss_code),
+          seats: Number(v.seats ?? 5) || 5,
+          doors: Number(v.doors ?? 4) || 4,
+          transmission,
+          fuel: toFuel(v.fuel_type ?? v.fuel),
+          dailyUsd: Math.round((total / days) * 100) / 100,
+          supplier: String(r?.supplier?.name ?? r?.vendor?.name ?? "Rental partner"),
+          supplierRating: Number(r?.supplier?.rating ?? 8.5) || 8.5,
+          freeCancellation: String(r?.payment_type ?? "").toLowerCase() !== "prepaid",
+          unlimitedMileage: Boolean(r?.unlimited_mileage ?? String(r?.mileage?.type ?? "").includes("unlimited")),
+          insurance: r?.insurance_included ? "Full cover" : "Basic",
+          image: GRADIENT_FALLBACK[i % GRADIENT_FALLBACK.length],
+          // Supplier photo when present; else our hand-verified model photo.
+          photo: v.photo_url ?? v.image_url ?? carModelPhoto(cleaned),
+        };
+      })
+      .filter((c) => c.dailyUsd > 0)
+      .sort((a, b) => a.dailyUsd - b.dailyUsd)
+      .slice(0, 18);
+
+    if (!cars.length) return null;
+    carsCache().set(cacheKey, { at: Date.now(), cars });
+    return cars;
   } catch {
     return null;
   }

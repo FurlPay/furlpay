@@ -11,7 +11,7 @@ import {
   CarCategory,
   ActivityCategory,
 } from "@/lib/travel/data";
-import { searchDuffelFlights, searchDuffelStays } from "@/lib/travel/duffel";
+import { searchDuffelFlights, searchDuffelStays, searchDuffelCars } from "@/lib/travel/duffel";
 
 // POST /api/travel/search — search travel inventory.
 // Body: { type: "stays"|"flights"|"cars"|"activities", city, checkIn, checkOut,
@@ -60,13 +60,22 @@ export async function POST(req: NextRequest) {
   }
 
   if (kind === "cars") {
-    const cars = generateCars(body.city ?? "", {
-      category: body.category as CarCategory | undefined,
-      maxDailyUsd: body.maxDailyUsd ? Number(body.maxDailyUsd) : undefined,
-      count: 14,
-    });
     const days = nights(body.pickUp ?? body.checkIn, body.dropOff ?? body.checkOut);
-    return NextResponse.json({ type: "cars", city: body.city ?? "", days, count: cars.length, results: cars, source: "demo" });
+    // Live Duffel Cars (40+ brands) when the key is set and the city is a
+    // known anchor; demo generator otherwise. Filters apply to both.
+    let cars = await searchDuffelCars(body.city ?? "", body.pickUp ?? body.checkIn, body.dropOff ?? body.checkOut);
+    const source = cars?.length ? "duffel" : "demo";
+    if (!cars?.length) {
+      cars = generateCars(body.city ?? "", {
+        category: body.category as CarCategory | undefined,
+        maxDailyUsd: body.maxDailyUsd ? Number(body.maxDailyUsd) : undefined,
+        count: 14,
+      });
+    } else {
+      if (body.category) cars = cars.filter((x) => x.category === body.category);
+      if (body.maxDailyUsd) cars = cars.filter((x) => x.dailyUsd <= Number(body.maxDailyUsd));
+    }
+    return NextResponse.json({ type: "cars", city: body.city ?? "", days, count: cars.length, results: cars, source });
   }
 
   if (kind === "activities") {
