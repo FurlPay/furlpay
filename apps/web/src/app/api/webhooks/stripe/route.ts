@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/payments/stripe";
-import { markProcessed } from "@/lib/webhookGuard";
-import { newTx, recordTransaction } from "@/lib/store";
+import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
+import { getAccount, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
+import { recordMovement } from "@/lib/ledger";
+import { audit } from "@/lib/audit";
+import { log } from "@/lib/log";
 
 // POST /api/webhooks/stripe — Stripe Crypto payment/settlement events.
 // Verifies the stripe-signature header via constructEvent (HMAC-SHA256 over the
@@ -39,26 +42,53 @@ export async function POST(request: Request) {
     );
   }
 
-  // Idempotency: Stripe delivers at-least-once; ignore redeliveries.
-  if (!markProcessed(event.id)) {
+  // Idempotency: Stripe delivers at-least-once. Claim the id, process, and
+  // only mark processed on success — a failed handler releases the id and
+  // returns 5xx so Stripe's redelivery is retried instead of lost.
+  if (!tryBegin(event.id)) {
     return NextResponse.json({ received: true, deduped: true });
   }
 
-  if (event.type === "payment_intent.succeeded") {
-    const pi = event.data.object as Stripe.PaymentIntent;
-    // Trigger local bank routing / credit the Furlpay Safe account balance.
-    recordTransaction(
-      newTx({
-        category: "ramp",
-        direction: "in",
-        title: "Stablecoin payment",
-        subtitle: `Stripe · ${pi.id}`,
-        amountUsd: (pi.amount_received ?? pi.amount) / 100,
-        token: "USDC",
-        status: "settled",
-      })
-    );
-  }
+  try {
+    if (event.type === "payment_intent.succeeded") {
+      const pi = event.data.object as Stripe.PaymentIntent;
+      // Credit the account named in the PaymentIntent's metadata. Checkout
+      // sets metadata.furlpayUserId when creating the intent; an unmatched
+      // event is acknowledged but NOT credited (crediting the demo account
+      // for a stranger's payment would corrupt balances).
+      const userId = (pi.metadata?.furlpayUserId as string) || "";
+      const target =
+        getAccount(userId) ??
+        (process.env.NODE_ENV !== "production" ? getAccount(DEMO_USER_ID) : undefined);
+      const amountUsd = (pi.amount_received ?? pi.amount) / 100;
 
-  return NextResponse.json({ received: true, type: event.type });
+      if (target) {
+        recordMovement("in", amountUsd, `Stripe payment ${pi.id}`, target.user.id);
+        recordTransaction(
+          target.user.id,
+          newTx({
+            category: "ramp",
+            direction: "in",
+            title: "Stablecoin payment",
+            subtitle: `Stripe · ${pi.id}`,
+            amountUsd,
+            token: "USDC",
+            status: "settled",
+          })
+        );
+        audit("webhook.processed", target.user.id, { provider: "stripe", event: event.type, pi: pi.id });
+      } else {
+        log.warn("stripe payment_intent.succeeded without resolvable user", { pi: pi.id, userId });
+      }
+    }
+
+    markProcessed(event.id);
+    return NextResponse.json({ received: true, type: event.type });
+  } catch (e) {
+    markFailed(event.id);
+    audit("webhook.failed", "system", { provider: "stripe", event: event.type, error: (e as Error).message });
+    log.error("stripe webhook handler failed", { event: event.type, error: (e as Error).message });
+    // 5xx → Stripe redelivers; the released id lets the retry process it.
+    return NextResponse.json({ error: "handler_failed" }, { status: 500 });
+  }
 }

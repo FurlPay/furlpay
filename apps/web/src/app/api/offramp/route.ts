@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { quoteFx } from "@/lib/services/fx";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
 import { recordMovement } from "@/lib/ledger";
+import { requireUser } from "@/lib/authz";
 
-// POST /api/offramp — quote / execute a stablecoin→fiat off-ramp via Wise rails.
-// body: { fromCurrency, toCurrency, amount, execute? }
+// POST /api/offramp — quote / execute a stablecoin→fiat off-ramp via Wise
+// rails for the SESSION user. body: { fromCurrency, toCurrency, amount, execute? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
   const { fromCurrency, toCurrency, amount, execute } = await req.json();
   const quote = await quoteFx(fromCurrency, toCurrency, amount);
 
   if (execute) {
     recordTransaction(
+      account.user.id,
       newTx({
         category: "ramp",
         direction: "out",
@@ -20,12 +26,12 @@ export async function POST(req: NextRequest) {
         status: "settled",
       })
     );
-    const fiat = db.fiatBalances.find((f) => f.currency === toCurrency);
+    const fiat = account.fiatBalances.find((f) => f.currency === toCurrency);
     if (fiat) {
       fiat.amount += quote.amountTo;
     }
     // Double-entry: stablecoin leaves user cash to fiat rails.
-    recordMovement("out", amount, `Off-ramp to ${toCurrency} via ${quote.rail}`);
+    recordMovement("out", amount, `Off-ramp to ${toCurrency} via ${quote.rail}`, account.user.id);
   }
 
   return NextResponse.json({ quote, executed: !!execute });

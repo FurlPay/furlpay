@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
 import { recordMovement } from "@/lib/ledger";
 import { bySymbol } from "@/lib/markets/catalog";
 import { quoteFor } from "@/lib/markets/quotes";
+import { requireUser } from "@/lib/authz";
 
 // POST /api/investing/order — place a fractional stock/ETF order (Alpaca).
 // Accepts EITHER `notional` (USD) OR `qty` (shares), never both (→ 400),
@@ -12,6 +13,10 @@ const ORDER_TYPES = ["market", "limit", "stop", "stop_limit"];
 const TIFS = ["day", "gtc", "ioc", "fok", "opg", "cls"];
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
   const body = await req.json().catch(() => ({}));
   const { symbol, side, notional, qty, type = "market", time_in_force = "day", limit_price, stop_price } = body;
 
@@ -44,7 +49,7 @@ export async function POST(req: NextRequest) {
   }
 
   const sym = String(symbol).toUpperCase();
-  let holding = db.holdings.find((h) => h.symbol === sym);
+  let holding = account.holdings.find((h) => h.symbol === sym);
   if (!holding) {
     // First trade in a catalog asset opens a fresh position at the latest quote.
     const asset = bySymbol.get(sym);
@@ -54,7 +59,7 @@ export async function POST(req: NextRequest) {
     const quote = await quoteFor(sym);
     if (!quote) return NextResponse.json({ error: "No quote available" }, { status: 404 });
     holding = { symbol: sym, name: asset.name, shares: 0, price: quote.price, changePct: quote.changePct, marketValue: 0, costBasis: 0 };
-    db.holdings.push(holding);
+    account.holdings.push(holding);
   }
 
   const price = type === "limit" || type === "stop_limit" ? Number(limit_price) : holding.price;
@@ -77,6 +82,7 @@ export async function POST(req: NextRequest) {
     holding.marketValue = holding.shares * holding.price;
 
     recordTransaction(
+      account.user.id,
       newTx({
         category: "invest",
         direction: side === "buy" ? "out" : "in",
@@ -87,7 +93,7 @@ export async function POST(req: NextRequest) {
       })
     );
     // Buy moves cash out; sell brings cash in.
-    recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${holding.symbol}`);
+    recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${holding.symbol}`, account.user.id);
   }
 
   return NextResponse.json({

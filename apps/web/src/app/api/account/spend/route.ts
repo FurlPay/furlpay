@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { parse } from "@/lib/schemas";
 import { debitAccount } from "@/lib/services/account";
+import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -12,9 +14,15 @@ const SpendSchema = z.object({
 });
 
 // POST /api/account/spend — spend from the FurlPay account balance (the second
-// half of the funding loop). Session-gated. A booking or payout draws down the
-// balance that was funded via x402. Returns the new balance or 402 if short.
+// half of the funding loop). The debit is applied to the SESSION user's
+// balance — never a caller-chosen account. Returns the new balance or 402 if short.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
+  const limited = rateLimitOr429(req, "account.spend", { limit: 30, windowMs: 60_000 }, auth.account.user.id);
+  if (limited) return limited;
+
   const parsed = parse(SpendSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { amountUsd, memo, purpose } = parsed.data;
@@ -26,7 +34,7 @@ export async function POST(req: NextRequest) {
     transfer: "Transfer · Arbitrum One",
   };
 
-  const result = debitAccount(amountUsd, memo, purpose ? subtitleByPurpose[purpose] : undefined);
+  const result = debitAccount(auth.account.user.id, amountUsd, memo, purpose ? subtitleByPurpose[purpose] : undefined);
   if (!result.ok) {
     return NextResponse.json(
       { spent: false, error: result.error, balanceUsd: result.balanceUsd.toFixed(2) },

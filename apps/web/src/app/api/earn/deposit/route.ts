@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
 import { selectVault, buildDepositBundle, earnIsLive } from "@/lib/services/morpho";
 import { addToPosition } from "@/lib/services/earn";
+import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,13 @@ export const dynamic = "force-dynamic";
 // integration refuses (503) rather than crediting a fake position — mirrors the
 // account-funding guard.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
+  const limited = rateLimitOr429(req, "earn.deposit", { limit: 20, windowMs: 60_000 }, account.user.id);
+  if (limited) return limited;
+
   const live = earnIsLive();
   if (process.env.NODE_ENV === "production" && !live) {
     return NextResponse.json({ ok: false, error: "earn_unavailable" }, { status: 503 });
@@ -31,7 +40,7 @@ export async function POST(req: NextRequest) {
   // LIVE: return the tx bundle for the Safe to sign. The position is recorded
   // when the deposit settles (webhook / on-chain read), not here.
   if (live) {
-    const receiver = db.user.safeAddress;
+    const receiver = account.user.safeAddress;
     const bundle = buildDepositBundle(vault.address, amountUsd, receiver);
     return NextResponse.json({
       ok: true,
@@ -43,7 +52,7 @@ export async function POST(req: NextRequest) {
   }
 
   // MOCK: simulate. Debit idle USDC and open/extend the position.
-  const bal = db.tokenBalances.find((b) => b.token === "USDC");
+  const bal = account.tokenBalances.find((b) => b.token === "USDC");
   if (!bal || bal.usdValue + 1e-9 < amountUsd) {
     return NextResponse.json({ ok: false, error: "insufficient_balance" }, { status: 400 });
   }
@@ -57,10 +66,11 @@ export async function POST(req: NextRequest) {
     apy: vault.netApy,
     chainId: vault.chainId,
     amountUsd,
-    receiver: db.user.safeAddress,
+    receiver: account.user.safeAddress,
   });
 
   recordTransaction(
+    account.user.id,
     newTx({
       category: "yield",
       direction: "out",

@@ -2,18 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { parse } from "@/lib/schemas";
 import { refundPayment } from "@/lib/services/payments";
+import { requireRole } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
 const RefundSchema = z.object({ paymentId: z.string().startsWith("pay_") });
 
 // POST /api/payments/refund — reverse a settled payment (full refund).
-// Only settled payments are refundable; the reversal gets its own tx hash.
+// Privileged: refunds move money back out, so only a compliance officer may
+// trigger one. Only settled payments are refundable; the reversal gets its
+// own tx hash and a compensating ledger entry.
 export async function POST(req: NextRequest) {
+  const auth = await requireRole(req, "compliance_officer");
+  if (!auth.ok) return auth.res;
+
   const parsed = parse(RefundSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
-  const result = refundPayment(parsed.data.paymentId);
+  const result = refundPayment(parsed.data.paymentId, auth.account.user.id);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
   const r = result.record!;

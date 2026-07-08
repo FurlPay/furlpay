@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { quoteSwap } from "@/lib/services/swap";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
+import { requireUser } from "@/lib/authz";
 
 // /api/swaps — cheapest cross-chain swap routing (Li.Fi / 1inch), Doc-2 canonical.
 // POST body: { fromToken, toToken, fromChain, amountIn, toChain?, execute? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
   const body = await req.json();
   const quote = quoteSwap(body);
 
   if (body.execute) {
     recordTransaction(
+      account.user.id,
       newTx({
         category: "swap",
         direction: "in",
@@ -22,17 +28,17 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const src = db.tokenBalances.find((b) => b.token === quote.fromToken && b.chain === quote.fromChain);
+    const src = account.tokenBalances.find((b) => b.token === quote.fromToken && b.chain === quote.fromChain);
     if (src) {
       src.amount = Math.max(0, src.amount - quote.amountIn);
       src.usdValue = src.amount;
     }
-    const dst = db.tokenBalances.find((b) => b.token === quote.toToken && b.chain === quote.toChain);
+    const dst = account.tokenBalances.find((b) => b.token === quote.toToken && b.chain === quote.toChain);
     if (dst) {
       dst.amount += quote.amountOut;
       dst.usdValue = dst.amount;
     } else {
-      db.tokenBalances.push({ token: quote.toToken, chain: quote.toChain, amount: quote.amountOut, usdValue: quote.amountOut });
+      account.tokenBalances.push({ token: quote.toToken, chain: quote.toChain, amount: quote.amountOut, usdValue: quote.amountOut });
     }
   }
 

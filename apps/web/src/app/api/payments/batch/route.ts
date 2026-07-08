@@ -1,21 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentBatchSchema, parse } from "@/lib/schemas";
 import { createPayment } from "@/lib/services/payments";
+import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/payments/batch — create up to 100 payment intents in one call
-// (payroll, supplier payouts). Each returns its own EIP-712 sign data; a
-// LIVE deployment settles them as one FurlPayRouter.batchPay() transaction
-// (~45% cheaper than sequential transfers).
+// (payroll, supplier payouts) for the SESSION user. Each returns its own
+// EIP-712 sign data; a LIVE deployment settles them as one
+// FurlPayRouter.batchPay() transaction (~45% cheaper than sequential transfers).
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
+  const limited = rateLimitOr429(req, "payments.batch", { limit: 10, windowMs: 60_000 }, auth.account.user.id);
+  if (limited) return limited;
+
   const parsed = parse(PaymentBatchSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const sourceChain = parsed.data.sourceChain ?? "arbitrum";
 
   const created = await Promise.all(
     parsed.data.payments.map((p) =>
-      createPayment({ amount: p.amount, sourceChain, recipient: p.recipient, metadata: p.metadata })
+      createPayment({
+        amount: p.amount,
+        sourceChain,
+        recipient: p.recipient,
+        metadata: p.metadata,
+        userId: auth.account.user.id,
+      })
     )
   );
 

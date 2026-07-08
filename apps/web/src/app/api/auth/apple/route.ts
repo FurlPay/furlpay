@@ -1,13 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, updateUser } from "@/lib/store";
+import { findOrCreateUserByIdentity, updateUser } from "@/lib/store";
 import { verifyAppleIdentityToken } from "@/lib/auth/apple";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
+import { signSession, setSessionCookie } from "@/lib/session";
+import { audit } from "@/lib/audit";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // POST /api/auth/apple — body: { id_token, name? } (the Apple identity token
 // JWT, plus the name Apple only supplies on first consent). Verifies the token
-// server-side, links the Apple account to the user, and issues a signed
-// session. Phone verification is still handled separately.
+// server-side, resolves (or creates) the account for that VERIFIED Apple
+// identity, and issues a session bound to that user.
 export async function POST(req: NextRequest) {
+  const limited = rateLimitOr429(req, "auth.apple", { limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => null);
   const idToken = body?.id_token;
   if (!idToken || typeof idToken !== "string") {
@@ -21,25 +26,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message || "Invalid Apple token" }, { status: 401 });
   }
 
-  updateUser({
+  const { account, created } = findOrCreateUserByIdentity({
+    appleSub: identity.sub,
+    email: identity.email,
+    name: identity.name,
+    authProvider: "apple",
+  });
+  // Returning user: keep the linked identity fields fresh.
+  updateUser(account.user.id, {
     email: identity.email,
     appleSub: identity.sub,
     authProvider: "apple",
     ...(identity.name ? { name: identity.name } : {}),
   });
 
-  const token = await signSession({ sub: db.user.id, safe: db.user.safeAddress });
+  const token = await signSession({
+    sub: account.user.id,
+    safe: account.user.safeAddress,
+    roles: account.user.roles,
+  });
   const res = NextResponse.json({
     success: true,
     email: identity.email,
-    name: identity.name ?? db.user.name,
-    phoneVerified: !!db.user.phoneVerified,
+    name: identity.name ?? account.user.name,
+    phoneVerified: !!account.user.phoneVerified,
   });
-  res.cookies.set(SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: SESSION_MAX_AGE,
-  });
+  setSessionCookie(res, token);
+  audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: "apple" });
   return res;
 }

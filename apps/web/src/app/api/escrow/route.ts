@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { captureHold, createHold, listHolds, releaseHold } from "@/lib/services/escrow";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { getAccount, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
 import { verifyAgentSignature } from "@/lib/agentTrustGate";
+import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 // GET /api/escrow — list all pre-auth holds.
 export async function GET() {
@@ -21,6 +22,20 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 401 });
   }
+
+  // Attribution: session user when present. Agent-signed calls fall back to
+  // the demo account — the key registry doesn't map keyId → owning user yet
+  // (TODO: register keys per user), so agents can't act on arbitrary accounts.
+  // Unsigned + sessionless requests only work in dev.
+  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  const account =
+    getAccount(claims?.sub) ??
+    (agentKeyId || process.env.NODE_ENV !== "production" ? getAccount(DEMO_USER_ID) : undefined);
+  if (!account) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  const userId = account.user.id;
+
   let body: any;
   try {
     body = raw ? JSON.parse(raw) : {};
@@ -31,6 +46,7 @@ export async function POST(req: NextRequest) {
   if (body.action === "create") {
     const hold = createHold(body.cardId, body.merchant, body.amount);
     recordTransaction(
+      userId,
       newTx({
         category: "card",
         direction: "out",
@@ -48,6 +64,7 @@ export async function POST(req: NextRequest) {
     const hold = captureHold(body.id, body.finalAmount);
     const refund = hold.authorizedAmount - (hold.capturedAmount ?? 0);
     recordTransaction(
+      userId,
       newTx({
         category: "card",
         direction: "out",

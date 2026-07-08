@@ -1,7 +1,3 @@
 {
-  "build": {
-    "env": {
-      "NEXT_PUBLIC_ALLOW_GUEST": "1"
-    }
-  }
+  "$comment": "Guest login must NEVER be enabled here: build.env applies to production deploys too. If you need it on previews, set ALLOW_GUEST_LOGIN=1 as a Preview-scoped env var in the Vercel dashboard instead."
 }

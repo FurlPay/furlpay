@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { settle, type FacilitatorRequest } from "@/lib/x402Facilitator";
 import { PAY_TO } from "@/lib/x402";
-import { creditAccount, getAccountBalanceUsd } from "@/lib/services/account";
+import { creditAccount } from "@/lib/services/account";
+import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { getAccount, DEMO_USER_ID } from "@/lib/store";
+import { rateLimitOr429 } from "@/lib/rateLimit";
+import { audit } from "@/lib/audit";
+import { log } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +26,9 @@ const FUNDING_IS_LIVE = process.env.INTEGRATION_MODE === "live";
 // x402 payment: an agent (or app) signs a USDC authorization, we settle it
 // through the facilitator, and on success credit the spendable balance. This is
 // the funding half of the loop — money in via x402, then spend on travel/cards/
-// payouts. Body: an x402 FacilitatorRequest { paymentPayload, paymentRequirements }.
+// payouts. Body: an x402 FacilitatorRequest { paymentPayload, paymentRequirements },
+// plus optional destinationUserId when there is no session (agent funding a
+// known account, like a bank deposit by account number).
 export async function POST(req: NextRequest) {
   if (process.env.NODE_ENV === "production" && !FUNDING_IS_LIVE) {
     // No real settler wired → a mock "settlement" would credit real balance for
@@ -32,7 +39,10 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: FacilitatorRequest;
+  const limited = rateLimitOr429(req, "account.fund", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
+  let body: FacilitatorRequest & { destinationUserId?: string };
   try {
     body = await req.json();
   } catch {
@@ -49,6 +59,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ funded: false, error: "wrong_recipient" }, { status: 400 });
   }
 
+  // Resolve WHO gets credited before settling, so we never take funds we can't
+  // credit: the session user, else an explicitly named existing account (a
+  // deposit by account number — worst case a payer donates to someone else),
+  // else the demo account in dev only.
+  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  const target =
+    getAccount(claims?.sub) ??
+    getAccount(typeof body.destinationUserId === "string" ? body.destinationUserId : undefined) ??
+    (process.env.NODE_ENV !== "production" ? getAccount(DEMO_USER_ID) : undefined);
+  if (!target) {
+    return NextResponse.json({ funded: false, error: "unknown_destination" }, { status: 400 });
+  }
+
   const result = await settle(body);
   if (!result.success) {
     return NextResponse.json({ funded: false, error: result.errorReason }, { status: 402 });
@@ -57,11 +80,25 @@ export async function POST(req: NextRequest) {
   // The settled authorization value is atomic USDC (6 decimals).
   const atomic = body.paymentPayload.payload.authorization.value;
   const amountUsd = Number(BigInt(atomic)) / 1e6;
-  const balanceUsd = creditAccount(
+  const credit = creditAccount(
+    target.user.id,
     amountUsd,
     `Account funded — $${amountUsd.toFixed(2)} USDC`,
     `x402 · ${result.network} · payer ${short(result.payer)}`
   );
+  if (!credit.ok) {
+    // Settlement succeeded but the credit failed — surface loudly; this is the
+    // one path where money moved without a matching balance change.
+    log.error("x402 funding settled but credit failed", { userId: target.user.id, error: credit.error, tx: result.transaction });
+    return NextResponse.json({ funded: false, error: credit.error }, { status: 500 });
+  }
+
+  audit("account.funded", target.user.id, {
+    amountUsd,
+    network: result.network,
+    payer: result.payer,
+    tx: result.transaction,
+  });
 
   return NextResponse.json({
     funded: true,
@@ -69,7 +106,7 @@ export async function POST(req: NextRequest) {
     transaction: result.transaction,
     network: result.network,
     payer: result.payer,
-    balanceUsd: balanceUsd.toFixed(2),
+    balanceUsd: credit.balanceUsd.toFixed(2),
   });
 }
 

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { verifyPersonaSignature } from "@/lib/kyc/persona";
-import { markProcessed } from "@/lib/webhookGuard";
-import { db, updateUser } from "@/lib/store";
+import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
+import { getAccount, setKycStatus } from "@/lib/store";
+import { audit } from "@/lib/audit";
+import { log } from "@/lib/log";
 
 // POST /api/webhooks/persona — Persona KYC inquiry outcomes (async liveness).
 // Verifies the persona-signature header (constant-time, rotation-aware) before
@@ -30,20 +32,36 @@ export async function POST(request: Request) {
   const attrs = eventData.attributes ?? eventData;
 
   const eventId = event.id ?? eventData.id ?? signature ?? String(Date.now());
-  if (!markProcessed(String(eventId))) {
+  if (!tryBegin(String(eventId))) {
     return NextResponse.json({ received: true, deduped: true });
   }
 
-  const userId: string | undefined = attrs.referenceId ?? attrs["reference-id"] ?? eventData.referenceId;
-  const inquiryId: string | undefined = eventData.id ?? attrs.id;
-  const status: string | undefined = attrs.status;
+  try {
+    const userId: string | undefined = attrs.referenceId ?? attrs["reference-id"] ?? eventData.referenceId;
+    const inquiryId: string | undefined = eventData.id ?? attrs.id;
+    const status: string | undefined = attrs.status;
 
-  if (eventType === "inquiry.completed" || status === "completed") {
-    // UPDATE furlpay_database SET kyc_status = 'verified' WHERE user_id = userId
-    if (userId && userId === db.user.id) updateUser({ kycStatus: "verified", kycTier: 2 });
-  } else if (eventType === "inquiry.failed" || status === "failed") {
-    if (userId && userId === db.user.id) updateUser({ kycStatus: "unverified" });
+    // referenceId is the FurlPay user id we handed Persona when the inquiry
+    // was created; the transition goes through the DEDICATED KYC path (it is
+    // deliberately unreachable via the identity-field updateUser allow-list).
+    const account = getAccount(userId);
+    if (account) {
+      if (eventType === "inquiry.completed" || status === "completed") {
+        setKycStatus(account.user.id, "verified", 2);
+        audit("webhook.processed", account.user.id, { provider: "persona", event: "inquiry.completed", inquiryId });
+      } else if (eventType === "inquiry.failed" || status === "failed") {
+        setKycStatus(account.user.id, "unverified");
+        audit("webhook.processed", account.user.id, { provider: "persona", event: "inquiry.failed", inquiryId });
+      }
+    } else if (userId) {
+      log.warn("persona webhook for unknown referenceId", { inquiryId, userId });
+    }
+
+    markProcessed(String(eventId));
+    return NextResponse.json({ received: true, inquiryId });
+  } catch (e) {
+    markFailed(String(eventId));
+    log.error("persona webhook handler failed", { error: (e as Error).message });
+    return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }
-
-  return NextResponse.json({ received: true, inquiryId });
 }

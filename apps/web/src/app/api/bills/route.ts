@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
+import { requireUser } from "@/lib/authz";
 
-// GET /api/bills — connected bills.
-export async function GET() {
-  return NextResponse.json({ bills: db.bills });
+// GET /api/bills — the SESSION user's connected bills.
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  return NextResponse.json({ bills: auth.account.bills });
 }
 
 // POST /api/bills — pay a bill on-chain, or toggle autopay.
 // body: { id, action: "pay"|"toggleAutopay" }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
   const { id, action } = await req.json();
-  const bill = db.bills.find((b) => b.id === id);
+  const bill = auth.account.bills.find((b) => b.id === id);
   if (!bill) return NextResponse.json({ error: "Bill not found" }, { status: 404 });
 
   if (action === "toggleAutopay") {
@@ -21,6 +27,7 @@ export async function POST(req: NextRequest) {
   if (action === "pay") {
     const paid = bill.balanceDue;
     recordTransaction(
+      auth.account.user.id,
       newTx({
         category: "bill",
         direction: "out",

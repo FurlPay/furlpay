@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { planIntent } from "@/lib/services/intentRouter";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
 import { IntentSchema, parse } from "@/lib/schemas";
+import { requireUser } from "@/lib/authz";
 
-// POST /api/intents — plan (and optionally execute) a cross-chain intent.
-// The router picks CCTP V2 for native USDC and Li.Fi for everything else.
-// body: Intent & { execute?: boolean }
+// POST /api/intents — plan (and optionally execute) a cross-chain intent for
+// the SESSION user. The router picks CCTP V2 for native USDC and Li.Fi for
+// everything else. body: Intent & { execute?: boolean }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
   const parsed = parse(IntentSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const body = parsed.data;
@@ -20,6 +25,7 @@ export async function POST(req: NextRequest) {
 
   if (body.execute) {
     recordTransaction(
+      account.user.id,
       newTx({
         category: "swap",
         direction: "in",
@@ -32,17 +38,17 @@ export async function POST(req: NextRequest) {
       })
     );
 
-    const src = db.tokenBalances.find((b) => b.token === body.fromToken && b.chain === body.fromChain);
+    const src = account.tokenBalances.find((b) => b.token === body.fromToken && b.chain === body.fromChain);
     if (src) {
       src.amount = Math.max(0, src.amount - plan.amountIn);
       src.usdValue = src.amount;
     }
-    const dst = db.tokenBalances.find((b) => b.token === body.toToken && b.chain === body.toChain);
+    const dst = account.tokenBalances.find((b) => b.token === body.toToken && b.chain === body.toChain);
     if (dst) {
       dst.amount += plan.amountOut;
       dst.usdValue = dst.amount;
     } else {
-      db.tokenBalances.push({ token: body.toToken, chain: body.toChain, amount: plan.amountOut, usdValue: plan.amountOut });
+      account.tokenBalances.push({ token: body.toToken, chain: body.toChain, amount: plan.amountOut, usdValue: plan.amountOut });
     }
   }
 

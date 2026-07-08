@@ -2,14 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { screenWallet } from "@furlpay/compliance";
 import { assessRisk, requiresStepUp, verifyTotp } from "@furlpay/security";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
 import { verifyTransferSignature } from "@/lib/signature";
 import { recordMovement } from "@/lib/ledger";
 import { TransferSchema, parse } from "@/lib/schemas";
+import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
+import { audit } from "@/lib/audit";
 
-// POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via Paymaster.
+// POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via
+// Paymaster, from the SESSION user's balances.
 // body: { safeAddress, destination, amount, token, chain, signature, mfaCode?, deviceSignals? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
+  const limited = rateLimitOr429(req, "wallets.transfer", { limit: 30, windowMs: 60_000 }, account.user.id);
+  if (limited) return limited;
+
   const parsed = parse(TransferSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = parsed.data;
@@ -17,6 +28,7 @@ export async function POST(req: NextRequest) {
   // Device / behavioral risk gate (Sardine-style).
   const risk = assessRisk(deviceSignals || {});
   if (risk.action === "block") {
+    audit("transfer.blocked", account.user.id, { destination, amount, reason: "risk_engine" });
     return NextResponse.json({ error: "Blocked by risk engine", risk }, { status: 403 });
   }
 
@@ -26,13 +38,14 @@ export async function POST(req: NextRequest) {
     if (!mfaCode) {
       return NextResponse.json({ error: stepUp.reason, stepUpRequired: true, methods: stepUp.methods }, { status: 401 });
     }
-    if (!db.user.security.totpEnabled || !verifyTotp(db.user.security.totpSecret, mfaCode)) {
+    if (!account.user.security.totpEnabled || !verifyTotp(account.user.security.totpSecret, mfaCode)) {
+      audit("auth.mfa_failed", account.user.id, { action: "transfer", amount });
       return NextResponse.json({ error: "Invalid or missing MFA code", stepUpRequired: true }, { status: 401 });
     }
   }
 
   // Verify the user-signed authorization before the Paymaster co-signs.
-  const sig = verifyTransferSignature(signature, safeAddress || db.user.safeAddress, {
+  const sig = verifyTransferSignature(signature, safeAddress || account.user.safeAddress, {
     destination, amount, token, chain,
   });
   if (!sig.ok) {
@@ -42,6 +55,7 @@ export async function POST(req: NextRequest) {
   // AML gate: screen the destination before the Paymaster co-signs.
   const screen = screenWallet(destination);
   if (screen.action === "block") {
+    audit("transfer.blocked", account.user.id, { destination, amount, reason: "aml_screen" });
     return NextResponse.json(
       { error: "Transfer blocked by AML policy", screen },
       { status: 403 }
@@ -49,7 +63,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Funds check before anything is recorded — a transfer can't overdraw.
-  const src = db.tokenBalances.find((b) => b.token === token && b.chain === chain);
+  const src = account.tokenBalances.find((b) => b.token === token && b.chain === chain);
   if (!src || src.amount < amount) {
     return NextResponse.json(
       { error: `Insufficient ${token} balance on ${chain}.`, available: src?.amount ?? 0 },
@@ -59,6 +73,7 @@ export async function POST(req: NextRequest) {
 
   const transactionHash = "0x" + crypto.randomBytes(32).toString("hex");
   recordTransaction(
+    account.user.id,
     newTx({
       category: "transfer",
       direction: "out",
@@ -78,7 +93,8 @@ export async function POST(req: NextRequest) {
   src.usdValue = Math.round(src.amount * unitUsd * 100) / 100;
 
   // Double-entry: funds leave user cash.
-  const entry = recordMovement("out", amount, `Transfer ${token} to ${destination.slice(0, 10)}…`);
+  const entry = recordMovement("out", amount, `Transfer ${token} to ${destination.slice(0, 10)}…`, account.user.id);
 
+  audit("transfer.executed", account.user.id, { destination, amount, token, chain, transactionHash });
   return NextResponse.json({ transactionHash, gasSponsored: true, screen, ledgerTxId: entry.id });
 }

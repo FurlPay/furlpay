@@ -1,14 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getAccountBalanceUsd } from "@/lib/services/account";
+import { requireUser } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/account/balance — the spendable FurlPay account balance (USDC on
-// Arbitrum One). Session-gated by middleware.
-export function GET() {
+// GET /api/account/balance — the SESSION user's spendable FurlPay account
+// balance (USDC on Arbitrum One).
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
   return NextResponse.json({
     token: "USDC",
     chain: "arbitrum",
-    balanceUsd: getAccountBalanceUsd().toFixed(2),
+    balanceUsd: getAccountBalanceUsd(auth.account.user.id).toFixed(2),
   });
 }

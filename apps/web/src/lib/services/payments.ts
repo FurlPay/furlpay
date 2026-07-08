@@ -1,8 +1,12 @@
 import crypto from "crypto";
 import { screenAddress } from "./compliance";
 import { getChain, gasQuote } from "./chainRegistry";
-import { newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
+import { recordPaymentWithFee, reverseLedgerTx } from "@/lib/ledger";
 import { sendEmail } from "@/lib/email";
+import { mockAllowed } from "@/lib/integrations";
+import { audit } from "@/lib/audit";
+import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
 // Unified USDC payment service — the chain-native counterpart to the Stripe
@@ -14,19 +18,22 @@ import { sendEmail } from "@/lib/email";
 // receipt (tx hash + explorer link). Refund reverses a settled payment.
 //
 // LIVE: FurlPayRouter.pay() via a relayer/paymaster on Arbitrum One.
-// MOCK: deterministic settlement hashes, no RPC (default).
+// MOCK: deterministic settlement hashes, no RPC — dev/preview only. In
+// production without INTEGRATION_MODE=live, execute/approve/refund fail
+// closed with 503 (see lib/integrations.ts) instead of fabricating hashes.
 // ---------------------------------------------------------------------------
 
 export const FEE_RATE = 0.005; // 0.5%
 const EXPIRY_SECONDS = 900; // 15 min quote validity
 const SETTLEMENT_CHAIN = "arbitrum";
 const USDC_DECIMALS = 6;
+// Bound the in-memory stores (production: Postgres, where this is moot).
+const MAX_RECORDS = 10_000;
 
 // Human-in-the-loop (HITL) compliance gateway. A payment that clears sanctions
 // screening but crosses a regulatory threshold (large value, elevated risk, or
 // a high-risk jurisdiction) is PAUSED for a human compliance officer to approve
-// or reject before it settles on-chain — the boundary the analysis calls out:
-// agents research/flag, humans make the filing/approval decision.
+// or reject before it settles on-chain.
 const HITL_THRESHOLD_USD = Number(process.env.FURLPAY_HITL_THRESHOLD_USD || 3000);
 const HIGH_RISK_JURISDICTIONS = new Set(
   (process.env.FURLPAY_HIGH_RISK_JURISDICTIONS || "IR,KP,SY,CU,RU")
@@ -52,6 +59,10 @@ export interface PaymentRecord {
   settlementChain: string;
   recipient: string;
   payer?: string;
+  /** User who created the intent (from session). */
+  createdByUserId: string;
+  /** User whose signed authorization executed the payment. */
+  payerUserId?: string;
   metadata?: Record<string, string>;
   nonce: string;
   idempotencyKey?: string;
@@ -62,6 +73,8 @@ export interface PaymentRecord {
   transactionHash?: string;
   refundTransactionHash?: string;
   blockedReason?: string;
+  /** Ledger transaction id of the settlement posting (reversed on refund). */
+  ledgerTxId?: string;
   // HITL compliance review
   reviewReason?: string;
   reviewRequestedAt?: string;
@@ -75,12 +88,32 @@ const g = globalThis as unknown as {
   __furlpayIdem?: Map<string, string>;
 };
 const payments = g.__furlpayPayments ?? (g.__furlpayPayments = new Map());
-// Idempotency-Key → paymentId. Under retry storms (an agent resubmits after a
-// dropped receipt, or parallel sub-agents share a coordinated key) the same key
-// must resolve to the same payment intent instead of minting a duplicate
-// charge. Key = a client-supplied Idempotency-Key header; a well-behaved agent
-// derives it deterministically, e.g. hash(merchant‖session‖value‖nonce).
+// Idempotency-Key → paymentId, SCOPED PER USER (`${userId}:${key}`): two
+// tenants supplying the same key must never resolve to each other's intent.
+// Under retry storms the same (user, key) resolves to the same payment intent
+// instead of minting a duplicate charge.
 const idempotency = g.__furlpayIdem ?? (g.__furlpayIdem = new Map());
+
+function idemKey(userId: string, key: string): string {
+  return `${userId}:${key}`;
+}
+
+/** Evict oldest TERMINAL records when the store exceeds its bound. Active
+ *  records (pending/review) are never evicted. */
+function boundStores(): void {
+  if (payments.size <= MAX_RECORDS) return;
+  const terminal: PaymentRecord[] = [];
+  for (const p of payments.values()) {
+    if (p.status === "settled" || p.status === "refunded" || p.status === "expired" || p.status === "blocked") {
+      terminal.push(p);
+    }
+  }
+  terminal.sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt));
+  for (const p of terminal.slice(0, payments.size - MAX_RECORDS)) {
+    payments.delete(p.id);
+    if (p.idempotencyKey) idempotency.delete(idemKey(p.createdByUserId, p.idempotencyKey));
+  }
+}
 
 export function getPayment(id: string): PaymentRecord | undefined {
   const p = payments.get(id);
@@ -103,6 +136,8 @@ export interface CreateParams {
   metadata?: Record<string, string>;
   /** Idempotency-Key: a retry with the same key returns the same intent. */
   idempotencyKey?: string;
+  /** Acting user (from session) — scopes idempotency and attribution. */
+  userId: string;
 }
 
 /** Build the create-intent response (quote + EIP-712 sign data) for a record. */
@@ -144,12 +179,12 @@ async function buildCreateResponse(record: PaymentRecord, replayed: boolean) {
 }
 
 export async function createPayment(params: CreateParams) {
-  // Idempotent replay: same key → same intent, so a dropped-receipt retry or a
-  // fan-out of sub-agents sharing a key never mints a duplicate charge. Only a
-  // fully expired-and-gone intent falls through to mint a fresh one.
+  // Idempotent replay: same (user, key) → same intent, so a dropped-receipt
+  // retry or a fan-out of sub-agents sharing a key never mints a duplicate
+  // charge. Only a fully expired-and-gone intent falls through to mint fresh.
   const key = params.idempotencyKey?.trim();
   if (key) {
-    const existingId = idempotency.get(key);
+    const existingId = idempotency.get(idemKey(params.userId, key));
     if (existingId) {
       const existing = getPayment(existingId);
       if (existing && existing.status !== "expired") {
@@ -168,6 +203,7 @@ export async function createPayment(params: CreateParams) {
     sourceChain: params.sourceChain,
     settlementChain: SETTLEMENT_CHAIN,
     recipient: params.recipient,
+    createdByUserId: params.userId,
     metadata: params.metadata,
     nonce: "0x" + crypto.randomBytes(32).toString("hex"),
     idempotencyKey: key,
@@ -175,8 +211,14 @@ export async function createPayment(params: CreateParams) {
     expiresAt: new Date(now + EXPIRY_SECONDS * 1000).toISOString(),
   };
   payments.set(record.id, record);
-  if (key) idempotency.set(key, record.id);
+  if (key) idempotency.set(idemKey(params.userId, key), record.id);
+  boundStores();
 
+  audit("payment.created", params.userId, {
+    paymentId: record.id,
+    amountUsdc: record.amountUsdc,
+    recipient: record.recipient,
+  });
   return buildCreateResponse(record, false);
 }
 
@@ -210,8 +252,33 @@ function reviewReasonFor(
   return null;
 }
 
-/** Perform the on-chain settlement for a screened, approved payment. */
-function settle(record: PaymentRecord): void {
+/** Perform the settlement for a screened, approved payment. */
+function settle(record: PaymentRecord): ExecuteResult {
+  // Hard stop: the ONLY implementation below is the mock. Until a real relayer
+  // lands here, production must never fabricate a settlement hash — even if
+  // INTEGRATION_MODE=live was set by mistake.
+  if (process.env.NODE_ENV === "production") {
+    log.error("settlement attempted in production without a live relayer", { paymentId: record.id });
+    return { ok: false, status: 503, error: "settlement_unavailable", record };
+  }
+
+  const userId = record.payerUserId ?? record.createdByUserId;
+
+  // Ledger first: one balanced transaction covering payer debit, recipient
+  // share, and platform fee. If the posting fails, nothing settles.
+  try {
+    const entry = recordPaymentWithFee(
+      userId,
+      record.amountUsdc,
+      record.feeUsdc,
+      `Payment ${record.id} to ${short(record.recipient)}`
+    );
+    record.ledgerTxId = entry.id;
+  } catch (e) {
+    log.error("settle ledger posting failed", { paymentId: record.id, error: (e as Error).message });
+    return { ok: false, status: 500, error: "ledger_error", record };
+  }
+
   // MOCK settlement — LIVE: relayer submits the signed authorization to
   // FurlPayRouter.pay() and waits one Arbitrum confirmation (~250ms).
   record.transactionHash = "0x" + crypto.randomBytes(32).toString("hex");
@@ -219,6 +286,7 @@ function settle(record: PaymentRecord): void {
   record.settledAt = new Date().toISOString();
 
   recordTransaction(
+    userId,
     newTx({
       category: "transfer",
       direction: "out",
@@ -230,10 +298,21 @@ function settle(record: PaymentRecord): void {
       status: "settled",
     })
   );
+  audit("payment.settled", userId, { paymentId: record.id, amountUsdc: record.amountUsdc });
+  return { ok: true, status: 200, record };
 }
 
 /** Verify signature + screen both parties, then settle on Arbitrum One. */
-export function executePayment(id: string, payer: string, signature: string): ExecuteResult {
+export function executePayment(
+  id: string,
+  payer: string,
+  signature: string,
+  actingUserId: string = DEMO_USER_ID
+): ExecuteResult {
+  // Fail closed in production while settlement is mocked — a fabricated tx
+  // hash must never masquerade as a real settlement.
+  if (!mockAllowed()) return { ok: false, status: 503, error: "settlement_unavailable" };
+
   const record = getPayment(id);
   if (!record) return { ok: false, status: 404, error: "payment_not_found" };
   // Idempotent replay: a retry after a dropped receipt returns the original
@@ -256,11 +335,13 @@ export function executePayment(id: string, payer: string, signature: string): Ex
     if (screen.sanctioned || screen.risk === "severe") {
       record.status = "blocked";
       record.blockedReason = `${role}_failed_sanctions_screen`;
+      audit("payment.blocked", actingUserId, { paymentId: record.id, reason: record.blockedReason });
       return { ok: false, status: 403, error: record.blockedReason, record };
     }
   }
 
   record.payer = payer;
+  record.payerUserId = actingUserId;
 
   // HITL gateway: pause (don't settle) if the payment crosses a regulatory
   // threshold; a human must approvePayment() before funds move on-chain.
@@ -270,29 +351,39 @@ export function executePayment(id: string, payer: string, signature: string): Ex
     record.reviewReason = reviewReason;
     record.reviewRequestedAt = new Date().toISOString();
     notifyReview(record);
+    audit("payment.review_requested", actingUserId, { paymentId: record.id, reason: reviewReason });
     return { ok: false, status: 202, error: "pending_human_review", record, pending: true };
   }
 
-  settle(record);
-  return { ok: true, status: 200, record };
+  return settle(record);
 }
 
-/** Approve a paused payment and settle it. Caller must be a human officer. */
-export function approvePayment(id: string, approver: string): ExecuteResult {
+/** Approve a paused payment and settle it. Caller must be a compliance
+ *  officer (enforced by the route via requireRole) and must not be the payer
+ *  — separation of duties is the point of the pause. */
+export function approvePayment(id: string, approverUserId: string): ExecuteResult {
+  if (!mockAllowed()) return { ok: false, status: 503, error: "settlement_unavailable" };
+
   const record = getPayment(id);
   if (!record) return { ok: false, status: 404, error: "payment_not_found" };
   if (record.status === "settled") return { ok: true, status: 200, record, replayed: true };
   if (record.status !== "pending_review")
     return { ok: false, status: 409, error: `cannot_approve_${record.status}` };
+  if (approverUserId === (record.payerUserId ?? record.createdByUserId)) {
+    return { ok: false, status: 403, error: "reviewer_cannot_approve_own_payment", record };
+  }
 
   record.reviewedAt = new Date().toISOString();
-  record.reviewedBy = approver;
-  settle(record);
-  return { ok: true, status: 200, record };
+  record.reviewedBy = approverUserId;
+  const result = settle(record);
+  if (result.ok) {
+    audit("payment.review_approved", approverUserId, { paymentId: record.id });
+  }
+  return result;
 }
 
 /** Reject a paused payment; it is blocked and can never settle. */
-export function rejectPayment(id: string, approver: string, reason?: string): ExecuteResult {
+export function rejectPayment(id: string, approverUserId: string, reason?: string): ExecuteResult {
   const record = getPayment(id);
   if (!record) return { ok: false, status: 404, error: "payment_not_found" };
   if (record.status !== "pending_review")
@@ -301,7 +392,8 @@ export function rejectPayment(id: string, approver: string, reason?: string): Ex
   record.status = "blocked";
   record.blockedReason = reason ? `rejected_in_review: ${reason}` : "rejected_in_review";
   record.reviewedAt = new Date().toISOString();
-  record.reviewedBy = approver;
+  record.reviewedBy = approverUserId;
+  audit("payment.review_rejected", approverUserId, { paymentId: record.id, reason: record.blockedReason });
   return { ok: true, status: 200, record };
 }
 
@@ -313,9 +405,11 @@ export function listPaymentsForReview(limit = 50): PaymentRecord[] {
     .slice(0, limit);
 }
 
-/** Fire-and-forget notification to the compliance inbox that a payment paused. */
+/** Notify the compliance inbox that a payment paused. Failures are logged —
+ *  a lost notification must be visible, not silent, because an unnoticed
+ *  paused payment sits in limbo until someone opens the console. */
 function notifyReview(record: PaymentRecord): void {
-  void sendEmail({
+  sendEmail({
     to: process.env.FURLPAY_COMPLIANCE_INBOX || process.env.AMBASSADORS_INBOX || "compliance@furlpay.com",
     subject: `[HITL] Payment ${record.id} paused: ${record.reviewReason}`,
     html: `<p>A USDC payment is paused for compliance approval.</p>
@@ -328,21 +422,51 @@ function notifyReview(record: PaymentRecord): void {
 </ul>
 <p>Approve or reject in the compliance console before it can settle.</p>`,
     text: `Payment ${record.id} paused (${record.reviewReason}): $${record.amountUsdc} USDC ${record.payer} → ${record.recipient}`,
-  });
-  console.log(`[payments][HITL] ${record.id} paused for review: ${record.reviewReason}`);
+  })
+    .then((result) => {
+      if (!result.ok) {
+        log.error("HITL review notification failed", { paymentId: record.id, error: result.error });
+      }
+    })
+    .catch((e) => log.error("HITL review notification failed", { paymentId: record.id, error: (e as Error).message }));
+  log.info("payment paused for review", { paymentId: record.id, reason: record.reviewReason });
 }
 
-export function refundPayment(id: string): ExecuteResult {
+export function refundPayment(id: string, actingUserId: string): ExecuteResult {
+  // Same hard stop as settle(): the refund path below is the mock — no
+  // production refunds until a live relayer exists.
+  if (process.env.NODE_ENV === "production") {
+    return { ok: false, status: 503, error: "settlement_unavailable" };
+  }
+
   const record = getPayment(id);
   if (!record) return { ok: false, status: 404, error: "payment_not_found" };
+  // Idempotent replay: refunding an already-refunded payment returns the
+  // original outcome rather than double-crediting.
+  if (record.status === "refunded") return { ok: true, status: 200, record, replayed: true };
   if (record.status !== "settled")
     return { ok: false, status: 409, error: "only_settled_payments_refundable" };
+
+  const userId = record.payerUserId ?? record.createdByUserId;
+
+  // Reverse the settlement's balanced ledger entry (compensating transaction,
+  // never an edit) so the refund reconciles with the original posting.
+  try {
+    if (record.ledgerTxId) {
+      const entry = reverseLedgerTx(record.ledgerTxId, `Refund of ${record.id}`);
+      record.ledgerTxId = entry.id;
+    }
+  } catch (e) {
+    log.error("refund ledger reversal failed", { paymentId: record.id, error: (e as Error).message });
+    return { ok: false, status: 500, error: "ledger_error", record };
+  }
 
   record.refundTransactionHash = "0x" + crypto.randomBytes(32).toString("hex");
   record.status = "refunded";
   record.refundedAt = new Date().toISOString();
 
   recordTransaction(
+    userId,
     newTx({
       category: "transfer",
       direction: "in",
@@ -354,6 +478,7 @@ export function refundPayment(id: string): ExecuteResult {
       status: "settled",
     })
   );
+  audit("payment.refunded", actingUserId, { paymentId: record.id, amountUsdc: record.amountUsdc });
 
   return { ok: true, status: 200, record };
 }

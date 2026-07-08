@@ -1,12 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
 import { evaluateSpend } from "@/lib/services/policyEngine";
+import { requireUser } from "@/lib/authz";
 
-// POST /api/cards/spend — simulate a card authorization through the policy engine.
+// POST /api/cards/spend — simulate a card authorization through the policy
+// engine, against the SESSION user's card.
 // body: { cardId, amountUsd, merchant, mcc?, destinationAddress? }
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
   const { cardId, amountUsd, merchant, mcc, destinationAddress } = await req.json();
-  const card = db.cards.find((c) => c.id === cardId);
+  const card = auth.account.cards.find((c) => c.id === cardId);
   if (!card) return NextResponse.json({ error: "Card not found" }, { status: 404 });
 
   const decision = evaluateSpend({ card, amountUsd, mcc, destinationAddress });
@@ -20,7 +25,7 @@ export async function POST(req: NextRequest) {
     cardId,
     status: decision.approved ? "settled" : "declined",
   });
-  recordTransaction(tx);
+  recordTransaction(auth.account.user.id, tx);
 
   if (decision.approved) {
     card.limits.dailySpent += amountUsd;

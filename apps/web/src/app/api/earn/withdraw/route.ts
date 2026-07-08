@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db, newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
 import { selectVault, buildWithdrawBundle, earnIsLive } from "@/lib/services/morpho";
 import { withdrawFromPosition } from "@/lib/services/earn";
+import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +13,13 @@ export const dynamic = "force-dynamic";
 // Non-custodial: LIVE mode returns the unsigned ERC-4626 withdraw calldata for
 // the Safe to sign. MOCK mode simulates (reduce the position, credit idle USDC).
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
+  const limited = rateLimitOr429(req, "earn.withdraw", { limit: 20, windowMs: 60_000 }, account.user.id);
+  if (limited) return limited;
+
   const live = earnIsLive();
   if (process.env.NODE_ENV === "production" && !live) {
     return NextResponse.json({ ok: false, error: "earn_unavailable" }, { status: 503 });
@@ -25,7 +34,7 @@ export async function POST(req: NextRequest) {
   const vault = await selectVault(typeof body?.vault === "string" ? body.vault : undefined);
 
   if (live) {
-    const bundle = buildWithdrawBundle(vault.address, amountUsd, db.user.safeAddress);
+    const bundle = buildWithdrawBundle(vault.address, amountUsd, account.user.safeAddress);
     return NextResponse.json({
       ok: true,
       mode: "live",
@@ -41,15 +50,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: result.error }, { status: 400 });
   }
 
-  const bal = db.tokenBalances.find((b) => b.token === "USDC");
+  const bal = account.tokenBalances.find((b) => b.token === "USDC");
   if (bal) {
     bal.amount = round(bal.amount + result.withdrawnUsd);
     bal.usdValue = round(bal.usdValue + result.withdrawnUsd);
   } else {
-    db.tokenBalances.push({ token: "USDC", chain: "arbitrum", amount: result.withdrawnUsd, usdValue: result.withdrawnUsd });
+    account.tokenBalances.push({ token: "USDC", chain: "arbitrum", amount: result.withdrawnUsd, usdValue: result.withdrawnUsd });
   }
 
   recordTransaction(
+    account.user.id,
     newTx({
       category: "yield",
       direction: "in",

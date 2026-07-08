@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import { approvePayment, rejectPayment, listPaymentsForReview } from "@/lib/services/payments";
+import { requireRole } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -8,19 +8,22 @@ export const dynamic = "force-dynamic";
 //   GET  /api/payments/review            → the officer's review queue
 //   POST /api/payments/review            → { paymentId, decision: approve|reject, reason? }
 //
-// This route is NOT public (see middleware): a valid session is required, so
-// the approve/reject decision is always attributable to a human officer — the
-// boundary the analysis draws between what an agent may do (research/flag) and
-// what a person must do (approve/file).
+// Both verbs require the compliance_officer ROLE — a valid session alone is
+// not enough. The queue exposes payer/recipient/amount data, and the decision
+// must be attributable to a human officer (the service additionally refuses
+// an officer approving their own payment — separation of duties).
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireRole(req, "compliance_officer");
+  if (!auth.ok) return auth.res;
+
   return NextResponse.json({ queue: listPaymentsForReview() });
 }
 
 export async function POST(req: NextRequest) {
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const approver = claims?.sub;
-  if (!approver) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const auth = await requireRole(req, "compliance_officer");
+  if (!auth.ok) return auth.res;
+  const approver = auth.account.user.id;
 
   const body = await req.json().catch(() => ({}));
   const paymentId = typeof body.paymentId === "string" ? body.paymentId : "";
