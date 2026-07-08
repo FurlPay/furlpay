@@ -5,6 +5,7 @@ import {
   buildRequirements,
   settlementHeader,
   verifyPayment,
+  withNoStore,
 } from "@/lib/x402";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
   }
 
-  const result = verifyPayment({
+  const result = await verifyPayment({
     header: req.headers.get("x-payment"),
     resource,
     method: "GET",
@@ -42,29 +43,34 @@ export async function GET(req: NextRequest) {
 
   if (!result.ok) {
     if (result.status === 400) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
+      return withNoStore(NextResponse.json({ error: result.error }, { status: 400 }));
     }
-    // 402: quote the payment. The client pays exactly this and retries.
-    return NextResponse.json(
-      {
-        x402Version: X402_VERSION,
-        error: result.error,
-        accepts: [
-          buildRequirements({
-            resource,
-            method: "GET",
-            priceUsd: PRICE_USD,
-            description: `Mid-market FX quote ${from}->${to} (per call)`,
-          }),
-        ],
-      },
-      { status: 402 }
+    // 402: quote the payment. The client pays exactly this and retries. The
+    // quote carries a fresh single-use quoteId/binding, so it must not be
+    // cached either (Attack III).
+    return withNoStore(
+      NextResponse.json(
+        {
+          x402Version: X402_VERSION,
+          error: result.error,
+          accepts: [
+            buildRequirements({
+              resource,
+              method: "GET",
+              priceUsd: PRICE_USD,
+              description: `Mid-market FX quote ${from}->${to} (per call)`,
+            }),
+          ],
+        },
+        { status: 402 }
+      )
     );
   }
 
-  // Paid — serve the resource and attach the settlement receipt.
+  // Paid — serve the resource and attach the settlement receipt. no-store keeps
+  // the paid response out of any shared/CDN cache (Attack III cache leakage).
   const fx = await quoteFx(from, to, amount);
-  const res = NextResponse.json({ paid: true, payer: result.payer, quote: fx });
+  const res = withNoStore(NextResponse.json({ paid: true, payer: result.payer, quote: fx }));
   res.headers.set("X-PAYMENT-RESPONSE", settlementHeader(result.payer, result.txHash));
   return res;
 }

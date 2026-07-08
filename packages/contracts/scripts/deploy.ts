@@ -28,7 +28,14 @@ async function main() {
   await router.waitForDeployment();
   console.log(`FurlPayRouter:   ${await router.getAddress()}`);
 
-  const facilitator = await ethers.deployContract("X402Facilitator", [usdc, deployer.address]);
+  // Initial endorsed facilitator (the fee-payer EOA that submits settlements);
+  // defaults to the deployer. Only this caller can create settlement records.
+  const x402Facilitator = process.env.X402_FACILITATOR || deployer.address;
+  const facilitator = await ethers.deployContract("X402Facilitator", [
+    usdc,
+    deployer.address,
+    x402Facilitator,
+  ]);
   await facilitator.waitForDeployment();
   console.log(`X402Facilitator: ${await facilitator.getAddress()}`);
 

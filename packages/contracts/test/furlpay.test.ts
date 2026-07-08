@@ -29,6 +29,7 @@ describe("Furlpay contracts", () => {
     const facilitator = await ethers.deployContract("X402Facilitator", [
       await usdc.getAddress(),
       owner.address,
+      relayer.address, // endorsed facilitator (fee-payer that submits settlements)
     ]);
 
     await usdc.mint(payer.address, USDC("10000"));
@@ -329,22 +330,45 @@ describe("Furlpay contracts", () => {
     });
 
     it("rejects settling the same nonce twice", async () => {
-      const { usdc, facilitator, payer, merchant } = await loadFixture(deployFixture);
+      const { usdc, facilitator, payer, merchant, relayer } = await loadFixture(deployFixture);
       const { auth, sig } = await signAuthorization(usdc, payer, merchant.address, USDC("0.01"));
       const resourceHash = ethers.id("GET /api/travel/search");
-      await facilitator.settle(auth.from, auth.to, auth.value, auth.validAfter, auth.validBefore, auth.nonce, resourceHash, sig.v, sig.r, sig.s);
+      await facilitator.connect(relayer).settle(auth.from, auth.to, auth.value, auth.validAfter, auth.validBefore, auth.nonce, resourceHash, sig.v, sig.r, sig.s);
       await expect(
-        facilitator.settle(auth.from, auth.to, auth.value, auth.validAfter, auth.validBefore, auth.nonce, resourceHash, sig.v, sig.r, sig.s)
+        facilitator.connect(relayer).settle(auth.from, auth.to, auth.value, auth.validAfter, auth.validBefore, auth.nonce, resourceHash, sig.v, sig.r, sig.s)
       ).to.be.revertedWithCustomError(facilitator, "AlreadySettled");
     });
 
     it("rejects a tampered amount (signature is over the original value)", async () => {
-      const { usdc, facilitator, payer, merchant } = await loadFixture(deployFixture);
+      const { usdc, facilitator, payer, merchant, relayer } = await loadFixture(deployFixture);
       const { auth, sig } = await signAuthorization(usdc, payer, merchant.address, USDC("0.01"));
       const resourceHash = ethers.id("GET /api/travel/search");
       await expect(
-        facilitator.settle(auth.from, auth.to, USDC("100"), auth.validAfter, auth.validBefore, auth.nonce, resourceHash, sig.v, sig.r, sig.s)
+        facilitator.connect(relayer).settle(auth.from, auth.to, USDC("100"), auth.validAfter, auth.validBefore, auth.nonce, resourceHash, sig.v, sig.r, sig.s)
       ).to.be.revertedWithCustomError(usdc, "InvalidSignature");
+    });
+
+    it("rejects settlement from an unendorsed caller (Attack I-B preemption)", async () => {
+      const { usdc, facilitator, payer, merchant, provider } = await loadFixture(deployFixture);
+      const { auth, sig } = await signAuthorization(usdc, payer, merchant.address, USDC("0.01"));
+      const resourceHash = ethers.id("GET /api/travel/search");
+      // `provider` is an observer who copied the signed X-PAYMENT header. It is
+      // not an endorsed facilitator, so it cannot forge a settlement record here.
+      await expect(
+        facilitator.connect(provider).settle(auth.from, auth.to, auth.value, auth.validAfter, auth.validBefore, auth.nonce, resourceHash, sig.v, sig.r, sig.s)
+      ).to.be.revertedWithCustomError(facilitator, "NotFacilitator");
+      expect((await facilitator.settlements(auth.nonce)).settledAt).to.equal(0);
+    });
+
+    it("lets the owner rotate the facilitator allow-list", async () => {
+      const { usdc, facilitator, owner, payer, merchant, provider } = await loadFixture(deployFixture);
+      const { auth, sig } = await signAuthorization(usdc, payer, merchant.address, USDC("0.01"));
+      const resourceHash = ethers.id("GET /api/travel/search");
+      await expect(facilitator.connect(owner).setFacilitator(provider.address, true))
+        .to.emit(facilitator, "FacilitatorSet")
+        .withArgs(provider.address, true);
+      await facilitator.connect(provider).settle(auth.from, auth.to, auth.value, auth.validAfter, auth.validBefore, auth.nonce, resourceHash, sig.v, sig.r, sig.s);
+      expect((await facilitator.settlements(auth.nonce)).payer).to.equal(payer.address);
     });
   });
 });

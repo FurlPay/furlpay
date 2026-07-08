@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { kvSetNx, kvBackend } from "@/lib/kv";
 
 // ---------------------------------------------------------------------------
 // Hardened x402 (HTTP 402 "Payment Required") implementation.
@@ -8,9 +9,9 @@ import crypto from "crypto";
 // transferWithAuthorization and retries with an X-PAYMENT header; a
 // facilitator verifies/settles and the server releases the resource.
 //
-// This implementation explicitly defends the four weakness classes documented
-// in "Five Attacks on x402" (arXiv:2605.11781) and "Free-Riding the Agentic
-// Web" (arXiv:2605.30998):
+// This implementation explicitly defends the weakness classes documented in
+// "Five Attacks on x402" (arXiv:2605.11781) and "Free-Riding the Agentic Web"
+// (arXiv:2605.30998):
 //
 //   1. AUTHORIZATION — every field of the presented payment (amount, asset,
 //      recipient, network) is compared against the server-side quote; nothing
@@ -18,10 +19,19 @@ import crypto from "crypto";
 //   2. BINDING — quotes carry an HMAC over (resource, method, amount, expiry,
 //      quoteId), so a payment authorized for one resource cannot unlock
 //      another, and tampered quotes fail closed.
-//   3. REPLAY — quoteIds and EIP-3009 nonces are single-use (in-memory here;
-//      Redis/DB in production) and quotes expire after a short window.
-//   4. WEB-LAYER — the X-PAYMENT header is size-capped and parsed strictly;
-//      malformed input returns 400, never a 5xx or a free resource.
+//   3. REPLAY (Attack II) — quoteIds and EIP-3009 nonces are single-use via an
+//      ATOMIC cross-instance claim (Redis SET NX through lib/kv.ts). This is
+//      the fix for the serverless replay hole: an in-memory Set is per-lambda,
+//      so on Vercel the same X-PAYMENT replayed against different instances
+//      would each clear a per-instance Set and produce duplicate grants
+//      (the paper's DGR=n, 248 grants/payment). SET NX linearizes the claim
+//      across every instance. Falls back to a bounded in-memory store only
+//      when no Redis is configured (single-instance dev).
+//   4. WEB-LAYER (Attack III) — the X-PAYMENT header is size-capped and parsed
+//      strictly (malformed input returns 400, never a free resource), and paid
+//      responses must carry Cache-Control: no-store (see `noStoreHeaders` /
+//      `withNoStore`) so a shared/CDN cache never serves paid content to an
+//      unpaid client.
 //
 // Settlement is mocked (INTEGRATION_MODE=mock) — swap `settle()` for a real
 // facilitator to go live. USDC on Arbitrum One by default: the deepest
@@ -48,20 +58,58 @@ export const PAY_TO =
 
 const QUOTE_TTL_SECONDS = 300;
 const MAX_HEADER_BYTES = 8192; // web-layer: cap header size before parsing
+// How long a spent quote/nonce claim is retained. Must outlive any authorization
+// validity window so a late replay can never re-clear the claim; USDC rejects the
+// authorization on-chain once validBefore passes, so 24h is a safe ceiling.
+const REPLAY_CLAIM_TTL_SECONDS = 86_400;
 
 function secret(): Buffer {
   return Buffer.from(process.env.X402_QUOTE_SECRET || "x402_dev_quote_secret_change_me");
 }
 
-// Single-use stores (production: Redis with TTL).
-const g = globalThis as unknown as {
-  __x402?: { usedQuotes: Map<string, number>; usedNonces: Set<string> };
-};
-const store = g.__x402 ?? (g.__x402 = { usedQuotes: new Map(), usedNonces: new Set() });
+/** Atomically claim a single-use token across all instances (Redis SET NX).
+ *  Returns true iff this caller is the first to claim it. */
+async function claimOnce(kind: "quote" | "nonce", token: string): Promise<boolean> {
+  return kvSetNx(`x402:${kind}:${token}`, Math.floor(Date.now() / 1000), REPLAY_CLAIM_TTL_SECONDS);
+}
 
-function gcQuotes() {
-  const now = Math.floor(Date.now() / 1000);
-  for (const [id, exp] of store.usedQuotes) if (exp < now - 3600) store.usedQuotes.delete(id);
+// Whether cross-instance replay protection is durable. When no Redis is
+// configured the claim falls back to a per-instance store — correct on one
+// instance, but callers should surface this in prod readiness checks.
+export const replayProtectionDurable = kvBackend === "redis";
+
+// ── Attack I-A: confirmation-depth policy (paper Corollary 10) ─────────────
+//
+// x402's revert-grant attack: a server that releases a resource on a non-final
+// settlement can be left unpaid if the tx is later reorged. The mitigation is
+// to wait for k confirmations scaled to the resource value. Base/Arbitrum L2
+// blocks are ~2s; the paper recommends k≥3 for sub-$1 resources (ε<1e-2) and
+// k≥12 for resources above $10 (ε<1e-4). A real settler must not report
+// `confirmed` until it has observed at least this depth.
+/** Required confirmation depth for a settlement of `amountAtomic` USDC (6dp). */
+export function requiredConfirmations(amountAtomic: string): number {
+  let usd: number;
+  try {
+    usd = Number(BigInt(amountAtomic)) / 1e6;
+  } catch {
+    usd = Infinity; // unparseable → demand the strongest gate
+  }
+  if (usd < 1) return 3;
+  if (usd < 10) return 6;
+  return 12;
+}
+
+// ── Attack III: cache hygiene ──────────────────────────────────────────────
+/** Headers that keep a payment-gated response out of every shared/CDN cache. */
+export const noStoreHeaders: Record<string, string> = {
+  "Cache-Control": "no-store, private, max-age=0",
+  Vary: "X-PAYMENT",
+};
+
+/** Stamp no-store on a Response (paid resources and fresh 402 quotes alike). */
+export function withNoStore<T extends { headers: Headers }>(res: T): T {
+  for (const [k, v] of Object.entries(noStoreHeaders)) res.headers.set(k, v);
+  return res;
 }
 
 export interface PaymentRequirements {
@@ -146,14 +194,15 @@ export type VerifyResult =
 
 /**
  * Verify an X-PAYMENT header against the server-side expectation for this
- * resource. Fails closed on any mismatch.
+ * resource. Fails closed on any mismatch. Async because the single-use claim
+ * is an atomic cross-instance operation (Redis SET NX) — see Attack II above.
  */
-export function verifyPayment(opts: {
+export async function verifyPayment(opts: {
   header: string | null;
   resource: string;
   method: string;
   priceUsd: number;
-}): VerifyResult {
+}): Promise<VerifyResult> {
   const { header, resource, method } = opts;
   const expectedAmount = String(Math.round(opts.priceUsd * 1e6));
 
@@ -196,21 +245,28 @@ export function verifyPayment(opts: {
     return { ok: false, status: 402, error: "Quote binding mismatch (payment bound to a different resource)" };
   }
 
-  // ── replay hardening: expiry window + single-use quote and nonce ──
+  // ── replay hardening: expiry window, then ATOMIC single-use claim ──
   const now = Math.floor(Date.now() / 1000);
   if (now > expiresAt) return { ok: false, status: 402, error: "Quote expired (re-request the 402 quote)" };
   const vAfter = Number(auth.validAfter), vBefore = Number(auth.validBefore);
   if (Number.isFinite(vAfter) && now < vAfter) return { ok: false, status: 402, error: "Authorization not yet valid" };
   if (Number.isFinite(vBefore) && now > vBefore) return { ok: false, status: 402, error: "Authorization expired" };
-  if (store.usedQuotes.has(quoteId)) return { ok: false, status: 402, error: "Quote already redeemed (replay rejected)" };
-  if (store.usedNonces.has(auth.nonce)) return { ok: false, status: 402, error: "Authorization nonce already used (replay rejected)" };
+
+  // Claim the EIP-3009 nonce first (the money-level single-use token), then the
+  // quote. SET NX linearizes both across every serverless instance, so a
+  // replay — same instance, another instance, or concurrent — loses the claim
+  // and is rejected here before any resource is released (Attack II).
+  if (!(await claimOnce("nonce", auth.nonce))) {
+    return { ok: false, status: 402, error: "Authorization nonce already used (replay rejected)" };
+  }
+  if (!(await claimOnce("quote", quoteId))) {
+    return { ok: false, status: 402, error: "Quote already redeemed (replay rejected)" };
+  }
 
   // ── settle (mock facilitator) ──
-  // Production: POST to the facilitator's /verify then /settle and check the
-  // on-chain result before releasing the resource.
-  store.usedQuotes.set(quoteId, expiresAt);
-  store.usedNonces.add(auth.nonce);
-  gcQuotes();
+  // Production: POST to the facilitator's /verify then /settle, which gates on
+  // `requiredConfirmations(auth.value)` before reporting success (Attack I-A),
+  // and only then release the resource.
   const txHash = "0x" + crypto.randomBytes(32).toString("hex");
   return { ok: true, payer: auth.from, txHash };
 }

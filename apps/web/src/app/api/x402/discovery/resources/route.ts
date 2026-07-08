@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { listResources } from "@/lib/x402Registry";
+import { listResourcesRanked } from "@/lib/x402Registry";
 import { PAY_TO, USDC_ASSET, X402_VERSION } from "@/lib/x402";
 import { SITE } from "@/lib/seo/schema";
 
@@ -38,7 +38,9 @@ function clampInt(v: string | null, def: number, min: number, max: number): numb
 }
 
 export function GET(req: NextRequest) {
-  const all = listResources();
+  // Per-host-diversified order (Attack IV E2) so no single registrant can
+  // dominate the shortlist an agent sees.
+  const all = listResourcesRanked();
   const limit = clampInt(req.nextUrl.searchParams.get("limit"), DEFAULT_LIMIT, 1, MAX_LIMIT);
   const offset = clampInt(req.nextUrl.searchParams.get("offset"), 0, 0, Number.MAX_SAFE_INTEGER);
 
