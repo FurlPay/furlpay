@@ -7,6 +7,7 @@ import {
   RP_ID,
   RP_NAME,
   addCredential,
+  deviceLabelFromUA,
   getCredentials,
   setChallenge,
   takeChallenge,
@@ -68,6 +69,8 @@ export async function POST(req: NextRequest) {
     publicKey: credential.publicKey,
     counter: credential.counter,
     transports: body.response?.transports,
+    name: deviceLabelFromUA(req.headers.get("user-agent")),
+    createdAt: new Date().toISOString(),
   });
 
   const token = await signSession({ sub: user.id, safe: user.safeAddress });

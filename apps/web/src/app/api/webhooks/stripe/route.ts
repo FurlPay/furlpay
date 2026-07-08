@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/payments/stripe";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
-import { getAccount, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
+import { getAccount, newTx, recordTransaction, setSubscriptionTier, DEMO_USER_ID } from "@/lib/store";
+import { TIER_BY_PLAN } from "@/lib/entitlements";
 import { recordMovement } from "@/lib/ledger";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
@@ -79,6 +80,35 @@ export async function POST(request: Request) {
         audit("webhook.processed", target.user.id, { provider: "stripe", event: event.type, pi: pi.id });
       } else {
         log.warn("stripe payment_intent.succeeded without resolvable user", { pi: pi.id, userId });
+      }
+    }
+
+    // Subscription lifecycle (extension Pro/Developer plans — playbook §4).
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      if (session.mode === "subscription") {
+        const userId = (session.metadata?.furlpayUserId as string) || "";
+        const plan = (session.metadata?.plan as string) || "";
+        const tier = TIER_BY_PLAN[plan];
+        if (getAccount(userId) && tier) {
+          setSubscriptionTier(userId, tier);
+          audit("billing.subscription_started", userId, { plan, session: session.id });
+        } else {
+          log.warn("stripe subscription checkout without resolvable user/plan", {
+            session: session.id,
+            userId,
+            plan,
+          });
+        }
+      }
+    }
+
+    if (event.type === "customer.subscription.deleted") {
+      const sub = event.data.object as Stripe.Subscription;
+      const userId = (sub.metadata?.furlpayUserId as string) || "";
+      if (getAccount(userId)) {
+        setSubscriptionTier(userId, "Standard");
+        audit("billing.subscription_ended", userId, { subscription: sub.id });
       }
     }
 

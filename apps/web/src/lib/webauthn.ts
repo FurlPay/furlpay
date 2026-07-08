@@ -9,6 +9,9 @@ export interface StoredCredential {
   publicKey: Uint8Array;
   counter: number;
   transports?: string[];
+  name?: string; // human label derived from the registering device's UA
+  createdAt?: string; // ISO timestamp
+  lastUsedAt?: string; // ISO timestamp, stamped on each verified assertion
 }
 
 interface WebAuthnState {
@@ -108,5 +111,41 @@ export function addCredential(userId: string, cred: StoredCredential) {
 export function updateCounter(userId: string, credId: string, counter: number) {
   const list = state.credentials.get(userId) ?? [];
   const c = list.find((x) => x.id === credId);
-  if (c) c.counter = counter;
+  if (c) {
+    c.counter = counter;
+    c.lastUsedAt = new Date().toISOString();
+  }
+}
+export function removeCredential(userId: string, credId: string): boolean {
+  const list = state.credentials.get(userId) ?? [];
+  const next = list.filter((x) => x.id !== credId);
+  if (next.length === list.length) return false;
+  state.credentials.set(userId, next);
+  return true;
+}
+
+/** Coarse device label from the registering request's User-Agent — for display only. */
+export function deviceLabelFromUA(ua: string | null): string {
+  const s = ua ?? "";
+  const os = /iPhone|iPad/.test(s)
+    ? "iOS"
+    : /Android/.test(s)
+      ? "Android"
+      : /Mac OS X/.test(s)
+        ? "macOS"
+        : /Windows/.test(s)
+          ? "Windows"
+          : /Linux/.test(s)
+            ? "Linux"
+            : "Unknown OS";
+  const browser = /Edg\//.test(s)
+    ? "Edge"
+    : /Firefox\//.test(s)
+      ? "Firefox"
+      : /Chrome\//.test(s)
+        ? "Chrome"
+        : /Safari\//.test(s)
+          ? "Safari"
+          : "Browser";
+  return `${browser} on ${os}`;
 }

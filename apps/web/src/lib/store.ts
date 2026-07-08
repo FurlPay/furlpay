@@ -405,6 +405,15 @@ export function updateUser(userId: string, patch: Partial<Pick<User, UpdatableFi
   indexUser(account.user);
 }
 
+/** Dedicated subscription-tier transition — only billing checkout (sandbox
+ *  mode) and the Stripe webhook call this; like kycTier it is deliberately
+ *  NOT reachable through updateUser's identity allow-list. */
+export function setSubscriptionTier(userId: string, tier: User["tier"]): void {
+  const account = state.accounts.get(userId);
+  if (!account) return;
+  account.user.tier = tier;
+}
+
 /** Dedicated KYC transition — only the KYC webhook/flow calls this; it is
  *  deliberately NOT reachable through updateUser's identity allow-list. */
 export function setKycStatus(userId: string, status: User["kycStatus"], tier?: User["kycTier"]): void {

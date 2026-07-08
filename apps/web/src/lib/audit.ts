@@ -27,7 +27,11 @@ export type AuditEvent =
   | "account.funded"
   | "agent.key_registered"
   | "webhook.processed"
-  | "webhook.failed";
+  | "webhook.failed"
+  | "billing.checkout_created"
+  | "billing.sandbox_upgrade"
+  | "billing.subscription_started"
+  | "billing.subscription_ended";
 
 export interface AuditEntry {
   id: number;
