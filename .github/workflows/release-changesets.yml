@@ -1,0 +1,49 @@
+name: Release (changesets)
+
+# Monorepo release automation. On every push to main, the changesets action
+# either (a) opens/updates a "Version Packages" PR that bumps versions and
+# changelogs from pending .changeset/*.md entries, or (b) when that PR merges,
+# publishes every changed public package to npm with build provenance.
+#
+# Auth: prefers npm Trusted Publishing (OIDC — configure each package on
+# npmjs.com under Settings > Trusted Publisher, pointing at this repo and this
+# workflow file). NPM_TOKEN is the fallback for packages not yet migrated.
+#
+# Contributor flow:  npx changeset  ->  commit the generated .changeset/*.md
+# with your PR  ->  merge  ->  the Version Packages PR carries the release.
+on:
+  push:
+    branches:
+      - main
+
+concurrency: release-changesets
+
+permissions:
+  contents: write # version PR commits + git tags
+  pull-requests: write # the Version Packages PR
+  id-token: write # OIDC — npm provenance / trusted publishing
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: "https://registry.npmjs.org"
+      - run: npm install
+      - name: Test publishable packages
+        run: npm test
+      - name: Version or publish
+        uses: changesets/action@v1
+        with:
+          publish: npx changeset publish
+          title: "chore: version packages"
+          commit: "chore: version packages"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"
