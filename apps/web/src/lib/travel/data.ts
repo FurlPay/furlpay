@@ -484,19 +484,21 @@ export interface CarRental {
   freeCancellation: boolean;
   unlimitedMileage: boolean;
   insurance: "Basic" | "Full cover" | "Zero excess";
-  image: string; // gradient token
+  image: string; // gradient token (fallback when the photo fails to load)
+  photo: string; // real photo of the model (hotlinked Pexels/Unsplash CDN)
 }
 
-const CAR_MODELS: Array<[string, string, CarCategory, number, number]> = [
-  ["Toyota", "Yaris", "Economy", 5, 4],
-  ["Fiat", "500", "Economy", 4, 2],
-  ["VW", "Golf", "Compact", 5, 4],
-  ["Škoda", "Octavia", "Compact", 5, 4],
-  ["Toyota", "RAV4", "SUV", 5, 4],
-  ["Kia", "Sportage", "SUV", 5, 4],
-  ["Tesla", "Model 3", "Luxury", 5, 4],
-  ["BMW", "5 Series", "Luxury", 5, 4],
-  ["Mercedes", "V-Class", "Van", 8, 4],
+// Model photos are hand-verified to show the actual car named on the card.
+const CAR_MODELS: Array<[string, string, CarCategory, number, number, string]> = [
+  ["Toyota", "Yaris", "Economy", 5, 4, "https://images.pexels.com/photos/5733711/pexels-photo-5733711.jpeg?auto=compress&cs=tinysrgb&w=800"],
+  ["Fiat", "500", "Economy", 4, 2, "https://images.pexels.com/photos/19959458/pexels-photo-19959458.jpeg?auto=compress&cs=tinysrgb&w=800"],
+  ["VW", "Golf", "Compact", 5, 4, "https://images.unsplash.com/photo-1471444928139-48c5bf5173f8?auto=format&fit=crop&w=800&q=70"],
+  ["Škoda", "Octavia", "Compact", 5, 4, "https://images.pexels.com/photos/19244016/pexels-photo-19244016.jpeg?auto=compress&cs=tinysrgb&w=800"],
+  ["Toyota", "RAV4", "SUV", 5, 4, "https://images.pexels.com/photos/2036544/pexels-photo-2036544.jpeg?auto=compress&cs=tinysrgb&w=800"],
+  ["Kia", "Sportage", "SUV", 5, 4, "https://images.pexels.com/photos/30587817/pexels-photo-30587817.jpeg?auto=compress&cs=tinysrgb&w=800"],
+  ["Tesla", "Model 3", "Luxury", 5, 4, "https://images.unsplash.com/photo-1560958089-b8a1929cea89?auto=format&fit=crop&w=800&q=70"],
+  ["BMW", "5 Series", "Luxury", 5, 4, "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&w=800&q=70"],
+  ["Mercedes", "V-Class", "Van", 8, 4, "https://images.pexels.com/photos/17455630/pexels-photo-17455630.jpeg?auto=compress&cs=tinysrgb&w=800"],
 ];
 const SUPPLIERS = ["Hertz", "Avis", "Enterprise", "Sixt", "Europcar", "Budget"];
 const FUELS: CarRental["fuel"][] = ["Petrol", "Hybrid", "Electric", "Diesel"];
@@ -512,7 +514,7 @@ export function generateCars(
   const count = opts.count ?? 12;
   let cars: CarRental[] = Array.from({ length: count }, (_, i) => {
     const s = ((seed >> (i % 22)) ^ (i * 2654435761)) >>> 0;
-    const [make, model, category, seats, doors] = CAR_MODELS[(seed + i) % CAR_MODELS.length];
+    const [make, model, category, seats, doors, photo] = CAR_MODELS[(seed + i) % CAR_MODELS.length];
     const fuel = make === "Tesla" ? "Electric" : FUELS[s % FUELS.length];
     return {
       id: `car_${(seed % 0xffff).toString(16)}_${i}`,
@@ -530,6 +532,7 @@ export function generateCars(
       unlimitedMileage: (s & 4) === 0,
       insurance: INSURANCE[(s >>> 8) % INSURANCE.length],
       image: GRADIENTS[i % GRADIENTS.length],
+      photo,
     };
   });
   if (opts.category) cars = cars.filter((x) => x.category === opts.category);

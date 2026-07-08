@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Users, DoorOpen, Fuel, Cog, ShieldCheck, Infinity as InfinityIcon, CarFront } from "lucide-react";
+import { Users, DoorOpen, Fuel, Cog, ShieldCheck, Infinity as InfinityIcon } from "lucide-react";
 import { Pill } from "@/components/ui";
 import type { CarRental } from "@/lib/travel/data";
 
@@ -11,15 +11,23 @@ export default function CarRentalCard({ car, days }: { car: CarRental; days: num
   return (
     <div className="overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/20">
       <div className={`relative h-32 bg-gradient-to-br ${car.image}`}>
+        {car.photo && (
+          <img
+            src={car.photo}
+            alt={`${car.make} ${car.model}`}
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={(e) => (e.currentTarget.style.display = "none")}
+          />
+        )}
+        {/* readability scrim over the photo for the pills */}
+        <div className="absolute inset-x-0 top-0 h-14 bg-gradient-to-b from-black/50 to-transparent" />
         <div className="absolute left-3 top-3 flex gap-1.5">
           <Pill tone="gain">2% back in USDC</Pill>
           {car.fuel === "Electric" && <Pill tone="accent">EV</Pill>}
         </div>
         <span className="absolute right-3 top-3 rounded-full bg-black/50 px-2 py-1 text-[11px] font-semibold text-white">
           {car.category}
-        </span>
-        <span className="absolute bottom-3 left-3 flex h-10 w-10 items-center justify-center rounded-xl bg-black/40 backdrop-blur-sm">
-          <CarFront className="h-6 w-6 text-white" />
         </span>
       </div>
       <div className="p-4">
