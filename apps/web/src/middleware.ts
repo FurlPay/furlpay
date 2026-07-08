@@ -51,6 +51,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/hotels", // programmatic crypto-hotel city landing pages (public)
   "/compare", // SEO comparison pages (public)
   "/integrations", // pSEO framework-integration quickstarts (public)
+  "/careers", // job board — per-role pages must be crawlable for Google for Jobs
   "/hackathon", // FurlPay Build Challenge landing + submissions (public)
   "/swag", // FurlPay Swag Center store (public)
   "/newsletter", // subscribe / manage preferences (public)
