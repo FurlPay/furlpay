@@ -30,6 +30,74 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // LEAP East 2026 — APAC stablecoin & agentic payments analysis --------
+  {
+    slug: "leap-east-2026-hong-kong-stablecoin-agentic-payments",
+    title: "LEAP East 2026: Hong Kong Just Became the Test Bed for Stablecoin Settlement and Agent Payments",
+    excerpt:
+      "The Saudi-backed LEAP exhibition opened its first international edition in Hong Kong this week — and the agenda reads like a roadmap for regulated stablecoin money movement in APAC. Licensed issuers, Japan's newly approved JPYSC and RLUSD, and AI agents paying per request: here is what it means, and where Furlpay's rails fit.",
+    category: "compliance",
+    date: "2026-07-08",
+    readMins: 7,
+    author: "Furlpay Team",
+    body: [
+      {
+        type: "p",
+        text: `LEAP East 2026 opened this week at the Hong Kong Convention and Exhibition Centre — the [first international edition](https://onegiantleap.com/Leap-in-the-news/leap-takes-giant-stride-inaugural-leap-east-confirmed-hong-kong-july-2026) of the Saudi-backed LEAP technology exhibition, running 8-10 July with hundreds of speakers and exhibitors across fintech, AI and Web3. The location is not incidental. Hong Kong has spent the past year building the most explicit regulatory on-ramp for stablecoin issuers anywhere in Asia, and the conference agenda — settlement infrastructure, tokenized deposits, agentic commerce — reads like a public roadmap for where regulated crypto payments go next.`,
+      },
+      { type: "h2", text: "The regulatory scaffolding is real now" },
+      {
+        type: "p",
+        text: `Hong Kong's [Policy Statement 2.0 on digital assets](https://www.info.gov.hk/gia/general/202506/26/P2025062600269.htm) introduced the LEAP framework — legal streamlining, expanded tokenized products, advancing use cases, and people/partnership development — with a unified licensing regime covering exchanges, stablecoin issuers, dealers and custodians. In March 2026 that framework produced its first concrete output: the HKMA [granted the first stablecoin issuer licenses](https://www.coindesk.com/policy/2026/03/24/hong-kong-awards-first-stablecoin-licenses-to-hsbc-standard-chartered-led-group) to HSBC and to Anchorpoint Financial, a Standard Chartered-led venture that includes Animoca Brands. Bank-issued, reserve-audited stablecoins are no longer a consultation paper in Hong Kong; they are licensed products.`,
+      },
+      {
+        type: "p",
+        text: `Japan reached the same milestone weeks earlier by a different route. The JFSA approved Ripple's RLUSD as the country's first "Type 4" electronic payment instrument, [live via SBI VC Trade since late June](https://www.coindesk.com/markets/2026/06/25/ripple-s-rlusd-stablecoin-goes-live-in-japan-after-regulatory-approval) (Ethereum-only, capped at roughly ¥1M per transaction), while SBI's yen-denominated JPYSC launched uncapped for institutional settlement. Two of Asia's three largest financial centers now have licensed stablecoins issued by or with major banks — a template the rest of APAC can copy.`,
+      },
+      { type: "h2", text: "From pilots to systems" },
+      {
+        type: "p",
+        text: `The recurring theme on the LEAP East stage is the shift from experimental pilots to a systems phase: stablecoins as standard settlement infrastructure alongside ACH and SWIFT, not a parallel curiosity. That matches what we see on the merchant side. Cross-border settlement in USDC clears in seconds for cents, every payment carries an on-chain receipt, and treasury teams get reconciliation for free. The blocker was never the technology — it was the absence of licensed issuers and clear supervisory expectations. That blocker is now being removed jurisdiction by jurisdiction.`,
+      },
+      {
+        type: "ul",
+        items: [
+          "Licensed issuance: HSBC and Anchorpoint in Hong Kong; RLUSD and JPYSC under the JFSA in Japan.",
+          "Unified VASP licensing under the LEAP framework, covering custody and dealing, not just exchanges.",
+          "Sandboxes for tokenized deposits, letting banks settle on-chain under regulatory supervision.",
+        ],
+      },
+      { type: "h2", text: "The second story: machines that pay" },
+      {
+        type: "p",
+        text: `The other dominant track is autonomous commerce. With open protocols like x402 for pay-per-request APIs and AP2 for agent payment mandates, AI agents can now hold budgets and settle nanopayments — fractions of a cent for compute, data feeds and API calls — on low-latency L2 chains like Base and Arbitrum. The critical design pattern discussed across panels is the pre-authorized spending mandate: cryptographically bound limits (budget, merchant category, expiry) that let an agent transact without ever touching a master key.`,
+      },
+      {
+        type: "p",
+        text: `This is precisely the architecture Furlpay ships today. [@furlpay/agent-trust](https://github.com/FurlPay/agent-trust) implements user-signed spend mandates — max total, max per booking, merchant allowlists, expiry, single-use — with RFC 9421 HTTP signatures, and [x402-guard](https://github.com/FurlPay/x402-guard) hardens the settlement path against the known free-riding attack classes. Our CLI's MCP server, now listed on the [official MCP Registry](https://registry.modelcontextprotocol.io), gives any AI agent 18 financial tools: balances, transfers, swaps, fractional stock orders, travel booking and yield deposits, all settling in USDC.`,
+      },
+      { type: "h2", text: "What we take home from it" },
+      {
+        type: "table",
+        headers: ["LEAP East 2026 trend", "Furlpay alignment"],
+        rows: [
+          ["APAC licensed-stablecoin corridors", "USDC-native settlement on Arbitrum and Base, FX-aware routing"],
+          ["Tokenized-deposit sandboxes", "Safe/ERC-4337 smart accounts via the Account Kit"],
+          ["Agentic micropayments (x402, AP2)", "MCP server, agent-trust mandates, x402-guard"],
+          ["Verifiable settlement", "On-chain receipt for every payment"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: `Our read: the compliance-aware corridor is the product. As JPYSC, RLUSD and Hong Kong's licensed issuers come online, the winners will be platforms that can route a payment through the right stablecoin, the right chain and the right disclosure regime automatically — for humans and for their agents. That routing layer is what we build. If you are working on APAC settlement or agent payments, [talk to us](/talk-to-us) or start with the [developer docs](/docs).`,
+      },
+      {
+        type: "quote",
+        text: `Hong Kong spent two years writing the rulebook. LEAP East is the moment the industry showed up to play by it.`,
+      },
+    ],
+  },
   // Trip.com stablecoins — timely news post -----------------------------
   {
     slug: "trip-com-stablecoin-payments-what-it-signals",
