@@ -70,6 +70,44 @@ const TOOLS = [
     },
     handler: (a) => api("POST", "/api/compliance/kyc", a),
   },
+  {
+    name: "earn_vaults",
+    description: "List FurlPay Earn yield vaults (Morpho USDC on Arbitrum) with live net APY and TVL.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    handler: () => api("GET", "/api/earn/vaults"),
+  },
+  {
+    name: "earn_balance",
+    description: "Get the user's FurlPay Earn positions — principal, current value and yield earned.",
+    inputSchema: { type: "object", properties: {}, additionalProperties: false },
+    handler: () => api("GET", "/api/earn/position"),
+  },
+  {
+    name: "earn_deposit",
+    description: "Deposit idle USDC into a Morpho yield vault. In live mode returns the ERC-4626 tx bundle to sign (non-custodial).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        amountUsd: { type: "number" },
+        vault: { type: "string", description: "Optional vault address; defaults to highest net APY." },
+      },
+      required: ["amountUsd"],
+    },
+    handler: (a) => api("POST", "/api/earn/deposit", a),
+  },
+  {
+    name: "earn_withdraw",
+    description: "Withdraw USDC from a Morpho Earn position. In live mode returns the ERC-4626 withdraw tx to sign.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        amountUsd: { type: "number" },
+        vault: { type: "string", description: "Optional vault address; defaults to highest net APY." },
+      },
+      required: ["amountUsd"],
+    },
+    handler: (a) => api("POST", "/api/earn/withdraw", a),
+  },
 ];
 
 async function api(method, path, body) {

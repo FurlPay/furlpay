@@ -1,44 +1,30 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/store";
+import { fetchMorphoVaults, earnIsLive } from "@/lib/services/morpho";
+import { earnSummary } from "@/lib/services/earn";
 
 export const dynamic = "force-dynamic";
 
-// GET /api/earn — stablecoin yield products and the user's active positions.
-// Mock/demo: APYs and positions are deterministic. A live build sources rates
-// from the vault adapters and positions from the ledger.
-const PRODUCTS = [
-  { token: "USDC", apy: 8.2, risk: "Low", protocol: "Furlpay Earn · Aave v3", min: 10 },
-  { token: "USDT", apy: 9.5, risk: "Low", protocol: "Furlpay Earn · Morpho", min: 10 },
-  { token: "EURC", apy: 6.4, risk: "Low", protocol: "Furlpay Earn · Aave v3", min: 10 },
-  { token: "ETH", apy: 3.1, risk: "Medium", protocol: "Lido stETH", min: 0.01 },
-];
+const DISCLOSURE =
+  "Yields are variable and not guaranteed. Deposits go directly into curated ERC-4626 vaults (Morpho) — a DeFi protocol interaction, not a deposit account or securities offering. Smart-contract and market risk apply. Withdraw anytime.";
 
-// Deterministic demo positions the user already holds.
-const POSITIONS = [
-  { token: "USDC", principal: 2500, apy: 8.2, earnedUsd: 41.09, days: 73 },
-  { token: "USDT", principal: 640.12, apy: 9.5, earnedUsd: 12.18, days: 51 },
-];
-
+// GET /api/earn — FurlPay Earn overview: live Morpho vaults (net APY/TVL), the
+// user's positions (valued on-chain in live mode), idle USDC and a summary.
 export async function GET() {
-  const totalPrincipal = POSITIONS.reduce((s, p) => s + p.principal, 0);
-  const totalEarned = POSITIONS.reduce((s, p) => s + p.earnedUsd, 0);
-  const blendedApy =
-    totalPrincipal > 0
-      ? POSITIONS.reduce((s, p) => s + p.apy * p.principal, 0) / totalPrincipal
-      : 0;
-  // Projected next-year yield at the blended rate.
-  const projectedYearly = (totalPrincipal * blendedApy) / 100;
+  const [vaults, valued] = await Promise.all([fetchMorphoVaults(), earnSummary()]);
+  const idleUsdc = db.tokenBalances.find((b) => b.token === "USDC")?.usdValue ?? 0;
 
   return NextResponse.json({
-    products: PRODUCTS,
-    positions: POSITIONS,
-    summary: {
-      totalPrincipal,
-      totalEarned,
-      blendedApy: Number(blendedApy.toFixed(2)),
-      projectedYearly: Number(projectedYearly.toFixed(2)),
-    },
-    idleUsdc:
-      db.tokenBalances.find((b) => b.token === "USDC")?.usdValue ?? 0,
+    live: earnIsLive(),
+    vaults,
+    positions: valued.positions,
+    summary: valued.summary,
+    idleUsdc: round(idleUsdc),
+    bestApy: vaults.length ? Math.max(...vaults.map((v) => v.netApy)) : 0,
+    disclosure: DISCLOSURE,
   });
+}
+
+function round(n: number): number {
+  return Math.round(n * 100) / 100;
 }
