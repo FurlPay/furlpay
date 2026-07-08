@@ -13,6 +13,9 @@ import { audit } from "@/lib/audit";
 //  - elsewhere only when the deployment opts in with ALLOW_GUEST_LOGIN=1
 //    (server-side var — the NEXT_PUBLIC_ALLOW_GUEST flag only shows the
 //    button in the UI and authorizes nothing).
+//
+// Set these flags as Preview-scoped env vars in the Vercel dashboard, never in
+// vercel.json build.env — that applies to production deploys too.
 export async function POST() {
   if (process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview") {
     return NextResponse.json({ error: "Guest login disabled" }, { status: 403 });
