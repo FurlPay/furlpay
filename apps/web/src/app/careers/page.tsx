@@ -1,8 +1,13 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import { Code2, Users, ShieldCheck, ScrollText, GitBranch } from "lucide-react";
+import { Code2, Users, ShieldCheck, ScrollText, GitBranch, ArrowRight } from "lucide-react";
 import MarketingBar from "@/components/marketing/MarketingBar";
 import CareersForm from "@/components/marketing/CareersForm";
+import StackExplorer from "@/components/careers/StackExplorer";
+import TerminalPlayground from "@/components/careers/TerminalPlayground";
+import EquityCalculator from "@/components/careers/EquityCalculator";
+import GoodFirstIssues from "@/components/careers/GoodFirstIssues";
+import { visibleJobs } from "@/lib/careers/jobs";
 
 export const metadata: Metadata = {
   title: "Careers",
@@ -24,17 +29,6 @@ const BUILD = [
   "2-of-2 MPC custody with passkey-bound device shares and an HSM policy gate.",
   "A double-entry ledger, cross-chain routing (CCTP/Li.Fi), and gas-sponsored transfers.",
   "Open-source SDKs in 4 languages + a CLI + React checkout Elements.",
-];
-
-const FUTURE_ROLES = [
-  { role: "Senior Full-Stack Engineer", team: "Engineering", loc: "Remote (Global)" },
-  { role: "Solana / Rust Engineer", team: "Engineering", loc: "Remote (Global)" },
-  { role: "Developer Relations", team: "Growth", loc: "Remote (US/EU/India)" },
-  { role: "Security Engineer", team: "Security", loc: "Remote (Global)" },
-  { role: "Compliance Generalist", team: "Legal", loc: "Remote (US/EU/India)" },
-  { role: "Technical Writer", team: "Product", loc: "Remote · Contract" },
-  { role: "Community Manager", team: "Growth", loc: "Remote (Global)" },
-  { role: "Product Designer", team: "Product", loc: "Remote (Global)" },
 ];
 
 const OSS = [
@@ -108,29 +102,59 @@ export default function CareersPage() {
           ))}
         </ul>
 
-        {/* Future roles */}
-        <h2 className="mt-16 text-[24px] font-bold tracking-tighter">Roles we&apos;ll open</h2>
-        <p className="mt-2 text-[14px] text-textSecondary">Coming soon after our pre-seed. Register interest and we&apos;ll reach out first.</p>
-        <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
-          <table className="w-full text-left text-[14px]">
-            <thead className="bg-white/[0.03] text-textSecondary">
-              <tr>
-                <th className="px-5 py-3 font-semibold">Role</th>
-                <th className="px-5 py-3 font-semibold">Team</th>
-                <th className="px-5 py-3 font-semibold">Location</th>
-              </tr>
-            </thead>
-            <tbody>
-              {FUTURE_ROLES.map((r) => (
-                <tr key={r.role} className="border-t border-white/5">
-                  <td className="px-5 py-3 font-medium">{r.role}</td>
-                  <td className="px-5 py-3 text-textSecondary">{r.team}</td>
-                  <td className="px-5 py-3 text-textMuted">{r.loc}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        {/* Try the product — stack + terminal */}
+        <div className="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div>
+            <h2 className="text-[24px] font-bold tracking-tighter">The stack, and why</h2>
+            <p className="mb-5 mt-2 text-[14px] text-textSecondary">
+              Every choice has a reason you can check. Expand any layer.
+            </p>
+            <StackExplorer />
+          </div>
+          <div>
+            <h2 className="text-[24px] font-bold tracking-tighter">Try it before you apply</h2>
+            <p className="mb-5 mt-2 text-[14px] text-textSecondary">
+              A simulated slice of the real CLI. The gas numbers are measured, not marketing.
+            </p>
+            <TerminalPlayground />
+          </div>
         </div>
+
+        {/* Roles */}
+        <h2 className="mt-16 text-[24px] font-bold tracking-tighter">Roles we&apos;ll open</h2>
+        <p className="mt-2 text-[14px] text-textSecondary">
+          Every role has a public page with real scope, salary band and equity — before we&apos;re
+          even hiring. Register interest and you&apos;ll hear first.
+        </p>
+        <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {visibleJobs().map((j) => (
+            <Link
+              key={j.slug}
+              href={`/careers/${j.slug}`}
+              className="glass-card group flex items-center justify-between gap-3 p-5 transition-colors hover:border-neon/30"
+            >
+              <div>
+                <p className="text-[15px] font-bold">{j.title}</p>
+                <p className="mt-1 text-[12.5px] text-textSecondary">
+                  {j.team} · {j.location}
+                </p>
+                <p className="mt-1.5 text-[12.5px] text-textMuted">
+                  ${(j.salaryMinUsd / 1000).toFixed(0)}K–${(j.salaryMaxUsd / 1000).toFixed(0)}K · {j.equityBand} equity
+                </p>
+              </div>
+              <ArrowRight className="h-4 w-4 shrink-0 text-textMuted transition-colors group-hover:text-neon" />
+            </Link>
+          ))}
+        </div>
+
+        {/* Transparent comp modeling */}
+        <h2 className="mt-16 text-[24px] font-bold tracking-tighter">Model your offer</h2>
+        <p className="mb-5 mt-2 max-w-2xl text-[14px] text-textSecondary">
+          Salary bands and equity ranges are published on every role. Drag the sliders to see what
+          the equity side could be worth — dilution assumptions included, because leaving them out
+          is how equity math lies.
+        </p>
+        <EquityCalculator />
 
         {/* Open source → hire */}
         <h2 className="mt-16 flex items-center gap-2 text-[24px] font-bold tracking-tighter">
@@ -155,6 +179,9 @@ export default function CareersPage() {
             </a>
           ))}
         </div>
+
+        {/* Live good-first-issues (renders nothing if the GitHub API is empty/down) */}
+        <GoodFirstIssues />
 
         {/* Comp + process */}
         <div className="mt-16 grid grid-cols-1 gap-6 lg:grid-cols-2">

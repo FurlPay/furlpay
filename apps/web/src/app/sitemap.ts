@@ -5,6 +5,7 @@ import { INSIGHTS } from "@/lib/insights/articles";
 import { INSIGHT_CATEGORIES } from "@/lib/insights/categories";
 import { CITIES } from "@/lib/cities";
 import { INTEGRATIONS } from "@/lib/integrations/frameworks";
+import { visibleJobs } from "@/lib/careers/jobs";
 
 const BASE = "https://furlpay.com";
 // Dynamic so lastmod reflects the actual build/deploy, not a frozen date.
@@ -141,6 +142,13 @@ export default function sitemap(): MetadataRoute.Sitemap {
       path: `/integrations/${i.slug}`,
       priority: 0.7,
       changeFrequency: "monthly" as const,
+    })),
+
+    // — Careers (self-hosted job board; open roles carry JobPosting JSON-LD) —
+    ...visibleJobs().map((j) => ({
+      path: `/careers/${j.slug}`,
+      priority: j.status === "open" ? 0.8 : 0.6,
+      changeFrequency: "weekly" as const,
     })),
 
     // — Docs —

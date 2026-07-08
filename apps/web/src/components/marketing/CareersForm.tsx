@@ -18,10 +18,10 @@ const ROLES = [
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function CareersForm() {
+export default function CareersForm({ defaultRole }: { defaultRole?: string } = {}) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState(ROLES[0]);
+  const [role, setRole] = useState(defaultRole && ROLES.includes(defaultRole) ? defaultRole : ROLES[0]);
   const [links, setLinks] = useState("");
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
