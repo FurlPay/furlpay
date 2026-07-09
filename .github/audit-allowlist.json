@@ -18,5 +18,50 @@
     "name": "next",
     "reason": "All high-severity fixes require the Next 15/16 major upgrade (tracked separately). Pages-Router i18n bypass N/A (App Router); image-optimizer DoS mitigated by Vercel hosting.",
     "reviewed": "2026-07-09"
+  },
+  {
+    "name": "hardhat",
+    "reason": "Umbrella for the contracts dev toolchain (hardhat 2.x): undici (pinned to latest 5.x via root override; full fix needs hardhat 3 major), @sentry/node -> cookie, uuid, mocha, eth-gas-reporter, solidity-coverage -> web3-utils/ethjs-unit/number-to-bn/bn.js, @nomicfoundation/* -> ethereumjs-util/ethereum-cryptography/secp256k1/elliptic, and the ethers v5 @ethersproject/* chain. Dev-only: never bundled into the web app or any published package; runs only on developer machines and CI against code we author. Fix path is the hardhat 3 major upgrade (tracked separately).",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "lodash",
+    "reason": "_.template code injection / prototype pollution advisories have no patched 4.x release; reachable only via @nomicfoundation/ignition-core (hardhat deploy tooling, dev-only). Cleared by the hardhat 3 upgrade.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "wxt",
+    "reason": "Umbrella for the browser-extension dev toolchain: web-ext-run -> tmp (path traversal; parents pin 0.0.x, no in-range patch) and node-notifier. Dev-only — used to launch browsers during `wxt dev`; the built extension bundle contains none of these. shell-quote (was critical) IS fixed via root override to 1.9.0.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "eslint-config-next",
+    "reason": "glob CLI command-injection advisory via @next/eslint-plugin-next — affects the glob CLI binary only, never invoked; lint-time dev dependency. Cleared by the Next 16 upgrade (see 'next').",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "ai",
+    "reason": "Low-severity resource-consumption advisories in @ai-sdk/provider-utils and moderate XSS in jsondiffpatch, fixed only in ai@7 major (breaking API). Copilot input is session-authenticated; upgrade tracked separately.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "@metaplex-foundation/mpl-bubblegum",
+    "reason": "merkletreejs -> web3-utils advisory; npm's only 'fix' is a downgrade to bubblegum 0.11 (pre-v2 API we depend on). cNFT minting is server-side with inputs we construct.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "@solana/web3.js",
+    "reason": "jayson -> uuid moderate (buffer bounds in uuid v3/v5/v6 when buf provided — jayson uses v4 without buf); npm's only 'fix' is a nonsensical downgrade to web3.js 0.0.3.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "esbuild",
+    "reason": "Dev-server arbitrary file read — applies to `esbuild serve` only, which we never run; build-time dependency of tsup/hardhat toolchains.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "glib (cargo, apps/desktop)",
+    "reason": "GHSA VariantStrIter unsoundness in glib 0.18.5 (Tauri desktop app). `cargo update -p glib` locks 0 packages — 0.18.5 is the newest compatible with our Tauri version; fix needs a Tauri major. Desktop app is unreleased.",
+    "reviewed": "2026-07-10"
   }
 ]

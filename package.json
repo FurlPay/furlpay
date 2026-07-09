@@ -19,7 +19,14 @@
     "cli": "node packages/cli/bin/furlpay.js"
   },
   "devDependencies": {
-    "turbo": "2.0.9"
+    "turbo": "2.10.4"
+  },
+  "overrides": {
+    "shell-quote": "1.9.0",
+    "ws": "^8.18.0",
+    "undici": "^5.29.0",
+    "serialize-javascript": "^6.0.2",
+    "postcss": "^8.5.16"
   },
   "packageManager": "npm@10.0.0"
 }

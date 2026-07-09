@@ -78,8 +78,8 @@ export function verifyRequestBinding(
 ): boolean {
   if (!presentedBinding) return false;
   const expected = requestBindingHash(method, uri, body);
-  const a = Buffer.from(expected);
-  const b = Buffer.from(presentedBinding);
+  const a = new Uint8Array(Buffer.from(expected));
+  const b = new Uint8Array(Buffer.from(presentedBinding));
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
