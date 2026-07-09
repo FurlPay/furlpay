@@ -148,25 +148,46 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
 
 /** Shared layout for every outbound email: brand header, card body, and a
  *  footer that carries the anti-phishing notice on all categories. The logo is
- *  the deployed app icon (24 KB) — email clients need an absolute URL. */
-export const shell = (title: string, body: string) => `
-<!doctype html><html><body style="margin:0;background:#000;color:#fff;font-family:Inter,system-ui,sans-serif">
-  <div style="max-width:520px;margin:0 auto;padding:32px 24px">
-    <div>
-      <img src="https://furlpay.com/icon.png" width="36" height="36" alt="Furlpay" style="border-radius:9px;vertical-align:middle"/>
-      <span style="font-size:20px;font-weight:800;letter-spacing:-.02em;color:#00E599;vertical-align:middle;margin-left:10px">Furlpay</span>
-    </div>
-    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px;margin-top:24px">
-      <h1 style="font-size:22px;margin:0 0 8px">${title}</h1>
-      ${body}
-    </div>
-    <hr style="border:none;border-top:1px solid #222;margin:28px 0"/>
-    <p style="font-size:12px;color:#888;line-height:1.5">Furlpay will never ask for your password, seed phrase, or private keys by email.</p>
-    <p style="font-size:11px;color:#888">Furlpay · The on-chain financial operating system ·
-      <a href="https://furlpay.com/legal/privacy" style="color:#888">Privacy</a> ·
-      <a href="https://furlpay.com/legal/terms" style="color:#888">Terms</a> ·
-      <a href="https://furlpay.com/newsletter/unsubscribe" style="color:#888">Unsubscribe</a></p>
-  </div>
+ *  the deployed app icon (24 KB) — email clients need an absolute URL.
+ *
+ *  Client-compat rules (do not regress): table-based layout (Outlook's Word
+ *  engine ignores max-width on divs), inline styles only, no flexbox, and a
+ *  hidden preheader so inbox previews show `preheader` instead of the first
+ *  body words. color-scheme meta stops Gmail/Apple Mail force-inverting the
+ *  dark palette. */
+export const shell = (title: string, body: string, preheader?: string) => `
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="color-scheme" content="dark"/>
+  <meta name="supported-color-schemes" content="dark"/>
+</head>
+<body style="margin:0;padding:0;background:#000;color:#fff;font-family:Inter,system-ui,-apple-system,'Segoe UI',sans-serif">
+  ${preheader ? `<div style="display:none;font-size:1px;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;mso-hide:all">${preheader}${"&zwnj;&nbsp;".repeat(30)}</div>` : ""}
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#000">
+    <tr><td align="center" style="padding:32px 16px">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:520px">
+        <tr><td style="padding:0 8px 24px">
+          <img src="https://furlpay.com/icon.png" width="36" height="36" alt="Furlpay" style="border-radius:9px;vertical-align:middle"/>
+          <span style="font-size:20px;font-weight:800;letter-spacing:-.02em;color:#00E599;vertical-align:middle;margin-left:10px">Furlpay</span>
+        </td></tr>
+        <tr><td style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px">
+          <h1 style="font-size:22px;line-height:1.3;margin:0 0 8px;color:#fff">${title}</h1>
+          ${body}
+        </td></tr>
+        <tr><td style="padding:28px 8px 0">
+          <hr style="border:none;border-top:1px solid #222;margin:0 0 20px"/>
+          <p style="font-size:12px;color:#888;line-height:1.5;margin:0 0 8px">Furlpay will never ask for your password, seed phrase, or private keys by email.</p>
+          <p style="font-size:11px;color:#888;line-height:1.5;margin:0">Furlpay · The on-chain financial operating system ·
+            <a href="https://furlpay.com/legal/privacy" style="color:#888">Privacy</a> ·
+            <a href="https://furlpay.com/legal/terms" style="color:#888">Terms</a> ·
+            <a href="https://furlpay.com/newsletter/unsubscribe" style="color:#888">Unsubscribe</a></p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
 </body></html>`;
 
 export function newsletterWelcome(categories: string[]): { subject: string; html: string; text: string } {

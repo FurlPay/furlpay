@@ -124,6 +124,7 @@ export async function POST(req: NextRequest) {
         method: trip.method,
         cashbackUsd: trip.cashbackUsd,
         stablecoinEquivalent: `${(amountUsd * RATES.XSGD).toFixed(2)} XSGD (MAS-regulated)`,
+        receiptNft: trip.ticket?.assetId,
       }),
     });
   }

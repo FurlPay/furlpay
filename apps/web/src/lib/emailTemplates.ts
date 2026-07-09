@@ -36,6 +36,30 @@ const codeBox = (value: string) =>
 const cta = (href: string, label: string) =>
   `<p style="margin:20px 0 4px"><a href="${href}" style="display:inline-block;background:#00E599;color:#000;font-weight:700;font-size:14px;text-decoration:none;padding:12px 24px;border-radius:24px">${label}</a></p>`;
 
+/** Large money/stat spotlight — white, tight tracking (codeBox's wide
+ *  letter-spacing is for OTP codes, not amounts). */
+const spotlight = (value: string, sub?: string) =>
+  `<div style="text-align:center;margin:16px 0 20px">
+    <div style="color:#fff;font-size:36px;font-weight:700;letter-spacing:-.02em;line-height:1.2">${value}</div>
+    ${sub ? `<div style="font-size:13px;color:#888;margin-top:4px">${sub}</div>` : ""}
+  </div>`;
+
+/** Product feature line-item (welcome/KYC emails). Table-based; the rounded
+ *  border degrades gracefully where unsupported (Outlook). */
+const featureRow = (title: string, desc: string) =>
+  `<tr><td style="padding:12px 16px;background:rgba(0,229,153,.05);border:1px solid rgba(0,229,153,.12);border-radius:10px">
+      <span style="font-size:14px;color:#fff;font-weight:600">${title}</span>
+      <span style="font-size:13px;color:#999"> — ${desc}</span>
+    </td></tr>
+   <tr><td style="height:8px;line-height:8px;font-size:8px">&nbsp;</td></tr>`;
+
+const featureTable = (rows: string) =>
+  `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0 4px">${rows}</table>`;
+
+/** Checklist line with a green check glyph (text glyph, not an emoji). */
+const checkItem = (text: string) =>
+  `<p style="font-size:14px;line-height:1.7;color:#ddd;margin:0 0 6px"><span style="color:#00E599;font-weight:700;margin-right:10px">&#10003;</span>${text}</p>`;
+
 /** Block-explorer tx link per chain; falls back to the bare hash. */
 function txLink(chain: string | undefined, txHash: string): { href?: string; short: string } {
   const short = `${txHash.slice(0, 10)}…${txHash.slice(-8)}`;
@@ -78,12 +102,43 @@ export function welcomeEmail(name?: string): RenderedEmail {
         p(
           `Your Furlpay account is set up: a self-custodial smart account, multi-currency balances, and stablecoin payments on every major chain.`
         ) +
+        featureTable(
+          featureRow("Visa card", "spend USDC anywhere Visa is accepted") +
+            featureRow("Travel", "book flights and hotels, paid in stablecoins") +
+            featureRow("Cross-chain swaps", "move value across 60+ chains in one step") +
+            featureRow("x402 agent payments", "let software pay software over HTTP")
+        ) +
         p(
           `Next step: complete identity verification to unlock cards, on/off-ramp and higher limits.`
         ) +
-        cta("https://furlpay.com/profile", "Finish setting up")
+        cta("https://furlpay.com/profile", "Finish setting up"),
+      "Your stablecoin account is live — cards, travel, swaps and agent payments in one app."
     ),
-    text: `${greeting}\n\nYour Furlpay account is ready — self-custodial smart account, multi-currency balances, stablecoin payments.\n\nNext: complete identity verification to unlock cards and higher limits: https://furlpay.com/profile`,
+    text: `${greeting}\n\nYour Furlpay account is ready — self-custodial smart account, multi-currency balances, stablecoin payments.\n\nWhat's inside: Visa card (spend USDC anywhere), travel booking in stablecoins, swaps across 60+ chains, x402 agent payments.\n\nNext: complete identity verification to unlock cards and higher limits: https://furlpay.com/profile`,
+  };
+}
+
+/** Day-1 nudge for accounts that signed up but never started verification.
+ *  Distinct from kycStatusEmail, which reports an outcome. */
+export function kycReminderEmail(name?: string): RenderedEmail {
+  const greeting = name ? `Hi ${name},` : "Hi,";
+  return {
+    subject: "One step left to unlock your full account",
+    html: shell(
+      "One step left.",
+      p(greeting) +
+        p(`Complete identity verification to unlock everything your account can do:`) +
+        `<div style="margin:16px 0 4px">` +
+        checkItem("Send and receive up to $10,000 per day") +
+        checkItem("Virtual Visa card for instant spending") +
+        checkItem("Book flights and hotels worldwide") +
+        checkItem("Earn yield on idle stablecoins") +
+        `</div>` +
+        cta("https://furlpay.com/profile", "Verify your identity") +
+        p(`<span style="font-size:13px;color:#888">Verification takes about two minutes.</span>`),
+      "Verify your identity to unlock cards, higher limits, travel and yield."
+    ),
+    text: `${greeting}\n\nComplete identity verification to unlock your full account:\n- Send and receive up to $10,000/day\n- Virtual Visa card for instant spending\n- Book flights and hotels worldwide\n- Earn yield on idle stablecoins\n\nVerify (about 2 minutes): https://furlpay.com/profile`,
   };
 }
 
@@ -106,7 +161,7 @@ export function paymentReceiptEmail(input: {
     html: shell(
       "Payment confirmed",
       p(`${input.name ? `Hi ${input.name}, your` : "Your"} payment was processed successfully.`) +
-        codeBox(amount) +
+        spotlight(amount, input.description) +
         detailsTable(
           row("Description", input.description) +
             row("Date", new Date(input.dateIso).toUTCString()) +
@@ -118,9 +173,13 @@ export function paymentReceiptEmail(input: {
                   tx.href ? `<a href="${tx.href}" style="color:#00E599">${tx.short}</a>` : tx.short
                 )
               : "")
-        )
+        ) +
+        p(
+          `<span style="font-size:13px;color:#888">Don't recognize this payment? <a href="https://furlpay.com/profile/security" style="color:#00E599">Secure your account</a> immediately.</span>`
+        ),
+      `${amount} — ${input.description}`
     ),
-    text: `Payment confirmed: ${amount} — ${input.description} (${new Date(input.dateIso).toUTCString()})${input.txHash ? `\nTransaction: ${input.txHash}` : ""}`,
+    text: `Payment confirmed: ${amount} — ${input.description} (${new Date(input.dateIso).toUTCString()})${input.txHash ? `\nTransaction: ${input.txHash}` : ""}\nDon't recognize this payment? Secure your account: https://furlpay.com/profile/security`,
   };
 }
 
@@ -138,7 +197,7 @@ export function depositReceivedEmail(input: {
     html: shell(
       "Deposit credited",
       p(`Your on-chain deposit has reached its confirmation target and is credited to your balance.`) +
-        codeBox(amount) +
+        spotlight(amount, `on ${input.chain}`) +
         detailsTable(
           row("Network", input.chain) +
             row("Confirmations", String(input.confirmations)) +
@@ -193,6 +252,8 @@ export function bookingConfirmationEmail(input: {
   heroImageUrl?: string;
   /** Stablecoin equivalent line, e.g. "1589.74 XSGD (MAS-regulated)". */
   stablecoinEquivalent?: string;
+  /** Compressed-NFT receipt mint address (shortened for display). */
+  receiptNft?: string;
 }): RenderedEmail {
   const hero = input.heroImageUrl
     ? `<img src="${input.heroImageUrl}" width="100%" alt="${input.city}" style="display:block;width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin:0 0 16px"/>`
@@ -215,11 +276,67 @@ export function bookingConfirmationEmail(input: {
             row("Paid with", input.method) +
             row("Total", usd(input.amountUsd)) +
             (input.stablecoinEquivalent ? row("Equivalent", input.stablecoinEquivalent) : "") +
-            (input.cashbackUsd ? row("Cashback", usd(input.cashbackUsd)) : "")
+            (input.cashbackUsd ? row("Cashback", usd(input.cashbackUsd)) : "") +
+            (input.receiptNft
+              ? row(
+                  "Receipt NFT",
+                  `<span style="font-family:ui-monospace,monospace;color:#00E599">${input.receiptNft.slice(0, 6)}…${input.receiptNft.slice(-4)}</span>`
+                )
+              : "")
         ) +
-        cta("https://furlpay.com/travel/my-trips", "View your trip")
+        cta("https://furlpay.com/travel/my-trips", "View your trip") +
+        (input.receiptNft
+          ? p(
+              `<span style="font-size:13px;color:#888">Your receipt is minted as a compressed NFT on Solana — it cannot be lost, forged, or deleted.</span>`
+            )
+          : ""),
+      `${input.tripName}, ${input.city} — ${input.checkIn} to ${input.checkOut}`
     ),
-    text: `Booking confirmed: ${input.tripName}, ${input.city}\nConfirmation code: ${input.reference}\nCheck-in ${input.checkIn} → check-out ${input.checkOut} (${input.nights} nights, ${input.guests} guests)\nTotal ${usd(input.amountUsd)} via ${input.method}${input.cashbackUsd ? ` · cashback ${usd(input.cashbackUsd)}` : ""}\nYour trips: https://furlpay.com/travel/my-trips`,
+    text: `Booking confirmed: ${input.tripName}, ${input.city}\nConfirmation code: ${input.reference}\nCheck-in ${input.checkIn} → check-out ${input.checkOut} (${input.nights} nights, ${input.guests} guests)\nTotal ${usd(input.amountUsd)} via ${input.method}${input.cashbackUsd ? ` · cashback ${usd(input.cashbackUsd)}` : ""}${input.receiptNft ? `\nReceipt NFT (Solana): ${input.receiptNft}` : ""}\nYour trips: https://furlpay.com/travel/my-trips`,
+  };
+}
+
+// ── Digest ───────────────────────────────────────────────────────────────────
+
+/** Weekly account summary. Sender needs a scheduler (Vercel cron) — template
+ *  is trigger-agnostic. Category: "welcome" won't fit; send as "ops" until a
+ *  dedicated digest category/budget is added. */
+export function weeklyDigestEmail(input: {
+  name?: string;
+  periodLabel: string; // "Jul 7–13, 2026"
+  totalUsd: number;
+  weeklyChangePct?: number; // signed, e.g. +3.2
+  holdings: { token: string; chain: string; amount: number }[];
+  txCount: number;
+}): RenderedEmail {
+  const change =
+    input.weeklyChangePct === undefined
+      ? ""
+      : `<div style="text-align:center;margin:-12px 0 20px"><span style="font-size:14px;font-weight:600;color:${input.weeklyChangePct >= 0 ? "#00E599" : "#F87171"}">${input.weeklyChangePct >= 0 ? "+" : ""}${input.weeklyChangePct.toFixed(1)}% this week</span></div>`;
+  const holdingRows = input.holdings
+    .slice(0, 5)
+    .map((h) =>
+      row(
+        `${h.token} <span style="color:#666">on ${h.chain}</span>`,
+        h.amount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      )
+    )
+    .join("");
+  return {
+    subject: `Your Furlpay week: ${usd(input.totalUsd)} total balance`,
+    html: shell(
+      `Weekly summary`,
+      p(`<span style="font-size:13px;color:#888">${input.periodLabel}</span>`) +
+        spotlight(usd(input.totalUsd), "Total balance") +
+        change +
+        (holdingRows
+          ? p(`<b style="color:#fff">Top holdings</b>`) + detailsTable(holdingRows)
+          : "") +
+        detailsTable(row("Transactions this week", String(input.txCount))) +
+        cta("https://furlpay.com/dashboard", "View full dashboard"),
+      `${usd(input.totalUsd)} total${input.weeklyChangePct !== undefined ? ` · ${input.weeklyChangePct >= 0 ? "+" : ""}${input.weeklyChangePct.toFixed(1)}% this week` : ""}`
+    ),
+    text: `Furlpay weekly summary (${input.periodLabel})\n\nTotal balance: ${usd(input.totalUsd)}${input.weeklyChangePct !== undefined ? ` (${input.weeklyChangePct >= 0 ? "+" : ""}${input.weeklyChangePct.toFixed(1)}% this week)` : ""}\n\nTop holdings:\n${input.holdings.slice(0, 5).map((h) => `- ${h.token} on ${h.chain}: ${h.amount}`).join("\n")}\n\nTransactions this week: ${input.txCount}\n\nDashboard: https://furlpay.com/dashboard`,
   };
 }
 
