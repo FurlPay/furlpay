@@ -131,6 +131,8 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("X402_NETWORK"),
       v("X402_PAY_TO"),
       v("X402_USDC_ADDRESS"),
+      v("X402_XSGD_ADDRESS"),
+      v("X402_XSGD_USD_RATE"),
       v("X402_QUOTE_SECRET"),
       v("FURLPAY_API_KEY"),
       v("FURLPAY_KEY"),

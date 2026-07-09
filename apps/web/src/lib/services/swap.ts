@@ -35,6 +35,8 @@ const TOKEN_USD: Record<Token, number> = {
   PYUSD: 1.0,
   DAI: 1.0,
   EURC: 1.09,
+  XSGD: 0.78, // SGD peg (MAS-regulated, StraitsX)
+  XUSD: 1.0, // USD peg (StraitsX)
   SOL: 77.15,
   ETH: 1736.0,
 };
@@ -50,6 +52,10 @@ export const TOKEN_CHAINS: Record<Token, Chain[]> = {
   EURC: ["ethereum", "base", "solana"],
   PYUSD: ["ethereum", "solana"],
   DAI: ["ethereum", "polygon", "base", "arbitrum", "gnosis"],
+  // StraitsX also issues on Avalanche/Hedera/XRPL/Zilliqa — outside our Chain
+  // union. XUSD's Solana mint is announced but unverified; add once confirmed.
+  XSGD: ["ethereum", "polygon", "arbitrum", "solana"],
+  XUSD: ["ethereum", "bsc"],
   SOL: ["solana"],
   ETH: ["ethereum", "base", "arbitrum", "robinhood"],
 };
@@ -84,17 +90,22 @@ const SOL_NATIVE = "11111111111111111111111111111111";
 
 // Canonical token addresses per chain, only for pairs we quote live. Unmapped
 // combinations (EURC, PYUSD, gnosis stables, …) fall back to the mock path.
+// StraitsX addresses verified on-chain 2026-07-09 (symbol + 6 decimals via
+// eth_call / getTokenSupply) against straitsx.com + explorer listings.
 const LIFI_TOKEN: Partial<Record<Chain, Partial<Record<Token, string>>>> = {
   ethereum: {
     ETH: EVM_NATIVE,
     USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
     DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+    XSGD: "0x70e8dE73cE538DA2bEEd35d14187F6959a8ecA96",
+    XUSD: "0xC08e7E23C235073C6807C2EFE7021304cb7c2815",
   },
   arbitrum: {
     ETH: EVM_NATIVE,
     USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
     USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+    XSGD: "0xE333e7754a2DC1E020a162Ecab019254b9DaB653",
   },
   base: {
     ETH: EVM_NATIVE,
@@ -103,11 +114,13 @@ const LIFI_TOKEN: Partial<Record<Chain, Partial<Record<Token, string>>>> = {
   polygon: {
     USDC: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
     USDT: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+    XSGD: "0xDC3326e71D45186F113a2F448984CA0e8D201995",
   },
   solana: {
     SOL: SOL_NATIVE,
     USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    XSGD: "71S9cppWipeUEQDFngYwxjoxB6Sz1MUqX72byLsVYJqy",
   },
   robinhood: {
     ETH: EVM_NATIVE,
@@ -120,6 +133,8 @@ const TOKEN_DECIMALS: Record<Token, number> = {
   EURC: 6,
   PYUSD: 6,
   DAI: 18,
+  XSGD: 6,
+  XUSD: 6,
   SOL: 9,
   ETH: 18,
 };

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { findResource } from "@/lib/x402Registry";
-import { buildRequirements } from "@/lib/x402";
+import { acceptedRequirements } from "@/lib/x402";
 
 export const dynamic = "force-dynamic";
 
@@ -15,11 +15,12 @@ export function GET(req: NextRequest) {
   const entry = findResource(resource, method);
   if (!entry) return NextResponse.json({ error: "resource_not_registered" }, { status: 404 });
 
-  const requirements = buildRequirements({
+  const accepts = acceptedRequirements({
     resource: entry.resource,
     method: entry.method,
     priceUsd: entry.priceUsd,
     description: entry.description,
   });
-  return NextResponse.json({ priceUsd: entry.priceUsd, requirements });
+  // `requirements` (first entry, USDC) kept for pre-existing agent clients.
+  return NextResponse.json({ priceUsd: entry.priceUsd, requirements: accepts[0], accepts });
 }

@@ -158,7 +158,7 @@ function Checkout() {
               <span className="text-lg font-bold text-white">${total.toLocaleString()}</span>
             </div>
             <p className="text-right text-[11px] text-textSecondary">
-              ≈ {total.toFixed(2)} USDC · {(total * RATES.SOL).toFixed(2)} SOL · {(total * RATES.BTC).toFixed(5)} BTC
+              ≈ {total.toFixed(2)} USDC · {(total * RATES.XSGD).toFixed(2)} XSGD · {(total * RATES.SOL).toFixed(2)} SOL · {(total * RATES.BTC).toFixed(5)} BTC
             </p>
           </div>
           <p className="mt-4 flex items-center gap-1.5 rounded-lg bg-white/[0.04] px-3 py-2 text-[11px] text-textSecondary">

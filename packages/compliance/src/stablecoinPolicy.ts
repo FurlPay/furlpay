@@ -12,6 +12,9 @@ import { Region, Stablecoin, StablecoinPolicy } from "./types";
 const MICA_COMPLIANT: Set<Stablecoin> = new Set(["USDC", "EURC"]);
 // GENIUS-eligible payment stablecoins (audited monthly attestations).
 const GENIUS_COMPLIANT: Set<Stablecoin> = new Set(["USDC", "PYUSD"]);
+// MAS-regulated under Singapore's PSA (StraitsX issuance). Not MiCA EMTs or
+// GENIUS-attested, so the EEA/US routing above still applies to them.
+export const MAS_REGULATED: Set<Stablecoin> = new Set(["XSGD", "XUSD"]);
 
 export function evaluateStablecoin(token: Stablecoin, region: Region): StablecoinPolicy {
   if (region === "EEA" || region === "UK") {
@@ -40,5 +43,12 @@ export function evaluateStablecoin(token: Stablecoin, region: Region): Stablecoi
     return { token, allowed: true, regime: "GENIUS", reason: `${token} is GENIUS-compliant` };
   }
 
-  return { token, allowed: true, regime: "none", reason: "No regional stablecoin restriction" };
+  return {
+    token,
+    allowed: true,
+    regime: "none",
+    reason: MAS_REGULATED.has(token)
+      ? `${token} is MAS-regulated (Singapore Payment Services Act)`
+      : "No regional stablecoin restriction",
+  };
 }

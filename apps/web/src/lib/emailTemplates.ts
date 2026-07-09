@@ -191,6 +191,8 @@ export function bookingConfirmationEmail(input: {
   /** Absolute https URL of the stay/destination photo (CITY_PHOTOS or the
    *  checkout's own image). Omitted = text-only email, which renders fine. */
   heroImageUrl?: string;
+  /** Stablecoin equivalent line, e.g. "1589.74 XSGD (MAS-regulated)". */
+  stablecoinEquivalent?: string;
 }): RenderedEmail {
   const hero = input.heroImageUrl
     ? `<img src="${input.heroImageUrl}" width="100%" alt="${input.city}" style="display:block;width:100%;max-height:220px;object-fit:cover;border-radius:12px;margin:0 0 16px"/>`
@@ -212,6 +214,7 @@ export function bookingConfirmationEmail(input: {
             row("Nights / guests", `${input.nights} / ${input.guests}`) +
             row("Paid with", input.method) +
             row("Total", usd(input.amountUsd)) +
+            (input.stablecoinEquivalent ? row("Equivalent", input.stablecoinEquivalent) : "") +
             (input.cashbackUsd ? row("Cashback", usd(input.cashbackUsd)) : "")
         ) +
         cta("https://furlpay.com/travel/my-trips", "View your trip")

@@ -52,6 +52,26 @@ export const NETWORK_USDC: Record<string, string> = {
 };
 export const USDC_ASSET =
   process.env.X402_USDC_ADDRESS || NETWORK_USDC[NETWORK] || NETWORK_USDC.arbitrum;
+
+// StraitsX XSGD — MAS-regulated SGD settlement for APAC agentic payments.
+// Addresses verified on-chain 2026-07-09 (symbol XSGD, 6 decimals).
+export const NETWORK_XSGD: Record<string, string> = {
+  arbitrum: "0xE333e7754a2DC1E020a162Ecab019254b9DaB653",
+  ethereum: "0x70e8dE73cE538DA2bEEd35d14187F6959a8ecA96",
+  polygon: "0xDC3326e71D45186F113a2F448984CA0e8D201995",
+  solana: "71S9cppWipeUEQDFngYwxjoxB6Sz1MUqX72byLsVYJqy",
+};
+export const XSGD_ASSET = process.env.X402_XSGD_ADDRESS || NETWORK_XSGD[NETWORK] || "";
+// Mock mid-market USD/SGD; a live deployment prices from an FX oracle.
+export const XSGD_USD_RATE = Number(process.env.X402_XSGD_USD_RATE || 0.78);
+
+export type X402Asset = "USDC" | "XSGD";
+
+/** Price in atomic units (both assets are 6-decimal) for the given asset. */
+function atomicAmount(priceUsd: number, asset: X402Asset): string {
+  const units = asset === "XSGD" ? priceUsd / XSGD_USD_RATE : priceUsd;
+  return String(Math.round(units * 1e6));
+}
 // Treasury receiving per-call payments.
 export const PAY_TO =
   process.env.X402_PAY_TO || "0x209693Bc6afc0C5328bA36FaF03C514EF312287C";
@@ -138,15 +158,17 @@ function bindingMac(resource: string, method: string, amount: string, quoteId: s
     .digest("hex");
 }
 
-/** Build the 402 quote for a priced resource. */
+/** Build the 402 quote for a priced resource, in the given settlement asset. */
 export function buildRequirements(opts: {
   resource: string;
   method: string;
   priceUsd: number;
   description: string;
   mimeType?: string;
+  asset?: X402Asset;
 }): PaymentRequirements {
-  const amount = String(Math.round(opts.priceUsd * 1e6)); // USDC atomic units
+  const asset: X402Asset = opts.asset ?? "USDC";
+  const amount = atomicAmount(opts.priceUsd, asset);
   const quoteId = crypto.randomBytes(16).toString("hex");
   const expiresAt = Math.floor(Date.now() / 1000) + QUOTE_TTL_SECONDS;
   return {
@@ -158,15 +180,29 @@ export function buildRequirements(opts: {
     mimeType: opts.mimeType ?? "application/json",
     payTo: PAY_TO,
     maxTimeoutSeconds: QUOTE_TTL_SECONDS,
-    asset: USDC_ASSET,
+    asset: asset === "XSGD" ? XSGD_ASSET : USDC_ASSET,
     extra: {
-      name: "USD Coin",
+      name: asset === "XSGD" ? "XSGD" : "USD Coin",
       version: "2",
       quoteId,
       expiresAt,
       binding: bindingMac(opts.resource, opts.method, amount, quoteId, expiresAt),
     },
   };
+}
+
+/** Every requirement a 402 should advertise: USDC always, plus XSGD when the
+ *  active network has a deployment — the agent picks its settlement asset. */
+export function acceptedRequirements(opts: {
+  resource: string;
+  method: string;
+  priceUsd: number;
+  description: string;
+  mimeType?: string;
+}): PaymentRequirements[] {
+  const accepts = [buildRequirements(opts)];
+  if (XSGD_ASSET) accepts.push(buildRequirements({ ...opts, asset: "XSGD" }));
+  return accepts;
 }
 
 export interface XPaymentPayload {
@@ -189,7 +225,7 @@ export interface XPaymentPayload {
 }
 
 export type VerifyResult =
-  | { ok: true; payer: string; txHash: string }
+  | { ok: true; payer: string; txHash: string; asset: X402Asset }
   | { ok: false; status: 400 | 402; error: string };
 
 /**
@@ -204,7 +240,12 @@ export async function verifyPayment(opts: {
   priceUsd: number;
 }): Promise<VerifyResult> {
   const { header, resource, method } = opts;
-  const expectedAmount = String(Math.round(opts.priceUsd * 1e6));
+  // Every advertised requirement is a distinct (asset, amount) pair; the
+  // authorized amount identifies which one the agent chose to pay.
+  const expectedByAsset: Record<X402Asset, string> = {
+    USDC: atomicAmount(opts.priceUsd, "USDC"),
+    XSGD: atomicAmount(opts.priceUsd, "XSGD"),
+  };
 
   // ── web-layer hardening ──
   if (!header) return { ok: false, status: 402, error: "X-PAYMENT header required" };
@@ -227,9 +268,20 @@ export async function verifyPayment(opts: {
   if (auth.to.toLowerCase() !== PAY_TO.toLowerCase()) {
     return { ok: false, status: 402, error: "Payment not addressed to this recipient" };
   }
-  if (auth.value !== expectedAmount) {
-    return { ok: false, status: 402, error: `Wrong amount (expected ${expectedAmount} atomic USDC)` };
+  const asset: X402Asset | undefined =
+    auth.value === expectedByAsset.USDC
+      ? "USDC"
+      : XSGD_ASSET && auth.value === expectedByAsset.XSGD
+        ? "XSGD"
+        : undefined;
+  if (!asset) {
+    return {
+      ok: false,
+      status: 402,
+      error: `Wrong amount (expected ${expectedByAsset.USDC} atomic USDC${XSGD_ASSET ? ` or ${expectedByAsset.XSGD} atomic XSGD` : ""})`,
+    };
   }
+  const expectedAmount = expectedByAsset[asset];
 
   // ── binding hardening: payment must reference an untampered quote for THIS resource ──
   const quoteId = p.extra?.quoteId;
@@ -268,12 +320,12 @@ export async function verifyPayment(opts: {
   // `requiredConfirmations(auth.value)` before reporting success (Attack I-A),
   // and only then release the resource.
   const txHash = "0x" + crypto.randomBytes(32).toString("hex");
-  return { ok: true, payer: auth.from, txHash };
+  return { ok: true, payer: auth.from, txHash, asset };
 }
 
 /** X-PAYMENT-RESPONSE header value for a successful settlement. */
-export function settlementHeader(payer: string, txHash: string): string {
+export function settlementHeader(payer: string, txHash: string, asset: X402Asset = "USDC"): string {
   return Buffer.from(
-    JSON.stringify({ success: true, network: NETWORK, payer, transaction: txHash })
+    JSON.stringify({ success: true, network: NETWORK, payer, transaction: txHash, asset })
   ).toString("base64");
 }

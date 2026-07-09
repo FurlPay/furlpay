@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { quoteFx } from "@/lib/services/fx";
 import {
   X402_VERSION,
-  buildRequirements,
+  acceptedRequirements,
   settlementHeader,
   verifyPayment,
   withNoStore,
@@ -53,14 +53,14 @@ export async function GET(req: NextRequest) {
         {
           x402Version: X402_VERSION,
           error: result.error,
-          accepts: [
-            buildRequirements({
-              resource,
-              method: "GET",
-              priceUsd: PRICE_USD,
-              description: `Mid-market FX quote ${from}->${to} (per call)`,
-            }),
-          ],
+          // USDC always; XSGD (StraitsX, MAS-regulated) when deployed on the
+          // active network — the agent picks its settlement asset.
+          accepts: acceptedRequirements({
+            resource,
+            method: "GET",
+            priceUsd: PRICE_USD,
+            description: `Mid-market FX quote ${from}->${to} (per call)`,
+          }),
         },
         { status: 402 }
       )
@@ -71,6 +71,6 @@ export async function GET(req: NextRequest) {
   // the paid response out of any shared/CDN cache (Attack III cache leakage).
   const fx = await quoteFx(from, to, amount);
   const res = withNoStore(NextResponse.json({ paid: true, payer: result.payer, quote: fx }));
-  res.headers.set("X-PAYMENT-RESPONSE", settlementHeader(result.payer, result.txHash));
+  res.headers.set("X-PAYMENT-RESPONSE", settlementHeader(result.payer, result.txHash, result.asset));
   return res;
 }

@@ -8,7 +8,7 @@ export const TransferSchema = z.object({
   safeAddress: z.string().optional(),
   destination: z.string().min(4),
   amount: z.number().positive(),
-  token: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI"]),
+  token: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"]),
   chain: z.enum(["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis"]),
   signature: z.string().min(1),
   mfaCode: z.string().optional(),
@@ -27,13 +27,13 @@ export const OrderSchema = z.object({
 });
 
 export const IntentSchema = z.object({
-  fromToken: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI"]),
-  toToken: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI"]),
+  fromToken: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"]),
+  toToken: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"]),
   fromChain: z.enum(["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis"]),
   toChain: z.enum(["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis"]),
   amount: z.number().positive(),
   settleWithinSec: z.number().positive().optional(),
-  fallbackToken: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI"]).optional(),
+  fallbackToken: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"]).optional(),
   execute: z.boolean().optional(),
 });
 

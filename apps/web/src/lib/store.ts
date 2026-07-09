@@ -149,6 +149,9 @@ function seedDemoAccount(): UserAccount {
       { token: "USDC", chain: "solana", amount: 1890.0, usdValue: 1890.0 },
       { token: "EURC", chain: "base", amount: 980.4, usdValue: 1068.6 },
       { token: "USDT", chain: "arbitrum", amount: 640.12, usdValue: 640.12 },
+      // MAS-regulated StraitsX pair — APAC settlement rails (XSGD ≈ $0.78).
+      { token: "XSGD", chain: "arbitrum", amount: 2500.0, usdValue: 1950.0 },
+      { token: "XUSD", chain: "ethereum", amount: 750.0, usdValue: 750.0 },
     ],
     fiatBalances: [
       {

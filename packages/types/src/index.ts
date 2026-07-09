@@ -11,7 +11,7 @@ export type Chain =
   | "robinhood"
   | "bsc";
 
-export type Stablecoin = "USDC" | "USDT" | "EURC" | "PYUSD" | "DAI";
+export type Stablecoin = "USDC" | "USDT" | "EURC" | "PYUSD" | "DAI" | "XSGD" | "XUSD";
 
 /** Native gas tokens tradable through the swap terminal (not stablecoins). */
 export type NativeToken = "SOL" | "ETH";
@@ -22,6 +22,8 @@ export type Token = Stablecoin | NativeToken;
 export type Region = "US" | "EEA" | "UK" | "IN" | "GLOBAL";
 
 export const CHAINS: Chain[] = ["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis", "robinhood", "bsc"];
-export const STABLECOINS: Stablecoin[] = ["USDC", "USDT", "EURC", "PYUSD", "DAI"];
+// XSGD/XUSD: MAS-regulated SGD/USD stablecoins by StraitsX (Singapore) — the
+// regulated-settlement pair for APAC corridors and agentic (x402) payments.
+export const STABLECOINS: Stablecoin[] = ["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"];
 export const NATIVE_TOKENS: NativeToken[] = ["SOL", "ETH"];
 export const TOKENS: Token[] = [...STABLECOINS, ...NATIVE_TOKENS];

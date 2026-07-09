@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-import { authorizeBooking, BookingSource, CITY_PHOTOS, MCC } from "@/lib/travel/data";
+import { authorizeBooking, BookingSource, CITY_PHOTOS, MCC, RATES } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
 import { createDuffelStayQuote, createDuffelStayBooking } from "@/lib/travel/duffel";
@@ -119,6 +119,7 @@ export async function POST(req: NextRequest) {
         reference,
         method: trip.method,
         cashbackUsd: trip.cashbackUsd,
+        stablecoinEquivalent: `${(amountUsd * RATES.XSGD).toFixed(2)} XSGD (MAS-regulated)`,
       }),
     });
   }

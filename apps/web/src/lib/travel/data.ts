@@ -78,7 +78,8 @@ export const CITY_PHOTOS: Record<string, string> = {
 };
 
 // FX for display only (mid-market, mock — a live build pulls quotes).
-export const RATES = { USDC: 1, SOL: 1 / 175, BTC: 1 / 96000, ETH: 1 / 3400 } as const;
+// XSGD: MAS-regulated SGD stablecoin (StraitsX) — APAC settlement option.
+export const RATES = { USDC: 1, XSGD: 1 / 0.78, SOL: 1 / 175, BTC: 1 / 96000, ETH: 1 / 3400 } as const;
 export type PayToken = keyof typeof RATES;
 
 export const CASHBACK_RATE = 0.02;
