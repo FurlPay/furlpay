@@ -79,7 +79,7 @@ export const POST = async (
     }
 
     const order = getOrder(params.orderId);
-    const transaction = buildPaymentTransaction({
+    const transaction = await buildPaymentTransaction({
       payer,
       amountUsd: order.amountUsd,
       asset: asset as PayAsset,

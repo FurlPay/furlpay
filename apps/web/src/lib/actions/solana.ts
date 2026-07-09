@@ -33,9 +33,33 @@ export const USDC_DECIMALS = 6;
 // transactions, so no getLatestBlockhash() call is required to serialize.
 const PLACEHOLDER_BLOCKHASH = "11111111111111111111111111111111";
 
-// Mock SOL/USD price so the SOL path charges the correct *dollar* amount. A live
-// deployment pulls this from a price oracle (Pyth) or an FX API.
-export function solUsdPrice(): number {
+// SOL/USD price for the SOL payment path. LIVE: Pyth Hermes (free REST oracle),
+// cached for 30s per instance. Falls back to SOLANA_SOL_USD_PRICE, then a
+// last-resort constant, so a Hermes outage degrades rather than blocking pay.
+const PYTH_SOL_USD_FEED = "ef0d8b6fda2ceba41da15d4095d1da392a0d2f8ed0c6c7bc0f4cfac8c280b56d";
+const PRICE_TTL_MS = 30_000;
+let priceCache: { price: number; at: number } | null = null;
+
+export async function solUsdPrice(): Promise<number> {
+  if (priceCache && Date.now() - priceCache.at < PRICE_TTL_MS) return priceCache.price;
+  try {
+    const res = await fetch(
+      `https://hermes.pyth.network/v2/updates/price/latest?ids[]=${PYTH_SOL_USD_FEED}`,
+      { signal: AbortSignal.timeout(3_000), cache: "no-store" }
+    );
+    if (res.ok) {
+      const p = (await res.json())?.parsed?.[0]?.price;
+      const price = Number(p?.price) * 10 ** Number(p?.expo);
+      if (Number.isFinite(price) && price > 0) {
+        priceCache = { price, at: Date.now() };
+        return price;
+      }
+    }
+  } catch {
+    // fall through to the static fallbacks
+  }
+  // A stale oracle read beats a hardcoded constant — reuse past-TTL cache first.
+  if (priceCache) return priceCache.price;
   return Number(process.env.SOLANA_SOL_USD_PRICE || "150");
 }
 
@@ -63,17 +87,17 @@ export function getOrder(orderId: string): Order {
  * paying `payer` to the merchant treasury. Amounts are always expressed in USD;
  * the SOL path converts via the current SOL/USD price.
  */
-export function buildPaymentTransaction(opts: {
+export async function buildPaymentTransaction(opts: {
   payer: PublicKey;
   amountUsd: number;
   asset: PayAsset;
-}): Transaction {
+}): Promise<Transaction> {
   const { payer, amountUsd, asset } = opts;
   const merchant = merchantWallet();
   const tx = new Transaction();
 
   if (asset === "SOL") {
-    const lamports = Math.round((amountUsd / solUsdPrice()) * LAMPORTS_PER_SOL);
+    const lamports = Math.round((amountUsd / (await solUsdPrice())) * LAMPORTS_PER_SOL);
     tx.add(
       SystemProgram.transfer({ fromPubkey: payer, toPubkey: merchant, lamports })
     );

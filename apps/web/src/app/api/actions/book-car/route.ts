@@ -139,7 +139,7 @@ export const POST = async (req: Request) => {
 
     try {
     const amountUsd = Math.round(car.dailyUsd * days * 100) / 100;
-    const transaction = buildPaymentTransaction({ payer, amountUsd, asset: "USDC" });
+    const transaction = await buildPaymentTransaction({ payer, amountUsd, asset: "USDC" });
 
     // Demo-ledger parity with /api/travel/book: authorize + record the trip at
     // build time. A production deployment records the booking as pending and
