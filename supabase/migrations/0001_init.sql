@@ -51,7 +51,7 @@ create table token_balances (
   user_id   uuid not null references users (id) on delete cascade,
   token     text not null,
   chain     text not null,
-  amount    numeric(38, 18) not null default 0,
+  amount    numeric(38, 18) not null default 0 check (amount >= 0),
   usd_value numeric(20, 2)  not null default 0,
   primary key (user_id, token, chain)
 );
@@ -59,7 +59,7 @@ create table token_balances (
 create table fiat_balances (
   user_id       uuid not null references users (id) on delete cascade,
   currency      text not null,               -- USD, EUR, GBP, INR
-  amount        numeric(20, 2) not null default 0,
+  amount        numeric(20, 2) not null default 0 check (amount >= 0),
   usd_value     numeric(20, 2) not null default 0,
   local_details jsonb,                        -- iban / routing / account / swift
   primary key (user_id, currency)

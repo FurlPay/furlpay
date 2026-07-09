@@ -10,16 +10,15 @@ replaces it, plus the steps to stand the database up. The client adapter is
 With the Supabase CLI (recommended — tracks migration history):
 
 ```sh
-npx supabase link --project-ref <project-ref>
-npx supabase db push
+npx supabase db push --db-url "$DATABASE_URL"
 ```
 
-Or directly with psql against the connection string from
-Dashboard → Settings → Database:
-
-```sh
-psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql
-```
+(or `npx supabase link --project-ref <ref>` + `npx supabase db push` when
+logged in). Connection-string gotcha: the **direct** host
+(`db.<ref>.supabase.co:5432`) resolves to IPv6 only — on an IPv4-only network
+(most Windows/home setups) use the **Session pooler** string instead:
+host `aws-<n>-<region>.pooler.supabase.com`, port `5432`, user
+`postgres.<project-ref>` (Dashboard → Connect → Session pooler).
 
 ## Environment
 
@@ -28,11 +27,17 @@ Set in Vercel (project `web`) and `.env.local`:
 | Var | Where to find it | Notes |
 | --- | --- | --- |
 | `SUPABASE_URL` | Dashboard → Settings → API | `https://<ref>.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Dashboard → Settings → API | **Server-side only.** Never `NEXT_PUBLIC_`. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Dashboard → Settings → API Keys | **Server-side only.** Never `NEXT_PUBLIC_`. |
 
-The app never uses the anon key: RLS is enabled on every table with no
-policies, so anon access reads nothing. All queries go through API routes with
-the service role.
+Key formats: use the new **secret key** (`sb_secret_…`) as
+`SUPABASE_SERVICE_ROLE_KEY` — the legacy `service_role` JWT also still works
+(deprecated end of 2026). The **publishable key** (`sb_publishable_…`) does
+NOT work here: `/rest/v1/` returns 403 for publishable/anon keys, and this app
+is server-side-only by design anyway.
+
+The app never uses the anon/publishable key: RLS is enabled on every table
+with no policies, so anon access reads nothing. All queries go through API
+routes with the service role.
 
 ## Cutover plan (not yet flipped)
 

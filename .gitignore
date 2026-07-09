@@ -39,3 +39,4 @@ apktool-output/
 
 .vercel
 .env*
+supabase/.temp/
