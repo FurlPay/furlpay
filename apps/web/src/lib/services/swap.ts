@@ -1,50 +1,251 @@
-import { Chain, Stablecoin } from "../types";
+import { Chain, Token } from "../types";
 
 // ---------------------------------------------------------------------------
 // Cross-chain swap / bridge routing (Blueprint §4.1, Playbook Gap 2).
-// LIVE: Li.Fi / 1inch aggregation across Base, Solana, Arbitrum, Polygon.
-// MOCK: returns a plausible best-route quote with L2-grade slippage & gas.
+// LIVE: Li.Fi quote aggregation (li.quest /v1/quote) across Ethereum, Base,
+//       Arbitrum, Polygon, Solana and Robinhood Chain (Arbitrum Orbit L2,
+//       chain id 4663, mainnet 2026-07-01).
+// MOCK: execution stays off-chain against the demo ledger, and quoting falls
+//       back to a plausible best-route estimate when Li.Fi is unreachable or
+//       the pair has no address mapping.
 // ---------------------------------------------------------------------------
 
 export interface SwapQuote {
-  fromToken: Stablecoin;
-  toToken: Stablecoin;
+  fromToken: Token;
+  toToken: Token;
   fromChain: Chain;
   toChain: Chain;
   amountIn: number;
   amountOut: number;
   slippagePct: number;
   gasUsd: number;
+  /** Aggregator + bridge fees baked into the rate, in USD. */
+  feeUsd: number;
   route: string[];
   etaSeconds: number;
+  /** "lifi" when priced by the live Li.Fi API, "mock" for the local estimate. */
+  source: "lifi" | "mock";
 }
 
-// Rough USD pegs for demo FX between stable denominations.
-const USD_PEG: Record<Stablecoin, number> = {
+// Reference USD prices: stables at peg, natives at demo marks. Drives the
+// mock quote path and ledger USD values; live quotes price via Li.Fi.
+const TOKEN_USD: Record<Token, number> = {
   USDC: 1.0,
   USDT: 1.0,
   PYUSD: 1.0,
   DAI: 1.0,
   EURC: 1.09,
+  SOL: 77.15,
+  ETH: 1736.0,
 };
+
+export function usdPrice(token: Token): number {
+  return TOKEN_USD[token];
+}
+
+/** Chains each token actually circulates on — the UI filters selectors with this. */
+export const TOKEN_CHAINS: Record<Token, Chain[]> = {
+  USDC: ["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis", "robinhood", "bsc"],
+  USDT: ["ethereum", "polygon", "arbitrum", "solana", "gnosis", "bsc"],
+  EURC: ["ethereum", "base", "solana"],
+  PYUSD: ["ethereum", "solana"],
+  DAI: ["ethereum", "polygon", "base", "arbitrum", "gnosis"],
+  SOL: ["solana"],
+  ETH: ["ethereum", "base", "arbitrum", "robinhood"],
+};
+
+export function isTokenOnChain(token: Token, chain: Chain): boolean {
+  return TOKEN_CHAINS[token]?.includes(chain) ?? false;
+}
 
 const CHEAPEST_CHAINS: Chain[] = ["solana", "base", "arbitrum"];
 
+// ---------------------------------------------------------------------------
+// Li.Fi wiring
+// ---------------------------------------------------------------------------
+
+const LIFI_API = process.env.LIFI_API_URL ?? "https://li.quest/v1";
+
+// Li.Fi chain identifiers: numeric EVM chain ids, "SOL" key for Solana.
+// Robinhood Chain mainnet is 4663 (chainlist.org/chain/4663).
+const LIFI_CHAIN: Record<Chain, number | string> = {
+  ethereum: 1,
+  polygon: 137,
+  base: 8453,
+  arbitrum: 42161,
+  solana: "SOL",
+  gnosis: 100,
+  robinhood: 4663,
+  bsc: 56,
+};
+
+const EVM_NATIVE = "0x0000000000000000000000000000000000000000";
+const SOL_NATIVE = "11111111111111111111111111111111";
+
+// Canonical token addresses per chain, only for pairs we quote live. Unmapped
+// combinations (EURC, PYUSD, gnosis stables, …) fall back to the mock path.
+const LIFI_TOKEN: Partial<Record<Chain, Partial<Record<Token, string>>>> = {
+  ethereum: {
+    ETH: EVM_NATIVE,
+    USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+  },
+  arbitrum: {
+    ETH: EVM_NATIVE,
+    USDC: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    USDT: "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+  },
+  base: {
+    ETH: EVM_NATIVE,
+    USDC: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  },
+  polygon: {
+    USDC: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    USDT: "0xc2132D05D31c914a87C6611C10748AEb04B58e8F",
+  },
+  solana: {
+    SOL: SOL_NATIVE,
+    USDC: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    USDT: "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+  },
+  robinhood: {
+    ETH: EVM_NATIVE,
+  },
+};
+
+const TOKEN_DECIMALS: Record<Token, number> = {
+  USDC: 6,
+  USDT: 6,
+  EURC: 6,
+  PYUSD: 6,
+  DAI: 18,
+  SOL: 9,
+  ETH: 18,
+};
+
+// Quote-only calls still require from/to addresses; Li.Fi doesn't check
+// balances for /quote, so any well-formed address of the right VM works.
+const QUOTE_PLACEHOLDER_EVM = "0x1111111111111111111111111111111111111111";
+const QUOTE_PLACEHOLDER_SOL = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+
+interface LifiQuoteResponse {
+  tool?: string;
+  toolDetails?: { name?: string };
+  estimate?: {
+    toAmount?: string;
+    executionDuration?: number;
+    feeCosts?: { amountUsd?: string }[];
+    gasCosts?: { amountUsd?: string }[];
+  };
+}
+
+function toBaseUnits(amount: number, decimals: number): string {
+  return BigInt(Math.round(amount * 10 ** Math.min(decimals, 9)))
+    .toString()
+    .concat("0".repeat(Math.max(0, decimals - 9)));
+}
+
+function fromBaseUnits(raw: string, decimals: number): number {
+  return Number(raw) / 10 ** decimals;
+}
+
+function crossVM(a: Chain, b: Chain): boolean {
+  return (a === "solana") !== (b === "solana");
+}
+
+function defaultSlippagePct(fromChain: Chain, toChain: Chain): number {
+  if (fromChain === toChain) return 0.05;
+  return crossVM(fromChain, toChain) ? 0.5 : 0.1;
+}
+
+async function fetchLifiQuote(params: {
+  fromToken: Token;
+  toToken: Token;
+  fromChain: Chain;
+  toChain: Chain;
+  amountIn: number;
+  slippagePct: number;
+}): Promise<SwapQuote | null> {
+  const { fromToken, toToken, fromChain, toChain, amountIn, slippagePct } = params;
+  const fromAddr = LIFI_TOKEN[fromChain]?.[fromToken];
+  const toAddr = LIFI_TOKEN[toChain]?.[toToken];
+  if (!fromAddr || !toAddr) return null;
+
+  const qs = new URLSearchParams({
+    fromChain: String(LIFI_CHAIN[fromChain]),
+    toChain: String(LIFI_CHAIN[toChain]),
+    fromToken: fromAddr,
+    toToken: toAddr,
+    fromAmount: toBaseUnits(amountIn, TOKEN_DECIMALS[fromToken]),
+    fromAddress: fromChain === "solana" ? QUOTE_PLACEHOLDER_SOL : QUOTE_PLACEHOLDER_EVM,
+    toAddress: toChain === "solana" ? QUOTE_PLACEHOLDER_SOL : QUOTE_PLACEHOLDER_EVM,
+    slippage: String(slippagePct / 100),
+  });
+
+  try {
+    const headers: Record<string, string> = { accept: "application/json" };
+    if (process.env.LIFI_API_KEY) headers["x-lifi-api-key"] = process.env.LIFI_API_KEY;
+    const res = await fetch(`${LIFI_API}/quote?${qs}`, {
+      headers,
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!res.ok) return null;
+    const q = (await res.json()) as LifiQuoteResponse;
+    const rawOut = q.estimate?.toAmount;
+    if (!rawOut) return null;
+
+    const sumUsd = (costs?: { amountUsd?: string }[]) =>
+      (costs ?? []).reduce((s, c) => s + (Number(c.amountUsd) || 0), 0);
+    const tool = q.toolDetails?.name ?? q.tool ?? "Li.Fi";
+
+    return {
+      fromToken,
+      toToken,
+      fromChain,
+      toChain,
+      amountIn,
+      amountOut: fromBaseUnits(rawOut, TOKEN_DECIMALS[toToken]),
+      slippagePct,
+      gasUsd: round(sumUsd(q.estimate?.gasCosts), 4),
+      feeUsd: round(sumUsd(q.estimate?.feeCosts), 2),
+      route:
+        fromChain === toChain
+          ? [`${fromToken}→${toToken} via ${tool} on ${fromChain}`]
+          : [`${fromToken} on ${fromChain}`, `${tool} bridge → ${toChain}`, `→ ${toToken}`],
+      etaSeconds: q.estimate?.executionDuration ?? (fromChain === toChain ? 4 : 120),
+      source: "lifi",
+    };
+  } catch {
+    return null; // network error / timeout → caller falls back to mock
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Quoting
+// ---------------------------------------------------------------------------
+
 export function quoteSwap(params: {
-  fromToken: Stablecoin;
-  toToken: Stablecoin;
+  fromToken: Token;
+  toToken: Token;
   fromChain: Chain;
   amountIn: number;
   toChain?: Chain;
 }): SwapQuote {
   const { fromToken, toToken, fromChain, amountIn } = params;
-  // Auto-select cheapest destination chain if the caller doesn't force one.
-  const toChain = params.toChain ?? CHEAPEST_CHAINS[0];
+  // Auto-select the cheapest destination the target token circulates on.
+  const toChain =
+    params.toChain ??
+    CHEAPEST_CHAINS.find((c) => isTokenOnChain(toToken, c)) ??
+    TOKEN_CHAINS[toToken][0];
 
-  const slippagePct = 0.04; // <0.05% on L2 per playbook
-  const gasUsd = 0.004;
-  const usdIn = amountIn * USD_PEG[fromToken];
-  const grossOut = usdIn / USD_PEG[toToken];
+  const slippagePct = defaultSlippagePct(fromChain, toChain);
+  const gasUsd = toChain === "robinhood" ? 0.005 : fromChain === toChain ? 0.004 : 0.02;
+  // Mirror Li.Fi's ~0.25% aggregation fee on bridged routes.
+  const feePct = fromChain === toChain ? 0 : 0.25;
+  const usdIn = amountIn * TOKEN_USD[fromToken];
+  const feeUsd = (usdIn * feePct) / 100;
+  const grossOut = (usdIn - feeUsd) / TOKEN_USD[toToken];
   const amountOut = grossOut * (1 - slippagePct / 100);
 
   const route =
@@ -58,14 +259,41 @@ export function quoteSwap(params: {
     fromChain,
     toChain,
     amountIn,
-    amountOut: round(amountOut),
+    amountOut: round(amountOut, 8),
     slippagePct,
     gasUsd,
+    feeUsd: round(feeUsd, 2),
     route,
-    etaSeconds: fromChain === toChain ? 4 : 22,
+    etaSeconds: fromChain === toChain ? 4 : crossVM(fromChain, toChain) ? 120 : 22,
+    source: "mock",
   };
 }
 
-function round(n: number): number {
-  return Math.round(n * 100) / 100;
+/**
+ * Best-effort quote: live Li.Fi pricing when the pair is address-mapped and
+ * the API answers in time, otherwise the local estimate. Same shape either
+ * way, so callers just render `source`.
+ */
+export async function getSwapQuote(params: {
+  fromToken: Token;
+  toToken: Token;
+  fromChain: Chain;
+  amountIn: number;
+  toChain?: Chain;
+}): Promise<SwapQuote> {
+  const mock = quoteSwap(params);
+  const live = await fetchLifiQuote({
+    fromToken: params.fromToken,
+    toToken: params.toToken,
+    fromChain: params.fromChain,
+    toChain: mock.toChain,
+    amountIn: params.amountIn,
+    slippagePct: mock.slippagePct,
+  });
+  return live ?? mock;
+}
+
+function round(n: number, dp = 2): number {
+  const f = 10 ** dp;
+  return Math.round(n * f) / f;
 }

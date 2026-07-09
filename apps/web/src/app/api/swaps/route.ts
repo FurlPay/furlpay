@@ -1,19 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
-import { quoteSwap } from "@/lib/services/swap";
+import { getSwapQuote, isTokenOnChain, usdPrice } from "@/lib/services/swap";
 import { newTx, recordTransaction } from "@/lib/store";
 import { requireUser } from "@/lib/authz";
+import type { Chain, Token } from "@/lib/types";
 
-// /api/swaps — cheapest cross-chain swap routing (Li.Fi / 1inch), Doc-2 canonical.
+// /api/swaps — cheapest cross-chain swap routing (Li.Fi live quotes with a
+// local fallback), Doc-2 canonical. Execution settles against the demo ledger.
 // POST body: { fromToken, toToken, fromChain, amountIn, toChain?, execute? }
+
+function validate(body: {
+  fromToken: Token;
+  toToken: Token;
+  fromChain: Chain;
+  toChain?: Chain;
+  amountIn: number;
+}): string | null {
+  if (!Number.isFinite(body.amountIn) || body.amountIn <= 0) {
+    return "amountIn must be a positive number.";
+  }
+  if (!isTokenOnChain(body.fromToken, body.fromChain)) {
+    return `${body.fromToken} is not available on ${body.fromChain}.`;
+  }
+  if (body.toChain && !isTokenOnChain(body.toToken, body.toChain)) {
+    return `${body.toToken} is not available on ${body.toChain}.`;
+  }
+  if (body.fromToken === body.toToken && (body.toChain ?? body.fromChain) === body.fromChain) {
+    return "Pick a different token or destination chain.";
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
   const body = await req.json();
-  const quote = quoteSwap(body);
+  body.amountIn = Number(body.amountIn);
+  const invalid = validate(body);
+  if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
+
+  const quote = await getSwapQuote(body);
 
   if (body.execute) {
+    const usdIn = quote.amountIn * usdPrice(quote.fromToken);
     recordTransaction(
       account.user.id,
       newTx({
@@ -21,7 +51,7 @@ export async function POST(req: NextRequest) {
         direction: "in",
         title: `Swapped ${quote.fromToken} → ${quote.toToken}`,
         subtitle: `Li.Fi · ${quote.fromChain} → ${quote.toChain}`,
-        amountUsd: quote.amountIn,
+        amountUsd: usdIn,
         token: quote.toToken,
         chain: quote.toChain,
         status: "settled",
@@ -31,14 +61,19 @@ export async function POST(req: NextRequest) {
     const src = account.tokenBalances.find((b) => b.token === quote.fromToken && b.chain === quote.fromChain);
     if (src) {
       src.amount = Math.max(0, src.amount - quote.amountIn);
-      src.usdValue = src.amount;
+      src.usdValue = src.amount * usdPrice(src.token);
     }
     const dst = account.tokenBalances.find((b) => b.token === quote.toToken && b.chain === quote.toChain);
     if (dst) {
       dst.amount += quote.amountOut;
-      dst.usdValue = dst.amount;
+      dst.usdValue = dst.amount * usdPrice(dst.token);
     } else {
-      account.tokenBalances.push({ token: quote.toToken, chain: quote.toChain, amount: quote.amountOut, usdValue: quote.amountOut });
+      account.tokenBalances.push({
+        token: quote.toToken,
+        chain: quote.toChain,
+        amount: quote.amountOut,
+        usdValue: quote.amountOut * usdPrice(quote.toToken),
+      });
     }
   }
 
@@ -47,12 +82,12 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   const p = req.nextUrl.searchParams;
-  const quote = quoteSwap({
-    fromToken: (p.get("fromToken") as any) ?? "USDT",
-    toToken: (p.get("toToken") as any) ?? "USDC",
-    fromChain: (p.get("fromChain") as any) ?? "arbitrum",
+  const quote = await getSwapQuote({
+    fromToken: (p.get("fromToken") as Token) ?? "USDT",
+    toToken: (p.get("toToken") as Token) ?? "USDC",
+    fromChain: (p.get("fromChain") as Chain) ?? "arbitrum",
     amountIn: Number(p.get("amountIn") ?? 100),
-    toChain: (p.get("toChain") as any) ?? undefined,
+    toChain: (p.get("toChain") as Chain) ?? undefined,
   });
   return NextResponse.json({ quote });
 }

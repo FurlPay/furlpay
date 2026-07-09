@@ -2,33 +2,24 @@
 
 import { useState } from "react";
 import { sendJSON } from "@/lib/api";
-import { Chain, Stablecoin } from "@/lib/types";
+import { Chain, Token } from "@/lib/types";
+import { TOKENS } from "@furlpay/types";
+import { TOKEN_CHAINS, type SwapQuote } from "@/lib/services/swap";
 import Modal from "./Modal";
 
-const TOKENS: Stablecoin[] = ["USDC", "USDT", "EURC", "PYUSD"];
-const CHAINS: Chain[] = ["base", "solana", "arbitrum", "polygon", "ethereum"];
-
-interface Quote {
-  amountOut: number;
-  slippagePct: number;
-  gasUsd: number;
-  route: string[];
-  toChain: Chain;
-  etaSeconds: number;
-}
-
 export default function SwapModal({ open, onClose, onDone }: { open: boolean; onClose: () => void; onDone: () => void }) {
-  const [fromToken, setFromToken] = useState<Stablecoin>("USDT");
-  const [toToken, setToToken] = useState<Stablecoin>("USDC");
+  const [fromToken, setFromToken] = useState<Token>("USDT");
+  const [toToken, setToToken] = useState<Token>("USDC");
   const [fromChain, setFromChain] = useState<Chain>("arbitrum");
+  const [toChain, setToChain] = useState<Chain>("arbitrum");
   const [amount, setAmount] = useState("100");
-  const [quote, setQuote] = useState<Quote | null>(null);
+  const [quote, setQuote] = useState<SwapQuote | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const amt = Number(amount);
-  const sameToken = fromToken === toToken;
-  const valid = amt > 0 && !sameToken;
+  const sameRoute = fromToken === toToken && fromChain === toChain;
+  const valid = amt > 0 && !sameRoute;
 
   // A quote is only good for the inputs it priced — invalidate it on any change.
   function update<T>(setter: (v: T) => void) {
@@ -39,12 +30,25 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
     };
   }
 
+  // Token picks also snap the chain to somewhere the token circulates.
+  function pickToken(side: "from" | "to") {
+    return (t: Token) => {
+      if (side === "from") {
+        update(setFromToken)(t);
+        if (!TOKEN_CHAINS[t].includes(fromChain)) setFromChain(TOKEN_CHAINS[t][0]);
+      } else {
+        update(setToToken)(t);
+        if (!TOKEN_CHAINS[t].includes(toChain)) setToChain(TOKEN_CHAINS[t][0]);
+      }
+    };
+  }
+
   async function getQuote() {
     setBusy(true);
     setError(null);
     try {
-      const r = await sendJSON<{ quote: Quote }>("/api/swaps", {
-        fromToken, toToken, fromChain, amountIn: amt,
+      const r = await sendJSON<{ quote: SwapQuote }>("/api/swaps", {
+        fromToken, toToken, fromChain, toChain, amountIn: amt,
       });
       setQuote(r.quote);
     } catch {
@@ -59,7 +63,7 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
     setError(null);
     try {
       await sendJSON("/api/swaps", {
-        fromToken, toToken, fromChain, amountIn: amt, execute: true,
+        fromToken, toToken, fromChain, toChain, amountIn: amt, execute: true,
       });
       setQuote(null);
       onDone();
@@ -72,9 +76,9 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Swap Stablecoins">
+    <Modal open={open} onClose={onClose} title="Swap">
       <p className="mb-4 text-[13px] text-textSecondary">
-        Li.Fi auto-routes to the cheapest L2 with &lt;0.05% slippage.
+        Li.Fi routes across chains — including Solana and Robinhood Chain — for the cheapest fill.
       </p>
 
       <label className="mb-1 block text-[12px] text-textSecondary">You pay</label>
@@ -87,8 +91,8 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
           onChange={(e) => update(setAmount)(e.target.value)}
           className="flex-1 rounded-2xl bg-surface px-4 py-3 text-lg font-semibold outline-none"
         />
-        <Select value={fromToken} onChange={(v) => update(setFromToken)(v as Stablecoin)} options={TOKENS} />
-        <Select value={fromChain} onChange={(v) => update(setFromChain)(v as Chain)} options={CHAINS} />
+        <Select value={fromToken} onChange={(v) => pickToken("from")(v as Token)} options={TOKENS} />
+        <Select value={fromChain} onChange={(v) => update(setFromChain)(v as Chain)} options={TOKEN_CHAINS[fromToken]} />
       </div>
 
       <label className="mb-1 block text-[12px] text-textSecondary">You receive</label>
@@ -96,11 +100,12 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
         <div className="flex-1 rounded-2xl bg-surface px-4 py-3 text-lg font-semibold text-textSecondary">
           {quote ? quote.amountOut : "—"}
         </div>
-        <Select value={toToken} onChange={(v) => update(setToToken)(v as Stablecoin)} options={TOKENS} />
+        <Select value={toToken} onChange={(v) => pickToken("to")(v as Token)} options={TOKENS} />
+        <Select value={toChain} onChange={(v) => update(setToChain)(v as Chain)} options={TOKEN_CHAINS[toToken]} />
       </div>
 
-      {sameToken && (
-        <p className="mb-3 text-[12px] text-loss">Pick two different tokens to swap.</p>
+      {sameRoute && (
+        <p className="mb-3 text-[12px] text-loss">Pick a different token or destination chain.</p>
       )}
       {error && (
         <p className="mb-3 rounded-2xl bg-loss/15 p-3 text-[13px] text-loss">{error}</p>
@@ -111,8 +116,10 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
           <Row k="Route" v={quote.route.join(" · ")} />
           <Row k="Destination" v={quote.toChain} />
           <Row k="Slippage" v={`${quote.slippagePct}%`} />
-          <Row k="Network fee" v={`$${quote.gasUsd.toFixed(4)}`} />
+          {quote.feeUsd > 0 && <Row k="Swap fees" v={`$${quote.feeUsd.toFixed(2)}`} />}
+          <Row k="Network fee" v={quote.gasUsd < 0.01 ? "<$0.01" : `$${quote.gasUsd.toFixed(4)}`} />
           <Row k="ETA" v={`~${quote.etaSeconds}s`} />
+          <Row k="Quote" v={quote.source === "lifi" ? "Li.Fi live" : "Estimated"} />
         </div>
       )}
 
@@ -129,7 +136,7 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
   );
 }
 
-function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: string[] }) {
+function Select({ value, onChange, options }: { value: string; onChange: (v: string) => void; options: readonly string[] }) {
   return (
     <select
       value={value}
