@@ -6,6 +6,8 @@ import { usdPrice } from "@/lib/services/swap";
 import { db } from "@/lib/store";
 import { log } from "@/lib/log";
 import { limit } from "@/lib/rateLimit";
+import { sendEmail } from "@/lib/email";
+import { depositReceivedEmail } from "@/lib/emailTemplates";
 
 // POST /api/webhooks/deposit-detect — address-activity webhooks from QuickNode
 // Streams (x-qn-signature) or Alchemy Notify (x-alchemy-signature). Both sign
@@ -101,6 +103,16 @@ export async function POST(req: Request) {
       db.tokenBalances.push({ token, chain, amount, usdValue: amount * usdPrice(token) });
     }
     log.info("deposit credited", { txHash, token, chain, amount });
+    if (db.user.email) {
+      // Keyed by txHash: markCredited already guarantees one credit, and the
+      // idempotency key catches a redelivered webhook racing the KV guard.
+      void sendEmail({
+        to: db.user.email,
+        category: "deposit",
+        idempotencyKey: `deposit-${txHash}`,
+        ...depositReceivedEmail({ amount, token, chain, txHash, confirmations: event.confirmations }),
+      });
+    }
   }
 
   return NextResponse.json({ status: "processed", txHash, state: event.status, orderId: event.orderId });

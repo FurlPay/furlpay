@@ -72,6 +72,9 @@ export const CITY_PHOTOS: Record<string, string> = {
   "Costa Rica": unsplash("photo-1536708880921-03a9306ec47d"),
   Lisbon: unsplash("photo-1585208798174-6cedd86e019a"),
   "Cape Town": unsplash("photo-1580060839134-75a5edca2e99"),
+  "Hong Kong": unsplash("photo-1536599018102-9f803c140fc1"),
+  Paris: unsplash("photo-1502602898657-3e91760cbb34"),
+  Singapore: unsplash("photo-1525625293386-3f8f99389edd"),
 };
 
 // FX for display only (mid-market, mock — a live build pulls quotes).

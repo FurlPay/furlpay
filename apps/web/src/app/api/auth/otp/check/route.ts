@@ -5,6 +5,8 @@ import { findOrCreateUserByIdentity, updateUser } from "@/lib/store";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { sendEmail } from "@/lib/email";
+import { welcomeEmail } from "@/lib/emailTemplates";
 
 const Body = z.object({
   to: z.string().min(4),
@@ -58,6 +60,11 @@ export async function POST(req: NextRequest) {
     });
     setSessionCookie(res, token);
     audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: `otp:${channel}` });
+  }
+  // Phone-only signups have no email address yet — the welcome goes out only
+  // for the email-OTP path, where the address is the verified identity itself.
+  if (created && channel === "email") {
+    void sendEmail({ to, category: "welcome", ...welcomeEmail(account.user.name) });
   }
   return res;
 }

@@ -2,9 +2,59 @@
 // API (no SDK dependency needed); otherwise logs to the server console so the
 // app runs with zero credentials. Configure EMAIL_FROM and, in production,
 // DKIM/SPF/DMARC on the sending domain.
+//
+// Every send carries a category, and sends are budgeted per UTC day on the KV
+// layer: Resend's free tier hard-stops at 100/day, so low-priority categories
+// are throttled before they can starve a security alert. Critical categories
+// (security, otp) skip their per-category cap but still respect the global one.
+
+import { kvIncr } from "./kv";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "Furlpay <hello@furlpay.com>";
+
+export type EmailCategory =
+  | "security" // new device, lock/unlock, credential changes
+  | "otp" // login/verification codes
+  | "payment" // receipts: card, x402, swap
+  | "booking" // travel confirmations
+  | "deposit" // on-chain deposit credited
+  | "kyc" // verification outcome
+  | "welcome" // first-account onboarding
+  | "developer" // API key / x402 registration
+  | "ops"; // internal inboxes: contact, careers, HITL, swag
+
+// Global cap sits under Resend's 100/day so a burst never hits the provider
+// wall; category caps keep one chatty flow from draining the day's budget.
+const DAILY_GLOBAL_CAP = 95;
+const CATEGORY_CAPS: Record<EmailCategory, number> = {
+  security: 25,
+  otp: 25,
+  payment: 15,
+  booking: 10,
+  deposit: 10,
+  kyc: 5,
+  welcome: 5,
+  developer: 5,
+  ops: 20,
+};
+const CRITICAL: ReadonlySet<EmailCategory> = new Set(["security", "otp"]);
+
+/** True when this send would exceed the day's budget. Counts on the KV layer
+ *  (global across instances); errors fail open — budgeting must never take
+ *  email down. A denied send still consumed a count unit, which under-reports
+ *  capacity slightly — the safe direction. */
+async function overBudget(category: EmailCategory): Promise<boolean> {
+  try {
+    const day = new Date().toISOString().slice(0, 10);
+    const total = await kvIncr(`email:sent:${day}`, 172_800);
+    if (total > DAILY_GLOBAL_CAP) return true;
+    const inCategory = await kvIncr(`email:sent:${category}:${day}`, 172_800);
+    return inCategory > CATEGORY_CAPS[category] && !CRITICAL.has(category);
+  } catch {
+    return false;
+  }
+}
 
 export interface EmailMessage {
   to: string | string[];
@@ -12,16 +62,28 @@ export interface EmailMessage {
   html: string;
   text?: string;
   replyTo?: string;
+  /** Send budget bucket + Resend tag. Defaults to "ops" (internal traffic). */
+  category?: EmailCategory;
+  /** Extra Resend tags (ASCII letters/numbers/_/- only, per API docs). */
+  tags?: { name: string; value: string }[];
+  /** Dedupes retried sends at the provider (24h window, max 256 chars). */
+  idempotencyKey?: string;
 }
 
-export type SendResult = { ok: true; id?: string; mocked?: boolean } | { ok: false; error: string };
+export type SendResult =
+  | { ok: true; id?: string; mocked?: boolean }
+  | { ok: false; error: string };
 
 /** Send an email. No-ops to a console log when RESEND_API_KEY is absent. */
 export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
+  const category = msg.category ?? "ops";
   if (!RESEND_API_KEY) {
     const to = Array.isArray(msg.to) ? msg.to.join(", ") : msg.to;
-    console.log(`[email:mock] → ${to} · "${msg.subject}"`);
+    console.log(`[email:mock] → ${to} · [${category}] "${msg.subject}"`);
     return { ok: true, mocked: true };
+  }
+  if (await overBudget(category)) {
+    return { ok: false, error: `daily email budget exceeded (category: ${category})` };
   }
   try {
     const res = await fetch("https://api.resend.com/emails", {
@@ -29,6 +91,7 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
       headers: {
         Authorization: `Bearer ${RESEND_API_KEY}`,
         "Content-Type": "application/json",
+        ...(msg.idempotencyKey ? { "Idempotency-Key": msg.idempotencyKey.slice(0, 256) } : {}),
       },
       body: JSON.stringify({
         from: EMAIL_FROM,
@@ -37,6 +100,7 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
         html: msg.html,
         text: msg.text,
         reply_to: msg.replyTo,
+        tags: [{ name: "category", value: category }, ...(msg.tags ?? [])],
       }),
     });
     if (!res.ok) {
@@ -51,14 +115,25 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
 
 // ── Templates ──────────────────────────────────────────────────────────────
 
-const shell = (title: string, body: string) => `
+/** Shared layout for every outbound email: brand header, card body, and a
+ *  footer that carries the anti-phishing notice on all categories. The logo is
+ *  the deployed app icon (24 KB) — email clients need an absolute URL. */
+export const shell = (title: string, body: string) => `
 <!doctype html><html><body style="margin:0;background:#000;color:#fff;font-family:Inter,system-ui,sans-serif">
   <div style="max-width:520px;margin:0 auto;padding:32px 24px">
-    <div style="font-size:20px;font-weight:800;letter-spacing:-.02em;color:#00E599">Furlpay</div>
-    <h1 style="font-size:22px;margin:24px 0 8px">${title}</h1>
-    ${body}
+    <div>
+      <img src="https://furlpay.com/icon.png" width="36" height="36" alt="Furlpay" style="border-radius:9px;vertical-align:middle"/>
+      <span style="font-size:20px;font-weight:800;letter-spacing:-.02em;color:#00E599;vertical-align:middle;margin-left:10px">Furlpay</span>
+    </div>
+    <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:28px;margin-top:24px">
+      <h1 style="font-size:22px;margin:0 0 8px">${title}</h1>
+      ${body}
+    </div>
     <hr style="border:none;border-top:1px solid #222;margin:28px 0"/>
+    <p style="font-size:12px;color:#888;line-height:1.5">Furlpay will never ask for your password, seed phrase, or private keys by email.</p>
     <p style="font-size:11px;color:#888">Furlpay · The on-chain financial operating system ·
+      <a href="https://furlpay.com/legal/privacy" style="color:#888">Privacy</a> ·
+      <a href="https://furlpay.com/legal/terms" style="color:#888">Terms</a> ·
       <a href="https://furlpay.com/newsletter/unsubscribe" style="color:#888">Unsubscribe</a></p>
   </div>
 </body></html>`;
@@ -109,7 +184,7 @@ export function creatorWelcome(
 
   // 2026 best practice: one primary CTA (open the dashboard); details follow.
   return {
-    subject: "You're in — welcome to the Furlpay Creator Program ✈️",
+    subject: "You're in — welcome to the Furlpay Creator Program",
     html: shell(
       "You're enrolled.",
       `<p style="font-size:14px;line-height:1.6;color:#bbb">Hi ${name},</p>

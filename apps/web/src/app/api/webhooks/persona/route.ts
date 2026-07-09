@@ -4,6 +4,8 @@ import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
 import { getAccount, setKycStatus } from "@/lib/store";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
+import { sendEmail } from "@/lib/email";
+import { kycStatusEmail } from "@/lib/emailTemplates";
 
 // POST /api/webhooks/persona — Persona KYC inquiry outcomes (async liveness).
 // Verifies the persona-signature header (constant-time, rotation-aware) before
@@ -49,9 +51,25 @@ export async function POST(request: Request) {
       if (eventType === "inquiry.completed" || status === "completed") {
         setKycStatus(account.user.id, "verified", 2);
         audit("webhook.processed", account.user.id, { provider: "persona", event: "inquiry.completed", inquiryId });
+        if (account.user.email) {
+          void sendEmail({
+            to: account.user.email,
+            category: "kyc",
+            idempotencyKey: `kyc-verified-${inquiryId ?? account.user.id}`,
+            ...kycStatusEmail({ name: account.user.name, status: "verified", tier: 2 }),
+          });
+        }
       } else if (eventType === "inquiry.failed" || status === "failed") {
         setKycStatus(account.user.id, "unverified");
         audit("webhook.processed", account.user.id, { provider: "persona", event: "inquiry.failed", inquiryId });
+        if (account.user.email) {
+          void sendEmail({
+            to: account.user.email,
+            category: "kyc",
+            idempotencyKey: `kyc-failed-${inquiryId ?? account.user.id}`,
+            ...kycStatusEmail({ name: account.user.name, status: "unverified" }),
+          });
+        }
       }
     } else if (userId) {
       log.warn("persona webhook for unknown referenceId", { inquiryId, userId });

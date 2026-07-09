@@ -4,6 +4,8 @@ import { verifyGoogleCredential } from "@/lib/auth/google";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { sendEmail } from "@/lib/email";
+import { welcomeEmail } from "@/lib/emailTemplates";
 
 // POST /api/auth/google — body: { credential } (the GIS ID token JWT).
 // Verifies the token server-side, resolves (or creates) the account for that
@@ -53,5 +55,8 @@ export async function POST(req: NextRequest) {
   });
   setSessionCookie(res, token);
   audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: "google" });
+  if (created && identity.email) {
+    void sendEmail({ to: identity.email, category: "welcome", ...welcomeEmail(identity.name) });
+  }
   return res;
 }

@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-import { authorizeBooking, BookingSource, MCC } from "@/lib/travel/data";
+import { authorizeBooking, BookingSource, CITY_PHOTOS, MCC } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
 import { createDuffelStayQuote, createDuffelStayBooking } from "@/lib/travel/duffel";
 import { acquireLock, releaseLock } from "@/lib/locks";
+import { sendEmail } from "@/lib/email";
+import { bookingConfirmationEmail } from "@/lib/emailTemplates";
 import crypto from "crypto";
 
 // POST /api/travel/book — authorize a booking and record it as a trip.
@@ -93,10 +95,38 @@ export async function POST(req: NextRequest) {
     imageUrl: typeof body.image === "string" && body.image.startsWith("http") ? body.image : undefined,
   });
 
+  // Confirmation email to the guest when the checkout supplied an address.
+  const reference = duffel?.reference ?? body.reference ?? "(unassigned)";
+  if (typeof body.email === "string" && body.email.includes("@")) {
+    void sendEmail({
+      to: body.email,
+      category: "booking",
+      idempotencyKey: `booking-${id}`,
+      ...bookingConfirmationEmail({
+        guestName: typeof body.guestGivenName === "string" ? body.guestGivenName : undefined,
+        // Prefer the checkout's own photo; else the destination's stock shot.
+        heroImageUrl:
+          typeof body.image === "string" && body.image.startsWith("https://")
+            ? body.image
+            : CITY_PHOTOS[trip.city],
+        tripName: trip.name,
+        city: trip.city,
+        checkIn: trip.checkIn,
+        checkOut: trip.checkOut,
+        nights: trip.nights,
+        guests: trip.guests,
+        amountUsd,
+        reference,
+        method: trip.method,
+        cashbackUsd: trip.cashbackUsd,
+      }),
+    });
+  }
+
   return NextResponse.json({
     booking: {
       id,
-      reference: duffel?.reference ?? body.reference ?? "(unassigned)",
+      reference,
       status: duffel ? duffel.status : "authorized",
       duffelBookingId: duffel?.bookingId,
       amountUsd,
