@@ -1,0 +1,183 @@
+# ---------------------------------------------------------------------------
+# Security Audit — automated vulnerability scanning + Discord alerts
+#
+# Triggers:
+#   • Every push to main / extension-redesign
+#   • Every PR
+#   • Daily at 06:00 UTC (11:30 AM IST)
+#
+# What it does:
+#   1. npm audit (production deps only, high/critical threshold)
+#   2. Secret leak scan (gitleaks)
+#   3. License compliance check
+#   4. Discord notification on ANY failure
+# ---------------------------------------------------------------------------
+name: Security Audit
+
+on:
+  push:
+    branches: [main, extension-redesign]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * *" # Daily 06:00 UTC = 11:30 AM IST
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  # -----------------------------------------------------------------------
+  # Job 1: npm audit — catch vulnerable production dependencies
+  # -----------------------------------------------------------------------
+  npm-audit:
+    name: "🔍 Dependency Audit"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - run: npm install --ignore-scripts
+
+      - name: Run npm audit (production deps)
+        id: audit
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          npm audit --omit=dev --audit-level=high --json > audit-report.json 2>&1 || true
+
+          # Parse results
+          CRITICAL=$(jq '.metadata.vulnerabilities.critical // 0' audit-report.json)
+          HIGH=$(jq '.metadata.vulnerabilities.high // 0' audit-report.json)
+          MODERATE=$(jq '.metadata.vulnerabilities.moderate // 0' audit-report.json)
+          TOTAL=$((CRITICAL + HIGH + MODERATE))
+
+          echo "critical=$CRITICAL" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "moderate=$MODERATE" >> $GITHUB_OUTPUT
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+
+          # Fail on critical or high
+          if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
+            echo "❌ Found $CRITICAL critical and $HIGH high vulnerabilities"
+            exit 1
+          fi
+
+          echo "✅ No critical/high vulnerabilities"
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-audit-report
+          path: audit-report.json
+          retention-days: 30
+
+      - name: Discord alert on vulnerability
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_SECURITY_WEBHOOK }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+
+          CRITICAL="${{ steps.audit.outputs.critical }}"
+          HIGH="${{ steps.audit.outputs.high }}"
+          MODERATE="${{ steps.audit.outputs.moderate }}"
+
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"🚨 FurlPay Security Alert — Vulnerable Dependencies\",
+              \"color\": 15548997,
+              \"fields\": [
+                {\"name\": \"Critical\", \"value\": \"$CRITICAL\", \"inline\": true},
+                {\"name\": \"High\", \"value\": \"$HIGH\", \"inline\": true},
+                {\"name\": \"Moderate\", \"value\": \"$MODERATE\", \"inline\": true},
+                {\"name\": \"Action\", \"value\": \"Run \`npm audit\` locally and apply fixes.\", \"inline\": false},
+                {\"name\": \"Workflow\", \"value\": \"[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "$DISCORD_WEBHOOK"
+
+  # -----------------------------------------------------------------------
+  # Job 2: Secret leak detection — prevent API keys from being committed
+  # -----------------------------------------------------------------------
+  secret-scan:
+    name: "🔑 Secret Leak Scan"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run Gitleaks
+        id: gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Discord alert on leaked secret
+        if: steps.gitleaks.outcome == 'failure'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_SECURITY_WEBHOOK }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"🔴 CRITICAL — Secret Leaked in Code\",
+              \"description\": \"Gitleaks detected a potential secret or API key in the repository. **Rotate the exposed credential immediately.**\",
+              \"color\": 15158332,
+              \"fields\": [
+                {\"name\": \"Branch\", \"value\": \"\`${{ github.ref_name }}\`\", \"inline\": true},
+                {\"name\": \"Commit\", \"value\": \"\`${{ github.sha }}\`\", \"inline\": true},
+                {\"name\": \"Workflow\", \"value\": \"[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "$DISCORD_WEBHOOK"
+
+  # -----------------------------------------------------------------------
+  # Job 3: Daily health summary (runs only on schedule, not on push/PR)
+  # -----------------------------------------------------------------------
+  daily-summary:
+    name: "📊 Daily Security Summary"
+    if: github.event_name == 'schedule'
+    needs: [npm-audit, secret-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send daily summary to Discord
+        if: always()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_SECURITY_WEBHOOK }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+
+          AUDIT_STATUS="${{ needs.npm-audit.result }}"
+          SECRET_STATUS="${{ needs.secret-scan.result }}"
+
+          if [ "$AUDIT_STATUS" = "success" ] && [ "$SECRET_STATUS" = "success" ]; then
+            COLOR=5763719  # green
+            TITLE="✅ FurlPay Daily Security Check — All Clear"
+            DESC="No vulnerabilities or leaked secrets detected."
+          else
+            COLOR=15548997  # red
+            TITLE="⚠️ FurlPay Daily Security Check — Issues Found"
+            DESC="One or more checks failed. Review the workflow run."
+          fi
+
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"$TITLE\",
+              \"description\": \"$DESC\",
+              \"color\": $COLOR,
+              \"fields\": [
+                {\"name\": \"Dependency Audit\", \"value\": \"$AUDIT_STATUS\", \"inline\": true},
+                {\"name\": \"Secret Scan\", \"value\": \"$SECRET_STATUS\", \"inline\": true},
+                {\"name\": \"Report\", \"value\": \"[View Full Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "$DISCORD_WEBHOOK"

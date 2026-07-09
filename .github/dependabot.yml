@@ -1,0 +1,62 @@
+# Dependabot configuration — automated security and dependency updates
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+version: 2
+updates:
+  # npm (JavaScript/TypeScript) — the main app + all workspaces
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "security"
+    # Group minor/patch updates into fewer PRs to reduce noise
+    groups:
+      production-deps:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    # Auto-assign for review
+    reviewers:
+      - "Ashutosh0x"
+
+  # GitHub Actions — keep CI/CD actions updated
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "ci"
+      - "dependencies"
+
+  # Go SDK
+  - package-ecosystem: "gomod"
+    directory: "/sdks/go"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "go"
+
+  # Rust SDK
+  - package-ecosystem: "cargo"
+    directory: "/sdks/rust"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "rust"
+
+  # Python SDK
+  - package-ecosystem: "pip"
+    directory: "/sdks/python"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "python"

@@ -1,0 +1,63 @@
+# ---------------------------------------------------------------------------
+# Dependabot Auto-Merge — automatically merge patch/minor security updates
+#
+# When Dependabot opens a PR:
+#   1. If it's a patch or minor version bump → auto-approve + auto-merge
+#   2. If it's a major version bump → notify Discord for manual review
+#   3. All auto-merges require CI to pass first
+# ---------------------------------------------------------------------------
+name: Dependabot Auto-Merge
+
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: "🤖 Auto-Merge Dependabot"
+    runs-on: ubuntu-latest
+    if: github.actor == 'dependabot[bot]'
+    steps:
+      - name: Fetch Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Auto-merge patch and minor updates (non-breaking)
+      - name: Auto-approve & merge (patch/minor)
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch' || steps.metadata.outputs.update-type == 'version-update:semver-minor'
+        run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Notify Discord for major updates (needs human review)
+      - name: Discord alert for major update
+        if: steps.metadata.outputs.update-type == 'version-update:semver-major'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_SECURITY_WEBHOOK }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+
+          DEP_NAME="${{ steps.metadata.outputs.dependency-names }}"
+          OLD_VER="${{ steps.metadata.outputs.previous-version }}"
+          NEW_VER="${{ steps.metadata.outputs.new-version }}"
+          PR_URL="${{ github.event.pull_request.html_url }}"
+
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"⚠️ Major Dependency Update — Manual Review Required\",
+              \"color\": 16776960,
+              \"fields\": [
+                {\"name\": \"Package\", \"value\": \"\`$DEP_NAME\`\", \"inline\": true},
+                {\"name\": \"Version\", \"value\": \"\`$OLD_VER\` → \`$NEW_VER\`\", \"inline\": true},
+                {\"name\": \"PR\", \"value\": \"[Review PR]($PR_URL)\", \"inline\": false}
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "$DISCORD_WEBHOOK"

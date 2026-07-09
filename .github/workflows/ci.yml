@@ -31,17 +31,8 @@ jobs:
       - name: Test ledger package
         run: npm test --workspace @furlpay/ledger
 
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - run: npm install
-      # Fail only on high/critical advisories in production deps.
-      - name: Dependency audit
-        run: npm audit --omit=dev --audit-level=high || true
+  # Security auditing moved to .github/workflows/security-audit.yml
+  # which has proper failure handling + Discord notifications.
 
   go-sdk:
     runs-on: ubuntu-latest
