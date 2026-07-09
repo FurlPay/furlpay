@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 
 // POST /api/careers — talent-pipeline interest capture (no open roles yet).
@@ -20,6 +21,9 @@ const pipeline = g.__careers ?? (g.__careers = []);
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "careers", { limit: 5, windowMs: 600_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => ({}));
   const name = str(body.name);
   const email = str(body.email);

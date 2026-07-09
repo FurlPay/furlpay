@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { isFollowing } from "@/lib/creator";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,9 @@ const follows = g.__follows ?? (g.__follows = {});
 // POST /api/ambassadors/follow — Follow a creator.
 // Body: { followerEmail: string, followeeEmail: string }
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "ambassadors.follow", { limit: 20, windowMs: 600_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => ({}));
   const followerEmail = str(body.followerEmail).toLowerCase();
   const followeeEmail = str(body.followeeEmail).toLowerCase();

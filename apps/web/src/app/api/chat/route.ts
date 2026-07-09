@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { runCopilot, type ChatMessage } from "@/lib/copilot";
 
 export const dynamic = "force-dynamic";
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
 // calling the guarded route. The co-pilot itself NEVER moves money — HITL by
 // construction. Session-gated by middleware.
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "chat", { limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
+
   let body: { messages?: ChatMessage[] };
   try {
     body = await req.json();

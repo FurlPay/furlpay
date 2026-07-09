@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { redeemGiftCard } from "@/lib/travel/giftcards";
 
 // POST /api/travel/gift-cards/redeem — redeem a gift card code for travel credit.
 // Body: { code }
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "giftcards.redeem", { limit: 10, windowMs: 600_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => ({}));
   const code = String(body.code ?? "").trim().toUpperCase();
   const result = redeemGiftCard(code);

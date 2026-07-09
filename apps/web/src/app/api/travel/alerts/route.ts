@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { createAlert, deleteAlert, listAlerts } from "@/lib/travel/alerts";
 
@@ -9,6 +10,9 @@ export async function GET() {
 
 // POST /api/travel/alerts — create a flight/hotel price alert.
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "travel.alerts", { limit: 10, windowMs: 600_000 });
+  if (limited) return limited;
+
   let body: any;
   try {
     body = await req.json();

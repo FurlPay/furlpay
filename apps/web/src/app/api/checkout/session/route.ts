@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import crypto from "crypto";
 import { screenWallet } from "@furlpay/compliance";
 import { CheckoutSchema, parse } from "@/lib/schemas";
@@ -7,6 +8,9 @@ import { CheckoutSchema, parse } from "@/lib/schemas";
 // (used by @furlpay/elements FurlpayCheckoutButton and the browser extension).
 // body: { amount, currency?, token?, wallet? }
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "checkout.session", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const key = req.headers.get("x-furlpay-key");
   if (!key) {
     return NextResponse.json({ error: "Missing X-Furlpay-Key" }, { status: 401 });

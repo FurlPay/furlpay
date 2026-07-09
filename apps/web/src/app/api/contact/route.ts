@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { contactNotification, sendEmail } from "@/lib/email";
 
 // POST /api/contact — "Talk to us" lead capture. Public (unauthenticated).
@@ -26,6 +27,9 @@ function str(v: unknown): string {
 }
 
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "contact", { limit: 5, windowMs: 600_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => ({}));
 
   const firstName = str(body.firstName);

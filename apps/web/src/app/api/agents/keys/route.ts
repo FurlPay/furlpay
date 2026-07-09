@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { listAgentKeyIds, registerAgentKey } from "@/lib/agentTrustGate";
 
 export const dynamic = "force-dynamic";
@@ -7,6 +8,9 @@ export const dynamic = "force-dynamic";
 // The returned keyId is what the agent puts in its RFC 9421 keyid parameter
 // when signing requests to gated routes like /api/escrow.
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "agents.keys", { limit: 10, windowMs: 600_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => ({}));
   const publicKeyPem = (body as { publicKeyPem?: string }).publicKeyPem;
   if (!publicKeyPem?.includes("BEGIN PUBLIC KEY")) {

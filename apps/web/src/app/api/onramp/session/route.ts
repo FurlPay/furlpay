@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { createOnrampSession } from "@/lib/services/onramp";
 
 export const dynamic = "force-dynamic";
@@ -6,6 +7,9 @@ export const dynamic = "force-dynamic";
 // POST /api/onramp/session — mint a headless on-ramp session the partner
 // confirms with its own payment sheet. Consumed by @furlpay/elements/onramp.
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "onramp.session", { limit: 10, windowMs: 600_000 });
+  if (limited) return limited;
+
   const b = await req.json().catch(() => ({}));
   const fiatAmount = Number(b?.fiatAmount);
   const destinationAddress = String(b?.destinationAddress ?? "");

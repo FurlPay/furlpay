@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail, creatorWelcome } from "@/lib/email";
 import {
   buildCreatorView,
@@ -26,6 +27,9 @@ const applicants = g.__ambassadors ?? (g.__ambassadors = []);
 const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
 
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "ambassadors", { limit: 5, windowMs: 600_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => ({}));
   const name = str(body.name);
   const email = str(body.email);

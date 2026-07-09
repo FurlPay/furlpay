@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { authorizeBooking, BookingSource, CITY_PHOTOS, MCC, RATES } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
@@ -15,6 +16,9 @@ import crypto from "crypto";
 //  - travala → x402/USDC on Base + 2% cashback + 10% cbBTC rebate accrual
 //  - legacy  → single-use, MCC-locked Visa virtual card
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "travel.book", { limit: 10, windowMs: 600_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => ({}));
   let amountUsd = Number(body.amountUsd);
   if (!amountUsd || amountUsd <= 0) {
