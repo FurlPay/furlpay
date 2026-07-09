@@ -19,6 +19,7 @@
     "cli": "node packages/cli/bin/furlpay.js"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.31.0",
     "turbo": "2.10.4"
   },
   "overrides": {
