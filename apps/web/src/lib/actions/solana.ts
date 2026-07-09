@@ -69,6 +69,20 @@ function merchantWallet(): PublicKey {
   return new PublicKey(configured || "11111111111111111111111111111111");
 }
 
+// Platform fee split (Stripe-style take rate). Env-gated: PLATFORM_FEE_BPS
+// basis points of every checkout are routed to PLATFORM_FEE_SOLANA_WALLET as a
+// second transfer in the same atomic transaction. Zero/unset BPS, no fee
+// wallet, or fee wallet == merchant (first-party checkout, split is a no-op)
+// all disable it — today FurlPay is its own merchant, so this stays dormant
+// until third-party merchants settle through these rails.
+function platformFee(): { wallet: PublicKey; bps: number } | null {
+  const bps = Number(process.env.PLATFORM_FEE_BPS);
+  const wallet = process.env.PLATFORM_FEE_SOLANA_WALLET;
+  if (!wallet || !Number.isFinite(bps) || bps <= 0 || bps > 1000) return null;
+  const pk = new PublicKey(wallet);
+  return pk.equals(merchantWallet()) ? null : { wallet: pk, bps };
+}
+
 // ---------------------------------------------------------------------------
 // Mock order book. A live deployment resolves the order from the ledger/DB.
 // ---------------------------------------------------------------------------
@@ -94,13 +108,26 @@ export async function buildPaymentTransaction(opts: {
 }): Promise<Transaction> {
   const { payer, amountUsd, asset } = opts;
   const merchant = merchantWallet();
+  const fee = platformFee();
   const tx = new Transaction();
 
   if (asset === "SOL") {
     const lamports = Math.round((amountUsd / (await solUsdPrice())) * LAMPORTS_PER_SOL);
+    // Integer split: merchant gets the remainder so the two legs always sum
+    // to the quoted total; a fee that rounds to 0 lamports is skipped.
+    const feeLamports = fee ? Math.floor((lamports * fee.bps) / 10_000) : 0;
     tx.add(
-      SystemProgram.transfer({ fromPubkey: payer, toPubkey: merchant, lamports })
+      SystemProgram.transfer({
+        fromPubkey: payer,
+        toPubkey: merchant,
+        lamports: lamports - feeLamports,
+      })
     );
+    if (fee && feeLamports > 0) {
+      tx.add(
+        SystemProgram.transfer({ fromPubkey: payer, toPubkey: fee.wallet, lamports: feeLamports })
+      );
+    }
   } else {
     const mint = new PublicKey(USDC_MINT);
     const payerAta = getAssociatedTokenAddressSync(mint, payer);
@@ -112,10 +139,27 @@ export async function buildPaymentTransaction(opts: {
       createAssociatedTokenAccountIdempotentInstruction(payer, merchantAta, merchant, mint)
     );
     const amount = BigInt(Math.round(amountUsd * 10 ** USDC_DECIMALS));
+    const feeAmount = fee ? (amount * BigInt(fee.bps)) / 10_000n : 0n;
     // transferChecked validates mint + decimals on-chain (safer than transfer).
     tx.add(
-      createTransferCheckedInstruction(payerAta, mint, merchantAta, payer, amount, USDC_DECIMALS)
+      createTransferCheckedInstruction(
+        payerAta,
+        mint,
+        merchantAta,
+        payer,
+        amount - feeAmount,
+        USDC_DECIMALS
+      )
     );
+    if (fee && feeAmount > 0n) {
+      const feeAta = getAssociatedTokenAddressSync(mint, fee.wallet, true);
+      tx.add(
+        createAssociatedTokenAccountIdempotentInstruction(payer, feeAta, fee.wallet, mint)
+      );
+      tx.add(
+        createTransferCheckedInstruction(payerAta, mint, feeAta, payer, feeAmount, USDC_DECIMALS)
+      );
+    }
   }
 
   tx.feePayer = payer;

@@ -197,6 +197,16 @@ async function fetchLifiQuote(params: {
     toAddress: toChain === "solana" ? QUOTE_PLACEHOLDER_SOL : QUOTE_PLACEHOLDER_EVM,
     slippage: String(slippagePct / 100),
   });
+  // Integrator monetization (docs.li.fi/monetization-take-fees): `fee` is a
+  // FRACTION of from-token volume (0.002 = 0.2%, max 0.10), deducted into
+  // Li.Fi's FeeCollector for the `integrator` account. Requires the integrator
+  // to be registered fee-enabled at portal.li.fi first — so both are env-gated
+  // and quotes carry no fee until LIFI_FEE is explicitly set.
+  qs.set("integrator", process.env.LIFI_INTEGRATOR || "furlpay");
+  const lifiFee = Number(process.env.LIFI_FEE);
+  if (Number.isFinite(lifiFee) && lifiFee > 0 && lifiFee <= 0.1) {
+    qs.set("fee", String(lifiFee));
+  }
 
   try {
     const headers: Record<string, string> = { accept: "application/json" };

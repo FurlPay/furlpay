@@ -118,6 +118,8 @@ export const ENV_REGISTRY: EnvGroup[] = [
     group: "Solana / cNFT",
     vars: [
       v("MERCHANT_SOLANA_WALLET"),
+      v("PLATFORM_FEE_BPS"),
+      v("PLATFORM_FEE_SOLANA_WALLET"),
       v("SOLANA_USDC_MINT"),
       v("SOLANA_SOL_USD_PRICE"),
       v("SOLANA_PAYER_SECRET"),
@@ -150,7 +152,14 @@ export const ENV_REGISTRY: EnvGroup[] = [
   },
   {
     group: "Swaps / yield",
-    vars: [v("LIFI_API_KEY"), v("LIFI_API_URL"), v("MORPHO_API_URL"), v("MORPHO_USDC_VAULT")],
+    vars: [
+      v("LIFI_API_KEY"),
+      v("LIFI_API_URL"),
+      v("LIFI_INTEGRATOR"),
+      v("LIFI_FEE"),
+      v("MORPHO_API_URL"),
+      v("MORPHO_USDC_VAULT"),
+    ],
   },
   {
     group: "Community / marketing",
