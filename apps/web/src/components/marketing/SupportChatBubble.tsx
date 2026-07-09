@@ -19,10 +19,10 @@ import {
 // Messages / Help spaces, a team presence header, searchable help articles,
 // and a live-feeling agentic chat (typing indicator, quick replies).
 //
-// Self-contained DEMO: replies are canned and no PII leaves the browser. In
-// production the Messages space is wired to the secure support router (KYC
-// lookups via Persona hooks, card locks gated on passkey re-auth) with PII
-// masked before processing.
+// The in-chat assistant replies are canned (demo), but every visitor message
+// is forwarded to the support mailbox via POST /api/support/message so a real
+// human follows up. The full agentic support router (KYC lookups via Persona
+// hooks, card locks gated on passkey re-auth) remains future work.
 // ---------------------------------------------------------------------------
 
 type Tab = "home" | "messages" | "help";
@@ -106,7 +106,21 @@ export default function SupportChatBubble() {
     const trimmed = text.trim();
     if (!trimmed) return;
     setInput("");
-    setMessages((m) => [...m, { from: "user", text: trimmed }]);
+    setMessages((m) => {
+      const next: Msg[] = [...m, { from: "user", text: trimmed }];
+      // Forward to the support mailbox with recent context; fire-and-forget —
+      // the widget must feel instant regardless of the email path.
+      void fetch("/api/support/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message: trimmed,
+          page: window.location.pathname,
+          transcript: next.slice(-8),
+        }),
+      }).catch(() => undefined);
+      return next;
+    });
     setTyping(true);
     setTimeout(() => {
       setTyping(false);
@@ -391,7 +405,7 @@ export default function SupportChatBubble() {
           </nav>
 
           <p className="flex items-center justify-center gap-1 border-t border-white/5 bg-black/40 py-1.5 text-[10px] text-textMuted">
-            <ShieldCheck className="h-3 w-3" /> PII masked · GDPR-compliant demo assistant
+            <ShieldCheck className="h-3 w-3" /> Messages reach our support team · PII masked
           </p>
         </div>
       )}

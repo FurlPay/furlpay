@@ -8,7 +8,7 @@
 // are throttled before they can starve a security alert. Critical categories
 // (security, otp) skip their per-category cap but still respect the global one.
 
-import { kvIncr } from "./kv";
+import { kvGet, kvIncr, kvSet } from "./kv";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "Furlpay <hello@furlpay.com>";
@@ -22,6 +22,7 @@ export type EmailCategory =
   | "kyc" // verification outcome
   | "welcome" // first-account onboarding
   | "developer" // API key / x402 registration
+  | "support" // chat-bubble messages forwarded to the support mailbox
   | "ops"; // internal inboxes: contact, careers, HITL, swag
 
 // Global cap sits under Resend's 100/day so a burst never hits the provider
@@ -36,6 +37,7 @@ const CATEGORY_CAPS: Record<EmailCategory, number> = {
   kyc: 5,
   welcome: 5,
   developer: 5,
+  support: 15,
   ops: 20,
 };
 const CRITICAL: ReadonlySet<EmailCategory> = new Set(["security", "otp"]);
@@ -53,6 +55,29 @@ async function overBudget(category: EmailCategory): Promise<boolean> {
     return inCategory > CATEGORY_CAPS[category] && !CRITICAL.has(category);
   } catch {
     return false;
+  }
+}
+
+// --- Suppression list --------------------------------------------------------
+// Fed by the Resend webhook (/api/webhooks/resend): hard bounces and spam
+// complaints stop future sends to that address. Sending into known bounces is
+// the fastest way to burn a new domain's reputation.
+
+const SUPPRESS_KEY = (addr: string) => `email:suppress:${addr.toLowerCase()}`;
+
+export async function suppressEmail(
+  address: string,
+  reason: "bounced" | "complained",
+  ttlSeconds = 90 * 86_400
+): Promise<void> {
+  await kvSet(SUPPRESS_KEY(address), { reason, at: new Date().toISOString() }, ttlSeconds);
+}
+
+export async function isSuppressed(address: string): Promise<boolean> {
+  try {
+    return (await kvGet(SUPPRESS_KEY(address))) !== null;
+  } catch {
+    return false; // suppression is best-effort; KV trouble must not block sends
   }
 }
 
@@ -81,6 +106,12 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
     const to = Array.isArray(msg.to) ? msg.to.join(", ") : msg.to;
     console.log(`[email:mock] → ${to} · [${category}] "${msg.subject}"`);
     return { ok: true, mocked: true };
+  }
+  const recipients = Array.isArray(msg.to) ? msg.to : [msg.to];
+  for (const addr of recipients) {
+    if (await isSuppressed(addr)) {
+      return { ok: false, error: `recipient suppressed (bounce/complaint): ${addr}` };
+    }
   }
   if (await overBudget(category)) {
     return { ok: false, error: `daily email budget exceeded (category: ${category})` };

@@ -282,6 +282,34 @@ export function securityAlertEmail(input: {
   };
 }
 
+// ── Support ──────────────────────────────────────────────────────────────────
+
+/** Internal notification to the support mailbox for a chat-bubble message. */
+export function supportChatNotification(input: {
+  message: string;
+  transcript?: { from: string; text: string }[];
+  visitorEmail?: string;
+  page?: string;
+}): RenderedEmail {
+  const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const history = (input.transcript ?? [])
+    .map((m) => `<p style="font-size:13px;line-height:1.5;color:${m.from === "user" ? "#ddd" : "#777"};margin:0 0 6px"><b>${m.from === "user" ? "Visitor" : "Assistant"}:</b> ${esc(m.text)}</p>`)
+    .join("");
+  return {
+    subject: `Support chat: ${input.message.slice(0, 60)}${input.message.length > 60 ? "…" : ""}`,
+    html: shell(
+      "New support chat message",
+      p(`<b style="color:#fff">${esc(input.message)}</b>`) +
+        detailsTable(
+          (input.visitorEmail ? row("Visitor email", esc(input.visitorEmail)) : "") +
+            (input.page ? row("Page", esc(input.page)) : "")
+        ) +
+        (history ? `<hr style="border:none;border-top:1px solid #222;margin:12px 0"/>${history}` : "")
+    ),
+    text: `Support chat message: ${input.message}${input.visitorEmail ? `\nVisitor: ${input.visitorEmail}` : ""}${input.page ? `\nPage: ${input.page}` : ""}\n\n${(input.transcript ?? []).map((m) => `${m.from}: ${m.text}`).join("\n")}`,
+  };
+}
+
 // ── Developer platform ───────────────────────────────────────────────────────
 
 export function developerWelcomeEmail(input: { endpointName?: string }): RenderedEmail {
