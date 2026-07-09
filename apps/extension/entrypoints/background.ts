@@ -28,6 +28,7 @@ import type {
 
 const POLL_ALARM = "furlpay-poll";
 const NOTIFIED_KEY = "notifiedChallenges";
+const DEPOSITS_KEY = "notifiedDeposits";
 
 // browser.action is MV3; Firefox MV2 builds expose browserAction instead.
 const action = () => browser.action ?? (browser as any).browserAction;
@@ -64,6 +65,9 @@ export default defineBackground(() => {
   });
   browser.notifications.onClicked.addListener((notificationId) => {
     if (notificationId.startsWith("chal_")) void openApprovePage(notificationId);
+    if (notificationId.startsWith("dep_")) {
+      void getBaseUrl().then((base) => browser.tabs.create({ url: `${base}/dashboard` }));
+    }
     browser.notifications.clear(notificationId);
   });
 
@@ -147,6 +151,21 @@ export default defineBackground(() => {
         void getBaseUrl().then((base) => browser.tabs.create({ url: `${base}/login` }));
         sendResponse({ ok: true, data: null });
         return false;
+      case "WALLET_CONNECT":
+        // EIP-6963 connect: resolve the user's Safe smart-account address from
+        // the furlpay.com session. Signed out → open login so the user can
+        // authenticate, and let the dapp's request fail cleanly.
+        void toResponse(
+          apiFetch<{ safeAddress: string }>("/api/wallets").then((w) => ({
+            accounts: [w.safeAddress],
+          }))
+        ).then((res) => {
+          if (!res.ok) {
+            void getBaseUrl().then((base) => browser.tabs.create({ url: `${base}/login` }));
+          }
+          sendResponse(res);
+        });
+        return true;
       case "X402_DETECTED":
         void onX402Detected(message.detection);
         sendResponse({ ok: true, data: null });
@@ -181,6 +200,39 @@ async function poll(): Promise<void> {
   } catch {
     await action().setBadgeText({ text: "" });
     return; // no session — challenge polling would 401 too
+  }
+
+  // On-chain deposit tracking: notify on new detections and on credit, across
+  // every supported chain (state machine: pending → processing → success).
+  try {
+    const { deposits } = await apiFetch<{
+      deposits: { txHash: string; status: string; amount: number; token: string; chain: string }[];
+    }>("/api/deposits");
+    const stored = await browser.storage.local.get(DEPOSITS_KEY);
+    const seen: Record<string, string> = stored[DEPOSITS_KEY] ?? {};
+
+    for (const d of deposits) {
+      const notable = d.status === "pending" || d.status === "success";
+      if (!notable || seen[d.txHash] === d.status) continue;
+      seen[d.txHash] = d.status;
+      const chainLabel = d.chain === "bsc" ? "BSC" : d.chain.charAt(0).toUpperCase() + d.chain.slice(1);
+      await browser.notifications
+        .create(`dep_${d.txHash}`, {
+          type: "basic",
+          iconUrl: browser.runtime.getURL("/icon128.png"),
+          title: d.status === "success" ? "Deposit credited" : "Deposit detected",
+          message:
+            d.status === "success"
+              ? `+${d.amount} ${d.token} on ${chainLabel} added to your balance.`
+              : `+${d.amount} ${d.token} incoming on ${chainLabel} — confirming…`,
+        })
+        .catch(() => undefined);
+    }
+    // Bound storage: keep the most recent 50 tx states.
+    const entries = Object.entries(seen).slice(-50);
+    await browser.storage.local.set({ [DEPOSITS_KEY]: Object.fromEntries(entries) });
+  } catch {
+    /* deposits endpoint unavailable — badge/challenges still work */
   }
 
   try {

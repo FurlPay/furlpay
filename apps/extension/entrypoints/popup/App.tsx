@@ -1,17 +1,28 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { encode as qrEncode } from "uqr";
 import { Icon, IconName, LogoMark, Wordmark } from "@/components/icons";
 import {
   CHAIN_LABELS,
   RANGES,
+  RANGE_PERIOD_LABEL,
   Range,
   assessChallenge,
   blendSeries,
   changePct,
+  clockLabel,
+  compactMoney,
+  dayLabel,
   mccLabel,
+  monogram,
+  monogramColor,
   normalizeCloses,
   seriesFor,
+  seriesTimes,
   sparklinePoints,
+  timeLabel,
+  tokenAmount,
   tokenMeta,
+  txStatusMeta,
 } from "@/lib/market";
 import type {
   BarsResponse,
@@ -48,8 +59,21 @@ async function send<T>(message: BgRequest): Promise<BgResponse<T>> {
 const usd = (n: number) =>
   n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-const compactUsd = (n: number) =>
-  n >= 1000 ? `$${(n / 1000).toFixed(1)}k` : `$${usd(n)}`;
+/** "Chrome · Windows" — the device identity real fintechs show for a session. */
+function deviceLabel(): string {
+  const ua = navigator.userAgent;
+  const browserName = /Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : "Chrome";
+  const os = /Windows/.test(ua) ? "Windows" : /Mac OS/.test(ua) ? "macOS" : /Linux/.test(ua) ? "Linux" : "Desktop";
+  return `${browserName} · ${os}`;
+}
+
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 5) return "Good night";
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 const reducedMotion = () =>
   typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -179,7 +203,7 @@ export default function App() {
           <SignedOut />
         ) : (
           <>
-            {tab === "wallet" && <WalletTab onQuickAction={openSite} />}
+            {tab === "wallet" && <WalletTab name={session.name} onQuickAction={openSite} />}
             {tab === "activity" && <ActivityTab />}
             {tab === "approvals" && <ApprovalsTab onCount={setPendingCount} />}
             {tab === "earn" && <EarnTab />}
@@ -255,24 +279,39 @@ function SignedOut() {
 
 // --- Wallet ------------------------------------------------------------------
 
-const QUICK_ACTIONS: { icon: IconName; label: string; path: string }[] = [
+const QUICK_ACTIONS: { icon: IconName; label: string; path?: string; action?: "receive" }[] = [
   { icon: "send", label: "Send", path: "/payouts" },
-  { icon: "receive", label: "Receive", path: "/dashboard" },
+  { icon: "receive", label: "Receive", action: "receive" },
   { icon: "swap", label: "Swap", path: "/swaps" },
   { icon: "card", label: "Card", path: "/cards" },
   { icon: "travel", label: "Travel", path: "/travel" },
   { icon: "invest", label: "Invest", path: "/investing" },
 ];
 
-function WalletTab({ onQuickAction }: { onQuickAction: (path: string) => void }) {
+function WalletTab({ name, onQuickAction }: { name?: string; onQuickAction: (path: string) => void }) {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [range, setRange] = useState<Range>("1D");
   const [query, setQuery] = useState("");
+  const [receiveOpen, setReceiveOpen] = useState(false);
+  const [sync, setSync] = useState<{ at: number; ms: number } | null>(null);
+  const [pending, setPending] = useState(0);
+  const [rewardsPts, setRewardsPts] = useState<number | null>(null);
+  const now = useNow();
 
   const load = useCallback(() => {
     setError(null);
-    send<Overview>({ type: "GET_OVERVIEW" }).then((r) => (r.ok ? setOverview(r.data) : setError(r.error)));
+    const t0 = performance.now();
+    send<Overview>({ type: "GET_OVERVIEW" }).then((r) => {
+      if (r.ok) {
+        setOverview(r.data);
+        setSync({ at: Date.now(), ms: Math.round(performance.now() - t0) });
+      } else setError(r.error);
+    });
+    send<{ challenges: PendingChallenge[] }>({ type: "GET_CHALLENGES" }).then(
+      (r) => r.ok && setPending(r.data.challenges.reduce((s, c) => s + c.amountUsd, 0))
+    );
+    send<RewardsSummary>({ type: "GET_REWARDS" }).then((r) => r.ok && setRewardsPts(r.data.points));
   }, []);
   useEffect(load, [load]);
 
@@ -290,8 +329,29 @@ function WalletTab({ onQuickAction }: { onQuickAction: (path: string) => void })
     return meta.symbol.toLowerCase().includes(q) || meta.name.toLowerCase().includes(q);
   });
 
+  const firstName = (name ?? "").split(" ")[0];
+  const last = portfolioSeries[portfolioSeries.length - 1] || 1;
+  const scale = overview.netWorth / last; // normalized series → dollars
+  const absChange = (last - portfolioSeries[0]) * scale;
+  const syncAge = sync ? Math.max(0, Math.floor((now - sync.at) / 1000)) : null;
+
   return (
     <div style={{ padding: "0 14px" }}>
+      {/* Greeting */}
+      <div className="fade-up" style={{ margin: "2px 2px 10px" }}>
+        <div style={{ fontSize: "1.02rem", fontWeight: 800, letterSpacing: "-0.3px" }}>
+          {greeting()}
+          {firstName ? `, ${firstName}` : ""}
+        </div>
+        <div style={{ fontSize: "0.72rem", color: "var(--fp-text-secondary)" }}>
+          You're {portfolioChange >= 0 ? "up" : "down"}{" "}
+          <span className={portfolioChange >= 0 ? "gain" : "loss"} style={{ fontWeight: 700 }}>
+            {Math.abs(portfolioChange).toFixed(2)}%
+          </span>{" "}
+          {RANGE_PERIOD_LABEL[range].toLowerCase()}
+        </div>
+      </div>
+
       {/* Portfolio card */}
       <div className="glass-panel fade-up" style={{ marginBottom: 12, paddingBottom: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -304,24 +364,45 @@ function WalletTab({ onQuickAction }: { onQuickAction: (path: string) => void })
             ))}
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-          <div className="balance-amount" aria-live="polite">${usd(animated)}</div>
-          <span className={portfolioChange >= 0 ? "gain" : "loss"} style={{ fontSize: "0.78rem", fontWeight: 700 }}>
-            {portfolioChange >= 0 ? "↑" : "↓"} {Math.abs(portfolioChange).toFixed(2)}%
+        <div className="balance-amount" aria-live="polite">${usd(animated)}</div>
+        <div style={{ fontSize: "0.72rem", marginTop: 1 }}>
+          <span style={{ color: "var(--fp-text-muted)" }}>{RANGE_PERIOD_LABEL[range]} </span>
+          <span className={portfolioChange >= 0 ? "gain" : "loss"} style={{ fontWeight: 700 }}>
+            {portfolioChange >= 0 ? "+" : "-"}${usd(Math.abs(absChange))} ({portfolioChange >= 0 ? "+" : ""}
+            {portfolioChange.toFixed(2)}%)
           </span>
         </div>
-        <PortfolioChart series={portfolioSeries} positive={portfolioChange >= 0} />
-        <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)" }}>
-          Crypto ${usd(overview.breakdown.crypto)} · Fiat ${usd(overview.breakdown.fiat)} · Stocks ${usd(overview.breakdown.equities)}
+        <InteractiveChart key={range} series={portfolioSeries} range={range} scale={scale} positive={portfolioChange >= 0} />
+        <div className="stat-strip">
+          <div>
+            <div className="stat-label">Available</div>
+            <div className="stat-value">${usd(overview.breakdown.crypto + overview.breakdown.fiat)}</div>
+          </div>
+          <div>
+            <div className="stat-label">Pending</div>
+            <div className="stat-value" style={{ color: pending > 0 ? "#fbbf24" : "var(--fp-text-secondary)" }}>
+              ${usd(pending)}
+            </div>
+          </div>
+          <div>
+            <div className="stat-label">Rewards</div>
+            <div className="stat-value" style={{ color: "var(--fp-accent)" }}>
+              {rewardsPts === null ? "—" : `${rewardsPts.toLocaleString("en-US")} pts`}
+            </div>
+          </div>
         </div>
       </div>
 
       {/* Quick actions */}
       <div className="qa-grid fade-up" style={{ marginBottom: 14 }}>
         {QUICK_ACTIONS.map((a) => (
-          <button key={a.label} className="qa-btn" onClick={() => onQuickAction(a.path)}>
+          <button
+            key={a.label}
+            className="qa-btn"
+            onClick={() => (a.action === "receive" ? setReceiveOpen(true) : onQuickAction(a.path!))}
+          >
             <span className="qa-icon">
-              <Icon name={a.icon} size={17} />
+              <Icon name={a.icon} size={19} strokeWidth={2.4} />
             </span>
             {a.label}
           </button>
@@ -353,7 +434,107 @@ function WalletTab({ onQuickAction }: { onQuickAction: (path: string) => void })
       ) : (
         assets.map((b, i) => <AssetRow key={`${b.token}:${b.chain}`} token={b.token} chain={b.chain} amount={b.amount} usdValue={b.usdValue} range={range} delay={i * 0.03} />)
       )}
+
+      <div className="sync-line">
+        <span className="status-dot status-dot--on" style={{ width: 5, height: 5 }} />
+        Arbitrum One healthy
+        {sync && (
+          <>
+            <span style={{ opacity: 0.5 }}>·</span> synced {syncAge === 0 ? "just now" : `${syncAge}s ago`}
+            <span style={{ opacity: 0.5 }}>·</span> API {sync.ms} ms
+          </>
+        )}
+        <button className="icon-btn" style={{ width: 22, height: 22 }} aria-label="Refresh" onClick={load}>
+          <Icon name="refresh" size={11} />
+        </button>
+      </div>
+
+      {receiveOpen && <ReceiveSheet address={overview.user.safeAddress} onClose={() => setReceiveOpen(false)} />}
     </div>
+  );
+}
+
+// --- Receive (in-popup, real address QR) ---------------------------------------
+//
+// Encodes the bare smart-account address — the compatibility-safe choice per
+// wallet-vendor guidance (EIP-681 amount/token params are still unevenly
+// supported across scanners, so like MetaMask/Rainbow we share address-only
+// and let the sender pick the amount).
+
+function ReceiveSheet({ address, onClose }: { address: string; onClose: () => void }) {
+  const [copied, setCopied] = useState(false);
+  const qr = useMemo(() => qrEncode(address, { ecc: "M", border: 2 }), [address]);
+
+  const copy = async () => {
+    await navigator.clipboard.writeText(address);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1600);
+  };
+
+  // One <path> for all dark modules — crisp at any size.
+  const cell = 4;
+  const dim = qr.size * cell;
+  const path = qr.data
+    .flatMap((row, y) => row.map((on, x) => (on ? `M${x * cell} ${y * cell}h${cell}v${cell}h-${cell}z` : "")))
+    .join("");
+
+  return (
+    <>
+      <div className="sheet-backdrop" onClick={onClose} />
+      <div className="sheet" role="dialog" aria-label="Receive crypto">
+        <div className="sheet-handle" />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <div style={{ fontWeight: 800, fontSize: "0.95rem" }}>Receive</div>
+          <span className="pill pill--accent">
+            <img src="/chains/arbitrum.svg" alt="" width={12} height={12} style={{ borderRadius: "50%" }} /> Arbitrum One
+          </span>
+        </div>
+
+        <div className="qr-box">
+          <svg width={168} height={168} viewBox={`0 0 ${dim} ${dim}`} role="img" aria-label="Wallet address QR code">
+            <rect width={dim} height={dim} fill="#fff" />
+            <path d={path} fill="#0a0a0c" />
+          </svg>
+        </div>
+
+        <div style={{ textAlign: "center", fontSize: "0.72rem", color: "var(--fp-text-secondary)", marginBottom: 10 }}>
+          Your FurlPay smart account
+        </div>
+
+        <div className="addr-box">
+          <span style={{ flex: 1 }}>{address}</span>
+          <button className="icon-btn" style={{ width: 28, height: 28, flexShrink: 0 }} aria-label="Copy address" onClick={copy}>
+            <Icon name={copied ? "check" : "copy"} size={14} />
+          </button>
+        </div>
+        {copied && (
+          <div style={{ textAlign: "center", fontSize: "0.68rem", color: "var(--fp-accent)", marginTop: 6, fontWeight: 600 }}>
+            Address copied
+          </div>
+        )}
+
+        <div className="risk risk--review" style={{ margin: "12px 0" }}>
+          <Icon name="security" size={15} />
+          <div>
+            Send only <b>Arbitrum One</b> assets (USDC, ETH, ARB…) to this address. Assets sent on other networks may be
+            unrecoverable.
+          </div>
+        </div>
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <button className="btn-ghost" style={{ flex: 1 }} onClick={copy}>
+            {copied ? "Copied" : "Copy address"}
+          </button>
+          <button
+            className="btn-primary"
+            style={{ flex: 1 }}
+            onClick={() => browser.tabs.create({ url: `https://arbiscan.io/address/${address}` })}
+          >
+            View on Arbiscan
+          </button>
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -417,22 +598,90 @@ function usePortfolioSeries(balances: TokenBalance[], range: Range): number[] {
   return series;
 }
 
-function PortfolioChart({ series, positive }: { series: number[]; positive: boolean }) {
+/**
+ * Interactive portfolio chart: hover/touch crosshair with time+value tooltip,
+ * session high/low markers, dashed open baseline, and a time axis — the
+ * Robinhood/Coinbase interaction pattern, not a decorative sparkline.
+ */
+function InteractiveChart({ series, range, scale, positive }: { series: number[]; range: Range; scale: number; positive: boolean }) {
   const W = 316;
-  const H = 56;
-  const pts = sparklinePoints(series, W, H);
+  const H = 72;
+  const PAD = 3;
+  const [idx, setIdx] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const times = useMemo(() => seriesTimes(range, series.length), [range, series.length]);
+  const min = Math.min(...series);
+  const max = Math.max(...series);
+  const span = max - min || 1;
+  const x = (i: number) => PAD + (i / (series.length - 1)) * (W - PAD * 2);
+  const y = (v: number) => PAD + (1 - (v - min) / span) * (H - PAD * 2);
+  const pts = series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
   const color = positive ? "var(--fp-accent)" : "var(--fp-loss)";
+  const hiIdx = series.indexOf(max);
+  const loIdx = series.indexOf(min);
+  const baseline = y(series[0]);
+
+  const fromEvent = (e: React.PointerEvent) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    setIdx(Math.round(frac * (series.length - 1)));
+  };
+
+  const active = idx !== null ? Math.min(idx, series.length - 1) : null;
+
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} style={{ display: "block", margin: "6px 0 8px" }} aria-hidden="true">
-      <defs>
-        <linearGradient id="fp-chart-fill" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor={positive ? "#00E599" : "#FF453A"} stopOpacity="0.25" />
-          <stop offset="100%" stopColor={positive ? "#00E599" : "#FF453A"} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon points={`2,${H - 2} ${pts} ${W - 2},${H - 2}`} fill="url(#fp-chart-fill)" />
-      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.8" strokeLinejoin="round" strokeLinecap="round" />
-    </svg>
+    <div className="chart-wrap" style={{ margin: "8px 0 6px" }}>
+      {active !== null && (
+        <div className="chart-tip" style={{ left: `${(x(active) / W) * 100}%` }}>
+          <span className="tip-time">{timeLabel(times[active], range)}</span>${usd(series[active] * scale)}
+        </div>
+      )}
+      <svg
+        ref={svgRef}
+        width="100%"
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ display: "block", cursor: "crosshair" }}
+        onPointerMove={fromEvent}
+        onPointerDown={fromEvent}
+        onPointerLeave={() => setIdx(null)}
+      >
+        <defs>
+          <linearGradient id="fp-chart-fill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor={positive ? "#00E599" : "#FF453A"} stopOpacity="0.22" />
+            <stop offset="100%" stopColor={positive ? "#00E599" : "#FF453A"} stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {/* Open baseline */}
+        <line x1={PAD} y1={baseline} x2={W - PAD} y2={baseline} stroke="var(--fp-border-glass)" strokeWidth="1" strokeDasharray="3 4" />
+        <polygon points={`${PAD},${H - PAD} ${pts} ${W - PAD},${H - PAD}`} fill="url(#fp-chart-fill)" />
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" />
+        {/* Session high / low */}
+        <circle cx={x(hiIdx)} cy={y(max)} r="2" fill="var(--fp-gain)" />
+        <circle cx={x(loIdx)} cy={y(min)} r="2" fill="var(--fp-loss)" />
+        {/* Crosshair */}
+        {active !== null && (
+          <>
+            <line x1={x(active)} y1={PAD} x2={x(active)} y2={H - PAD} stroke="rgba(255,255,255,0.25)" strokeWidth="1" />
+            <circle cx={x(active)} cy={y(series[active])} r="3.5" fill={color} stroke="var(--fp-bg-primary)" strokeWidth="1.5" />
+          </>
+        )}
+      </svg>
+      <div className="chart-axis" aria-hidden="true">
+        <span>{timeLabel(times[0], range)}</span>
+        <span>{timeLabel(times[Math.floor(times.length / 2)], range)}</span>
+        <span>{timeLabel(times[times.length - 1], range)}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.62rem", color: "var(--fp-text-muted)", fontFamily: "var(--fp-font-mono)", marginTop: 3 }}>
+        <span>
+          L <span style={{ color: "var(--fp-loss)" }}>${usd(min * scale)}</span>
+        </span>
+        <span>
+          H <span style={{ color: "var(--fp-gain)" }}>${usd(max * scale)}</span>
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -440,6 +689,10 @@ function AssetRow({ token, chain, amount, usdValue, range, delay }: { token: str
   const meta = tokenMeta(token);
   const series = useAssetSeries(token, chain, range);
   const change = changePct(series);
+  // Stablecoins hold their peg: flat gray spark + neutral change, so rows
+  // don't all wear the same green sawtooth.
+  const stable = Math.abs(change) < 0.15;
+  const sparkColor = stable ? "var(--fp-text-muted)" : change >= 0 ? "var(--fp-gain)" : "var(--fp-loss)";
   return (
     <div className="asset-row fade-up" style={{ animationDelay: `${delay}s` }}>
       <div className="asset-logo" style={{ background: meta.logo ? undefined : meta.color }}>
@@ -448,25 +701,28 @@ function AssetRow({ token, chain, amount, usdValue, range, delay }: { token: str
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 600, fontSize: "0.86rem" }}>{meta.name}</div>
         <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)" }}>
-          {amount.toLocaleString("en-US", { maximumFractionDigits: 4 })} {meta.symbol} · {CHAIN_LABELS[chain] ?? chain}
+          {tokenAmount(amount)} {meta.symbol} · {CHAIN_LABELS[chain] ?? chain}
         </div>
       </div>
       <svg width="52" height="22" viewBox="0 0 52 22" aria-hidden="true">
-        <polyline
-          points={sparklinePoints(series, 52, 22)}
-          fill="none"
-          stroke={change >= 0 ? "var(--fp-gain)" : "var(--fp-loss)"}
-          strokeWidth="1.4"
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          opacity="0.85"
-        />
+        {stable ? (
+          <line x1="2" y1="11" x2="50" y2="11" stroke={sparkColor} strokeWidth="1.4" strokeLinecap="round" opacity="0.6" />
+        ) : (
+          <polyline
+            points={sparklinePoints(series, 52, 22)}
+            fill="none"
+            stroke={sparkColor}
+            strokeWidth="1.4"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            opacity="0.85"
+          />
+        )}
       </svg>
       <div style={{ textAlign: "right" }}>
-        <div style={{ fontFamily: "var(--fp-font-mono)", fontWeight: 600, fontSize: "0.84rem" }}>≈ ${usd(usdValue)}</div>
-        <div className={change >= 0 ? "gain" : "loss"} style={{ fontSize: "0.7rem", fontWeight: 600 }}>
-          {change >= 0 ? "+" : ""}
-          {change.toFixed(2)}%
+        <div style={{ fontFamily: "var(--fp-font-mono)", fontWeight: 600, fontSize: "0.84rem" }}>${usd(usdValue)}</div>
+        <div className={stable ? "" : change >= 0 ? "gain" : "loss"} style={{ fontSize: "0.7rem", fontWeight: 600, color: stable ? "var(--fp-text-muted)" : undefined }}>
+          {stable ? "0.00%" : `${change >= 0 ? "+" : ""}${change.toFixed(2)}%`}
         </div>
       </div>
     </div>
@@ -500,6 +756,15 @@ function ActivityTab() {
   if (error) return <ErrorPanel message={error} onRetry={load} />;
   if (!txs) return <SkeletonPage rows={6} />;
 
+  // Group by calendar day — Today / Yesterday / Jul 4 headers.
+  const groups: { label: string; items: Transaction[] }[] = [];
+  for (const tx of txs) {
+    const label = tx.timestamp ? dayLabel(tx.timestamp) : "Earlier";
+    const g = groups[groups.length - 1];
+    if (g && g.label === label) g.items.push(tx);
+    else groups.push({ label, items: [tx] });
+  }
+
   return (
     <div style={{ padding: "0 14px" }}>
       <h3 className="section-title">Recent activity</h3>
@@ -513,43 +778,79 @@ function ActivityTab() {
           ]}
         />
       ) : (
-        txs.map((tx, i) => <TxRow key={tx.id} tx={tx} delay={Math.min(i * 0.03, 0.3)} />)
+        groups.map((g, gi) => (
+          <div key={g.label}>
+            <div className="group-head">{g.label}</div>
+            {g.items.map((tx, i) => (
+              <TxRow key={tx.id} tx={tx} delay={Math.min((gi * 3 + i) * 0.03, 0.3)} />
+            ))}
+          </div>
+        ))
       )}
     </div>
   );
 }
 
+const TONE_COLOR: Record<string, string> = {
+  gain: "var(--fp-gain)",
+  loss: "var(--fp-loss)",
+  warning: "#fbbf24",
+  info: "#64b5ff",
+  muted: "var(--fp-text-muted)",
+};
+
+/** Merchant-branded monogram avatar — the visual anchor of each row. */
+function MerchantAvatar({ name, size = 32 }: { name: string; size?: number }) {
+  const color = monogramColor(name);
+  return (
+    <span
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size * 0.34,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        flexShrink: 0,
+        fontWeight: 700,
+        fontSize: size * 0.34,
+        color,
+        background: `color-mix(in srgb, ${color} 16%, transparent)`,
+        border: `1px solid color-mix(in srgb, ${color} 30%, transparent)`,
+      }}
+    >
+      {monogram(name)}
+    </span>
+  );
+}
+
 function TxRow({ tx, delay }: { tx: Transaction; delay: number }) {
-  const declined = tx.status === "declined";
-  const icon = CATEGORY_ICONS[tx.category] ?? (tx.direction === "in" ? "receive" : "send");
+  const st = txStatusMeta(tx.status);
+  const negative = st.tone === "loss";
   return (
     <div className="tx-row fade-up" style={{ animationDelay: `${delay}s` }}>
-      <span
-        style={{
-          width: 32,
-          height: 32,
-          borderRadius: 11,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          flexShrink: 0,
-          background: declined ? "rgba(255,69,58,0.1)" : "var(--fp-accent-soft)",
-          color: declined ? "var(--fp-loss)" : "var(--fp-accent)",
-        }}
-      >
-        <Icon name={icon} size={15} />
-      </span>
+      <MerchantAvatar name={tx.title} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontWeight: 500, fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.title}</div>
-        <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)" }}>{tx.subtitle}</div>
+        <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)" }}>
+          {tx.timestamp ? `${clockLabel(tx.timestamp)} · ` : ""}
+          {tx.subtitle}
+        </div>
       </div>
       <div style={{ textAlign: "right" }}>
-        <div style={{ fontFamily: "var(--fp-font-mono)", fontWeight: 600, fontSize: "0.84rem", color: declined ? "var(--fp-loss)" : "var(--fp-text-primary)" }}>
+        <div
+          style={{
+            fontFamily: "var(--fp-font-mono)",
+            fontWeight: 600,
+            fontSize: "0.84rem",
+            color: negative ? "var(--fp-loss)" : tx.direction === "in" ? "var(--fp-gain)" : "var(--fp-text-primary)",
+            textDecoration: negative ? "line-through" : undefined,
+            opacity: st.tone === "warning" ? 0.75 : 1,
+          }}
+        >
           {tx.direction === "in" ? "+" : "-"}${usd(tx.amountUsd)}
         </div>
-        <div style={{ fontSize: "0.66rem", color: declined ? "var(--fp-loss)" : "var(--fp-accent)" }}>
-          {declined ? "Declined" : tx.status === "settled" ? "Settled" : tx.status}
-        </div>
+        <span className={`status-badge status-badge--${st.tone}`}>{st.label}</span>
       </div>
     </div>
   );
@@ -587,13 +888,7 @@ function ApprovalsTab({ onCount }: { onCount: (n: number) => void }) {
   return (
     <div style={{ padding: "0 14px" }}>
       <h3 className="section-title">Waiting for your approval</h3>
-      {live.length === 0 && (
-        <EmptyState
-          title="Nothing waiting for approval"
-          subtitle="When a card payment needs you, it appears here and as a notification."
-          actions={[{ label: "View cards", path: "/cards" }]}
-        />
-      )}
+      {live.length === 0 && <ApprovalsIdle />}
       {live.map((c) => (
         <ApprovalCard
           key={c.id}
@@ -616,7 +911,110 @@ function ApprovalsTab({ onCount }: { onCount: (n: number) => void }) {
           <Icon name="security" size={13} /> Protected by FurlPay — passkeys sign on furlpay.com, spoof-proof by design.
         </p>
       )}
+
+      <ApprovalHistory />
+      <HowApprovalsWork />
+      <ApprovalDevices />
     </div>
+  );
+}
+
+/** Calm empty state — shield mark, one-line explanation, useful action. */
+function ApprovalsIdle() {
+  return (
+    <div className="glass-panel fade-up" style={{ textAlign: "center", padding: "22px 18px", marginBottom: 12 }}>
+      <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="var(--fp-accent)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" style={{ margin: "0 auto 10px", display: "block", opacity: 0.9 }} aria-hidden="true">
+        <path d="M12 3l7.5 2.8v5.4c0 4.3-3.2 7.4-7.5 8.8-4.3-1.4-7.5-4.5-7.5-8.8V5.8L12 3z" fill="rgba(0,229,153,0.07)" />
+        <path d="M8.8 12l2.2 2.2 4.2-4.4" />
+      </svg>
+      <div style={{ fontWeight: 700, fontSize: "0.9rem", marginBottom: 4 }}>You're all clear</div>
+      <div style={{ fontSize: "0.74rem", color: "var(--fp-text-secondary)", lineHeight: 1.5, maxWidth: 260, margin: "0 auto 12px" }}>
+        When a card payment needs 3-D Secure verification, it appears here instantly and as a system notification.
+      </div>
+      <button className="btn-ghost" style={{ padding: "8px 16px", fontSize: "0.78rem" }} onClick={() => openSite("/cards")}>
+        Manage cards
+      </button>
+    </div>
+  );
+}
+
+/** Recent card decisions pulled from the transaction feed. */
+function ApprovalHistory() {
+  const [items, setItems] = useState<Transaction[] | null>(null);
+  useEffect(() => {
+    send<{ transactions: Transaction[] }>({ type: "GET_TRANSACTIONS" }).then(
+      (r) => r.ok && setItems(r.data.transactions.filter((t) => t.category === "card").slice(0, 4))
+    );
+  }, []);
+  if (!items || items.length === 0) return null;
+  return (
+    <>
+      <h3 className="section-title" style={{ marginTop: 14 }}>Recent decisions</h3>
+      <div className="glass-panel" style={{ padding: "4px 12px" }}>
+        {items.map((tx) => {
+          const st = txStatusMeta(tx.status);
+          return (
+            <div key={tx.id} className="tx-row" style={{ padding: "9px 0" }}>
+              <MerchantAvatar name={tx.title} size={28} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 500, fontSize: "0.8rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{tx.title}</div>
+                <div style={{ fontSize: "0.66rem", color: "var(--fp-text-muted)" }}>
+                  {tx.timestamp ? `${dayLabel(tx.timestamp)} · ${clockLabel(tx.timestamp)}` : tx.subtitle}
+                </div>
+              </div>
+              <span className={`status-badge status-badge--${st.tone}`}>{st.tone === "loss" ? "Declined" : "Approved"}</span>
+            </div>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
+function HowApprovalsWork() {
+  const steps: { icon: IconName; text: string }[] = [
+    { icon: "bell", text: "A merchant requests 3-D Secure — you get a notification here." },
+    { icon: "security", text: "FurlPay Protect screens the amount, merchant and location first." },
+    { icon: "passkey", text: "You approve with your fingerprint or Face ID — passkeys can't be phished." },
+  ];
+  return (
+    <>
+      <h3 className="section-title" style={{ marginTop: 14 }}>How approvals work</h3>
+      <div className="glass-panel" style={{ padding: "10px 14px" }}>
+        {steps.map((s, i) => (
+          <div key={s.icon} style={{ display: "flex", gap: 10, alignItems: "flex-start", padding: "6px 0" }}>
+            <span style={{ color: "var(--fp-accent)", display: "flex", marginTop: 1 }}>
+              <Icon name={s.icon} size={15} />
+            </span>
+            <span style={{ fontSize: "0.74rem", color: "var(--fp-text-secondary)", lineHeight: 1.45 }}>
+              <b style={{ color: "var(--fp-text-primary)" }}>{i + 1}.</b> {s.text}
+            </span>
+          </div>
+        ))}
+      </div>
+    </>
+  );
+}
+
+/** Devices that can approve — passkey count from the credentials API. */
+function ApprovalDevices() {
+  const [list, setList] = useState<PasskeyList | null>(null);
+  useEffect(() => {
+    send<PasskeyList>({ type: "GET_PASSKEYS" }).then((r) => r.ok && setList(r.data));
+  }, []);
+  return (
+    <>
+      <h3 className="section-title" style={{ marginTop: 14 }}>Devices</h3>
+      <div className="glass-panel" style={{ padding: 6, marginBottom: 14 }}>
+        <SettingsTile
+          icon="passkey"
+          label={list ? `${list.credentials.length} passkey${list.credentials.length === 1 ? "" : "s"} can approve` : "Passkeys"}
+          sub={list?.credentials[0] ? `Latest: ${list.credentials[0].name}` : "Biometric devices bound to your account"}
+          onClick={() => openSite("/profile#security")}
+          chevron
+        />
+      </div>
+    </>
   );
 }
 
@@ -723,37 +1121,65 @@ function EarnTab() {
 
   return (
     <div style={{ padding: "0 14px" }}>
-      <div className="glass-panel fade-up" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
-        <span className="qa-icon" style={{ width: 42, height: 42 }}>
-          <Icon name="earn" size={20} />
-        </span>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: "0.72rem", color: "var(--fp-text-secondary)" }}>Idle USDC ready to earn</div>
-          <div className="balance-amount" style={{ fontSize: "1.3rem" }}>${usd(earn.idleUsdc)}</div>
+      <div className="glass-panel fade-up" style={{ marginBottom: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <span className="qa-icon" style={{ width: 42, height: 42 }}>
+            <Icon name="earn" size={20} />
+          </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "0.72rem", color: "var(--fp-text-secondary)" }}>Idle USDC ready to earn</div>
+            <div className="balance-amount" style={{ fontSize: "1.3rem" }}>${usd(earn.idleUsdc)}</div>
+          </div>
+          <span className="pill pill--accent">up to {earn.bestApy.toFixed(1)}% APY</span>
         </div>
-        <span className="pill pill--accent">up to {earn.bestApy.toFixed(1)}% APY</span>
+        {earn.idleUsdc > 0 && earn.bestApy > 0 && (
+          <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)", marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--fp-border-glass)" }}>
+            Projected at the best rate:{" "}
+            <b style={{ color: "var(--fp-accent)", fontFamily: "var(--fp-font-mono)" }}>
+              +${usd((earn.idleUsdc * earn.bestApy) / 100)}
+            </b>{" "}
+            /year · <span style={{ fontFamily: "var(--fp-font-mono)" }}>+${((earn.idleUsdc * earn.bestApy) / 100 / 12).toFixed(2)}</span> /month
+          </div>
+        )}
       </div>
 
       <h3 className="section-title">Available vaults</h3>
       {earn.vaults.map((v, i) => {
         const assetSym = v.asset?.symbol ?? "USDC";
         const meta = tokenMeta(assetSym);
+        const stableAsset = ["USDC", "USDT", "EURC", "DAI"].includes(assetSym.toUpperCase());
         return (
-          <div key={v.symbol} className="asset-row fade-up" style={{ animationDelay: `${i * 0.04}s` }}>
-            <div className="asset-logo" style={{ background: meta.logo ? undefined : meta.color }}>
-              {meta.logo ? <img src={meta.logo} alt="" /> : meta.symbol.slice(0, 2)}
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontWeight: 600, fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.name}</div>
-              <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)" }}>
-                {assetSym}
-                {typeof v.tvlUsd === "number" ? ` · TVL ${compactUsd(v.tvlUsd)}` : ""}
+          <div key={v.symbol} className="glass-panel fade-up" style={{ padding: "12px 14px", marginBottom: 8, animationDelay: `${i * 0.04}s` }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div className="asset-logo" style={{ width: 30, height: 30, background: meta.logo ? undefined : meta.color }}>
+                {meta.logo ? <img src={meta.logo} alt="" /> : meta.symbol.slice(0, 2)}
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{v.name}</div>
+                <div style={{ fontSize: "0.68rem", color: "var(--fp-text-muted)" }}>Morpho · {assetSym}</div>
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontFamily: "var(--fp-font-mono)", fontWeight: 800, fontSize: "1rem", color: "var(--fp-accent)" }}>
+                  {v.netApy.toFixed(1)}%
+                </div>
+                <div style={{ fontSize: "0.6rem", color: "var(--fp-text-muted)" }}>Net APY</div>
               </div>
             </div>
-            <span className="pill pill--accent" style={{ fontFamily: "var(--fp-font-mono)" }}>{v.netApy.toFixed(1)}%</span>
-            <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: "0.74rem" }} onClick={() => openSite("/earn")}>
-              Deposit
-            </button>
+            <div style={{ display: "flex", gap: 6, margin: "10px 0", flexWrap: "wrap" }}>
+              {typeof v.tvlUsd === "number" && <span className="pill">TVL {compactMoney(v.tvlUsd)}</span>}
+              <span className={`status-badge status-badge--${stableAsset ? "gain" : "warning"}`} style={{ padding: "3px 9px" }}>
+                {stableAsset ? "Low risk" : "Medium risk"}
+              </span>
+              <span className="pill">No lock — withdraw anytime</span>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button className="btn-ghost" style={{ flex: 1, padding: "7px", fontSize: "0.74rem" }} onClick={() => openSite("/earn")}>
+                Details
+              </button>
+              <button className="btn-primary" style={{ flex: 1, padding: "7px", fontSize: "0.74rem" }} onClick={() => openSite("/earn")}>
+                Deposit
+              </button>
+            </div>
           </div>
         );
       })}
@@ -797,7 +1223,10 @@ function SettingsTab({ session, onSignedOut }: { session: SessionState; onSigned
         </span>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{session.name ?? "FurlPay user"}</div>
-          <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)" }}>Session on {new URL(session.baseUrl).host}</div>
+          <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)", display: "flex", alignItems: "center", gap: 5 }}>
+            <span className="status-dot status-dot--on" style={{ width: 5, height: 5 }} />
+            Signed in · {deviceLabel()} · this device
+          </div>
         </div>
         <button className="btn-ghost" style={{ padding: "6px 12px", fontSize: "0.74rem" }} onClick={() => openSite("/profile")}>
           Edit
@@ -836,7 +1265,7 @@ function SettingsTab({ session, onSignedOut }: { session: SessionState; onSigned
       <h3 className="section-title">Support & legal</h3>
       <div className="glass-panel" style={{ padding: 6, marginBottom: 14 }}>
         <SettingsTile icon="help" label="Help center" sub="furlpay.com/support" onClick={() => openSite("/contact")} chevron />
-        <SettingsTile icon="history" label="About FurlPay" sub={`Extension v${browser.runtime.getManifest().version}`} onClick={() => openSite("/legal/terms")} chevron />
+        <SettingsTile icon="history" label="About FurlPay" sub={`v${browser.runtime.getManifest().version} (MV3) · Terms & privacy`} onClick={() => openSite("/legal/terms")} chevron />
       </div>
 
       <button
@@ -851,6 +1280,19 @@ function SettingsTab({ session, onSignedOut }: { session: SessionState; onSigned
       >
         <Icon name="logout" size={15} /> {signingOut ? "Signing out…" : "Sign out"}
       </button>
+
+      <div className="trust-strip">
+        {[
+          { icon: "passkey" as const, text: "Passkey security" },
+          { icon: "security" as const, text: "No keys stored in browser" },
+          { icon: "check" as const, text: "On-chain verified" },
+          { icon: "approve" as const, text: "TLS 1.3 encrypted" },
+        ].map((t) => (
+          <span key={t.text}>
+            <Icon name={t.icon} size={12} /> {t.text}
+          </span>
+        ))}
+      </div>
     </div>
   );
 }
@@ -904,7 +1346,13 @@ function PlanPanel() {
         <span style={{ fontWeight: 700, fontSize: "0.88rem" }}>
           {ent.tier === "Standard" ? "Free plan" : `${ent.tier} plan`}
         </span>
-        <span className={ent.tier === "Standard" ? "pill" : "pill pill--accent"}>{ent.plan}</span>
+        {ent.tier === "Standard" ? (
+          <span className="pill">Free</span>
+        ) : (
+          <span className="pill pill--accent">
+            <span className="status-dot status-dot--on" style={{ width: 5, height: 5 }} /> Active
+          </span>
+        )}
       </div>
       {Object.entries(FEATURE_LABELS).map(([key, label]) => {
         const on = ent.features[key];

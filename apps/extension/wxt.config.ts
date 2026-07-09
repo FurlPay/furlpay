@@ -28,5 +28,11 @@ export default defineConfig({
     content_security_policy: {
       extension_pages: "script-src 'self'; object-src 'self'",
     },
+    // Restrict runtime.sendMessage from web pages to FurlPay origins only.
+    // Without this key no page can message the extension at all, but declaring
+    // it pins the allowed set explicitly if an external bridge ever ships.
+    externally_connectable: {
+      matches: ["https://furlpay.com/*", "https://www.furlpay.com/*"],
+    },
   },
 });

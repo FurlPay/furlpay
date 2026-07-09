@@ -143,6 +143,7 @@ export type BgRequest =
   | { type: "GET_SESSION_STATE" }
   | { type: "OPEN_LOGIN" }
   | { type: "X402_DETECTED"; detection: X402Detection }
-  | { type: "OPEN_X402_CHECKOUT"; detection: X402Detection };
+  | { type: "OPEN_X402_CHECKOUT"; detection: X402Detection }
+  | { type: "WALLET_CONNECT" };
 
 export type BgResponse<T = unknown> = { ok: true; data: T } | { ok: false; error: string };

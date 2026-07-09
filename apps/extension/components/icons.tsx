@@ -31,7 +31,10 @@ export type IconName =
   | "logout"
   | "code"
   | "user"
-  | "globe";
+  | "globe"
+  | "copy"
+  | "qr"
+  | "refresh";
 
 // Each icon is one or more SVG path `d` strings drawn on a 24×24 grid.
 const PATHS: Record<IconName, string[]> = {
@@ -65,6 +68,9 @@ const PATHS: Record<IconName, string[]> = {
   code: ["M8.5 7.5 4 12l4.5 4.5", "M15.5 7.5 20 12l-4.5 4.5", "M13.2 5 10.8 19"],
   user: ["M12 11.5a3.75 3.75 0 1 0 0-7.5 3.75 3.75 0 0 0 0 7.5z", "M4.75 20a7.25 7.25 0 0 1 14.5 0"],
   globe: ["M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z", "M3 12h18", "M12 3c2.5 2.4 3.75 5.4 3.75 9S14.5 18.6 12 21c-2.5-2.4-3.75-5.4-3.75-9S9.5 5.4 12 3z"],
+  copy: ["M9 9.5A1.5 1.5 0 0 1 10.5 8h8A1.5 1.5 0 0 1 20 9.5v9a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 9 18.5v-9z", "M6 15H5.5A1.5 1.5 0 0 1 4 13.5v-9A1.5 1.5 0 0 1 5.5 3h8A1.5 1.5 0 0 1 15 4.5V5"],
+  qr: ["M4 4h6v6H4V4z", "M14 4h6v6h-6V4z", "M4 14h6v6H4v-6z", "M14 14h2.5v2.5H14V14z", "M17.5 17.5H20V20h-2.5v-2.5z", "M14 20h.01", "M20 14h.01"],
+  refresh: ["M20 12a8 8 0 1 1-2.34-5.66", "M20 3.5V7h-3.5"],
 };
 
 export function Icon({
