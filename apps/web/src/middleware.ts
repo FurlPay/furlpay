@@ -55,6 +55,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/hackathon", // FurlPay Build Challenge landing + submissions (public)
   "/swag", // FurlPay Swag Center store (public)
   "/newsletter", // subscribe / manage preferences (public)
+  "/early-access", // early-access signup landing (public)
   "/developer", // public developer portal + Agent Console demo
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
   "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
@@ -72,6 +73,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/hackathon", // public Build Challenge submissions
   "/api/swag", // public Swag Center redemption/order requests
   "/api/newsletter", // public newsletter subscribe / unsubscribe
+  "/api/early-access", // public early-access signup (IP rate-limited)
   "/api/careers", // public talent-pipeline interest capture
   "/api/ambassadors", // public creator-program applications
   "/api/agents", // public Agent Console demo data

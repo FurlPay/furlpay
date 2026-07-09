@@ -285,6 +285,23 @@ export function securityAlertEmail(input: {
   };
 }
 
+export function earlyAccessWelcome(position: number): RenderedEmail {
+  return {
+    subject: "You're on the FurlPay early-access list",
+    html: shell(
+      "You're on the list.",
+      p(`The next chapter of finance is programmable — and you'll be among the first in.`) +
+        codeBox(`#${position}`) +
+        p(
+          `That's your place in line. Early members get priority access to the product, first availability for FurlPay Cards where eligible, the stablecoin wallet and cross-chain payments, global travel booking, x402 agent payments, and the developer platform.`
+        ) +
+        p(`We'll email you the moment your access opens. Until then, explore what's already live:`) +
+        cta("https://furlpay.com/developers", "See the developer platform")
+    ),
+    text: `You're on the FurlPay early-access list — position #${position}.\n\nEarly members get priority product access, first availability for FurlPay Cards where eligible, stablecoin payments, travel booking, x402 agent payments, and developer APIs.\n\nAlready live: https://furlpay.com/developers`,
+  };
+}
+
 // ── Support ──────────────────────────────────────────────────────────────────
 
 /** Internal notification to the support mailbox for a chat-bubble message. */
