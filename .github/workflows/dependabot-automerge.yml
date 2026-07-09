@@ -5,6 +5,13 @@
 #   1. If it's a patch or minor version bump → auto-approve + auto-merge
 #   2. If it's a major version bump → notify Discord for manual review
 #   3. All auto-merges require CI to pass first
+#
+# Setup requirements (one-time):
+#   • Repo setting "Allow auto-merge" must be ON (gh pr merge --auto errors
+#     otherwise).
+#   • Dependabot-triggered runs can ONLY read Dependabot secrets, not Actions
+#     secrets — DISCORD_SECURITY_WEBHOOK must be added under
+#     Settings → Secrets and variables → Dependabot as well.
 # ---------------------------------------------------------------------------
 name: Dependabot Auto-Merge
 

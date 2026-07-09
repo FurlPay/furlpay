@@ -1,0 +1,22 @@
+[
+  {
+    "name": "bigint-buffer",
+    "reason": "GHSA-3gc7-fjrx-p6mg toBigIntLE overflow — no upstream patch exists; npm's only 'fix' is a breaking @solana/spl-token 0.1.8 downgrade. Server-side usage only builds transactions from values we control.",
+    "reviewed": "2026-07-09"
+  },
+  {
+    "name": "@solana/buffer-layout-utils",
+    "reason": "Vulnerable only via its bigint-buffer dependency (see above).",
+    "reviewed": "2026-07-09"
+  },
+  {
+    "name": "@solana/spl-token",
+    "reason": "Vulnerable only via buffer-layout-utils -> bigint-buffer (see above).",
+    "reviewed": "2026-07-09"
+  },
+  {
+    "name": "next",
+    "reason": "All high-severity fixes require the Next 15/16 major upgrade (tracked separately). Pages-Router i18n bypass N/A (App Router); image-optimizer DoS mitigated by Vercel hosting.",
+    "reviewed": "2026-07-09"
+  }
+]
