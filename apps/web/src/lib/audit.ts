@@ -25,6 +25,7 @@ export type AuditEvent =
   | "transfer.executed"
   | "transfer.blocked"
   | "account.funded"
+  | "account.locked"
   | "agent.key_registered"
   | "webhook.processed"
   | "webhook.failed"

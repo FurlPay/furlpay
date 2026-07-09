@@ -153,6 +153,9 @@ export function paymentReceiptEmail(input: {
   txHash?: string;
   feeText?: string; // "$0.00", "0.5%"
   dateIso: string;
+  /** Signed one-click lock URL (lockLinkFor) — instant lock without login.
+   *  Falls back to the security settings page when absent. */
+  lockUrl?: string;
 }): RenderedEmail {
   const tx = input.txHash ? txLink(input.chain, input.txHash) : undefined;
   const amount = `${usd(input.amountUsd)}${input.token ? ` ${input.token}` : ""}`;
@@ -175,11 +178,11 @@ export function paymentReceiptEmail(input: {
               : "")
         ) +
         p(
-          `<span style="font-size:13px;color:#888">Don't recognize this payment? <a href="https://furlpay.com/profile/security" style="color:#00E599">Secure your account</a> immediately.</span>`
+          `<span style="font-size:13px;color:#888">Don't recognize this payment? <a href="${input.lockUrl ?? "https://furlpay.com/profile/security"}" style="color:#00E599">${input.lockUrl ? "Lock your account now" : "Secure your account"}</a> — one click, no sign-in needed.</span>`
         ),
       `${amount} — ${input.description}`
     ),
-    text: `Payment confirmed: ${amount} — ${input.description} (${new Date(input.dateIso).toUTCString()})${input.txHash ? `\nTransaction: ${input.txHash}` : ""}\nDon't recognize this payment? Secure your account: https://furlpay.com/profile/security`,
+    text: `Payment confirmed: ${amount} — ${input.description} (${new Date(input.dateIso).toUTCString()})${input.txHash ? `\nTransaction: ${input.txHash}` : ""}\nDon't recognize this payment? ${input.lockUrl ? `Lock your account instantly: ${input.lockUrl}` : "Secure your account: https://furlpay.com/profile/security"}`,
   };
 }
 
@@ -189,6 +192,8 @@ export function depositReceivedEmail(input: {
   chain: string;
   txHash: string;
   confirmations: number;
+  /** Signed one-click lock URL (lockLinkFor) — instant lock without login. */
+  lockUrl?: string;
 }): RenderedEmail {
   const tx = txLink(input.chain, input.txHash);
   const amount = `${input.amount} ${input.token}`;
@@ -206,7 +211,11 @@ export function depositReceivedEmail(input: {
               tx.href ? `<a href="${tx.href}" style="color:#00E599">${tx.short}</a>` : tx.short
             )
         ) +
-        p(`If you don't recognize this deposit, contact support immediately.`)
+        p(
+          input.lockUrl
+            ? `If you don't recognize this deposit, <a href="${input.lockUrl}" style="color:#00E599">lock your account now</a> — one click, no sign-in needed.`
+            : `If you don't recognize this deposit, contact support immediately.`
+        )
     ),
     text: `Deposit credited: ${amount} on ${input.chain} (${input.confirmations} confirmations).\nTransaction: ${input.txHash}\nIf you don't recognize this deposit, contact support.`,
   };

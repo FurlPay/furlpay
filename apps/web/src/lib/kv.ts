@@ -122,6 +122,25 @@ export async function kvIncr(key: string, windowSeconds: number): Promise<number
   return current;
 }
 
+/** Atomic add-by-amount with a fixed-window TTL — the spend-velocity
+ *  primitive. Integer amounts only (store money as cents). Returns the
+ *  window's running total. */
+export async function kvIncrBy(key: string, by: number, windowSeconds: number): Promise<number> {
+  const amount = Math.round(by);
+  if (kvBackend === "redis") {
+    const total = (await redis(["INCRBY", key, amount])) as number;
+    if (total === amount) await redis(["EXPIRE", key, windowSeconds]);
+    return total;
+  }
+  const current = Number(memGet(key) ?? 0) + amount;
+  if (current === amount) memSet(key, String(current), windowSeconds);
+  else {
+    const entry = mem().get(key)!;
+    entry.value = String(current);
+  }
+  return current;
+}
+
 /** Prepend to a bounded list (LPUSH + LTRIM) — newest first. */
 export async function kvListPush(key: string, value: string, maxLength: number): Promise<void> {
   if (kvBackend === "redis") {

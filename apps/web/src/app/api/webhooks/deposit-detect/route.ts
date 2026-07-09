@@ -8,6 +8,7 @@ import { log } from "@/lib/log";
 import { limit } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 import { depositReceivedEmail } from "@/lib/emailTemplates";
+import { lockLinkFor } from "@/lib/lockLink";
 
 // POST /api/webhooks/deposit-detect — address-activity webhooks from QuickNode
 // Streams (x-qn-signature) or Alchemy Notify (x-alchemy-signature). Both sign
@@ -142,7 +143,14 @@ export async function POST(req: Request) {
         to: db.user.email,
         category: "deposit",
         idempotencyKey: `deposit-${txHash}`,
-        ...depositReceivedEmail({ amount, token, chain, txHash, confirmations: event.confirmations }),
+        ...depositReceivedEmail({
+          amount,
+          token,
+          chain,
+          txHash,
+          confirmations: event.confirmations,
+          lockUrl: lockLinkFor(db.user.id) ?? undefined,
+        }),
       });
     }
   }

@@ -9,6 +9,7 @@ import { TransferSchema, parse } from "@/lib/schemas";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
+import { checkVelocity, commitVelocity } from "@/lib/services/velocity";
 
 // POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via
 // Paymaster, from the SESSION user's balances.
@@ -32,11 +33,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Blocked by risk engine", risk }, { status: 403 });
   }
 
-  // Step-up MFA for high-value transfers (>= $5000).
+  // Cross-instance velocity (Redis): burst caps, daily USD volume, and
+  // impossible travel via the CDN's IP-country header. Burst → hard block;
+  // volume/geo anomalies escalate to step-up MFA below.
+  const country = req.headers.get("x-vercel-ip-country");
+  const velocity = await checkVelocity({ userId: account.user.id, amountUsd: amount, country });
+  if (velocity.action === "block") {
+    audit("transfer.blocked", account.user.id, { destination, amount, reason: "velocity", flags: velocity.flags });
+    return NextResponse.json({ error: "Transfer blocked by velocity policy", velocity }, { status: 429 });
+  }
+
+  // Step-up MFA for high-value transfers (>= $5000) or velocity anomalies.
   const stepUp = requiresStepUp({ action: "transfer", amountUsd: amount });
-  if (stepUp.required) {
+  if (stepUp.required || velocity.action === "review") {
     if (!mfaCode) {
-      return NextResponse.json({ error: stepUp.reason, stepUpRequired: true, methods: stepUp.methods }, { status: 401 });
+      return NextResponse.json(
+        {
+          error: stepUp.required ? stepUp.reason : `Additional verification required: ${velocity.reasons.join("; ")}`,
+          stepUpRequired: true,
+          methods: stepUp.methods,
+        },
+        { status: 401 }
+      );
     }
     if (!account.user.security.totpEnabled || !verifyTotp(account.user.security.totpSecret, mfaCode)) {
       audit("auth.mfa_failed", account.user.id, { action: "transfer", amount });
@@ -94,6 +112,8 @@ export async function POST(req: NextRequest) {
 
   // Double-entry: funds leave user cash.
   const entry = recordMovement("out", amount, `Transfer ${token} to ${destination.slice(0, 10)}…`, account.user.id);
+
+  void commitVelocity({ userId: account.user.id, amountUsd: amount, country });
 
   audit("transfer.executed", account.user.id, { destination, amount, token, chain, transactionHash });
   return NextResponse.json({ transactionHash, gasSponsored: true, screen, ledgerTxId: entry.id });
