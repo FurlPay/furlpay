@@ -1,0 +1,28 @@
+{
+  "name": "FurlPay Chain",
+  "chain": "FurlPay",
+  "icon": "furlpay",
+  "rpc": ["https://rpc.furlpay.com", "https://furlpay.drpc.org"],
+  "faucets": [],
+  "nativeCurrency": {
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "decimals": 18
+  },
+  "infoURL": "https://furlpay.com",
+  "shortName": "furlpay",
+  "chainId": 7402,
+  "networkId": 7402,
+  "explorers": [
+    {
+      "name": "FurlPay Explorer",
+      "url": "https://explorer.furlpay.com",
+      "standard": "EIP3091"
+    }
+  ],
+  "parent": {
+    "type": "L2",
+    "chain": "eip155-42161",
+    "bridges": [{ "url": "https://bridge.furlpay.com" }]
+  }
+}

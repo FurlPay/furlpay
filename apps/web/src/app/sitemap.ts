@@ -23,6 +23,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/changelog", priority: 0.7, changeFrequency: "weekly" as const },
     { path: "/community", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/compare/redotpay", priority: 0.6, changeFrequency: "monthly" as const },
+    { path: "/compare/gnosis-pay", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/partners", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/use-cases", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/hackathon", priority: 0.8, changeFrequency: "weekly" as const },

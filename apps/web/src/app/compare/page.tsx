@@ -32,6 +32,7 @@ const GROUPS: { label: string; items: { slug: string; name: string; blurb: strin
       { slug: "coinbase-commerce", name: "Coinbase Commerce", blurb: "Lower fees, agentic x402 APIs, and payments plus travel in one platform." },
       { slug: "bitpay", name: "BitPay", blurb: "Stablecoin-native settlement without invoice expiry friction." },
       { slug: "redotpay", name: "RedotPay", blurb: "Open-source, AI-native, MPC custody and fractional investing." },
+      { slug: "gnosis-pay", name: "Gnosis Pay", blurb: "Same self-custody, multi-chain liquidity plus travel escrows and AI payments." },
     ],
   },
 ];
