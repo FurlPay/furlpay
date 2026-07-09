@@ -15,12 +15,41 @@ import { depositReceivedEmail } from "@/lib/emailTemplates";
 // for crypto.
 export const runtime = "nodejs";
 
+// Reject payloads whose provider timestamp is stale. Signature verification
+// alone leaves a replay window: an intercepted signed payload stays valid
+// forever (idempotency stops double-credits, but not probing). Providers send
+// the timestamp in seconds or milliseconds — normalize both. No header at all
+// is allowed (not every sender includes one); a present-but-stale one is not.
+const MAX_WEBHOOK_AGE_MS = 5 * 60_000;
+
+function timestampFresh(req: Request): boolean {
+  const raw =
+    req.headers.get("x-qn-timestamp") ?? req.headers.get("x-alchemy-webhook-timestamp");
+  if (!raw) return true;
+  const n = Number(raw);
+  if (!Number.isFinite(n)) return false;
+  const ms = n > 1e12 ? n : n * 1000;
+  return Math.abs(Date.now() - ms) <= MAX_WEBHOOK_AGE_MS;
+}
+
+// Optional source-IP allowlist (defense in depth on top of the HMAC). Set
+// DEPOSIT_WEBHOOK_ALLOWED_IPS to a comma-separated list to enable; unset
+// means disabled, so the HMAC remains the primary and sufficient gate.
+function ipAllowed(ip: string): boolean {
+  const allow = (process.env.DEPOSIT_WEBHOOK_ALLOWED_IPS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return allow.length === 0 || allow.includes(ip);
+}
+
 function verifySignature(payload: string, req: Request): boolean {
   const secret = process.env.DEPOSIT_WEBHOOK_SECRET || process.env.QUICKNODE_WEBHOOK_SECRET || "";
   if (!secret) return false;
   const signature =
     req.headers.get("x-qn-signature") ?? req.headers.get("x-alchemy-signature") ?? "";
   if (!signature) return false;
+  if (!timestampFresh(req)) return false;
   const expected = crypto.createHmac("sha256", secret).update(payload).digest("hex");
   const a = Buffer.from(expected, "utf8");
   const b = Buffer.from(signature, "utf8");
@@ -39,6 +68,9 @@ export async function POST(req: Request) {
   // Cheap pre-verification shield: node providers batch, so 240/min per IP is
   // generous for legit traffic while capping HMAC work from a flood.
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  if (!ipAllowed(ip)) {
+    return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  }
   const rl = await limit(`webhooks.deposit:${ip}`, { limit: 240, windowMs: 60_000 });
   if (!rl.ok) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
