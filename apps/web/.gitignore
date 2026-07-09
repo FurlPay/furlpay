@@ -7,3 +7,4 @@ public/swe-worker*.js
 
 # Runtime file-store data (newsletter subscribers etc.)
 data/
+.cnft-payer.json

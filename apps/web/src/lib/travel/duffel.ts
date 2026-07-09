@@ -320,3 +320,90 @@ export async function searchDuffelCars(
     return null;
   }
 }
+
+// --- reprice + booking (Duffel Stays) ----------------------------------------
+// Inventory pricing is volatile, so the booking flow is search → quote → book:
+// the quote re-validates the rate in real time before any money moves, and the
+// booking is funded from the pre-funded Duffel Balance (no card processing).
+// Both return null on any failure so callers fall back to the demo path.
+
+export interface DuffelStayQuote {
+  quoteId: string;
+  totalAmount: number;
+  currency: string;
+}
+
+export interface DuffelStayBooking {
+  bookingId: string;
+  reference: string; // confirmation / locator code from the accommodation
+  status: string;
+}
+
+const DUFFEL_HEADERS = (apiKey: string) => ({
+  Authorization: `Bearer ${apiKey}`,
+  "Duffel-Version": "v2",
+  "Content-Type": "application/json",
+  Accept: "application/json",
+});
+
+/** Re-validate a rate right before checkout (POST /stays/quotes). */
+export async function createDuffelStayQuote(rateId: string): Promise<DuffelStayQuote | null> {
+  const apiKey = process.env.DUFFEL_API_KEY;
+  if (!apiKey || !rateId) return null;
+  try {
+    const res = await fetch(`${BASE}/stays/quotes`, {
+      method: "POST",
+      headers: DUFFEL_HEADERS(apiKey),
+      body: JSON.stringify({ data: { rate_id: rateId } }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json: any = await res.json();
+    const q = json?.data;
+    if (!q?.id) return null;
+    return {
+      quoteId: String(q.id),
+      totalAmount: Number(q.total_amount ?? 0),
+      currency: String(q.total_currency ?? "USD"),
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Book a validated quote against the Duffel Balance (POST /stays/bookings). */
+export async function createDuffelStayBooking(opts: {
+  quoteId: string;
+  guest: { givenName: string; familyName: string };
+  email: string;
+  phone?: string;
+}): Promise<DuffelStayBooking | null> {
+  const apiKey = process.env.DUFFEL_API_KEY;
+  if (!apiKey || !opts.quoteId) return null;
+  try {
+    const res = await fetch(`${BASE}/stays/bookings`, {
+      method: "POST",
+      headers: DUFFEL_HEADERS(apiKey),
+      body: JSON.stringify({
+        data: {
+          quote_id: opts.quoteId,
+          guests: [{ given_name: opts.guest.givenName, family_name: opts.guest.familyName }],
+          email: opts.email,
+          phone_number: opts.phone ?? "+15550000000",
+        },
+      }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json: any = await res.json();
+    const b = json?.data;
+    if (!b?.id) return null;
+    return {
+      bookingId: String(b.id),
+      reference: String(b.reference ?? b.confirmation_number ?? b.id),
+      status: String(b.status ?? "confirmed"),
+    };
+  } catch {
+    return null;
+  }
+}

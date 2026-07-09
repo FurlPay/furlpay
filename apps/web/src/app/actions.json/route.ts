@@ -9,6 +9,9 @@ export const GET = async () => {
     rules: [
       // Shareable checkout links (furlpay.app/pay/<orderId>) resolve to the API.
       { pathPattern: "/pay/**", apiPath: "/api/actions/pay/**" },
+      // Shareable travel booking Blinks (furlpay.com/book?city=…&car=…).
+      { pathPattern: "/book", apiPath: "/api/actions/book-car" },
+      { pathPattern: "/book/**", apiPath: "/api/actions/book-car/**" },
       // Idempotent mapping so the API routes are themselves discoverable.
       { pathPattern: "/api/actions/**", apiPath: "/api/actions/**" },
     ],

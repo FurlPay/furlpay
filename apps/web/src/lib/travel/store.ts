@@ -4,6 +4,8 @@
 // the same server process. A live build swaps this for the DB (per user). Seeded
 // with a few demo trips so My Trips is never empty.
 
+import type { TicketCnft } from "./cnft";
+
 export type TripStatus = "confirmed" | "pending" | "cancelled";
 
 export interface Trip {
@@ -23,6 +25,8 @@ export interface Trip {
   cardLast4?: string;
   cashbackUsd: number;
   refundStatus?: string;
+  /** Compressed-NFT ticket receipt minted on booking confirmation. */
+  ticket?: TicketCnft;
   createdAt: string;
 }
 

@@ -424,6 +424,7 @@ export function featuredDeals(): Deal[] {
 // --- payment authorization (x402 for Travala route, single-use VCN for legacy) ---
 
 export const MCC = { LODGING: "7011", AIRLINES: "4511", CAR_RENTAL: "7512" } as const;
+export type Mcc = (typeof MCC)[keyof typeof MCC];
 const REBATE_RATE = 0.1;
 const DEVELOPER_SHARE = 0.7;
 const rid = (p: string) => p + Math.random().toString(36).slice(2, 10);
@@ -438,7 +439,7 @@ export interface Authorization {
   simulated: boolean;
 }
 
-export function authorizeBooking(amountUsd: number, source: BookingSource, mcc = MCC.LODGING): Authorization {
+export function authorizeBooking(amountUsd: number, source: BookingSource, mcc: Mcc = MCC.LODGING): Authorization {
   const cashbackUsd = round2(amountUsd * CASHBACK_RATE);
   if (source === "travala") {
     const total = round2(amountUsd * REBATE_RATE);
