@@ -1,5 +1,13 @@
 import { createHash, randomUUID } from "crypto";
 import type { Role } from "./session";
+import { log } from "./log";
+import { supabaseBackend } from "./supabase";
+import {
+  findUserIdByCard as dbFindUserIdByCard,
+  findUserIdByIdentity as dbFindUserIdByIdentity,
+  loadAccount as dbLoadAccount,
+  saveAccount as dbSaveAccount,
+} from "./storeDb";
 import {
   Bill,
   FiatBalance,
@@ -10,9 +18,12 @@ import {
 } from "./types";
 
 // ---------------------------------------------------------------------------
-// Multi-user in-memory data store. Acts as the app's "database" for the demo.
-// In a real deployment this is replaced by Postgres (see blueprint §5) behind
-// the same accessor functions — routes never touch the maps directly.
+// Multi-user data store. The in-memory maps are the working set every route
+// reads and mutates synchronously; when Supabase credentials are present
+// (supabaseBackend === "supabase") accounts hydrate from Postgres on first
+// touch per instance and every mutation write-through-flushes the whole
+// account (storeDb.ts). With no credentials it degrades to the pure
+// in-memory demo store — routes never touch the maps directly either way.
 //
 // Identity model:
 //   - Each user is a UserAccount keyed by a UUID user id.
@@ -104,6 +115,11 @@ interface AppState {
   byEmail: Map<string, string>;
   byGoogleSub: Map<string, string>;
   byAppleSub: Map<string, string>;
+  // Durability bookkeeping (Supabase backend only): userIds already loaded
+  // from Postgres this instance, and per-user flush chains so whole-account
+  // saves for one user never interleave.
+  hydrated: Set<string>;
+  flushes: Map<string, Promise<void>>;
 }
 
 export const DEMO_USER_EMAIL = "ashutosh@furlpay.app";
@@ -306,6 +322,8 @@ function buildState(): AppState {
     byEmail: new Map([[demo.user.email.toLowerCase(), demo.user.id]]),
     byGoogleSub: new Map(),
     byAppleSub: new Map(),
+    hydrated: new Set(),
+    flushes: new Map(),
   };
   return state;
 }
@@ -313,6 +331,9 @@ function buildState(): AppState {
 // Persist a single instance across hot-reloads / route invocations.
 const globalForStore = globalThis as unknown as { __appStateV2?: AppState };
 const state: AppState = globalForStore.__appStateV2 ?? (globalForStore.__appStateV2 = buildState());
+// Hot-reload guard: state objects created before the durability fields existed.
+state.hydrated ??= new Set();
+state.flushes ??= new Map();
 
 // ---------------------------------------------------------------------------
 // Accessors — the only supported way to touch the store.
@@ -375,6 +396,148 @@ export function findOrCreateUserByIdentity(
   return { account, created: true };
 }
 
+// ---------------------------------------------------------------------------
+// Durable accessors (Supabase write-through). Sync accessors above stay the
+// working-set API; async route entry points (authz, auth, webhooks) call
+// these so a cold serverless instance sees accounts created elsewhere.
+// ---------------------------------------------------------------------------
+
+const durable = supabaseBackend === "supabase";
+
+/** Merge fresh DB state into the live object IN PLACE so long-lived
+ *  references (the `db` export, accounts captured by in-flight requests)
+ *  observe it — replacing the map entry would fork the demo account. */
+function mergeAccount(target: UserAccount, fresh: UserAccount): void {
+  Object.assign(target.user, fresh.user);
+  target.tokenBalances.splice(0, target.tokenBalances.length, ...fresh.tokenBalances);
+  target.fiatBalances.splice(0, target.fiatBalances.length, ...fresh.fiatBalances);
+  target.holdings.splice(0, target.holdings.length, ...fresh.holdings);
+  target.cards.splice(0, target.cards.length, ...fresh.cards);
+  target.bills.splice(0, target.bills.length, ...fresh.bills);
+  target.transactions.splice(0, target.transactions.length, ...fresh.transactions);
+}
+
+/**
+ * getAccount + first-touch hydration from Postgres. On a DB miss for an
+ * account that exists in memory (the seeded demo user), the memory copy is
+ * written through instead, so every instance converges on the DB row. On a
+ * DB error this degrades to the in-memory copy — availability over
+ * freshness; the flush chain will reconcile once the DB is reachable.
+ */
+export async function getAccountDurable(userId: string | undefined | null): Promise<UserAccount | undefined> {
+  if (!userId) return undefined;
+  const cached = state.accounts.get(userId);
+  if (!durable || state.hydrated.has(userId)) return cached;
+
+  try {
+    const fresh = await dbLoadAccount(userId);
+    state.hydrated.add(userId);
+    if (fresh) {
+      if (cached) {
+        mergeAccount(cached, fresh);
+      } else {
+        state.accounts.set(userId, fresh);
+      }
+      const account = cached ?? fresh;
+      indexUser(account.user);
+      return account;
+    }
+    if (cached) await flushAccount(userId);
+    return cached;
+  } catch (e) {
+    log.error("account hydration failed — serving in-memory copy", {
+      userId,
+      error: (e as Error).message,
+    });
+    return cached;
+  }
+}
+
+/** Whole-account write-through, serialized per user so saves never
+ *  interleave. Fire-and-forget from sync mutators (`void persistAccount(id)`),
+ *  awaited where durability must be confirmed (signup). No-op without
+ *  Supabase credentials or for accounts not in memory. */
+export function persistAccount(userId: string): Promise<void> {
+  if (!durable) return Promise.resolve();
+  const account = state.accounts.get(userId);
+  if (!account) return Promise.resolve();
+  return flushAccount(userId);
+}
+
+function flushAccount(userId: string): Promise<void> {
+  const prev = state.flushes.get(userId) ?? Promise.resolve();
+  const next = prev.then(() => {
+    const account = state.accounts.get(userId);
+    if (!account) return;
+    return dbSaveAccount(account).catch((e: Error) => {
+      log.error("account flush failed", { userId, error: e.message });
+    });
+  });
+  state.flushes.set(userId, next);
+  return next;
+}
+
+/**
+ * Durable findOrCreateUserByIdentity: memory first, then the DB unique
+ * indexes (so logins find accounts created on other instances), then create.
+ * Creation is flushed BEFORE returning so the session being issued never
+ * references an account another instance can't load.
+ */
+export async function findOrCreateUserByIdentityDurable(
+  lookup: IdentityLookup & { name?: string; authProvider?: User["authProvider"] }
+): Promise<{ account: UserAccount; created: boolean }> {
+  if (!durable) return findOrCreateUserByIdentity(lookup);
+
+  const inMemory = findUserByIdentity(lookup);
+  if (inMemory) {
+    // Known locally — still hydrate once so this instance isn't stale.
+    const account = (await getAccountDurable(inMemory.user.id)) ?? inMemory;
+    return { account, created: false };
+  }
+  try {
+    const userId = await dbFindUserIdByIdentity(lookup);
+    if (userId) {
+      const account = await getAccountDurable(userId);
+      if (account) return { account, created: false };
+    }
+  } catch (e) {
+    // DB outage during login: fall through and create in memory. If the
+    // identity already exists in the DB, the eventual flush hits the unique
+    // index and is logged rather than clobbering the existing row.
+    log.error("identity lookup failed — falling back to in-memory resolve", {
+      error: (e as Error).message,
+    });
+  }
+  const { account, created } = findOrCreateUserByIdentity(lookup);
+  state.hydrated.add(account.user.id);
+  if (created) await persistAccount(account.user.id);
+  return { account, created };
+}
+
+/** Resolve a card to its owning account across instances — card webhooks on
+ *  a cold instance can't rely on the in-memory scan. */
+export async function findAccountByCard(
+  cardId: string
+): Promise<{ account: UserAccount; card: PaymentCard } | undefined> {
+  for (const account of state.accounts.values()) {
+    if (account.cards.some((c) => c.id === cardId)) {
+      const hydrated = (await getAccountDurable(account.user.id)) ?? account;
+      const card = hydrated.cards.find((c) => c.id === cardId);
+      if (card) return { account: hydrated, card };
+    }
+  }
+  if (!durable) return undefined;
+  try {
+    const userId = await dbFindUserIdByCard(cardId);
+    const account = userId ? await getAccountDurable(userId) : undefined;
+    const card = account?.cards.find((c) => c.id === cardId);
+    return account && card ? { account, card } : undefined;
+  } catch (e) {
+    log.error("card owner lookup failed", { cardId, error: (e as Error).message });
+    return undefined;
+  }
+}
+
 function indexUser(user: User): void {
   if (user.phone) state.byPhone.set(user.phone, user.id);
   if (user.email) state.byEmail.set(user.email.toLowerCase(), user.id);
@@ -406,6 +569,7 @@ export function updateUser(userId: string, patch: Partial<Pick<User, UpdatableFi
     }
   }
   indexUser(account.user);
+  void persistAccount(userId);
 }
 
 /** Dedicated subscription-tier transition — only billing checkout (sandbox
@@ -415,6 +579,7 @@ export function setSubscriptionTier(userId: string, tier: User["tier"]): void {
   const account = state.accounts.get(userId);
   if (!account) return;
   account.user.tier = tier;
+  void persistAccount(userId);
 }
 
 /** Dedicated KYC transition — only the KYC webhook/flow calls this; it is
@@ -424,12 +589,16 @@ export function setKycStatus(userId: string, status: User["kycStatus"], tier?: U
   if (!account) return;
   account.user.kycStatus = status;
   if (tier !== undefined) account.user.kycTier = tier;
+  void persistAccount(userId);
 }
 
 export function recordTransaction(userId: string, t: Transaction): void {
   const account = state.accounts.get(userId);
   if (!account) return;
   account.transactions.unshift(t);
+  // A recorded transaction almost always accompanies an in-place balance /
+  // limit mutation on the same account — the whole-account flush picks both up.
+  void persistAccount(userId);
 }
 
 export function newTx(partial: Omit<Transaction, "id" | "timestamp">): Transaction {

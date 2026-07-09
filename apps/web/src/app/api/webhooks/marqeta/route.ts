@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { constructEvent } from "@furlpay/compliance";
-import { listAccounts, newTx, recordTransaction, type UserAccount } from "@/lib/store";
+import { findAccountByCard, newTx, recordTransaction } from "@/lib/store";
 import { evaluateSpend } from "@/lib/services/policyEngine";
 import { tryBegin, markProcessed, markFailed, endpointSecret } from "@/lib/webhookGuard";
 import { log } from "@/lib/log";
@@ -8,15 +8,6 @@ import { log } from "@/lib/log";
 // POST /api/webhooks/marqeta — real-time card swipe authorization request.
 // Marqeta JIT-funding: we must approve/decline within the authorization window
 // after running the off-chain policy engine (velocity/sanctions/MCC/limit).
-
-/** Resolve which user's account a card belongs to. */
-function accountForCard(cardId: string): { account: UserAccount; card: UserAccount["cards"][number] } | undefined {
-  for (const account of listAccounts()) {
-    const card = account.cards.find((c) => c.id === cardId);
-    if (card) return { account, card };
-  }
-  return undefined;
-}
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -40,7 +31,7 @@ export async function POST(req: NextRequest) {
     // 3D Secure authentication request (e-commerce step-up).
     if (event.type === "threedsecure.authentication.request") {
       const { cardId, amountUsd, three_ds_requestor_url } = event.data;
-      const owned = accountForCard(cardId);
+      const owned = await findAccountByCard(cardId);
       const card = owned?.card;
       // Step-up (challenge) for higher-value online spend; frictionless below $50.
       const challenge = !card || card.frozen || (amountUsd ?? 0) >= 50;
@@ -56,7 +47,7 @@ export async function POST(req: NextRequest) {
 
     if (event.type === "authorization.request" || event.type === "card.transaction.authorized") {
       const { cardId, amountUsd, merchant, mcc } = event.data;
-      const owned = accountForCard(cardId);
+      const owned = await findAccountByCard(cardId);
       if (!owned) {
         await markProcessed(event.id);
         return NextResponse.json({ jit_funding: { approved: false, reason: "unknown card" } });

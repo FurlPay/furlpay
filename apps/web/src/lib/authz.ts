@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession, type Role, type SessionClaims } from "@/lib/session";
-import { getAccount, type UserAccount } from "@/lib/store";
+import { getAccountDurable, type UserAccount } from "@/lib/store";
 
 // ---------------------------------------------------------------------------
 // Route-level authentication + authorization helpers.
@@ -20,7 +20,9 @@ export async function requireUser(req: NextRequest): Promise<AuthResult> {
   if (!claims?.sub) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
-  const account = getAccount(claims.sub);
+  // Hydrates from Postgres on first touch per instance, so a session minted
+  // on another instance resolves here too.
+  const account = await getAccountDurable(claims.sub);
   if (!account) {
     // Session outlived the account record (instance restart in the demo store,
     // deleted user in production). Force a re-login rather than acting on the

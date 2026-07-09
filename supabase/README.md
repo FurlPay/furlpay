@@ -39,13 +39,31 @@ The app never uses the anon/publishable key: RLS is enabled on every table
 with no policies, so anon access reads nothing. All queries go through API
 routes with the service role.
 
-## Cutover plan (not yet flipped)
+## Cutover status
 
-1. Apply `0001_init.sql`; set the two env vars in Preview first.
-2. Swap `store.ts` accessors (`getAccount`, `findOrCreateUserByIdentity`,
-   `recordTransaction`, …) to the Supabase adapter behind
-   `supabaseBackend === "supabase"`, keeping the in-memory path as the
-   zero-credential dev fallback — same pattern as `kv.ts`.
-3. Seed the demo account (deterministic `DEMO_USER_ID`) via upsert on boot.
-4. Verify auth flows (OTP, Google, Apple, passkey) create/resolve users, then
-   promote env vars to Production and deploy.
+The store is WIRED (behind `supabaseBackend === "supabase"`; with no
+credentials it stays pure in-memory):
+
+- `storeDb.ts` — mappers + `loadAccount` / `saveAccount` /
+  `findUserIdByIdentity` / `findUserIdByCard` over PostgREST.
+- `store.ts` — `getAccountDurable()` hydrates an account from Postgres on
+  first touch per instance (merging IN PLACE so the `db` demo export stays
+  consistent); every mutator (`recordTransaction`, `updateUser`,
+  `setKycStatus`, `setSubscriptionTier`) write-through-flushes the whole
+  account, serialized per user. `findOrCreateUserByIdentityDurable()` checks
+  the DB unique indexes before creating, and flushes a new account before the
+  session is issued. `findAccountByCard()` resolves card → owner for the
+  card-auth webhooks on cold instances.
+- Entry points swapped: `authz.requireUser`, auth routes (OTP / Google /
+  Apple), webhooks (stripe, sumsub, persona, wise, bridge, marqeta,
+  card-auth), escrow, billing checkout, account fund, security lock,
+  entitlements.
+- The demo account seeds itself into the DB on first durable read (memory
+  copy written through on DB miss).
+
+Remaining to go live:
+
+1. Apply `0001_init.sql` (`npx supabase db push`, see above).
+2. Set the two env vars in Preview, verify auth flows (OTP, Google, Apple)
+   create/resolve users across instances, then promote to Production and
+   deploy.

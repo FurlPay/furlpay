@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
-import { getAccount, setKycStatus } from "@/lib/store";
+import { getAccountDurable, setKycStatus } from "@/lib/store";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
     // externalUserId is the FurlPay user id passed when the applicant was
     // created; the KYC transition goes through the dedicated path only.
     const userId: string | undefined = event.externalUserId;
-    const account = getAccount(userId);
+    const account = await getAccountDurable(userId);
 
     if (account && event.type === "applicantReviewed") {
       const answer: string = event.reviewResult?.reviewAnswer ?? "";

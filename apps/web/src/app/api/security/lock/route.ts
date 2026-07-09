@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccount } from "@/lib/store";
+import { getAccountDurable, persistAccount } from "@/lib/store";
 import { verifyLockToken } from "@/lib/lockLink";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
@@ -26,13 +26,15 @@ export async function GET(req: NextRequest) {
   if (!verifyLockToken(u, e, t)) {
     return NextResponse.json({ error: "Invalid or expired lock link" }, { status: 401 });
   }
-  const account = getAccount(u);
+  const account = await getAccountDurable(u);
   if (!account) {
     return NextResponse.json({ error: "Invalid or expired lock link" }, { status: 401 });
   }
 
   const alreadyLocked = account.user.security.accountLocked;
   account.user.security.accountLocked = true;
+  // Awaited: the lock must be durable before we tell the victim it's done.
+  await persistAccount(u);
   audit("account.locked", u, { via: "email_lock_link", alreadyLocked });
 
   if (!alreadyLocked && account.user.email) {

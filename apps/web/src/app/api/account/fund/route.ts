@@ -3,7 +3,7 @@ import { settle, type FacilitatorRequest } from "@/lib/x402Facilitator";
 import { PAY_TO } from "@/lib/x402";
 import { creditAccount } from "@/lib/services/account";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { getAccount, DEMO_USER_ID } from "@/lib/store";
+import { getAccountDurable, DEMO_USER_ID } from "@/lib/store";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
@@ -65,9 +65,9 @@ export async function POST(req: NextRequest) {
   // else the demo account in dev only.
   const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const target =
-    getAccount(claims?.sub) ??
-    getAccount(typeof body.destinationUserId === "string" ? body.destinationUserId : undefined) ??
-    (process.env.NODE_ENV !== "production" ? getAccount(DEMO_USER_ID) : undefined);
+    (await getAccountDurable(claims?.sub)) ??
+    (await getAccountDurable(typeof body.destinationUserId === "string" ? body.destinationUserId : undefined)) ??
+    (process.env.NODE_ENV !== "production" ? await getAccountDurable(DEMO_USER_ID) : undefined);
   if (!target) {
     return NextResponse.json({ funded: false, error: "unknown_destination" }, { status: 400 });
   }

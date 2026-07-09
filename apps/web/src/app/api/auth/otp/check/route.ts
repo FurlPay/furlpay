@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkOtp } from "@/lib/auth/otp";
-import { findOrCreateUserByIdentity, updateUser } from "@/lib/store";
+import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ verified: false, reason: result.reason, error: msg }, { status: 401 });
   }
 
-  const { account, created } = findOrCreateUserByIdentity(
+  const { account, created } = await findOrCreateUserByIdentityDurable(
     channel === "email" ? { email: to } : { phone: to, authProvider: "phone" }
   );
   if (channel === "email") {

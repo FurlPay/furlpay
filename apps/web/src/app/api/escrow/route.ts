@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { captureHold, createHold, listHolds, releaseHold } from "@/lib/services/escrow";
-import { getAccount, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
+import { getAccountDurable, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
 import { verifyAgentSignature } from "@/lib/agentTrustGate";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
@@ -29,8 +29,8 @@ export async function POST(req: NextRequest) {
   // Unsigned + sessionless requests only work in dev.
   const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const account =
-    getAccount(claims?.sub) ??
-    (agentKeyId || process.env.NODE_ENV !== "production" ? getAccount(DEMO_USER_ID) : undefined);
+    (await getAccountDurable(claims?.sub)) ??
+    (agentKeyId || process.env.NODE_ENV !== "production" ? await getAccountDurable(DEMO_USER_ID) : undefined);
   if (!account) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { constructEvent } from "@furlpay/compliance";
-import { listAccounts, newTx, recordTransaction, type UserAccount } from "@/lib/store";
+import { findAccountByCard, newTx, recordTransaction } from "@/lib/store";
 import { evaluateSpend } from "@/lib/services/policyEngine";
 import { getUsdcBalanceWithBudget } from "@/lib/services/chainBalance";
 import { createChallenge } from "@/lib/services/cardAuthChallenges";
@@ -93,14 +93,6 @@ function normalize(payload: any): InboundAuthorization | null {
   return null;
 }
 
-function accountForCard(cardId: string): { account: UserAccount; card: UserAccount["cards"][number] } | undefined {
-  for (const account of listAccounts()) {
-    const card = account.cards.find((c) => c.id === cardId);
-    if (card) return { account, card };
-  }
-  return undefined;
-}
-
 function decline(auth: InboundAuthorization, reason: string) {
   // decline_fee is part of the contract: FurlPay absorbs network decline
   // costs — the cardholder is never charged, at any decline count.
@@ -141,7 +133,9 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const owned = accountForCard(auth.cardId);
+    // Durable owner lookup — the swiping user's account may live on another
+    // instance; the cards.user_id index resolves it cross-instance.
+    const owned = await findAccountByCard(auth.cardId);
     if (!owned) {
       await kvSet(evtKey, "processed", EVENT_TTL_SECONDS);
       return decline(auth, "unknown_card");

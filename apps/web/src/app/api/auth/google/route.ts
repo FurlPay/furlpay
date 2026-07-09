@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findOrCreateUserByIdentity, updateUser } from "@/lib/store";
+import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { verifyGoogleCredential } from "@/lib/auth/google";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message || "Invalid Google token" }, { status: 401 });
   }
 
-  const { account, created } = findOrCreateUserByIdentity({
+  const { account, created } = await findOrCreateUserByIdentityDurable({
     googleSub: identity.sub,
     email: identity.email,
     name: identity.name,

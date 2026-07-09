@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/payments/stripe";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
-import { getAccount, newTx, recordTransaction, setSubscriptionTier, DEMO_USER_ID } from "@/lib/store";
+import { getAccountDurable, newTx, recordTransaction, setSubscriptionTier, DEMO_USER_ID } from "@/lib/store";
 import { TIER_BY_PLAN } from "@/lib/entitlements";
 import { recordMovement } from "@/lib/ledger";
 import { audit } from "@/lib/audit";
@@ -59,8 +59,8 @@ export async function POST(request: Request) {
       // for a stranger's payment would corrupt balances).
       const userId = (pi.metadata?.furlpayUserId as string) || "";
       const target =
-        getAccount(userId) ??
-        (process.env.NODE_ENV !== "production" ? getAccount(DEMO_USER_ID) : undefined);
+        (await getAccountDurable(userId)) ??
+        (process.env.NODE_ENV !== "production" ? await getAccountDurable(DEMO_USER_ID) : undefined);
       const amountUsd = (pi.amount_received ?? pi.amount) / 100;
 
       if (target) {
@@ -90,7 +90,7 @@ export async function POST(request: Request) {
         const userId = (session.metadata?.furlpayUserId as string) || "";
         const plan = (session.metadata?.plan as string) || "";
         const tier = TIER_BY_PLAN[plan];
-        if (getAccount(userId) && tier) {
+        if ((await getAccountDurable(userId)) && tier) {
           setSubscriptionTier(userId, tier);
           audit("billing.subscription_started", userId, { plan, session: session.id });
         } else {
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
     if (event.type === "customer.subscription.deleted") {
       const sub = event.data.object as Stripe.Subscription;
       const userId = (sub.metadata?.furlpayUserId as string) || "";
-      if (getAccount(userId)) {
+      if (await getAccountDurable(userId)) {
         setSubscriptionTier(userId, "Standard");
         audit("billing.subscription_ended", userId, { subscription: sub.id });
       }

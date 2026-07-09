@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { verifyPersonaSignature } from "@/lib/kyc/persona";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
-import { getAccount, setKycStatus } from "@/lib/store";
+import { getAccountDurable, setKycStatus } from "@/lib/store";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 import { sendEmail } from "@/lib/email";
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     // referenceId is the FurlPay user id we handed Persona when the inquiry
     // was created; the transition goes through the DEDICATED KYC path (it is
     // deliberately unreachable via the identity-field updateUser allow-list).
-    const account = getAccount(userId);
+    const account = await getAccountDurable(userId);
     if (account) {
       if (eventType === "inquiry.completed" || status === "completed") {
         setKycStatus(account.user.id, "verified", 2);

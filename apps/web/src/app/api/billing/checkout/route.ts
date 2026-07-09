@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getAccount, setSubscriptionTier } from "@/lib/store";
+import { getAccountDurable, setSubscriptionTier } from "@/lib/store";
 import { TIER_BY_PLAN } from "@/lib/entitlements";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import { audit } from "@/lib/audit";
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
 // we upgrade the tier immediately so the full flow stays demoable.
 export async function POST(req: NextRequest) {
   const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const account = getAccount(claims?.sub);
+  const account = await getAccountDurable(claims?.sub);
   if (!account) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
   const { plan } = (await req.json().catch(() => ({}))) as { plan?: string };
