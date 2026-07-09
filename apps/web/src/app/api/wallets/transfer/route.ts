@@ -10,6 +10,7 @@ import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 import { checkVelocity, commitVelocity } from "@/lib/services/velocity";
+import { analyzeDevice } from "@/lib/services/deviceIntel";
 
 // POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via
 // Paymaster, from the SESSION user's balances.
@@ -26,30 +27,55 @@ export async function POST(req: NextRequest) {
   if (!parsed.ok) return parsed.res;
   const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = parsed.data;
 
-  // Device / behavioral risk gate (Sardine-style).
-  const risk = assessRisk(deviceSignals || {});
-  if (risk.action === "block") {
-    audit("transfer.blocked", account.user.id, { destination, amount, reason: "risk_engine" });
-    return NextResponse.json({ error: "Blocked by risk engine", risk }, { status: 403 });
+  // Device / behavioral risk gate. When the client posts a full device
+  // fingerprint (with a visitorId), use analyzeDevice — it adds the FP-Agent
+  // behavioral layer (AI-browsing-agent detection: mouse-teleport, paste-fill,
+  // machine-speed typing) on top of the browser-fingerprint checks. Otherwise
+  // fall back to the lightweight assessRisk over whatever signals were sent.
+  const country = req.headers.get("x-vercel-ip-country");
+  const hasFingerprint = deviceSignals && typeof deviceSignals === "object" && "visitorId" in deviceSignals;
+  let deviceChallenge = false;
+  if (hasFingerprint) {
+    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip");
+    const intel = await analyzeDevice(deviceSignals as Record<string, unknown>, ip, country);
+    if (intel.action === "block") {
+      audit("transfer.blocked", account.user.id, {
+        destination, amount, reason: intel.isLikelyAgent ? "ai_agent" : "device_intel", signals: intel.signals,
+      });
+      return NextResponse.json({ error: "Blocked by device intelligence", intel }, { status: 403 });
+    }
+    // A "challenge" verdict (incl. a lone agent-behavior flag) escalates to
+    // step-up MFA below rather than blocking outright.
+    if (intel.action === "challenge") deviceChallenge = true;
+  } else {
+    const risk = assessRisk(deviceSignals || {});
+    if (risk.action === "block") {
+      audit("transfer.blocked", account.user.id, { destination, amount, reason: "risk_engine" });
+      return NextResponse.json({ error: "Blocked by risk engine", risk }, { status: 403 });
+    }
   }
 
   // Cross-instance velocity (Redis): burst caps, daily USD volume, and
   // impossible travel via the CDN's IP-country header. Burst → hard block;
   // volume/geo anomalies escalate to step-up MFA below.
-  const country = req.headers.get("x-vercel-ip-country");
   const velocity = await checkVelocity({ userId: account.user.id, amountUsd: amount, country });
   if (velocity.action === "block") {
     audit("transfer.blocked", account.user.id, { destination, amount, reason: "velocity", flags: velocity.flags });
     return NextResponse.json({ error: "Transfer blocked by velocity policy", velocity }, { status: 429 });
   }
 
-  // Step-up MFA for high-value transfers (>= $5000) or velocity anomalies.
+  // Step-up MFA for high-value transfers (>= $5000), velocity anomalies, or a
+  // device-intelligence challenge (e.g. suspected AI browsing agent).
   const stepUp = requiresStepUp({ action: "transfer", amountUsd: amount });
-  if (stepUp.required || velocity.action === "review") {
+  if (stepUp.required || velocity.action === "review" || deviceChallenge) {
     if (!mfaCode) {
       return NextResponse.json(
         {
-          error: stepUp.required ? stepUp.reason : `Additional verification required: ${velocity.reasons.join("; ")}`,
+          error: stepUp.required
+            ? stepUp.reason
+            : deviceChallenge
+              ? "Additional verification required for this device"
+              : `Additional verification required: ${velocity.reasons.join("; ")}`,
           stepUpRequired: true,
           methods: stepUp.methods,
         },
