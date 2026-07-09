@@ -1,4 +1,14 @@
+<div align="center">
+
+<img src="https://furlpay.com/icon.png" alt="FurlPay" width="88" height="88" />
+
 # Furlpay
+
+**The on-chain financial operating system for stablecoin payments, global travel, cards, and agentic commerce.**
+
+[furlpay.com](https://furlpay.com) · [Docs](https://furlpay.com/docs) · [Developer platform](https://furlpay.com/developers) · [Security](SECURITY.md)
+
+**App & tooling**
 
 ![Next.js](https://img.shields.io/badge/Next.js-14-000000?logo=nextdotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
@@ -6,12 +16,28 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3-06B6D4?logo=tailwindcss&logoColor=white)
 ![Turborepo](https://img.shields.io/badge/Turborepo-2-EF4444?logo=turborepo&logoColor=white)
 ![Lucide](https://img.shields.io/badge/Icons-Lucide-F56565?logo=lucide&logoColor=white)
+![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node-20-339933?logo=nodedotjs&logoColor=white)
+
+**SDKs**
+
 ![Rust](https://img.shields.io/badge/Rust-SDK-000000?logo=rust&logoColor=white)
 ![Go](https://img.shields.io/badge/Go-SDK-00ADD8?logo=go&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-SDK-3776AB?logo=python&logoColor=white)
-![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
-![Node.js](https://img.shields.io/badge/Node-20-339933?logo=nodedotjs&logoColor=white)
+![OpenAPI](https://img.shields.io/badge/OpenAPI-3.1-6BA539?logo=openapiinitiative&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-Model%20Context%20Protocol-111?logo=anthropic&logoColor=white)
+
+**Rails**
+
+![Solana](https://img.shields.io/badge/Solana-9945FF?logo=solana&logoColor=white)
+![Arbitrum](https://img.shields.io/badge/Arbitrum-213147?logo=arbitrum&logoColor=white)
+![Base](https://img.shields.io/badge/Base-0052FF?logo=coinbase&logoColor=white)
+![Ethereum](https://img.shields.io/badge/Ethereum-3C3C3D?logo=ethereum&logoColor=white)
+![USDC](https://img.shields.io/badge/USDC-2775CA?logo=circle&logoColor=white)
+![x402](https://img.shields.io/badge/x402-agentic%20payments-6F4FF2)
 ![License](https://img.shields.io/badge/status-prototype-orange)
+
+</div>
 
 The Stripe + Coinbase of stablecoins and fractional investing. Furlpay is a
 stablecoin-first financial super-app plus a full developer ecosystem and a
