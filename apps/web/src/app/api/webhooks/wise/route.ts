@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
 
-  if (!tryBegin(event.id)) {
+  if (!(await tryBegin(event.id))) {
     return NextResponse.json({ received: true, deduped: true });
   }
 
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
         (process.env.NODE_ENV !== "production" ? getAccount(DEMO_USER_ID) : undefined);
       if (!target) {
         log.warn("wise transfer.credited without resolvable user", { event: event.id, furlpayUserId });
-        markProcessed(event.id);
+        await markProcessed(event.id);
         return NextResponse.json({ received: true, unmatched: true });
       }
 
@@ -52,10 +52,10 @@ export async function POST(req: NextRequest) {
       audit("webhook.processed", target.user.id, { provider: "wise", event: event.type, amount, currency });
     }
 
-    markProcessed(event.id);
+    await markProcessed(event.id);
     return NextResponse.json({ received: true, type: event.type });
   } catch (e) {
-    markFailed(event.id);
+    await markFailed(event.id);
     log.error("wise webhook handler failed", { event: event.type, error: (e as Error).message });
     return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   // Brute-force guard on top of checkOtp's own attempt counter: key by IP AND
   // destination so an attacker can't spray codes across identifiers.
-  const limited = rateLimitOr429(req, "otp.check", { limit: 10, windowMs: 5 * 60_000 }, to);
+  const limited = await rateLimitOr429(req, "otp.check", { limit: 10, windowMs: 5 * 60_000 }, to);
   if (limited) return limited;
 
   const result = await checkOtp(to, code);

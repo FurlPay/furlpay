@@ -29,7 +29,7 @@ const ERROR_STATUS: Record<string, number> = {
 // (Attack IV) is contained by per-IP rate limiting here plus metadata
 // validation and per-host Sybil caps in the registry.
 export async function POST(req: NextRequest) {
-  const limited = rateLimitOr429(req, "x402.register", { limit: 10, windowMs: 60_000 });
+  const limited = await rateLimitOr429(req, "x402.register", { limit: 10, windowMs: 60_000 });
   if (limited) return limited;
 
   const parsed = parse(RegisterSchema, await req.json().catch(() => ({})));

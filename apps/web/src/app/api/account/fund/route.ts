@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const limited = rateLimitOr429(req, "account.fund", { limit: 20, windowMs: 60_000 });
+  const limited = await rateLimitOr429(req, "account.fund", { limit: 20, windowMs: 60_000 });
   if (limited) return limited;
 
   let body: FacilitatorRequest & { destinationUserId?: string };

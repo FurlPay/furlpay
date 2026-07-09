@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   // SMS-pumping / spam guard: a few sends per destination per window, keyed by
   // IP + destination so one attacker can't burn a victim's budget from afar.
-  const limited = rateLimitOr429(req, "otp.start", { limit: 5, windowMs: 10 * 60_000 }, to);
+  const limited = await rateLimitOr429(req, "otp.start", { limit: 5, windowMs: 10 * 60_000 }, to);
   if (limited) return limited;
 
   // Basic E.164 sanity for phone channels before we spend a provider request.

@@ -1,4 +1,5 @@
 import { Chain, Token } from "../types";
+import { kvGet, kvSet, kvSetNx, kvListPush, kvListRange } from "../kv";
 
 // ---------------------------------------------------------------------------
 // Real-time on-chain deposit tracking. Node providers (QuickNode Streams /
@@ -9,8 +10,11 @@ import { Chain, Token } from "../types";
 //   processing  included in a block, awaiting confirmation target
 //   success     confirmation target reached, balance credited
 //
-// The store is in-memory (demo-ledger parity with the rest of the app); a
-// live build persists to the DB keyed by user.
+// State lives in the durable KV layer (Upstash Redis in prod) so a webhook
+// landing on one serverless instance is visible to the poller on another:
+//   deposit:{txHash}           event record         TTL 24h
+//   deposit:credited:{txHash}  single-credit guard  TTL 24h (atomic NX)
+//   deposit:recent             newest-first index (bounded list)
 // ---------------------------------------------------------------------------
 
 export type DepositStatus = "pending" | "processing" | "success";
@@ -54,8 +58,11 @@ const CONFIRM_TARGET: Record<Chain, number> = {
   bsc: 1,
 };
 
-const MAX_EVENTS = 200;
-const events = new Map<string, DepositEvent>(); // keyed by txHash
+const TTL_SECONDS = 86_400; // 24h — deposit history beyond this lives in the ledger
+const RECENT_MAX = 50;
+const EVENT_KEY = (txHash: string) => `deposit:${txHash}`;
+const CREDIT_KEY = (txHash: string) => `deposit:credited:${txHash}`;
+const RECENT_KEY = "deposit:recent";
 
 function orderId(): string {
   const d = new Date();
@@ -68,7 +75,7 @@ function orderId(): string {
  * (pending → processing → success) — an out-of-order or replayed mempool
  * webhook can never regress a mined transaction.
  */
-export function recordDepositEvent(input: {
+export async function recordDepositEvent(input: {
   txHash: string;
   token: Token;
   chain: Chain;
@@ -76,18 +83,19 @@ export function recordDepositEvent(input: {
   from: string;
   to: string;
   confirmations: number;
-}): DepositEvent {
+}): Promise<DepositEvent> {
   const rank: Record<DepositStatus, number> = { pending: 0, processing: 1, success: 2 };
   const required = CONFIRM_TARGET[input.chain];
   const status: DepositStatus =
     input.confirmations >= required ? "success" : input.confirmations > 0 ? "processing" : "pending";
 
-  const existing = events.get(input.txHash);
+  const existing = await kvGet<DepositEvent>(EVENT_KEY(input.txHash));
   if (existing) {
     if (rank[status] > rank[existing.status]) {
       existing.status = status;
       existing.confirmations = input.confirmations;
       existing.updatedAt = new Date().toISOString();
+      await kvSet(EVENT_KEY(input.txHash), existing, TTL_SECONDS);
     }
     return existing;
   }
@@ -106,29 +114,23 @@ export function recordDepositEvent(input: {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
-  events.set(input.txHash, event);
-
-  // Bound memory: evict oldest settled events first.
-  if (events.size > MAX_EVENTS) {
-    const oldest = [...events.values()].sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-    for (const e of oldest) {
-      if (events.size <= MAX_EVENTS) break;
-      if (e.status === "success") events.delete(e.txHash);
-    }
-  }
+  await kvSet(EVENT_KEY(input.txHash), event, TTL_SECONDS);
+  await kvListPush(RECENT_KEY, input.txHash, RECENT_MAX);
   return event;
 }
 
-/** Whether this event's success transition already credited the ledger. */
-const credited = new Set<string>();
-export function markCredited(txHash: string): boolean {
-  if (credited.has(txHash)) return false;
-  credited.add(txHash);
-  return true;
+/**
+ * Whether this transaction's success transition should credit the ledger —
+ * atomic across instances, so a replayed "mined" webhook can never credit
+ * twice even when it lands on a different lambda.
+ */
+export async function markCredited(txHash: string): Promise<boolean> {
+  return kvSetNx(CREDIT_KEY(txHash), true, TTL_SECONDS);
 }
 
-export function listRecentDeposits(limit = 10): DepositEvent[] {
-  return [...events.values()]
-    .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    .slice(0, limit);
+export async function listRecentDeposits(limit = 10): Promise<DepositEvent[]> {
+  const hashes = await kvListRange(RECENT_KEY, RECENT_MAX);
+  const events = (await Promise.all(hashes.slice(0, limit * 2).map((h) => kvGet<DepositEvent>(EVENT_KEY(h)))))
+    .filter((e): e is DepositEvent => e !== null);
+  return events.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, limit);
 }

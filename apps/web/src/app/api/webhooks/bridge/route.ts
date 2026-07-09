@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   // Idempotency: claim the id; only mark processed after the handler succeeds
   // so a failed handler is retried by the provider instead of lost.
   const version = resolveVersion(req.headers.get("furlpay-version"));
-  if (!tryBegin(event.id)) {
+  if (!(await tryBegin(event.id))) {
     return NextResponse.json({ received: true, deduped: true, version });
   }
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
         // Ack (don't retry forever) but never credit an unmatched deposit to
         // someone else's account.
         log.warn("bridge deposit.settled without resolvable user", { event: event.id, furlpayUserId });
-        markProcessed(event.id);
+        await markProcessed(event.id);
         return NextResponse.json({ received: true, unmatched: true });
       }
 
@@ -61,14 +61,14 @@ export async function POST(req: NextRequest) {
         })
       );
       audit("webhook.processed", target.user.id, { provider: "bridge", event: event.type, amountUsd });
-      markProcessed(event.id);
+      await markProcessed(event.id);
       return NextResponse.json({ received: true, routed: !policy.allowed, policy });
     }
 
-    markProcessed(event.id);
+    await markProcessed(event.id);
     return NextResponse.json({ received: true, type: event.type });
   } catch (e) {
-    markFailed(event.id);
+    await markFailed(event.id);
     log.error("bridge webhook handler failed", { event: event.type, error: (e as Error).message });
     return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }

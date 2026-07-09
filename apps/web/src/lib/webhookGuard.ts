@@ -4,51 +4,39 @@
 //    releases the id so the provider's redelivery gets retried (effectively-
 //    once) instead of being swallowed as a duplicate (at-most-once, lost).
 //  - tolerate/echo an API version header without failing on unknown versions
-// In production the processed-set lives in Redis/Postgres with the same
-// tryBegin/markProcessed/markFailed semantics (INSERT ... ON CONFLICT).
+//
+// The processed-set lives in the durable KV layer (Upstash Redis in prod,
+// bounded memory in dev) under `wh:dedup:{eventId}` with a 24h TTL, so a
+// redelivery landing on a DIFFERENT serverless instance still dedupes.
 
-type EventStatus = "processing" | "processed";
+import { kvSetNx, kvSet, kvDel } from "./kv";
 
-const MAX_EVENTS = 10_000;
-
-const g = globalThis as unknown as { __webhookEvents?: Map<string, EventStatus> };
-const events = (): Map<string, EventStatus> => (g.__webhookEvents ??= new Map());
+const KEY = (eventId: string) => `wh:dedup:${eventId}`;
+const TTL_SECONDS = 86_400; // 24h — outlives every provider's retry window
 
 export const CURRENT_WEBHOOK_VERSION = "2026-07-01.furl";
 
 /**
- * Claim an event id for processing. Returns false when the event was already
- * processed (redelivery of a success) or is being processed right now
- * (concurrent redelivery) — the caller should ack without re-running effects.
+ * Atomically claim an event id for processing. Returns false when the event
+ * was already processed (redelivery of a success) or is being processed right
+ * now (concurrent redelivery) — the caller should ack without re-running
+ * effects.
  */
-export function tryBegin(eventId: string): boolean {
-  const store = events();
-  if (store.has(eventId)) return false;
-  store.set(eventId, "processing");
-  bound(store);
-  return true;
+export async function tryBegin(eventId: string): Promise<boolean> {
+  return kvSetNx(KEY(eventId), "processing", TTL_SECONDS);
 }
 
 /** The handler succeeded — redeliveries of this id are dups from now on. */
-export function markProcessed(eventId: string): void {
-  events().set(eventId, "processed");
+export async function markProcessed(eventId: string): Promise<void> {
+  await kvSet(KEY(eventId), "processed", TTL_SECONDS);
 }
 
 /**
  * The handler failed — release the id so the provider's redelivery is
  * processed again. Pair with returning a 5xx so the provider actually retries.
  */
-export function markFailed(eventId: string): void {
-  events().delete(eventId);
-}
-
-function bound(store: Map<string, EventStatus>): void {
-  // Bound memory: evict oldest entries (Map preserves insertion order).
-  while (store.size > MAX_EVENTS) {
-    const first = store.keys().next().value;
-    if (first === undefined) break;
-    store.delete(first);
-  }
+export async function markFailed(eventId: string): Promise<void> {
+  await kvDel(KEY(eventId));
 }
 
 /**

@@ -103,3 +103,42 @@ export async function kvSetNx(key: string, value: unknown, ttlSeconds: number): 
   memSet(key, raw, ttlSeconds);
   return true;
 }
+
+/** Atomic counter with a fixed-window TTL — the rate-limit primitive.
+ *  Returns the count within the current window. */
+export async function kvIncr(key: string, windowSeconds: number): Promise<number> {
+  if (kvBackend === "redis") {
+    const count = (await redis(["INCR", key])) as number;
+    if (count === 1) await redis(["EXPIRE", key, windowSeconds]);
+    return count;
+  }
+  const current = Number(memGet(key) ?? 0) + 1;
+  // Preserve the window: only (re)set the TTL when the window opens.
+  if (current === 1) memSet(key, String(current), windowSeconds);
+  else {
+    const entry = mem().get(key)!;
+    entry.value = String(current);
+  }
+  return current;
+}
+
+/** Prepend to a bounded list (LPUSH + LTRIM) — newest first. */
+export async function kvListPush(key: string, value: string, maxLength: number): Promise<void> {
+  if (kvBackend === "redis") {
+    await redis(["LPUSH", key, value]);
+    await redis(["LTRIM", key, 0, maxLength - 1]);
+    return;
+  }
+  const list: string[] = JSON.parse(memGet(key) ?? "[]");
+  list.unshift(value);
+  memSet(key, JSON.stringify(list.slice(0, maxLength)));
+}
+
+/** Read the first `count` entries of a list (newest first). */
+export async function kvListRange(key: string, count: number): Promise<string[]> {
+  if (kvBackend === "redis") {
+    return ((await redis(["LRANGE", key, 0, count - 1])) as string[]) ?? [];
+  }
+  const list: string[] = JSON.parse(memGet(key) ?? "[]");
+  return list.slice(0, count);
+}

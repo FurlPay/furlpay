@@ -10,7 +10,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 // VERIFIED Google identity, and issues a session bound to that user. Phone
 // verification is still required separately (Google provides email, not phone).
 export async function POST(req: NextRequest) {
-  const limited = rateLimitOr429(req, "auth.google", { limit: 10, windowMs: 60_000 });
+  const limited = await rateLimitOr429(req, "auth.google", { limit: 10, windowMs: 60_000 });
   if (limited) return limited;
 
   const body = await req.json().catch(() => null);

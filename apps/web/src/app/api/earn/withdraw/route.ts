@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const limited = rateLimitOr429(req, "earn.withdraw", { limit: 20, windowMs: 60_000 }, account.user.id);
+  const limited = await rateLimitOr429(req, "earn.withdraw", { limit: 20, windowMs: 60_000 }, account.user.id);
   if (limited) return limited;
 
   const live = earnIsLive();

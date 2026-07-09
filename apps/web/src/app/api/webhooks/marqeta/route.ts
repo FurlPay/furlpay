@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
 
-  if (!tryBegin(event.id)) {
+  if (!(await tryBegin(event.id))) {
     return NextResponse.json({ received: true, deduped: true });
   }
 
@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
       const card = owned?.card;
       // Step-up (challenge) for higher-value online spend; frictionless below $50.
       const challenge = !card || card.frozen || (amountUsd ?? 0) >= 50;
-      markProcessed(event.id);
+      await markProcessed(event.id);
       return NextResponse.json({
         three_ds_authentication: {
           result: card && !card.frozen ? (challenge ? "challenge" : "frictionless") : "rejected",
@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       const { cardId, amountUsd, merchant, mcc } = event.data;
       const owned = accountForCard(cardId);
       if (!owned) {
-        markProcessed(event.id);
+        await markProcessed(event.id);
         return NextResponse.json({ jit_funding: { approved: false, reason: "unknown card" } });
       }
       const { account, card } = owned;
@@ -78,17 +78,17 @@ export async function POST(req: NextRequest) {
         })
       );
 
-      markProcessed(event.id);
+      await markProcessed(event.id);
       return NextResponse.json({
         jit_funding: { approved: decision.approved, amount: amountUsd },
         decision,
       });
     }
 
-    markProcessed(event.id);
+    await markProcessed(event.id);
     return NextResponse.json({ received: true, type: event.type });
   } catch (e) {
-    markFailed(event.id);
+    await markFailed(event.id);
     log.error("marqeta webhook handler failed", { event: event.type, error: (e as Error).message });
     return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }

@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { kvBackend, kvIncr } from "./kv";
 
 // ---------------------------------------------------------------------------
-// Sliding-window rate limiter for sensitive endpoints (OTP, payments, funding,
-// key registration). In-memory per instance — production swaps the store for
-// Redis (Upstash Ratelimit) behind the same limit() signature. Even the
-// in-memory version blunts brute force and SMS-pumping from a single instance
-// and bounds its own memory.
+// Rate limiter for sensitive endpoints (OTP, payments, funding, key
+// registration, public Actions). Two backends behind one signature:
+//   - Redis (Upstash): fixed-window counters on window-stamped keys
+//     (`rl:{name}:{window}`) — GLOBAL across serverless instances, which is
+//     what actually stops brute force and SMS pumping in production.
+//   - In-memory sliding window: dev/demo fallback, correct per instance.
+// Limiting must never take an endpoint down: Redis errors fail open.
 // ---------------------------------------------------------------------------
 
 interface Bucket {
@@ -30,7 +33,25 @@ export interface RateLimitResult {
   retryAfterSeconds: number;
 }
 
-export function limit(key: string, opts: RateLimitOptions): RateLimitResult {
+export async function limit(key: string, opts: RateLimitOptions): Promise<RateLimitResult> {
+  if (kvBackend === "redis") {
+    try {
+      const windowSeconds = Math.max(1, Math.ceil(opts.windowMs / 1000));
+      const now = Math.floor(Date.now() / 1000);
+      const window = Math.floor(now / windowSeconds);
+      const count = await kvIncr(`rl:${key}:${window}`, windowSeconds);
+      if (count > opts.limit) {
+        return { ok: false, remaining: 0, retryAfterSeconds: (window + 1) * windowSeconds - now || 1 };
+      }
+      return { ok: true, remaining: opts.limit - count, retryAfterSeconds: 0 };
+    } catch {
+      return { ok: true, remaining: opts.limit, retryAfterSeconds: 0 }; // fail open
+    }
+  }
+  return memoryLimit(key, opts);
+}
+
+function memoryLimit(key: string, opts: RateLimitOptions): RateLimitResult {
   const now = Date.now();
   const store = buckets();
 
@@ -76,13 +97,13 @@ export function clientIp(req: NextRequest): string {
  * Key by IP plus any stable identifier (phone, user id) so one attacker can't
  * exhaust another user's budget, and one user can't rotate IPs freely.
  */
-export function rateLimitOr429(
+export async function rateLimitOr429(
   req: NextRequest,
   name: string,
   opts: RateLimitOptions,
   extraKey = ""
-): NextResponse | null {
-  const result = limit(`${name}:${clientIp(req)}:${extraKey}`, opts);
+): Promise<NextResponse | null> {
+  const result = await limit(`${name}:${clientIp(req)}:${extraKey}`, opts);
   if (result.ok) return null;
   return NextResponse.json(
     { error: "rate_limited", retryAfterSeconds: result.retryAfterSeconds },

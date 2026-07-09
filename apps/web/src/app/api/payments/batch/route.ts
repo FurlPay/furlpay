@@ -14,7 +14,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const limited = rateLimitOr429(req, "payments.batch", { limit: 10, windowMs: 60_000 }, auth.account.user.id);
+  const limited = await rateLimitOr429(req, "payments.batch", { limit: 10, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
   const parsed = parse(PaymentBatchSchema, await req.json().catch(() => ({})));

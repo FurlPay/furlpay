@@ -10,6 +10,8 @@ import { buildPaymentTransaction } from "@/lib/actions/solana";
 import { authorizeBooking, generateCars, MCC, type CarRental } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
+import { acquireLock, releaseLock } from "@/lib/locks";
+import { limit } from "@/lib/rateLimit";
 
 // Solana Action: book a rental car straight from a Blink (X, Reddit, Discord,
 // wallet in-feed cards) — the playbook's "instant checkout moat". Inventory is
@@ -114,6 +116,28 @@ export const POST = async (req: Request) => {
       );
     }
 
+    // Anti-spam: 5 booking transactions per wallet per minute (rl:* in Redis,
+    // global across instances).
+    const rl = await limit(`actions.book-car:${payer.toBase58()}`, { limit: 5, windowMs: 60_000 });
+    if (!rl.ok) {
+      return Response.json(
+        { message: "Too many booking attempts — try again in a moment." },
+        { status: 429, headers }
+      );
+    }
+
+    // Distributed mutex: a double-submitted Blink for the same wallet/vehicle
+    // must not create two trips (lock:* in Redis).
+    const lockName = `booking:${payer.toBase58()}:${car.id}:${days}`;
+    const lockToken = await acquireLock(lockName, 30);
+    if (!lockToken) {
+      return Response.json(
+        { message: "This booking is already being processed." },
+        { status: 409, headers }
+      );
+    }
+
+    try {
     const amountUsd = Math.round(car.dailyUsd * days * 100) / 100;
     const transaction = buildPaymentTransaction({ payer, amountUsd, asset: "USDC" });
 
@@ -160,6 +184,9 @@ export const POST = async (req: Request) => {
     });
 
     return Response.json(payload, { headers });
+    } finally {
+      await releaseLock(lockName, lockToken);
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unable to build transaction.";
     return Response.json({ message }, { status: 400, headers });

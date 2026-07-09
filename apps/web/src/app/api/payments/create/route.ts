@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const limited = rateLimitOr429(req, "payments.create", { limit: 60, windowMs: 60_000 }, auth.account.user.id);
+  const limited = await rateLimitOr429(req, "payments.create", { limit: 60, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
   const parsed = parse(PaymentCreateSchema, await req.json().catch(() => ({})));

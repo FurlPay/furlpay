@@ -5,6 +5,7 @@ import { recordDepositEvent, markCredited } from "@/lib/services/deposits";
 import { usdPrice } from "@/lib/services/swap";
 import { db } from "@/lib/store";
 import { log } from "@/lib/log";
+import { limit } from "@/lib/rateLimit";
 
 // POST /api/webhooks/deposit-detect — address-activity webhooks from QuickNode
 // Streams (x-qn-signature) or Alchemy Notify (x-alchemy-signature). Both sign
@@ -33,6 +34,14 @@ function isWatchedAddress(to: string, chain: Chain): boolean {
 }
 
 export async function POST(req: Request) {
+  // Cheap pre-verification shield: node providers batch, so 240/min per IP is
+  // generous for legit traffic while capping HMAC work from a flood.
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
+  const rl = await limit(`webhooks.deposit:${ip}`, { limit: 240, windowMs: 60_000 });
+  if (!rl.ok) {
+    return NextResponse.json({ error: "rate_limited" }, { status: 429 });
+  }
+
   const rawBody = await req.text();
   if (!verifySignature(rawBody, req)) {
     return NextResponse.json({ error: "Unauthorized signature" }, { status: 401 });
@@ -80,10 +89,10 @@ export async function POST(req: Request) {
     payload.confirmations ?? (tx.blockNumber != null && tx.blockNumber !== null ? 1 : 0)
   );
 
-  const event = recordDepositEvent({ txHash, token, chain, amount, from, to, confirmations });
+  const event = await recordDepositEvent({ txHash, token, chain, amount, from, to, confirmations });
 
   // Credit the ledger exactly once per transaction, on the success transition.
-  if (event.status === "success" && markCredited(txHash)) {
+  if (event.status === "success" && (await markCredited(txHash))) {
     const bal = db.tokenBalances.find((b) => b.token === token && b.chain === chain);
     if (bal) {
       bal.amount += amount;

@@ -32,7 +32,7 @@ export async function POST(request: Request) {
   const attrs = eventData.attributes ?? eventData;
 
   const eventId = event.id ?? eventData.id ?? signature ?? String(Date.now());
-  if (!tryBegin(String(eventId))) {
+  if (!(await tryBegin(String(eventId)))) {
     return NextResponse.json({ received: true, deduped: true });
   }
 
@@ -57,10 +57,10 @@ export async function POST(request: Request) {
       log.warn("persona webhook for unknown referenceId", { inquiryId, userId });
     }
 
-    markProcessed(String(eventId));
+    await markProcessed(String(eventId));
     return NextResponse.json({ received: true, inquiryId });
   } catch (e) {
-    markFailed(String(eventId));
+    await markFailed(String(eventId));
     log.error("persona webhook handler failed", { error: (e as Error).message });
     return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }

@@ -8,5 +8,5 @@ import { listRecentDeposits } from "@/lib/services/deposits";
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
-  return NextResponse.json({ deposits: listRecentDeposits(10) });
+  return NextResponse.json({ deposits: await listRecentDeposits(10) });
 }

@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   // Idempotency: Stripe delivers at-least-once. Claim the id, process, and
   // only mark processed on success — a failed handler releases the id and
   // returns 5xx so Stripe's redelivery is retried instead of lost.
-  if (!tryBegin(event.id)) {
+  if (!(await tryBegin(event.id))) {
     return NextResponse.json({ received: true, deduped: true });
   }
 
@@ -112,10 +112,10 @@ export async function POST(request: Request) {
       }
     }
 
-    markProcessed(event.id);
+    await markProcessed(event.id);
     return NextResponse.json({ received: true, type: event.type });
   } catch (e) {
-    markFailed(event.id);
+    await markFailed(event.id);
     audit("webhook.failed", "system", { provider: "stripe", event: event.type, error: (e as Error).message });
     log.error("stripe webhook handler failed", { event: event.type, error: (e as Error).message });
     // 5xx → Stripe redelivers; the released id lets the retry process it.

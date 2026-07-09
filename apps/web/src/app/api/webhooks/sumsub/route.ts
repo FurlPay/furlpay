@@ -50,7 +50,7 @@ export async function POST(request: Request) {
   }
 
   const eventId = String(event.correlationId ?? event.applicantId ?? "") + ":" + String(event.type ?? "");
-  if (!tryBegin(eventId)) {
+  if (!(await tryBegin(eventId))) {
     return NextResponse.json({ received: true, deduped: true });
   }
 
@@ -88,10 +88,10 @@ export async function POST(request: Request) {
       });
     }
 
-    markProcessed(eventId);
+    await markProcessed(eventId);
     return NextResponse.json({ received: true, applicantId: event.applicantId });
   } catch (e) {
-    markFailed(eventId);
+    await markFailed(eventId);
     log.error("sumsub webhook handler failed", { error: (e as Error).message });
     return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }

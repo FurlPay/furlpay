@@ -4,6 +4,8 @@ import { authorizeBooking, BookingSource, MCC } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
 import { createDuffelStayQuote, createDuffelStayBooking } from "@/lib/travel/duffel";
+import { acquireLock, releaseLock } from "@/lib/locks";
+import crypto from "crypto";
 
 // POST /api/travel/book — authorize a booking and record it as a trip.
 // Body: { amountUsd, source, mcc?, reference?, name?, city?, image?,
@@ -16,6 +18,21 @@ export async function POST(req: NextRequest) {
   if (!amountUsd || amountUsd <= 0) {
     return NextResponse.json({ error: "amountUsd must be > 0" }, { status: 400 });
   }
+
+  // Distributed mutex: a double-clicked "Confirm" (or two instances racing on
+  // the same itinerary) books once. Keyed on the booking's identity.
+  const lockName =
+    "booking:" +
+    crypto
+      .createHash("sha256")
+      .update(JSON.stringify([body.rateId ?? body.reference ?? body.name, body.city, amountUsd, body.checkIn]))
+      .digest("hex")
+      .slice(0, 32);
+  const lockToken = await acquireLock(lockName, 15);
+  if (!lockToken) {
+    return NextResponse.json({ error: "duplicate_booking_in_flight" }, { status: 409 });
+  }
+  try {
 
   // Live Duffel path: reprice the rate right before money moves (inventory
   // pricing is volatile), then book against the pre-funded Duffel Balance.
@@ -88,4 +105,7 @@ export async function POST(req: NextRequest) {
       trip,
     },
   });
+  } finally {
+    await releaseLock(lockName, lockToken);
+  }
 }
