@@ -36,3 +36,6 @@ apktool-output/
 
 # Python build artifacts
 *.egg-info/
+
+.vercel
+.env*
