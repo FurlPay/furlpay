@@ -50,7 +50,9 @@ export async function solUsdPrice(): Promise<number> {
     if (res.ok) {
       const p = (await res.json())?.parsed?.[0]?.price;
       const price = Number(p?.price) * 10 ** Number(p?.expo);
-      if (Number.isFinite(price) && price > 0) {
+      // Sanity bounds: SOL outside $1–$2000 indicates a stale, buggy, or
+      // manipulated feed — fall through to static fallback instead.
+      if (Number.isFinite(price) && price > 1 && price < 2000) {
         priceCache = { price, at: Date.now() };
         return price;
       }

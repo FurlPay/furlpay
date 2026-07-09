@@ -1,36 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { VALID_CATEGORIES, readSubscribers, writeSubscribers } from "@/lib/newsletter";
 import { newsletterWelcome, sendEmail } from "@/lib/email";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
-
-// ── In-memory rate limiter (max 5 requests/minute per IP) ───────────
-const rateLimitMap = new Map<string, number[]>();
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 5;
-
-function isRateLimited(ip: string): boolean {
-  const now = Date.now();
-  const timestamps = rateLimitMap.get(ip) ?? [];
-  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
-  if (recent.length >= RATE_LIMIT_MAX) return true;
-  recent.push(now);
-  rateLimitMap.set(ip, recent);
-  return false;
-}
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // POST /api/newsletter/subscribe — category-based (double-opt-in-ready) signup
 // with GDPR consent records. Public route.
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (isRateLimited(ip)) {
-    return NextResponse.json(
-      { error: "Too many requests. Please try again in a minute." },
-      { status: 429 }
-    );
-  }
+  const limited = await rateLimitOr429(req, "newsletter.subscribe", { limit: 5, windowMs: 60_000 });
+  if (limited) return limited;
 
   let body: { email?: string; categories?: string[] };
   try {

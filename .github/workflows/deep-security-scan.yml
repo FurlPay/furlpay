@@ -128,6 +128,14 @@ jobs:
               body
             });
 
+      # Propagate Semgrep failure so the run actually goes red.
+      # This runs AFTER Discord alerts and artifact uploads have completed.
+      - name: Fail if Semgrep found issues
+        if: steps.semgrep.outcome == 'failure'
+        run: |
+          echo "❌ Semgrep found security issues — failing the workflow."
+          exit 1
+
   # -----------------------------------------------------------------------
   # License compliance — block copyleft/unknown licenses in prod deps
   # -----------------------------------------------------------------------
