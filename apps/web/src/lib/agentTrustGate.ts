@@ -1,13 +1,20 @@
 import { keyIdOf, verifyRequest } from "@furlpay/agent-trust";
+import { getAgentKey } from "./agentPolicy";
 
 // TAP-style HTTP gate for API routes: agents register an Ed25519 public key,
 // then sign requests with RFC 9421 headers (@furlpay/agent-trust signRequest).
+//
+// Keys resolve from the durable agentPolicy records first (user-owned, with
+// spend policies — registered via POST /api/agents/keys), falling back to the
+// legacy anonymous in-memory registry for pre-policy demo keys.
 // globalThis singleton — Next bundles each route separately, so module-level
 // state would not be shared across routes (same pattern as lib/travel/store).
 
 const g = globalThis as unknown as { __agentTrustKeys?: Map<string, string> };
 const keys = () => (g.__agentTrustKeys ??= new Map<string, string>());
 
+/** Legacy anonymous registration (in-memory, this instance only). Owned keys
+ *  with policies go through agentPolicy.registerOwnedAgentKey instead. */
 export function registerAgentKey(publicKeyPem: string): string {
   const keyId = keyIdOf(publicKeyPem, "agent");
   keys().set(keyId, publicKeyPem);
@@ -25,16 +32,24 @@ export function listAgentKeyIds(): string[] {
  * Throws when a signature is present but invalid, expired, or from an
  * unknown key, or when the body was tampered (content-digest mismatch).
  */
-export function verifyAgentSignature(
+export async function verifyAgentSignature(
   req: { method: string; url: string; headers: Headers },
   rawBody: string,
-): string | null {
-  if (!req.headers.get("signature-input")) {
+): Promise<string | null> {
+  const sigInput = req.headers.get("signature-input");
+  if (!sigInput) {
     if (process.env.FURLPAY_REQUIRE_AGENT_SIG === "1") {
       throw new Error("agent signature required (RFC 9421 Signature-Input missing)");
     }
     return null;
   }
+
+  // verifyRequest's resolver is sync, so prefetch the durable record for the
+  // keyid named in the header. A revoked key must not verify — revocation is
+  // a security boundary, not just a spend-policy one.
+  const claimedKeyId = sigInput.match(/;keyid="([^"]+)"/)?.[1];
+  const owned = claimedKeyId ? await getAgentKey(claimedKeyId) : null;
+
   const verified = verifyRequest({
     method: req.method,
     url: req.url,
@@ -44,7 +59,10 @@ export function verifyAgentSignature(
       signature: req.headers.get("signature") ?? undefined,
       "content-digest": req.headers.get("content-digest") ?? undefined,
     },
-    resolvePublicKey: (id) => keys().get(id),
+    resolvePublicKey: (id) =>
+      owned && owned.keyId === id && owned.status === "active"
+        ? owned.publicKeyPem
+        : keys().get(id),
   });
   return verified.keyId;
 }

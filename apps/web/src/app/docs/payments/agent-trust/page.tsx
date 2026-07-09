@@ -165,19 +165,28 @@ const d = await trust.verifyCapability(cap, {
         <LI>
           <Code>POST /api/agents/keys</Code> — register an agent&apos;s Ed25519 public key (SPKI PEM).
           Returns the <Code>ak_…</Code> key id the agent uses as its RFC 9421 <Code>keyid</Code>.
+          Registered <b>with a session</b>, the key is bound to your account and carries a{" "}
+          <b>spend policy</b>: per-transaction limit, daily budget, and a category allowlist. The agent
+          then acts on <i>your</i> account — never anyone else&apos;s — and every spend is checked against
+          the policy first. <Code>GET</Code> lists your keys; <Code>DELETE</Code> revokes one, effective
+          immediately on every instance.
         </LI>
         <LI>
           <Code>POST /api/escrow</Code> — signed agent requests create/capture/release pre-auth holds
-          without a session cookie. A tampered body (content-digest mismatch), an unknown key, or an
-          expired signature returns <Code>401</Code> before any hold is touched; the verified agent key id
-          is attributed on the resulting transaction.
+          without a session cookie. A tampered body (content-digest mismatch), an unknown key, a revoked
+          key, or an expired signature returns <Code>401</Code> before any hold is touched. A spend outside
+          the key&apos;s policy returns <Code>403</Code> with the reason (<Code>per_tx_limit_exceeded</Code>,{" "}
+          <Code>daily_budget_exceeded</Code>, <Code>category_not_allowed</Code>) — and both allows and
+          denies land in the audit trail.
         </LI>
       </UL>
-      <CodeBlock lang="bash">{`# 1. Register the agent key
+      <CodeBlock lang="bash">{`# 1. Register the agent key under your account, with a spend policy
 curl -X POST https://furlpay.com/api/agents/keys \\
-  -H "content-type: application/json" \\
-  -d '{"publicKeyPem": "-----BEGIN PUBLIC KEY-----\\n…"}'
-# → { "keyId": "ak_tWLNNMkyM5S6PM…" }
+  -H "content-type: application/json" -b "furlpay_session=…" \\
+  -d '{"publicKeyPem": "-----BEGIN PUBLIC KEY-----\\n…",
+       "name": "travel-booker",
+       "policy": {"perTxLimitUsd": 400, "dailyBudgetUsd": 1000, "allowedCategories": ["escrow", "travel"]}}'
+# → { "keyId": "ak_tWLNNMkyM5S6PM…", "owned": true, "key": { "policy": { … }, "status": "active" } }
 
 # 2. Signed escrow hold (headers from signRequest)
 curl -X POST https://furlpay.com/api/escrow \\
@@ -186,7 +195,15 @@ curl -X POST https://furlpay.com/api/escrow \\
   -H "signature-input: furlpay=(\\"@method\\" \\"@target-uri\\" \\"content-digest\\");…" \\
   -H "signature: furlpay=:…:" \\
   -d '{"action":"create","cardId":"card_x","merchant":"Estadio Azteca","amount":180}'
-# → { "hold": { … }, "agentKeyId": "ak_tWLNNMkyM5S6PM…" }`}</CodeBlock>
+# → { "hold": { … }, "agentKeyId": "ak_tWLNNMkyM5S6PM…" }
+
+# 3. Over policy? Denied before any money moves, with the reason:
+# → 403 { "error": "agent_spend_denied", "reason": "daily_budget_exceeded", "policy": { … } }
+
+# 4. Revoke the key — immediate everywhere
+curl -X DELETE https://furlpay.com/api/agents/keys \\
+  -H "content-type: application/json" -b "furlpay_session=…" \\
+  -d '{"keyId": "ak_tWLNNMkyM5S6PM…"}'`}</CodeBlock>
 
       <Callout title="Why this matters in 2026">
         Visa&apos;s TAP executed its first live agentic transactions at European merchants in July 2026;

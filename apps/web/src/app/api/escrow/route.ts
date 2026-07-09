@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { captureHold, createHold, listHolds, releaseHold } from "@/lib/services/escrow";
 import { getAccountDurable, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
 import { verifyAgentSignature } from "@/lib/agentTrustGate";
+import { authorizeAgentSpend, getAgentKey } from "@/lib/agentPolicy";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
 // GET /api/escrow — list all pre-auth holds.
@@ -9,26 +11,48 @@ export async function GET() {
   return NextResponse.json({ holds: listHolds() });
 }
 
+const Body = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("create"),
+    cardId: z.string().min(1).max(100),
+    merchant: z.string().min(1).max(200),
+    amount: z.number().positive().max(100_000),
+  }),
+  z.object({
+    action: z.literal("capture"),
+    id: z.string().min(1).max(100),
+    finalAmount: z.number().positive().max(100_000),
+  }),
+  z.object({
+    action: z.literal("release"),
+    id: z.string().min(1).max(100),
+  }),
+]);
+
 // POST /api/escrow — create / capture / release a hold.
 // body: { action: "create"|"capture"|"release", ... }
 // Agent-initiated calls sign with RFC 9421 headers (@furlpay/agent-trust
 // signRequest, key registered via /api/agents/keys); a present-but-invalid
-// signature or tampered body is rejected before any hold mutation.
+// signature or tampered body is rejected before any hold mutation. Keys
+// registered under an account act ON that account and are policy-gated
+// (per-tx limit, daily budget, category allowlist) via agentPolicy.
 export async function POST(req: NextRequest) {
   const raw = await req.text();
   let agentKeyId: string | null;
   try {
-    agentKeyId = verifyAgentSignature(req, raw);
+    agentKeyId = await verifyAgentSignature(req, raw);
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 401 });
   }
 
-  // Attribution: session user when present. Agent-signed calls fall back to
-  // the demo account — the key registry doesn't map keyId → owning user yet
-  // (TODO: register keys per user), so agents can't act on arbitrary accounts.
-  // Unsigned + sessionless requests only work in dev.
+  // Attribution, in order: the signing key's OWNING account (the control
+  // plane — the agent acts on the account that registered it), then the
+  // session user, then the demo account (legacy anonymous agent keys, or
+  // unsigned requests in dev only).
+  const ownedKey = agentKeyId ? await getAgentKey(agentKeyId) : null;
   const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const account =
+    (await getAccountDurable(ownedKey?.userId)) ??
     (await getAccountDurable(claims?.sub)) ??
     (agentKeyId || process.env.NODE_ENV !== "production" ? await getAccountDurable(DEMO_USER_ID) : undefined);
   if (!account) {
@@ -36,14 +60,34 @@ export async function POST(req: NextRequest) {
   }
   const userId = account.user.id;
 
-  let body: any;
+  let parsedJson: unknown;
   try {
-    body = raw ? JSON.parse(raw) : {};
+    parsedJson = raw ? JSON.parse(raw) : {};
   } catch {
     return NextResponse.json({ error: "invalid JSON body" }, { status: 400 });
   }
+  const parsed = Body.safeParse(parsedJson);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid request", issues: parsed.error.issues }, { status: 400 });
+  }
+  const body = parsed.data;
 
   if (body.action === "create") {
+    // Policy gate for owned agent keys: per-tx limit, daily budget (atomic
+    // cross-instance counter), category allowlist — deny is audited.
+    if (ownedKey) {
+      const decision = await authorizeAgentSpend({
+        keyId: ownedKey.keyId,
+        amountUsd: body.amount,
+        category: "escrow",
+      });
+      if (!decision.allowed) {
+        return NextResponse.json(
+          { error: "agent_spend_denied", reason: decision.reason, policy: ownedKey.policy },
+          { status: 403 }
+        );
+      }
+    }
     const hold = createHold(body.cardId, body.merchant, body.amount);
     recordTransaction(
       userId,
@@ -61,7 +105,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.action === "capture") {
-    const hold = captureHold(body.id, body.finalAmount);
+    let hold;
+    try {
+      hold = captureHold(body.id, body.finalAmount);
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 409 });
+    }
     const refund = hold.authorizedAmount - (hold.capturedAmount ?? 0);
     recordTransaction(
       userId,
@@ -79,7 +128,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.action === "release") {
-    const hold = releaseHold(body.id);
+    let hold;
+    try {
+      hold = releaseHold(body.id);
+    } catch (e) {
+      return NextResponse.json({ error: (e as Error).message }, { status: 409 });
+    }
     return NextResponse.json({ hold, refundedToSafe: hold.authorizedAmount });
   }
 

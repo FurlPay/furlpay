@@ -31,8 +31,8 @@ export const SEARCH_INDEX: SearchDoc[] = [
     title: "Signed agent escrow (RFC 9421)",
     section: "Payments",
     href: "/docs/payments/agent-trust#escrow",
-    snippet: "POST /api/agents/keys registers an agent key; POST /api/escrow accepts signed agent requests without a session.",
-    keywords: ["POST /api/agents/keys", "POST /api/escrow", "escrow", "signature-input", "content-digest", "pre-auth hold", "agent authentication", "signed request"],
+    snippet: "POST /api/agents/keys binds an agent key to your account with a spend policy (per-tx limit, daily budget, category allowlist); POST /api/escrow accepts signed agent requests and enforces the policy on every spend.",
+    keywords: ["POST /api/agents/keys", "POST /api/escrow", "escrow", "signature-input", "content-digest", "pre-auth hold", "agent authentication", "signed request", "spend policy", "daily budget", "agent spend limit", "revoke agent key"],
   },
   {
     title: "Capability tokens (single-use, audience-bound)",
