@@ -14,6 +14,7 @@ import Modal from "@/components/Modal";
 import { CoinLogo, ChainLogo } from "@furlpay/ui";
 import FeatureHub from "@/components/FeatureHub";
 import PriceChart from "@/components/PriceChart";
+import DepositToast from "@/components/DepositToast";
 
 interface Overview {
   user: { name: string; tier: string; region: string; safeAddress: string };
@@ -232,6 +233,7 @@ export default function HomePage() {
       </section>
 
       <SwapModal open={swapOpen} onClose={() => setSwapOpen(false)} onDone={load} />
+      <DepositToast />
 
       <ScanToPay
         open={!!scanner}
