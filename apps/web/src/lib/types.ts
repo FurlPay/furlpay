@@ -1,11 +1,11 @@
 // Shared domain types for the super-app.
 // Cross-cutting primitives live in @furlpay/types (single source of truth).
 
-export type { Chain, Stablecoin, Region } from "@furlpay/types";
-import type { Chain, Stablecoin } from "@furlpay/types";
+export type { Chain, Stablecoin, NativeToken, Token, Region } from "@furlpay/types";
+import type { Chain, Token } from "@furlpay/types";
 
 export interface TokenBalance {
-  token: Stablecoin;
+  token: Token;
   chain: Chain;
   amount: number; // human units (e.g. 1250.42)
   usdValue: number;
@@ -74,7 +74,7 @@ export interface Transaction {
   title: string;
   subtitle: string;
   amountUsd: number;
-  token?: Stablecoin;
+  token?: Token;
   chain?: Chain;
   cardId?: string;
   timestamp: string; // ISO
