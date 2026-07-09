@@ -89,6 +89,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/telegram", // Telegram webhook — auth IS the secret_token header (401 otherwise)
   "/api/account/fund", // x402 account funding — auth IS the payment (settles or 402s)
   "/api/onramp", // headless on-ramp — publishable-key scoped, embedded by partners
+  "/api/offramp", // headless off-ramp — mints a Coinbase-hosted sell URL (Coinbase owns KYC/auth); rate-limited, 503 until CDP creds set
 ];
 
 // Baseline flood control for every mutating API call — one per-IP budget that
