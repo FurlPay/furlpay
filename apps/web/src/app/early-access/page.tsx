@@ -134,7 +134,7 @@ export default function EarlyAccessPage() {
               className="h-auto w-full"
               aria-label="FurlPay card concept video"
             >
-              <source src="/media/furlpay-card.mp4" type="video/mp4" />
+              <source src="/media/furlpay-card-premium.mp4" type="video/mp4" />
             </video>
             <span className="absolute bottom-3 right-4 rounded-full bg-black/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-white/70 backdrop-blur">
               Concept preview
