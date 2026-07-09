@@ -3,6 +3,7 @@ import { quoteFx } from "@/lib/services/fx";
 import { newTx, recordTransaction } from "@/lib/store";
 import { recordMovement } from "@/lib/ledger";
 import { requireUser } from "@/lib/authz";
+import { OfframpSchema, parse } from "@/lib/schemas";
 
 // POST /api/offramp — quote / execute a stablecoin→fiat off-ramp via Wise
 // rails for the SESSION user. body: { fromCurrency, toCurrency, amount, execute? }
@@ -11,7 +12,9 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const { fromCurrency, toCurrency, amount, execute } = await req.json();
+  const parsed = parse(OfframpSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return parsed.res;
+  const { fromCurrency, toCurrency, amount, execute } = parsed.data;
   const quote = await quoteFx(fromCurrency, toCurrency, amount);
 
   if (execute) {

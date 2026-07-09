@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { clientIp, limit } from "@/lib/rateLimit";
 
 // ---------------------------------------------------------------------------
 // Auth gate. A `furlpay_session` cookie is minted on passkey login/registration.
@@ -90,6 +91,16 @@ const PUBLIC_API_PREFIXES = [
   "/api/onramp", // headless on-ramp — publishable-key scoped, embedded by partners
 ];
 
+// Baseline flood control for every mutating API call — one per-IP budget that
+// backstops the ~60 routes without their own limiter. Generous enough that no
+// legitimate client hits it (sensitive routes keep their tighter per-route
+// budgets), Redis-backed so it holds across instances, fail-open on KV errors.
+// Webhooks are exempt: they're signature-authenticated, providers batch
+// deliveries from few IPs, and deposit-detect already self-limits higher.
+const BASELINE_EXEMPT_PREFIXES = ["/api/webhooks"];
+const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const BASELINE = { limit: 150, windowMs: 60_000 };
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   // Verify the JWT signature (edge-safe via jose), not just cookie presence.
@@ -97,6 +108,20 @@ export async function middleware(req: NextRequest) {
   const hasSession = Boolean(claims);
 
   const isApi = pathname.startsWith("/api");
+
+  if (
+    isApi &&
+    MUTATING_METHODS.has(req.method) &&
+    !BASELINE_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p))
+  ) {
+    const rl = await limit(`api-baseline:${clientIp(req)}`, BASELINE);
+    if (!rl.ok) {
+      return NextResponse.json(
+        { error: "rate_limited", retryAfterSeconds: rl.retryAfterSeconds },
+        { status: 429, headers: { "Retry-After": String(rl.retryAfterSeconds) } }
+      );
+    }
+  }
   const isPublicApi = PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (isApi) {

@@ -5,27 +5,24 @@ import { recordMovement } from "@/lib/ledger";
 import { bySymbol } from "@/lib/markets/catalog";
 import { quoteFor } from "@/lib/markets/quotes";
 import { requireUser } from "@/lib/authz";
+import { OrderSchema, parse } from "@/lib/schemas";
 
 // POST /api/investing/order — place a fractional stock/ETF order (Alpaca).
 // Accepts EITHER `notional` (USD) OR `qty` (shares), never both (→ 400),
 // matching Alpaca's contract. Supports market/limit/stop/stop_limit + TIF.
-const ORDER_TYPES = ["market", "limit", "stop", "stop_limit"];
-const TIFS = ["day", "gtc", "ioc", "fok", "opg", "cls"];
-
+// OrderSchema enforces types/enums AND positivity — the previous manual checks
+// never rejected a negative notional, which on a "buy" shrank the position.
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const body = await req.json().catch(() => ({}));
-  const { symbol, side, notional, qty, type = "market", time_in_force = "day", limit_price, stop_price } = body;
+  const parsed = parse(OrderSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return parsed.res;
+  const { symbol, side, notional, qty, limit_price, stop_price } = parsed.data;
+  const type = parsed.data.type ?? "market";
+  const time_in_force = parsed.data.time_in_force ?? "day";
 
-  if (!symbol || !side) {
-    return NextResponse.json({ error: "symbol and side are required" }, { status: 400 });
-  }
-  if (side !== "buy" && side !== "sell") {
-    return NextResponse.json({ error: "side must be 'buy' or 'sell'" }, { status: 400 });
-  }
   // Alpaca: qty and notional are mutually exclusive; exactly one required.
   const hasNotional = notional !== undefined && notional !== null;
   const hasQty = qty !== undefined && qty !== null;
@@ -34,12 +31,6 @@ export async function POST(req: NextRequest) {
   }
   if (!hasNotional && !hasQty) {
     return NextResponse.json({ error: "Provide qty or notional" }, { status: 400 });
-  }
-  if (!ORDER_TYPES.includes(type)) {
-    return NextResponse.json({ error: `type must be one of ${ORDER_TYPES.join(", ")}` }, { status: 400 });
-  }
-  if (!TIFS.includes(time_in_force)) {
-    return NextResponse.json({ error: `time_in_force must be one of ${TIFS.join(", ")}` }, { status: 400 });
   }
   if ((type === "limit" || type === "stop_limit") && limit_price === undefined) {
     return NextResponse.json({ error: "limit_price required for limit/stop_limit orders" }, { status: 400 });

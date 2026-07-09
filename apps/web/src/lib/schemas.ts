@@ -37,6 +37,36 @@ export const IntentSchema = z.object({
   execute: z.boolean().optional(),
 });
 
+// Full trading token/chain unions (superset of the stablecoin-only enums
+// above — swaps also route natives and the newer chains).
+const SwapToken = z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD", "SOL", "ETH"]);
+const SwapChain = z.enum([
+  "ethereum",
+  "polygon",
+  "base",
+  "arbitrum",
+  "solana",
+  "gnosis",
+  "robinhood",
+  "bsc",
+]);
+
+export const SwapSchema = z.object({
+  fromToken: SwapToken,
+  toToken: SwapToken,
+  fromChain: SwapChain,
+  toChain: SwapChain.optional(),
+  amountIn: z.coerce.number().positive().max(10_000_000),
+  execute: z.boolean().optional(),
+});
+
+export const OfframpSchema = z.object({
+  fromCurrency: z.string().min(2).max(10),
+  toCurrency: z.string().min(2).max(10),
+  amount: z.number().positive().max(1_000_000),
+  execute: z.boolean().optional(),
+});
+
 export const CheckoutSchema = z.object({
   amount: z.number().positive(),
   currency: z.string().optional(),

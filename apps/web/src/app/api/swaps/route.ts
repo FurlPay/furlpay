@@ -2,22 +2,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSwapQuote, isTokenOnChain, usdPrice } from "@/lib/services/swap";
 import { newTx, recordTransaction } from "@/lib/store";
 import { requireUser } from "@/lib/authz";
+import { SwapSchema, parse } from "@/lib/schemas";
 import type { Chain, Token } from "@/lib/types";
 
 // /api/swaps — cheapest cross-chain swap routing (Li.Fi live quotes with a
 // local fallback), Doc-2 canonical. Execution settles against the demo ledger.
 // POST body: { fromToken, toToken, fromChain, amountIn, toChain?, execute? }
 
-function validate(body: {
+// Pair rules zod can't express: token availability per chain + no-op swaps.
+function validatePair(body: {
   fromToken: Token;
   toToken: Token;
   fromChain: Chain;
   toChain?: Chain;
-  amountIn: number;
 }): string | null {
-  if (!Number.isFinite(body.amountIn) || body.amountIn <= 0) {
-    return "amountIn must be a positive number.";
-  }
   if (!isTokenOnChain(body.fromToken, body.fromChain)) {
     return `${body.fromToken} is not available on ${body.fromChain}.`;
   }
@@ -35,9 +33,10 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const body = await req.json();
-  body.amountIn = Number(body.amountIn);
-  const invalid = validate(body);
+  const parsed = parse(SwapSchema, await req.json().catch(() => ({})));
+  if (!parsed.ok) return parsed.res;
+  const body = parsed.data;
+  const invalid = validatePair(body);
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
   const quote = await getSwapQuote(body);

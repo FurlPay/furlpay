@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { VALID_CATEGORIES, readSubscribers, writeSubscribers } from "@/lib/newsletter";
 import { newsletterWelcome, sendEmail } from "@/lib/email";
-import { rateLimitOr429 } from "@/lib/rateLimit";
+import { clientIp, rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     email: email.toLowerCase(),
     categories: cats,
     consentTimestamp: new Date().toISOString(),
-    ip,
+    ip: clientIp(req),
   });
   writeSubscribers(subscribers);
 
