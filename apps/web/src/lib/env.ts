@@ -99,6 +99,8 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("DUFFEL_API_BASE"),
       v("RESEND_API_KEY"),
       v("EMAIL_FROM"),
+      v("CDP_API_KEY_ID"),
+      v("CDP_API_KEY_SECRET"),
     ],
   },
   {
