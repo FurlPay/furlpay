@@ -1,17 +1,15 @@
 import {
   createPublicClient,
   createWalletClient,
-  http,
   parseAbi,
   parseSignature,
   type Address,
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { arbitrum, arbitrumSepolia, base, baseSepolia, polygon, mainnet } from "viem/chains";
-import type { Chain } from "viem";
 import type { FacilitatorRequest, Settler, SettleSubmission } from "@/lib/x402Facilitator";
 import { EVM_CHAIN_IDS } from "@/lib/x402Signature";
+import { EVM_CHAINS, rpcTransport } from "@/lib/x402Chains";
 import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
@@ -33,15 +31,6 @@ import { log } from "@/lib/log";
 // requires (Attack I-A, revert-grant). We wait for exactly that depth before
 // reporting success, so the resource is never released on a reorg-able tx.
 // ---------------------------------------------------------------------------
-
-const EVM_CHAINS: Record<string, Chain> = {
-  arbitrum,
-  "arbitrum-sepolia": arbitrumSepolia,
-  base,
-  "base-sepolia": baseSepolia,
-  polygon,
-  ethereum: mainnet,
-};
 
 /**
  * Thrown when the authorization was SUBMITTED on-chain but the settler could
@@ -66,19 +55,6 @@ export class SettlementPendingError extends Error {
 const EIP3009_ABI = parseAbi([
   "function transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)",
 ]);
-
-/** Per-network RPC override, else the chain's public default. */
-function rpcUrl(network: string): string | undefined {
-  const perNetwork: Record<string, string | undefined> = {
-    arbitrum: process.env.ARBITRUM_RPC_URL,
-    "arbitrum-sepolia": process.env.ARBITRUM_SEPOLIA_RPC_URL,
-    base: process.env.BASE_RPC_URL,
-    "base-sepolia": process.env.BASE_SEPOLIA_RPC_URL,
-    polygon: process.env.POLYGON_RPC_URL,
-    ethereum: process.env.ETHEREUM_RPC_URL,
-  };
-  return perNetwork[network];
-}
 
 /** Whether a real EVM settler can be constructed in this deployment. */
 export function liveSettlerAvailable(): boolean {
@@ -109,8 +85,7 @@ export function createEvmSettler(): Settler | null {
     if (!chain || EVM_CHAIN_IDS[network] === undefined) {
       throw new Error(`no EVM settler for network ${network}`);
     }
-    const url = rpcUrl(network);
-    const transport = url ? http(url) : http();
+    const transport = rpcTransport(network);
 
     const publicClient = createPublicClient({ chain, transport });
     const walletClient = createWalletClient({ account, chain, transport });
@@ -184,8 +159,7 @@ export async function checkSettlementOnChain(
 ): Promise<{ found: boolean; confirmed: boolean; confirmations: number } | null> {
   const chain = EVM_CHAINS[network];
   if (!chain || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) return null;
-  const url = rpcUrl(network);
-  const publicClient = createPublicClient({ chain, transport: url ? http(url) : http() });
+  const publicClient = createPublicClient({ chain, transport: rpcTransport(network) });
   try {
     const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
     if (receipt.status !== "success") return { found: true, confirmed: false, confirmations: 0 };

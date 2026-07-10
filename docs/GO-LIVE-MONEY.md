@@ -121,6 +121,32 @@ per-call price cap and monitor the settlement log + `GET /api/x402/settlement/[t
 | Confirmation-depth gate | logic only | ✓ enforced by the settler |
 | Free-mint via fake settlement | possible if `live` + mock | ✓ closed (fails `settler_unavailable`) |
 
+## Hardening notes (verified 2026-07-10)
+
+- **Smart-contract wallets (ERC-1271):** USDC v2.2 accepts ERC-1271 contract
+  signatures in `transferWithAuthorization`, so the off-chain verifier does
+  too: pure-ECDSA fast path first (no RPC), then viem's client-side
+  `verifyTypedData` (ERC-1271 + ERC-6492 via `eth_call`) when ECDSA fails.
+  Safe/4337 agents can pay without us rejecting what the token would settle.
+  Fails closed on RPC errors. Negative-tested: a tampered EOA signature is
+  still rejected (`scripts/x402-e2e-badsig.mjs`).
+- **RPC failover:** set `<NETWORK>_RPC_URL_FALLBACK` next to the primary and
+  the settler/verifier use viem `fallback()` — a provider outage degrades to
+  the second provider, not to refused settlements. Use different vendors.
+- **Do NOT route reads through the Arbitrum sequencer endpoint**
+  (`https://arb1-sequencer.arbitrum.io/rpc`): it accepts only raw tx
+  submission (`eth_sendRawTransaction`), so putting it in a fallback list for
+  a public client breaks reads. If sequencer-direct submission is ever wanted,
+  it needs a submission-only transport, separate from reads.
+- **`receiveWithAuthorization`:** only relevant when the payee is a CONTRACT
+  that credits based on `msg.sender` context (e.g. paying into FurlPayRouter/
+  Escrow) — it pins submission to the payee, closing the griefing where a
+  watcher front-runs the facilitator's submission and our tx reverts as
+  nonce-used. For direct payer→EOA-treasury transfers (current x402 flow),
+  `transferWithAuthorization` is correct: the destination is inside the
+  signed authorization and cannot be altered by any relayer; worst case is
+  the griefer pays our gas and the pending-recovery path resolves the state.
+
 ## Still requires external work (not code)
 
 These cannot be closed in code and are the remaining gap to a full production

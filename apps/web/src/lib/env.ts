@@ -107,10 +107,18 @@ export const ENV_REGISTRY: EnvGroup[] = [
     group: "Chains / RPC",
     vars: [
       v("ARBITRUM_RPC_URL"),
+      // Optional secondary RPC per network: with both set, the x402 settler /
+      // verifier fail over via viem fallback() when the primary errors or
+      // rate-limits (same pattern for every <NETWORK>_RPC_URL_FALLBACK).
+      v("ARBITRUM_RPC_URL_FALLBACK"),
       v("ARBITRUM_SEPOLIA_RPC_URL"),
+      v("ARBITRUM_SEPOLIA_RPC_URL_FALLBACK"),
       v("BASE_RPC_URL"),
+      v("BASE_RPC_URL_FALLBACK"),
       v("ETHEREUM_RPC_URL"),
+      v("ETHEREUM_RPC_URL_FALLBACK"),
       v("POLYGON_RPC_URL"),
+      v("POLYGON_RPC_URL_FALLBACK"),
       v("ROBINHOOD_RPC_URL"),
       v("FURLPAY_ROUTER_ADDRESS"),
       v("TREASURY_ADDRESS_BSC"),

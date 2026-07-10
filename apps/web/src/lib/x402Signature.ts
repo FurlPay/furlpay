@@ -1,4 +1,5 @@
-import { verifyTypedData, type Address, type Hex } from "viem";
+import { createPublicClient, verifyTypedData, type Address, type Hex, type TypedDataDefinition } from "viem";
+import { EVM_CHAINS, rpcTransport } from "@/lib/x402Chains";
 import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
@@ -105,32 +106,59 @@ export async function verifyAuthorizationSignature(
     return { verified: false, reason: "bad_numeric_field" };
   }
 
+  const typedData = {
+    domain: {
+      name: ctx.domainName,
+      version: ctx.domainVersion,
+      chainId,
+      verifyingContract: ctx.asset as Address,
+    },
+    types: TRANSFER_WITH_AUTHORIZATION_TYPES,
+    primaryType: "TransferWithAuthorization",
+    message: {
+      from: auth.from as Address,
+      to: auth.to as Address,
+      value,
+      validAfter,
+      validBefore,
+      nonce: auth.nonce as Hex,
+    },
+  } as const satisfies TypedDataDefinition;
+
+  // Fast path: pure ECDSA recovery (EOA signers) — no RPC round-trip.
   try {
     const ok = await verifyTypedData({
       address: auth.from as Address,
-      domain: {
-        name: ctx.domainName,
-        version: ctx.domainVersion,
-        chainId,
-        verifyingContract: ctx.asset as Address,
-      },
-      types: TRANSFER_WITH_AUTHORIZATION_TYPES,
-      primaryType: "TransferWithAuthorization",
-      message: {
-        from: auth.from as Address,
-        to: auth.to as Address,
-        value,
-        validAfter,
-        validBefore,
-        nonce: auth.nonce as Hex,
-      },
+      ...typedData,
       signature: signature as Hex,
     });
-    return ok ? { verified: true } : { verified: false, reason: "signature_recovery_mismatch" };
+    if (ok) return { verified: true };
   } catch (e) {
     log.warn("EIP-3009 signature verification threw", { error: (e as Error).message, network: ctx.network });
-    return { verified: false, reason: "signature_verification_error" };
   }
+
+  // Smart-contract wallets (Safe, 4337 accounts): no key to recover, so ECDSA
+  // fails — but USDC v2.2 itself accepts ERC-1271 signatures on-chain, so we
+  // must too or we reject payments the token would settle. viem's client-side
+  // verifyTypedData handles EOA + ERC-1271 + ERC-6492 (pre-deploy wallets) via
+  // eth_call. Only attempted after the ECDSA fast path fails, and it fails
+  // closed on RPC errors.
+  const chain = EVM_CHAINS[ctx.network];
+  if (chain) {
+    try {
+      const client = createPublicClient({ chain, transport: rpcTransport(ctx.network) });
+      const ok = await client.verifyTypedData({
+        address: auth.from as Address,
+        ...typedData,
+        signature: signature as Hex,
+      });
+      if (ok) return { verified: true };
+    } catch (e) {
+      log.warn("ERC-1271 signature verification failed", { error: (e as Error).message, network: ctx.network });
+      return { verified: false, reason: "signature_verification_error" };
+    }
+  }
+  return { verified: false, reason: "signature_recovery_mismatch" };
 }
 
 /** True when this network's authorizations can be cryptographically verified
