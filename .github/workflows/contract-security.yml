@@ -1,0 +1,147 @@
+# Continuous contract security scanning — PR-native, severity-gated.
+#
+# Scope (deliberate): this repo's on-chain surface is Solidity in
+# packages/contracts (no Solana Rust programs, no Move modules — Solana is
+# driven via JS SDKs). Engines: Slither (AST/dataflow detectors) + Semgrep
+# p/smart-contracts (rules distilled from real DeFi exploits).
+#
+# Private-repo note: SARIF upload to the GitHub Security tab needs Advanced
+# Security (not available here — verified 422), so findings surface as a
+# sticky PR comment, the job summary, workflow artifacts, and Discord alerts
+# (same DISCORD_SECURITY_WEBHOOK convention as security-audit.yml).
+#
+# Gate: Slither High or Semgrep ERROR fails the job (blocks merge via
+# required checks); Medium/WARNING report without blocking.
+name: Contract Security
+
+on:
+  push:
+    branches: [main, extension-redesign]
+    paths:
+      - "packages/contracts/contracts/**"
+      - "packages/contracts/hardhat.config*.ts"
+      - ".github/workflows/contract-security.yml"
+      - ".github/scripts/contract_scan_summary.py"
+  pull_request:
+    paths:
+      - "packages/contracts/contracts/**"
+      - "packages/contracts/hardhat.config*.ts"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  scan:
+    name: "🛡️ Slither + Semgrep"
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install contract toolchain
+        working-directory: packages/contracts
+        run: npm install --no-audit --no-fund
+
+      - name: Compile contracts (hardhat)
+        working-directory: packages/contracts
+        run: npx hardhat compile
+
+      - name: Install scanners
+        run: |
+          pip install --quiet slither-analyzer solc-select semgrep
+          solc-select install 0.8.28
+          solc-select use 0.8.28
+
+      - name: Slither
+        # Slither exits non-zero on findings; the gate script decides pass/fail.
+        run: |
+          slither packages/contracts \
+            --ignore-compile \
+            --filter-paths "node_modules|contracts/test" \
+            --json slither.json \
+            --sarif slither.sarif \
+            || true
+          [ -s slither.json ] || echo '{}' > slither.json
+
+      - name: Semgrep (p/smart-contracts)
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: |
+          semgrep scan \
+            --config p/smart-contracts \
+            --metrics off \
+            --json --output semgrep.json \
+            --sarif-output semgrep.sarif \
+            packages/contracts/contracts \
+            || true
+          [ -s semgrep.json ] || echo '{}' > semgrep.json
+
+      - name: Aggregate findings + severity gate
+        id: gate
+        run: |
+          python .github/scripts/contract_scan_summary.py
+          cat scan-summary.md >> "$GITHUB_STEP_SUMMARY"
+          echo "verdict=$(cat scan-gate.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Upload SARIF + reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: contract-scan-${{ github.run_number }}
+          path: |
+            slither.sarif
+            semgrep.sarif
+            scan-summary.md
+          retention-days: 30
+
+      - name: Sticky PR comment
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('scan-summary.md', 'utf8');
+            const marker = '<!-- contract-security-scan -->';
+            const {data: comments} = await github.rest.issues.listComments({
+              ...context.repo, issue_number: context.issue.number, per_page: 100,
+            });
+            const mine = comments.find(c => c.body && c.body.includes(marker));
+            if (mine) {
+              await github.rest.issues.updateComment({...context.repo, comment_id: mine.id, body});
+            } else {
+              await github.rest.issues.createComment({...context.repo, issue_number: context.issue.number, body});
+            }
+
+      - name: Discord alert on blocking findings
+        if: steps.gate.outputs.verdict == 'fail'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_SECURITY_WEBHOOK }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+          PAYLOAD=$(python - <<'EOF'
+          import json
+          summary = open("scan-summary.md", encoding="utf-8").read()[:1800]
+          print(json.dumps({"embeds": [{
+            "title": "🔴 Contract security scan FAILED",
+            "description": summary,
+            "color": 15158332,
+            "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+          }]}))
+          EOF
+          )
+          curl -sf -H "Content-Type: application/json" -d "$PAYLOAD" "$DISCORD_WEBHOOK" || true
+
+      - name: Enforce gate
+        if: steps.gate.outputs.verdict == 'fail'
+        run: |
+          echo "::error::High-severity contract findings — see the scan summary above."
+          exit 1
