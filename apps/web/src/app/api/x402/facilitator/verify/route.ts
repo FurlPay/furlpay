@@ -13,5 +13,5 @@ export async function POST(req: NextRequest) {
   if (!body?.paymentPayload || !body?.paymentRequirements) {
     return NextResponse.json({ isValid: false, invalidReason: "missing_fields" }, { status: 400 });
   }
-  return NextResponse.json(verify(body));
+  return NextResponse.json(await verify(body));
 }

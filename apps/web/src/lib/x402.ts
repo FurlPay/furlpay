@@ -1,5 +1,16 @@
 import crypto from "crypto";
 import { kvSetNx, kvBackend } from "@/lib/kv";
+import { verifyAuthorizationSignature } from "@/lib/x402Signature";
+import { defaultSettler } from "@/lib/x402Settler";
+import type { FacilitatorRequest } from "@/lib/x402Facilitator";
+import { log } from "@/lib/log";
+
+/** Live mode enforces both EIP-3009 signature recovery and real on-chain
+ *  settlement; mock mode (default) keeps structural checks + a deterministic
+ *  hash so the zero-credential demo runs. */
+function x402LiveMode(): boolean {
+  return process.env.INTEGRATION_MODE === "live" || process.env.X402_ENFORCE_SIGNATURE === "1";
+}
 
 // ---------------------------------------------------------------------------
 // Hardened x402 (HTTP 402 "Payment Required") implementation.
@@ -315,10 +326,64 @@ export async function verifyPayment(opts: {
     return { ok: false, status: 402, error: "Quote already redeemed (replay rejected)" };
   }
 
-  // ── settle (mock facilitator) ──
-  // Production: POST to the facilitator's /verify then /settle, which gates on
-  // `requiredConfirmations(auth.value)` before reporting success (Attack I-A),
-  // and only then release the resource.
+  const assetAddress = asset === "XSGD" ? XSGD_ASSET : USDC_ASSET;
+  const domainName = asset === "XSGD" ? "XSGD" : "USD Coin";
+
+  // ── cryptographic authorization (live mode) ──
+  // Recover the EIP-3009 signer and require it to equal `from`. Without this
+  // the checks above pass for a payment "from" an address the caller doesn't
+  // control. Mock mode keeps structural-only so the demo runs keyless.
+  if (x402LiveMode()) {
+    const verdict = await verifyAuthorizationSignature(auth, sig, {
+      network: NETWORK,
+      asset: assetAddress,
+      domainName,
+      domainVersion: "2",
+    });
+    if (!verdict.verified) {
+      return { ok: false, status: 402, error: `Invalid payment signature (${verdict.reason})` };
+    }
+  }
+
+  // ── settle ──
+  // Live mode submits the signed authorization on-chain via the real settler
+  // and waits for the confirmation depth this amount requires (Attack I-A)
+  // before releasing the resource. Mock mode returns a deterministic hash.
+  const required = requiredConfirmations(auth.value);
+  if (x402LiveMode()) {
+    const settler = defaultSettler();
+    if (!settler) {
+      return { ok: false, status: 402, error: "Settlement unavailable — no on-chain settler configured" };
+    }
+    const facReq: FacilitatorRequest = {
+      x402Version: X402_VERSION,
+      paymentPayload: p,
+      paymentRequirements: {
+        scheme: "exact",
+        network: NETWORK,
+        maxAmountRequired: expectedAmount,
+        resource,
+        description: "",
+        mimeType: "application/json",
+        payTo: PAY_TO,
+        maxTimeoutSeconds: QUOTE_TTL_SECONDS,
+        asset: assetAddress,
+        extra: { name: domainName, version: "2", quoteId, expiresAt, binding },
+      },
+    };
+    try {
+      const submission = await settler(facReq, auth.from, required);
+      if (submission.confirmations < required) {
+        return { ok: false, status: 402, error: "Settlement not yet final (insufficient confirmations)" };
+      }
+      return { ok: true, payer: auth.from, txHash: submission.transaction, asset };
+    } catch (e) {
+      log.error("x402 live settlement failed", { error: (e as Error).message, resource });
+      return { ok: false, status: 402, error: "Settlement failed on-chain" };
+    }
+  }
+
+  // ── mock settle (demo, zero-credential) ──
   const txHash = "0x" + crypto.randomBytes(32).toString("hex");
   return { ok: true, payer: auth.from, txHash, asset };
 }

@@ -1,6 +1,16 @@
 import crypto from "crypto";
 import { X402_VERSION, requiredConfirmations, type PaymentRequirements, type XPaymentPayload } from "@/lib/x402";
 import { kvSetNx, kvGet, kvSet } from "@/lib/kv";
+import { verifyAuthorizationSignature } from "@/lib/x402Signature";
+import { defaultSettler } from "@/lib/x402Settler";
+
+// Signature + real-settlement enforcement. Live mode requires BOTH a recovered
+// EIP-3009 signature AND a real on-chain settler; mock/demo mode (the default,
+// zero-credential path) keeps the structural checks and the deterministic mock
+// settler so the whole stack still runs without keys.
+function liveMode(): boolean {
+  return process.env.INTEGRATION_MODE === "live" || process.env.X402_ENFORCE_SIGNATURE === "1";
+}
 
 // ---------------------------------------------------------------------------
 // x402 Facilitator — the verify + settle service that sits between AI agents
@@ -84,8 +94,9 @@ function supports(scheme: string, network: string): boolean {
   return SUPPORTED_KINDS.some((k) => k.scheme === scheme && k.network === network);
 }
 
-/** Validate a payment payload against the requirements the resource server set. */
-export function verify(req: FacilitatorRequest): VerifyResult {
+/** Validate a payment payload against the requirements the resource server set.
+ *  Async because live mode cryptographically recovers the EIP-3009 signer. */
+export async function verify(req: FacilitatorRequest): Promise<VerifyResult> {
   const { paymentPayload: p, paymentRequirements: r } = req;
   const auth = p?.payload?.authorization;
 
@@ -112,6 +123,20 @@ export function verify(req: FacilitatorRequest): VerifyResult {
   if (Number.isFinite(vAfter) && now < vAfter) return fail("not_yet_valid");
   if (Number.isFinite(vBefore) && now > vBefore) return fail("authorization_expired");
 
+  // Cryptographic authorization: recover the EIP-3009 signer and require it to
+  // equal `from`. Without this the structural checks above pass for a payment
+  // "from" an address the caller does not control. Enforced in live mode; mock
+  // mode keeps structural-only so the zero-credential demo still runs.
+  if (liveMode()) {
+    const verdict = await verifyAuthorizationSignature(auth, p.payload.signature, {
+      network: p.network,
+      asset: r.asset,
+      domainName: r.extra?.name ?? "USD Coin",
+      domainVersion: r.extra?.version ?? "2",
+    });
+    if (!verdict.verified) return fail(`invalid_signature:${verdict.reason}`);
+  }
+
   return { isValid: true, payer: auth.from };
 }
 
@@ -133,8 +158,8 @@ export type Settler = (
 ) => Promise<SettleSubmission> | SettleSubmission;
 
 // Default mock settler — deterministic, no RPC. Reports exactly the depth asked
-// for so dev/demo flows pass the gate. Replace via settle(req, realSettler) with
-// a settler that waits for real confirmations on-chain.
+// for so dev/demo flows pass the gate. Used only in mock mode; live mode
+// requires a real settler (createEvmSettler) or settle() fails closed.
 function mockSettler(req: FacilitatorRequest, _payer: string, minConfirmations: number): SettleSubmission {
   const bytes = crypto.randomBytes(32);
   // Solana tx signatures are base58; EVM hashes are 0x-hex.
@@ -145,13 +170,34 @@ function mockSettler(req: FacilitatorRequest, _payer: string, minConfirmations: 
   return { transaction, confirmations: minConfirmations };
 }
 
+/**
+ * Choose the settler when the caller doesn't inject one. In live mode ONLY a
+ * real on-chain settler is acceptable — if none is configured we return null so
+ * settle() fails closed rather than "settling" against a mock (which would
+ * credit balances off a fake transaction). In mock/demo mode the mock settler
+ * is used so the zero-credential stack still runs end-to-end.
+ */
+function resolveSettler(): Settler | null {
+  const real = defaultSettler();
+  if (real) return real;
+  return liveMode() ? null : mockSettler;
+}
+
 /** Verify, then settle. Nonces are single-use (atomic across instances), and
  *  the resource is only released once the settlement reaches the confirmation
- *  depth the amount requires (Attack I-A). */
-export async function settle(req: FacilitatorRequest, settler: Settler = mockSettler): Promise<SettleResult> {
+ *  depth the amount requires (Attack I-A). Pass an explicit settler to override
+ *  the default (real-when-configured, else mock in demo mode only). */
+export async function settle(req: FacilitatorRequest, settler?: Settler): Promise<SettleResult> {
   const network = req.paymentRequirements?.network ?? "unknown";
-  const v = verify(req);
+  const v = await verify(req);
   if (!v.isValid) return { success: false, network, errorReason: v.invalidReason };
+
+  const chosen = settler ?? resolveSettler();
+  if (!chosen) {
+    // Live mode with no on-chain settler configured — refuse rather than mint
+    // a fake settlement. Set FACILITATOR_EVM_PRIVATE_KEY to enable real settling.
+    return { success: false, network, payer: v.payer, errorReason: "settler_unavailable" };
+  }
 
   const nonce = req.paymentPayload.payload.authorization.nonce;
   const amountAtomic = req.paymentPayload.payload.authorization.value;
@@ -164,7 +210,7 @@ export async function settle(req: FacilitatorRequest, settler: Settler = mockSet
   }
 
   try {
-    const submission = await settler(req, v.payer!, required);
+    const submission = await chosen(req, v.payer!, required);
     // Attack I-A gate: never release on a settlement shallower than required.
     // Fail closed and KEEP the nonce burned — the tx may still confirm, so
     // freeing it would reopen the replay window. Legitimate retries use a

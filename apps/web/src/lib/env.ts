@@ -139,6 +139,14 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("X402_XSGD_ADDRESS"),
       v("X402_XSGD_USD_RATE"),
       v("X402_QUOTE_SECRET"),
+      // Live on-chain settlement: the facilitator's hot fee-payer signing key.
+      // Required when INTEGRATION_MODE=live — without it settle() fails closed
+      // rather than crediting against a mock settlement.
+      v("FACILITATOR_EVM_PRIVATE_KEY"),
+      // Force EIP-3009 signature verification + real settlement independent of
+      // INTEGRATION_MODE (e.g. to exercise the live path in a preview env).
+      v("X402_ENFORCE_SIGNATURE"),
+      v("BASE_SEPOLIA_RPC_URL"),
       v("FURLPAY_API_KEY"),
       v("FURLPAY_KEY"),
       v("FURLPAY_SECRET_KEY"),
