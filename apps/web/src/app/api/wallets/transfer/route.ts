@@ -20,6 +20,20 @@ import { checkTransferAmount } from "@/lib/kycTiers";
 // Retries are safe: send an Idempotency-Key header (UUID) — a duplicate key
 // replays the original response instead of double-spending.
 export async function POST(req: NextRequest) {
+  // Settlement below is the demo ledger only: it mints a mock hash — no L2
+  // transfer exists behind this route yet. NOTE: gate on NODE_ENV, not
+  // liveOr503()/INTEGRATION_MODE — the mode flag is set to live in prod for
+  // the x402 rail, but it cannot make THIS route real (no Paymaster relayer
+  // is wired), so honoring it here would fabricate "settled" transfers in
+  // production. Flip this to a settler-availability check when a real
+  // relayer lands.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "service_unavailable", detail: "On-chain wallet transfers are not enabled on this deployment." },
+      { status: 503 }
+    );
+  }
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;

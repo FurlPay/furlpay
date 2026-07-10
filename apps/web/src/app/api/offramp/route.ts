@@ -17,6 +17,18 @@ export async function POST(req: NextRequest) {
   const { fromCurrency, toCurrency, amount, execute } = parsed.data;
   const quote = await quoteFx(fromCurrency, toCurrency, amount);
 
+  // Execution below mutates the demo ledger only — there is no Wise payout
+  // call behind this route yet. Gate on NODE_ENV (not INTEGRATION_MODE, which
+  // is live in prod for the x402 rail but cannot make this route real): in
+  // production, quotes stay available and execute refuses rather than
+  // recording a fabricated "settled" off-ramp.
+  if (execute && process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "service_unavailable", detail: "Off-ramp execution is not enabled on this deployment. Quotes remain available." },
+      { status: 503 }
+    );
+  }
+
   if (execute) {
     recordTransaction(
       account.user.id,

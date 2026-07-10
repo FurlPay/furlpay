@@ -39,6 +39,18 @@ export async function POST(req: NextRequest) {
   const invalid = validatePair(body);
   if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
+  // Execution settles against the demo ledger only — Li.Fi provides quotes,
+  // not execution, on this route. Gate on NODE_ENV (not INTEGRATION_MODE,
+  // which is live in prod for the x402 rail but cannot make this route real):
+  // in production, quotes stay available and execute refuses rather than
+  // marking a fabricated swap "settled".
+  if (body.execute && process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "service_unavailable", detail: "Swap execution is not enabled on this deployment. Quotes remain available." },
+      { status: 503 }
+    );
+  }
+
   const quote = await getSwapQuote(body);
 
   if (body.execute) {

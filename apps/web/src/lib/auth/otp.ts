@@ -12,6 +12,8 @@
 // which is how "many countries" is supported without any per-country logic here.
 // ---------------------------------------------------------------------------
 
+import crypto from "crypto";
+
 export type OtpChannel = "sms" | "call" | "email" | "whatsapp";
 
 const MODE = process.env.INTEGRATION_MODE || "mock";
@@ -46,7 +48,9 @@ const TTL_MS = 10 * 60_000;
 const MAX_ATTEMPTS = 5;
 
 function sixDigits(): string {
-  return String(Math.floor(100000 + Math.random() * 900000));
+  // CSPRNG even though this is the mock path — an OTP is a security value
+  // (repo rule: never Math.random for anything security-relevant).
+  return String(crypto.randomInt(100000, 1000000));
 }
 
 export interface StartResult {
