@@ -10,7 +10,6 @@
   "ignore": [
     "@furlpay/web",
     "@furlpay/desktop",
-    "@furlpay/extension",
-    "@furlpay/android"
+    "@furlpay/extension"
   ]
 }
