@@ -43,6 +43,24 @@ const EVM_CHAINS: Record<string, Chain> = {
   ethereum: mainnet,
 };
 
+/**
+ * Thrown when the authorization was SUBMITTED on-chain but the settler could
+ * not observe the required confirmation depth (RPC timeout / lag). This is not
+ * "settlement failed": the transfer may still confirm — the payer may already
+ * be debited — so callers must surface the tx hash and point the client at
+ * GET /api/x402/settlement/[tx] instead of reporting a plain failure. The
+ * EIP-3009 nonce stays burned either way (re-signing needs a fresh nonce).
+ */
+export class SettlementPendingError extends Error {
+  readonly transaction: Hex;
+  readonly network: string;
+  constructor(transaction: Hex, network: string, cause: string) {
+    super(`settlement pending: tx ${transaction} submitted on ${network} but confirmation not observed (${cause})`);
+    this.transaction = transaction;
+    this.network = network;
+  }
+}
+
 // transferWithAuthorization with (v, r, s) — the form USDC (FiatTokenV2)
 // exposes. The 65-byte compact signature is split into components on-chain.
 const EIP3009_ABI = parseAbi([
@@ -126,11 +144,18 @@ export function createEvmSettler(): Settler | null {
     });
 
     // Wait for the confirmation depth this amount requires before reporting
-    // success — never release a resource on a reorg-able settlement.
-    const receipt = await publicClient.waitForTransactionReceipt({
-      hash,
-      confirmations: minConfirmations,
-    });
+    // success — never release a resource on a reorg-able settlement. From this
+    // point the tx is on the wire: a timeout is NOT a failure (the payer may
+    // still be debited), so surface it as pending with the hash attached.
+    let receipt;
+    try {
+      receipt = await publicClient.waitForTransactionReceipt({
+        hash,
+        confirmations: minConfirmations,
+      });
+    } catch (e) {
+      throw new SettlementPendingError(hash, network, (e as Error).message);
+    }
     if (receipt.status !== "success") {
       throw new Error(`settlement reverted on-chain (tx ${hash})`);
     }
@@ -146,6 +171,30 @@ export function createEvmSettler(): Settler | null {
     });
     return { transaction: hash, confirmations };
   };
+}
+
+/**
+ * Resolve a pending settlement directly against the chain (the recovery poll
+ * behind GET /api/x402/settlement/[tx]). Read-only — needs an RPC, not the
+ * fee-payer key. Returns null when the network is not an EVM chain we know.
+ */
+export async function checkSettlementOnChain(
+  txHash: string,
+  network: string
+): Promise<{ found: boolean; confirmed: boolean; confirmations: number } | null> {
+  const chain = EVM_CHAINS[network];
+  if (!chain || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) return null;
+  const url = rpcUrl(network);
+  const publicClient = createPublicClient({ chain, transport: url ? http(url) : http() });
+  try {
+    const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
+    if (receipt.status !== "success") return { found: true, confirmed: false, confirmations: 0 };
+    const confirmations = Number(await publicClient.getTransactionConfirmations({ hash: txHash as Hex }));
+    return { found: true, confirmed: true, confirmations };
+  } catch {
+    // Not found yet (still in mempool / dropped) — not proof of failure.
+    return { found: false, confirmed: false, confirmations: 0 };
+  }
 }
 
 /** Process-wide settler: the real EVM settler when a key is configured, else

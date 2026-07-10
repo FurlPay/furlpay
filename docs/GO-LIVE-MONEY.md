@@ -83,13 +83,24 @@ Validated 2026-07-10: USDC moved payer → treasury on-chain (fee-payer paid
 gas), 3-confirmation gate held, replay of the same authorization rejected
 with `nonce already used`.
 
-**Operational note (observed):** if `waitForTransactionReceipt` times out
-(viem default 180s) the client gets 402 but the settlement may still land
-on-chain — the payer is debited, the resource is not delivered, and the
-burned nonce prevents re-presenting the same authorization. On Arbitrum One
-(~0.25s blocks) 3–12 confirmations resolve in seconds so this is unlikely,
-but the recovery path is `GET /api/x402/settlement/[tx]` — surface it to
-paying agents in the 402 error body when settlement state is ambiguous.
+**Submitted-but-unconfirmed recovery (implemented + verified 2026-07-10):**
+if the settler times out AFTER submitting (viem receipt wait, 180s) the
+settlement may still land — payer debited, nonce burned. This is now a
+first-class state, not a silent failure:
+- The settler raises `SettlementPendingError` (with the tx hash) instead of
+  a generic error; a plain "failed" is only reported when nothing was
+  submitted or the tx reverted.
+- The 402 body then carries `pending: { transaction, statusPath }` and the
+  settlement is logged `status: "pending"` in the durable store.
+- `GET /api/x402/settlement/[tx]` re-checks the chain on every poll of a
+  pending record: 202 + confirmations while unconfirmed, upgraded to
+  `confirmed` (200) once the required depth is observed.
+- Paying agents: on a 402 with `pending`, poll `statusPath` — do NOT sign a
+  fresh authorization until it resolves, or you may pay twice.
+Verified end-to-end by `apps/web/scripts/x402-e2e-pending.mjs` (mining
+disabled → real 180s timeout → 402+pending → 202 poll → mine → confirmed).
+On Arbitrum One (~0.25s blocks) 3–12 confirmations resolve in seconds, so
+this path should be rare in production.
 
 ### 3. Verify on testnet first
 Set `X402_NETWORK=arbitrum-sepolia` (or `base-sepolia`) with a Sepolia fee-payer

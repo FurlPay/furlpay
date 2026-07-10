@@ -47,12 +47,15 @@ export async function GET(req: NextRequest) {
     }
     // 402: quote the payment. The client pays exactly this and retries. The
     // quote carries a fresh single-use quoteId/binding, so it must not be
-    // cached either (Attack III).
+    // cached either (Attack III). `pending` (when present) means a settlement
+    // was submitted but not yet confirmed — the client should poll its
+    // statusPath before signing a fresh authorization.
     return withNoStore(
       NextResponse.json(
         {
           x402Version: X402_VERSION,
           error: result.error,
+          ...(result.pending ? { pending: result.pending } : {}),
           // USDC always; XSGD (StraitsX, MAS-regulated) when deployed on the
           // active network — the agent picks its settlement asset.
           accepts: acceptedRequirements({

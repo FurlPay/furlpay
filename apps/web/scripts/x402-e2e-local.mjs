@@ -8,16 +8,23 @@
 //   4. read MockUSDC balances                  -> money actually moved
 //
 //   node scripts/x402-e2e-local.mjs
+//
+// Also drives PUBLIC Arbitrum Sepolia (runbook §3) — point the env at the
+// deployed app + real testnet (payer needs Circle faucet USDC; the app's
+// fee-payer needs Sepolia ETH):
+//   E2E_APP=https://<preview>.vercel.app E2E_RPC=https://sepolia-rollup.arbitrum.io/rpc \
+//   E2E_PAYER_KEY=0x... E2E_USDC=0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d \
+//   E2E_TREASURY=<X402_PAY_TO> node scripts/x402-e2e-local.mjs
 import { createPublicClient, http, parseAbi, formatUnits } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-const APP = "http://localhost:3000";
-const RPC = "http://127.0.0.1:8545";
-// Hardhat well-known test accounts (never used on real networks).
-const PAYER_KEY = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
-const TREASURY = "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
-const USDC = "0x5FbDB2315678afecb367f032d93F642f64180aa3";
-const CHAIN_ID = 421614;
+const APP = process.env.E2E_APP || "http://localhost:3000";
+const RPC = process.env.E2E_RPC || "http://127.0.0.1:8545";
+// Default: hardhat well-known test accounts (never used on real networks).
+const PAYER_KEY = process.env.E2E_PAYER_KEY || "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+const TREASURY = process.env.E2E_TREASURY || "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC";
+const USDC = process.env.E2E_USDC || "0x5FbDB2315678afecb367f032d93F642f64180aa3";
+const CHAIN_ID = Number(process.env.E2E_CHAIN_ID || 421614);
 
 const erc20 = parseAbi(["function balanceOf(address) view returns (uint256)"]);
 const pub = createPublicClient({ transport: http(RPC) });

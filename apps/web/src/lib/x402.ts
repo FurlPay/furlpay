@@ -1,7 +1,8 @@
 import crypto from "crypto";
 import { kvSetNx, kvBackend } from "@/lib/kv";
 import { verifyAuthorizationSignature } from "@/lib/x402Signature";
-import { defaultSettler } from "@/lib/x402Settler";
+import { defaultSettler, SettlementPendingError } from "@/lib/x402Settler";
+import { recordSettlement } from "@/lib/x402SettlementStore";
 import type { FacilitatorRequest } from "@/lib/x402Facilitator";
 import { log } from "@/lib/log";
 
@@ -237,7 +238,15 @@ export interface XPaymentPayload {
 
 export type VerifyResult =
   | { ok: true; payer: string; txHash: string; asset: X402Asset }
-  | { ok: false; status: 400 | 402; error: string };
+  | {
+      ok: false;
+      status: 400 | 402;
+      error: string;
+      /** Set when the settlement was SUBMITTED on-chain but its confirmation
+       *  was not observed before timing out — the payer may still be debited.
+       *  Clients resolve via GET /api/x402/settlement/[transaction]. */
+      pending?: { transaction: string; statusPath: string };
+    };
 
 /**
  * Verify an X-PAYMENT header against the server-side expectation for this
@@ -376,8 +385,44 @@ export async function verifyPayment(opts: {
       if (submission.confirmations < required) {
         return { ok: false, status: 402, error: "Settlement not yet final (insufficient confirmations)" };
       }
+      await recordSettlement({
+        transaction: submission.transaction,
+        network: NETWORK,
+        payer: auth.from,
+        payTo: PAY_TO,
+        amountAtomic: expectedAmount,
+        resource,
+        settledAt: new Date().toISOString(),
+        status: "confirmed",
+      });
       return { ok: true, payer: auth.from, txHash: submission.transaction, asset };
     } catch (e) {
+      // Submitted-but-unconfirmed: the tx is on-chain and may still settle
+      // (payer possibly debited, nonce burned). Log it as pending and hand the
+      // client the tx + status route so it can resolve instead of assuming
+      // the payment was lost.
+      if (e instanceof SettlementPendingError) {
+        await recordSettlement({
+          transaction: e.transaction,
+          network: NETWORK,
+          payer: auth.from,
+          payTo: PAY_TO,
+          amountAtomic: expectedAmount,
+          resource,
+          settledAt: new Date().toISOString(),
+          status: "pending",
+        });
+        log.warn("x402 settlement pending (submitted, confirmation timed out)", {
+          tx: e.transaction,
+          resource,
+        });
+        return {
+          ok: false,
+          status: 402,
+          error: "Settlement submitted but not yet confirmed — poll the status path before retrying with a new authorization",
+          pending: { transaction: e.transaction, statusPath: `/api/x402/settlement/${e.transaction}` },
+        };
+      }
       log.error("x402 live settlement failed", { error: (e as Error).message, resource });
       return { ok: false, status: 402, error: "Settlement failed on-chain" };
     }

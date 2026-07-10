@@ -1,8 +1,13 @@
 import crypto from "crypto";
 import { X402_VERSION, requiredConfirmations, type PaymentRequirements, type XPaymentPayload } from "@/lib/x402";
-import { kvSetNx, kvGet, kvSet } from "@/lib/kv";
+import { kvSetNx } from "@/lib/kv";
 import { verifyAuthorizationSignature } from "@/lib/x402Signature";
-import { defaultSettler } from "@/lib/x402Settler";
+import { defaultSettler, SettlementPendingError } from "@/lib/x402Settler";
+import { getSettlement, recordSettlement, type SettlementRecord } from "@/lib/x402SettlementStore";
+
+// Settlement log moved to x402SettlementStore (shared with lib/x402.ts without
+// an import cycle); re-exported here for existing consumers.
+export { getSettlement, recordSettlement, type SettlementRecord };
 
 // Signature + real-settlement enforcement. Live mode requires BOTH a recovered
 // EIP-3009 signature AND a real on-chain settler; mock/demo mode (the default,
@@ -38,32 +43,14 @@ export const SUPPORTED_KINDS = [
   { x402Version: X402_VERSION, scheme: "exact", network: "base" },
 ] as const;
 
-export interface SettlementRecord {
-  transaction: string;
-  network: string;
-  payer: string;
-  payTo: string;
-  amountAtomic: string;
-  resource: string;
-  settledAt: string;
-}
-
-// Durable nonce claim + settlement log. Backed by Redis (lib/kv.ts) so a nonce
-// burned on one serverless instance is seen by every other (Attack II — the
-// same replay hole the resource-server middleware closes in lib/x402.ts). The
-// in-memory KV fallback is single-instance only.
+// Durable nonce claim. Backed by Redis (lib/kv.ts) so a nonce burned on one
+// serverless instance is seen by every other (Attack II — the same replay hole
+// the resource-server middleware closes in lib/x402.ts). The in-memory KV
+// fallback is single-instance only.
 const NONCE_TTL_SECONDS = 86_400; // outlive any EIP-3009 validBefore window
-const SETTLEMENT_TTL_SECONDS = 60 * 60 * 24 * 30; // 30d settlement receipt retention
 
 function nonceKey(nonce: string): string {
   return `x402fac:nonce:${nonce}`;
-}
-function settlementKey(tx: string): string {
-  return `x402fac:settlement:${tx}`;
-}
-
-export async function getSettlement(tx: string): Promise<SettlementRecord | undefined> {
-  return (await kvGet<SettlementRecord>(settlementKey(tx))) ?? undefined;
 }
 
 export interface FacilitatorRequest {
@@ -226,7 +213,7 @@ export async function settle(req: FacilitatorRequest, settler?: Settler): Promis
         errorReason: "insufficient_confirmations",
       };
     }
-    const record: SettlementRecord = {
+    await recordSettlement({
       transaction: submission.transaction,
       network,
       payer: v.payer!,
@@ -234,8 +221,8 @@ export async function settle(req: FacilitatorRequest, settler?: Settler): Promis
       amountAtomic,
       resource: req.paymentRequirements.resource,
       settledAt: new Date().toISOString(),
-    };
-    await kvSet(settlementKey(submission.transaction), record, SETTLEMENT_TTL_SECONDS);
+      status: "confirmed",
+    });
     return {
       success: true,
       transaction: submission.transaction,
@@ -245,6 +232,29 @@ export async function settle(req: FacilitatorRequest, settler?: Settler): Promis
       requiredConfirmations: required,
     };
   } catch (e) {
+    // Submitted-but-unconfirmed is its own class: the tx is on-chain and may
+    // still settle (payer debited), so log it as pending and hand the client
+    // the tx hash to poll GET /api/x402/settlement/[tx] with.
+    if (e instanceof SettlementPendingError) {
+      await recordSettlement({
+        transaction: e.transaction,
+        network,
+        payer: v.payer!,
+        payTo: req.paymentRequirements.payTo,
+        amountAtomic,
+        resource: req.paymentRequirements.resource,
+        settledAt: new Date().toISOString(),
+        status: "pending",
+      });
+      return {
+        success: false,
+        network,
+        payer: v.payer,
+        transaction: e.transaction,
+        requiredConfirmations: required,
+        errorReason: "settlement_pending",
+      };
+    }
     // Fail closed: a settler error/timeout is NOT proof the on-chain settlement
     // did not land, so we keep the nonce burned rather than freeing it. Freeing
     // it would reopen the authorization for replay against a settlement that may
