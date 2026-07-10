@@ -59,6 +59,38 @@ but it must be protected:
 
 Verify presence with the admin route `GET /api/security/env`.
 
+### 3a. Verify locally first (no faucets, no keys)
+The entire live path — 402 quote → EIP-3009 signing → ecrecover →
+`transferWithAuthorization` on-chain → confirmation gate → replay rejection —
+can be driven against a local chain with hardhat's well-known test accounts:
+
+```
+cd packages/contracts
+npx hardhat node --config hardhat.config.local3009.ts        # chainId 421614
+npx hardhat run scripts/deploy-mockusdc-local.ts --config hardhat.config.local3009.ts --network localhost
+# enable interval mining so confirmations accrue (automine only mines on tx):
+#   evm_setIntervalMining [1000] via RPC
+cd ../../apps/web
+# X402_ENFORCE_SIGNATURE=1 X402_NETWORK=arbitrum-sepolia
+# ARBITRUM_SEPOLIA_RPC_URL=http://127.0.0.1:8545
+# X402_USDC_ADDRESS=<deployed MockUSDC> X402_PAY_TO=<treasury>
+# FACILITATOR_EVM_PRIVATE_KEY=<hardhat acct 0> X402_QUOTE_SECRET=<random>
+npx next dev
+node scripts/x402-e2e-local.mjs
+```
+
+Validated 2026-07-10: USDC moved payer → treasury on-chain (fee-payer paid
+gas), 3-confirmation gate held, replay of the same authorization rejected
+with `nonce already used`.
+
+**Operational note (observed):** if `waitForTransactionReceipt` times out
+(viem default 180s) the client gets 402 but the settlement may still land
+on-chain — the payer is debited, the resource is not delivered, and the
+burned nonce prevents re-presenting the same authorization. On Arbitrum One
+(~0.25s blocks) 3–12 confirmations resolve in seconds so this is unlikely,
+but the recovery path is `GET /api/x402/settlement/[tx]` — surface it to
+paying agents in the 402 error body when settlement state is ambiguous.
+
 ### 3. Verify on testnet first
 Set `X402_NETWORK=arbitrum-sepolia` (or `base-sepolia`) with a Sepolia fee-payer
 and Circle testnet USDC. Drive a real 402 → sign → settle cycle with a funded
