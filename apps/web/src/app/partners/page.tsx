@@ -159,7 +159,9 @@ export default function PartnersPage() {
           className="group mt-4 block overflow-hidden rounded-2xl border border-neon/25 bg-gradient-to-br from-neon/[0.07] to-transparent p-5 transition-all hover:border-neon/45"
         >
           <div className="flex flex-wrap items-center gap-4">
-            <PartnerMark slug="wikiexpo" name="WIKIEXPO" className="h-12 w-12" />
+            {/* Official WIKIEXPO wordmark (dark-background variant). eslint-disable-next-line @next/next/no-img-element */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/partners/wikiexpo.svg" alt="WIKIEXPO" className="h-9 w-auto shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[16px] font-bold">Wiki Finance Expo Hong Kong 2026</p>

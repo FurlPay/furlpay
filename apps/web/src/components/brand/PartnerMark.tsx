@@ -24,14 +24,20 @@ const GLYPHS: Record<string, string> = {
   base: "M4 4.454A11 11 0 1 1 4 19.546Z",
 };
 
-// Brands without a clean single-color vector fall back to a wordmark monogram.
+// Brands whose OFFICIAL logo we ship as a same-origin asset (CSP-safe, under
+// /public/partners). Full-color marks, rendered on a light chip so they stay
+// legible on the dark UI. Preferred over the monogram fallback.
+const LOGO_FILES: Record<string, string> = {
+  turnkey: "/partners/turnkey.png",
+  safe: "/partners/safe.ico",
+  alpaca: "/partners/alpaca.png",
+  marqeta: "/partners/marqeta.png",
+  bridge: "/partners/bridge.png",
+  persona: "/partners/persona.ico",
+};
+
+// Last-resort monogram for anything without a glyph or a shipped logo.
 const MONOGRAMS: Record<string, string> = {
-  turnkey: "T",
-  safe: "S",
-  alpaca: "A",
-  marqeta: "M",
-  bridge: "B",
-  persona: "P",
   wikiexpo: "W",
 };
 
@@ -49,6 +55,20 @@ function Glyph({ path, className }: { path: string; className?: string }) {
  * monogram — always inside the same circle so the wall stays consistent.
  */
 export default function PartnerMark({ slug, name, className = "h-11 w-11" }: { slug: string; name: string; className?: string }) {
+  // Official full-color logos render on a white chip so any mark (light or dark)
+  // stays legible; the app-icon look reads as one consistent grid.
+  if (LOGO_FILES[slug]) {
+    return (
+      <span
+        className={`flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-white/10 bg-white ${className}`}
+        aria-hidden
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={LOGO_FILES[slug]} alt="" className="h-[62%] w-[62%] object-contain" />
+      </span>
+    );
+  }
+
   const circle =
     "flex shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] text-white";
 
