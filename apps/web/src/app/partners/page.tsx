@@ -142,7 +142,8 @@ export default function PartnersPage() {
         </p>
 
         <div className="mt-8 flex items-center gap-3 rounded-2xl border border-neon/20 bg-neon/[0.04] p-4">
-          <PartnerMark slug="furlpay" name="Furlpay" className="h-11 w-11" />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/icon.png" alt="Furlpay" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
           <div>
             <p className="text-[15px] font-bold">Furlpay</p>
             <p className="text-[13px] text-textMuted">
