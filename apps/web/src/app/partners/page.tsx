@@ -6,7 +6,7 @@ import PartnerMark from "@/components/brand/PartnerMark";
 export const metadata: Metadata = {
   title: "Partners & Integrations",
   description:
-    "Furlpay is built on world-class infrastructure — Solana, Base, Circle, Stripe, Wise, Alpaca, Turnkey, Safe, Persona, Marqeta, Bridge.xyz, and Vercel.",
+    "Furlpay is an Official Global Partner of WIKIEXPO Hong Kong 2026, built on world-class infrastructure — Solana, Base, Circle, Stripe, Wise, Alpaca, Turnkey, Safe, Persona, Marqeta, Bridge.xyz, and Vercel.",
   alternates: { canonical: "/partners" },
 };
 
@@ -150,6 +150,34 @@ export default function PartnersPage() {
             </p>
           </div>
         </div>
+
+        {/* Official Global Partner — WIKIEXPO Hong Kong 2026 */}
+        <a
+          href="https://www.wikiexpo.com/HongKong/2026/en/?c=Bowl4p3F"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="group mt-4 block overflow-hidden rounded-2xl border border-neon/25 bg-gradient-to-br from-neon/[0.07] to-transparent p-5 transition-all hover:border-neon/45"
+        >
+          <div className="flex flex-wrap items-center gap-4">
+            <PartnerMark slug="wikiexpo" name="WIKIEXPO" className="h-12 w-12" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[16px] font-bold">Wiki Finance Expo Hong Kong 2026</p>
+                <span className="rounded-full border border-neon/30 bg-neon/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-neon">
+                  Official Global Partner
+                </span>
+              </div>
+              <p className="mt-1 text-[13px] leading-relaxed text-textSecondary">
+                Furlpay is an Official Global Partner of WIKIEXPO Hong Kong — one of Asia&apos;s
+                largest fintech, crypto, Web3 &amp; AI gatherings. July 23&ndash;24, 2026 &middot;
+                Hopewell Hotel, Wan Chai.
+              </p>
+            </div>
+            <span className="whitespace-nowrap text-[12px] font-semibold text-neon transition-opacity group-hover:opacity-100 sm:opacity-0">
+              Free ticket &rarr;
+            </span>
+          </div>
+        </a>
 
         {CATEGORIES.map((category) => (
           <section key={category} className="mt-16">

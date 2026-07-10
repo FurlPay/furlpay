@@ -32,6 +32,7 @@ const MONOGRAMS: Record<string, string> = {
   marqeta: "M",
   bridge: "B",
   persona: "P",
+  wikiexpo: "W",
 };
 
 function Glyph({ path, className }: { path: string; className?: string }) {
