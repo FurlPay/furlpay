@@ -37,10 +37,25 @@ jobs:
       - run: npm install
       - name: Test publishable packages
         run: npm test
+      # Only attempt to publish when npm auth is actually configured. Without a
+      # token (and until per-package OIDC trusted publishing is set up on
+      # npmjs.com) `changeset publish` fails ENEEDAUTH and reds the run on every
+      # push. Gating on NPM_TOKEN lets the action still open/refresh the
+      # "Version Packages" PR from pending changesets; publishing turns on the
+      # moment a token is added (or swap this for OIDC once configured).
+      - id: publish_mode
+        run: |
+          if [ -n "${{ secrets.NPM_TOKEN }}" ]; then
+            echo "cmd=npx changeset publish" >> "$GITHUB_OUTPUT"
+          else
+            echo "cmd=" >> "$GITHUB_OUTPUT"
+            echo "::notice::NPM_TOKEN not set — Release will manage the version PR but skip publishing."
+          fi
       - name: Version or publish
         uses: changesets/action@v1
         with:
-          publish: npx changeset publish
+          version: npx changeset version
+          publish: ${{ steps.publish_mode.outputs.cmd }}
           title: "chore: version packages"
           commit: "chore: version packages"
         env:
