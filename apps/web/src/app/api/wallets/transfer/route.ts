@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { screenWallet } from "@furlpay/compliance";
 import { assessRisk, requiresStepUp, verifyTotp } from "@furlpay/security";
-import { newTx, recordTransaction } from "@/lib/store";
+import { newTx, recordTransaction, type UserAccount } from "@/lib/store";
 import { verifyTransferSignature } from "@/lib/signature";
 import { recordMovement } from "@/lib/ledger";
 import { TransferSchema, parse } from "@/lib/schemas";
@@ -11,10 +11,14 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 import { checkVelocity, commitVelocity } from "@/lib/services/velocity";
 import { analyzeDevice } from "@/lib/services/deviceIntel";
+import { withIdempotency } from "@/lib/idempotency";
+import { checkTransferAmount } from "@/lib/kycTiers";
 
 // POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via
 // Paymaster, from the SESSION user's balances.
 // body: { safeAddress, destination, amount, token, chain, signature, mfaCode?, deviceSignals? }
+// Retries are safe: send an Idempotency-Key header (UUID) — a duplicate key
+// replays the original response instead of double-spending.
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
@@ -25,7 +29,34 @@ export async function POST(req: NextRequest) {
 
   const parsed = parse(TransferSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
-  const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = parsed.data;
+
+  // Scope the idempotency key per user so one client's key can't replay (or
+  // conflict with) another account's request.
+  const idempotencyKey = req.headers.get("Idempotency-Key");
+  return withIdempotency(idempotencyKey, `wallets.transfer:${account.user.id}`, () =>
+    executeTransfer(req, account, parsed.data)
+  );
+}
+
+type TransferInput = ReturnType<typeof TransferSchema.parse>;
+
+async function executeTransfer(
+  req: NextRequest,
+  account: UserAccount,
+  data: TransferInput
+): Promise<NextResponse> {
+  const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = data;
+
+  // KYC-tier gate: per-transfer cap scales with verification level
+  // (progressive access — see lib/kycTiers.ts).
+  const tierCheck = checkTransferAmount(account.user.kycTier, amount);
+  if (!tierCheck.allowed) {
+    audit("transfer.blocked", account.user.id, { destination, amount, reason: tierCheck.code });
+    return NextResponse.json(
+      { error: tierCheck.reason, code: tierCheck.code, kycTier: account.user.kycTier },
+      { status: 403 }
+    );
+  }
 
   // Device / behavioral risk gate. When the client posts a full device
   // fingerprint (with a visitorId), use analyzeDevice — it adds the FP-Agent

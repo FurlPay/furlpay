@@ -93,6 +93,25 @@ export function clientIp(req: NextRequest): string {
 }
 
 /**
+ * Quota headers for a rate-limited response. Emits both the widely-consumed
+ * legacy trio (X-RateLimit-Limit/Remaining/Reset — Stripe/GitHub/Coinbase) and
+ * the IETF structured field (RateLimit / RateLimit-Policy,
+ * draft-ietf-httpapi-ratelimit-headers) for forward compatibility.
+ * `resetSeconds` is seconds until the window resets.
+ */
+export function rateLimitHeaders(limitVal: number, remaining: number, resetSeconds: number): Record<string, string> {
+  const rem = Math.max(0, remaining);
+  const reset = Math.max(0, Math.ceil(resetSeconds));
+  return {
+    "X-RateLimit-Limit": String(limitVal),
+    "X-RateLimit-Remaining": String(rem),
+    "X-RateLimit-Reset": String(reset),
+    RateLimit: `limit=${limitVal}, remaining=${rem}, reset=${reset}`,
+    "RateLimit-Policy": `${limitVal};w=${reset || limitVal}`,
+  };
+}
+
+/**
  * Route helper: returns a 429 response when over limit, else null.
  * Key by IP plus any stable identifier (phone, user id) so one attacker can't
  * exhaust another user's budget, and one user can't rotate IPs freely.
@@ -105,8 +124,15 @@ export async function rateLimitOr429(
 ): Promise<NextResponse | null> {
   const result = await limit(`${name}:${clientIp(req)}:${extraKey}`, opts);
   if (result.ok) return null;
+  const windowSeconds = Math.ceil(opts.windowMs / 1000);
   return NextResponse.json(
     { error: "rate_limited", retryAfterSeconds: result.retryAfterSeconds },
-    { status: 429, headers: { "Retry-After": String(result.retryAfterSeconds) } }
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(result.retryAfterSeconds),
+        ...rateLimitHeaders(opts.limit, 0, result.retryAfterSeconds || windowSeconds),
+      },
+    }
   );
 }
