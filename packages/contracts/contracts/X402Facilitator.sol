@@ -121,9 +121,12 @@ contract X402Facilitator is Ownable2Step, Pausable {
     ) external whenNotPaused onlyFacilitator {
         if (settlements[nonce].settledAt != 0) revert AlreadySettled(nonce);
 
-        // Reverts inside USDC on bad signature, expired window or used nonce.
-        usdc.transferWithAuthorization(from, to, value, validAfter, validBefore, nonce, v, r, s);
-
+        // Checks-Effects-Interactions: record the settlement BEFORE the token
+        // call so a reentrant settle() with this nonce hits AlreadySettled. If
+        // transferWithAuthorization reverts (bad signature, expired window, used
+        // nonce), the whole tx — including this write — rolls back, so no stale
+        // record is left. Defense-in-depth: USDC already burns the nonce
+        // internally, but this removes the reliance on the token being benign.
         settlements[nonce] = Settlement({
             payer: from,
             payTo: to,
@@ -131,6 +134,9 @@ contract X402Facilitator is Ownable2Step, Pausable {
             resourceHash: resourceHash,
             settledAt: uint64(block.timestamp)
         });
+
+        // Reverts inside USDC on bad signature, expired window or used nonce.
+        usdc.transferWithAuthorization(from, to, value, validAfter, validBefore, nonce, v, r, s);
 
         emit X402Settled(from, to, value, resourceHash, nonce);
     }

@@ -118,10 +118,17 @@ contract FurlPayRouter is EIP712, Ownable2Step, Pausable, ReentrancyGuard {
 
         usedNonces[p.nonce] = true;
 
+        // slither-disable-start arbitrary-send-erc20
+        // Not arbitrary: `payer` is cryptographically bound above — ECDSA.recover
+        // over the EIP-712 Payment digest must equal `payer` (revert otherwise),
+        // so funds only ever move from an address that signed THIS exact payment
+        // (recipient/amount/fee/nonce/deadline). This is the meta-transaction
+        // pattern (cf. EIP-3009); Slither can't see the signature binds `from`.
         usdc.safeTransferFrom(payer, p.recipient, p.amount - p.fee);
         if (p.fee > 0) {
             usdc.safeTransferFrom(payer, feeTreasury, p.fee);
         }
+        // slither-disable-end arbitrary-send-erc20
 
         emit PaymentExecuted(p.paymentId, payer, p.recipient, p.amount, p.fee, p.nonce);
     }
