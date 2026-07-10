@@ -9,6 +9,7 @@
 // (security, otp) skip their per-category cap but still respect the global one.
 
 import { kvGet, kvIncr, kvSet } from "./kv";
+import { trackCost } from "./costTracker";
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY;
 const EMAIL_FROM = process.env.EMAIL_FROM || "Furlpay <hello@furlpay.com>";
@@ -138,6 +139,7 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
       return { ok: false, error: `Resend ${res.status}: ${await res.text()}` };
     }
     const data = (await res.json()) as { id?: string };
+    trackCost("resend", "email", recipients.length);
     return { ok: true, id: data.id };
   } catch (e) {
     return { ok: false, error: (e as Error).message };

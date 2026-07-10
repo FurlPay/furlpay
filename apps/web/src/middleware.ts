@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 import { clientIp, limit } from "@/lib/rateLimit";
+import {
+  applyApiVersionHeaders,
+  resolveApiVersion,
+  SUPPORTED_API_VERSIONS,
+} from "@/lib/apiVersion";
 
 // ---------------------------------------------------------------------------
 // Auth gate. A `furlpay_session` cookie is minted on passkey login/registration.
@@ -110,6 +115,21 @@ export async function middleware(req: NextRequest) {
 
   const isApi = pathname.startsWith("/api");
 
+  // API version negotiation (X-Api-Version, date-based). Unknown versions are
+  // rejected up front so a client never silently runs against the wrong
+  // contract; the resolved version is stamped on every API response below.
+  const apiVersion = isApi ? resolveApiVersion(req.headers.get("x-api-version")) : null;
+  if (apiVersion && !apiVersion.ok) {
+    return NextResponse.json(
+      {
+        error: "unsupported_api_version",
+        requested: apiVersion.requested,
+        supported: SUPPORTED_API_VERSIONS,
+      },
+      { status: 400 }
+    );
+  }
+
   if (
     isApi &&
     MUTATING_METHODS.has(req.method) &&
@@ -126,13 +146,16 @@ export async function middleware(req: NextRequest) {
   const isPublicApi = PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (isApi) {
-    if (isPublicApi || hasSession) return NextResponse.next();
+    const version = apiVersion && apiVersion.ok ? apiVersion.version : undefined;
+    const pass = () =>
+      version ? applyApiVersionHeaders(NextResponse.next(), version) : NextResponse.next();
+    if (isPublicApi || hasSession) return pass();
     // Agent-initiated escrow calls authenticate with RFC 9421 signatures
     // instead of a session cookie. Pass them through to the route, which
     // verifies the signature against registered agent keys and 401s any
     // invalid/unknown/tampered one (lib/agentTrustGate).
     if (pathname.startsWith("/api/escrow") && req.headers.get("signature-input")) {
-      return NextResponse.next();
+      return pass();
     }
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

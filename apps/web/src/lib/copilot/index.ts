@@ -1,4 +1,5 @@
 import { db } from "@/lib/store";
+import { trackCost } from "@/lib/costTracker";
 import { getAccountBalanceUsd } from "@/lib/services/account";
 import { planIntent } from "@/lib/services/intentRouter";
 import { generateStays } from "@/lib/travel/data";
@@ -381,6 +382,7 @@ async function phraseWithClaude(messages: ChatMessage[], grounded: CopilotResult
   const json = (await res.json()) as { content?: { text?: string }[] };
   const text = json.content?.map((c) => c.text ?? "").join("").trim();
   if (!text) throw new Error("empty");
+  trackCost("anthropic", "copilot_message");
   return text;
 }
 
