@@ -74,6 +74,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/checkout",
   "/api/actions", // Solana Actions/Blinks — consumed by unauthenticated Blink clients
   "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
+  "/api/mpp", // Machine Payments Protocol (Stripe/Tempo) — auth IS the payment
   "/api/contact", // public "Talk to us" lead capture
   "/api/support/message", // public chat-bubble → support mailbox (IP rate-limited)
   "/api/hackathon", // public Build Challenge submissions
