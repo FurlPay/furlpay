@@ -1,0 +1,21 @@
+# Gitleaks config — extends the default ruleset with a value-scoped allowlist.
+#
+# The only allowlisted "secrets" are hardhat's WELL-KNOWN development keys
+# (accounts #0/#1/#2 of the default mnemonic "test test ... junk"). They are
+# published in hardhat's own docs, funded on every local `hardhat node`, and
+# used by our x402 e2e drivers (apps/web/scripts/x402-e2e-*.mjs) against a
+# local chain only. They are not credentials — anyone on earth has them.
+#
+# Deliberately value-based, NOT path-based: a real secret accidentally pasted
+# into one of the e2e scripts must still fail the scan.
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Hardhat well-known dev keys (public constants, local e2e only)"
+regexes = [
+  '''ac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80''',
+  '''59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d''',
+  '''5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a''',
+]
