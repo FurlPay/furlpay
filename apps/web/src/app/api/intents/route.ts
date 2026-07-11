@@ -23,6 +23,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }
 
+  // Execution below settles against the demo ledger only. In production,
+  // plans stay available and execute refuses (same guard class as swaps/
+  // offramp); real CCTP execution lives at /api/intents/cctp (non-custodial
+  // calldata the user signs).
+  if (body.execute && process.env.NODE_ENV === "production") {
+    return NextResponse.json(
+      { error: "service_unavailable", detail: "Intent execution is not enabled on this deployment. Plans remain available; use /api/intents/cctp for real CCTP transfers." },
+      { status: 503 }
+    );
+  }
+
   if (body.execute) {
     recordTransaction(
       account.user.id,
