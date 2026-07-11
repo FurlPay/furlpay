@@ -6,6 +6,8 @@ import {
   receiptHeader,
   problemBody,
 } from "@/lib/mpp";
+import { assertRailActive } from "@/lib/ops/controls";
+import { recordTxEvent, recordSecurityEvent } from "@/lib/ops/events";
 
 export const dynamic = "force-dynamic";
 
@@ -44,10 +46,26 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
   }
 
+  const paused = await assertRailActive("mpp");
+  if (paused) return paused;
+
   const authorization = req.headers.get("authorization");
   if (!authorization) return challenge402(realm, from, to);
 
   const result = await verifyMppPayment({ authorization, realm, priceUsd: PRICE_USD });
+
+  if (result.ok) {
+    void recordTxEvent({ rail: "mpp", state: "settled", substate: "SETTLED", amountUsd: PRICE_USD, token: "USDC", txHash: result.reference, payer: result.payer });
+  } else if (result.pending) {
+    void recordTxEvent({ rail: "mpp", state: "pending", substate: "SETTLEMENT_PENDING", amountUsd: PRICE_USD, txHash: result.pending.reference });
+  } else if (/replay|already used|already redeemed/i.test(result.detail)) {
+    void recordSecurityEvent({ rail: "mpp", kind: "replay_rejected", severity: "medium", detail: result.detail });
+  } else if (/signature/i.test(result.detail)) {
+    void recordSecurityEvent({ rail: "mpp", kind: "bad_signature", severity: "high", detail: result.detail });
+  } else if (/binding|challenge id|tamper/i.test(result.detail)) {
+    void recordSecurityEvent({ rail: "mpp", kind: "challenge_tamper", severity: "high", detail: result.detail });
+  }
+
   if (!result.ok) {
     const res = challenge402(realm, from, to, { problem: result.problem, detail: result.detail });
     if (result.pending) {

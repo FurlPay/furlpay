@@ -7,6 +7,8 @@ import {
   verifyPayment,
   withNoStore,
 } from "@/lib/x402";
+import { assertRailActive } from "@/lib/ops/controls";
+import { recordTxEvent, recordSecurityEvent } from "@/lib/ops/events";
 
 // ---------------------------------------------------------------------------
 // GET /api/x402/fx — pay-per-call premium API via x402 (HTTP 402).
@@ -34,12 +36,33 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
   }
 
+  // Emergency control: a paused x402 rail stops issuing quotes and settling.
+  const paused = await assertRailActive("x402");
+  if (paused) return withNoStore(paused);
+
+  const hasPayment = !!req.headers.get("x-payment");
   const result = await verifyPayment({
     header: req.headers.get("x-payment"),
     resource,
     method: "GET",
     priceUsd: PRICE_USD,
   });
+
+  // Feed the ops ledger with the REAL outcome (only when a payment was
+  // presented — a bare 402 quote request is not a transaction).
+  if (hasPayment) {
+    if (result.ok) {
+      void recordTxEvent({ rail: "x402", state: "settled", substate: "SETTLED", amountUsd: PRICE_USD, token: result.asset, txHash: result.txHash, payer: result.payer });
+    } else if (result.pending) {
+      void recordTxEvent({ rail: "x402", state: "pending", substate: "SETTLEMENT_PENDING", amountUsd: PRICE_USD, txHash: result.pending.transaction });
+    } else if (/replay|already used|already redeemed/i.test(result.error)) {
+      void recordSecurityEvent({ rail: "x402", kind: "replay_rejected", severity: "medium", detail: result.error });
+    } else if (/signature/i.test(result.error)) {
+      void recordSecurityEvent({ rail: "x402", kind: "bad_signature", severity: "high", detail: result.error });
+    } else if (/binding|quote/i.test(result.error)) {
+      void recordSecurityEvent({ rail: "x402", kind: "quote_tamper", severity: "high", detail: result.error });
+    }
+  }
 
   if (!result.ok) {
     if (result.status === 400) {

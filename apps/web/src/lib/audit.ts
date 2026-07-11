@@ -35,7 +35,12 @@ export type AuditEvent =
   | "billing.checkout_created"
   | "billing.sandbox_upgrade"
   | "billing.subscription_started"
-  | "billing.subscription_ended";
+  | "billing.subscription_ended"
+  // Ops console — privileged control-plane actions (append-only).
+  | "ops.control_changed"
+  | "ops.policy_changed"
+  | "ops.settlement_rechecked"
+  | "ops.security_acknowledged";
 
 export interface AuditEntry {
   id: number;

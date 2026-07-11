@@ -5,6 +5,8 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { buildSwapExecution, usdPrice } from "@/lib/services/swap";
 import { capExceeded } from "@/lib/moneyLimits";
+import { assertRailActive } from "@/lib/ops/controls";
+import { recordTxEvent, recordSecurityEvent } from "@/lib/ops/events";
 import type { Chain, Token } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -36,13 +38,20 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "swaps.execute", { limit: 20, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
+  const paused = await assertRailActive("lifi");
+  if (paused) return paused;
+
   const body = await validateBody(req, ExecuteSchema);
   if (body instanceof NextResponse) return body;
 
   // Hard server-side cap on USD notional (FURLPAY_MAX_SWAP_USD, default $500)
   // — UI limits are advisory, this is the enforcement point.
-  const cap = capExceeded("swap", body.amountIn * usdPrice(body.fromToken as Token));
-  if (cap) return NextResponse.json({ ok: false, error: "amount_over_limit", detail: cap.error }, { status: 403 });
+  const usdNotional = body.amountIn * usdPrice(body.fromToken as Token);
+  const cap = capExceeded("swap", usdNotional);
+  if (cap) {
+    void recordSecurityEvent({ rail: "lifi", kind: "amount_over_limit", severity: "low", detail: `swap $${usdNotional.toFixed(2)} > $${cap.capUsd}`, actor: auth.account.user.id });
+    return NextResponse.json({ ok: false, error: "amount_over_limit", detail: cap.error }, { status: 403 });
+  }
 
   const result = await buildSwapExecution({
     fromToken: body.fromToken as Token,
@@ -57,5 +66,13 @@ export async function POST(req: NextRequest) {
     const status = result.error === "route_unavailable" ? 502 : 400;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
+  // The signed tx is the user's to broadcast; record the intent as pending so
+  // the explorer shows it (settled state is confirmed on-chain out-of-band).
+  void recordTxEvent({
+    rail: "lifi", state: "pending", substate: "APPROVAL_REQUIRED",
+    amountUsd: usdNotional, feeUsd: result.execution.quote.feeUsd,
+    token: body.fromToken, sourceChain: body.fromChain, destChain: result.execution.quote.toChain,
+    userId: auth.account.user.id,
+  });
   return NextResponse.json({ ok: true, ...result.execution });
 }
