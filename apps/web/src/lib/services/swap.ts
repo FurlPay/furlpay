@@ -152,6 +152,18 @@ interface LifiQuoteResponse {
     executionDuration?: number;
     feeCosts?: { amountUsd?: string }[];
     gasCosts?: { amountUsd?: string }[];
+    /** Contract the user must approve (ERC-20 sends) before transactionRequest. */
+    approvalAddress?: string;
+  };
+  /** Ready-to-sign transaction for the route (EVM). Present when the quote
+   *  was requested with the user's real fromAddress. */
+  transactionRequest?: {
+    to?: string;
+    data?: string;
+    value?: string;
+    chainId?: number;
+    gasLimit?: string;
+    gasPrice?: string;
   };
 }
 
@@ -174,28 +186,29 @@ function defaultSlippagePct(fromChain: Chain, toChain: Chain): number {
   return crossVM(fromChain, toChain) ? 0.5 : 0.1;
 }
 
-async function fetchLifiQuote(params: {
+function buildLifiQs(params: {
   fromToken: Token;
   toToken: Token;
   fromChain: Chain;
   toChain: Chain;
   amountIn: number;
   slippagePct: number;
-}): Promise<SwapQuote | null> {
-  const { fromToken, toToken, fromChain, toChain, amountIn, slippagePct } = params;
-  const fromAddr = LIFI_TOKEN[fromChain]?.[fromToken];
-  const toAddr = LIFI_TOKEN[toChain]?.[toToken];
+  fromAddress: string;
+  toAddress: string;
+}): URLSearchParams | null {
+  const fromAddr = LIFI_TOKEN[params.fromChain]?.[params.fromToken];
+  const toAddr = LIFI_TOKEN[params.toChain]?.[params.toToken];
   if (!fromAddr || !toAddr) return null;
 
   const qs = new URLSearchParams({
-    fromChain: String(LIFI_CHAIN[fromChain]),
-    toChain: String(LIFI_CHAIN[toChain]),
+    fromChain: String(LIFI_CHAIN[params.fromChain]),
+    toChain: String(LIFI_CHAIN[params.toChain]),
     fromToken: fromAddr,
     toToken: toAddr,
-    fromAmount: toBaseUnits(amountIn, TOKEN_DECIMALS[fromToken]),
-    fromAddress: fromChain === "solana" ? QUOTE_PLACEHOLDER_SOL : QUOTE_PLACEHOLDER_EVM,
-    toAddress: toChain === "solana" ? QUOTE_PLACEHOLDER_SOL : QUOTE_PLACEHOLDER_EVM,
-    slippage: String(slippagePct / 100),
+    fromAmount: toBaseUnits(params.amountIn, TOKEN_DECIMALS[params.fromToken]),
+    fromAddress: params.fromAddress,
+    toAddress: params.toAddress,
+    slippage: String(params.slippagePct / 100),
   });
   // Integrator monetization (docs.li.fi/monetization-take-fees): `fee` is a
   // FRACTION of from-token volume (0.002 = 0.2%, max 0.10), deducted into
@@ -207,16 +220,43 @@ async function fetchLifiQuote(params: {
   if (Number.isFinite(lifiFee) && lifiFee > 0 && lifiFee <= 0.1) {
     qs.set("fee", String(lifiFee));
   }
+  return qs;
+}
 
+async function lifiFetch(qs: URLSearchParams): Promise<LifiQuoteResponse | null> {
   try {
     const headers: Record<string, string> = { accept: "application/json" };
     if (process.env.LIFI_API_KEY) headers["x-lifi-api-key"] = process.env.LIFI_API_KEY;
     const res = await fetch(`${LIFI_API}/quote?${qs}`, {
       headers,
-      signal: AbortSignal.timeout(4000),
+      signal: AbortSignal.timeout(8000),
     });
     if (!res.ok) return null;
-    const q = (await res.json()) as LifiQuoteResponse;
+    return (await res.json()) as LifiQuoteResponse;
+  } catch {
+    return null; // network error / timeout → caller falls back / errors
+  }
+}
+
+async function fetchLifiQuote(params: {
+  fromToken: Token;
+  toToken: Token;
+  fromChain: Chain;
+  toChain: Chain;
+  amountIn: number;
+  slippagePct: number;
+}): Promise<SwapQuote | null> {
+  const { fromToken, toToken, fromChain, toChain, amountIn, slippagePct } = params;
+  const qs = buildLifiQs({
+    ...params,
+    fromAddress: fromChain === "solana" ? QUOTE_PLACEHOLDER_SOL : QUOTE_PLACEHOLDER_EVM,
+    toAddress: toChain === "solana" ? QUOTE_PLACEHOLDER_SOL : QUOTE_PLACEHOLDER_EVM,
+  });
+  if (!qs) return null;
+
+  {
+    const q = await lifiFetch(qs);
+    if (!q) return null;
     const rawOut = q.estimate?.toAmount;
     if (!rawOut) return null;
 
@@ -241,9 +281,94 @@ async function fetchLifiQuote(params: {
       etaSeconds: q.estimate?.executionDuration ?? (fromChain === toChain ? 4 : 120),
       source: "lifi",
     };
-  } catch {
-    return null; // network error / timeout → caller falls back to mock
   }
+}
+
+// ---------------------------------------------------------------------------
+// Execution (non-custodial): a real-address quote whose transactionRequest
+// the USER's wallet signs — FurlPay never holds keys (same convention as
+// /api/intents/cctp and Earn). EVM-only: Solana routes need a VersionedTx
+// signer flow and are refused here.
+// ---------------------------------------------------------------------------
+
+export interface SwapExecution {
+  quote: SwapQuote;
+  /** Contract to approve (ERC-20 sends) before submitting transactionRequest;
+   *  null when no approval is needed (native token). */
+  approvalAddress: string | null;
+  /** Ready-to-sign route transaction from Li.Fi, for the user's wallet. */
+  transactionRequest: {
+    to: string;
+    data: string;
+    value: string;
+    chainId: number;
+    gasLimit?: string;
+  };
+}
+
+export async function buildSwapExecution(params: {
+  fromToken: Token;
+  toToken: Token;
+  fromChain: Chain;
+  toChain?: Chain;
+  amountIn: number;
+  fromAddress: string;
+  toAddress?: string;
+}): Promise<{ ok: true; execution: SwapExecution } | { ok: false; error: string }> {
+  const toChain =
+    params.toChain ??
+    CHEAPEST_CHAINS.find((c) => isTokenOnChain(params.toToken, c)) ??
+    TOKEN_CHAINS[params.toToken][0];
+  if (params.fromChain === "solana" || toChain === "solana") {
+    return { ok: false, error: "solana_execution_unsupported" };
+  }
+  if (!/^0x[0-9a-fA-F]{40}$/.test(params.fromAddress)) return { ok: false, error: "invalid_from_address" };
+  const toAddress = params.toAddress ?? params.fromAddress;
+  if (!/^0x[0-9a-fA-F]{40}$/.test(toAddress)) return { ok: false, error: "invalid_to_address" };
+
+  const slippagePct = defaultSlippagePct(params.fromChain, toChain);
+  const qs = buildLifiQs({ ...params, toChain, slippagePct, fromAddress: params.fromAddress, toAddress });
+  if (!qs) return { ok: false, error: "pair_not_routable" };
+
+  const q = await lifiFetch(qs);
+  const tx = q?.transactionRequest;
+  const rawOut = q?.estimate?.toAmount;
+  if (!q || !tx?.to || !tx?.data || !rawOut) return { ok: false, error: "route_unavailable" };
+
+  const sumUsd = (costs?: { amountUsd?: string }[]) =>
+    (costs ?? []).reduce((s, c) => s + (Number(c.amountUsd) || 0), 0);
+  const tool = q.toolDetails?.name ?? q.tool ?? "Li.Fi";
+
+  return {
+    ok: true,
+    execution: {
+      quote: {
+        fromToken: params.fromToken,
+        toToken: params.toToken,
+        fromChain: params.fromChain,
+        toChain,
+        amountIn: params.amountIn,
+        amountOut: fromBaseUnits(rawOut, TOKEN_DECIMALS[params.toToken]),
+        slippagePct,
+        gasUsd: round(sumUsd(q.estimate?.gasCosts), 4),
+        feeUsd: round(sumUsd(q.estimate?.feeCosts), 2),
+        route:
+          params.fromChain === toChain
+            ? [`${params.fromToken}→${params.toToken} via ${tool} on ${params.fromChain}`]
+            : [`${params.fromToken} on ${params.fromChain}`, `${tool} bridge → ${toChain}`, `→ ${params.toToken}`],
+        etaSeconds: q.estimate?.executionDuration ?? (params.fromChain === toChain ? 4 : 120),
+        source: "lifi",
+      },
+      approvalAddress: q.estimate?.approvalAddress ?? null,
+      transactionRequest: {
+        to: tx.to,
+        data: tx.data,
+        value: tx.value ?? "0x0",
+        chainId: tx.chainId ?? Number(LIFI_CHAIN[params.fromChain]),
+        gasLimit: tx.gasLimit,
+      },
+    },
+  };
 }
 
 // ---------------------------------------------------------------------------
