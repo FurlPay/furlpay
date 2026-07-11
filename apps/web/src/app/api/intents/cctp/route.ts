@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { buildBurnBundle, buildMintTransaction, CCTP_DOMAINS } from "@/lib/services/cctpExecution";
+import { capExceeded } from "@/lib/moneyLimits";
 import type { Chain } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -48,6 +49,9 @@ export async function POST(req: NextRequest) {
       if (body.sourceChain === body.destinationChain) {
         return NextResponse.json({ error: "source and destination must differ" }, { status: 400 });
       }
+      // Hard server-side cap (FURLPAY_MAX_CCTP_USD, default $500).
+      const cap = capExceeded("cctp", body.amount);
+      if (cap) return NextResponse.json({ error: "amount_over_limit", detail: cap.error }, { status: 403 });
       const bundle = buildBurnBundle({
         sourceChain: body.sourceChain,
         destinationChain: body.destinationChain,

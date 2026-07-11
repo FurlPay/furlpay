@@ -3,7 +3,8 @@ import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
-import { buildSwapExecution } from "@/lib/services/swap";
+import { buildSwapExecution, usdPrice } from "@/lib/services/swap";
+import { capExceeded } from "@/lib/moneyLimits";
 import type { Chain, Token } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,11 @@ export async function POST(req: NextRequest) {
 
   const body = await validateBody(req, ExecuteSchema);
   if (body instanceof NextResponse) return body;
+
+  // Hard server-side cap on USD notional (FURLPAY_MAX_SWAP_USD, default $500)
+  // — UI limits are advisory, this is the enforcement point.
+  const cap = capExceeded("swap", body.amountIn * usdPrice(body.fromToken as Token));
+  if (cap) return NextResponse.json({ ok: false, error: "amount_over_limit", detail: cap.error }, { status: 403 });
 
   const result = await buildSwapExecution({
     fromToken: body.fromToken as Token,

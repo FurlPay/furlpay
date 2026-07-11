@@ -175,6 +175,10 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("LIFI_API_URL"),
       v("LIFI_INTEGRATOR"),
       v("LIFI_FEE"),
+      // Hard server-side per-transaction caps on the real execution rails
+      // (lib/moneyLimits.ts). Defaults $500; raise as monitoring matures.
+      v("FURLPAY_MAX_SWAP_USD"),
+      v("FURLPAY_MAX_CCTP_USD"),
       v("MORPHO_API_URL"),
       v("MORPHO_USDC_VAULT"),
     ],
