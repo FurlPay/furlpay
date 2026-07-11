@@ -76,18 +76,18 @@ def main():
     warns = [f for f in findings if tier(f) == "warn"]
     infos = [f for f in findings if tier(f) == "info"]
 
-    status = "🔴 **FAILED** — high-severity findings block this merge" if blocks else "🟢 **PASSED**"
+    status = "**Status: FAILED** — high-severity findings block this merge" if blocks else "**Status: PASSED**"
     lines = [
         MARKER,
-        "## 🛡️ Contract Security Scan",
+        "## Contract Security Scan",
         "",
         status,
         "",
         f"| Tier | Count |",
         f"|---|---|",
-        f"| 🔴 Blocking (Slither High / Semgrep ERROR) | {len(blocks)} |",
-        f"| 🟡 Warning (Medium / WARNING) | {len(warns)} |",
-        f"| 🔵 Info | {len(infos)} |",
+        f"| BLOCKING (Slither High / Semgrep ERROR) | {len(blocks)} |",
+        f"| WARNING (Medium / WARNING) | {len(warns)} |",
+        f"| INFO | {len(infos)} |",
         "",
     ]
     shown = blocks + warns
@@ -97,9 +97,9 @@ def main():
             "|---|---|---|---|---|",
         ]
         for f in shown[:40]:
-            icon = "🔴" if tier(f) == "block" else "🟡"
+            label = "BLOCKING" if tier(f) == "block" else "WARNING"
             detail = f["detail"].replace("|", "\\|")
-            lines.append(f"| {icon} {f['severity']} | {f['tool']} | `{f['rule']}` | `{f['file']}:{f['line']}` | {detail} |")
+            lines.append(f"| {label} ({f['severity']}) | {f['tool']} | `{f['rule']}` | `{f['file']}:{f['line']}` | {detail} |")
         if len(shown) > 40:
             lines.append(f"\n…and {len(shown) - 40} more (see SARIF artifacts).")
     else:

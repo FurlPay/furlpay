@@ -1,10 +1,10 @@
-# ---------------------------------------------------------------------------
-# Security Audit — automated vulnerability scanning + Discord alerts
+﻿# ---------------------------------------------------------------------------
+# Security Audit â€” automated vulnerability scanning + Discord alerts
 #
 # Triggers:
-#   • Every push to main / extension-redesign
-#   • Every PR
-#   • Daily at 06:00 UTC (11:30 AM IST)
+#   â€¢ Every push to main / extension-redesign
+#   â€¢ Every PR
+#   â€¢ Daily at 06:00 UTC (11:30 AM IST)
 #
 # What it does:
 #   1. npm audit (production deps only, high/critical threshold)
@@ -27,10 +27,10 @@ permissions:
 
 jobs:
   # -----------------------------------------------------------------------
-  # Job 1: npm audit — catch vulnerable production dependencies
+  # Job 1: npm audit â€” catch vulnerable production dependencies
   # -----------------------------------------------------------------------
   npm-audit:
-    name: "🔍 Dependency Audit"
+    name: "ðŸ” Dependency Audit"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -51,7 +51,7 @@ jobs:
           npm audit --omit=dev --audit-level=high --json > audit-report.json 2>&1 || true
 
           # Known-accepted advisories (no upstream fix / tracked major upgrade)
-          # live in .github/audit-allowlist.json — they are reported but don't
+          # live in .github/audit-allowlist.json â€” they are reported but don't
           # fail the build, so real regressions stay signal, not noise.
           ALLOW=$(jq -c '[.[].name]' .github/audit-allowlist.json)
 
@@ -74,10 +74,10 @@ jobs:
 
           echo "Accepted (allowlisted) high/critical advisories: $ACCEPTED"
           if [ "$CRITICAL" -gt 0 ] || [ "$HIGH" -gt 0 ]; then
-            echo "❌ Found $CRITICAL critical and $HIGH high NON-allowlisted vulnerabilities"
+            echo "âŒ Found $CRITICAL critical and $HIGH high NON-allowlisted vulnerabilities"
             exit 1
           fi
-          echo "✅ No non-allowlisted critical/high vulnerabilities"
+          echo "âœ… No non-allowlisted critical/high vulnerabilities"
 
       - name: Upload audit report
         if: always()
@@ -100,7 +100,7 @@ jobs:
 
           curl -s -H "Content-Type: application/json" -d "{
             \"embeds\": [{
-              \"title\": \"🚨 FurlPay Security Alert — Vulnerable Dependencies\",
+              \"title\": \"ðŸš¨ FurlPay Security Alert â€” Vulnerable Dependencies\",
               \"color\": 15548997,
               \"fields\": [
                 {\"name\": \"Critical\", \"value\": \"$CRITICAL\", \"inline\": true},
@@ -115,16 +115,16 @@ jobs:
           }" "$DISCORD_WEBHOOK"
 
       # Without this, continue-on-error would leave the job green even when
-      # the audit found new vulnerabilities — masking every alert downstream.
+      # the audit found new vulnerabilities â€” masking every alert downstream.
       - name: Propagate audit failure
         if: steps.audit.outcome == 'failure'
         run: exit 1
 
   # -----------------------------------------------------------------------
-  # Job 2: Secret leak detection — prevent API keys from being committed
+  # Job 2: Secret leak detection â€” prevent API keys from being committed
   # -----------------------------------------------------------------------
   secret-scan:
-    name: "🔑 Secret Leak Scan"
+    name: "ðŸ”‘ Secret Leak Scan"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -147,7 +147,7 @@ jobs:
 
           curl -s -H "Content-Type: application/json" -d "{
             \"embeds\": [{
-              \"title\": \"🔴 CRITICAL — Secret Leaked in Code\",
+              \"title\": \"ðŸ”´ CRITICAL â€” Secret Leaked in Code\",
               \"description\": \"Gitleaks detected a potential secret or API key in the repository. **Rotate the exposed credential immediately.**\",
               \"color\": 15158332,
               \"fields\": [
@@ -159,7 +159,7 @@ jobs:
             }]
           }" "$DISCORD_WEBHOOK"
 
-      # Same masking issue as the audit job — a leak must turn the run red.
+      # Same masking issue as the audit job â€” a leak must turn the run red.
       - name: Propagate gitleaks failure
         if: steps.gitleaks.outcome == 'failure'
         run: exit 1
@@ -168,7 +168,7 @@ jobs:
   # Job 3: Daily health summary (runs only on schedule, not on push/PR)
   # -----------------------------------------------------------------------
   daily-summary:
-    name: "📊 Daily Security Summary"
+    name: "ðŸ“Š Daily Security Summary"
     # always(): without it a failed needs-job SKIPS this job entirely, so the
     # daily summary would go silent exactly on the days something is wrong.
     if: always() && github.event_name == 'schedule'
@@ -187,11 +187,11 @@ jobs:
 
           if [ "$AUDIT_STATUS" = "success" ] && [ "$SECRET_STATUS" = "success" ]; then
             COLOR=5763719  # green
-            TITLE="✅ FurlPay Daily Security Check — All Clear"
+            TITLE="âœ… FurlPay Daily Security Check â€” All Clear"
             DESC="No vulnerabilities or leaked secrets detected."
           else
             COLOR=15548997  # red
-            TITLE="⚠️ FurlPay Daily Security Check — Issues Found"
+            TITLE="âš ï¸ FurlPay Daily Security Check â€” Issues Found"
             DESC="One or more checks failed. Review the workflow run."
           fi
 

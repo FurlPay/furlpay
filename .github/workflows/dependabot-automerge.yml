@@ -1,17 +1,17 @@
-# ---------------------------------------------------------------------------
-# Dependabot Auto-Merge — automatically merge patch/minor security updates
+﻿# ---------------------------------------------------------------------------
+# Dependabot Auto-Merge â€” automatically merge patch/minor security updates
 #
 # When Dependabot opens a PR:
-#   1. If it's a patch or minor version bump → auto-approve + auto-merge
-#   2. If it's a major version bump → notify Discord for manual review
+#   1. If it's a patch or minor version bump â†’ auto-approve + auto-merge
+#   2. If it's a major version bump â†’ notify Discord for manual review
 #   3. All auto-merges require CI to pass first
 #
 # Setup requirements (one-time):
-#   • Repo setting "Allow auto-merge" must be ON (gh pr merge --auto errors
+#   â€¢ Repo setting "Allow auto-merge" must be ON (gh pr merge --auto errors
 #     otherwise).
-#   • Dependabot-triggered runs can ONLY read Dependabot secrets, not Actions
-#     secrets — DISCORD_SECURITY_WEBHOOK must be added under
-#     Settings → Secrets and variables → Dependabot as well.
+#   â€¢ Dependabot-triggered runs can ONLY read Dependabot secrets, not Actions
+#     secrets â€” DISCORD_SECURITY_WEBHOOK must be added under
+#     Settings â†’ Secrets and variables â†’ Dependabot as well.
 # ---------------------------------------------------------------------------
 name: Dependabot Auto-Merge
 
@@ -23,7 +23,7 @@ permissions:
 
 jobs:
   auto-merge:
-    name: "🤖 Auto-Merge Dependabot"
+    name: "ðŸ¤– Auto-Merge Dependabot"
     runs-on: ubuntu-latest
     if: github.actor == 'dependabot[bot]'
     steps:
@@ -58,11 +58,11 @@ jobs:
 
           curl -s -H "Content-Type: application/json" -d "{
             \"embeds\": [{
-              \"title\": \"⚠️ Major Dependency Update — Manual Review Required\",
+              \"title\": \"âš ï¸ Major Dependency Update â€” Manual Review Required\",
               \"color\": 16776960,
               \"fields\": [
                 {\"name\": \"Package\", \"value\": \"\`$DEP_NAME\`\", \"inline\": true},
-                {\"name\": \"Version\", \"value\": \"\`$OLD_VER\` → \`$NEW_VER\`\", \"inline\": true},
+                {\"name\": \"Version\", \"value\": \"\`$OLD_VER\` â†’ \`$NEW_VER\`\", \"inline\": true},
                 {\"name\": \"PR\", \"value\": \"[Review PR]($PR_URL)\", \"inline\": false}
               ],
               \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"

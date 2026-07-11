@@ -34,7 +34,7 @@ permissions:
 
 jobs:
   scan:
-    name: "🛡️ Slither + Semgrep"
+    name: "Contract Scan (Slither + Semgrep)"
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -131,7 +131,7 @@ jobs:
           import json
           summary = open("scan-summary.md", encoding="utf-8").read()[:1800]
           print(json.dumps({"embeds": [{
-            "title": "🔴 Contract security scan FAILED",
+            "title": "[CRITICAL] Contract security scan FAILED",
             "description": summary,
             "color": 15158332,
             "url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",

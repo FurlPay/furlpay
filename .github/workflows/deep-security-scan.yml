@@ -1,5 +1,5 @@
-# ---------------------------------------------------------------------------
-# Deep Security Scanning — SAST + Secret Scanning + License Compliance
+﻿# ---------------------------------------------------------------------------
+# Deep Security Scanning â€” SAST + Secret Scanning + License Compliance
 #
 # Runs Semgrep (SAST) on every PR and nightly for deep analysis.
 # Catches code-level vulnerabilities that npm audit can't find:
@@ -22,11 +22,11 @@ permissions:
 
 jobs:
   # -----------------------------------------------------------------------
-  # Semgrep SAST — pattern-based static analysis
+  # Semgrep SAST â€” pattern-based static analysis
   # Free for up to 10 contributors / 50 repos
   # -----------------------------------------------------------------------
   semgrep:
-    name: "🔬 Semgrep SAST Scan"
+    name: "ðŸ”¬ Semgrep SAST Scan"
     runs-on: ubuntu-latest
     container:
       image: semgrep/semgrep
@@ -98,7 +98,7 @@ jobs:
 
           curl -s -H "Content-Type: application/json" -d "{
             \"embeds\": [{
-              \"title\": \"🔬 SAST Alert — Code Vulnerabilities Detected\",
+              \"title\": \"ðŸ”¬ SAST Alert â€” Code Vulnerabilities Detected\",
               \"color\": 15548997,
               \"fields\": [
                 {\"name\": \"Errors\", \"value\": \"$ERRORS\", \"inline\": true},
@@ -120,7 +120,7 @@ jobs:
             const fs = require('fs');
             const output = fs.readFileSync('semgrep-output.txt', 'utf8');
             const findings = output.split('\n').filter(l => l.includes('severity:')).slice(0, 10);
-            const body = `## 🔬 Semgrep Security Scan Results\n\n⚠️ **Security issues detected.** Please review before merging.\n\n\`\`\`\n${findings.join('\n')}\n\`\`\`\n\n[View full report in the Security tab](${{ github.server_url }}/${{ github.repository }}/security/code-scanning)`;
+            const body = `## ðŸ”¬ Semgrep Security Scan Results\n\nâš ï¸ **Security issues detected.** Please review before merging.\n\n\`\`\`\n${findings.join('\n')}\n\`\`\`\n\n[View full report in the Security tab](${{ github.server_url }}/${{ github.repository }}/security/code-scanning)`;
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
@@ -133,14 +133,14 @@ jobs:
       - name: Fail if Semgrep found issues
         if: steps.semgrep.outcome == 'failure'
         run: |
-          echo "❌ Semgrep found security issues — failing the workflow."
+          echo "âŒ Semgrep found security issues â€” failing the workflow."
           exit 1
 
   # -----------------------------------------------------------------------
-  # License compliance — block copyleft/unknown licenses in prod deps
+  # License compliance â€” block copyleft/unknown licenses in prod deps
   # -----------------------------------------------------------------------
   license-check:
-    name: "📜 License Compliance"
+    name: "ðŸ“œ License Compliance"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -167,7 +167,7 @@ jobs:
           [ -z "$DISCORD_WEBHOOK" ] && exit 0
           curl -s -H "Content-Type: application/json" -d "{
             \"embeds\": [{
-              \"title\": \"📜 License Compliance Alert\",
+              \"title\": \"ðŸ“œ License Compliance Alert\",
               \"description\": \"A production dependency uses a copyleft license (GPL/AGPL/SSPL). This may require FurlPay to open-source its code.\",
               \"color\": 16776960,
               \"fields\": [
