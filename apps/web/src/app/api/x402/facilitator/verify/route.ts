@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verify, type FacilitatorRequest } from "@/lib/x402Facilitator";
+import { verify, type AnyFacilitatorRequest } from "@/lib/x402Facilitator";
 
 // POST /api/x402/facilitator/verify — validate a payment payload against the
-// resource server's payment requirements. Returns { isValid, payer, invalidReason }.
+// resource server's payment requirements. Accepts x402 v1 and v2 payloads.
+// Returns { isValid, payer, invalidReason }.
 export async function POST(req: NextRequest) {
-  let body: FacilitatorRequest;
+  let body: AnyFacilitatorRequest;
   try {
     body = await req.json();
   } catch {

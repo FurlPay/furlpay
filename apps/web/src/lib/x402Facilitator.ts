@@ -36,12 +36,95 @@ function liveMode(): boolean {
 // deployment injects a real on-chain settler (RPC + sponsored fee payer).
 // ---------------------------------------------------------------------------
 
+// x402 v2 (Dec 2025) is not just a header rename — the payload shapes changed:
+// `maxAmountRequired` became `amount`, resource metadata was hoisted out of each
+// requirement into a top-level ResourceInfo, and the client now echoes the full
+// `accepted` requirements instead of a bare `extra`. We accept BOTH dialects and
+// normalize v2 down to the v1 shape below, so every security check in verify()
+// and settle() is written once and cannot drift between versions.
+export const X402_VERSION_V2 = 2;
+
+const NETWORKS = ["arbitrum", "arbitrum-sepolia", "solana", "base"] as const;
+
 export const SUPPORTED_KINDS = [
-  { x402Version: X402_VERSION, scheme: "exact", network: "arbitrum" },
-  { x402Version: X402_VERSION, scheme: "exact", network: "arbitrum-sepolia" },
-  { x402Version: X402_VERSION, scheme: "exact", network: "solana" },
-  { x402Version: X402_VERSION, scheme: "exact", network: "base" },
+  ...NETWORKS.map((network) => ({ x402Version: X402_VERSION, scheme: "exact", network })),
+  ...NETWORKS.map((network) => ({ x402Version: X402_VERSION_V2, scheme: "exact", network })),
 ] as const;
+
+/** v2 requirements: `amount` replaces `maxAmountRequired`; no resource/description. */
+interface PaymentRequirementsV2 {
+  scheme: string;
+  network: string;
+  asset: string;
+  amount: string;
+  payTo: string;
+  maxTimeoutSeconds: number;
+  extra?: Record<string, unknown>;
+}
+
+interface ResourceInfoV2 {
+  url?: string;
+  description?: string;
+  mimeType?: string;
+}
+
+/** v2 payload: the client echoes the FULL requirements it is paying against. */
+interface PaymentPayloadV2 {
+  x402Version: number;
+  resource?: ResourceInfoV2;
+  accepted: PaymentRequirementsV2;
+  payload: XPaymentPayload["payload"];
+}
+
+export interface FacilitatorRequestV2 {
+  x402Version: number;
+  paymentPayload: PaymentPayloadV2;
+  paymentRequirements: PaymentRequirementsV2;
+}
+
+/** Anything a caller may POST to /verify or /settle. */
+export type AnyFacilitatorRequest = FacilitatorRequest | FacilitatorRequestV2;
+
+/**
+ * Collapse a v2 request onto the canonical v1 shape.
+ *
+ * The mapping is meaning-preserving, not merely structural: the client's echo
+ * (`paymentPayload.accepted`) stays on the payload side and the resource
+ * server's terms (`paymentRequirements`) stay on the requirements side, so
+ * verify()'s scheme/network/recipient/amount comparisons still pit one against
+ * the other. Flattening those two into one object would silently delete every
+ * check that matters.
+ */
+export function normalizeFacilitatorRequest(req: AnyFacilitatorRequest): FacilitatorRequest | null {
+  if (req?.x402Version === X402_VERSION) return req as FacilitatorRequest;
+  if (req?.x402Version !== X402_VERSION_V2) return null;
+
+  const { paymentPayload: p, paymentRequirements: r } = req as FacilitatorRequestV2;
+  if (!p?.accepted || !p?.payload || !r) return null;
+
+  return {
+    x402Version: X402_VERSION,
+    paymentPayload: {
+      x402Version: X402_VERSION,
+      scheme: p.accepted.scheme,
+      network: p.accepted.network,
+      payload: p.payload,
+      extra: p.accepted.extra as XPaymentPayload["extra"],
+    },
+    paymentRequirements: {
+      scheme: r.scheme as "exact",
+      network: r.network,
+      maxAmountRequired: r.amount,
+      resource: p.resource?.url ?? "",
+      description: p.resource?.description ?? "",
+      mimeType: p.resource?.mimeType ?? "application/json",
+      payTo: r.payTo,
+      maxTimeoutSeconds: r.maxTimeoutSeconds,
+      asset: r.asset,
+      extra: r.extra as PaymentRequirements["extra"],
+    },
+  };
+}
 
 // Durable nonce claim. Backed by Redis (lib/kv.ts) so a nonce burned on one
 // serverless instance is seen by every other (Attack II — the same replay hole
@@ -83,11 +166,14 @@ function supports(scheme: string, network: string): boolean {
 
 /** Validate a payment payload against the requirements the resource server set.
  *  Async because live mode cryptographically recovers the EIP-3009 signer. */
-export async function verify(req: FacilitatorRequest): Promise<VerifyResult> {
+export async function verify(request: AnyFacilitatorRequest): Promise<VerifyResult> {
+  // Accept v1 or v2 on the wire; everything below reasons about one shape.
+  const req = normalizeFacilitatorRequest(request);
+  if (!req) return fail("unsupported_version");
+
   const { paymentPayload: p, paymentRequirements: r } = req;
   const auth = p?.payload?.authorization;
 
-  if (req.x402Version !== X402_VERSION) return fail("unsupported_version");
   if (!auth || typeof p?.payload?.signature !== "string") return fail("malformed_payload");
   if (p.scheme !== r.scheme) return fail("scheme_mismatch");
   if (p.network !== r.network) return fail("network_mismatch");
@@ -174,7 +260,10 @@ function resolveSettler(): Settler | null {
  *  the resource is only released once the settlement reaches the confirmation
  *  depth the amount requires (Attack I-A). Pass an explicit settler to override
  *  the default (real-when-configured, else mock in demo mode only). */
-export async function settle(req: FacilitatorRequest, settler?: Settler): Promise<SettleResult> {
+export async function settle(request: AnyFacilitatorRequest, settler?: Settler): Promise<SettleResult> {
+  const req = normalizeFacilitatorRequest(request);
+  if (!req) return { success: false, network: "unknown", errorReason: "unsupported_version" };
+
   const network = req.paymentRequirements?.network ?? "unknown";
   const v = await verify(req);
   if (!v.isValid) return { success: false, network, errorReason: v.invalidReason };
