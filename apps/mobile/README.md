@@ -52,11 +52,23 @@ from the TWA:
 ### Local build (no EAS account needed)
 
 ```bash
-npx expo prebuild --platform android          # generates android/
-# copy apps/android/android.keystore into android/app/ and add the
-# signingConfig to android/app/build.gradle (same values as the TWA's), then:
-cd android && ./gradlew bundleRelease         # → app-release.aab
+npx expo prebuild --platform android          # generates android/ (gitignored)
+cp ../android/android.keystore android/app/furlpay-upload.keystore
+# add to android/app/build.gradle signingConfigs:
+#   release {
+#     storeFile file('furlpay-upload.keystore')
+#     storePassword System.getenv('FURLPAY_UPLOAD_STORE_PASSWORD') ?: findProperty('FURLPAY_UPLOAD_STORE_PASSWORD')
+#     keyAlias 'furlpay'
+#     keyPassword System.getenv('FURLPAY_UPLOAD_KEY_PASSWORD') ?: findProperty('FURLPAY_UPLOAD_KEY_PASSWORD')
+#   }
+# and point buildTypes.release at signingConfigs.release. Then:
+cd android
+FURLPAY_UPLOAD_STORE_PASSWORD=... FURLPAY_UPLOAD_KEY_PASSWORD=... \
+  ./gradlew :app:bundleRelease :app:assembleRelease
+# → app/build/outputs/bundle/release/app-release.aab (Play upload)
+# → app/build/outputs/apk/release/app-release.apk  (sideload)
 ```
+Passwords are in `apps/android/.signing-credentials.txt` (never commit them).
 
 ### EAS build
 

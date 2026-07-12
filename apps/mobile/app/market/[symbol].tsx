@@ -8,6 +8,7 @@ import { api, ApiError } from "@/lib/api";
 import { usd } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, Surface } from "@/components/ui";
+import { PriceChart } from "@/components/PriceChart";
 
 interface AssetDetail {
   asset: { symbol: string; name: string; kind: "stock" | "etf" | "crypto"; sector: string | null };
@@ -98,6 +99,8 @@ export default function MarketDetail() {
             {data.quote.live ? "" : " · delayed"}
           </Text>
         </View>
+
+        <PriceChart symbol={data.asset.symbol} />
 
         {data.position ? (
           <Surface style={{ gap: 2 }}>

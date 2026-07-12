@@ -1,5 +1,9 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
+  Dimensions,
+  FlatList,
+  Modal,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -9,6 +13,7 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
+import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
@@ -56,29 +61,209 @@ function CardVisual({ card }: { card: PaymentCard }) {
   );
 }
 
-function CardControls({ card }: { card: PaymentCard }) {
+/** Post a partial settings change and refresh the cards query. */
+function useCardSettings() {
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const save = async (body: Record<string, unknown>) => {
+    setError(null);
+    try {
+      await api("/cards/settings", { method: "POST", body });
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      await qc.invalidateQueries({ queryKey: ["cards"] });
+      return true;
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+      return false;
+    }
+  };
+  return { save, error, setError };
+}
+
+function SheetModal({
+  title,
+  visible,
+  onClose,
+  children,
+}: {
+  title: string;
+  visible: boolean;
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={styles.backdrop} onPress={onClose} />
+      <View style={styles.sheet}>
+        <View style={styles.controlRow}>
+          <Text style={type.h2}>{title}</Text>
+          <Pressable onPress={onClose} hitSlop={8}>
+            <Text style={{ color: colors.textDim, fontSize: 20 }}>✕</Text>
+          </Pressable>
+        </View>
+        {children}
+      </View>
+    </Modal>
+  );
+}
+
+/** Biometric-gated card details — same demo PAN/CVV values as the web's
+ *  ViewModal, but behind a REAL device biometric prompt instead of a
+ *  simulated one. */
+function DetailsModal({ card, onClose }: { card: PaymentCard; onClose: () => void }) {
+  const [authed, setAuthed] = useState(false);
+  const [failed, setFailed] = useState(false);
+
+  const authenticate = async () => {
+    const enrolled =
+      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
+    if (!enrolled) {
+      setAuthed(true);
+      return;
+    }
+    const res = await LocalAuthentication.authenticateAsync({
+      promptMessage: "Reveal full card details",
+    });
+    if (res.success) setAuthed(true);
+    else setFailed(true);
+  };
+
+  return (
+    <SheetModal title="Card details" visible onClose={onClose}>
+      {!authed ? (
+        <View style={{ gap: spacing.md, paddingVertical: spacing.md }}>
+          <Text style={[type.dim, { textAlign: "center" }]}>
+            {failed
+              ? "Authentication failed — try again."
+              : "Revealing full card details requires your fingerprint or face."}
+          </Text>
+          <Button title="Authenticate to reveal" onPress={() => void authenticate()} />
+        </View>
+      ) : (
+        <View style={{ gap: spacing.sm, paddingVertical: spacing.sm }}>
+          <View style={styles.detailField}>
+            <Text style={type.dim}>Card number</Text>
+            <Text style={styles.detailMono}>4111 5522 8834 {card.last4}</Text>
+          </View>
+          <View style={{ flexDirection: "row", gap: spacing.sm }}>
+            <View style={[styles.detailField, { flex: 1 }]}>
+              <Text style={type.dim}>Expiry</Text>
+              <Text style={styles.detailMono}>09 / 29</Text>
+            </View>
+            <View style={[styles.detailField, { flex: 1 }]}>
+              <Text style={type.dim}>CVV</Text>
+              <Text style={styles.detailMono}>284</Text>
+            </View>
+          </View>
+          <View style={styles.detailField}>
+            <Text style={type.dim}>Network</Text>
+            <Text style={type.body}>{card.network}</Text>
+          </View>
+        </View>
+      )}
+    </SheetModal>
+  );
+}
+
+function Stepper({
+  label,
+  value,
+  step,
+  max,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  step: number;
+  max: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <View style={styles.controlRow}>
+        <Text style={type.body}>{label}</Text>
+        <Text style={[type.body, { fontWeight: "700" }]}>{usd(value)}</Text>
+      </View>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+        <Pressable
+          onPress={() => onChange(Math.max(step, value - step))}
+          style={styles.stepBtn}
+        >
+          <Text style={styles.stepText}>−</Text>
+        </Pressable>
+        <View style={[styles.meter, { flex: 1 }]}>
+          <View style={[styles.meterFill, { width: `${Math.min(100, (value / max) * 100)}%` }]} />
+        </View>
+        <Pressable onPress={() => onChange(Math.min(max, value + step))} style={styles.stepBtn}>
+          <Text style={styles.stepText}>+</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function LimitsModal({ card, onClose }: { card: PaymentCard; onClose: () => void }) {
+  const { save, error } = useCardSettings();
+  const [perPurchase, setPerPurchase] = useState(card.limits.perPurchase);
+  const [daily, setDaily] = useState(card.limits.daily);
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <SheetModal title="Spending limits" visible onClose={onClose}>
+      <View style={{ gap: spacing.md, paddingVertical: spacing.sm }}>
+        <Stepper label="Per-purchase limit" value={perPurchase} step={250} max={10_000} onChange={setPerPurchase} />
+        <Stepper label="Daily limit" value={daily} step={500} max={20_000} onChange={setDaily} />
+        <ErrorNote message={error} />
+        <Button
+          title="Save limits"
+          loading={busy}
+          onPress={() => {
+            setBusy(true);
+            void save({ cardId: card.id, limits: { perPurchase, daily } }).then((ok) => {
+              setBusy(false);
+              if (ok) onClose();
+            });
+          }}
+        />
+      </View>
+    </SheetModal>
+  );
+}
+
+function CardControls({ card }: { card: PaymentCard }) {
+  const { save, error } = useCardSettings();
   const [pendingFrozen, setPendingFrozen] = useState<boolean | null>(null);
+  const [modal, setModal] = useState<"details" | "limits" | null>(null);
 
   const frozen = pendingFrozen ?? card.frozen;
   const spentPct = card.limits.daily > 0 ? Math.min(1, card.limits.dailySpent / card.limits.daily) : 0;
 
   const toggleFreeze = async (value: boolean) => {
-    setError(null);
     setPendingFrozen(value);
-    try {
-      await api("/cards/settings", { method: "POST", body: { cardId: card.id, freeze: value } });
-      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      await qc.invalidateQueries({ queryKey: ["cards"] });
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : (e as Error).message);
-      setPendingFrozen(null);
-    }
+    const ok = await save({ cardId: card.id, freeze: value });
+    if (!ok) setPendingFrozen(null);
   };
+
+  const toggleChannel = (channel: "online" | "offline" | "atm", value: boolean) =>
+    void save({ cardId: card.id, channels: { [channel]: value } });
 
   return (
     <Surface style={{ gap: spacing.sm }}>
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <Button
+          title="View details"
+          variant="secondary"
+          onPress={() => setModal("details")}
+          style={{ flex: 1, paddingVertical: 10 }}
+        />
+        <Button
+          title="Limits"
+          variant="secondary"
+          onPress={() => setModal("limits")}
+          style={{ flex: 1, paddingVertical: 10 }}
+        />
+      </View>
+
       <View style={styles.controlRow}>
         <Text style={type.body}>Freeze card</Text>
         <Switch
@@ -88,6 +273,7 @@ function CardControls({ card }: { card: PaymentCard }) {
           thumbColor={frozen ? colors.neon : colors.textDim}
         />
       </View>
+
       <View style={{ gap: 6 }}>
         <View style={styles.controlRow}>
           <Text style={type.dim}>Daily spend</Text>
@@ -100,15 +286,39 @@ function CardControls({ card }: { card: PaymentCard }) {
         </View>
         <Text style={type.dim}>Per-purchase limit {usd(card.limits.perPurchase)}</Text>
       </View>
+
+      {(["online", "offline", "atm"] as const).map((ch) => (
+        <View key={ch} style={styles.controlRow}>
+          <Text style={type.dim}>
+            {ch === "online" ? "Online payments" : ch === "offline" ? "In-store payments" : "ATM withdrawals"}
+          </Text>
+          <Switch
+            value={card.channels[ch]}
+            onValueChange={(v) => toggleChannel(ch, v)}
+            trackColor={{ true: colors.neonDeep, false: colors.surfaceRaised }}
+            thumbColor={card.channels[ch] ? colors.neon : colors.textDim}
+          />
+        </View>
+      ))}
+
       <ErrorNote message={error} />
+      {modal === "details" ? <DetailsModal card={card} onClose={() => setModal(null)} /> : null}
+      {modal === "limits" ? <LimitsModal card={card} onClose={() => setModal(null)} /> : null}
     </Surface>
   );
 }
+
+const PAGE_W = Dimensions.get("window").width;
+const CARD_W = PAGE_W - spacing.md * 2;
 
 export default function Cards() {
   const router = useRouter();
   const { data: result, isLoading, refetch, isRefetching, error } = useCards();
   const cards = result?.data ?? [];
+  const [active, setActive] = useState(0);
+  const listRef = useRef<FlatList<PaymentCard>>(null);
+
+  const activeCard = cards[Math.min(active, Math.max(0, cards.length - 1))];
 
   return (
     <Screen>
@@ -129,12 +339,36 @@ export default function Cards() {
             subtitle={error ? (error as Error).message : "Issue a virtual card from the web dashboard."}
           />
         ) : (
-          cards.map((card) => (
-            <View key={card.id} style={{ gap: spacing.sm }}>
-              <CardVisual card={card} />
-              <CardControls card={card} />
-            </View>
-          ))
+          <>
+            {/* Swipable card carousel */}
+            <FlatList
+              ref={listRef}
+              data={cards}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(c) => c.id}
+              snapToInterval={CARD_W + spacing.sm}
+              decelerationRate="fast"
+              onMomentumScrollEnd={(e) =>
+                setActive(Math.round(e.nativeEvent.contentOffset.x / (CARD_W + spacing.sm)))
+              }
+              renderItem={({ item }) => (
+                <View style={{ width: CARD_W, marginRight: spacing.sm }}>
+                  <CardVisual card={item} />
+                </View>
+              )}
+            />
+            {/* Dot indicators */}
+            {cards.length > 1 ? (
+              <View style={styles.dots}>
+                {cards.map((c, i) => (
+                  <View key={c.id} style={[styles.dot, i === active && styles.dotActive]} />
+                ))}
+              </View>
+            ) : null}
+            {activeCard ? <CardControls key={activeCard.id} card={activeCard} /> : null}
+          </>
         )}
       </ScrollView>
     </Screen>
@@ -190,4 +424,38 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   meterFill: { height: "100%", backgroundColor: colors.neon },
+  dots: { flexDirection: "row", justifyContent: "center", gap: 6 },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "rgba(255,255,255,0.25)",
+  },
+  dotActive: { width: 20, backgroundColor: colors.neon },
+  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.6)" },
+  sheet: {
+    backgroundColor: colors.surface,
+    borderTopLeftRadius: radius.lg,
+    borderTopRightRadius: radius.lg,
+    padding: spacing.lg,
+    gap: spacing.sm,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  detailField: {
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.sm,
+    padding: spacing.sm,
+    gap: 2,
+  },
+  detailMono: { color: colors.text, fontFamily: "monospace", fontSize: 16, letterSpacing: 1 },
+  stepBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  stepText: { color: colors.neon, fontSize: 20, fontWeight: "700" },
 });
