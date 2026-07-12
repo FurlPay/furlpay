@@ -13,6 +13,8 @@
 // ---------------------------------------------------------------------------
 
 import crypto from "crypto";
+import { kvGet, kvSet, kvDel } from "@/lib/kv";
+import { sendEmail } from "@/lib/email";
 
 export type OtpChannel = "sms" | "call" | "email" | "whatsapp";
 
@@ -23,6 +25,15 @@ const SERVICE_SID = process.env.TWILIO_VERIFY_SERVICE_SID;
 
 export function otpIsLive(): boolean {
   return MODE === "live" && !!ACCOUNT_SID && !!AUTH_TOKEN && !!SERVICE_SID;
+}
+
+// Email OTP has its own live path via Resend (already sending in prod) so an
+// unconfigured Twilio doesn't block email sign-in. Codes are stored in Redis
+// KV (cross-instance, TTL'd) — never echoed to the caller when live.
+const RESEND_LIVE = !!process.env.RESEND_API_KEY;
+
+function emailOtpIsLive(): boolean {
+  return RESEND_LIVE;
 }
 
 // The mock OTP path generates codes locally and echoes them to the caller — an
@@ -60,6 +71,59 @@ export interface StartResult {
   devCode?: string;
 }
 
+// --- Resend-backed email OTP --------------------------------------------------
+
+const EMAIL_OTP_KEY = (addr: string) => `otp:email:${addr.trim().toLowerCase()}`;
+const EMAIL_OTP_TTL_S = 10 * 60;
+
+interface EmailOtpRecord {
+  code: string;
+  expiresAt: number; // epoch ms
+  attempts: number;
+}
+
+async function startEmailOtp(to: string): Promise<StartResult> {
+  const code = sixDigits();
+  await kvSet(
+    EMAIL_OTP_KEY(to),
+    { code, expiresAt: Date.now() + EMAIL_OTP_TTL_S * 1000, attempts: 0 } satisfies EmailOtpRecord,
+    EMAIL_OTP_TTL_S
+  );
+  const result = await sendEmail({
+    to: to.trim(),
+    category: "otp",
+    subject: `${code} is your FurlPay sign-in code`,
+    html: `<p>Your FurlPay sign-in code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>It expires in 10 minutes. If you didn't request this, ignore this email.</p>`,
+    text: `Your FurlPay sign-in code is ${code}. It expires in 10 minutes.`,
+  });
+  if (!result.ok) {
+    await kvDel(EMAIL_OTP_KEY(to));
+    throw new Error("Could not send the verification email — try again shortly.");
+  }
+  return { sent: true, channel: "email" };
+}
+
+async function checkEmailOtp(to: string, code: string): Promise<CheckResult | null> {
+  const key = EMAIL_OTP_KEY(to);
+  const rec = await kvGet<EmailOtpRecord>(key);
+  if (!rec) return null; // no Resend-path code pending — caller falls through
+  if (Date.now() > rec.expiresAt) {
+    await kvDel(key);
+    return { approved: false, reason: "expired" };
+  }
+  if (rec.attempts >= MAX_ATTEMPTS) {
+    await kvDel(key);
+    return { approved: false, reason: "too_many_attempts" };
+  }
+  const remainingTtl = Math.max(1, Math.ceil((rec.expiresAt - Date.now()) / 1000));
+  await kvSet(key, { ...rec, attempts: rec.attempts + 1 }, remainingTtl);
+  const a = Buffer.from(String(code).padEnd(10));
+  const b = Buffer.from(String(rec.code).padEnd(10));
+  if (!crypto.timingSafeEqual(a, b)) return { approved: false, reason: "mismatch" };
+  await kvDel(key); // single-use
+  return { approved: true };
+}
+
 /** Send an OTP to `to` (E.164 phone, or an email when channel="email"). */
 export async function startOtp(to: string, channel: OtpChannel = "sms"): Promise<StartResult> {
   if (otpIsLive()) {
@@ -69,6 +133,10 @@ export async function startOtp(to: string, channel: OtpChannel = "sms"): Promise
       .services(SERVICE_SID!)
       .verifications.create({ to, channel });
     return { sent: v.status === "pending", channel };
+  }
+
+  if (channel === "email" && emailOtpIsLive()) {
+    return startEmailOtp(to);
   }
 
   assertLiveInProduction();
@@ -86,6 +154,17 @@ export interface CheckResult {
 
 /** Verify a code the user entered for `to`. */
 export async function checkOtp(to: string, code: string): Promise<CheckResult> {
+  // Resend-path email codes live in KV; if one is pending for this address it
+  // is authoritative (checked before Twilio, which never issued it).
+  if (to.includes("@")) {
+    const emailResult = await checkEmailOtp(to, code);
+    if (emailResult) return emailResult;
+    // No pending Resend-path code. When email OTP is the live channel (Twilio
+    // absent), that's a definitive "request one first" — don't fall through to
+    // the mock guard, which would 500.
+    if (!otpIsLive() && emailOtpIsLive()) return { approved: false, reason: "not_found" };
+  }
+
   if (otpIsLive()) {
     const twilio = (await import("twilio")).default;
     const client = twilio(ACCOUNT_SID!, AUTH_TOKEN!);
