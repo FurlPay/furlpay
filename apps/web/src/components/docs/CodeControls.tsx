@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Highlight from "@/components/docs/Highlight";
 
 // Client-side pieces of the docs code blocks: the copy-to-clipboard button and
 // the multi-language tab switcher. The surrounding chrome stays in prose.tsx
@@ -32,7 +33,17 @@ export function CopyButton({ text }: { text: string }) {
   );
 }
 
-export type CodeTab = { label: string; code: string };
+export type CodeTab = { label: string; code: string; lang?: string };
+
+// Infer a highlight language from the tab label when `lang` is not given.
+const LABEL_LANGS: Record<string, string> = {
+  typescript: "typescript",
+  python: "python",
+  curl: "bash",
+  bash: "bash",
+  javascript: "javascript",
+  json: "json",
+};
 
 // Language switcher: tabs across the top, one <pre> per tab. Code panels are
 // passed as plain strings so the whole block stays copyable.
@@ -65,9 +76,7 @@ export function CodeTabs({ tabs, filename }: { tabs: CodeTab[]; filename?: strin
           <CopyButton text={tab.code} />
         </div>
       </div>
-      <pre className="overflow-x-auto px-4 py-4 text-[13px] leading-relaxed">
-        <code className="font-mono text-white/90">{tab.code}</code>
-      </pre>
+      <Highlight code={tab.code} lang={tab.lang ?? LABEL_LANGS[tab.label.toLowerCase()] ?? "plaintext"} />
     </div>
   );
 }

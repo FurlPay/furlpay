@@ -3,6 +3,7 @@ import DocsSidebar from "@/components/docs/DocsSidebar";
 import DocsSearch from "@/components/docs/DocsSearch";
 import DocsToc from "@/components/docs/DocsToc";
 import DocsMobileNav from "@/components/docs/DocsMobileNav";
+import Breadcrumbs from "@/components/docs/Breadcrumbs";
 
 // Three-column docs portal (furlpay.app/docs): sticky header with fuzzy search
 // + Open App, a left nav rail, the article column, and an "On this page" ToC
@@ -34,7 +35,10 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         <aside className="sticky top-[57px] hidden h-[calc(100vh-57px)] w-56 flex-shrink-0 overflow-y-auto py-10 md:block">
           <DocsSidebar />
         </aside>
-        <main className="min-w-0 flex-1 py-10 md:max-w-3xl">{children}</main>
+        <main className="min-w-0 flex-1 py-10 md:max-w-3xl">
+          <Breadcrumbs />
+          {children}
+        </main>
         <aside className="sticky top-[57px] hidden h-[calc(100vh-57px)] w-52 flex-shrink-0 overflow-y-auto py-10 xl:block">
           <DocsToc />
         </aside>

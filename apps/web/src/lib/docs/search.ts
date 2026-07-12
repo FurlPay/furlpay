@@ -70,6 +70,66 @@ export const SEARCH_INDEX: SearchDoc[] = [
     keywords: ["duffel", "DUFFEL_API_KEY", "flight search", "offers", "ndc", "gds", "lcc", "airline logos", "logo_symbol_url", "POST /api/travel/search", "amadeus sunset", "kiwi tequila"],
   },
 
+  // ---- Architecture reference pages --------------------------------------
+  {
+    title: "Authentication",
+    section: "Architecture",
+    href: "/docs/architecture/authentication",
+    snippet: "Passkey sessions, roles + step-up TOTP, RFC 9421 agent signatures, and x402 payment-as-auth.",
+    keywords: ["authentication", "auth", "session", "jwt", "cookie", "passkey", "webauthn", "roles", "admin", "totp", "step-up", "api key", "sk_test", "guest", "423 locked"],
+  },
+  {
+    title: "Webhook Events",
+    section: "Architecture",
+    href: "/docs/architecture/webhooks",
+    snippet: "Every inbound handler (stripe, sumsub, persona, wise, bridge, marqeta, card-auth) and how to verify Furlpay-Signature.",
+    keywords: ["webhooks", "webhook events", "furlpay-signature", "hmac", "raw body", "timingSafeEqual", "stale timestamp", "replay window", "idempotent", "furlpay listen", "stripe webhook", "sumsub webhook", "persona webhook", "marqeta webhook"],
+  },
+  {
+    title: "Error Codes",
+    section: "Architecture",
+    href: "/docs/architecture/errors",
+    snippet: "Response shapes, HTTP status conventions, and every machine-readable code with the right retry behavior.",
+    keywords: ["errors", "error codes", "amount_over_limit", "replay_rejected", "invalid_signature", "rail_paused", "quote_expired", "settlement_pending", "service_unavailable", "429", "423", "409", "502", "retry"],
+  },
+  {
+    title: "Rate Limits",
+    section: "Architecture",
+    href: "/docs/architecture/rate-limits",
+    snippet: "150/min mutating baseline per IP + tighter per-route budgets; how to honor Retry-After on 429.",
+    keywords: ["rate limit", "rate limits", "429", "retry-after", "throttle", "budget", "flood", "baseline", "per-route", "backoff"],
+  },
+
+  // ---- Rails reference pages ----------------------------------------------
+  {
+    title: "CCTP Cross-Chain USDC",
+    section: "Payments",
+    href: "/docs/payments/cctp",
+    snippet: "Non-custodial CCTP V2 burn-and-mint: build calldata, sign both legs yourself, 8-20s fast attestation.",
+    keywords: ["cctp", "cctp v2", "cross-chain", "burn and mint", "depositForBurn", "receiveMessage", "iris", "attestation", "fast transfer", "circle", "native usdc", "/api/intents/cctp", "bridge usdc"],
+  },
+  {
+    title: "LI.FI Swaps",
+    section: "Payments",
+    href: "/docs/payments/lifi-swaps",
+    snippet: "Cross-chain swaps via LI.FI routing — client-signed, 0.5% integrator fee, $500 default cap.",
+    keywords: ["lifi", "li.fi", "swap", "swaps", "cross-chain swap", "dex", "bridge", "routing", "integrator fee", "0.5%", "/api/swaps/execute", "sol eth swap", "robinhood chain"],
+  },
+  {
+    title: "Gasless USDC transfers (Smart Gas)",
+    section: "Payments",
+    href: "/docs/payments/agentic-x402",
+    snippet: "Relay a signed EIP-3009 authorization to any recipient — Furlpay pays gas, fees quoted in USDC.",
+    keywords: ["gasless", "smart gas", "no eth", "meta-transaction", "relayer", "/api/transfers/gasless", "transferWithAuthorization", "sponsored gas", "send usdc without eth"],
+  },
+  {
+    title: "Security Posture",
+    section: "Security & Crypto",
+    href: "/docs/security/posture",
+    snippet: "Layer-by-layer guarantees: non-custodial settlement, replay protection, money caps, CI scanning, honest audit status.",
+    keywords: ["security posture", "trust", "audit", "unaudited", "non-custodial", "slither", "semgrep", "codeql", "gitleaks", "responsible disclosure", "security.txt", "bug bounty"],
+  },
+
   // ---- Monorepo Architecture -------------------------------------------
   {
     title: "Monorepo layout",

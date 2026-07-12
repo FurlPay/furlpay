@@ -91,6 +91,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/travel", // FurlPay Travels — public search/deals/booking demo surface
   "/api/chain", // public chain registry — status, gas, contracts, USDC directory
   "/api/rails", // public payment-rail map — protocol, chains, fees, live status
+  "/api/docs/feedback", // anonymous docs page feedback counters (IP rate-limited)
   "/api/transfers/gasless", // Smart Gas: GET quote is public; POST enforces its own session via requireUser
   "/api/payments/fees", // public fee estimator — merchants compare vs card interchange
   "/api/discord", // Discord interactions — auth IS the Ed25519 signature (401 otherwise)

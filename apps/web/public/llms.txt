@@ -193,6 +193,18 @@ all packages are MIT and run in demo mode without an API key.
   How the Furlpay codebase is structured as a Turborepo monorepo.
 - Architecture — API routes: https://furlpay.com/docs/architecture/api-routes
   Overview of all API route handlers and their responsibilities.
+- Architecture — Authentication: https://furlpay.com/docs/architecture/authentication
+  Passkey sessions, roles, RFC 9421 agent signatures, and x402 payment-as-auth.
+- Architecture — Webhook Events: https://furlpay.com/docs/architecture/webhooks
+  Every inbound webhook handler, its signature scheme, and verifying Furlpay-Signature.
+- Architecture — Error Codes: https://furlpay.com/docs/architecture/errors
+  Error shapes, status conventions, and machine-readable codes with retry guidance.
+- Architecture — Rate Limits: https://furlpay.com/docs/architecture/rate-limits
+  Baseline and per-route budgets; honoring Retry-After on 429.
+- Payments — CCTP Cross-Chain: https://furlpay.com/docs/payments/cctp
+  Non-custodial CCTP V2 burn-and-mint USDC with Fast Transfer attestation.
+- Payments — LI.FI Swaps: https://furlpay.com/docs/payments/lifi-swaps
+  Client-signed cross-chain swaps via LI.FI routing with the 0.5% integrator fee.
 - Integrations — Stripe Crypto Onramp: https://furlpay.com/docs/integrations/stripe-crypto
   Guide to the Stripe crypto onramp integration for fiat-to-crypto.
 - Integrations — Persona KYC: https://furlpay.com/docs/integrations/persona-kyc

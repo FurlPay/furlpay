@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { Pencil } from "lucide-react";
 import { adjacentDocs } from "@/lib/docs/nav";
 import { CopyButton, CodeTabs } from "@/components/docs/CodeControls";
+import Highlight from "@/components/docs/Highlight";
+import PageFeedback from "@/components/docs/PageFeedback";
 
 export { CodeTabs };
 export type { CodeTab } from "@/components/docs/CodeControls";
@@ -85,18 +88,70 @@ export function CodeBlock({
         </span>
         <CopyButton text={children} />
       </div>
-      <pre className="overflow-x-auto px-4 py-4 text-[13px] leading-relaxed">
-        <code className="font-mono text-white/90">{children}</code>
-      </pre>
+      <Highlight code={children} lang={lang} />
     </div>
   );
 }
 
-export function Callout({ title, children }: { title?: string; children: React.ReactNode }) {
+// Four callout tones matching GitHub-alert semantics. Default "tip" keeps the
+// original green-accented look, so existing usages are unchanged.
+export type CalloutType = "tip" | "info" | "warning" | "danger";
+
+export function Callout({
+  title,
+  type = "tip",
+  children,
+}: {
+  title?: string;
+  type?: CalloutType;
+  children: React.ReactNode;
+}) {
+  const tones: Record<CalloutType, { box: string; title: string }> = {
+    tip: { box: "glow-border", title: "text-neon" },
+    info: { box: "rounded-2xl border border-sky-400/25 bg-sky-400/[0.06]", title: "text-sky-300" },
+    warning: { box: "rounded-2xl border border-amber-400/25 bg-amber-400/[0.06]", title: "text-amber-300" },
+    danger: { box: "rounded-2xl border border-red-400/30 bg-red-400/[0.06]", title: "text-red-300" },
+  };
+  const tone = tones[type];
   return (
-    <div className="glow-border mb-6 p-5">
-      {title && <p className="mb-1 text-[14px] font-bold text-neon">{title}</p>}
+    <div className={`${tone.box} mb-6 p-5`}>
+      {title && <p className={`mb-1 text-[14px] font-bold ${tone.title}`}>{title}</p>}
       <div className="text-[14px] leading-relaxed text-textMuted">{children}</div>
+    </div>
+  );
+}
+
+// Request/response parameter reference table (API docs standard).
+export type Param = { name: string; type: string; required?: boolean; desc: string };
+
+export function ParameterTable({ params }: { params: Param[] }) {
+  return (
+    <div className="mb-6 overflow-hidden rounded-xl border border-white/10">
+      <table className="w-full text-left text-[13px]">
+        <thead className="bg-white/[0.03] text-textSecondary">
+          <tr>
+            <th className="px-4 py-2.5 font-semibold">Parameter</th>
+            <th className="px-4 py-2.5 font-semibold">Type</th>
+            <th className="px-4 py-2.5 font-semibold">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          {params.map((p) => (
+            <tr key={p.name} className="border-t border-white/5 align-top">
+              <td className="px-4 py-2.5">
+                <span className="font-mono text-[12.5px] font-semibold text-white/90">{p.name}</span>
+                {p.required ? (
+                  <span className="ml-2 rounded bg-red-400/10 px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-red-300">required</span>
+                ) : (
+                  <span className="ml-2 rounded bg-white/[0.06] px-1.5 py-px text-[9px] font-bold uppercase tracking-wider text-textSecondary">optional</span>
+                )}
+              </td>
+              <td className="px-4 py-2.5 font-mono text-[12px] text-neon/90">{p.type}</td>
+              <td className="px-4 py-2.5 text-textMuted">{p.desc}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -228,12 +283,26 @@ export function SpecGrid({ specs }: { specs: Spec[] }) {
   );
 }
 
-// Prev/next pager driven by the flat doc order.
+// Page footer: feedback + edit link + prev/next pager driven by the doc order.
 export function DocPager({ pathname }: { pathname: string }) {
   const { prev, next } = adjacentDocs(pathname);
   if (!prev && !next) return null;
+  const editUrl = `https://github.com/Ashutosh0x/furlpay/edit/main/apps/web/src/app${pathname}/page.tsx`;
   return (
-    <div className="mt-16 flex items-stretch justify-between gap-4 border-t border-white/5 pt-8">
+    <>
+      <div className="mt-14 flex flex-wrap items-center justify-between gap-4 border-t border-white/5 pt-6">
+        <PageFeedback pathname={pathname} />
+        <a
+          href={editUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-[12px] text-textSecondary transition-colors hover:text-white"
+        >
+          <Pencil className="h-3.5 w-3.5" aria-hidden />
+          Edit this page on GitHub
+        </a>
+      </div>
+      <div className="mt-8 flex items-stretch justify-between gap-4">
       {prev ? (
         <Link href={prev.href} className="glass-card flex-1 p-4 transition-colors hover:border-neon/30">
           <p className="text-[12px] text-textSecondary">← Previous</p>
@@ -250,6 +319,7 @@ export function DocPager({ pathname }: { pathname: string }) {
       ) : (
         <span className="flex-1" />
       )}
-    </div>
+      </div>
+    </>
   );
 }

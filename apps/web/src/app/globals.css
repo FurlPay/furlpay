@@ -236,6 +236,19 @@ body {
 
 /* Respect prefers-reduced-motion globally — motion in 2026 is functional, and
    for users who opt out it should be near-instant, not just slower. */
+/* Docs: shiki-highlighted code blocks inherit the CodeBlock chrome. */
+.shiki-wrap pre {
+  margin: 0;
+  padding: 1rem;
+  overflow-x: auto;
+  background-color: transparent !important;
+  font-size: 13px;
+  line-height: 1.625;
+}
+.shiki-wrap code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
 /* Ops dashboard: brief highlight when a live metric value changes. */
 @keyframes metricpulse {
   0% {
