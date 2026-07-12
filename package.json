@@ -4,7 +4,9 @@
   "private": true,
   "description": "Furlpay — the Stripe + Coinbase of stablecoins & fractional investing. Turborepo monorepo.",
   "workspaces": [
-    "apps/*",
+    "apps/web",
+    "apps/desktop",
+    "apps/extension",
     "packages/*",
     "sdks/node",
     "mcp"
