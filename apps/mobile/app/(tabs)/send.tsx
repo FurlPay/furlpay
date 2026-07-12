@@ -6,7 +6,7 @@ import * as Haptics from "expo-haptics";
 import { api, ApiError, demoSignature, NetworkError } from "@/lib/api";
 import { queuePendingAction } from "@/lib/db";
 import { useOverview, useInvalidateAll } from "@/lib/queries";
-import { EVM_ADDRESS_RE, shortAddress, usd } from "@/lib/format";
+import { isValidDestination, shortAddress, usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, ErrorNote, Field, Screen, Surface } from "@/components/ui";
 import type { TokenBalance } from "@/lib/types";
@@ -36,7 +36,10 @@ export default function Send() {
 
   const validation = useMemo(() => {
     if (!destination) return "Enter a recipient address.";
-    if (!EVM_ADDRESS_RE.test(destination.trim())) return "Recipient must be a 0x… EVM address.";
+    if (selected && !isValidDestination(destination.trim(), selected.chain))
+      return selected.chain === "solana"
+        ? "Recipient must be a Solana (base58) address."
+        : "Recipient must be a 0x… EVM address.";
     if (!amount) return "Enter an amount.";
     if (!(amountNum > 0)) return "Amount must be greater than zero.";
     if (!selected) return "No balance to send from.";
@@ -128,10 +131,10 @@ export default function Send() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Field
-          label="Recipient (0x address)"
+          label={selected?.chain === "solana" ? "Recipient (Solana address)" : "Recipient (0x address)"}
           value={destination}
           onChangeText={setDestination}
-          placeholder="0xabc…"
+          placeholder={selected?.chain === "solana" ? "Base58 address…" : "0xabc…"}
           autoCapitalize="none"
           autoCorrect={false}
         />

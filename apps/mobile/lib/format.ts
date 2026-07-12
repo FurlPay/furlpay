@@ -34,3 +34,11 @@ export function txDate(iso: string): string {
 }
 
 export const EVM_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
+
+// Base58 (no 0/O/I/l), 32–44 chars — the shape check the web app also uses
+// before the server validates with new PublicKey().
+export const SOLANA_ADDRESS_RE = /^[1-9A-HJ-NP-Za-km-z]{32,44}$/;
+
+export function isValidDestination(address: string, chain: string): boolean {
+  return chain === "solana" ? SOLANA_ADDRESS_RE.test(address) : EVM_ADDRESS_RE.test(address);
+}

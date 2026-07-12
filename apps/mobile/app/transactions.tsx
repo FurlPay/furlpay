@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useTransactions } from "@/lib/queries";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { EmptyState, Screen } from "@/components/ui";
+import { EmptyState, Field, Screen } from "@/components/ui";
 import { TransactionRow } from "@/components/TransactionRow";
 import { timeAgo } from "@/lib/format";
 
@@ -10,13 +10,31 @@ const CATEGORIES = ["all", "transfer", "card", "swap", "invest", "bill", "ramp",
 
 export default function Transactions() {
   const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("all");
+  const [query, setQuery] = useState("");
   const { data: result, isLoading, refetch, isRefetching, error } = useTransactions(
     category === "all" ? undefined : category
   );
-  const txs = result?.data ?? [];
+  const q = query.trim().toLowerCase();
+  const txs = (result?.data ?? []).filter(
+    (tx) =>
+      !q ||
+      tx.title.toLowerCase().includes(q) ||
+      tx.subtitle.toLowerCase().includes(q) ||
+      (tx.token ?? "").toLowerCase().includes(q)
+  );
 
   return (
     <Screen>
+      <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
+        <Field
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Search transactions…"
+          autoCapitalize="none"
+          autoCorrect={false}
+          clearButtonMode="while-editing"
+        />
+      </View>
       <View style={styles.filters}>
         <FlatList
           horizontal
@@ -59,8 +77,16 @@ export default function Transactions() {
         onRefresh={() => void refetch()}
         ListEmptyComponent={
           <EmptyState
-            title={isLoading ? "Loading…" : error ? "Couldn't load transactions" : "No transactions"}
-            subtitle={error ? (error as Error).message : undefined}
+            title={
+              isLoading
+                ? "Loading…"
+                : error
+                  ? "Couldn't load transactions"
+                  : q
+                    ? "No matches"
+                    : "No transactions"
+            }
+            subtitle={error ? (error as Error).message : q ? `Nothing matching “${query.trim()}”.` : undefined}
           />
         }
       />
