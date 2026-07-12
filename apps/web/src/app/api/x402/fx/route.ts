@@ -64,6 +64,8 @@ export async function GET(req: NextRequest) {
       await recordSecurityEvent({ rail: "x402", kind: "bad_signature", severity: "high", detail: result.error });
     } else if (/binding|quote/i.test(result.error)) {
       await recordSecurityEvent({ rail: "x402", kind: "quote_tamper", severity: "high", detail: result.error });
+    } else if (/recipient|addressed/i.test(result.error)) {
+      await recordSecurityEvent({ rail: "x402", kind: "recipient_mismatch", severity: "high", detail: result.error });
     }
   }
 

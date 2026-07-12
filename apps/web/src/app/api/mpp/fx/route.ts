@@ -67,6 +67,8 @@ export async function GET(req: NextRequest) {
     await recordSecurityEvent({ rail: "mpp", kind: "bad_signature", severity: "high", detail: result.detail });
   } else if (/binding|challenge id|tamper/i.test(result.detail)) {
     await recordSecurityEvent({ rail: "mpp", kind: "challenge_tamper", severity: "high", detail: result.detail });
+  } else if (/recipient|addressed/i.test(result.detail)) {
+    await recordSecurityEvent({ rail: "mpp", kind: "recipient_mismatch", severity: "high", detail: result.detail });
   }
 
   if (!result.ok) {
