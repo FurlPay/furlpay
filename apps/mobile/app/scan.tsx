@@ -3,25 +3,9 @@ import { StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import { EVM_ADDRESS_RE, SOLANA_ADDRESS_RE } from "@/lib/format";
+import { parseScannedAddress } from "@/lib/qr";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, Screen } from "@/components/ui";
-
-/** Pull a payable address out of whatever the QR encodes: a bare EVM or
- *  Solana address, an EIP-681 `ethereum:0x…` / `solana:…` URI, or a
- *  furlpay.com payment link. */
-function parseScannedAddress(data: string): string | null {
-  const bare = data.trim();
-  if (EVM_ADDRESS_RE.test(bare) || SOLANA_ADDRESS_RE.test(bare)) return bare;
-  const eip681 = bare.match(/^ethereum:(0x[0-9a-fA-F]{40})/);
-  if (eip681) return eip681[1];
-  // Solana Pay URI: solana:<base58>?amount=…
-  const solPay = bare.match(/^solana:([1-9A-HJ-NP-Za-km-z]{32,44})/);
-  if (solPay) return solPay[1];
-  const inUrl = bare.match(/(0x[0-9a-fA-F]{40})/);
-  if (inUrl && /^https?:\/\/(www\.)?furlpay\.com\//.test(bare)) return inUrl[1];
-  return null;
-}
 
 export default function Scan() {
   const router = useRouter();
