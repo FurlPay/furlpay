@@ -97,6 +97,9 @@ async function startEmailOtp(to: string): Promise<StartResult> {
     text: `Your FurlPay sign-in code is ${code}. It expires in 10 minutes.`,
   });
   if (!result.ok) {
+    // Provider detail goes to the server log only — the client gets a generic
+    // message (an attacker mustn't learn suppression/budget/provider state).
+    console.error(`[otp:email] send failed: ${result.error}`);
     await kvDel(EMAIL_OTP_KEY(to));
     throw new Error("Could not send the verification email — try again shortly.");
   }
