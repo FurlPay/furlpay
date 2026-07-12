@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
-import { Stack } from "expo-router";
+import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -14,6 +14,19 @@ const queryClient = new QueryClient({
     queries: { retry: 1, refetchOnWindowFocus: false },
   },
 });
+
+// Route-level crash screen (expo-router picks this export up for the whole
+// tree since it's on the root layout). Keeps a render error from taking the
+// app down to a red box — the user can retry in place.
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  return (
+    <Screen style={styles.lock}>
+      <Text style={type.title}>Something went wrong</Text>
+      <Text style={[type.dim, { textAlign: "center" }]}>{error.message}</Text>
+      <Button title="Try again" onPress={() => void retry()} style={{ alignSelf: "stretch" }} />
+    </Screen>
+  );
+}
 
 function LockScreen() {
   const unlock = useAuth((s) => s.unlock);
