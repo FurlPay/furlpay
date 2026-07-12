@@ -40,6 +40,7 @@ export interface SessionClaims extends JWTPayload {
   safe?: string;
   roles?: Role[];
   jti?: string;
+  guest?: boolean;
 }
 
 // ---------------------------------------------------------------------------

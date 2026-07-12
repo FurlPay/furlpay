@@ -1,4 +1,4 @@
-import { kvGet } from "@/lib/kv";
+import { kvGet, kvSet } from "@/lib/kv";
 import { controlSnapshot, RAILS, type Rail, type PauseState } from "@/lib/ops/controls";
 
 // ---------------------------------------------------------------------------
@@ -7,7 +7,32 @@ import { controlSnapshot, RAILS, type Rail, type PauseState } from "@/lib/ops/co
 // rail without its production credentials reports NOT_CONFIGURED / armed:false.
 // ---------------------------------------------------------------------------
 
-export type RailStatus = "HEALTHY" | "DEGRADED" | "INCIDENT" | "PAUSED" | "NOT_CONFIGURED";
+export type RailStatus = "HEALTHY" | "DEGRADED" | "INCIDENT" | "PAUSED" | "NOT_CONFIGURED" | "UNKNOWN";
+type ActiveRailStatus = Exclude<RailStatus, "PAUSED" | "NOT_CONFIGURED" | "UNKNOWN">;
+
+interface RailHealthSignal {
+  status: ActiveRailStatus;
+  checkedAt: string;
+  latencyMs?: number;
+  detail?: string;
+}
+
+const HEALTH_FRESH_MS = 2 * 60_000;
+const healthKey = (rail: Rail) => `ops:health:rail:${rail}`;
+
+export async function recordRailHealth(
+  rail: Rail,
+  status: ActiveRailStatus,
+  detail?: string,
+  latencyMs?: number
+): Promise<void> {
+  const signal: RailHealthSignal = { status, checkedAt: new Date().toISOString(), detail, latencyMs };
+  try {
+    await kvSet(healthKey(rail), signal, Math.ceil(HEALTH_FRESH_MS / 1000));
+  } catch {
+    /* health telemetry must not fail the money route that produced it */
+  }
+}
 
 /** Whether real settlement can actually fire (not just run in mock). */
 function x402Armed(): boolean {
@@ -52,7 +77,7 @@ export function configReadiness() {
   };
 }
 
-const STATES = ["settled", "pending", "failed", "rejected"] as const;
+const STATES = ["prepared", "settled", "pending", "failed", "rejected"] as const;
 
 async function num(key: string): Promise<number> {
   return (await kvGet<number>(key)) ?? 0;
@@ -63,18 +88,25 @@ async function railMetrics(rail: Rail) {
     await Promise.all(STATES.map(async (s) => [s, await num(`ops:count:tx:${rail}:${s}`)] as const))
   ) as Record<(typeof STATES)[number], number>;
   const total = STATES.reduce((s, k) => s + counts[k], 0);
+  const attempted = total - counts.prepared;
   const volumeUsd = (await num(`ops:count:vol:${rail}`)) / 100;
   const feeUsd = (await num(`ops:count:fee:${rail}`)) / 100;
-  const successRate = total > 0 ? counts.settled / total : null;
-  return { total, ...counts, volumeUsd, feeUsd, successRate };
+  const successRate = attempted > 0 ? counts.settled / attempted : null;
+  return { total, attempted, ...counts, volumeUsd, feeUsd, successRate };
 }
 
-function railStatus(pause: PauseState, globalPaused: boolean): RailStatus {
+async function recentRailHealth(rail: Rail): Promise<RailHealthSignal | null> {
+  const signal = await kvGet<RailHealthSignal>(healthKey(rail));
+  if (!signal?.checkedAt) return null;
+  const checkedAt = Date.parse(signal.checkedAt);
+  if (!Number.isFinite(checkedAt) || Date.now() - checkedAt > HEALTH_FRESH_MS) return null;
+  return signal;
+}
+
+function railStatus(armed: boolean, pause: PauseState, globalPaused: boolean, health: RailHealthSignal | null): RailStatus {
   if (globalPaused || pause.paused) return "PAUSED";
-  // The four live rails run keyless in dev; `armed` (surfaced separately) is
-  // what tells the UI whether REAL money can move. We don't fabricate
-  // DEGRADED/INCIDENT — those come from real health signals only.
-  return "HEALTHY";
+  if (!armed) return "NOT_CONFIGURED";
+  return health?.status ?? "UNKNOWN";
 }
 
 export async function opsOverview() {
@@ -85,12 +117,20 @@ export async function opsOverview() {
   };
 
   const rails = await Promise.all(
-    RAILS.map(async (rail) => ({
-      rail,
-      status: rail === "transfers" ? ("NOT_CONFIGURED" as RailStatus) : railStatus(controls.rails[rail], controls.global.paused),
-      armed: armedByRail[rail],
-      ...(await railMetrics(rail)),
-    }))
+    RAILS.map(async (rail) => {
+      const health = await recentRailHealth(rail);
+      return {
+        rail,
+        status:
+          rail === "transfers"
+            ? ("NOT_CONFIGURED" as RailStatus)
+            : railStatus(armedByRail[rail], controls.rails[rail], controls.global.paused, health),
+        armed: armedByRail[rail],
+        control: controls.rails[rail],
+        health,
+        ...(await railMetrics(rail)),
+      };
+    })
   );
 
   const totals = rails.reduce(
@@ -101,8 +141,10 @@ export async function opsOverview() {
       settled: acc.settled + r.settled,
       pending: acc.pending + r.pending,
       failed: acc.failed + r.failed,
+      prepared: acc.prepared + r.prepared,
+      attempted: acc.attempted + r.attempted,
     }),
-    { volumeUsd: 0, feeUsd: 0, transactions: 0, settled: 0, pending: 0, failed: 0 }
+    { volumeUsd: 0, feeUsd: 0, transactions: 0, settled: 0, pending: 0, failed: 0, prepared: 0, attempted: 0 }
   );
 
   // Non-configured future rails, shown for completeness.
@@ -116,7 +158,7 @@ export async function opsOverview() {
     globalPause: controls.global,
     totals: {
       ...totals,
-      successRate: totals.transactions > 0 ? totals.settled / totals.transactions : null,
+      successRate: totals.attempted > 0 ? totals.settled / totals.attempted : null,
     },
     rails,
     futureRails,

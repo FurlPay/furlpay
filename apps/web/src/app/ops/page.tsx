@@ -1,16 +1,52 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  CircleDashed,
+  Clock3,
+  Database,
+  LockKeyhole,
+  PauseCircle,
+  PlayCircle,
+  RefreshCw,
+  ShieldAlert,
+  SlidersHorizontal,
+  XCircle,
+  Zap,
+} from "lucide-react";
 
-// FurlPay Ops — phase 1 control plane. Reads the real ops endpoints and its
-// pause controls enforce real server-side behavior (durable Redis flags wired
-// into every live money route via assertRailActive). No fabricated metrics.
+// FurlPay Ops: real control plane over live money rails.
+// Reads only ops endpoints; pause controls are durable server-side flags.
+
+type RailStatus = "HEALTHY" | "DEGRADED" | "INCIDENT" | "PAUSED" | "NOT_CONFIGURED" | "UNKNOWN";
+
+type PauseState = {
+  paused: boolean;
+  by?: string;
+  at?: string;
+  reason?: string;
+};
+
+type RailHealth = {
+  status: Exclude<RailStatus, "PAUSED" | "NOT_CONFIGURED" | "UNKNOWN">;
+  checkedAt: string;
+  latencyMs?: number;
+  detail?: string;
+};
 
 type RailRow = {
   rail: string;
-  status: string;
+  status: RailStatus;
   armed: boolean;
+  control?: PauseState;
+  health?: RailHealth | null;
   total: number;
+  attempted: number;
+  prepared: number;
   settled: number;
   pending: number;
   failed: number;
@@ -22,278 +58,676 @@ type RailRow = {
 
 type Overview = {
   globalPaused: boolean;
-  totals: { volumeUsd: number; feeUsd: number; transactions: number; settled: number; pending: number; failed: number; successRate: number | null };
+  globalPause?: PauseState;
+  totals: {
+    volumeUsd: number;
+    feeUsd: number;
+    transactions: number;
+    attempted: number;
+    prepared: number;
+    settled: number;
+    pending: number;
+    failed: number;
+    successRate: number | null;
+  };
   rails: RailRow[];
   futureRails: { rail: string; status: string }[];
-  config: any;
+  config: {
+    x402: Record<string, unknown> & { armed: boolean };
+    lifi: Record<string, unknown> & { armed: boolean };
+    cctp: Record<string, unknown> & { armed: boolean };
+    limits: { maxSwapUsd: number; maxCctpUsd: number };
+    providers?: Record<string, boolean>;
+  };
 };
 
-type SecEvent = { id: string; kind: string; rail: string; severity: string; detail: string; ts: string };
-type TxEvent = { id: string; rail: string; state: string; substate?: string; amountUsd?: number; txHash?: string; ts: string };
+type SecEvent = {
+  id: string;
+  kind: string;
+  rail: string;
+  severity: "info" | "low" | "medium" | "high" | "critical";
+  detail: string;
+  actor?: string;
+  ts: string;
+  acknowledged?: boolean;
+};
 
-const money = (n: number) => `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-const pct = (n: number | null) => (n === null ? "—" : `${(n * 100).toFixed(1)}%`);
+type TxEvent = {
+  id: string;
+  rail: string;
+  state: "prepared" | "settled" | "pending" | "failed" | "rejected";
+  substate?: string;
+  amountUsd?: number;
+  feeUsd?: number;
+  token?: string;
+  sourceChain?: string;
+  destChain?: string;
+  txHash?: string;
+  userId?: string;
+  ts: string;
+};
 
-async function getJson(url: string) {
-  const r = await fetch(url, { headers: { accept: "application/json" } });
-  const body = await r.json().catch(() => ({}));
-  return { status: r.status, body };
+type AuditEntry = {
+  id: number;
+  ts: string;
+  event: string;
+  actor: string;
+  fields: Record<string, unknown>;
+};
+
+type ApiEnvelope<T> = {
+  ok?: boolean;
+  data?: T;
+  error?: { message?: string };
+};
+
+const money = (n: number) =>
+  `$${n.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+const count = (n: number) => n.toLocaleString();
+const pct = (n: number | null) => (n === null ? "-" : `${(n * 100).toFixed(1)}%`);
+const fmtTime = (ts?: string) => (ts ? new Date(ts).toLocaleString() : "-");
+const ago = (ts?: string) => {
+  if (!ts) return "never";
+  const seconds = Math.max(0, Math.floor((Date.now() - Date.parse(ts)) / 1000));
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  return `${Math.floor(hours / 24)}d ago`;
+};
+
+async function getJson<T>(url: string) {
+  const res = await fetch(url, { headers: { accept: "application/json" }, cache: "no-store" });
+  const body = (await res.json().catch(() => ({}))) as ApiEnvelope<T>;
+  return { status: res.status, body };
 }
 
 export default function OpsPage() {
   const [overview, setOverview] = useState<Overview | null>(null);
   const [security, setSecurity] = useState<SecEvent[]>([]);
   const [txs, setTxs] = useState<TxEvent[]>([]);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [txRail, setTxRail] = useState("all");
+  const [txState, setTxState] = useState("all");
 
   const load = useCallback(async () => {
-    const o = await getJson("/api/ops/overview");
-    if (o.status === 401 || o.status === 403) {
-      setError("Admin access required. Sign in with an admin account.");
-      return;
+    setRefreshing(true);
+    try {
+      const o = await getJson<Overview>("/api/ops/overview");
+      if (o.status === 401 || o.status === 403) {
+        setError("Admin access required. Sign in with an admin account.");
+        return;
+      }
+      if (!o.body?.ok || !o.body.data) {
+        setError(o.body?.error?.message ?? "Failed to load ops overview.");
+        return;
+      }
+
+      const [s, t, a] = await Promise.all([
+        getJson<{ events: SecEvent[] }>("/api/ops/security?limit=40"),
+        getJson<{ transactions: TxEvent[] }>("/api/ops/transactions?limit=80"),
+        getJson<{ entries: AuditEntry[] }>("/api/ops/audit?limit=40"),
+      ]);
+
+      setError(null);
+      setOverview(o.body.data);
+      if (s.body?.ok && s.body.data) setSecurity(s.body.data.events);
+      if (t.body?.ok && t.body.data) setTxs(t.body.data.transactions);
+      if (a.body?.ok && a.body.data) setAudit(a.body.data.entries);
+      setLastUpdated(new Date());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load ops data.");
+    } finally {
+      setRefreshing(false);
     }
-    if (!o.body?.ok) {
-      setError(o.body?.error?.message ?? "Failed to load ops overview.");
-      return;
-    }
-    setError(null);
-    setOverview(o.body.data);
-    const [s, t] = await Promise.all([getJson("/api/ops/security?limit=25"), getJson("/api/ops/transactions?limit=25")]);
-    if (s.body?.ok) setSecurity(s.body.data.events);
-    if (t.body?.ok) setTxs(t.body.data.transactions);
   }, []);
 
   useEffect(() => {
     load();
-    const id = setInterval(load, 15000);
-    return () => clearInterval(id);
+    const id = window.setInterval(load, 15_000);
+    return () => window.clearInterval(id);
   }, [load]);
 
   const setPause = useCallback(
     async (scope: "global" | "rail", rail: string | null, paused: boolean) => {
-      let reason: string | undefined;
-      if (!paused || scope === "global") {
-        reason = window.prompt(`Reason for ${paused ? "pausing" : "resuming"} ${rail ?? "ALL rails"} (min 8 chars):`) ?? undefined;
-        if (!reason || reason.trim().length < 8) return;
+      const label = rail ?? "all rails";
+      if (scope === "global") {
+        const phrase = paused ? "PAUSE ALL" : "RESUME ALL";
+        const typed = window.prompt(`Type ${phrase} to ${paused ? "halt" : "resume"} ${label}:`);
+        if (typed !== phrase) return;
       }
-      setBusy(`${scope}:${rail}`);
-      const r = await fetch("/api/ops/controls", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ scope, rail: rail ?? undefined, paused, reason }),
-      });
-      setBusy(null);
-      if (!r.ok) {
-        const b = await r.json().catch(() => ({}));
-        alert(b?.error?.message ?? "Control change failed.");
+
+      const min = scope === "global" || !paused ? 8 : 4;
+      const reason = window.prompt(
+        `Reason for ${paused ? "pausing" : "resuming"} ${label} (min ${min} chars):`
+      );
+      if (!reason || reason.trim().length < min) return;
+
+      const key = `${scope}:${rail}`;
+      setBusy(key);
+      try {
+        const res = await fetch("/api/ops/controls", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ scope, rail: rail ?? undefined, paused, reason: reason.trim() }),
+        });
+        if (!res.ok) {
+          const body = (await res.json().catch(() => ({}))) as ApiEnvelope<unknown>;
+          window.alert(body?.error?.message ?? "Control change failed.");
+        }
+      } finally {
+        setBusy(null);
+        await load();
       }
-      await load();
     },
     [load]
   );
 
+  const filteredTxs = useMemo(
+    () =>
+      txs.filter((tx) => (txRail === "all" || tx.rail === txRail) && (txState === "all" || tx.state === txState)),
+    [txRail, txState, txs]
+  );
+
   if (error) {
     return (
-      <main style={S.page}>
-        <h1 style={S.h1}>FurlPay Ops</h1>
-        <div style={{ ...S.card, borderColor: "#b91c1c" }}>{error}</div>
+      <main className="min-h-screen bg-[#08090a] px-5 py-8 text-white">
+        <div className="mx-auto max-w-7xl">
+          <h1 className="text-2xl font-bold tracking-tight">FurlPay Ops</h1>
+          <div className="mt-5 rounded-lg border border-red-500/40 bg-red-500/10 p-4 text-sm text-red-100">
+            {error}
+          </div>
+        </div>
       </main>
     );
   }
-  if (!overview) return <main style={S.page}><p style={S.muted}>Loading real ops data…</p></main>;
+
+  if (!overview) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#08090a] text-white">
+        <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-white/70">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          Loading real ops data...
+        </div>
+      </main>
+    );
+  }
 
   const o = overview;
+  const liveRails = o.rails.filter((r) => r.armed).length;
+  const pausedRails = o.rails.filter((r) => r.status === "PAUSED").length;
+  const riskRails = o.rails.filter((r) => ["INCIDENT", "DEGRADED", "UNKNOWN"].includes(r.status)).length;
+  const highSecurity = security.filter((e) => e.severity === "critical" || e.severity === "high").length;
+  const states = Array.from(new Set(txs.map((t) => t.state)));
+  const rails = Array.from(new Set([...o.rails.map((r) => r.rail), ...txs.map((t) => t.rail)]));
+
   return (
-    <main style={S.page}>
-      <div style={S.headerRow}>
-        <h1 style={S.h1}>FurlPay Ops</h1>
-        <div style={S.headerRight}>
-          <span style={S.muted}>auto-refresh 15s</span>
-          <button
-            style={{ ...S.btn, ...(o.globalPaused ? S.btnResume : S.btnDanger) }}
-            disabled={busy === "global:null"}
-            onClick={() => setPause("global", null, !o.globalPaused)}
-          >
-            {o.globalPaused ? "RESUME ALL RAILS" : "GLOBAL PAUSE"}
-          </button>
-        </div>
-      </div>
-
-      {o.globalPaused && <div style={{ ...S.card, borderColor: "#b45309", color: "#b45309" }}>GLOBAL PAUSE ACTIVE — all money movement halted.</div>}
-
-      {/* Totals */}
-      <section style={S.tiles}>
-        <Tile label="Settled volume (90d)" value={money(o.totals.volumeUsd)} />
-        <Tile label="Fees earned (90d)" value={money(o.totals.feeUsd)} />
-        <Tile label="Transactions" value={String(o.totals.transactions)} />
-        <Tile label="Success rate" value={pct(o.totals.successRate)} />
-        <Tile label="Pending" value={String(o.totals.pending)} />
-        <Tile label="Failed" value={String(o.totals.failed)} />
-      </section>
-
-      {/* Rail matrix */}
-      <h2 style={S.h2}>Payment rails</h2>
-      <div style={S.tableWrap}>
-        <table style={S.table}>
-          <thead>
-            <tr>{["Rail", "Status", "Armed", "Txns", "Settled", "Pending", "Failed", "Success", "Volume", "Revenue", "Control"].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr>
-          </thead>
-          <tbody>
-            {o.rails.map((r) => (
-              <tr key={r.rail}>
-                <td style={S.td}><b>{r.rail}</b></td>
-                <td style={S.td}><StatusBadge status={r.status} /></td>
-                <td style={S.td}>{r.armed ? "live" : "mock"}</td>
-                <td style={S.td}>{r.total}</td>
-                <td style={S.td}>{r.settled}</td>
-                <td style={S.td}>{r.pending}</td>
-                <td style={S.td}>{r.failed}</td>
-                <td style={S.td}>{pct(r.successRate)}</td>
-                <td style={S.td}>{money(r.volumeUsd)}</td>
-                <td style={S.td}>{money(r.feeUsd)}</td>
-                <td style={S.td}>
-                  <button
-                    style={{ ...S.btnSm, ...(r.status === "PAUSED" ? S.btnResume : S.btnDanger) }}
-                    disabled={busy === `rail:${r.rail}` || o.globalPaused}
-                    onClick={() => setPause("rail", r.rail, r.status !== "PAUSED")}
-                  >
-                    {r.status === "PAUSED" ? "resume" : "pause"}
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {o.futureRails.map((r) => (
-              <tr key={r.rail} style={{ opacity: 0.5 }}>
-                <td style={S.td}><b>{r.rail}</b></td>
-                <td style={S.td}><StatusBadge status={r.status} /></td>
-                <td style={S.td} colSpan={9}>not configured</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div style={S.twoCol}>
-        {/* Config readiness */}
-        <div>
-          <h2 style={S.h2}>Configuration readiness</h2>
-          <div style={S.card}>
-            <ConfigGroup title="x402 mainnet settlement" armed={o.config.x402.armed} rows={o.config.x402} />
-            <ConfigGroup title="LI.FI swaps" armed={o.config.lifi.armed} rows={{ LIFI_API_KEY: o.config.lifi.LIFI_API_KEY, integrator: o.config.lifi.LIFI_INTEGRATOR, fee: o.config.lifi.LIFI_FEE }} />
-            <ConfigGroup title="CCTP V2" armed={o.config.cctp.armed} rows={{ iris: o.config.cctp.IRIS_API, testnet: o.config.cctp.testnet }} />
-            <div style={S.muted}>Limits: swap {money(o.config.limits.maxSwapUsd)} · cctp {money(o.config.limits.maxCctpUsd)}</div>
+    <main className="min-h-screen bg-[#08090a] text-white">
+      <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-5 sm:px-6 lg:px-8">
+        <header className="flex flex-col gap-4 border-b border-white/10 pb-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h1 className="text-3xl font-bold tracking-tight">FurlPay Ops</h1>
+              <StatusBadge status={o.globalPaused ? "PAUSED" : riskRails > 0 ? "DEGRADED" : "HEALTHY"} />
+            </div>
+            <p className="mt-2 max-w-2xl text-sm text-white/60">
+              Live money-rail control plane, settlement telemetry, security signals, and privileged action audit.
+            </p>
           </div>
-        </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/55">
+              Updated {lastUpdated ? ago(lastUpdated.toISOString()) : "never"}
+            </span>
+            <button
+              type="button"
+              onClick={load}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white/85 hover:bg-white/[0.08]"
+            >
+              <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+            <button
+              type="button"
+              disabled={busy === "global:null"}
+              onClick={() => setPause("global", null, !o.globalPaused)}
+              className={`inline-flex h-10 items-center gap-2 rounded-lg border px-3 text-sm font-semibold disabled:opacity-50 ${
+                o.globalPaused
+                  ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-100 hover:bg-emerald-400/15"
+                  : "border-red-400/40 bg-red-400/10 text-red-100 hover:bg-red-400/15"
+              }`}
+            >
+              {o.globalPaused ? <PlayCircle className="h-4 w-4" /> : <PauseCircle className="h-4 w-4" />}
+              {o.globalPaused ? "Resume all" : "Global pause"}
+            </button>
+          </div>
+        </header>
 
-        {/* Security */}
-        <div>
-          <h2 style={S.h2}>Security events</h2>
-          <div style={S.card}>
-            {security.length === 0 ? <p style={S.muted}>No security events recorded.</p> : security.map((e) => (
-              <div key={e.id} style={S.eventRow}>
-                <span style={{ ...S.sev, ...sevColor(e.severity) }}>{e.severity.toUpperCase()}</span>
-                <span style={S.mono}>{e.rail}</span>
-                <span>{e.kind}</span>
-                <span style={S.muted}>{new Date(e.ts).toLocaleTimeString()}</span>
+        {o.globalPaused && (
+          <section className="rounded-lg border border-amber-400/35 bg-amber-400/10 p-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-200" />
+                <div>
+                  <p className="font-semibold text-amber-100">Global pause active</p>
+                  <p className="mt-1 text-sm text-amber-100/75">
+                    All live money movement is halted server-side.
+                  </p>
+                </div>
               </div>
-            ))}
-          </div>
-        </div>
-      </div>
+              <div className="text-sm text-amber-100/75">
+                <span>{fmtTime(o.globalPause?.at)}</span>
+                {o.globalPause?.reason ? <span className="ml-3">Reason: {o.globalPause.reason}</span> : null}
+              </div>
+            </div>
+          </section>
+        )}
 
-      {/* Transactions */}
-      <h2 style={S.h2}>Recent transactions</h2>
-      <div style={S.tableWrap}>
-        <table style={S.table}>
-          <thead><tr>{["Time", "Rail", "State", "Substate", "USD", "Tx hash"].map((h) => <th key={h} style={S.th}>{h}</th>)}</tr></thead>
-          <tbody>
-            {txs.length === 0 ? (
-              <tr><td style={S.td} colSpan={6}><span style={S.muted}>No transactions recorded yet.</span></td></tr>
-            ) : txs.map((t) => (
-              <tr key={t.id}>
-                <td style={S.td}>{new Date(t.ts).toLocaleTimeString()}</td>
-                <td style={S.td}>{t.rail}</td>
-                <td style={S.td}>{t.state}</td>
-                <td style={S.td}>{t.substate ?? "—"}</td>
-                <td style={S.td}>{t.amountUsd != null ? money(t.amountUsd) : "—"}</td>
-                <td style={{ ...S.td, ...S.mono }}>{t.txHash ? `${t.txHash.slice(0, 10)}…${t.txHash.slice(-6)}` : "—"}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Metric icon={<Activity />} label="Settled volume" value={money(o.totals.volumeUsd)} meta="90d rolling" />
+          <Metric icon={<Zap />} label="Success rate" value={pct(o.totals.successRate)} meta={`${count(o.totals.attempted)} attempted`} />
+          <Metric icon={<ShieldAlert />} label="High risk events" value={count(highSecurity)} meta={`${count(security.length)} security events`} tone={highSecurity > 0 ? "danger" : "ok"} />
+          <Metric icon={<SlidersHorizontal />} label="Rail posture" value={`${liveRails}/${o.rails.length} live`} meta={`${pausedRails} paused, ${riskRails} need review`} tone={riskRails > 0 || pausedRails > 0 ? "warn" : "ok"} />
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.9fr)]">
+          <Panel title="Payment rails" icon={<Database className="h-4 w-4" />}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[980px] border-separate border-spacing-0 text-sm">
+                <thead>
+                  <tr className="text-left text-xs uppercase tracking-[0.08em] text-white/45">
+                    {["Rail", "Status", "Mode", "Flow", "Success", "Volume", "Revenue", "Health", "Control"].map((h) => (
+                      <th key={h} className="border-b border-white/10 px-3 py-3 font-semibold">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {o.rails.map((r) => {
+                    const railControlPaused = !!r.control?.paused;
+                    const controlDisabled = busy === `rail:${r.rail}` || (o.globalPaused && !railControlPaused);
+                    return (
+                    <tr key={r.rail} className="group">
+                      <td className="border-b border-white/[0.06] px-3 py-4">
+                        <div className="font-semibold">{r.rail}</div>
+                        {r.control?.paused && r.control.reason ? (
+                          <div className="mt-1 max-w-[180px] truncate text-xs text-white/45">{r.control.reason}</div>
+                        ) : null}
+                      </td>
+                      <td className="border-b border-white/[0.06] px-3 py-4">
+                        <StatusBadge status={r.status} />
+                      </td>
+                      <td className="border-b border-white/[0.06] px-3 py-4">
+                        <ModeBadge armed={r.armed} />
+                      </td>
+                      <td className="border-b border-white/[0.06] px-3 py-4">
+                        <div className="flex flex-wrap gap-1.5">
+                          <FlowPill label="ready" value={r.prepared} />
+                          <FlowPill label="settled" value={r.settled} />
+                          <FlowPill label="pending" value={r.pending} />
+                          <FlowPill label="failed" value={r.failed + r.rejected} tone={r.failed + r.rejected > 0 ? "danger" : "muted"} />
+                        </div>
+                      </td>
+                      <td className="border-b border-white/[0.06] px-3 py-4 font-medium">{pct(r.successRate)}</td>
+                      <td className="border-b border-white/[0.06] px-3 py-4 font-medium">{money(r.volumeUsd)}</td>
+                      <td className="border-b border-white/[0.06] px-3 py-4 font-medium">{money(r.feeUsd)}</td>
+                      <td className="border-b border-white/[0.06] px-3 py-4">
+                        <div className="max-w-[180px]">
+                          <div className="text-xs text-white/75">{r.health?.latencyMs != null ? `${r.health.latencyMs}ms` : "no signal"}</div>
+                          <div className="mt-0.5 truncate text-xs text-white/40">{r.health ? ago(r.health.checkedAt) : "awaiting check"}</div>
+                        </div>
+                      </td>
+                      <td className="border-b border-white/[0.06] px-3 py-4">
+                        <button
+                          type="button"
+                          disabled={controlDisabled}
+                          onClick={() => setPause("rail", r.rail, !railControlPaused)}
+                          className={`inline-flex h-9 items-center gap-2 rounded-lg border px-3 text-xs font-semibold disabled:cursor-not-allowed disabled:opacity-45 ${
+                            railControlPaused
+                              ? "border-emerald-400/35 bg-emerald-400/10 text-emerald-100"
+                              : "border-red-400/35 bg-red-400/10 text-red-100"
+                          }`}
+                        >
+                          {railControlPaused ? <PlayCircle className="h-3.5 w-3.5" /> : <PauseCircle className="h-3.5 w-3.5" />}
+                          {o.globalPaused && !railControlPaused ? "Global" : railControlPaused ? "Resume" : "Pause"}
+                        </button>
+                      </td>
+                    </tr>
+                    );
+                  })}
+                  {o.futureRails.map((r) => (
+                    <tr key={r.rail} className="opacity-55">
+                      <td className="border-b border-white/[0.06] px-3 py-4 font-semibold">{r.rail}</td>
+                      <td className="border-b border-white/[0.06] px-3 py-4"><StatusBadge status={r.status} /></td>
+                      <td className="border-b border-white/[0.06] px-3 py-4" colSpan={7}>not configured</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Panel>
+
+          <Panel title="Configuration readiness" icon={<LockKeyhole className="h-4 w-4" />}>
+            <div className="space-y-4">
+              <ConfigGroup title="x402 mainnet settlement" rows={o.config.x402} />
+              <ConfigGroup title="LI.FI swaps" rows={o.config.lifi} />
+              <ConfigGroup title="CCTP V2" rows={o.config.cctp} />
+              <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-white/45">Money caps</div>
+                <ConfigLine label="Max swap" value={money(o.config.limits.maxSwapUsd)} />
+                <ConfigLine label="Max CCTP" value={money(o.config.limits.maxCctpUsd)} />
+              </div>
+              {o.config.providers ? (
+                <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+                  <div className="mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-white/45">Providers</div>
+                  {Object.entries(o.config.providers).map(([k, v]) => (
+                    <ConfigLine key={k} label={k} value={v ? "CONFIGURED" : "MISSING"} ok={v} />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </Panel>
+        </section>
+
+        <section className="grid gap-5 xl:grid-cols-2">
+          <Panel title="Security events" icon={<ShieldAlert className="h-4 w-4" />}>
+            {security.length === 0 ? (
+              <EmptyState icon={<CheckCircle2 className="h-5 w-5" />} text="No security events recorded." />
+            ) : (
+              <div className="divide-y divide-white/[0.06]">
+                {security.map((event) => (
+                  <div key={event.id} className="grid gap-2 py-3 sm:grid-cols-[92px_72px_1fr_auto] sm:items-start">
+                    <SeverityBadge severity={event.severity} />
+                    <span className="font-mono text-xs text-white/55">{event.rail}</span>
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-medium">{event.kind}</div>
+                      <div className="mt-1 line-clamp-2 text-xs text-white/45">{event.detail}</div>
+                    </div>
+                    <span className="text-xs text-white/45">{ago(event.ts)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+
+          <Panel title="Privileged audit" icon={<Clock3 className="h-4 w-4" />}>
+            {audit.length === 0 ? (
+              <EmptyState icon={<CircleDashed className="h-5 w-5" />} text="No privileged actions in this instance." />
+            ) : (
+              <div className="divide-y divide-white/[0.06]">
+                {audit.map((entry) => (
+                  <div key={entry.id} className="grid gap-2 py-3 sm:grid-cols-[1fr_auto]">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold">{entry.event}</span>
+                        <span className="rounded-md bg-white/[0.05] px-2 py-0.5 font-mono text-[11px] text-white/50">
+                          {shorten(entry.actor, 18)}
+                        </span>
+                      </div>
+                      <div className="mt-1 truncate font-mono text-xs text-white/40">{compactFields(entry.fields)}</div>
+                    </div>
+                    <span className="text-xs text-white/45">{ago(entry.ts)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+        </section>
+
+        <Panel title="Recent transactions" icon={<Activity className="h-4 w-4" />}>
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Select label="Rail" value={txRail} onChange={setTxRail} options={["all", ...rails]} />
+            <Select label="State" value={txState} onChange={setTxState} options={["all", ...states]} />
+            <span className="ml-auto text-xs text-white/45">{count(filteredTxs.length)} shown</span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-[0.08em] text-white/45">
+                  {["Time", "Rail", "State", "Route", "Amount", "Fee", "Tx hash"].map((h) => (
+                    <th key={h} className="border-b border-white/10 px-3 py-3 font-semibold">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTxs.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="px-3 py-8">
+                      <EmptyState icon={<CircleDashed className="h-5 w-5" />} text="No transactions match the current filters." />
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTxs.map((tx) => (
+                    <tr key={tx.id}>
+                      <td className="border-b border-white/[0.06] px-3 py-3 text-white/55">{fmtTime(tx.ts)}</td>
+                      <td className="border-b border-white/[0.06] px-3 py-3 font-mono text-xs">{tx.rail}</td>
+                      <td className="border-b border-white/[0.06] px-3 py-3"><StateBadge state={tx.state} /></td>
+                      <td className="border-b border-white/[0.06] px-3 py-3 text-white/55">
+                        {tx.sourceChain || tx.destChain ? `${tx.sourceChain ?? "-"} -> ${tx.destChain ?? "-"}` : tx.substate ?? "-"}
+                      </td>
+                      <td className="border-b border-white/[0.06] px-3 py-3 font-medium">
+                        {tx.amountUsd != null ? money(tx.amountUsd) : "-"}
+                      </td>
+                      <td className="border-b border-white/[0.06] px-3 py-3 text-white/55">
+                        {tx.feeUsd != null ? money(tx.feeUsd) : "-"}
+                      </td>
+                      <td className="border-b border-white/[0.06] px-3 py-3 font-mono text-xs text-white/55">
+                        {tx.txHash ? shorten(tx.txHash, 22) : "-"}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
       </div>
     </main>
   );
 }
 
-function Tile({ label, value }: { label: string; value: string }) {
+function Panel({ title, icon, children }: { title: string; icon: ReactNode; children: ReactNode }) {
   return (
-    <div style={S.tile}>
-      <div style={S.tileValue}>{value}</div>
-      <div style={S.tileLabel}>{label}</div>
+    <section className="rounded-lg border border-white/10 bg-white/[0.035] shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
+      <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
+        <span className="text-white/55">{icon}</span>
+        <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+      </div>
+      <div className="p-4">{children}</div>
+    </section>
+  );
+}
+
+function Metric({
+  icon,
+  label,
+  value,
+  meta,
+  tone = "neutral",
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  meta: string;
+  tone?: "neutral" | "ok" | "warn" | "danger";
+}) {
+  const toneClass = {
+    neutral: "text-white/55 bg-white/[0.05]",
+    ok: "text-emerald-200 bg-emerald-400/10",
+    warn: "text-amber-200 bg-amber-400/10",
+    danger: "text-red-200 bg-red-400/10",
+  }[tone];
+
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.035] p-4">
+      <div className="mb-4 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-[0.08em] text-white/45">{label}</span>
+        <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${toneClass}`}>
+          <span className="h-4 w-4">{icon}</span>
+        </span>
+      </div>
+      <div className="text-2xl font-bold tracking-tight">{value}</div>
+      <div className="mt-1 text-xs text-white/45">{meta}</div>
     </div>
   );
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const c: Record<string, React.CSSProperties> = {
-    HEALTHY: { background: "#065f46", color: "#d1fae5" },
-    PAUSED: { background: "#7c2d12", color: "#fed7aa" },
-    DEGRADED: { background: "#78350f", color: "#fde68a" },
-    INCIDENT: { background: "#7f1d1d", color: "#fecaca" },
-    NOT_CONFIGURED: { background: "#374151", color: "#d1d5db" },
-  };
-  return <span style={{ ...S.badge, ...(c[status] ?? c.NOT_CONFIGURED) }}>{status}</span>;
+  const style =
+    {
+      HEALTHY: "border-emerald-400/30 bg-emerald-400/10 text-emerald-100",
+      PAUSED: "border-amber-400/30 bg-amber-400/10 text-amber-100",
+      DEGRADED: "border-yellow-400/30 bg-yellow-400/10 text-yellow-100",
+      INCIDENT: "border-red-400/30 bg-red-400/10 text-red-100",
+      UNKNOWN: "border-slate-400/30 bg-slate-400/10 text-slate-100",
+      NOT_CONFIGURED: "border-white/15 bg-white/[0.04] text-white/55",
+    }[status] ?? "border-white/15 bg-white/[0.04] text-white/55";
+
+  return <span className={`inline-flex items-center rounded-md border px-2 py-1 text-xs font-semibold ${style}`}>{status}</span>;
 }
 
-function ConfigGroup({ title, armed, rows }: { title: string; armed: boolean; rows: Record<string, unknown> }) {
+function StateBadge({ state }: { state: TxEvent["state"] }) {
+  const icon =
+    state === "settled" ? <CheckCircle2 className="h-3.5 w-3.5" /> :
+    state === "failed" || state === "rejected" ? <XCircle className="h-3.5 w-3.5" /> :
+    state === "pending" ? <Clock3 className="h-3.5 w-3.5" /> :
+    <CircleDashed className="h-3.5 w-3.5" />;
+  const color =
+    state === "settled" ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-100" :
+    state === "failed" || state === "rejected" ? "border-red-400/30 bg-red-400/10 text-red-100" :
+    state === "pending" ? "border-amber-400/30 bg-amber-400/10 text-amber-100" :
+    "border-white/15 bg-white/[0.04] text-white/60";
+
+  return <span className={`inline-flex items-center gap-1.5 rounded-md border px-2 py-1 text-xs font-semibold ${color}`}>{icon}{state}</span>;
+}
+
+function SeverityBadge({ severity }: { severity: SecEvent["severity"] }) {
+  const color =
+    severity === "critical" || severity === "high" ? "text-red-100 bg-red-400/10 border-red-400/30" :
+    severity === "medium" ? "text-amber-100 bg-amber-400/10 border-amber-400/30" :
+    severity === "low" ? "text-sky-100 bg-sky-400/10 border-sky-400/30" :
+    "text-white/55 bg-white/[0.04] border-white/10";
+
+  return <span className={`inline-flex w-fit rounded-md border px-2 py-1 text-xs font-semibold ${color}`}>{severity.toUpperCase()}</span>;
+}
+
+function ModeBadge({ armed }: { armed: boolean }) {
+  return armed ? (
+    <span className="inline-flex rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-xs font-semibold text-emerald-100">
+      LIVE
+    </span>
+  ) : (
+    <span className="inline-flex rounded-md border border-white/15 bg-white/[0.04] px-2 py-1 text-xs font-semibold text-white/55">
+      MOCK
+    </span>
+  );
+}
+
+function ReadinessBadge({ armed }: { armed: boolean }) {
+  return armed ? (
+    <span className="inline-flex rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-xs font-semibold text-emerald-100">
+      ARMED
+    </span>
+  ) : (
+    <span className="inline-flex rounded-md border border-white/15 bg-white/[0.04] px-2 py-1 text-xs font-semibold text-white/55">
+      NOT ARMED
+    </span>
+  );
+}
+
+function FlowPill({ label, value, tone = "muted" }: { label: string; value: number; tone?: "muted" | "danger" }) {
   return (
-    <div style={{ marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between" }}>
-        <b>{title}</b>
-        <span style={{ ...S.badge, ...(armed ? { background: "#065f46", color: "#d1fae5" } : { background: "#374151", color: "#d1d5db" }) }}>
-          {armed ? "ARMED" : "NOT ARMED"}
-        </span>
+    <span className={`rounded-md px-2 py-1 text-xs ${tone === "danger" ? "bg-red-400/10 text-red-100" : "bg-white/[0.045] text-white/60"}`}>
+      {label} {count(value)}
+    </span>
+  );
+}
+
+function ConfigGroup({ title, rows }: { title: string; rows: Record<string, unknown> & { armed?: boolean } }) {
+  const entries = Object.entries(rows).filter(([k]) => k !== "armed");
+  return (
+    <div className="rounded-lg border border-white/10 bg-white/[0.025] p-3">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold">{title}</div>
+        <ReadinessBadge armed={!!rows.armed} />
       </div>
-      {Object.entries(rows).filter(([k]) => k !== "armed").map(([k, v]) => (
-        <div key={k} style={S.configRow}>
-          <span style={S.muted}>{k}</span>
-          <span style={S.mono}>{typeof v === "boolean" ? (v ? "CONFIGURED" : "MISSING") : v == null ? "—" : String(v)}</span>
-        </div>
-      ))}
+      <div className="space-y-2">
+        {entries.map(([k, v]) => (
+          <ConfigLine key={k} label={k} value={displayConfigValue(v)} ok={typeof v === "boolean" ? v : v != null && v !== ""} />
+        ))}
+      </div>
     </div>
   );
 }
 
-function sevColor(sev: string): React.CSSProperties {
-  return { critical: { color: "#fca5a5" }, high: { color: "#fca5a5" }, medium: { color: "#fcd34d" }, low: { color: "#93c5fd" }, info: { color: "#9ca3af" } }[sev] ?? { color: "#9ca3af" };
+function ConfigLine({ label, value, ok }: { label: string; value: string; ok?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-4 text-xs">
+      <span className="min-w-0 truncate text-white/45">{label}</span>
+      <span className={`shrink-0 font-mono ${ok === false ? "text-red-200" : ok === true ? "text-emerald-200" : "text-white/65"}`}>
+        {value}
+      </span>
+    </div>
+  );
 }
 
-const S: Record<string, React.CSSProperties> = {
-  page: { maxWidth: 1200, margin: "0 auto", padding: "24px 20px", fontFamily: "ui-sans-serif, system-ui, sans-serif" },
-  headerRow: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
-  headerRight: { display: "flex", gap: 12, alignItems: "center" },
-  h1: { fontSize: 24, fontWeight: 700, margin: 0 },
-  h2: { fontSize: 16, fontWeight: 600, margin: "24px 0 10px" },
-  muted: { color: "#6b7280", fontSize: 13 },
-  mono: { fontFamily: "ui-monospace, monospace", fontSize: 12 },
-  tiles: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 12 },
-  tile: { border: "1px solid #2a2a2a", borderRadius: 10, padding: "14px 16px", background: "rgba(127,127,127,0.04)" },
-  tileValue: { fontSize: 22, fontWeight: 700 },
-  tileLabel: { fontSize: 12, color: "#6b7280", marginTop: 4 },
-  tableWrap: { overflowX: "auto", border: "1px solid #2a2a2a", borderRadius: 10 },
-  table: { width: "100%", borderCollapse: "collapse", fontSize: 13 },
-  th: { textAlign: "left", padding: "10px 12px", borderBottom: "1px solid #2a2a2a", color: "#6b7280", fontWeight: 600, whiteSpace: "nowrap" },
-  td: { padding: "9px 12px", borderBottom: "1px solid #1e1e1e", whiteSpace: "nowrap" },
-  twoCol: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: 20, marginTop: 8 },
-  card: { border: "1px solid #2a2a2a", borderRadius: 10, padding: 16 },
-  configRow: { display: "flex", justifyContent: "space-between", padding: "3px 0" },
-  eventRow: { display: "grid", gridTemplateColumns: "70px 60px 1fr auto", gap: 8, alignItems: "center", padding: "5px 0", fontSize: 12, borderBottom: "1px solid #1e1e1e" },
-  sev: { fontWeight: 700, fontSize: 11 },
-  badge: { padding: "2px 8px", borderRadius: 6, fontSize: 11, fontWeight: 600 },
-  btn: { padding: "8px 14px", borderRadius: 8, border: "1px solid #2a2a2a", cursor: "pointer", fontSize: 13, fontWeight: 600, background: "transparent", color: "inherit" },
-  btnSm: { padding: "4px 10px", borderRadius: 6, border: "1px solid #2a2a2a", cursor: "pointer", fontSize: 12, background: "transparent", color: "inherit" },
-  btnDanger: { borderColor: "#b91c1c", color: "#fca5a5" },
-  btnResume: { borderColor: "#065f46", color: "#6ee7b7" },
-};
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: string[];
+}) {
+  return (
+    <label className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-2 text-xs text-white/50">
+      {label}
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="bg-transparent text-sm font-semibold text-white outline-none"
+      >
+        {options.map((option) => (
+          <option key={option} value={option} className="bg-[#101214] text-white">
+            {option}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function EmptyState({ icon, text }: { icon: ReactNode; text: string }) {
+  return (
+    <div className="flex items-center justify-center gap-2 rounded-lg border border-dashed border-white/10 px-4 py-6 text-sm text-white/45">
+      {icon}
+      {text}
+    </div>
+  );
+}
+
+function displayConfigValue(value: unknown): string {
+  if (typeof value === "boolean") return value ? "CONFIGURED" : "MISSING";
+  if (value == null || value === "") return "-";
+  return String(value);
+}
+
+function shorten(value: string, max: number) {
+  if (value.length <= max) return value;
+  const head = Math.max(6, Math.floor(max * 0.55));
+  const tail = Math.max(4, max - head - 3);
+  return `${value.slice(0, head)}...${value.slice(-tail)}`;
+}
+
+function compactFields(fields: Record<string, unknown>) {
+  const raw = JSON.stringify(fields);
+  return raw.length > 140 ? `${raw.slice(0, 137)}...` : raw;
+}

@@ -1,3 +1,4 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole, type AuthResult } from "@/lib/authz";
 
@@ -10,7 +11,7 @@ export interface OpsMeta {
 }
 
 function meta(): OpsMeta {
-  return { requestId: `req_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, timestamp: new Date().toISOString() };
+  return { requestId: `req_${randomUUID()}`, timestamp: new Date().toISOString() };
 }
 
 export function opsOk(data: unknown, status = 200): NextResponse {

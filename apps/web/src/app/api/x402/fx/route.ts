@@ -9,6 +9,7 @@ import {
 } from "@/lib/x402";
 import { assertRailActive } from "@/lib/ops/controls";
 import { recordTxEvent, recordSecurityEvent } from "@/lib/ops/events";
+import { recordRailHealth } from "@/lib/ops/overview";
 
 // ---------------------------------------------------------------------------
 // GET /api/x402/fx — pay-per-call premium API via x402 (HTTP 402).
@@ -52,15 +53,17 @@ export async function GET(req: NextRequest) {
   // presented — a bare 402 quote request is not a transaction).
   if (hasPayment) {
     if (result.ok) {
-      void recordTxEvent({ rail: "x402", state: "settled", substate: "SETTLED", amountUsd: PRICE_USD, token: result.asset, txHash: result.txHash, payer: result.payer });
+      await recordTxEvent({ rail: "x402", state: "settled", substate: "SETTLED", amountUsd: PRICE_USD, token: result.asset, txHash: result.txHash, payer: result.payer });
+      await recordRailHealth("x402", "HEALTHY");
     } else if (result.pending) {
-      void recordTxEvent({ rail: "x402", state: "pending", substate: "SETTLEMENT_PENDING", amountUsd: PRICE_USD, txHash: result.pending.transaction });
+      await recordTxEvent({ rail: "x402", state: "pending", substate: "SETTLEMENT_PENDING", amountUsd: PRICE_USD, txHash: result.pending.transaction });
+      await recordRailHealth("x402", "HEALTHY");
     } else if (/replay|already used|already redeemed/i.test(result.error)) {
-      void recordSecurityEvent({ rail: "x402", kind: "replay_rejected", severity: "medium", detail: result.error });
+      await recordSecurityEvent({ rail: "x402", kind: "replay_rejected", severity: "medium", detail: result.error });
     } else if (/signature/i.test(result.error)) {
-      void recordSecurityEvent({ rail: "x402", kind: "bad_signature", severity: "high", detail: result.error });
+      await recordSecurityEvent({ rail: "x402", kind: "bad_signature", severity: "high", detail: result.error });
     } else if (/binding|quote/i.test(result.error)) {
-      void recordSecurityEvent({ rail: "x402", kind: "quote_tamper", severity: "high", detail: result.error });
+      await recordSecurityEvent({ rail: "x402", kind: "quote_tamper", severity: "high", detail: result.error });
     }
   }
 

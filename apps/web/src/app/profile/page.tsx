@@ -78,15 +78,7 @@ export default function ProfilePage() {
             Verify your account →
           </button>
         )}
-        <Row label="Plan tier" right={
-          <select
-            value={p.tier}
-            onChange={(e) => patch({ tier: e.target.value })}
-            className="rounded-lg bg-surfaceMuted px-2 py-1 text-[13px] font-semibold outline-none"
-          >
-            {["Standard", "Pro", "Ultra"].map((t) => <option key={t}>{t}</option>)}
-          </select>
-        } />
+        <Row label="Plan tier" right={<Pill tone="accent">{p.tier}</Pill>} />
       </Group>
 
       {/* Security center */}
@@ -105,10 +97,12 @@ export default function ProfilePage() {
         } />
         <Row label="Last login" right={<span className="text-[13px] text-textSecondary">{timeAgo(p.security.lastLogin)}</span>} />
         <button
-          onClick={() => patch({ action: p.security.accountLocked ? "unlock" : "lock" })}
+          onClick={() => {
+            if (!p.security.accountLocked) void patch({ action: "lock" });
+          }}
           className={`w-full px-4 py-3 text-left text-[14px] font-semibold ${p.security.accountLocked ? "text-gain" : "text-loss"}`}
         >
-          {p.security.accountLocked ? "Unlock account" : "Lock account instantly"}
+          {p.security.accountLocked ? "Account locked" : "Lock account instantly"}
         </button>
       </Group>
 

@@ -7,6 +7,7 @@ import { buildSwapExecution, usdPrice } from "@/lib/services/swap";
 import { capExceeded } from "@/lib/moneyLimits";
 import { assertRailActive } from "@/lib/ops/controls";
 import { recordTxEvent, recordSecurityEvent } from "@/lib/ops/events";
+import { recordRailHealth } from "@/lib/ops/overview";
 import type { Chain, Token } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -49,10 +50,11 @@ export async function POST(req: NextRequest) {
   const usdNotional = body.amountIn * usdPrice(body.fromToken as Token);
   const cap = capExceeded("swap", usdNotional);
   if (cap) {
-    void recordSecurityEvent({ rail: "lifi", kind: "amount_over_limit", severity: "low", detail: `swap $${usdNotional.toFixed(2)} > $${cap.capUsd}`, actor: auth.account.user.id });
+    await recordSecurityEvent({ rail: "lifi", kind: "amount_over_limit", severity: "low", detail: `swap $${usdNotional.toFixed(2)} > $${cap.capUsd}`, actor: auth.account.user.id });
     return NextResponse.json({ ok: false, error: "amount_over_limit", detail: cap.error }, { status: 403 });
   }
 
+  const healthStarted = Date.now();
   const result = await buildSwapExecution({
     fromToken: body.fromToken as Token,
     toToken: body.toToken as Token,
@@ -63,13 +65,15 @@ export async function POST(req: NextRequest) {
     toAddress: body.toAddress,
   });
   if (!result.ok) {
+    await recordRailHealth("lifi", result.error === "route_unavailable" ? "DEGRADED" : "INCIDENT", result.error, Date.now() - healthStarted);
     const status = result.error === "route_unavailable" ? 502 : 400;
     return NextResponse.json({ ok: false, error: result.error }, { status });
   }
-  // The signed tx is the user's to broadcast; record the intent as pending so
-  // the explorer shows it (settled state is confirmed on-chain out-of-band).
-  void recordTxEvent({
-    rail: "lifi", state: "pending", substate: "APPROVAL_REQUIRED",
+  await recordRailHealth("lifi", "HEALTHY", undefined, Date.now() - healthStarted);
+  // The signed tx is the user's to broadcast. This is prepared calldata, not
+  // pending money movement; only a real tx hash/observation may become pending.
+  await recordTxEvent({
+    rail: "lifi", state: "prepared", substate: "AWAITING_SIGNATURE",
     amountUsd: usdNotional, feeUsd: result.execution.quote.feeUsd,
     token: body.fromToken, sourceChain: body.fromChain, destChain: result.execution.quote.toChain,
     userId: auth.account.user.id,

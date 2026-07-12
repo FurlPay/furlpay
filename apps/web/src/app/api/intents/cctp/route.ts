@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
       // Hard server-side cap (FURLPAY_MAX_CCTP_USD, default $500).
       const cap = capExceeded("cctp", body.amount);
       if (cap) {
-        void recordSecurityEvent({ rail: "cctp", kind: "amount_over_limit", severity: "low", detail: `cctp $${body.amount} > $${cap.capUsd}`, actor: auth.account.user.id });
+        await recordSecurityEvent({ rail: "cctp", kind: "amount_over_limit", severity: "low", detail: `cctp $${body.amount} > $${cap.capUsd}`, actor: auth.account.user.id });
         return NextResponse.json({ error: "amount_over_limit", detail: cap.error }, { status: 403 });
       }
       const bundle = buildBurnBundle({
@@ -67,8 +67,8 @@ export async function POST(req: NextRequest) {
         recipient: body.recipient as `0x${string}`,
         fast: body.fast ?? true,
       });
-      void recordTxEvent({
-        rail: "cctp", state: "pending", substate: "BURN_CREATED",
+      await recordTxEvent({
+        rail: "cctp", state: "prepared", substate: "BURN_PREPARED",
         amountUsd: body.amount, token: "USDC",
         sourceChain: body.sourceChain, destChain: body.destinationChain,
         recipient: body.recipient, userId: auth.account.user.id,
@@ -76,6 +76,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, bundle });
     }
     const tx = buildMintTransaction(body.message as `0x${string}`, body.attestation as `0x${string}`);
+    await recordTxEvent({ rail: "cctp", state: "prepared", substate: "MINT_PREPARED", token: "USDC", userId: auth.account.user.id });
     return NextResponse.json({ ok: true, transaction: tx });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 400 });

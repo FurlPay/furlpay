@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authz";
+import { recordRailHealth } from "@/lib/ops/overview";
 import { fetchAttestation } from "@/lib/services/cctpExecution";
 
 export const dynamic = "force-dynamic";
@@ -20,10 +21,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
+    const started = Date.now();
     const attestation = await fetchAttestation(sourceDomain, txHash);
+    await recordRailHealth("cctp", "HEALTHY", undefined, Date.now() - started);
     return NextResponse.json(attestation, { headers: { "cache-control": "no-store" } });
   } catch (e) {
     const msg = (e as Error).message;
+    if (msg !== "invalid txHash") await recordRailHealth("cctp", "DEGRADED", msg);
     return NextResponse.json({ error: msg }, { status: msg === "invalid txHash" ? 400 : 502 });
   }
 }

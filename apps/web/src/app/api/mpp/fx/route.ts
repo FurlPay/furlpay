@@ -8,6 +8,7 @@ import {
 } from "@/lib/mpp";
 import { assertRailActive } from "@/lib/ops/controls";
 import { recordTxEvent, recordSecurityEvent } from "@/lib/ops/events";
+import { recordRailHealth } from "@/lib/ops/overview";
 
 export const dynamic = "force-dynamic";
 
@@ -55,15 +56,17 @@ export async function GET(req: NextRequest) {
   const result = await verifyMppPayment({ authorization, realm, priceUsd: PRICE_USD });
 
   if (result.ok) {
-    void recordTxEvent({ rail: "mpp", state: "settled", substate: "SETTLED", amountUsd: PRICE_USD, token: "USDC", txHash: result.reference, payer: result.payer });
+    await recordTxEvent({ rail: "mpp", state: "settled", substate: "SETTLED", amountUsd: PRICE_USD, token: "USDC", txHash: result.reference, payer: result.payer });
+    await recordRailHealth("mpp", "HEALTHY");
   } else if (result.pending) {
-    void recordTxEvent({ rail: "mpp", state: "pending", substate: "SETTLEMENT_PENDING", amountUsd: PRICE_USD, txHash: result.pending.reference });
+    await recordTxEvent({ rail: "mpp", state: "pending", substate: "SETTLEMENT_PENDING", amountUsd: PRICE_USD, txHash: result.pending.reference });
+    await recordRailHealth("mpp", "HEALTHY");
   } else if (/replay|already used|already redeemed/i.test(result.detail)) {
-    void recordSecurityEvent({ rail: "mpp", kind: "replay_rejected", severity: "medium", detail: result.detail });
+    await recordSecurityEvent({ rail: "mpp", kind: "replay_rejected", severity: "medium", detail: result.detail });
   } else if (/signature/i.test(result.detail)) {
-    void recordSecurityEvent({ rail: "mpp", kind: "bad_signature", severity: "high", detail: result.detail });
+    await recordSecurityEvent({ rail: "mpp", kind: "bad_signature", severity: "high", detail: result.detail });
   } else if (/binding|challenge id|tamper/i.test(result.detail)) {
-    void recordSecurityEvent({ rail: "mpp", kind: "challenge_tamper", severity: "high", detail: result.detail });
+    await recordSecurityEvent({ rail: "mpp", kind: "challenge_tamper", severity: "high", detail: result.detail });
   }
 
   if (!result.ok) {

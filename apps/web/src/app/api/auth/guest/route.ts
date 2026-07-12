@@ -32,6 +32,7 @@ export async function POST() {
     sub: db.user.id,
     safe: db.user.safeAddress,
     roles: db.user.roles,
+    guest: true,
   });
   const res = NextResponse.json({ verified: true, guest: true });
   setSessionCookie(res, token);

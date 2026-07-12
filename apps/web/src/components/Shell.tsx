@@ -35,6 +35,7 @@ const FULL_BLEED = (pathname: string) =>
   pathname.startsWith("/compare") ||
   pathname.startsWith("/newsletter") ||
   pathname.startsWith("/developer") ||
+  pathname.startsWith("/ops") ||
   pathname.startsWith("/docs") ||
   pathname.startsWith("/blog") ||
   pathname.startsWith("/travel") || // FurlPay Travels portal — full desktop layout (own header/footer)

@@ -32,6 +32,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("FURLPAY_ORIGIN"),
       v("ALLOW_GUEST_LOGIN"),
       v("NEXT_PUBLIC_ALLOW_GUEST"),
+      v("FURLPAY_ADMIN_EMAIL"),
     ],
   },
   {

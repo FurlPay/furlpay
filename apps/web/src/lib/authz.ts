@@ -14,6 +14,20 @@ export type AuthResult =
   | { ok: true; claims: SessionClaims; account: UserAccount }
   | { ok: false; res: NextResponse };
 
+// The single account allowed to hold the admin role. Override via
+// FURLPAY_ADMIN_EMAIL; defaults to the seeded founder/demo account so local
+// dev and the verify scripts keep working without extra env.
+export const FOUNDER_ADMIN_EMAIL =
+  (process.env.FURLPAY_ADMIN_EMAIL ?? "ashutosh@furlpay.app").trim().toLowerCase();
+
+function isProductionDeployment(): boolean {
+  return process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview";
+}
+
+function normalizedEmail(email: string | undefined | null): string {
+  return (email ?? "").trim().toLowerCase();
+}
+
 /** Resolve the acting user from the session cookie. 401 when absent/stale. */
 export async function requireUser(req: NextRequest): Promise<AuthResult> {
   const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
@@ -40,7 +54,13 @@ export async function requireUser(req: NextRequest): Promise<AuthResult> {
 export async function requireRole(req: NextRequest, role: Role): Promise<AuthResult> {
   const auth = await requireUser(req);
   if (!auth.ok) return auth;
+  if (role === "admin" && auth.claims.guest && isProductionDeployment()) {
+    return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
   if (!auth.account.user.roles.includes(role)) {
+    return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  if (role === "admin" && normalizedEmail(auth.account.user.email) !== FOUNDER_ADMIN_EMAIL) {
     return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   return auth;
