@@ -109,11 +109,28 @@ function railStatus(armed: boolean, pause: PauseState, globalPaused: boolean, he
   return health?.status ?? "UNKNOWN";
 }
 
+/** Public-safe operational status per rail: pause state + freshness-bounded
+ *  health only — no env presence, no volumes (those stay admin-gated). */
+export async function publicRailStatuses(): Promise<Record<Rail, RailStatus>> {
+  const controls = await controlSnapshot();
+  const cfg = configReadiness();
+  const armed: Record<Rail, boolean> = {
+    x402: cfg.x402.armed, mpp: cfg.x402.armed, lifi: cfg.lifi.armed, cctp: cfg.cctp.armed, transfers: cfg.x402.armed,
+  };
+  const out = {} as Record<Rail, RailStatus>;
+  for (const rail of RAILS) {
+    const health = await recentRailHealth(rail);
+    out[rail] = railStatus(armed[rail], controls.rails[rail], controls.global.paused, health);
+  }
+  return out;
+}
+
 export async function opsOverview() {
   const controls = await controlSnapshot();
   const cfg = configReadiness();
   const armedByRail: Record<Rail, boolean> = {
-    x402: cfg.x402.armed, mpp: cfg.x402.armed, lifi: cfg.lifi.armed, cctp: cfg.cctp.armed, transfers: false,
+    // Gasless transfers relay through the same fee-payer/settler as x402.
+    x402: cfg.x402.armed, mpp: cfg.x402.armed, lifi: cfg.lifi.armed, cctp: cfg.cctp.armed, transfers: cfg.x402.armed,
   };
 
   const rails = await Promise.all(
@@ -121,10 +138,7 @@ export async function opsOverview() {
       const health = await recentRailHealth(rail);
       return {
         rail,
-        status:
-          rail === "transfers"
-            ? ("NOT_CONFIGURED" as RailStatus)
-            : railStatus(armedByRail[rail], controls.rails[rail], controls.global.paused, health),
+        status: railStatus(armedByRail[rail], controls.rails[rail], controls.global.paused, health),
         armed: armedByRail[rail],
         control: controls.rails[rail],
         health,

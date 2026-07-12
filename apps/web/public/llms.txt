@@ -124,6 +124,8 @@ receive an on-chain receipt.
   - POST /verify     — validate a payment payload against requirements
   - POST /settle     — verify + settle on-chain (single-use nonce, replay-safe)
 - x402 resource catalog: https://furlpay.com/api/x402/resources (agent-discoverable)
+- Payment-rail map: https://furlpay.com/api/rails (all rails: protocol, chains, fees, caps, live status)
+- Gasless USDC transfers: https://furlpay.com/api/transfers/gasless (EIP-3009 relay, fees in USDC, gas sponsored)
 - Payment fee estimate: https://furlpay.com/api/payments/fees/estimate?amount=150
 - Chain status: https://furlpay.com/api/chain/status
 - Pay-per-call demo endpoint: https://furlpay.com/api/x402/fx (402 → quote)
@@ -201,6 +203,8 @@ all packages are MIT and run in demo mode without an API key.
   Solana Actions & Blinks integration for shareable payment links.
 - Security — MPC + WebAuthn: https://furlpay.com/docs/security/mpc-webauthn
   Passkey-based authentication and 2-of-2 MPC key custody model.
+- Security — Posture: https://furlpay.com/docs/security/posture
+  Layer-by-layer security guarantees with honest audit status; verifiable against the open-source repo.
 - Compliance — MiCA: https://furlpay.com/docs/compliance/mica
   EU Markets in Crypto-Assets regulation compliance details.
 

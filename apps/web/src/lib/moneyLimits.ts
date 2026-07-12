@@ -21,6 +21,11 @@ export function maxCctpUsd(): number {
   return envCap("FURLPAY_MAX_CCTP_USD", 500);
 }
 
+/** Max single gasless (relayed EIP-3009) transfer, in USDC. */
+export function maxTransferUsd(): number {
+  return envCap("FURLPAY_MAX_TRANSFER_USD", 500);
+}
+
 export function capExceeded(kind: "swap" | "cctp", amountUsd: number): { error: string; capUsd: number } | null {
   const cap = kind === "swap" ? maxSwapUsd() : maxCctpUsd();
   if (amountUsd <= cap) return null;

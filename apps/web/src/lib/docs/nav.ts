@@ -46,7 +46,10 @@ export const DOCS_NAV: DocSection[] = [
   },
   {
     label: "Security & Crypto",
-    items: [{ title: "MPC & WebAuthn", href: "/docs/security/mpc-webauthn", desc: "Passkey (FIDO2/WebAuthn) authentication and the MPC key architecture." }],
+    items: [
+      { title: "Security Posture", href: "/docs/security/posture", desc: "What protects your money at each layer: non-custodial settlement, replay protection, money caps, CI scanning, and honest audit status.", badge: "new" },
+      { title: "MPC & WebAuthn", href: "/docs/security/mpc-webauthn", desc: "Passkey (FIDO2/WebAuthn) authentication and the MPC key architecture." },
+    ],
   },
 ];
 

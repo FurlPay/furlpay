@@ -180,6 +180,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // (lib/moneyLimits.ts). Defaults $500; raise as monitoring matures.
       v("FURLPAY_MAX_SWAP_USD"),
       v("FURLPAY_MAX_CCTP_USD"),
+      v("FURLPAY_MAX_TRANSFER_USD"),
       v("MORPHO_API_URL"),
       v("MORPHO_USDC_VAULT"),
     ],

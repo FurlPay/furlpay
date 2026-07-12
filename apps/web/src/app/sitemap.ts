@@ -167,6 +167,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/docs/payments/solana-actions", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/docs/compliance/mica", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/docs/security/mpc-webauthn", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/docs/security/posture", priority: 0.7, changeFrequency: "monthly" as const },
 
     // — Blog & Research —
     { path: "/blog", priority: 0.9, changeFrequency: "daily" as const },
