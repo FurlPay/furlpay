@@ -40,3 +40,7 @@ apktool-output/
 .vercel
 .env*
 supabase/.temp/
+
+# Local AI-agent session artifacts (never deploy)
+.agents/
+skills-lock.json
