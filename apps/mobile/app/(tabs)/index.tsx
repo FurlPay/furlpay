@@ -34,10 +34,18 @@ function QuickAction({
   );
 }
 
+function greeting(): string {
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 18) return "Good afternoon";
+  return "Good evening";
+}
+
 export default function Home() {
   const router = useRouter();
   const { data: result, isLoading, refetch, isRefetching, error } = useOverview();
   const overview = result?.data;
+  const firstName = overview?.user.name?.split(" ")[0];
 
   return (
     <Screen>
@@ -47,6 +55,20 @@ export default function Home() {
           <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.neon} />
         }
       >
+        {/* Avatar + greeting */}
+        <View style={styles.header}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarLetter}>{(firstName?.[0] ?? "F").toUpperCase()}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={type.dim}>{greeting()}</Text>
+            <Text style={[type.h2, { letterSpacing: -0.3 }]}>{firstName ?? "there"}</Text>
+          </View>
+          <Pressable onPress={() => router.push("/scan")} hitSlop={8} style={styles.headerIcon}>
+            <Ionicons name="scan-outline" size={20} color={colors.text} />
+          </Pressable>
+        </View>
+
         {/* Net worth */}
         <View style={{ gap: 4 }}>
           <Text style={type.dim}>
@@ -129,6 +151,32 @@ export default function Home() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
+  header: { flexDirection: "row", alignItems: "center", gap: 12 },
+  avatar: {
+    width: 46,
+    height: 46,
+    borderRadius: radius.pill,
+    backgroundColor: colors.neonSoft,
+    borderColor: colors.neonDeep,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    // Neon glow (Android renders elevation; iOS the shadow*)
+    elevation: 8,
+    shadowColor: colors.neon,
+    shadowOpacity: 0.6,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  avatarLetter: { color: colors.neon, fontSize: 20, fontWeight: "800" },
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceRaised,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   netWorth: { fontSize: 40, fontWeight: "800", color: colors.text, letterSpacing: -1 },
   actions: {
     flexDirection: "row",

@@ -8,8 +8,10 @@ import { Button, ErrorNote, Field, Screen } from "@/components/ui";
 export default function Login() {
   const startOtp = useAuth((s) => s.startOtp);
   const verifyOtp = useAuth((s) => s.verifyOtp);
+  const signInAsGuest = useAuth((s) => s.signInAsGuest);
 
   const [step, setStep] = useState<"email" | "code">("email");
+  const [guestUnavailable, setGuestUnavailable] = useState(false);
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [devCode, setDevCode] = useState<string | undefined>();
@@ -54,10 +56,13 @@ export default function Login() {
         style={styles.container}
       >
         <View style={{ gap: spacing.sm }}>
-          <Text style={type.title}>FurlPay</Text>
+          <Text style={type.title}>
+            Furl<Text style={{ color: colors.accent }}>pay</Text>
+          </Text>
+          <Text style={type.dim}>The stablecoin super-app.</Text>
           <Text style={type.dim}>
             {step === "email"
-              ? "Sign in with your email — we'll send a one-time code."
+              ? "Sign in with your email — we'll send a one-time code. New here? The same code creates your account."
               : `Enter the 6-digit code sent to ${email.trim()}.`}
           </Text>
         </View>
@@ -106,6 +111,19 @@ export default function Login() {
                 setDevCode(undefined);
                 setError(null);
               }}
+            />
+          ) : null}
+          {step === "email" && !guestUnavailable ? (
+            <Button
+              title="Explore the demo"
+              variant="secondary"
+              onPress={() =>
+                void signInAsGuest().catch(() => {
+                  // Guest mode is dev/preview-only; hide the button when the
+                  // server declines instead of surfacing an error.
+                  setGuestUnavailable(true);
+                })
+              }
             />
           ) : null}
         </View>

@@ -8,26 +8,49 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
+import { LinearGradient } from "expo-linear-gradient";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useCards } from "@/lib/queries";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { EmptyState, ErrorNote, Screen, StatusBadge, Surface } from "@/components/ui";
+import { EmptyState, ErrorNote, Screen, Surface } from "@/components/ui";
 import type { PaymentCard } from "@/lib/types";
 
 function CardVisual({ card }: { card: PaymentCard }) {
+  const [c1, c2] = card.gradient ?? [colors.surfaceRaised, colors.surface];
   return (
-    <View style={[styles.card, { backgroundColor: card.gradient?.[0] ?? colors.surfaceRaised }]}>
-      <View style={styles.cardTop}>
-        <Text style={[type.body, { fontWeight: "700" }]}>{card.label}</Text>
-        <StatusBadge status={card.frozen ? "frozen" : "active"} />
-      </View>
-      <Text style={styles.pan}>•••• •••• •••• {card.last4}</Text>
-      <View style={styles.cardTop}>
-        <Text style={type.dim}>{card.kind === "physical" ? "Physical" : "Virtual"}</Text>
-        <Text style={[type.body, { fontWeight: "700", fontStyle: "italic" }]}>{card.network}</Text>
-      </View>
+    <View style={styles.cardShadow}>
+      <LinearGradient
+        colors={[c1, c2]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.card}
+      >
+        <View style={styles.cardTop}>
+          <View>
+            <Text style={[type.body, { fontWeight: "700" }]}>{card.label}</Text>
+            <Text style={[type.dim, { textTransform: "uppercase", letterSpacing: 1, fontSize: 11 }]}>
+              {card.kind === "physical" ? "Physical" : "Virtual"}
+            </Text>
+          </View>
+          <Text style={[type.body, { fontWeight: "800", fontStyle: "italic", fontSize: 18 }]}>
+            {card.network}
+          </Text>
+        </View>
+        <View style={styles.chip} />
+        <View style={styles.cardTop}>
+          <Text style={styles.pan}>•••• {card.last4}</Text>
+          <Text style={type.dim}>{card.settlementCurrency}</Text>
+        </View>
+        {card.frozen ? (
+          <View style={styles.frozenOverlay}>
+            <View style={styles.frozenPill}>
+              <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Frozen</Text>
+            </View>
+          </View>
+        ) : null}
+      </LinearGradient>
     </View>
   );
 }
@@ -113,15 +136,45 @@ export default function Cards() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
+  cardShadow: {
+    borderRadius: radius.lg,
+    // Android elevation needs a backgroundColor on the same view to render.
+    backgroundColor: colors.bg,
+    elevation: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+  },
   card: {
+    aspectRatio: 1.586, // real credit-card proportion
     borderRadius: radius.lg,
     padding: spacing.lg,
-    gap: spacing.lg,
+    justifyContent: "space-between",
+    overflow: "hidden",
     borderColor: colors.border,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  chip: {
+    width: 42,
+    height: 30,
+    borderRadius: 6,
+    backgroundColor: "rgba(255,255,255,0.25)",
+  },
+  frozenOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  frozenPill: {
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: radius.pill,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+  },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  pan: { color: colors.text, fontSize: 20, letterSpacing: 2, fontFamily: "monospace" },
+  pan: { color: colors.text, fontSize: 22, letterSpacing: 3, fontFamily: "monospace" },
   controlRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   meter: {
     height: 6,

@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/store";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
@@ -16,7 +16,7 @@ import { audit } from "@/lib/audit";
 //
 // Set these flags as Preview-scoped env vars in the Vercel dashboard, never in
 // vercel.json build.env — that applies to production deploys too.
-export async function POST() {
+export async function POST(req: NextRequest) {
   if (process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview") {
     return NextResponse.json({ error: "Guest login disabled" }, { status: 403 });
   }
@@ -34,7 +34,10 @@ export async function POST() {
     roles: db.user.roles,
     guest: true,
   });
-  const res = NextResponse.json({ verified: true, guest: true });
+  // Mobile clients get the token in the body (Bearer flow) — same pattern as
+  // /api/auth/otp/check. Web keeps the HttpOnly cookie only.
+  const isMobileClient = (req.headers.get("x-furlpay-client") ?? "").startsWith("mobile");
+  const res = NextResponse.json({ verified: true, guest: true, ...(isMobileClient ? { token } : {}) });
   setSessionCookie(res, token);
   audit("auth.guest_login", db.user.id);
   return res;

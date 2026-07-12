@@ -23,6 +23,8 @@ interface AuthState {
   unlock: () => Promise<boolean>;
   startOtp: (email: string) => Promise<{ devCode?: string }>;
   verifyOtp: (email: string, code: string) => Promise<void>;
+  /** Demo session — only enabled on dev/preview deployments (prod 403s). */
+  signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -70,6 +72,16 @@ export const useAuth = create<AuthState>((set, get) => ({
     }
     await setToken(res.token);
     set({ status: "signedIn", email: email.trim().toLowerCase() });
+  },
+
+  signInAsGuest: async () => {
+    const res = await api<{ verified: boolean; token?: string }>("/auth/guest", {
+      method: "POST",
+      anonymous: true,
+    });
+    if (!res.token) throw new Error("Guest mode is not enabled on this server.");
+    await setToken(res.token);
+    set({ status: "signedIn", email: null });
   },
 
   signOut: async () => {
