@@ -11,8 +11,9 @@ import {
   DepGraph,
   DocPager,
 } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — Agentic Payments (x402)" };
+export const metadata = docMeta("/docs/payments/agentic-x402");
 
 export default function AgenticX402Page() {
   return (

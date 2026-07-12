@@ -1,6 +1,7 @@
 import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, EndpointTable, Callout, DocPager } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — API Routes" };
+export const metadata = docMeta("/docs/architecture/api-routes");
 
 export default function ApiRoutesPage() {
   return (

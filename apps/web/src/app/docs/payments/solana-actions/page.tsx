@@ -11,8 +11,9 @@ import {
   EndpointTable,
   DocPager,
 } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — Solana Actions & Blinks" };
+export const metadata = docMeta("/docs/payments/solana-actions");
 
 export default function SolanaActionsPage() {
   return (

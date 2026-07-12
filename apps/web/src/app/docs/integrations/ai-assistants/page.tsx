@@ -1,6 +1,7 @@
 import { DocTitle, Lead, H2, H3, P, UL, LI, Code, CodeBlock, Callout } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — ChatGPT & Claude" };
+export const metadata = docMeta("/docs/integrations/ai-assistants");
 
 export default function AiAssistantsPage() {
   return (

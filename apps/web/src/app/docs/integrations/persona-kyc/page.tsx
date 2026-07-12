@@ -1,6 +1,7 @@
 import { DocTitle, Lead, H2, H3, P, UL, LI, Code, CodeBlock, Callout, DocPager } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — Persona KYC" };
+export const metadata = docMeta("/docs/integrations/persona-kyc");
 
 export default function PersonaKycPage() {
   return (
@@ -41,6 +42,7 @@ client.open();`}</CodeBlock>
       </P>
       <CodeBlock lang="typescript">{`// lib/kyc/persona.ts
 import crypto from 'crypto';
+import { docMeta } from "@/lib/docs/meta";
 
 export function verifyPersonaSignature(rawBody: string, header: string | null, secret: string) {
   if (!header || !secret) return false;

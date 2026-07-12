@@ -179,6 +179,14 @@ all packages are MIT and run in demo mode without an API key.
   Overview of all Furlpay developer documentation and guides.
 - Quickstart: https://furlpay.com/docs/quickstart
   Step-by-step guide to integrate Furlpay payments in your app.
+- For AI Agents: https://furlpay.com/docs/agents
+  MCP server, LangChain / OpenAI / CrewAI adapters, and paying for APIs over x402.
+- Payments — Agent Trust & Mandates (TAP): https://furlpay.com/docs/payments/agent-trust
+  Owned agent keys, enforced spending policies, and cryptographic mandates.
+- Payments — FurlPay Travels (Travel MCP): https://furlpay.com/docs/payments/travels-mcp
+  Flight search, reprice, and booking for agents via the Travel MCP server.
+- Integrations — AI Assistants: https://furlpay.com/docs/integrations/ai-assistants
+  Wire FurlPay into Claude, ChatGPT, and agent frameworks via MCP and native adapters.
 - Architecture — Monorepo: https://furlpay.com/docs/architecture/monorepo
   How the Furlpay codebase is structured as a Turborepo monorepo.
 - Architecture — API routes: https://furlpay.com/docs/architecture/api-routes

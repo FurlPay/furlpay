@@ -1,6 +1,7 @@
 import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, Callout, DocPager } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — Introduction" };
+export const metadata = docMeta("/docs");
 
 export default function IntroductionPage() {
   return (

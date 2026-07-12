@@ -1,6 +1,7 @@
 import { DocTitle, Lead, H2, H3, P, UL, LI, Code, CodeBlock, Callout, DocPager } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — Stripe Crypto" };
+export const metadata = docMeta("/docs/integrations/stripe-crypto");
 
 export default function StripeCryptoPage() {
   return (
@@ -45,6 +46,7 @@ export async function createCryptoPaymentIntent(amountInCents: number) {
       <CodeBlock lang="tsx">{`'use client';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
+import { docMeta } from "@/lib/docs/meta";
 
 const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY!);
 

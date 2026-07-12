@@ -1,6 +1,7 @@
 import { DocTitle, Lead, H2, P, UL, LI, Code, Callout, DocPager } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — MiCA Roadmap" };
+export const metadata = docMeta("/docs/compliance/mica");
 
 export default function MicaPage() {
   return (

@@ -1,15 +1,19 @@
 import Link from "next/link";
 import DocsSidebar from "@/components/docs/DocsSidebar";
 import DocsSearch from "@/components/docs/DocsSearch";
+import DocsToc from "@/components/docs/DocsToc";
+import DocsMobileNav from "@/components/docs/DocsMobileNav";
 
-// Two-column docs portal (furlpay.app/docs): sticky header with fuzzy search +
-// Open App, a left nav rail, and the article column on the right.
+// Three-column docs portal (furlpay.app/docs): sticky header with fuzzy search
+// + Open App, a left nav rail, the article column, and an "On this page" ToC
+// rail on the right. Mobile gets a hamburger slide-over instead of the rail.
 export default function DocsLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-oled">
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-white/5 bg-black/70 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center gap-4 px-5 py-3">
+        <div className="mx-auto flex max-w-[88rem] items-center gap-3 px-5 py-3">
+          <DocsMobileNav />
           <Link href="/" className="flex flex-shrink-0 items-center gap-2">
             <Logo />
             <span className="text-[17px] font-extrabold tracking-tighter">
@@ -25,12 +29,15 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
         </div>
       </header>
 
-      {/* Body */}
-      <div className="mx-auto flex max-w-7xl gap-10 px-5">
+      {/* Body: nav rail / article / on-page ToC */}
+      <div className="mx-auto flex max-w-[88rem] gap-10 px-5">
         <aside className="sticky top-[57px] hidden h-[calc(100vh-57px)] w-56 flex-shrink-0 overflow-y-auto py-10 md:block">
           <DocsSidebar />
         </aside>
         <main className="min-w-0 flex-1 py-10 md:max-w-3xl">{children}</main>
+        <aside className="sticky top-[57px] hidden h-[calc(100vh-57px)] w-52 flex-shrink-0 overflow-y-auto py-10 xl:block">
+          <DocsToc />
+        </aside>
       </div>
     </div>
   );

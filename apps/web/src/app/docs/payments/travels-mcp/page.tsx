@@ -11,8 +11,9 @@ import {
   DepGraph,
   DocPager,
 } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — FurlPay Travels (Travel MCP)" };
+export const metadata = docMeta("/docs/payments/travels-mcp");
 
 export default function TravelsMcpPage() {
   return (
@@ -76,6 +77,7 @@ export default function TravelsMcpPage() {
       </P>
       <CodeBlock lang="typescript">{`import { TravelClient } from "@furlpay/travel-mcp";
 import { AgentTrust } from "@furlpay/agent-trust";
+import { docMeta } from "@/lib/docs/meta";
 
 const trust = new AgentTrust();
 trust.registerUser(user.publicKeyPem);

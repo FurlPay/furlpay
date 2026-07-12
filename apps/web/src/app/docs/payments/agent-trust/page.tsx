@@ -11,8 +11,9 @@ import {
   DepGraph,
   DocPager,
 } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — Agent Trust & Mandates (TAP)" };
+export const metadata = docMeta("/docs/payments/agent-trust");
 
 export default function AgentTrustPage() {
   return (

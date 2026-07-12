@@ -13,8 +13,9 @@ import {
   SpecGrid,
   DocPager,
 } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — Monorepo" };
+export const metadata = docMeta("/docs/architecture/monorepo");
 
 export default function MonorepoPage() {
   return (

@@ -155,6 +155,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // — Docs —
     { path: "/docs", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/docs/quickstart", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/docs/agents", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/docs/payments/agent-trust", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/docs/payments/travels-mcp", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/docs/integrations/ai-assistants", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/docs/architecture/monorepo", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/docs/architecture/api-routes", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/docs/integrations/stripe-crypto", priority: 0.7, changeFrequency: "monthly" as const },

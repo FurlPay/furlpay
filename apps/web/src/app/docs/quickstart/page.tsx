@@ -1,6 +1,7 @@
-import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, CodeTabs, Callout, DocPager } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — Quickstart" };
+export const metadata = docMeta("/docs/quickstart");
 
 export default function QuickstartPage() {
   return (
@@ -19,7 +20,11 @@ furlpay login          # opens a browser to authorize the CLI
 furlpay init my-app    # scaffold a Next.js + @furlpay/node project`}</CodeBlock>
 
       <H2 id="server">2. Make your first call</H2>
-      <CodeBlock lang="typescript">{`import { Furlpay } from '@furlpay/node';
+      <CodeTabs
+        tabs={[
+          {
+            label: "TypeScript",
+            code: `import { Furlpay } from '@furlpay/node';
 
 const client = new Furlpay(process.env.FURLPAY_SECRET_KEY!);
 
@@ -27,7 +32,29 @@ const order = await client.investing.order({
   symbol: 'AAPL',
   side: 'buy',
   notional: 25_00, // $25.00 in minor units — fractional via Alpaca
-});`}</CodeBlock>
+});`,
+          },
+          {
+            label: "Python",
+            code: `from furlpay import Furlpay
+
+client = Furlpay(os.environ["FURLPAY_SECRET_KEY"])
+
+order = client.investing.order(
+    symbol="AAPL",
+    side="buy",
+    notional=25_00,  # $25.00 in minor units - fractional via Alpaca
+)`,
+          },
+          {
+            label: "cURL",
+            code: `curl https://furlpay.com/api/investing/orders \\
+  -H "Authorization: Bearer $FURLPAY_SECRET_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"symbol":"AAPL","side":"buy","notional":2500}'`,
+          },
+        ]}
+      />
 
       <H2 id="listen">3. Forward webhooks with <Code>furlpay listen</Code></H2>
       <P>

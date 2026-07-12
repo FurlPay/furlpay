@@ -11,8 +11,9 @@ import {
   DepGraph,
   DocPager,
 } from "@/components/docs/prose";
+import { docMeta } from "@/lib/docs/meta";
 
-export const metadata = { title: "Furlpay Docs — For AI Agents" };
+export const metadata = docMeta("/docs/agents");
 
 export default function AgentsQuickstartPage() {
   return (

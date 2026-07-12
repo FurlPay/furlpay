@@ -1,5 +1,9 @@
 import Link from "next/link";
 import { adjacentDocs } from "@/lib/docs/nav";
+import { CopyButton, CodeTabs } from "@/components/docs/CodeControls";
+
+export { CodeTabs };
+export type { CodeTab } from "@/components/docs/CodeControls";
 
 // Reusable prose primitives for docs pages — consistent typography without a
 // markdown pipeline. Green-accented OLED theme, matching the landing page.
@@ -60,16 +64,25 @@ export function Code({ children }: { children: React.ReactNode }) {
   );
 }
 
-export function CodeBlock({ lang = "ts", children }: { lang?: string; children: string }) {
+export function CodeBlock({
+  lang = "ts",
+  filename,
+  children,
+}: {
+  lang?: string;
+  filename?: string;
+  children: string;
+}) {
   return (
     <div className="mb-6 overflow-hidden rounded-xl border border-white/10 bg-[#0A0A0C]">
-      <div className="flex items-center justify-between border-b border-white/5 px-4 py-2">
-        <span className="text-[11px] font-medium uppercase tracking-wider text-textSecondary">{lang}</span>
-        <span className="flex gap-1.5">
-          <span className="h-2.5 w-2.5 rounded-full bg-white/10" />
-          <span className="h-2.5 w-2.5 rounded-full bg-white/10" />
-          <span className="h-2.5 w-2.5 rounded-full bg-neon/40" />
+      <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-2">
+        <span className="flex min-w-0 items-baseline gap-2.5">
+          <span className="text-[11px] font-medium uppercase tracking-wider text-textSecondary">{lang}</span>
+          {filename && (
+            <span className="truncate font-mono text-[11px] text-textMuted">{filename}</span>
+          )}
         </span>
+        <CopyButton text={children} />
       </div>
       <pre className="overflow-x-auto px-4 py-4 text-[13px] leading-relaxed">
         <code className="font-mono text-white/90">{children}</code>
