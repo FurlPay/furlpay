@@ -17,7 +17,7 @@
     "build:desktop": "turbo run build --filter=@furlpay/desktop",
     "lint": "turbo run lint --filter=@furlpay/web",
     "web": "npm run dev --workspace @furlpay/web",
-    "test": "npm run build --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/compliance && npm test --workspace @furlpay/security && npm test --workspace @furlpay/ledger",
+    "test": "npm run build --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/compliance && npm test --workspace @furlpay/security && npm test --workspace @furlpay/ledger && npm test --workspace @furlpay/gateway",
     "cli": "node packages/cli/bin/furlpay.js"
   },
   "devDependencies": {
