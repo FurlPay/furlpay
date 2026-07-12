@@ -10,6 +10,7 @@ import {
   Callout,
   DepGraph,
   DocPager,
+  Mermaid,
 } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
@@ -34,6 +35,31 @@ export default function AgenticX402Page() {
           { label: "3 · Pay & retry", nodes: [{ name: "X-PAYMENT", sub: "EIP-3009 authorization" }] },
           { label: "4 · Deliver", nodes: [{ name: "200 OK", sub: "+ X-PAYMENT-RESPONSE receipt" }] },
         ]}
+      />
+      <P>
+        End to end, one settlement runs through the facilitator&apos;s verification guards and lands
+        on-chain before the resource is served:
+      </P>
+      <Mermaid
+        caption="Full x402 settlement sequence: quote binding, atomic nonce claim, EIP-3009 transfer on-chain, confirmation gate, receipt."
+        chart={`sequenceDiagram
+    participant Agent as AI Agent
+    participant Server as Resource Server
+    participant Facilitator as Furlpay Facilitator
+    participant Chain as Arbitrum
+
+    Agent->>Server: GET /api/x402/fx
+    Server-->>Agent: 402 Payment Required (price, payTo, quoteId, binding)
+    Note over Agent: Sign EIP-3009 transferWithAuthorization
+    Agent->>Server: GET /api/x402/fx + X-PAYMENT header
+    Server->>Facilitator: verify + settle
+    Facilitator->>Facilitator: Verify quote binding (HMAC)
+    Facilitator->>Facilitator: Recover EIP-712 signer (ECDSA / ERC-1271)
+    Facilitator->>Facilitator: Claim nonce atomically (replay guard)
+    Facilitator->>Chain: transferWithAuthorization()
+    Chain-->>Facilitator: receipt after confirmation depth
+    Facilitator-->>Server: settlement confirmed
+    Server-->>Agent: 200 OK + X-PAYMENT-RESPONSE receipt`}
       />
 
       <H2 id="quote">1. Request the resource</H2>

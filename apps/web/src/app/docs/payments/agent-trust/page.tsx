@@ -9,6 +9,7 @@ import {
   CodeBlock,
   Callout,
   DepGraph,
+  Mermaid,
   DocPager,
 } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
@@ -42,6 +43,29 @@ export default function AgentTrustPage() {
         the user&apos;s key can sign a mandate, and the verifier refuses any execution whose parameters
         differ — even by one cent or one merchant-category code — from what the agent signed.
       </P>
+
+      <H2 id="decision">How a booking token is judged</H2>
+      <P>
+        Verification is a strict decision tree — the first failed check refuses the execution, and
+        nothing later can override it:
+      </P>
+      <Mermaid
+        caption="Mandate evaluation: every gate must pass before a single-use credential is issued."
+        chart={`flowchart TB
+    TOK[Booking token arrives] --> SIG{Agent signature valid?}
+    SIG -->|no| REJ1[Refuse - bad signature]
+    SIG --> MAN{Mandate signed by the user key?}
+    MAN -->|no| REJ2[Refuse - unsigned or tampered mandate]
+    MAN --> BIND{Token signed by the agent the mandate names?}
+    BIND -->|no| REJ3[Refuse - wrong agent key]
+    BIND --> EXP{Mandate unexpired and not consumed?}
+    EXP -->|no| REJ4[Refuse - expired or single-use spent]
+    EXP --> CON{Amount, MCC, source within constraints?}
+    CON -->|no| REJ5[Refuse - constraint violation]
+    CON --> RPL{Nonce fresh?}
+    RPL -->|no| REJ6[Refuse - replay]
+    RPL --> OK[Issue single-use execution credential]`}
+      />
 
       <H2 id="mandates">User-signed spend mandates</H2>
       <P>

@@ -1,4 +1,4 @@
-import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, EndpointTable, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, EndpointTable, Callout, DocPager, Mermaid } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/architecture/api-routes");
@@ -11,6 +11,28 @@ export default function ApiRoutesPage() {
         The API surface lives under <Code>apps/web/src/app/api</Code> as Next.js route handlers. Every
         request body is validated with zod; every mutation is written through the double-entry ledger.
       </Lead>
+
+      <H2 id="lifecycle">Request lifecycle</H2>
+      <P>
+        Every request passes the same gauntlet before its handler runs — and money-moving routes add
+        rail pause checks, per-transaction caps, and idempotency on top:
+      </P>
+      <Mermaid
+        caption="One request, in order: edge middleware, session, zod validation, route guards, handler, ledger + ops events."
+        chart={`flowchart TB
+    REQ[Incoming request] --> MW[Middleware - baseline rate limit + session gate]
+    MW -->|no session on protected route| R401[401 Unauthorized]
+    MW --> VAL[Zod body validation - 100KB cap]
+    VAL -->|invalid| R400[400 Bad Request]
+    VAL --> AUTHZ[requireUser / requireRole - roles from the user record]
+    AUTHZ -->|forbidden| R403[403 Forbidden]
+    AUTHZ --> GUARDS[Money guards - rail pause, per-tx caps, idempotency]
+    GUARDS -->|rail paused| R503[503 rail_paused]
+    GUARDS --> HANDLER[Route handler]
+    HANDLER --> LEDGER[Double-entry ledger write]
+    HANDLER --> OPS[Ops event ledger - durable, append-only]
+    HANDLER --> RES[Typed JSON response]`}
+      />
 
       <H2 id="auth">Authentication</H2>
       <EndpointTable

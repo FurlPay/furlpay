@@ -1,4 +1,4 @@
-import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, Callout, DocPager, Mermaid } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs");
@@ -27,6 +27,63 @@ const card = await client.cards.issue({
   currency: 'USDC',
   spendLimit: 500_00, // minor units
 });`}</CodeBlock>
+
+      <H2 id="system">The system at a glance</H2>
+      <P>
+        Every client — human or agent — hits the same Next.js API surface; payments settle
+        non-custodially on public chains, with durable state split between Postgres and Redis:
+      </P>
+      <Mermaid
+        caption="System context: clients, payment rails, platform services, state, and external networks."
+        chart={`graph TB
+    subgraph Clients
+        AGENT[AI Agent]
+        EXT[Browser Extension]
+        WEB[Web App / Mobile]
+    end
+
+    subgraph Platform[Furlpay Platform]
+        GW[API Gateway - Next.js + middleware]
+        subgraph Rails[Payment rails]
+            X402[x402 Facilitator - EIP-3009]
+            MPP[MPP Handler]
+            CCTP[CCTP V2 cross-chain]
+            LIFI[LI.FI swaps]
+        end
+        subgraph Services
+            AUTH[Auth - WebAuthn + sessions]
+            OPS[Ops control plane + event ledger]
+            TRUST[Agent trust and spend mandates]
+        end
+        SUPA[(Supabase Postgres)]
+        REDIS[(Upstash Redis)]
+    end
+
+    subgraph Networks[External networks]
+        ARB[Arbitrum One]
+        BASE[Base]
+        SOL[Solana]
+        CIRCLE[Circle attestation]
+    end
+
+    AGENT --> GW
+    EXT --> GW
+    WEB --> GW
+    GW --> X402
+    GW --> MPP
+    GW --> CCTP
+    GW --> LIFI
+    GW --> AUTH
+    GW --> OPS
+    GW --> TRUST
+    X402 --> ARB
+    MPP --> ARB
+    LIFI --> BASE
+    LIFI --> SOL
+    CCTP --> CIRCLE
+    Rails --> SUPA
+    Rails --> REDIS`}
+      />
 
       <H2 id="what">What you can build</H2>
       <UL>

@@ -4,6 +4,7 @@ import { CopyButton, CodeTabs } from "@/components/docs/CodeControls";
 
 export { CodeTabs };
 export type { CodeTab } from "@/components/docs/CodeControls";
+export { default as Mermaid } from "@/components/docs/Mermaid";
 
 // Reusable prose primitives for docs pages — consistent typography without a
 // markdown pipeline. Green-accented OLED theme, matching the landing page.

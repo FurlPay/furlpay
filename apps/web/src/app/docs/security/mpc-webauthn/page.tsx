@@ -1,4 +1,4 @@
-import { DocTitle, Lead, H2, P, UL, LI, Code, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Code, Callout, DocPager, Mermaid } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/security/mpc-webauthn");
@@ -42,6 +42,26 @@ export default function SecurityPage() {
         <LI>Registration and assertion run through <Code>@simplewebauthn/server</Code> (origin, challenge, and signature-counter checks).</LI>
         <LI>Credentials are bound to the registrable eTLD+1, so they can never be replayed on another domain.</LI>
       </UL>
+      <Mermaid
+        caption="Passkey authentication ceremony: server-issued challenge, authenticator assertion, server-side verification, signed session."
+        chart={`sequenceDiagram
+    participant User
+    participant Browser
+    participant Authenticator as Platform Authenticator
+    participant Server as Furlpay API
+
+    User->>Browser: Sign in
+    Browser->>Server: POST /api/auth/webauthn (request options)
+    Server-->>Browser: challenge + allowed RP ID and origins
+    Browser->>Authenticator: navigator.credentials.get()
+    Authenticator->>User: Biometric prompt (Face ID / fingerprint)
+    User-->>Authenticator: approve
+    Authenticator-->>Browser: signed assertion (bound to RP ID)
+    Browser->>Server: assertion + clientDataJSON
+    Server->>Server: verify origin, challenge, signature counter
+    Server-->>Browser: HttpOnly signed session cookie
+    Note over Server: RP ID comes from server config,<br/>never the Host header`}
+      />
 
       <H2 id="sessions">Signed sessions</H2>
       <P>

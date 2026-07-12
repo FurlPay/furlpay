@@ -12,6 +12,7 @@ import {
   DepGraph,
   SpecGrid,
   DocPager,
+  Mermaid,
 } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
@@ -69,6 +70,37 @@ export default function MonorepoPage() {
             ],
           },
         ]}
+      />
+
+      <H2 id="containers">Deployable containers</H2>
+      <P>
+        At runtime the workspaces resolve to a small set of deployable units. Each ships and scales
+        independently, but all of them build from the shared foundation above:
+      </P>
+      <Mermaid
+        caption="Container view: what actually runs in production and where state lives."
+        chart={`graph LR
+    subgraph Runtime[Production runtime]
+        WEB[Web app + API - Next.js on Vercel]
+        EXTC[Browser extension - Chrome MV3]
+        TWA[Android app - TWA]
+    end
+    subgraph Published[Published artifacts]
+        SDK[SDKs - npm and PyPI]
+        CLI[CLI + MCP server - npm]
+        SC[Contracts - Solidity, Arbitrum and Base]
+    end
+    subgraph Stores[Managed state]
+        PG[(Supabase Postgres - accounts, ops ledger)]
+        RD[(Upstash Redis - nonces, sessions, rate limits)]
+    end
+    EXTC --> WEB
+    TWA --> WEB
+    SDK --> WEB
+    CLI --> WEB
+    WEB --> PG
+    WEB --> RD
+    WEB --> SC`}
       />
 
       <H2 id="layout">Directory layout</H2>
