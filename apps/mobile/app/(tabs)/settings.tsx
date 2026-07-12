@@ -1,22 +1,69 @@
-import React from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
-import { useOverview } from "@/lib/queries";
-import { API_BASE } from "@/lib/api";
+import { api, API_BASE, ApiError } from "@/lib/api";
 import { shortAddress } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
-import { Button, Screen, SectionHeader, StatusBadge, Surface } from "@/components/ui";
+import { Button, ErrorNote, Screen, SectionHeader, StatusBadge, Surface } from "@/components/ui";
+
+// GET/PATCH /api/profile — profile + the low-risk security & notification
+// toggles. MFA/TOTP setup stays on the web (privileged flow).
+interface Profile {
+  id: string;
+  name: string;
+  email: string | null;
+  safeAddress: string;
+  kycStatus: string;
+  region: string;
+  tier: string;
+  security: {
+    biometricEnabled?: boolean;
+    loginAlerts?: boolean;
+    totpEnabled?: boolean;
+    accountLocked?: boolean;
+    lastLoginAt?: string;
+  };
+  notifications: {
+    transactions?: boolean;
+    security?: boolean;
+    priceAlerts?: boolean;
+    product?: boolean;
+  };
+}
 
 function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <View style={styles.row}>
       <Text style={type.dim}>{label}</Text>
       {typeof value === "string" ? <Text style={type.body}>{value}</Text> : value}
+    </View>
+  );
+}
+
+function ToggleRow({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  return (
+    <View style={styles.row}>
+      <Text style={type.body}>{label}</Text>
+      <Switch
+        value={value}
+        onValueChange={onChange}
+        trackColor={{ true: colors.neonDeep, false: colors.surfaceRaised }}
+        thumbColor={value ? colors.neon : colors.textDim}
+      />
     </View>
   );
 }
@@ -41,26 +88,64 @@ function NavRow({
 
 export default function Settings() {
   const router = useRouter();
+  const qc = useQueryClient();
   const signOut = useAuth((s) => s.signOut);
-  const { data: result } = useOverview();
-  const user = result?.data.user;
+  const [error, setError] = useState<string | null>(null);
+
+  const { data: profile } = useQuery({
+    queryKey: ["profile"],
+    queryFn: () => api<Profile>("/profile"),
+  });
+
+  const patch = async (body: Record<string, unknown>) => {
+    setError(null);
+    try {
+      await api("/profile", { method: "PATCH", body });
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await qc.invalidateQueries({ queryKey: ["profile"] });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+    }
+  };
+
+  const lockAccount = () => {
+    Alert.alert(
+      "Lock account?",
+      "All money movement will be suspended immediately. Unlocking requires signing in on the web and contacting support if needed.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Lock now",
+          style: "destructive",
+          onPress: () => {
+            // Locking 423s every subsequent call — sign out right after.
+            void patch({ action: "lock" }).then(() => signOut());
+          },
+        },
+      ]
+    );
+  };
 
   const copyAddress = async () => {
-    if (!user?.safeAddress) return;
-    await Clipboard.setStringAsync(user.safeAddress);
+    if (!profile?.safeAddress) return;
+    await Clipboard.setStringAsync(profile.safeAddress);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
   };
+
+  const sec = profile?.security;
+  const notif = profile?.notifications;
 
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <SectionHeader title="Profile" />
         <Surface style={{ gap: 4 }}>
-          <Row label="Name" value={user?.name ?? "—"} />
-          <Row label="Region" value={user?.region ?? "—"} />
-          <Row label="Tier" value={user?.tier ?? "—"} />
-          <Row label="KYC" value={<StatusBadge status={user?.kycStatus ?? "unknown"} />} />
-          <Row label="Wallet" value={shortAddress(user?.safeAddress, 8) || "—"} />
+          <Row label="Name" value={profile?.name ?? "—"} />
+          <Row label="Email" value={profile?.email ?? "—"} />
+          <Row label="Region" value={profile?.region ?? "—"} />
+          <Row label="Plan" value={profile?.tier ?? "—"} />
+          <Row label="KYC" value={<StatusBadge status={profile?.kycStatus ?? "unknown"} />} />
+          <Row label="Wallet" value={shortAddress(profile?.safeAddress, 8) || "—"} />
         </Surface>
         <Button title="Copy wallet address" variant="secondary" onPress={() => void copyAddress()} />
 
@@ -75,12 +160,52 @@ export default function Settings() {
 
         <SectionHeader title="Security" />
         <Surface style={{ gap: 4 }}>
-          <Text style={type.body}>Biometric unlock</Text>
-          <Text style={type.dim}>
-            FurlPay locks with your device fingerprint or face whenever the app restarts. Sends always
-            require biometric confirmation.
+          <ToggleRow
+            label="Biometric approvals"
+            value={sec?.biometricEnabled ?? true}
+            onChange={(v) => void patch({ security: { biometricEnabled: v } })}
+          />
+          <ToggleRow
+            label="Login alerts"
+            value={sec?.loginAlerts ?? true}
+            onChange={(v) => void patch({ security: { loginAlerts: v } })}
+          />
+          <Row
+            label="Authenticator app (TOTP)"
+            value={<StatusBadge status={sec?.totpEnabled ? "active" : "pending"} />}
+          />
+          <Text style={[type.dim, { fontSize: 12 }]}>
+            TOTP setup and passkey management live in the web dashboard. This device also locks with
+            your fingerprint or face on every app start.
           </Text>
         </Surface>
+        <Button title="Lock account instantly" variant="danger" onPress={lockAccount} />
+
+        <SectionHeader title="Notifications" />
+        <Surface style={{ gap: 4 }}>
+          <ToggleRow
+            label="Transactions"
+            value={notif?.transactions ?? true}
+            onChange={(v) => void patch({ notifications: { transactions: v } })}
+          />
+          <ToggleRow
+            label="Security"
+            value={notif?.security ?? true}
+            onChange={(v) => void patch({ notifications: { security: v } })}
+          />
+          <ToggleRow
+            label="Price alerts"
+            value={notif?.priceAlerts ?? false}
+            onChange={(v) => void patch({ notifications: { priceAlerts: v } })}
+          />
+          <ToggleRow
+            label="Product updates"
+            value={notif?.product ?? false}
+            onChange={(v) => void patch({ notifications: { product: v } })}
+          />
+        </Surface>
+
+        <ErrorNote message={error} />
 
         <SectionHeader title="About" />
         <Surface style={{ gap: 4 }}>
@@ -104,6 +229,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 6,
+    gap: spacing.md,
   },
   navRow: {
     flexDirection: "row",
