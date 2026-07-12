@@ -64,6 +64,9 @@ export default function Home() {
             <Text style={type.dim}>{greeting()}</Text>
             <Text style={[type.h2, { letterSpacing: -0.3 }]}>{firstName ?? "there"}</Text>
           </View>
+          <Pressable onPress={() => router.push("/chat")} hitSlop={8} style={styles.headerIcon}>
+            <Ionicons name="sparkles-outline" size={20} color={colors.neon} />
+          </Pressable>
           <Pressable onPress={() => router.push("/scan")} hitSlop={8} style={styles.headerIcon}>
             <Ionicons name="scan-outline" size={20} color={colors.text} />
           </Pressable>
@@ -86,12 +89,18 @@ export default function Home() {
           ) : null}
         </View>
 
-        {/* Quick actions */}
+        {/* Quick actions — 8, matching the web dashboard */}
         <View style={styles.actions}>
           <QuickAction icon="paper-plane-outline" label="Send" onPress={() => router.push("/(tabs)/send")} />
           <QuickAction icon="download-outline" label="Receive" onPress={() => router.push("/receive")} />
+          <QuickAction icon="repeat-outline" label="Swap" onPress={() => router.push("/swap")} />
           <QuickAction icon="scan-outline" label="Scan" onPress={() => router.push("/scan")} />
-          <QuickAction icon="card-outline" label="Cards" onPress={() => router.push("/(tabs)/cards")} />
+        </View>
+        <View style={styles.actions}>
+          <QuickAction icon="leaf-outline" label="Earn" onPress={() => router.push("/earn")} />
+          <QuickAction icon="receipt-outline" label="Bills" onPress={() => router.push("/bills")} />
+          <QuickAction icon="cash-outline" label="Credit" onPress={() => router.push("/credit")} />
+          <QuickAction icon="gift-outline" label="Rewards" onPress={() => router.push("/rewards")} />
         </View>
 
         {/* Balances */}

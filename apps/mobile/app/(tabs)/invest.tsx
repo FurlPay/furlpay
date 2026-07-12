@@ -1,11 +1,34 @@
 import React from "react";
-import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { usePortfolio } from "@/lib/queries";
 import { usd } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { EmptyState, Screen, SectionHeader, Surface } from "@/components/ui";
 
+function NavTile({
+  icon,
+  label,
+  sub,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  sub: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.tile, pressed && { opacity: 0.7 }]}>
+      <Ionicons name={icon} size={20} color={colors.neon} />
+      <Text style={[type.body, { fontWeight: "700" }]}>{label}</Text>
+      <Text style={[type.dim, { fontSize: 12 }]}>{sub}</Text>
+    </Pressable>
+  );
+}
+
 export default function Invest() {
+  const router = useRouter();
   const { data: result, isLoading, refetch, isRefetching, error } = usePortfolio();
   const portfolio = result?.data;
 
@@ -33,6 +56,27 @@ export default function Invest() {
               Total return {usd(perf.totalReturn, { sign: true })} ({perf.totalReturnPct.toFixed(1)}%)
             </Text>
           ) : null}
+        </View>
+
+        <View style={styles.tiles}>
+          <NavTile
+            icon="search-outline"
+            label="Markets"
+            sub="390+ stocks, ETFs & crypto"
+            onPress={() => router.push("/markets")}
+          />
+          <NavTile
+            icon="leaf-outline"
+            label="Earn"
+            sub="Curated DeFi vaults"
+            onPress={() => router.push("/earn")}
+          />
+          <NavTile
+            icon="newspaper-outline"
+            label="Research"
+            sub="FurlPay insights"
+            onPress={() => router.push("/insights")}
+          />
         </View>
 
         <SectionHeader title="Holdings" />
@@ -98,5 +142,15 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 12,
     paddingVertical: 12,
+  },
+  tiles: { flexDirection: "row", gap: spacing.sm },
+  tile: {
+    flex: 1,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    padding: spacing.sm,
+    gap: 4,
   },
 });

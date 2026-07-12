@@ -1,5 +1,7 @@
 import React from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
@@ -19,7 +21,26 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function NavRow({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.navRow, pressed && { opacity: 0.7 }]}>
+      <Ionicons name={icon} size={18} color={colors.neon} />
+      <Text style={[type.body, { flex: 1 }]}>{label}</Text>
+      <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
+    </Pressable>
+  );
+}
+
 export default function Settings() {
+  const router = useRouter();
   const signOut = useAuth((s) => s.signOut);
   const { data: result } = useOverview();
   const user = result?.data.user;
@@ -42,6 +63,15 @@ export default function Settings() {
           <Row label="Wallet" value={shortAddress(user?.safeAddress, 8) || "—"} />
         </Surface>
         <Button title="Copy wallet address" variant="secondary" onPress={() => void copyAddress()} />
+
+        <SectionHeader title="Money" />
+        <Surface style={{ paddingVertical: 4 }}>
+          <NavRow icon="business-outline" label="Banking — local accounts" onPress={() => router.push("/banking")} />
+          <NavRow icon="pie-chart-outline" label="Spending analytics" onPress={() => router.push("/analytics")} />
+          <NavRow icon="gift-outline" label="Rewards & referrals" onPress={() => router.push("/rewards")} />
+          <NavRow icon="shield-checkmark-outline" label="Card approvals (3DS)" onPress={() => router.push("/approvals")} />
+          <NavRow icon="sparkles-outline" label="AI co-pilot" onPress={() => router.push("/chat")} />
+        </Surface>
 
         <SectionHeader title="Security" />
         <Surface style={{ gap: 4 }}>
@@ -74,5 +104,11 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 6,
+  },
+  navRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
   },
 });

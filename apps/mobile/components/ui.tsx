@@ -2,6 +2,7 @@ import React from "react";
 import {
   ActivityIndicator,
   Pressable,
+  StyleProp,
   StyleSheet,
   Text,
   TextInput,
@@ -15,11 +16,11 @@ import { colors, radius, spacing, type } from "@/lib/theme";
 // Small shared UI kit — OLED black surfaces, neon primary. Kept in one file
 // so screens import from a single place.
 
-export function Screen({ children, style }: { children?: React.ReactNode; style?: ViewStyle }) {
+export function Screen({ children, style }: { children?: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return <SafeAreaView style={[styles.screen, style]}>{children}</SafeAreaView>;
 }
 
-export function Surface({ children, style }: { children: React.ReactNode; style?: ViewStyle }) {
+export function Surface({ children, style }: { children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
   return <View style={[styles.surface, style]}>{children}</View>;
 }
 
@@ -36,7 +37,7 @@ export function Button({
   variant?: "primary" | "secondary" | "danger";
   disabled?: boolean;
   loading?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }) {
   const bg =
     variant === "primary" ? colors.neon : variant === "danger" ? colors.accentDeep : colors.surfaceRaised;

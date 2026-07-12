@@ -87,6 +87,18 @@ export default function RootLayout() {
               <Stack.Screen name="receive" options={{ title: "Receive" }} />
               <Stack.Screen name="scan" options={{ title: "Scan to pay" }} />
               <Stack.Screen name="transactions" options={{ title: "All transactions" }} />
+              <Stack.Screen name="swap" options={{ title: "Swap" }} />
+              <Stack.Screen name="earn" options={{ title: "Earn" }} />
+              <Stack.Screen name="bills" options={{ title: "Bills" }} />
+              <Stack.Screen name="banking" options={{ title: "Banking" }} />
+              <Stack.Screen name="credit" options={{ title: "Credit line" }} />
+              <Stack.Screen name="rewards" options={{ title: "Rewards" }} />
+              <Stack.Screen name="analytics" options={{ title: "Spending" }} />
+              <Stack.Screen name="markets" options={{ title: "Markets" }} />
+              <Stack.Screen name="market/[symbol]" options={{ title: "Asset" }} />
+              <Stack.Screen name="insights" options={{ title: "Research" }} />
+              <Stack.Screen name="chat" options={{ title: "Co-pilot" }} />
+              <Stack.Screen name="approvals" options={{ title: "Approvals" }} />
             </Stack>
           </View>
         )}

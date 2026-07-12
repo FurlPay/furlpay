@@ -9,12 +9,13 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
+import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { useCards } from "@/lib/queries";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { EmptyState, ErrorNote, Screen, Surface } from "@/components/ui";
+import { Button, EmptyState, ErrorNote, Screen, Surface } from "@/components/ui";
 import type { PaymentCard } from "@/lib/types";
 
 function CardVisual({ card }: { card: PaymentCard }) {
@@ -105,6 +106,7 @@ function CardControls({ card }: { card: PaymentCard }) {
 }
 
 export default function Cards() {
+  const router = useRouter();
   const { data: result, isLoading, refetch, isRefetching, error } = useCards();
   const cards = result?.data ?? [];
 
@@ -116,6 +118,11 @@ export default function Cards() {
           <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.neon} />
         }
       >
+        <Button
+          title="Pending approvals (3-D Secure)"
+          variant="secondary"
+          onPress={() => router.push("/approvals")}
+        />
         {cards.length === 0 ? (
           <EmptyState
             title={isLoading ? "Loading…" : error ? "Couldn't load cards" : "No cards yet"}
