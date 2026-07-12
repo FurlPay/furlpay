@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { tokenFromRequest, verifySession } from "@/lib/session";
 import { clientIp, limit } from "@/lib/rateLimit";
 import {
   applyApiVersionHeaders,
@@ -114,7 +114,8 @@ const BASELINE = { limit: 150, windowMs: 60_000 };
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   // Verify the JWT signature (edge-safe via jose), not just cookie presence.
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  // Token comes from the cookie (web) or Authorization: Bearer (mobile app).
+  const claims = await verifySession(tokenFromRequest(req));
   const hasSession = Boolean(claims);
 
   const isApi = pathname.startsWith("/api");

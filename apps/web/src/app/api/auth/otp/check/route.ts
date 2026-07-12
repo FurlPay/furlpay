@@ -51,16 +51,24 @@ export async function POST(req: NextRequest) {
     updateUser(account.user.id, { phone: to, phoneVerified: true, authProvider: "phone" });
   }
 
-  const res = NextResponse.json({ verified: true });
+  // The native mobile app has no browser cookie jar — it identifies itself
+  // with X-Furlpay-Client and receives the SAME session JWT in the response
+  // body, to be stored in the Android Keystore and sent as a Bearer header.
+  // Web clients keep getting the HttpOnly cookie only (no token in body).
+  const isMobileClient = (req.headers.get("x-furlpay-client") ?? "").startsWith("mobile");
+  let body: Record<string, unknown> = { verified: true };
+  let token: string | undefined;
   if (login) {
-    const token = await signSession({
+    token = await signSession({
       sub: account.user.id,
       safe: account.user.safeAddress,
       roles: account.user.roles,
     });
-    setSessionCookie(res, token);
+    if (isMobileClient) body = { ...body, token };
     audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: `otp:${channel}` });
   }
+  const res = NextResponse.json(body);
+  if (login && token) setSessionCookie(res, token);
   // Phone-only signups have no email address yet — the welcome goes out only
   // for the email-OTP path, where the address is the verified identity itself.
   if (created && channel === "email") {

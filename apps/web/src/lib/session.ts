@@ -73,6 +73,24 @@ function isRevoked(jti: string | undefined): boolean {
   return true;
 }
 
+/**
+ * Extract the session token from a request: the HttpOnly cookie (web) or an
+ * `Authorization: Bearer` header (native mobile app, which stores the token
+ * in the Android Keystore instead of a browser cookie jar). Both carry the
+ * SAME signed JWT and go through the same verifySession() path — the header
+ * grants nothing a cookie wouldn't.
+ */
+export function tokenFromRequest(req: {
+  cookies: { get(name: string): { value: string } | undefined };
+  headers: { get(name: string): string | null };
+}): string | undefined {
+  const cookie = req.cookies.get(SESSION_COOKIE)?.value;
+  if (cookie) return cookie;
+  const auth = req.headers.get("authorization");
+  if (auth?.startsWith("Bearer ")) return auth.slice(7);
+  return undefined;
+}
+
 export async function signSession(claims: SessionClaims): Promise<string> {
   return new SignJWT({ roles: ["user"], ...claims })
     .setProtectedHeader({ alg: ALG })

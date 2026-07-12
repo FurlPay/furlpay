@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { SESSION_COOKIE, verifySession, type Role, type SessionClaims } from "@/lib/session";
+import { tokenFromRequest, verifySession, type Role, type SessionClaims } from "@/lib/session";
 import { getAccountDurable, type UserAccount } from "@/lib/store";
 
 // ---------------------------------------------------------------------------
@@ -30,7 +30,7 @@ function normalizedEmail(email: string | undefined | null): string {
 
 /** Resolve the acting user from the session cookie. 401 when absent/stale. */
 export async function requireUser(req: NextRequest): Promise<AuthResult> {
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  const claims = await verifySession(tokenFromRequest(req));
   if (!claims?.sub) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
