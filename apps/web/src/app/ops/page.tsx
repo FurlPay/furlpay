@@ -5,6 +5,9 @@ import type { ReactNode } from "react";
 import {
   Activity,
   AlertTriangle,
+  ArrowDownRight,
+  ArrowRight,
+  ArrowUpRight,
   CheckCircle2,
   CircleDashed,
   Clock3,
@@ -15,6 +18,7 @@ import {
   RefreshCw,
   ShieldAlert,
   SlidersHorizontal,
+  WifiOff,
   XCircle,
   Zap,
 } from "lucide-react";
@@ -154,6 +158,10 @@ export default function OpsPage() {
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [txRail, setTxRail] = useState("all");
   const [txState, setTxState] = useState("all");
+  const [spark, setSpark] = useState<{
+    volume: { points: number[]; direction: string };
+    success: { points: number[]; direction: string };
+  } | null>(null);
 
   const load = useCallback(async () => {
     setRefreshing(true);
@@ -168,10 +176,12 @@ export default function OpsPage() {
         return;
       }
 
-      const [s, t, a] = await Promise.all([
+      const [s, t, a, spVol, spOk] = await Promise.all([
         getJson<{ events: SecEvent[] }>("/api/ops/security?limit=40"),
         getJson<{ transactions: TxEvent[] }>("/api/ops/transactions?limit=80"),
         getJson<{ entries: AuditEntry[] }>("/api/ops/audit?limit=40"),
+        getJson<{ points: number[]; trendDirection: string }>("/api/ops/metrics/sparkline?metric=volume"),
+        getJson<{ points: number[]; trendDirection: string }>("/api/ops/metrics/sparkline?metric=success_rate"),
       ]);
 
       setError(null);
@@ -179,6 +189,12 @@ export default function OpsPage() {
       if (s.body?.ok && s.body.data) setSecurity(s.body.data.events);
       if (t.body?.ok && t.body.data) setTxs(t.body.data.transactions);
       if (a.body?.ok && a.body.data) setAudit(a.body.data.entries);
+      if (spVol.body?.ok && spVol.body.data && spOk.body?.ok && spOk.body.data) {
+        setSpark({
+          volume: { points: spVol.body.data.points, direction: spVol.body.data.trendDirection },
+          success: { points: spOk.body.data.points, direction: spOk.body.data.trendDirection },
+        });
+      }
       setLastUpdated(new Date());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load ops data.");
@@ -280,9 +296,7 @@ export default function OpsPage() {
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-lg border border-white/10 px-3 py-2 text-xs text-white/55">
-              Updated {lastUpdated ? ago(lastUpdated.toISOString()) : "never"}
-            </span>
+            <Freshness lastUpdated={lastUpdated} />
             <button
               type="button"
               onClick={load}
@@ -328,8 +342,8 @@ export default function OpsPage() {
         )}
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <Metric icon={<Activity />} label="Settled volume" value={money(o.totals.volumeUsd)} meta="90d rolling" />
-          <Metric icon={<Zap />} label="Success rate" value={pct(o.totals.successRate)} meta={`${count(o.totals.attempted)} attempted`} />
+          <Metric icon={<Activity />} label="Settled volume" value={money(o.totals.volumeUsd)} meta="90d rolling" points={spark?.volume.points} direction={spark?.volume.direction} />
+          <Metric icon={<Zap />} label="Success rate" value={pct(o.totals.successRate)} meta={`${count(o.totals.attempted)} attempted`} points={spark?.success.points} direction={spark?.success.direction} />
           <Metric icon={<ShieldAlert />} label="High risk events" value={count(highSecurity)} meta={`${count(security.length)} security events`} tone={highSecurity > 0 ? "danger" : "ok"} />
           <Metric icon={<SlidersHorizontal />} label="Rail posture" value={`${liveRails}/${o.rails.length} live`} meta={`${pausedRails} paused, ${riskRails} need review`} tone={riskRails > 0 || pausedRails > 0 ? "warn" : "ok"} />
         </section>
@@ -543,18 +557,79 @@ function Panel({ title, icon, children }: { title: string; icon: ReactNode; chil
   );
 }
 
+// Compact 7-day sparkline for metric cards — pure SVG, no chart library.
+function Sparkline({ points }: { points: number[] }) {
+  if (points.length < 2) return null;
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  const y = (p: number) => (max === min ? 12 : 22 - ((p - min) / (max - min)) * 20);
+  const d = points.map((p, i) => `${(i / (points.length - 1)) * 100},${y(p).toFixed(2)}`).join(" ");
+  return (
+    <svg viewBox="0 0 100 24" preserveAspectRatio="none" className="h-6 w-full text-white/30" aria-hidden>
+      <polyline points={d} fill="none" stroke="currentColor" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function TrendArrow({ direction }: { direction: string }) {
+  if (direction === "up") return <ArrowUpRight className="h-3.5 w-3.5 text-emerald-300" aria-label="trending up" />;
+  if (direction === "down") return <ArrowDownRight className="h-3.5 w-3.5 text-red-300" aria-label="trending down" />;
+  return <ArrowRight className="h-3.5 w-3.5 text-white/35" aria-label="flat" />;
+}
+
+// Data-freshness indicator: Live (<20s, pulsing) / Stale (<60s) / Disconnected.
+// Ticks every 5s so the state degrades visibly if polling stops.
+function Freshness({ lastUpdated }: { lastUpdated: Date | null }) {
+  const [, tick] = useState(0);
+  useEffect(() => {
+    const id = window.setInterval(() => tick((n) => n + 1), 5_000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const age = lastUpdated ? (Date.now() - lastUpdated.getTime()) / 1000 : Infinity;
+  if (age > 60) {
+    return (
+      <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-red-400/35 bg-red-400/10 px-3 text-xs font-semibold text-red-200">
+        <WifiOff className="h-3.5 w-3.5" aria-hidden />
+        Disconnected
+      </span>
+    );
+  }
+  if (age > 20) {
+    return (
+      <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 text-xs font-semibold text-amber-200">
+        <span className="h-2 w-2 rounded-full bg-amber-300" aria-hidden />
+        Stale · {Math.floor(age)}s
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex h-10 items-center gap-2 rounded-lg border border-emerald-400/30 bg-emerald-400/10 px-3 text-xs font-semibold text-emerald-200">
+      <span className="relative flex h-2 w-2" aria-hidden>
+        <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-300 opacity-60" />
+        <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-300" />
+      </span>
+      Live
+    </span>
+  );
+}
+
 function Metric({
   icon,
   label,
   value,
   meta,
   tone = "neutral",
+  points,
+  direction,
 }: {
   icon: ReactNode;
   label: string;
   value: string;
   meta: string;
   tone?: "neutral" | "ok" | "warn" | "danger";
+  points?: number[];
+  direction?: string;
 }) {
   const toneClass = {
     neutral: "text-white/55 bg-white/[0.05]",
@@ -571,8 +646,19 @@ function Metric({
           <span className="h-4 w-4">{icon}</span>
         </span>
       </div>
-      <div className="text-2xl font-bold tracking-tight">{value}</div>
+      <div className="flex items-center gap-1.5">
+        {/* keyed on value: re-mounts on change so the pulse animation replays */}
+        <span key={value} className="animate-[metricpulse_0.7s_ease-out] text-2xl font-bold tracking-tight">
+          {value}
+        </span>
+        {direction && <TrendArrow direction={direction} />}
+      </div>
       <div className="mt-1 text-xs text-white/45">{meta}</div>
+      {points && points.length > 1 && (
+        <div className="mt-3">
+          <Sparkline points={points} />
+        </div>
+      )}
     </div>
   );
 }

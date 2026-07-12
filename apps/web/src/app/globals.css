@@ -236,6 +236,16 @@ body {
 
 /* Respect prefers-reduced-motion globally — motion in 2026 is functional, and
    for users who opt out it should be near-instant, not just slower. */
+/* Ops dashboard: brief highlight when a live metric value changes. */
+@keyframes metricpulse {
+  0% {
+    color: rgb(110 231 183);
+  }
+  100% {
+    color: inherit;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
