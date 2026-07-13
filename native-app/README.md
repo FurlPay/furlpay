@@ -108,9 +108,26 @@ for this app's `autoVerify` deep links, same as the TWA).
 - **Order history** — Invest → "Order history" deep-links the transactions
   screen with `?category=invest` (orders are recorded as transactions).
 
+- **Self-custodial wallet** (`app/wallet.tsx`, `lib/wallet.ts`) — a REAL
+  secp256k1 key generated on device from device entropy, held encrypted in the
+  Android Keystore (expo-secure-store `requireAuthentication` — decryption
+  needs a biometric), BIP-39 recovery phrase for backup, FLAG_SECURE on the
+  seed screen. Signs real EIP-3009 `transferWithAuthorization` (EIP-712),
+  byte-identical to the server verifier — proven against a viem oracle in
+  `lib/__tests__/wallet.test.ts` (address, digest, sign→recover). Sends relay
+  through `POST /api/transfers/gasless` (the hardened real rail). Settlement
+  still requires the server in live mode with a configured relayer key + RPC;
+  until then a send signs honestly and reports "settlement unavailable" — it
+  NEVER fabricates a transfer. Pure-JS crypto (`@noble/*`, `@scure/*`), no
+  native modules.
+
 ## Deliberately not in v1
 
-- **Real on-chain sends from mobile** — `POST /api/wallets/transfer` is the
-  demo ledger rail (503 in prod by design); the gasless EIP-3009 rail needs a
-  wallet key on device to sign authorizations.
+- **Account balance ↔ device wallet reconciliation** — the FurlPay account's
+  displayed balance lives at the server-derived `safeAddress`; the device
+  wallet is a distinct real address. Linking them (so "send from my balance"
+  uses the device key) is a server account-model change, tracked separately.
+- **Real on-chain sends from the main Send tab** — still the demo ledger rail
+  (`/api/wallets/transfer`, 503 in prod). The real signed path lives in the
+  self-custodial wallet screen above.
 - **Card issuance** — demo PAN/CVV until an issuing partnership exists.

@@ -151,6 +151,7 @@ export default function Settings() {
 
         <SectionHeader title="Money" />
         <Surface style={{ paddingVertical: 4 }}>
+          <NavRow icon="wallet-outline" label="Self-custodial wallet" onPress={() => router.push("/wallet")} />
           <NavRow icon="business-outline" label="Banking — local accounts" onPress={() => router.push("/banking")} />
           <NavRow icon="pie-chart-outline" label="Spending analytics" onPress={() => router.push("/analytics")} />
           <NavRow icon="gift-outline" label="Rewards & referrals" onPress={() => router.push("/rewards")} />
