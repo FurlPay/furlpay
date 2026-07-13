@@ -146,6 +146,37 @@ function toolPortfolio() {
   };
 }
 
+// ---- support tools -----------------------------------------------------------
+
+/** Status of recent outgoing/incoming money that a user would ask about. */
+function toolTransactionStatus(idFragment?: string) {
+  const txs = idFragment
+    ? db.transactions.filter((t) => t.id.includes(idFragment)).slice(0, 3)
+    : db.transactions.filter((t) => t.status === "pending").slice(0, 5);
+  return {
+    matched: txs.map((t) => ({
+      id: t.id,
+      title: t.title,
+      amountUsd: t.amountUsd,
+      direction: t.direction,
+      status: t.status,
+      timestamp: t.timestamp,
+    })),
+    pendingCount: db.transactions.filter((t) => t.status === "pending").length,
+  };
+}
+
+function toolKycStatus() {
+  const u = db.user;
+  const missing =
+    u.kycStatus === "verified"
+      ? []
+      : u.kycTier === 0
+        ? ["Government ID photo", "Proof of address"]
+        : ["Proof of address"];
+  return { kycStatus: u.kycStatus, kycTier: u.kycTier, region: u.region, missing };
+}
+
 // ---- the router ------------------------------------------------------------
 
 export async function runCopilot(messages: ChatMessage[]): Promise<CopilotResult> {
@@ -165,6 +196,70 @@ export async function runCopilot(messages: ChatMessage[]): Promise<CopilotResult
 }
 
 function route(raw: string, t: string): CopilotResult {
+  // --- card freeze / unfreeze (support action, HITL like all mutations) ---
+  if (/\b(freeze|unfreeze|lock|unlock)\b.*\bcard\b|\bcard\b.*\b(freeze|frozen|unfreeze|lock|unlock)\b/.test(t)) {
+    const unfreeze = /\b(unfreeze|unlock)\b/.test(t);
+    const card = db.cards.find((c) => (unfreeze ? c.frozen : !c.frozen)) ?? db.cards[0];
+    if (!card) {
+      return {
+        intent: "card_control",
+        reply: "You don't have any cards yet — create one from the Cards page first.",
+        toolCalls: [{ tool: "card_control", args: { action: unfreeze ? "unfreeze" : "freeze" } }],
+        suggestions: ["Show my cards", "Check my balance"],
+      };
+    }
+    return {
+      intent: "card_control",
+      reply: `${unfreeze ? "Unfreezing" : "Freezing"} ${card.label} (…${card.last4}) blocks ${
+        unfreeze ? "nothing — it restores" : "every new authorization until you unfreeze — existing subscriptions will decline too. It takes effect"
+      } immediately. Confirm to proceed.`,
+      toolCalls: [{ tool: "card_control", args: { cardId: card.id, action: unfreeze ? "unfreeze" : "freeze" } }],
+      requiresConfirmation: {
+        action: "card_control",
+        method: "POST",
+        endpoint: "/api/cards/settings",
+        body: { cardId: card.id, freeze: !unfreeze },
+        summary: `${unfreeze ? "Unfreeze" : "Freeze"} ${card.label} ending ${card.last4}`,
+      },
+      data: { cardId: card.id, label: card.label, last4: card.last4, frozen: card.frozen },
+      suggestions: unfreeze
+        ? ["Show recent card transactions", "Change my card limits"]
+        : ["Report the card stolen", "Show recent card transactions"],
+    };
+  }
+
+  // --- transaction / deposit status (support lookup) ---
+  if (/\b(where('| i)?s|status of|stuck|delayed|not (arrived|credited|received)|track)\b.*\b(deposit|transaction|payment|transfer|money)\b/.test(t)) {
+    const idFragment = raw.match(/\b(tx_[a-zA-Z0-9-]+|0x[a-fA-F0-9]{8,})\b/)?.[0];
+    const d = toolTransactionStatus(idFragment);
+    return {
+      intent: "transaction_status",
+      reply: d.matched.length
+        ? `${d.matched.length === 1 ? "Found it" : `Found ${d.matched.length}`}: ${d.matched
+            .map((x) => `${x.title} $${x.amountUsd.toLocaleString()} — ${x.status}`)
+            .join("; ")}. ${d.pendingCount ? `${d.pendingCount} payment(s) still pending — on-chain deposits usually settle within minutes; bridged transfers can take longer.` : ""}`
+        : "Nothing is pending right now — your recent transactions have all settled. If a deposit is missing, share its transaction hash and I'll check it.",
+      toolCalls: [{ tool: "check_transaction_status", args: { id: idFragment ?? "recent_pending" } }],
+      data: d,
+      suggestions: ["Show all transactions", "Check network status", "Open a support ticket"],
+    };
+  }
+
+  // --- KYC / verification status (support lookup) ---
+  if (/\b(kyc|verification|verified|identity|onboarding tier)\b/.test(t)) {
+    const d = toolKycStatus();
+    return {
+      intent: "kyc_status",
+      reply:
+        d.kycStatus === "verified"
+          ? `You're fully verified (tier ${d.kycTier}, ${d.region}) — no documents outstanding.`
+          : `Your verification is ${d.kycStatus} at tier ${d.kycTier}. Still needed: ${d.missing.join(" and ")}. Upload them from Profile → Verification.`,
+      toolCalls: [{ tool: "check_kyc_status", args: {} }],
+      data: d,
+      suggestions: ["What does tier 2 unlock?", "Open my profile", "Open a support ticket"],
+    };
+  }
+
   // --- balance / net worth ---
   if (/\b(balance|net worth|how much.*(have|got)|portfolio value|spendable)\b/.test(t)) {
     const d = toolNetWorth();
@@ -332,11 +427,30 @@ function route(raw: string, t: string): CopilotResult {
     };
   }
 
+  // --- support / open a ticket ---
+  if (/\b(support|ticket|complaint|refund|chargeback|human|agent|talk to (someone|a person)|report (a )?(bug|problem|issue))\b/.test(t)) {
+    const subject = raw.slice(0, 100).trim();
+    return {
+      intent: "support",
+      reply:
+        "I can open a support ticket for you — a human follows up by email, and you can track it on the Support page. Confirm and I'll file it with what you've told me.",
+      toolCalls: [{ tool: "create_support_ticket", args: { category: "other" } }],
+      requiresConfirmation: {
+        action: "create_support_ticket",
+        method: "POST",
+        endpoint: "/api/support/tickets",
+        body: { category: "other", subject: subject.length >= 4 ? subject : "Support request", body: raw },
+        summary: `Open a support ticket: "${subject.length >= 4 ? subject : "Support request"}"`,
+      },
+      suggestions: ["Where is my deposit?", "Freeze my card", "Check my KYC status"],
+    };
+  }
+
   // --- help / fallback ---
   return {
     intent: "help",
     reply:
-      "I'm your FurlPay co-pilot. I can check balances, analyze spending, book travel, invest in stocks/ETFs, earn yield, swap stablecoins, and send payments — just ask in plain English.",
+      "I'm your FurlPay co-pilot. I can check balances, analyze spending, book travel, invest in stocks/ETFs, earn yield, swap stablecoins, send payments — and handle support: transaction status, card freezes, KYC checks, or opening a ticket.",
     toolCalls: [],
     data: toolNetWorth(),
     suggestions: [

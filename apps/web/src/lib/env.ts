@@ -202,6 +202,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("IG_USER_ID"),
       v("CONTACT_INBOX"),
       v("SUPPORT_INBOX"),
+      // Zendesk JWT SSO (/api/support/sso) — dormant until both are set.
+      v("ZENDESK_SUBDOMAIN"),
+      v("ZENDESK_SHARED_SECRET"),
       v("CAREERS_INBOX"),
       v("AMBASSADORS_INBOX"),
       v("HACKATHON_INBOX"),

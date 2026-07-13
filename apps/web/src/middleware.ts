@@ -54,6 +54,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/resources", // guides, tools (fee calculator), glossary (public)
   "/trust", // trust & security center (public)
   "/contact", // contact page (public)
+  "/support", // support center — public help content; the tickets API stays session-gated
   "/hotels", // programmatic crypto-hotel city landing pages (public)
   "/compare", // SEO comparison pages (public)
   "/integrations", // pSEO framework-integration quickstarts (public)
