@@ -156,6 +156,8 @@ export default function Settings() {
           <NavRow icon="gift-outline" label="Rewards & referrals" onPress={() => router.push("/rewards")} />
           <NavRow icon="shield-checkmark-outline" label="Card approvals (3DS)" onPress={() => router.push("/approvals")} />
           <NavRow icon="sparkles-outline" label="AI co-pilot" onPress={() => router.push("/chat")} />
+          <NavRow icon="notifications-outline" label="Notifications inbox" onPress={() => router.push("/notifications")} />
+          <NavRow icon="help-buoy-outline" label="Support & help" onPress={() => router.push("/support")} />
         </Surface>
 
         <SectionHeader title="Security" />
@@ -174,9 +176,10 @@ export default function Settings() {
             label="Authenticator app (TOTP)"
             value={<StatusBadge status={sec?.totpEnabled ? "active" : "pending"} />}
           />
+          <NavRow icon="finger-print-outline" label="Manage passkeys" onPress={() => router.push("/passkeys")} />
           <Text style={[type.dim, { fontSize: 12 }]}>
-            TOTP setup and passkey management live in the web dashboard. This device also locks with
-            your fingerprint or face on every app start.
+            TOTP setup stays on the web dashboard. This device also locks with your fingerprint or
+            face on every app start.
           </Text>
         </Surface>
         <Button title="Lock account instantly" variant="danger" onPress={lockAccount} />

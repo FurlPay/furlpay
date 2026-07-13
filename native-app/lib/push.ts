@@ -1,6 +1,7 @@
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { api } from "./api";
+import { recordNotification } from "./db";
 
 // ---------------------------------------------------------------------------
 // Native push (FCM) — the delivery leg that makes 3DS2 approvals usable: the
@@ -78,22 +79,47 @@ function routeFor(data: Record<string, unknown>): string {
   return url.startsWith("/") ? url : "/";
 }
 
+/** Persist a push into the SQLite inbox so a missed banner isn't gone forever. */
+function store(notification: Notifications.Notification): void {
+  try {
+    const content = notification.request.content;
+    const data = (content.data ?? {}) as Record<string, unknown>;
+    recordNotification({
+      id: notification.request.identifier,
+      title: content.title ?? "FurlPay",
+      body: content.body ?? "",
+      url: typeof data.url === "string" ? data.url : null,
+    });
+  } catch {
+    // Inbox is a convenience — never let it break delivery handling.
+  }
+}
+
 /**
- * Route notification taps. Handles both the warm case (listener) and the cold
- * start (the tap launched the app). Returns the listener teardown.
+ * Route notification taps and record every push into the inbox. Handles both
+ * the warm case (listeners) and the cold start (the tap launched the app).
+ * Returns the listener teardown.
  */
 export function installNotificationRouting(): () => void {
-  const sub = Notifications.addNotificationResponseReceivedListener((response) => {
+  // Fired when a push arrives while the app is foregrounded.
+  const received = Notifications.addNotificationReceivedListener(store);
+
+  const responded = Notifications.addNotificationResponseReceivedListener((response) => {
+    store(response.notification);
     const data = response.notification.request.content.data ?? {};
     router.push(routeFor(data) as never);
   });
 
   void Notifications.getLastNotificationResponseAsync().then((response) => {
     if (!response) return;
+    store(response.notification);
     const data = response.notification.request.content.data ?? {};
     const target = routeFor(data);
     if (target !== "/") router.push(target as never);
   });
 
-  return () => sub.remove();
+  return () => {
+    received.remove();
+    responded.remove();
+  };
 }

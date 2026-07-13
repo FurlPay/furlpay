@@ -194,7 +194,17 @@ export default function Invest() {
         <SectionHeader title="Market pulse" />
         <MarketPulse />
 
-        <SectionHeader title="Holdings" />
+        <SectionHeader
+          title="Holdings"
+          right={
+            <Pressable
+              hitSlop={8}
+              onPress={() => router.push({ pathname: "/transactions", params: { category: "invest" } })}
+            >
+              <Text style={{ color: colors.neon, fontWeight: "600", fontSize: 13 }}>Order history</Text>
+            </Pressable>
+          }
+        />
         {portfolio?.holdings.length ? (
           <Surface style={{ paddingVertical: 4 }}>
             {portfolio.holdings.map((h) => {

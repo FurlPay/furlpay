@@ -63,6 +63,19 @@ const MIGRATIONS: string[] = [
   `
   CREATE INDEX IF NOT EXISTS idx_tx_cat_time ON transactions(category, timestamp DESC);
   `,
+  // v3 — notification inbox: pushes received/tapped are recorded so a missed
+  // banner isn't gone forever.
+  `
+  CREATE TABLE IF NOT EXISTS notifications (
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    url TEXT,
+    received_at INTEGER NOT NULL,
+    read INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS idx_notif_time ON notifications(received_at DESC);
+  `,
 ];
 
 export function getDb(): SQLite.SQLiteDatabase {
@@ -225,8 +238,49 @@ export function markPendingActionError(id: string, error: string): void {
   );
 }
 
+// --- notification inbox -------------------------------------------------------
+
+export interface StoredNotification {
+  id: string;
+  title: string;
+  body: string;
+  url: string | null;
+  receivedAt: number;
+  read: boolean;
+}
+
+export function recordNotification(n: { id: string; title: string; body: string; url?: string | null }): void {
+  const d = getDb();
+  d.runSync(
+    // INSERT OR IGNORE: a tap after a foreground receipt is the same message.
+    "INSERT OR IGNORE INTO notifications (id, title, body, url, received_at, read) VALUES (?, ?, ?, ?, ?, 0)",
+    n.id, n.title, n.body, n.url ?? null, Date.now()
+  );
+  // Bounded inbox — keep the newest 200.
+  d.runSync(
+    "DELETE FROM notifications WHERE id NOT IN (SELECT id FROM notifications ORDER BY received_at DESC LIMIT 200)"
+  );
+}
+
+export function listNotifications(): StoredNotification[] {
+  return getDb()
+    .getAllSync<{ id: string; title: string; body: string; url: string | null; received_at: number; read: number }>(
+      "SELECT * FROM notifications ORDER BY received_at DESC LIMIT 200"
+    )
+    .map((r) => ({ id: r.id, title: r.title, body: r.body, url: r.url, receivedAt: r.received_at, read: r.read === 1 }));
+}
+
+export function markNotificationsRead(): void {
+  getDb().runSync("UPDATE notifications SET read = 1 WHERE read = 0");
+}
+
+export function unreadNotificationCount(): number {
+  const row = getDb().getFirstSync<{ n: number }>("SELECT COUNT(*) AS n FROM notifications WHERE read = 0");
+  return row?.n ?? 0;
+}
+
 /** Wipe everything user-scoped (called on sign-out). */
 export function clearAllCaches(): void {
   const d = getDb();
-  d.execSync("DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions;");
+  d.execSync("DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions; DELETE FROM notifications;");
 }

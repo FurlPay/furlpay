@@ -96,6 +96,18 @@ for this app's `autoVerify` deep links, same as the TWA).
   `app.config.js`, gitignored) and set `FURLPAY_FCM_SERVICE_ACCOUNT` on the
   server. Until then push fails soft and approvals stay pull-based.
 
+- **Support center** — `app/support.tsx`: tickets via the same
+  `/api/support/tickets` registry as web (server-side PII redaction included),
+  help articles via the in-app browser.
+- **Passkey manager** — `app/passkeys.tsx`: list/enroll/revoke against
+  `/api/auth/passkey/credentials` (route made Bearer-aware server-side).
+- **Notification inbox** — pushes persist to SQLite (`notifications` table,
+  migration v3); `app/notifications.tsx` lists them with tap-through routing.
+- **Card issuance** — `CreateCardModal` in the cards tab, `POST /api/cards`
+  (server enforces verified KYC), biometric-gated.
+- **Order history** — Invest → "Order history" deep-links the transactions
+  screen with `?category=invest` (orders are recorded as transactions).
+
 ## Deliberately not in v1
 
 - **Real on-chain sends from mobile** — `POST /api/wallets/transfer` is the

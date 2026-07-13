@@ -320,6 +320,70 @@ function CardControls({ card }: { card: PaymentCard }) {
   );
 }
 
+/** Issue a new card — POST /api/cards. The server enforces verified KYC;
+ *  biometrics gate the request like every other account mutation. */
+function CreateCardModal({ onClose }: { onClose: () => void }) {
+  const qc = useQueryClient();
+  const [kind, setKind] = useState<"virtual" | "physical">("virtual");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const create = async () => {
+    setError(null);
+    const enrolled =
+      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
+    if (enrolled) {
+      const auth = await LocalAuthentication.authenticateAsync({
+        promptMessage: `Issue a new ${kind} card`,
+      });
+      if (!auth.success) return;
+    }
+    setBusy(true);
+    try {
+      const res = await api<{ cardId: string; last4: string }>("/cards", {
+        method: "POST",
+        body: { cardType: kind, kycToken: "session-kyc-attested" },
+      });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await qc.invalidateQueries({ queryKey: ["cards"] });
+      onClose();
+      void res;
+    } catch (e) {
+      if (e instanceof NetworkError) setError(OFFLINE_MUTATION_MESSAGE);
+      else if (e instanceof ApiError && e.status === 403) {
+        setError("Card issuance needs a verified identity — finish KYC in Profile first.");
+      } else setError(e instanceof ApiError ? e.message : (e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <SheetModal title="New card" visible onClose={onClose}>
+      <View style={{ gap: spacing.md, paddingBottom: spacing.md }}>
+        {(["virtual", "physical"] as const).map((k) => (
+          <Pressable
+            key={k}
+            onPress={() => setKind(k)}
+            style={[styles.kindOption, kind === k && { borderColor: colors.neon }]}
+          >
+            <Text style={[type.body, { fontWeight: "700" }]}>
+              {k === "virtual" ? "Virtual card" : "Physical card"}
+            </Text>
+            <Text style={type.dim}>
+              {k === "virtual"
+                ? "Instant. Online payments and subscriptions."
+                : "Shipped to you. In-store and ATM enabled."}
+            </Text>
+          </Pressable>
+        ))}
+        <Button title={`Issue ${kind} card`} loading={busy} onPress={() => void create()} />
+        <ErrorNote message={error} />
+      </View>
+    </SheetModal>
+  );
+}
+
 const PAGE_W = Dimensions.get("window").width;
 const CARD_W = PAGE_W - spacing.md * 2;
 
@@ -328,6 +392,7 @@ export default function Cards() {
   const { data: result, isLoading, refetch, isRefetching, error } = useCards();
   const cards = result?.data ?? [];
   const [active, setActive] = useState(0);
+  const [creating, setCreating] = useState(false);
   const listRef = useRef<FlatList<PaymentCard>>(null);
 
   const activeCard = cards[Math.min(active, Math.max(0, cards.length - 1))];
@@ -346,10 +411,13 @@ export default function Cards() {
           onPress={() => router.push("/approvals")}
         />
         {cards.length === 0 ? (
-          <EmptyState
-            title={isLoading ? "Loading…" : error ? "Couldn't load cards" : "No cards yet"}
-            subtitle={error ? (error as Error).message : "Issue a virtual card from the web dashboard."}
-          />
+          <>
+            <EmptyState
+              title={isLoading ? "Loading…" : error ? "Couldn't load cards" : "No cards yet"}
+              subtitle={error ? (error as Error).message : "Issue your first card below — virtual cards are instant."}
+            />
+            {!isLoading && !error ? <Button title="New card" onPress={() => setCreating(true)} /> : null}
+          </>
         ) : (
           <>
             {/* Swipable card carousel */}
@@ -380,15 +448,24 @@ export default function Cards() {
               </View>
             ) : null}
             {activeCard ? <CardControls key={activeCard.id} card={activeCard} /> : null}
+            <Button title="New card" variant="secondary" onPress={() => setCreating(true)} />
           </>
         )}
       </ScrollView>
+      {creating ? <CreateCardModal onClose={() => setCreating(false)} /> : null}
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
+  kindOption: {
+    borderColor: colors.border,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    gap: 4,
+  },
   cardShadow: {
     borderRadius: radius.lg,
     // Android elevation needs a backgroundColor on the same view to render.

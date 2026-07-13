@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams } from "expo-router";
 import { useTransactions } from "@/lib/queries";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { EmptyState, Field, Screen } from "@/components/ui";
@@ -9,7 +10,14 @@ import { timeAgo } from "@/lib/format";
 const CATEGORIES = ["all", "transfer", "card", "swap", "invest", "bill", "ramp", "yield"] as const;
 
 export default function Transactions() {
-  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>("all");
+  // Deep-linkable initial filter — e.g. Invest links here with ?category=invest
+  // as the order-history view.
+  const { category: initial } = useLocalSearchParams<{ category?: string }>();
+  const [category, setCategory] = useState<(typeof CATEGORIES)[number]>(
+    CATEGORIES.includes(initial as (typeof CATEGORIES)[number])
+      ? (initial as (typeof CATEGORIES)[number])
+      : "all"
+  );
   const [query, setQuery] = useState("");
   const { data: result, isLoading, refetch, isRefetching, error } = useTransactions(
     category === "all" ? undefined : category
