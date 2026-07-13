@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { api, API_BASE, ApiError } from "@/lib/api";
 import { approveCardChallenge, isPasskeySupported, passkeyErrorMessage } from "@/lib/passkey";
+import { useSecureScreen } from "@/lib/secureScreen";
 import { usd } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Screen, Surface } from "@/components/ui";
@@ -33,6 +34,7 @@ function Countdown({ expiresAt }: { expiresAt: number }) {
 }
 
 export default function Approvals() {
+  useSecureScreen("approvals");
   const qc = useQueryClient();
   const { data, isLoading, refetch, isRefetching, error } = useQuery({
     queryKey: ["challenges"],

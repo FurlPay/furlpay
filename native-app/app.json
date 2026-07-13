@@ -14,6 +14,7 @@
     "android": {
       "package": "com.furlpay.app",
       "versionCode": 2,
+      "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#000000"
@@ -63,10 +64,14 @@
         "expo-build-properties",
         {
           "android": {
-            "minSdkVersion": 28
+            "minSdkVersion": 28,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
+            "extraProguardRules": "-keep class com.reactnativepasskey.** { *; }\n-keep class expo.modules.** { *; }\n-keepclassmembers class * { @com.facebook.proguard.annotations.DoNotStrip *; }\n-keep,includedescriptorclasses class com.facebook.react.turbomodule.** { *; }"
           }
         }
       ],
+      "expo-screen-capture",
       [
         "expo-local-authentication",
         {

@@ -5,6 +5,7 @@ import * as Haptics from "expo-haptics";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
 import { isPasskeySupported, passkeyErrorMessage, registerPasskey } from "@/lib/passkey";
+import { useSecureScreen } from "@/lib/secureScreen";
 import { shortAddress, timeAgo } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Screen, SectionHeader, Surface } from "@/components/ui";
@@ -22,6 +23,7 @@ interface Credential {
 }
 
 export default function Passkeys() {
+  useSecureScreen("passkeys");
   const qc = useQueryClient();
   const { data, isLoading, refetch, isRefetching, error } = useQuery({
     queryKey: ["passkeys"],

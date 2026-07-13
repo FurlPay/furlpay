@@ -22,6 +22,7 @@ import { useCards } from "@/lib/queries";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Screen, Surface } from "@/components/ui";
+import { useSecureScreen } from "@/lib/secureScreen";
 import type { PaymentCard } from "@/lib/types";
 
 function CardVisual({ card }: { card: PaymentCard }) {
@@ -119,6 +120,8 @@ function SheetModal({
 function DetailsModal({ card, onClose }: { card: PaymentCard; onClose: () => void }) {
   const [authed, setAuthed] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Card PAN/CVV must not land in a screenshot or the recents thumbnail.
+  useSecureScreen("card-details");
 
   const authenticate = async () => {
     const enrolled =

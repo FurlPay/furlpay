@@ -186,7 +186,15 @@ export default function Send() {
             <Text style={type.body}>
               Send {usd(amountNum)} {selected.token} on {selected.chain}
             </Text>
-            <Text style={type.dim}>To {shortAddress(destination.trim(), 8)}</Text>
+            {/* Full recipient, monospace — address-poisoning relies on you
+                checking only the first/last few characters. Verify all of it. */}
+            <Text style={type.dim}>To</Text>
+            <Text style={[type.mono, { color: colors.text, fontSize: 13 }]} selectable>
+              {destination.trim()}
+            </Text>
+            <Text style={[type.dim, { fontSize: 12 }]}>
+              Check the whole address — sends are irreversible.
+            </Text>
             <Text style={[type.dim, { color: colors.neon }]}>Gas sponsored by FurlPay — no fee</Text>
           </Surface>
         ) : null}

@@ -4,10 +4,12 @@ import QRCode from "react-native-qrcode-svg";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useOverview } from "@/lib/queries";
+import { useSecureScreen } from "@/lib/secureScreen";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, Screen, Surface } from "@/components/ui";
 
 export default function Receive() {
+  useSecureScreen("receive");
   const { data: result, isLoading } = useOverview();
   const address = result?.data.user.safeAddress;
 
