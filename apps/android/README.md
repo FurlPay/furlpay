@@ -1,4 +1,16 @@
-# Furlpay Android (Trusted Web Activity)
+# Furlpay Android (Trusted Web Activity) — SUPERSEDED
+
+> **Do not publish this app.** It has been replaced by the native React Native
+> app in `native-app`, which ships the **same package id** (`com.furlpay.app`)
+> at a higher `versionCode` (2 vs 1). Only one of the two can own the Play
+> listing, and `native-app` is the one we ship. See `docs/ANDROID-RELEASE.md`.
+>
+> This directory is kept for two reasons, both of which matter:
+> 1. **`android.keystore` lives here** — it is the signing identity of
+>    `com.furlpay.app` and `native-app` signs with it (via `credentials.json`).
+>    Deleting this directory would destroy the ability to ever update the app.
+> 2. `verify-assetlinks.sh` — the pre-upload check that a build's certificate is
+>    actually published in `assetlinks.json`.
 
 The Furlpay Android app is a **Trusted Web Activity (TWA)** that wraps
 `https://furlpay.com` in a native Android shell. It runs the existing web app
