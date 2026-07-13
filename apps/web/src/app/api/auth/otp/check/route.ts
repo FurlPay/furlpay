@@ -4,6 +4,7 @@ import { checkOtp } from "@/lib/auth/otp";
 import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
+import { recordStepUp } from "@/lib/stepup";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/emailTemplates";
@@ -66,6 +67,8 @@ export async function POST(req: NextRequest) {
     });
     if (isMobileClient) body = { ...body, token };
     audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: `otp:${channel}` });
+    // A fresh OTP verification is a strong step-up — satisfies the wallet-link gate.
+    void recordStepUp(account.user.id, "otp").catch(() => {});
   }
   const res = NextResponse.json(body);
   if (login && token) setSessionCookie(res, token);

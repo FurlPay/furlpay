@@ -297,11 +297,28 @@ export async function linkDevice(): Promise<{ address: string; verifiedAt: strin
     body: { address },
   });
   const signature = await signMessage(message); // biometric gate #2 (the actual proof)
-  const res = await api<{ linked: { address: string; verifiedAt: string } }>("/wallet/link/verify", {
-    method: "POST",
-    body: { address, signature },
-  });
-  return res.linked;
+  try {
+    const res = await api<{ linked: { address: string; verifiedAt: string } }>("/wallet/link/verify", {
+      method: "POST",
+      body: { address, signature },
+    });
+    return res.linked;
+  } catch (e) {
+    // 403 stepup_required: the server demands a recent OTP/passkey re-auth. Surface
+    // a typed signal so the UI can route the user to re-verify, not a raw error.
+    if (e instanceof ApiError && e.status === 403 && (e.data as { error?: string })?.error === "stepup_required") {
+      throw new StepUpRequiredError();
+    }
+    throw e;
+  }
+}
+
+/** Thrown by linkDevice when the server requires a fresh OTP/passkey step-up. */
+export class StepUpRequiredError extends Error {
+  constructor() {
+    super("Please re-verify with a login code or passkey, then link again.");
+    this.name = "StepUpRequiredError";
+  }
 }
 
 // --- gasless send (real EIP-3009 relay) -------------------------------------

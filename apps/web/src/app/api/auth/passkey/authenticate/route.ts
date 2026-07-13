@@ -11,6 +11,7 @@ import {
   updateCounter,
 } from "@/lib/webauthn";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
+import { recordStepUp } from "@/lib/stepup";
 import { isMobileClient } from "@/lib/clientKind";
 
 // GET /api/auth/passkey/authenticate — real WebAuthn authentication options.
@@ -62,6 +63,9 @@ export async function POST(req: NextRequest) {
 
   // Counter must increase for non-synced authenticators (clone detection).
   await updateCounter(user.id, cred.id, verification.authenticationInfo.newCounter);
+
+  // A passkey assertion is a strong step-up — satisfies the wallet-link gate.
+  void recordStepUp(user.id, "passkey").catch(() => {});
 
   const token = await signSession({ sub: user.id, safe: user.safeAddress });
   // Native clients get the JWT in the body (Bearer flow); browsers get the

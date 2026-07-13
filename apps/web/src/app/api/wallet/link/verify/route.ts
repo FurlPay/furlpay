@@ -4,7 +4,9 @@ import { requireUser } from "@/lib/authz";
 import { validateBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { linkingEnabled, verifyLink } from "@/lib/walletLink";
-import { findUserByLinkedWallet, setLinkedWallet, type LinkedWallet } from "@/lib/store";
+import { setLinkedWallet, type LinkedWallet } from "@/lib/store";
+import { linkWalletDurable } from "@/lib/linkedWalletStore";
+import { recentStepUp } from "@/lib/stepup";
 import { recordSecurityEvent } from "@/lib/ops/events";
 import { audit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
@@ -41,6 +43,18 @@ export async function POST(req: NextRequest) {
   const user = auth.account.user;
   const claimed = body.address;
 
+  // Step-up gate: a bare session is NOT enough to permanently bind a wallet.
+  // Require a recent strong re-auth (fresh OTP or passkey) recorded
+  // server-side. Local device biometrics do not count. Checked before the
+  // (cheap) signature verify so an unauthorized caller learns nothing.
+  if (!(await recentStepUp(user.id))) {
+    audit("wallet.link_rejected", user.id, { address: claimed.toLowerCase(), reason: "stepup_required" });
+    return NextResponse.json(
+      { error: "stepup_required", detail: "Re-verify with a login code or passkey, then try again." },
+      { status: 403 }
+    );
+  }
+
   const reject = (error: string, status: number) => {
     audit("wallet.link_rejected", user.id, { address: claimed.toLowerCase(), reason: error });
     void recordSecurityEvent({
@@ -53,23 +67,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error }, { status });
   };
 
-  // Immutability: a different address already linked is refused (no silent swap).
-  const existing = user.linkedWallet;
-  if (existing && existing.address.toLowerCase() !== claimed.toLowerCase()) {
-    return reject("already_linked_different_address", 409);
-  }
-
-  // No cross-account hijack: the address must not belong to another account.
-  const other = findUserByLinkedWallet(claimed);
-  if (other && other.user.id !== user.id) {
-    return reject("cross_account", 409);
-  }
-
+  // Prove control FIRST (cheap ecrecover) — a caller must sign the challenge
+  // before we consult or mutate any durable link state.
   const result = await verifyLink(user.id, claimed, body.signature);
   if (!result.ok) return reject(result.error, result.status);
 
-  // Idempotent re-link of the same address: return success without rewriting
-  // the original verifiedAt (still refresh the proof nonce for the audit).
+  // Atomic, DB-enforced uniqueness (migration 0005). Race-safe across
+  // instances: the Postgres UNIQUE constraint decides the winner.
+  const existing = user.linkedWallet;
+  const outcome = await linkWalletDurable(user.id, result.address, result.nonce);
+  if (outcome === "conflict_address") return reject("cross_account", 409);
+  if (outcome === "conflict_user_has_wallet") return reject("already_linked_different_address", 409);
+
+  // outcome is "linked" or "idempotent" — cache it on the in-memory record.
   const linked: LinkedWallet = {
     address: result.address,
     chainFamily: "evm",

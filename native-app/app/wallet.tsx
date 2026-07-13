@@ -13,6 +13,7 @@ import {
   linkStatus,
   revealMnemonic,
   sendGasless,
+  StepUpRequiredError,
   type GaslessResult,
 } from "@/lib/wallet";
 import { ApiError } from "@/lib/api";
@@ -64,7 +65,9 @@ export default function Wallet() {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setLinked(address);
     } catch (e) {
-      if (e instanceof ApiError && e.status === 409) {
+      if (e instanceof StepUpRequiredError) {
+        setError("For your security, sign in again (login code or passkey), then link this device.");
+      } else if (e instanceof ApiError && e.status === 409) {
         setError("A different wallet is already linked to this account. Unlinking is a separate recovery flow.");
       } else {
         setError((e as Error).message);
