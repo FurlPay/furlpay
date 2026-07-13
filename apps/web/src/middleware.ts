@@ -65,6 +65,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/developer", // public developer portal + Agent Console demo
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
   "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
+  "/auth/handoff", // native-app → browser session handoff; auth IS the one-time code (redirects to /login otherwise)
   "/discord", // branded Discord links → external redirects (see next.config redirects)
   "/telegram", // branded Telegram links → external redirects (see next.config redirects)
 ];

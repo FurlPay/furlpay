@@ -8,6 +8,7 @@ import { createDuffelStayQuote, createDuffelStayBooking } from "@/lib/travel/duf
 import { acquireLock, releaseLock } from "@/lib/locks";
 import { sendEmail } from "@/lib/email";
 import { bookingConfirmationEmail } from "@/lib/emailTemplates";
+import { verifySession, tokenFromRequest } from "@/lib/session";
 import crypto from "crypto";
 
 // POST /api/travel/book — authorize a booking and record it as a trip.
@@ -69,10 +70,18 @@ export async function POST(req: NextRequest) {
 
   const source: BookingSource = body.source === "legacy" ? "legacy" : "travala";
   const authorization = authorizeBooking(amountUsd, source, body.mcc ?? MCC.LODGING);
-  const id = "bk_" + Math.random().toString(36).slice(2, 10);
+  const id = "bk_" + crypto.randomUUID();
+
+  // /travel is a public SEO → conversion funnel, so checkout may run without a
+  // session. A signed-in buyer owns the trip (it appears in their My Trips); an
+  // anonymous one gets a throwaway owner id, so the booking still completes but
+  // can never surface in a stranger's itinerary list.
+  const claims = await verifySession(tokenFromRequest(req));
+  const ownerId = claims?.sub ?? `anon:${crypto.randomUUID()}`;
 
   const trip = addTrip({
     id,
+    userId: ownerId,
     name: body.name ?? "Your stay",
     city: body.city ?? "—",
     image: body.image ?? "from-sky-500/40 to-indigo-600/40",

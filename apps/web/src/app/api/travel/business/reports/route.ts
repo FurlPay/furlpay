@@ -2,14 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { getTeam } from "@/lib/travel/business";
 import { listTrips } from "@/lib/travel/store";
+import { requireUser } from "@/lib/authz";
 
 // GET /api/travel/business/reports?teamId=<id>&format=json|csv — expense report
 // built from the team's trips, auto-tagged for reconciliation.
 export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
   const team = getTeam(req.nextUrl.searchParams.get("teamId") ?? undefined);
   if (!team) return NextResponse.json({ error: "Team not found." }, { status: 404 });
 
-  const trips = listTrips().filter((t) => t.status !== "pending");
+  const trips = listTrips(auth.account.user.id).filter((t) => t.status !== "pending");
   const rows = trips.map((t, i) => ({
     date: t.createdAt.slice(0, 10),
     employee: team.members[i % Math.max(1, team.members.length)]?.email ?? "unassigned",

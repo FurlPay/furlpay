@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   if (!expectedChallenge) {
     return NextResponse.json({ error: "No pending biometric ceremony — call /options first" }, { status: 400 });
   }
-  const cred = getCredentials(user.id).find((c) => c.id === assertion?.id);
+  const cred = (await getCredentials(user.id)).find((c) => c.id === assertion?.id);
   if (!cred) {
     return NextResponse.json({ error: "Unknown credential" }, { status: 400 });
   }
@@ -65,7 +65,7 @@ export async function POST(req: NextRequest) {
   if (!verification.verified) {
     return NextResponse.json({ error: "Invalid biometric credential signature" }, { status: 400 });
   }
-  updateCounter(user.id, cred.id, verification.authenticationInfo.newCounter);
+  await updateCounter(user.id, cred.id, verification.authenticationInfo.newCounter);
 
   const decided = await decideChallenge(challenge.id, "approved", "approved_by_biometric");
   if (!decided) {

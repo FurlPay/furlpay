@@ -13,11 +13,12 @@ import {
   takeChallenge,
 } from "@/lib/webauthn";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
+import { isMobileClient } from "@/lib/clientKind";
 
 // GET /api/auth/passkey/register — real WebAuthn registration options.
 export async function GET() {
   const user = db.user;
-  const existing = getCredentials(user.id);
+  const existing = await getCredentials(user.id);
   const options = await generateRegistrationOptions({
     rpName: RP_NAME,
     rpID: RP_ID,
@@ -33,7 +34,7 @@ export async function GET() {
     },
     excludeCredentials: existing.map((c) => ({ id: c.id })),
   });
-  setChallenge(user.id, options.challenge);
+  await setChallenge(user.id, options.challenge);
   return NextResponse.json(options);
 }
 
@@ -42,7 +43,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const user = db.user;
   const body = await req.json();
-  const expectedChallenge = takeChallenge(user.id);
+  const expectedChallenge = await takeChallenge(user.id);
   if (!expectedChallenge) {
     return NextResponse.json({ error: "No pending challenge" }, { status: 400 });
   }
@@ -52,6 +53,9 @@ export async function POST(req: NextRequest) {
     verification = await verifyRegistrationResponse({
       response: body,
       expectedChallenge,
+      // EXPECTED_ORIGINS includes the Android app's `android:apk-key-hash:` origin
+      // when FURLPAY_ANDROID_CERT_SHA256 is set — a native caller never presents
+      // https://furlpay.com. See lib/webauthn.ts.
       expectedOrigin: EXPECTED_ORIGINS,
       expectedRPID: EXPECTED_RPIDS,
     });
@@ -64,7 +68,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { credential } = verification.registrationInfo;
-  addCredential(user.id, {
+  await addCredential(user.id, {
     id: credential.id,
     publicKey: credential.publicKey,
     counter: credential.counter,
@@ -74,7 +78,13 @@ export async function POST(req: NextRequest) {
   });
 
   const token = await signSession({ sub: user.id, safe: user.safeAddress });
-  const res = NextResponse.json({ verified: true });
+  // Native clients have no cookie jar — they hold the JWT in the Android
+  // Keystore and send it as `Authorization: Bearer`. Same contract as
+  // /api/auth/otp/check and /api/auth/guest.
+  const res = NextResponse.json({
+    verified: true,
+    ...(isMobileClient(req) ? { token } : {}),
+  });
   res.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: SESSION_MAX_AGE });
   return res;
 }

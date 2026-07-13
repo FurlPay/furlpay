@@ -1,8 +1,17 @@
 // ---------------------------------------------------------------------------
 // Real FIDO2 / WebAuthn passkey ceremony state (backed by @simplewebauthn/server
-// in the route handlers). Challenge + credential stores are in-memory here;
-// production persists credentials (id, publicKey, counter) per user in the DB.
+// in the route handlers).
+//
+// Challenges and credentials live in KV (Redis), NOT in memory. This is load-
+// bearing, not tidiness: a WebAuthn ceremony is two requests — a GET that mints
+// the challenge and a POST that verifies the assertion against it. On serverless
+// those two routinely land on DIFFERENT instances, so an in-memory Map made the
+// POST fail with "No pending challenge" more often than not, and any registered
+// credential vanished on the next cold start. Passkeys cannot work at all
+// without a shared store.
 // ---------------------------------------------------------------------------
+
+import { kvGet, kvSet, kvDel } from "./kv";
 
 export interface StoredCredential {
   id: string; // base64url credential ID
@@ -14,14 +23,24 @@ export interface StoredCredential {
   lastUsedAt?: string; // ISO timestamp, stamped on each verified assertion
 }
 
-interface WebAuthnState {
-  challenges: Map<string, string>; // userId -> current challenge
-  credentials: Map<string, StoredCredential[]>; // userId -> credentials
+/** Wire form: publicKey is bytes, and JSON can't carry a Uint8Array. */
+interface CredentialRow extends Omit<StoredCredential, "publicKey"> {
+  publicKeyB64: string;
 }
 
-const g = globalThis as unknown as { __webauthn?: WebAuthnState };
-const state: WebAuthnState =
-  g.__webauthn ?? (g.__webauthn = { challenges: new Map(), credentials: new Map() });
+const CHALLENGE_KEY = (userId: string) => `webauthn:chal:${userId}`;
+const CREDS_KEY = (userId: string) => `webauthn:creds:${userId}`;
+/** A ceremony the user doesn't finish in 5 minutes is abandoned. */
+const CHALLENGE_TTL_S = 300;
+
+const toRow = (c: StoredCredential): CredentialRow => {
+  const { publicKey, ...rest } = c;
+  return { ...rest, publicKeyB64: Buffer.from(publicKey).toString("base64") };
+};
+const fromRow = (r: CredentialRow): StoredCredential => {
+  const { publicKeyB64, ...rest } = r;
+  return { ...rest, publicKey: new Uint8Array(Buffer.from(publicKeyB64, "base64")) };
+};
 
 export const RP_NAME = "Furlpay";
 
@@ -72,14 +91,42 @@ function resolveRpIDs(): string[] {
   return ["localhost"];
 }
 
+/**
+ * The Android app's WebAuthn origin.
+ *
+ * A native Android caller does NOT present `https://furlpay.com` as its origin —
+ * Google Play Services presents `android:apk-key-hash:<base64url(SHA-256(signing
+ * cert))>`. If that string isn't in expectedOrigin, every assertion from the app
+ * is rejected with an origin mismatch, no matter how correct the ceremony is.
+ *
+ * The rpID stays `furlpay.com`; what binds the app to it is the
+ * `delegate_permission/common.get_login_creds` relation already published in
+ * /.well-known/assetlinks.json for com.furlpay.app.
+ *
+ * Configure with the signing cert's SHA-256 (hex, colons optional). For the
+ * upload key that is 15:92:F6:8B:…:29:13, which yields
+ *   android:apk-key-hash:FZL2i74WWu9H61EwOaJk70GVblJ3y4opm56t5sETKRM
+ * NOTE: after Play App Signing re-signs the app, the cert on real devices is
+ * Play's, so this must list the PLAY app-signing SHA-256 too (comma-separated),
+ * exactly like assetlinks.json.
+ */
+function androidOrigins(): string[] {
+  return splitList(process.env.FURLPAY_ANDROID_CERT_SHA256).map((hex) => {
+    const bytes = Buffer.from(hex.replace(/:/g, "").trim(), "hex");
+    const b64url = bytes.toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    return `android:apk-key-hash:${b64url}`;
+  });
+}
+
 function resolveOrigins(): string[] {
+  const android = androidOrigins();
   const explicit = splitList(process.env.FURLPAY_ORIGIN);
-  if (explicit.length) return explicit;
+  if (explicit.length) return Array.from(new Set([...explicit, ...android]));
   const derived = [VERCEL_PROD_URL, VERCEL_DEPLOY_URL]
     .filter(Boolean)
     .map((u) => `https://${hostOf(u!)}`);
-  if (derived.length) return Array.from(new Set(derived));
-  return ["http://localhost:3000"];
+  if (derived.length) return Array.from(new Set([...derived, ...android]));
+  return ["http://localhost:3000", ...android];
 }
 
 // All accepted values for verification (assertion/attestation checks).
@@ -91,36 +138,38 @@ export const EXPECTED_ORIGINS = resolveOrigins();
 export const RP_ID = EXPECTED_RPIDS[0];
 export const ORIGIN = EXPECTED_ORIGINS[0];
 
-export function setChallenge(userId: string, challenge: string) {
-  state.challenges.set(userId, challenge);
+export async function setChallenge(userId: string, challenge: string): Promise<void> {
+  await kvSet(CHALLENGE_KEY(userId), challenge, CHALLENGE_TTL_S);
 }
-export function takeChallenge(userId: string): string | undefined {
-  const c = state.challenges.get(userId);
-  state.challenges.delete(userId);
-  return c;
+/** Single-use: the challenge is consumed on read, so an assertion can't be replayed. */
+export async function takeChallenge(userId: string): Promise<string | undefined> {
+  const c = await kvGet<string>(CHALLENGE_KEY(userId));
+  if (c) await kvDel(CHALLENGE_KEY(userId));
+  return c ?? undefined;
 }
 
-export function getCredentials(userId: string): StoredCredential[] {
-  return state.credentials.get(userId) ?? [];
+export async function getCredentials(userId: string): Promise<StoredCredential[]> {
+  const rows = await kvGet<CredentialRow[]>(CREDS_KEY(userId));
+  return (rows ?? []).map(fromRow);
 }
-export function addCredential(userId: string, cred: StoredCredential) {
-  const list = state.credentials.get(userId) ?? [];
+export async function addCredential(userId: string, cred: StoredCredential): Promise<void> {
+  const list = await getCredentials(userId);
   list.push(cred);
-  state.credentials.set(userId, list);
+  await kvSet(CREDS_KEY(userId), list.map(toRow));
 }
-export function updateCounter(userId: string, credId: string, counter: number) {
-  const list = state.credentials.get(userId) ?? [];
+export async function updateCounter(userId: string, credId: string, counter: number): Promise<void> {
+  const list = await getCredentials(userId);
   const c = list.find((x) => x.id === credId);
-  if (c) {
-    c.counter = counter;
-    c.lastUsedAt = new Date().toISOString();
-  }
+  if (!c) return;
+  c.counter = counter;
+  c.lastUsedAt = new Date().toISOString();
+  await kvSet(CREDS_KEY(userId), list.map(toRow));
 }
-export function removeCredential(userId: string, credId: string): boolean {
-  const list = state.credentials.get(userId) ?? [];
+export async function removeCredential(userId: string, credId: string): Promise<boolean> {
+  const list = await getCredentials(userId);
   const next = list.filter((x) => x.id !== credId);
   if (next.length === list.length) return false;
-  state.credentials.set(userId, next);
+  await kvSet(CREDS_KEY(userId), next.map(toRow));
   return true;
 }
 

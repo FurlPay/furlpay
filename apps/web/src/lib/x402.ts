@@ -135,7 +135,9 @@ export function requiredConfirmations(amountAtomic: string): number {
 /** Headers that keep a payment-gated response out of every shared/CDN cache. */
 export const noStoreHeaders: Record<string, string> = {
   "Cache-Control": "no-store, private, max-age=0",
-  Vary: "X-PAYMENT",
+  // Both dialects' request headers — a Vary that names only X-PAYMENT would let
+  // a shared cache serve a v2-paid response to the next unpaid v2 caller.
+  Vary: "X-PAYMENT, PAYMENT-SIGNATURE",
 };
 
 /** Stamp no-store on a Response (paid resources and fresh 402 quotes alike). */
@@ -236,8 +238,118 @@ export interface XPaymentPayload {
   extra?: { quoteId?: string; binding?: string; expiresAt?: number };
 }
 
+// ---------------------------------------------------------------------------
+// x402 v2 (Dec 2025).
+//
+// Not a header rename — the shapes changed. `maxAmountRequired` became
+// `amount`, resource metadata was hoisted out of each requirement into a
+// top-level ResourceInfo, and the client now echoes the FULL `accepted`
+// requirements instead of a bare `extra`. Shapes taken from the reference SDK
+// (@x402/core), not from prose.
+//
+// We accept both dialects and normalize v2 onto the v1 shape immediately, so
+// every security check below is written exactly once and cannot drift between
+// versions. `extra` (quoteId / binding / expiresAt) is carried identically by
+// both, which is why one binding MAC serves both.
+// ---------------------------------------------------------------------------
+
+export const X402_VERSION_V2 = 2;
+export const HEADER_V2_PAYMENT = "payment-signature";
+export const HEADER_V2_REQUIRED = "PAYMENT-REQUIRED";
+export const HEADER_V2_RECEIPT = "PAYMENT-RESPONSE";
+
+/** v2 hoists resource metadata here. `description` is also the field a
+ *  facilitator crawls for discovery. */
+export interface ResourceInfo {
+  url: string;
+  description?: string;
+  mimeType?: string;
+}
+
+export interface PaymentRequirementsV2 {
+  scheme: "exact";
+  network: string;
+  asset: string;
+  amount: string; // v1's maxAmountRequired
+  payTo: string;
+  maxTimeoutSeconds: number;
+  extra: PaymentRequirements["extra"];
+}
+
+export interface PaymentRequiredV2 {
+  x402Version: 2;
+  error?: string;
+  resource: ResourceInfo;
+  accepts: PaymentRequirementsV2[];
+}
+
+export interface XPaymentPayloadV2 {
+  x402Version: 2;
+  resource?: ResourceInfo;
+  accepted: PaymentRequirementsV2;
+  payload: XPaymentPayload["payload"];
+}
+
+function toV2(r: PaymentRequirements): PaymentRequirementsV2 {
+  return {
+    scheme: r.scheme,
+    network: r.network,
+    asset: r.asset,
+    amount: r.maxAmountRequired,
+    payTo: r.payTo,
+    maxTimeoutSeconds: r.maxTimeoutSeconds,
+    extra: r.extra,
+  };
+}
+
+/**
+ * Mint ONE quote and render it in both dialects.
+ *
+ * A 402 can advertise both at once — v2 in the PAYMENT-REQUIRED header, v1 in
+ * the body — which is exactly what v2 moving payment data out of the body is
+ * for. Both renderings share a quoteId, so the quote stays single-use across
+ * dialects: an agent cannot spend it as v1 and then re-spend it as v2.
+ */
+export function challenge(opts: {
+  resource: string;
+  method: string;
+  priceUsd: number;
+  description: string;
+  mimeType?: string;
+  error?: string;
+}): { v1: PaymentRequirements[]; v2: PaymentRequiredV2 } {
+  const accepts = acceptedRequirements(opts);
+  return {
+    v1: accepts,
+    v2: {
+      x402Version: 2,
+      ...(opts.error ? { error: opts.error } : {}),
+      resource: {
+        url: opts.resource,
+        description: opts.description,
+        mimeType: opts.mimeType ?? "application/json",
+      },
+      accepts: accepts.map(toV2),
+    },
+  };
+}
+
+/** Base64 for the PAYMENT-REQUIRED header. */
+export function paymentRequiredHeader(v2: PaymentRequiredV2): string {
+  return Buffer.from(JSON.stringify(v2), "utf8").toString("base64");
+}
+
+/** Which dialect did the caller speak? `null` when no payment was presented. */
+export function readPaymentHeader(headers: Headers): { version: 1 | 2; raw: string } | null {
+  const v2 = headers.get(HEADER_V2_PAYMENT);
+  if (v2) return { version: 2, raw: v2 };
+  const v1 = headers.get("x-payment");
+  if (v1) return { version: 1, raw: v1 };
+  return null;
+}
+
 export type VerifyResult =
-  | { ok: true; payer: string; txHash: string; asset: X402Asset }
+  | { ok: true; payer: string; txHash: string; asset: X402Asset; version: 1 | 2; amountAtomic: string }
   | {
       ok: false;
       status: 400 | 402;
@@ -249,17 +361,17 @@ export type VerifyResult =
     };
 
 /**
- * Verify an X-PAYMENT header against the server-side expectation for this
- * resource. Fails closed on any mismatch. Async because the single-use claim
- * is an atomic cross-instance operation (Redis SET NX) — see Attack II above.
+ * Verify a presented payment (x402 v1 or v2) against the server-side expectation
+ * for this resource. Fails closed on any mismatch. Async because the single-use
+ * claim is an atomic cross-instance operation (Redis SET NX) — see Attack II.
  */
 export async function verifyPayment(opts: {
-  header: string | null;
+  headers: Headers;
   resource: string;
   method: string;
   priceUsd: number;
 }): Promise<VerifyResult> {
-  const { header, resource, method } = opts;
+  const { headers, resource, method } = opts;
   // Every advertised requirement is a distinct (asset, amount) pair; the
   // authorized amount identifies which one the agent chose to pay.
   const expectedByAsset: Record<X402Asset, string> = {
@@ -268,17 +380,42 @@ export async function verifyPayment(opts: {
   };
 
   // ── web-layer hardening ──
-  if (!header) return { ok: false, status: 402, error: "X-PAYMENT header required" };
-  if (header.length > MAX_HEADER_BYTES) return { ok: false, status: 400, error: "X-PAYMENT too large" };
-  let p: XPaymentPayload;
+  const presented = readPaymentHeader(headers);
+  if (!presented) return { ok: false, status: 402, error: "X-PAYMENT header required" };
+  const { version, raw } = presented;
+  if (raw.length > MAX_HEADER_BYTES) return { ok: false, status: 400, error: "Payment header too large" };
+
+  let decoded: unknown;
   try {
-    p = JSON.parse(Buffer.from(header, "base64").toString("utf8"));
+    decoded = JSON.parse(Buffer.from(raw, "base64").toString("utf8"));
   } catch {
-    return { ok: false, status: 400, error: "X-PAYMENT is not valid base64 JSON" };
+    return { ok: false, status: 400, error: "Payment header is not valid base64 JSON" };
   }
+
+  // ── normalize v2 onto the v1 shape; every check below runs once ──
+  let p: XPaymentPayload;
+  if (version === 2) {
+    const v2 = decoded as XPaymentPayloadV2;
+    if (v2?.x402Version !== X402_VERSION_V2 || !v2.accepted || !v2.payload) {
+      return { ok: false, status: 400, error: "Malformed x402 v2 payload" };
+    }
+    p = {
+      x402Version: X402_VERSION,
+      scheme: v2.accepted.scheme,
+      network: v2.accepted.network,
+      payload: v2.payload,
+      extra: v2.accepted.extra,
+    };
+  } else {
+    p = decoded as XPaymentPayload;
+    if (p?.x402Version !== X402_VERSION) {
+      return { ok: false, status: 400, error: "Malformed x402 payload" };
+    }
+  }
+
   const auth = p?.payload?.authorization;
   const sig = p?.payload?.signature;
-  if (p.x402Version !== X402_VERSION || !auth || typeof sig !== "string") {
+  if (!auth || typeof sig !== "string") {
     return { ok: false, status: 400, error: "Malformed x402 payload" };
   }
 
@@ -395,7 +532,14 @@ export async function verifyPayment(opts: {
         settledAt: new Date().toISOString(),
         status: "confirmed",
       });
-      return { ok: true, payer: auth.from, txHash: submission.transaction, asset };
+      return {
+        ok: true,
+        payer: auth.from,
+        txHash: submission.transaction,
+        asset,
+        version,
+        amountAtomic: expectedAmount,
+      };
     } catch (e) {
       // Submitted-but-unconfirmed: the tx is on-chain and may still settle
       // (payer possibly debited, nonce burned). Log it as pending and hand the
@@ -430,12 +574,19 @@ export async function verifyPayment(opts: {
 
   // ── mock settle (demo, zero-credential) ──
   const txHash = "0x" + crypto.randomBytes(32).toString("hex");
-  return { ok: true, payer: auth.from, txHash, asset };
+  return { ok: true, payer: auth.from, txHash, asset, version, amountAtomic: expectedAmount };
 }
 
-/** X-PAYMENT-RESPONSE header value for a successful settlement. */
+/** X-PAYMENT-RESPONSE header value for a successful settlement (v1). */
 export function settlementHeader(payer: string, txHash: string, asset: X402Asset = "USDC"): string {
   return Buffer.from(
     JSON.stringify({ success: true, network: NETWORK, payer, transaction: txHash, asset })
+  ).toString("base64");
+}
+
+/** PAYMENT-RESPONSE header value (v2) — the reference SDK's SettleResponse shape. */
+export function settlementHeaderV2(payer: string, txHash: string, amountAtomic: string): string {
+  return Buffer.from(
+    JSON.stringify({ success: true, transaction: txHash, network: NETWORK, payer, amount: amountAtomic })
   ).toString("base64");
 }

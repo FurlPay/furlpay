@@ -3,6 +3,7 @@ import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { verifyGoogleCredential } from "@/lib/auth/google";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
+import { isMobileClient } from "@/lib/clientKind";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/emailTemplates";
@@ -47,11 +48,14 @@ export async function POST(req: NextRequest) {
     safe: account.user.safeAddress,
     roles: account.user.roles,
   });
+  // Native clients hold the JWT in the Android Keystore and send it as
+  // `Authorization: Bearer` — they have no cookie jar. See lib/clientKind.ts.
   const res = NextResponse.json({
     success: true,
     email: identity.email,
     name: identity.name ?? account.user.name,
     phoneVerified: !!account.user.phoneVerified,
+    ...(isMobileClient(req) ? { token } : {}),
   });
   setSessionCookie(res, token);
   audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: "google" });

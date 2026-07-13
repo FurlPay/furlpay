@@ -12,10 +12,23 @@
 // ---------------------------------------------------------------------------
 
 const MODE = process.env.INTEGRATION_MODE || "mock";
-const CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
+
+// GOOGLE_CLIENT_ID may be a COMMA-SEPARATED list of accepted audiences.
+//
+// This matters for the Android app: Google mints an ID token whose `aud` is the
+// OAuth client that requested it, and a native Android client is a DIFFERENT
+// client id from the web one. Verifying against the web id alone would reject
+// every token the app produces. google-auth-library takes an array, so list both:
+//   GOOGLE_CLIENT_ID=<web>.apps.googleusercontent.com,<android>.apps.googleusercontent.com
+// The first entry stays the canonical one for the web GIS button.
+const CLIENT_IDS = (process.env.GOOGLE_CLIENT_ID ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const CLIENT_ID = CLIENT_IDS[0];
 
 export function googleIsLive(): boolean {
-  return MODE === "live" && !!CLIENT_ID;
+  return MODE === "live" && CLIENT_IDS.length > 0;
 }
 
 export interface GoogleIdentity {
@@ -38,7 +51,9 @@ export async function verifyGoogleCredential(credential: string): Promise<Google
   if (googleIsLive()) {
     const { OAuth2Client } = await import("google-auth-library");
     const client = new OAuth2Client(CLIENT_ID);
-    const ticket = await client.verifyIdToken({ idToken: credential, audience: CLIENT_ID });
+    // Accept any configured audience — web GIS and the native Android client
+    // are separate OAuth clients and mint different `aud` values.
+    const ticket = await client.verifyIdToken({ idToken: credential, audience: CLIENT_IDS });
     const p = ticket.getPayload();
     if (!p?.sub || !p.email) throw new Error("Google token missing required claims");
     return {

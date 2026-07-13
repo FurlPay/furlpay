@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   const claims = await requireSession(req);
   if (!claims) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
 
-  const credentials = getCredentials(claims.sub!).map((c) => ({
+  const credentials = (await getCredentials(claims.sub!)).map((c) => ({
     id: c.id,
     name: c.name ?? "Passkey",
     createdAt: c.createdAt ?? null,
@@ -46,7 +46,7 @@ export async function DELETE(req: NextRequest) {
   }
 
   // Never allow removing the last passkey — it would lock the account.
-  const existing = getCredentials(claims.sub!);
+  const existing = await getCredentials(claims.sub!);
   if (existing.length <= 1 && existing.some((c) => c.id === credentialId)) {
     return NextResponse.json(
       { error: "Cannot remove your only passkey. Add another device first." },
@@ -54,7 +54,7 @@ export async function DELETE(req: NextRequest) {
     );
   }
 
-  const removed = removeCredential(claims.sub!, credentialId);
+  const removed = await removeCredential(claims.sub!, credentialId);
   if (!removed) return NextResponse.json({ error: "Unknown credential" }, { status: 404 });
   return NextResponse.json({ removed: true });
 }

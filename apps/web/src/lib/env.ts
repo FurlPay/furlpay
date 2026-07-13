@@ -30,6 +30,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("FURLPAY_SESSION_SECRET", true),
       v("FURLPAY_RP_ID"),
       v("FURLPAY_ORIGIN"),
+      // Signing-cert SHA-256 -> the native app's android:apk-key-hash WebAuthn
+      // origin. Required for passkey sign-in from the Android app.
+      v("FURLPAY_ANDROID_CERT_SHA256"),
       v("ALLOW_GUEST_LOGIN"),
       v("NEXT_PUBLIC_ALLOW_GUEST"),
       v("FURLPAY_ADMIN_EMAIL"),

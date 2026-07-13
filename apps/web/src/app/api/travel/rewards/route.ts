@@ -1,14 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { listTrips } from "@/lib/travel/store";
 import { REWARD_TIERS } from "@/lib/travel/data";
+import { requireUser } from "@/lib/authz";
 
 const THRESHOLDS = [0, 500, 2000, 10000];
 
-// GET /api/travel/rewards — the user's reward tier, balance and progress.
-// Lifetime volume is derived from confirmed trips in the demo store.
-export async function GET() {
-  const trips = listTrips().filter((t) => t.status === "confirmed");
+// GET /api/travel/rewards — the caller's reward tier, balance and progress.
+// Lifetime volume is derived from their confirmed trips.
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
+  const trips = listTrips(auth.account.user.id).filter((t) => t.status === "confirmed");
   const lifetimeUsd = Math.round(trips.reduce((s, t) => s + t.amountUsd, 0) * 100) / 100;
   const earnedUsdc = Math.round(trips.reduce((s, t) => s + t.cashbackUsd, 0) * 100) / 100;
 

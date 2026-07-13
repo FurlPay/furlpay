@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `Challenge already ${challenge.status}` }, { status: 409 });
   }
 
-  const creds = getCredentials(user.id);
+  const creds = await getCredentials(user.id);
   if (!creds.length) {
     return NextResponse.json(
       { error: "No passkey enrolled — register a fingerprint/Face ID in Security first" },

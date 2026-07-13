@@ -148,7 +148,12 @@ export const POST = async (req: Request) => {
     const checkIn = new Date(Date.now() + 86_400_000);
     const checkOut = new Date(checkIn.getTime() + days * 86_400_000);
     const trip = addTrip({
-      id: "bk_" + Math.random().toString(36).slice(2, 10),
+      id: "bk_" + crypto.randomUUID(),
+      // A Blink is consumed by an unauthenticated wallet client — there is no
+      // FurlPay session to attribute this to. Own the trip by the paying wallet
+      // so it is never visible in another account's My Trips. Wallet-linking
+      // will later fold these into the owning user.
+      userId: `blink:${payer.toBase58()}`,
       name: `${car.make} ${car.model} (${car.supplier})`,
       city,
       image: car.image,
