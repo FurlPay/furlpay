@@ -1,4 +1,4 @@
-import { Banknote, Layers, Puzzle, Rocket, Scale, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Banknote, Layers, LifeBuoy, Puzzle, Rocket, Scale, ShieldCheck, type LucideIcon } from "lucide-react";
 
 // Sidebar structure for the developer documentation portal (furlpay.app/docs).
 // `desc` feeds /llms.txt (public/llms.txt) and per-page SEO; `badge` renders in
@@ -63,6 +63,27 @@ export const DOCS_NAV: DocSection[] = [
     items: [
       { title: "Security Posture", href: "/docs/security/posture", desc: "What protects your money at each layer: non-custodial settlement, replay protection, money caps, CI scanning, and honest audit status.", badge: "new" },
       { title: "MPC & WebAuthn", href: "/docs/security/mpc-webauthn", desc: "Passkey (FIDO2/WebAuthn) authentication and the MPC key architecture." },
+    ],
+  },
+  {
+    label: "Help Center",
+    icon: LifeBuoy,
+    items: [
+      { title: "Help Center", href: "/docs/help", desc: "Self-service help for FurlPay accounts: onboarding, transactions, cards, KYC, travel and developer support.", badge: "new" },
+      { title: "Getting Started", href: "/docs/help/getting-started", desc: "Create your FurlPay account, secure it with a passkey, and make your first stablecoin deposit." },
+      { title: "KYC Verification", href: "/docs/help/kyc-verification", desc: "Progressive verification tiers 0-3, accepted documents, and fixing a failed or stuck verification." },
+      { title: "Passkeys & Biometrics", href: "/docs/help/passkeys-biometrics", desc: "Fingerprint and Face unlock, how passkeys work on web and Android, and what to do if you lose a device." },
+      { title: "Privacy & Data Protection", href: "/docs/help/privacy-gdpr", desc: "What FurlPay stores, how support tickets are redacted, and how to exercise GDPR rights including deletion." },
+      { title: "Transaction Statuses", href: "/docs/help/transaction-statuses", desc: "What pending, settled, failed and rejected mean, and how to check a transaction on a block explorer." },
+      { title: "Gasless Transfers", href: "/docs/help/gasless-transfers", desc: "How FurlPay sponsors network fees with EIP-3009 authorizations so you can send USDC with zero gas." },
+      { title: "Deposits & Withdrawals", href: "/docs/help/deposits-withdrawals", desc: "Deposit from an external wallet, bank transfer or card, and off-ramp back to local currency." },
+      { title: "Managing Virtual Cards", href: "/docs/help/managing-cards", desc: "Card labels, per-purchase and daily limits, merchant channels, and settlement currency." },
+      { title: "Freezing & Unfreezing Cards", href: "/docs/help/freeze-unfreeze", desc: "Instantly lock a card from the app, web or co-pilot, and what happens to subscriptions while frozen." },
+      { title: "Declined Transactions", href: "/docs/help/declined-transactions", desc: "The exact reasons a card payment declines and how to resolve each one, including 3-D Secure approvals." },
+      { title: "SDK & API Support", href: "/docs/help/sdk-integration", desc: "Where to start as a developer: SDK packages, webhook verification, and how to get integration help." },
+      { title: "x402 Monetization Basics", href: "/docs/help/x402-basics", desc: "A plain-language introduction to charging AI agents per request with the x402 protocol." },
+      { title: "Booking Travel", href: "/docs/help/travel-booking", desc: "Search and book hotels and flights with stablecoins, on web and from the mobile app." },
+      { title: "Travel Refunds & Cancellations", href: "/docs/help/travel-refunds", desc: "Refund windows, how refunds are credited in stablecoins, and how to escalate a booking issue." },
     ],
   },
 ];

@@ -13,37 +13,38 @@ export const metadata: Metadata = {
   alternates: { canonical: "/support" },
 };
 
-// Category cards mirror the routing queues in lib/support.ts.
+// Category cards mirror the routing queues in lib/support.ts; each links to
+// its help-center article cluster.
 const CATEGORIES = [
   {
     title: "Stablecoins & deposits",
-    body: "USDC/USDT deposits, cross-chain bridging delays, gas sponsorship.",
-    href: "/docs",
+    body: "USDC/USDT deposits, transaction statuses, gasless transfers, withdrawals.",
+    href: "/docs/help/deposits-withdrawals",
   },
   {
     title: "Virtual cards",
-    body: "Card freezes, limit changes, 3-D Secure approvals, chargebacks.",
-    href: "/cards",
+    body: "Card limits and channels, freezing, 3-D Secure approvals, declines.",
+    href: "/docs/help/managing-cards",
   },
   {
     title: "KYC verification",
-    body: "Tier onboarding, document re-submission, country restrictions.",
-    href: "/profile",
+    body: "Tier onboarding, accepted documents, fixing failed verification.",
+    href: "/docs/help/kyc-verification",
   },
   {
     title: "Travel bookings",
-    body: "Hotel and flight cancellations, refunds on stablecoin rails.",
-    href: "/travel",
+    body: "Booking with stablecoins, cancellations, refunds and disputes.",
+    href: "/docs/help/travel-booking",
   },
   {
     title: "Developers & x402",
-    body: "API authentication, webhook failures, monetization gateway integration.",
-    href: "/developer",
+    body: "SDKs, webhook verification, and x402 monetization basics.",
+    href: "/docs/help/sdk-integration",
   },
   {
-    title: "System status",
-    body: "Live rail health, settlement latency and incident history.",
-    href: "/status",
+    title: "All help articles",
+    body: "The full help center: onboarding, security, privacy, and more.",
+    href: "/docs/help",
   },
 ];
 
