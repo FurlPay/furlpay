@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { kvGet, kvSet, kvListPush } from "@/lib/kv";
 import { recordSecurityEvent } from "@/lib/ops/events";
+import { redactSecrets } from "@/lib/redact";
 import { sendEmail } from "@/lib/email";
 
 // ---------------------------------------------------------------------------
@@ -52,15 +53,21 @@ export async function createTicket(input: {
   category: TicketCategory;
   subject: string;
   body: string;
-}): Promise<SupportTicket> {
+}): Promise<SupportTicket & { redactions: number }> {
+  // Early redaction: PANs, seed phrases and API tokens never reach storage or
+  // email — users paste them no matter what the form says.
+  const subject = redactSecrets(input.subject);
+  const body = redactSecrets(input.body);
+  const redactions = subject.redactions + body.redactions;
+
   const now = new Date().toISOString();
   const ticket: SupportTicket = {
     id: `tkt_${randomUUID().slice(0, 12)}`,
     userId: input.userId,
     email: input.email,
     category: input.category,
-    subject: input.subject,
-    body: input.body,
+    subject: subject.text,
+    body: body.text,
     status: "open",
     createdAt: now,
     updatedAt: now,
@@ -68,20 +75,30 @@ export async function createTicket(input: {
 
   const existing = await listTickets(input.userId);
   await kvSet(userKey(input.userId), [ticket, ...existing].slice(0, MAX_PER_USER));
-  await kvListPush(RECENT_FEED, JSON.stringify(ticket), 1000).catch(() => {});
 
-  // Compliance queue: KYC tickets are visible in the ops security feed, not
-  // only a mailbox — support actions on regulated state need an ops-side trail.
+  // Ops feed carries METADATA ONLY (no body, no email) — the overview doesn't
+  // need PII, and a bounded Redis list is not the place to retain it.
+  const feedEntry = {
+    id: ticket.id,
+    userId: ticket.userId,
+    category: ticket.category,
+    subject: ticket.subject,
+    status: ticket.status,
+    createdAt: ticket.createdAt,
+  };
+  await kvListPush(RECENT_FEED, JSON.stringify(feedEntry), 1000).catch(() => {});
+
+  // Every ticket lands in the ops security feed at info — support actions on
+  // regulated accounts need an ops-side trail, not only a mailbox. The
+  // category rides in the detail so compliance can filter for kyc.
   // (The feed is rail-keyed; account-level events ride "transfers".)
-  if (ticket.category === "kyc") {
-    await recordSecurityEvent({
-      kind: "kyc_support_ticket",
-      rail: "transfers",
-      severity: "info",
-      detail: `Support ticket ${ticket.id}: ${ticket.subject.slice(0, 120)}`,
-      actor: input.userId,
-    }).catch(() => {});
-  }
+  await recordSecurityEvent({
+    kind: "support_ticket_created",
+    rail: "transfers",
+    severity: "info",
+    detail: `[${ticket.category}] ${ticket.id}: ${ticket.subject.slice(0, 120)}`,
+    actor: input.userId,
+  }).catch(() => {});
 
   // Notify the support inbox. Ticket creation must not fail on mail problems —
   // the ticket is already durably stored.
@@ -95,7 +112,7 @@ export async function createTicket(input: {
     html: `<pre style="font-family:inherit;white-space:pre-wrap">${escapeHtml(bodyText)}</pre>`,
   }).catch(() => {});
 
-  return ticket;
+  return { ...ticket, redactions };
 }
 
 function escapeHtml(s: string): string {

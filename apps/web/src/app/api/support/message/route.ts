@@ -3,6 +3,7 @@ import { z } from "zod";
 import { sendEmail } from "@/lib/email";
 import { supportChatNotification } from "@/lib/emailTemplates";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { redactSecrets } from "@/lib/redact";
 
 // POST /api/support/message — forwards a support chat-bubble message to the
 // support mailbox so nothing a visitor types is lost, even while the in-chat
@@ -28,11 +29,21 @@ export async function POST(req: NextRequest) {
   }
   const { message, email, page, transcript } = parsed.data;
 
+  // Early redaction: PANs / seed phrases / API tokens must not reach the
+  // mailbox, and anonymous visitors paste them just as readily.
+  const cleanMessage = redactSecrets(message).text;
+  const cleanTranscript = transcript?.map((m) => ({ ...m, text: redactSecrets(m.text).text }));
+
   const result = await sendEmail({
     to: process.env.SUPPORT_INBOX || "support@furlpay.com",
     category: "support",
     replyTo: email,
-    ...supportChatNotification({ message, transcript, visitorEmail: email, page }),
+    ...supportChatNotification({
+      message: cleanMessage,
+      transcript: cleanTranscript,
+      visitorEmail: email,
+      page,
+    }),
   });
 
   // The visitor gets a clean ack either way — a full mailbox or exhausted

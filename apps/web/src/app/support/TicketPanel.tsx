@@ -32,6 +32,7 @@ export default function TicketPanel() {
   const [body, setBody] = useState("");
   const [state, setState] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
+  const [redacted, setRedacted] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -68,6 +69,7 @@ export default function TicketPanel() {
       }
       setSubject("");
       setBody("");
+      setRedacted(Boolean(data?.redactions));
       setState("sent");
       await load();
     } catch (err) {
@@ -140,7 +142,11 @@ export default function TicketPanel() {
               {state === "sending" ? "Sending…" : "Submit ticket"}
             </button>
             {state === "sent" && (
-              <p className="text-[13px] text-neon">Ticket created — we&apos;ll reply by email.</p>
+              <p className="text-[13px] text-neon">
+                Ticket created — we&apos;ll reply by email.
+                {redacted &&
+                  " A card number, recovery phrase, or API key in your message was removed for your safety — support will never need it."}
+              </p>
             )}
             {error && <p className="text-[13px] text-red-400">{error}</p>}
           </form>

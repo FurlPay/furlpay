@@ -27,19 +27,29 @@ export async function POST(req: NextRequest) {
   if (body instanceof NextResponse) return body;
 
   const user = auth.account.user;
-  const ticket = await createTicket({
+  const { redactions, ...ticket } = await createTicket({
     userId: user.id,
     email: user.email,
     category: body.category,
     subject: body.subject,
     body: body.body,
   });
-  return NextResponse.json({ ticket }, { status: 201 });
+  return NextResponse.json(
+    {
+      ticket,
+      // Non-zero when a card number / seed phrase / API token was stripped
+      // server-side — the UI tells the user so they aren't surprised.
+      redactions,
+    },
+    { status: 201 }
+  );
 }
 
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+  const limited = await rateLimitOr429(req, "support.tickets.read", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
   const tickets = await listTickets(auth.account.user.id);
   return NextResponse.json({ tickets });
 }
