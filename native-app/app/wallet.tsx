@@ -9,10 +9,13 @@ import {
   getAddress,
   hasWallet,
   importWallet,
+  linkDevice,
+  linkStatus,
   revealMnemonic,
   sendGasless,
   type GaslessResult,
 } from "@/lib/wallet";
+import { ApiError } from "@/lib/api";
 import { useSecureScreen } from "@/lib/secureScreen";
 import { isValidDestination, shortAddress, usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
@@ -36,11 +39,40 @@ export default function Wallet() {
   const [phrase, setPhrase] = useState("");
   const [sending, setSending] = useState(false);
 
+  // Server link status (null = not linked; undefined = unknown/flag off)
+  const [linked, setLinked] = useState<string | null | undefined>(undefined);
+  const [linkBusy, setLinkBusy] = useState(false);
+
   const refresh = useCallback(async () => {
     const has = await hasWallet();
     setExists(has);
     setAddress(has ? await getAddress().catch(() => null) : null);
+    // Link status is best-effort: 404 = feature flag off on the server.
+    try {
+      const s = await linkStatus();
+      setLinked(s.linked?.address ?? null);
+    } catch {
+      setLinked(undefined);
+    }
   }, []);
+
+  const onLink = async () => {
+    setError(null);
+    setLinkBusy(true);
+    try {
+      const { address } = await linkDevice(); // biometric-gated proof-of-control
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setLinked(address);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        setError("A different wallet is already linked to this account. Unlinking is a separate recovery flow.");
+      } else {
+        setError((e as Error).message);
+      }
+    } finally {
+      setLinkBusy(false);
+    }
+  };
 
   useEffect(() => {
     void refresh();
@@ -145,6 +177,29 @@ export default function Wallet() {
               <Button title="Copy" variant="secondary" onPress={() => void copy()} style={{ flex: 1 }} />
               <Button title="Send USDC" onPress={() => setSending(true)} style={{ flex: 1 }} />
             </View>
+
+            {/* Account link (Phase 1): prove control to link this address to the
+                FurlPay account. Only shown when the server flag is on. */}
+            {linked !== undefined ? (
+              linked && address && linked.toLowerCase() === address.toLowerCase() ? (
+                <Surface style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
+                  <Ionicons name="shield-checkmark" size={18} color={colors.neon} />
+                  <Text style={[type.body, { flex: 1 }]}>Linked to your FurlPay account</Text>
+                </Surface>
+              ) : (
+                <>
+                  <Button
+                    title={linkBusy ? "Proving control…" : "Link this device to my account"}
+                    variant="secondary"
+                    loading={linkBusy}
+                    onPress={() => void onLink()}
+                  />
+                  <Text style={[type.dim, { fontSize: 12 }]}>
+                    Signing proves you control this address. It moves no funds and grants no spend access.
+                  </Text>
+                </>
+              )
+            ) : null}
 
             <SectionHeader title="Security" />
             <Surface style={{ paddingVertical: 4 }}>

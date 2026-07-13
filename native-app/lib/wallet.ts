@@ -147,6 +147,35 @@ export async function signTransferAuthorization(
   return `0x${r}${s}${v}`;
 }
 
+// --- EIP-191 personal_sign (proof-of-control, NOT money movement) ------------
+
+/**
+ * Sign an arbitrary UTF-8 message with the device key using EIP-191
+ * (personal_sign): keccak256("\x19Ethereum Signed Message:\n" + len + msg),
+ * then secp256k1. Recovers to this wallet's address under viem's
+ * recoverMessageAddress / eth_personalSign — proven in wallet.test.ts.
+ *
+ * Used to prove control of the address to the server (wallet linking). It is
+ * deliberately separate from signTransferAuthorization: this must never sign a
+ * transfer, and a transfer signature must never double as proof-of-control.
+ * Reading the key triggers the biometric gate.
+ */
+export async function signMessage(message: string): Promise<string> {
+  const mnemonic = await SecureStore.getItemAsync(MNEMONIC_KEY, SECURE_OPTS);
+  if (!mnemonic) throw new Error("No wallet on this device.");
+  const { priv } = deriveKey(mnemonic);
+
+  const msgBytes = utf8(message);
+  const prefix = utf8(`\x19Ethereum Signed Message:\n${msgBytes.length}`);
+  const digest = keccak_256(concatBytes(prefix, msgBytes));
+
+  const sig = secp256k1.sign(digest, priv);
+  const r = sig.r.toString(16).padStart(64, "0");
+  const s = sig.s.toString(16).padStart(64, "0");
+  const v = (sig.recovery + 27).toString(16).padStart(2, "0");
+  return `0x${r}${s}${v}`;
+}
+
 // --- EIP-712 (matches viem's TransferWithAuthorization encoding) -------------
 
 const TWA_TYPEHASH = keccak_256(
@@ -242,9 +271,40 @@ export function randomNonce(): string {
   return "0x" + bytesToHex(Crypto.getRandomBytes(32));
 }
 
-// --- gasless send (real EIP-3009 relay) -------------------------------------
+// --- account linking (prove control to the server) --------------------------
 
 import { api, ApiError } from "./api";
+
+export interface LinkStatus {
+  linked: { address: string; verifiedAt: string; status: string } | null;
+}
+
+/** Current server-side link status for this account. */
+export function linkStatus(): Promise<LinkStatus> {
+  return api<LinkStatus>("/wallet/link");
+}
+
+/**
+ * Prove control of this device's wallet to the server and link it to the
+ * account: request a server challenge, sign the EXACT returned message
+ * (biometric-gated), submit the signature for server-side recovery. The server
+ * never trusts the address without this proof.
+ */
+export async function linkDevice(): Promise<{ address: string; verifiedAt: string }> {
+  const address = await getAddress(); // biometric gate #1
+  const { message } = await api<{ message: string; expiresAt: string }>("/wallet/link/challenge", {
+    method: "POST",
+    body: { address },
+  });
+  const signature = await signMessage(message); // biometric gate #2 (the actual proof)
+  const res = await api<{ linked: { address: string; verifiedAt: string } }>("/wallet/link/verify", {
+    method: "POST",
+    body: { address, signature },
+  });
+  return res.linked;
+}
+
+// --- gasless send (real EIP-3009 relay) -------------------------------------
 
 export interface GaslessQuote {
   network: string;

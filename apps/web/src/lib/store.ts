@@ -62,6 +62,19 @@ function totpSecretFromKey(key: string): string {
   return out;
 }
 
+/** A cryptographically verified self-custodial wallet link. Contains no secret
+ *  material — only the public address and proof metadata. */
+export interface LinkedWallet {
+  address: string; // EIP-55 checksummed
+  chainFamily: "evm";
+  verificationMethod: "eip191";
+  verifiedAt: string; // ISO8601
+  linkVersion: number; // schema/version of the link record
+  status: "active";
+  /** The one-time nonce that was signed (audit trail; not a secret). */
+  proofNonce: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -71,7 +84,16 @@ export interface User {
   authProvider?: "passkey" | "google" | "apple" | "phone" | "email";
   googleSub?: string; // stable Google account id, when linked
   appleSub?: string; // stable Apple account id (sub), when linked
+  /** DEPRECATED placeholder: `"0x"+sha256("furlpay:safe:"+key).slice(0,40)` —
+   *  NOT derived from any private key, controls nothing on-chain. Kept for
+   *  back-compat reads only; never used for on-chain ops and NEVER to be
+   *  reinterpreted as a real wallet. See docs/BALANCE-CUSTODY-MAP.md. */
   safeAddress: string;
+  /** The user's REAL self-custodial address, proven by an EIP-191 signature
+   *  from the device key (docs/SELF-CUSTODIAL-WALLET-DESIGN.md Phase 1). Set
+   *  only via setLinkedWallet after server-side signature recovery — never
+   *  from an unverified client claim. Distinct from safeAddress by design. */
+  linkedWallet?: LinkedWallet;
   kycStatus: "verified" | "pending" | "unverified";
   kycTier: 0 | 1 | 2 | 3;
   region: "EEA" | "US" | "IN" | "GLOBAL";
@@ -590,6 +612,27 @@ export function setKycStatus(userId: string, status: User["kycStatus"], tier?: U
   account.user.kycStatus = status;
   if (tier !== undefined) account.user.kycTier = tier;
   void persistAccount(userId);
+}
+
+/** Dedicated self-custodial wallet link — called ONLY by the wallet-link
+ *  verify route AFTER server-side EIP-191 signature recovery proves control.
+ *  Deliberately NOT reachable through updateUser's identity allow-list, exactly
+ *  like setKycStatus/setSubscriptionTier. Never touches safeAddress. */
+export function setLinkedWallet(userId: string, linked: LinkedWallet): void {
+  const account = state.accounts.get(userId);
+  if (!account) return;
+  account.user.linkedWallet = linked;
+  void persistAccount(userId);
+}
+
+/** Reverse index: is this address already linked to some account?
+ *  Prevents one wallet being linked to many accounts (link-hijack defense). */
+export function findUserByLinkedWallet(address: string): UserAccount | undefined {
+  const want = address.toLowerCase();
+  for (const account of state.accounts.values()) {
+    if (account.user.linkedWallet?.address.toLowerCase() === want) return account;
+  }
+  return undefined;
 }
 
 export function recordTransaction(userId: string, t: Transaction): void {

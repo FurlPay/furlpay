@@ -36,6 +36,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("ALLOW_GUEST_LOGIN"),
       v("NEXT_PUBLIC_ALLOW_GUEST"),
       v("FURLPAY_ADMIN_EMAIL"),
+      // Self-custodial wallet rollout stage (0=off). 1=wallet linking only.
+      // docs/SELF-CUSTODIAL-WALLET-DESIGN.md.
+      v("FURLPAY_SELF_CUSTODY_STAGE"),
     ],
   },
   {
