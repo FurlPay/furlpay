@@ -4,11 +4,12 @@ import { CATALOG, bySymbol, assetLogoPath } from "@/lib/markets/catalog";
 import { getQuotes } from "@/lib/markets/quotes";
 import { keyStatsFor, digestFor } from "@/lib/markets/stats";
 import { insightsByTicker } from "@/lib/insights/articles";
-import { db } from "@/lib/store";
+import { getAccountDurable } from "@/lib/store";
+import { verifySession, tokenFromRequest } from "@/lib/session";
 
 // GET /api/markets/[symbol] — full asset detail: quote, key stats, AI digest,
 // current position, related assets and research insights mentioning it.
-export async function GET(_req: NextRequest, { params }: { params: { symbol: string } }) {
+export async function GET(req: NextRequest, { params }: { params: { symbol: string } }) {
   const sym = params.symbol.toUpperCase();
   const asset = bySymbol.get(sym);
   if (!asset) return NextResponse.json({ error: "Unknown symbol" }, { status: 404 });
@@ -36,7 +37,11 @@ export async function GET(_req: NextRequest, { params }: { params: { symbol: str
       };
     });
 
-  const holding = db.holdings.find((h) => h.symbol === sym);
+  // Market data is public; the position line reflects the caller ONLY when a
+  // valid session is present — never the demo account for anonymous callers.
+  const claims = await verifySession(tokenFromRequest(req));
+  const account = claims?.sub ? await getAccountDurable(claims.sub) : undefined;
+  const holding = account?.holdings.find((h) => h.symbol === sym);
 
   const insights = insightsByTicker(sym).slice(0, 4).map((i) => ({
     slug: i.slug,

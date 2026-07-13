@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/store";
+import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -16,8 +16,11 @@ const MISSIONS = [
   { id: "swap", title: "Complete a cross-chain swap", reward: 4, done: false },
 ];
 
-export async function GET() {
-  const tier = db.user.tier;
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
+  const tier = auth.account.user.tier;
   const tierIndex = TIERS.indexOf(tier as (typeof TIERS)[number]);
   const points = 1840; // demo lifetime points
   const nextTier = TIERS[Math.min(tierIndex + 1, TIERS.length - 1)];

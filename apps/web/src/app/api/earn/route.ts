@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/store";
+import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/authz";
 import { fetchMorphoVaults, earnIsLive } from "@/lib/services/morpho";
 import { earnSummary } from "@/lib/services/earn";
 
@@ -10,9 +10,12 @@ const DISCLOSURE =
 
 // GET /api/earn — FurlPay Earn overview: live Morpho vaults (net APY/TVL), the
 // user's positions (valued on-chain in live mode), idle USDC and a summary.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
   const [vaults, valued] = await Promise.all([fetchMorphoVaults(), earnSummary()]);
-  const idleUsdc = db.tokenBalances.find((b) => b.token === "USDC")?.usdValue ?? 0;
+  const idleUsdc = auth.account.tokenBalances.find((b) => b.token === "USDC")?.usdValue ?? 0;
 
   return NextResponse.json({
     live: earnIsLive(),

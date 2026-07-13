@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/store";
+import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +23,12 @@ function categorize(title: string, subtitle: string): string {
   return "Other";
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
   // Outbound spend only (card + bill + ramp out).
-  const spend = db.transactions.filter(
+  const spend = auth.account.transactions.filter(
     (t) => t.direction === "out" && (t.category === "card" || t.category === "bill")
   );
 

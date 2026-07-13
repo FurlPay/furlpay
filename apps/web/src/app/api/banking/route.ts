@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/store";
+import { requireUser } from "@/lib/authz";
 import { BankingSchema, parse } from "@/lib/schemas";
 
-// GET /api/banking — list provisioned virtual accounts.
-export async function GET() {
-  return NextResponse.json({ accounts: db.fiatBalances });
+// GET /api/banking — list the caller's provisioned virtual accounts.
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  return NextResponse.json({ accounts: auth.account.fiatBalances });
 }
 
 // POST /api/banking — provision a virtual local account (Wise / BaaS).
@@ -17,6 +19,10 @@ const PROVISION: Record<string, () => Record<string, string>> = {
 };
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
   const parsed = parse(BankingSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { currency } = parsed.data;
@@ -24,16 +30,16 @@ export async function POST(req: NextRequest) {
   if (!gen) return NextResponse.json({ error: "Unsupported currency" }, { status: 400 });
 
   const localDetails = gen();
-  let existing = db.fiatBalances.find((f) => f.currency === currency);
+  let existing = account.fiatBalances.find((f) => f.currency === currency);
   if (existing) {
     existing.localDetails = localDetails as any;
   } else {
     existing = { currency, amount: 0, usdValue: 0, localDetails: localDetails as any };
-    db.fiatBalances.push(existing);
+    account.fiatBalances.push(existing);
   }
 
   return NextResponse.json({
-    accountName: `Furlpay · ${db.user.name}`,
+    accountName: `Furlpay · ${account.user.name}`,
     currency,
     ...localDetails,
   });

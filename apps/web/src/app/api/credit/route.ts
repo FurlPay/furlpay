@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { db } from "@/lib/store";
+import { NextRequest, NextResponse } from "next/server";
+import { requireUser } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -23,10 +23,14 @@ function cryptoLtv(token: string): number {
   return 0.5;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
   const collateral: { label: string; kind: "stablecoin" | "crypto" | "equity"; value: number; ltv: number; borrowable: number }[] = [];
 
-  for (const b of db.tokenBalances) {
+  for (const b of account.tokenBalances) {
     const ltv = cryptoLtv(b.token);
     collateral.push({
       label: `${b.token} · ${b.chain}`,
@@ -37,7 +41,7 @@ export async function GET() {
     });
   }
   // Equities pooled as one line (fractional stocks/ETFs via Alpaca).
-  const equityValue = db.holdings.reduce((s, h) => s + h.marketValue, 0);
+  const equityValue = account.holdings.reduce((s, h) => s + h.marketValue, 0);
   if (equityValue > 0) {
     collateral.push({
       label: "Stocks & ETFs",
