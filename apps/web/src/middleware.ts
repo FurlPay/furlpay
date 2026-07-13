@@ -79,6 +79,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/mpp", // Machine Payments Protocol (Stripe/Tempo) — auth IS the payment
   "/api/contact", // public "Talk to us" lead capture
   "/api/support/message", // public chat-bubble → support mailbox (IP rate-limited)
+  "/api/support/sso", // Zendesk JWT handoff — browser flow; the route itself requires a session (redirects to /login) and 404s until configured
   "/api/hackathon", // public Build Challenge submissions
   "/api/swag", // public Swag Center redemption/order requests
   "/api/newsletter", // public newsletter subscribe / unsubscribe
