@@ -2,6 +2,7 @@ import { create } from "zustand";
 import * as LocalAuthentication from "expo-local-authentication";
 import { api, getToken, setToken, setUnauthorizedHandler } from "./api";
 import { authenticateWithPasskey, registerPasskey } from "./passkey";
+import { unregisterFromPush } from "./push";
 import { clearAllCaches } from "./db";
 
 // ---------------------------------------------------------------------------
@@ -120,6 +121,8 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   signOut: async () => {
     // Best-effort server-side revocation; local sign-out must not depend on it.
+    // Deregister push FIRST — it needs the session token that's about to go.
+    await unregisterFromPush();
     await api("/auth/logout", { method: "POST" }).catch(() => {});
     await setToken(null);
     clearAllCaches();

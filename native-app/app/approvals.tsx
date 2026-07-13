@@ -3,6 +3,7 @@ import { Linking, RefreshControl, ScrollView, StyleSheet, Text, View } from "rea
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { api, API_BASE, ApiError } from "@/lib/api";
+import { approveCardChallenge, isPasskeySupported, passkeyErrorMessage } from "@/lib/passkey";
 import { usd } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Screen, Surface } from "@/components/ui";
@@ -39,8 +40,34 @@ export default function Approvals() {
     refetchInterval: 10_000, // pending 3DS2 challenges are time-critical
   });
   const [actionError, setActionError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
   const challenges = data?.challenges ?? [];
   const siteBase = API_BASE.replace(/\/api$/, "");
+
+  const approve = async (c: Challenge) => {
+    setActionError(null);
+    setBusyId(c.id);
+    try {
+      await approveCardChallenge(c.id);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      await qc.invalidateQueries({ queryKey: ["challenges"] });
+    } catch (e) {
+      if (e instanceof ApiError) {
+        // 412 = no passkey enrolled for this account yet.
+        setActionError(
+          e.status === 412
+            ? "No passkey on this account yet — enroll your fingerprint in Settings → Security first."
+            : e.message
+        );
+      } else {
+        const msg = passkeyErrorMessage(e);
+        // A user dismissing the fingerprint sheet is a non-event, not an error.
+        if (!/cancelled/i.test(msg)) setActionError(msg);
+      }
+    } finally {
+      setBusyId(null);
+    }
+  };
 
   const decline = async (c: Challenge) => {
     setActionError(null);
@@ -88,10 +115,15 @@ export default function Approvals() {
               </View>
               <View style={{ flexDirection: "row", gap: spacing.sm }}>
                 <Button
-                  title="Approve with passkey"
-                  // Approval needs a WebAuthn assertion — until native passkeys
-                  // land, hand off to the web approval page (same account).
-                  onPress={() => void Linking.openURL(`${siteBase}/cards/approve?challenge=${c.id}`)}
+                  title={busyId === c.id ? "Waiting for fingerprint…" : "Approve with passkey"}
+                  // Native ceremony when Credential Manager is available;
+                  // otherwise the web approval page still works (same account).
+                  onPress={() =>
+                    isPasskeySupported()
+                      ? void approve(c)
+                      : void Linking.openURL(`${siteBase}/cards/approve?challenge=${c.id}`)
+                  }
+                  disabled={busyId !== null}
                   style={{ flex: 1 }}
                 />
                 <Button title="Decline" variant="danger" onPress={() => void decline(c)} style={{ flex: 1 }} />

@@ -5,6 +5,7 @@ import { StatusBar } from "expo-status-bar";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
+import { installNotificationRouting, registerForPush } from "@/lib/push";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, Screen } from "@/components/ui";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -59,6 +60,14 @@ export default function RootLayout() {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // Push: register the device once signed in (idempotent), and route
+  // notification taps — a 3DS2 approval push must land on /approvals.
+  useEffect(() => {
+    if (status !== "signedIn") return;
+    void registerForPush();
+    return installNotificationRouting();
+  }, [status]);
 
   return (
     <SafeAreaProvider>

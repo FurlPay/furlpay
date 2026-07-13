@@ -81,12 +81,24 @@ After the first Play upload, add the **Play App Signing** SHA-256 as a second
 fingerprint in `apps/web/public/.well-known/assetlinks.json` (also required
 for this app's `autoVerify` deep links, same as the TWA).
 
+## Built since the v1 cut
+
+- **Passkey login** — Credential Manager passkeys (`lib/passkey.ts`); the
+  server accepts the app's `android:apk-key-hash` origin via
+  `FURLPAY_ANDROID_CERT_SHA256`.
+- **Native 3DS2 approve** — the approvals screen runs the WebAuthn ceremony
+  in-app (`approveCardChallenge`); the web page remains the fallback for
+  devices without Credential Manager.
+- **Push (FCM) code path** — `lib/push.ts` registers the device token with
+  `POST /api/push/devices`; the server fans out via `apps/web/src/lib/fcm.ts`
+  inside the same `sendPushToUser` the 3DS2 webhook already calls. Activation
+  needs only credentials: drop `google-services.json` here (picked up by
+  `app.config.js`, gitignored) and set `FURLPAY_FCM_SERVICE_ACCOUNT` on the
+  server. Until then push fails soft and approvals stay pull-based.
+
 ## Deliberately not in v1
 
-- **Push notifications** — needs a Firebase project + FCM server key and a
-  mobile token registration endpoint (`/api/push/subscribe` is web-push only).
-- **Passkey login** — email OTP first; Credential Manager passkeys later.
 - **Real on-chain sends from mobile** — `POST /api/wallets/transfer` is the
   demo ledger rail (503 in prod by design); the gasless EIP-3009 rail needs a
   wallet key on device to sign authorizations.
-- **In-app investing orders / card issuance** — read-only screens first.
+- **Card issuance** — demo PAN/CVV until an issuing partnership exists.

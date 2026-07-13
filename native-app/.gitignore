@@ -13,6 +13,9 @@ credentials.json
 *.keystore
 *.jks
 
+# Firebase app config (per-project; contains API key ids)
+google-services.json
+
 # Signed release artifacts (rebuilt via build-android.sh)
 *.aab
 *.apk

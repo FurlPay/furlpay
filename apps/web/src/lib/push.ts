@@ -1,5 +1,6 @@
 import webpush, { type PushSubscription as WebPushSubscription } from "web-push";
 import { kvGet, kvSet, kvDel } from "@/lib/kv";
+import { sendFcmToUser } from "@/lib/fcm";
 import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
@@ -63,19 +64,29 @@ export interface PushPayload {
 }
 
 /**
- * Send a payload to every registered device of a user. Expired/revoked
- * subscriptions (404/410 from the push service) are pruned as we go.
- * Returns the number of devices that accepted the push.
+ * Send a payload to every registered device of a user — Web Push for
+ * browser/PWA subscriptions AND FCM for native-app device tokens (lib/fcm.ts).
+ * Expired/revoked subscriptions (404/410 from the push service) are pruned as
+ * we go. Returns the number of devices that accepted the push.
  */
 export async function sendPushToUser(userId: string, payload: PushPayload): Promise<number> {
+  // Native leg first; it is independently configured and must not be skipped
+  // just because VAPID keys are absent.
+  const native = await sendFcmToUser(userId, {
+    title: payload.title,
+    body: payload.body,
+    url: payload.url,
+    data: payload.data,
+  });
+
   if (!pushConfigured) {
-    log.warn("push not configured — set FURLPAY_VAPID_* env vars", { userId });
-    return 0;
+    if (!native) log.warn("push not configured — set FURLPAY_VAPID_* env vars", { userId });
+    return native;
   }
   webpush.setVapidDetails(SUBJECT, PUBLIC_KEY!, PRIVATE_KEY!);
 
   const subs = await listSubscriptions(userId);
-  if (!subs.length) return 0;
+  if (!subs.length) return native;
 
   const body = JSON.stringify(payload);
   let delivered = 0;
@@ -95,5 +106,5 @@ export async function sendPushToUser(userId: string, payload: PushPayload): Prom
       }
     })
   );
-  return delivered;
+  return native + delivered;
 }

@@ -66,6 +66,29 @@ export async function registerPasskey(): Promise<string> {
 }
 
 /**
+ * Approve one 3DS2 card-auth challenge with the device fingerprint.
+ *
+ * The server binds the WebAuthn challenge to this specific purchase in
+ * /options, so the resulting signature cannot be replayed to approve a
+ * different one. Both calls ride the session token (not anonymous) — the
+ * assertion proves user presence ON TOP of the session, it doesn't replace it.
+ *
+ * Throws ApiError 412 when no passkey is enrolled for the account — callers
+ * should route the user to enrollment, not show a generic failure.
+ */
+export async function approveCardChallenge(challengeId: string): Promise<void> {
+  const options = await api<OptionsJSON>("/cards/challenges/options", {
+    method: "POST",
+    body: { challengeId },
+  });
+  const assertion = await Passkey.get(options as never);
+  await api("/cards/challenges/verify", {
+    method: "POST",
+    body: { challengeId, decision: "approved", assertion },
+  });
+}
+
+/**
  * Turn the authenticator's errors into something a human can act on. A user who
  * dismisses the fingerprint sheet raises a cancellation — that's not a failure,
  * and must not be shown as one.

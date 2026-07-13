@@ -80,6 +80,13 @@
           "recordAudioAndroid": false
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "color": "#E7FF52",
+          "defaultChannel": "approvals"
+        }
+      ],
       "expo-web-browser"
     ],
     "experiments": {

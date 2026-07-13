@@ -72,6 +72,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("FURLPAY_VAPID_PUBLIC_KEY"),
       v("FURLPAY_VAPID_PRIVATE_KEY"),
       v("FURLPAY_VAPID_SUBJECT"),
+      // Firebase service-account JSON (raw or base64) — FCM push to the
+      // native Android app. Web-push works without it.
+      v("FURLPAY_FCM_SERVICE_ACCOUNT"),
     ],
   },
   {
