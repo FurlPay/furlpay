@@ -25,7 +25,28 @@ export const TICKET_CATEGORIES = [
 ] as const;
 
 export type TicketCategory = (typeof TICKET_CATEGORIES)[number];
-export type TicketStatus = "open" | "resolved";
+
+// Full lifecycle. Pre-existing tickets carry "open"/"resolved", which remain
+// valid members — no migration needed.
+export const TICKET_STATUSES = [
+  "open",
+  "waiting_support", // customer replied, ball in support's court
+  "waiting_customer", // support replied / asked for more information
+  "in_progress",
+  "resolved",
+  "closed",
+] as const;
+export type TicketStatus = (typeof TICKET_STATUSES)[number];
+
+/** Safe references tying a ticket to system objects for incident
+ *  reconstruction (ticket → payment → txHash → chain). Never secrets. */
+export interface TicketRefs {
+  correlationId?: string;
+  transactionId?: string;
+  txHash?: string;
+  bookingId?: string;
+  cardEventId?: string;
+}
 
 export interface SupportTicket {
   id: string;
@@ -35,16 +56,115 @@ export interface SupportTicket {
   subject: string;
   body: string;
   status: TicketStatus;
+  refs?: TicketRefs;
   createdAt: string;
   updatedAt: string;
 }
 
+export type MessageAuthor = "user" | "agent" | "system";
+
+export interface SupportMessage {
+  id: string;
+  ticketId: string;
+  author: MessageAuthor;
+  body: string;
+  createdAt: string;
+}
+
 const userKey = (userId: string) => `support:tickets:${userId}`;
+const ownerKey = (ticketId: string) => `support:owner:${ticketId}`;
+const msgsKey = (ticketId: string) => `support:msgs:${ticketId}`;
 const RECENT_FEED = "support:tickets:recent"; // bounded ops-side feed
 const MAX_PER_USER = 50;
+const MAX_MESSAGES = 200;
 
 export async function listTickets(userId: string): Promise<SupportTicket[]> {
   return (await kvGet<SupportTicket[]>(userKey(userId))) ?? [];
+}
+
+/**
+ * Ownership-checked ticket lookup — THE anti-IDOR primitive for the /[id]
+ * routes. Resolves only when `userId` owns `ticketId`; anyone else gets null
+ * (routes return 404, not 403, so ticket ids don't become an oracle).
+ * Falls back to scanning the caller's own list for pre-index tickets, and
+ * backfills the owner index when found.
+ */
+export async function getTicketForUser(userId: string, ticketId: string): Promise<SupportTicket | null> {
+  const owner = await kvGet<string>(ownerKey(ticketId));
+  if (owner !== null && owner !== userId) return null;
+  const ticket = (await listTickets(userId)).find((t) => t.id === ticketId) ?? null;
+  if (ticket && owner === null) await kvSet(ownerKey(ticketId), userId).catch(() => {});
+  return ticket;
+}
+
+/** Owner of a ticket (agent-side lookup). Null for unknown/pre-index tickets. */
+export async function findTicketOwner(ticketId: string): Promise<string | null> {
+  return kvGet<string>(ownerKey(ticketId));
+}
+
+export async function listMessages(ticketId: string): Promise<SupportMessage[]> {
+  return (await kvGet<SupportMessage[]>(msgsKey(ticketId))) ?? [];
+}
+
+async function updateTicket(
+  userId: string,
+  ticketId: string,
+  patch: Partial<Pick<SupportTicket, "status" | "updatedAt">>
+): Promise<SupportTicket | null> {
+  const tickets = await listTickets(userId);
+  const idx = tickets.findIndex((t) => t.id === ticketId);
+  if (idx === -1) return null;
+  const updated = { ...tickets[idx], ...patch, updatedAt: new Date().toISOString() };
+  tickets[idx] = updated;
+  await kvSet(userKey(userId), tickets);
+  return updated;
+}
+
+/**
+ * Append a message to a ticket's conversation and advance the lifecycle:
+ * a customer message puts the ball in support's court (and re-opens a
+ * resolved/closed ticket); an agent message means waiting on the customer.
+ * System messages never change status. Message bodies pass the same secret
+ * redaction as ticket bodies. Ownership must be checked by the CALLER
+ * (getTicketForUser / findTicketOwner) before calling this.
+ */
+export async function addMessage(input: {
+  ownerUserId: string;
+  ticketId: string;
+  author: MessageAuthor;
+  body: string;
+}): Promise<{ message: SupportMessage; ticket: SupportTicket | null; redactions: number }> {
+  const clean = redactSecrets(input.body);
+  const message: SupportMessage = {
+    id: `msg_${randomUUID().slice(0, 12)}`,
+    ticketId: input.ticketId,
+    author: input.author,
+    body: clean.text,
+    createdAt: new Date().toISOString(),
+  };
+  const existing = await listMessages(input.ticketId);
+  await kvSet(msgsKey(input.ticketId), [...existing, message].slice(-MAX_MESSAGES));
+
+  let ticket: SupportTicket | null = null;
+  if (input.author === "user") {
+    ticket = await updateTicket(input.ownerUserId, input.ticketId, { status: "waiting_support" });
+  } else if (input.author === "agent") {
+    ticket = await updateTicket(input.ownerUserId, input.ticketId, { status: "waiting_customer" });
+  } else {
+    ticket = await updateTicket(input.ownerUserId, input.ticketId, {});
+  }
+  return { message, ticket, redactions: clean.redactions };
+}
+
+/** Explicit status change (agent console, or the owner closing their ticket).
+ *  The server is authoritative for resolution state — the client never
+ *  declares a financial issue resolved on its own. */
+export async function setTicketStatus(
+  ownerUserId: string,
+  ticketId: string,
+  status: TicketStatus
+): Promise<SupportTicket | null> {
+  return updateTicket(ownerUserId, ticketId, { status });
 }
 
 export async function createTicket(input: {
@@ -53,6 +173,7 @@ export async function createTicket(input: {
   category: TicketCategory;
   subject: string;
   body: string;
+  refs?: TicketRefs;
 }): Promise<SupportTicket & { redactions: number }> {
   // Early redaction: PANs, seed phrases and API tokens never reach storage or
   // email — users paste them no matter what the form says.
@@ -69,12 +190,28 @@ export async function createTicket(input: {
     subject: subject.text,
     body: body.text,
     status: "open",
+    ...(input.refs && Object.keys(input.refs).length ? { refs: input.refs } : {}),
     createdAt: now,
     updatedAt: now,
   };
 
   const existing = await listTickets(input.userId);
   await kvSet(userKey(input.userId), [ticket, ...existing].slice(0, MAX_PER_USER));
+  await kvSet(ownerKey(ticket.id), input.userId);
+
+  // Seed the conversation: the description is the first message, plus a
+  // system acknowledgement so the thread explains itself.
+  const seed: SupportMessage[] = [
+    { id: `msg_${randomUUID().slice(0, 12)}`, ticketId: ticket.id, author: "user", body: body.text, createdAt: now },
+    {
+      id: `msg_${randomUUID().slice(0, 12)}`,
+      ticketId: ticket.id,
+      author: "system",
+      body: "Ticket received. A human follows up here and by email — FurlPay Support will never ask for your seed phrase or private key.",
+      createdAt: now,
+    },
+  ];
+  await kvSet(msgsKey(ticket.id), seed);
 
   // Ops feed carries METADATA ONLY (no body, no email) — the overview doesn't
   // need PII, and a bounded Redis list is not the place to retain it.

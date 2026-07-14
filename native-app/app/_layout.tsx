@@ -106,7 +106,8 @@ export default function RootLayout() {
               <Stack.Screen name="insights" options={{ title: "Research" }} />
               <Stack.Screen name="chat" options={{ title: "Co-pilot" }} />
               <Stack.Screen name="approvals" options={{ title: "Approvals" }} />
-              <Stack.Screen name="support" options={{ title: "Support" }} />
+              <Stack.Screen name="support/index" options={{ title: "Support" }} />
+              <Stack.Screen name="support/[id]" options={{ title: "Support conversation" }} />
               <Stack.Screen name="passkeys" options={{ title: "Passkeys" }} />
               <Stack.Screen name="wallet" options={{ title: "Self-custodial wallet" }} />
               <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
