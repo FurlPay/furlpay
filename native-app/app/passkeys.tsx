@@ -92,7 +92,9 @@ export default function Passkeys() {
 
         {data?.safeAddress ? (
           <Surface style={{ gap: 2 }}>
-            <Text style={type.dim}>Smart account these passkeys control</Text>
+            {/* Account reference only — not a deposit address (no key controls
+                it). Deliberately truncated and not copyable/selectable. */}
+            <Text style={type.dim}>Account these passkeys sign in to</Text>
             <Text style={type.mono}>{shortAddress(data.safeAddress, 10)}</Text>
           </Surface>
         ) : null}

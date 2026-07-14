@@ -3,7 +3,6 @@ import { Alert, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "re
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
-import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
@@ -126,12 +125,6 @@ export default function Settings() {
     );
   };
 
-  const copyAddress = async () => {
-    if (!profile?.safeAddress) return;
-    await Clipboard.setStringAsync(profile.safeAddress);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-  };
-
   const sec = profile?.security;
   const notif = profile?.notifications;
 
@@ -145,9 +138,12 @@ export default function Settings() {
           <Row label="Region" value={profile?.region ?? "—"} />
           <Row label="Plan" value={profile?.tier ?? "—"} />
           <Row label="KYC" value={<StatusBadge status={profile?.kycStatus ?? "unknown"} />} />
-          <Row label="Wallet" value={shortAddress(profile?.safeAddress, 8) || "—"} />
+          {/* safeAddress is an ACCOUNT REFERENCE, not a deposit address — no
+              private key controls it, so it must never be labeled "Wallet" or
+              offered with a copy button (funds sent to it are unrecoverable).
+              The real deposit address lives on the Receive/Wallet screens. */}
+          <Row label="Account ref" value={shortAddress(profile?.safeAddress, 8) || "—"} />
         </Surface>
-        <Button title="Copy wallet address" variant="secondary" onPress={() => void copyAddress()} />
 
         <SectionHeader title="Money" />
         <Surface style={{ paddingVertical: 4 }}>
