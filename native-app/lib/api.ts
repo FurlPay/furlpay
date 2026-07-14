@@ -10,7 +10,7 @@ export const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE ?? "https://furlpay.com/api";
 
 const TOKEN_KEY = "furlpay.session";
-const CLIENT_HEADER = "mobile-android/2.0.0";
+const CLIENT_HEADER = "mobile-android/2.1.0";
 
 export async function getToken(): Promise<string | null> {
   return SecureStore.getItemAsync(TOKEN_KEY);

@@ -84,8 +84,9 @@ predated Phase 1 regardless — a fresh build from the latest commit is required
 It must contain: `lib/wallet.ts` (EIP-191 `signMessage`, `linkDevice`,
 `sendGasless`), `app/wallet.tsx` (link UI), session-bound step-up handling.
 
-**Prereqs:** keystore `apps/android/android.keystore` + `native-app/credentials.json`
-(both present); move keystore out of OneDrive first (custody). Build:
+**Prereqs:** keystore relocated to the local-only `C:\Users\ashut\.furlpay-signing\`
+(done 2026-07-14 — SHA-256-verified copy, originals removed from the OneDrive
+tree; see `apps/android/KEYSTORE-MOVED.md`). Build:
 ```bash
 cd native-app && ./build-android.sh        # local, or: npm run build:android (EAS)
 apps/android/verify-assetlinks.sh native-app/furlpay-mobile-release.aab
@@ -145,4 +146,4 @@ distributed — the shipped app must contain `linkDevice`.
 1. A **staging Supabase** project + its service/anon keys (none available in the
    engineering environment — this is the gating item).
 2. Explicit approval for the production migration (step B).
-3. Keystore moved out of OneDrive; Play internal track set up.
+3. ~~Keystore moved out of OneDrive~~ (done 2026-07-14); Play internal track set up.

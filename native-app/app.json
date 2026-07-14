@@ -2,7 +2,7 @@
   "expo": {
     "name": "FurlPay",
     "slug": "furlpay",
-    "version": "2.0.0",
+    "version": "2.1.0",
     "scheme": "furlpay",
     "orientation": "portrait",
     "backgroundColor": "#000000",
@@ -13,7 +13,7 @@
     ],
     "android": {
       "package": "com.furlpay.app",
-      "versionCode": 2,
+      "versionCode": 3,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",

@@ -20,8 +20,11 @@
 # needs no quoting. The file lives in the gitignored, prebuild-regenerated
 # android/ dir, and we scrub the secrets from it on exit either way.
 #
-# The keystore password is read from apps/android/.signing-credentials.txt, or
-# from FURLPAY_KEYSTORE_PASSWORD if set. It is never echoed.
+# Signing material lives OUTSIDE the OneDrive-synced repo tree (a cloud-synced
+# keystore + plaintext password is a custody risk): FURLPAY_SIGNING_DIR,
+# default C:/Users/ashut/.furlpay-signing. The password is read from
+# signing-credentials.txt there, or from FURLPAY_KEYSTORE_PASSWORD if set.
+# It is never echoed.
 #
 # Output: native-app/furlpay-mobile-release.aab
 set -euo pipefail
@@ -29,8 +32,9 @@ cd "$(dirname "$0")"
 
 JDK="${JDK_HOME:-C:/Users/ashut/.jdks/jdk-17.0.19+10}"
 SDK="${ANDROID_HOME:-C:/Android/sdk}"
-CREDS="../apps/android/.signing-credentials.txt"
-KEYSTORE_REL="../apps/android/android.keystore"
+SIGNING_DIR="${FURLPAY_SIGNING_DIR:-C:/Users/ashut/.furlpay-signing}"
+CREDS="$SIGNING_DIR/signing-credentials.txt"
+KEYSTORE_REL="$SIGNING_DIR/android.keystore"
 GP="android/gradle.properties"
 MARKER="# --- injected signing (scrubbed by build-android.sh) ---"
 
