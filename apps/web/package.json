@@ -7,7 +7,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test": "vitest run"
   },
   "dependencies": {
     "@furlpay/account-kit": "*",
@@ -59,6 +60,7 @@
     "eslint-config-next": "14.2.35",
     "postcss": "^8.5.16",
     "tailwindcss": "3.4.6",
-    "typescript": "5.5.3"
+    "typescript": "5.5.3",
+    "vitest": "^2.1.9"
   }
 }

@@ -64,10 +64,11 @@ export async function POST(req: NextRequest) {
   // Counter must increase for non-synced authenticators (clone detection).
   await updateCounter(user.id, cred.id, verification.authenticationInfo.newCounter);
 
+  // Bind the step-up to THIS session's jti (see stepup.ts).
+  const jti = crypto.randomUUID();
+  const token = await signSession({ sub: user.id, safe: user.safeAddress, jti });
   // A passkey assertion is a strong step-up — satisfies the wallet-link gate.
-  void recordStepUp(user.id, "passkey").catch(() => {});
-
-  const token = await signSession({ sub: user.id, safe: user.safeAddress });
+  void recordStepUp(user.id, jti, "passkey").catch(() => {});
   // Native clients get the JWT in the body (Bearer flow); browsers get the
   // HttpOnly cookie only. See lib/clientKind.ts.
   const res = NextResponse.json({

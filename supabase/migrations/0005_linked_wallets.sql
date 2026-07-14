@@ -15,12 +15,16 @@
 
 create table linked_wallets (
   -- The normalized (lowercased) EVM address IS the uniqueness key. Casing can
-  -- never bypass it because callers pass the lowercased form.
-  address_norm text primary key,
+  -- never bypass it because callers pass the lowercased form; the CHECK also
+  -- rejects empty strings, non-hex, wrong-length and the zero address at the
+  -- database level, so even a direct service-role insert cannot corrupt it.
+  address_norm text primary key
+               check (address_norm ~ '^0x[0-9a-f]{40}$'
+                      and address_norm <> '0x0000000000000000000000000000000000000000'),
   user_id      uuid not null references users (id) on delete cascade,
-  address      text not null,                 -- EIP-55 checksummed, for display
-  chain_family text not null default 'evm',
-  method       text not null default 'eip191',
+  address      text not null check (address ~ '^0x[0-9a-fA-F]{40}$'), -- EIP-55 display
+  chain_family text not null default 'evm' check (chain_family in ('evm')),
+  method       text not null default 'eip191' check (method in ('eip191')),
   proof_nonce  text not null,                 -- the signed challenge nonce (audit; not a secret)
   status       text not null default 'active' check (status in ('active')),
   linked_at    timestamptz not null default now()

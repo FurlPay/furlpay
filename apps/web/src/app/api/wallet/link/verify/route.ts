@@ -6,7 +6,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { linkingEnabled, verifyLink } from "@/lib/walletLink";
 import { setLinkedWallet, type LinkedWallet } from "@/lib/store";
 import { linkWalletDurable } from "@/lib/linkedWalletStore";
-import { recentStepUp } from "@/lib/stepup";
+import { recentStepUp, consumeStepUp } from "@/lib/stepup";
 import { recordSecurityEvent } from "@/lib/ops/events";
 import { audit } from "@/lib/audit";
 import { sendEmail } from "@/lib/email";
@@ -44,10 +44,11 @@ export async function POST(req: NextRequest) {
   const claimed = body.address;
 
   // Step-up gate: a bare session is NOT enough to permanently bind a wallet.
-  // Require a recent strong re-auth (fresh OTP or passkey) recorded
-  // server-side. Local device biometrics do not count. Checked before the
-  // (cheap) signature verify so an unauthorized caller learns nothing.
-  if (!(await recentStepUp(user.id))) {
+  // Require a recent strong re-auth (fresh OTP or passkey) bound to THIS
+  // session's jti — a different (stolen/concurrent) session has none. Local
+  // device biometrics do not count. Checked before the (cheap) signature
+  // verify so an unauthorized caller learns nothing.
+  if (!(await recentStepUp(user.id, auth.claims.jti))) {
     audit("wallet.link_rejected", user.id, { address: claimed.toLowerCase(), reason: "stepup_required" });
     return NextResponse.json(
       { error: "stepup_required", detail: "Re-verify with a login code or passkey, then try again." },
@@ -90,6 +91,9 @@ export async function POST(req: NextRequest) {
     proofNonce: result.nonce,
   };
   setLinkedWallet(user.id, linked);
+
+  // Single-use: burn the step-up so it can't authorize a second link in-window.
+  void consumeStepUp(user.id, auth.claims.jti);
 
   audit("wallet.link_established", user.id, { address: result.address, reLink: Boolean(existing) });
   void recordSecurityEvent({

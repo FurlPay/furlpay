@@ -80,20 +80,25 @@ describe("verifyLink — signature + binding + replay", () => {
   });
 });
 
-describe("stepup", () => {
-  beforeEach(() => {
-    /* kv in-memory persists across tests; use distinct users */
-  });
+describe("stepup (session-bound)", () => {
   it("recentStepUp is false with no record", async () => {
-    expect(await recentStepUp("no-stepup-user")).toBe(false);
+    expect(await recentStepUp("no-stepup-user", "jti-x")).toBe(false);
   });
-  it("recentStepUp is true right after recordStepUp", async () => {
-    await recordStepUp("su-user", "otp");
-    expect(await recentStepUp("su-user")).toBe(true);
+  it("recentStepUp is true for the SAME session jti after recordStepUp", async () => {
+    await recordStepUp("su-user", "jti-1", "otp");
+    expect(await recentStepUp("su-user", "jti-1")).toBe(true);
+  });
+  it("recentStepUp is false for a DIFFERENT session jti (stolen-session defense)", async () => {
+    await recordStepUp("su-user", "jti-1", "otp");
+    expect(await recentStepUp("su-user", "jti-OTHER")).toBe(false);
+  });
+  it("recentStepUp is false with no jti", async () => {
+    await recordStepUp("su-user", "jti-1", "otp");
+    expect(await recentStepUp("su-user", undefined)).toBe(false);
   });
   it("recentStepUp is false beyond the window", async () => {
-    await recordStepUp("su-user-2", "passkey");
-    expect(await recentStepUp("su-user-2", -1)).toBe(false); // zero-age window
+    await recordStepUp("su-user-2", "jti-2", "passkey");
+    expect(await recentStepUp("su-user-2", "jti-2", -1)).toBe(false); // zero-age window
   });
 });
 

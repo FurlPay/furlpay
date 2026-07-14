@@ -18,6 +18,8 @@ jobs:
         run: npm run lint --workspace @furlpay/web
       - name: Type-check web app
         run: npm exec --workspace @furlpay/web -- tsc --noEmit
+      - name: Test web app (wallet-link security matrix + units)
+        run: npm test --workspace @furlpay/web
       - name: Build web app
         run: npm run build --workspace @furlpay/web
       - name: Build & test Node SDK

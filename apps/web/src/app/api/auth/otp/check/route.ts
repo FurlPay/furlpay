@@ -60,15 +60,19 @@ export async function POST(req: NextRequest) {
   let body: Record<string, unknown> = { verified: true };
   let token: string | undefined;
   if (login) {
+    // Bind the step-up to THIS session's jti so it can't authorize an action
+    // from a different (stolen/concurrent) session.
+    const jti = crypto.randomUUID();
     token = await signSession({
       sub: account.user.id,
       safe: account.user.safeAddress,
       roles: account.user.roles,
+      jti,
     });
     if (isMobileClient) body = { ...body, token };
     audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: `otp:${channel}` });
     // A fresh OTP verification is a strong step-up — satisfies the wallet-link gate.
-    void recordStepUp(account.user.id, "otp").catch(() => {});
+    void recordStepUp(account.user.id, jti, "otp").catch(() => {});
   }
   const res = NextResponse.json(body);
   if (login && token) setSessionCookie(res, token);
