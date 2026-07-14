@@ -47,7 +47,8 @@ export const DOCS_NAV: DocSection[] = [
     label: "Integrations",
     icon: Puzzle,
     items: [
-      { title: "AI Assistants", href: "/docs/integrations/ai-assistants", desc: "Wire FurlPay into Claude, ChatGPT, and agent frameworks via MCP and native adapters.", badge: "new" },
+      { title: "Claude Connector", href: "/docs/integrations/claude-connector", desc: "Connect FurlPay to Claude over MCP: 12 tools, OAuth 2.1 + PKCE, and a human-approval boundary — Claude can prepare payments but never settles them.", badge: "new" },
+      { title: "AI Assistants", href: "/docs/integrations/ai-assistants", desc: "Wire FurlPay into Claude, ChatGPT, and agent frameworks via MCP and native adapters." },
       { title: "Stripe Crypto", href: "/docs/integrations/stripe-crypto", desc: "Fiat onramp and card processing through Stripe's crypto products." },
       { title: "Persona KYC", href: "/docs/integrations/persona-kyc", desc: "Identity verification flows and webhook-driven KYC status updates." },
     ],
