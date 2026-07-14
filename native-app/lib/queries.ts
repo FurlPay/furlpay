@@ -1,4 +1,4 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, NetworkError } from "./api";
 import { cacheGet, cacheSet, listCachedTransactions, upsertTransactions } from "./db";
 import type { Overview, PaymentCard, Portfolio, Transaction } from "./types";
@@ -8,6 +8,14 @@ import type { Overview, PaymentCard, Portfolio, Transaction } from "./types";
 // is unreachable the cached snapshot is served instead (with its timestamp,
 // so screens can show "last updated X ago").
 // ---------------------------------------------------------------------------
+
+// Lives here (not in _layout.tsx) so the auth store can wipe it on session
+// boundaries — the in-memory query cache holds account data just like SQLite.
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: { retry: 1, refetchOnWindowFocus: false },
+  },
+});
 
 export interface CachedResult<T> {
   data: T;

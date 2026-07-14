@@ -23,6 +23,10 @@ export async function POST(req: NextRequest) {
 
   const form = await req.formData().catch(() => null);
   const idToken = String(form?.get("id_token") ?? "");
+  // Echo `state` back to the app so it can reject a deep link that didn't come
+  // from the flow it started (login CSRF). Opaque to us; length-capped so a
+  // hostile form POST can't stuff arbitrary payload into the redirect.
+  const state = String(form?.get("state") ?? "").slice(0, 128);
   // Apple sends `user` (JSON with the name) only on the very first consent.
   let name: string | undefined;
   try {
@@ -35,13 +39,13 @@ export async function POST(req: NextRequest) {
     /* name is a nicety, never a blocker */
   }
 
-  if (!idToken) return fail(req, "missing_id_token");
+  if (!idToken) return fail(req, "missing_id_token", state);
 
   let identity;
   try {
     identity = await verifyAppleIdentityToken(idToken, name);
   } catch {
-    return fail(req, "invalid_apple_token");
+    return fail(req, "invalid_apple_token", state);
   }
 
   const { account } = await findOrCreateUserByIdentityDurable({
@@ -60,9 +64,15 @@ export async function POST(req: NextRequest) {
   audit("auth.handoff_minted", account.user.id, { provider: "apple", direction: "web_to_native" });
 
   // 303 so the browser follows with GET into the app's deep link.
-  return NextResponse.redirect(`furlpay://auth?code=${encodeURIComponent(code)}`, 303);
+  return NextResponse.redirect(
+    `furlpay://auth?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`,
+    303
+  );
 }
 
-function fail(_req: NextRequest, reason: string): NextResponse {
-  return NextResponse.redirect(`furlpay://auth?error=${encodeURIComponent(reason)}`, 303);
+function fail(_req: NextRequest, reason: string, state = ""): NextResponse {
+  return NextResponse.redirect(
+    `furlpay://auth?error=${encodeURIComponent(reason)}&state=${encodeURIComponent(state)}`,
+    303
+  );
 }

@@ -114,6 +114,12 @@ export async function signInWithApple(): Promise<string | null> {
   if (result.type !== "success") return null; // dismissed
 
   const returned = Linking.parse(result.url).queryParams ?? {};
+  // The callback echoes the state we generated. A mismatch means this deep link
+  // did not come from the flow we started (login CSRF — someone else's sign-in
+  // being planted into our session) — reject it before touching the code.
+  if (returned.state !== state) {
+    throw new Error("Apple sign-in returned an unexpected response. Please try again.");
+  }
   const err = typeof returned.error === "string" ? returned.error : null;
   if (err) throw new Error(appleErrorMessage(err));
   const handoff = typeof returned.code === "string" ? returned.code : null;

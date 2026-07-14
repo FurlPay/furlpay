@@ -68,6 +68,12 @@ export default function Send() {
       amount: amountNum,
       token: selected!.token,
       chain: selected!.chain,
+      // SECURITY: demoSignature() is a random blob — it authorizes NOTHING.
+      // /wallets/transfer is the demo-ledger custodial path (mock recovery,
+      // same as the web dashboard); its real authorization is the session JWT.
+      // If this endpoint is ever wired to real settlement, this screen MUST
+      // switch to lib/wallet.ts signTransferAuthorization (genuine EIP-3009,
+      // biometric-gated) — see sendGasless for the working pattern.
       signature: demoSignature(),
       ...(mfaCode ? { mfaCode } : {}),
     };

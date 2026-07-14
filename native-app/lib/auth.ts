@@ -4,6 +4,22 @@ import { api, getToken, setToken, setUnauthorizedHandler } from "./api";
 import { authenticateWithPasskey, registerPasskey } from "./passkey";
 import { unregisterFromPush } from "./push";
 import { clearAllCaches } from "./db";
+import { queryClient } from "./queries";
+
+/** Wipe everything scoped to a session — the SQLite caches AND the in-memory
+ *  react-query cache. Runs on BOTH edges of a session (sign-out and sign-in),
+ *  so an account signing in on a shared device can never see the previous
+ *  account's balances or transaction history, whichever path the previous
+ *  session ended through. */
+function clearSessionState(): void {
+  try {
+    clearAllCaches();
+  } catch {
+    // A cache wipe failing must not block sign-in/out; the query cache clear
+    // below still prevents stale data from rendering this session.
+  }
+  queryClient.clear();
+}
 
 // ---------------------------------------------------------------------------
 // Auth state machine:
@@ -86,12 +102,14 @@ export const useAuth = create<AuthState>((set, get) => ({
     if (!res.token) {
       throw new Error("Login succeeded but no session token was returned.");
     }
+    clearSessionState();
     await setToken(res.token);
     set({ status: "signedIn", email: channel === "email" ? dest : null });
   },
 
   signInWithPasskey: async () => {
     const token = await authenticateWithPasskey();
+    clearSessionState();
     await setToken(token);
     // The fingerprint WAS the authentication — re-prompting for it to "unlock"
     // would ask the same question twice.
@@ -100,11 +118,13 @@ export const useAuth = create<AuthState>((set, get) => ({
 
   enrollPasskey: async () => {
     const token = await registerPasskey();
+    clearSessionState();
     await setToken(token);
     set({ status: "signedIn" });
   },
 
   signInWithToken: async (token: string, email?: string | null) => {
+    clearSessionState();
     await setToken(token);
     set({ status: "signedIn", email: email ?? null });
   },
@@ -115,6 +135,7 @@ export const useAuth = create<AuthState>((set, get) => ({
       anonymous: true,
     });
     if (!res.token) throw new Error("Guest mode is not enabled on this server.");
+    clearSessionState();
     await setToken(res.token);
     set({ status: "signedIn", email: null });
   },
@@ -125,14 +146,23 @@ export const useAuth = create<AuthState>((set, get) => ({
     await unregisterFromPush();
     await api("/auth/logout", { method: "POST" }).catch(() => {});
     await setToken(null);
-    clearAllCaches();
+    clearSessionState();
     set({ status: "signedOut", email: null });
   },
 }));
 
-// A 401 from any API call (expired 1h JWT) drops back to the login screen.
+// A 401 from any API call (expired 1h JWT) drops back to the login screen —
+// with the SAME hygiene as a manual sign-out: push deregistration (best-effort;
+// the DELETE may itself 401 on an expired token, and unregisterFromPush's
+// early-exit on a null registered token keeps the nested 401 from recursing)
+// and a full cache wipe, so a forced sign-out never leaves the previous
+// account's data behind for the next sign-in.
 setUnauthorizedHandler(() => {
-  void setToken(null).then(() => {
-    useAuth.setState({ status: "signedOut" });
-  });
+  void unregisterFromPush()
+    .catch(() => {})
+    .then(() => setToken(null))
+    .then(() => {
+      clearSessionState();
+      useAuth.setState({ status: "signedOut", email: null });
+    });
 });

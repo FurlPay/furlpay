@@ -1,5 +1,5 @@
 import { api, ApiError, NetworkError } from "./api";
-import { deletePendingAction, listPendingActions, markPendingActionError } from "./db";
+import { deletePendingAction, listPendingActions, markPendingActionError, recordNotification } from "./db";
 
 // ---------------------------------------------------------------------------
 // Outbox flush: transfers queued while offline are replayed when connectivity
@@ -8,16 +8,35 @@ import { deletePendingAction, listPendingActions, markPendingActionError } from 
 // the original response).
 // ---------------------------------------------------------------------------
 
+// A transfer was biometric-confirmed at QUEUE time; that consent goes stale.
+// Firing a forgotten payment days later — when the balance, the recipient
+// relationship, or the user's intent may have changed — is worse than not
+// sending it, so anything older than this is dropped with a visible notice.
+const MAX_PENDING_AGE_MS = 24 * 60 * 60 * 1000;
+
 let flushing = false;
 
-export async function flushPendingActions(): Promise<{ sent: number; failed: number }> {
-  if (flushing) return { sent: 0, failed: 0 };
+export async function flushPendingActions(): Promise<{ sent: number; failed: number; expired: number }> {
+  if (flushing) return { sent: 0, failed: 0, expired: 0 };
   flushing = true;
   let sent = 0;
   let failed = 0;
+  let expired = 0;
   try {
     for (const action of listPendingActions()) {
       if (action.type !== "transfer") continue;
+      if (Date.now() - action.createdAt > MAX_PENDING_AGE_MS) {
+        deletePendingAction(action.id);
+        // Surface the drop in the notification inbox — a silently vanished
+        // payment is indistinguishable from a sent one.
+        recordNotification({
+          id: `expired_${action.id}`,
+          title: "Queued transfer expired",
+          body: "A transfer queued while offline was not sent within 24 hours and has been cancelled. Nothing was charged — please send it again.",
+        });
+        expired++;
+        continue;
+      }
       try {
         await api("/wallets/transfer", {
           method: "POST",
@@ -41,5 +60,5 @@ export async function flushPendingActions(): Promise<{ sent: number; failed: num
   } finally {
     flushing = false;
   }
-  return { sent, failed };
+  return { sent, failed, expired };
 }
