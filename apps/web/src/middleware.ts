@@ -6,6 +6,7 @@ import {
   resolveApiVersion,
   SUPPORTED_API_VERSIONS,
 } from "@/lib/apiVersion";
+import { CORRELATION_HEADER, ensureCorrelationId } from "@/lib/correlation";
 
 // ---------------------------------------------------------------------------
 // Auth gate. A `furlpay_session` cookie is minted on passkey login/registration.
@@ -155,8 +156,16 @@ export async function middleware(req: NextRequest) {
 
   if (isApi) {
     const version = apiVersion && apiVersion.ok ? apiVersion.version : undefined;
-    const pass = () =>
-      version ? applyApiVersionHeaders(NextResponse.next(), version) : NextResponse.next();
+    // One correlation id per request: forwarded to the route (for logs) and
+    // echoed on the response (so the client/user can quote it in an incident).
+    const cid = ensureCorrelationId(req.headers.get(CORRELATION_HEADER));
+    const pass = () => {
+      const reqHeaders = new Headers(req.headers);
+      reqHeaders.set(CORRELATION_HEADER, cid);
+      const r = NextResponse.next({ request: { headers: reqHeaders } });
+      r.headers.set(CORRELATION_HEADER, cid);
+      return version ? applyApiVersionHeaders(r, version) : r;
+    };
     if (isPublicApi || hasSession) return pass();
     // Agent-initiated escrow calls authenticate with RFC 9421 signatures
     // instead of a session cookie. Pass them through to the route, which
@@ -165,7 +174,7 @@ export async function middleware(req: NextRequest) {
     if (pathname.startsWith("/api/escrow") && req.headers.get("signature-input")) {
       return pass();
     }
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { [CORRELATION_HEADER]: cid } });
   }
 
   // Page routes

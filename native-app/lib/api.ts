@@ -24,10 +24,15 @@ export async function setToken(token: string | null): Promise<void> {
 export class ApiError extends Error {
   status: number;
   data: unknown;
-  constructor(status: number, message: string, data?: unknown) {
+  /** Correlation id for this request — echoed by the server, present in its
+   *  logs. Surfaced to the user on money-path failures so a support ticket can
+   *  be tied to the exact server-side request. */
+  correlationId?: string;
+  constructor(status: number, message: string, data?: unknown, correlationId?: string) {
     super(message);
     this.status = status;
     this.data = data;
+    this.correlationId = correlationId;
   }
 }
 
@@ -51,6 +56,9 @@ interface RequestOptions {
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const token = opts.anonymous ? null : await getToken();
+  // Per-request correlation id — the server echoes it and logs it, so a failure
+  // the user reports can be traced to the exact server-side request.
+  const correlationId = crypto.randomUUID();
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -58,6 +66,7 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
       headers: {
         "Content-Type": "application/json",
         "X-Furlpay-Client": CLIENT_HEADER,
+        "X-Correlation-Id": correlationId,
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...opts.headers,
       },
@@ -73,7 +82,9 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
     const message =
       (data && typeof data === "object" && "error" in data && String((data as any).error)) ||
       `Request failed (${res.status})`;
-    throw new ApiError(res.status, message, data);
+    // Prefer the server's echoed id; fall back to the one we sent.
+    const cid = res.headers.get("x-correlation-id") || correlationId;
+    throw new ApiError(res.status, message, data, cid);
   }
   return data as T;
 }

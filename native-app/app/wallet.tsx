@@ -287,7 +287,9 @@ function SendSheet({ from, onClose }: { from: string; onClose: () => void }) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(r);
     } catch (e) {
-      setError((e as Error).message);
+      // Attach the server correlation id so a failed send is traceable in support.
+      const ref = e instanceof ApiError && e.correlationId ? ` (ref: ${e.correlationId.slice(0, 8)})` : "";
+      setError((e as Error).message + ref);
     } finally {
       setBusy(false);
     }
