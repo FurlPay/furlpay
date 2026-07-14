@@ -45,12 +45,12 @@ async function rest(method, path, body, key = SERVICE, prefer) {
 const rpc = (fn, args, key = SERVICE) => rest("POST", `rpc/${fn}`, args, key);
 
 const A = "0x" + "a".repeat(40);
-const uA = randomUUID(), uB = randomUUID();
+const uA = randomUUID(), uB = randomUUID(), uC = randomUUID();
 const mkUser = (id) => ({ id, name: "pgtest", email: `pgtest_${id}@example.invalid`, safe_address: "0x" + id.replace(/-/g, "").slice(0, 40) });
 
 async function main() {
-  // Seed two users through the service role (proves service-role write works).
-  const seed = await rest("POST", "users", [mkUser(uA), mkUser(uB)], SERVICE, "return=minimal");
+  // Seed three users through the service role (proves service-role write works).
+  const seed = await rest("POST", "users", [mkUser(uA), mkUser(uB), mkUser(uC)], SERVICE, "return=minimal");
   ok(seed.status === 201 || seed.status === 200, `service-role can seed users (status ${seed.status})`);
 
   // link_wallet via the real Supabase RPC client.
@@ -66,7 +66,10 @@ async function main() {
   ok(r3.json === "idempotent", `same user same wallet -> idempotent (got ${JSON.stringify(r3.json)})`);
 
   // CHECK constraint surfaced through the RPC (zero address must error).
-  const rz = await rpc("link_wallet", { p_user_id: uA, p_address_norm: "0x" + "0".repeat(40), p_address: "0x" + "0".repeat(40), p_nonce: "0x4" });
+  // MUST use a user with NO existing link: link_wallet short-circuits with
+  // 'conflict_user_has_wallet' (200) before its INSERT, so an already-linked
+  // user never reaches the CHECK — that masked the constraint on first run.
+  const rz = await rpc("link_wallet", { p_user_id: uC, p_address_norm: "0x" + "0".repeat(40), p_address: "0x" + "0".repeat(40), p_nonce: "0x4" });
   ok(rz.status >= 400, `zero address rejected through RPC (status ${rz.status})`);
 
   // Cold-instance hydration via get_linked_wallet RPC.
@@ -84,8 +87,8 @@ async function main() {
   }
 
   // Cleanup.
-  await rest("DELETE", `linked_wallets?user_id=in.(${uA},${uB})`, undefined, SERVICE);
-  await rest("DELETE", `users?id=in.(${uA},${uB})`, undefined, SERVICE);
+  await rest("DELETE", `linked_wallets?user_id=in.(${uA},${uB},${uC})`, undefined, SERVICE);
+  await rest("DELETE", `users?id=in.(${uA},${uB},${uC})`, undefined, SERVICE);
   console.log(failures === 0 ? "\nALL SUPABASE CHECKS PASSED" : `\n${failures} FAILURE(S)`);
   process.exit(failures === 0 ? 0 : 1);
 }

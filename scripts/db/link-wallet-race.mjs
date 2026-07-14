@@ -41,7 +41,18 @@ const tally = (rs) => rs.reduce((m, x) => (m[x] = (m[x] || 0) + 1, m), {});
 
 async function main() {
   const c = await pool.connect();
-  await c.query("insert into users(id) values ($1),($2) on conflict do nothing", [userA, userB]);
+  // Full-schema seed: the real 0001 users table has NOT NULL name/email/
+  // safe_address (the original id-only insert only worked on the minimal
+  // ephemeral-CI table). Same row shape supabase-validate.mjs seeds.
+  await c.query(
+    `insert into users(id, name, email, safe_address)
+     values ($1, 'racetest', $2, $3), ($4, 'racetest', $5, $6)
+     on conflict do nothing`,
+    [
+      userA, `racetest_${userA}@example.invalid`, "0x" + userA.replace(/-/g, "").slice(0, 40),
+      userB, `racetest_${userB}@example.invalid`, "0x" + userB.replace(/-/g, "").slice(0, 40),
+    ]
+  );
 
   await c.query("delete from linked_wallets where user_id=any($1)", [[userA, userB]]);
   let rs = await race([...Array(4)].flatMap(() => [{ user: userA, addr: A }, { user: userB, addr: A }]));
