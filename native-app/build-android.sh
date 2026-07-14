@@ -104,15 +104,27 @@ trap 'scrub; powershell.exe -NoProfile -Command "subst '"$DRIVE"' /D" >/dev/null
 # mapped path changes, or ninja re-fails against the old ones.
 rm -rf android/app/.cxx 2>/dev/null || true
 
-echo "==> Gradle bundleRelease + assembleRelease (from $DRIVE\\native-app\\android)"
+echo "==> Gradle bundleRelease, then assembleRelease (from $DRIVE\\native-app\\android)"
 # Both artifacts, because they are not interchangeable:
 #   .aab -> what Google Play requires (and it cannot be installed on a device)
 #   .apk -> what you can actually `adb install` to test on a phone
+#
+# SEPARATE invocations, deliberately. With resource shrinking enabled, the AAB's
+# shrinkBundleReleaseResources and the APK's shrinkReleaseRes BOTH write
+# app/build/outputs/mapping/release/resources.txt. Requested in one Gradle run
+# they execute concurrently and race, and the loser dies with
+#   "Unable to delete file ...\mapping\release\resources.txt"
+# after ~16 minutes of work. Running them sequentially costs nothing (the second
+# run is almost entirely up-to-date) and is deterministic.
 # Driven through PowerShell: `cmd //c "pushd X:\android && gradlew.bat"` does
 # not find gradlew.bat on a subst'd drive.
-powershell.exe -NoProfile -Command \
-  "\$env:JAVA_HOME='$(cygpath -w "$JDK")'; \$env:ANDROID_HOME='$(cygpath -w "$SDK")'; \
-   Set-Location '$DRIVE\\native-app\\android'; & .\\gradlew.bat :app:bundleRelease :app:assembleRelease --no-daemon"
+gradle_task() {
+  powershell.exe -NoProfile -Command \
+    "\$env:JAVA_HOME='$(cygpath -w "$JDK")'; \$env:ANDROID_HOME='$(cygpath -w "$SDK")'; \
+     Set-Location '$DRIVE\\native-app\\android'; & .\\gradlew.bat $1 --no-daemon"
+}
+gradle_task ":app:bundleRelease"
+gradle_task ":app:assembleRelease"
 
 cp android/app/build/outputs/bundle/release/app-release.aab furlpay-mobile-release.aab
 cp android/app/build/outputs/apk/release/app-release.apk  furlpay-mobile-release.apk

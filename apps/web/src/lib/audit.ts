@@ -28,6 +28,11 @@ export type AuditEvent =
   | "travel.rewards_claimed"
   | "auth.handoff_minted"
   | "auth.handoff_redeemed"
+  // MCP connector (Claude): who granted which scopes, and when a token was
+  // minted against that grant. A connector that can prepare payments is exactly
+  // the thing that needs an audit trail.
+  | "mcp.consent_granted"
+  | "mcp.token_issued"
   | "account.funded"
   | "account.locked"
   | "wallet.link_challenge_issued"

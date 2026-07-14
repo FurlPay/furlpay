@@ -44,6 +44,8 @@ const PUBLIC_PAGES = new Set([
 const PUBLIC_PAGE_PREFIXES = [
   "/docs",
   "/blog",
+  "/.well-known", // OAuth 2.1 discovery metadata (RFC 8414 / 9728) + assetlinks
+
   "/investing/insights", // FurlPay Research portal — public content, like /blog
 
   "/legal",
@@ -74,6 +76,14 @@ const PUBLIC_PAGE_PREFIXES = [
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
   "/api/webhooks",
+  // MCP connector (Claude). The transport route self-authenticates with an
+  // OAuth bearer token (401 + WWW-Authenticate on failure) — the middleware's
+  // cookie redirect would break discovery. The OAuth endpoints are public by
+  // necessity: registration and token exchange happen before a session exists.
+  // /api/oauth/authorize is the exception — it calls requireUser itself.
+  "/api/mcp",
+  "/api/oauth/register",
+  "/api/oauth/token",
   "/api/checkout",
   "/api/actions", // Solana Actions/Blinks — consumed by unauthenticated Blink clients
   "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
