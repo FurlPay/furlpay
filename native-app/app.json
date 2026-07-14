@@ -71,7 +71,6 @@
           }
         }
       ],
-      "expo-screen-capture",
       [
         "expo-local-authentication",
         {
@@ -91,8 +90,7 @@
           "color": "#E7FF52",
           "defaultChannel": "approvals"
         }
-      ],
-      "expo-web-browser"
+      ]
     ],
     "experiments": {
       "typedRoutes": true
