@@ -7,6 +7,7 @@ import {
   createWallet,
   deleteWallet,
   getAddress,
+  getKnownAddress,
   hasWallet,
   importWallet,
   linkDevice,
@@ -17,6 +18,7 @@ import {
   type GaslessResult,
 } from "@/lib/wallet";
 import { ApiError } from "@/lib/api";
+import { AmountError, tryParseUsdcAmount } from "@/lib/money";
 import { useSecureScreen } from "@/lib/secureScreen";
 import { isValidDestination, shortAddress, usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
@@ -47,7 +49,10 @@ export default function Wallet() {
   const refresh = useCallback(async () => {
     const has = await hasWallet();
     setExists(has);
-    setAddress(has ? await getAddress().catch(() => null) : null);
+    // Un-gated cache first — opening this screen shouldn't demand a biometric
+    // just to display a public address. The gated read is the fallback for
+    // pre-cache installs (and it backfills the cache).
+    setAddress(has ? ((await getKnownAddress()) ?? (await getAddress().catch(() => null))) : null);
     // Link status is best-effort: 404 = feature flag off on the server.
     try {
       const s = await linkStatus();
@@ -276,8 +281,9 @@ function SendSheet({ from, onClose }: { from: string; onClose: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<GaslessResult | null>(null);
 
-  const valid =
-    isValidDestination(to.trim(), "arbitrum") && Number(amount) > 0;
+  // Atomic-units validation (never floats): tryParseUsdcAmount returns null
+  // for zero-atomic, >6dp, negative, scientific notation, separators, etc.
+  const valid = isValidDestination(to.trim(), "arbitrum") && tryParseUsdcAmount(amount) !== null;
 
   const send = async () => {
     setError(null);
@@ -287,6 +293,10 @@ function SendSheet({ from, onClose }: { from: string; onClose: () => void }) {
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setResult(r);
     } catch (e) {
+      if (e instanceof AmountError) {
+        setError(e.message);
+        return;
+      }
       // Attach the server correlation id so a failed send is traceable in support.
       const ref = e instanceof ApiError && e.correlationId ? ` (ref: ${e.correlationId.slice(0, 8)})` : "";
       setError((e as Error).message + ref);

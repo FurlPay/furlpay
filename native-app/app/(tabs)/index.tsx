@@ -73,7 +73,7 @@ function AddMoneySheet({ open, onClose }: { open: boolean; onClose: () => void }
       <DepositRow
         icon="qr-code-outline"
         title="Deposit crypto"
-        sub="Show your QR — USDC, EURC & more"
+        sub="Your self-custodial USDC address (Arbitrum)"
         onPress={() => go("/receive")}
       />
       <DepositRow

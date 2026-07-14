@@ -26,6 +26,10 @@ import { HDKey } from "@scure/bip32";
 
 const MNEMONIC_KEY = "furlpay.wallet.mnemonic"; // biometric-gated
 const EXISTS_KEY = "furlpay.wallet.exists"; // plain marker so presence checks don't prompt
+// Public address cached un-gated: an address is public information (it appears
+// on-chain the moment it's used), so screens like Receive can show it without
+// a biometric prompt. The KEY stays behind the gate.
+const ADDRESS_KEY = "furlpay.wallet.address";
 const ETH_PATH = "m/44'/60'/0'/0/0"; // BIP-44 Ethereum account 0, address 0
 
 // chainId per network — must match EVM_CHAIN_IDS in apps/web/src/lib/x402Signature.ts.
@@ -71,18 +75,22 @@ export async function hasWallet(): Promise<boolean> {
 export async function createWallet(): Promise<{ mnemonic: string; address: string }> {
   const entropy = Crypto.getRandomBytes(16); // 128-bit → 12-word mnemonic
   const mnemonic = entropyToMnemonic(entropy, wordlist);
+  const address = addressFromMnemonic(mnemonic);
   await SecureStore.setItemAsync(MNEMONIC_KEY, mnemonic, SECURE_OPTS);
   await SecureStore.setItemAsync(EXISTS_KEY, "1");
-  return { mnemonic, address: addressFromMnemonic(mnemonic) };
+  await SecureStore.setItemAsync(ADDRESS_KEY, address);
+  return { mnemonic, address };
 }
 
 /** Import an existing 12/24-word mnemonic (wallet recovery). */
 export async function importWallet(mnemonic: string): Promise<{ address: string }> {
   const phrase = mnemonic.trim().toLowerCase().replace(/\s+/g, " ");
   if (!validateMnemonic(phrase, wordlist)) throw new Error("That recovery phrase is not valid.");
+  const address = addressFromMnemonic(phrase);
   await SecureStore.setItemAsync(MNEMONIC_KEY, phrase, SECURE_OPTS);
   await SecureStore.setItemAsync(EXISTS_KEY, "1");
-  return { address: addressFromMnemonic(phrase) };
+  await SecureStore.setItemAsync(ADDRESS_KEY, address);
+  return { address };
 }
 
 /** Reveal the mnemonic for backup — triggers the biometric gate. */
@@ -96,13 +104,29 @@ export async function revealMnemonic(): Promise<string> {
 export async function deleteWallet(): Promise<void> {
   await SecureStore.deleteItemAsync(MNEMONIC_KEY, SECURE_OPTS).catch(() => {});
   await SecureStore.deleteItemAsync(EXISTS_KEY).catch(() => {});
+  await SecureStore.deleteItemAsync(ADDRESS_KEY).catch(() => {});
 }
 
 /** The wallet's address, read behind the biometric gate. */
 export async function getAddress(): Promise<string> {
   const m = await SecureStore.getItemAsync(MNEMONIC_KEY, SECURE_OPTS);
   if (!m) throw new Error("No wallet on this device.");
-  return addressFromMnemonic(m);
+  const address = addressFromMnemonic(m);
+  // Backfill the un-gated cache for installs that created their wallet before
+  // the cache existed.
+  await SecureStore.setItemAsync(ADDRESS_KEY, address).catch(() => {});
+  return address;
+}
+
+/**
+ * The wallet's address WITHOUT a biometric prompt, from the un-gated cache.
+ * Null when no wallet exists, or on a pre-cache install that hasn't done a
+ * gated read yet (callers then offer an explicit "unlock" action that calls
+ * getAddress()). Never returns anything other than the device key's address.
+ */
+export async function getKnownAddress(): Promise<string | null> {
+  if (!(await hasWallet())) return null;
+  return SecureStore.getItemAsync(ADDRESS_KEY).catch(() => null);
 }
 
 // --- signing ----------------------------------------------------------------
@@ -274,6 +298,7 @@ export function randomNonce(): string {
 // --- account linking (prove control to the server) --------------------------
 
 import { api, ApiError } from "./api";
+import { parseUsdcAmount } from "./money";
 
 export interface LinkStatus {
   linked: { address: string; verifiedAt: string; status: string } | null;
@@ -337,21 +362,19 @@ export type GaslessResult =
   | { kind: "simulated"; transaction: string } // server not in live mode
   | { kind: "unavailable"; detail: string }; // rail not configured (503)
 
-/** USD (as a decimal string) → atomic USDC units (6dp), no float drift. */
-export function usdcToAtomic(usd: string): string {
-  const [whole, frac = ""] = usd.trim().split(".");
-  const cents = (frac + "000000").slice(0, 6);
-  const atomic = BigInt(whole || "0") * 1_000_000n + BigInt(cents || "0");
-  return atomic.toString();
-}
-
 /**
  * Send USDC from THIS device's wallet to `to`, gaslessly. The user signs an
  * EIP-3009 authorization (biometric-gated); Furlpay's relayer submits it.
  * Real settlement requires the server in live mode with a configured relayer —
  * otherwise this resolves `simulated`/`unavailable`, never a false success.
+ *
+ * The amount is parsed straight to atomic units (lib/money.ts) and MUST be
+ * > 0n — "0.0000001" style inputs that float-pass `> 0` but truncate to zero
+ * atomic units are rejected before anything is signed. Throws AmountError with
+ * a user-displayable message on any invalid amount.
  */
 export async function sendGasless(to: string, amountUsd: string): Promise<GaslessResult> {
+  const atomic = parseUsdcAmount(amountUsd); // throws AmountError; guarantees > 0n
   const quote = await api<GaslessQuote>("/transfers/gasless", { anonymous: false });
   const from = await getAddress(); // biometric gate #1 (address read)
 
@@ -359,7 +382,7 @@ export async function sendGasless(to: string, amountUsd: string): Promise<Gasles
   const authorization: Authorization = {
     from,
     to,
-    value: usdcToAtomic(amountUsd),
+    value: atomic.toString(),
     validAfter: "0",
     validBefore: String(now + 3600), // 1-hour window
     nonce: randomNonce(),

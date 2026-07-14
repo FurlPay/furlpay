@@ -3,6 +3,7 @@ import { Linking, RefreshControl, ScrollView, StyleSheet, Text, View } from "rea
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { api, API_BASE, ApiError } from "@/lib/api";
+import { exclusive } from "@/lib/exclusive";
 import { approveCardChallenge, isPasskeySupported, passkeyErrorMessage } from "@/lib/passkey";
 import { useSecureScreen } from "@/lib/secureScreen";
 import { usd } from "@/lib/format";
@@ -46,44 +47,53 @@ export default function Approvals() {
   const challenges = data?.challenges ?? [];
   const siteBase = API_BASE.replace(/\/api$/, "");
 
-  const approve = async (c: Challenge) => {
-    setActionError(null);
-    setBusyId(c.id);
-    try {
-      await approveCardChallenge(c.id);
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      await qc.invalidateQueries({ queryKey: ["challenges"] });
-    } catch (e) {
-      if (e instanceof ApiError) {
-        // 412 = no passkey enrolled for this account yet.
-        setActionError(
-          e.status === 412
-            ? "No passkey on this account yet — enroll your fingerprint in Settings → Security first."
-            : e.message
-        );
-      } else {
-        const msg = passkeyErrorMessage(e);
-        // A user dismissing the fingerprint sheet is a non-event, not an error.
-        if (!/cancelled/i.test(msg)) setActionError(msg);
+  // Approve and decline share one concurrency discipline: React `busyId` state
+  // disables the buttons, and the synchronous `exclusive` guard suppresses the
+  // double-tap that can land before the disable re-renders. State clears in
+  // finally, so a failure leaves the buttons usable for a retry.
+  const approve = (c: Challenge) =>
+    exclusive(`challenge:${c.id}`, async () => {
+      setActionError(null);
+      setBusyId(c.id);
+      try {
+        await approveCardChallenge(c.id);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        await qc.invalidateQueries({ queryKey: ["challenges"] });
+      } catch (e) {
+        if (e instanceof ApiError) {
+          // 412 = no passkey enrolled for this account yet.
+          setActionError(
+            e.status === 412
+              ? "No passkey on this account yet — enroll your fingerprint in Settings → Security first."
+              : e.message
+          );
+        } else {
+          const msg = passkeyErrorMessage(e);
+          // A user dismissing the fingerprint sheet is a non-event, not an error.
+          if (!/cancelled/i.test(msg)) setActionError(msg);
+        }
+      } finally {
+        setBusyId(null);
       }
-    } finally {
-      setBusyId(null);
-    }
-  };
+    });
 
-  const decline = async (c: Challenge) => {
-    setActionError(null);
-    try {
-      await api("/cards/challenges/verify", {
-        method: "POST",
-        body: { challengeId: c.id, decision: "declined" },
-      });
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      await qc.invalidateQueries({ queryKey: ["challenges"] });
-    } catch (e) {
-      setActionError(e instanceof ApiError ? e.message : (e as Error).message);
-    }
-  };
+  const decline = (c: Challenge) =>
+    exclusive(`challenge:${c.id}`, async () => {
+      setActionError(null);
+      setBusyId(c.id);
+      try {
+        await api("/cards/challenges/verify", {
+          method: "POST",
+          body: { challengeId: c.id, decision: "declined" },
+        });
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        await qc.invalidateQueries({ queryKey: ["challenges"] });
+      } catch (e) {
+        setActionError(e instanceof ApiError ? e.message : (e as Error).message);
+      } finally {
+        setBusyId(null);
+      }
+    });
 
   return (
     <Screen>
@@ -128,7 +138,13 @@ export default function Approvals() {
                   disabled={busyId !== null}
                   style={{ flex: 1 }}
                 />
-                <Button title="Decline" variant="danger" onPress={() => void decline(c)} style={{ flex: 1 }} />
+                <Button
+                  title="Decline"
+                  variant="danger"
+                  onPress={() => void decline(c)}
+                  disabled={busyId !== null}
+                  style={{ flex: 1 }}
+                />
               </View>
             </Surface>
           ))

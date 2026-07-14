@@ -13,6 +13,7 @@ import * as Haptics from "expo-haptics";
 import * as LocalAuthentication from "expo-local-authentication";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
+import { resolveConfirmation, type Confirmation } from "@/lib/copilotActions";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, Screen } from "@/components/ui";
 
@@ -20,13 +21,12 @@ import { Button, Screen } from "@/components/ui";
 // never moves money itself — money movements come back as
 // `requiresConfirmation` and are re-submitted to the guarded route only after
 // the human confirms (with biometrics, on mobile).
-interface Confirmation {
-  action: string;
-  summary: string;
-  endpoint: string;
-  method?: string;
-  body?: Record<string, unknown>;
-}
+//
+// SECURITY: the confirmation is never executed as-received. It must resolve
+// against the typed allowlist in lib/copilotActions.ts (exact action id,
+// endpoint, method, body schema), and the confirmation card renders the
+// structured fields that will actually be sent — the server's free-form
+// summary text has no executable authority.
 
 interface CopilotResult {
   intent: string;
@@ -98,17 +98,31 @@ export default function Chat() {
   };
 
   const confirm = async (bubbleId: string, c: Confirmation) => {
+    // Allowlist gate — anything the registry doesn't recognize is refused
+    // before the biometric sheet ever appears.
+    const resolved = resolveConfirmation(c);
+    if (!resolved.ok) {
+      setMessages((cur) =>
+        cur.map((m) => (m.id === bubbleId ? { ...m, confirmation: undefined } : m)).concat({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `I can't run that action: ${resolved.reason}`,
+        })
+      );
+      return;
+    }
     const enrolled =
       (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
     if (enrolled) {
-      const auth = await LocalAuthentication.authenticateAsync({ promptMessage: c.summary });
+      // The prompt shows the VERIFIED action + fields, not the AI's summary.
+      const detailLine = resolved.details.map((d) => `${d.label}: ${d.value}`).join(" · ");
+      const auth = await LocalAuthentication.authenticateAsync({
+        promptMessage: `${resolved.spec.title} — ${detailLine}`.slice(0, 120),
+      });
       if (!auth.success) return;
     }
     try {
-      await api(c.endpoint.replace(/^\/api/, ""), {
-        method: (c.method as "POST") ?? "POST",
-        body: c.body,
-      });
+      await api(resolved.endpoint, { method: resolved.method, body: resolved.body });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setMessages((cur) =>
         cur.map((m) => (m.id === bubbleId ? { ...m, confirmation: undefined } : m)).concat({
@@ -152,26 +166,50 @@ export default function Chat() {
                 {item.content}
               </Text>
               {item.confirmation ? (
-                <View style={styles.confirmCard}>
-                  <Text style={[type.body, { fontWeight: "700" }]}>{item.confirmation.summary}</Text>
-                  <View style={{ flexDirection: "row", gap: spacing.sm }}>
-                    <Button
-                      title="Confirm"
-                      onPress={() => void confirm(item.id, item.confirmation!)}
-                      style={{ flex: 1, paddingVertical: 10 }}
-                    />
-                    <Button
-                      title="Cancel"
-                      variant="secondary"
-                      onPress={() =>
-                        setMessages((cur) =>
-                          cur.map((m) => (m.id === item.id ? { ...m, confirmation: undefined } : m))
-                        )
-                      }
-                      style={{ flex: 1, paddingVertical: 10 }}
-                    />
-                  </View>
-                </View>
+                (() => {
+                  const resolved = resolveConfirmation(item.confirmation);
+                  if (!resolved.ok) {
+                    // Unknown/mismatched action: no Confirm button at all.
+                    return (
+                      <View style={styles.confirmCard}>
+                        <Text style={[type.dim, { color: colors.warning }]}>
+                          This suggested action isn't recognized by the app and was blocked for your
+                          safety.
+                        </Text>
+                      </View>
+                    );
+                  }
+                  return (
+                    <View style={styles.confirmCard}>
+                      <Text style={[type.body, { fontWeight: "700" }]}>{resolved.spec.title}</Text>
+                      {/* The verified fields that will actually be sent — the
+                          AI summary above them carries no authority. */}
+                      {resolved.details.map((d) => (
+                        <View key={d.label} style={styles.detailRow}>
+                          <Text style={type.dim}>{d.label}</Text>
+                          <Text style={[type.body, { fontWeight: "600" }]}>{d.value}</Text>
+                        </View>
+                      ))}
+                      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+                        <Button
+                          title="Confirm"
+                          onPress={() => void confirm(item.id, item.confirmation!)}
+                          style={{ flex: 1, paddingVertical: 10 }}
+                        />
+                        <Button
+                          title="Cancel"
+                          variant="secondary"
+                          onPress={() =>
+                            setMessages((cur) =>
+                              cur.map((m) => (m.id === item.id ? { ...m, confirmation: undefined } : m))
+                            )
+                          }
+                          style={{ flex: 1, paddingVertical: 10 }}
+                        />
+                      </View>
+                    </View>
+                  );
+                })()
               ) : null}
             </View>
           )}
@@ -226,6 +264,7 @@ const styles = StyleSheet.create({
     padding: 10,
     gap: 8,
   },
+  detailRow: { flexDirection: "row", justifyContent: "space-between", gap: spacing.sm },
   suggestions: {
     flexDirection: "row",
     flexWrap: "wrap",
