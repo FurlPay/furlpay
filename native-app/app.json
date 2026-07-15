@@ -2,7 +2,7 @@
   "expo": {
     "name": "FurlPay",
     "slug": "furlpay",
-    "version": "2.1.0",
+    "version": "2.2.0",
     "scheme": "furlpay",
     "orientation": "portrait",
     "backgroundColor": "#000000",
@@ -13,7 +13,7 @@
     ],
     "android": {
       "package": "com.furlpay.app",
-      "versionCode": 3,
+      "versionCode": 4,
       "allowBackup": false,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -34,12 +34,12 @@
             {
               "scheme": "https",
               "host": "furlpay.com",
-              "pathPrefix": "/"
+              "pathPrefix": "/l/"
             },
             {
               "scheme": "https",
               "host": "www.furlpay.com",
-              "pathPrefix": "/"
+              "pathPrefix": "/l/"
             }
           ],
           "category": [
@@ -65,6 +65,9 @@
         {
           "android": {
             "minSdkVersion": 28,
+            "compileSdkVersion": 36,
+            "targetSdkVersion": 36,
+            "buildToolsVersion": "36.0.0",
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
             "extraProguardRules": "-keep class com.reactnativepasskey.** { *; }\n-keep class expo.modules.** { *; }\n-keepclassmembers class * { @com.facebook.proguard.annotations.DoNotStrip *; }\n-keep,includedescriptorclasses class com.facebook.react.turbomodule.** { *; }"
@@ -87,6 +90,7 @@
       [
         "expo-notifications",
         {
+          "icon": "./assets/notification-icon.png",
           "color": "#E7FF52",
           "defaultChannel": "approvals"
         }

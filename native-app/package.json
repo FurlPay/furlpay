@@ -1,9 +1,9 @@
 {
   "name": "@furlpay/mobile",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "private": true,
   "description": "FurlPay native Android app (Expo + React Native). Standalone install — intentionally NOT an npm workspace so React 19 / react-native never hoist into the Next.js web app's tree.",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",
@@ -16,7 +16,7 @@
   "jest": {
     "preset": "jest-expo",
     "testMatch": [
-      "**/__tests__/**/*.test.ts"
+      "**/__tests__/**/*.test.ts?(x)"
     ]
   },
   "dependencies": {
