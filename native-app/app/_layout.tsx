@@ -97,7 +97,11 @@ export default function RootLayout() {
               <Stack.Screen name="banking" options={{ title: "Banking" }} />
               <Stack.Screen name="credit" options={{ title: "Credit line" }} />
               <Stack.Screen name="rewards" options={{ title: "Rewards" }} />
-              <Stack.Screen name="travel" options={{ title: "Travel" }} />
+              <Stack.Screen name="travel/index" options={{ title: "Travel" }} />
+              <Stack.Screen name="travel/hotels" options={{ title: "Hotels" }} />
+              <Stack.Screen name="travel/property/[id]" options={{ title: "Hotel" }} />
+              <Stack.Screen name="travel/checkout" options={{ title: "Checkout" }} />
+              <Stack.Screen name="travel/trip/[id]" options={{ title: "Trip" }} />
               <Stack.Screen name="analytics" options={{ title: "Spending" }} />
               <Stack.Screen name="markets" options={{ title: "Markets" }} />
               <Stack.Screen name="market/[symbol]" options={{ title: "Asset" }} />

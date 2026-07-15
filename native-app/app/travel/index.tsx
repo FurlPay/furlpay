@@ -1,25 +1,25 @@
 import React, { useState } from "react";
 import { Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { usd } from "@/lib/format";
-import { fetchDeals, fetchTrips, openTravelWeb, type Deal, type Trip } from "@/lib/travel";
+import { fetchDeals, fetchTrips, type Deal, type Trip } from "@/lib/travel";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, StatusBadge, Surface } from "@/components/ui";
 
-// Native shell over the web travel funnel: deals and trips render natively,
-// while search and checkout (27 web routes of filters and payment selection)
-// open in an authenticated in-app browser. See lib/travel.ts for why the
-// session is handed over with a one-time code rather than a token in the URL.
+// Fully-native travel home. Deals and trips render natively; tapping a deal or
+// searching a destination opens the native hotel results screen — no browser
+// hand-off. See lib/travel.ts.
 
-function DealCard({ deal }: { deal: Deal }) {
+function DealCard({ deal, onPress }: { deal: Deal; onPress: () => void }) {
   const wasNightly = deal.nightlyUsd / (1 - deal.discountPct / 100);
   return (
     <TouchableOpacity
       style={styles.deal}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={`${deal.name}, ${deal.city}. ${usd(deal.nightlyUsd)} a night, ${deal.discountPct}% off. Opens booking.`}
-      onPress={() => void openTravelWeb(`/travel/hotels?city=${encodeURIComponent(deal.city)}`)}
+      accessibilityLabel={`${deal.name}, ${deal.city}. ${usd(deal.nightlyUsd)} a night, ${deal.discountPct}% off. Shows hotels in ${deal.city}.`}
+      onPress={onPress}
     >
       <Image source={{ uri: deal.photo }} style={styles.dealPhoto} />
       <View style={styles.dealBody}>
@@ -43,13 +43,13 @@ function DealCard({ deal }: { deal: Deal }) {
   );
 }
 
-function TripRow({ trip }: { trip: Trip }) {
+function TripRow({ trip, onPress }: { trip: Trip; onPress: () => void }) {
   return (
     <TouchableOpacity
       activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityLabel={`${trip.name} in ${trip.city}, ${trip.checkIn} to ${trip.checkOut}. Opens itinerary.`}
-      onPress={() => void openTravelWeb(`/travel/booking/${trip.id}`)}
+      onPress={onPress}
     >
       <Surface style={styles.trip}>
         <View style={styles.tripMain}>
@@ -73,6 +73,7 @@ function TripRow({ trip }: { trip: Trip }) {
 }
 
 export default function Travel() {
+  const router = useRouter();
   const [destination, setDestination] = useState("");
 
   const deals = useQuery({ queryKey: ["travel", "deals"], queryFn: fetchDeals, staleTime: 60_000 });
@@ -84,9 +85,12 @@ export default function Travel() {
     void trips.refetch();
   };
 
+  const openCity = (city: string) => router.push({ pathname: "/travel/hotels", params: { city } });
+  const openTrip = (id: string) => router.push({ pathname: "/travel/trip/[id]", params: { id } });
+
   const search = () => {
     const q = destination.trim();
-    void openTravelWeb(q ? `/travel/stays?query=${encodeURIComponent(q)}` : "/travel");
+    if (q) openCity(q);
   };
 
   // Upcoming first — a traveller opens this screen to check the trip they're on
@@ -110,10 +114,8 @@ export default function Travel() {
             returnKeyType="search"
             onSubmitEditing={search}
           />
-          <Button title="Search stays" onPress={search} />
-          <Text style={styles.hint}>
-            Search and checkout open in a secure in-app browser — you stay signed in.
-          </Text>
+          <Button title="Search stays" onPress={search} disabled={!destination.trim()} />
+          <Text style={styles.hint}>Book stays with USDC, SOL or BTC — 2% cashback, paid natively in the app.</Text>
         </Surface>
 
         <SectionHeader title="Your trips" />
@@ -126,22 +128,15 @@ export default function Travel() {
         ) : (
           <View style={styles.list}>
             {upcoming.map((t) => (
-              <TripRow key={t.id} trip={t} />
+              <TripRow key={t.id} trip={t} onPress={() => openTrip(t.id)} />
             ))}
             {past.slice(0, 3).map((t) => (
-              <TripRow key={t.id} trip={t} />
+              <TripRow key={t.id} trip={t} onPress={() => openTrip(t.id)} />
             ))}
           </View>
         )}
 
-        <SectionHeader
-          title="Flash deals"
-          right={
-            <TouchableOpacity onPress={() => void openTravelWeb("/travel/deals")}>
-              <Text style={styles.link}>See all</Text>
-            </TouchableOpacity>
-          }
-        />
+        <SectionHeader title="Flash deals" />
         {deals.isLoading ? (
           <Text style={type.dim}>Loading deals…</Text>
         ) : deals.error ? (
@@ -149,7 +144,7 @@ export default function Travel() {
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.deals}>
             {(deals.data?.deals ?? []).map((d) => (
-              <DealCard key={d.id} deal={d} />
+              <DealCard key={d.id} deal={d} onPress={() => openCity(d.city)} />
             ))}
           </ScrollView>
         )}
@@ -162,7 +157,6 @@ const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   search: { gap: spacing.sm },
   hint: { ...type.dim, fontSize: 12 },
-  link: { color: colors.neon, fontWeight: "600" },
   list: { gap: spacing.sm },
 
   trip: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
