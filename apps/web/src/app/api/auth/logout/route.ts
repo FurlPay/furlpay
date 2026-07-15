@@ -8,7 +8,7 @@ import { audit } from "@/lib/audit";
 export async function POST(req: NextRequest) {
   const claims = await verifySession(tokenFromRequest(req));
   if (claims) {
-    revokeSession(claims.jti);
+    await revokeSession(claims.jti); // durable — dead on every instance, not just this one
     audit("auth.logout", claims.sub);
   }
   const res = NextResponse.json({ success: true });

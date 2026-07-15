@@ -188,11 +188,105 @@ export async function issueAccessToken(userId: string, scopes: Scope[], safe?: s
 }
 
 /** Verify a connector bearer token. Rejects non-MCP session tokens: a browser
- *  cookie must not be usable as a connector credential. */
+ *  cookie must not be usable as a connector credential. Durable: a token
+ *  revoked via /api/oauth/revoke dies on every instance. */
 export async function verifyAccessToken(token: string | undefined): Promise<McpClaims | null> {
-  const claims = (await verifySession(token)) as McpClaims | null;
+  const claims = (await verifySession(token, { durable: true })) as McpClaims | null;
   if (!claims?.sub || claims.mcp !== true) return null;
   return claims;
+}
+
+// --- refresh tokens (rotation + reuse detection) -------------------------------
+//
+// Access tokens live 1h; without refresh tokens Claude forces the user through
+// the whole consent flow every hour. Refresh tokens are opaque handles into kv:
+//
+//   * single-use — each grant ROTATES the token; the old one is dead.
+//   * family-tracked — every rotation keeps the original familyId. Presenting
+//     an already-rotated token is the classic stolen-refresh-token signal
+//     (RFC 6819 §5.2.2.3), so it revokes the WHOLE family: thief and victim
+//     both lose, and the user re-consents.
+//   * bounded — 30-day TTL; an abandoned connector needs a fresh consent.
+
+const REFRESH_TTL = 30 * 24 * 3600;
+const refreshKey = (t: string) => `mcp:oauth:refresh:${t}`;
+const familyRevokedKey = (f: string) => `mcp:oauth:rtfam:${f}:revoked`;
+
+interface RefreshRecord {
+  userId: string;
+  clientId: string;
+  scopes: Scope[];
+  familyId: string;
+}
+
+export async function issueRefreshToken(input: {
+  userId: string;
+  clientId: string;
+  scopes: Scope[];
+  familyId?: string;
+}): Promise<string> {
+  const familyId = input.familyId ?? randomUUID();
+  const token = `rt_${randomUUID().replace(/-/g, "")}${randomUUID().replace(/-/g, "")}`;
+  const record: RefreshRecord = {
+    userId: input.userId,
+    clientId: input.clientId,
+    scopes: input.scopes,
+    familyId,
+  };
+  await kvSet(refreshKey(token), record, REFRESH_TTL);
+  return token;
+}
+
+/** Redeem a refresh token exactly once, returning a rotated replacement. */
+export async function rotateRefreshToken(input: {
+  token: string;
+  clientId: string;
+}): Promise<
+  { ok: true; userId: string; scopes: Scope[]; refreshToken: string } | { ok: false; error: string }
+> {
+  const record = await kvGet<RefreshRecord>(refreshKey(input.token));
+  if (!record) {
+    // Unknown token — but if it carries a used-marker it was ALREADY rotated:
+    // someone is replaying an old refresh token. Kill its whole family.
+    const marker = await kvGet<{ familyId: string }>(`${refreshKey(input.token)}:used`);
+    if (marker) await kvSet(familyRevokedKey(marker.familyId), 1, REFRESH_TTL);
+    return { ok: false, error: "invalid_grant" };
+  }
+  if (record.clientId !== input.clientId) return { ok: false, error: "invalid_grant" };
+  if ((await kvGet(familyRevokedKey(record.familyId))) !== null) {
+    await kvDel(refreshKey(input.token));
+    return { ok: false, error: "invalid_grant" };
+  }
+  // Atomic claim BEFORE rotation — two concurrent redemptions of the same
+  // token mean at least one of them is not the legitimate client.
+  const claimed = await kvSetNx(
+    `${refreshKey(input.token)}:used`,
+    { familyId: record.familyId },
+    REFRESH_TTL
+  );
+  if (!claimed) {
+    await kvSet(familyRevokedKey(record.familyId), 1, REFRESH_TTL);
+    await kvDel(refreshKey(input.token));
+    return { ok: false, error: "invalid_grant" };
+  }
+  await kvDel(refreshKey(input.token));
+  const refreshToken = await issueRefreshToken({
+    userId: record.userId,
+    clientId: record.clientId,
+    scopes: record.scopes,
+    familyId: record.familyId,
+  });
+  return { ok: true, userId: record.userId, scopes: record.scopes, refreshToken };
+}
+
+/** RFC 7009 revocation of a refresh token: kills the token AND its family, so
+ *  a rotated sibling the caller no longer holds dies with it. Returns the
+ *  owning userId when the token was known (for the audit trail). */
+export async function revokeRefreshToken(token: string): Promise<string | null> {
+  const record = await kvGet<RefreshRecord>(refreshKey(token));
+  if (record) await kvSet(familyRevokedKey(record.familyId), 1, REFRESH_TTL);
+  await kvDel(refreshKey(token));
+  return record?.userId ?? null;
 }
 
 export function hasScope(claims: McpClaims, scope: Scope): boolean {

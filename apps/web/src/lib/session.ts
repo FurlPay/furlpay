@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify, type JWTPayload } from "jose";
 import type { NextResponse } from "next/server";
+import { kvGet, kvSet } from "@/lib/kv";
 
 // ---------------------------------------------------------------------------
 // Signed session tokens via `jose` (pure Web Crypto -> works in Edge middleware,
@@ -45,20 +46,35 @@ export interface SessionClaims extends JWTPayload {
 
 // ---------------------------------------------------------------------------
 // Revocation. Logout / account-lock add the token's jti here; verifySession
-// rejects revoked tokens. In-memory per instance (Edge and Node runtimes keep
-// separate sets) — production swaps this for Redis with a TTL equal to the
-// token TTL. The interface is deliberately async-free so the swap is drop-in.
+// rejects revoked tokens. Two layers:
+//   1. In-memory map — free, same-instance, checked on every verify (including
+//      Edge middleware, where a per-request Redis round-trip would tax every
+//      page load).
+//   2. Durable kv (Upstash Redis in prod) — cross-instance. Checked when the
+//      caller asks for it (`{ durable: true }`): requireUser() and the MCP
+//      connector do, so a logged-out token is dead on every route that acts on
+//      the user, whichever lambda it lands on. TTL = token TTL, so the
+//      denylist stays bounded.
 // ---------------------------------------------------------------------------
 const g = globalThis as unknown as { __revokedJtis?: Map<string, number> };
 const revoked = (): Map<string, number> => (g.__revokedJtis ??= new Map());
 
-export function revokeSession(jti: string | undefined): void {
+const revokedKey = (jti: string) => `session:revoked:${jti}`;
+
+export async function revokeSession(jti: string | undefined): Promise<void> {
   if (!jti) return;
   const now = Date.now();
   revoked().set(jti, now + TTL_SECONDS * 1000);
   // Sweep expired revocations so the set stays bounded.
   for (const [id, expiresAt] of revoked()) {
     if (expiresAt < now) revoked().delete(id);
+  }
+  // Durable write LAST and best-effort: a kv outage must not turn logout into
+  // a 500 — the memory layer above already killed the token on this instance.
+  try {
+    await kvSet(revokedKey(jti), 1, TTL_SECONDS);
+  } catch {
+    // Token still expires within TTL_SECONDS; nothing safe to do here.
   }
 }
 
@@ -102,8 +118,18 @@ export async function signSession(claims: SessionClaims): Promise<string> {
     .sign(secretKey());
 }
 
-/** Verify a token's signature + claims. Returns null if invalid/expired/revoked. */
-export async function verifySession(token: string | undefined | null): Promise<SessionClaims | null> {
+/**
+ * Verify a token's signature + claims. Returns null if invalid/expired/revoked.
+ *
+ * `durable: true` additionally checks the cross-instance kv denylist — one kv
+ * GET. Route-level auth (requireUser, the MCP connector) passes it; the Edge
+ * middleware does not, because every data route re-verifies durably anyway and
+ * middleware runs on every page load.
+ */
+export async function verifySession(
+  token: string | undefined | null,
+  opts?: { durable?: boolean }
+): Promise<SessionClaims | null> {
   if (!token) return null;
   try {
     const { payload } = await jwtVerify(token, secretKey(), {
@@ -113,6 +139,15 @@ export async function verifySession(token: string | undefined | null): Promise<S
     });
     const claims = payload as SessionClaims;
     if (isRevoked(claims.jti)) return null;
+    if (opts?.durable && claims.jti) {
+      // Fail-open on kv error: a Redis outage must not sign everyone out.
+      // The token still dies at its 1h expiry.
+      try {
+        if ((await kvGet(revokedKey(claims.jti))) !== null) return null;
+      } catch {
+        /* kv unreachable — signature/expiry checks above still hold */
+      }
+    }
     return claims;
   } catch {
     return null;

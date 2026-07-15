@@ -9,6 +9,7 @@ import { acquireLock, releaseLock } from "@/lib/locks";
 import { sendEmail } from "@/lib/email";
 import { bookingConfirmationEmail } from "@/lib/emailTemplates";
 import { verifySession, tokenFromRequest } from "@/lib/session";
+import { hasScope, type McpClaims } from "@/lib/mcp/oauth";
 import crypto from "crypto";
 
 // POST /api/travel/book — authorize a booking and record it as a trip.
@@ -76,7 +77,13 @@ export async function POST(req: NextRequest) {
   // session. A signed-in buyer owns the trip (it appears in their My Trips); an
   // anonymous one gets a throwaway owner id, so the booking still completes but
   // can never surface in a stranger's itinerary list.
-  const claims = await verifySession(tokenFromRequest(req));
+  //
+  // A connector (MCP) token only gets to ATTRIBUTE the booking to the user if
+  // it was granted travel:write — otherwise it books as anonymous, exactly like
+  // a stranger with no token. This route sits outside requireUser (public
+  // funnel), so the scope check lives here.
+  const raw = (await verifySession(tokenFromRequest(req), { durable: true })) as McpClaims | null;
+  const claims = raw?.mcp === true && !hasScope(raw, "travel:write") ? null : raw;
   const ownerId = claims?.sub ?? `anon:${crypto.randomUUID()}`;
 
   const trip = addTrip({

@@ -16,11 +16,13 @@ export async function GET(req: NextRequest) {
       authorization_endpoint: `${origin}/oauth/authorize`,
       token_endpoint: `${origin}/api/oauth/token`,
       registration_endpoint: `${origin}/api/oauth/register`,
+      revocation_endpoint: `${origin}/api/oauth/revoke`, // RFC 7009
       scopes_supported: SCOPES,
       response_types_supported: ["code"],
-      grant_types_supported: ["authorization_code"],
+      grant_types_supported: ["authorization_code", "refresh_token"],
       code_challenge_methods_supported: ["S256"],
       token_endpoint_auth_methods_supported: ["none"], // public client + PKCE
+      revocation_endpoint_auth_methods_supported: ["none"],
     },
     { headers: { "Cache-Control": "public, max-age=3600" } }
   );

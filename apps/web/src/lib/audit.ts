@@ -33,6 +33,9 @@ export type AuditEvent =
   // the thing that needs an audit trail.
   | "mcp.consent_granted"
   | "mcp.token_issued"
+  | "mcp.token_refreshed"
+  | "mcp.token_revoked"
+  | "mcp.scope_denied"
   | "account.funded"
   | "account.locked"
   | "wallet.link_challenge_issued"

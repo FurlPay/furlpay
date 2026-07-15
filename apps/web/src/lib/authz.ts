@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { tokenFromRequest, verifySession, type Role, type SessionClaims } from "@/lib/session";
 import { getAccountDurable, type UserAccount } from "@/lib/store";
+import type { McpClaims } from "@/lib/mcp/oauth";
+import { mcpDenialFor } from "@/lib/mcp/routeScopes";
+import { audit } from "@/lib/audit";
 
 // ---------------------------------------------------------------------------
 // Route-level authentication + authorization helpers.
@@ -30,9 +33,26 @@ function normalizedEmail(email: string | undefined | null): string {
 
 /** Resolve the acting user from the session cookie. 401 when absent/stale. */
 export async function requireUser(req: NextRequest): Promise<AuthResult> {
-  const claims = await verifySession(tokenFromRequest(req));
+  // durable: also consult the cross-instance revocation denylist — a token
+  // revoked by logout/account-lock on another lambda must die here too.
+  const claims = await verifySession(tokenFromRequest(req), { durable: true });
   if (!claims?.sub) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  // A connector (MCP) access token is scoped, not a full session: it may only
+  // reach the routes its consented scopes map to (default deny — see
+  // lib/mcp/routeScopes.ts). Without this, a read-only connector token used
+  // directly against the API would move money and rewrite MFA settings.
+  if ((claims as McpClaims).mcp === true) {
+    const denial = mcpDenialFor(claims as McpClaims, req.method, req.nextUrl.pathname);
+    if (denial) {
+      audit("mcp.scope_denied", claims.sub, {
+        method: req.method,
+        path: req.nextUrl.pathname,
+        scopes: (claims as McpClaims).scopes ?? [],
+      });
+      return { ok: false, res: denial };
+    }
   }
   // Hydrates from Postgres on first touch per instance, so a session minted
   // on another instance resolves here too.

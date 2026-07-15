@@ -84,6 +84,8 @@ const PUBLIC_API_PREFIXES = [
   "/api/mcp",
   "/api/oauth/register",
   "/api/oauth/token",
+  "/api/oauth/revoke", // RFC 7009 — a client revoking a leaked token has no session
+
   "/api/checkout",
   "/api/actions", // Solana Actions/Blinks — consumed by unauthenticated Blink clients
   "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
