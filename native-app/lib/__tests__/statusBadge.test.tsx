@@ -1,6 +1,6 @@
 import React from "react";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
-import { PreviewBanner, StatusBadge, SummaryRow } from "@/components/ui";
+import { PreviewBanner, Stepper, StatusBadge, SummaryRow } from "@/components/ui";
 import { colors } from "@/lib/theme";
 
 // StatusBadge must colour TRIP statuses, not just payment statuses. Before the
@@ -63,6 +63,45 @@ describe("PreviewBanner — honest disclosure for client-only flows", () => {
     const style = ([] as unknown[]).concat(label!.props.style).find((s) => s && (s as { color?: string }).color);
     expect((style as { color: string }).color).toBe(colors.warning);
     expect((style as { color: string }).color).not.toBe(colors.neon);
+  });
+});
+
+describe("Stepper — bounded integer control (nights/guests)", () => {
+  // The composite Pressable and its host node both carry the props; take the
+  // first match for a given a11y label so "minus" vs "plus" is unambiguous.
+  const btn = (root: ReactTestInstance, prefix: string) =>
+    root.findAll(
+      (n) =>
+        typeof n.props?.onPress === "function" &&
+        String(n.props?.accessibilityLabel ?? "").startsWith(prefix)
+    )[0];
+
+  it("pluralizes the readout via the suffix", async () => {
+    const one = await render(<Stepper value={1} onChange={() => {}} suffix={["night", "nights"]} />);
+    expect(texts(one.root).some((t) => t.props.children === "1 night")).toBe(true);
+    const many = await render(<Stepper value={3} onChange={() => {}} suffix={["night", "nights"]} />);
+    expect(texts(many.root).some((t) => t.props.children === "3 nights")).toBe(true);
+  });
+
+  it("increments and decrements through onChange", async () => {
+    const onChange = jest.fn();
+    const tree = await render(<Stepper value={2} min={1} max={8} onChange={onChange} />);
+    await act(async () => btn(tree.root, "Increase").props.onPress());
+    await act(async () => btn(tree.root, "Decrease").props.onPress());
+    expect(onChange).toHaveBeenNthCalledWith(1, 3);
+    expect(onChange).toHaveBeenNthCalledWith(2, 1);
+  });
+
+  it("never fires onChange past a bound (invoking the handler at min/max is a no-op)", async () => {
+    const atMin = jest.fn();
+    const lo = await render(<Stepper value={1} min={1} max={8} onChange={atMin} />);
+    await act(async () => btn(lo.root, "Decrease").props.onPress());
+    expect(atMin).not.toHaveBeenCalled();
+
+    const atMax = jest.fn();
+    const hi = await render(<Stepper value={8} min={1} max={8} onChange={atMax} />);
+    await act(async () => btn(hi.root, "Increase").props.onPress());
+    expect(atMax).not.toHaveBeenCalled();
   });
 });
 

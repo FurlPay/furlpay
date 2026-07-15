@@ -11,6 +11,7 @@ import {
   quoteStay,
   deriveRooms,
   generateStays,
+  nights as nightsFromDates,
   STAY_INVENTORY_COUNT,
 } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
@@ -109,6 +110,15 @@ export async function POST(req: NextRequest) {
     if (prior) return NextResponse.json(prior, { headers: { "Idempotent-Replay": "true" } });
   }
 
+  // Nights are authoritative from the dates when the client sent them (so the
+  // charged duration always matches the itinerary shown), else the nights field.
+  // Clamped to [1,30] so a far-future checkOut can't inflate the total — the
+  // per-night price path below has no other upper bound.
+  const bookedNights = Math.min(
+    30,
+    Math.max(1, body.checkIn && body.checkOut ? nightsFromDates(body.checkIn, body.checkOut) : body.nights ?? 3)
+  );
+
   // --- price authority -------------------------------------------------------
   let amountUsd: number;
   let quote: ReturnType<typeof quoteStay> | null = null;
@@ -125,8 +135,7 @@ export async function POST(req: NextRequest) {
     if (!room) {
       return NextResponse.json({ error: "invalid_room" }, { status: 400 });
     }
-    const nights = body.nights ?? 3;
-    quote = quoteStay(room.nightlyUsd * nights);
+    quote = quoteStay(room.nightlyUsd * bookedNights);
     amountUsd = quote.totalUsd;
   } else if (body.subtotalUsd !== undefined) {
     // (3a) Subtotal given → server owns taxes/cashback/total.
@@ -196,7 +205,7 @@ export async function POST(req: NextRequest) {
       image: body.image ?? "from-sky-500/40 to-indigo-600/40",
       checkIn: body.checkIn ?? new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10),
       checkOut: body.checkOut ?? new Date(Date.now() + 17 * 86_400_000).toISOString().slice(0, 10),
-      nights: body.nights ?? 3,
+      nights: bookedNights,
       guests: body.guests ?? 2,
       amountUsd,
       source,

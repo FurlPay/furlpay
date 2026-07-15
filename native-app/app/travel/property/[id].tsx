@@ -8,16 +8,22 @@ import { usd } from "@/lib/format";
 import {
   CASHBACK_PCT,
   RATE_LOCK_MINUTES,
+  addDays,
   deriveRooms,
   fetchProperty,
+  formatStayDate,
+  todayIso,
   type HotelsResponse,
   type Room,
   type Stay,
 } from "@/lib/travel";
-import { Button, ErrorNote, Screen } from "@/components/ui";
+import { Button, ErrorNote, Screen, Stepper } from "@/components/ui";
 
 const GOLD = "#F5B851";
-const NIGHTS = 3;
+const MAX_NIGHTS = 21;
+const MAX_GUESTS = 8;
+// How many days out the check-in strip offers.
+const CHECKIN_WINDOW = 60;
 
 function RoomOption({ room, selected, onPress }: { room: Room; selected: boolean; onPress: () => void }) {
   return (
@@ -49,12 +55,49 @@ function RoomOption({ room, selected, onPress }: { room: Room; selected: boolean
   );
 }
 
+/** Horizontal strip of selectable check-in dates (today … +CHECKIN_WINDOW). */
+function DateStrip({ value, onChange }: { value: string; onChange: (iso: string) => void }) {
+  const days = useMemo(() => Array.from({ length: CHECKIN_WINDOW }, (_, i) => addDays(todayIso(), i)), []);
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dateStrip}>
+      {days.map((iso) => {
+        const selected = iso === value;
+        const d = new Date(iso + "T00:00:00Z");
+        return (
+          <TouchableOpacity
+            key={iso}
+            activeOpacity={0.85}
+            onPress={() => onChange(iso)}
+            accessibilityRole="button"
+            accessibilityState={{ selected }}
+            accessibilityLabel={`Check in ${formatStayDate(iso)}`}
+            style={[styles.dateChip, selected && styles.dateChipSelected]}
+          >
+            <Text style={[styles.dateDow, selected && { color: colors.onNeon }]}>
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][d.getUTCDay()]}
+            </Text>
+            <Text style={[styles.dateNum, selected && { color: colors.onNeon }]}>{d.getUTCDate()}</Text>
+            <Text style={[styles.dateMon, selected && { color: colors.onNeon }]}>
+              {["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]}
+            </Text>
+          </TouchableOpacity>
+        );
+      })}
+    </ScrollView>
+  );
+}
+
 export default function Property() {
   const router = useRouter();
   const qc = useQueryClient();
   const { id, city } = useLocalSearchParams<{ id: string; city?: string }>();
   const c = (city ?? "").trim();
   const [roomIdx, setRoomIdx] = useState(0);
+  // Check-in defaults two weeks out (matches the server's default trip window).
+  const [checkIn, setCheckIn] = useState(() => addDays(todayIso(), 14));
+  const [nights, setNights] = useState(3);
+  const [guests, setGuests] = useState(2);
+  const checkOut = addDays(checkIn, nights);
 
   // The hotels list the user just came from already holds the full Stay. Find
   // it in ANY cached hotels query (deal card, typed search, or collection —
@@ -102,7 +145,7 @@ export default function Property() {
   }
 
   const room = rooms[Math.min(roomIdx, rooms.length - 1)];
-  const roomTotal = Math.round(room.nightlyUsd * NIGHTS * 100) / 100;
+  const roomTotal = Math.round(room.nightlyUsd * nights * 100) / 100;
 
   const book = () =>
     router.push({
@@ -113,7 +156,10 @@ export default function Property() {
         // subtotal, for the checkout ESTIMATE only — the server re-derives the
         // authoritative price from propertyId + roomIndex + nights.
         amount: String(roomTotal),
-        nights: String(NIGHTS),
+        nights: String(nights),
+        guests: String(guests),
+        checkIn,
+        checkOut,
         img: p.photo ?? "",
         propertyId: p.id,
         roomIndex: String(roomIdx),
@@ -173,6 +219,22 @@ export default function Property() {
           </Text>
         </View>
 
+        <Text style={styles.sectionTitle}>Your stay</Text>
+        <View style={styles.stayBlock}>
+          <Text style={styles.stayLabel}>Check-in</Text>
+          <DateStrip value={checkIn} onChange={setCheckIn} />
+          <View style={styles.stayControls}>
+            <Stepper label="Nights" value={nights} min={1} max={MAX_NIGHTS} onChange={setNights} suffix={["night", "nights"]} />
+            <Stepper label="Guests" value={guests} min={1} max={MAX_GUESTS} onChange={setGuests} suffix={["guest", "guests"]} />
+          </View>
+          <View style={styles.stayDates}>
+            <Ionicons name="calendar-outline" size={13} color={colors.textDim} />
+            <Text style={type.dim}>
+              {formatStayDate(checkIn)} → {formatStayDate(checkOut)} · {nights} {nights === 1 ? "night" : "nights"}
+            </Text>
+          </View>
+        </View>
+
         <Text style={styles.sectionTitle}>Choose your room</Text>
         <View style={styles.rooms}>
           {rooms.map((r, i) => (
@@ -182,10 +244,10 @@ export default function Property() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.footerTotal}>{usd(roomTotal)}</Text>
-          <Text style={type.dim}>
-            {NIGHTS} nights · {room.name}
+          <Text style={type.dim} numberOfLines={1}>
+            {nights} {nights === 1 ? "night" : "nights"} · {guests} {guests === 1 ? "guest" : "guests"} · {room.name}
           </Text>
         </View>
         <Button title="Book now" onPress={book} style={{ paddingHorizontal: spacing.xl }} />
@@ -217,6 +279,27 @@ const styles = StyleSheet.create({
   noticeText: { color: colors.neon, fontSize: 12, fontWeight: "600", flex: 1 },
 
   sectionTitle: { ...type.h2, fontSize: 17, paddingHorizontal: spacing.md, marginTop: spacing.lg, marginBottom: spacing.sm },
+
+  stayBlock: { paddingHorizontal: spacing.md, gap: spacing.sm },
+  stayLabel: { ...type.dim, fontSize: 12, textTransform: "uppercase", letterSpacing: 0.5 },
+  dateStrip: { gap: spacing.xs, paddingVertical: 2, paddingRight: spacing.md },
+  dateChip: {
+    width: 52,
+    alignItems: "center",
+    paddingVertical: spacing.sm,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: 1,
+    gap: 1,
+  },
+  dateChipSelected: { backgroundColor: colors.neon, borderColor: colors.neon },
+  dateDow: { ...type.dim, fontSize: 10, textTransform: "uppercase" },
+  dateNum: { color: colors.text, fontSize: 17, fontWeight: "800" },
+  dateMon: { ...type.dim, fontSize: 10, textTransform: "uppercase" },
+  stayControls: { gap: spacing.sm, marginTop: spacing.xs },
+  stayDates: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 2 },
+
   rooms: { paddingHorizontal: spacing.md, gap: spacing.sm },
   room: { flexDirection: "row", alignItems: "center", gap: spacing.sm, padding: spacing.md, borderRadius: radius.md, backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1 },
   roomSelected: { borderColor: colors.neon, backgroundColor: colors.neonSoft },

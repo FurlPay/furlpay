@@ -152,6 +152,39 @@ export function quoteStay(subtotalUsd: number): StayQuote {
 export const CASHBACK_PCT = 2;
 export const RATE_LOCK_MINUTES = 15;
 
+// --- stay dates (pure, Hermes-safe — no Intl, which Hermes ships incomplete) --
+const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** yyyy-mm-dd for a Date, in UTC (dates are calendar days, not instants). */
+export function isoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+/** Today (UTC) as yyyy-mm-dd — the earliest selectable check-in. */
+export function todayIso(): string {
+  return isoDate(new Date());
+}
+/** Add whole days to a yyyy-mm-dd date, returning yyyy-mm-dd. */
+export function addDays(iso: string, days: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return isoDate(d);
+}
+/** Whole nights between two yyyy-mm-dd dates (>= 1). Mirrors the server's
+ *  nights() in apps/web/src/lib/travel/data.ts. */
+export function nightsBetween(checkIn: string, checkOut: string): number {
+  const a = Date.parse(checkIn + "T00:00:00Z");
+  const b = Date.parse(checkOut + "T00:00:00Z");
+  if (isNaN(a) || isNaN(b) || b <= a) return 1;
+  return Math.max(1, Math.round((b - a) / 86_400_000));
+}
+/** "Fri, Jul 18" — compact, locale-free so it renders identically everywhere. */
+export function formatStayDate(iso: string): string {
+  const d = new Date(iso + "T00:00:00Z");
+  if (isNaN(d.getTime())) return iso;
+  return `${WEEKDAY[d.getUTCDay()]}, ${MONTH[d.getUTCMonth()]} ${d.getUTCDate()}`;
+}
+
 /**
  * Room options for a stay, derived from its base nightly rate. Mirrors the
  * server's deriveRooms (apps/web/src/lib/travel/data.ts) EXACTLY — same names,
@@ -200,6 +233,10 @@ export interface BookInput {
   image?: string;
   nights: number;
   guests: number;
+  /** yyyy-mm-dd stay dates — the server derives the authoritative night count
+   *  from these (clamped), falling back to `nights` when absent. */
+  checkIn?: string;
+  checkOut?: string;
   method: string;
   reference?: string;
   /** Server re-derives the price from these — the authoritative path. */

@@ -101,6 +101,54 @@ describe("C1 — the server owns the price", () => {
   });
 });
 
+describe("nights are authoritative from the dates, and bounded", () => {
+  it("prices by the nights implied by checkIn/checkOut, not a mismatched nights field", async () => {
+    // dates say 5 nights; the nights field lies (1). The server must charge 5.
+    const expected = quoteStay(room0.nightlyUsd * 5);
+    const { status, json } = await book({
+      propertyId: stay.id,
+      city: CITY,
+      roomIndex: 0,
+      nights: 1,
+      checkIn: "2026-07-18",
+      checkOut: "2026-07-23",
+      source: "travala",
+      idempotencyKey: randomUUID(),
+    });
+    expect(status).toBe(200);
+    expect(json.booking.amountUsd).toBe(expected.totalUsd);
+    expect(json.booking.trip.nights).toBe(5);
+  });
+
+  it("clamps a far-future checkOut so it can't inflate the total past 30 nights", async () => {
+    const capped = quoteStay(room0.nightlyUsd * 30);
+    const { json } = await book({
+      propertyId: stay.id,
+      city: CITY,
+      roomIndex: 0,
+      checkIn: "2026-07-18",
+      checkOut: "2030-07-18", // ~1460 nights
+      source: "travala",
+      idempotencyKey: randomUUID(),
+    });
+    expect(json.booking.amountUsd).toBe(capped.totalUsd);
+    expect(json.booking.trip.nights).toBe(30);
+  });
+
+  it("falls back to the nights field when no dates are supplied", async () => {
+    const expected = quoteStay(room0.nightlyUsd * 4);
+    const { json } = await book({
+      propertyId: stay.id,
+      city: CITY,
+      roomIndex: 0,
+      nights: 4,
+      source: "travala",
+      idempotencyKey: randomUUID(),
+    });
+    expect(json.booking.amountUsd).toBe(expected.totalUsd);
+  });
+});
+
 describe("H1 — idempotency: a booking happens at most once", () => {
   it("a replayed idempotencyKey returns the SAME booking, not a new one", async () => {
     const key = randomUUID();

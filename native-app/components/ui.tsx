@@ -209,6 +209,61 @@ export function Segmented<T extends string>({
   );
 }
 
+/** −/value/+ stepper for a small bounded integer (guests, nights, quantity). */
+export function Stepper({
+  label,
+  value,
+  min = 1,
+  max = 99,
+  onChange,
+  suffix,
+}: {
+  label?: string;
+  value: number;
+  min?: number;
+  max?: number;
+  onChange: (v: number) => void;
+  /** e.g. "guest"/"guests" — pluralized by value for the readout + a11y. */
+  suffix?: [one: string, many: string];
+}) {
+  const readout = suffix ? `${value} ${value === 1 ? suffix[0] : suffix[1]}` : String(value);
+  // Clamp, and never fire a redundant onChange at a bound.
+  const set = (v: number) => {
+    const clamped = Math.max(min, Math.min(max, v));
+    if (clamped !== value) onChange(clamped);
+  };
+  return (
+    <View style={styles.stepperRow}>
+      {label ? <Text style={type.body}>{label}</Text> : null}
+      <View style={styles.stepper}>
+        <Pressable
+          onPress={() => set(value - 1)}
+          disabled={value <= min}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`Decrease ${label ?? "value"}`}
+          style={({ pressed }) => [styles.stepperBtn, (value <= min || pressed) && { opacity: 0.4 }]}
+        >
+          <Ionicons name="remove" size={18} color={colors.text} />
+        </Pressable>
+        <Text style={styles.stepperValue} accessibilityLabel={readout}>
+          {readout}
+        </Text>
+        <Pressable
+          onPress={() => set(value + 1)}
+          disabled={value >= max}
+          hitSlop={6}
+          accessibilityRole="button"
+          accessibilityLabel={`Increase ${label ?? "value"}`}
+          style={({ pressed }) => [styles.stepperBtn, (value >= max || pressed) && { opacity: 0.4 }]}
+        >
+          <Ionicons name="add" size={18} color={colors.text} />
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
 /** Key/value line inside quote & fee summaries. */
 export function SummaryRow({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
   return (
@@ -356,6 +411,24 @@ const styles = StyleSheet.create({
   },
   summaryKey: { flexShrink: 0, maxWidth: "55%" },
   summaryVal: { flex: 1, textAlign: "right" },
+  stepperRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.sm },
+  stepper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.surfaceRaised,
+    borderRadius: radius.pill,
+    padding: 3,
+    gap: 2,
+  },
+  stepperBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.surface,
+  },
+  stepperValue: { minWidth: 76, textAlign: "center", color: colors.text, fontWeight: "700", fontSize: 14 },
   previewBanner: {
     flexDirection: "row",
     alignItems: "center",

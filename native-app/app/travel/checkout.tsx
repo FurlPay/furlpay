@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { usd } from "@/lib/format";
-import { bookStay, quoteStay, TRAVEL_RATES, type BookResult } from "@/lib/travel";
+import { bookStay, formatStayDate, quoteStay, TRAVEL_RATES, type BookResult } from "@/lib/travel";
 import { queryClient } from "@/lib/queries";
 import { Button, ErrorNote, Screen, SummaryRow, Surface } from "@/components/ui";
 
@@ -15,7 +15,6 @@ import { Button, ErrorNote, Screen, SummaryRow, Surface } from "@/components/ui"
 // indistinguishable server-side from one made on the web.
 
 const RATE_LOCK_SECONDS = 15 * 60;
-const GUESTS = 2;
 
 type MethodId = "wallet" | "balance" | "vcard" | "card" | "agent";
 
@@ -72,6 +71,9 @@ export default function Checkout() {
     city?: string;
     amount?: string;
     nights?: string;
+    guests?: string;
+    checkIn?: string;
+    checkOut?: string;
     img?: string;
     propertyId?: string;
     roomIndex?: string;
@@ -79,6 +81,9 @@ export default function Checkout() {
   const name = params.name ?? "Your stay";
   const city = params.city ?? "—";
   const nights = Number(params.nights) || 3;
+  const guests = Number(params.guests) || 2;
+  const checkIn = params.checkIn;
+  const checkOut = params.checkOut;
   const roomRate = Number(params.amount) || 0;
   const img = params.img ?? "";
   const propertyId = params.propertyId;
@@ -125,7 +130,9 @@ export default function Checkout() {
         city,
         image: img || undefined,
         nights,
-        guests: GUESTS,
+        guests,
+        checkIn,
+        checkOut,
         method: m.title,
         // Server-authoritative price inputs — identifiers, not a total.
         propertyId,
@@ -194,10 +201,15 @@ export default function Checkout() {
           <View style={styles.summaryBody}>
             <Text style={styles.name}>{name}</Text>
             <Text style={type.dim}>
-              {city} · {nights} nights · {GUESTS} adults
+              {city} · {nights} {nights === 1 ? "night" : "nights"} · {guests} {guests === 1 ? "guest" : "guests"}
             </Text>
+            {checkIn && checkOut ? (
+              <Text style={type.dim}>
+                {formatStayDate(checkIn)} → {formatStayDate(checkOut)}
+              </Text>
+            ) : null}
             <View style={styles.rows}>
-              <SummaryRow k={`Room rate (${nights} nights)`} v={usd(roomRate)} />
+              <SummaryRow k={`Room rate (${nights} ${nights === 1 ? "night" : "nights"})`} v={usd(roomRate)} />
               <SummaryRow k="Taxes & fees" v={usd(taxes)} />
               <SummaryRow k="FurlPay cashback (2%)" v={`−${usd(cashback)}`} />
               <SummaryRow k="Total" v={usd(total)} bold />
