@@ -230,6 +230,23 @@ export function SummaryRow({ k, v, bold }: { k: string; v: string; bold?: boolea
   );
 }
 
+/**
+ * Honest disclosure for flows that render as a completed action but have no
+ * server settlement behind them yet (e.g. banking Send/Convert/Direct). Without
+ * it a preview success screen reads as a real transfer. Warning-toned so it is
+ * visually distinct from a live confirmation.
+ */
+export function PreviewBanner({ text }: { text?: string }) {
+  return (
+    <View style={styles.previewBanner} accessibilityRole="alert">
+      <Ionicons name="flask-outline" size={14} color={colors.warning} />
+      <Text style={styles.previewText}>
+        {text ?? "Preview — this flow isn't live yet, so no real money will move."}
+      </Text>
+    </View>
+  );
+}
+
 export function ErrorNote({ message }: { message: string | null }) {
   if (!message) return null;
   return (
@@ -339,4 +356,13 @@ const styles = StyleSheet.create({
   },
   summaryKey: { flexShrink: 0, maxWidth: "55%" },
   summaryVal: { flex: 1, textAlign: "right" },
+  previewBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    padding: spacing.sm,
+    backgroundColor: "#2A230A",
+    borderRadius: radius.md,
+  },
+  previewText: { color: colors.warning, fontSize: 12, flex: 1 },
 });

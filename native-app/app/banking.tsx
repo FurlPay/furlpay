@@ -12,6 +12,7 @@ import {
   EmptyState,
   ErrorNote,
   Field,
+  PreviewBanner,
   Screen,
   SectionHeader,
   Sheet,
@@ -130,11 +131,22 @@ function ChipPicker({
   );
 }
 
-function SuccessNote({ text }: { text: string }) {
+function SuccessNote({ text, preview }: { text: string; preview?: boolean }) {
   return (
     <Surface style={{ alignItems: "center", gap: 6 }}>
-      <Ionicons name="checkmark-circle" size={32} color={colors.neon} />
+      {/* A preview flow must NOT wear the green "money moved" checkmark — that
+          would tell the user a transfer happened when nothing did. */}
+      <Ionicons
+        name={preview ? "flask-outline" : "checkmark-circle"}
+        size={32}
+        color={preview ? colors.warning : colors.neon}
+      />
       <Text style={[type.body, { fontWeight: "600", textAlign: "center" }]}>{text}</Text>
+      {preview ? (
+        <Text style={[type.dim, { fontSize: 12, textAlign: "center" }]}>
+          No real money moved — this flow isn&apos;t live yet.
+        </Text>
+      ) : null}
     </Surface>
   );
 }
@@ -161,9 +173,11 @@ function SendSheet({ accounts }: { accounts: FiatAccount[] }) {
         ? "1–2 business days"
         : "same day";
 
-  if (done) return <SuccessNote text={`Sent ${sym(from)}${amt.toLocaleString()} via ${rail}.`} />;
+  if (done)
+    return <SuccessNote preview text={`Previewed sending ${sym(from)}${amt.toLocaleString()} via ${rail}.`} />;
   return (
     <View style={{ gap: spacing.md }}>
+      <PreviewBanner />
       <ChipPicker
         label="From"
         options={accounts.map((a) => a.currency)}
@@ -240,9 +254,13 @@ function ConvertSheet({ accounts }: { accounts: FiatAccount[] }) {
   const out = convert(amt, from, to);
   const rate = convert(1, from, to);
 
-  if (done) return <SuccessNote text={`Converted ${sym(from)}${amt.toLocaleString()} → ${sym(to)}${out.toFixed(2)}.`} />;
+  if (done)
+    return (
+      <SuccessNote preview text={`Previewed converting ${sym(from)}${amt.toLocaleString()} → ${sym(to)}${out.toFixed(2)}.`} />
+    );
   return (
     <View style={{ gap: spacing.md }}>
+      <PreviewBanner />
       <ChipPicker label="From" options={accounts.map((a) => a.currency)} value={from} onChange={setFrom} />
       <ChipPicker label="To" options={["USD", "EUR", "GBP", "INR"]} value={to} onChange={setTo} />
       <Field
@@ -258,7 +276,7 @@ function ConvertSheet({ accounts }: { accounts: FiatAccount[] }) {
         </Text>
       ) : null}
       <Surface style={{ gap: 2 }}>
-        <SummaryRow k="Rate (mid-market)" v={`1 ${from} = ${rate.toFixed(4)} ${to}`} />
+        <SummaryRow k="Indicative rate" v={`1 ${from} = ${rate.toFixed(4)} ${to}`} />
         <SummaryRow k="You get" v={`${sym(to)}${out.toFixed(2)}`} bold />
       </Surface>
       <Button title="Convert" disabled={from === to || amt <= 0 || overBalance} onPress={() => setDone(true)} />
@@ -272,9 +290,10 @@ function DirectSheet({ initialApp }: { initialApp: string }) {
   const [done, setDone] = useState(false);
   const amt = Number(amount) || 0;
 
-  if (done) return <SuccessNote text={`Sent $${amt.toLocaleString()} to ${app}.`} />;
+  if (done) return <SuccessNote preview text={`Previewed sending $${amt.toLocaleString()} to ${app}.`} />;
   return (
     <View style={{ gap: spacing.md }}>
+      <PreviewBanner />
       <Text style={type.dim}>Send from your balance straight into another app or bank.</Text>
       <ChipPicker label="Destination" options={DIRECT} value={app} onChange={setApp} />
       <Field

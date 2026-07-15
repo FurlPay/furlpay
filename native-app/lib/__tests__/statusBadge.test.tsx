@@ -1,6 +1,6 @@
 import React from "react";
 import TestRenderer, { act, type ReactTestInstance, type ReactTestRenderer } from "react-test-renderer";
-import { StatusBadge, SummaryRow } from "@/components/ui";
+import { PreviewBanner, StatusBadge, SummaryRow } from "@/components/ui";
 import { colors } from "@/lib/theme";
 
 // StatusBadge must colour TRIP statuses, not just payment statuses. Before the
@@ -40,6 +40,29 @@ describe("StatusBadge — trip statuses (M1)", () => {
     const label = texts(tree.root).find((t) => t.props.children === "totally-unknown");
     const style = ([] as unknown[]).concat(label!.props.style).find((s) => s && (s as { color?: string }).color);
     expect((style as { color: string }).color).toBe(colors.textDim);
+  });
+});
+
+describe("PreviewBanner — honest disclosure for client-only flows", () => {
+  it("states that no real money will move, as an accessibility alert", async () => {
+    const tree = await render(<PreviewBanner />);
+    const alert = tree.root.findAll((n) => n.props?.accessibilityRole === "alert");
+    expect(alert.length).toBeGreaterThanOrEqual(1);
+    const strings = tree.root
+      .findAll(() => true)
+      .map((n) => n.props?.children)
+      .filter((c): c is string => typeof c === "string");
+    const joined = strings.join(" ");
+    expect(joined).toMatch(/Preview/i);
+    expect(joined).toMatch(/no real money will move/i);
+  });
+
+  it("colours the disclosure with the warning tone, not a success/neon tone", async () => {
+    const tree = await render(<PreviewBanner />);
+    const label = texts(tree.root).find((t) => typeof t.props.children === "string");
+    const style = ([] as unknown[]).concat(label!.props.style).find((s) => s && (s as { color?: string }).color);
+    expect((style as { color: string }).color).toBe(colors.warning);
+    expect((style as { color: string }).color).not.toBe(colors.neon);
   });
 });
 
