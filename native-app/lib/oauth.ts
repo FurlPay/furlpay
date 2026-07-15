@@ -3,6 +3,7 @@ import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import { api, API_BASE } from "./api";
+import { isRealGoogleClientId } from "./googleClientId";
 
 // ---------------------------------------------------------------------------
 // Federated sign-in (Google, Apple) for the native app.
@@ -34,9 +35,14 @@ const GOOGLE_WEB_CLIENT_ID = process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID;
 const APPLE_CLIENT_ID = process.env.EXPO_PUBLIC_APPLE_CLIENT_ID; // Apple Services ID
 const WEB_ORIGIN = API_BASE.replace(/\/api$/, "");
 
-/** A provider with no client id configured can't work — don't show a dead button. */
-export const googleConfigured = Boolean(GOOGLE_ANDROID_CLIENT_ID || GOOGLE_WEB_CLIENT_ID);
-export const appleConfigured = Boolean(APPLE_CLIENT_ID);
+// The native id_token flow runs on-device with the ANDROID client id; that is
+// the one that must be real for the button to work here (platforms: ["android"]).
+// isRealGoogleClientId is the runtime twin of app.config.js's release guard:
+// without it, a build carrying placeholder ids renders a Google button that
+// opens the chooser and dead-ends on "Error 401: invalid_client". See
+// lib/googleClientId.ts.
+export const googleConfigured = isRealGoogleClientId(GOOGLE_ANDROID_CLIENT_ID);
+export const appleConfigured = Boolean(APPLE_CLIENT_ID) && !/placeholder/i.test(APPLE_CLIENT_ID ?? "");
 
 /** Trade a one-time web→native handoff code for a session token. */
 async function exchangeNativeCode(code: string): Promise<string> {
@@ -56,10 +62,21 @@ async function exchangeNativeCode(code: string): Promise<string> {
  * lifecycle. Returns `signIn()` which resolves the session token, or null when
  * the user backs out of the Google sheet (a cancel is not an error).
  */
+// expo-auth-session's Google provider THROWS DURING RENDER if the platform's
+// client id is undefined ("Client Id property `androidClientId` must be defined
+// …"). This hook is called unconditionally at the top of the login screen
+// (hooks can't be conditional), so when Google isn't configured that throw
+// crashes the ENTIRE login screen — not just the (already-hidden) Google button.
+// A release with no client id therefore has a dead login. Pass a harmless
+// placeholder when unconfigured: it keeps the hook from throwing and is never
+// used — signIn() early-throws on !googleConfigured and the button is hidden,
+// so promptAsync (the only thing that would touch it) is unreachable.
+const UNCONFIGURED_CLIENT_ID = "unconfigured.apps.googleusercontent.com";
+
 export function useGoogleSignIn() {
   const [request, , promptAsync] = Google.useIdTokenAuthRequest({
-    androidClientId: GOOGLE_ANDROID_CLIENT_ID,
-    webClientId: GOOGLE_WEB_CLIENT_ID,
+    androidClientId: GOOGLE_ANDROID_CLIENT_ID ?? UNCONFIGURED_CLIENT_ID,
+    webClientId: GOOGLE_WEB_CLIENT_ID ?? UNCONFIGURED_CLIENT_ID,
   });
 
   const signIn = async (): Promise<string | null> => {
