@@ -18,6 +18,9 @@ import { timeAgo, usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { EmptyState, Screen, SectionHeader, Sheet, Surface } from "@/components/ui";
 import { TransactionRow } from "@/components/TransactionRow";
+import { Avatar } from "@/components/Avatar";
+import { AccountDrawer } from "@/components/AccountDrawer";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Add money — native counterpart of the web dashboard's DepositModal:
 // crypto QR, bank transfer details, or card on-ramp.
@@ -150,6 +153,7 @@ function greeting(): string {
 export default function Home() {
   const router = useRouter();
   const [addMoneyOpen, setAddMoneyOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const { data: result, isLoading, refetch, isRefetching, error } = useOverview();
   const overview = result?.data;
   const firstName = overview?.user.name?.split(" ")[0];
@@ -162,22 +166,54 @@ export default function Home() {
           <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.neon} />
         }
       >
-        {/* Avatar + greeting */}
+        {/* Avatar + greeting — tapping the avatar opens the account drawer */}
         <View style={styles.header}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarLetter}>{(firstName?.[0] ?? "F").toUpperCase()}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
+          <Pressable
+            onPress={() => setDrawerOpen(true)}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Open account menu"
+          >
+            <Avatar name={overview?.user.name} size={46} ring />
+          </Pressable>
+          <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={type.dim}>{greeting()}</Text>
-            <Text style={[type.h2, { letterSpacing: -0.3 }]}>{firstName ?? "there"}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text
+                style={[type.h2, { letterSpacing: -0.3, flexShrink: 1 }]}
+                numberOfLines={1}
+                ellipsizeMode="tail"
+              >
+                {firstName ?? "there"}
+              </Text>
+              {overview ? <VerifiedBadge verified={overview.user.kycStatus === "verified"} size={18} /> : null}
+            </View>
           </View>
-          <Pressable onPress={() => router.push("/chat")} hitSlop={8} style={styles.headerIcon}>
+          <Pressable
+            onPress={() => router.push("/chat")}
+            hitSlop={8}
+            style={styles.headerIcon}
+            accessibilityRole="button"
+            accessibilityLabel="Open AI co-pilot"
+          >
             <Ionicons name="sparkles-outline" size={20} color={colors.neon} />
           </Pressable>
-          <Pressable onPress={() => setAddMoneyOpen(true)} hitSlop={8} style={styles.headerIcon}>
+          <Pressable
+            onPress={() => setAddMoneyOpen(true)}
+            hitSlop={8}
+            style={styles.headerIcon}
+            accessibilityRole="button"
+            accessibilityLabel="Add money"
+          >
             <Ionicons name="add" size={22} color={colors.text} />
           </Pressable>
-          <Pressable onPress={() => router.push("/scan")} hitSlop={8} style={styles.headerIcon}>
+          <Pressable
+            onPress={() => router.push("/scan")}
+            hitSlop={8}
+            style={styles.headerIcon}
+            accessibilityRole="button"
+            accessibilityLabel="Scan to pay"
+          >
             <Ionicons name="scan-outline" size={20} color={colors.text} />
           </Pressable>
         </View>
@@ -266,6 +302,7 @@ export default function Home() {
         </Surface>
       </ScrollView>
       <AddMoneySheet open={addMoneyOpen} onClose={() => setAddMoneyOpen(false)} />
+      <AccountDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} />
     </Screen>
   );
 }
@@ -273,23 +310,6 @@ export default function Home() {
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.lg, paddingBottom: spacing.xl },
   header: { flexDirection: "row", alignItems: "center", gap: 12 },
-  avatar: {
-    width: 46,
-    height: 46,
-    borderRadius: radius.pill,
-    backgroundColor: colors.neonSoft,
-    borderColor: colors.neonDeep,
-    borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    // Neon glow (Android renders elevation; iOS the shadow*)
-    elevation: 8,
-    shadowColor: colors.neon,
-    shadowOpacity: 0.6,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 0 },
-  },
-  avatarLetter: { color: colors.neon, fontSize: 20, fontWeight: "800" },
   headerIcon: {
     width: 40,
     height: 40,
