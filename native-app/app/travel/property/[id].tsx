@@ -1,11 +1,19 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { usd } from "@/lib/format";
-import { fetchProperty, type Room } from "@/lib/travel";
+import {
+  CASHBACK_PCT,
+  RATE_LOCK_MINUTES,
+  deriveRooms,
+  fetchProperty,
+  type HotelsResponse,
+  type Room,
+  type Stay,
+} from "@/lib/travel";
 import { Button, ErrorNote, Screen } from "@/components/ui";
 
 const GOLD = "#F5B851";
@@ -43,38 +51,56 @@ function RoomOption({ room, selected, onPress }: { room: Room; selected: boolean
 
 export default function Property() {
   const router = useRouter();
+  const qc = useQueryClient();
   const { id, city } = useLocalSearchParams<{ id: string; city?: string }>();
   const c = (city ?? "").trim();
   const [roomIdx, setRoomIdx] = useState(0);
 
+  // The hotels list the user just came from already holds the full Stay. Find
+  // it in ANY cached hotels query (deal card, typed search, or collection —
+  // regardless of how the city key was cased) and render from it: no extra
+  // round-trip, and — crucially — it works with live Duffel inventory, whose
+  // ids the /property route can't re-resolve (it re-derives demo inventory).
+  const cachedStay = useMemo<Stay | undefined>(() => {
+    const lists = qc.getQueriesData<HotelsResponse>({ queryKey: ["travel", "hotels"] });
+    for (const [, data] of lists) {
+      const all = data?.hotels ?? data?.collections?.flatMap((col) => col.hotels) ?? [];
+      const found = all.find((s) => s.id === id);
+      if (found) return found;
+    }
+    return undefined;
+  }, [qc, id]);
+
+  // Only hit the network on a cold deep-link (e.g. a notification) where no
+  // hotels list is cached. The normal navigation path never fetches here.
   const detail = useQuery({
     queryKey: ["travel", "property", id, c],
     queryFn: () => fetchProperty(String(id), c),
+    enabled: !cachedStay,
     staleTime: 60_000,
   });
 
-  if (detail.isLoading) {
+  const p: Stay | undefined = cachedStay ?? detail.data?.property;
+  const rooms: Room[] | undefined = cachedStay ? deriveRooms(cachedStay) : detail.data?.rooms;
+  const cashbackPct = cachedStay ? CASHBACK_PCT : detail.data?.cashbackPct ?? CASHBACK_PCT;
+  const rateLockMinutes = cachedStay ? RATE_LOCK_MINUTES : detail.data?.rateLockMinutes ?? RATE_LOCK_MINUTES;
+
+  if (!p || !rooms) {
+    const loading = !cachedStay && detail.isLoading;
     return (
       <Screen>
         <Stack.Screen options={{ title: "Hotel" }} />
         <View style={styles.center}>
-          <Text style={type.dim}>Loading property…</Text>
-        </View>
-      </Screen>
-    );
-  }
-  if (detail.error || !detail.data) {
-    return (
-      <Screen>
-        <Stack.Screen options={{ title: "Hotel" }} />
-        <View style={styles.center}>
-          <ErrorNote message={(detail.error as Error)?.message ?? "Property not found."} />
+          {loading ? (
+            <Text style={type.dim}>Loading property…</Text>
+          ) : (
+            <ErrorNote message={(detail.error as Error)?.message ?? "Property not found."} />
+          )}
         </View>
       </Screen>
     );
   }
 
-  const { property: p, rooms, cashbackPct, rateLockMinutes } = detail.data;
   const room = rooms[Math.min(roomIdx, rooms.length - 1)];
   const roomTotal = Math.round(room.nightlyUsd * NIGHTS * 100) / 100;
 

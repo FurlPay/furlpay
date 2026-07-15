@@ -149,6 +149,30 @@ export function quoteStay(subtotalUsd: number): StayQuote {
   return { subtotalUsd: subtotal, taxesUsd, cashbackUsd, totalUsd };
 }
 
+export const CASHBACK_PCT = 2;
+export const RATE_LOCK_MINUTES = 15;
+
+/**
+ * Room options for a stay, derived from its base nightly rate. Mirrors the
+ * server's deriveRooms (apps/web/src/lib/travel/data.ts) EXACTLY — same names,
+ * multipliers and rounding — so the room the user picks here is the same room
+ * (and rate) the server re-derives at book time from propertyId + roomIndex.
+ * A parity test guards both sides. This lets the property screen render from
+ * the stay it already has (the hotels list), with no extra round-trip and no
+ * dependence on the server being able to re-resolve the id.
+ */
+export function deriveRooms(stay: Stay): Room[] {
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  return [
+    { name: "Standard Room", multiplier: 1, cancellable: stay.freeCancellation },
+    { name: "Deluxe King Room", multiplier: 1.25, cancellable: true },
+    { name: `${stay.type === "Resort" ? "Ocean" : "City"} View Suite`, multiplier: 1.7, cancellable: true },
+  ].map((r) => {
+    const nightlyUsd = round2(stay.nightlyUsd * r.multiplier);
+    return { ...r, nightlyUsd, nightlyUsdc: nightlyUsd, nightlySol: round2(nightlyUsd * TRAVEL_RATES.SOL) };
+  });
+}
+
 export function fetchDeals(): Promise<{ deals: Deal[] }> {
   return api<{ deals: Deal[] }>("/travel/deals");
 }

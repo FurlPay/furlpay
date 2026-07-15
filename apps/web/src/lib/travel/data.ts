@@ -85,6 +85,12 @@ export type PayToken = keyof typeof RATES;
 export const CASHBACK_RATE = 0.02;
 export const TAX_RATE = 0.1;
 
+// How many stays a city's deterministic inventory generates. The hotels list,
+// the property lookup, and the booking re-derivation MUST all use this same
+// count: a stay id encodes its index, so if the booking route generated fewer
+// than the list showed, a hotel the user could tap would 404 at book time.
+export const STAY_INVENTORY_COUNT = 16;
+
 /**
  * The authoritative stay price breakdown. THE SERVER decides these numbers at
  * book time from a subtotal it re-derives (never a client-sent total): 10%

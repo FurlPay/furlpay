@@ -11,6 +11,7 @@ import {
   quoteStay,
   deriveRooms,
   generateStays,
+  STAY_INVENTORY_COUNT,
 } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
@@ -113,10 +114,10 @@ export async function POST(req: NextRequest) {
   let quote: ReturnType<typeof quoteStay> | null = null;
 
   if (body.propertyId && body.city && body.roomIndex !== undefined) {
-    // (1) Re-derive the room rate from deterministic inventory. count:16 matches
-    // the property route, and property ids encode their pre-filter index, so the
-    // same id resolves to the same rate here as on the property screen.
-    const stay = generateStays(body.city, { count: 16 }).find((s) => s.id === body.propertyId);
+    // (1) Re-derive the room rate from deterministic inventory. Uses the shared
+    // STAY_INVENTORY_COUNT so the id the hotels list minted always resolves here
+    // (a stay id encodes its index; a smaller count would 404 a bookable hotel).
+    const stay = generateStays(body.city, { count: STAY_INVENTORY_COUNT }).find((s) => s.id === body.propertyId);
     if (!stay) {
       return NextResponse.json({ error: "property_not_found" }, { status: 404 });
     }
