@@ -21,6 +21,77 @@ export async function setToken(token: string | null): Promise<void> {
   else await SecureStore.deleteItemAsync(TOKEN_KEY);
 }
 
+// ---------------------------------------------------------------------------
+// Sliding session refresh. The session JWT lives 1h; without refresh the first
+// API call after expiry 401s and the unauthorized handler force-signs the user
+// out mid-use. Instead: when a request finds the token inside its last
+// REFRESH_MARGIN, it first swaps it at POST /auth/refresh (single-flight, so
+// a burst of parallel calls refreshes once). The server carries the original
+// auth_time forward and refuses after 30 days — at which point the refresh
+// 401s, the original request 401s, and the existing sign-out path takes over.
+// ---------------------------------------------------------------------------
+
+const REFRESH_MARGIN_MS = 10 * 60 * 1000;
+
+/** exp (ms) from a JWT without verifying it — the server re-verifies anyway;
+ *  we only need a clock to schedule the refresh. No atob: Hermes' availability
+ *  varies by RN version and this must never throw. */
+export function tokenExpiryMs(token: string): number | null {
+  const part = token.split(".")[1];
+  if (!part) return null;
+  try {
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/");
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let bits = 0;
+    let acc = 0;
+    let json = "";
+    for (const ch of b64) {
+      const v = alphabet.indexOf(ch);
+      if (v < 0) continue; // padding
+      acc = (acc << 6) | v;
+      bits += 6;
+      if (bits >= 8) {
+        bits -= 8;
+        json += String.fromCharCode((acc >> bits) & 0xff);
+      }
+    }
+    const exp = (JSON.parse(json) as { exp?: number }).exp;
+    return typeof exp === "number" ? exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
+
+let refreshInFlight: Promise<void> | null = null;
+
+async function refreshTokenIfExpiring(): Promise<void> {
+  const token = await getToken();
+  if (!token) return;
+  const exp = tokenExpiryMs(token);
+  if (exp === null || exp - Date.now() > REFRESH_MARGIN_MS) return;
+  refreshInFlight ??= (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        headers: {
+          "X-Furlpay-Client": CLIENT_HEADER,
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = res.ok ? ((await res.json()) as { token?: string }) : null;
+      if (data?.token) await setToken(data.token);
+      // Failure (offline, already expired, 30-day ceiling) is NOT handled here:
+      // the request that triggered us proceeds with the old token and the
+      // normal 401 path decides what happens.
+    } catch {
+      /* offline — proceed with the old token */
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+  await refreshInFlight;
+}
+
 export class ApiError extends Error {
   status: number;
   data: unknown;
@@ -55,6 +126,8 @@ interface RequestOptions {
 }
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  // Swap an about-to-expire token BEFORE using it (no-op with >10min left).
+  if (!opts.anonymous) await refreshTokenIfExpiring();
   const token = opts.anonymous ? null : await getToken();
   // Per-request correlation id — the server echoes it and logs it, so a failure
   // the user reports can be traced to the exact server-side request.

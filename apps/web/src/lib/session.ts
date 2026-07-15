@@ -42,6 +42,22 @@ export interface SessionClaims extends JWTPayload {
   roles?: Role[];
   jti?: string;
   guest?: boolean;
+  /** OIDC auth_time: when the user LAST PROVED their identity (OTP, passkey,
+   *  social). Refresh slides `exp` but carries auth_time unchanged, so a
+   *  session can only be extended for so long before a real re-login. */
+  auth_time?: number;
+}
+
+/** How long a session may keep sliding via /api/auth/refresh before the user
+ *  must re-authenticate for real. Money-moving actions re-prove identity far
+ *  earlier via step-up (lib/stepup.ts) — this ceiling bounds READ access. */
+export const MAX_SESSION_LIFETIME_SECONDS = 30 * 24 * 3600;
+
+/** May this session still be slid forward, or is a real re-login due? */
+export function canRefreshSession(claims: SessionClaims, nowMs = Date.now()): boolean {
+  const authTime = claims.auth_time ?? claims.iat;
+  if (!authTime) return false; // no anchor — refuse rather than extend forever
+  return nowMs / 1000 - authTime <= MAX_SESSION_LIFETIME_SECONDS;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,7 +124,9 @@ export function tokenFromRequest(req: {
 }
 
 export async function signSession(claims: SessionClaims): Promise<string> {
-  return new SignJWT({ roles: ["user"], ...claims })
+  // Every token carries auth_time. A fresh login sets it to now; a refresh
+  // passes the ORIGINAL through, which is what bounds total session lifetime.
+  return new SignJWT({ roles: ["user"], auth_time: Math.floor(Date.now() / 1000), ...claims })
     .setProtectedHeader({ alg: ALG })
     .setIssuedAt()
     .setIssuer("furlpay")

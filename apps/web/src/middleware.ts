@@ -1,5 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { tokenFromRequest, verifySession } from "@/lib/session";
+import {
+  canRefreshSession,
+  SESSION_COOKIE,
+  setSessionCookie,
+  signSession,
+  tokenFromRequest,
+  verifySession,
+  type SessionClaims,
+} from "@/lib/session";
 import { clientIp, limit } from "@/lib/rateLimit";
 import {
   applyApiVersionHeaders,
@@ -127,6 +135,30 @@ const BASELINE_EXEMPT_PREFIXES = ["/api/webhooks"];
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const BASELINE = { limit: 150, windowMs: 60_000 };
 
+// Sliding web session: when the COOKIE session enters its last 15 minutes,
+// re-mint it on the way through (same claims, original auth_time, fresh exp).
+// A user working in the dashboard never hits the 1h cliff; an idle tab still
+// expires. Bearer sessions never slide here — the native app refreshes itself
+// via /api/auth/refresh, and connector (mcp) tokens must use the OAuth
+// refresh grant. canRefreshSession() caps the sliding at 30 days.
+const SLIDE_WINDOW_SECONDS = 15 * 60;
+
+async function maybeSlideSession(req: NextRequest, claims: SessionClaims | null, res: NextResponse) {
+  if (!claims?.exp || !req.cookies.get(SESSION_COOKIE)) return res;
+  if ((claims as { mcp?: boolean }).mcp === true) return res;
+  if (claims.exp - Date.now() / 1000 > SLIDE_WINDOW_SECONDS) return res;
+  if (!canRefreshSession(claims)) return res;
+  const fresh = await signSession({
+    sub: claims.sub,
+    ...(claims.safe ? { safe: claims.safe } : {}),
+    ...(claims.roles ? { roles: claims.roles } : {}),
+    ...(claims.guest ? { guest: true } : {}),
+    auth_time: claims.auth_time ?? claims.iat,
+  });
+  setSessionCookie(res, fresh);
+  return res;
+}
+
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   // Verify the JWT signature (edge-safe via jose), not just cookie presence.
@@ -178,7 +210,7 @@ export async function middleware(req: NextRequest) {
       r.headers.set(CORRELATION_HEADER, cid);
       return version ? applyApiVersionHeaders(r, version) : r;
     };
-    if (isPublicApi || hasSession) return pass();
+    if (isPublicApi || hasSession) return maybeSlideSession(req, claims, await pass());
     // Agent-initiated escrow calls authenticate with RFC 9421 signatures
     // instead of a session cookie. Pass them through to the route, which
     // verifies the signature against registered agent keys and 401s any
@@ -192,7 +224,7 @@ export async function middleware(req: NextRequest) {
   // Page routes
   const isPublicPage =
     PUBLIC_PAGES.has(pathname) || PUBLIC_PAGE_PREFIXES.some((p) => pathname.startsWith(p));
-  if (isPublicPage || hasSession) return NextResponse.next();
+  if (isPublicPage || hasSession) return maybeSlideSession(req, claims, NextResponse.next());
 
   const url = req.nextUrl.clone();
   url.pathname = "/login";
