@@ -73,17 +73,23 @@ export default function Checkout() {
     amount?: string;
     nights?: string;
     img?: string;
-    ref?: string;
+    propertyId?: string;
+    roomIndex?: string;
   }>();
   const name = params.name ?? "Your stay";
   const city = params.city ?? "—";
   const nights = Number(params.nights) || 3;
   const roomRate = Number(params.amount) || 0;
   const img = params.img ?? "";
+  const propertyId = params.propertyId;
+  const roomIndex = params.roomIndex !== undefined ? Number(params.roomIndex) : undefined;
 
-  // Same math as the web checkout (see quoteStay) — the server re-derives
-  // nothing from the client except amountUsd, which it bounds and re-authorizes.
-  const { taxes, cashback, totalUsd: total } = quoteStay(roomRate);
+  // ESTIMATE ONLY. quoteStay here mirrors the server's formula so the user sees
+  // the price before paying, but the amount actually charged is whatever the
+  // server returns (booking.amountUsd / booking.quote) — the server re-derives
+  // it from propertyId + roomIndex, never from a number this screen sends.
+  const est = quoteStay(roomRate);
+  const { taxesUsd: taxes, cashbackUsd: cashback, totalUsd: total } = est;
 
   const [methodId, setMethodId] = useState<MethodId>("wallet");
   const [agree, setAgree] = useState(false);
@@ -94,6 +100,10 @@ export default function Checkout() {
   // Double-submit guard that survives re-renders: the server's distributed
   // lock would catch a race too, but a second tap must not even leave the phone.
   const inFlight = useRef(false);
+  // One idempotency key per checkout attempt (lazy, stable across renders). The
+  // server dedupes on it, so a timeout-retry / double-tap / process-death
+  // re-send books at most once. Regenerated only on a fresh checkout mount.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     const t = setInterval(() => setLock((l) => (l > 0 ? l - 1 : 0)), 1000);
@@ -110,7 +120,6 @@ export default function Checkout() {
     const m = METHODS.find((x) => x.id === methodId)!;
     try {
       const res = await bookStay({
-        amountUsd: total,
         source: m.source,
         name,
         city,
@@ -118,7 +127,13 @@ export default function Checkout() {
         nights,
         guests: GUESTS,
         method: m.title,
-        reference: params.ref || undefined,
+        // Server-authoritative price inputs — identifiers, not a total.
+        propertyId,
+        roomIndex,
+        // Fallback subtotal for a checkout reached without a propertyId; the
+        // server still owns taxes/cashback/total computed from it.
+        subtotalUsd: roomRate || undefined,
+        idempotencyKey,
       });
       setBooking(res.booking);
       // The new trip must be there when the user lands back on the travel home.

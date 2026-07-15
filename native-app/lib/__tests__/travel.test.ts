@@ -1,29 +1,40 @@
 import { CASHBACK_RATE, quoteStay, TRAVEL_RATES } from "../travel";
 
-// The native checkout must authorize the SAME amount the web checkout would
-// for the same room — quoteStay mirrors apps/web/src/app/travel/checkout/
-// page.tsx line for line. These fixtures are computed by that web math.
+// The native checkout ESTIMATE (quoteStay) mirrors the server's quoteStay
+// (apps/web/src/lib/travel/data.ts) field-for-field, so the pre-payment display
+// matches the amount the server actually charges. These fixtures are computed
+// by that server math. The authoritative charge is still the server's response.
 
-describe("quoteStay — web checkout parity", () => {
-  it("10% taxes, 2% cashback off (rate + taxes), rounded to cents at each step", () => {
-    // $540 room (the web checkout's own fallback amount)
-    expect(quoteStay(540)).toEqual({ taxes: 54, cashback: 11.88, totalUsd: 582.12 });
+describe("quoteStay — server parity (StayQuote shape)", () => {
+  it("10% taxes, 2% cashback off (subtotal + taxes), rounded to cents at each step", () => {
+    // $540 subtotal (the web checkout's own fallback amount)
+    expect(quoteStay(540)).toEqual({
+      subtotalUsd: 540,
+      taxesUsd: 54,
+      cashbackUsd: 11.88,
+      totalUsd: 582.12,
+    });
   });
 
-  it("survives an awkward floating-point rate", () => {
-    const { taxes, cashback, totalUsd } = quoteStay(333.33);
-    expect(taxes).toBe(33.33);
-    expect(cashback).toBe(7.33); // round(366.66 * 0.02 * 100)/100
+  it("survives an awkward floating-point subtotal without fractional-cent drift", () => {
+    const { subtotalUsd, taxesUsd, cashbackUsd, totalUsd } = quoteStay(333.33);
+    expect(subtotalUsd).toBe(333.33);
+    expect(taxesUsd).toBe(33.33);
+    expect(cashbackUsd).toBe(7.33); // round(366.66 * 0.02 * 100)/100
     expect(totalUsd).toBe(359.33);
-    // Every figure is a clean cents value — no 359.33000000000004 on an invoice.
-    for (const v of [taxes, cashback, totalUsd]) {
-      expect(Math.round(v * 100) / 100).toBe(v);
+    for (const v of [subtotalUsd, taxesUsd, cashbackUsd, totalUsd]) {
+      expect(Math.round(v * 100) / 100).toBe(v); // clean cents on every invoice line
     }
   });
 
-  it("cashback actually reduces the total by the advertised 2%", () => {
-    const { taxes, cashback } = quoteStay(1000);
-    expect(cashback).toBe(Math.round((1000 + taxes) * CASHBACK_RATE * 100) / 100);
+  it("cashback is 2% of (subtotal + taxes), the same base the confirmation shows", () => {
+    const { taxesUsd, cashbackUsd } = quoteStay(1000);
+    expect(cashbackUsd).toBe(Math.round((1000 + taxesUsd) * CASHBACK_RATE * 100) / 100);
+  });
+
+  it("total = subtotal + taxes − cashback", () => {
+    const q = quoteStay(742.5);
+    expect(q.totalUsd).toBe(Math.round((q.subtotalUsd + q.taxesUsd - q.cashbackUsd) * 100) / 100);
   });
 
   it("display FX table matches the web RATES", () => {

@@ -45,6 +45,9 @@ function Checkout() {
   const [booking, setBooking] = useState<Booking | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // One idempotency key per checkout attempt — the server dedupes a retry
+  // (double-click, timeout re-send) on it so a booking happens at most once.
+  const [idempotencyKey] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     const t = setInterval(() => setLock((l) => (l > 0 ? l - 1 : 0)), 1000);
@@ -59,12 +62,17 @@ function Checkout() {
     const m = METHODS.find((x) => x.id === method)!;
     try {
       const res = await sendJSON<{ booking: Booking }>("/api/travel/book", {
-        amountUsd: total,
+        // Send the SUBTOTAL, not the total: the server computes taxes/cashback/
+        // total itself (quoteStay) and charges that — the client never decides
+        // the amount. Display math above uses the same formula, so the shown
+        // total already matches what the server returns.
+        subtotalUsd: roomRate,
         source: m.source,
         reference: ref,
         name,
         nights,
         method: m.title,
+        idempotencyKey,
       });
       setBooking(res.booking);
     } catch {

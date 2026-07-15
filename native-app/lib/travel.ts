@@ -108,12 +108,23 @@ export interface BookingAuthorization {
   simulated: boolean;
 }
 
+/** The server's authoritative price breakdown (mirrors quoteStay on the server).
+ *  When present, the client DISPLAYS these figures — it never recomputes the
+ *  charge. */
+export interface StayQuote {
+  subtotalUsd: number;
+  taxesUsd: number;
+  cashbackUsd: number;
+  totalUsd: number;
+}
+
 export interface BookResult {
   booking: {
     id: string;
     reference: string;
     status: string;
-    amountUsd: number;
+    amountUsd: number; // server-decided; the amount actually booked
+    quote: StayQuote | null;
     source: "travala" | "legacy";
     authorization: BookingAuthorization;
     trip: Trip;
@@ -125,14 +136,17 @@ export interface BookResult {
 export const TRAVEL_RATES = { USDC: 1, XSGD: 1 / 0.78, SOL: 1 / 175, BTC: 1 / 96000 } as const;
 export const CASHBACK_RATE = 0.02;
 
-/** Checkout price math — MUST stay identical to the web checkout
- *  (apps/web/src/app/travel/checkout/page.tsx), so a native booking and a web
- *  booking of the same room authorize the same amount. */
-export function quoteStay(roomRateUsd: number): { taxes: number; cashback: number; totalUsd: number } {
-  const taxes = Math.round(roomRateUsd * 0.1 * 100) / 100;
-  const cashback = Math.round((roomRateUsd + taxes) * CASHBACK_RATE * 100) / 100;
-  const totalUsd = Math.round((roomRateUsd + taxes - cashback) * 100) / 100;
-  return { taxes, cashback, totalUsd };
+/** Checkout price ESTIMATE. Mirrors the server's quoteStay
+ *  (apps/web/src/lib/travel/data.ts) field-for-field so the pre-payment display
+ *  matches the amount the server will actually charge — but this is only a
+ *  display estimate; booking.amountUsd / booking.quote from the server are
+ *  authoritative. A parity test guards both sides. Shape matches StayQuote. */
+export function quoteStay(subtotalUsd: number): StayQuote {
+  const subtotal = Math.round(subtotalUsd * 100) / 100;
+  const taxesUsd = Math.round(subtotal * 0.1 * 100) / 100;
+  const cashbackUsd = Math.round((subtotal + taxesUsd) * CASHBACK_RATE * 100) / 100;
+  const totalUsd = Math.round((subtotal + taxesUsd - cashbackUsd) * 100) / 100;
+  return { subtotalUsd: subtotal, taxesUsd, cashbackUsd, totalUsd };
 }
 
 export function fetchDeals(): Promise<{ deals: Deal[] }> {
@@ -156,7 +170,6 @@ export function fetchProperty(id: string, city: string): Promise<PropertyDetail>
 }
 
 export interface BookInput {
-  amountUsd: number;
   source: "travala" | "legacy";
   name: string;
   city: string;
@@ -165,9 +178,20 @@ export interface BookInput {
   guests: number;
   method: string;
   reference?: string;
+  /** Server re-derives the price from these — the authoritative path. */
+  propertyId?: string;
+  roomIndex?: number;
+  /** Fallback subtotal when there's no propertyId; the server still owns the
+   *  total (taxes/cashback) computed from it. Never a client-decided total. */
+  subtotalUsd?: number;
+  /** Stable per-attempt id: the server dedupes retries/double-taps/timeouts on
+   *  this so a booking is created at most once. */
+  idempotencyKey: string;
 }
 
-/** Authorize a booking and record it as a trip owned by the signed-in user. */
+/** Authorize a booking and record it as a trip owned by the signed-in user.
+ *  The amount charged is decided and returned by the SERVER (booking.amountUsd
+ *  / booking.quote); this client submits identifiers, not a total. */
 export function bookStay(input: BookInput): Promise<BookResult> {
   return api<BookResult>("/travel/book", { method: "POST", body: input });
 }

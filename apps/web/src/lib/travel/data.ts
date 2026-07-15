@@ -83,6 +83,56 @@ export const RATES = { USDC: 1, XSGD: 1 / 0.78, SOL: 1 / 175, BTC: 1 / 96000, ET
 export type PayToken = keyof typeof RATES;
 
 export const CASHBACK_RATE = 0.02;
+export const TAX_RATE = 0.1;
+
+/**
+ * The authoritative stay price breakdown. THE SERVER decides these numbers at
+ * book time from a subtotal it re-derives (never a client-sent total): 10%
+ * taxes, 2% cashback off (subtotal + taxes), total = subtotal + taxes −
+ * cashback, every step rounded to cents. The native + web checkouts display
+ * an estimate with the same formula, but the amount actually booked is whatever
+ * this returns on the server. Keep the native mirror (native-app/lib/travel.ts
+ * quoteStay) in sync — a parity test guards it on both sides.
+ */
+export function quoteStay(subtotalUsd: number): {
+  subtotalUsd: number;
+  taxesUsd: number;
+  cashbackUsd: number;
+  totalUsd: number;
+} {
+  const subtotal = round2(subtotalUsd);
+  const taxesUsd = round2(subtotal * TAX_RATE);
+  const cashbackUsd = round2((subtotal + taxesUsd) * CASHBACK_RATE);
+  const totalUsd = round2(subtotal + taxesUsd - cashbackUsd);
+  return { subtotalUsd: subtotal, taxesUsd, cashbackUsd, totalUsd };
+}
+
+export interface RoomOption {
+  name: string;
+  multiplier: number;
+  cancellable: boolean;
+  nightlyUsd: number;
+  nightlyUsdc: number;
+  nightlySol: number;
+}
+
+/**
+ * Room options for a stay, derived deterministically from its base nightly
+ * rate. Single source of truth for BOTH the property-detail route and the
+ * booking route, so the price the server re-derives at book time is exactly
+ * the one the property screen showed — no drift between "what you saw" and
+ * "what you're charged".
+ */
+export function deriveRooms(stay: Stay): RoomOption[] {
+  return [
+    { name: "Standard Room", multiplier: 1, cancellable: stay.freeCancellation },
+    { name: "Deluxe King Room", multiplier: 1.25, cancellable: true },
+    { name: `${stay.type === "Resort" ? "Ocean" : "City"} View Suite`, multiplier: 1.7, cancellable: true },
+  ].map((r) => {
+    const nightlyUsd = round2(stay.nightlyUsd * r.multiplier);
+    return { ...r, nightlyUsd, nightlyUsdc: nightlyUsd, nightlySol: toToken(nightlyUsd, "SOL") };
+  });
+}
 
 export const TRAVEL_STATS = [
   { value: "2.2M+", label: "Stays & Flights" },

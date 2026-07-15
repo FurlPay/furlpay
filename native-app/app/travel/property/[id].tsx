@@ -84,10 +84,13 @@ export default function Property() {
       params: {
         name: `${p.name} · ${room.name}`,
         city: p.city,
+        // subtotal, for the checkout ESTIMATE only — the server re-derives the
+        // authoritative price from propertyId + roomIndex + nights.
         amount: String(roomTotal),
         nights: String(NIGHTS),
         img: p.photo ?? "",
-        ref: p.id,
+        propertyId: p.id,
+        roomIndex: String(roomIdx),
       },
     });
 

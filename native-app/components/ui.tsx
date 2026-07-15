@@ -117,9 +117,11 @@ export function EmptyState({ title, subtitle }: { title: string; subtitle?: stri
 export function StatusBadge({ status }: { status: string }) {
   const palette: Record<string, { bg: string; fg: string }> = {
     settled: { bg: colors.neonSoft, fg: colors.neon },
+    confirmed: { bg: colors.neonSoft, fg: colors.neon },
     pending: { bg: "#2A230A", fg: colors.warning },
     escrow: { bg: "#0A1A2A", fg: "#4CC2FF" },
     declined: { bg: "#2A0A0A", fg: colors.accent },
+    cancelled: { bg: "#2A0A0A", fg: colors.accent },
     frozen: { bg: "#0A1A2A", fg: "#4CC2FF" },
     active: { bg: colors.neonSoft, fg: colors.neon },
   };
@@ -211,8 +213,19 @@ export function Segmented<T extends string>({
 export function SummaryRow({ k, v, bold }: { k: string; v: string; bold?: boolean }) {
   return (
     <View style={styles.summaryRow}>
-      <Text style={type.dim}>{k}</Text>
-      <Text style={[type.body, bold && { fontWeight: "700" }]}>{v}</Text>
+      <Text style={[type.dim, styles.summaryKey]} numberOfLines={1}>
+        {k}
+      </Text>
+      {/* Values can be long (a bk_<uuid> id, an x402 proof). Take the remaining
+          width, right-align, and ellipsize in the MIDDLE so both ends of an id
+          stay readable instead of running off-screen. */}
+      <Text
+        style={[type.body, styles.summaryVal, bold && { fontWeight: "700" }]}
+        numberOfLines={1}
+        ellipsizeMode="middle"
+      >
+        {v}
+      </Text>
     </View>
   );
 }
@@ -322,5 +335,8 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 3,
+    gap: spacing.sm,
   },
+  summaryKey: { flexShrink: 0, maxWidth: "55%" },
+  summaryVal: { flex: 1, textAlign: "right" },
 });
