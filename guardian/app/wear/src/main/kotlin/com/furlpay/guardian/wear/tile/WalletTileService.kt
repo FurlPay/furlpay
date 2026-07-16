@@ -14,6 +14,7 @@ import androidx.wear.tiles.TileService
 import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.sync.WalletSnapshot
 import com.furlpay.guardian.wear.ui.compactUsd
+import com.furlpay.guardian.wear.ui.theme.FurlPayColors
 import com.furlpay.guardian.wear.wearServices
 import com.google.common.util.concurrent.ListenableFuture
 import kotlinx.coroutines.CoroutineScope
@@ -102,7 +103,7 @@ class WalletTileService : TileService() {
 
     companion object {
         private const val RESOURCES_VERSION = "1"
-        private const val PRIMARY_COLOR = 0xFFA8C7FA.toInt()
-        private const val CAPTION_COLOR = 0xFFC4C7C5.toInt()
+        private const val PRIMARY_COLOR = FurlPayColors.PRIMARY_ARGB
+        private const val CAPTION_COLOR = FurlPayColors.ON_SURFACE_VARIANT_ARGB
     }
 }

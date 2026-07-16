@@ -5,14 +5,29 @@ import android.content.Intent
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.EaseInOutCubic
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -27,12 +42,15 @@ import com.furlpay.guardian.wear.viewmodel.VoiceViewModel
 
 /**
  * Ask Guardian. Button-triggered system SpeechRecognizer — NO always-listening
- * wake word (battery). Text relays to the phone brain; falls back to the
- * on-watch rule parser when the phone is out of reach.
+ * wake word (battery). Motion per the design bible §3/§9:
+ *   LISTENING  → pulsing ring synced to a breathe cycle
+ *   RESPONDING → spring scale-in card (low stiffness, slight bounce) + tick
+ *   ERROR      → error haptic pattern; tap to retry
  */
 @Composable
 fun VoiceScreen(viewModel: VoiceViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val haptics = rememberHaptics()
 
     val speechLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
@@ -48,6 +66,7 @@ fun VoiceScreen(viewModel: VoiceViewModel = viewModel()) {
     }
 
     fun startListening() {
+        haptics.click()
         viewModel.onListening()
         speechLauncher.launch(
             Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
@@ -60,31 +79,55 @@ fun VoiceScreen(viewModel: VoiceViewModel = viewModel()) {
         )
     }
 
+    // One haptic per state ARRIVAL (keyed on the state itself, not recompositions).
+    LaunchedEffect(state) {
+        when (state) {
+            is VoiceViewModel.UiState.Responding -> haptics.doubleClick() // answer landed
+            is VoiceViewModel.UiState.Error -> haptics.error()
+            else -> {}
+        }
+    }
+
     ScreenScaffold {
         Box(
             modifier = Modifier.fillMaxSize().padding(12.dp),
             contentAlignment = Alignment.Center,
         ) {
             when (val current = state) {
-                is VoiceViewModel.UiState.Idle,
-                is VoiceViewModel.UiState.Listening,
-                -> Button(onClick = ::startListening, modifier = Modifier.fillMaxWidth()) {
+                is VoiceViewModel.UiState.Idle -> Button(
+                    onClick = ::startListening,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
                     Text("🎤 Tap to speak", textAlign = TextAlign.Center)
                 }
 
-                is VoiceViewModel.UiState.Processing -> CircularProgressIndicator()
+                is VoiceViewModel.UiState.Listening -> ListeningRing()
 
-                is VoiceViewModel.UiState.Responding -> Card(
-                    onClick = viewModel::dismissResponse,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
+                is VoiceViewModel.UiState.Processing -> {
+                    CircularProgressIndicator()
                     Text(
-                        text = current.text,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
+                        text = "Thinking…",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 20.dp),
                     )
+                }
+
+                is VoiceViewModel.UiState.Responding -> SpringInCard {
+                    Card(
+                        onClick = viewModel::dismissResponse,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            text = domainIcon(current.kind) + " " + current.text,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
 
                 is VoiceViewModel.UiState.Error -> Card(
@@ -92,7 +135,7 @@ fun VoiceScreen(viewModel: VoiceViewModel = viewModel()) {
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
-                        text = current.message,
+                        text = current.message + "\nTap to try again.",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.Center,
@@ -102,4 +145,75 @@ fun VoiceScreen(viewModel: VoiceViewModel = viewModel()) {
             }
         }
     }
+}
+
+/** Pulsing ring while the recognizer listens — breathe in/out, no strobe. */
+@Composable
+private fun ListeningRing() {
+    val transition = rememberInfiniteTransition(label = "listen-pulse")
+    val scale by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = EaseInOutCubic),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "ring-scale",
+    )
+    val ringAlpha by transition.animateFloat(
+        initialValue = 0.8f,
+        targetValue = 0.3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(600, easing = EaseInOutCubic),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "ring-alpha",
+    )
+
+    Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(96.dp)
+                .scale(scale)
+                .border(
+                    width = 3.dp,
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = ringAlpha),
+                    shape = CircleShape,
+                ),
+        )
+        Text(
+            text = "🎤",
+            style = MaterialTheme.typography.titleLarge,
+        )
+    }
+}
+
+/** Spring scale/fade-in — low stiffness, slight bounce (bible: playful reveal). */
+@Composable
+private fun SpringInCard(content: @Composable () -> Unit) {
+    val revealed by animateFloatAsState(
+        targetValue = 1f,
+        animationSpec = spring(
+            stiffness = Spring.StiffnessLow,
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+        ),
+        label = "card-reveal",
+    )
+    Box(
+        modifier = Modifier
+            .scale(0.85f + 0.15f * revealed)
+            .alpha(revealed),
+    ) {
+        content()
+    }
+}
+
+/** Domain hint → response-card icon (bible §9 visual states). */
+private fun domainIcon(kind: String): String = when (kind) {
+    "wallet" -> "💰"
+    "card" -> "🔒"
+    "event" -> "📅"
+    "travel" -> "✈️"
+    "error" -> "⚠️"
+    else -> "💬"
 }

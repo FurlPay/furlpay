@@ -11,3 +11,14 @@ fun compactUsd(n: Double): String = when {
     n >= 1_000 -> "$" + String.format(Locale.US, "%.1f", n / 1_000) + "k"
     else -> "$" + String.format(Locale.US, "%.0f", n)
 }
+
+/** "+$42.30 ▲" / "−$12.10 ▼" — day-change form (portfolio tile/screen). */
+fun signedUsd(n: Double): String {
+    val arrow = if (n >= 0) "▲" else "▼"
+    val sign = if (n >= 0) "+" else "−"
+    return sign + usd(kotlin.math.abs(n)) + " " + arrow
+}
+
+/** "+1.2%" / "−0.8%" */
+fun signedPct(pct: Double): String =
+    (if (pct >= 0) "+" else "−") + String.format(Locale.US, "%.1f", kotlin.math.abs(pct)) + "%"

@@ -24,7 +24,12 @@ class CardsViewModel(app: Application) : AndroidViewModel(app) {
         /** Card id awaiting the second (confirming) tap. */
         val pendingFreezeId: String? = null,
         val message: String? = null,
+        /** One-shot haptic cue for the screen to play, then clear. */
+        val haptic: HapticCue? = null,
     )
+
+    /** What the last state change should FEEL like (design bible §7). */
+    enum class HapticCue { CLICK, HEAVY, ERROR }
 
     private val services = app.wearServices
     private val manageCard = ManageCardUseCase(services.cardRepo)
@@ -50,12 +55,19 @@ class CardsViewModel(app: Application) : AndroidViewModel(app) {
     fun onCardTapped(card: Card) {
         if (card.frozen) {
             // Unfreeze = spending re-enabled → biometric → phone.
-            _state.value = _state.value.copy(message = "Unfreeze from your phone (biometric).")
+            _state.value = _state.value.copy(
+                message = "Unfreeze from your phone (biometric).",
+                haptic = HapticCue.ERROR,
+            )
             return
         }
         val pending = _state.value.pendingFreezeId
         if (pending != card.id) {
-            _state.value = _state.value.copy(pendingFreezeId = card.id, message = null)
+            _state.value = _state.value.copy(
+                pendingFreezeId = card.id,
+                message = null,
+                haptic = HapticCue.CLICK,
+            )
             return
         }
         // Second tap on the same card = confirmed freeze.
@@ -65,14 +77,25 @@ class CardsViewModel(app: Application) : AndroidViewModel(app) {
                     _state.value = _state.value.copy(
                         pendingFreezeId = null,
                         message = "Card …${result.value.last4} frozen.",
+                        // Financial state change committed → the strong pulse.
+                        haptic = HapticCue.HEAVY,
                         cards = _state.value.cards.map {
                             if (it.id == card.id) result.value else it
                         },
                     )
                 }
                 is GuardianResult.Err ->
-                    _state.value = _state.value.copy(pendingFreezeId = null, message = result.message)
+                    _state.value = _state.value.copy(
+                        pendingFreezeId = null,
+                        message = result.message,
+                        haptic = HapticCue.ERROR,
+                    )
             }
         }
+    }
+
+    /** Screen consumed the one-shot cue. */
+    fun onHapticPlayed() {
+        _state.value = _state.value.copy(haptic = null)
     }
 }

@@ -18,8 +18,9 @@ import com.furlpay.guardian.wear.Routes
 import com.furlpay.guardian.wear.viewmodel.HomeViewModel
 
 /**
- * The 5-second glance: total balance headline, what's next, three actions.
- * One screen, one job — never a shrunken phone dashboard.
+ * The 5-second glance: total balance headline, what's next, five actions.
+ * One screen, one job — never a shrunken phone dashboard. Every press clicks
+ * (haptic vocabulary §7).
  */
 @Composable
 fun HomeScreen(
@@ -28,6 +29,12 @@ fun HomeScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val columnState = rememberTransformingLazyColumnState()
+    val haptics = rememberHaptics()
+
+    fun navigate(route: String) {
+        haptics.click()
+        navController.navigate(route)
+    }
 
     ScreenScaffold(scrollState = columnState) { contentPadding ->
         TransformingLazyColumn(
@@ -83,19 +90,31 @@ fun HomeScreen(
             }
             item {
                 Button(
-                    onClick = { navController.navigate(Routes.WALLET) },
+                    onClick = { navigate(Routes.WALLET) },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Wallet") }
             }
             item {
                 Button(
-                    onClick = { navController.navigate(Routes.CARDS) },
+                    onClick = { navigate(Routes.CARDS) },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Cards") }
             }
             item {
                 Button(
-                    onClick = { navController.navigate(Routes.VOICE) },
+                    onClick = { navigate(Routes.PORTFOLIO) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Portfolio") }
+            }
+            item {
+                Button(
+                    onClick = { navigate(Routes.SPENDING) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Spending") }
+            }
+            item {
+                Button(
+                    onClick = { navigate(Routes.VOICE) },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Ask Guardian") }
             }

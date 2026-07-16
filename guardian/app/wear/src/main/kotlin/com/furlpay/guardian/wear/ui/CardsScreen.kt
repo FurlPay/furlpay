@@ -2,6 +2,7 @@ package com.furlpay.guardian.wear.ui
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
@@ -23,6 +24,19 @@ import com.furlpay.guardian.wear.viewmodel.CardsViewModel
 fun CardsScreen(viewModel: CardsViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val columnState = rememberTransformingLazyColumnState()
+    val haptics = rememberHaptics()
+
+    // Play the one-shot cue the ViewModel attached to the last state change:
+    // CLICK arms the freeze, HEAVY confirms it, ERROR says look at the screen.
+    LaunchedEffect(state.haptic) {
+        when (state.haptic) {
+            CardsViewModel.HapticCue.CLICK -> haptics.click()
+            CardsViewModel.HapticCue.HEAVY -> haptics.heavyClick()
+            CardsViewModel.HapticCue.ERROR -> haptics.error()
+            null -> {}
+        }
+        if (state.haptic != null) viewModel.onHapticPlayed()
+    }
 
     ScreenScaffold(scrollState = columnState) { contentPadding ->
         TransformingLazyColumn(

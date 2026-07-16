@@ -50,11 +50,30 @@ guardian/
 │                    + GeminiLiveAssistant (native audio, phone-only).
 ├── app/mobile/      Phone brain: OTP sign-in, dashboard, SyncCoordinator,
 │                    VoiceRelayService (rules → Gemini fallback), FCM client.
-└── app/wear/        FurlPay Watch: home/wallet/cards/voice screens (Wear
-                     Compose M3 + TransformingLazyColumn), Wallet + NextEvent
-                     tiles (protolayout), Balance complication,
+└── app/wear/        FurlPay Watch: home/wallet/cards/portfolio/spending/voice
+                     screens (Wear Compose M3 + TransformingLazyColumn),
+                     Wallet + NextEvent + Portfolio tiles (protolayout),
+                     Balance/DailySpend/PortfolioChange/NextEvent complications,
                      WearListenerService (token + snapshot inbox).
 ```
+
+### Design system (app/wear/ui — per the UI/UX bible)
+
+- **theme/GuardianTheme.kt** — AMOLED-first palette (#000 background, A8C7FA
+  primary, money-green C3E8C0 / warning FFB77C / error FFB4AB). Compose tokens
+  AND protolayout ARGB ints come from the same `FurlPayColors` object so
+  screens, tiles, and complications can never drift.
+- **Haptics.kt** — the interaction vocabulary: click (any press), heavyClick
+  (financial commit — card frozen), doubleClick (answer/money arrived), tick
+  (passive transition), error (3×100ms "look at the watch"). ViewModels attach
+  a one-shot `HapticCue` to state changes; screens play + clear it. Alarm
+  waveforms (USAGE_ALARM) are separate and live with the alarm service.
+- **Motion** — voice screen: pulsing listen ring (600ms breathe), spring
+  scale-in response card (StiffnessLow + MediumBouncy); list morphing comes
+  free from TransformingLazyColumn. No crossfades/parallax/confetti.
+- All four bible questions have a surface: How much do I have? (Wallet tile),
+  Is my card safe? (Cards), What's next? (NextEvent tile/complication),
+  Am I on budget? (Spending screen + DailySpend complication).
 
 ### Voice pipeline (built)
 

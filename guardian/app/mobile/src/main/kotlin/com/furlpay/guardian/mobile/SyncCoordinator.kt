@@ -1,8 +1,11 @@
 package com.furlpay.guardian.mobile
 
 import com.furlpay.guardian.domain.GuardianResult
+import com.furlpay.guardian.domain.model.SpendingPeriod
 import com.furlpay.guardian.domain.usecase.GetWalletOverviewUseCase
 import com.furlpay.guardian.sync.EventsSnapshot
+import com.furlpay.guardian.sync.PortfolioSnapshot
+import com.furlpay.guardian.sync.SpendingSnapshot
 import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.sync.TripsSnapshot
 import com.furlpay.guardian.sync.WalletSnapshot
@@ -21,6 +24,8 @@ class SyncCoordinator(private val services: MobileServices) {
         pushWallet()
         pushEvents()
         pushTrips()
+        pushPortfolio()
+        pushSpending()
     }
 
     suspend fun pushToken() {
@@ -62,6 +67,38 @@ class SyncCoordinator(private val services: MobileServices) {
                 services.dataLayer.putJson(
                     SyncProtocol.DATA_TRIPS,
                     SyncProtocol.json.encodeToString(TripsSnapshot.serializer(), snapshot),
+                )
+            }
+        }
+    }
+
+    suspend fun pushPortfolio() {
+        val portfolio = services.portfolioRepo.overview()
+        if (portfolio is GuardianResult.Ok) {
+            val snapshot = PortfolioSnapshot.from(portfolio.value, Clock.System.now())
+            runCatching {
+                services.dataLayer.putJson(
+                    SyncProtocol.DATA_PORTFOLIO,
+                    SyncProtocol.json.encodeToString(PortfolioSnapshot.serializer(), snapshot),
+                )
+            }
+        }
+    }
+
+    suspend fun pushSpending() {
+        val today = services.transactionRepo.spendingSummary(SpendingPeriod.TODAY)
+        val week = services.transactionRepo.spendingSummary(SpendingPeriod.THIS_WEEK)
+        if (today is GuardianResult.Ok) {
+            val snapshot = SpendingSnapshot(
+                todayUsd = today.value.totalUsd,
+                todayCount = today.value.transactionCount,
+                weekUsd = (week as? GuardianResult.Ok)?.value?.totalUsd ?: 0.0,
+                updatedAtMs = System.currentTimeMillis(),
+            )
+            runCatching {
+                services.dataLayer.putJson(
+                    SyncProtocol.DATA_SPENDING,
+                    SyncProtocol.json.encodeToString(SpendingSnapshot.serializer(), snapshot),
                 )
             }
         }

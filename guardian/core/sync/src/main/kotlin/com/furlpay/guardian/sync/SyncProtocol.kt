@@ -29,6 +29,8 @@ object SyncProtocol {
     const val DATA_WALLET = "/guardian/wallet"
     const val DATA_EVENTS = "/guardian/events"
     const val DATA_TRIPS = "/guardian/trips"
+    const val DATA_PORTFOLIO = "/guardian/portfolio"
+    const val DATA_SPENDING = "/guardian/spending"
 
     /**
      * Session JWT hand-off phone → watch, so the watch can call furlpay.com
@@ -148,6 +150,37 @@ data class TripsSnapshot(
         )
     }
 }
+
+@Serializable
+data class PortfolioSnapshot(
+    val totalUsd: Double,
+    val dayChangeUsd: Double,
+    val dayChangePct: Double,
+    val topMoverSymbol: String? = null,
+    val topMoverPct: Double? = null,
+    val updatedAtMs: Long,
+) {
+    companion object {
+        fun from(portfolio: com.furlpay.guardian.domain.model.Portfolio, now: Instant) =
+            PortfolioSnapshot(
+                totalUsd = portfolio.totalUsd,
+                dayChangeUsd = portfolio.dayChangeUsd,
+                dayChangePct = portfolio.dayChangePct,
+                topMoverSymbol = portfolio.topMover?.symbol,
+                topMoverPct = portfolio.topMover?.dayChangePct,
+                updatedAtMs = now.toEpochMilliseconds(),
+            )
+    }
+}
+
+/** Today/week spend, phone-computed from the ledger (DailySpend complication). */
+@Serializable
+data class SpendingSnapshot(
+    val todayUsd: Double,
+    val todayCount: Int,
+    val weekUsd: Double,
+    val updatedAtMs: Long,
+)
 
 /** Phone's answer to a watch voice command. */
 @Serializable

@@ -2,5 +2,9 @@
     <string name="app_name">FurlPay</string>
     <string name="tile_wallet_label">FurlPay Wallet</string>
     <string name="tile_next_event_label">Next Event</string>
+    <string name="tile_portfolio_label">FurlPay Portfolio</string>
     <string name="complication_balance_label">FurlPay Balance</string>
+    <string name="complication_daily_spend_label">Daily Spend</string>
+    <string name="complication_portfolio_label">Portfolio Change</string>
+    <string name="complication_next_event_label">Next Event</string>
 </resources>

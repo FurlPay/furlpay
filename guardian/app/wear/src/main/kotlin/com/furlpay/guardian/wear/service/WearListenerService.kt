@@ -5,6 +5,9 @@ import androidx.wear.tiles.TileService
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
 import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.wear.complication.BalanceComplicationService
+import com.furlpay.guardian.wear.complication.DailySpendComplicationService
+import com.furlpay.guardian.wear.complication.PortfolioChangeComplicationService
+import com.furlpay.guardian.wear.tile.PortfolioTileService
 import com.furlpay.guardian.wear.tile.WalletTileService
 import com.furlpay.guardian.wear.wearServices
 import com.google.android.gms.wearable.DataEvent
@@ -40,12 +43,19 @@ class WearListenerService : WearableListenerService() {
                         services.snapshots.write(path, json)
                         TileService.getUpdater(applicationContext)
                             .requestUpdate(WalletTileService::class.java)
-                        ComplicationDataSourceUpdateRequester
-                            .create(
-                                applicationContext,
-                                ComponentName(applicationContext, BalanceComplicationService::class.java),
-                            )
-                            .requestUpdateAll()
+                        requestComplicationUpdate(BalanceComplicationService::class.java)
+                    }
+
+                    SyncProtocol.DATA_PORTFOLIO -> {
+                        services.snapshots.write(path, json)
+                        TileService.getUpdater(applicationContext)
+                            .requestUpdate(PortfolioTileService::class.java)
+                        requestComplicationUpdate(PortfolioChangeComplicationService::class.java)
+                    }
+
+                    SyncProtocol.DATA_SPENDING -> {
+                        services.snapshots.write(path, json)
+                        requestComplicationUpdate(DailySpendComplicationService::class.java)
                     }
 
                     SyncProtocol.DATA_EVENTS, SyncProtocol.DATA_TRIPS -> {
@@ -55,5 +65,11 @@ class WearListenerService : WearableListenerService() {
                 }
             }
         }
+    }
+
+    private fun requestComplicationUpdate(service: Class<*>) {
+        ComplicationDataSourceUpdateRequester
+            .create(applicationContext, ComponentName(applicationContext, service))
+            .requestUpdateAll()
     }
 }
