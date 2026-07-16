@@ -46,9 +46,10 @@ class GeminiTextAssistant(
             var lastToolKind = "generic"
 
             // Tool loop — bounded so a misbehaving model can't spin forever.
-            repeat(MAX_TOOL_ROUNDS) {
+            var rounds = 0
+            while (rounds < MAX_TOOL_ROUNDS) {
                 val calls = response.functionCalls
-                if (calls.isEmpty()) return@repeat
+                if (calls.isEmpty()) break
                 val responseParts = calls.map { call ->
                     val tool = GuardianTools.byName(call.name)
                     val reply = if (tool == null) {
@@ -76,6 +77,7 @@ class GeminiTextAssistant(
                 response = chat.sendMessage(
                     content(role = "function") { responseParts.forEach { part(it) } },
                 )
+                rounds++
             }
 
             ToolReply(

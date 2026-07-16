@@ -13,9 +13,11 @@ import com.furlpay.guardian.network.repo.FurlPayPortfolioRepository
 import com.furlpay.guardian.network.repo.FurlPayTransactionRepository
 import com.furlpay.guardian.network.repo.FurlPayTravelRepository
 import com.furlpay.guardian.network.repo.FurlPayWalletRepository
+import com.furlpay.guardian.mobile.alarm.GuardianAlarmScheduler
 import com.furlpay.guardian.security.AuthManager
 import com.furlpay.guardian.security.KeystoreTokenStore
 import com.furlpay.guardian.sync.DataLayerManager
+import com.furlpay.guardian.sync.MessageRouter
 import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,6 +46,8 @@ class MobileServices(context: Context) {
     val snapshots = SnapshotStore(db.snapshots())
 
     val dataLayer = DataLayerManager(context)
+    val messages = MessageRouter(context)
+    val alarmScheduler = GuardianAlarmScheduler(context)
     val sync = SyncCoordinator(this)
 
     /**

@@ -1,9 +1,13 @@
 package com.furlpay.guardian.mobile.service
 
+import android.content.Intent
 import com.furlpay.guardian.domain.GuardianResult
 import com.furlpay.guardian.domain.ai.ToolReply
 import com.furlpay.guardian.domain.ai.VoiceCommandParser
+import com.furlpay.guardian.mobile.alarm.AlarmReceiver
+import com.furlpay.guardian.mobile.alarm.AlarmService
 import com.furlpay.guardian.mobile.mobileServices
+import com.furlpay.guardian.sync.AlarmAck
 import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.sync.VoiceCommand
 import com.furlpay.guardian.sync.VoiceResponse
@@ -55,6 +59,21 @@ class VoiceRelayService : WearableListenerService() {
 
             SyncProtocol.MSG_REFRESH_REQUEST -> runBlocking {
                 services.sync.pushAll()
+            }
+
+            // Watch acknowledged the alarm — silence the phone's rung too.
+            SyncProtocol.MSG_ALARM_ACK -> {
+                val ack = runCatching {
+                    SyncProtocol.json.decodeFromString(
+                        AlarmAck.serializer(),
+                        messageEvent.data.decodeToString(),
+                    )
+                }.getOrNull() ?: return
+                startService(
+                    Intent(this, AlarmService::class.java)
+                        .setAction(AlarmService.ACTION_ACK)
+                        .putExtra(AlarmReceiver.EXTRA_EVENT_ID, ack.eventId),
+                )
             }
         }
     }

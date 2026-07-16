@@ -24,6 +24,11 @@ object SyncProtocol {
     const val MSG_VOICE_COMMAND = "/guardian/voice-command"
     const val MSG_REFRESH_REQUEST = "/guardian/refresh-request"
 
+    // Alarm ladder (bidirectional): phone → watch trigger, either → other ack.
+    // Acknowledge anywhere silences everywhere.
+    const val MSG_ALARM = "/guardian/alarm"
+    const val MSG_ALARM_ACK = "/guardian/alarm-ack"
+
     // DataClient (latest-value sync, phone → watch)
     const val DATA_VOICE_RESPONSE = "/guardian/voice-response"
     const val DATA_WALLET = "/guardian/wallet"
@@ -31,6 +36,7 @@ object SyncProtocol {
     const val DATA_TRIPS = "/guardian/trips"
     const val DATA_PORTFOLIO = "/guardian/portfolio"
     const val DATA_SPENDING = "/guardian/spending"
+    const val DATA_MARKET = "/guardian/market"
 
     /**
      * Session JWT hand-off phone → watch, so the watch can call furlpay.com
@@ -181,6 +187,31 @@ data class SpendingSnapshot(
     val weekUsd: Double,
     val updatedAtMs: Long,
 )
+
+/** Market watch quotes (BTC/ETH/SOL headline) for the Market tile. */
+@Serializable
+data class MarketSnapshot(
+    val items: List<MarketItem>,
+    val updatedAtMs: Long,
+) {
+    @Serializable
+    data class MarketItem(val symbol: String, val price: Double, val changePct: Double)
+}
+
+/** One rung of the alarm ladder crossing the Data Layer (MSG_ALARM). */
+@Serializable
+data class AlarmSignal(
+    val eventId: String,
+    val title: String,
+    /** AlarmIntensity name: GENTLE / FIRM / URGENT / MAX. */
+    val intensity: String,
+    val bypassDnd: Boolean,
+    val atMs: Long,
+)
+
+/** Acknowledgement (MSG_ALARM_ACK) — silences the event on the other device. */
+@Serializable
+data class AlarmAck(val eventId: String, val atMs: Long)
 
 /** Phone's answer to a watch voice command. */
 @Serializable

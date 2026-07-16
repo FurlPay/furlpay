@@ -4,6 +4,7 @@ import com.furlpay.guardian.domain.GuardianResult
 import com.furlpay.guardian.domain.model.SpendingPeriod
 import com.furlpay.guardian.domain.usecase.GetWalletOverviewUseCase
 import com.furlpay.guardian.sync.EventsSnapshot
+import com.furlpay.guardian.sync.MarketSnapshot
 import com.furlpay.guardian.sync.PortfolioSnapshot
 import com.furlpay.guardian.sync.SpendingSnapshot
 import com.furlpay.guardian.sync.SyncProtocol
@@ -26,6 +27,7 @@ class SyncCoordinator(private val services: MobileServices) {
         pushTrips()
         pushPortfolio()
         pushSpending()
+        pushMarket()
     }
 
     suspend fun pushToken() {
@@ -49,6 +51,9 @@ class SyncCoordinator(private val services: MobileServices) {
     suspend fun pushEvents() {
         val events = services.eventRepo.activeEvents()
         if (events is GuardianResult.Ok) {
+            // Arm the escalation ladders alongside the sync — the alarm is a
+            // property of the event feed, not a separate subsystem to forget.
+            runCatching { services.alarmScheduler.armForEvents(events.value) }
             val snapshot = EventsSnapshot.from(events.value, Clock.System.now())
             runCatching {
                 services.dataLayer.putJson(
@@ -82,6 +87,23 @@ class SyncCoordinator(private val services: MobileServices) {
                     SyncProtocol.json.encodeToString(PortfolioSnapshot.serializer(), snapshot),
                 )
             }
+        }
+    }
+
+    suspend fun pushMarket() {
+        runCatching {
+            val response = services.client.api.markets(kind = "crypto", limit = 3)
+            if (response.items.isEmpty()) return
+            val snapshot = MarketSnapshot(
+                items = response.items.map {
+                    MarketSnapshot.MarketItem(it.symbol, it.price, it.changePct)
+                },
+                updatedAtMs = System.currentTimeMillis(),
+            )
+            services.dataLayer.putJson(
+                SyncProtocol.DATA_MARKET,
+                SyncProtocol.json.encodeToString(MarketSnapshot.serializer(), snapshot),
+            )
         }
     }
 

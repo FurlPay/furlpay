@@ -44,6 +44,10 @@ biometric = "1.2.0-alpha05"
 # Watch face complications (data-source-ktx — SuspendingComplicationDataSourceService)
 watchface = "1.2.1"
 concurrent-futures = "1.2.0"
+# Ambient mode (AmbientLifecycleObserver)
+androidx-wear = "1.3.0"
+# QR encoding (QuickPay receive screen)
+zxing = "3.5.3"
 
 # Test
 junit = "4.13.2"
@@ -108,6 +112,8 @@ wear-tiles = { module = "androidx.wear.tiles:tiles", version.ref = "wear-tiles" 
 wear-protolayout = { module = "androidx.wear.protolayout:protolayout", version.ref = "wear-protolayout" }
 wear-protolayout-material = { module = "androidx.wear.protolayout:protolayout-material", version.ref = "wear-protolayout" }
 watchface-complications-data-source-ktx = { module = "androidx.wear.watchface:watchface-complications-data-source-ktx", version.ref = "watchface" }
+androidx-wear = { module = "androidx.wear:wear", version.ref = "androidx-wear" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
 concurrent-futures-ktx = { module = "androidx.concurrent:concurrent-futures-ktx", version.ref = "concurrent-futures" }
 kotlinx-coroutines-guava = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-guava", version.ref = "coroutines" }
 kotlinx-coroutines-play-services = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-play-services", version.ref = "coroutines" }

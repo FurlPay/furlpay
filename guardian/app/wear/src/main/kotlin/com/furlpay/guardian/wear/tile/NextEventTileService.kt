@@ -1,9 +1,7 @@
 package com.furlpay.guardian.wear.tile
 
-import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ColorBuilders.argb
 import androidx.wear.protolayout.LayoutElementBuilders
-import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.protolayout.ResourceBuilders
 import androidx.wear.protolayout.TimelineBuilders
 import androidx.wear.protolayout.material.Text
@@ -12,6 +10,7 @@ import androidx.wear.tiles.RequestBuilders
 import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import com.furlpay.guardian.domain.GuardianResult
+import com.furlpay.guardian.wear.Routes
 import com.furlpay.guardian.wear.ui.theme.FurlPayColors
 import com.furlpay.guardian.wear.wearServices
 import com.google.common.util.concurrent.ListenableFuture
@@ -64,25 +63,7 @@ class NextEventTileService : TileService() {
 
     private fun layout(title: String, countdown: String): LayoutElementBuilders.LayoutElement =
         LayoutElementBuilders.Column.Builder()
-            .setModifiers(
-                ModifiersBuilders.Modifiers.Builder()
-                    .setClickable(
-                        ModifiersBuilders.Clickable.Builder()
-                            .setId("open-events")
-                            .setOnClick(
-                                ActionBuilders.LaunchAction.Builder()
-                                    .setAndroidActivity(
-                                        ActionBuilders.AndroidActivity.Builder()
-                                            .setPackageName(packageName)
-                                            .setClassName("com.furlpay.guardian.wear.WearMainActivity")
-                                            .build(),
-                                    )
-                                    .build(),
-                            )
-                            .build(),
-                    )
-                    .build(),
-            )
+            .setModifiers(openRouteModifier(packageName, "open-events", Routes.HOME))
             .addContent(
                 Text.Builder(this, title)
                     .setTypography(Typography.TYPOGRAPHY_TITLE3)

@@ -74,6 +74,33 @@ guardian/
 - All four bible questions have a surface: How much do I have? (Wallet tile),
   Is my card safe? (Cards), What's next? (NextEvent tile/complication),
   Am I on budget? (Spending screen + DailySpend complication).
+- **Tiles deep-link** to the screen they summarize via an EXTRA_ROUTE intent
+  extra (TileSupport.kt) — a tile tap never lands on a menu. Full tile set:
+  Wallet, NextEvent, Portfolio, Market, Travel, QuickPay.
+- **Ambient mode** — AmbientLifecycleObserver dims the surface to 55% instead
+  of blanking; glanceable content is exactly what ambient is for.
+- **QuickPay** — receive-address QR (zxing core, nearest-neighbor rendering,
+  white quiet zone: the one deliberate exception to pure-black). Address is
+  cached so the QR renders in airplane mode.
+
+### Alarm ladder runtime (built)
+
+```
+ScheduleRemindersUseCase (tested policy: which rungs, when, how loud)
+  → GuardianAlarmScheduler (AlarmManager setExactAndAllowWhileIdle,
+    USE_EXACT_ALARM; armed per-event for cancellation; late-MAX fires once)
+  → AlarmReceiver → AlarmService (foreground systemExempted):
+      AlarmEffects waveform (USAGE_ALARM → punches DND when bypassDnd),
+      full-screen AlarmActivity over the lock screen, notification action
+  → MSG_ALARM mirrors the rung to the watch → WatchAlarmService
+      (shortService, same AlarmEffects waveform — identical feel)
+  ACK anywhere (phone notification/activity or watch action) → MSG_ALARM_ACK
+  → both devices silence + remaining rungs cancelled + event acknowledged.
+```
+
+AlarmEffects lives in :core:sync so both devices share ONE intensity→waveform
+mapping. Arming happens inside SyncCoordinator.pushEvents — the alarm is a
+property of the event feed, not a subsystem to forget to call.
 
 ### Voice pipeline (built)
 
@@ -162,8 +189,9 @@ the google-services plugin) when the Firebase project exists.
 ## Remaining (next phases)
 
 - Firebase project + `google-services.json` → activates Gemini + FCM paths.
-- Alarm ladder runtime: AlarmManager + full-screen intent + USAGE_ALARM
-  haptics on both devices (ScheduleRemindersUseCase already decides staging).
-- Gmail/Calendar/GitHub ingestion → EventRepository (Life Guardian feed).
-- Phone-side Live-API voice screen; watch Portfolio/Travel tiles; briefing
-  worker; Hilt if the graph ever justifies it.
+- Gmail/Calendar/GitHub ingestion → EventRepository (Life Guardian feed —
+  the alarm runtime is waiting for real events to arm).
+- Phone-side Live-API voice screen; morning-briefing worker; periodic
+  WorkManager sync (today sync is sign-in/manual/watch-requested).
+- Shared-element list→detail transitions (needs wear-compose 1.6, still
+  alpha — deliberately deferred); Hilt if the graph ever justifies it.

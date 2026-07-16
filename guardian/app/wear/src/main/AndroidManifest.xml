@@ -5,6 +5,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
     <application
         android:name=".GuardianWearApp"
@@ -27,18 +29,26 @@
             </intent-filter>
         </activity>
 
-        <!-- Data Layer inbox: auth token, wallet/events/trips snapshots. -->
+        <!-- Data Layer inbox: auth token, snapshots, and alarm signals. -->
         <service
             android:name=".service.WearListenerService"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
                 <data
                     android:host="*"
                     android:pathPrefix="/guardian"
                     android:scheme="wear" />
             </intent-filter>
         </service>
+
+        <!-- Alarm ladder (wrist half) — shortService: a 3-minute buzz has
+             done its job; the phone keeps escalating regardless. -->
+        <service
+            android:name=".service.WatchAlarmService"
+            android:exported="false"
+            android:foregroundServiceType="shortService" />
 
         <!-- Tiles -->
         <service
@@ -71,6 +81,45 @@
             android:name=".tile.PortfolioTileService"
             android:exported="true"
             android:label="@string/tile_portfolio_label"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <service
+            android:name=".tile.MarketTileService"
+            android:exported="true"
+            android:label="@string/tile_market_label"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <service
+            android:name=".tile.TravelTileService"
+            android:exported="true"
+            android:label="@string/tile_travel_label"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <service
+            android:name=".tile.QuickPayTileService"
+            android:exported="true"
+            android:label="@string/tile_quickpay_label"
             android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
             <intent-filter>
                 <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />

@@ -1,9 +1,7 @@
 package com.furlpay.guardian.wear.tile
 
-import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.ColorBuilders.argb
 import androidx.wear.protolayout.LayoutElementBuilders
-import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.protolayout.ResourceBuilders
 import androidx.wear.protolayout.TimelineBuilders
 import androidx.wear.protolayout.material.Text
@@ -13,6 +11,7 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import com.furlpay.guardian.sync.PortfolioSnapshot
 import com.furlpay.guardian.sync.SyncProtocol
+import com.furlpay.guardian.wear.Routes
 import com.furlpay.guardian.wear.ui.signedPct
 import com.furlpay.guardian.wear.ui.signedUsd
 import com.furlpay.guardian.wear.ui.theme.FurlPayColors
@@ -74,25 +73,7 @@ class PortfolioTileService : TileService() {
         headlineColor: Int,
     ): LayoutElementBuilders.LayoutElement =
         LayoutElementBuilders.Column.Builder()
-            .setModifiers(
-                ModifiersBuilders.Modifiers.Builder()
-                    .setClickable(
-                        ModifiersBuilders.Clickable.Builder()
-                            .setId("open-portfolio")
-                            .setOnClick(
-                                ActionBuilders.LaunchAction.Builder()
-                                    .setAndroidActivity(
-                                        ActionBuilders.AndroidActivity.Builder()
-                                            .setPackageName(packageName)
-                                            .setClassName("com.furlpay.guardian.wear.WearMainActivity")
-                                            .build(),
-                                    )
-                                    .build(),
-                            )
-                            .build(),
-                    )
-                    .build(),
-            )
+            .setModifiers(openRouteModifier(packageName, "open-portfolio", Routes.PORTFOLIO))
             .addContent(
                 Text.Builder(this, caption)
                     .setTypography(Typography.TYPOGRAPHY_CAPTION1)

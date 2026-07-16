@@ -114,6 +114,12 @@ fun HomeScreen(
             }
             item {
                 Button(
+                    onClick = { navigate(Routes.QUICKPAY) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Receive") }
+            }
+            item {
+                Button(
                     onClick = { navigate(Routes.VOICE) },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Ask Guardian") }

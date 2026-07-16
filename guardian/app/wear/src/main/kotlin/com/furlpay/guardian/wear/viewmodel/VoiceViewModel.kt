@@ -10,6 +10,7 @@ import com.furlpay.guardian.sync.VoiceCommand
 import com.furlpay.guardian.sync.VoiceResponse
 import com.furlpay.guardian.wear.wearServices
 import java.util.UUID
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
@@ -60,15 +61,12 @@ class VoiceViewModel(app: Application) : AndroidViewModel(app) {
                 text = text,
                 atMs = System.currentTimeMillis(),
             )
-            val relayed = runCatching {
-                services.messages.send(
-                    SyncProtocol.MSG_VOICE_COMMAND,
-                    SyncProtocol.json.encodeToString(VoiceCommand.serializer(), command).encodeToByteArray(),
-                )
-            }.getOrDefault(false)
 
-            if (relayed) {
-                val response = withTimeoutOrNull(RESPONSE_TIMEOUT_MS) {
+            // Subscribe BEFORE sending — a fast phone (rule-parser answers are
+            // milliseconds) could otherwise reply before the listener exists
+            // and the change event would be lost.
+            val awaitResponse = async {
+                withTimeoutOrNull(RESPONSE_TIMEOUT_MS) {
                     services.dataLayer.jsonUpdates(SyncProtocol.DATA_VOICE_RESPONSE)
                         .mapNotNull { json ->
                             runCatching {
@@ -77,17 +75,39 @@ class VoiceViewModel(app: Application) : AndroidViewModel(app) {
                         }
                         .first { it.requestId == command.id }
                 }
+            }
+
+            val relayed = runCatching {
+                services.messages.send(
+                    SyncProtocol.MSG_VOICE_COMMAND,
+                    SyncProtocol.json.encodeToString(VoiceCommand.serializer(), command).encodeToByteArray(),
+                )
+            }.getOrDefault(false)
+
+            if (relayed) {
+                // Belt-and-braces: if the stream missed it (listener registration
+                // is itself async), the stored DataItem still has the answer.
+                val response = awaitResponse.await() ?: latestMatching(command.id)
                 if (response != null) {
                     _state.value = UiState.Responding(response.text, response.kind)
                     return@launch
                 }
                 // Phone accepted the message but never answered — fall through
                 // to the local path rather than dead-ending the user.
+            } else {
+                awaitResponse.cancel()
             }
 
             respondLocally(text)
         }
     }
+
+    private suspend fun latestMatching(requestId: String): VoiceResponse? =
+        runCatching {
+            services.dataLayer.latestJson(SyncProtocol.DATA_VOICE_RESPONSE)?.let {
+                SyncProtocol.json.decodeFromString(VoiceResponse.serializer(), it)
+            }
+        }.getOrNull()?.takeIf { it.requestId == requestId }
 
     private suspend fun respondLocally(text: String) {
         val invocation = VoiceCommandParser.parse(text)

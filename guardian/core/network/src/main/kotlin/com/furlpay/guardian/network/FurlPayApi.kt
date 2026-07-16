@@ -3,6 +3,7 @@ package com.furlpay.guardian.network
 import com.furlpay.guardian.network.dto.CardSettingsRequest
 import com.furlpay.guardian.network.dto.CardSettingsResponse
 import com.furlpay.guardian.network.dto.CardsResponse
+import com.furlpay.guardian.network.dto.MarketsResponse
 import com.furlpay.guardian.network.dto.OtpCheckRequest
 import com.furlpay.guardian.network.dto.OtpCheckResponse
 import com.furlpay.guardian.network.dto.OtpStartRequest
@@ -16,6 +17,7 @@ import kotlinx.serialization.json.JsonObject
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Query
 import retrofit2.http.Url
 
 /**
@@ -42,6 +44,12 @@ interface FurlPayApi {
 
     @GET("travel/trips")
     suspend fun trips(): TripsResponse
+
+    @GET("markets")
+    suspend fun markets(
+        @Query("kind") kind: String? = null,
+        @Query("limit") limit: Int? = null,
+    ): MarketsResponse
 
     @POST("push/devices")
     suspend fun registerDevice(@Body body: RegisterDeviceRequest): RegisterDeviceResponse

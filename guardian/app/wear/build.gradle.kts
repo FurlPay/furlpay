@@ -69,4 +69,8 @@ dependencies {
     implementation(libs.wear.protolayout.material)
     implementation(libs.watchface.complications.data.source.ktx)
     implementation(libs.kotlinx.coroutines.guava)
+
+    // Ambient mode + QuickPay QR
+    implementation(libs.androidx.wear)
+    implementation(libs.zxing.core)
 }

@@ -23,7 +23,11 @@ import kotlinx.serialization.Serializable
 
 // GET /api/wallets — { safeAddress, modules[], balances[] }
 @Serializable
-data class WalletsResponse(val balances: List<BalanceDto> = emptyList())
+data class WalletsResponse(
+    /** The user's Safe smart-account address — what the QuickPay QR encodes. */
+    val safeAddress: String? = null,
+    val balances: List<BalanceDto> = emptyList(),
+)
 
 @Serializable
 data class BalanceDto(
@@ -183,6 +187,18 @@ data class TripDto(
         )
     }
 }
+
+// GET /api/markets?kind=&limit= — { items[], asOf }
+@Serializable
+data class MarketsResponse(val items: List<MarketItemDto> = emptyList())
+
+@Serializable
+data class MarketItemDto(
+    val symbol: String,
+    val name: String = "",
+    val price: Double = 0.0,
+    val changePct: Double = 0.0,
+)
 
 // POST /api/auth/refresh — token present only for X-Furlpay-Client: mobile-*.
 @Serializable

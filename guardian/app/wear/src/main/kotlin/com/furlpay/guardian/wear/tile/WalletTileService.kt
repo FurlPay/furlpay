@@ -1,8 +1,6 @@
 package com.furlpay.guardian.wear.tile
 
-import androidx.wear.protolayout.ActionBuilders
 import androidx.wear.protolayout.LayoutElementBuilders
-import androidx.wear.protolayout.ModifiersBuilders
 import androidx.wear.protolayout.ResourceBuilders
 import androidx.wear.protolayout.TimelineBuilders
 import androidx.wear.protolayout.ColorBuilders.argb
@@ -13,6 +11,7 @@ import androidx.wear.tiles.TileBuilders
 import androidx.wear.tiles.TileService
 import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.sync.WalletSnapshot
+import com.furlpay.guardian.wear.Routes
 import com.furlpay.guardian.wear.ui.compactUsd
 import com.furlpay.guardian.wear.ui.theme.FurlPayColors
 import com.furlpay.guardian.wear.wearServices
@@ -63,7 +62,7 @@ class WalletTileService : TileService() {
 
     private fun tileLayout(caption: String, headline: String): LayoutElementBuilders.LayoutElement =
         LayoutElementBuilders.Column.Builder()
-            .setModifiers(openAppModifier())
+            .setModifiers(openRouteModifier(packageName, "open-wallet", Routes.WALLET))
             .addContent(
                 Text.Builder(this, caption)
                     .setTypography(Typography.TYPOGRAPHY_CAPTION1)
@@ -77,24 +76,6 @@ class WalletTileService : TileService() {
                     .build(),
             )
             .build()
-
-    private fun openAppModifier() = ModifiersBuilders.Modifiers.Builder()
-        .setClickable(
-            ModifiersBuilders.Clickable.Builder()
-                .setId("open-wallet")
-                .setOnClick(
-                    ActionBuilders.LaunchAction.Builder()
-                        .setAndroidActivity(
-                            ActionBuilders.AndroidActivity.Builder()
-                                .setPackageName(packageName)
-                                .setClassName("com.furlpay.guardian.wear.WearMainActivity")
-                                .build(),
-                        )
-                        .build(),
-                )
-                .build(),
-        )
-        .build()
 
     override fun onDestroy() {
         super.onDestroy()
