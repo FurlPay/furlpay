@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import * as LocalAuthentication from "expo-local-authentication";
 import { api, ApiError } from "@/lib/api";
+import { confirmWithBiometrics } from "@/lib/biometrics";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Field, Screen, Segmented, SummaryRow, Surface } from "@/components/ui";
@@ -39,14 +39,8 @@ function BillRow({ bill }: { bill: Bill }) {
   const act = async (action: "pay" | "toggleAutopay") => {
     setError(null);
     if (action === "pay") {
-      const enrolled =
-        (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-      if (enrolled) {
-        const auth = await LocalAuthentication.authenticateAsync({
-          promptMessage: `Pay ${bill.provider} ${usd(bill.balanceDue)}`,
-        });
-        if (!auth.success) return;
-      }
+      const confirmed = await confirmWithBiometrics(`Pay ${bill.provider} ${usd(bill.balanceDue)}`);
+      if (!confirmed) return;
       setPaying(true);
     }
     try {
@@ -144,14 +138,8 @@ function OffRampPanel() {
 
   const execute = async () => {
     setError(null);
-    const enrolled =
-      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-    if (enrolled) {
-      const auth = await LocalAuthentication.authenticateAsync({
-        promptMessage: `Off-ramp ${usd(amt)} USDC to ${to}`,
-      });
-      if (!auth.success) return;
-    }
+    const confirmed = await confirmWithBiometrics(`Off-ramp ${usd(amt)} USDC to ${to}`);
+    if (!confirmed) return;
     setBusy(true);
     try {
       await api("/offramp", {

@@ -3,15 +3,16 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "r
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
-import * as LocalAuthentication from "expo-local-authentication";
 import { api, ApiError } from "@/lib/api";
+import { confirmWithBiometrics } from "@/lib/biometrics";
 import { usd } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, Surface } from "@/components/ui";
 import { PriceChart } from "@/components/PriceChart";
+import { AssetLogo } from "@/components/AssetLogo";
 
 interface AssetDetail {
-  asset: { symbol: string; name: string; kind: "stock" | "etf" | "crypto"; sector: string | null };
+  asset: { symbol: string; name: string; kind: "stock" | "etf" | "crypto"; sector: string | null; logo: string | null };
   quote: { price: number; changePct: number; live: boolean };
   stats: Record<string, string | number | null>;
   digest: string;
@@ -40,14 +41,10 @@ export default function MarketDetail() {
     const amt = Number(notional);
     if (!(amt > 0) || !data) return;
     setOrderError(null);
-    const enrolled =
-      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-    if (enrolled) {
-      const auth = await LocalAuthentication.authenticateAsync({
-        promptMessage: `${side === "buy" ? "Buy" : "Sell"} ${usd(amt)} of ${data.asset.symbol}`,
-      });
-      if (!auth.success) return;
-    }
+    const confirmed = await confirmWithBiometrics(
+      `${side === "buy" ? "Buy" : "Sell"} ${usd(amt)} of ${data.asset.symbol}`
+    );
+    if (!confirmed) return;
     setBusy(true);
     try {
       const res = await api<{ orderId: string; status: string; filledQty: number }>("/investing/order", {
@@ -91,13 +88,16 @@ export default function MarketDetail() {
           <RefreshControl refreshing={isRefetching} onRefresh={() => void refetch()} tintColor={colors.neon} />
         }
       >
-        <View style={{ gap: 2 }}>
-          <Text style={type.dim}>{data.asset.name}</Text>
-          <Text style={styles.hero}>{usd(data.quote.price)}</Text>
-          <Text style={{ color: up ? colors.neon : colors.accent, fontWeight: "700" }}>
-            {up ? "▲" : "▼"} {Math.abs(data.quote.changePct).toFixed(2)}% today
-            {data.quote.live ? "" : " · delayed"}
-          </Text>
+        <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.md }}>
+          <AssetLogo symbol={data.asset.symbol} logo={data.asset.logo} size={48} />
+          <View style={{ flex: 1, gap: 2 }}>
+            <Text style={type.dim} numberOfLines={1}>{data.asset.name}</Text>
+            <Text style={styles.hero}>{usd(data.quote.price)}</Text>
+            <Text style={{ color: up ? colors.neon : colors.accent, fontWeight: "700" }}>
+              {up ? "▲" : "▼"} {Math.abs(data.quote.changePct).toFixed(2)}% today
+              {data.quote.live ? "" : " · delayed"}
+            </Text>
+          </View>
         </View>
 
         <PriceChart symbol={data.asset.symbol} />

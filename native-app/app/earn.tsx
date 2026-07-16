@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import * as LocalAuthentication from "expo-local-authentication";
 import { api, ApiError } from "@/lib/api";
+import { confirmWithBiometrics } from "@/lib/biometrics";
 import { usd } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, Surface } from "@/components/ui";
@@ -53,12 +53,7 @@ export default function Earn() {
   const act = async (kind: "deposit" | "withdraw", body: Record<string, unknown>, prompt: string) => {
     setActionError(null);
     setNotice(null);
-    const enrolled =
-      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-    if (enrolled) {
-      const auth = await LocalAuthentication.authenticateAsync({ promptMessage: prompt });
-      if (!auth.success) return;
-    }
+    if (!(await confirmWithBiometrics(prompt))) return;
     setBusy(true);
     try {
       await api(`/earn/${kind}`, { method: "POST", body });

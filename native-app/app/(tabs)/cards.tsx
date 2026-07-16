@@ -17,6 +17,7 @@ import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, NetworkError } from "@/lib/api";
+import { confirmWithBiometrics } from "@/lib/biometrics";
 import { OFFLINE_MUTATION_MESSAGE, useIsOffline } from "@/lib/net";
 import { useCards } from "@/lib/queries";
 import { usd } from "@/lib/format";
@@ -116,7 +117,11 @@ function SheetModal({
 
 /** Biometric-gated card details — same demo PAN/CVV values as the web's
  *  ViewModal, but behind a REAL device biometric prompt instead of a
- *  simulated one. */
+ *  simulated one.
+ *
+ *  Deliberately NOT routed through confirmWithBiometrics: revealing PAN/CVV is
+ *  sensitive-data ACCESS, not an action approval, so it stays gated even when
+ *  the user turns "Biometric approvals" off (the same norm as Google Wallet). */
 function DetailsModal({ card, onClose }: { card: PaymentCard; onClose: () => void }) {
   const [authed, setAuthed] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -333,14 +338,7 @@ function CreateCardModal({ onClose }: { onClose: () => void }) {
 
   const create = async () => {
     setError(null);
-    const enrolled =
-      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-    if (enrolled) {
-      const auth = await LocalAuthentication.authenticateAsync({
-        promptMessage: `Issue a new ${kind} card`,
-      });
-      if (!auth.success) return;
-    }
+    if (!(await confirmWithBiometrics(`Issue a new ${kind} card`))) return;
     setBusy(true);
     try {
       const res = await api<{ cardId: string; last4: string }>("/cards", {

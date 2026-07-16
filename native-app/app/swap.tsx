@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
-import * as LocalAuthentication from "expo-local-authentication";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
+import { confirmWithBiometrics } from "@/lib/biometrics";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, ErrorNote, Field, Screen, Surface } from "@/components/ui";
@@ -99,14 +99,10 @@ export default function Swap() {
 
   const execute = async () => {
     if (!quote) return;
-    const enrolled =
-      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-    if (enrolled) {
-      const auth = await LocalAuthentication.authenticateAsync({
-        promptMessage: `Swap ${quote.amountIn} ${quote.fromToken} → ${quote.toToken}`,
-      });
-      if (!auth.success) return;
-    }
+    const confirmed = await confirmWithBiometrics(
+      `Swap ${quote.amountIn} ${quote.fromToken} → ${quote.toToken}`
+    );
+    if (!confirmed) return;
     setExecuting(true);
     setError(null);
     try {

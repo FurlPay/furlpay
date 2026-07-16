@@ -10,9 +10,9 @@ import {
   View,
 } from "react-native";
 import * as Haptics from "expo-haptics";
-import * as LocalAuthentication from "expo-local-authentication";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
+import { confirmWithBiometrics } from "@/lib/biometrics";
 import { resolveConfirmation, type Confirmation } from "@/lib/copilotActions";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, Screen } from "@/components/ui";
@@ -111,16 +111,12 @@ export default function Chat() {
       );
       return;
     }
-    const enrolled =
-      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-    if (enrolled) {
-      // The prompt shows the VERIFIED action + fields, not the AI's summary.
-      const detailLine = resolved.details.map((d) => `${d.label}: ${d.value}`).join(" · ");
-      const auth = await LocalAuthentication.authenticateAsync({
-        promptMessage: `${resolved.spec.title} — ${detailLine}`.slice(0, 120),
-      });
-      if (!auth.success) return;
-    }
+    // The prompt shows the VERIFIED action + fields, not the AI's summary.
+    const detailLine = resolved.details.map((d) => `${d.label}: ${d.value}`).join(" · ");
+    const confirmed = await confirmWithBiometrics(
+      `${resolved.spec.title} — ${detailLine}`.slice(0, 120)
+    );
+    if (!confirmed) return;
     try {
       await api(resolved.endpoint, { method: resolved.method, body: resolved.body });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

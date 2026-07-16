@@ -4,12 +4,16 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import Constants from "expo-constants";
 import * as Haptics from "expo-haptics";
+import * as Clipboard from "expo-clipboard";
+import * as WebBrowser from "expo-web-browser";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/lib/auth";
 import { api, API_BASE, ApiError } from "@/lib/api";
-import { shortAddress } from "@/lib/format";
-import { colors, spacing, type } from "@/lib/theme";
-import { Button, ErrorNote, Screen, SectionHeader, StatusBadge, Surface } from "@/components/ui";
+import { shortUid } from "@/lib/avatar";
+import { colors, radius, spacing, type } from "@/lib/theme";
+import { Button, ErrorNote, Field, Screen, SectionHeader, Sheet, StatusBadge, Surface } from "@/components/ui";
+import { Avatar } from "@/components/Avatar";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // GET/PATCH /api/profile — profile + the low-risk security & notification
 // toggles. MFA/TOTP setup stays on the web (privileged flow).
@@ -42,6 +46,44 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
       <Text style={type.dim}>{label}</Text>
       {typeof value === "string" ? <Text style={type.body}>{value}</Text> : value}
     </View>
+  );
+}
+
+/** A stacked, tappable profile row: label on top, value below, chevron/hint at
+ *  the right. Used for editable / navigable profile fields. */
+function FieldRow({
+  label,
+  value,
+  hint,
+  onPress,
+}: {
+  label: string;
+  value: React.ReactNode;
+  hint?: React.ReactNode;
+  onPress?: () => void;
+}) {
+  const content = (
+    <View style={styles.fieldRow}>
+      <View style={{ flex: 1, gap: 2 }}>
+        <Text style={[type.dim, { fontSize: 12 }]}>{label}</Text>
+        {typeof value === "string" ? (
+          <Text style={type.body} numberOfLines={1}>
+            {value}
+          </Text>
+        ) : (
+          value
+        )}
+      </View>
+      {hint}
+      {onPress ? <Ionicons name="chevron-forward" size={16} color={colors.textFaint} /> : null}
+    </View>
+  );
+  return onPress ? (
+    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+      {content}
+    </Pressable>
+  ) : (
+    content
   );
 }
 
@@ -90,6 +132,11 @@ export default function Settings() {
   const qc = useQueryClient();
   const signOut = useAuth((s) => s.signOut);
   const [error, setError] = useState<string | null>(null);
+  const [nameOpen, setNameOpen] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameBusy, setNameBusy] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [planBusy, setPlanBusy] = useState(false);
 
   const { data: profile } = useQuery({
     queryKey: ["profile"],
@@ -106,6 +153,60 @@ export default function Settings() {
       setError(e instanceof ApiError ? e.message : (e as Error).message);
     }
   };
+
+  const openNameEditor = () => {
+    setNameDraft(profile?.name ?? "");
+    setError(null);
+    setNameOpen(true);
+  };
+
+  const saveName = async () => {
+    const next = nameDraft.trim();
+    if (!next || next === profile?.name) return setNameOpen(false);
+    setNameBusy(true);
+    try {
+      await api("/profile", { method: "PATCH", body: { name: next } });
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      await qc.invalidateQueries({ queryKey: ["profile"] });
+      // The name shows on Home + the drawer too — refresh those.
+      await qc.invalidateQueries({ queryKey: ["overview"] });
+      setNameOpen(false);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+    } finally {
+      setNameBusy(false);
+    }
+  };
+
+  const copyUid = async () => {
+    if (!profile) return;
+    await Clipboard.setStringAsync(shortUid(profile.id));
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  // Plan upgrade: the BACKEND maps the plan to a trusted server-side Stripe
+  // price and returns the hosted Checkout URL (never a client-supplied price).
+  // The Stripe webhook — not this redirect — is what actually flips the tier;
+  // we just refetch the profile on return.
+  const upgradePlan = async () => {
+    setPlanBusy(true);
+    setError(null);
+    try {
+      const res = await api<{ url: string; sandbox?: boolean }>("/billing/checkout", {
+        method: "POST",
+        body: { plan: "pro" },
+      });
+      if (res.url) await WebBrowser.openBrowserAsync(res.url);
+      await qc.invalidateQueries({ queryKey: ["profile"] });
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+    } finally {
+      setPlanBusy(false);
+    }
+  };
+
 
   const lockAccount = () => {
     Alert.alert(
@@ -132,17 +233,65 @@ export default function Settings() {
     <Screen>
       <ScrollView contentContainerStyle={styles.content}>
         <SectionHeader title="Profile" />
-        <Surface style={{ gap: 4 }}>
-          <Row label="Name" value={profile?.name ?? "—"} />
-          <Row label="Email" value={profile?.email ?? "—"} />
-          <Row label="Region" value={profile?.region ?? "—"} />
-          <Row label="Plan" value={profile?.tier ?? "—"} />
-          <Row label="KYC" value={<StatusBadge status={profile?.kycStatus ?? "unknown"} />} />
-          {/* safeAddress is an ACCOUNT REFERENCE, not a deposit address — no
-              private key controls it, so it must never be labeled "Wallet" or
-              offered with a copy button (funds sent to it are unrecoverable).
-              The real deposit address lives on the Receive/Wallet screens. */}
-          <Row label="Account ref" value={shortAddress(profile?.safeAddress, 8) || "—"} />
+        <Surface style={{ gap: 0 }}>
+          {/* Identity header */}
+          <View style={styles.profileHeader}>
+            <Avatar name={profile?.name} email={profile?.email} size={52} ring />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Text style={[type.h2, { fontSize: 17, flexShrink: 1 }]} numberOfLines={1}>
+                  {profile?.name ?? "Your account"}
+                </Text>
+                {profile ? <VerifiedBadge verified={profile.kycStatus === "verified"} size={16} /> : null}
+              </View>
+              {profile?.email ? (
+                <Text style={type.dim} numberOfLines={1}>
+                  {profile.email}
+                </Text>
+              ) : null}
+            </View>
+          </View>
+
+          <View style={styles.hr} />
+          <FieldRow label="Display name" value={profile?.name ?? "—"} onPress={openNameEditor} />
+          <View style={styles.hr} />
+          {/* Email change is a sensitive identity operation (OTP to the new
+              address) — handled on the web for now; shown read-only here. */}
+          <FieldRow label="Email" value={profile?.email ?? "—"} />
+          <View style={styles.hr} />
+          {/* Region drives compliance/limits — not self-editable in-app. */}
+          <FieldRow label="Region" value={profile?.region ?? "—"} />
+          <View style={styles.hr} />
+          <FieldRow
+            label="Plan"
+            value={profile?.tier ?? "—"}
+            hint={
+              profile?.tier === "Standard" ? (
+                <Text style={{ color: colors.neon, fontWeight: "700", fontSize: 13 }}>
+                  {planBusy ? "…" : "Upgrade"}
+                </Text>
+              ) : undefined
+            }
+            onPress={profile?.tier === "Standard" ? () => void upgradePlan() : undefined}
+          />
+          <View style={styles.hr} />
+          <FieldRow
+            label="Identity verification"
+            value={<StatusBadge status={profile?.kycStatus ?? "unknown"} />}
+          />
+          <View style={styles.hr} />
+          <FieldRow
+            label="FurlPay UID"
+            value={profile ? shortUid(profile.id) : "—"}
+            hint={
+              <Ionicons
+                name={copied ? "checkmark" : "copy-outline"}
+                size={16}
+                color={copied ? colors.neon : colors.textDim}
+              />
+            }
+            onPress={() => void copyUid()}
+          />
         </Surface>
 
         <SectionHeader title="Money" />
@@ -209,15 +358,46 @@ export default function Settings() {
 
         <SectionHeader title="About" />
         <Surface style={{ gap: 4 }}>
-          <Row label="App version" value={`${Constants.expoConfig?.version ?? "2.0.0"} (native)`} />
+          {/* No hardcoded fallback — a stale literal (this said "2.0.0" at v2.2.0)
+              is worse than an honest dash. */}
+          <Row label="App version" value={`${Constants.expoConfig?.version ?? "—"} (native)`} />
           <Row label="API" value={API_BASE.replace("https://", "")} />
         </Surface>
 
         <Button title="Sign out" variant="danger" onPress={() => void signOut()} />
+
+        {/* Google Play requires in-app account deletion for any app that lets
+            users create an account. The screen states what is erased and what
+            is retained BEFORE the user confirms. */}
+        <Button
+          title="Delete account"
+          variant="secondary"
+          onPress={() => router.push("/delete-account")}
+        />
         <Text style={[type.dim, { textAlign: "center", color: colors.textFaint }]}>
           FurlPay — stablecoin payments, cards & investing
         </Text>
       </ScrollView>
+
+      <Sheet open={nameOpen} title="Display name" onClose={() => setNameOpen(false)}>
+        <View style={{ gap: spacing.md }}>
+          <Field
+            label="Your name"
+            value={nameDraft}
+            onChangeText={setNameDraft}
+            autoFocus
+            maxLength={50}
+            placeholder="Your name"
+          />
+          <ErrorNote message={error} />
+          <Button
+            title="Save changes"
+            loading={nameBusy}
+            disabled={!nameDraft.trim() || nameDraft.trim() === profile?.name}
+            onPress={() => void saveName()}
+          />
+        </View>
+      </Sheet>
     </Screen>
   );
 }
@@ -231,6 +411,19 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     gap: spacing.md,
   },
+  profileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  fieldRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    paddingVertical: 11,
+  },
+  hr: { height: StyleSheet.hairlineWidth, backgroundColor: colors.border },
   navRow: {
     flexDirection: "row",
     alignItems: "center",

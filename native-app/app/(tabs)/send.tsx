@@ -1,12 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
-import * as LocalAuthentication from "expo-local-authentication";
 import * as Haptics from "expo-haptics";
 import { api, ApiError, demoSignature, NetworkError } from "@/lib/api";
+import { confirmWithBiometrics } from "@/lib/biometrics";
 import { queuePendingAction } from "@/lib/db";
 import { useOverview, useInvalidateAll } from "@/lib/queries";
-import { isValidDestination, shortAddress, usd } from "@/lib/format";
+import { validateSend } from "@/lib/sendValidation";
+import { shortAddress, usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, ErrorNote, Field, Screen, Surface } from "@/components/ui";
 import type { TokenBalance } from "@/lib/types";
@@ -32,40 +33,33 @@ export default function Send() {
   const [result, setResult] = useState<Result>(null);
 
   const selected = source ?? balances[0] ?? null;
-  const amountNum = Number(amount);
 
-  const validation = useMemo(() => {
-    if (!destination) return "Enter a recipient address.";
-    if (selected && !isValidDestination(destination.trim(), selected.chain))
-      return selected.chain === "solana"
-        ? "Recipient must be a Solana (base58) address."
-        : "Recipient must be a 0x… EVM address.";
-    if (!amount) return "Enter an amount.";
-    if (!(amountNum > 0)) return "Amount must be greater than zero.";
-    if (!selected) return "No balance to send from.";
-    if (amountNum > selected.amount) return `Insufficient ${selected.token} balance.`;
-    return null;
-  }, [destination, amount, amountNum, selected]);
+  // Money goes through lib/money.ts (via validateSend), never Number(x) > 0 —
+  // and the USD amount is checked against the balance's USD value, not its
+  // token amount. See lib/sendValidation.ts for both bugs this closed.
+  const check = useMemo(
+    () => validateSend({ destination, amount, balance: selected }),
+    [destination, amount, selected]
+  );
+  const validation = check.ok ? null : check.error;
+  const amountUsd = check.ok ? check.amountUsd : 0;
 
   const send = async () => {
     setError(null);
-    if (validation) {
-      setError(validation);
+    if (!check.ok) {
+      setError(check.error);
       return;
     }
-    // Biometric confirmation before any money moves.
-    const hasBiometrics =
-      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-    if (hasBiometrics) {
-      const auth = await LocalAuthentication.authenticateAsync({
-        promptMessage: `Send ${usd(amountNum)} to ${shortAddress(destination.trim())}`,
-      });
-      if (!auth.success) return;
-    }
+    // Biometric confirmation before any money moves (honors the Settings →
+    // Security → "Biometric approvals" preference).
+    const confirmed = await confirmWithBiometrics(
+      `Send ${usd(amountUsd)} to ${shortAddress(destination.trim())}`
+    );
+    if (!confirmed) return;
 
     const payload = {
       destination: destination.trim(),
-      amount: amountNum,
+      amount: amountUsd,
       token: selected!.token,
       chain: selected!.chain,
       // SECURITY: demoSignature() is a random blob — it authorizes NOTHING.
@@ -114,7 +108,7 @@ export default function Send() {
         </Text>
         <Text style={[type.dim, { textAlign: "center" }]}>
           {result.kind === "sent"
-            ? `${usd(amountNum)} ${selected?.token} to ${shortAddress(destination)}`
+            ? `${usd(amountUsd)} ${selected?.token} to ${shortAddress(destination)}`
             : "This transfer will send automatically when you're back online."}
         </Text>
         {result.kind === "sent" ? <Text style={type.mono}>{shortAddress(result.hash, 10)}</Text> : null}
@@ -186,11 +180,11 @@ export default function Send() {
           />
         ) : null}
 
-        {selected && amountNum > 0 && !validation ? (
+        {selected && check.ok ? (
           <Surface style={{ gap: 4 }}>
             <Text style={type.dim}>Review</Text>
             <Text style={type.body}>
-              Send {usd(amountNum)} {selected.token} on {selected.chain}
+              Send {usd(amountUsd)} {selected.token} on {selected.chain}
             </Text>
             {/* Full recipient, monospace — address-poisoning relies on you
                 checking only the first/last few characters. Verify all of it. */}
