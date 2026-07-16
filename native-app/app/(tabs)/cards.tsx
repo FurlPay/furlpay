@@ -22,7 +22,7 @@ import { OFFLINE_MUTATION_MESSAGE, useIsOffline } from "@/lib/net";
 import { useCards } from "@/lib/queries";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { Button, EmptyState, ErrorNote, Screen, Surface } from "@/components/ui";
+import { Button, EmptyState, ErrorNote, PreviewBanner, Screen, Surface } from "@/components/ui";
 import { useSecureScreen } from "@/lib/secureScreen";
 import type { PaymentCard } from "@/lib/types";
 
@@ -155,6 +155,10 @@ function DetailsModal({ card, onClose }: { card: PaymentCard; onClose: () => voi
         </View>
       ) : (
         <View style={{ gap: spacing.sm, paddingVertical: spacing.sm }}>
+          {/* Honest disclosure: these are placeholder details, not this card's
+              real PAN. A user must not copy them expecting them to work — the
+              issuer-vended number arrives when card issuing goes live. */}
+          <PreviewBanner text="Demo details — not a live card number. Real details arrive when card issuing is enabled." />
           <View style={styles.detailField}>
             <Text style={type.dim}>Card number</Text>
             <Text style={styles.detailMono}>4111 5522 8834 {card.last4}</Text>
