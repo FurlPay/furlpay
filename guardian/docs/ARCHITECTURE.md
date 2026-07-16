@@ -22,19 +22,74 @@ have produced a project that doesn't compile.
 The tap-to-pay and Gemini-Nano-availability caveats in the plan doc are correct
 and stand.
 
-## Module layout (built so far)
+## Module layout (built — 65 tests green, both APKs assemble)
 
 ```
 guardian/
-├── core/domain/     PURE KOTLIN (JVM). Models + use cases. No Android dep,
-│                    so `gradle :core:domain:test` runs on any JVM — 13 tests green.
-│     ├── model/     GuardianEvent, EventPriority, ReminderStage, DailyBriefing, GuardianResult
-│     ├── usecase/   PrioritizeEventsUseCase, ScheduleRemindersUseCase, GenerateBriefingUseCase
-│     └── ai/        GuardianTool / GuardianTools — provider-neutral tool catalog
-├── core/ai/         (scaffolded) Firebase-backed clients live in the app modules
-├── app/mobile/      (scaffolded) phone brain — Firebase AI Logic, voice relay
-└── app/wear/        (scaffolded) Wear OS companion — tiles, complications, alarm
+├── core/domain/     PURE KOTLIN (JVM). Models + use cases + the security core.
+│     ├── model/     GuardianEvent, ReminderStage, DailyBriefing, Wallet, Card,
+│     │              Transaction, Portfolio, TravelBooking, SpendingSummary
+│     ├── usecase/   Prioritize/ScheduleReminders/GenerateBriefing +
+│     │              GetWalletOverview, ManageCard, ComputeSpendingSummary
+│     ├── action/    GuardianActionRegistry — Kotlin port of the RN co-pilot
+│     │              allowlist (field validation, $25k ceiling, body rebuild)
+│     ├── repository/ repo contracts (network implements, data decorates)
+│     └── ai/        GuardianTools catalog + VoiceCommandParser (deterministic
+│                    intent rules — the LLM is the fallback, not the decider)
+├── core/network/    PURE JVM. Retrofit/OkHttp client for furlpay.com/api —
+│                    Bearer + X-Furlpay-Client (mobile-*) + correlation ids,
+│                    single-flight sliding refresh, ActionDispatcher (only
+│                    accepts registry-validated actions). MockWebServer-tested.
+├── core/security/   KeystoreTokenStore (AES/GCM in AndroidKeyStore — NOT the
+│                    deprecated security-crypto), BiometricGate, AuthManager.
+├── core/sync/       SyncProtocol (single wire contract: paths + snapshots) +
+│                    DataLayerManager / MessageRouter coroutine wrappers.
+├── core/data/       Room (guardian_events + snapshot_cache) + DataStore prefs.
+├── core/ai/         RepositoryToolExecutor (fail-closed mutating gate) +
+│                    GeminiTextAssistant (function calling over GuardianTools)
+│                    + GeminiLiveAssistant (native audio, phone-only).
+├── app/mobile/      Phone brain: OTP sign-in, dashboard, SyncCoordinator,
+│                    VoiceRelayService (rules → Gemini fallback), FCM client.
+└── app/wear/        FurlPay Watch: home/wallet/cards/voice screens (Wear
+                     Compose M3 + TransformingLazyColumn), Wallet + NextEvent
+                     tiles (protolayout), Balance complication,
+                     WearListenerService (token + snapshot inbox).
 ```
+
+### Voice pipeline (built)
+
+```
+watch mic (SpeechRecognizer, button-triggered — no wake word)
+  → MessageClient /guardian/voice-command → phone VoiceRelayService
+      1. VoiceCommandParser (deterministic rules, :core:domain, tested)
+      2. no match + Firebase configured → GeminiTextAssistant (same tools)
+  → DataClient /guardian/voice-response → watch response card
+  phone unreachable → watch runs the SAME parser + executor locally against
+  furlpay.com with its synced token (read-only tools; mutating ones refuse).
+```
+
+### Watch security posture (decided + enforced in code)
+
+- Session JWT syncs phone → watch over the Data Layer once, then lives in the
+  watch's own KeystoreTokenStore; the watch is a first-class API client.
+- The watch may FREEZE a card (protective direction, two-tap confirm).
+  UNFREEZE re-enables spending → phone-only, behind BiometricGate.
+- RepositoryToolExecutor's `confirmMutating` defaults to REFUSE — a mis-wired
+  executor fails closed, and background relays can never mutate.
+- ActionDispatcher's only input type is `ResolvedConfirmation.Ok`, and the only
+  producer of that type is `GuardianActionRegistry.resolve` — unvalidated model
+  output cannot reach the network by construction.
+
+### API truths (verified against apps/web route handlers, July 2026)
+
+- `GET /api/wallets` → `balances[].amount` is a STRING; no wallet ids (derive).
+- Trips (`/api/travel/trips`) are hotel stays; `/api/travel/itineraries` is
+  marketing content, NOT user bookings — the plan doc conflated them.
+- No spending-summary endpoint exists: pull `/api/transactions` and compute
+  (ComputeSpendingSummaryUseCase — deterministic, tested).
+- `/api/auth/refresh` and `/api/auth/otp/check` return the token in the BODY
+  only when `X-Furlpay-Client` starts with `mobile` — the client header is
+  load-bearing, not cosmetic.
 
 ### Why the domain is pure Kotlin
 
@@ -74,10 +129,22 @@ Android dependency**. That means:
 ## Build
 
 ```bash
-export JAVA_HOME=<a JDK 17 install>
+export JAVA_HOME=<a JDK 17+ install>     # e.g. C:\Program Files\Microsoft\jdk-21...
 cd guardian
-gradle :core:domain:test        # pure-kotlin logic — no SDK needed
+gradle test                # 65 JVM tests (domain + network + ai) — all green
+gradle assembleDebug       # wear-debug.apk + mobile-debug.apk (SDK 35)
 ```
 
-The `:app:*` and `:core:ai` Firebase/Android modules need the Android SDK +
-a `google-services.json` (gitignored) to assemble; those are scaffolded next.
+`google-services.json` is needed only AT RUNTIME for Firebase (Gemini + FCM).
+Without it the build is green, FCM stays dormant, and the voice pipeline runs
+on the deterministic rule parser. Drop the file into `app/mobile/` (and apply
+the google-services plugin) when the Firebase project exists.
+
+## Remaining (next phases)
+
+- Firebase project + `google-services.json` → activates Gemini + FCM paths.
+- Alarm ladder runtime: AlarmManager + full-screen intent + USAGE_ALARM
+  haptics on both devices (ScheduleRemindersUseCase already decides staging).
+- Gmail/Calendar/GitHub ingestion → EventRepository (Life Guardian feed).
+- Phone-side Live-API voice screen; watch Portfolio/Travel tiles; briefing
+  worker; Hilt if the graph ever justifies it.

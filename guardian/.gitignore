@@ -6,3 +6,4 @@ local.properties
 .idea/
 # Firebase config is per-project secret (like the RN app's) — never commit.
 **/google-services.json
+.kotlin/

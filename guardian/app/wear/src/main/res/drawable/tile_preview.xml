@@ -1,0 +1,13 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="192dp"
+    android:height="192dp"
+    android:viewportWidth="192"
+    android:viewportHeight="192">
+    <!-- Placeholder tile preview: black disc + FurlPay-blue ring. -->
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M96,96m-96,0a96,96 0,1 1,192 0a96,96 0,1 1,-192 0" />
+    <path
+        android:fillColor="#FFA8C7FA"
+        android:pathData="M96,96m-40,0a40,40 0,1 1,80 0a40,40 0,1 1,-80 0" />
+</vector>

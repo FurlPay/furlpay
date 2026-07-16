@@ -27,9 +27,17 @@ rootProject.name = "guardian"
 
 // Pure-Kotlin core (no Android SDK needed — unit-testable on any JVM).
 include(":core:domain")
-// AI layer: prompt + tool contracts are pure Kotlin; the Firebase-backed
-// clients live in the app modules where the Android/Firebase deps exist.
+// Retrofit/OkHttp client for furlpay.com/api — also pure JVM, tested with
+// MockWebServer (no emulator in the loop for the money paths).
+include(":core:network")
+// Android libraries.
+include(":core:security") // Keystore-encrypted token store + biometric gate
+include(":core:sync")     // Wearable Data Layer (phone ↔ watch)
+include(":core:data")     // Room offline cache + DataStore preferences
+// AI layer: prompt + tool contracts are pure Kotlin (in :core:domain); the
+// Firebase-backed Gemini clients live here as an Android library.
 include(":core:ai")
-// App entry points (Android SDK + Firebase required to build these).
+// App entry points (Android SDK required; google-services.json needed only
+// at RUNTIME for Firebase — the build stays green without it).
 include(":app:mobile")
 include(":app:wear")

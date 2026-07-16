@@ -1,0 +1,6 @@
+<resources>
+    <string name="app_name">FurlPay</string>
+    <string name="tile_wallet_label">FurlPay Wallet</string>
+    <string name="tile_next_event_label">Next Event</string>
+    <string name="complication_balance_label">FurlPay Balance</string>
+</resources>

@@ -1,0 +1,87 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:name=".GuardianWearApp"
+        android:label="FurlPay"
+        android:theme="@android:style/Theme.DeviceDefault">
+
+        <!-- Standalone: usable without the phone once the token has synced. -->
+        <meta-data
+            android:name="com.google.android.wearable.standalone"
+            android:value="true" />
+
+        <activity
+            android:name=".WearMainActivity"
+            android:exported="true"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.DeviceDefault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Data Layer inbox: auth token, wallet/events/trips snapshots. -->
+        <service
+            android:name=".service.WearListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/guardian"
+                    android:scheme="wear" />
+            </intent-filter>
+        </service>
+
+        <!-- Tiles -->
+        <service
+            android:name=".tile.WalletTileService"
+            android:exported="true"
+            android:label="@string/tile_wallet_label"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <service
+            android:name=".tile.NextEventTileService"
+            android:exported="true"
+            android:label="@string/tile_next_event_label"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/tile_preview" />
+        </service>
+
+        <!-- Watch-face complication: balance -->
+        <service
+            android:name=".complication.BalanceComplicationService"
+            android:exported="true"
+            android:label="@string/complication_balance_label"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="SHORT_TEXT" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="1800" />
+        </service>
+    </application>
+</manifest>

@@ -8,8 +8,10 @@ plugins {
 
 dependencies {
     implementation(libs.kotlinx.coroutines.core)
-    implementation(libs.kotlinx.serialization.json)
-    implementation(libs.kotlinx.datetime)
+    // api: JsonObject (action registry) and Instant (models) are part of this
+    // module's public surface — consumers compile against them.
+    api(libs.kotlinx.serialization.json)
+    api(libs.kotlinx.datetime)
 
     testImplementation(libs.kotlin.test)
     testImplementation(libs.kotlinx.coroutines.test)
