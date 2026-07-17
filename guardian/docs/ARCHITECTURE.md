@@ -210,6 +210,10 @@ does not survive reboot; the heartbeat restores it.
   (sign in as the project owner → Build → AI Logic → Get started).
 - Gmail/Calendar/GitHub ingestion → EventRepository (the reminder UI proves
   the pipeline; ingestion multiplies the feed).
-- Phone-side Live-API voice screen; morning-briefing worker.
+- ~~Phone-side Live-API voice screen~~ DONE (Jul 17): Guardian Live screen
+  (dashboard → 🎤 Voice) — session-scoped ViewModel (screen exit always tears
+  the session down), RECORD_AUDIO requested in-flow, watch-matched pulsing
+  ring, read-only by construction (no tools declared). Morning-briefing
+  worker still pending.
 - Shared-element list→detail transitions (needs wear-compose 1.6, still
   alpha — deliberately deferred); Hilt if the graph ever justifies it.

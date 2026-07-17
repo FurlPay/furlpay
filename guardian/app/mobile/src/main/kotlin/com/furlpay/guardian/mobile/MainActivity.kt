@@ -31,6 +31,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.furlpay.guardian.mobile.ui.LiveVoiceScreen
 import com.furlpay.guardian.mobile.ui.NewReminderDialog
 import com.furlpay.guardian.mobile.ui.ReminderRow
 import com.furlpay.guardian.mobile.viewmodel.DashboardViewModel
@@ -58,6 +60,7 @@ class MainActivity : ComponentActivity() {
 private fun GuardianRoot() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val authState by context.mobileServices.authManager.state.collectAsStateWithLifecycle()
+    var showVoice by rememberSaveable { mutableStateOf(false) }
 
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -66,7 +69,12 @@ private fun GuardianRoot() {
                     modifier = Modifier.align(Alignment.Center),
                 )
                 AuthManager.AuthState.SignedOut -> SignInScreen()
-                AuthManager.AuthState.SignedIn -> DashboardScreen()
+                AuthManager.AuthState.SignedIn ->
+                    if (showVoice) {
+                        LiveVoiceScreen(onBack = { showVoice = false })
+                    } else {
+                        DashboardScreen(onOpenVoice = { showVoice = true })
+                    }
             }
         }
     }
@@ -125,6 +133,7 @@ private fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
 
 @Composable
 private fun DashboardScreen(
+    onOpenVoice: () -> Unit,
     viewModel: DashboardViewModel = viewModel(),
     remindersViewModel: RemindersViewModel = viewModel(),
 ) {
@@ -164,6 +173,7 @@ private fun DashboardScreen(
                 Button(onClick = viewModel::syncWatch, enabled = !state.syncing) {
                     Text(if (state.syncing) "Syncing…" else "Sync watch")
                 }
+                OutlinedButton(onClick = onOpenVoice) { Text("🎤 Voice") }
                 OutlinedButton(onClick = viewModel::signOut) { Text("Sign out") }
             }
         }
