@@ -30,6 +30,100 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // Macro thesis — stablecoins overtaking native crypto for payments -----
+  {
+    slug: "stablecoins-overtook-crypto-for-cross-border-payments",
+    title: "Stablecoins Quietly Overtook Crypto for Cross-Border Payments — Here Is the Data",
+    excerpt:
+      "In 2025 stablecoins settled about $33 trillion on-chain, more than Visa and Mastercard combined, while Bitcoin and Ethereum's share of cross-border flows kept shrinking. The GENIUS Act, Stripe's $1.1B Bridge deal and Mastercard's $1.8B BVNK deal all landed in the same window. Here is what actually happened, with the figures checked against primary sources — and where a middleware layer like FurlPay fits.",
+    category: "compliance",
+    date: "2026-07-18",
+    readMins: 12,
+    author: "Ashutosh Kumar Singh",
+    featured: true,
+    cover: "https://images.unsplash.com/photo-1526304640581-d334cdbbf45e?auto=format&fit=crop&w=1600&q=80",
+    body: [
+      {
+        type: "p",
+        text: `A quiet decoupling has happened in digital assets, and most people still describe the industry as if it did not. Bitcoin and Ethereum remain what they always were — speculative assets, a store of value, computational fuel. But the thing actually moving real money across borders in 2026 is neither of them. It is fiat-pegged stablecoins, and the gap is no longer subtle.`,
+      },
+      {
+        type: "p",
+        text: `The headline that circulated in early 2026 was that stablecoins had "out-processed Visa." That part is true, and it is worth stating precisely because inflated versions of this number are everywhere. In 2025 stablecoins settled roughly [$33 trillion in on-chain volume, ahead of the roughly $25.5 trillion Visa and Mastercard processed combined](https://www.visualcapitalist.com/charted-stablecoins-are-now-bigger-than-visa-or-mastercard/). If you have seen "$46 trillion" quoted for the same year, treat it with suspicion — the defensible, primary-sourced figure is in the low thirties of trillions. Raw on-chain volume also includes trading bots, exchange routing and arbitrage, so the more honest measure is adjusted volume, which strips that noise. Adjusted stablecoin volume [reached about $28 trillion in real economic activity in 2025, growing at roughly 133% a year since 2023](https://www.chainalysis.com/blog/stablecoin-utility-future-of-payments/).`,
+      },
+      { type: "h2", text: "The decoupling, in one paragraph" },
+      {
+        type: "p",
+        text: `For most of crypto's history, cross-border value moved through Bitcoin and Ethereum, and stablecoins were mostly a trader's parking spot between volatile positions. The 2022 collapse of the TerraUSD algorithmic stablecoin — which erased tens of billions in a matter of days — paradoxically accelerated the opposite trend: capital rotated hard into fully-reserved, fiat-backed tokens, and their transaction volume decoupled from Bitcoin's price entirely. By 2025 the payment story had nothing to do with the trading story. Enterprises and consumers in inflationary economies were using dollar tokens because they clear in seconds, cost cents, run 24/7 and are programmable — none of which depends on where BTC is trading that week.`,
+      },
+      {
+        type: "p",
+        text: `The market's own plumbing confirms it. The total stablecoin supply sat around [$316 billion in mid-2026, with Tether (USDT) near $187 billion and USD Coin (USDC) near $75 billion](https://bitcoinfoundation.org/news/stablecoin-news/stablecoin-market-cap-tops-321b/) — the two issuers together controlling roughly four-fifths of the market. Around 60% of stablecoin flows are now business-to-business, and by industry estimates the large majority of financial institutions are already using or piloting stablecoin rails.`,
+      },
+      { type: "h2", text: "Why the migration is structural, not hype" },
+      {
+        type: "p",
+        text: `The reason this is not another cycle is that it fixes a real, measurable cost. The legacy cross-border system relies on correspondent banking: a chain of pre-funded nostro and vostro accounts, multiple foreign-exchange conversions, and settlement that takes days. For a company importing components across a border, a wire can lock up capital for three to five days and hide the final amount behind an opaque FX markup. A dollar-pegged stablecoin collapses that to an atomic, programmable transfer that clears in seconds with no in-transit FX spread, because the asset is already the dollar.`,
+      },
+      {
+        type: "p",
+        text: `Consumer remittances are the second pillar. The global average cost to send $200 across borders is still stubbornly high — [around 6.4% on the World Bank's measure, and closer to 8-9% into parts of Sub-Saharan Africa](https://remittanceprices.worldbank.org/), far above the UN's 3% target. Moving that value as a stablecoin over a low-fee network and off-ramping into local currency compresses the cost dramatically. And in economies with chronic inflation or capital controls, stablecoins function as synthetic dollars: a savings instrument, not just a rail.`,
+      },
+      {
+        type: "p",
+        text: `Nigeria is the clearest case. The IMF, in a June 2026 analysis, noted that Nigeria absorbed about [$59 billion in crypto-asset inflows in a single year and accounts for roughly 60% of stablecoin inflows across Sub-Saharan Africa](https://www.imf.org/en/news/articles/2026/06/16/stablecoins-in-nigeria), driven by naira depreciation and limited access to official foreign exchange. The Fund frames this as a form of "digital dollarization" — useful for citizens, genuinely difficult for a central bank trying to run monetary policy.`,
+      },
+      {
+        type: "table",
+        headers: ["Rail", "Settlement", "Typical cost / $1,000", "In-transit FX"],
+        rows: [
+          ["SWIFT bank wire", "1-5 business days", "$25-50 + intermediary fees", "1-3%"],
+          ["Card networks", "1-3 days", "1-3% merchant fee", "1-2%"],
+          ["Money transfer operators", "Minutes to days", "$5-40", "1-4%"],
+          ["Stablecoin (L2 / Tron / Solana)", "Seconds", "Cents to a few dollars", "None (USD-pegged)"],
+        ],
+        highlightCol: 0,
+      },
+      {
+        type: "p",
+        text: `The catch — and it is an important one for anyone building here — is that the frictionless part is only the transfer. The cost has migrated to the edges: the on-ramp that turns local fiat into a stablecoin, and the off-ramp that turns it back. Whoever holds the deepest, most compliant liquidity at those gateways captures the economics. "The transfer is free" and "the payment is free" are not the same sentence.`,
+      },
+      { type: "h2", text: "2025-2026 was the institutional turn" },
+      {
+        type: "p",
+        text: `Three things happened in close succession that moved stablecoins from the periphery into core financial infrastructure.`,
+      },
+      {
+        type: "p",
+        text: `First, regulation. In the United States, the [GENIUS Act was signed into law on July 18, 2025](https://www.whitehouse.gov/fact-sheets/2025/07/fact-sheet-president-donald-j-trump-signs-genius-act-into-law/), the first comprehensive federal framework for payment stablecoins. It restricts issuance to regulated entities, mandates full reserve backing in high-quality liquid assets, bans algorithmic stablecoins, and — notably — prioritizes token holders' claims in an issuer insolvency. The EU's MiCA regime had already brought stablecoins under a harmonized licensing framework across its member states. Legal certainty is exactly what enterprises were waiting for before wiring these rails into production.`,
+      },
+      {
+        type: "p",
+        text: `Second, the incumbents bought their way in. Stripe closed its [$1.1 billion acquisition of stablecoin infrastructure firm Bridge in February 2025](https://www.cnbc.com/2025/02/04/stripe-closes-1point1-billion-bridge-deal-prepares-for-stablecoin-push-.html) — the largest deal in its history — and Mastercard followed in March 2026 with an agreement to [acquire BVNK for up to $1.8 billion](https://www.cnbc.com/2026/03/17/mastercard-acquiring-stablecoin-startup-bvnk-in-crypto-bet.html), its biggest crypto deal to date, explicitly to connect on-chain payments with its fiat network. When Visa, Mastercard and Stripe are all paying nine and ten figures to own settlement infrastructure, the "is this real" question is settled.`,
+      },
+      {
+        type: "p",
+        text: `Third, the center of gravity keeps rising. In July 2026, Stripe reportedly [bid roughly $53 billion for PayPal](https://www.coindesk.com/business/2026/07/16/stripe-s-usd53-billion-paypal-bid-is-a-high-stakes-play-to-own-the-future-of-digital-payments) in a play to own the future of digital payments end to end. Whatever the outcome, the direction is unambiguous: programmable dollars are now a strategic asset that the largest payment companies are willing to reshape themselves around.`,
+      },
+      { type: "h2", text: "Where a layer like FurlPay actually fits" },
+      {
+        type: "p",
+        text: `Here is the honest framing, because this is where a lot of writing on the topic overreaches. FurlPay is not a stablecoin issuer, and does not claim to be one under the GENIUS Act or any other regime. The issuance and reserve layer has been effectively commoditized by regulation and by the Stripe and Mastercard acquisitions. That is not where the remaining problem is.`,
+      },
+      {
+        type: "p",
+        text: `The remaining problem is orchestration. A CFO does not want to hold private keys, manage gas, or reason about which chain a supplier prefers. FurlPay sits at that layer: account abstraction (ERC-4337) and smart-contract wallets so a business can issue virtual cards, manage programmatic treasury, and run multi-chain cross-border payouts without the end user ever touching a seed phrase, a gas fee, or a network choice. The stablecoin is the settlement asset underneath; the product is the compliant interface on top that makes it usable.`,
+      },
+      {
+        type: "p",
+        text: `That is the pattern worth taking away from the 2021-2026 data. The base rails — issuance, reserves, raw transfer — are becoming plumbing, and plumbing trends toward zero margin. The durable value is in the orchestration and application layers that turn "$33 trillion moved on-chain" into something a business can actually operate: pick the right rail, absorb the on/off-ramp complexity, stay compliant across jurisdictions, and settle to the merchant in the currency they want. That is the layer we are building, and it is the layer the next decade of cross-border payments will be won in.`,
+      },
+      {
+        type: "p",
+        text: `A note on sources: the figures above are drawn from the IMF, the White House, Chainalysis, and primary reporting on the Stripe, Mastercard and market-cap numbers, and are current as of July 2026. Where a widely-shared figure could not be verified against a primary source — most notably the "$46 trillion" 2025 volume claim — we have used the lower, sourced number instead. In payments, an honest figure with a citation is worth more than an impressive one without.`,
+      },
+    ],
+  },
   // Investor thesis — x402 settlement layer for travel -------------------
   {
     slug: "bypassing-the-3-percent-card-tax-x402-settlement-layer-travel",
