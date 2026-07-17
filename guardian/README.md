@@ -8,6 +8,12 @@
 ![Gradle](https://img.shields.io/badge/Gradle-8.10-02303A?logo=gradle&logoColor=white)
 ![Tests](https://img.shields.io/badge/tests-65_passing-00E599)
 
+
+
+https://github.com/user-attachments/assets/5fb04a14-2e23-43c6-a56b-875f2eda55a7
+
+
+
 A Kotlin **phone app** (the AI brain) plus a **Wear OS companion** for the
 Google Pixel Watch 3. Two products in one shell:
 
