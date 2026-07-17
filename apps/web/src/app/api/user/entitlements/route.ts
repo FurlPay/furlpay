@@ -1,18 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAccountDurable } from "@/lib/store";
 import { PLAN_BY_TIER, featuresFor } from "@/lib/entitlements";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { requireUser } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/user/entitlements — the caller's subscription tier and feature map.
 // Consumed by the extension popup (plan panel + feature gating) and the site.
+// Uses the canonical requireUser path so the deletion tombstone + account-lock
+// checks apply consistently (it read the session cookie directly before).
 export async function GET(req: NextRequest) {
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const account = await getAccountDurable(claims?.sub);
-  if (!account) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
 
-  const tier = account.user.tier;
+  const tier = auth.account.user.tier;
   return NextResponse.json({
     tier,
     plan: PLAN_BY_TIER[tier] ?? "free",

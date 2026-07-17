@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type Stripe from "stripe";
 import { getStripe } from "@/lib/payments/stripe";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
-import { getAccountDurable, newTx, recordTransaction, setSubscriptionTier, DEMO_USER_ID } from "@/lib/store";
+import { getAccountDurable, newTx, recordTransaction, setSubscriptionTier, getDevelopmentDemoAccount } from "@/lib/store";
 import { TIER_BY_PLAN } from "@/lib/entitlements";
 import { recordMovement } from "@/lib/ledger";
 import { audit } from "@/lib/audit";
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
       const userId = (pi.metadata?.furlpayUserId as string) || "";
       const target =
         (await getAccountDurable(userId)) ??
-        (process.env.NODE_ENV !== "production" ? await getAccountDurable(DEMO_USER_ID) : undefined);
+        getDevelopmentDemoAccount();
       const amountUsd = (pi.amount_received ?? pi.amount) / 100;
 
       if (target) {

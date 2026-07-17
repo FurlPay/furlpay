@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { captureHold, createHold, listHolds, releaseHold } from "@/lib/services/escrow";
-import { getAccountDurable, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
+import { getAccountDurable, newTx, recordTransaction, getDevelopmentDemoAccount } from "@/lib/store";
 import { verifyAgentSignature } from "@/lib/agentTrustGate";
 import { authorizeAgentSpend, getAgentKey } from "@/lib/agentPolicy";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
@@ -47,14 +47,16 @@ export async function POST(req: NextRequest) {
 
   // Attribution, in order: the signing key's OWNING account (the control
   // plane — the agent acts on the account that registered it), then the
-  // session user, then the demo account (legacy anonymous agent keys, or
-  // unsigned requests in dev only).
+  // session user. The demo account is a DEV-ONLY fallback for unsigned/
+  // anonymous requests — NEVER in production, so an escrow hold can never be
+  // silently attributed to the shared demo account in prod. In production a
+  // request that resolves to neither an owned key nor a session is rejected.
   const ownedKey = agentKeyId ? await getAgentKey(agentKeyId) : null;
   const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
   const account =
     (await getAccountDurable(ownedKey?.userId)) ??
     (await getAccountDurable(claims?.sub)) ??
-    (agentKeyId || process.env.NODE_ENV !== "production" ? await getAccountDurable(DEMO_USER_ID) : undefined);
+    getDevelopmentDemoAccount();
   if (!account) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

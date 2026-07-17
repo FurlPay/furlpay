@@ -42,10 +42,20 @@ export default function PrivacyHelp() {
         <LI><b>Access / export:</b> request a copy of your data via a Support Center ticket in the KYC category.</LI>
         <LI><b>Rectification:</b> profile fields are self-service; verified-identity fields change via a KYC re-submission.</LI>
         <LI>
-          <b>Deletion:</b> request account deletion by ticket. Everything deletable is deleted;
-          transaction records required by anti-money-laundering law are retained for the statutory
-          period and then destroyed. The response to your request states exactly which records
-          remain and under which legal basis.
+          <b>Deletion:</b> self-service, in <b>Profile → Delete account</b> (in the Android app or on
+          the web — no app install required). You re-authenticate, confirm, and the account is erased
+          immediately: profile and contact details, passkeys and linked sign-ins, balances, cards,
+          bills, transaction history, trips, support conversations, agent keys and push registrations.
+          Two categories survive, and the confirmation screen says so before you confirm: settled
+          on-chain deposit records (kept as the permanent record of funds that moved, with your account
+          detached from them) and the security/compliance audit trail (kept for fraud prevention,
+          dispute resolution and auditing — it records that actions happened, not who you are). Where
+          financial record-keeping obligations apply, they override deletion for the records they
+          cover. Full detail:{" "}
+          <Link href="/legal/account-deletion" className="text-accent underline">
+            Delete your FurlPay account
+          </Link>
+          . If you cannot sign in, open a ticket and we will verify ownership before acting.
         </LI>
       </UL>
       <P>

@@ -1,25 +1,35 @@
 import { NextRequest, NextResponse } from "next/server";
 import { issueCredential, verifyCredential } from "@furlpay/compliance";
-import { db } from "@/lib/store";
+import { requireUser } from "@/lib/authz";
+
+export const dynamic = "force-dynamic";
 
 const SECRET = process.env.FURLPAY_CREDENTIAL_SECRET || "furlpay_credential_issuer_sandbox";
 
 // POST /api/compliance/credential — issue or verify a reusable KYC credential.
 // body: { action: "issue" } | { action: "verify", credential }
+//
+// Issuing must be AUTHENTICATED and bound to the acting user's own verified KYC.
+// Previously it was unauthenticated and issued a SIGNED credential attesting the
+// seeded demo account's KYC to any anonymous caller — an attacker could mint a
+// signed "KYC-verified" credential without an account.
 export async function POST(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const user = auth.account.user;
   const body = await req.json().catch(() => ({}));
 
   if (body.action === "issue") {
-    if (db.user.kycStatus !== "verified") {
+    if (user.kycStatus !== "verified") {
       return NextResponse.json({ error: "Complete KYC before issuing a credential" }, { status: 403 });
     }
     const credential = issueCredential(
-      db.user.id,
+      user.id,
       {
         ageOver18: true,
-        jurisdiction: db.user.region,
+        jurisdiction: user.region,
         sanctionsClear: true,
-        tier: db.user.kycTier,
+        tier: user.kycTier,
       },
       SECRET
     );

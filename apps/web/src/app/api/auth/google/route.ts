@@ -29,6 +29,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: e.message || "Invalid Google token" }, { status: 401 });
   }
 
+  // Account resolution falls back from googleSub to email (store.ts
+  // findUserByIdentity), which means a matching email LINKS this Google identity
+  // to an existing account (e.g. one created via email OTP). That link is only
+  // safe if Google has actually VERIFIED the email — otherwise an attacker could
+  // register a Google account carrying a victim's unverified email and take over
+  // the victim's OTP account by email match. Consumer Google accounts are always
+  // verified; reject the rare unverified case rather than link on an unproven
+  // identifier. (The repo rule: never merge accounts on an untrusted email.)
+  if (!identity.emailVerified) {
+    audit("auth.login", "anonymous", { provider: "google", rejected: "email_unverified" });
+    return NextResponse.json(
+      { error: "Your Google email address is not verified. Verify it with Google and try again." },
+      { status: 403 }
+    );
+  }
+
   const { account, created } = await findOrCreateUserByIdentityDurable({
     googleSub: identity.sub,
     email: identity.email,

@@ -15,6 +15,9 @@ export type AuditEvent =
   | "auth.signup"
   | "auth.guest_login"
   | "auth.mfa_failed"
+  | "auth.mfa_enrolled"
+  | "auth.mfa_enabled"
+  | "auth.mfa_disabled"
   | "payment.created"
   | "payment.settled"
   | "payment.blocked"
@@ -38,6 +41,10 @@ export type AuditEvent =
   | "mcp.scope_denied"
   | "account.funded"
   | "account.locked"
+  | "profile.updated"
+  // Account erasure. Deliberately survives the deletion it records: audit_log
+  // has no FK to users precisely so the trail outlives the account (0002).
+  | "account.deleted"
   | "wallet.link_challenge_issued"
   | "wallet.link_established"
   | "wallet.link_rejected"

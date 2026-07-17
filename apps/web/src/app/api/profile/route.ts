@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { persistAccount } from "@/lib/store";
 import { validateBody } from "@/lib/validate";
+import { rateLimitOr429 } from "@/lib/rateLimit";
+import { audit } from "@/lib/audit";
 
 // GET /api/profile - full profile + security + notification state for the
 // authenticated account. Never use the seeded demo account for this route.
@@ -20,6 +22,13 @@ export async function GET(req: NextRequest) {
     kycStatus: u.kycStatus,
     region: u.region,
     tier: u.tier,
+    // Auth-method status for the Security screen. Derived from authoritative
+    // state — booleans only, never the raw googleSub. Email is only ever
+    // persisted on this account through a verified identity flow (OTP checked,
+    // Google/Apple token verified), so a present email IS a verified one.
+    authProvider: u.authProvider ?? null,
+    emailVerified: Boolean(u.email),
+    googleLinked: Boolean(u.googleSub),
     security,
     notifications: u.notifications,
   });
@@ -28,9 +37,19 @@ export async function GET(req: NextRequest) {
 // PATCH /api/profile - update only low-risk user-facing security toggles and
 // notification preferences. MFA state, TOTP secrets, role, KYC, and
 // subscription tier changes go through dedicated privileged flows.
+// Display name: printable characters, no control chars, trimmed 1–50. Kept
+// deliberately permissive (people have varied real names) but bounded.
+const DISPLAY_NAME = z
+  .string()
+  .trim()
+  .min(1, "Name can't be empty")
+  .max(50, "Name is too long")
+  .regex(/^[\x20-\x7E\u00A0-\uFFFF]+$/, "Name contains invalid characters");
+
 const ProfilePatch = z
   .object({
     action: z.enum(["lock"]).optional(),
+    name: DISPLAY_NAME.optional(),
     security: z
       .object({
         biometricEnabled: z.boolean().optional(),
@@ -54,10 +73,20 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
+  // A display-name change is user-content; cap it so the endpoint can't be used
+  // to churn the account record. The middleware baseline still backstops.
+  const limited = await rateLimitOr429(req, "profile.patch", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
   const body = await validateBody(req, ProfilePatch);
   if (body instanceof NextResponse) return body;
 
   const u = auth.account.user;
+  if (body.name !== undefined && body.name !== u.name) {
+    u.name = body.name;
+    // No PII in the audit payload beyond the fact that the name changed.
+    audit("profile.updated", u.id, { field: "name", length: body.name.length });
+  }
   if (body.action === "lock") u.security.accountLocked = true;
   if (body.security?.biometricEnabled !== undefined) {
     u.security.biometricEnabled = body.security.biometricEnabled;
@@ -73,6 +102,7 @@ export async function PATCH(req: NextRequest) {
   const { totpSecret, ...security } = u.security;
   return NextResponse.json({
     success: true,
+    name: u.name,
     security,
     notifications: u.notifications,
     tier: u.tier,

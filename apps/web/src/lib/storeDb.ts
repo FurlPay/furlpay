@@ -475,6 +475,28 @@ export async function findUserIdByIdentity(lookup: IdentityLookup): Promise<stri
   return undefined;
 }
 
+/**
+ * Erase the user row. The RETENTION MODEL IS THE SCHEMA'S, not this function's
+ * — deleting `users` is all it takes, because migrations 0001/0002/0005 already
+ * encode what survives an erasure:
+ *
+ *   on delete cascade  → token_balances, fiat_balances, holdings, cards, bills,
+ *                        transactions, trips, linked_wallets  (ERASED)
+ *   on delete set null → deposits.user_id — the on-chain deposit ledger is the
+ *                        "permanent record" (0002), so the row SURVIVES with the
+ *                        subject detached  (PSEUDONYMIZED)
+ *   no foreign key     → audit_log, ops_tx_events, ops_security_events —
+ *                        "the trail must outlive account deletion (GDPR erasure
+ *                        removes the user row, not the evidence that actions
+ *                        happened)" (0002)  (RETAINED)
+ *
+ * Postgres applies all of that in ONE statement's transaction, so there is no
+ * half-deleted state to reconcile.
+ */
+export async function deleteAccount(userId: string): Promise<void> {
+  await sbDelete("users", `id=eq.${encodeURIComponent(userId)}`);
+}
+
 /** Resolve which user owns a card — the durable replacement for scanning
  *  listAccounts() in card webhooks on a cold instance. */
 export async function findUserIdByCard(cardId: string): Promise<string | undefined> {

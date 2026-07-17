@@ -375,6 +375,62 @@ export function listAccounts(): UserAccount[] {
   return [...state.accounts.values()];
 }
 
+/**
+ * DEV-ONLY demo account. Returns undefined in production, ALWAYS — so no
+ * account-mutating or security-sensitive path can silently fall back to the
+ * shared seeded demo identity.
+ *
+ * This centralizes the invariant that produced the recurring FP-2..FP-5 bug
+ * class: instead of each route hand-writing
+ *   process.env.NODE_ENV !== "production" ? getAccountDurable(DEMO_USER_ID) : undefined
+ * — which one route (escrow) got subtly wrong (`agentKeyId || …`) — every dev
+ * fallback goes through this single guarded function. A future developer cannot
+ * reintroduce the bug with a slightly different ternary: the production guard
+ * lives here and nowhere else. The authenticated path (getAccountDurable of a
+ * resolved principal) never references DEMO_USER_ID at all.
+ */
+export function getDevelopmentDemoAccount(): UserAccount | undefined {
+  if (process.env.NODE_ENV === "production") return undefined;
+  return state.accounts.get(DEMO_USER_ID);
+}
+
+/**
+ * Drop an account from the in-memory working set AND every identity index, so
+ * this instance stops resolving it. Account deletion (lib/accountDeletion.ts)
+ * calls this after the Postgres row is gone: getAccountDurable() would
+ * otherwise keep serving the cached copy and a deleted user's session would
+ * still authenticate on this instance.
+ *
+ * `hydrated` is cleared too, so a later getAccountDurable() re-reads Postgres
+ * (a miss) instead of short-circuiting on the stale hydration flag.
+ *
+ * The seeded demo account is never evictable — guest sessions share it, and
+ * losing it would break every demo surface on the instance.
+ */
+export function evictAccount(userId: string): boolean {
+  if (userId === DEMO_USER_ID) return false;
+  const account = state.accounts.get(userId);
+  if (!account) {
+    state.hydrated.delete(userId);
+    return false;
+  }
+  const { email, phone, googleSub, appleSub } = account.user;
+  if (email) state.byEmail.delete(email.toLowerCase());
+  if (phone) state.byPhone.delete(phone);
+  if (googleSub) state.byGoogleSub.delete(googleSub);
+  if (appleSub) state.byAppleSub.delete(appleSub);
+  // Defensive: an index entry that points at this id but was keyed off an
+  // identifier since changed on the user record would otherwise survive and
+  // resolve a deleted account on the next login.
+  for (const index of [state.byEmail, state.byPhone, state.byGoogleSub, state.byAppleSub]) {
+    for (const [key, id] of index) if (id === userId) index.delete(key);
+  }
+  state.accounts.delete(userId);
+  state.hydrated.delete(userId);
+  state.flushes.delete(userId);
+  return true;
+}
+
 export interface IdentityLookup {
   phone?: string;
   email?: string;

@@ -3,7 +3,7 @@ import { settle, type FacilitatorRequest } from "@/lib/x402Facilitator";
 import { PAY_TO } from "@/lib/x402";
 import { creditAccount } from "@/lib/services/account";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
-import { getAccountDurable, DEMO_USER_ID } from "@/lib/store";
+import { getAccountDurable, getDevelopmentDemoAccount } from "@/lib/store";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
   const target =
     (await getAccountDurable(claims?.sub)) ??
     (await getAccountDurable(typeof body.destinationUserId === "string" ? body.destinationUserId : undefined)) ??
-    (process.env.NODE_ENV !== "production" ? await getAccountDurable(DEMO_USER_ID) : undefined);
+    getDevelopmentDemoAccount();
   if (!target) {
     return NextResponse.json({ funded: false, error: "unknown_destination" }, { status: 400 });
   }

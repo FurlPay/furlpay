@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { tokenFromRequest, verifySession, type Role, type SessionClaims } from "@/lib/session";
 import { getAccountDurable, type UserAccount } from "@/lib/store";
+import { isAccountDeleted } from "@/lib/accountDeletion";
 import type { McpClaims } from "@/lib/mcp/oauth";
 import { mcpDenialFor } from "@/lib/mcp/routeScopes";
 import { audit } from "@/lib/audit";
@@ -53,6 +54,17 @@ export async function requireUser(req: NextRequest): Promise<AuthResult> {
       });
       return { ok: false, res: denial };
     }
+  }
+  // Deleted accounts stop authenticating everywhere, immediately. Checked
+  // BEFORE the account lookup because getAccountDurable() serves a warm
+  // in-memory copy on an instance that hasn't re-read Postgres yet — without
+  // this, a session on such an instance would outlive the deletion.
+  // revokeSession() cannot cover this: it is per-jti and per-instance.
+  if (await isAccountDeleted(claims.sub)) {
+    return {
+      ok: false,
+      res: NextResponse.json({ error: "Account deleted" }, { status: 401 }),
+    };
   }
   // Hydrates from Postgres on first touch per instance, so a session minted
   // on another instance resolves here too.

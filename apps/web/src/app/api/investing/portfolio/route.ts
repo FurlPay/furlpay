@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { requireUser } from "@/lib/authz";
 import { getQuotes } from "@/lib/markets/quotes";
+import { bySymbol, assetLogoPath } from "@/lib/markets/catalog";
 
 // GET /api/investing/portfolio — holdings, dividends & performance metrics,
 // scoped to the acting user. Holdings are marked to the latest quotes (live
@@ -34,8 +35,15 @@ export async function GET(req: NextRequest) {
     { symbol: "VOO", amount: 1.62, status: "pending", exDate: "2026-07-25" },
   ];
 
+  // Attach each holding's self-hosted logo path (same source the Markets tab
+  // uses) so the native app can render real asset marks instead of a stub.
+  const holdings = account.holdings.map((h) => {
+    const asset = bySymbol.get(h.symbol);
+    return { ...h, logo: asset ? assetLogoPath(asset) : null };
+  });
+
   return NextResponse.json({
-    holdings: account.holdings,
+    holdings,
     dividends,
     performance: {
       marketValue,

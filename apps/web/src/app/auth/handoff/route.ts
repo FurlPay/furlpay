@@ -16,11 +16,26 @@ import type { Role } from "@/lib/session";
 // code scraped from a log) loses the race and gets nothing. It is worthless
 // after 60s regardless.
 
-/** Only same-origin, non-protocol-relative paths — never bounce to an attacker's
- *  host just because they controlled `next`. */
-function safeNext(raw: string | null): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//")) return "/travel";
-  return raw;
+/** Resolve `next` to a same-origin URL, or fall back to /travel — never bounce
+ *  to an attacker's host just because they controlled `next`.
+ *
+ *  String-prefix checks are NOT enough here: the WHATWG URL parser strips ASCII
+ *  tab/newline/CR and folds backslashes into slashes for http(s), so raw inputs
+ *  that don't literally start with "//" ("/\\evil.com", "/<TAB>/evil.com")
+ *  still resolve cross-origin. We instead resolve ONCE against the real origin,
+ *  reject anything whose origin changed, and return the resolved URL object so
+ *  the caller redirects to it verbatim — re-resolving an extracted path string
+ *  (e.g. a normalized "//evil.com") would re-open the hole. */
+function safeNextUrl(raw: string | null, origin: string): URL {
+  const fallback = new URL("/travel", origin);
+  if (!raw) return fallback;
+  let u: URL;
+  try {
+    u = new URL(raw, origin);
+  } catch {
+    return fallback;
+  }
+  return u.origin === origin ? u : fallback;
 }
 
 function fail(req: NextRequest, reason: string): NextResponse {
@@ -31,7 +46,7 @@ function fail(req: NextRequest, reason: string): NextResponse {
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  const next = safeNext(req.nextUrl.searchParams.get("next"));
+  const nextUrl = safeNextUrl(req.nextUrl.searchParams.get("next"), req.nextUrl.origin);
   if (!code) return fail(req, "missing_code");
 
   // Burn first: whoever sets the `used` marker owns the redemption. A replay
@@ -51,8 +66,8 @@ export async function GET(req: NextRequest) {
     roles: (payload.roles ?? ["user"]) as Role[],
   });
 
-  const res = NextResponse.redirect(new URL(next, req.nextUrl.origin));
+  const res = NextResponse.redirect(nextUrl);
   setSessionCookie(res, token);
-  audit("auth.handoff_redeemed", payload.sub, { next });
+  audit("auth.handoff_redeemed", payload.sub, { next: nextUrl.pathname });
   return res;
 }

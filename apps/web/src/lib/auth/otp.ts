@@ -13,8 +13,9 @@
 // ---------------------------------------------------------------------------
 
 import crypto from "crypto";
-import { kvGet, kvSet, kvDel } from "@/lib/kv";
+import { kvGet, kvSet, kvDel, kvSetNx, kvIncr } from "@/lib/kv";
 import { sendEmail } from "@/lib/email";
+import { otpEmail } from "@/lib/emailTemplates";
 
 export type OtpChannel = "sms" | "call" | "email" | "whatsapp";
 
@@ -30,10 +31,11 @@ export function otpIsLive(): boolean {
 // Email OTP has its own live path via Resend (already sending in prod) so an
 // unconfigured Twilio doesn't block email sign-in. Codes are stored in Redis
 // KV (cross-instance, TTL'd) — never echoed to the caller when live.
-const RESEND_LIVE = !!process.env.RESEND_API_KEY;
-
+// Read at call time (not a module-load snapshot): the live/mock decision must
+// reflect the actual current config, not whatever was set when this file first
+// imported.
 function emailOtpIsLive(): boolean {
-  return RESEND_LIVE;
+  return !!process.env.RESEND_API_KEY;
 }
 
 // The mock OTP path generates codes locally and echoes them to the caller — an
@@ -72,35 +74,91 @@ export interface StartResult {
 }
 
 // --- Resend-backed email OTP --------------------------------------------------
+//
+// The code is NEVER stored in recoverable form. We keep only an HMAC of it,
+// keyed by the server session secret — so even a full KV dump does not reveal a
+// working code (the attacker lacks the HMAC key; a 6-digit code would otherwise
+// be brute-forceable in milliseconds from a stored hash). Single-use is enforced
+// atomically via kvSetNx (Redis SET NX), so two concurrent submissions of the
+// correct code yield exactly ONE success. The attempt counter is an atomic
+// kvIncr, so a burst of guesses cannot slip past the cap by racing.
 
-const EMAIL_OTP_KEY = (addr: string) => `otp:email:${addr.trim().toLowerCase()}`;
+const EMAIL_OTP_KEY = (addr: string) => `otp:email:${normalizeEmail(addr)}`;
+const ATTEMPTS_KEY = (addr: string) => `otp:email:attempts:${normalizeEmail(addr)}`;
+const CONSUMED_KEY = (addr: string) => `otp:email:consumed:${normalizeEmail(addr)}`;
+const COOLDOWN_KEY = (addr: string) => `otp:email:cooldown:${normalizeEmail(addr)}`;
 const EMAIL_OTP_TTL_S = 10 * 60;
+const RESEND_COOLDOWN_S = 30; // no second send within 30s of the last one
+
+function normalizeEmail(addr: string): string {
+  return addr.trim().toLowerCase();
+}
+
+/** Pepper for the OTP HMAC. Reuses the session secret (already mandatory and
+ *  strong in production — see lib/session.ts). A KV compromise alone cannot
+ *  reverse an OTP hash without this. */
+const OTP_PEPPER_FALLBACK = "furlpay_dev_otp_pepper_change_me_32bytes";
+function otpPepper(): string {
+  const secret = process.env.FURLPAY_SESSION_SECRET;
+  if (!secret || secret.length < 32) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("FURLPAY_SESSION_SECRET must be set (>= 32 chars) to hash OTPs in production.");
+    }
+    return OTP_PEPPER_FALLBACK;
+  }
+  return secret;
+}
+
+/** Hash a code, bound to the normalized address so a code minted for A can
+ *  never verify for B even if the keys were ever confused. */
+function hashOtp(addr: string, code: string): string {
+  return crypto
+    .createHmac("sha256", otpPepper())
+    .update(`${normalizeEmail(addr)}:${code}`)
+    .digest("hex");
+}
 
 interface EmailOtpRecord {
-  code: string;
+  hash: string; // HMAC-SHA256(address:code) — never the code itself
   expiresAt: number; // epoch ms
-  attempts: number;
 }
 
 async function startEmailOtp(to: string): Promise<StartResult> {
+  // Resend cooldown: refuse a second send inside the window. kvSetNx is atomic,
+  // so two rapid taps cannot both pass. This is per-address and independent of
+  // the route's IP+address rate limit (which is the coarser abuse guard).
+  const fresh = await kvSetNx(COOLDOWN_KEY(to), "1", RESEND_COOLDOWN_S);
+  if (!fresh) {
+    // Generic to the caller — reveals nothing about account existence.
+    throw new Error("A code was just sent. Please wait a moment before requesting another.");
+  }
+
   const code = sixDigits();
+  // Issuing a new code invalidates the previous one and resets the attempt
+  // counter and the single-use guard, so the latest code is the only valid one.
   await kvSet(
     EMAIL_OTP_KEY(to),
-    { code, expiresAt: Date.now() + EMAIL_OTP_TTL_S * 1000, attempts: 0 } satisfies EmailOtpRecord,
+    { hash: hashOtp(to, code), expiresAt: Date.now() + EMAIL_OTP_TTL_S * 1000 } satisfies EmailOtpRecord,
     EMAIL_OTP_TTL_S
   );
+  await kvDel(ATTEMPTS_KEY(to));
+  await kvDel(CONSUMED_KEY(to));
+
+  const tpl = otpEmail(code, Math.round(EMAIL_OTP_TTL_S / 60));
   const result = await sendEmail({
     to: to.trim(),
     category: "otp",
-    subject: `${code} is your FurlPay sign-in code`,
-    html: `<p>Your FurlPay sign-in code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:4px">${code}</p><p>It expires in 10 minutes. If you didn't request this, ignore this email.</p>`,
-    text: `Your FurlPay sign-in code is ${code}. It expires in 10 minutes.`,
+    subject: tpl.subject,
+    html: tpl.html,
+    text: tpl.text,
   });
   if (!result.ok) {
     // Provider detail goes to the server log only — the client gets a generic
     // message (an attacker mustn't learn suppression/budget/provider state).
+    // The raw code is NEVER logged.
     console.error(`[otp:email] send failed: ${result.error}`);
     await kvDel(EMAIL_OTP_KEY(to));
+    await kvDel(COOLDOWN_KEY(to)); // a failed send shouldn't lock out a retry
     throw new Error("Could not send the verification email — try again shortly.");
   }
   return { sent: true, channel: "email" };
@@ -114,16 +172,29 @@ async function checkEmailOtp(to: string, code: string): Promise<CheckResult | nu
     await kvDel(key);
     return { approved: false, reason: "expired" };
   }
-  if (rec.attempts >= MAX_ATTEMPTS) {
+
+  // Atomic attempt counter: a burst of concurrent guesses cannot each read the
+  // same stale count and collectively exceed the cap.
+  const remainingTtl = Math.max(1, Math.ceil((rec.expiresAt - Date.now()) / 1000));
+  const attempts = await kvIncr(ATTEMPTS_KEY(to), remainingTtl);
+  if (attempts > MAX_ATTEMPTS) {
     await kvDel(key);
     return { approved: false, reason: "too_many_attempts" };
   }
-  const remainingTtl = Math.max(1, Math.ceil((rec.expiresAt - Date.now()) / 1000));
-  await kvSet(key, { ...rec, attempts: rec.attempts + 1 }, remainingTtl);
-  const a = Buffer.from(String(code).padEnd(10));
-  const b = Buffer.from(String(rec.code).padEnd(10));
-  if (!crypto.timingSafeEqual(a, b)) return { approved: false, reason: "mismatch" };
-  await kvDel(key); // single-use
+
+  // Timing-safe compare of the HMACs (fixed 64-hex-char length).
+  const candidate = Buffer.from(hashOtp(to, String(code)), "hex");
+  const expected = Buffer.from(rec.hash, "hex");
+  if (candidate.length !== expected.length || !crypto.timingSafeEqual(candidate, expected)) {
+    return { approved: false, reason: "mismatch" };
+  }
+
+  // Atomic single-use: the FIRST caller to claim the consume marker wins; a
+  // concurrent second submission of the same correct code loses the race and
+  // is rejected. Prevents double-spend of one OTP.
+  const won = await kvSetNx(CONSUMED_KEY(to), "1", 60);
+  if (!won) return { approved: false, reason: "not_found" };
+  await kvDel(key);
   return { approved: true };
 }
 

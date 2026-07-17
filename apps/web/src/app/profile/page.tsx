@@ -26,9 +26,15 @@ interface Profile {
   notifications: { transactions: boolean; security: boolean; priceAlerts: boolean; product: boolean };
 }
 
+/** What deletion keeps, straight from the server — never hardcoded here, so the
+ *  copy the user reads cannot drift from the retention model the API applies. */
+interface Retained { record: string; reason: string }
+interface DeletionPreview { stepUpSatisfied: boolean; retained: Retained[] }
+
 export default function ProfilePage() {
   const router = useRouter();
   const [p, setP] = useState<Profile | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(() => {
     getJSON<Profile>("/api/profile").then(setP).catch(console.error);
@@ -45,6 +51,12 @@ export default function ProfilePage() {
     await clearOfflineData();
     await fetch("/api/auth/logout", { method: "POST" });
     router.push("/login");
+  }
+
+  /** The account is gone server-side; scrub every local trace before leaving. */
+  async function afterDeletion() {
+    await clearOfflineData();
+    router.push("/login?deleted=1");
   }
 
   if (!p) return <Spinner />;
@@ -133,12 +145,14 @@ export default function ProfilePage() {
           Log out
         </button>
         <button
-          onClick={() => confirm("Delete your account? This cannot be undone.") && logout()}
+          onClick={() => setDeleting(true)}
           className="w-full px-4 py-3 text-left text-[14px] font-semibold text-loss"
         >
           Delete account
         </button>
       </Group>
+
+      {deleting && <DeleteAccount onCancel={() => setDeleting(false)} onDeleted={afterDeletion} />}
 
       <p className="px-5 pb-4 pt-2 text-center text-[11px] text-textMuted">Furlpay demo · v0.1.0</p>
     </>
@@ -175,5 +189,131 @@ function Toggle({ label, on, onClick }: { label: string; on: boolean; onClick: (
         <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${on ? "left-[22px]" : "left-0.5"}`} />
       </span>
     </button>
+  );
+}
+
+/**
+ * Real account deletion. Replaces the button that used to `confirm()` and then
+ * merely log out — which told the user "this cannot be undone" while deleting
+ * nothing.
+ *
+ * Three things this UI must get right:
+ *  1. It must NOT claim total erasure. The retention list comes from the server
+ *     (GET /api/account), so what the user reads is what the API actually does.
+ *  2. Self-custodial wallet material lives in the user's own device/keystore —
+ *     deleting the FurlPay account does not, and cannot, move their funds.
+ *  3. A bare session is not enough (server enforces step-up); if this session
+ *     hasn't re-authenticated recently, send the user to sign in again rather
+ *     than firing a request we know will 403.
+ */
+function DeleteAccount({ onCancel, onDeleted }: { onCancel: () => void; onDeleted: () => Promise<void> }) {
+  const router = useRouter();
+  const [preview, setPreview] = useState<DeletionPreview | null>(null);
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    getJSON<DeletionPreview>("/api/account").then(setPreview).catch(() => setError("Could not load deletion details."));
+  }, []);
+
+  async function destroy() {
+    setBusy(true);
+    setError(null);
+    const res = await fetch("/api/account", { method: "DELETE" }).catch(() => null);
+    if (!res) {
+      setBusy(false);
+      return setError("Network error — your account was not deleted.");
+    }
+    if (res.status === 403) {
+      const body = await res.json().catch(() => ({}));
+      setBusy(false);
+      return setError(
+        body.error === "stepup_required"
+          ? "For your security, sign in again and then delete within 10 minutes."
+          : "This account cannot be deleted from a demo session."
+      );
+    }
+    if (!res.ok) {
+      setBusy(false);
+      return setError("Deletion failed. Your account is unchanged — please try again.");
+    }
+    await onDeleted();
+  }
+
+  if (!preview) return null;
+
+  const armed = confirmText.trim().toUpperCase() === "DELETE";
+
+  return (
+    <section className="mt-6 px-5">
+      <div className="rounded-card border border-loss/40 bg-surface p-4">
+        <h2 className="text-[15px] font-bold text-loss">Delete your FurlPay account</h2>
+
+        <p className="mt-3 text-[13px] font-semibold">This will be deleted</p>
+        <p className="mt-1 text-[13px] text-textSecondary">
+          Your profile and contact details, passkeys and linked sign-ins, balances, cards, bills,
+          transaction history, trips, support conversations, agent keys, and push registrations.
+          You will be signed out on every device and will not be able to sign in again.
+        </p>
+
+        <p className="mt-4 text-[13px] font-semibold">This will be kept</p>
+        <ul className="mt-1 space-y-2">
+          {preview.retained.map((r) => (
+            <li key={r.record} className="text-[13px] text-textSecondary">
+              <span className="font-medium text-textPrimary">{r.record}</span> — {r.reason}
+            </li>
+          ))}
+        </ul>
+
+        <p className="mt-4 text-[13px] font-semibold">Your self-custodial wallet</p>
+        <p className="mt-1 text-[13px] text-textSecondary">
+          Your recovery phrase is held on your own device, not by FurlPay. Deleting your account
+          does not move, return or destroy any on-chain funds, and we cannot recover the phrase for
+          you afterwards. If you hold a balance in that wallet,{" "}
+          <span className="font-medium text-textPrimary">back up your recovery phrase first</span>.
+        </p>
+
+        {!preview.stepUpSatisfied ? (
+          <>
+            <p className="mt-4 text-[13px] text-textSecondary">
+              For your security, deleting an account requires a recent sign-in.
+            </p>
+            <button
+              onClick={() => router.push("/login?next=/profile")}
+              className="mt-3 w-full rounded-card bg-accent px-4 py-3 text-[14px] font-semibold text-black"
+            >
+              Sign in again to continue
+            </button>
+          </>
+        ) : (
+          <>
+            <label className="mt-4 block text-[13px] text-textSecondary" htmlFor="confirm-delete">
+              Type <span className="font-mono font-semibold text-textPrimary">DELETE</span> to confirm.
+            </label>
+            <input
+              id="confirm-delete"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoComplete="off"
+              className="mt-2 w-full rounded-card bg-black/40 px-4 py-3 font-mono text-[14px] outline-none ring-1 ring-white/10 focus:ring-loss"
+            />
+            <button
+              onClick={destroy}
+              disabled={!armed || busy}
+              className="mt-3 w-full rounded-card bg-loss px-4 py-3 text-[14px] font-semibold text-white disabled:opacity-40"
+            >
+              {busy ? "Deleting…" : "Permanently delete my account"}
+            </button>
+          </>
+        )}
+
+        {error && <p className="mt-3 text-[13px] text-loss">{error}</p>}
+
+        <button onClick={onCancel} className="mt-2 w-full px-4 py-3 text-[14px] text-textSecondary">
+          Cancel
+        </button>
+      </div>
+    </section>
   );
 }

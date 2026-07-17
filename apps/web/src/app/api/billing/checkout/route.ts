@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
-import { getAccountDurable, setSubscriptionTier } from "@/lib/store";
+import { setSubscriptionTier } from "@/lib/store";
 import { TIER_BY_PLAN } from "@/lib/entitlements";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -15,9 +16,16 @@ export const dynamic = "force-dynamic";
 // create a real subscription Checkout Session; without them (local sandbox)
 // we upgrade the tier immediately so the full flow stays demoable.
 export async function POST(req: NextRequest) {
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const account = await getAccountDurable(claims?.sub);
-  if (!account) return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  // requireUser (not a bare verifySession) so a DELETED or LOCKED account cannot
+  // start a checkout on a still-valid session — the deletion tombstone and the
+  // account-lock check live in requireUser, and every other authenticated route
+  // goes through it.
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
+
+  const limited = await rateLimitOr429(req, "billing.checkout", { limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
 
   const { plan } = (await req.json().catch(() => ({}))) as { plan?: string };
   const tier = plan ? TIER_BY_PLAN[plan] : undefined;

@@ -11,7 +11,9 @@
 import { kvGet, kvIncr, kvSet } from "./kv";
 import { trackCost } from "./costTracker";
 
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
+// Read at call time (see sendEmail): a module-load snapshot goes stale if the
+// key is configured after this file is first imported (test setup, or a
+// serverless cold-start import ordering), silently forcing the mock path.
 const EMAIL_FROM = process.env.EMAIL_FROM || "Furlpay <hello@furlpay.com>";
 
 export type EmailCategory =
@@ -102,6 +104,7 @@ export type SendResult =
 
 /** Send an email. No-ops to a console log when RESEND_API_KEY is absent. */
 export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
+  const RESEND_API_KEY = process.env.RESEND_API_KEY;
   const category = msg.category ?? "ops";
   if (!RESEND_API_KEY) {
     const to = Array.isArray(msg.to) ? msg.to.join(", ") : msg.to;

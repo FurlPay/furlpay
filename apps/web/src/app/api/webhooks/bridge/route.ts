@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { constructEvent } from "@furlpay/compliance";
 import { evaluateStablecoin } from "@furlpay/compliance";
-import { getAccountDurable, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
+import { getAccountDurable, newTx, recordTransaction, getDevelopmentDemoAccount } from "@/lib/store";
 import { tryBegin, markProcessed, markFailed, resolveVersion, endpointSecret } from "@/lib/webhookGuard";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
       const { token, amountUsd, furlpayUserId } = event.data;
       const target =
         (await getAccountDurable(typeof furlpayUserId === "string" ? furlpayUserId : undefined)) ??
-        (process.env.NODE_ENV !== "production" ? await getAccountDurable(DEMO_USER_ID) : undefined);
+        getDevelopmentDemoAccount();
       if (!target) {
         // Ack (don't retry forever) but never credit an unmatched deposit to
         // someone else's account.

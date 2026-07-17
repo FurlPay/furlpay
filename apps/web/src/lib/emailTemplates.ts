@@ -81,14 +81,25 @@ const usd = (n: number) => `$${n.toFixed(2)}`;
 
 export function otpEmail(code: string, expiresMinutes = 10): RenderedEmail {
   return {
-    subject: `${code} is your Furlpay verification code`,
+    // Subject carries no account-existence signal — the same subject goes to
+    // a brand-new address and an existing user. The code is in the body, not
+    // the subject, so it is not exposed on a lock-screen preview.
+    subject: `Your FurlPay verification code`,
     html: shell(
-      "Verification code",
-      p(`Use this code to verify your identity. It expires in ${expiresMinutes} minutes.`) +
+      "Your verification code",
+      p(`Enter this code to sign in to FurlPay:`) +
         codeBox(code) +
-        p(`If you did not request this code, you can safely ignore this email.`)
+        p(
+          `This code expires in ${expiresMinutes} minutes and can be used once. ` +
+            `FurlPay will never ask you to share or reply with this code.`
+        ) +
+        p(`If you did not try to sign in, you can safely ignore this email — no action is needed.`)
     ),
-    text: `Your Furlpay verification code is ${code}. It expires in ${expiresMinutes} minutes. If you did not request it, ignore this email.`,
+    text:
+      `Your FurlPay verification code is ${code}.\n\n` +
+      `It expires in ${expiresMinutes} minutes and can be used once. ` +
+      `FurlPay will never ask you to share or reply with this code.\n\n` +
+      `If you did not try to sign in, ignore this email.`,
   };
 }
 
