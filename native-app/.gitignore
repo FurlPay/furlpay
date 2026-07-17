@@ -24,3 +24,6 @@ google-services.json
 *.orig.*
 *.log
 .env*.local
+
+# Local expo module build output
+modules/*/android/build/

@@ -114,6 +114,7 @@ export default function RootLayout() {
               <Stack.Screen name="support/[id]" options={{ title: "Support conversation" }} />
               <Stack.Screen name="passkeys" options={{ title: "Passkeys" }} />
               <Stack.Screen name="wallet" options={{ title: "Self-custodial wallet" }} />
+              <Stack.Screen name="watch" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
             </Stack>
           </View>

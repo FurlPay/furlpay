@@ -330,6 +330,14 @@ export default function Settings() {
         </Surface>
         <Button title="Lock account instantly" variant="danger" onPress={lockAccount} />
 
+        <SectionHeader title="Devices" />
+        <Surface style={{ gap: 4 }}>
+          <NavRow icon="watch-outline" label="FurlPay Watch" onPress={() => router.push("/watch")} />
+          <Text style={[type.dim, { fontSize: 12 }]}>
+            Balances, card freeze, Guardian alarms, and voice on your Wear OS watch.
+          </Text>
+        </Surface>
+
         <SectionHeader title="Notifications" />
         <Surface style={{ gap: 4 }}>
           <ToggleRow

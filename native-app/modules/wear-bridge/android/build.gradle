@@ -1,0 +1,23 @@
+// Local Expo module: Wear OS bridge for the watch-connection screen.
+// Discovered automatically by expo-modules-autolinking (modules/ dir).
+// Same plugin pattern as every SDK-53 expo module (see expo-haptics).
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.furlpay.wearbridge'
+version = '0.1.0'
+
+android {
+  namespace "com.furlpay.wearbridge"
+  defaultConfig {
+    versionCode 1
+    versionName '0.1.0'
+  }
+}
+
+dependencies {
+  // NodeClient — package-agnostic "is a watch paired & nearby" detection.
+  implementation 'com.google.android.gms:play-services-wearable:19.0.0'
+}

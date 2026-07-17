@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Android 11+ package visibility: the app must declare it wants to see
+         the Guardian companion app to check-install / launch it. Merged into
+         the app manifest from this library. -->
+    <queries>
+        <package android:name="com.furlpay.guardian" />
+    </queries>
+</manifest>
