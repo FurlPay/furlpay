@@ -15,12 +15,12 @@
 # certificate) to assetlinks.json, ALONGSIDE the upload key.
 #
 # Usage:
-#   ./verify-assetlinks.sh [path-to.apk|path-to.aab]   (default: furlpay-release.apk)
+#   ./verify-assetlinks.sh [path-to.apk|path-to.aab]   (default: the native-app release APK)
 
 set -euo pipefail
 cd "$(dirname "$0")"
 
-ARTIFACT="${1:-furlpay-release.apk}"
+ARTIFACT="${1:-../../native-app/furlpay-mobile-release.apk}"  # canonical Play artifact (the TWA is deprecated)
 JDK="${JDK_HOME:-C:/Users/ashut/.jdks/jdk-17.0.19+10}"
 SDK="${ANDROID_HOME:-C:/Android/sdk}"
 BT="${BUILD_TOOLS:-$SDK/build-tools/36.0.0}"
@@ -60,9 +60,25 @@ while read -r p; do echo "      $p"; done <<< "$PUBLISHED"
 if grep -qxF "$FP" <<< "$PUBLISHED"; then
   echo
   echo "OK: this artifact's certificate IS published. App links will verify for it."
-  echo "NOTE: if this build goes through Google Play, Play re-signs it — add the"
-  echo "      Play App Signing fingerprint to assetlinks.json too, or links break"
-  echo "      for every Play user while still passing this check locally."
+
+  # The check above passes for a LOCALLY INSTALLED build and says nothing about
+  # Play. Play re-signs the upload with its own App Signing key, so devices that
+  # install from Play present a DIFFERENT certificate. If only one fingerprint is
+  # published, that key cannot be in the list — App Links AND passkeys
+  # (delegate_permission/common.get_login_creds) will silently fail for every
+  # Play user, while this script keeps printing OK. Say so loudly.
+  COUNT=$(wc -l <<< "$PUBLISHED" | tr -d ' ')
+  if [[ "$COUNT" -lt 2 ]]; then
+    echo
+    echo "WARNING: assetlinks.json publishes only ONE fingerprint (the upload key)."
+    echo "         Google Play re-signs uploads with the Play App Signing key, whose"
+    echo "         certificate is NOT this one. Until you add it:"
+    echo "           - https://furlpay.com links will NOT open the Play-installed app"
+    echo "           - native PASSKEYS will NOT work in the Play-installed app"
+    echo "         Get it from Play Console -> Test and release -> App integrity ->"
+    echo "         App signing key certificate (SHA-256), add it ALONGSIDE this one,"
+    echo "         and redeploy the web app. See docs/PLAY-SIGNING-RUNBOOK.md."
+  fi
   exit 0
 fi
 

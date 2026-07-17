@@ -6,17 +6,26 @@ Two Android artifacts exist in this repo. **They ship the same package id,
 | | `apps/android` | `native-app` |
 |---|---|---|
 | What | Bubblewrap TWA (a browser frame around furlpay.com) | Expo / React Native native app |
-| versionCode | 1 | 2 |
-| Status | **superseded** — kept for reference, do not publish | **the app we ship** |
+| versionCode | 1 | 3 |
+| Status | **DEPRECATED** — build.sh refuses to run without `FURLPAY_BUILD_DEPRECATED_TWA=1`; outputs are named `twa-DEPRECATED-DO-NOT-UPLOAD.*` | **the app we ship** |
 
 The TWA's Java is stock Bubblewrap with no custom logic, so nothing is lost by
 retiring it. Its keystore, however, is the one thing that must survive: it is
-the identity of `com.furlpay.app`.
+the identity of `com.furlpay.app`. (It now lives outside the repo — see
+`apps/android/KEYSTORE-MOVED.md`.)
+
+Because both artifacts are signed with the **same upload key**, a TWA bundle
+uploaded by mistake would pass `jarsigner -verify`, `verify-assetlinks.sh` and
+Play's own signature check, then silently replace the real app with a browser
+frame that has no FCM, no native passkeys and no in-app account deletion. That
+is why the TWA build is now gated rather than merely documented as superseded.
+See `apps/android/DEPRECATED.md`.
 
 ## The one rule
 
-**Every build of `com.furlpay.app`, forever, must be signed with
-`apps/android/android.keystore` (alias `furlpay`).**
+**Every build of `com.furlpay.app`, forever, must be signed with the upload key
+(alias `furlpay`) — now at `C:\Users\ashut\.furlpay-signing\android.keystore`,
+outside the OneDrive-synced repo. See `apps/android/KEYSTORE-MOVED.md`.**
 
 Its certificate — `15:92:F6:8B:…:29:13` — is the fingerprint published in
 `apps/web/public/.well-known/assetlinks.json`. If a build is signed with any
@@ -111,11 +120,70 @@ After the first Play upload:
 
 ## Keystore custody
 
-`android.keystore` and `.signing-credentials.txt` are gitignored and have never
-been committed — good. But they live under `OneDrive\Documents`, so they are
-being replicated to Microsoft's cloud in plaintext. **Move them out of OneDrive**
-and back them up somewhere you control (password manager / offline copy).
+**Done (2026-07-14):** `android.keystore` and `signing-credentials.txt` have been
+moved OUT of the OneDrive-synced repo tree to `C:\Users\ashut\.furlpay-signing\`
+— a cloud-replicated signing key plus a plaintext password is a custody risk for
+a financial app. `build-android.sh` reads them from there
+(`FURLPAY_SIGNING_DIR` / `FURLPAY_KEYSTORE_PASSWORD` override). Details and the
+verification that was done: `apps/android/KEYSTORE-MOVED.md`.
 
-If this key is lost, `com.furlpay.app` can never be updated again — the listing
-is dead and users must reinstall a differently-named app. It is the single most
-irreplaceable file in the repo.
+**Still on you:** keep an offline backup of that directory (password manager /
+encrypted drive). If this key is lost, `com.furlpay.app` can never be updated
+again — the listing is dead and users must reinstall a differently-named app. It
+is the single most irreplaceable file in the project, and it is now in exactly
+one place.
+
+---
+
+## Local cache encryption decision (2026-07-14)
+
+**Decision: ship with the current unencrypted SQLite cache.** Do not migrate to
+`@op-engineering/op-sqlite` for this release.
+
+`native-app/lib/db.ts` (`furlpay.db`) is not encrypted at rest — `expo-sqlite`
+exposes no SQLCipher key. That is acceptable **only** while it holds no secrets,
+so here is the actual classification, taken from the code rather than assumed:
+
+| Table | Contents | Class |
+|---|---|---|
+| `kv_cache` | JSON snapshots of GET responses (overview, cards, portfolio) | Financial metadata + personal data |
+| `transactions` | id, category, direction, title, amount_usd, token, chain, card_id, status | Financial transaction metadata |
+| `pending_actions` | offline outbox: destination, amount, token, chain, idempotency key | Financial metadata — **not a bearer instrument** |
+| `notifications` | title, body, url | Cosmetic inbox |
+
+What is **not** there, verified by grep and pinned by
+`lib/__tests__/dbClassification.test.ts`:
+
+- session JWT → `SecureStore` (`furlpay.session`), Android Keystore
+- wallet mnemonic → `SecureStore` (`furlpay.wallet.mnemonic`) with
+  `requireAuthentication: true` + `WHEN_UNLOCKED_THIS_DEVICE_ONLY` (biometric-gated)
+- no private key, TOTP secret, API key or passkey secret anywhere in SQLite
+
+The outbox is worth calling out because it is the one thing that *looks* like it
+might authorize money: it does not. The queued transfer payload carries
+`demoSignature()`, which `app/(tabs)/send.tsx` documents as a random blob that
+**authorizes nothing** — replay still requires the session JWT from SecureStore.
+The real signing path (`signTransferAuthorization`, genuine EIP-3009) is
+biometric-gated and is never queued.
+
+**Therefore:** exfiltrating `furlpay.db` from a rooted device yields transaction
+*history* and balances — a privacy loss, not an account takeover. Nothing in it
+can authenticate, sign, or move funds. `allowBackup=false` plus the data-extraction
+rules already stop the DB leaving the device via backup or `adb`.
+
+**Why not encrypt anyway:** swapping to `@op-engineering/op-sqlite` is a native
+dependency change. It alters the native module set (requiring re-verification of
+16 KB page alignment), and forces a re-test of the offline outbox and the
+`user_version` migration chain — on an app that has never shipped, weeks before a
+target-SDK deadline. That is a materially destabilizing change for a residual risk
+that is already contained.
+
+**Revisit when** either of these becomes true — both invalidate the reasoning above:
+
+1. A real signed authorization is ever persisted (i.e. `/wallets/transfer` is
+   wired to real settlement and `send.tsx` switches to `signTransferAuthorization`
+   — the code comment there already flags this), or
+2. the cache starts holding full PII.
+
+`dbClassification.test.ts` fails the build if a secret-shaped column appears in
+`db.ts`, so this decision cannot rot silently.

@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Linking, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
@@ -11,17 +11,49 @@ export default function Scan() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const [invalid, setInvalid] = useState(false);
+  const [requesting, setRequesting] = useState(false);
   const handled = useRef(false);
 
   if (!permission) return <Screen />;
 
   if (!permission.granted) {
+    // Once Android has recorded a denial, canAskAgain flips to false and
+    // requestPermission() resolves WITHOUT showing a system dialog — so the
+    // "Allow camera" button appears to do nothing. In that state the only way
+    // to grant is the app's system settings page. Detect it and route there.
+    const mustUseSettings = !permission.canAskAgain;
+
+    const onPress = async () => {
+      if (mustUseSettings) {
+        await Linking.openSettings();
+        return;
+      }
+      setRequesting(true);
+      try {
+        const res = await requestPermission();
+        // If the OS silently refused to prompt (already permanently denied),
+        // fall back to settings so the button is never a no-op.
+        if (!res.granted && !res.canAskAgain) await Linking.openSettings();
+      } finally {
+        setRequesting(false);
+      }
+    };
+
     return (
       <Screen style={styles.center}>
         <Text style={[type.body, { textAlign: "center" }]}>
           FurlPay needs camera access to scan payment QR codes.
         </Text>
-        <Button title="Allow camera" onPress={() => void requestPermission()} />
+        {mustUseSettings ? (
+          <Text style={[type.dim, { textAlign: "center" }]}>
+            Camera access was turned off. Enable it in Settings to scan.
+          </Text>
+        ) : null}
+        <Button
+          title={mustUseSettings ? "Open settings" : "Allow camera"}
+          loading={requesting}
+          onPress={() => void onPress()}
+        />
       </Screen>
     );
   }

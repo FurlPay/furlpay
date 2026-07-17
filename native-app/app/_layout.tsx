@@ -1,11 +1,16 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { AppState, StyleSheet, Text, View } from "react-native";
 import { Stack, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { useAuth } from "@/lib/auth";
-import { installNotificationRouting, registerForPush } from "@/lib/push";
+import {
+  installNotificationRouting,
+  installTokenRotation,
+  reconcileInbox,
+  registerForPush,
+} from "@/lib/push";
 import { queryClient } from "@/lib/queries";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, Screen } from "@/components/ui";
@@ -56,12 +61,32 @@ export default function RootLayout() {
     void hydrate();
   }, [hydrate]);
 
-  // Push: register the device once signed in (idempotent), and route
-  // notification taps — a 3DS2 approval push must land on /approvals.
+  // Push: register the device once signed in (idempotent), keep the
+  // registration current as FCM rotates the token, and route notification taps
+  // — a 3DS2 approval push must land on /approvals.
+  //
+  // Both listeners are scoped to the signed-in session: torn down on sign-out,
+  // reinstalled on the next sign-in, so a rotation is never registered against
+  // the wrong account.
   useEffect(() => {
     if (status !== "signedIn") return;
     void registerForPush();
-    return installNotificationRouting();
+    const stopRouting = installNotificationRouting();
+    const stopRotation = installTokenRotation();
+
+    // Pull anything that landed in the system tray while we were backgrounded
+    // into the local inbox — the foreground listener above cannot see those.
+    // Re-run on every resume, and once now for the cold-start case.
+    void reconcileInbox();
+    const appState = AppState.addEventListener("change", (next) => {
+      if (next === "active") void reconcileInbox();
+    });
+
+    return () => {
+      stopRouting();
+      stopRotation();
+      appState.remove();
+    };
   }, [status]);
 
   return (
@@ -113,9 +138,11 @@ export default function RootLayout() {
               <Stack.Screen name="support/index" options={{ title: "Support" }} />
               <Stack.Screen name="support/[id]" options={{ title: "Support conversation" }} />
               <Stack.Screen name="passkeys" options={{ title: "Passkeys" }} />
+              <Stack.Screen name="security" options={{ title: "Security" }} />
               <Stack.Screen name="wallet" options={{ title: "Self-custodial wallet" }} />
               <Stack.Screen name="watch" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
+              <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
             </Stack>
           </View>
         )}

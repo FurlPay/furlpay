@@ -4,6 +4,48 @@ React Native replacement for the `apps/android` TWA wrapper. Expo SDK 53 +
 expo-router, offline-first SQLite cache, biometric auth, same backend
 (`furlpay.com/api/*`) — zero backend forks.
 
+**This is the canonical Google Play artifact for `com.furlpay.app`.** The TWA in
+`apps/android` shares the package id and must never be uploaded — see
+`apps/android/DEPRECATED.md`.
+
+## Release configuration (REQUIRED — a release build fails without it)
+
+`google-services.json` is gitignored, and **EAS Build uploads the project via git**.
+So on an EAS worker the file is simply absent. `app.config.js` used to shrug and
+carry on, which produced a build with **no Firebase → no FCM → no 3DS2 approval
+pushes**, silently (`lib/push.ts` fails soft by design). The build went green.
+
+`app.config.js` now **throws** on a release build that is missing any of the
+following, rather than shipping a crippled app. Configure them once:
+
+```bash
+# Firebase config, as an EAS FILE secret (keeps it out of git)
+eas secret:create --scope project --type file \
+  --name GOOGLE_SERVICES_JSON --value ./google-services.json
+
+# Federated sign-in client ids (inlined into the bundle at build time)
+eas secret:create --scope project --name EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID --value <id>
+eas secret:create --scope project --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID     --value <id>
+eas secret:create --scope project --name EXPO_PUBLIC_APPLE_CLIENT_ID          --value <services-id>   # optional
+```
+
+EAS exposes a file secret as an env var holding the **path** to the file on the
+worker; `app.config.js` accepts either that or a local `./google-services.json`.
+Nothing secret is printed on failure — only the name of the missing key.
+
+> The Android OAuth client ids do not exist yet: no signing certificate has been
+> registered with Firebase. See `docs/PLAY-SIGNING-RUNBOOK.md`.
+
+| Build path | Release? | Behaviour when config is missing |
+|:---|:---|:---|
+| `eas build --profile production` | yes | **fails** (`EAS_BUILD_PROFILE=production`) |
+| `./build-android.sh` | yes | **fails** (sets `FURLPAY_RELEASE_BUILD=1`) |
+| `expo run:android`, `--profile development` | no | warns, and push / federated sign-in are inactive |
+
+`build-android.sh` additionally asserts, after prebuild, that
+`android/app/google-services.json` exists and the google-services Gradle plugin
+was applied — verifying the artifact, not the intent.
+
 ## Why this is NOT an npm workspace
 
 The repo root `package.json` lists workspaces explicitly (`apps/web`,

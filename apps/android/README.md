@@ -1,16 +1,22 @@
-# Furlpay Android (Trusted Web Activity) — SUPERSEDED
+# Furlpay Android (Trusted Web Activity) — DEPRECATED
 
-> **Do not publish this app.** It has been replaced by the native React Native
-> app in `native-app`, which ships the **same package id** (`com.furlpay.app`)
-> at a higher `versionCode` (2 vs 1). Only one of the two can own the Play
-> listing, and `native-app` is the one we ship. See `docs/ANDROID-RELEASE.md`.
+> **Do not publish this app.** See **[DEPRECATED.md](./DEPRECATED.md)** — it is
+> the authoritative statement of why, and of the guards that now enforce it.
 >
-> This directory is kept for two reasons, both of which matter:
-> 1. **`android.keystore` lives here** — it is the signing identity of
->    `com.furlpay.app` and `native-app` signs with it (via `credentials.json`).
->    Deleting this directory would destroy the ability to ever update the app.
-> 2. `verify-assetlinks.sh` — the pre-upload check that a build's certificate is
->    actually published in `assetlinks.json`.
+> In short: it has been replaced by the native React Native app in `native-app`,
+> which ships the **same package id** (`com.furlpay.app`) at a higher
+> `versionCode` (3 vs 1). Only one of the two can own the Play listing.
+> `build.sh` here now refuses to run without `FURLPAY_BUILD_DEPRECATED_TWA=1`,
+> and names its outputs `twa-DEPRECATED-DO-NOT-UPLOAD.*`.
+>
+> This directory is kept because:
+> 1. `verify-assetlinks.sh` — the pre-upload check that a build's certificate is
+>    actually published in `assetlinks.json`. `native-app/build-android.sh`
+>    calls it; it is not TWA-specific.
+> 2. It documents the TWA's Digital Asset Links / manifest configuration.
+>
+> The signing keystore is **no longer in this directory** — see
+> [KEYSTORE-MOVED.md](./KEYSTORE-MOVED.md).
 
 The Furlpay Android app is a **Trusted Web Activity (TWA)** that wraps
 `https://furlpay.com` in a native Android shell. It runs the existing web app

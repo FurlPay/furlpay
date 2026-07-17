@@ -53,8 +53,38 @@ scrub() {
 }
 trap scrub EXIT
 
+# Mark this as a RELEASE build. app.config.js then refuses to generate a project
+# that is missing google-services.json or the federated-auth client ids, instead
+# of quietly producing an app with no push and no Google sign-in (which is what
+# used to happen on EAS, where the gitignored google-services.json never reached
+# the worker). See app.config.js.
+export FURLPAY_RELEASE_BUILD=1
+
+# EXPO_PUBLIC_* are inlined into the JS bundle at build time. Source them from
+# the signing dir (same custody boundary as the keystore, outside the synced
+# repo) unless already exported. These are client ids, not secrets — but they are
+# environment-specific, and a release without them ships dead sign-in buttons.
+RELEASE_ENV="$SIGNING_DIR/release.env"
+if [[ -f "$RELEASE_ENV" ]]; then
+  # shellcheck disable=SC1090
+  set -a; source "$RELEASE_ENV"; set +a
+fi
+
 echo "==> expo prebuild (regenerate android/)"
 npx expo prebuild --platform android
+
+# The prebuild above applies the google-services Gradle plugin ONLY when
+# app.config.js set googleServicesFile. Assert the artifact of that, not the
+# intent: if this file is absent, FCM is not in the build and push is dead.
+[[ -f android/app/google-services.json ]] || {
+  echo "ERROR: android/app/google-services.json missing after prebuild — FCM would be absent from this build." >&2
+  exit 1
+}
+grep -q "com.google.gms.google-services" android/app/build.gradle || {
+  echo "ERROR: google-services Gradle plugin not applied — FCM would be absent from this build." >&2
+  exit 1
+}
+echo "    Firebase config present and google-services plugin applied."
 
 # `pwd -W`, not `pwd`: Git Bash's pwd yields an MSYS path (/c/Users/...), which
 # Gradle reads as a relative Windows path (\c\Users\...) and then reports

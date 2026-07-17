@@ -10,7 +10,12 @@ app-release-unsigned-aligned.apk
 build/
 .gradle/
 
-# Signed release artifacts (rebuilt via build.sh)
-furlpay-release.aab
-furlpay-release.apk
+# Signed release artifacts (rebuilt via build.sh).
+# Match by EXTENSION, not by exact name: these were previously listed by
+# filename, so renaming the deprecated TWA outputs to
+# twa-DEPRECATED-DO-NOT-UPLOAD.* silently un-ignored them and a 1.8 MB signed
+# bundle became stageable. A signed artifact must never be committable, whatever
+# it happens to be called.
+*.aab
+*.apk
 *.idsig

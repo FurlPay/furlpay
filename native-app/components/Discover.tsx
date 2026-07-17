@@ -7,6 +7,7 @@ import { api } from "@/lib/api";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import type { Collection } from "@/lib/discover";
+import { AssetLogo } from "@/components/AssetLogo";
 
 // ---------------------------------------------------------------------------
 // Market discovery building blocks shared by the Invest tab and the Markets
@@ -89,11 +90,7 @@ export function TrendingCarousel({ movers }: { movers: Mover[] }) {
             onPress={() => router.push({ pathname: "/market/[symbol]", params: { symbol: m.symbol } })}
             style={({ pressed }) => [styles.moverCard, pressed && { opacity: 0.7 }]}
           >
-            <View style={styles.logoStub}>
-              <Text style={{ color: colors.neon, fontWeight: "800", fontSize: 12 }}>
-                {m.symbol.slice(0, 2)}
-              </Text>
-            </View>
+            <AssetLogo symbol={m.symbol} logo={m.logo} size={32} />
             <Text style={[type.body, { fontWeight: "700", fontSize: 13 }]} numberOfLines={1}>
               {m.symbol}
             </Text>

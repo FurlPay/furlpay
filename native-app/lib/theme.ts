@@ -22,6 +22,14 @@ export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
 
 export const radius = { sm: 8, md: 14, lg: 20, pill: 999 } as const;
 
+// Signature "selected" treatment — a soft luminous gradient border used ONLY on
+// active/selected pills (see components/GlowSelectionPill). Warm amber → pale
+// silver → FurlPay mint. Defined centrally so the accent stays consistent.
+export const glow = {
+  gradient: ["#E8B77A", "#D9E2DD", colors.neon] as const,
+  glowColor: colors.neon,
+} as const;
+
 export const type = {
   title: { fontSize: 28, fontWeight: "700" as const, color: colors.text },
   h2: { fontSize: 20, fontWeight: "700" as const, color: colors.text },

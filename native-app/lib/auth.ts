@@ -54,6 +54,9 @@ interface AuthState {
   /** Demo session — only enabled on dev/preview deployments (prod 403s). */
   signInAsGuest: () => Promise<void>;
   signOut: () => Promise<void>;
+  /** Tear down local session state for an account the server has DELETED.
+   *  No server round-trips: there is nothing left to sign out of. */
+  forgetSession: () => Promise<void>;
 }
 
 export const useAuth = create<AuthState>((set, get) => ({
@@ -145,6 +148,18 @@ export const useAuth = create<AuthState>((set, get) => ({
     // Deregister push FIRST — it needs the session token that's about to go.
     await unregisterFromPush();
     await api("/auth/logout", { method: "POST" }).catch(() => {});
+    await setToken(null);
+    clearSessionState();
+    set({ status: "signedOut", email: null });
+  },
+
+  forgetSession: async () => {
+    // Local-only teardown for a session whose ACCOUNT NO LONGER EXISTS (after
+    // DELETE /api/account). Deliberately skips the server calls signOut() makes:
+    // the account is gone, so /auth/logout and the push DELETE would only 401 —
+    // and a 401 here would trip the unauthorized handler mid-teardown. The
+    // server already revoked the session and dropped the device tokens as part
+    // of the deletion itself.
     await setToken(null);
     clearSessionState();
     set({ status: "signedOut", email: null });

@@ -20,6 +20,7 @@ import {
   Surface,
 } from "@/components/ui";
 import { CollectionsCarousel, MarketPulse, TrendingCarousel, useMovers } from "@/components/Discover";
+import { AssetLogo } from "@/components/AssetLogo";
 
 // Investing hub — native counterpart of apps/web/src/app/investing/page.tsx:
 // portfolio summary, market pulse, holdings, FurlPay Research, discovery
@@ -215,6 +216,7 @@ export default function Invest() {
                   onPress={() => router.push({ pathname: "/market/[symbol]", params: { symbol: h.symbol } })}
                   style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
                 >
+                  <AssetLogo symbol={h.symbol} logo={h.logo} size={36} />
                   <View style={{ flex: 1 }}>
                     <Text style={[type.body, { fontWeight: "700" }]}>{h.symbol}</Text>
                     <Text style={type.dim} numberOfLines={1}>

@@ -21,6 +21,12 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "android": {
+        "//": "The CANONICAL Play artifact is this React Native app. The TWA in apps/android shares the package name com.furlpay.app and must never be submitted — see apps/android/DEPRECATED.md.",
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }

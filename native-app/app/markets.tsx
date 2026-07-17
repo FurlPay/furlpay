@@ -9,6 +9,8 @@ import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { EmptyState, Field, Screen, SectionHeader } from "@/components/ui";
 import { CollectionsCarousel, MarketPulse, TrendingCarousel, useMovers } from "@/components/Discover";
+import { AssetLogo } from "@/components/AssetLogo";
+import { GlowSelectionPill } from "@/components/GlowSelectionPill";
 
 export interface MarketItem {
   symbol: string;
@@ -18,6 +20,7 @@ export interface MarketItem {
   price: number;
   changePct: number;
   live: boolean;
+  logo: string | null;
 }
 
 const KINDS = ["all", "stock", "etf", "crypto"] as const;
@@ -71,21 +74,12 @@ export default function Markets() {
         />
         <View style={styles.chips}>
           {KINDS.map((k) => (
-            <Pressable
+            <GlowSelectionPill
               key={k}
+              label={k === "etf" ? "ETF" : k.charAt(0).toUpperCase() + k.slice(1)}
+              selected={kind === k}
               onPress={() => setKind(k)}
-              style={[styles.chip, kind === k && { backgroundColor: colors.neon }]}
-            >
-              <Text
-                style={{
-                  color: kind === k ? colors.onNeon : colors.textDim,
-                  fontWeight: "600",
-                  textTransform: "capitalize",
-                }}
-              >
-                {k}
-              </Text>
-            </Pressable>
+            />
           ))}
           <View style={{ flex: 1 }} />
           {SORTS.map((s) => (
@@ -136,9 +130,7 @@ export default function Markets() {
               onPress={() => router.push({ pathname: "/market/[symbol]", params: { symbol: item.symbol } })}
               style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
             >
-              <View style={styles.logoStub}>
-                <Text style={{ color: colors.neon, fontWeight: "800" }}>{item.symbol.slice(0, 2)}</Text>
-              </View>
+              <AssetLogo symbol={item.symbol} logo={item.logo} size={38} />
               <View style={{ flex: 1 }}>
                 <Text style={[type.body, { fontWeight: "700" }]}>{item.symbol}</Text>
                 <Text style={type.dim} numberOfLines={1}>
@@ -177,19 +169,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 5,
   },
-  chip: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-  },
   row: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 11 },
-  logoStub: {
-    width: 38,
-    height: 38,
-    borderRadius: radius.pill,
-    backgroundColor: colors.neonSoft,
-    alignItems: "center",
-    justifyContent: "center",
-  },
 });

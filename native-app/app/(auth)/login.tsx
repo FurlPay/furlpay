@@ -58,10 +58,20 @@ export default function Login() {
   const [error, setError] = useState<string | null>(null);
   const [passkeyReady, setPasskeyReady] = useState(false);
   const [guestUnavailable, setGuestUnavailable] = useState(false);
+  // Seconds until a code can be resent. Starts at 30 when a code is sent and
+  // ticks to 0; the server enforces its own 30s cooldown, so the UI mirrors it
+  // rather than letting the user fire a request that will just be refused.
+  const [resendIn, setResendIn] = useState(0);
 
   useEffect(() => {
     setPasskeyReady(isPasskeySupported());
   }, []);
+
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setInterval(() => setResendIn((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(t);
+  }, [resendIn]);
 
   const channel: OtpChannel = mode === "phone" ? "sms" : "email";
 
@@ -119,6 +129,18 @@ export default function Login() {
       const res = await startOtp(dest, channel);
       setDevCode(res.devCode);
       setStep("code");
+      setCode("");
+      setResendIn(30); // mirror the server's resend cooldown
+    });
+
+  // Resend re-runs the same send. The countdown gates the button so we don't
+  // fire a request the server's cooldown would refuse.
+  const resendCode = () =>
+    run("resend", async () => {
+      const res = await startOtp(dest, channel);
+      setDevCode(res.devCode);
+      setCode("");
+      setResendIn(30);
     });
 
   const verify = () =>
@@ -143,6 +165,7 @@ export default function Login() {
     setCode("");
     setDevCode(undefined);
     setError(null);
+    setResendIn(0);
   };
 
   const anyBusy = busy !== null;
@@ -276,12 +299,31 @@ export default function Login() {
                   onChangeText={(t) => setCode(t.replace(/\D/g, ""))}
                   placeholder="123456"
                   keyboardType="number-pad"
-                  autoComplete="sms-otp"
+                  // Android autofills SMS codes; email codes have no OS autofill,
+                  // but "one-time-code" is still the correct hint for the field.
+                  autoComplete={mode === "phone" ? "sms-otp" : "one-time-code"}
+                  textContentType="oneTimeCode"
                   autoFocus
                   maxLength={6}
                   onSubmitEditing={() => void verify()}
                 />
               )}
+
+              {step === "code" ? (
+                <Pressable
+                  disabled={anyBusy || resendIn > 0}
+                  onPress={() => void resendCode()}
+                  hitSlop={8}
+                >
+                  {busy === "resend" ? (
+                    <ActivityIndicator color={colors.textDim} />
+                  ) : (
+                    <Text style={[styles.textLink, resendIn > 0 && { opacity: 0.5 }]}>
+                      {resendIn > 0 ? `Resend code in ${resendIn}s` : "Resend code"}
+                    </Text>
+                  )}
+                </Pressable>
+              ) : null}
 
               {devCode ? <Text style={type.dim}>Dev mode — your code is {devCode}</Text> : null}
               <ErrorNote message={error} />

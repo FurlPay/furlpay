@@ -56,6 +56,8 @@ export interface Holding {
   changePct: number;
   marketValue: number;
   costBasis: number;
+  /** Self-hosted asset logo path (e.g. "/logos/stocks/aapl.svg"), or null. */
+  logo?: string | null;
 }
 
 /** GET /api/overview */
