@@ -28,7 +28,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import com.furlpay.guardian.mobile.ui.NewReminderDialog
+import com.furlpay.guardian.mobile.ui.ReminderRow
 import com.furlpay.guardian.mobile.viewmodel.DashboardViewModel
+import com.furlpay.guardian.mobile.viewmodel.RemindersViewModel
 import com.furlpay.guardian.mobile.viewmodel.SignInViewModel
 import com.furlpay.guardian.security.AuthManager
 
@@ -118,8 +124,24 @@ private fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
 }
 
 @Composable
-private fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
+private fun DashboardScreen(
+    viewModel: DashboardViewModel = viewModel(),
+    remindersViewModel: RemindersViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val reminders by remindersViewModel.state.collectAsStateWithLifecycle()
+    var showNewReminder by remember { mutableStateOf(false) }
+
+    if (showNewReminder) {
+        NewReminderDialog(
+            creating = reminders.creating,
+            onCreate = { title, inFromNow, priority ->
+                remindersViewModel.create(title, inFromNow, priority)
+                showNewReminder = false
+            },
+            onDismiss = { showNewReminder = false },
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp),
@@ -147,6 +169,31 @@ private fun DashboardScreen(viewModel: DashboardViewModel = viewModel()) {
         }
         state.syncMessage?.let { message ->
             item { Text(message, style = MaterialTheme.typography.bodySmall) }
+        }
+
+        item {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+            ) {
+                Text("Reminders", style = MaterialTheme.typography.titleMedium)
+                OutlinedButton(onClick = { showNewReminder = true }) { Text("New") }
+            }
+        }
+        reminders.message?.let { message ->
+            item { Text(message, style = MaterialTheme.typography.bodySmall) }
+        }
+        if (reminders.events.isEmpty()) {
+            item {
+                Text(
+                    "Nothing scheduled. Critical reminders escalate on phone and watch until acknowledged.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        items(reminders.events, key = { it.id }) { event ->
+            ReminderRow(event = event, onAcknowledge = { remindersViewModel.acknowledge(event.id) })
         }
 
         if (state.wallets.isNotEmpty()) {

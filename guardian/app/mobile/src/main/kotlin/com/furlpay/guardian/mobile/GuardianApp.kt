@@ -75,6 +75,14 @@ class MobileServices(context: Context) {
 
 class GuardianApp : Application() {
     val services: MobileServices by lazy { MobileServices(this) }
+
+    override fun onCreate() {
+        super.onCreate()
+        // Periodic sync heartbeat (15 min) — refreshes snapshots on the watch
+        // and re-arms alarm ladders (AlarmManager state does not survive
+        // reboot; the next heartbeat restores it).
+        com.furlpay.guardian.mobile.service.GuardianSyncWorker.schedule(this)
+    }
 }
 
 val Context.mobileServices: MobileServices

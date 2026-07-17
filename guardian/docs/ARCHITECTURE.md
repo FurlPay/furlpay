@@ -186,12 +186,22 @@ Without it the build is green, FCM stays dormant, and the voice pipeline runs
 on the deterministic rule parser. Drop the file into `app/mobile/` (and apply
 the google-services plugin) when the Firebase project exists.
 
+### Manual reminders + periodic sync (built)
+
+The alarm runtime is reachable end-to-end without any ingestion source:
+Dashboard → New reminder (title, preset time, priority) → Room upsert →
+ladder armed IMMEDIATELY (not waiting on the heartbeat) → events snapshot to
+the watch → escalation on both devices → acknowledge anywhere tears down the
+remaining rungs. Feed order comes from PrioritizeEventsUseCase, never
+insertion order. GuardianSyncWorker (WorkManager, 15-min floor, network
+constraint) refreshes snapshots and re-arms ladders — AlarmManager state
+does not survive reboot; the heartbeat restores it.
+
 ## Remaining (next phases)
 
 - Firebase project + `google-services.json` → activates Gemini + FCM paths.
-- Gmail/Calendar/GitHub ingestion → EventRepository (Life Guardian feed —
-  the alarm runtime is waiting for real events to arm).
-- Phone-side Live-API voice screen; morning-briefing worker; periodic
-  WorkManager sync (today sync is sign-in/manual/watch-requested).
+- Gmail/Calendar/GitHub ingestion → EventRepository (the reminder UI proves
+  the pipeline; ingestion multiplies the feed).
+- Phone-side Live-API voice screen; morning-briefing worker.
 - Shared-element list→detail transitions (needs wear-compose 1.6, still
   alpha — deliberately deferred); Hilt if the graph ever justifies it.

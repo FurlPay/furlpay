@@ -61,6 +61,9 @@ dependencies {
     implementation(libs.play.services.wearable)
     implementation(libs.kotlinx.coroutines.play.services)
 
+    // Periodic background sync (events → alarms → watch)
+    implementation(libs.work.runtime)
+
     // FCM client (server side already live — lib/fcm.ts)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
