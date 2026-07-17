@@ -104,7 +104,11 @@ class GeminiTextAssistant(
     )
 
     companion object {
-        const val MODEL = "gemini-2.5-flash"
+        // gemini-2.5-flash is closed to new API consumers (verified Jul 17 2026:
+        // the AI Logic proxy rejects it for this project). 3.5 is the newest
+        // stable flash; transient capacity 500/429s fall through to the
+        // deterministic parser like any other Gemini failure.
+        const val MODEL = "gemini-3.5-flash"
         private const val MAX_TOOL_ROUNDS = 4
     }
 }
