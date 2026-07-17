@@ -2,11 +2,9 @@
 // On checkout-looking pages, shows a small dismissible pill comparing typical
 // card processing cost (~2.9% + $0.30) against FurlPay's 0.5% flat.
 // Heuristics only, read-only, shadow-DOM isolated; never touches page forms.
+// Money math + total-selection logic live in @/lib/fees (unit-tested).
 
-const CHECKOUT_HINTS = /checkout|payment|cart|billing|order|book(ing)?/i;
-const CARD_FEE_PCT = 0.029;
-const CARD_FEE_FIXED = 0.3;
-const FURLPAY_FEE_PCT = 0.005;
+import { AmountCandidate, CHECKOUT_HINTS, compareFees, extractAmounts, pickTotal } from "@/lib/fees";
 
 export default defineContentScript({
   // http(s) only — never chrome://, chrome-extension://, about:, file://
@@ -34,8 +32,7 @@ export default defineContentScript({
  *  falling back to the largest dollar amount on the page. */
 function detectTotal(): number | null {
   if (!document.body) return null;
-  const amountRe = /(?:\$|USD\s?)(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/g;
-  const candidates: { value: number; weighted: boolean }[] = [];
+  const candidates: AmountCandidate[] = [];
   const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
   let node: Node | null;
   let scanned = 0;
@@ -43,24 +40,14 @@ function detectTotal(): number | null {
     scanned += 1;
     const text = node.textContent ?? "";
     if (text.length > 200) continue;
-    let m: RegExpExecArray | null;
-    while ((m = amountRe.exec(text))) {
-      const value = parseFloat(m[1].replace(/,/g, ""));
-      if (!Number.isFinite(value) || value <= 0 || value > 100_000) continue;
-      const context = (node.parentElement?.textContent ?? "").slice(0, 120).toLowerCase();
-      candidates.push({ value, weighted: /total|amount due|pay/.test(context) });
-    }
+    candidates.push(...extractAmounts(text, node.parentElement?.textContent ?? ""));
   }
-  if (!candidates.length) return null;
-  const weighted = candidates.filter((c) => c.weighted);
-  const pool = weighted.length ? weighted : candidates;
-  return Math.max(...pool.map((c) => c.value));
+  return pickTotal(candidates);
 }
 
 function renderPill(total: number | null) {
-  const cardFee = total !== null ? total * CARD_FEE_PCT + CARD_FEE_FIXED : null;
-  const furlFee = total !== null ? total * FURLPAY_FEE_PCT : null;
-  const saving = cardFee !== null && furlFee !== null ? cardFee - furlFee : null;
+  const fees = total !== null ? compareFees(total) : null;
+  const saving = fees?.saving ?? null;
 
   const host = document.createElement("div");
   host.style.cssText = "all: initial; position: fixed; right: 16px; bottom: 16px; z-index: 2147483646;";
@@ -124,10 +111,10 @@ function renderPill(total: number | null) {
     return row;
   };
 
-  if (total !== null) {
+  if (total !== null && fees !== null) {
     detail.appendChild(infoLine("Order total: ", `$${total.toFixed(2)}`));
-    detail.appendChild(infoLine("Typical card cost (2.9% + $0.30): ", `$${(total * CARD_FEE_PCT + CARD_FEE_FIXED).toFixed(2)}`));
-    detail.appendChild(infoLine("FurlPay stablecoin checkout (0.5%): ", `$${(total * FURLPAY_FEE_PCT).toFixed(2)}`));
+    detail.appendChild(infoLine("Typical card cost (2.9% + $0.30): ", `$${fees.cardFee.toFixed(2)}`));
+    detail.appendChild(infoLine("FurlPay stablecoin checkout (0.5%): ", `$${fees.furlFee.toFixed(2)}`));
   } else {
     const fallback = document.createElement("div");
     fallback.appendChild(document.createTextNode("FurlPay settles in USDC on Arbitrum for a flat "));
