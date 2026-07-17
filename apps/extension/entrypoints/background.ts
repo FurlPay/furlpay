@@ -188,17 +188,19 @@ async function sessionState(): Promise<{ authenticated: boolean; name?: string; 
   }
 }
 
-/** Refresh badge (USDC balance) and surface any new 3DS challenges. */
+/** Refresh badge (net worth across all assets) and surface any new 3DS challenges. */
 async function poll(): Promise<void> {
   try {
     const overview = await apiFetch<Overview>("/api/overview");
-    const usdc = overview.tokenBalances
-      .filter((b) => b.token.toUpperCase().startsWith("USD"))
-      .reduce((sum, b) => sum + b.usdValue, 0);
     await action().setBadgeBackgroundColor({ color: "#00e599" });
-    await action().setBadgeText({ text: badgeLabel(usdc) });
+    await action().setBadgeText({ text: badgeLabel(overview.netWorth) });
+    // Last-known-good snapshot for the popup's instant paint (G5). Session
+    // storage: display-only data, gone when the browser closes — never a
+    // place secrets could accumulate.
+    await browser.storage.session.set({ cachedOverview: overview }).catch(() => undefined);
   } catch {
     await action().setBadgeText({ text: "" });
+    await browser.storage.session.remove(["cachedOverview", "cachedChallenges"]).catch(() => undefined);
     return; // no session — challenge polling would 401 too
   }
 
@@ -209,7 +211,7 @@ async function poll(): Promise<void> {
       deposits: { txHash: string; status: string; amount: number; token: string; chain: string }[];
     }>("/api/deposits");
     const stored = await browser.storage.local.get(DEPOSITS_KEY);
-    const seen: Record<string, string> = stored[DEPOSITS_KEY] ?? {};
+    const seen = (stored[DEPOSITS_KEY] ?? {}) as Record<string, string>;
 
     for (const d of deposits) {
       const notable = d.status === "pending" || d.status === "success";
@@ -237,6 +239,7 @@ async function poll(): Promise<void> {
 
   try {
     const { challenges } = await apiFetch<{ challenges: PendingChallenge[] }>("/api/cards/challenges");
+    await browser.storage.session.set({ cachedChallenges: challenges }).catch(() => undefined);
     const stored = await browser.storage.local.get(NOTIFIED_KEY);
     const notified: string[] = Array.isArray(stored[NOTIFIED_KEY]) ? stored[NOTIFIED_KEY] : [];
 
@@ -263,7 +266,8 @@ async function poll(): Promise<void> {
     const currentIds = challenges.map((c) => c.id);
     await browser.storage.local.set({
       // Keep only ids that are still pending, plus newly notified ones.
-      [NOTIFIED_KEY]: Array.from(new Set([...notified.filter((id) => currentIds.includes(id)), ...currentIds])),
+      // Bound storage: keep the most recent 50 challenge ids.
+      [NOTIFIED_KEY]: Array.from(new Set([...notified.filter((id) => currentIds.includes(id)), ...currentIds])).slice(-50),
     });
   } catch {
     /* challenge polling is best-effort */

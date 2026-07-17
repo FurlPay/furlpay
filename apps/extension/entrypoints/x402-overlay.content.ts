@@ -58,23 +58,50 @@ function renderSheet(detection: X402Detection, onClose: () => void) {
 
   const sheet = document.createElement("div");
   sheet.className = "sheet";
-  sheet.innerHTML = `
-    <div class="row">
-      <span class="title">Payment required</span>
-      <button class="close" type="button">Dismiss</button>
-    </div>
-    <div class="muted">${escapeHtml(hostnameOf(detection.url))} · ${escapeHtml(network)} · USDC</div>
-    <div class="amount">${amountUsd !== null ? `$${amountUsd.toFixed(2)}` : "x402"}</div>
-    <button class="pay" type="button">Pay with FurlPay passkey</button>
-  `;
+
+  // --- Title row (safe DOM API — no innerHTML) ---
+  const row = document.createElement("div");
+  row.className = "row";
+
+  const title = document.createElement("span");
+  title.className = "title";
+  title.textContent = "Payment required";
+  row.appendChild(title);
+
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "close";
+  closeBtn.type = "button";
+  closeBtn.textContent = "Dismiss";
+  row.appendChild(closeBtn);
+
+  sheet.appendChild(row);
+
+  // --- Muted context line ---
+  const muted = document.createElement("div");
+  muted.className = "muted";
+  muted.textContent = `${hostnameOf(detection.url)} \u00B7 ${network} \u00B7 USDC`;
+  sheet.appendChild(muted);
+
+  // --- Amount ---
+  const amountEl = document.createElement("div");
+  amountEl.className = "amount";
+  amountEl.textContent = amountUsd !== null ? `$${amountUsd.toFixed(2)}` : "x402";
+  sheet.appendChild(amountEl);
+
+  // --- Pay button ---
+  const payBtn = document.createElement("button");
+  payBtn.className = "pay";
+  payBtn.type = "button";
+  payBtn.textContent = "Pay with FurlPay passkey";
+  sheet.appendChild(payBtn);
 
   const close = () => {
     sheet.classList.remove("open");
     setTimeout(() => host.remove(), 350);
     onClose();
   };
-  sheet.querySelector<HTMLButtonElement>(".close")!.addEventListener("click", close);
-  sheet.querySelector<HTMLButtonElement>(".pay")!.addEventListener("click", () => {
+  closeBtn.addEventListener("click", close);
+  payBtn.addEventListener("click", () => {
     browser.runtime.sendMessage({ type: "OPEN_X402_CHECKOUT", detection }).catch(() => {});
     close();
   });

@@ -4,6 +4,11 @@
    brand accent, Inter, 16–18px radii, glow shadows). Transitions 150–200ms.
 --------------------------------------------------------------------------- */
 
+html, body {
+  min-width: 380px;
+  max-width: 400px;
+}
+
 :root {
   /* Surfaces (site: oled/charcoal/surface) */
   --fp-bg-primary: #08080a;

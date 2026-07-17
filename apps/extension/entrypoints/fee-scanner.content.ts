@@ -9,7 +9,10 @@ const CARD_FEE_FIXED = 0.3;
 const FURLPAY_FEE_PCT = 0.005;
 
 export default defineContentScript({
-  matches: ["<all_urls>"],
+  // http(s) only — never chrome://, chrome-extension://, about:, file://
+  // (G4: CWS reviewers flag <all_urls> on scanners; web pages are the only
+  // place a checkout total can exist anyway).
+  matches: ["https://*/*", "http://*/*"],
   runAt: "document_idle",
   main() {
     if (!CHECKOUT_HINTS.test(location.href) && !CHECKOUT_HINTS.test(document.title)) return;
@@ -84,27 +87,70 @@ function renderPill(total: number | null) {
     saving !== null
       ? `Cards cost ~$${saving.toFixed(2)} more here. FurlPay: 0.5%`
       : "This checkout charges ~2.9% card fees. FurlPay: 0.5%";
-  wrap.innerHTML = `
-    <div class="pill" role="button">
-      <span class="dot"></span>
-      <span>${message}</span>
-      <button class="x" type="button" aria-label="Dismiss">&times;</button>
-    </div>
-    <div class="detail">
-      ${
-        total !== null
-          ? `<div>Order total: <strong>$${total.toFixed(2)}</strong></div>
-             <div>Typical card cost (2.9% + $0.30): <strong>$${(total * CARD_FEE_PCT + CARD_FEE_FIXED).toFixed(2)}</strong></div>
-             <div>FurlPay stablecoin checkout (0.5%): <strong>$${(total * FURLPAY_FEE_PCT).toFixed(2)}</strong></div>`
-          : `<div>FurlPay settles in USDC on Arbitrum for a flat <strong>0.5%</strong> — no interchange, no decline fees.</div>`
-      }
-      <a class="cta" href="https://furlpay.com/pricing" target="_blank" rel="noreferrer">See merchant pricing</a>
-    </div>
-  `;
 
-  const detail = wrap.querySelector<HTMLDivElement>(".detail")!;
-  wrap.querySelector<HTMLDivElement>(".pill")!.addEventListener("click", () => detail.classList.toggle("open"));
-  wrap.querySelector<HTMLButtonElement>(".x")!.addEventListener("click", async (e) => {
+  // --- Pill row (safe DOM API — no innerHTML) ---
+  const pill = document.createElement("div");
+  pill.className = "pill";
+  pill.setAttribute("role", "button");
+
+  const dot = document.createElement("span");
+  dot.className = "dot";
+  pill.appendChild(dot);
+
+  const msgSpan = document.createElement("span");
+  msgSpan.textContent = message;
+  pill.appendChild(msgSpan);
+
+  const dismissBtn = document.createElement("button");
+  dismissBtn.className = "x";
+  dismissBtn.type = "button";
+  dismissBtn.setAttribute("aria-label", "Dismiss");
+  dismissBtn.textContent = "\u00D7"; // ×
+  pill.appendChild(dismissBtn);
+
+  wrap.appendChild(pill);
+
+  // --- Detail panel ---
+  const detail = document.createElement("div");
+  detail.className = "detail";
+
+  /** Helper: creates <div>label <strong>value</strong></div> */
+  const infoLine = (label: string, value: string): HTMLDivElement => {
+    const row = document.createElement("div");
+    row.appendChild(document.createTextNode(label));
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    row.appendChild(strong);
+    return row;
+  };
+
+  if (total !== null) {
+    detail.appendChild(infoLine("Order total: ", `$${total.toFixed(2)}`));
+    detail.appendChild(infoLine("Typical card cost (2.9% + $0.30): ", `$${(total * CARD_FEE_PCT + CARD_FEE_FIXED).toFixed(2)}`));
+    detail.appendChild(infoLine("FurlPay stablecoin checkout (0.5%): ", `$${(total * FURLPAY_FEE_PCT).toFixed(2)}`));
+  } else {
+    const fallback = document.createElement("div");
+    fallback.appendChild(document.createTextNode("FurlPay settles in USDC on Arbitrum for a flat "));
+    const strong = document.createElement("strong");
+    strong.textContent = "0.5%";
+    fallback.appendChild(strong);
+    fallback.appendChild(document.createTextNode(" \u2014 no interchange, no decline fees."));
+    detail.appendChild(fallback);
+  }
+
+  const cta = document.createElement("a");
+  cta.className = "cta";
+  cta.href = "https://furlpay.com/pricing";
+  cta.target = "_blank";
+  cta.rel = "noreferrer";
+  cta.textContent = "See merchant pricing";
+  detail.appendChild(cta);
+
+  wrap.appendChild(detail);
+
+  // --- Event listeners ---
+  pill.addEventListener("click", () => detail.classList.toggle("open"));
+  dismissBtn.addEventListener("click", async (e) => {
     e.stopPropagation();
     const { feeScannerDismissed } = await browser.storage.local.get("feeScannerDismissed");
     await browser.storage.local.set({

@@ -34,7 +34,9 @@ export type IconName =
   | "globe"
   | "copy"
   | "qr"
-  | "refresh";
+  | "refresh"
+  | "eye"
+  | "eyeOff";
 
 // Each icon is one or more SVG path `d` strings drawn on a 24×24 grid.
 const PATHS: Record<IconName, string[]> = {
@@ -71,6 +73,8 @@ const PATHS: Record<IconName, string[]> = {
   copy: ["M9 9.5A1.5 1.5 0 0 1 10.5 8h8A1.5 1.5 0 0 1 20 9.5v9a1.5 1.5 0 0 1-1.5 1.5h-8A1.5 1.5 0 0 1 9 18.5v-9z", "M6 15H5.5A1.5 1.5 0 0 1 4 13.5v-9A1.5 1.5 0 0 1 5.5 3h8A1.5 1.5 0 0 1 15 4.5V5"],
   qr: ["M4 4h6v6H4V4z", "M14 4h6v6h-6V4z", "M4 14h6v6H4v-6z", "M14 14h2.5v2.5H14V14z", "M17.5 17.5H20V20h-2.5v-2.5z", "M14 20h.01", "M20 14h.01"],
   refresh: ["M20 12a8 8 0 1 1-2.34-5.66", "M20 3.5V7h-3.5"],
+  eye: ["M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z", "M12 14.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"],
+  eyeOff: ["M4 4l16 16", "M9.9 5.9A9.5 9.5 0 0 1 12 5.5c6 0 9.5 6.5 9.5 6.5a17.6 17.6 0 0 1-2.7 3.4", "M6.2 6.9A17 17 0 0 0 2.5 12S6 18.5 12 18.5c1.3 0 2.5-.3 3.6-.8", "M9.9 10.3a2.5 2.5 0 0 0 3.4 3.6"],
 };
 
 export function Icon({
