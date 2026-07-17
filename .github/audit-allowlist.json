@@ -60,6 +60,61 @@
     "reviewed": "2026-07-10"
   },
   {
+    "name": "bn.js",
+    "reason": "ROOT advisory (Jul 2026): infinite loop decoding malformed bignum strings — DoS-class, not memory-unsafe. Reachable only through the Solana/Metaplex server-side chains where every bignum is self-constructed or regex/oracle-validated before parsing. No in-range patch for the pinned tree; real fix is the tracked @solana/web3.js v2 / Metaplex umi migration.",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "number-to-bn",
+    "reason": "Vulnerable only via its bn.js dependency (see bn.js).",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "ethjs-unit",
+    "reason": "Vulnerable only via bn.js / number-to-bn (see bn.js).",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "web3-utils",
+    "reason": "Vulnerable only via ethjs-unit / number-to-bn -> bn.js (see bn.js).",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "merkletreejs",
+    "reason": "Vulnerable only via web3-utils -> bn.js (see bn.js). Used by Metaplex account compression for cNFT tickets; every tree leaf is server-constructed.",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "@metaplex-foundation/mpl-account-compression",
+    "reason": "Vulnerable only via merkletreejs (see bn.js chain). npm's 'fix' downgrades bubblegum to 0.11 — the pre-v2 API we depend on (same as the mpl-bubblegum entry).",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "@metaplex-foundation/spl-account-compression",
+    "reason": "Vulnerable only via merkletreejs (see bn.js chain); same downgrade-only 'fix' as mpl-account-compression.",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "uuid",
+    "reason": "ROOT advisory (Jul 2026): missing buffer bounds check in v3/v5/v6 ONLY when the caller passes a pre-allocated buf. Our code uses crypto.randomUUID() (repo rule); the dependents that pull uuid in (jayson JSON-RPC, gaxios) call v4 without buf — the vulnerable path is never reached.",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "jayson",
+    "reason": "Vulnerable only via its uuid dependency (see uuid); jayson generates v4 request ids without a caller buffer.",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "gaxios",
+    "reason": "Vulnerable only via its uuid dependency (see uuid).",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "@solana/actions",
+    "reason": "Vulnerable only via @solana/web3.js -> jayson -> uuid (see uuid); npm's only 'fix' is a downgrade to actions 0.0.2.",
+    "reviewed": "2026-07-17"
+  },
+  {
     "name": "glib (cargo, apps/desktop)",
     "reason": "GHSA VariantStrIter unsoundness in glib 0.18.5 (Tauri desktop app). `cargo update -p glib` locks 0 packages — 0.18.5 is the newest compatible with our Tauri version; fix needs a Tauri major. Desktop app is unreleased.",
     "reviewed": "2026-07-10"
