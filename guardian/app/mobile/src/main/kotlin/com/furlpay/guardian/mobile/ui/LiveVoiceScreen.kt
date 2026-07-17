@@ -80,7 +80,7 @@ fun LiveVoiceScreen(
                 is LiveVoiceViewModel.UiState.Idle -> Button(
                     onClick = { micLauncher.launch(Manifest.permission.RECORD_AUDIO) },
                 ) {
-                    Text("🎤  Start voice chat")
+                    Text("Start voice chat")
                 }
 
                 is LiveVoiceViewModel.UiState.Connecting -> Column(
@@ -170,6 +170,6 @@ private fun LivePulseRing() {
                     shape = CircleShape,
                 ),
         )
-        Text(text = "🎤", style = MaterialTheme.typography.headlineLarge)
+        Text(text = "LIVE", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
     }
 }

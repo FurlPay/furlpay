@@ -8,6 +8,7 @@ import com.furlpay.guardian.data.repository.RoomEventRepository
 import com.furlpay.guardian.data.repository.SnapshotStore
 import com.furlpay.guardian.network.FurlPayClient
 import com.furlpay.guardian.network.repo.FurlPayCardRepository
+import com.furlpay.guardian.network.repo.FurlPayMarketRepository
 import com.furlpay.guardian.network.repo.FurlPayPortfolioRepository
 import com.furlpay.guardian.network.repo.FurlPayTransactionRepository
 import com.furlpay.guardian.network.repo.FurlPayTravelRepository
@@ -29,6 +30,7 @@ class WearServices(context: Context) {
     val transactionRepo = FurlPayTransactionRepository(client.api)
     val portfolioRepo = FurlPayPortfolioRepository(client.api)
     val travelRepo = FurlPayTravelRepository(client.api)
+    val marketRepo = FurlPayMarketRepository(client.api)
 
     private val db = GuardianDatabase.get(context)
     val eventRepo = RoomEventRepository(db.events())

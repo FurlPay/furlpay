@@ -61,7 +61,7 @@ class AlarmActivity : ComponentActivity() {
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Text(
-                        text = if (intensity == "MAX") "⏰ NOW" else "⏰ Reminder",
+                        text = if (intensity == "MAX") "NOW" else "Reminder",
                         style = MaterialTheme.typography.headlineMedium,
                         color = MaterialTheme.colorScheme.error,
                     )

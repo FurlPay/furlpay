@@ -15,11 +15,16 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -98,7 +103,15 @@ fun VoiceScreen(viewModel: VoiceViewModel = viewModel()) {
                     onClick = ::startListening,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text("🎤 Tap to speak", textAlign = TextAlign.Center)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        GlyphIcon(GuardianGlyph.Mic, tint = MaterialTheme.colorScheme.onSurface)
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Tap to speak", textAlign = TextAlign.Center)
+                    }
                 }
 
                 is VoiceViewModel.UiState.Listening -> ListeningRing()
@@ -120,13 +133,16 @@ fun VoiceScreen(viewModel: VoiceViewModel = viewModel()) {
                         onClick = viewModel::dismissResponse,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(
-                            text = domainIcon(current.kind) + " " + current.text,
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            GlyphIcon(domainGlyph(current.kind), size = 16.dp)
+                            Text(
+                                text = current.text,
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
                 }
 
@@ -181,10 +197,7 @@ private fun ListeningRing() {
                     shape = CircleShape,
                 ),
         )
-        Text(
-            text = "🎤",
-            style = MaterialTheme.typography.titleLarge,
-        )
+        GlyphIcon(GuardianGlyph.Mic, size = 28.dp)
     }
 }
 
@@ -208,12 +221,12 @@ private fun SpringInCard(content: @Composable () -> Unit) {
     }
 }
 
-/** Domain hint → response-card icon (bible §9 visual states). */
-private fun domainIcon(kind: String): String = when (kind) {
-    "wallet" -> "💰"
-    "card" -> "🔒"
-    "event" -> "📅"
-    "travel" -> "✈️"
-    "error" -> "⚠️"
-    else -> "💬"
+/** Domain hint → response-card glyph (bible §9 visual states, no emoji). */
+private fun domainGlyph(kind: String): GuardianGlyph = when (kind) {
+    "wallet" -> GuardianGlyph.Wallet
+    "card" -> GuardianGlyph.Card
+    "event" -> GuardianGlyph.Bars
+    "travel" -> GuardianGlyph.Plane
+    "error" -> GuardianGlyph.Shield
+    else -> GuardianGlyph.Mic
 }

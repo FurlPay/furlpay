@@ -1,12 +1,21 @@
 package com.furlpay.guardian.network.repo
 
 import com.furlpay.guardian.domain.GuardianResult
+import com.furlpay.guardian.domain.model.AssetDetail
+import com.furlpay.guardian.domain.model.BookingReceipt
+import com.furlpay.guardian.domain.model.Candle
 import com.furlpay.guardian.domain.model.Card
+import com.furlpay.guardian.domain.model.FlightOffer
+import com.furlpay.guardian.domain.model.MarketQuote
+import com.furlpay.guardian.domain.model.OrderFill
 import com.furlpay.guardian.domain.model.Portfolio
 import com.furlpay.guardian.domain.model.SpendingPeriod
 import com.furlpay.guardian.domain.model.SpendingSummary
+import com.furlpay.guardian.domain.model.StayOption
 import com.furlpay.guardian.domain.model.Transaction
 import com.furlpay.guardian.domain.model.TravelBooking
+import com.furlpay.guardian.domain.model.TravelDeal
+import com.furlpay.guardian.domain.model.TripSummary
 import com.furlpay.guardian.domain.model.Wallet
 import com.furlpay.guardian.domain.repository.CardRepository
 import com.furlpay.guardian.domain.repository.PortfolioRepository
@@ -15,7 +24,10 @@ import com.furlpay.guardian.domain.repository.TravelRepository
 import com.furlpay.guardian.domain.repository.WalletRepository
 import com.furlpay.guardian.domain.usecase.ComputeSpendingSummaryUseCase
 import com.furlpay.guardian.network.FurlPayApi
+import com.furlpay.guardian.network.dto.BookRequest
 import com.furlpay.guardian.network.dto.CardSettingsRequest
+import com.furlpay.guardian.network.dto.FlightSearchRequest
+import com.furlpay.guardian.network.dto.OrderRequest
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 
@@ -87,4 +99,80 @@ class FurlPayTravelRepository(private val api: FurlPayApi) : TravelRepository {
                 .mapNotNull { it.toDomain() }
                 .sortedBy { it.startAt }
         }
+
+    /** Trip rows with amount/method/status — what the watch travel list shows. */
+    suspend fun tripSummaries(): GuardianResult<List<TripSummary>> =
+        guard {
+            val trips = api.trips()
+            (trips.upcoming + trips.past.take(3)).map { it.toSummary() }
+        }
+
+    suspend fun deals(): GuardianResult<List<TravelDeal>> =
+        guard { api.travelDeals().deals.map { it.toDomain() } }
+
+    /** Flights to a city on a date — live Duffel offers when the key is set. */
+    suspend fun flights(from: String, to: String, date: String): GuardianResult<List<FlightOffer>> =
+        guard {
+            api.searchFlights(FlightSearchRequest(from = from, to = to, date = date))
+                .results.map { it.toDomain() }
+        }
+
+    /** Top-rated bookable stay for a deal's city (native: hotels list, first row). */
+    suspend fun topStay(city: String): GuardianResult<StayOption> =
+        when (val r = guard { api.travelHotels(city).hotels.orEmpty().map { it.toDomain() } }) {
+            is GuardianResult.Err -> r
+            is GuardianResult.Ok ->
+                r.value.maxByOrNull { it.rating }?.let { GuardianResult.Ok(it) }
+                    ?: GuardianResult.Err("No bookable stays in $city right now.")
+        }
+
+    /**
+     * Book a stay. Server re-derives the price from propertyId + roomIndex +
+     * dates and dedupes on [idempotencyKey] — the watch never sends a total.
+     */
+    suspend fun book(
+        stay: StayOption,
+        checkIn: String,
+        checkOut: String,
+        nights: Int,
+        idempotencyKey: String,
+    ): GuardianResult<BookingReceipt> =
+        when (
+            val r = guard {
+                api.bookStay(
+                    BookRequest(
+                        name = stay.name,
+                        city = stay.city,
+                        nights = nights,
+                        checkIn = checkIn,
+                        checkOut = checkOut,
+                        propertyId = stay.id,
+                        roomIndex = 0,
+                        idempotencyKey = idempotencyKey,
+                    ),
+                ).booking?.toDomain()
+            }
+        ) {
+            is GuardianResult.Err -> r
+            is GuardianResult.Ok ->
+                r.value?.let { GuardianResult.Ok(it) }
+                    ?: GuardianResult.Err("Booking was not confirmed — check My Trips before retrying.")
+        }
+}
+
+class FurlPayMarketRepository(private val api: FurlPayApi) {
+
+    /** Top movers first — the same default view as native markets.tsx. */
+    suspend fun watchlist(limit: Int = 12): GuardianResult<List<MarketQuote>> =
+        guard { api.markets(limit = limit, sort = "-changePct").items.map { it.toDomain() } }
+
+    suspend fun bars(symbol: String, tf: String): GuardianResult<List<Candle>> =
+        guard { api.bars(symbol, tf).candles.map { it.toDomain() } }
+
+    suspend fun detail(symbol: String): GuardianResult<AssetDetail> =
+        guard { api.asset(symbol).toDomain() }
+
+    /** Fractional notional order. Caller owns the confirm step. */
+    suspend fun placeOrder(symbol: String, side: String, notionalUsd: Double): GuardianResult<OrderFill> =
+        guard { api.placeOrder(OrderRequest(symbol, side, notionalUsd)).toDomain() }
 }

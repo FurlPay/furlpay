@@ -12,26 +12,30 @@ import androidx.wear.compose.material3.MaterialTheme
  */
 object FurlPayColors {
     val Background = Color(0xFF000000)
-    val Primary = Color(0xFFA8C7FA) // brand soft blue
-    val OnPrimary = Color(0xFF062E6F)
-    val PrimaryContainer = Color(0xFF1B4A8E)
-    val OnPrimaryContainer = Color(0xFFD6E2FF)
-    val MoneyPositive = Color(0xFFC3E8C0) // gains
-    val OnMoneyPositive = Color(0xFF0A3818)
-    val Warning = Color(0xFFFFB77C) // approaching budget, HIGH priority
+    /** Mint emerald — the trading-terminal accent of the premium redesign. */
+    val Primary = Color(0xFF5CE5A6)
+    val OnPrimary = Color(0xFF04291B)
+    /** Deep blue-teal surface the mockups float content on. */
+    val PrimaryContainer = Color(0xFF0E2B28)
+    val OnPrimaryContainer = Color(0xFFB9F2D8)
+    val MoneyPositive = Color(0xFF7CF0BE) // gains
+    val OnMoneyPositive = Color(0xFF05331F)
+    val Warning = Color(0xFFFFC98A) // approaching budget, HIGH priority
     val OnWarning = Color(0xFF4A2800)
-    val Error = Color(0xFFFFB4AB) // CRITICAL, declined, frozen
-    val OnError = Color(0xFF690005)
-    val OnSurface = Color(0xFFE3E3E3) // off-white, eye comfort
-    val OnSurfaceVariant = Color(0xFFC4C7C5)
-    val Outline = Color(0xFF8E9192)
+    val Error = Color(0xFFFF9E96) // CRITICAL, declined, frozen, losses
+    val OnError = Color(0xFF5C0A05)
+    val OnSurface = Color(0xFFE4EFE9) // cool off-white, eye comfort
+    val OnSurfaceVariant = Color(0xFF9FB8AE)
+    val Outline = Color(0xFF6E8B80)
+    /** Chart fill gradient top — the accent at low alpha over black. */
+    val ChartFill = Color(0x405CE5A6)
 
     /** ARGB ints for protolayout (tiles) — same tokens, different type. */
-    const val PRIMARY_ARGB = 0xFFA8C7FA.toInt()
-    const val MONEY_POSITIVE_ARGB = 0xFFC3E8C0.toInt()
-    const val ERROR_ARGB = 0xFFFFB4AB.toInt()
-    const val ON_SURFACE_ARGB = 0xFFE3E3E3.toInt()
-    const val ON_SURFACE_VARIANT_ARGB = 0xFFC4C7C5.toInt()
+    const val PRIMARY_ARGB = 0xFF5CE5A6.toInt()
+    const val MONEY_POSITIVE_ARGB = 0xFF7CF0BE.toInt()
+    const val ERROR_ARGB = 0xFFFF9E96.toInt()
+    const val ON_SURFACE_ARGB = 0xFFE4EFE9.toInt()
+    const val ON_SURFACE_VARIANT_ARGB = 0xFF9FB8AE.toInt()
 }
 
 private val FurlPayColorScheme = ColorScheme(
@@ -50,6 +54,10 @@ private val FurlPayColorScheme = ColorScheme(
     outline = FurlPayColors.Outline,
     error = FurlPayColors.Error,
     onError = FurlPayColors.OnError,
+    // Cards/list rows sit on the deep-teal surface, not neutral grey.
+    surfaceContainerLow = Color(0xFF0A1F1D),
+    surfaceContainer = FurlPayColors.PrimaryContainer,
+    surfaceContainerHigh = Color(0xFF14332F),
 )
 
 @Composable

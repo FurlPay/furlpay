@@ -73,4 +73,8 @@ dependencies {
     // Ambient mode + QuickPay QR
     implementation(libs.androidx.wear)
     implementation(libs.zxing.core)
+
+    // Real asset logos — self-hosted TradingView marks + Duffel airline SVGs
+    implementation(libs.coil.compose)
+    implementation(libs.coil.svg)
 }

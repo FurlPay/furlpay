@@ -1,13 +1,22 @@
 package com.furlpay.guardian.network.dto
 
+import com.furlpay.guardian.domain.model.AssetDetail
+import com.furlpay.guardian.domain.model.BookingReceipt
+import com.furlpay.guardian.domain.model.Candle
 import com.furlpay.guardian.domain.model.Card
 import com.furlpay.guardian.domain.model.CardLimits
+import com.furlpay.guardian.domain.model.FlightOffer
+import com.furlpay.guardian.domain.model.MarketQuote
+import com.furlpay.guardian.domain.model.OrderFill
 import com.furlpay.guardian.domain.model.Portfolio
 import com.furlpay.guardian.domain.model.Position
+import com.furlpay.guardian.domain.model.StayOption
 import com.furlpay.guardian.domain.model.Transaction
 import com.furlpay.guardian.domain.model.TransactionDirection
 import com.furlpay.guardian.domain.model.TravelBooking
+import com.furlpay.guardian.domain.model.TravelDeal
 import com.furlpay.guardian.domain.model.TravelKind
+import com.furlpay.guardian.domain.model.TripSummary
 import com.furlpay.guardian.domain.model.Wallet
 import kotlinx.datetime.Instant
 import kotlinx.datetime.LocalDate
@@ -170,8 +179,22 @@ data class TripDto(
     val checkIn: String = "",
     val checkOut: String = "",
     val nights: Int = 0,
+    val amountUsd: Double = 0.0,
+    val method: String = "",
     val status: String? = null,
 ) {
+    fun toSummary() = TripSummary(
+        id = id,
+        name = name.ifBlank { city },
+        city = city,
+        checkIn = checkIn,
+        checkOut = checkOut,
+        nights = nights,
+        amountUsd = amountUsd,
+        method = method,
+        status = status ?: "confirmed",
+    )
+
     fun toDomain(): TravelBooking? {
         val start = parseFlexibleInstant(checkIn) ?: return null
         return TravelBooking(
@@ -188,7 +211,7 @@ data class TripDto(
     }
 }
 
-// GET /api/markets?kind=&limit= — { items[], asOf }
+// GET /api/markets?kind=&sort=&limit= — { items[], asOf }
 @Serializable
 data class MarketsResponse(val items: List<MarketItemDto> = emptyList())
 
@@ -196,9 +219,225 @@ data class MarketsResponse(val items: List<MarketItemDto> = emptyList())
 data class MarketItemDto(
     val symbol: String,
     val name: String = "",
+    val kind: String = "stock",
     val price: Double = 0.0,
     val changePct: Double = 0.0,
+    val live: Boolean = false,
+    /** Self-hosted mark, e.g. "/logos/stocks/aapl.svg" — null = monogram only. */
+    val logo: String? = null,
+) {
+    fun toDomain() = MarketQuote(
+        symbol = symbol,
+        name = name,
+        kind = kind,
+        price = price,
+        changePct = changePct,
+        live = live,
+        logoPath = logo,
+    )
+}
+
+// GET /api/markets/bars?symbol=&tf= — { candles[] } (native PriceChart contract)
+@Serializable
+data class BarsResponse(val candles: List<CandleDto> = emptyList())
+
+@Serializable
+data class CandleDto(
+    val time: Long = 0,
+    val open: Double = 0.0,
+    val high: Double = 0.0,
+    val low: Double = 0.0,
+    val close: Double = 0.0,
+) {
+    fun toDomain() = Candle(time, open, high, low, close)
+}
+
+// GET /api/markets/{symbol} — { asset{}, quote{}, position? } (subset we render)
+@Serializable
+data class AssetDetailResponse(
+    val asset: AssetDto,
+    val quote: QuoteDto = QuoteDto(),
+    val position: AssetPositionDto? = null,
+) {
+    fun toDomain() = AssetDetail(
+        quote = MarketQuote(
+            symbol = asset.symbol,
+            name = asset.name,
+            kind = asset.kind,
+            price = quote.price,
+            changePct = quote.changePct,
+            live = quote.live,
+            logoPath = asset.logo,
+        ),
+        positionShares = position?.shares,
+        positionValueUsd = position?.marketValue,
+    )
+}
+
+@Serializable
+data class AssetDto(
+    val symbol: String,
+    val name: String = "",
+    val kind: String = "stock",
+    val logo: String? = null,
 )
+
+@Serializable
+data class QuoteDto(
+    val price: Double = 0.0,
+    val changePct: Double = 0.0,
+    val live: Boolean = false,
+)
+
+@Serializable
+data class AssetPositionDto(
+    val shares: Double = 0.0,
+    val marketValue: Double = 0.0,
+)
+
+// POST /api/investing/order — fractional notional order (native placeOrder)
+@Serializable
+data class OrderRequest(
+    val symbol: String,
+    /** "buy" | "sell" */
+    val side: String,
+    val notional: Double,
+)
+
+@Serializable
+data class OrderResponse(
+    val orderId: String = "",
+    val status: String = "",
+    val filledQty: Double = 0.0,
+) {
+    fun toDomain() = OrderFill(orderId, status, filledQty)
+}
+
+// GET /api/travel/deals — { deals[] } (native lib/travel.ts Deal)
+@Serializable
+data class DealsResponse(val deals: List<DealDto> = emptyList())
+
+@Serializable
+data class DealDto(
+    val id: String,
+    val city: String = "",
+    val country: String = "",
+    val name: String = "",
+    val stars: Int = 0,
+    val nightlyUsd: Double = 0.0,
+    val discountPct: Int = 0,
+    val payToken: String = "USDC",
+) {
+    fun toDomain() = TravelDeal(
+        id = id,
+        name = name,
+        city = city,
+        country = country,
+        stars = stars,
+        nightlyUsd = nightlyUsd,
+        discountPct = discountPct,
+        payToken = payToken,
+    )
+}
+
+// POST /api/travel/search {type:"flights",from,to,date,cabin} — { results[] }
+@Serializable
+data class FlightSearchRequest(
+    val type: String = "flights",
+    val from: String,
+    val to: String,
+    val date: String,
+    val cabin: String = "Economy",
+)
+
+@Serializable
+data class FlightSearchResponse(val results: List<FlightDto> = emptyList())
+
+@Serializable
+data class FlightDto(
+    val id: String,
+    val carrier: String = "",
+    val carrierCode: String = "",
+    val from: String = "",
+    val to: String = "",
+    val date: String = "",
+    val departTime: String = "",
+    val arriveTime: String = "",
+    val durationMin: Int = 0,
+    val stops: Int = 0,
+    val cabin: String = "Economy",
+    val priceUsd: Double = 0.0,
+    val logoUrl: String? = null,
+) {
+    fun toDomain() = FlightOffer(
+        id = id,
+        carrier = carrier,
+        carrierCode = carrierCode,
+        from = from,
+        to = to,
+        date = date,
+        departTime = departTime,
+        arriveTime = arriveTime,
+        durationMin = durationMin,
+        stops = stops,
+        cabin = cabin,
+        priceUsd = priceUsd,
+        logoUrl = logoUrl,
+    )
+}
+
+// GET /api/travel/hotels?city= — { hotels[] } (top stays for a deal's city)
+@Serializable
+data class HotelsSearchResponse(val hotels: List<StayDto>? = null, val count: Int = 0)
+
+@Serializable
+data class StayDto(
+    val id: String,
+    val name: String = "",
+    val city: String = "",
+    val stars: Int = 0,
+    val rating: Double = 0.0,
+    val nightlyUsd: Double = 0.0,
+) {
+    fun toDomain() = StayOption(
+        id = id,
+        name = name,
+        city = city,
+        stars = stars,
+        rating = rating,
+        nightlyUsd = nightlyUsd,
+    )
+}
+
+// POST /api/travel/book — server-authoritative pricing; watch sends identifiers
+// + idempotencyKey only (mirrors native BookInput; parity with checkout.tsx).
+@Serializable
+data class BookRequest(
+    val source: String = "travala",
+    val name: String,
+    val city: String,
+    val nights: Int,
+    val guests: Int = 1,
+    val checkIn: String? = null,
+    val checkOut: String? = null,
+    val method: String = "USDC",
+    val propertyId: String? = null,
+    val roomIndex: Int? = null,
+    val idempotencyKey: String,
+)
+
+@Serializable
+data class BookResponse(val booking: BookingDto? = null)
+
+@Serializable
+data class BookingDto(
+    val id: String = "",
+    val reference: String = "",
+    val status: String = "",
+    val amountUsd: Double = 0.0,
+) {
+    fun toDomain() = BookingReceipt(id, reference, status, amountUsd)
+}
 
 // POST /api/auth/refresh — token present only for X-Furlpay-Client: mobile-*.
 @Serializable

@@ -126,6 +126,11 @@ class FurlPayClient(
         private val json = Json {
             ignoreUnknownKeys = true
             coerceInputValues = true
+            // Request DTOs use defaults as documentation ("type": "flights").
+            // Without this, kotlinx OMITS default-valued fields and the server
+            // silently falls back (travel/search returned STAYS for a flight
+            // query — caught on the emulator Jul 17).
+            encodeDefaults = true
         }
     }
 }

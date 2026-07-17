@@ -1,9 +1,19 @@
 package com.furlpay.guardian.network
 
+import com.furlpay.guardian.network.dto.AssetDetailResponse
+import com.furlpay.guardian.network.dto.BarsResponse
+import com.furlpay.guardian.network.dto.BookRequest
+import com.furlpay.guardian.network.dto.BookResponse
 import com.furlpay.guardian.network.dto.CardSettingsRequest
 import com.furlpay.guardian.network.dto.CardSettingsResponse
 import com.furlpay.guardian.network.dto.CardsResponse
+import com.furlpay.guardian.network.dto.DealsResponse
+import com.furlpay.guardian.network.dto.FlightSearchRequest
+import com.furlpay.guardian.network.dto.FlightSearchResponse
+import com.furlpay.guardian.network.dto.HotelsSearchResponse
 import com.furlpay.guardian.network.dto.MarketsResponse
+import com.furlpay.guardian.network.dto.OrderRequest
+import com.furlpay.guardian.network.dto.OrderResponse
 import com.furlpay.guardian.network.dto.OtpCheckRequest
 import com.furlpay.guardian.network.dto.OtpCheckResponse
 import com.furlpay.guardian.network.dto.OtpStartRequest
@@ -17,6 +27,7 @@ import kotlinx.serialization.json.JsonObject
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
+import retrofit2.http.Path
 import retrofit2.http.Query
 import retrofit2.http.Url
 
@@ -49,7 +60,34 @@ interface FurlPayApi {
     suspend fun markets(
         @Query("kind") kind: String? = null,
         @Query("limit") limit: Int? = null,
+        @Query("sort") sort: String? = null,
     ): MarketsResponse
+
+    // Native PriceChart contract: tf in 1D|1W|1M|3M|1Y|ALL.
+    @GET("markets/bars")
+    suspend fun bars(
+        @Query("symbol") symbol: String,
+        @Query("tf") tf: String,
+    ): BarsResponse
+
+    @GET("markets/{symbol}")
+    suspend fun asset(@Path("symbol") symbol: String): AssetDetailResponse
+
+    // Fractional notional order — native market/[symbol].tsx placeOrder.
+    @POST("investing/order")
+    suspend fun placeOrder(@Body body: OrderRequest): OrderResponse
+
+    @GET("travel/deals")
+    suspend fun travelDeals(): DealsResponse
+
+    @GET("travel/hotels")
+    suspend fun travelHotels(@Query("city") city: String): HotelsSearchResponse
+
+    @POST("travel/search")
+    suspend fun searchFlights(@Body body: FlightSearchRequest): FlightSearchResponse
+
+    @POST("travel/book")
+    suspend fun bookStay(@Body body: BookRequest): BookResponse
 
     @POST("push/devices")
     suspend fun registerDevice(@Body body: RegisterDeviceRequest): RegisterDeviceResponse

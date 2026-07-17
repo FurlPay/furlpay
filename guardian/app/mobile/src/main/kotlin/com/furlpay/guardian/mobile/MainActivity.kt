@@ -173,7 +173,7 @@ private fun DashboardScreen(
                 Button(onClick = viewModel::syncWatch, enabled = !state.syncing) {
                     Text(if (state.syncing) "Syncing…" else "Sync watch")
                 }
-                OutlinedButton(onClick = onOpenVoice) { Text("🎤 Voice") }
+                OutlinedButton(onClick = onOpenVoice) { Text("Voice") }
                 OutlinedButton(onClick = viewModel::signOut) { Text("Sign out") }
             }
         }
