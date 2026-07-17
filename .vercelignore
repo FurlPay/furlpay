@@ -36,3 +36,7 @@ apps/web/scratch
 
 # Contracts workspace (compiled/deployed via Hardhat, not Vercel)
 packages/contracts
+
+# Guardian Wear OS / phone app (Kotlin/Gradle — huge build outputs, ships to
+# Play + its own public repo, never Vercel)
+/guardian
