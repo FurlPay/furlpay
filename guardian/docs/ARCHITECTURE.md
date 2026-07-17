@@ -183,8 +183,13 @@ gradle assembleDebug       # wear-debug.apk + mobile-debug.apk (SDK 35)
 
 `google-services.json` is needed only AT RUNTIME for Firebase (Gemini + FCM).
 Without it the build is green, FCM stays dormant, and the voice pipeline runs
-on the deterministic rule parser. Drop the file into `app/mobile/` (and apply
-the google-services plugin) when the Firebase project exists.
+on the deterministic rule parser. The google-services plugin is applied
+CONDITIONALLY in `app/mobile/build.gradle.kts` — only when the (gitignored)
+json is present — so a clean checkout still builds. The app is registered in
+the `furlpay-production` Firebase project as `com.furlpay.guardian`
+(app id `1:380408324208:android:bf08d1e199c1ad129494b5`); regenerate the
+config with `firebase apps:sdkconfig ANDROID <app-id> --out
+app/mobile/google-services.json`.
 
 ### Manual reminders + periodic sync (built)
 
@@ -199,7 +204,10 @@ does not survive reboot; the heartbeat restores it.
 
 ## Remaining (next phases)
 
-- Firebase project + `google-services.json` → activates Gemini + FCM paths.
+- ~~Firebase project + `google-services.json`~~ DONE (Jul 17): app registered,
+  config fetched, plugin wired (conditional). FCM is live on next install;
+  Gemini additionally needs Firebase AI Logic enabled once in the console
+  (sign in as the project owner → Build → AI Logic → Get started).
 - Gmail/Calendar/GitHub ingestion → EventRepository (the reminder UI proves
   the pipeline; ingestion multiplies the feed).
 - Phone-side Live-API voice screen; morning-briefing worker.

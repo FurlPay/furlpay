@@ -10,6 +10,12 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+// google-services.json is gitignored — apply the plugin only when it exists so
+// the public repo and CI keep building without the config.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "com.furlpay.guardian.mobile"
     compileSdk = 35
