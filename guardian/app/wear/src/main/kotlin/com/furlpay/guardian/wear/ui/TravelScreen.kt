@@ -26,7 +26,10 @@ import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.OutlinedButton
 import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.lazy.rememberTransformationSpec
+import androidx.wear.compose.material3.lazy.transformedHeight
 import com.furlpay.guardian.domain.model.FlightOffer
 import com.furlpay.guardian.domain.model.TravelDeal
 import com.furlpay.guardian.domain.model.TripSummary
@@ -43,6 +46,7 @@ import com.furlpay.guardian.wear.ui.theme.FurlPayColors
 fun TravelScreen(viewModel: TravelViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val columnState = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
     val haptics = rememberHaptics()
 
     when (val book = state.book) {
@@ -122,7 +126,11 @@ fun TravelScreen(viewModel: TravelViewModel = viewModel()) {
             if (state.deals.isNotEmpty()) {
                 item { SectionLabel("Flash deals") }
                 items(state.deals.size) { i ->
-                    DealRow(state.deals[i]) {
+                    DealRow(
+                        deal = state.deals[i],
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier.transformedHeight(this, transformationSpec),
+                    ) {
                         haptics.click()
                         viewModel.beginBooking(state.deals[i])
                     }
@@ -145,7 +153,7 @@ private fun SectionLabel(text: String) {
 
 @Composable
 private fun TripRow(trip: TripSummary) {
-    Card(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+    InfoCard(modifier = Modifier.fillMaxWidth()) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -179,7 +187,7 @@ private fun TripRow(trip: TripSummary) {
 
 @Composable
 private fun FlightRow(flight: FlightOffer) {
-    Card(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+    InfoCard(modifier = Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             // Airline mark from the Duffel CDN when live; carrier-code
             // monogram always underneath (never a blank/broken box).
@@ -216,8 +224,13 @@ private fun FlightRow(flight: FlightOffer) {
 }
 
 @Composable
-private fun DealRow(deal: TravelDeal, onBook: () -> Unit) {
-    Card(onClick = onBook, modifier = Modifier.fillMaxWidth()) {
+private fun DealRow(
+    deal: TravelDeal,
+    transformation: SurfaceTransformation,
+    modifier: Modifier = Modifier,
+    onBook: () -> Unit,
+) {
+    Card(onClick = onBook, transformation = transformation, modifier = modifier.fillMaxWidth()) {
         Column {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(

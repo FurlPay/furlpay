@@ -108,7 +108,7 @@ fun VoiceScreen(viewModel: VoiceViewModel = viewModel()) {
                         horizontalArrangement = Arrangement.Center,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        GlyphIcon(GuardianGlyph.Mic, tint = MaterialTheme.colorScheme.onSurface)
+                        GlyphIcon(GuardianGlyph.Mic, tint = MaterialTheme.colorScheme.onPrimary)
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("Tap to speak", textAlign = TextAlign.Center)
                     }

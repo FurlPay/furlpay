@@ -29,7 +29,10 @@ import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.lazy.rememberTransformationSpec
+import androidx.wear.compose.material3.lazy.transformedHeight
 import com.furlpay.guardian.domain.model.MarketQuote
 import com.furlpay.guardian.wear.viewmodel.MarketsViewModel
 import com.furlpay.guardian.wear.ui.theme.FurlPayColors
@@ -43,6 +46,7 @@ import com.furlpay.guardian.wear.ui.theme.FurlPayColors
 fun MarketsScreen(navController: NavController, viewModel: MarketsViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val columnState = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
     val haptics = rememberHaptics()
 
     ScreenScaffold(scrollState = columnState) { contentPadding ->
@@ -74,6 +78,8 @@ fun MarketsScreen(navController: NavController, viewModel: MarketsViewModel = vi
                 QuoteRow(
                     quote = quote,
                     spark = state.sparks[quote.symbol],
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier.transformedHeight(this, transformationSpec),
                     onClick = {
                         haptics.click()
                         navController.navigate("stock/${quote.symbol}")
@@ -85,10 +91,16 @@ fun MarketsScreen(navController: NavController, viewModel: MarketsViewModel = vi
 }
 
 @Composable
-private fun QuoteRow(quote: MarketQuote, spark: List<Double>?, onClick: () -> Unit) {
+private fun QuoteRow(
+    quote: MarketQuote,
+    spark: List<Double>?,
+    transformation: SurfaceTransformation,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val up = quote.changePct >= 0
     val trend = if (up) FurlPayColors.MoneyPositive else FurlPayColors.Error
-    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+    Card(onClick = onClick, transformation = transformation, modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             AssetLogo(symbol = quote.symbol, logoPath = quote.logoPath)
             Spacer(modifier = Modifier.width(8.dp))

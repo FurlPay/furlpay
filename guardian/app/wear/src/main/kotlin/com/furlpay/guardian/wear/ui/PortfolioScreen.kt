@@ -7,22 +7,33 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavController
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.lazy.rememberTransformationSpec
+import androidx.wear.compose.material3.lazy.transformedHeight
 import com.furlpay.guardian.wear.viewmodel.PortfolioViewModel
 
 /**
  * "How are my investments?" — total, day change (green = gains, red = losses,
- * per the bible's money-semantic palette), then the biggest holdings.
+ * per the bible's money-semantic palette), then the biggest holdings. A
+ * holding taps through to its full chart + Buy/Sell (same StockScreen the
+ * Markets list uses).
  */
 @Composable
-fun PortfolioScreen(viewModel: PortfolioViewModel = viewModel()) {
+fun PortfolioScreen(
+    navController: NavController,
+    viewModel: PortfolioViewModel = viewModel(),
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val columnState = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
+    val haptics = rememberHaptics()
 
     val changeColor =
         if (state.dayChangeUsd >= 0) MaterialTheme.colorScheme.secondary
@@ -34,13 +45,23 @@ fun PortfolioScreen(viewModel: PortfolioViewModel = viewModel()) {
             contentPadding = contentPadding,
         ) {
             item {
-                Text(
-                    text = if (state.loading) "…" else state.totalUsd?.let { usd(it) } ?: "No data",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                when {
+                    state.loading -> SkeletonAmount()
+                    state.totalUsd != null -> Text(
+                        text = usd(animatedUsd(state.totalUsd!!)),
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    else -> Text(
+                        text = "No data",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             if (!state.loading && state.totalUsd != null) {
                 item {
@@ -80,7 +101,16 @@ fun PortfolioScreen(viewModel: PortfolioViewModel = viewModel()) {
                 val positionColor =
                     if (position.dayChangePct >= 0) MaterialTheme.colorScheme.secondary
                     else MaterialTheme.colorScheme.error
-                Card(onClick = {}, modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    onClick = {
+                        haptics.click()
+                        navController.navigate("stock/${position.symbol}")
+                    },
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .transformedHeight(this, transformationSpec),
+                ) {
                     Text(
                         text = position.symbol,
                         style = MaterialTheme.typography.labelMedium,

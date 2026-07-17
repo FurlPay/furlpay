@@ -37,17 +37,23 @@ fun SpendingScreen(viewModel: SpendingViewModel = viewModel()) {
             contentPadding = contentPadding,
         ) {
             item {
-                Text(
-                    text = when {
-                        state.loading -> "…"
-                        state.summary != null -> usd(state.summary!!.totalUsd)
-                        else -> "No data"
-                    },
-                    style = MaterialTheme.typography.displaySmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                when {
+                    state.loading -> SkeletonAmount()
+                    state.summary != null -> Text(
+                        text = usd(animatedUsd(state.summary!!.totalUsd)),
+                        style = MaterialTheme.typography.displaySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    else -> Text(
+                        text = "No data",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
             item {
                 val label = when (state.period) {

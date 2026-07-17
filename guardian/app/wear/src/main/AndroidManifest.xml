@@ -18,9 +18,12 @@
             android:name="com.google.android.wearable.standalone"
             android:value="true" />
 
+        <!-- singleTop: a tile tap while the app is open must land in
+             onNewIntent (route extra), not stack a second instance. -->
         <activity
             android:name=".WearMainActivity"
             android:exported="true"
+            android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@android:style/Theme.DeviceDefault">
             <intent-filter>

@@ -137,10 +137,12 @@ fun GuardianWearUi(
                 startDestination = startDestination,
             ) {
                 composable(Routes.HOME) { HomeScreen(navController) }
-                composable(Routes.WALLET) { WalletScreen() }
+                composable(Routes.WALLET) {
+                    WalletScreen(onReceive = { navController.navigate(Routes.QUICKPAY) })
+                }
                 composable(Routes.CARDS) { CardsScreen() }
                 composable(Routes.VOICE) { VoiceScreen() }
-                composable(Routes.PORTFOLIO) { PortfolioScreen() }
+                composable(Routes.PORTFOLIO) { PortfolioScreen(navController) }
                 composable(Routes.SPENDING) { SpendingScreen() }
                 composable(Routes.QUICKPAY) { QuickPayScreen() }
                 composable(Routes.MARKETS) { MarketsScreen(navController) }

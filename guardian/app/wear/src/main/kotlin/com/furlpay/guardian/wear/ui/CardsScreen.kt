@@ -13,7 +13,10 @@ import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
 import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
+import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
+import androidx.wear.compose.material3.lazy.rememberTransformationSpec
+import androidx.wear.compose.material3.lazy.transformedHeight
 import com.furlpay.guardian.wear.viewmodel.CardsViewModel
 
 /**
@@ -24,6 +27,7 @@ import com.furlpay.guardian.wear.viewmodel.CardsViewModel
 fun CardsScreen(viewModel: CardsViewModel = viewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val columnState = rememberTransformingLazyColumnState()
+    val transformationSpec = rememberTransformationSpec()
     val haptics = rememberHaptics()
 
     // Play the one-shot cue the ViewModel attached to the last state change:
@@ -68,7 +72,10 @@ fun CardsScreen(viewModel: CardsViewModel = viewModel()) {
                 val pending = state.pendingFreezeId == card.id
                 Card(
                     onClick = { viewModel.onCardTapped(card) },
-                    modifier = Modifier.fillMaxWidth(),
+                    transformation = SurfaceTransformation(transformationSpec),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .transformedHeight(this, transformationSpec),
                 ) {
                     Text(
                         text = (card.label ?: card.kind) + " …" + card.last4,
