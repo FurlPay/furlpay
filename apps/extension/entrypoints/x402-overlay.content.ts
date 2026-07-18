@@ -7,7 +7,9 @@ import type { X402Detection } from "@/lib/types";
 // furlpay.com — this overlay is a launcher, it never handles keys or signs.
 
 export default defineContentScript({
-  matches: ["<all_urls>"],
+  // Web pages only — http(s), never file:///ftp://. Narrowest scope per
+  // CWS Limited Use (Aug 2026).
+  matches: ["https://*/*", "http://*/*"],
   runAt: "document_start",
   main() {
     let shown = false;

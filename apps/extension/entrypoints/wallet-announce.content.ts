@@ -41,7 +41,9 @@ const ICON =
   );
 
 export default defineContentScript({
-  matches: ["<all_urls>"],
+  // Dapps live on the web — http(s) only, never file:///ftp://. Narrowest
+  // scope per CWS Limited Use (Aug 2026).
+  matches: ["https://*/*", "http://*/*"],
   world: "MAIN",
   runAt: "document_start",
   main() {

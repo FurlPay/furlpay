@@ -11,7 +11,9 @@ const MAX_BADGES_PER_PAGE = 200;
 const SCAN_THROTTLE_MS = 1500;
 
 export default defineContentScript({
-  matches: ["<all_urls>"],
+  // Web pages only — a Blink can be shared anywhere, but never on file://,
+  // ftp:// etc. Narrowest scope per CWS Limited Use (Aug 2026).
+  matches: ["https://*/*", "http://*/*"],
   runAt: "document_idle",
   main() {
     // Never annotate FurlPay's own pages (or local dev).

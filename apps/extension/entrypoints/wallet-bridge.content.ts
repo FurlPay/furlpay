@@ -10,7 +10,9 @@ const BRIDGE_REQUEST = "furlpay-wallet";
 const BRIDGE_RESULT = "furlpay-wallet-result";
 
 export default defineContentScript({
-  matches: ["<all_urls>"],
+  // Bridges the MAIN-world provider on web pages only — http(s), never
+  // file:///ftp://. Narrowest scope per CWS Limited Use (Aug 2026).
+  matches: ["https://*/*", "http://*/*"],
   runAt: "document_start",
   main() {
     window.addEventListener("message", (event) => {

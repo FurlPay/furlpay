@@ -98,7 +98,7 @@ branded background.
 | `alarms` | Poll balance/pending approvals once per minute (MV3 workers are ephemeral) |
 | `activeTab` | Read the checkout page the user invokes the fee scanner on |
 | Host `furlpay.com` | First-party API calls with the user's session |
-| Content script `<all_urls>` | x402 (HTTP 402) detection works on any site; the script only reads response status/headers of the page's own requests and injects the checkout overlay |
+| Content scripts `https://*/*`, `http://*/*` | x402 (HTTP 402) detection, Blink trust badges and EIP-6963 wallet announcement work on any website; scoped to web pages only (never `file://`/`ftp://`). Scripts read only the page's own response status/headers and inject the checkout overlay; the wallet address is released only after an explicit per-site consent prompt |
 
 ## Submission checklist
 
