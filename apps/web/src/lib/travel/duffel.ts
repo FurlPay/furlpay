@@ -1,3 +1,4 @@
+import { log } from "@/lib/log";
 import { CITY_COORDS, Flight, Stay, StayType, CarRental, CarCategory, carModelPhoto, nights as nightsBetween } from "./data";
 
 // Live flight search via Duffel (mid-2026 the one self-serve top-tier supplier:
@@ -38,13 +39,77 @@ function iso8601Minutes(duration?: string): number {
   return (Number(m[1]) || 0) * 1440 + (Number(m[2]) || 0) * 60 + (Number(m[3]) || 0);
 }
 
+// ---------------------------------------------------------------------------
+// Environment guard for the Duffel credential.
+//
+// Duffel tokens are environment-scoped: a duffel_test_ token only reaches test
+// mode (sandbox airlines, including Duffel's synthetic "Duffel Airways"), and a
+// duffel_live_ token only reaches live mode, where CREATING AN ORDER BOOKS A
+// REAL SEAT AND INCURS A REAL FINANCIAL OBLIGATION.
+//
+// Nothing previously distinguished them: duffel.ts read DUFFEL_API_KEY and used
+// whatever it found. Both directions of that mistake are bad, and asymmetric:
+//   test token in production  -> customers pay real money for sandbox bookings
+//                                that no airline will honour
+//   live token in dev/CI      -> a test run books, and is billed for, real
+//                                flights. This is the expensive direction.
+//
+// The money layer already fails closed like this (settle() hard-stops on
+// NODE_ENV=production, createEvmSettler() returns null without a key). Travel
+// had no equivalent, despite being the subsystem that can create an obligation
+// to a third party. This closes that asymmetry.
+// ---------------------------------------------------------------------------
+
+type DuffelMode = "test" | "live" | "unknown";
+
+export function duffelKeyMode(key: string | undefined): DuffelMode {
+  if (key?.startsWith("duffel_test_")) return "test";
+  if (key?.startsWith("duffel_live_")) return "live";
+  return "unknown";
+}
+
+/**
+ * Return the Duffel key only when it is valid for THIS environment.
+ * Returns null otherwise, which every caller already handles by falling back
+ * to the deterministic demo generator — so search degrades instead of breaking.
+ */
+function duffelKey(): string | null {
+  const key = process.env.DUFFEL_API_KEY;
+  if (!key) return null;
+
+  const mode = duffelKeyMode(key);
+  const isProd = process.env.NODE_ENV === "production";
+
+  if (isProd && mode !== "live") {
+    log.error("DUFFEL_API_KEY is not a live token — refusing to use it in production", {
+      mode,
+      detail: "Test tokens only reach sandbox airlines. Customers would pay for bookings no airline honours.",
+    });
+    return null;
+  }
+  if (!isProd && mode === "live") {
+    log.error("DUFFEL_API_KEY is a LIVE token outside production — refusing to use it", {
+      nodeEnv: process.env.NODE_ENV ?? "(unset)",
+      detail: "A live token creates REAL, BILLABLE airline bookings. Use a duffel_test_ token here.",
+    });
+    return null;
+  }
+  if (mode === "unknown") {
+    log.error("DUFFEL_API_KEY has an unrecognised prefix — refusing to use it", {
+      detail: "Expected duffel_test_ or duffel_live_. An unidentifiable token cannot be proven safe.",
+    });
+    return null;
+  }
+  return key;
+}
+
 export async function searchDuffelFlights(
   from: string,
   to: string,
   date: string,
   cabin: Flight["cabin"] = "Economy",
 ): Promise<Flight[] | null> {
-  const apiKey = process.env.DUFFEL_API_KEY;
+  const apiKey = duffelKey();
   if (!apiKey || !from || !to || !date) return null;
   try {
     const res = await fetch(`${BASE}/air/offer_requests?return_offers=true`, {
@@ -135,7 +200,7 @@ export async function searchDuffelStays(
   checkOut?: string,
   guests = 2,
 ): Promise<Stay[] | null> {
-  const apiKey = process.env.DUFFEL_API_KEY;
+  const apiKey = duffelKey();
   const coords = CITY_COORDS[city];
   if (!apiKey || !coords) return null;
   const inDate = checkIn || new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
@@ -236,7 +301,7 @@ export async function searchDuffelCars(
   pickUp?: string,
   dropOff?: string,
 ): Promise<CarRental[] | null> {
-  const apiKey = process.env.DUFFEL_API_KEY;
+  const apiKey = duffelKey();
   const coords = CITY_COORDS[city];
   if (!apiKey || !coords) return null;
   const pickDate = pickUp || new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
@@ -348,7 +413,7 @@ const DUFFEL_HEADERS = (apiKey: string) => ({
 
 /** Re-validate a rate right before checkout (POST /stays/quotes). */
 export async function createDuffelStayQuote(rateId: string): Promise<DuffelStayQuote | null> {
-  const apiKey = process.env.DUFFEL_API_KEY;
+  const apiKey = duffelKey();
   if (!apiKey || !rateId) return null;
   try {
     const res = await fetch(`${BASE}/stays/quotes`, {
@@ -378,7 +443,7 @@ export async function createDuffelStayBooking(opts: {
   email: string;
   phone?: string;
 }): Promise<DuffelStayBooking | null> {
-  const apiKey = process.env.DUFFEL_API_KEY;
+  const apiKey = duffelKey();
   if (!apiKey || !opts.quoteId) return null;
   try {
     const res = await fetch(`${BASE}/stays/bookings`, {
