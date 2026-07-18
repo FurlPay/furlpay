@@ -6,9 +6,16 @@ import { verifyAgentSignature } from "@/lib/agentTrustGate";
 import { authorizeAgentSpend, getAgentKey } from "@/lib/agentPolicy";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
 
-// GET /api/escrow — list all pre-auth holds.
-export async function GET() {
-  return NextResponse.json({ holds: listHolds() });
+// GET /api/escrow — list the CALLER's pre-auth holds. Session-attributed;
+// dev-only demo fallback mirrors POST (never in production, so one user can
+// never see another account's holds).
+export async function GET(req: NextRequest) {
+  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  const account = (await getAccountDurable(claims?.sub)) ?? getDevelopmentDemoAccount();
+  if (!account) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  return NextResponse.json({ holds: listHolds(account.user.id) });
 }
 
 const Body = z.discriminatedUnion("action", [
@@ -90,7 +97,7 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    const hold = createHold(body.cardId, body.merchant, body.amount);
+    const hold = createHold(userId, body.cardId, body.merchant, body.amount);
     recordTransaction(
       userId,
       newTx({
@@ -109,7 +116,7 @@ export async function POST(req: NextRequest) {
   if (body.action === "capture") {
     let hold;
     try {
-      hold = captureHold(body.id, body.finalAmount);
+      hold = captureHold(body.id, body.finalAmount, userId);
     } catch (e) {
       return NextResponse.json({ error: (e as Error).message }, { status: 409 });
     }
@@ -132,7 +139,7 @@ export async function POST(req: NextRequest) {
   if (body.action === "release") {
     let hold;
     try {
-      hold = releaseHold(body.id);
+      hold = releaseHold(body.id, userId);
     } catch (e) {
       return NextResponse.json({ error: (e as Error).message }, { status: 409 });
     }

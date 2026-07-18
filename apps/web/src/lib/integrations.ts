@@ -27,7 +27,19 @@ export function isLive(): boolean {
   return integrationMode() === "live";
 }
 
-/** True when a mock integration is acceptable: anything but production. */
+/**
+ * True when an integration seam may PROCEED: either mock behavior is
+ * acceptable (any non-production environment) or the deployment is genuinely
+ * live (INTEGRATION_MODE=live — real credentials, real settlement). The one
+ * state that fails is "production without live config".
+ *
+ * NOTE the name is narrower than the contract: in production+live this
+ * returns true because the LIVE path runs, not because mocks are welcome.
+ * Seams whose only implementation is a mock must therefore ALSO hard-stop on
+ * NODE_ENV=production (see services/payments.ts settle() and the wallets
+ * transfer route) — INTEGRATION_MODE=live cannot make an unimplemented
+ * integration real, and must never let one fabricate settlement.
+ */
 export function mockAllowed(): boolean {
   return process.env.NODE_ENV !== "production" || isLive();
 }
