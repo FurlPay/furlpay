@@ -56,6 +56,7 @@
       "backgroundColor": "#000000"
     },
     "plugins": [
+      "./plugins/withNetworkSecurityConfig",
       "expo-router",
       "expo-secure-store",
       "expo-sqlite",
