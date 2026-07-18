@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { CATALOG, bySymbol, assetLogoPath } from "@/lib/markets/catalog";
-import { getQuotes } from "@/lib/markets/quotes";
+import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
 import { keyStatsFor, digestFor } from "@/lib/markets/stats";
 import { insightsByTicker } from "@/lib/insights/articles";
 import { getAccountDurable } from "@/lib/store";
@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: { symbol: stri
   if (!asset) return NextResponse.json({ error: "Unknown symbol" }, { status: 404 });
 
   const quotes = await getQuotes();
-  const quote = quotes.get(sym) ?? { price: 0, changePct: 0, live: false };
+  const quote = resolveQuote(quotes, asset) ?? { price: 0, changePct: 0, live: false };
   const stats = keyStatsFor(asset, quote);
 
   const related = CATALOG.filter(
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, { params }: { params: { symbol: stri
   )
     .slice(0, 6)
     .map((a) => {
-      const q = quotes.get(a.symbol);
+      const q = resolveQuote(quotes, a);
       return {
         symbol: a.symbol,
         name: a.name,

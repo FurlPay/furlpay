@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { CATALOG, assetLogoPath, AssetKind } from "@/lib/markets/catalog";
 import { collectionBySlug } from "@/lib/markets/collections";
-import { getQuotes } from "@/lib/markets/quotes";
+import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
 
 // GET /api/markets — tradable asset catalog with the latest prices.
 // Filters: ?kind=stock|etf|crypto  ?sector=Technology  ?category=<crypto cat / etf cat>
@@ -39,7 +39,9 @@ export async function GET(req: NextRequest) {
   }
 
   let items = assets.map((a) => {
-    const quote = quotes.get(a.symbol);
+    // quoteFor, not quotes.get(symbol): STX and DASH each name two different
+    // assets, and the bare ticker deliberately resolves to neither.
+    const quote = resolveQuote(quotes, a);
     return {
       symbol: a.symbol,
       name: a.name,

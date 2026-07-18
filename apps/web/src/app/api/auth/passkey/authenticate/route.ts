@@ -13,6 +13,7 @@ import {
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
 import { recordStepUp } from "@/lib/stepup";
 import { isMobileClient } from "@/lib/clientKind";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // GET /api/auth/passkey/authenticate — real WebAuthn authentication options.
 export async function GET() {
@@ -30,6 +31,12 @@ export async function GET() {
 // POST /api/auth/passkey/authenticate — verify the assertion (origin, challenge,
 // signature counter) and issue a signed session.
 export async function POST(req: NextRequest) {
+  // Unauthenticated assertion endpoint: tighter than the middleware's 150/min
+  // baseline so a stolen/guessed credential id can't be hammered, and a single
+  // IP can't burn WebAuthn verification CPU at flood rates.
+  const limited = await rateLimitOr429(req, "auth.passkey.authenticate", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
   const user = db.user;
   const body = await req.json();
   const expectedChallenge = await takeChallenge(user.id);

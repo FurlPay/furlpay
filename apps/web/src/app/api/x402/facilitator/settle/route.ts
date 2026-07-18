@@ -4,6 +4,11 @@ import { settle, type AnyFacilitatorRequest } from "@/lib/x402Facilitator";
 // POST /api/x402/facilitator/settle — verify then submit settlement on-chain.
 // Accepts x402 v1 and v2 payloads. Nonces are single-use, so a replayed payment
 // is rejected. Returns { success, transaction, network, payer, errorReason }.
+//
+// security-scan: settle() re-runs full x402 verification (payload shape,
+// signature, single-use nonce) before submitting; malformed input returns
+// success:false, never throws. Public by protocol design — auth IS the
+// payment. Throttled by the middleware baseline (150/min/IP).
 export async function POST(req: NextRequest) {
   let body: AnyFacilitatorRequest;
   try {

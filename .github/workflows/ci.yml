@@ -18,6 +18,11 @@ jobs:
         run: npm run lint --workspace @furlpay/web
       - name: Type-check web app
         run: npm exec --workspace @furlpay/web -- tsc --noEmit
+      # AGENTS.md rules 1 & 2: no mutating route may read an unvalidated body,
+      # and sensitive public routes need a tighter budget than the middleware
+      # baseline. Generic SAST (deep-security-scan.yml) can't express this.
+      - name: Route security invariants
+        run: node apps/web/scripts/check-route-security.mjs
       - name: Test web app (wallet-link security matrix + units)
         run: npm test --workspace @furlpay/web
       - name: Build web app

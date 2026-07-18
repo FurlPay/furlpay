@@ -3,12 +3,17 @@ import crypto from "crypto";
 import { db } from "@/lib/store";
 import { RP_ID, RP_NAME } from "@/lib/webauthn";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // POST /api/auth/webauthn — sandbox/demo passkey login that issues a real signed
 // JWT session. For a full FIDO2 ceremony (real attestation/assertion), use the
 // /api/auth/passkey/* routes backed by @simplewebauthn/server.
 // body: { action: "register" | "login", credential?: {...} }
 export async function POST(req: NextRequest) {
+  // Unauthenticated WebAuthn surface — throttle credential guessing.
+  const limited = await rateLimitOr429(req, "auth.webauthn", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
   const { action, credential } = await req.json();
 
   if (action === "register" || action === "login") {

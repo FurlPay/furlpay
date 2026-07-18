@@ -33,6 +33,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // Signing-cert SHA-256 -> the native app's android:apk-key-hash WebAuthn
       // origin. Required for passkey sign-in from the Android app.
       v("FURLPAY_ANDROID_CERT_SHA256"),
+      // Exact Chrome extension id(s) allowed to assert a furlpay.com passkey
+      // (Chrome 122+). Widens the signing surface — see lib/webauthn.ts.
+      v("FURLPAY_EXTENSION_ID"),
       v("ALLOW_GUEST_LOGIN"),
       v("NEXT_PUBLIC_ALLOW_GUEST"),
       v("FURLPAY_ADMIN_EMAIL"),
@@ -130,7 +133,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("POLYGON_RPC_URL"),
       v("POLYGON_RPC_URL_FALLBACK"),
       v("ROBINHOOD_RPC_URL"),
-      v("FURLPAY_ROUTER_ADDRESS"),
+      // The payer's wallet signs EIP-712 data bound to this address; a live
+      // deployment without it fails closed in services/payments.ts.
+      v("FURLPAY_ROUTER_ADDRESS", true),
       v("TREASURY_ADDRESS_BSC"),
     ],
   },

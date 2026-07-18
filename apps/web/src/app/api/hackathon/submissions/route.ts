@@ -3,6 +3,7 @@ import { z } from "zod";
 import { parse } from "@/lib/schemas";
 import { addSubmission, listSubmissions, isTrack, trackLabel, type TrackId } from "@/lib/hackathon";
 import { sendEmail } from "@/lib/email";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,10 @@ export function GET(req: NextRequest) {
 
 // POST /api/hackathon/submissions — submit a project to the Build Challenge.
 export async function POST(req: NextRequest) {
+  // Public form that sends an email per submission — throttle spam.
+  const limited = await rateLimitOr429(req, "hackathon.submissions", { limit: 5, windowMs: 60_000 });
+  if (limited) return limited;
+
   const parsed = parse(SubmissionSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const d = parsed.data;

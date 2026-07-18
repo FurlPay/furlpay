@@ -17,6 +17,51 @@ export interface Quote {
   live: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Quote cache keys.
+//
+// A ticker ALONE is not a unique asset. This catalog contains two collisions:
+//   STX  → Seagate Technology (stock) AND Stacks (crypto)
+//   DASH → DoorDash (stock)          AND Dash (crypto)
+// Keyed by symbol only, the equities overlay ran after the crypto overlay and
+// overwrote them, so /api/markets/STX reported Stacks at Seagate's $786.60 —
+// a wrong price on a money surface. (CoinGecko documents the same hazard:
+// "ALPACA" resolves to both `alpaca` and `alpaca-finance`; their guidance is to
+// key on the provider's immutable id, never the ticker.)
+//
+// The map therefore carries `kind:symbol` for every asset, plus a bare `symbol`
+// alias ONLY for tickers that are unambiguous. An ambiguous ticker has no bare
+// alias at all: a caller that hasn't been migrated gets `undefined` (renders
+// "—") instead of confidently showing the wrong asset's price. Failing visibly
+// beats lying quietly about money.
+// ---------------------------------------------------------------------------
+
+/** Canonical cache key for an asset. */
+export function quoteKey(a: { kind: string; symbol: string }): string {
+  return `${a.kind}:${a.symbol}`;
+}
+
+/** Tickers claimed by more than one asset class — no bare-symbol alias. */
+export const AMBIGUOUS_SYMBOLS: ReadonlySet<string> = (() => {
+  const counts = new Map<string, number>();
+  for (const a of CATALOG) counts.set(a.symbol, (counts.get(a.symbol) ?? 0) + 1);
+  return new Set([...counts].filter(([, n]) => n > 1).map(([s]) => s));
+})();
+
+/** Look up an asset's quote. Always prefer this over quotes.get(symbol). */
+export function resolveQuote(
+  quotes: Map<string, Quote>,
+  a: { kind: string; symbol: string }
+): Quote | undefined {
+  return quotes.get(quoteKey(a)) ?? quotes.get(a.symbol);
+}
+
+/** Write a quote under its canonical key, plus the bare alias when safe. */
+function put(map: Map<string, Quote>, a: { kind: string; symbol: string }, q: Quote): void {
+  map.set(quoteKey(a), q);
+  if (!AMBIGUOUS_SYMBOLS.has(a.symbol)) map.set(a.symbol, q);
+}
+
 const TTL_MS = 60_000;
 const FETCH_TIMEOUT_MS = 4_000;
 const UA = { "User-Agent": "Mozilla/5.0 (compatible; FurlpayMarkets/1.0)" };
@@ -41,7 +86,7 @@ async function fetchCrypto(): Promise<Map<string, Quote>> {
   for (const a of assets) {
     const d = byId.get(a.cg!);
     if (d && d.current_price > 0) {
-      out.set(a.symbol, { price: d.current_price, changePct: d.price_change_percentage_24h ?? 0, live: true });
+      put(out, a, { price: d.current_price, changePct: d.price_change_percentage_24h ?? 0, live: true });
     }
   }
   return out;
@@ -76,7 +121,7 @@ async function fetchEquitiesAlpaca(): Promise<Map<string, Quote>> {
       const price = d?.latestTrade?.p ?? d?.dailyBar?.c;
       const prev = d?.prevDailyBar?.c;
       if (price && prev) {
-        out.set(a.symbol, { price, changePct: ((price - prev) / prev) * 100, live: true });
+        put(out, a, { price, changePct: ((price - prev) / prev) * 100, live: true });
       }
     }
   }
@@ -97,7 +142,7 @@ async function fetchEquitiesYahoo(): Promise<Map<string, Quote>> {
       const close = d?.close?.filter((v): v is number => v != null).at(-1);
       const prev = d?.chartPreviousClose;
       if (close && prev) {
-        out.set(a.symbol, { price: close, changePct: ((close - prev) / prev) * 100, live: true });
+        put(out, a, { price: close, changePct: ((close - prev) / prev) * 100, live: true });
       }
     }
   }
@@ -124,8 +169,13 @@ export async function getQuotes(): Promise<Map<string, Quote>> {
 
   inflight = (async () => {
     const quotes = new Map<string, Quote>();
-    for (const [sym, q] of Object.entries(seeds as Record<string, { price: number; changePct: number }>)) {
-      quotes.set(sym, { ...q, live: false });
+    // Seed through the catalog (not straight off the seed file's bare symbols)
+    // so ambiguous tickers get their `kind:symbol` key here too — otherwise
+    // STX/DASH would seed a bare alias that the live overlay never replaces.
+    const seedTable = seeds as Record<string, { price: number; changePct: number }>;
+    for (const a of CATALOG) {
+      const q = seedTable[a.symbol];
+      if (q) put(quotes, a, { ...q, live: false });
     }
     const [cg, yh] = await Promise.allSettled([fetchCrypto(), fetchEquities()]);
     if (cg.status === "fulfilled") for (const [k, v] of cg.value) quotes.set(k, v);
@@ -139,6 +189,15 @@ export async function getQuotes(): Promise<Map<string, Quote>> {
   return inflight;
 }
 
+/**
+ * Look up a quote by BARE TICKER.
+ *
+ * Cannot disambiguate: an ambiguous ticker (STX, DASH — see AMBIGUOUS_SYMBOLS)
+ * has no bare alias in the cache, so this returns undefined for them by design
+ * rather than guessing an asset class. When you have the asset object — and a
+ * caller that resolved a ticker to a catalog entry always does — prefer
+ * resolveQuote(quotes, asset), which is exact.
+ */
 export async function quoteFor(symbol: string): Promise<Quote | undefined> {
   return (await getQuotes()).get(symbol.toUpperCase());
 }

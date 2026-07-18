@@ -81,16 +81,32 @@ export function seriesFor(seed: string, range: Range, volatility: number): numbe
   const amp = volatility * RANGE_SCALE[range];
   let drift = (rand() - 0.42) * amp;
   let vol = amp * (0.5 + rand()); // current volatility regime
+
+  // Volatility ceiling. The clustering rule below is a positive feedback loop:
+  // |shock| <= vol, so `vol*0.9 + |shock|*0.6` can reach 1.5*vol EVERY step —
+  // geometric growth with no bound. Unclamped, this drove vol from amp=0.0008
+  // to ~1e2 and a USDC sparkline to 2e+1; XSGD/1M reached 1.74e+13, which the
+  // portfolio card scaled by net worth and printed as "H $5,577,547.09".
+  const VOL_CEILING = amp * 3;
+
+  // Plausible level band for this asset, derived from its own amplitude: a
+  // stablecoin stays visibly flat (±0.6%), a volatile token may roughly 2.4x
+  // over a year. Clamping the LEVEL (not just each step) is what makes the
+  // series bounded no matter how the random walk runs.
+  const hi = Math.min(4, 1 + 8 * amp);
+  const lo = 1 / hi;
+
   const points: number[] = [1];
   for (let i = 1; i < SERIES_POINTS; i++) {
     // Volatility clustering: shocks feed the next period's volatility.
     const shock = (rand() - 0.5) * 2 * vol;
-    vol = Math.max(amp * 0.25, vol * 0.9 + Math.abs(shock) * 0.6);
+    vol = Math.min(VOL_CEILING, Math.max(amp * 0.25, vol * 0.9 + Math.abs(shock) * 0.6));
     // Rare jump (news candle) — ~4% of steps, stronger for volatile assets.
     const jump = rand() > 0.96 ? (rand() - 0.5) * 6 * amp : 0;
     // Drift regime flips roughly twice per series.
     if (rand() > 0.97) drift = (rand() - 0.5) * amp * 1.4;
-    points.push(Math.max(0.02, points[i - 1] * (1 + drift / SERIES_POINTS + shock / 3 + jump / 3)));
+    const next = points[i - 1] * (1 + drift / SERIES_POINTS + shock / 3 + jump / 3);
+    points.push(Math.min(hi, Math.max(lo, next)));
   }
   return points;
 }
@@ -123,18 +139,28 @@ export const RANGE_PERIOD_LABEL: Record<Range, string> = {
   "1Y": "Past year",
 };
 
-/** $19.3M / $248.3M / $1.2B — how fintechs print TVL. */
-export function compactMoney(n: number): string {
-  if (n >= 1e9) return `$${(n / 1e9).toFixed(1)}B`;
-  if (n >= 1e6) return `$${(n / 1e6).toFixed(1)}M`;
-  if (n >= 1e3) return `$${(n / 1e3).toFixed(1)}K`;
-  return `$${n.toFixed(2)}`;
+/** $19.3M / $248.3M / $1.2B — how fintechs print TVL. Null-safe. */
+export function compactMoney(n: number | null | undefined): string {
+  // `n == null` FIRST: Number(null) === 0, which is finite, so a null balance
+  // would otherwise print a confident "$0.00" for data we never loaded.
+  if (n == null) return "$—";
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "$—";
+  if (v >= 1e9) return `$${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `$${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `$${(v / 1e3).toFixed(1)}K`;
+  return `$${v.toFixed(2)}`;
 }
 
-/** Token quantity with intelligent precision (4,211.85 not 4210.550000). */
-export function tokenAmount(n: number): string {
-  const digits = n >= 1000 ? 2 : n >= 1 ? 4 : 6;
-  return n.toLocaleString("en-US", { maximumFractionDigits: digits });
+/** Token quantity with intelligent precision (4,211.85 not 4210.550000).
+ *  Null-safe: a missing balance renders "—" rather than throwing. */
+export function tokenAmount(n: number | null | undefined): string {
+  // See compactMoney: Number(null) === 0, so null must be rejected explicitly.
+  if (n == null) return "—";
+  const v = Number(n);
+  if (!Number.isFinite(v)) return "—";
+  const digits = v >= 1000 ? 2 : v >= 1 ? 4 : 6;
+  return v.toLocaleString("en-US", { maximumFractionDigits: digits });
 }
 
 export function changePct(series: number[]): number {

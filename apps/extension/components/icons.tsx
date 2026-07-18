@@ -108,22 +108,31 @@ export function Icon({
   );
 }
 
-/** Official FurlPay logo mark — rounded tile with the neon gradient F. */
+/**
+ * Official FurlPay app mark — the bundled icon asset (public/icon128.png), the
+ * same file Chrome paints on the toolbar and the Web Store listing.
+ *
+ * This renders the real PNG rather than an SVG re-draw. The previous version
+ * approximated the brand with a dark tile and a plain blocky letter-F path,
+ * which is NOT the FurlPay mark: the real one is a mint squircle carrying a
+ * layered, gradient-shaded ribbon F. A hand-traced path of that form lands
+ * visibly off-brand, and it drifts from the toolbar icon the moment either is
+ * touched. Sourcing both from one asset keeps them identical by construction.
+ *
+ * runtime.getURL (not a bare "/icon128.png") so the mark also resolves from a
+ * content-script context, where a root-relative path would resolve against the
+ * host page's origin and 404.
+ */
 export function LogoMark({ size = 28 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden="true">
-      <defs>
-        <linearGradient id="fp-logo-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0%" stopColor="#00E599" />
-          <stop offset="100%" stopColor="#00B87A" />
-        </linearGradient>
-      </defs>
-      <rect x="1" y="1" width="30" height="30" rx="8" fill="#08080A" stroke="url(#fp-logo-grad)" strokeWidth="1.5" />
-      <path
-        d="M11.5 24V8.5H22v3.4h-6.6v3.2h5.4v3.3h-5.4V24h-3.9z"
-        fill="url(#fp-logo-grad)"
-      />
-    </svg>
+    <img
+      src={browser.runtime.getURL("/icon128.png")}
+      width={size}
+      height={size}
+      alt=""
+      aria-hidden="true"
+      style={{ display: "block", flexShrink: 0 }}
+    />
   );
 }
 

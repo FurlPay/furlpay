@@ -16,6 +16,7 @@ import {
   tokenAmount,
   tokenMeta,
 } from "@/lib/market";
+import { deriveCandles, isPlausibleSeries, type Candle } from "@/lib/candles";
 import type { BarsResponse, Overview, PendingChallenge, RewardsSummary, TokenBalance } from "@/lib/types";
 import {
   EmptyState,
@@ -52,6 +53,7 @@ export default function WalletTab({ name, onQuickAction }: { name?: string; onQu
   const [sync, setSync] = useState<{ at: number; ms: number } | null>(null);
   const [pending, setPending] = useState(0);
   const [rewardsPts, setRewardsPts] = useState<number | null>(null);
+  const [chartType, setChartType] = useStoredChart();
   const [privacy, setPrivacy] = useStoredFlag(PRIVACY_KEY, false);
   const now = useNow();
 
@@ -70,7 +72,14 @@ export default function WalletTab({ name, onQuickAction }: { name?: string; onQu
     send<{ challenges: PendingChallenge[] }>({ type: "GET_CHALLENGES" }).then(
       (r) => r.ok && setPending(r.data.challenges.reduce((s, c) => s + c.amountUsd, 0))
     );
-    send<RewardsSummary>({ type: "GET_REWARDS" }).then((r) => r.ok && setRewardsPts(r.data.points));
+    // Points live under `membership` (see RewardsSummary). Coerced through
+    // Number.isFinite so a malformed/missing value stays null and renders "—"
+    // instead of reaching toLocaleString().
+    send<RewardsSummary>({ type: "GET_REWARDS" }).then((r) => {
+      if (!r.ok) return;
+      const pts = r.data?.membership?.points;
+      setRewardsPts(Number.isFinite(pts) ? Number(pts) : null);
+    });
   }, []);
 
   useEffect(() => {
@@ -142,12 +151,24 @@ export default function WalletTab({ name, onQuickAction }: { name?: string; onQu
               <Icon name={privacy ? "eyeOff" : "eye"} size={12} />
             </button>
           </span>
-          <div className="seg" role="tablist" aria-label="Chart range">
-            {RANGES.map((r) => (
-              <button key={r} role="tab" aria-selected={r === range} className={r === range ? "active" : ""} onClick={() => setRange(r)}>
-                {r}
-              </button>
-            ))}
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div className="seg" role="tablist" aria-label="Chart range">
+              {RANGES.map((r) => (
+                <button key={r} role="tab" aria-selected={r === range} className={r === range ? "active" : ""} onClick={() => setRange(r)}>
+                  {r}
+                </button>
+              ))}
+            </div>
+            <button
+              className="icon-btn"
+              style={{ width: 24, height: 24, flexShrink: 0 }}
+              aria-label={chartType === "candle" ? "Switch to line chart" : "Switch to candlestick chart"}
+              aria-pressed={chartType === "candle"}
+              title={chartType === "candle" ? "Line chart" : "Candlestick chart"}
+              onClick={() => setChartType(chartType === "candle" ? "line" : "candle")}
+            >
+              <Icon name={chartType === "candle" ? "activity" : "invest"} size={12} />
+            </button>
           </div>
         </div>
         <div className="balance-amount" aria-live="polite">${privacy ? MASK : usd(animated)}</div>
@@ -158,7 +179,11 @@ export default function WalletTab({ name, onQuickAction }: { name?: string; onQu
             {portfolioChange.toFixed(2)}%)
           </span>
         </div>
-        <InteractiveChart key={range} series={portfolioSeries} range={range} scale={scale} positive={portfolioChange >= 0} />
+        {chartType === "candle" ? (
+          <CandleChart key={`c-${range}`} series={portfolioSeries} range={range} scale={scale} privacy={privacy} />
+        ) : (
+          <InteractiveChart key={range} series={portfolioSeries} range={range} scale={scale} positive={portfolioChange >= 0} />
+        )}
         <div className="stat-strip">
           <div>
             <div className="stat-label">Available</div>
@@ -173,7 +198,9 @@ export default function WalletTab({ name, onQuickAction }: { name?: string; onQu
           <div>
             <div className="stat-label">Rewards</div>
             <div className="stat-value" style={{ color: "var(--fp-accent)" }}>
-              {rewardsPts === null ? "—" : `${rewardsPts.toLocaleString("en-US")} pts`}
+              {/* `== null` (not `=== null`) so undefined is covered too — the
+                  exact gap that let an undefined value reach toLocaleString. */}
+              {rewardsPts == null ? "—" : `${rewardsPts.toLocaleString("en-US")} pts`}
             </div>
           </div>
         </div>
@@ -335,6 +362,25 @@ function ReceiveSheet({ address, onClose }: { address: string; onClose: () => vo
   );
 }
 
+/**
+ * Live bars when they are usable, deterministic synthetic otherwise.
+ *
+ * The plausibility gate is load-bearing: /api/markets/bars is a market feed, and
+ * asked for a stablecoin symbol it can return an unrelated instrument or a
+ * near-zero first close. normalizeCloses() divides by that first close, so the
+ * result peaked in the thousands and the portfolio card rendered
+ * "H $2,476,953.80" on a $19,448 portfolio. Bad data now falls back instead of
+ * poisoning the axis.
+ */
+function liveSeriesOr(bars: BarsResponse | null, seed: string, range: Range, volatility: number): number[] {
+  const closes = bars?.candles?.map((c) => c.close) ?? [];
+  if (closes.length >= 2) {
+    const normalized = normalizeCloses(closes);
+    if (isPlausibleSeries(normalized)) return normalized;
+  }
+  return seriesFor(seed, range, volatility);
+}
+
 /** Fetch real bars for one symbol; fall back to the deterministic synthetic. */
 function useAssetSeries(token: string, chain: string, range: Range): number[] {
   const meta = tokenMeta(token);
@@ -347,9 +393,7 @@ function useAssetSeries(token: string, chain: string, range: Range): number[] {
     setSeries(synthetic);
     let alive = true;
     send<BarsResponse>({ type: "GET_BARS", symbol: meta.symbol, tf: range }).then((r) => {
-      if (alive && r.ok && (r.data.candles?.length ?? 0) >= 2) {
-        setSeries(normalizeCloses(r.data.candles.map((c) => c.close)));
-      }
+      if (alive) setSeries(liveSeriesOr(r.ok ? r.data : null, `${token}:${chain}`, range, meta.volatility));
     });
     return () => {
       alive = false;
@@ -380,9 +424,7 @@ function usePortfolioSeries(balances: TokenBalance[], range: Range): number[] {
         send<BarsResponse>({ type: "GET_BARS", symbol: b.token.toUpperCase(), tf: range }).then((r) => ({
           weight: b.usdValue,
           series:
-            r.ok && (r.data.candles?.length ?? 0) >= 2
-              ? normalizeCloses(r.data.candles.map((c) => c.close))
-              : seriesFor(`${b.token}:${b.chain}`, range, tokenMeta(b.token).volatility),
+            liveSeriesOr(r.ok ? r.data : null, `${b.token}:${b.chain}`, range, tokenMeta(b.token).volatility),
         }))
       )
     ).then((parts) => {
@@ -393,6 +435,98 @@ function usePortfolioSeries(balances: TokenBalance[], range: Range): number[] {
     };
   }, [balances, range, synthetic]);
   return series;
+}
+
+/** Chart-type preference, persisted so the popup reopens the way you left it. */
+function useStoredChart(): ["line" | "candle", (v: "line" | "candle") => void] {
+  const [on, setOn] = useStoredFlag("furlpay-chart-candle", false);
+  return [on ? "candle" : "line", (v) => setOn(v === "candle")];
+}
+
+/**
+ * Candlestick view of the same portfolio index the line chart draws.
+ *
+ * Body = open→close, wick = low→high, coloured per candle (green when it closed
+ * at or above its open). Bodies get a 1px floor so a doji still renders as a
+ * line instead of vanishing. Tapping a candle reveals its OHLC — the popup is
+ * ~380px wide, so a persistent legend would cost more than it returns.
+ */
+function CandleChart({ series, range, scale, privacy }: { series: number[]; range: Range; scale: number; privacy: boolean }) {
+  const W = 316;
+  const H = 72;
+  const PAD = 3;
+  const [sel, setSel] = useState<number | null>(null);
+
+  const times = useMemo(() => seriesTimes(range, series.length), [range, series.length]);
+  const candles = useMemo<Candle[]>(() => deriveCandles(series, times), [series, times]);
+
+  if (candles.length === 0) return <div style={{ height: H, margin: "8px 0 6px" }} />;
+
+  const lo = Math.min(...candles.map((c) => c.l));
+  const hi = Math.max(...candles.map((c) => c.h));
+  const span = hi - lo || 1;
+  const slot = (W - PAD * 2) / candles.length;
+  const bodyW = Math.max(2, Math.min(9, slot * 0.62));
+  const y = (v: number) => PAD + (1 - (v - lo) / span) * (H - PAD * 2);
+  const cx = (i: number) => PAD + slot * (i + 0.5);
+
+  const active = sel !== null ? candles[Math.min(sel, candles.length - 1)] : null;
+  const money = (v: number) => (privacy ? "••••" : `$${usd(v * scale)}`);
+
+  return (
+    <div className="chart-wrap" style={{ margin: "8px 0 6px" }}>
+      {active && (
+        <div className="chart-tip" style={{ left: `${(cx(sel!) / W) * 100}%` }}>
+          <span className="tip-time">{timeLabel(active.t, range)}</span>
+          {money(active.c)}
+        </div>
+      )}
+      <svg
+        width="100%"
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ display: "block", cursor: "crosshair" }}
+        role="img"
+        aria-label={`Portfolio candlestick chart, ${candles.length} periods, ${RANGE_PERIOD_LABEL[range].toLowerCase()}`}
+        onPointerLeave={() => setSel(null)}
+      >
+        {candles.map((c, i) => {
+          const up = c.c >= c.o;
+          const color = up ? "var(--fp-gain, #00E599)" : "var(--fp-loss, #FF453A)";
+          const top = y(Math.max(c.o, c.c));
+          const bottom = y(Math.min(c.o, c.c));
+          return (
+            <g key={i} onPointerEnter={() => setSel(i)} onPointerDown={() => setSel(i)}>
+              {/* Invisible full-height hit area — 9px bodies are hard to hit. */}
+              <rect x={cx(i) - slot / 2} y={0} width={slot} height={H} fill="transparent" />
+              <line x1={cx(i)} y1={y(c.h)} x2={cx(i)} y2={y(c.l)} stroke={color} strokeWidth="1" opacity={0.75} />
+              <rect
+                x={cx(i) - bodyW / 2}
+                y={top}
+                width={bodyW}
+                height={Math.max(1, bottom - top)}
+                fill={color}
+                opacity={sel === null || sel === i ? 1 : 0.45}
+                rx="0.5"
+              />
+            </g>
+          );
+        })}
+      </svg>
+      <div className="chart-axis" aria-hidden="true">
+        <span>{timeLabel(candles[0].t, range)}</span>
+        <span>{timeLabel(candles[Math.floor(candles.length / 2)].t, range)}</span>
+        <span>{timeLabel(candles[candles.length - 1].t, range)}</span>
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.62rem", color: "var(--fp-text-muted)", fontFamily: "var(--fp-font-mono)", marginTop: 3 }}>
+        <span>
+          L <span style={{ color: "var(--fp-loss)" }}>{money(lo)}</span>
+        </span>
+        <span>
+          H <span style={{ color: "var(--fp-gain)" }}>{money(hi)}</span>
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /**

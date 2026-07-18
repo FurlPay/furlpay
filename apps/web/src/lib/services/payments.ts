@@ -4,7 +4,7 @@ import { getChain, gasQuote } from "./chainRegistry";
 import { newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
 import { recordPaymentWithFee, reverseLedgerTx } from "@/lib/ledger";
 import { sendEmail } from "@/lib/email";
-import { mockAllowed } from "@/lib/integrations";
+import { mockAllowed, IntegrationNotConfiguredError } from "@/lib/integrations";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 
@@ -140,10 +140,28 @@ export interface CreateParams {
   userId: string;
 }
 
+/** The deployed FurlPayRouter the payer's wallet signs against.
+ *
+ *  Fails closed when unset in production: the previous fallback emitted the
+ *  literal "0xFurlPayRouterPendingDeployment" as the EIP-712 `verifyingContract`,
+ *  so a live deployment would hand out typed data bound to a non-address. Any
+ *  signature collected against it is meaningless, and the domain separator
+ *  silently differs from the real contract's — exactly the kind of "looks
+ *  settled, signed nothing" state a payments API must never produce. Dev and
+ *  preview keep the placeholder so the flow stays clickable without a deploy. */
+function routerAddress(): string {
+  const configured = process.env.FURLPAY_ROUTER_ADDRESS;
+  if (configured) return configured;
+  if (process.env.NODE_ENV === "production") {
+    throw new IntegrationNotConfiguredError("FurlPayRouter (FURLPAY_ROUTER_ADDRESS)");
+  }
+  return "0xFurlPayRouterPendingDeployment";
+}
+
 /** Build the create-intent response (quote + EIP-712 sign data) for a record. */
 async function buildCreateResponse(record: PaymentRecord, replayed: boolean) {
   const chain = getChain(SETTLEMENT_CHAIN)!;
-  const router = process.env.FURLPAY_ROUTER_ADDRESS || "0xFurlPayRouterPendingDeployment";
+  const router = routerAddress();
   const gas = await gasQuote(chain);
   return {
     record,

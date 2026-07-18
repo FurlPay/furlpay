@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/store";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // POST /api/auth/guest — TESTING ONLY. Issues a signed session for the seeded
 // demo user WITHOUT any authentication, so the app can be clicked through on a
@@ -17,6 +18,11 @@ import { audit } from "@/lib/audit";
 // Set these flags as Preview-scoped env vars in the Vercel dashboard, never in
 // vercel.json build.env — that applies to production deploys too.
 export async function POST(req: NextRequest) {
+  // Mints a session with no credential — cheap to spam, so keep it well under
+  // the middleware's 150/min baseline.
+  const limited = await rateLimitOr429(req, "auth.guest", { limit: 10, windowMs: 60_000 });
+  if (limited) return limited;
+
   if (process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview") {
     return NextResponse.json({ error: "Guest login disabled" }, { status: 403 });
   }

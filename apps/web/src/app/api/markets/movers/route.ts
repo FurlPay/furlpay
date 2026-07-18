@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { CATALOG, assetLogoPath } from "@/lib/markets/catalog";
-import { getQuotes } from "@/lib/markets/quotes";
+import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
 
 // GET /api/markets/movers?kind=stock|etf|crypto&limit=6 — top gainers/losers.
 export async function GET(req: NextRequest) {
@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
 
   const rows = CATALOG.filter((a) => (!kind || a.kind === kind) && a.industry !== "Stablecoin")
     .map((a) => {
-      const q = quotes.get(a.symbol);
+      const q = resolveQuote(quotes, a);
       return {
         symbol: a.symbol,
         name: a.name,

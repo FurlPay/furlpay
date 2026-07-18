@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PaymentCreateSchema, parse } from "@/lib/schemas";
 import { createPayment } from "@/lib/services/payments";
+import { IntegrationNotConfiguredError } from "@/lib/integrations";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
@@ -24,14 +25,29 @@ export async function POST(req: NextRequest) {
   // same intent instead of minting a duplicate — the retry-storm guard.
   const idempotencyKey = req.headers.get("Idempotency-Key")?.slice(0, 200) || undefined;
 
-  const { record, replayed, gasEstimateUsd, contract, chainId, signData } = await createPayment({
-    amount: body.amount,
-    sourceChain: body.sourceChain ?? "arbitrum",
-    recipient: body.recipient,
-    metadata: body.metadata,
-    idempotencyKey,
-    userId: auth.account.user.id,
-  });
+  // A production deployment with no FURLPAY_ROUTER_ADDRESS cannot produce
+  // signable EIP-712 data (see services/payments.ts routerAddress) — surface
+  // that as an explicit 503 rather than a 500 stack.
+  let intent;
+  try {
+    intent = await createPayment({
+      amount: body.amount,
+      sourceChain: body.sourceChain ?? "arbitrum",
+      recipient: body.recipient,
+      metadata: body.metadata,
+      idempotencyKey,
+      userId: auth.account.user.id,
+    });
+  } catch (e) {
+    if (e instanceof IntegrationNotConfiguredError) {
+      return NextResponse.json(
+        { error: "service_unavailable", detail: `${e.feature} is not configured on this deployment.` },
+        { status: 503 }
+      );
+    }
+    throw e;
+  }
+  const { record, replayed, gasEstimateUsd, contract, chainId, signData } = intent;
 
   return NextResponse.json(
     {

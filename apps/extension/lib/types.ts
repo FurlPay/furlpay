@@ -44,13 +44,155 @@ export interface PendingChallenge {
   expiresAt: string;
 }
 
+/** Mirrors GET /api/rewards EXACTLY (apps/web/src/app/api/rewards/route.ts).
+ *
+ *  Tier/points live under `membership` — they are NOT top-level. An earlier
+ *  version of this interface declared `tier`/`points`/`progressPct` at the top
+ *  level and carried an `[key: string]: unknown` index signature, which made
+ *  the wrong shape typecheck cleanly: `data.points` resolved to `unknown`
+ *  rather than erroring, arrived as `undefined` at runtime, and crashed the
+ *  Wallet tab on `.toLocaleString()`. No index signature here — a future
+ *  response change must break the build, not the popup. */
 export interface RewardsSummary {
-  tier: string;
-  points: number;
-  nextTier: string;
-  progressPct: number;
+  referral: {
+    code: string;
+    url: string;
+    invited: number;
+    converted: number;
+    earnedUsd: number;
+    perReferralUsd: number;
+  };
+  membership: {
+    tier: string;
+    /** null once the user is on the top tier — render "top tier", not "null". */
+    nextTier: string | null;
+    points: number;
+    nextThreshold: number;
+    progressPct: number;
+    perks: string[];
+  };
   missions: { id: string; title: string; reward: number; done: boolean }[];
-  [key: string]: unknown;
+  rewardsBalance: { claimedUsd: number; pendingUsd: number };
+}
+
+/** One row of GET /api/markets. `live` is the provider's own freshness flag —
+ *  false means the server fell back to baked seed prices, and the UI must say
+ *  so rather than presenting stale numbers as live. */
+export interface MarketAsset {
+  symbol: string;
+  name: string;
+  kind: "stock" | "etf" | "crypto";
+  sector: string | null;
+  industry: string | null;
+  cap: string;
+  chain: string | null;
+  /** Backend-relative path to the official mark, e.g. "/logos/stocks/aapl.svg". */
+  logo: string;
+  price: number;
+  changePct: number;
+  live: boolean;
+}
+
+export interface MarketsResponse {
+  items: MarketAsset[];
+  asOf: string;
+}
+
+/** GET /api/markets/[symbol] — every field the in-popup detail view renders.
+ *  Numeric stats are nullable by design: equities carry P/E and dividends,
+ *  crypto carries supply and ATH, and neither has the other's. */
+export interface MarketDetail {
+  asset: {
+    symbol: string;
+    name: string;
+    kind: "stock" | "etf" | "crypto";
+    sector: string | null;
+    industry: string | null;
+    cap: string;
+    chain: string | null;
+    logo: string;
+  };
+  quote: { price: number; changePct: number; live: boolean };
+  stats: {
+    marketCap: number | null;
+    peRatio: number | null;
+    eps: number | null;
+    dividendYieldPct: number | null;
+    beta: number | null;
+    high52w: number | null;
+    low52w: number | null;
+    volume: number | null;
+    avgVolume: number | null;
+    circulatingSupply: number | null;
+    athPrice: number | null;
+  };
+  digest: string;
+  position: { shares: number; marketValue: number } | null;
+  related: { symbol: string; name: string; kind: string; logo: string; price: number; changePct: number }[];
+  asOf: string;
+}
+
+/** A bookable stay from /api/travel/hotels or /api/travel/search. */
+export interface TravelStay {
+  id: string;
+  name: string;
+  brand?: string;
+  city: string;
+  country?: string;
+  type: string;
+  stars: number;
+  rating: number;
+  reviews: number;
+  nightlyUsd: number;
+  photo?: string;
+  amenities: string[];
+  roomsLeft: number;
+  freeCancellation?: boolean;
+  eco?: boolean;
+}
+
+export type TravelProperty = TravelStay;
+
+/** `source` distinguishes live Duffel inventory from generated demo stock. The
+ *  UI must surface it — demo rates are not bookable at the price shown. */
+export interface TravelHotelsResponse {
+  city: string;
+  count: number;
+  hotels: TravelStay[];
+  source: "duffel" | "demo";
+}
+
+/** A flight offer from POST /api/travel/search { type: "flights" }.
+ *  Live results are Duffel offers (`id` looks like "off_…") and carry an
+ *  official carrier logo from Duffel's CDN. */
+export interface TravelFlight {
+  id: string;
+  carrier: string;
+  carrierCode: string;
+  from: string;
+  to: string;
+  date: string;
+  departTime: string;
+  arriveTime: string;
+  durationMin: number;
+  stops: number;
+  cabin: string;
+  /** Official airline mark, e.g. assets.duffel.com/…/AA.svg */
+  logoUrl?: string;
+  priceUsd: number;
+  baggage?: string;
+}
+
+export interface TravelFlightsResponse {
+  type: "flights";
+  count: number;
+  results: TravelFlight[];
+  source: "duffel" | "demo";
+}
+
+export interface TravelPropertyResponse {
+  property: TravelProperty;
+  rooms: { name: string; beds?: string; nightlyUsd: number }[];
 }
 
 export interface EarnVault {
@@ -136,6 +278,11 @@ export type BgRequest =
   | { type: "GET_ENTITLEMENTS" }
   | { type: "UPGRADE_PLAN"; plan: "pro" | "developer" }
   | { type: "GET_EARN" }
+  | { type: "GET_MARKETS"; kind?: "stock" | "etf" | "crypto"; q?: string; limit?: number }
+  | { type: "GET_MARKET_DETAIL"; symbol: string }
+  | { type: "GET_TRAVEL_HOTELS"; city: string }
+  | { type: "GET_TRAVEL_PROPERTY"; id: string; city: string }
+  | { type: "SEARCH_FLIGHTS"; from: string; to: string; date: string; cabin?: string }
   | { type: "LOGOUT" }
   | { type: "TRAVEL_SEARCH"; payload: Record<string, unknown> }
   | { type: "GET_PASSKEYS" }

@@ -7,7 +7,7 @@ import type { BgRequest, BgResponse } from "@/lib/types";
 // the small presentational primitives every tab leans on. Split out of the
 // former 1,600-line App.tsx (G1) — one import site, zero behavior change.
 
-export type Tab = "wallet" | "activity" | "approvals" | "earn" | "settings";
+export type Tab = "wallet" | "markets" | "activity" | "approvals" | "earn" | "settings";
 
 export interface SessionState {
   authenticated: boolean;
@@ -24,8 +24,22 @@ export async function send<T>(message: BgRequest): Promise<BgResponse<T>> {
   }
 }
 
-export const usd = (n: number) =>
-  n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/** Money formatter used by every balance in the popup.
+ *
+ *  Deliberately returns "—" (not "0.00") for a missing/NaN value: in a wallet,
+ *  rendering a confident "$0.00" for data we failed to load reads as "your
+ *  funds are gone" and is worse than an honest dash. Never throws — an API
+ *  contract change must not white-screen the popup, which is exactly what
+ *  `undefined.toLocaleString()` did. */
+export const usd = (n: number | null | undefined): string => {
+  // `n == null` checked FIRST — Number(null) === 0 is finite, so a null balance
+  // would otherwise render "$0.00" and read as "your funds are gone".
+  if (n == null) return "—";
+  const v = Number(n);
+  return Number.isFinite(v)
+    ? v.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : "—";
+};
 
 /** "Chrome · Windows" — the device identity real fintechs show for a session. */
 export function deviceLabel(): string {

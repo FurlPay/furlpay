@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Icon } from "@/components/icons";
+import { Icon, IconName } from "@/components/icons";
 
 // FurlPay first-time onboarding — shown once on install.
 // 3-step carousel: Pay (x402), Approve (3DS2), Save (fee scanner).
@@ -7,8 +7,11 @@ import { Icon } from "@/components/icons";
 
 const ONBOARDING_KEY = "furlpay-onboarded";
 
+// Icons are the drawn FurlPay set (components/icons.tsx), never emoji: emoji
+// render as another vendor's artwork per-platform, sit outside the brand, and
+// carry no accessible name.
 interface Step {
-  icon: string;
+  icon: IconName;
   title: string;
   desc: string;
   accent: string;
@@ -16,19 +19,19 @@ interface Step {
 
 const STEPS: Step[] = [
   {
-    icon: "💳",
+    icon: "wallet",
     title: "Pay anywhere with stablecoins",
     desc: "When a site accepts x402 payments, FurlPay shows a one-tap checkout. Settle in USDC on Arbitrum — gas-free, instant.",
     accent: "var(--fp-accent)",
   },
   {
-    icon: "🔐",
+    icon: "passkey",
     title: "Approve with your fingerprint",
     desc: "Card purchases that need 3-D Secure pop up as notifications. Review and approve with biometrics — passkeys can't be phished.",
     accent: "var(--fp-accent-2, #64b5ff)",
   },
   {
-    icon: "💰",
+    icon: "earn",
     title: "See what you save",
     desc: "On checkout pages, FurlPay shows what the merchant pays in card fees vs FurlPay — the Honey of payment fees.",
     accent: "#fbbf24",
@@ -87,10 +90,10 @@ export function Onboarding({ onDone }: { onDone: () => void }) {
           alignItems: "center",
           justifyContent: "center",
           margin: "0 auto 16px",
-          fontSize: 32,
+          color: current.accent,
         }}
       >
-        {current.icon}
+        <Icon name={current.icon} size={32} strokeWidth={1.8} />
       </div>
 
       {/* Title */}

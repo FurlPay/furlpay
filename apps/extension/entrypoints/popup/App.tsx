@@ -4,6 +4,8 @@ import type { PendingChallenge } from "@/lib/types";
 import ActivityTab from "./components/ActivityTab";
 import ApprovalsTab from "./components/ApprovalsTab";
 import EarnTab from "./components/EarnTab";
+import MarketsTab from "./components/MarketsTab";
+import TravelTab from "./components/TravelTab";
 import NotificationCenter from "./components/NotificationCenter";
 import { Onboarding, useOnboarding } from "./components/Onboarding";
 import SettingsTab from "./components/SettingsTab";
@@ -19,6 +21,7 @@ import { SessionState, SkeletonPage, Tab, openSite, send } from "./components/sh
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("wallet");
+  const [travelOpen, setTravelOpen] = useState(false);
   const [session, setSession] = useState<SessionState | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
   const [bellOpen, setBellOpen] = useState(false);
@@ -47,6 +50,7 @@ export default function App() {
 
   const tabs: { id: Tab; label: string; icon: IconName; badge?: number }[] = [
     { id: "wallet", label: "Wallet", icon: "wallet" },
+    { id: "markets", label: "Invest", icon: "invest" },
     { id: "activity", label: "Activity", icon: "activity" },
     { id: "approvals", label: "Approve", icon: "approve", badge: pendingCount },
     { id: "earn", label: "Earn", icon: "earn" },
@@ -103,7 +107,24 @@ export default function App() {
           <SignedOut />
         ) : (
           <>
-            {tab === "wallet" && <WalletTab name={session.name} onQuickAction={openSite} />}
+            {/* "Invest" resolves to the in-popup Markets view rather than
+                bouncing the user out to the website — every other quick action
+                still deep-links to the surface that owns it. */}
+            {/* Travel is a full-screen overlay rather than a 7th tab — the tab
+                bar is already at six in a ~380px popup, and travel is an
+                occasional errand, not a daily surface. */}
+            {tab === "wallet" && travelOpen && <TravelTab onBack={() => setTravelOpen(false)} />}
+            {tab === "wallet" && !travelOpen && (
+              <WalletTab
+                name={session.name}
+                onQuickAction={(path) => {
+                  if (path === "/investing") return setTab("markets");
+                  if (path === "/travel") return setTravelOpen(true);
+                  return openSite(path);
+                }}
+              />
+            )}
+            {tab === "markets" && <MarketsTab />}
             {tab === "activity" && <ActivityTab />}
             {tab === "approvals" && <ApprovalsTab onCount={setPendingCount} />}
             {tab === "earn" && <EarnTab />}

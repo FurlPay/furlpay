@@ -4,6 +4,15 @@ import { compactMoney, tokenMeta } from "@/lib/market";
 import type { EarnOverview, RewardsSummary } from "@/lib/types";
 import { ErrorPanel, SkeletonPage, openSite, send, usd } from "./shared";
 
+/** Tier progress as a CSS-safe 0-100 integer. A missing or out-of-range value
+ *  from the API would otherwise render `width: undefined%` (bar disappears) or
+ *  `width: 340%` (bar overflows its track). */
+function progressPct(rewards: RewardsSummary): number {
+  const raw = Number(rewards.membership?.progressPct);
+  if (!Number.isFinite(raw)) return 0;
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
 export default function EarnTab() {
   const [earn, setEarn] = useState<EarnOverview | null>(null);
   const [rewards, setRewards] = useState<RewardsSummary | null>(null);
@@ -84,19 +93,28 @@ export default function EarnTab() {
         );
       })}
 
-      {rewards && (
+      {rewards?.membership && (
         <>
           <h3 className="section-title" style={{ marginTop: 14 }}>Rewards</h3>
           <div className="glass-panel" style={{ padding: 14 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-              <span style={{ fontSize: "0.78rem", color: "var(--fp-text-secondary)" }}>{rewards.points} pts</span>
-              <span className="pill pill--accent">{rewards.tier}</span>
+              <span style={{ fontSize: "0.78rem", color: "var(--fp-text-secondary)" }}>
+                {Number.isFinite(rewards.membership.points)
+                  ? `${Number(rewards.membership.points).toLocaleString("en-US")} pts`
+                  : "— pts"}
+              </span>
+              <span className="pill pill--accent">{rewards.membership.tier || "—"}</span>
             </div>
+            {/* Clamp: an out-of-range or non-numeric progressPct would emit
+                `width: undefined%` / `width: 340%` and blow out the track. */}
             <div className="progress-track">
-              <div className="progress-fill" style={{ width: `${rewards.progressPct}%` }} />
+              <div className="progress-fill" style={{ width: `${progressPct(rewards)}%` }} />
             </div>
             <div style={{ fontSize: "0.68rem", color: "var(--fp-text-muted)", marginTop: 6 }}>
-              {rewards.progressPct}% to {rewards.nextTier}
+              {/* nextTier is null at the top tier — never render "null". */}
+              {rewards.membership.nextTier
+                ? `${progressPct(rewards)}% to ${rewards.membership.nextTier}`
+                : "You're on the top tier"}
             </div>
           </div>
         </>

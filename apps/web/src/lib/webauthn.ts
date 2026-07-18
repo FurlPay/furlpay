@@ -118,15 +118,45 @@ function androidOrigins(): string[] {
   });
 }
 
+/**
+ * The browser extension's WebAuthn origin.
+ *
+ * Since Chrome 122 an extension may call navigator.credentials.get() with an
+ * rpID for any domain in its host_permissions — the FurlPay extension declares
+ * `https://furlpay.com/*`, so it can assert a furlpay.com passkey directly. The
+ * browser presents the caller's origin as `chrome-extension://<id>`, which the
+ * RP must accept explicitly or every assertion fails on origin mismatch (same
+ * mechanic as the Android apk-key-hash above).
+ *
+ * SECURITY — read before setting this. Trusting this origin widens the signing
+ * surface from "one web origin we control" to "that origin PLUS whatever the
+ * extension build pipeline ships". It stays phishing-resistant (an arbitrary
+ * website still cannot assert), but a malicious extension update becomes a way
+ * to approve payments. Therefore:
+ *   - Pin EXACT extension ids. Never a wildcard, never a pattern.
+ *   - Only list ids you publish. An id you don't control is a signing key you
+ *     handed to someone else.
+ *   - Unset (the default) means extension assertions are simply rejected.
+ */
+function extensionOrigins(): string[] {
+  return splitList(process.env.FURLPAY_EXTENSION_ID)
+    .map((id) => id.trim().replace(/^chrome-extension:\/\//, "").replace(/\/+$/, ""))
+    // Chrome extension ids are exactly 32 chars, a-p. Anything else is a
+    // misconfiguration and must not silently become a trusted origin.
+    .filter((id) => /^[a-p]{32}$/.test(id))
+    .map((id) => `chrome-extension://${id}`);
+}
+
 function resolveOrigins(): string[] {
   const android = androidOrigins();
+  const extension = extensionOrigins();
   const explicit = splitList(process.env.FURLPAY_ORIGIN);
-  if (explicit.length) return Array.from(new Set([...explicit, ...android]));
+  if (explicit.length) return Array.from(new Set([...explicit, ...android, ...extension]));
   const derived = [VERCEL_PROD_URL, VERCEL_DEPLOY_URL]
     .filter(Boolean)
     .map((u) => `https://${hostOf(u!)}`);
-  if (derived.length) return Array.from(new Set([...derived, ...android]));
-  return ["http://localhost:3000", ...android];
+  if (derived.length) return Array.from(new Set([...derived, ...android, ...extension]));
+  return ["http://localhost:3000", ...android, ...extension];
 }
 
 // All accepted values for verification (assertion/attestation checks).

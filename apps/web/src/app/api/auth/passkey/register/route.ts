@@ -14,6 +14,7 @@ import {
 } from "@/lib/webauthn";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
 import { isMobileClient } from "@/lib/clientKind";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // GET /api/auth/passkey/register — real WebAuthn registration options.
 export async function GET() {
@@ -41,6 +42,11 @@ export async function GET() {
 // POST /api/auth/passkey/register — verify attestation, store the credential,
 // and issue a signed session on success.
 export async function POST(req: NextRequest) {
+  // Credential registration: unauthenticated and CPU-bound (attestation
+  // verification), so tighter than the 150/min baseline.
+  const limited = await rateLimitOr429(req, "auth.passkey.register", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
+
   const user = db.user;
   const body = await req.json();
   const expectedChallenge = await takeChallenge(user.id);

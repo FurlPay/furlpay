@@ -5,6 +5,11 @@ import type {
   BgResponse,
   EarnOverview,
   Entitlements,
+  MarketDetail,
+  MarketsResponse,
+  TravelFlightsResponse,
+  TravelHotelsResponse,
+  TravelPropertyResponse,
   Overview,
   PasskeyList,
   PendingChallenge,
@@ -17,11 +22,17 @@ import type {
 // FurlPay service worker (MV3).
 //   - Polls the balance and paints it on the toolbar badge.
 //   - Polls pending 3DS2 challenges and raises native notifications with
-//     Approve / Decline actions (Approve deep-links to the site's biometric
-//     approval page — WebAuthn assertions for the furlpay.com rpID cannot be
-//     performed from a chrome-extension:// origin, so approval always happens
-//     on the origin the passkey is bound to; that is what makes it
-//     phishing-proof).
+//     Approve / Decline actions.
+//
+//     Approve currently deep-links to the site's biometric approval page. NOTE
+//     the historical reason for that ("assertions cannot be performed from a
+//     chrome-extension:// origin") is OUT OF DATE: since Chrome 122 an
+//     extension may call navigator.credentials.get() with an rpID for any
+//     domain in its host_permissions, and this extension declares
+//     https://furlpay.com/*. In-extension approval is therefore possible once
+//     the RP trusts `chrome-extension://<id>` as an origin — gated server-side
+//     by FURLPAY_EXTENSION_ID (see apps/web/src/lib/webauthn.ts, which
+//     documents the trust-surface tradeoff before you enable it).
 //   - Routes messages from popup / side panel / content scripts.
 // State is re-derived from storage + API on every wake (MV3 workers are
 // ephemeral); nothing security-critical lives in memory.
@@ -154,6 +165,48 @@ export default defineBackground(() => {
         return true;
       case "GET_EARN":
         void toResponse(apiFetch<EarnOverview>("/api/earn")).then(sendResponse);
+        return true;
+      case "GET_MARKETS": {
+        // /api/markets is public (no session required), so the markets view
+        // works signed out too. Sorted by move so the first screen reads as
+        // today's movers rather than alphabetical catalog order.
+        const qs = new URLSearchParams({ sort: "-changePct" });
+        if (message.kind) qs.set("kind", message.kind);
+        if (message.q) qs.set("q", message.q);
+        if (message.limit) qs.set("limit", String(message.limit));
+        void toResponse(apiFetch<MarketsResponse>(`/api/markets?${qs}`)).then(sendResponse);
+        return true;
+      }
+      case "GET_MARKET_DETAIL":
+        void toResponse(
+          apiFetch<MarketDetail>(`/api/markets/${encodeURIComponent(message.symbol)}`)
+        ).then(sendResponse);
+        return true;
+      case "GET_TRAVEL_HOTELS":
+        void toResponse(
+          apiFetch<TravelHotelsResponse>(`/api/travel/hotels?city=${encodeURIComponent(message.city)}`)
+        ).then(sendResponse);
+        return true;
+      case "SEARCH_FLIGHTS":
+        void toResponse(
+          apiFetch<TravelFlightsResponse>("/api/travel/search", {
+            method: "POST",
+            body: JSON.stringify({
+              type: "flights",
+              from: message.from,
+              to: message.to,
+              date: message.date,
+              cabin: message.cabin ?? "economy",
+            }),
+          })
+        ).then(sendResponse);
+        return true;
+      case "GET_TRAVEL_PROPERTY":
+        void toResponse(
+          apiFetch<TravelPropertyResponse>(
+            `/api/travel/property/${encodeURIComponent(message.id)}?city=${encodeURIComponent(message.city)}`
+          )
+        ).then(sendResponse);
         return true;
       case "LOGOUT":
         void toResponse(apiFetch("/api/auth/logout", { method: "POST" })).then(sendResponse);
