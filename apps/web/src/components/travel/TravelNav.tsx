@@ -13,6 +13,7 @@ const LINKS: Array<{ href: string; label: string; exact?: boolean }> = [
   { href: "/travel/restaurants", label: "Restaurants" },
   { href: "/travel/destinations", label: "Destinations" },
   { href: "/travel/itineraries", label: "Itineraries" },
+  { href: "/travel/visa", label: "Visa" },
   { href: "/travel/deals", label: "Deals" },
   { href: "/travel/guides", label: "Guides" },
   { href: "/travel/blogs", label: "Stories" },

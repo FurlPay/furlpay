@@ -164,6 +164,7 @@
     "travel/deals": "PUBLIC_INTENTIONAL",
     "travel/destinations": "PUBLIC_INTENTIONAL",
     "travel/destinations/[slug]": "PUBLIC_INTENTIONAL",
+    "travel/entry-requirements": "PUBLIC_INTENTIONAL",
     "travel/gift-cards": "PUBLIC_INTENTIONAL",
     "travel/gift-cards/redeem": "PUBLIC_INTENTIONAL",
     "travel/hotels": "PUBLIC_INTENTIONAL",

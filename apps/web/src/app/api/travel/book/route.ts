@@ -17,6 +17,8 @@ import {
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
 import { createDuffelStayQuote, createDuffelStayBooking } from "@/lib/travel/duffel";
+import { entryRequirements, type EntryRequirement } from "@/lib/travel/entryRequirements";
+import { log } from "@/lib/log";
 import { acquireLock, releaseLock } from "@/lib/locks";
 import { kvGet, kvSet } from "@/lib/kv";
 import { sendEmail } from "@/lib/email";
@@ -73,6 +75,10 @@ const BookBody = z
     guestGivenName: z.string().max(80).optional(),
     guestFamilyName: z.string().max(80).optional(),
     phone: z.string().max(40).optional(),
+    // optional entry-requirements inputs (visa/passport pre-check)
+    nationality: z.string().max(40).optional(),
+    destinationCountry: z.string().max(40).optional(), // ISO-2, name, or IATA
+    passportExpiry: z.string().max(20).optional(), // YYYY-MM-DD
   })
   .strip();
 
@@ -118,6 +124,46 @@ export async function POST(req: NextRequest) {
     30,
     Math.max(1, body.checkIn && body.checkOut ? nightsFromDates(body.checkIn, body.checkOut) : body.nights ?? 3)
   );
+
+  // --- entry requirements (visa + passport) ----------------------------------
+  // Optional, and computed BEFORE any money moves. The visa status is indicative
+  // and never blocks — it rides along in the response for the client to surface.
+  // The one HARD block is deterministic and unarguable: a passport that has
+  // already expired by the departure date cannot be used to travel, so we refuse
+  // to create a booking obligation for an impossible trip.
+  let entry: EntryRequirement | null = null;
+  if (body.nationality && body.destinationCountry) {
+    entry = entryRequirements({
+      nationality: body.nationality,
+      destination: body.destinationCountry,
+      passportExpiry: body.passportExpiry,
+      departureDate: body.checkIn,
+      returnDate: body.checkOut,
+    });
+    if (body.passportExpiry && body.checkIn) {
+      const exp = Date.parse(body.passportExpiry);
+      const dep = Date.parse(body.checkIn);
+      if (!isNaN(exp) && !isNaN(dep) && exp < dep) {
+        // Auditable: record WHY a booking was refused before any charge. No PII
+        // beyond country codes + dates (no passport number is ever collected).
+        log.warn("travel.book.blocked_passport_expired", {
+          owner: claims?.sub ?? "anon",
+          nationality: entry?.nationality,
+          destination: entry?.destination,
+          passportExpiry: body.passportExpiry,
+          departure: body.checkIn,
+        });
+        return NextResponse.json(
+          {
+            error: "passport_expired",
+            detail: "The passport expires before the travel date. Renew it before booking — you were not charged.",
+            entry,
+          },
+          { status: 422 }
+        );
+      }
+    }
+  }
 
   // --- price authority -------------------------------------------------------
   let amountUsd: number;
@@ -264,6 +310,8 @@ export async function POST(req: NextRequest) {
         source,
         authorization,
         trip,
+        // Non-blocking visa/passport assessment when the client supplied it.
+        entry,
       },
     };
 

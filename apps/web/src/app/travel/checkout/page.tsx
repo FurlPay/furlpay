@@ -7,6 +7,7 @@ import { ChevronLeft, Wallet, CreditCard, Coins, Bot, ShieldCheck, Lock, CheckCi
 import { sendJSON } from "@/lib/api";
 import { Spinner, Pill } from "@/components/ui";
 import { RATES, CASHBACK_RATE, type PayToken } from "@/lib/travel/data";
+import EntryRequirementsCheck from "@/components/travel/EntryRequirementsCheck";
 
 type Method = "wallet" | "balance" | "vcard" | "card" | "agent";
 type Booking = {
@@ -219,6 +220,19 @@ function Checkout() {
           </p>
         </div>
       </div>
+
+      {/* Optional pre-trip entry check — doesn't gate payment, but surfaces
+          visa/passport requirements right where the traveller is committing. */}
+      {isFlight && (
+        <details className="mt-6 rounded-card border border-white/10 bg-charcoal">
+          <summary className="cursor-pointer px-5 py-4 text-sm font-semibold text-white">
+            Check visa &amp; passport requirements
+          </summary>
+          <div className="px-3 pb-3">
+            <EntryRequirementsCheck />
+          </div>
+        </details>
+      )}
     </div>
   );
 }
