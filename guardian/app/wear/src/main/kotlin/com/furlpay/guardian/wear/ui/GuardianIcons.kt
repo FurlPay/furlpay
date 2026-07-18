@@ -28,7 +28,7 @@ import com.furlpay.guardian.wear.ui.theme.FurlPayColors
  * stroke so the set reads as one family. [FurlPayMark] is the exact
  * apps/web/public/furlpay-mark.svg geometry (gradient tile + white F).
  */
-enum class GuardianGlyph { Wallet, Card, Chart, Bars, Qr, Mic, Plane, Shield }
+enum class GuardianGlyph { Wallet, Card, Chart, Bars, Qr, Mic, Plane, Shield, Spark, Calendar, Gauge }
 
 @Composable
 fun GlyphIcon(
@@ -124,6 +124,42 @@ fun GlyphIcon(
                     close()
                 }
                 drawPath(p, tint, style = stroke)
+            }
+            // Four-point sparkle — Guardian's AI mark (never an emoji).
+            GuardianGlyph.Spark -> {
+                val p = Path().apply {
+                    moveTo(12f * u, 3f * u)
+                    quadraticBezierTo(13.2f * u, 10.8f * u, 21f * u, 12f * u)
+                    quadraticBezierTo(13.2f * u, 13.2f * u, 12f * u, 21f * u)
+                    quadraticBezierTo(10.8f * u, 13.2f * u, 3f * u, 12f * u)
+                    quadraticBezierTo(10.8f * u, 10.8f * u, 12f * u, 3f * u)
+                    close()
+                }
+                drawPath(p, tint)
+            }
+            GuardianGlyph.Calendar -> {
+                drawRoundRect(
+                    color = tint,
+                    topLeft = Offset(4f * u, 6f * u),
+                    size = Size(16f * u, 13f * u),
+                    cornerRadius = CornerRadius(2.5f * u),
+                    style = stroke,
+                )
+                drawLine(tint, Offset(4f * u, 10.5f * u), Offset(20f * u, 10.5f * u), 2f * u)
+                drawLine(tint, Offset(8.5f * u, 3.5f * u), Offset(8.5f * u, 7f * u), 2f * u, StrokeCap.Round)
+                drawLine(tint, Offset(15.5f * u, 3.5f * u), Offset(15.5f * u, 7f * u), 2f * u, StrokeCap.Round)
+            }
+            GuardianGlyph.Gauge -> {
+                drawArc(
+                    color = tint,
+                    startAngle = 150f,
+                    sweepAngle = 240f,
+                    useCenter = false,
+                    topLeft = Offset(4f * u, 4f * u),
+                    size = Size(16f * u, 16f * u),
+                    style = stroke,
+                )
+                drawLine(tint, Offset(12f * u, 12f * u), Offset(16.2f * u, 7.8f * u), 2f * u, StrokeCap.Round)
             }
         }
     }

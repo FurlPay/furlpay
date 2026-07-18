@@ -6,6 +6,7 @@ import type {
   EarnOverview,
   Entitlements,
   MarketDetail,
+  MarketSearchResponse,
   MarketsResponse,
   TravelFlightsResponse,
   TravelHotelsResponse,
@@ -175,6 +176,17 @@ export default defineBackground(() => {
         if (message.q) qs.set("q", message.q);
         if (message.limit) qs.set("limit", String(message.limit));
         void toResponse(apiFetch<MarketsResponse>(`/api/markets?${qs}`)).then(sendResponse);
+        return true;
+      }
+      case "SEARCH_MARKETS": {
+        // The full ~13k tradable universe. Replaces the old /api/markets call,
+        // which could only ever return the 391 hand-curated symbols — the
+        // reason most real listings were unfindable in the extension.
+        const qs = new URLSearchParams();
+        if (message.q) qs.set("q", message.q);
+        if (message.kind) qs.set("kind", message.kind);
+        qs.set("limit", String(message.limit ?? 30));
+        void toResponse(apiFetch<MarketSearchResponse>(`/api/markets/search?${qs}`)).then(sendResponse);
         return true;
       }
       case "GET_MARKET_DETAIL":

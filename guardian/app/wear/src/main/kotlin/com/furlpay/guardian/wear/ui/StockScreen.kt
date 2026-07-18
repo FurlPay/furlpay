@@ -1,9 +1,16 @@
 package com.furlpay.guardian.wear.ui
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +25,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -39,6 +48,8 @@ import androidx.wear.compose.material3.OutlinedButton
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
 import com.furlpay.guardian.domain.model.Candle
+import com.furlpay.guardian.domain.usecase.ComputeGuardianScoreUseCase
+import com.furlpay.guardian.domain.usecase.GuardianScore
 import com.furlpay.guardian.wear.viewmodel.StockViewModel
 import com.furlpay.guardian.wear.ui.theme.FurlPayColors
 
@@ -165,15 +176,24 @@ private fun ChartFace(
         }
         quote?.let {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(text = usd(it.price) + " USD", style = MaterialTheme.typography.labelMedium)
+                Text(
+                    text = if (it.hasQuote) usd(it.price!!) + " USD" else "—",
+                    style = MaterialTheme.typography.labelMedium,
+                )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = signedPct(it.changePct),
+                    text = if (it.hasChange) signedPct(it.changePct!!) else "no quote",
                     style = MaterialTheme.typography.labelMedium,
-                    color = if (it.changePct >= 0) FurlPayColors.MoneyPositive else FurlPayColors.Error,
+                    color = if ((it.changePct ?: 0.0) >= 0) FurlPayColors.MoneyPositive else FurlPayColors.Error,
                 )
             }
         }
+
+        // Guardian Score — deterministic signal math over the visible bars.
+        val score = remember(state.candles, state.timeframe) {
+            ComputeGuardianScoreUseCase(state.candles.map { it.close }, state.timeframe)
+        }
+        score?.let { GuardianScoreRow(it, haptics) }
 
         Box(modifier = Modifier.weight(1f).fillMaxWidth().padding(vertical = 4.dp)) {
             when {
@@ -231,6 +251,77 @@ private fun ChartFace(
                             haptics.tick()
                             viewModel.setTimeframe(tf)
                         },
+                )
+            }
+        }
+    }
+}
+
+/**
+ * "Guardian 78 · BUY · low risk" — tap to expand the why. The stance pill
+ * uses the money-semantic palette; reasons are the actual inputs, so the
+ * score is auditable at a glance, never an oracle.
+ */
+@Composable
+private fun GuardianScoreRow(score: GuardianScore, haptics: Haptics) {
+    var expanded by remember { mutableStateOf(false) }
+    val stanceColor = when (score.stance) {
+        GuardianScore.Stance.BUY -> FurlPayColors.MoneyPositive
+        GuardianScore.Stance.HOLD -> FurlPayColors.Warning
+        GuardianScore.Stance.SELL -> FurlPayColors.Error
+    }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier
+            .padding(top = 2.dp)
+            .clickableNoRipple {
+                haptics.tick()
+                expanded = !expanded
+            },
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlyphIcon(GuardianGlyph.Spark, size = 12.dp, tint = stanceColor)
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+                text = "Guardian ${score.score}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = score.stance.name,
+                style = MaterialTheme.typography.labelSmall,
+                color = stanceColor,
+                modifier = Modifier
+                    .background(stanceColor.copy(alpha = 0.18f), RoundedCornerShape(percent = 50))
+                    .padding(horizontal = 6.dp, vertical = 1.dp),
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = score.risk.name.lowercase() + " risk",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut(),
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                score.reasons.forEach { reason ->
+                    Text(
+                        text = reason,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Text(
+                    text = "confidence ${score.confidence}%",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }

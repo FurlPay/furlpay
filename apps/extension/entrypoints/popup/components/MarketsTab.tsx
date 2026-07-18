@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Icon } from "@/components/icons";
-import type { MarketAsset, MarketsResponse } from "@/lib/types";
+import type { MarketSearchAsset, MarketSearchResponse } from "@/lib/types";
 import { EmptyState, ErrorPanel, SkeletonPage, openSite, send, usd } from "./shared";
 import AssetDetail from "./AssetDetail";
 
@@ -36,7 +36,7 @@ export default function MarketsTab() {
   const [selected, setSelected] = useState<string | null>(null);
   const [filter, setFilter] = useState<Filter>("all");
   const [query, setQuery] = useState("");
-  const [data, setData] = useState<MarketsResponse | null>(null);
+  const [data, setData] = useState<MarketSearchResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
@@ -54,7 +54,7 @@ export default function MarketsTab() {
     const id = ++reqId.current;
     setLoading(true);
     setError(null);
-    send<MarketsResponse>({ type: "GET_MARKETS", kind: f === "all" ? undefined : f, q, limit: PAGE_SIZE }).then((r) => {
+    send<MarketSearchResponse>({ type: "SEARCH_MARKETS", kind: f === "all" ? undefined : f, q, limit: PAGE_SIZE }).then((r) => {
       if (id !== reqId.current) return;
       setLoading(false);
       if (r.ok) setData(r.data);
@@ -90,8 +90,13 @@ export default function MarketsTab() {
         <div style={{ fontSize: "1.02rem", fontWeight: 800, letterSpacing: "-0.3px" }}>Markets</div>
         <div style={{ fontSize: "0.72rem", color: "var(--fp-text-secondary)", display: "flex", alignItems: "center", gap: 5 }}>
           <span className={`status-dot ${liveCount > 0 ? "status-dot--on" : "status-dot--off"}`} style={{ width: 5, height: 5 }} />
-          {/* Never claim "live" for seed-price degradation. */}
-          {liveCount > 0 ? `Live prices · ${items.length} assets` : "Cached prices — provider unreachable"}
+          {/* Never claim "live" for seed-price degradation. The universe count
+              is the searchable total, not the rows on screen. */}
+          {liveCount > 0
+            ? `Live prices · ${(data?.universe.tradable ?? 0).toLocaleString("en-US")} tradable`
+            : data
+              ? "Cached prices — provider unreachable"
+              : "Search stocks, ETFs & crypto"}
         </div>
       </div>
 
@@ -150,13 +155,19 @@ function AssetRow({
   delay,
   onOpen,
 }: {
-  asset: MarketAsset;
+  asset: MarketSearchAsset;
   baseUrl: string;
   delay: number;
   onOpen: (symbol: string) => void;
 }) {
   const [logoOk, setLogoOk] = useState(true);
-  const up = asset.changePct >= 0;
+  // An uncurated asset comes back unpriced (see MarketSearchAsset.price). Note
+  // `null >= 0` is TRUE in JS, so comparing directly would paint every
+  // unpriced row green with a "+0.00%" — a fabricated gain. Check explicitly.
+  const priced = asset.price != null && Number.isFinite(asset.price);
+  const hasChange = asset.changePct != null && Number.isFinite(asset.changePct);
+  const up = hasChange && (asset.changePct as number) >= 0;
+  const showLogo = logoOk && !!baseUrl && !!asset.logo;
 
   return (
     <button
@@ -167,8 +178,8 @@ function AssetRow({
     >
       {/* Official mark from the backend; monogram fallback if it 404s so a
           missing SVG never leaves a blank hole in the row. */}
-      <div className="asset-logo" style={{ background: logoOk ? "transparent" : "var(--fp-bg-secondary)" }}>
-        {logoOk && baseUrl ? (
+      <div className="asset-logo" style={{ background: showLogo ? "transparent" : "var(--fp-bg-secondary)" }}>
+        {showLogo ? (
           <img
             src={`${baseUrl}${asset.logo}`}
             alt=""
@@ -192,11 +203,19 @@ function AssetRow({
         </div>
       </div>
       <div style={{ textAlign: "right", flexShrink: 0 }}>
-        <div style={{ fontFamily: "var(--fp-font-mono)", fontWeight: 600, fontSize: "0.84rem" }}>${usd(asset.price)}</div>
-        <div className={up ? "gain" : "loss"} style={{ fontSize: "0.7rem", fontWeight: 600 }}>
-          {up ? "+" : ""}
-          {Number.isFinite(asset.changePct) ? asset.changePct.toFixed(2) : "0.00"}%
+        <div style={{ fontFamily: "var(--fp-font-mono)", fontWeight: 600, fontSize: "0.84rem" }}>
+          {priced ? `$${usd(asset.price)}` : "—"}
         </div>
+        {hasChange ? (
+          <div className={up ? "gain" : "loss"} style={{ fontSize: "0.7rem", fontWeight: 600 }}>
+            {up ? "+" : ""}
+            {(asset.changePct as number).toFixed(2)}%
+          </div>
+        ) : (
+          // No quote for this asset — say so instead of rendering "+0.00%",
+          // which would look like a real, flat session.
+          <div style={{ fontSize: "0.66rem", color: "var(--fp-text-muted)" }}>no quote</div>
+        )}
       </div>
     </button>
   );

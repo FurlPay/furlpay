@@ -1,6 +1,10 @@
 package com.furlpay.guardian.wear.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -59,6 +65,20 @@ fun MarketsScreen(navController: NavController, viewModel: MarketsViewModel = vi
                     modifier = Modifier.fillMaxWidth(),
                 )
             }
+            if (state.quotes.size >= 3) {
+                item {
+                    MoversStrip(
+                        quotes = state.quotes
+                            .filter { it.hasChange }
+                            .sortedByDescending { kotlin.math.abs(it.changePct ?: 0.0) }
+                            .take(6),
+                        onOpen = { symbol ->
+                            haptics.click()
+                            navController.navigate("stock/$symbol")
+                        },
+                    )
+                }
+            }
             if (state.loading) {
                 item { CircularProgressIndicator() }
             }
@@ -90,6 +110,34 @@ fun MarketsScreen(navController: NavController, viewModel: MarketsViewModel = vi
     }
 }
 
+/**
+ * The day's biggest movers as a swipeable pill strip — Robinhood's heatmap,
+ * watch-sized. Green pills gain, red pills lose; tap opens the chart.
+ */
+@Composable
+private fun MoversStrip(quotes: List<MarketQuote>, onOpen: (String) -> Unit) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 4.dp, vertical = 2.dp),
+    ) {
+        quotes.forEach { quote ->
+            val trend = if ((quote.changePct ?: 0.0) >= 0) FurlPayColors.MoneyPositive else FurlPayColors.Error
+            Text(
+                text = quote.symbol + " " + if (quote.hasChange) signedPct(quote.changePct!!) else "—",
+                style = MaterialTheme.typography.labelSmall,
+                color = trend,
+                modifier = Modifier
+                    .background(trend.copy(alpha = 0.16f), RoundedCornerShape(percent = 50))
+                    .clickable { onOpen(quote.symbol) }
+                    .padding(horizontal = 8.dp, vertical = 3.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun QuoteRow(
     quote: MarketQuote,
@@ -98,7 +146,7 @@ private fun QuoteRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val up = quote.changePct >= 0
+    val up = (quote.changePct ?: 0.0) >= 0
     val trend = if (up) FurlPayColors.MoneyPositive else FurlPayColors.Error
     Card(onClick = onClick, transformation = transformation, modifier = modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -123,13 +171,13 @@ private fun QuoteRow(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = usd(quote.price),
+                        text = if (quote.hasQuote) usd(quote.price!!) else "—",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(modifier = Modifier.weight(1f))
                     Text(
-                        text = signedPct(quote.changePct),
+                        text = if (quote.hasChange) signedPct(quote.changePct!!) else "no quote",
                         style = MaterialTheme.typography.labelSmall,
                         color = trend,
                     )

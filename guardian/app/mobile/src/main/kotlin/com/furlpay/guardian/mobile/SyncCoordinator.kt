@@ -95,9 +95,12 @@ class SyncCoordinator(private val services: MobileServices) {
             val response = services.client.api.markets(kind = "crypto", limit = 3)
             if (response.items.isEmpty()) return
             val snapshot = MarketSnapshot(
-                items = response.items.map {
-                    MarketSnapshot.MarketItem(it.symbol, it.price, it.changePct)
-                },
+                // Only assets with a real quote reach the watch. A glanceable
+                // tile showing "—" wastes the one line it has; an unpriced
+                // asset is better omitted than displayed as flat 0.00.
+                items = response.items
+                    .filter { it.price != null && it.changePct != null }
+                    .map { MarketSnapshot.MarketItem(it.symbol, it.price!!, it.changePct!!) },
                 updatedAtMs = System.currentTimeMillis(),
             )
             services.dataLayer.putJson(

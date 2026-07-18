@@ -17,7 +17,11 @@ export function usd(n: number, opts: { sign?: boolean } = {}): string {
   return s;
 }
 
-export function pct(n: number): string {
+/** Percent-change formatter. Null-safe: an asset with no quote (uncurated
+ *  rows from /api/markets/search) renders "—" rather than a fabricated
+ *  "+0.00%", which would look like a real, flat session. */
+export function pct(n: number | null | undefined): string {
+  if (n == null || !Number.isFinite(n)) return "—";
   return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 }
 

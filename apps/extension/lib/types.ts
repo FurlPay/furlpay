@@ -98,6 +98,36 @@ export interface MarketsResponse {
   asOf: string;
 }
 
+/** One row of GET /api/markets/search — the FULL tradable universe (~13k
+ *  broker-synced assets), not the 391-symbol curated catalog.
+ *
+ *  `price` is NULLABLE and that is load-bearing: pricing 13k symbols on every
+ *  keystroke would be thousands of provider calls, so uncurated assets come
+ *  back unpriced. Render "—", never 0 — a zero price on a money surface reads
+ *  as "this is worthless". */
+export interface MarketSearchAsset {
+  symbol: string;
+  name: string;
+  kind: "stock" | "etf" | "crypto";
+  sector: string | null;
+  industry: string | null;
+  exchange: string | null;
+  logo: string | null;
+  fractionable: boolean;
+  curated: boolean;
+  currency: string;
+  price: number | null;
+  changePct: number | null;
+  live: boolean;
+}
+
+export interface MarketSearchResponse {
+  query: string;
+  count: number;
+  items: MarketSearchAsset[];
+  universe: { syncedAt: string; tradable: number; fractionable: number; curated: number; crypto: number };
+}
+
 /** GET /api/markets/[symbol] — every field the in-popup detail view renders.
  *  Numeric stats are nullable by design: equities carry P/E and dividends,
  *  crypto carries supply and ATH, and neither has the other's. */
@@ -280,6 +310,7 @@ export type BgRequest =
   | { type: "GET_EARN" }
   | { type: "GET_MARKETS"; kind?: "stock" | "etf" | "crypto"; q?: string; limit?: number }
   | { type: "GET_MARKET_DETAIL"; symbol: string }
+  | { type: "SEARCH_MARKETS"; q?: string; kind?: "stock" | "etf" | "crypto"; limit?: number }
   | { type: "GET_TRAVEL_HOTELS"; city: string }
   | { type: "GET_TRAVEL_PROPERTY"; id: string; city: string }
   | { type: "SEARCH_FLIGHTS"; from: string; to: string; date: string; cabin?: string }

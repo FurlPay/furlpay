@@ -1,12 +1,12 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. Regenerate via the same logic in routeManifest.spec.ts. CI fails if a new route is unclassified or a listed route disappears. Zero UNKNOWN is the invariant.",
-  "_total": 195,
+  "_total": 198,
   "_counts": {
-    "AUTHENTICATED_USER": 68,
-    "PUBLIC_INTENTIONAL": 109,
-    "WEBHOOK_VERIFIED": 13,
+    "ADMIN_ONLY": 4,
+    "AUTHENTICATED_USER": 69,
     "DEVELOPMENT_ONLY": 1,
-    "ADMIN_ONLY": 4
+    "PUBLIC_INTENTIONAL": 111,
+    "WEBHOOK_VERIFIED": 13
   },
   "routes": {
     "account": "AUTHENTICATED_USER",
@@ -92,6 +92,7 @@
     "markets/bars": "PUBLIC_INTENTIONAL",
     "markets/indices": "PUBLIC_INTENTIONAL",
     "markets/movers": "PUBLIC_INTENTIONAL",
+    "markets/search": "PUBLIC_INTENTIONAL",
     "mcp": "PUBLIC_INTENTIONAL",
     "mpp/fx": "PUBLIC_INTENTIONAL",
     "newsletter/subscribe": "PUBLIC_INTENTIONAL",

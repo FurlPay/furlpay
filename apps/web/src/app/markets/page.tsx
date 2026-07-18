@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, List, Grid3X3, LayoutGrid, Link2, TrendingUp, TrendingDown } from "lucide-react";
@@ -26,9 +26,22 @@ interface MarketItem {
   cap: string;
   chain: string | null;
   logo: string | null;
-  price: number;
-  changePct: number;
+  /** NULLABLE on search results. /api/markets/search spans the full ~13k
+   *  tradable universe, and pricing every symbol per keystroke would be
+   *  thousands of provider calls — so uncurated assets arrive unpriced.
+   *  Render "—", never 0: a zero price reads as "this is worthless". */
+  price: number | null;
+  changePct: number | null;
   live: boolean;
+  /** Present on search rows only: whether curated metadata exists. */
+  curated?: boolean;
+}
+
+/** Search response shape (/api/markets/search). */
+interface SearchResponse {
+  items: MarketItem[];
+  count: number;
+  universe: { tradable: number; fractionable: number; curated: number };
 }
 
 const TABS = [
@@ -62,6 +75,11 @@ function MarketsInner() {
   const [sort, setSort] = useState<SortId>("movers");
   const [q, setQ] = useState("");
   const [movers, setMovers] = useState<{ gainers: MarketItem[]; losers: MarketItem[] } | null>(null);
+  /** Server search results; null when browsing the curated catalog. */
+  const [searchRows, setSearchRows] = useState<MarketItem[] | null>(null);
+  const [searching, setSearching] = useState(false);
+  const [universe, setUniverse] = useState<SearchResponse["universe"] | null>(null);
+  const searchReq = useRef(0);
 
   const load = useCallback(() => {
     getJSON<{ items: MarketItem[] }>("/api/markets").then((r) => setItems(r.items)).catch(console.error);
@@ -74,24 +92,57 @@ function MarketsInner() {
     return () => clearInterval(t);
   }, [load]);
 
+  // Server-side search across the FULL tradable universe.
+  //
+  // The default (query-less) view still renders the curated catalog, which is
+  // the editorially meaningful browse experience. The moment the user types, we
+  // hand the query to the server instead of filtering in memory — the universe
+  // is ~13k assets and shipping all of them to the browser to run `includes()`
+  // would be a multi-megabyte payload for a substring match.
+  useEffect(() => {
+    const needle = q.trim();
+    if (!needle) {
+      setSearchRows(null);
+      return;
+    }
+    const id = ++searchReq.current;
+    setSearching(true);
+    const params = new URLSearchParams({ q: needle, limit: "60" });
+    if (tab !== "all") params.set("kind", tab);
+    const t = setTimeout(() => {
+      getJSON<SearchResponse>(`/api/markets/search?${params}`)
+        .then((r) => {
+          // Monotonic id: a slow response for an earlier keystroke must never
+          // overwrite a newer one.
+          if (id !== searchReq.current) return;
+          setSearchRows(r.items);
+          setUniverse(r.universe);
+        })
+        .catch(() => id === searchReq.current && setSearchRows([]))
+        .finally(() => id === searchReq.current && setSearching(false));
+    }, 280);
+    return () => clearTimeout(t);
+  }, [q, tab]);
+
   const filtered = useMemo(() => {
+    // Searching → server results (already ranked and kind-filtered).
+    if (searchRows) {
+      let rows = searchRows;
+      if (subFilter && tab === "stock") rows = rows.filter((i) => i.sector === subFilter);
+      if (subFilter && (tab === "crypto" || tab === "etf")) rows = rows.filter((i) => i.industry === subFilter);
+      return rows;
+    }
     if (!items) return [];
-    const needle = q.trim().toLowerCase();
-    let rows = items.filter(
-      (i) =>
-        (tab === "all" || i.kind === tab) &&
-        (!needle ||
-          i.symbol.toLowerCase().includes(needle) ||
-          i.name.toLowerCase().includes(needle) ||
-          i.industry?.toLowerCase().includes(needle))
-    );
+    let rows = items.filter((i) => tab === "all" || i.kind === tab);
     if (subFilter && tab === "stock") rows = rows.filter((i) => i.sector === subFilter);
     if (subFilter && (tab === "crypto" || tab === "etf")) rows = rows.filter((i) => i.industry === subFilter);
-    if (sort === "movers") rows = [...rows].sort((a, b) => Math.abs(b.changePct) - Math.abs(a.changePct));
+    // `?? 0` on the sort keys only — an unpriced asset sorts last rather than
+    // throwing. It is never rendered as a price.
+    if (sort === "movers") rows = [...rows].sort((a, b) => Math.abs(b.changePct ?? 0) - Math.abs(a.changePct ?? 0));
     if (sort === "az") rows = [...rows].sort((a, b) => a.symbol.localeCompare(b.symbol));
-    if (sort === "price") rows = [...rows].sort((a, b) => b.price - a.price);
+    if (sort === "price") rows = [...rows].sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
     return rows;
-  }, [items, tab, q, subFilter, sort]);
+  }, [items, searchRows, tab, subFilter, sort]);
 
   if (!items) return <Spinner />;
   const anyLive = items.some((i) => i.live);
@@ -117,7 +168,7 @@ function MarketsInner() {
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={`Search ${items.length}+ stocks, ETFs & crypto`}
+            placeholder={`Search ${(universe?.tradable ?? items.length).toLocaleString("en-US")} stocks, ETFs & crypto`}
             className="w-full bg-transparent text-[14px] outline-none placeholder:text-textMuted"
           />
         </div>
@@ -196,7 +247,7 @@ function MarketsInner() {
               <h2 className="mb-2 px-5 text-[15px] font-bold tracking-tight">Trending today</h2>
               <div className="no-scrollbar flex snap-x gap-2.5 overflow-x-auto px-5">
                 {[...movers.gainers.slice(0, 5), ...movers.losers.slice(0, 3)].map((m) => {
-                  const up = m.changePct >= 0;
+                  const up = (m.changePct ?? 0) >= 0;
                   return (
                     <Link key={m.symbol} href={`/markets/${m.symbol}`} className="w-[120px] shrink-0 snap-start surface-card p-3">
                       <div className="flex items-center justify-between">
@@ -248,7 +299,12 @@ function MarketsInner() {
       {view === "heatmap" ? (
         <div className="mt-3 px-5 pb-8">
           <Heatmap
-            items={filtered.filter((f) => f.industry !== "Stablecoin").slice(0, 80)}
+            // The heatmap encodes day-move as colour, so an unpriced asset has
+              // nothing to draw — exclude rather than render it as flat 0%.
+              items={filtered
+                .filter((f) => f.industry !== "Stablecoin" && f.changePct != null && f.price != null)
+                .slice(0, 80)
+                .map((f) => ({ ...f, price: f.price as number, changePct: f.changePct as number }))}
             onSelect={(sym) => router.push(`/markets/${sym}`)}
           />
           <p className="mt-3 text-center text-[11px] text-textMuted">Block size = market cap tier · colour = day move</p>
@@ -256,7 +312,7 @@ function MarketsInner() {
       ) : view === "grid" ? (
         <div className="mt-3 grid grid-cols-2 gap-2.5 px-5 pb-8">
           {filtered.slice(0, 60).map((i) => {
-            const up = i.changePct >= 0;
+            const up = (i.changePct ?? 0) >= 0;
             return (
               <Link key={i.symbol} href={`/markets/${i.symbol}`} className="surface-card p-3.5">
                 <div className="flex items-center justify-between">

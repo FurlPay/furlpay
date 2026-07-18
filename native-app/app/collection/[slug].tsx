@@ -62,7 +62,10 @@ export default function CollectionScreen() {
           </LinearGradient>
         }
         renderItem={({ item }) => {
-          const up = item.changePct >= 0;
+          // Same guard as the markets list: `null >= 0` is true in JS.
+          const hasQuote = item.price != null && Number.isFinite(item.price);
+          const hasChange = item.changePct != null && Number.isFinite(item.changePct);
+          const up = hasChange && (item.changePct as number) >= 0;
           return (
             <Pressable
               onPress={() => router.push({ pathname: "/market/[symbol]", params: { symbol: item.symbol } })}
@@ -78,11 +81,17 @@ export default function CollectionScreen() {
                 </Text>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={[type.body, { fontWeight: "700" }]}>{usd(item.price)}</Text>
-                <Text style={{ color: up ? colors.neon : colors.accent, fontSize: 13 }}>
-                  {up ? "+" : ""}
-                  {item.changePct.toFixed(2)}%
+                <Text style={[type.body, { fontWeight: "700" }]}>
+                  {hasQuote ? usd(item.price as number) : "—"}
                 </Text>
+                {hasChange ? (
+                  <Text style={{ color: up ? colors.neon : colors.accent, fontSize: 13 }}>
+                    {up ? "+" : ""}
+                    {(item.changePct as number).toFixed(2)}%
+                  </Text>
+                ) : (
+                  <Text style={{ color: colors.textFaint, fontSize: 12 }}>no quote</Text>
+                )}
               </View>
             </Pressable>
           );

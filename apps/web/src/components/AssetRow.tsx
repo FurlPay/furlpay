@@ -10,12 +10,17 @@ export interface AssetRowData {
   symbol: string;
   name: string;
   logo: string | null;
-  price: number;
-  changePct: number;
+  /** Nullable: universe-search rows for uncurated assets carry no quote. */
+  price: number | null;
+  changePct: number | null;
   sub?: string;
 }
 
-export function fmtPrice(p: number): string {
+/** Price formatter. Accepts null/undefined because /api/markets/search spans
+ *  the full tradable universe and returns uncurated assets UNPRICED — those
+ *  must render "—", never "$0.00", which would read as "this is worthless". */
+export function fmtPrice(p: number | null | undefined): string {
+  if (p == null || !Number.isFinite(p)) return "—";
   if (p >= 1) return usd(p);
   if (p <= 0) return "—";
   return "$" + p.toPrecision(3);
@@ -34,7 +39,10 @@ export default function AssetRow({
   sparkline?: boolean;
   size?: "sm" | "md";
 }) {
-  const up = item.changePct >= 0;
+  // `null >= 0` is TRUE in JS — an unpriced row would render green with a
+  // fake gain. Check explicitly.
+  const hasChange = item.changePct != null && Number.isFinite(item.changePct);
+  const up = hasChange && (item.changePct as number) >= 0;
   const inner = (
     <>
       <AssetLogo src={item.logo} label={item.symbol} size={size === "sm" ? 32 : 38} className="shrink-0" />
@@ -42,7 +50,7 @@ export default function AssetRow({
         <p className={`truncate font-semibold ${size === "sm" ? "text-[14px]" : ""}`}>{item.symbol}</p>
         <p className="truncate text-[12px] text-textSecondary">{item.sub ?? item.name}</p>
       </div>
-      {sparkline && <MiniSparkline seed={`row-${item.symbol}`} changePct={item.changePct} className="shrink-0" />}
+      {sparkline && <MiniSparkline seed={`row-${item.symbol}`} changePct={item.changePct ?? 0} className="shrink-0" />}
       <div className="w-[86px] shrink-0 text-right">
         <p className={`font-semibold ${size === "sm" ? "text-[14px]" : ""}`}>{fmtPrice(item.price)}</p>
         <p className={`text-[12px] font-medium ${up ? "text-gain" : "text-loss"}`}>{pct(item.changePct)}</p>

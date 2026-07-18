@@ -12,11 +12,20 @@ data class MarketQuote(
     val name: String,
     /** "stock" | "etf" | "crypto" */
     val kind: String,
-    val price: Double,
-    val changePct: Double,
+    /** Null when the asset has no quote (see MarketItemDto.price). */
+    val price: Double?,
+    val changePct: Double?,
     val live: Boolean,
+    /** "live" | "delayed" | "unavailable". */
+    val quoteStatus: String = "live",
     val logoPath: String?,
-)
+) {
+    /** True when there is a real price to show. Glanceable surfaces (tiles,
+     *  complications) should hide the value entirely when this is false rather
+     *  than rendering a placeholder the user cannot act on. */
+    val hasQuote: Boolean get() = price != null && price.isFinite() && quoteStatus != "unavailable"
+    val hasChange: Boolean get() = changePct != null && changePct.isFinite()
+}
 
 /** One OHLC bar from /api/markets/bars. Time is epoch millis. */
 data class Candle(

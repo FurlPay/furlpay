@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.furlpay.guardian.domain.GuardianResult
 import com.furlpay.guardian.domain.usecase.GetWalletOverviewUseCase
+import com.furlpay.guardian.domain.usecase.briefLine
+import com.furlpay.guardian.sync.PortfolioSnapshot
 import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.sync.WalletSnapshot
 import com.furlpay.guardian.wear.wearServices
@@ -22,9 +24,15 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     data class UiState(
         val loading: Boolean = true,
         val totalUsd: Double? = null,
+        /** Portfolio day change — the brief's second line. */
+        val dayChangeUsd: Double? = null,
+        val dayChangePct: Double? = null,
+        /** Deterministic one-liner (briefLine) — tap opens Ask Guardian. */
+        val insight: String? = null,
         val stale: Boolean = false,
         val nextEventTitle: String? = null,
         val nextTripTitle: String? = null,
+        val tripDaysLeft: Int? = null,
         val signedOut: Boolean = false,
     )
 
@@ -82,6 +90,28 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private suspend fun loadSecondaryLines() {
+        // Portfolio day change + brief insight; cached day change when offline.
+        when (val portfolio = services.portfolioRepo.overview()) {
+            is GuardianResult.Ok -> _state.value = _state.value.copy(
+                dayChangeUsd = portfolio.value.dayChangeUsd,
+                dayChangePct = portfolio.value.dayChangePct,
+                insight = portfolio.value.briefLine(),
+            )
+
+            is GuardianResult.Err -> services.snapshots.read(SyncProtocol.DATA_PORTFOLIO)
+                ?.let {
+                    runCatching {
+                        SyncProtocol.json.decodeFromString(PortfolioSnapshot.serializer(), it.json)
+                    }.getOrNull()
+                }
+                ?.let { cached ->
+                    _state.value = _state.value.copy(
+                        dayChangeUsd = cached.dayChangeUsd,
+                        dayChangePct = cached.dayChangePct,
+                    )
+                }
+        }
+
         (services.eventRepo.activeEvents() as? GuardianResult.Ok)?.value
             ?.filter { it.startAt != null && it.startAt!! >= Clock.System.now() }
             ?.minByOrNull { it.startAt!! }
@@ -89,6 +119,12 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
         (services.travelRepo.upcoming() as? GuardianResult.Ok)?.value
             ?.firstOrNull()
-            ?.let { _state.value = _state.value.copy(nextTripTitle = it.title) }
+            ?.let { trip ->
+                val daysLeft = (trip.startAt - Clock.System.now()).inWholeDays.toInt()
+                _state.value = _state.value.copy(
+                    nextTripTitle = trip.title,
+                    tripDaysLeft = daysLeft.takeIf { it >= 0 },
+                )
+            }
     }
 }

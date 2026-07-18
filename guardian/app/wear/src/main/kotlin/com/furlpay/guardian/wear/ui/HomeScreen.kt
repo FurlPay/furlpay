@@ -1,42 +1,45 @@
 package com.furlpay.guardian.wear.ui
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import androidx.wear.compose.foundation.lazy.TransformingLazyColumn
-import androidx.wear.compose.foundation.lazy.TransformingLazyColumnScope
 import androidx.wear.compose.foundation.lazy.rememberTransformingLazyColumnState
-import androidx.wear.compose.material3.Button
-import androidx.wear.compose.material3.ButtonDefaults
+import androidx.wear.compose.material3.Card
 import androidx.wear.compose.material3.EdgeButton
 import androidx.wear.compose.material3.EdgeButtonSize
+import androidx.wear.compose.material3.FilledTonalIconButton
 import androidx.wear.compose.material3.MaterialTheme
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
-import androidx.wear.compose.material3.lazy.TransformationSpec
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
 import com.furlpay.guardian.wear.Routes
 import com.furlpay.guardian.wear.viewmodel.HomeViewModel
+import java.time.LocalTime
 
 /**
- * The 5-second glance: total balance headline, what's next, five actions.
- * One screen, one job — never a shrunken phone dashboard. Every press clicks
- * (haptic vocabulary §7). Action rows morph along the round edge (M3
- * Expressive scroll transformations); Ask Guardian lives on the [EdgeButton]
- * hugging the display's curve — the screen's one primary action.
+ * The AI Brief — everything worth knowing in 3 seconds, THEN navigation.
+ * Greeting, net worth + day change, one honest insight line (tap = ask
+ * Guardian about it), what's next, and two rows of glyph quick-actions
+ * instead of seven full-width buttons. Ask Guardian stays on the edge.
  */
 @Composable
 fun HomeScreen(
@@ -83,12 +86,14 @@ fun HomeScreen(
                     FurlPayMark(size = 16.dp)
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "FurlPay",
+                        text = greeting(),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
             }
+
+            // ---- The brief ----
             item {
                 when {
                     state.loading -> SkeletonAmount()
@@ -115,6 +120,22 @@ fun HomeScreen(
                     )
                 }
             }
+            state.dayChangeUsd?.let { change ->
+                if (!state.signedOut) {
+                    item {
+                        Text(
+                            text = signedUsd(change) +
+                                (state.dayChangePct?.let { " (" + signedPct(it) + ")" } ?: "") +
+                                " today",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = if (change >= 0) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.error,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
+            }
             if (state.stale) {
                 item {
                     Text(
@@ -126,63 +147,122 @@ fun HomeScreen(
                     )
                 }
             }
-            state.nextEventTitle?.let { title ->
+
+            // Insight line — tap hands the topic to Guardian.
+            state.insight?.let { insight ->
                 item {
-                    Text(
-                        text = "Next: $title",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    Card(
+                        onClick = { navigate(Routes.VOICE) },
+                        transformation = SurfaceTransformation(transformationSpec),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .transformedHeight(this, transformationSpec),
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            GlyphIcon(GuardianGlyph.Spark, size = 14.dp)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = insight,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
                 }
+            }
+
+            // ---- What's next ----
+            state.nextEventTitle?.let { title ->
+                item { BriefRow(GuardianGlyph.Calendar, title, "next event") }
             }
             state.nextTripTitle?.let { title ->
                 item {
-                    Text(
-                        text = "Trip: $title",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth(),
+                    BriefRow(
+                        GuardianGlyph.Plane,
+                        title,
+                        state.tripDaysLeft?.let { days ->
+                            if (days == 0) "departs today" else "in $days days"
+                        } ?: "upcoming trip",
                     )
                 }
             }
-            homeAction("Markets", GuardianGlyph.Chart, transformationSpec) { navigate(Routes.MARKETS) }
-            homeAction("Wallet", GuardianGlyph.Wallet, transformationSpec) { navigate(Routes.WALLET) }
-            homeAction("Cards", GuardianGlyph.Card, transformationSpec) { navigate(Routes.CARDS) }
-            homeAction("Portfolio", GuardianGlyph.Shield, transformationSpec) { navigate(Routes.PORTFOLIO) }
-            homeAction("Spending", GuardianGlyph.Bars, transformationSpec) { navigate(Routes.SPENDING) }
-            homeAction("Travel", GuardianGlyph.Plane, transformationSpec) { navigate(Routes.TRAVEL) }
-            homeAction("Receive", GuardianGlyph.Qr, transformationSpec) { navigate(Routes.QUICKPAY) }
+
+            // ---- Quick actions: glyphs, not a wall of buttons ----
+            item {
+                QuickActionRow(
+                    listOf(
+                        Triple("Markets", GuardianGlyph.Chart, Routes.MARKETS),
+                        Triple("Wallet", GuardianGlyph.Wallet, Routes.WALLET),
+                        Triple("Cards", GuardianGlyph.Card, Routes.CARDS),
+                        Triple("Portfolio", GuardianGlyph.Gauge, Routes.PORTFOLIO),
+                    ),
+                    ::navigate,
+                )
+            }
+            item {
+                QuickActionRow(
+                    listOf(
+                        Triple("Spending", GuardianGlyph.Bars, Routes.SPENDING),
+                        Triple("Travel", GuardianGlyph.Plane, Routes.TRAVEL),
+                        Triple("Receive", GuardianGlyph.Qr, Routes.QUICKPAY),
+                    ),
+                    ::navigate,
+                )
+            }
         }
     }
 }
 
-/**
- * One action row — leading mint glyph on the deep-teal surface (mockups'
- * "SYNC STATE" face), never a filled-primary slab. No emoji. Each row carries
- * the shared [TransformationSpec] so it shrinks and fades along the bezel.
- */
-private fun TransformingLazyColumnScope.homeAction(
-    label: String,
-    glyph: GuardianGlyph,
-    spec: TransformationSpec,
-    onClick: () -> Unit,
+/** "Good morning" by watch-local hour — no name, no exclamation marks. */
+private fun greeting(): String = when (LocalTime.now().hour) {
+    in 5..11 -> "Good morning"
+    in 12..16 -> "Good afternoon"
+    else -> "Good evening"
+}
+
+/** One glanceable context row: glyph, title, quiet caption. Display-only. */
+@Composable
+private fun BriefRow(glyph: GuardianGlyph, title: String, caption: String) {
+    InfoCard(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            GlyphIcon(glyph, size = 16.dp)
+            Spacer(modifier = Modifier.width(8.dp))
+            Column {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = caption,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Round tonal glyph buttons — TalkBack reads the label, eyes read the glyph. */
+@Composable
+private fun QuickActionRow(
+    actions: List<Triple<String, GuardianGlyph, String>>,
+    navigate: (String) -> Unit,
 ) {
-    item {
-        Button(
-            onClick = onClick,
-            colors = ButtonDefaults.filledTonalButtonColors(),
-            transformation = SurfaceTransformation(spec),
-            modifier = Modifier
-                .fillMaxWidth()
-                .transformedHeight(this, spec),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                GlyphIcon(glyph)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(label, color = MaterialTheme.colorScheme.onSurface)
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+    ) {
+        actions.forEach { (label, glyph, route) ->
+            FilledTonalIconButton(
+                onClick = { navigate(route) },
+                modifier = Modifier.semantics { contentDescription = label },
+            ) {
+                GlyphIcon(glyph, size = 20.dp)
             }
         }
     }

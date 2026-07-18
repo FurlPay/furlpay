@@ -12,15 +12,26 @@ import { CollectionsCarousel, MarketPulse, TrendingCarousel, useMovers } from "@
 import { AssetLogo } from "@/components/AssetLogo";
 import { GlowSelectionPill } from "@/components/GlowSelectionPill";
 
+/** Explicit quote state from the API. Clients switch on this instead of
+ *  inferring meaning from a null price — `null >= 0` is TRUE in JS, which
+ *  rendered unpriced rows as a green "+0.00%" gain on web and in the
+ *  extension before this contract existed. */
+export type QuoteStatus = "live" | "delayed" | "unavailable";
+
 export interface MarketItem {
   symbol: string;
   name: string;
   kind: "stock" | "etf" | "crypto";
   sector: string | null;
-  price: number;
-  changePct: number;
+  /** NULLABLE. /api/markets/search spans the full ~13k tradable universe and
+   *  uncurated assets arrive unpriced — pricing every symbol per keystroke
+   *  would be thousands of provider calls. Render "—", never 0. */
+  price: number | null;
+  changePct: number | null;
   live: boolean;
   logo: string | null;
+  quoteStatus?: QuoteStatus;
+  curated?: boolean;
 }
 
 const KINDS = ["all", "stock", "etf", "crypto"] as const;
@@ -43,11 +54,18 @@ export default function Markets() {
   const { data, isLoading, refetch, isRefetching, error } = useQuery({
     queryKey: ["markets", kind, sort, query.trim()],
     queryFn: () => {
+      const q = query.trim();
       const params = new URLSearchParams();
       if (kind !== "all") params.set("kind", kind);
-      params.set("sort", sort);
-      if (query.trim()) params.set("q", query.trim());
       params.set("limit", "80");
+      // A query searches the FULL tradable universe (~13k) server-side; the
+      // default view keeps the curated catalog, which is the editorially
+      // meaningful browse experience.
+      if (q) {
+        params.set("q", q);
+        return api<{ items: MarketItem[] }>(`/markets/search?${params}`);
+      }
+      params.set("sort", sort);
       return api<{ items: MarketItem[] }>(`/markets?${params}`);
     },
     staleTime: 30_000,
@@ -124,7 +142,14 @@ export default function Markets() {
           ) : null
         }
         renderItem={({ item }) => {
-          const up = item.changePct >= 0;
+          // Explicit null check: `null >= 0` is true in JS, so comparing
+          // directly paints unpriced rows green with a fabricated gain.
+          const hasQuote =
+            item.quoteStatus !== "unavailable" &&
+            item.price != null &&
+            Number.isFinite(item.price);
+          const hasChange = item.changePct != null && Number.isFinite(item.changePct);
+          const up = hasChange && (item.changePct as number) >= 0;
           return (
             <Pressable
               onPress={() => router.push({ pathname: "/market/[symbol]", params: { symbol: item.symbol } })}
@@ -138,11 +163,18 @@ export default function Markets() {
                 </Text>
               </View>
               <View style={{ alignItems: "flex-end" }}>
-                <Text style={[type.body, { fontWeight: "700" }]}>{usd(item.price)}</Text>
-                <Text style={{ color: up ? colors.neon : colors.accent, fontSize: 13 }}>
-                  {up ? "+" : ""}
-                  {item.changePct.toFixed(2)}%
+                <Text style={[type.body, { fontWeight: "700" }]}>
+                  {hasQuote ? usd(item.price as number) : "—"}
                 </Text>
+                {hasChange ? (
+                  <Text style={{ color: up ? colors.neon : colors.accent, fontSize: 13 }}>
+                    {up ? "+" : ""}
+                    {(item.changePct as number).toFixed(2)}%
+                  </Text>
+                ) : (
+                  // No quote — say so rather than showing a flat "+0.00%".
+                  <Text style={{ color: colors.textFaint, fontSize: 12 }}>no quote</Text>
+                )}
               </View>
             </Pressable>
           );

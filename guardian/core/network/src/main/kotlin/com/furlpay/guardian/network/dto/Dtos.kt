@@ -220,9 +220,22 @@ data class MarketItemDto(
     val symbol: String,
     val name: String = "",
     val kind: String = "stock",
-    val price: Double = 0.0,
-    val changePct: Double = 0.0,
+    /**
+     * NULLABLE — and the default alone is NOT enough protection.
+     *
+     * A default value only applies when the key is ABSENT; kotlinx.serialization
+     * throws "Unexpected null value" for a non-nullable Double when the JSON
+     * carries an explicit `null`. /api/markets/search spans the full ~13k
+     * tradable universe and returns uncurated assets unpriced, so a non-null
+     * Double here would fail the WHOLE response — the watch would show nothing
+     * rather than one dash.
+     */
+    val price: Double? = null,
+    val changePct: Double? = null,
     val live: Boolean = false,
+    /** "live" | "delayed" | "unavailable" — switch on this instead of
+     *  inferring meaning from a null price. */
+    val quoteStatus: String? = null,
     /** Self-hosted mark, e.g. "/logos/stocks/aapl.svg" — null = monogram only. */
     val logo: String? = null,
 ) {
@@ -233,6 +246,7 @@ data class MarketItemDto(
         price = price,
         changePct = changePct,
         live = live,
+        quoteStatus = quoteStatus ?: if (price == null) "unavailable" else if (live) "live" else "delayed",
         logoPath = logo,
     )
 }
