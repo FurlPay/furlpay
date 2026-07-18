@@ -135,6 +135,34 @@ const BASELINE_EXEMPT_PREFIXES = ["/api/webhooks"];
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const BASELINE = { limit: 150, windowMs: 60_000 };
 
+// CSRF backstop for cookie-authenticated mutating requests. SameSite=Lax on
+// the session cookie is the primary defense (browsers won't attach it to
+// cross-site POSTs); this Origin check catches what Lax can't — older
+// browsers, subtle Lax bypasses, sandboxed-iframe (`Origin: null`) form posts.
+// Scope is deliberately narrow: only requests that authenticate via the
+// COOKIE are CSRF-able. Bearer clients (native app), webhooks and x402 calls
+// carry no cookie and are untouched. Extension pages POST with the cookie but
+// from a chrome-extension:// origin — non-http(s) schemes are allowed through
+// (an installed extension with host permissions is outside the CSRF threat
+// model; the browser, not the page, vouches for that origin).
+export function crossSiteCookieForgery(req: NextRequest): boolean {
+  const origin = req.headers.get("origin");
+  if (!origin) return false; // non-browser client — no ambient cookie risk
+  if (origin === "null") return true; // sandboxed iframe / opaque origin
+  let parsed: URL;
+  try {
+    parsed = new URL(origin);
+  } catch {
+    return true; // malformed Origin from a browser — reject
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  const reqHost = req.headers.get("host");
+  if (!reqHost) return false;
+  // Exact host match, tolerating the www/apex pair (www.furlpay.com ↔ furlpay.com).
+  const strip = (h: string) => h.replace(/^www\./, "");
+  return strip(parsed.host) !== strip(reqHost);
+}
+
 // Sliding web session: when the COOKIE session enters its last 15 minutes,
 // re-mint it on the way through (same claims, original auth_time, fresh exp).
 // A user working in the dashboard never hits the 1h cliff; an idle tab still
@@ -196,6 +224,17 @@ export async function middleware(req: NextRequest) {
       );
     }
   }
+  // CSRF backstop (see crossSiteCookieForgery): a mutating API request that
+  // authenticates with the session COOKIE must come from our own origin.
+  if (
+    isApi &&
+    MUTATING_METHODS.has(req.method) &&
+    req.cookies.get(SESSION_COOKIE) &&
+    crossSiteCookieForgery(req)
+  ) {
+    return NextResponse.json({ error: "cross_origin_request_rejected" }, { status: 403 });
+  }
+
   const isPublicApi = PUBLIC_API_PREFIXES.some((p) => pathname.startsWith(p));
 
   if (isApi) {
