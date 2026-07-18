@@ -134,9 +134,17 @@ async function executeTransfer(
   }
 
   // Verify the user-signed authorization before the Paymaster co-signs.
-  const sig = verifyTransferSignature(signature, safeAddress || account.user.safeAddress, {
-    destination, amount, token, chain,
-  });
+  // When the account has a verified linked wallet (EIP-191-proven device key),
+  // the signature must recover to it; otherwise live mode fails closed and
+  // only the demo path accepts a shape-validated blob (see lib/signature.ts).
+  const owners =
+    account.user.linkedWallet?.status === "active" ? [account.user.linkedWallet.address] : [];
+  const sig = await verifyTransferSignature(
+    signature,
+    safeAddress || account.user.safeAddress,
+    { destination, amount, token, chain },
+    owners
+  );
   if (!sig.ok) {
     return NextResponse.json({ error: sig.reason }, { status: 401 });
   }
