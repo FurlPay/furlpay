@@ -1,5 +1,7 @@
 import { sbDelete, sbRpc, sbSelect, sbUpsert, SupabaseFunctionMissing } from "./supabase";
+import { log } from "./log";
 import type { IdentityLookup, User, UserAccount } from "./store";
+import type { TradeLot } from "./corporateActions/types";
 import type {
   Bill,
   FiatBalance,
@@ -75,6 +77,26 @@ interface HoldingRow {
   change_pct: number;
   market_value: number;
   cost_basis: number;
+}
+
+/**
+ * Lot rows are APPEND-ONLY and are never pruned, unlike every other child
+ * table here. A closed or superseded lot is the audit record proving what a
+ * position looked like before a sale or a split — deleting it would make
+ * realized gains and split adjustments unverifiable after the fact.
+ */
+interface TradeLotRow {
+  id: string;
+  user_id: string;
+  symbol: string;
+  quantity: number;
+  cost_basis: number;
+  acquired_at: string;
+  status: string;
+  provenance: string;
+  source_lot_id: string | null;
+  corporate_action_id: string | null;
+  order_id: string | null;
 }
 
 interface CardRow {
@@ -172,6 +194,14 @@ function userToRow(u: User): UserRow {
 function accountFromRow(r: UserRowEmbedded): UserAccount {
   return {
     user: userFromRow(r),
+    // Lot ledger (migration 0006), attached by loadAccount as a SEPARATE
+    // query — deliberately not an embedded select.
+    //
+    // Embedding it here returned HTTP 400 (PGRST200 "could not find a
+    // relationship") on any deployment without 0006, which failed the WHOLE
+    // account load and silently degraded every account to its in-memory copy.
+    // An optional table must never be able to break the required ones.
+    tradeLots: [],
     tokenBalances: r.token_balances.map((b) => ({
       token: b.token,
       chain: b.chain,
@@ -243,7 +273,61 @@ export async function loadAccount(userId: string): Promise<UserAccount | undefin
       `&select=*,token_balances(*),fiat_balances(*),holdings(*),cards(*),bills(*),transactions(*)` +
       `&transactions.order=ts.desc&transactions.limit=${TX_LIMIT}`
   );
-  return rows[0] ? accountFromRow(rows[0]) : undefined;
+  if (!rows[0]) return undefined;
+  const account = accountFromRow(rows[0]);
+  // undefined => the ledger could not be READ (table absent / query failed).
+  // [] => read successfully and the user genuinely holds no lots. store.ts
+  // relies on this distinction; collapsing them resurrects sold positions.
+  const ledger = await loadLots(userId);
+  account.tradeLots = ledger.lots;
+  account.lotsReadable = ledger.readable;
+  return account;
+}
+
+/**
+ * Lot ledger for one user — a SEPARATE query, on purpose.
+ *
+ * Embedding `trade_lots(*)` in the account select above returns HTTP 400
+ * (PGRST200: "could not find a relationship between 'users' and 'trade_lots'")
+ * on any deployment where migration 0006 has not been applied. That failed the
+ * entire account load, so balances, cards and transactions all silently fell
+ * back to the in-memory copy because of an OPTIONAL table.
+ *
+ * Isolated and best-effort, a missing table costs exactly one empty ledger —
+ * and callers already treat "no lots" as "not migrated" and fall back to the
+ * `holdings` aggregate.
+ */
+async function loadLots(userId: string): Promise<{ lots: TradeLot[]; readable: boolean }> {
+  try {
+    const rows = await sbSelect<TradeLotRow>(
+      "trade_lots",
+      `user_id=eq.${encodeURIComponent(userId)}&select=*&order=acquired_at.asc`
+    );
+    return {
+      readable: true,
+      lots: rows.map((l) => ({
+        id: l.id,
+        userId: l.user_id,
+        symbol: l.symbol,
+        quantity: Number(l.quantity),
+        costBasis: Number(l.cost_basis),
+        acquiredAt: l.acquired_at,
+        status: l.status as TradeLot["status"],
+        provenance: (l.provenance ?? "execution") as TradeLot["provenance"],
+        ...(l.source_lot_id ? { sourceLotId: l.source_lot_id } : {}),
+        ...(l.corporate_action_id ? { fromCorporateActionId: l.corporate_action_id } : {}),
+      })),
+    };
+  } catch (e) {
+    // Unreadable is NOT the same as empty. Returning readable:false tells
+    // store.ts to keep whatever ledger it already has rather than treating a
+    // missing table as "this user sold everything".
+    log.error("trade_lots unreadable — keeping the in-memory ledger", {
+      userId,
+      error: (e as Error).message,
+    });
+    return { lots: [], readable: false };
+  }
 }
 
 /** PostgREST filter values are safe to interpolate only if they can't terminate
@@ -332,6 +416,7 @@ export async function saveAccount(account: UserAccount): Promise<void> {
     try {
       await sbRpc<void>("save_account_children", children);
       await sbUpsert<TransactionRow>("transactions", txRows(account, uid));
+      await saveLots(account, uid);
       return;
     } catch (e) {
       if (!(e instanceof SupabaseFunctionMissing)) throw e;
@@ -366,6 +451,8 @@ export async function saveAccount(account: UserAccount): Promise<void> {
     const pairs = rows.map((r) => `and(token.eq.${r.token},chain.eq.${r.chain})`).join(",");
     await sbDelete("token_balances", `${byUser}&not.or=(${pairs})`);
   };
+
+  await saveLots(account, uid);
 
   await Promise.all([
     syncTokenBalances(
@@ -442,6 +529,55 @@ export async function saveAccount(account: UserAccount): Promise<void> {
 
 /** Transactions are append-mostly: the newest TX_LIMIT are upserted and older
  *  history is left untouched, so they are never part of the replace/prune set. */
+/**
+ * Lot rows for the write path.
+ *
+ * Deliberately NOT part of save_account_children (migration 0004), which
+ * DELETES and re-inserts every child it manages. Lots are append-only: a
+ * closed or split_adjusted row is the audit trail for a realized gain or a
+ * split adjustment, and a delete/re-insert cycle would destroy it and churn
+ * the primary keys other lots reference via source_lot_id.
+ *
+ * A plain upsert is both simpler and correct here — nothing is ever pruned.
+ */
+/**
+ * Persist the lot ledger.
+ *
+ * Tolerates a deployment that has not applied migration 0006 yet: a missing
+ * `trade_lots` table must not fail the whole account flush, which would take
+ * balances and transactions down with it. The ledger stays in memory and
+ * re-persists once the migration lands.
+ */
+async function saveLots(account: UserAccount, uid: string): Promise<void> {
+  const rows = lotRows(account, uid);
+  if (!rows.length) return;
+  try {
+    await sbUpsert<TradeLotRow>("trade_lots", rows);
+  } catch (e) {
+    log.error("trade_lots upsert failed — ledger kept in memory", {
+      userId: uid,
+      lots: rows.length,
+      error: (e as Error).message,
+    });
+  }
+}
+
+function lotRows(account: UserAccount, uid: string): TradeLotRow[] {
+  return (account.tradeLots ?? []).map((l) => ({
+    id: l.id,
+    user_id: uid,
+    symbol: l.symbol,
+    quantity: l.quantity,
+    cost_basis: l.costBasis,
+    acquired_at: l.acquiredAt,
+    status: l.status,
+    provenance: l.provenance ?? "execution",
+    source_lot_id: l.sourceLotId ?? null,
+    corporate_action_id: l.fromCorporateActionId ?? null,
+    order_id: null,
+  }));
+}
+
 function txRows(account: UserAccount, uid: string): TransactionRow[] {
   return account.transactions.slice(0, TX_LIMIT).map((t) => ({
     id: t.id,

@@ -8,6 +8,7 @@ import {
   loadAccount as dbLoadAccount,
   saveAccount as dbSaveAccount,
 } from "./storeDb";
+import type { TradeLot } from "./corporateActions/types";
 import {
   Bill,
   FiatBalance,
@@ -123,7 +124,32 @@ export interface UserAccount {
   user: User;
   tokenBalances: TokenBalance[];
   fiatBalances: FiatBalance[];
+  /**
+   * DERIVED from tradeLots — not the source of truth.
+   *
+   * Kept as a materialised view because every read path (portfolio, watch
+   * tiles, copilot) wants aggregate shares/basis, and recomputing the
+   * projection on each read is wasteful. Writes go to tradeLots and re-project;
+   * nothing should mutate this array directly any more.
+   */
   holdings: Holding[];
+  /**
+   * The lot ledger — append-only, the actual source of truth for positions.
+   *
+   * A buy appends a lot; a sell consumes lots (FIFO by default) and records the
+   * realized gain; a split supersedes lots with adjusted replacements. Without
+   * this, a corporate action has to guess what the holder paid per share, and
+   * realized gain / holding period are unknowable.
+   */
+  tradeLots: TradeLot[];
+  /**
+   * Whether the ledger in `tradeLots` actually came from the database.
+   *
+   * false means the read FAILED (migration 0006 not applied, table
+   * unreachable) — NOT that the user holds nothing. mergeAccount uses this to
+   * decide whether an empty DB result is authoritative.
+   */
+  lotsReadable?: boolean;
   cards: PaymentCard[];
   bills: Bill[];
   transactions: Transaction[];
@@ -146,6 +172,23 @@ interface AppState {
 
 export const DEMO_USER_EMAIL = "ashutosh@furlpay.app";
 export const DEMO_USER_ID = uuidFromKey(DEMO_USER_EMAIL);
+
+/** Backfill one lot per seeded holding. See the note at the call site: the
+ *  acquisition date is an estimate, so it is stamped a year back — old enough
+ *  to be plausible, and deliberately uniform so nothing reads as a real fill. */
+function seedLots(userId: string, rows: [string, number, number][]): TradeLot[] {
+  const acquiredAt = new Date(Date.now() - 365 * 86400_000).toISOString();
+  return rows.map(([symbol, quantity, costBasis]) => ({
+    id: `lot_seed_${symbol.toLowerCase()}`,
+    userId,
+    symbol,
+    quantity,
+    costBasis,
+    acquiredAt,
+    status: "open" as const,
+    provenance: "seed" as const,
+  }));
+}
 
 function seedDemoAccount(): UserAccount {
   return {
@@ -218,6 +261,21 @@ function seedDemoAccount(): UserAccount {
       { symbol: "VOO", name: "Vanguard S&P 500 ETF", shares: 2.0, price: 548.2, changePct: -0.34, marketValue: 1096.4, costBasis: 1004.6 },
       { symbol: "TSLA", name: "Tesla Inc.", shares: 0.75, price: 402.9, changePct: 1.05, marketValue: 302.18, costBasis: 286.9 },
     ],
+    // Lot ledger backing the holdings above. The demo account predates lot
+    // accounting, so these are BACKFILLED from each holding's aggregate basis:
+    // one lot per position, quantity and basis matching exactly.
+    //
+    // `acquiredAt` is an ESTIMATE, not a real fill time — the original
+    // purchase dates were never recorded. That matters beyond cosmetics: the
+    // acquisition date decides short- vs long-term capital gains treatment, so
+    // these lots must never be presented as though the date were observed.
+    // A real fill writes its own lot with a true timestamp.
+    tradeLots: seedLots(DEMO_USER_ID, [
+      ["AAPL", 3.4, 702.1],
+      ["NVDA", 1.1, 1188.0],
+      ["VOO", 2.0, 1004.6],
+      ["TSLA", 0.75, 286.9],
+    ]),
     cards: [
       {
         id: "card_virtual_1",
@@ -268,6 +326,7 @@ function emptyAccount(user: User): UserAccount {
     tokenBalances: [],
     fiatBalances: [],
     holdings: [],
+    tradeLots: [],
     cards: [],
     bills: [],
     transactions: [],
@@ -490,6 +549,17 @@ function mergeAccount(target: UserAccount, fresh: UserAccount): void {
   target.tokenBalances.splice(0, target.tokenBalances.length, ...fresh.tokenBalances);
   target.fiatBalances.splice(0, target.fiatBalances.length, ...fresh.fiatBalances);
   target.holdings.splice(0, target.holdings.length, ...fresh.holdings);
+  // Only let the database overwrite the ledger when it could actually be READ.
+  //
+  // Two situations both produce an empty array and must not be conflated:
+  //   - table missing / query failed  -> keep what we have (seeded or in-flight
+  //     lots would otherwise be wiped on the next hydration)
+  //   - read fine, genuinely zero rows -> the DB is authoritative; keeping the
+  //     old array here would RESURRECT positions the user has already sold
+  if (fresh.lotsReadable !== false) {
+    target.tradeLots.splice(0, target.tradeLots.length, ...(fresh.tradeLots ?? []));
+    target.lotsReadable = true;
+  }
   target.cards.splice(0, target.cards.length, ...fresh.cards);
   target.bills.splice(0, target.bills.length, ...fresh.bills);
   target.transactions.splice(0, target.transactions.length, ...fresh.transactions);

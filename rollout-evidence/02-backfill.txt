@@ -1,0 +1,12 @@
+Backfill trade_lots from holdings
+  env: .env.staging
+  target: tvdyfwceiecxwgqhcsge (destructive script)
+  identity: key accepted by tvdyfwceiecxwgqhcsge (HTTP 200)
+Backfill trade_lots from holdings
+  holdings rows: 4
+  existing lots: 0
+  to write: 4 (4 new, 0 already backfilled)
+  wrote 4/4
+
+Backfilled 4 lots. Mismatches: 0
+Ledger reconciles with the holdings aggregate.

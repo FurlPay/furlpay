@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { newTx, recordTransaction } from "@/lib/store";
+import { newTx, persistAccount, recordTransaction } from "@/lib/store";
 import { recordMovement } from "@/lib/ledger";
 import { bySymbol } from "@/lib/markets/catalog";
 import { quoteFor } from "@/lib/markets/quotes";
 import { requireUser } from "@/lib/authz";
 import { OrderSchema, parse } from "@/lib/schemas";
+import { projectHoldings, recordBuy, recordSell } from "@/lib/corporateActions/projector";
 
 // POST /api/investing/order — place a fractional stock/ETF order (Alpaca).
 // Accepts EITHER `notional` (USD) OR `qty` (shares), never both (→ 400),
@@ -60,17 +61,80 @@ export async function POST(req: NextRequest) {
   // Non-market orders rest as "pending"; market fills immediately.
   const status = type === "market" ? "filled" : "pending";
 
+  const orderId = "ord_" + crypto.randomBytes(6).toString("hex");
+  let realizedGain: number | null = null;
+
   if (status === "filled") {
+    // ---- Lot ledger: the source of truth ---------------------------------
+    //
+    // A buy APPENDS a lot; it never merges into an existing position. Two
+    // purchases at different prices must stay distinguishable, or a later
+    // split/sale cannot know what was actually paid per share.
+    //
+    // A sell CONSUMES lots (FIFO) and yields a realized gain. The old code
+    // scaled cost basis by a fraction — average-cost with no history, which
+    // makes realized gain and holding period unknowable.
     if (side === "buy") {
-      holding.shares += filledQty;
-      holding.costBasis += notionalUsd;
+      account.tradeLots.push(
+        recordBuy({
+          id: "lot_" + crypto.randomBytes(6).toString("hex"),
+          userId: account.user.id,
+          symbol: sym,
+          quantity: filledQty,
+          costBasis: notionalUsd,
+          orderId,
+          provenance: "execution",
+        })
+      );
     } else {
-      // Selling releases cost basis proportionally (average-cost method).
-      const sellFrac = holding.shares > 0 ? Math.min(1, filledQty / holding.shares) : 1;
-      holding.costBasis = Math.max(0, holding.costBasis * (1 - sellFrac));
-      holding.shares = Math.max(0, holding.shares - filledQty);
+      // Guard: an account hydrated from Postgres has no lots yet (see
+      // storeDb.accountFromRow). Selling against an empty ledger would throw
+      // "insufficient position" for a holder who genuinely owns the shares, so
+      // backfill a lot from the aggregate first rather than rejecting a valid
+      // order. Estimated acquisition date — see the seed-lot note in store.ts.
+      if (!account.tradeLots.some((l) => l.symbol === sym && l.status === "open")) {
+        if (holding.shares > 0) {
+          account.tradeLots.push(
+            recordBuy({
+              id: "lot_backfill_" + crypto.randomBytes(4).toString("hex"),
+              userId: account.user.id,
+              symbol: sym,
+              quantity: holding.shares,
+              costBasis: holding.costBasis ?? 0,
+              acquiredAt: new Date(Date.now() - 365 * 86400_000).toISOString(),
+              // Reconstructed from the aggregate, not observed — same caveat
+              // as the offline backfill.
+              provenance: "backfill",
+            })
+          );
+        }
+      }
+      try {
+        const sale = recordSell(account.tradeLots, sym, filledQty, notionalUsd, "fifo");
+        account.tradeLots.splice(0, account.tradeLots.length, ...sale.remaining);
+        realizedGain = sale.realizedGain;
+      } catch (e) {
+        // applySale refuses to oversell rather than driving a position
+        // negative — surface that as a 400, not a 500.
+        return NextResponse.json(
+          { error: (e as Error).message || "insufficient position" },
+          { status: 400 }
+        );
+      }
     }
-    holding.marketValue = holding.shares * holding.price;
+
+    // ---- Derived view ----------------------------------------------------
+    // holdings[] is now a projection of the ledger, not the truth. Re-derive
+    // this symbol's aggregate rather than mutating it in place.
+    const projected = projectHoldings(
+      account.tradeLots.filter((l) => l.symbol === sym),
+      [],
+      () => ({ price: holding!.price, changePct: holding!.changePct, name: holding!.name })
+    );
+    const next = projected.find((p) => p.symbol === sym);
+    holding.shares = next?.shares ?? 0;
+    holding.costBasis = next?.costBasis ?? 0;
+    holding.marketValue = round2(holding.shares * holding.price);
 
     recordTransaction(
       account.user.id,
@@ -87,8 +151,21 @@ export async function POST(req: NextRequest) {
     recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${holding.symbol}`, account.user.id);
   }
 
+  // Confirm the lot is DURABLE before telling the client the order filled.
+  //
+  // persistAccount() is fire-and-forget from sync mutators, which is right for
+  // most writes — a stale balance re-flushes on the next touch. A trade is not
+  // most writes: the response says "filled", and the lot backing it is the tax
+  // record. Measured against staging on 2026-07-19, the flush completed 991ms
+  // AFTER the 200 was returned; a crash inside that window loses the lot while
+  // the client believes the order executed.
+  //
+  // store.ts already treats signup this way ("awaited where durability must be
+  // confirmed"). A filled order belongs in that same category.
+  await persistAccount(account.user.id);
+
   return NextResponse.json({
-    orderId: "ord_" + crypto.randomBytes(6).toString("hex"),
+    orderId,
     status,
     symbol: holding.symbol,
     side,
@@ -97,5 +174,12 @@ export async function POST(req: NextRequest) {
     filledQty: status === "filled" ? filledQty : 0,
     limit_price: limit_price ?? null,
     stop_price: stop_price ?? null,
+    // Only meaningful on a sell: proceeds minus the cost basis of the lots the
+    // sale actually consumed (FIFO). Null on buys.
+    realizedGain,
   });
+}
+
+function round2(n: number): number {
+  return Math.round((n + Number.EPSILON) * 100) / 100;
 }

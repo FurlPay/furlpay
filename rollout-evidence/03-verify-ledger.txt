@@ -1,0 +1,50 @@
+  [32mPASS[0m  migration 0006: trade_lots exists
+  [32mPASS[0m  migration 0006: corporate_actions exists
+  [32mPASS[0m  migration 0006: dividend_events exists
+  [32mPASS[0m  migration 0006: symbol_mappings exists
+
+Session
+  [32mPASS[0m  guest session issued
+  [32mPASS[0m  session resolves a user
+  [32mPASS[0m  app and script share one database
+
+Buy MSFT
+  [32mPASS[0m  buy accepted
+  [32mPASS[0m  buy reports filled
+  [32mPASS[0m  exactly one new trade_lots row persisted
+  [32mPASS[0m  lot quantity > 0
+  [32mPASS[0m  lot cost_basis > 0
+  [32mPASS[0m  lot status is open
+  [32mPASS[0m  acquired_at round-trips as a parseable timestamp
+
+Hydration (run after a process restart)
+  [32mPASS[0m  ledger present in Postgres
+  [32mPASS[0m  portfolio served
+  [32mPASS[0m  portfolio projects from the lot ledger
+  [32mPASS[0m  projected shares equal the persisted ledger
+
+Split — source_lot_id chain
+  [32mPASS[0m  corporate action stored
+  [32mPASS[0m  split ratio survives NUMERIC round-trip
+  [32mPASS[0m  schema REJECTS a split with no ratio (split_needs_ratio)
+
+Sell — FIFO and realized gain
+  [32mPASS[0m  sell accepted
+  [32mPASS[0m  sell reports a realized gain
+  [32mPASS[0m  FIFO consumed the OLDEST lot
+  [32mPASS[0m  oversell rejected with 400
+
+Ledger integrity
+  [32mPASS[0m  no orphaned source_lot_id references
+  [32mPASS[0m  no open lot has zero quantity (open_lot_has_shares)
+  [32mPASS[0m  no negative quantities
+  [32mPASS[0m  no negative cost basis
+  [32mPASS[0m  lot ids are unique
+
+Concurrent sells
+  [32mPASS[0m  concurrent sells did not oversell the position
+
+Cleanup
+  [32mPASS[0m  test lots removed
+
+34 passed, 0 failed
