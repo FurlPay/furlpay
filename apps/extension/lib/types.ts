@@ -144,6 +144,9 @@ export type BgRequest =
   | { type: "OPEN_LOGIN" }
   | { type: "X402_DETECTED"; detection: X402Detection }
   | { type: "OPEN_X402_CHECKOUT"; detection: X402Detection }
-  | { type: "WALLET_CONNECT" };
+  | { type: "WALLET_CONNECT" }
+  // Sent by the connect-prompt page (extension origin only) with the user's
+  // Allow / Deny verdict for a pending dapp connection request.
+  | { type: "WALLET_CONNECT_DECISION"; requestId: string; allow: boolean };
 
 export type BgResponse<T = unknown> = { ok: true; data: T } | { ok: false; error: string };
