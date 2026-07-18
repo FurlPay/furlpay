@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
+import { z } from "zod";
+import { validateBody } from "@/lib/validate";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import {
   generateStays,
   generateFlights,
@@ -16,8 +19,40 @@ import { searchDuffelFlights, searchDuffelStays, searchDuffelCars } from "@/lib/
 // POST /api/travel/search — search travel inventory.
 // Body: { type: "stays"|"flights"|"cars"|"activities", city, checkIn, checkOut,
 //         maxNightlyUsd?, minStars?, propertyType?, guests?, category? }
+//
+// Public route that can reach the PAID Duffel API, so it is validated (rule 1)
+// and rate-limited (rule 2) — otherwise an anonymous caller can burn the API
+// quota (and our bill). The schema is permissive on the free-text fields the
+// generators already sanitize, but caps every string and bounds every number.
+
+const SearchBody = z
+  .object({
+    type: z.enum(["stays", "flights", "cars", "activities"]).optional(),
+    city: z.string().max(80).optional(),
+    from: z.string().max(80).optional(),
+    to: z.string().max(80).optional(),
+    date: z.string().max(40).optional(),
+    checkIn: z.string().max(40).optional(),
+    checkOut: z.string().max(40).optional(),
+    pickUp: z.string().max(40).optional(),
+    dropOff: z.string().max(40).optional(),
+    cabin: z.string().max(20).optional(),
+    guests: z.coerce.number().int().min(1).max(16).optional(),
+    minStars: z.coerce.number().min(1).max(5).optional(),
+    maxNightlyUsd: z.coerce.number().positive().max(1_000_000).optional(),
+    maxDailyUsd: z.coerce.number().positive().max(1_000_000).optional(),
+    maxPriceUsd: z.coerce.number().positive().max(1_000_000).optional(),
+    propertyType: z.string().max(30).optional(),
+    category: z.string().max(30).optional(),
+  })
+  .strip();
+
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
+  const limited = await rateLimitOr429(req, "travel.search", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
+  const body = await validateBody(req, SearchBody);
+  if (body instanceof NextResponse) return body;
   const kind = body.type ?? "stays";
 
   if (kind === "stays") {
