@@ -87,6 +87,13 @@ const nextConfig = {
   },
 };
 
+// Bundle analyzer — opt-in via ANALYZE=true (e.g. `ANALYZE=true npm run build`),
+// writes interactive treemaps to .next/analyze/. Client bundles carry viem;
+// this is the tool that keeps that under control.
+const withBundleAnalyzer = require("@next/bundle-analyzer")({
+  enabled: process.env.ANALYZE === "true",
+});
+
 // Serwist (service worker / PWA) — compiles src/sw.ts into public/sw.js at
 // build time and auto-registers it. ESM-only package, hence the dynamic import.
 module.exports = async () => {
@@ -102,5 +109,5 @@ module.exports = async () => {
       { url: "/~offline", revision: Date.now().toString(36) },
     ],
   });
-  return withSerwist(nextConfig);
+  return withBundleAnalyzer(withSerwist(nextConfig));
 };

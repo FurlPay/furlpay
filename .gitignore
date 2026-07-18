@@ -34,6 +34,10 @@ redotpay-apk/
 robinhood-apk/
 apktool-output/
 
+# Release binaries (build outputs — 100MB+ each; distribute via Play/CI, never git)
+*.apk
+*.aab
+
 # Python build artifacts
 *.egg-info/
 
