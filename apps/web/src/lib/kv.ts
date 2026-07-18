@@ -44,6 +44,31 @@ const MAX_MEM_KEYS = 50_000;
 const g = globalThis as unknown as { __furlpayKv?: Map<string, MemEntry> };
 const mem = (): Map<string, MemEntry> => (g.__furlpayKv ??= new Map());
 
+/**
+ * Refuse the in-memory fallback in production.
+ *
+ * The fallback is correct on ONE instance. In production this layer carries
+ * webhook dedup, card-auth challenges and rate limits — all of which are
+ * cross-instance invariants. Serving them from per-lambda memory does not
+ * error; it silently returns "no previous record", which means a replayed
+ * webhook looks new and a rate limit resets on every cold start.
+ *
+ * Losing UPSTASH_REDIS_REST_URL/TOKEN is a plausible config mistake, and the
+ * old behaviour made it INVISIBLE. Failing here is loud, and — unlike a
+ * module-load throw, which would take the whole deployment down on import —
+ * it fails only the operations whose correctness actually depends on Redis.
+ */
+function assertDurableBackend(op: string): void {
+  if (kvBackend === "memory" && process.env.NODE_ENV === "production") {
+    throw new Error(
+      `kv.${op}: refusing the in-memory fallback in production. ` +
+        `Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN (or the ` +
+        `KV_REST_API_* aliases). Webhook dedup, auth challenges and rate ` +
+        `limits are cross-instance and cannot be served from lambda memory.`
+    );
+  }
+}
+
 function memGet(key: string): string | null {
   const e = mem().get(key);
   if (!e) return null;
@@ -68,6 +93,7 @@ function memSet(key: string, value: string, ttlSeconds?: number): void {
 // --- Public API --------------------------------------------------------------
 
 export async function kvGet<T>(key: string): Promise<T | null> {
+  if (kvBackend !== "redis") assertDurableBackend("get");
   const raw = kvBackend === "redis" ? ((await redis(["GET", key])) as string | null) : memGet(key);
   if (raw === null || raw === undefined) return null;
   try {
@@ -82,13 +108,17 @@ export async function kvSet(key: string, value: unknown, ttlSeconds?: number): P
   if (kvBackend === "redis") {
     await redis(ttlSeconds ? ["SET", key, raw, "EX", ttlSeconds] : ["SET", key, raw]);
   } else {
+    assertDurableBackend("set");
     memSet(key, raw, ttlSeconds);
   }
 }
 
 export async function kvDel(key: string): Promise<void> {
   if (kvBackend === "redis") await redis(["DEL", key]);
-  else mem().delete(key);
+  else {
+    assertDurableBackend("del");
+    mem().delete(key);
+  }
 }
 
 /** Atomic set-if-absent — the primitive behind cross-instance webhook dedup.
@@ -99,6 +129,7 @@ export async function kvSetNx(key: string, value: unknown, ttlSeconds: number): 
     const result = await redis(["SET", key, raw, "NX", "EX", ttlSeconds]);
     return result === "OK";
   }
+  assertDurableBackend("setNx");
   if (memGet(key) !== null) return false;
   memSet(key, raw, ttlSeconds);
   return true;
@@ -112,6 +143,7 @@ export async function kvIncr(key: string, windowSeconds: number): Promise<number
     if (count === 1) await redis(["EXPIRE", key, windowSeconds]);
     return count;
   }
+  assertDurableBackend("incr");
   const current = Number(memGet(key) ?? 0) + 1;
   // Preserve the window: only (re)set the TTL when the window opens.
   if (current === 1) memSet(key, String(current), windowSeconds);
@@ -132,6 +164,7 @@ export async function kvIncrBy(key: string, by: number, windowSeconds: number): 
     if (total === amount) await redis(["EXPIRE", key, windowSeconds]);
     return total;
   }
+  assertDurableBackend("incrBy");
   const current = Number(memGet(key) ?? 0) + amount;
   if (current === amount) memSet(key, String(current), windowSeconds);
   else {
@@ -148,6 +181,7 @@ export async function kvListPush(key: string, value: string, maxLength: number):
     await redis(["LTRIM", key, 0, maxLength - 1]);
     return;
   }
+  assertDurableBackend("listPush");
   const list: string[] = JSON.parse(memGet(key) ?? "[]");
   list.unshift(value);
   memSet(key, JSON.stringify(list.slice(0, maxLength)));

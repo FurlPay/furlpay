@@ -1,4 +1,5 @@
 import { log } from "@/lib/log";
+import { enqueueAudit } from "@/lib/auditDb";
 
 // ---------------------------------------------------------------------------
 // Append-only audit trail for security- and compliance-relevant events:
@@ -90,6 +91,12 @@ export function audit(event: AuditEvent, actor: string, fields: Record<string, u
   t.entries.push(entry);
   if (t.entries.length > MAX_ENTRIES) t.entries.splice(0, t.entries.length - MAX_ENTRIES);
   log.info(`audit:${event}`, { actor, ...fields });
+
+  // Durable sink. The in-memory ring above is per-lambda and evicts under
+  // load, so it is a debugging convenience, NOT the compliance record — the
+  // `audit_log` table is. enqueueAudit never throws; an audit failure must not
+  // fail the action being audited.
+  enqueueAudit({ event, actor, fields, ts: entry.ts });
 }
 
 export function auditEntries(limit = 200): AuditEntry[] {

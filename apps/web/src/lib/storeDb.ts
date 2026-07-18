@@ -554,10 +554,27 @@ async function saveLots(account: UserAccount, uid: string): Promise<void> {
   try {
     await sbUpsert<TradeLotRow>("trade_lots", rows);
   } catch (e) {
-    log.error("trade_lots upsert failed — ledger kept in memory", {
+    const message = (e as Error).message ?? "";
+    // PGRST205 = "Could not find the table in the schema cache" — 0006 has not
+    // been applied to this deployment. That is the ONLY tolerable failure: the
+    // ledger stays in memory and re-persists once the migration lands.
+    const tableAbsent = /PGRST205|Could not find the table/i.test(message);
+    if (!tableAbsent) {
+      // Anything else is a real write failure — a CHECK violation, a bad
+      // NUMERIC, a permissions problem. Swallowing those is how a lot silently
+      // fails to persist while the API reports the trade as filled, which is
+      // exactly the class of bug that produced the order-durability defect.
+      // Surface it so the caller's flush fails loudly.
+      log.error("trade_lots upsert REJECTED — surfacing", {
+        userId: uid,
+        lots: rows.length,
+        error: message,
+      });
+      throw e;
+    }
+    log.error("trade_lots table absent (0006 not applied) — ledger kept in memory", {
       userId: uid,
       lots: rows.length,
-      error: (e as Error).message,
     });
   }
 }

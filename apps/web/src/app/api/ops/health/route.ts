@@ -3,6 +3,7 @@ import { createPublicClient } from "viem";
 import { requireOpsAdmin, opsOk } from "@/lib/ops/respond";
 import { kvGet, kvSet } from "@/lib/kv";
 import { sbSelect, supabaseBackend } from "@/lib/supabase";
+import { auditFlushStats } from "@/lib/auditDb";
 import { EVM_CHAINS, rpcTransport } from "@/lib/x402Chains";
 
 export const dynamic = "force-dynamic";
@@ -85,12 +86,28 @@ function rollup(checks: Record<string, Check>): "healthy" | "degraded" | "unheal
   return "healthy";
 }
 
+/** Audit-trail counters for the serving instance. Deliberately NOT cached:
+ *  these are per-lambda, so a cached copy would describe a different process. */
+function auditSnapshot() {
+  const audit = auditFlushStats();
+  return {
+    ...audit,
+    // Per-instance: read a non-zero value as "at least this many", never as a
+    // global total. A hole in the trail is still a hole.
+    status: audit.failed > 0 || audit.dropped > 0 ? "degraded" : "ok",
+  };
+}
+
 export async function GET(req: NextRequest) {
   const auth = await requireOpsAdmin(req);
   if (!auth.ok) return auth.res;
 
   const cached = await kvGet<object>(CACHE_KEY);
-  if (cached) return opsOk({ ...cached, cached: true });
+  // Dependency probes are shared and cacheable; audit counters are NOT — they
+  // live in this lambda's memory. Serving a cached copy would report some
+  // other instance's counters, so they are always recomputed locally and
+  // overwrite whatever the cached snapshot carried.
+  if (cached) return opsOk({ ...cached, audit: auditSnapshot(), cached: true });
 
   const iris = process.env.CCTP_IRIS_API_URL || "https://iris-api.circle.com";
   const [redis, supabase, arbitrum, base, irisCheck, lifi] = await Promise.all([
@@ -116,6 +133,11 @@ export async function GET(req: NextRequest) {
     timestamp: new Date().toISOString(),
     version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "dev",
     checks,
+    // A failed or dropped entry means the compliance record has a HOLE, which
+    // no upstream probe detects — Postgres is up, the action succeeded, and
+    // only the evidence is missing. Alertable rather than sitting in a counter
+    // nobody reads.
+    audit: auditSnapshot(),
   };
   await kvSet(CACHE_KEY, snapshot, CACHE_TTL_S);
   return opsOk({ ...snapshot, cached: false });
