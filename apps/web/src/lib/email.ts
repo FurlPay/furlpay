@@ -14,7 +14,33 @@ import { trackCost } from "./costTracker";
 // Read at call time (see sendEmail): a module-load snapshot goes stale if the
 // key is configured after this file is first imported (test setup, or a
 // serverless cold-start import ordering), silently forcing the mock path.
-const EMAIL_FROM = process.env.EMAIL_FROM || "Furlpay <hello@furlpay.com>";
+// EMAIL_FROM was previously snapshotted here at module load despite this very
+// comment — the same staleness applies to it, so it is now read per send.
+function emailFrom(): string {
+  return process.env.EMAIL_FROM || "Furlpay <hello@furlpay.com>";
+}
+
+/**
+ * Address replies should go to.
+ *
+ * This exists because the SENDING domain and the RECEIVING domain are not the
+ * same, deliberately: mail is sent from send.furlpay.com so that transactional
+ * volume cannot damage the root domain's reputation, while inbound mail is
+ * served by the root. send.furlpay.com has NO MX record, so a customer hitting
+ * "reply" on a FurlPay email reaches a domain that cannot accept mail and gets
+ * a bounce.
+ *
+ * Resend does not infer this — reply_to was only set when a caller passed one,
+ * which most do not. Defaulting it means every outbound email has a reply path
+ * that lands in a real mailbox.
+ *
+ * Verified 2026-07-19: furlpay.com had no MX yet either, so until those records
+ * exist BOTH domains bounce replies. This makes the address correct in code so
+ * it starts working the moment the DNS is in place.
+ */
+function defaultReplyTo(): string {
+  return process.env.EMAIL_REPLY_TO || process.env.SUPPORT_INBOX || "support@furlpay.com";
+}
 
 export type EmailCategory =
   | "security" // new device, lock/unlock, credential changes
@@ -129,12 +155,14 @@ export async function sendEmail(msg: EmailMessage): Promise<SendResult> {
         ...(msg.idempotencyKey ? { "Idempotency-Key": msg.idempotencyKey.slice(0, 256) } : {}),
       },
       body: JSON.stringify({
-        from: EMAIL_FROM,
+        from: emailFrom(),
         to: msg.to,
         subject: msg.subject,
         html: msg.html,
         text: msg.text,
-        reply_to: msg.replyTo,
+        // Always present: an unset reply_to sends replies to the From address,
+        // which is on a sending-only subdomain with no MX. See defaultReplyTo().
+        reply_to: msg.replyTo ?? defaultReplyTo(),
         tags: [{ name: "category", value: category }, ...(msg.tags ?? [])],
       }),
     });
