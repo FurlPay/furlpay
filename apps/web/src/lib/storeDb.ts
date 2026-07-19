@@ -1,7 +1,7 @@
 import { sbDelete, sbRpc, sbSelect, sbUpsert, SupabaseFunctionMissing } from "./supabase";
 import { log } from "./log";
 import type { IdentityLookup, User, UserAccount } from "./store";
-import type { TradeLot } from "./corporateActions/types";
+import type { CorporateAction, TradeLot } from "./corporateActions/types";
 import type {
   Bill,
   FiatBalance,
@@ -335,6 +335,107 @@ async function loadLots(userId: string): Promise<{ lots: TradeLot[]; readable: b
  *  currency, symbol, card/bill id), never free text — so anything outside this
  *  charset means we don't understand the key and must NOT risk a bad filter. */
 const SAFE_KEY = /^[A-Za-z0-9_.:-]+$/;
+
+interface CorporateActionRow {
+  id: string;
+  symbol: string;
+  type: string;
+  effective_date: string;
+  record_date: string | null;
+  payment_date: string | null;
+  ratio: string | number | null;
+  amount_per_share: string | number | null;
+  new_symbol: string | null;
+  source: string | null;
+  confidence: string | null;
+  supersedes: string | null;
+}
+
+/**
+ * System-wide corporate actions for a set of symbols. NOT user-scoped — a split
+ * or dividend belongs to a symbol, not an account.
+ *
+ * Best-effort like loadLots(): a missing table (migration 0006 not applied)
+ * returns [] so the portfolio read still renders. Holdings simply aren't
+ * split-adjusted and no dividends surface — safe and honest, never fabricated.
+ */
+export async function loadCorporateActions(symbols?: string[]): Promise<CorporateAction[]> {
+  try {
+    let filter = "select=*&order=effective_date.asc";
+    if (symbols && symbols.length) {
+      // Symbols are internal tickers; anything outside the safe charset is
+      // dropped rather than risk a malformed (or injected) PostgREST filter.
+      const safe = [...new Set(symbols.map((s) => s.toUpperCase()))].filter((s) => SAFE_KEY.test(s));
+      if (!safe.length) return [];
+      filter = `symbol=in.(${safe.join(",")})&select=*&order=effective_date.asc`;
+    }
+    const rows = await sbSelect<CorporateActionRow>("corporate_actions", filter);
+    return rows.map((r) => ({
+      id: r.id,
+      symbol: r.symbol,
+      type: r.type as CorporateAction["type"],
+      effectiveDate: r.effective_date,
+      ...(r.record_date ? { recordDate: r.record_date } : {}),
+      ...(r.payment_date ? { paymentDate: r.payment_date } : {}),
+      ...(r.ratio != null ? { ratio: Number(r.ratio) } : {}),
+      ...(r.amount_per_share != null ? { amountPerShare: Number(r.amount_per_share) } : {}),
+      ...(r.new_symbol ? { newSymbol: r.new_symbol } : {}),
+      source: (r.source ?? "manual") as CorporateAction["source"],
+      confidence: (r.confidence ?? "confirmed") as CorporateAction["confidence"],
+      ...(r.supersedes ? { supersedes: r.supersedes } : {}),
+    }));
+  } catch (e) {
+    log.error("corporate_actions unreadable — projecting without actions", {
+      error: (e as Error).message,
+    });
+    return [];
+  }
+}
+
+interface CorporateActionWriteRow {
+  id: string;
+  symbol: string;
+  type: string;
+  effective_date: string;
+  record_date: string | null;
+  payment_date: string | null;
+  ratio: number | null;
+  amount_per_share: number | null;
+  new_symbol: string | null;
+  source: string;
+  confidence: string;
+  supersedes: string | null;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Idempotently upsert corporate actions (PK = id, so Alpaca's action id keyed a
+ * re-run merges in place). The raw provider payload rides in `metadata` for
+ * later reconciliation. Throws on failure — a silent ingest is worse than a
+ * loud one — so the calling route surfaces it.
+ */
+export async function saveCorporateActions(
+  entries: { action: CorporateAction; raw?: unknown }[],
+): Promise<number> {
+  if (!entries.length) return 0;
+  const rows: CorporateActionWriteRow[] = entries.map(({ action, raw }) => ({
+    id: action.id,
+    symbol: action.symbol,
+    type: action.type,
+    effective_date: action.effectiveDate,
+    record_date: action.recordDate ?? null,
+    payment_date: action.paymentDate ?? null,
+    ratio: action.ratio ?? null,
+    amount_per_share: action.amountPerShare ?? null,
+    new_symbol: action.newSymbol ?? null,
+    source: action.source,
+    confidence: action.confidence,
+    supersedes: action.supersedes ?? null,
+    metadata: (raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {}),
+  }));
+  await sbUpsert<CorporateActionWriteRow>("corporate_actions", rows);
+  return rows.length;
+}
 
 /**
  * Whole-account write-back.

@@ -1,6 +1,6 @@
 import type { Holding } from "@/lib/types";
 import type { CorporateAction, LotMethod, TradeLot } from "./types";
-import { applySale, applySplit, applySymbolChange, positionCostBasis, positionQuantity } from "./lots";
+import { applySale, applySplit, applySymbolChange, dividendEntitlement, positionCostBasis, positionQuantity } from "./lots";
 
 // ---------------------------------------------------------------------------
 // Portfolio projection: tradeLots + corporateActions -> Holding[]
@@ -121,6 +121,63 @@ export function projectHoldings(
     });
   }
   return holdings;
+}
+
+/** One projected cash-dividend entitlement for the portfolio read model. */
+export interface DividendProjection {
+  symbol: string;
+  corporateActionId: string;
+  amountPerShare: number;
+  sharesHeld: number;
+  grossAmount: number;
+  netAmount: number;
+  exDate: string;
+  recordDate: string | null;
+  paymentDate: string | null;
+}
+
+/**
+ * Project cash-dividend entitlements from the ledger.
+ *
+ * Each dividend pays on the position held on its RECORD DATE, and that count
+ * must be taken on the ledger AS OF that date: a split with an earlier ex-date
+ * changes the share count the dividend pays on, so only the splits/renames
+ * effective on or before the record date are replayed before counting — a later
+ * split must NOT inflate an earlier dividend. Superseded and duplicate rows are
+ * dropped by usableActions(), so a re-ingested feed never double-pays.
+ *
+ * Pure and deterministic, like projectHoldings — no I/O, no clock.
+ */
+export function projectDividends(
+  lots: TradeLot[],
+  actions: CorporateAction[],
+  opts: { withholdingRate?: number } = {}
+): DividendProjection[] {
+  const usable = usableActions(actions);
+  const out: DividendProjection[] = [];
+  for (const a of usable) {
+    if (a.type !== "cash_dividend" || a.amountPerShare == null) continue;
+    const asOf = Date.parse(a.recordDate ?? a.effectiveDate);
+    const priorAdjustments = usable.filter(
+      (x) =>
+        (x.type === "stock_split" || x.type === "reverse_split" || x.type === "symbol_change") &&
+        Date.parse(x.effectiveDate) <= asOf
+    );
+    const ent = dividendEntitlement(applyActions(lots, priorAdjustments), a, opts);
+    if (ent.sharesHeld <= 0) continue; // held nothing on the record date
+    out.push({
+      symbol: ent.symbol,
+      corporateActionId: ent.corporateActionId,
+      amountPerShare: ent.amountPerShare,
+      sharesHeld: ent.sharesHeld,
+      grossAmount: ent.grossAmount,
+      netAmount: ent.netAmount,
+      exDate: a.effectiveDate,
+      recordDate: a.recordDate ?? null,
+      paymentDate: a.paymentDate ?? null,
+    });
+  }
+  return out;
 }
 
 /**

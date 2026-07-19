@@ -158,11 +158,19 @@ export function applySplit(
   }
 
   const mkId = opts.newLotId ?? ((l: TradeLot) => `${l.id}:${action.id}`);
+  const effectiveMs = Date.parse(action.effectiveDate);
   let cashInLieu = 0;
   const out: TradeLot[] = [];
 
   for (const lot of lots) {
-    const affected = lot.symbol === action.symbol && lot.status === "open";
+    // A split only adjusts shares held as of its ex-date. A lot acquired ON or
+    // AFTER the ex-date was bought at the post-split price and must NOT be split
+    // again — critical once full corporate-action history is ingested: a 2020
+    // 4:1 split must not quadruple a position opened in 2026. An unparseable
+    // effectiveDate falls back to "applies", preserving prior behaviour for a
+    // malformed manual row rather than silently skipping it.
+    const heldByExDate = Number.isNaN(effectiveMs) || Date.parse(lot.acquiredAt) < effectiveMs;
+    const affected = lot.symbol === action.symbol && lot.status === "open" && heldByExDate;
     if (!affected) {
       out.push(lot);
       continue;

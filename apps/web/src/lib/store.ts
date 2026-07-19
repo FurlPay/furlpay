@@ -18,6 +18,11 @@ import {
   Transaction,
 } from "./types";
 
+// Routes reach persistence through store.ts, never storeDb directly. The
+// corporate-actions loader/writer is system-wide (not account-scoped), so
+// re-export both here rather than routing them through an account.
+export { loadCorporateActions, saveCorporateActions } from "./storeDb";
+
 // ---------------------------------------------------------------------------
 // Multi-user data store. The in-memory maps are the working set every route
 // reads and mutates synchronously; when Supabase credentials are present

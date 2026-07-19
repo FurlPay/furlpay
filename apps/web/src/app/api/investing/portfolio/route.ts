@@ -3,8 +3,9 @@ export const dynamic = "force-dynamic";
 import { requireUser } from "@/lib/authz";
 import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
 import { bySymbol, assetLogoPath } from "@/lib/markets/catalog";
-import { projectHoldings } from "@/lib/corporateActions/projector";
+import { projectHoldings, projectDividends } from "@/lib/corporateActions/projector";
 import { positionQuantity } from "@/lib/corporateActions/lots";
+import { loadCorporateActions } from "@/lib/store";
 import type { CorporateAction, TradeLot } from "@/lib/corporateActions/types";
 
 // GET /api/investing/portfolio — holdings, dividends & performance, scoped to
@@ -36,10 +37,6 @@ export async function GET(req: NextRequest) {
   };
 
   const lots: TradeLot[] = account.tradeLots ?? [];
-  // Corporate actions are not ingested yet (no feed wired); the projection
-  // takes them as a parameter so switching this to a real query is a one-line
-  // change rather than a refactor.
-  const actions: CorporateAction[] = [];
 
   // MIGRATION GUARD. An account hydrated from Postgres before migration 0006 —
   // or on a deployment where it has not been applied — arrives with an empty
@@ -47,6 +44,15 @@ export async function GET(req: NextRequest) {
   // who owns shares, which is far worse than the aggregate's imprecision.
   // Fall back until the ledger is populated for that user.
   const ledgerReady = lots.some((l) => l.status === "open");
+
+  // Ingested corporate actions for the symbols this user holds. Splits/renames
+  // adjust the projected holdings below; cash dividends produce entitlements.
+  // loadCorporateActions falls back to [] when 0006 isn't applied (or nothing
+  // has been ingested), so an un-migrated deployment degrades to "no actions"
+  // rather than failing the read.
+  const heldSymbols = [...new Set(lots.map((l) => l.symbol))];
+  const actions: CorporateAction[] =
+    ledgerReady && heldSymbols.length ? await loadCorporateActions(heldSymbols) : [];
 
   const projected = ledgerReady
     ? projectHoldings(lots, actions, quoteFor)
@@ -88,12 +94,20 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  // Cash-dividend entitlements projected from the ledger on each action's
+  // record date (see projectDividends — a split before the record date is
+  // applied first so the count is right). Empty until the feed is ingested;
+  // honest either way, never fabricated. `status` is inferred at read time from
+  // the payment date — the durable dividend_events ledger owns it once the
+  // entitlement job writes there.
+  const dividends = projectDividends(lots, actions).map((d) => ({
+    ...d,
+    status: d.paymentDate && Date.parse(d.paymentDate) <= now ? "paid" : "pending",
+  }));
+
   return NextResponse.json({
     holdings,
-    // Dividends were a hardcoded two-element array that never changed no
-    // matter what the user held. Real entitlements need an ingested corporate
-    // action feed; an empty list is honest, a fabricated one is not.
-    dividends: [],
+    dividends,
     performance: {
       marketValue: round2(marketValue),
       dayChange: round2(dayChange),

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyActions,
   orderActions,
+  projectDividends,
   projectHoldings,
   recordBuy,
   recordSell,
@@ -24,6 +25,25 @@ const split = (id: string, symbol: string, ratio: number, effectiveDate: string)
   type: ratio >= 1 ? "stock_split" : "reverse_split",
   effectiveDate,
   ratio,
+  source: "manual",
+  confidence: "confirmed",
+});
+
+const dividend = (
+  id: string,
+  symbol: string,
+  amountPerShare: number,
+  effectiveDate: string,
+  recordDate?: string,
+  paymentDate?: string,
+): CorporateAction => ({
+  id,
+  symbol,
+  type: "cash_dividend",
+  effectiveDate,
+  recordDate: recordDate ?? effectiveDate,
+  paymentDate,
+  amountPerShare,
   source: "manual",
   confidence: "confirmed",
 });
@@ -92,6 +112,13 @@ describe("projectHoldings", () => {
     expect(aapl.shares).toBe(20);
     expect(aapl.costBasis).toBe(1_500); // basis unchanged — not a taxable event
   });
+
+  it("does NOT apply a split that predates a lot's acquisition", () => {
+    // Full-history ingestion includes old splits. A position opened in 2026 is
+    // already post-split, so a 2020 4:1 split must leave it untouched.
+    const h = projectHoldings(lots, [split("ca_old", "AAPL", 4, "2020-08-31")], quote(100));
+    expect(h.find((x) => x.symbol === "AAPL")!.shares).toBe(10);
+  });
 });
 
 describe("replay hazards", () => {
@@ -140,6 +167,59 @@ describe("replay hazards", () => {
     const before = projectHoldings(base, [], quote(1))[0].costBasis;
     const seq = [split("a", "AAPL", 2, "2026-02-01"), split("b", "AAPL", 3, "2026-04-01"), split("c", "AAPL", 0.5, "2026-06-01")];
     expect(projectHoldings(applyActions(base, seq), [], quote(1))[0].costBasis).toBeCloseTo(before, 2);
+  });
+});
+
+describe("projectDividends", () => {
+  const hundred = () => [
+    recordBuy({ id: "l1", userId: "u1", symbol: "AAPL", quantity: 100, costBasis: 15_000, acquiredAt: "2026-01-01T00:00:00Z" }),
+  ];
+
+  it("pays on the position held on the record date", () => {
+    const d = projectDividends(hundred(), [dividend("d1", "AAPL", 0.25, "2026-02-01")]);
+    expect(d).toHaveLength(1);
+    expect(d[0]).toMatchObject({ symbol: "AAPL", sharesHeld: 100, amountPerShare: 0.25, grossAmount: 25 });
+  });
+
+  it("EXCLUDES shares bought after the record date", () => {
+    const lots = [
+      ...hundred(),
+      recordBuy({ id: "l2", userId: "u1", symbol: "AAPL", quantity: 50, costBasis: 8_000, acquiredAt: "2026-03-01T00:00:00Z" }),
+    ];
+    const d = projectDividends(lots, [dividend("d1", "AAPL", 1, "2026-02-01", "2026-02-01")]);
+    expect(d[0].sharesHeld).toBe(100); // the 50 bought in March don't qualify
+  });
+
+  it("counts a split BEFORE the record date (pays on the adjusted count)", () => {
+    const actions = [split("s1", "AAPL", 2, "2026-02-01"), dividend("d1", "AAPL", 0.5, "2026-03-01", "2026-03-01")];
+    const d = projectDividends(hundred(), actions);
+    expect(d[0].sharesHeld).toBe(200); // 100 → 200 after the split
+    expect(d[0].grossAmount).toBe(100); // 200 × 0.5
+  });
+
+  it("does NOT let a split AFTER the record date inflate an earlier dividend", () => {
+    const actions = [dividend("d1", "AAPL", 0.5, "2026-02-01", "2026-02-01"), split("s1", "AAPL", 2, "2026-03-01")];
+    const d = projectDividends(hundred(), actions);
+    expect(d[0].sharesHeld).toBe(100); // split is later; dividend paid on 100
+  });
+
+  it("honours a superseding correction and never double-counts", () => {
+    const announced = { ...dividend("d_v1", "AAPL", 0.25, "2026-02-01"), confidence: "announced" as const };
+    const corrected: CorporateAction = { ...dividend("d_v2", "AAPL", 0.3, "2026-02-01"), confidence: "corrected", supersedes: "d_v1" };
+    const d = projectDividends(hundred(), [announced, corrected]);
+    expect(d).toHaveLength(1);
+    expect(d[0].amountPerShare).toBe(0.3);
+  });
+
+  it("applies withholding to the net amount", () => {
+    const d = projectDividends(hundred(), [dividend("d1", "AAPL", 1, "2026-02-01")], { withholdingRate: 0.3 });
+    expect(d[0].grossAmount).toBe(100);
+    expect(d[0].netAmount).toBe(70);
+  });
+
+  it("omits a dividend for a position not yet held on the record date", () => {
+    const lots = [recordBuy({ id: "l1", userId: "u1", symbol: "AAPL", quantity: 100, costBasis: 15_000, acquiredAt: "2026-05-01T00:00:00Z" })];
+    expect(projectDividends(lots, [dividend("d1", "AAPL", 1, "2026-02-01", "2026-02-01")])).toHaveLength(0);
   });
 });
 
