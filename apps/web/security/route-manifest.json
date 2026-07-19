@@ -82,6 +82,8 @@
     "intents": "AUTHENTICATED_USER",
     "intents/cctp": "AUTHENTICATED_USER",
     "intents/cctp/attestation": "AUTHENTICATED_USER",
+    "investing/corporate-actions/ingest": "ADMIN_ONLY",
+    "investing/lots": "AUTHENTICATED_USER",
     "investing/order": "AUTHENTICATED_USER",
     "investing/portfolio": "AUTHENTICATED_USER",
     "investing/rwa": "PUBLIC_INTENTIONAL",
