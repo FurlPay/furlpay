@@ -55,3 +55,15 @@ CREATE TABLE IF NOT EXISTS delistings (
 );
 
 ALTER TABLE delistings ENABLE ROW LEVEL SECURITY;
+
+-- Tax residency (ISO-3166 alpha-2), which sets the dividend withholding rate.
+--
+-- Separate from users.region, which is a product/compliance region ("EEA",
+-- "GLOBAL") and cannot answer a tax question: an EEA user may be resident in
+-- any of ~30 countries with different treaty rates. NULL withholds at the full
+-- statutory 30%, which is refundable to the holder — the safe direction.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tax_residency TEXT
+  CHECK (tax_residency IS NULL OR tax_residency ~ '^[A-Z]{2}$');
+
+COMMENT ON COLUMN users.tax_residency IS
+  'ISO-3166 alpha-2 country of tax residence, from VERIFIED KYC data only. Drives dividend withholding; never accept from a client claim.';

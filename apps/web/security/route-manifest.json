@@ -83,6 +83,7 @@
     "intents/cctp": "AUTHENTICATED_USER",
     "intents/cctp/attestation": "AUTHENTICATED_USER",
     "investing/corporate-actions/ingest": "ADMIN_ONLY",
+    "investing/dividends/settle": "AUTHENTICATED_USER",
     "investing/lots": "AUTHENTICATED_USER",
     "investing/order": "AUTHENTICATED_USER",
     "investing/portfolio": "AUTHENTICATED_USER",

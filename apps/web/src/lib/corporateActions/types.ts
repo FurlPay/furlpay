@@ -184,6 +184,33 @@ export interface RealizedSale {
   remaining: TradeLot[];
 }
 
+/**
+ * A dividend that has actually been SETTLED for a user — the record that makes
+ * payment idempotent.
+ *
+ * Distinct from `DividendEntitlement`, which is a pure calculation recomputed
+ * on every read. This is the durable fact that the money moved, and its
+ * existence is what stops a retried job from paying twice (see the
+ * `dividend_once_per_user` UNIQUE constraint in migration 0006).
+ */
+export interface DividendEvent {
+  id: string;
+  userId: string;
+  corporateActionId: string;
+  symbol: string;
+  /** Position on the RECORD DATE — stored because later trades destroy it. */
+  sharesHeld: number;
+  amountPerShare: number;
+  grossAmount: number;
+  withholdingTax: number;
+  /** What actually reached the holder: gross minus withholding. */
+  netAmount: number;
+  reinvested: boolean;
+  /** The lot created by reinvestment, when `reinvested`. */
+  dripLotId?: string;
+  status: "announced" | "pending" | "paid" | "reinvested";
+}
+
 export interface DividendEntitlement {
   symbol: string;
   corporateActionId: string;

@@ -22,6 +22,11 @@ import {
 // corporate-actions loader/writer is system-wide (not account-scoped), so
 // re-export both here rather than routing them through an account.
 export { loadCorporateActions, saveCorporateActions } from "./storeDb";
+// Dividend settlement is account-scoped but does not live on UserAccount: the
+// events are their own append-only table with a UNIQUE constraint doing the
+// idempotency work, so they are read and written directly rather than flushed
+// as part of a whole-account write.
+export { loadDividendEvents, loadSettledDividendIds, saveDividendEvents } from "./storeDb";
 
 // ---------------------------------------------------------------------------
 // Multi-user data store. The in-memory maps are the working set every route
@@ -103,6 +108,21 @@ export interface User {
   kycStatus: "verified" | "pending" | "unverified";
   kycTier: 0 | 1 | 2 | 3;
   region: "EEA" | "US" | "IN" | "GLOBAL";
+  /**
+   * Tax residency, ISO-3166 alpha-2. Drives dividend withholding.
+   *
+   * DELIBERATELY SEPARATE FROM `region`, which is a product/compliance region
+   * ("EEA", "GLOBAL") and cannot answer a tax question — an EEA user may be
+   * resident in any of ~30 countries with different treaty rates, and "GLOBAL"
+   * names no jurisdiction at all. Deriving withholding from it would produce a
+   * confidently wrong number on someone's tax filing.
+   *
+   * Set only from verified KYC data (setTaxResidency), never from a client
+   * claim: a self-declared residency is a self-declared tax rate. Unset
+   * withholds at the full statutory 30% (see withholdingRateFor), which is
+   * refundable to the holder — the safe direction to be wrong in.
+   */
+  taxResidency?: string;
   tier: "Standard" | "Pro" | "Ultra";
   /** Authorization roles. New signups get ["user"]; compliance_officer and
    *  admin are assigned out-of-band (ops console / DB), never self-service. */
@@ -742,6 +762,23 @@ export function setKycStatus(userId: string, status: User["kycStatus"], tier?: U
   if (!account) return;
   account.user.kycStatus = status;
   if (tier !== undefined) account.user.kycTier = tier;
+  void persistAccount(userId);
+}
+
+/**
+ * Dedicated tax-residency transition — called ONLY by the KYC flow, after an
+ * identity provider has VERIFIED the holder's country of residence.
+ *
+ * Deliberately NOT reachable through updateUser's identity allow-list, exactly
+ * like setKycStatus. Tax residency sets the dividend withholding rate, so a
+ * user who could write this field could set their own tax rate to zero.
+ */
+export function setTaxResidency(userId: string, iso3166Alpha2: string): void {
+  const account = state.accounts.get(userId);
+  if (!account) return;
+  const code = iso3166Alpha2.toUpperCase();
+  if (!/^[A-Z]{2}$/.test(code)) return; // malformed → leave unset, withhold at statutory
+  account.user.taxResidency = code;
   void persistAccount(userId);
 }
 

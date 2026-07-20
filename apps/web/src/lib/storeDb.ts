@@ -1,7 +1,12 @@
 import { sbDelete, sbRpc, sbSelect, sbUpsert, SupabaseFunctionMissing } from "./supabase";
 import { log } from "./log";
 import type { IdentityLookup, User, UserAccount } from "./store";
-import type { CorporateAction, TradeLot } from "./corporateActions/types";
+import type {
+  CorporateAction,
+  DividendEvent,
+  ReorgTerms,
+  TradeLot,
+} from "./corporateActions/types";
 import type {
   Bill,
   FiatBalance,
@@ -46,6 +51,8 @@ interface UserRow {
   kyc_status: User["kycStatus"];
   kyc_tier: User["kycTier"];
   region: User["region"];
+  /** Added in migration 0007; absent on deployments still on 0006. */
+  tax_residency?: string | null;
   tier: User["tier"];
   roles: User["roles"];
   security: User["security"];
@@ -97,6 +104,9 @@ interface TradeLotRow {
   source_lot_id: string | null;
   corporate_action_id: string | null;
   order_id: string | null;
+  /** Spin-off basis apportionment; added in migration 0007, so absent on any
+   *  deployment still on 0006. */
+  basis_allocation_pct?: string | number | null;
 }
 
 interface CardRow {
@@ -163,6 +173,7 @@ function userFromRow(r: UserRow): User {
     kycStatus: r.kyc_status,
     kycTier: r.kyc_tier,
     region: r.region,
+    ...(r.tax_residency ? { taxResidency: r.tax_residency } : {}),
     tier: r.tier,
     roles: r.roles,
     security: r.security,
@@ -184,6 +195,7 @@ function userToRow(u: User): UserRow {
     kyc_status: u.kycStatus,
     kyc_tier: u.kycTier,
     region: u.region,
+    tax_residency: u.taxResidency ?? null,
     tier: u.tier,
     roles: u.roles,
     security: u.security,
@@ -316,6 +328,9 @@ async function loadLots(userId: string): Promise<{ lots: TradeLot[]; readable: b
         provenance: (l.provenance ?? "execution") as TradeLot["provenance"],
         ...(l.source_lot_id ? { sourceLotId: l.source_lot_id } : {}),
         ...(l.corporate_action_id ? { fromCorporateActionId: l.corporate_action_id } : {}),
+        ...(l.basis_allocation_pct != null
+          ? { basisAllocationPct: Number(l.basis_allocation_pct) }
+          : {}),
       })),
     };
   } catch (e) {
@@ -349,6 +364,42 @@ interface CorporateActionRow {
   source: string | null;
   confidence: string | null;
   supersedes: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+/**
+ * Pull reorganization terms out of the `metadata` JSONB.
+ *
+ * metadata also carries the raw provider payload, so this reads a NAMED `terms`
+ * sub-object rather than the whole blob, and coerces each field individually. A
+ * merger's cashPerShare arriving as the string "60" must not become NaN
+ * downstream and silently zero out a realized gain.
+ */
+function termsFromMetadata(metadata: Record<string, unknown> | null): ReorgTerms | undefined {
+  const raw = metadata?.terms;
+  if (!raw || typeof raw !== "object") return undefined;
+  const t = raw as Record<string, unknown>;
+  const num = (v: unknown): number | undefined => {
+    const n = typeof v === "string" ? Number(v) : typeof v === "number" ? v : undefined;
+    return n != null && Number.isFinite(n) ? n : undefined;
+  };
+  const out: ReorgTerms = {
+    ...(num(t.cashPerShare) != null ? { cashPerShare: num(t.cashPerShare) } : {}),
+    ...(num(t.stockValuePerShare) != null
+      ? { stockValuePerShare: num(t.stockValuePerShare) }
+      : {}),
+    ...(num(t.parentFmv) != null ? { parentFmv: num(t.parentFmv) } : {}),
+    ...(num(t.childFmv) != null ? { childFmv: num(t.childFmv) } : {}),
+    // Zero is MEANINGFUL here (worthless-security writeoff) and must survive,
+    // so this checks for presence rather than truthiness.
+    ...(num(t.liquidationPerShare) != null
+      ? { liquidationPerShare: num(t.liquidationPerShare) }
+      : {}),
+    ...(typeof t.cashInLieuOfFractional === "boolean"
+      ? { cashInLieuOfFractional: t.cashInLieuOfFractional }
+      : {}),
+  };
+  return Object.keys(out).length ? out : undefined;
 }
 
 /**
@@ -383,6 +434,7 @@ export async function loadCorporateActions(symbols?: string[]): Promise<Corporat
       source: (r.source ?? "manual") as CorporateAction["source"],
       confidence: (r.confidence ?? "confirmed") as CorporateAction["confidence"],
       ...(r.supersedes ? { supersedes: r.supersedes } : {}),
+      ...(termsFromMetadata(r.metadata) ? { terms: termsFromMetadata(r.metadata) } : {}),
     }));
   } catch (e) {
     log.error("corporate_actions unreadable — projecting without actions", {
@@ -435,6 +487,103 @@ export async function saveCorporateActions(
   }));
   await sbUpsert<CorporateActionWriteRow>("corporate_actions", rows);
   return rows.length;
+}
+
+interface DividendEventRow {
+  id: string;
+  user_id: string;
+  corporate_action_id: string;
+  symbol: string;
+  shares_held: number;
+  amount_per_share: number;
+  gross_amount: number;
+  withholding_tax: number;
+  net_amount: number;
+  reinvested: boolean;
+  drip_lot_id: string | null;
+  status: string;
+}
+
+/**
+ * Corporate-action ids already PAID to this user — the idempotency key set for
+ * dividend settlement.
+ *
+ * THROWS on failure, unlike every other loader in this file, and the asymmetry
+ * is deliberate. Elsewhere an unreadable optional table costs a degraded read:
+ * holdings render unadjusted, no dividends surface, nobody loses money. Here an
+ * empty result means "nothing has been paid yet", and returning that after a
+ * failed read would re-pay every dividend the user has ever received.
+ *
+ * A settlement run that cannot prove what it already paid must not run at all.
+ */
+export async function loadSettledDividendIds(userId: string): Promise<Set<string>> {
+  const rows = await sbSelect<{ corporate_action_id: string }>(
+    "dividend_events",
+    `user_id=eq.${encodeURIComponent(userId)}&select=corporate_action_id`
+  );
+  return new Set(rows.map((r) => r.corporate_action_id));
+}
+
+/**
+ * Persist dividend settlements.
+ *
+ * Upsert on the PRIMARY KEY is not the real protection here — the
+ * `dividend_once_per_user` UNIQUE (user_id, corporate_action_id) constraint from
+ * 0006 is. Two concurrent settlement runs that both read an empty settled-set
+ * will both try to insert, and the database rejects the loser rather than
+ * paying twice. That rejection surfaces as a throw: the caller must NOT credit
+ * cash for a batch that failed to record.
+ */
+export async function saveDividendEvents(events: DividendEvent[]): Promise<number> {
+  if (!events.length) return 0;
+  const rows: DividendEventRow[] = events.map((e) => ({
+    id: e.id,
+    user_id: e.userId,
+    corporate_action_id: e.corporateActionId,
+    symbol: e.symbol,
+    shares_held: e.sharesHeld,
+    amount_per_share: e.amountPerShare,
+    gross_amount: e.grossAmount,
+    withholding_tax: e.withholdingTax,
+    net_amount: e.netAmount,
+    reinvested: e.reinvested,
+    drip_lot_id: e.dripLotId ?? null,
+    status: e.status,
+  }));
+  await sbUpsert<DividendEventRow>("dividend_events", rows);
+  return rows.length;
+}
+
+/** Settled dividends for a user, newest first — the payout history read model. */
+export async function loadDividendEvents(userId: string): Promise<DividendEvent[]> {
+  try {
+    const rows = await sbSelect<DividendEventRow>(
+      "dividend_events",
+      `user_id=eq.${encodeURIComponent(userId)}&select=*&order=created_at.desc`
+    );
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      corporateActionId: r.corporate_action_id,
+      symbol: r.symbol,
+      sharesHeld: Number(r.shares_held),
+      amountPerShare: Number(r.amount_per_share),
+      grossAmount: Number(r.gross_amount),
+      withholdingTax: Number(r.withholding_tax),
+      netAmount: Number(r.net_amount),
+      reinvested: r.reinvested,
+      ...(r.drip_lot_id ? { dripLotId: r.drip_lot_id } : {}),
+      status: r.status as DividendEvent["status"],
+    }));
+  } catch (e) {
+    // Read-only history: degrading to empty is safe here, unlike the settled-id
+    // set above, because nothing pays out on the strength of this result.
+    log.error("dividend_events unreadable — reporting no payout history", {
+      userId,
+      error: (e as Error).message,
+    });
+    return [];
+  }
 }
 
 /**
