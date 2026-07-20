@@ -177,6 +177,31 @@ describe("applySplit", () => {
     expect(positionCostBasis(lots, "AAPL") + cashInLieu).toBeCloseTo(1_500, 2);
   });
 
+  it("cashes out entirely when a reverse split leaves less than one share", () => {
+    // 3 shares through a 1-for-5 is 0.6 — below a whole share. The broker pays
+    // the position out; the holder does not keep an untradeable 0.6 stub.
+    const tiny = [lot({ id: "tiny", quantity: 3, costBasis: 300, acquiredAt: "2026-01-01T00:00:00Z" })];
+    const { lots, cashInLieu } = applySplit(tiny, split(0.2), { cashInLieuOfFractional: true });
+
+    expect(positionQuantity(lots, "AAPL")).toBe(0);
+    expect(cashInLieu).toBe(300); // the entire basis leaves with the shares
+    const replacement = lots.find((l) => l.sourceLotId === "tiny")!;
+    // An open lot with no shares would violate open_lot_has_shares in 0006 and
+    // would sit in FIFO ordering forever.
+    expect(replacement.status).toBe("closed");
+    expect(replacement.quantity).toBe(0);
+  });
+
+  it("INVARIANT: cash in lieu + remaining basis conserves value at any ratio", () => {
+    const odd = [lot({ id: "odd", quantity: 7, costBasis: 1_400, acquiredAt: "2026-01-01T00:00:00Z" })];
+    for (const ratio of [0.05, 0.1, 0.2, 0.25, 0.5, 1.5, 3]) {
+      const { lots, cashInLieu } = applySplit(odd, split(ratio), { cashInLieuOfFractional: true });
+      expect(positionCostBasis(lots, "AAPL") + cashInLieu).toBeCloseTo(1_400, 2);
+      // Never a fractional share left behind when cash-in-lieu is elected.
+      expect(positionQuantity(lots, "AAPL") % 1).toBe(0);
+    }
+  });
+
   it("rejects an invalid ratio instead of silently corrupting the position", () => {
     for (const bad of [0, -2, Number.NaN, undefined]) {
       expect(() => applySplit(BASE, { ...split(2), ratio: bad as number })).toThrow(/invalid ratio/);

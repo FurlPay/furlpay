@@ -1,6 +1,7 @@
 import type { Holding } from "@/lib/types";
 import type { CorporateAction, LotMethod, TradeLot } from "./types";
 import { applySale, applySplit, applySymbolChange, dividendEntitlement, positionCostBasis, positionQuantity } from "./lots";
+import { applyDelisting, applyMerger, applySpinOff } from "./reorg";
 
 // ---------------------------------------------------------------------------
 // Portfolio projection: tradeLots + corporateActions -> Holding[]
@@ -68,17 +69,47 @@ export function usableActions(actions: CorporateAction[]): CorporateAction[] {
 export function applyActions(lots: TradeLot[], actions: CorporateAction[]): TradeLot[] {
   let current = lots;
   for (const action of usableActions(actions)) {
+    const terms = action.terms ?? {};
     switch (action.type) {
       case "stock_split":
       case "reverse_split":
-        current = applySplit(current, action).lots;
+        current = applySplit(current, action, {
+          cashInLieuOfFractional: terms.cashInLieuOfFractional,
+        }).lots;
         break;
       case "symbol_change":
         current = applySymbolChange(current, action);
         break;
+      case "merger":
+      case "acquisition":
+        current = applyMerger(current, action, {
+          cashPerShare: terms.cashPerShare,
+          stockValuePerShare: terms.stockValuePerShare,
+        }).lots;
+        break;
+      case "spin_off":
+        // Basis apportionment is impossible without both FMVs. Skipping is the
+        // only safe response: assigning the child a zero basis would overstate
+        // the gain on every future sale of it, and silently inventing an FMV
+        // would be worse. The position stays whole under the parent until the
+        // terms arrive.
+        if (terms.parentFmv && terms.childFmv) {
+          current = applySpinOff(current, action, {
+            parentFmv: terms.parentFmv,
+            childFmv: terms.childFmv,
+            cashInLieuOfFractional: terms.cashInLieuOfFractional,
+          }).lots;
+        }
+        break;
+      case "delisting":
+        current = applyDelisting(current, action, {
+          liquidationPerShare: terms.liquidationPerShare,
+        }).lots;
+        break;
       default:
-        // cash_dividend / merger / spin-off / delisting are handled by their
-        // own engines; ignoring them here is intentional, not an oversight.
+        // cash_dividend credits cash without altering the position, and
+        // stock_dividend / rights_issue have no handler yet. Ignoring them here
+        // is intentional, not an oversight.
         break;
     }
   }

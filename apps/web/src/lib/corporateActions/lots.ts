@@ -5,6 +5,7 @@ import type {
   RealizedSale,
   TradeLot,
 } from "./types";
+import { isSuperseded } from "./types";
 
 // ---------------------------------------------------------------------------
 // Tax-lot arithmetic.
@@ -182,7 +183,14 @@ export function applySplit(
     if (opts.cashInLieuOfFractional) {
       const whole = Math.floor(newQty);
       const fraction = newQty - whole;
-      if (fraction > 0 && whole > 0) {
+      // NOTE the absence of a `whole > 0` guard here. A steep reverse split can
+      // take a small position BELOW one share — 3 shares through a 1-for-5 is
+      // 0.6 — and the broker cashes out the whole thing. Requiring a whole
+      // share before paying out left that holder with a 0.6-share lot still
+      // marked `open`, which is both an unpaid entitlement and a row that
+      // violates the open_lot_has_shares CHECK in migration 0006 (`status
+      // <> 'open' OR quantity > 0`) the moment it is persisted.
+      if (fraction > 0) {
         // Basis follows the shares that left. Per-share basis is computed on
         // the POST-split quantity, which is what the fraction is a part of.
         const perShare = newBasis / newQty;
@@ -195,12 +203,16 @@ export function applySplit(
 
     // Supersede rather than mutate: the original stays as an audit record.
     out.push({ ...lot, status: "split_adjusted" });
+
+    const finalQty = shares(newQty);
     out.push({
       ...lot,
       id: mkId(lot),
-      quantity: shares(newQty),
+      quantity: finalQty,
       costBasis: money(newBasis),
-      status: "open",
+      // A fully cashed-out position is closed, not open with zero shares — an
+      // open lot holding nothing pollutes FIFO ordering forever.
+      status: finalQty > 0 ? "open" : "closed",
       // The replacement is a derived row, not a fill — keep that visible.
       provenance: "corporate_action",
       sourceLotId: lot.id,
@@ -231,12 +243,12 @@ export function dividendEntitlement(
 
   // Record date governs; fall back to the effective (ex) date.
   const asOf = Date.parse(action.recordDate ?? action.effectiveDate);
+  // Superseded lots are history, not holdings — paying them would double-pay
+  // alongside their replacement. A FROZEN lot still counts: a delisted issuer
+  // can still have declared a dividend before it stopped trading.
   const held = lots
     .filter(
-      (l) =>
-        l.symbol === action.symbol &&
-        l.status !== "split_adjusted" &&
-        Date.parse(l.acquiredAt) <= asOf
+      (l) => l.symbol === action.symbol && !isSuperseded(l) && Date.parse(l.acquiredAt) <= asOf
     )
     .reduce((s, l) => s + l.quantity, 0);
 

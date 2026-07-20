@@ -57,9 +57,72 @@ export interface CorporateAction {
   confidence: ActionConfidence;
   /** Set when this row corrects an earlier announcement. */
   supersedes?: string;
+  /**
+   * Reorganization terms. Persisted in the `metadata` JSONB column rather than
+   * as columns, because only three action types use them and each uses a
+   * different subset. Absent for splits and dividends.
+   */
+  terms?: ReorgTerms;
 }
 
-export type LotStatus = "open" | "closed" | "split_adjusted";
+/**
+ * The economic terms of a reorganization — the inputs that decide whether an
+ * event is taxable and how basis moves. Kept as an explicit type rather than a
+ * `Record<string, unknown>` bag: every field here changes someone's tax bill,
+ * and a typo in a metadata key must not silently become a zero.
+ */
+export interface ReorgTerms {
+  /** Merger: cash paid per OLD share. Present → the deal has a taxable leg. */
+  cashPerShare?: number;
+  /** Merger: value of one NEW share, required only for mixed cash+stock deals
+   *  where basis must be apportioned between the two legs. */
+  stockValuePerShare?: number;
+  /** Spin-off: parent per-share FMV immediately after distribution. */
+  parentFmv?: number;
+  /** Spin-off: child per-share FMV immediately after distribution. */
+  childFmv?: number;
+  /** Delisting: liquidating distribution per share. Absent → the position
+   *  freezes instead of closing. Zero is meaningful (worthless-security
+   *  writeoff) and is NOT the same as absent. */
+  liquidationPerShare?: number;
+  /** Whether fractional entitlements are paid out as cash. */
+  cashInLieuOfFractional?: boolean;
+}
+
+/**
+ * Lot lifecycle.
+ *
+ *   open            tradeable, counts toward the position
+ *   closed          sold, or cashed out entirely by a reverse split
+ *   split_adjusted  replaced by a split (the historical name — see below)
+ *   superseded      replaced by a merger or spin-off
+ *   frozen          issuer delisted. STILL OWNED: basis and holding period
+ *                   survive and a liquidating distribution may follow, but the
+ *                   position cannot be traded and must not be priced off a
+ *                   stale quote. Closing it would realize a gain that never
+ *                   happened.
+ */
+export type LotStatus = "open" | "closed" | "split_adjusted" | "superseded" | "frozen";
+
+/**
+ * Statuses meaning "this lot was replaced by a corporate action" — it is
+ * history, not a holding, and must never be counted in a position or paid a
+ * dividend.
+ *
+ * Two names for one idea is not an accident: `split_adjusted` predates mergers
+ * and spin-offs and is retained so existing rows and the split path stay valid
+ * (migration 0007). Every consumer checks THIS SET rather than either literal,
+ * so the distinction lives in exactly one place.
+ */
+export const SUPERSEDED_STATUSES: ReadonlySet<LotStatus> = new Set([
+  "split_adjusted",
+  "superseded",
+]);
+
+/** True when a lot is history rather than a holding. */
+export function isSuperseded(lot: Pick<TradeLot, "status">): boolean {
+  return SUPERSEDED_STATUSES.has(lot.status);
+}
 
 /**
  * Where a lot came from — a first-class field, not an id-naming convention.
@@ -97,6 +160,13 @@ export interface TradeLot {
   sourceLotId?: string;
   /** Set on lots created by dividend reinvestment. */
   fromCorporateActionId?: string;
+  /**
+   * Spin-off only: the fraction of the parent lot's basis allocated here, by
+   * FMV ratio on the distribution date. Recorded because the FMVs used at the
+   * time vanish from every live feed within weeks, and a basis allocation that
+   * cannot be re-derived cannot be defended to a tax authority.
+   */
+  basisAllocationPct?: number;
 }
 
 /** Cost-basis method used to choose which lots a sale consumes.
