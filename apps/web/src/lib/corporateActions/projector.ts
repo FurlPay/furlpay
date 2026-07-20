@@ -69,21 +69,22 @@ export function usableActions(actions: CorporateAction[]): CorporateAction[] {
 export function applyActions(lots: TradeLot[], actions: CorporateAction[]): TradeLot[] {
   let current = lots;
   for (const action of usableActions(actions)) {
+    if (paysCash(action)) continue; // see below — settlement, not projection
     const terms = action.terms ?? {};
     switch (action.type) {
       case "stock_split":
       case "reverse_split":
-        current = applySplit(current, action, {
-          cashInLieuOfFractional: terms.cashInLieuOfFractional,
-        }).lots;
+        // Deliberately NOT passing cashInLieuOfFractional: see paysCash().
+        current = applySplit(current, action).lots;
         break;
       case "symbol_change":
         current = applySymbolChange(current, action);
         break;
       case "merger":
       case "acquisition":
+        // Reached only for PURE stock-for-stock deals; anything with a cash leg
+        // was filtered out above.
         current = applyMerger(current, action, {
-          cashPerShare: terms.cashPerShare,
           stockValuePerShare: terms.stockValuePerShare,
         }).lots;
         break;
@@ -97,14 +98,13 @@ export function applyActions(lots: TradeLot[], actions: CorporateAction[]): Trad
           current = applySpinOff(current, action, {
             parentFmv: terms.parentFmv,
             childFmv: terms.childFmv,
-            cashInLieuOfFractional: terms.cashInLieuOfFractional,
           }).lots;
         }
         break;
       case "delisting":
-        current = applyDelisting(current, action, {
-          liquidationPerShare: terms.liquidationPerShare,
-        }).lots;
+        // Reached only for a NON-liquidating delisting, which just freezes the
+        // position and moves no money.
+        current = applyDelisting(current, action).lots;
         break;
       default:
         // cash_dividend credits cash without altering the position, and
@@ -114,6 +114,41 @@ export function applyActions(lots: TradeLot[], actions: CorporateAction[]): Trad
     }
   }
   return current;
+}
+
+/**
+ * Does this action pay the holder money?
+ *
+ * Cash-bearing actions are EXCLUDED from the projection, and the reason is
+ * structural rather than fussy. applyActions() is pure and is recomputed on
+ * every portfolio read, so it has nowhere to put cash — every handler here is
+ * called for its `.lots` and its cash figure is discarded. For an action that
+ * both moves shares AND pays out, replaying it in the projection destroys
+ * value: a cash-out merger would close the position while the proceeds never
+ * arrive, and a cash-in-lieu split would delete the fractional basis into
+ * nothing. The holder watches shares disappear and no money appear.
+ *
+ * So these actions stay UNAPPLIED in the read model until a settlement step
+ * writes both halves together — the same split between projection and
+ * settlement that cash dividends already use (see dividends.ts). An unapplied
+ * merger shows the holder still owning the old position, which is imprecise but
+ * true: they have not been paid yet.
+ *
+ * NOTE: reorg settlement is not built. Dividends have settleDividends(); the
+ * equivalent for cash mergers, liquidating delistings and cash-in-lieu
+ * fractions does not exist yet, so those actions are currently inert rather
+ * than half-applied. Inert is recoverable; half-applied is a support ticket
+ * about vanished shares.
+ */
+function paysCash(action: CorporateAction): boolean {
+  const t = action.terms;
+  if (!t) return false;
+  if (t.cashInLieuOfFractional) return true;
+  if (t.cashPerShare != null && t.cashPerShare > 0) return true;
+  // Zero is meaningful (worthless-security writeoff) but still a disposal that
+  // realizes a loss, so presence — not truthiness — is the test.
+  if (action.type === "delisting" && t.liquidationPerShare != null) return true;
+  return false;
 }
 
 /**
