@@ -4,6 +4,7 @@ import type { IdentityLookup, User, UserAccount } from "./store";
 import type {
   CorporateAction,
   DividendEvent,
+  ReorgEvent,
   ReorgTerms,
   TradeLot,
 } from "./corporateActions/types";
@@ -584,6 +585,56 @@ export async function loadDividendEvents(userId: string): Promise<DividendEvent[
     });
     return [];
   }
+}
+
+interface ReorgEventRow {
+  id: string;
+  user_id: string;
+  corporate_action_id: string;
+  symbol: string;
+  type: string;
+  cash_proceeds: number;
+  realized_gain: number;
+  status: string;
+}
+
+/**
+ * Corporate-action ids whose reorganization has already been SETTLED for this
+ * user — the idempotency key set for reorg settlement.
+ *
+ * THROWS on failure, for the same reason loadSettledDividendIds does: an empty
+ * set after a failed read means "nothing settled yet" and would re-run every
+ * cash merger and liquidation the user has ever had, double-paying the cash and
+ * re-superseding lots that are already history.
+ */
+export async function loadSettledReorgIds(userId: string): Promise<Set<string>> {
+  const rows = await sbSelect<{ corporate_action_id: string }>(
+    "reorg_events",
+    `user_id=eq.${encodeURIComponent(userId)}&select=corporate_action_id`
+  );
+  return new Set(rows.map((r) => r.corporate_action_id));
+}
+
+/**
+ * Persist reorg settlements. The `reorg_once_per_user` UNIQUE constraint from
+ * 0008 does the real idempotency work; a losing concurrent insert throws, and
+ * the caller must NOT credit cash or swap the ledger for a batch that failed to
+ * record.
+ */
+export async function saveReorgEvents(events: ReorgEvent[]): Promise<number> {
+  if (!events.length) return 0;
+  const rows: ReorgEventRow[] = events.map((e) => ({
+    id: e.id,
+    user_id: e.userId,
+    corporate_action_id: e.corporateActionId,
+    symbol: e.symbol,
+    type: e.type,
+    cash_proceeds: e.cashProceeds,
+    realized_gain: e.realizedGain,
+    status: e.status,
+  }));
+  await sbUpsert<ReorgEventRow>("reorg_events", rows);
+  return rows.length;
 }
 
 /**

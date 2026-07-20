@@ -27,6 +27,7 @@ export { loadCorporateActions, saveCorporateActions } from "./storeDb";
 // idempotency work, so they are read and written directly rather than flushed
 // as part of a whole-account write.
 export { loadDividendEvents, loadSettledDividendIds, saveDividendEvents } from "./storeDb";
+export { loadSettledReorgIds, saveReorgEvents } from "./storeDb";
 
 // ---------------------------------------------------------------------------
 // Multi-user data store. The in-memory maps are the working set every route

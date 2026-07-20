@@ -211,6 +211,28 @@ export interface DividendEvent {
   status: "announced" | "pending" | "paid" | "reinvested";
 }
 
+/**
+ * A reorganization that has actually been SETTLED for a user — the record that
+ * makes a cash-bearing merger / delisting / cash-in-lieu fraction pay exactly
+ * once.
+ *
+ * The reorg analogue of `DividendEvent`. Distinct from it because a reorg also
+ * rewrites the ledger, so it carries a realized gain a dividend never has (see
+ * migration 0008).
+ */
+export interface ReorgEvent {
+  id: string;
+  userId: string;
+  corporateActionId: string;
+  symbol: string;
+  type: "merger" | "acquisition" | "spin_off" | "delisting";
+  /** Cash paid to the holder by this settlement. */
+  cashProceeds: number;
+  /** Gain or loss realized by the cash leg. */
+  realizedGain: number;
+  status: "settled" | "reversed";
+}
+
 export interface DividendEntitlement {
   symbol: string;
   corporateActionId: string;
