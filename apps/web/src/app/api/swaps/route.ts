@@ -1,13 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSwapQuote, isTokenOnChain, usdPrice } from "@/lib/services/swap";
+import {
+  MAX_SLIPPAGE_PCT,
+  issueQuote,
+  redeemErrorMessage,
+  redeemQuote,
+} from "@/lib/services/swapQuote";
 import { newTx, recordTransaction } from "@/lib/store";
 import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { SwapSchema, parse } from "@/lib/schemas";
 import type { Chain, Token } from "@/lib/types";
 
 // /api/swaps — cheapest cross-chain swap routing (Li.Fi live quotes with a
 // local fallback), Doc-2 canonical. Execution settles against the demo ledger.
-// POST body: { fromToken, toToken, fromChain, amountIn, toChain?, execute? }
+//
+// Two-phase, and deliberately so:
+//   POST { fromToken, toToken, fromChain, amountIn, toChain? }
+//     → { quote, quoteId, expiresAt }   — prices the route and issues an id
+//   POST { execute: true, quoteId }
+//     → { quote, executed }             — replays THAT quote, no re-pricing
+//
+// Execution used to re-send the original parameters and re-quote, which meant
+// the price the user confirmed and the price they got were two separate reads
+// of a moving market. `quoteId` is what ties them together.
 
 // Pair rules zod can't express: token availability per chain + no-op swaps.
 function validatePair(body: {
@@ -36,8 +52,18 @@ export async function POST(req: NextRequest) {
   const parsed = parse(SwapSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const body = parsed.data;
-  const invalid = validatePair(body);
-  if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
+
+  // Every quote is an outbound Li.Fi call, so quoting is the expensive half of
+  // this route and the half an unauthenticated-feeling client hits on every
+  // keystroke. Budget per user, above what live typing needs and well under
+  // what a loop would consume.
+  const limited = await rateLimitOr429(
+    req,
+    "swaps",
+    { limit: 60, windowMs: 60_000 },
+    account.user.id
+  );
+  if (limited) return limited;
 
   // Execution settles against the demo ledger only — Li.Fi provides quotes,
   // not execution, on this route. Gate on NODE_ENV (not INTEGRATION_MODE,
@@ -51,9 +77,41 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const quote = await getSwapQuote(body);
+  // --- quote phase ---------------------------------------------------------
+  if (body.execute !== true) {
+    const invalid = validatePair(body);
+    if (invalid) return NextResponse.json({ error: invalid }, { status: 400 });
 
-  if (body.execute) {
+    const fresh = await getSwapQuote(body);
+    if (fresh.slippagePct > MAX_SLIPPAGE_PCT) {
+      // Refuse to issue at all rather than hand out an id for a price no user
+      // should be asked to confirm.
+      return NextResponse.json(
+        {
+          error: "slippage_too_high",
+          detail: `This route quotes ${fresh.slippagePct}% slippage, above the ${MAX_SLIPPAGE_PCT}% limit.`,
+        },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json(await issueQuote(account.user.id, fresh));
+  }
+
+  // --- execution phase -----------------------------------------------------
+  // The schema already guarantees a quoteId here: `execute: true` without one
+  // fails validation, so re-quoting at execution time is not expressible.
+  const redeemed = await redeemQuote(account.user.id, body.quoteId);
+  if (!redeemed.ok) {
+    // 409 for a spent id (the client should re-quote), 400 for the rest.
+    const status = redeemed.reason === "already_used" ? 409 : 400;
+    return NextResponse.json(
+      { error: redeemed.reason, detail: redeemErrorMessage(redeemed.reason) },
+      { status }
+    );
+  }
+  const quote = redeemed.quote;
+
+  {
     const usdIn = quote.amountIn * usdPrice(quote.fromToken);
     recordTransaction(
       account.user.id,
@@ -88,7 +146,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ quote, executed: !!body.execute });
+  return NextResponse.json({ quote, executed: true });
 }
 
 export async function GET(req: NextRequest) {

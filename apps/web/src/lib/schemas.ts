@@ -51,14 +51,52 @@ const SwapChain = z.enum([
   "bsc",
 ]);
 
-export const SwapSchema = z.object({
+/** Quote phase: price a route. Issues a quoteId the client executes against. */
+export const SwapQuoteSchema = z.object({
   fromToken: SwapToken,
   toToken: SwapToken,
   fromChain: SwapChain,
   toChain: SwapChain.optional(),
   amountIn: z.coerce.number().positive().max(10_000_000),
-  execute: z.boolean().optional(),
+  execute: z.literal(false).optional(),
 });
+
+/**
+ * Execute phase: settle a quote the server already issued and is holding.
+ *
+ * Deliberately carries NO price or pair fields. The amount, route and rate all
+ * come from the stored quote, so there is nothing here for a client to restate
+ * differently from what it was shown — and nothing for the server to re-price.
+ * The pair fields are still accepted and ignored, because clients naturally
+ * echo their form state and rejecting that would be noise, not safety.
+ */
+export const SwapExecuteSchema = z.object({
+  execute: z.literal(true),
+  quoteId: z.string().uuid(),
+  fromToken: SwapToken.optional(),
+  toToken: SwapToken.optional(),
+  fromChain: SwapChain.optional(),
+  toChain: SwapChain.optional(),
+  amountIn: z.coerce.number().positive().max(10_000_000).optional(),
+});
+
+export const SwapSchema = z.union([SwapExecuteSchema, SwapQuoteSchema]);
+
+export const HsbcPostSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("merchant_onboarding"),
+    companyName: z.string().min(1).max(100),
+    businessRegistrationNumber: z.string().min(1).max(50),
+    contactEmail: z.string().email(),
+  }),
+  z.object({
+    action: z.literal("payme_checkout").optional(),
+    bookingId: z.string().min(1).max(100),
+    amountHkd: z.number().positive().max(1_000_000),
+    userEmail: z.string().email().optional(),
+  }),
+]);
+
 
 export const OfframpSchema = z.object({
   fromCurrency: z.string().min(2).max(10),

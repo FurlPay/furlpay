@@ -16,6 +16,11 @@ const CHAINS = ["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis", "
 // A quote is a price at a moment. Executing against one the user fetched before
 // backgrounding the app trades at a price nobody agreed to, so a stale quote is
 // re-fetched and re-shown rather than executed.
+//
+// The server is the authority here: it issues `quoteId`, holds the quote for
+// its own TTL, and executes against the STORED quote (see
+// apps/web/src/lib/services/swapQuote.ts). This constant mirrors that TTL so
+// the app can re-quote before the server would reject — keep them in step.
 const QUOTE_TTL_MS = 30_000;
 
 // Client-side slippage ceiling. The server sets slippagePct, but "the server
@@ -41,6 +46,14 @@ interface SwapQuote {
   route: string[];
   etaSeconds: number;
   source: "lifi" | "mock";
+}
+
+/** POST /swaps (quote phase). `quoteId` is what execution is authorized
+ *  against — without it the server refuses to execute at all. */
+interface QuoteResponse {
+  quote: SwapQuote;
+  quoteId: string;
+  expiresAt: string;
 }
 
 function ChipPicker<T extends string>({
@@ -84,6 +97,7 @@ export default function Swap() {
   const [amount, setAmount] = useState("100");
 
   const [quote, setQuote] = useState<SwapQuote | null>(null);
+  const [quoteId, setQuoteId] = useState<string | null>(null);
   const [quotedAt, setQuotedAt] = useState(0);
   const [quoting, setQuoting] = useState(false);
   const [executing, setExecuting] = useState(false);
@@ -117,19 +131,21 @@ export default function Swap() {
   // overwrite — the quote for what the user actually typed.
   useEffect(() => {
     setQuote(null);
+    setQuoteId(null);
     setQuotedAt(0);
     setError(null);
     if (!valid) return;
     const ctrl = new AbortController();
     const t = setTimeout(() => {
       setQuoting(true);
-      api<{ quote: SwapQuote }>("/swaps", {
+      api<QuoteResponse>("/swaps", {
         method: "POST",
         body: { fromToken, toToken, fromChain, toChain, amountIn },
         signal: ctrl.signal,
       })
         .then((res) => {
           setQuote(res.quote);
+          setQuoteId(res.quoteId);
           setQuotedAt(Date.now());
         })
         .catch((e) => {
@@ -150,27 +166,35 @@ export default function Swap() {
   const slippageWarn =
     quote !== null && quote.slippagePct > WARN_SLIPPAGE_PCT && !slippageBlocked;
 
+  /** Re-price and show the new number; never auto-executes at it. */
+  const requote = async (note: string) => {
+    setQuoting(true);
+    setError(null);
+    try {
+      const res = await api<QuoteResponse>("/swaps", {
+        method: "POST",
+        body: { fromToken, toToken, fromChain, toChain, amountIn },
+      });
+      setQuote(res.quote);
+      setQuoteId(res.quoteId);
+      setQuotedAt(Date.now());
+      setError(note);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+    } finally {
+      setQuoting(false);
+    }
+  };
+
   const execute = async () => {
-    if (!quote || slippageBlocked) return;
+    if (!quote || !quoteId || slippageBlocked) return;
 
     // Stale quote: re-fetch and hand the new price back to the user for review
-    // instead of executing at a rate they never saw.
+    // instead of executing at a rate they never saw. The server would reject
+    // the expired id anyway — this just makes the outcome a fresh price rather
+    // than an error.
     if (Date.now() - quotedAt > QUOTE_TTL_MS) {
-      setQuoting(true);
-      setError(null);
-      try {
-        const res = await api<{ quote: SwapQuote }>("/swaps", {
-          method: "POST",
-          body: { fromToken, toToken, fromChain, toChain, amountIn },
-        });
-        setQuote(res.quote);
-        setQuotedAt(Date.now());
-        setError("That quote expired — this is the current price. Review it and swap again.");
-      } catch (e) {
-        setError(e instanceof ApiError ? e.message : (e as Error).message);
-      } finally {
-        setQuoting(false);
-      }
+      await requote("That quote expired — this is the current price. Review it and swap again.");
       return;
     }
 
@@ -181,23 +205,25 @@ export default function Swap() {
     setExecuting(true);
     setError(null);
     try {
+      // Executes against the quote the server issued and is holding — the
+      // amount and route travel with `quoteId`, not as re-quotable parameters.
       const res = await api<{ quote: SwapQuote; executed: boolean }>("/swaps", {
         method: "POST",
-        body: { fromToken, toToken, fromChain, toChain, amountIn, execute: true },
+        body: { execute: true, quoteId, fromToken, toToken, fromChain, toChain, amountIn },
       });
-      // The server re-quotes on execute (there is no quote id to pin yet), so
-      // re-check the ceiling against what actually executed.
-      if (res.quote.slippagePct > MAX_SLIPPAGE_PCT) {
-        setError(
-          `This swap came back at ${res.quote.slippagePct}% slippage, above the ${MAX_SLIPPAGE_PCT}% limit. Check your balance before retrying.`
-        );
-        void qc.invalidateQueries({ queryKey: ["overview"] });
-        return;
-      }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setExecuted(res.quote);
       void qc.invalidateQueries({ queryKey: ["overview"] });
     } catch (e) {
+      // The server refused the id — most often because the biometric prompt
+      // outlasted the TTL. Nothing settled, so re-price and let the user decide
+      // against the current number instead of stranding them on an error.
+      const code = e instanceof ApiError ? (e.data as { error?: string })?.error : undefined;
+      if (code === "expired" || code === "already_used") {
+        setExecuting(false);
+        await requote("That quote expired before it was submitted — nothing was swapped. This is the current price.");
+        return;
+      }
       setError(e instanceof ApiError ? e.message : (e as Error).message);
     } finally {
       setExecuting(false);
@@ -317,7 +343,7 @@ export default function Swap() {
           title="Swap"
           onPress={() => void execute()}
           loading={executing}
-          disabled={!quote || quoting || slippageBlocked}
+          disabled={!quote || !quoteId || quoting || slippageBlocked}
         />
       </ScrollView>
     </Screen>

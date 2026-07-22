@@ -14,6 +14,7 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
   const [toChain, setToChain] = useState<Chain>("arbitrum");
   const [amount, setAmount] = useState("100");
   const [quote, setQuote] = useState<SwapQuote | null>(null);
+  const [quoteId, setQuoteId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,6 +27,7 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
     return (v: T) => {
       setter(v);
       setQuote(null);
+      setQuoteId(null);
       setError(null);
     };
   }
@@ -47,10 +49,11 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
     setBusy(true);
     setError(null);
     try {
-      const r = await sendJSON<{ quote: SwapQuote }>("/api/swaps", {
+      const r = await sendJSON<{ quote: SwapQuote; quoteId: string }>("/api/swaps", {
         fromToken, toToken, fromChain, toChain, amountIn: amt,
       });
       setQuote(r.quote);
+      setQuoteId(r.quoteId);
     } catch {
       setError("Couldn't fetch a route. Check your connection and try again.");
     } finally {
@@ -59,17 +62,23 @@ export default function SwapModal({ open, onClose, onDone }: { open: boolean; on
   }
 
   async function execute() {
+    if (!quoteId) return;
     setBusy(true);
     setError(null);
     try {
-      await sendJSON("/api/swaps", {
-        fromToken, toToken, fromChain, toChain, amountIn: amt, execute: true,
-      });
+      // Executes the quote the server issued, not a fresh price: `quoteId` is
+      // the only thing that authorizes settlement (see api/swaps/route.ts).
+      await sendJSON("/api/swaps", { execute: true, quoteId });
       setQuote(null);
+      setQuoteId(null);
       onDone();
       onClose();
     } catch {
-      setError("Swap failed — nothing was moved. Try again.");
+      // Most likely the quote expired while the modal sat open. Nothing moved;
+      // clear it so the user re-quotes rather than retrying a spent id.
+      setQuote(null);
+      setQuoteId(null);
+      setError("That quote expired — nothing was swapped. Get a new quote and try again.");
     } finally {
       setBusy(false);
     }

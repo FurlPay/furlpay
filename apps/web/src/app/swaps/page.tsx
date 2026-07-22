@@ -42,6 +42,7 @@ export default function SwapTerminal() {
   const [toChain, setToChain] = useState<Chain>("robinhood");
   const [amount, setAmount] = useState("1");
   const [quote, setQuote] = useState<SwapQuote | null>(null);
+  const [quoteId, setQuoteId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const [passkeyReady, setPasskeyReady] = useState(false);
@@ -70,7 +71,7 @@ export default function SwapTerminal() {
     }
     setLoading(true);
     try {
-      const res = await sendJSON<{ quote: SwapQuote }>("/api/swaps", {
+      const res = await sendJSON<{ quote: SwapQuote; quoteId: string }>("/api/swaps", {
         fromToken,
         toToken,
         fromChain,
@@ -78,9 +79,11 @@ export default function SwapTerminal() {
         amountIn,
       });
       setQuote(res.quote);
+      setQuoteId(res.quoteId);
       setError(null);
     } catch {
       setQuote(null);
+      setQuoteId(null);
     } finally {
       setLoading(false);
     }
@@ -100,15 +103,13 @@ export default function SwapTerminal() {
   };
 
   const execute = async () => {
-    if (!quote) return;
-    await sendJSON("/api/swaps", {
-      fromToken,
-      toToken,
-      fromChain,
-      toChain,
-      amountIn: Number(amount),
-      execute: true,
-    });
+    if (!quote || !quoteId) return;
+    // Settles the quote the server issued and is holding. The passkey ceremony
+    // in confirmSwap() runs first and can outlast the quote's TTL, in which
+    // case this throws and confirmSwap surfaces it — nothing settles at a
+    // price the user never saw.
+    await sendJSON("/api/swaps", { execute: true, quoteId });
+    setQuoteId(null); // single-use server-side; don't let a retry replay it
   };
 
   /** Passkey ceremony first (when the device has one), then settle the swap. */

@@ -1,4 +1,5 @@
 import { apiFetch, getBaseUrl, toResponse } from "@/lib/api";
+import { BADGE_BALANCE_KEY, badgeTextFor } from "@/lib/badge";
 import type {
   BarsResponse,
   BgRequest,
@@ -67,12 +68,23 @@ const pendingConnects = new Map<
 // browser.action is MV3; Firefox MV2 builds expose browserAction instead.
 const action = () => browser.action ?? (browser as any).browserAction;
 
-/** Chrome truncates badge text past 4 characters — format to always fit. */
-export function badgeLabel(usd: number): string {
-  if (usd >= 100_000) return `${Math.round(usd / 1000)}k`; // "250k"
-  if (usd >= 10_000) return `${(usd / 1000).toFixed(0)}k`; // "42k"
-  if (usd >= 1_000) return `${(usd / 1000).toFixed(1)}k`; // "4.2k"
-  return `$${Math.round(usd)}`; // "$980"
+/** Is the balance shown on the badge? Mirrors the `prefBadgeBalance`
+ *  StoredToggle in the popup's Settings tab; absent means on. */
+async function showBadgeBalance(): Promise<boolean> {
+  const stored = await browser.storage.local.get(BADGE_BALANCE_KEY);
+  const pref = stored[BADGE_BALANCE_KEY];
+  return typeof pref === "boolean" ? pref : true; // default on
+}
+
+/** Repaint the badge from the last-known overview — used when the preference
+ *  flips, so masking takes effect immediately instead of at the next poll. */
+async function repaintBadge(): Promise<void> {
+  const { cachedOverview } = await browser.storage.session
+    .get("cachedOverview")
+    .catch(() => ({ cachedOverview: undefined }));
+  const overview = cachedOverview as Overview | undefined;
+  if (!overview) return; // signed out — the badge is already cleared
+  await action().setBadgeText({ text: badgeTextFor(overview.netWorth, await showBadgeBalance()) });
 }
 
 export default defineBackground(() => {
@@ -87,6 +99,12 @@ export default defineBackground(() => {
 
   browser.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === POLL_ALARM) void poll();
+  });
+
+  // Flipping the badge preference must take effect now, not up to a minute
+  // later — someone toggling it is usually about to start sharing their screen.
+  browser.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && BADGE_BALANCE_KEY in changes) void repaintBadge();
   });
 
   // Notification action buttons: [Approve on furlpay.com] [Decline].
@@ -405,7 +423,7 @@ async function poll(): Promise<void> {
   try {
     const overview = await apiFetch<Overview>("/api/overview");
     await action().setBadgeBackgroundColor({ color: "#00e599" });
-    await action().setBadgeText({ text: badgeLabel(overview.netWorth) });
+    await action().setBadgeText({ text: badgeTextFor(overview.netWorth, await showBadgeBalance()) });
     // Last-known-good snapshot for the popup's instant paint (G5). Session
     // storage: display-only data, gone when the browser closes — never a
     // place secrets could accumulate.

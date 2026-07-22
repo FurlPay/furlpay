@@ -42,13 +42,41 @@ describe("swap screen money-path safety", () => {
     expect(swapCode).toMatch(/disabled=\{[^}]*slippageBlocked/);
   });
 
-  it("re-checks slippage on the executed quote, not only the displayed one", () => {
-    expect(swapCode).toMatch(/res\.quote\.slippagePct > MAX_SLIPPAGE_PCT/);
-  });
-
   it("refuses to execute against a stale quote", () => {
     expect(swapCode).toMatch(/QUOTE_TTL_MS/);
     expect(swapCode).toMatch(/Date\.now\(\) - quotedAt > QUOTE_TTL_MS/);
+  });
+});
+
+describe("swap execution is authorized by a server-issued quote", () => {
+  // The client no longer re-checks the executed quote's slippage, because it
+  // no longer receives a re-quoted price to check: /api/swaps refuses to
+  // ISSUE above the ceiling, and execution replays the stored quote. The
+  // property to pin is that the client cannot execute without an id.
+
+  it("holds the quoteId the server issued", () => {
+    expect(swapCode).toMatch(/setQuoteId\(res\.quoteId\)/);
+  });
+
+  it("sends quoteId on execute", () => {
+    expect(swapCode).toMatch(/execute: true, quoteId/);
+  });
+
+  it("never sends execute:true without a quoteId", () => {
+    // Any execute body in this file must carry quoteId alongside it.
+    const executeBodies = swapCode.match(/body: \{[^}]*execute: true[^}]*\}/g) ?? [];
+    expect(executeBodies.length).toBeGreaterThan(0);
+    for (const body of executeBodies) expect(body).toMatch(/quoteId/);
+  });
+
+  it("cannot fire the action without an id in hand", () => {
+    expect(swapCode).toMatch(/if \(!quote \|\| !quoteId/);
+    expect(swapCode).toMatch(/disabled=\{[^}]*!quoteId/);
+  });
+
+  it("re-quotes rather than erroring when the server rejects a spent id", () => {
+    expect(swapCode).toMatch(/"expired" \|\| code === "already_used"/);
+    expect(swapCode).toMatch(/requote\(/);
   });
 
   it("aborts superseded quote requests so a slow reply cannot repaint a newer price", () => {

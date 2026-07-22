@@ -57,6 +57,15 @@ export default function SettingsTab({ session, onSignedOut }: { session: Session
       <div className="glass-panel" style={{ padding: 6, marginBottom: 12 }}>
         <StoredToggle icon="bell" storageKey="prefSecurityAlerts" label="Security alerts" sub="Notify on pending card approvals" defaultOn />
         <StoredToggle icon="invest" storageKey="prefPriceAlerts" label="Price alerts" sub="Notify on large balance moves" />
+        {/* The badge is on screen during every screen share and demo — let the
+            user mask it without losing the signed-in indicator. */}
+        <StoredToggle
+          icon="security"
+          storageKey="prefBadgeBalance"
+          label="Balance on toolbar icon"
+          sub="Off shows a dot instead — useful when screen sharing"
+          defaultOn
+        />
         <SettingsTile icon="globe" label="Currency & language" sub="USD · English" onClick={() => openSite("/profile")} chevron />
       </div>
 
