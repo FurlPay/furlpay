@@ -1,6 +1,8 @@
 package com.furlpay.wearbridge
 
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import com.google.android.gms.wearable.Wearable
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.modules.Module
@@ -51,7 +53,15 @@ class WearBridgeModule : Module() {
         Function("isGuardianInstalled") {
             val pm = appContext.reactContext?.packageManager ?: return@Function false
             try {
-                pm.getPackageInfo(GUARDIAN_PACKAGE, 0)
+                // getPackageInfo(String, Int) is deprecated from API 33; the
+                // PackageInfoFlags overload does not exist below it, so both
+                // paths stay.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    pm.getPackageInfo(GUARDIAN_PACKAGE, PackageManager.PackageInfoFlags.of(0L))
+                } else {
+                    @Suppress("DEPRECATION")
+                    pm.getPackageInfo(GUARDIAN_PACKAGE, 0)
+                }
                 true
             } catch (e: Exception) {
                 false

@@ -32,6 +32,11 @@ const EXISTS_KEY = "furlpay.wallet.exists"; // plain marker so presence checks d
 const ADDRESS_KEY = "furlpay.wallet.address";
 const ETH_PATH = "m/44'/60'/0'/0/0"; // BIP-44 Ethereum account 0, address 0
 
+/** How long a signed EIP-3009 authorization stays valid. Long enough to cover
+ *  the biometric prompt, the relay round trip and clock skew between the device
+ *  and the chain — deliberately not longer. */
+const AUTH_VALIDITY_SECONDS = 600; // 10 minutes
+
 // chainId per network — must match EVM_CHAIN_IDS in apps/web/src/lib/x402Signature.ts.
 const CHAIN_IDS: Record<string, number> = {
   arbitrum: 42161,
@@ -164,11 +169,18 @@ export async function signTransferAuthorization(
     )
   );
 
-  const sig = secp256k1.sign(digest, priv);
-  const r = sig.r.toString(16).padStart(64, "0");
-  const s = sig.s.toString(16).padStart(64, "0");
-  const v = (sig.recovery + 27).toString(16).padStart(2, "0");
-  return `0x${r}${s}${v}`;
+  try {
+    const sig = secp256k1.sign(digest, priv);
+    const r = sig.r.toString(16).padStart(64, "0");
+    const s = sig.s.toString(16).padStart(64, "0");
+    const v = (sig.recovery + 27).toString(16).padStart(2, "0");
+    return `0x${r}${s}${v}`;
+  } finally {
+    // Shorten the window in which the key sits in heap memory. The GC would
+    // get here eventually; on a compromised device "eventually" is the whole
+    // risk, and the derived copy is ours to erase.
+    priv.fill(0);
+  }
 }
 
 // --- EIP-191 personal_sign (proof-of-control, NOT money movement) ------------
@@ -193,11 +205,15 @@ export async function signMessage(message: string): Promise<string> {
   const prefix = utf8(`\x19Ethereum Signed Message:\n${msgBytes.length}`);
   const digest = keccak_256(concatBytes(prefix, msgBytes));
 
-  const sig = secp256k1.sign(digest, priv);
-  const r = sig.r.toString(16).padStart(64, "0");
-  const s = sig.s.toString(16).padStart(64, "0");
-  const v = (sig.recovery + 27).toString(16).padStart(2, "0");
-  return `0x${r}${s}${v}`;
+  try {
+    const sig = secp256k1.sign(digest, priv);
+    const r = sig.r.toString(16).padStart(64, "0");
+    const s = sig.s.toString(16).padStart(64, "0");
+    const v = (sig.recovery + 27).toString(16).padStart(2, "0");
+    return `0x${r}${s}${v}`;
+  } finally {
+    priv.fill(0); // see signTransferAuthorization
+  }
 }
 
 // --- EIP-712 (matches viem's TransferWithAuthorization encoding) -------------
@@ -384,7 +400,10 @@ export async function sendGasless(to: string, amountUsd: string): Promise<Gasles
     to,
     value: atomic.toString(),
     validAfter: "0",
-    validBefore: String(now + 3600), // 1-hour window
+    // The relay submits within seconds, so the authorization only needs to
+    // outlive one round trip plus clock skew. Every extra minute is time an
+    // intercepted authorization stays replayable on-chain, so keep it tight.
+    validBefore: String(now + AUTH_VALIDITY_SECONDS),
     nonce: randomNonce(),
   };
 

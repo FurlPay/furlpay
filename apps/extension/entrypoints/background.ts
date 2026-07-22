@@ -49,6 +49,11 @@ const DEPOSITS_KEY = "notifiedDeposits";
 // vector), which is why every real wallet gates connect behind a click.
 const ALLOWED_ORIGINS_KEY = "walletAllowedOrigins";
 const MAX_ALLOWED_ORIGINS = 100;
+/** How long a granted origin stays remembered. A site the user connected to
+ *  once is not a site they trust forever: domains change hands and dapps get
+ *  compromised, and a grant with no expiry means yesterday's approval still
+ *  hands out the Safe address today. Re-consent is one click. */
+const ORIGIN_GRANT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /** Pending consent prompts, keyed by request id. MV3 workers are ephemeral,
  *  but the open sendResponse channel (`return true`) keeps this worker alive
@@ -296,6 +301,21 @@ async function allowedOrigins(): Promise<Record<string, number>> {
   return val && typeof val === "object" ? (val as Record<string, number>) : {};
 }
 
+/** Is this origin currently granted? Expired grants are treated as absent and
+ *  swept from storage, so the next connect goes through the consent prompt. */
+async function originGranted(origin: string): Promise<boolean> {
+  const allowed = await allowedOrigins();
+  const grantedAt = allowed[origin];
+  if (typeof grantedAt !== "number") return false;
+  if (Date.now() - grantedAt <= ORIGIN_GRANT_TTL_MS) return true;
+
+  const fresh = Object.fromEntries(
+    Object.entries(allowed).filter(([, at]) => Date.now() - at <= ORIGIN_GRANT_TTL_MS)
+  );
+  await browser.storage.local.set({ [ALLOWED_ORIGINS_KEY]: fresh });
+  return false;
+}
+
 async function rememberOrigin(origin: string): Promise<void> {
   const allowed = await allowedOrigins();
   allowed[origin] = Date.now();
@@ -323,8 +343,7 @@ async function connectWithConsent(
   origin: string,
   respond: (res: BgResponse<{ accounts: string[] }>) => void
 ): Promise<void> {
-  const allowed = await allowedOrigins();
-  if (allowed[origin]) {
+  if (await originGranted(origin)) {
     respond(await resolveAccounts());
     return;
   }

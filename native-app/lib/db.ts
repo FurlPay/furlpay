@@ -283,4 +283,15 @@ export function unreadNotificationCount(): number {
 export function clearAllCaches(): void {
   const d = getDb();
   d.execSync("DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions; DELETE FROM notifications;");
+  // The DELETEs alone are not a wipe: in WAL mode the rows they removed — and
+  // the rows before them — sit in furlpay.db-wal until a checkpoint. Without
+  // this, the previous user's transaction history is still readable on disk
+  // after sign-out, which is the one moment it must not be. TRUNCATE folds the
+  // log into the main database and resets the file to zero length.
+  try {
+    d.execSync("PRAGMA wal_checkpoint(TRUNCATE);");
+  } catch {
+    // A concurrent reader can block a truncating checkpoint. Sign-out must
+    // still complete — the tables are already empty either way.
+  }
 }

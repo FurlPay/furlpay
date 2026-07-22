@@ -123,7 +123,15 @@ interface RequestOptions {
   headers?: Record<string, string>;
   /** Skip the 401 → sign-out hook (used by auth endpoints themselves). */
   anonymous?: boolean;
+  /** Abort the in-flight request. Callers that re-issue a request as the user
+   *  types (live quoting) MUST pass one: without it a slow earlier response can
+   *  land after a newer one and repaint the screen with a stale price. */
+  signal?: AbortSignal;
 }
+
+/** Thrown when the caller aborted via `opts.signal` — a superseded request, not
+ *  a failure. Callers should swallow it rather than showing an error. */
+export class AbortedError extends Error {}
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   // Swap an about-to-expire token BEFORE using it (no-op with >10min left).
@@ -144,8 +152,12 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
         ...opts.headers,
       },
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: opts.signal,
     });
   } catch (e) {
+    // An abort is the caller superseding itself — distinguish it from a real
+    // connectivity failure so it never queues an outbox action or shows an error.
+    if (opts.signal?.aborted) throw new AbortedError("Request superseded.");
     throw new NetworkError((e as Error).message);
   }
 

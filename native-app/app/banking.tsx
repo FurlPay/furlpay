@@ -6,6 +6,7 @@ import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { api, ApiError } from "@/lib/api";
 import { usd } from "@/lib/format";
+import { useSecureScreen } from "@/lib/secureScreen";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import {
   Button,
@@ -312,6 +313,10 @@ function DirectSheet({ initialApp }: { initialApp: string }) {
 }
 
 export default function Banking() {
+  // Local account details (IBAN, sort code, account number) render here — the
+  // same class of material as the card PAN screen, so it gets the same
+  // screenshot / screen-record / recents-thumbnail block.
+  useSecureScreen("banking");
   const qc = useQueryClient();
   const { data, isLoading, refetch, isRefetching, error } = useQuery({
     queryKey: ["banking"],

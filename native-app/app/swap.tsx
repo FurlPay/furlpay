@@ -2,15 +2,31 @@ import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
-import { api, ApiError } from "@/lib/api";
+import { AbortedError, api, ApiError } from "@/lib/api";
 import { confirmWithBiometrics } from "@/lib/biometrics";
 import { usd } from "@/lib/format";
+import { parseUsdcAmount, tryParseUsdcAmount } from "@/lib/money";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, ErrorNote, Field, Screen, Surface } from "@/components/ui";
 
 // Mirrors SwapSchema in apps/web/src/lib/schemas.ts.
 const TOKENS = ["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD", "SOL", "ETH"] as const;
 const CHAINS = ["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis", "robinhood", "bsc"] as const;
+
+// A quote is a price at a moment. Executing against one the user fetched before
+// backgrounding the app trades at a price nobody agreed to, so a stale quote is
+// re-fetched and re-shown rather than executed.
+const QUOTE_TTL_MS = 30_000;
+
+// Client-side slippage ceiling. The server sets slippagePct, but "the server
+// said so" is not a safety property: a misconfigured or hostile response must
+// not be able to hand the user a 50%-slippage trade behind a biometric prompt.
+const MAX_SLIPPAGE_PCT = 5;
+const WARN_SLIPPAGE_PCT = 1;
+
+// Long enough for any real amount (parseUsdcAmount caps at 9 whole digits),
+// short enough that a paste can't build a huge re-quote payload.
+const AMOUNT_MAX_LENGTH = 20;
 
 interface SwapQuote {
   fromToken: string;
@@ -68,37 +84,96 @@ export default function Swap() {
   const [amount, setAmount] = useState("100");
 
   const [quote, setQuote] = useState<SwapQuote | null>(null);
+  const [quotedAt, setQuotedAt] = useState(0);
   const [quoting, setQuoting] = useState(false);
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [executed, setExecuted] = useState<SwapQuote | null>(null);
 
-  const amountIn = Number(amount);
-  const valid = useMemo(
-    () => amountIn > 0 && !(fromToken === toToken && fromChain === toChain),
-    [amountIn, fromToken, toToken, fromChain, toChain]
-  );
+  // Money is parsed to atomic units, never through `Number()`: "0.0000001"
+  // passes `Number(x) > 0` and then truncates to zero atomic units — the exact
+  // bug lib/sendValidation.ts documents fixing for the Send tab. A swap that
+  // passes validation and biometric confirmation at zero value must be
+  // impossible here too.
+  const atomic = useMemo(() => tryParseUsdcAmount(amount), [amount]);
+  const amountIn = atomic === null ? 0 : Number(atomic) / 1_000_000;
+  const samePair = fromToken === toToken && fromChain === toChain;
+  const valid = atomic !== null && !samePair;
 
-  // Live re-quote (debounced) whenever the pair or amount changes.
+  // The reason the amount was rejected, shown verbatim (AmountError messages
+  // are written for users: too many decimals, separators, above the cap…).
+  const amountError = useMemo(() => {
+    if (atomic !== null) return null;
+    try {
+      parseUsdcAmount(amount);
+      return null;
+    } catch (e) {
+      return (e as Error).message;
+    }
+  }, [amount, atomic]);
+
+  // Live re-quote (debounced) whenever the pair or amount changes. Each request
+  // owns an AbortController so a slow earlier quote can never land after — and
+  // overwrite — the quote for what the user actually typed.
   useEffect(() => {
     setQuote(null);
+    setQuotedAt(0);
     setError(null);
     if (!valid) return;
+    const ctrl = new AbortController();
     const t = setTimeout(() => {
       setQuoting(true);
       api<{ quote: SwapQuote }>("/swaps", {
         method: "POST",
         body: { fromToken, toToken, fromChain, toChain, amountIn },
+        signal: ctrl.signal,
       })
-        .then((res) => setQuote(res.quote))
-        .catch((e) => setError(e instanceof ApiError ? e.message : (e as Error).message))
-        .finally(() => setQuoting(false));
+        .then((res) => {
+          setQuote(res.quote);
+          setQuotedAt(Date.now());
+        })
+        .catch((e) => {
+          if (e instanceof AbortedError) return; // superseded, not a failure
+          setError(e instanceof ApiError ? e.message : (e as Error).message);
+        })
+        .finally(() => {
+          if (!ctrl.signal.aborted) setQuoting(false);
+        });
     }, 450);
-    return () => clearTimeout(t);
+    return () => {
+      clearTimeout(t);
+      ctrl.abort();
+    };
   }, [fromToken, toToken, fromChain, toChain, amountIn, valid]);
 
+  const slippageBlocked = quote !== null && quote.slippagePct > MAX_SLIPPAGE_PCT;
+  const slippageWarn =
+    quote !== null && quote.slippagePct > WARN_SLIPPAGE_PCT && !slippageBlocked;
+
   const execute = async () => {
-    if (!quote) return;
+    if (!quote || slippageBlocked) return;
+
+    // Stale quote: re-fetch and hand the new price back to the user for review
+    // instead of executing at a rate they never saw.
+    if (Date.now() - quotedAt > QUOTE_TTL_MS) {
+      setQuoting(true);
+      setError(null);
+      try {
+        const res = await api<{ quote: SwapQuote }>("/swaps", {
+          method: "POST",
+          body: { fromToken, toToken, fromChain, toChain, amountIn },
+        });
+        setQuote(res.quote);
+        setQuotedAt(Date.now());
+        setError("That quote expired — this is the current price. Review it and swap again.");
+      } catch (e) {
+        setError(e instanceof ApiError ? e.message : (e as Error).message);
+      } finally {
+        setQuoting(false);
+      }
+      return;
+    }
+
     const confirmed = await confirmWithBiometrics(
       `Swap ${quote.amountIn} ${quote.fromToken} → ${quote.toToken}`
     );
@@ -110,6 +185,15 @@ export default function Swap() {
         method: "POST",
         body: { fromToken, toToken, fromChain, toChain, amountIn, execute: true },
       });
+      // The server re-quotes on execute (there is no quote id to pin yet), so
+      // re-check the ceiling against what actually executed.
+      if (res.quote.slippagePct > MAX_SLIPPAGE_PCT) {
+        setError(
+          `This swap came back at ${res.quote.slippagePct}% slippage, above the ${MAX_SLIPPAGE_PCT}% limit. Check your balance before retrying.`
+        );
+        void qc.invalidateQueries({ queryKey: ["overview"] });
+        return;
+      }
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setExecuted(res.quote);
       void qc.invalidateQueries({ queryKey: ["overview"] });
@@ -146,6 +230,7 @@ export default function Swap() {
             onChangeText={setAmount}
             keyboardType="decimal-pad"
             placeholder="0.00"
+            maxLength={AMOUNT_MAX_LENGTH}
           />
         </Surface>
 
@@ -186,9 +271,30 @@ export default function Swap() {
             <View style={styles.row}>
               <Text style={type.dim}>Fees</Text>
               <Text style={type.dim}>
-                {usd(quote.feeUsd)} + {usd(quote.gasUsd)} gas · slippage {quote.slippagePct}%
+                {usd(quote.feeUsd)} + {usd(quote.gasUsd)} gas · slippage{" "}
+                <Text
+                  style={
+                    slippageBlocked
+                      ? { color: colors.accent }
+                      : slippageWarn
+                        ? { color: colors.warning }
+                        : undefined
+                  }
+                >
+                  {quote.slippagePct}%
+                </Text>
               </Text>
             </View>
+            {slippageBlocked ? (
+              <Text style={{ color: colors.accent }}>
+                Slippage is above the {MAX_SLIPPAGE_PCT}% limit — this swap is blocked. Try a
+                smaller amount or a different route.
+              </Text>
+            ) : slippageWarn ? (
+              <Text style={{ color: colors.warning }}>
+                High slippage — you may receive noticeably less than quoted.
+              </Text>
+            ) : null}
             <View style={styles.row}>
               <Text style={type.dim}>ETA</Text>
               <Text style={type.dim}>
@@ -198,12 +304,20 @@ export default function Swap() {
           </Surface>
         ) : null}
 
-        <ErrorNote message={!valid && amountIn > 0 ? "Pick a different token or destination chain." : error} />
+        <ErrorNote
+          message={
+            samePair
+              ? "Pick a different token or destination chain."
+              : amount.trim() && atomic === null
+                ? amountError
+                : error
+          }
+        />
         <Button
           title="Swap"
           onPress={() => void execute()}
           loading={executing}
-          disabled={!quote || quoting}
+          disabled={!quote || quoting || slippageBlocked}
         />
       </ScrollView>
     </Screen>
