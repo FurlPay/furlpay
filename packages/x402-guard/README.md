@@ -135,6 +135,45 @@ class RedisNonceStore implements NonceStore {
 
 `npm test` reproduces every attack and asserts it fails: the F2 20-concurrent-request race (the paper's Base reproduction — exactly one settles, the settler runs exactly once), the F3 overdraft (20 concurrent charges against one allowance — exactly ⌊balance/Vmax⌋ served, balance never negative), the F4 flood (overflow refused *before* delivery, authorizations left intact for retry), and F5 convergence (a 5× compute free-rider is fully covered after adaptation, with the learned ratio clamped at both ends).
 
+## Adversarial evaluation
+
+The test suite above shows the defenses refusing bad traffic. That is necessary but not sufficient evidence: a component that refuses *everything* passes every defense test. `harness/` measures the thing that actually matters — how much service leaks with and without the guard, under the same attack.
+
+```sh
+npm run build && npm run harness     # results table
+npm run harness:json                 # machine-readable
+npm run sweep                        # F5 parameter frontier
+```
+
+Both facilitators settle against a shared `SimulatedChain` that consumes an authorization exactly once, mirroring EIP-3009 `authorizationState`. The merchant loop is x402's real shape — `verify()` off-chain, **deliver**, `settle()` on-chain — so every flaw lives in the gap the protocol actually has.
+
+Resource-leakage ratio, seed 42:
+
+| Flaw | Invariant | Unguarded | Guarded |
+| --- | --- | --- | --- |
+| **F1** Cross-resource substitution | I3 | **75.0%** — 4 siblings served, 1 paid | **0%** (3 refused at admission) |
+| **F2** Duplicate-settlement race | I4 | **95.0%** — 20 served, chain consumed 1 | **0%** (19 refused) |
+| **F3** Allowance overdraft | I5 | **50.0%** value — drew 1000 on a 500 allowance (**2.00×**) | **0%** (**1.00×**) |
+| **F4** Denial of settlement | I2 | **75.0%** — 12 served, 3 settled | **0%** (9 refused) |
+| **F5** Hidden-compute pricing | G2 | **68.8%** value — 8,609 of 12,507 units free-ridden | **33.9%** — 4,244 units |
+
+F1–F4 close completely. **F5 does not, and is reported as a mitigation rather than a fix** — the paper itself notes there is no static defense when the true cost is unknowable at quote time. `npm run sweep` maps the frontier:
+
+| Safety margin | Value leakage | Honest over-escrow |
+| --- | --- | --- |
+| 1.0 | 43.5% | 3.3× |
+| 1.25 (default) | 33.9% | 4.1× |
+| 2.0 | 11.9% | 6.6× |
+| 4.0 | 1.6% | 13.2× |
+| 6.0 | **0.0%** | **19.8×** |
+
+Leakage *can* be driven to zero, but only by escrowing ~20× an honest caller's eventual bill. Honest callers are quoted against an average that includes the abusers, so they subsidise the unpredictability — refunded at commit, but locked until then. Choosing a margin is choosing where on that curve to sit; the default sits deliberately near the cheap end.
+
+Two guards keep the numbers honest, and both fail the build if violated:
+
+- **Control** — every unguarded baseline must still be exploitable. If a scenario drifts and the baseline stops leaking, the guarded 0% proves nothing, so the suite fails rather than reporting a comfortable result.
+- **Liveness** — the guarded facilitator must still deliver *and* settle honest traffic in every scenario. Without this, `verify() { return false }` would score a perfect zero.
+
 ## Scope
 
 This library hardens the state machine around your settler — it does not verify signatures or submit transactions. Wiring these primitives into a live facilitator (Redis-backed stores, the `/verify`/`/settle` endpoints) is deployment work; the FurlPay integration is tracked in [furlpay-x402#3](https://github.com/furlpay/furlpay-x402/issues/3).

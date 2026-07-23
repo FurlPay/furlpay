@@ -6,7 +6,7 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "src"],
+  "files": ["dist", "src", "harness"],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -15,7 +15,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "node --test"
+    "test": "node --test",
+    "harness": "node harness/run.mjs",
+    "harness:json": "node harness/run.mjs --json",
+    "sweep": "node harness/sweep.mjs"
   },
   "keywords": ["x402", "agentic-payments", "facilitator", "stablecoin", "security", "solana", "usdc", "webhooks"],
   "repository": { "type": "git", "url": "https://github.com/furlpay/x402-guard" },
