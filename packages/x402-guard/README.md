@@ -118,18 +118,55 @@ pricer.observe(estimatedTokens, actualTokens);          // feed every settlement
 
 ## Redis at scale
 
-`NonceStore` is a 4-method interface. The in-memory default is atomic within one process; for a multi-instance facilitator back `acquire` with `SET key PENDING NX` (or Postgres `INSERT … ON CONFLICT DO NOTHING`) — the atomic check-and-set maps directly.
+Every atomicity guarantee the in-memory stores make rests on Node being single-threaded — `MemoryNonceStore.acquire` is safe only because no `await` sits between its read and its write. That is real, and it is worth nothing across two workers, two lambdas or two regions, which is how facilitators actually run. **The F2 race the paper reproduces is a race between machines.**
+
+`@furlpay/x402-guard/redis` ships multi-process implementations of the same interfaces:
 
 ```ts
-class RedisNonceStore implements NonceStore {
-  async acquire(nonce: string) {
-    return (await redis.set(`x402:${nonce}`, "pending", "NX")) === "OK";
-  }
-  async markSettled(nonce: string) { await redis.set(`x402:${nonce}`, "settled"); }
-  async release(nonce: string) { /* only if still pending */ await redis.del(`x402:${nonce}`); }
-  async state(nonce: string) { return (await redis.get(`x402:${nonce}`)) as any; }
-}
+import {
+  RedisNonceStore, RedisAllowanceStore, RedisSettlementCapacityLimiter,
+  fromUpstashRest, // or fromIoRedis / fromNodeRedis
+} from "@furlpay/x402-guard";
+
+const redis = fromUpstashRest(process.env.UPSTASH_REDIS_REST_URL!, process.env.UPSTASH_REDIS_REST_TOKEN!);
+
+await guardedSettle(req, {
+  nonce,
+  store: new RedisNonceStore(redis),
+  capacity: new RedisSettlementCapacityLimiter(redis, 32),
+  settler,
+});
 ```
+
+**Still zero dependencies.** The client is injected, not imported — anything that can send one Redis command and return its reply works. Adapters for Upstash REST, ioredis and node-redis are included; a fourth is three lines.
+
+Each operation is one round trip whose atomicity is Redis's, not ours — either a natively atomic command (`SET … NX`) or a single Lua script. Three details are load-bearing:
+
+- **`release` is a compare-and-delete, not a `DEL`.** A stray release arriving after a nonce reached `SETTLED` would reopen a spent authorization for replay — exactly the hole the paper documents. A `DEL` cannot tell the two states apart, so the check and the delete must be one script.
+- **Capacity is a lease-scored sorted set, not a counter.** An `INCR`/`DECR` counter leaks a slot permanently when a worker dies holding one, and a facilitator that slowly starves itself into refusing everything has inflicted F4 on itself. Holders are entries scored by acquisition time; each reservation first evicts anything past its lease, so a crashed worker's slot is reclaimed automatically.
+- **Amounts above 2^53 are refused, not rounded.** Redis Lua numbers are IEEE doubles, so in-script integer arithmetic is exact only below that. For 6-decimal USDC this permits ~9 billion; larger allowances need a bigint-safe backend, and failing loudly is the only honest option.
+
+### What is actually verified
+
+| Suite | Runs the Lua? | Real processes? |
+| --- | --- | --- |
+| `npm test` → `redis-stores.test.mjs` | ❌ JS twins behind a test double | ❌ one process |
+| `npm run test:redis` | ✅ | ❌ one process |
+| `npm run mp` | ✅ | ✅ N OS processes |
+
+The default suite runs the stores against a double that interleaves callers between commands and serialises them within a script — Redis's two relevant properties. It catches store-logic and sequencing bugs and **cannot catch a bug in the Lua, because the Lua never runs.** The double keys its stand-ins off a *hash* of each script, so editing the Lua makes the lookup miss and the double throw, rather than quietly testing stale logic.
+
+`npm run mp` is the run to cite. Each worker is a real OS process with its own heap and event loop, sharing nothing but Redis, all aligned to a common start timestamp so their attempts genuinely overlap:
+
+```
+8 OS processes x 25 attempts, sharing nothing but Redis
+
+F2  exactly one acquire succeeds fleet-wide  (of 200 concurrent)
+F3  reservations granted = allowance / vmax; total charged never exceeds the allowance
+F4  slots admitted fleet-wide = the ceiling, while every winner still holds
+```
+
+Both Redis suites **skip** when no server is configured, so a green run on a laptop with no Redis is never mistaken for evidence.
 
 ## Test suite
 
