@@ -1,0 +1,76 @@
+name: OpenSSF Scorecard
+
+# Supply-chain health metrics from the OpenSSF (ossf/scorecard). It grades the
+# things a consumer cannot see by reading the code: whether releases are signed,
+# whether dependencies are pinned, whether branch protection is on, whether
+# dangerous workflow patterns are present.
+#
+# WHY THIS AND NOT ANOTHER BADGE. Scorecard is measured, not self-declared. The
+# score comes from an independent analysis of this repository, so it cannot be
+# improved by asserting anything — only by changing the repository. That is
+# exactly why it carries weight with the people who check it, and why a low
+# score is useful information rather than an embarrassment.
+#
+# Expect the first run to score poorly. Several checks (Branch-Protection,
+# Signed-Releases, Pinned-Dependencies) fail by default and are fixed by
+# repository settings rather than by code. Read the SARIF output in the Security
+# tab and work down it.
+#
+# `publish_results: true` sends the score to the public OpenSSF API, which is
+# what makes the README badge and deps.dev entry work. It publishes the SCORE,
+# never the source.
+
+on:
+  branch_protection_rule:
+  schedule:
+    # Weekly. Scorecard reflects repository configuration more than code, so it
+    # drifts on settings changes that no commit would trigger.
+    - cron: "27 4 * * 1"
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions: read-all
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    # Skip on forks: publish_results would fail without the upstream identity,
+    # and a fork's score is not meaningful anyway.
+    if: github.event.repository.fork == false
+    permissions:
+      # Upload the SARIF result to the Security tab.
+      security-events: write
+      # OIDC — required by publish_results to attest the score came from here.
+      id-token: write
+      contents: read
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Run analysis
+        uses: ossf/scorecard-action@v2
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      # Retained as an artifact as well as in the Security tab: code scanning
+      # alerts age out, and a grant or enterprise review may ask for a specific
+      # historical run.
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: scorecard-results
+          path: results.sarif
+          retention-days: 90
+
+      - name: Upload to code scanning
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif

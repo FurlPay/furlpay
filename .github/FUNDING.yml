@@ -1,0 +1,29 @@
+# Renders the "Sponsor" button on the repository.
+#
+# Every entry here must be a LIVE account. GitHub renders each one as a link,
+# and a button leading to a 404 reads as abandonment rather than as a project
+# still setting itself up — worse than having no button at all. Uncomment a
+# line only once that account exists and accepts payment.
+#
+# Routes worth setting up, roughly in order of fit for this project:
+#
+#   github         GitHub Sponsors. Lowest friction for individual developers;
+#                  no platform fee on GitHub's side.
+#   open_collective  Fiscal host with public books. What Babel, webpack and
+#                  ESLint use, and the route corporate sponsors prefer because
+#                  the spend is auditable and invoiceable.
+#   thanks_dev     Pays maintainers automatically from consumers' dependency
+#                  trees rather than requiring a deliberate donation. Passive,
+#                  so worth registering even at low volume.
+#
+# Not funding, but adjacent and higher-value for this repo specifically:
+#   - GitHub Secure Open Source Fund — targets projects doing real security
+#     work, which is the strongest fit here given x402-guard.
+#   - Ecosystem grants (Ethereum Foundation ESP, Optimism Retro Funding: Dev
+#     Tooling, Arbitrum, Solana). These fund infrastructure, not donations, and
+#     have moved to milestone-based release.
+
+github: [Ashutosh0x]
+# open_collective: furlpay
+# thanks_dev: gh/Ashutosh0x
+custom: ["https://furlpay.com"]

@@ -1,0 +1,57 @@
+# Citation metadata. GitHub renders a "Cite this repository" button from this
+# file and generates APA/BibTeX on demand.
+#
+# This exists because @furlpay/x402-guard carries an adversarial evaluation of
+# the five flaw classes in Ling et al. (arXiv:2605.30998), and work that gets
+# cited needs a canonical citation its author controls. Without this file a
+# reviewer invents one, and the invented one is usually wrong.
+#
+# `preferred-citation` should be replaced with the conference entry once the
+# paper is accepted — until then it deliberately points at the software, which
+# is the artifact that actually exists.
+cff-version: 1.2.0
+title: "FurlPay: stablecoin payment infrastructure with hardened x402 agentic payments"
+message: "If you use this software or its adversarial evaluation, please cite it as below."
+type: software
+authors:
+  - given-names: Ashutosh
+    family-names: Kumar Singh
+    email: founder@furlpay.com
+    affiliation: FurlPay
+repository-code: "https://github.com/Ashutosh0x/furlpay"
+url: "https://furlpay.com"
+license: MIT
+keywords:
+  - stablecoin
+  - payments
+  - x402
+  - agentic-payments
+  - account-abstraction
+  - erc-4337
+  - eip-7702
+  - sanctions-screening
+  - aml
+abstract: >-
+  FurlPay is a stablecoin payment platform whose x402 layer implements
+  facilitator-level defences against the five flaw classes catalogued in
+  "Free-Riding the Agentic Web: A Systematic Security Analysis of x402
+  Payments" (Ling et al., arXiv:2605.30998): cross-resource substitution,
+  duplicate-settlement race, allowance overdraft, denial of settlement and
+  hidden-compute pricing. The accompanying package, @furlpay/x402-guard, ships
+  an adversarial harness that reproduces each attack against an unguarded
+  facilitator and measures the residual leakage with the defences enabled,
+  reporting hidden-compute pricing as a mitigation rather than a fix and
+  quantifying the escrow cost of closing it.
+references:
+  - type: article
+    title: "Free-Riding the Agentic Web: A Systematic Security Analysis of x402 Payments"
+    authors:
+      - family-names: Ling
+        given-names: "" # full author list to be completed from the published paper
+    year: 2026
+    identifiers:
+      - type: other
+        value: "arXiv:2605.30998"
+    notes: >-
+      The threat model x402-guard implements defences against. Cited here
+      because the harness measures itself against that paper's flaw classes.

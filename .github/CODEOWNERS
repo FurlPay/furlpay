@@ -1,0 +1,46 @@
+# Default reviewer for everything.
+* @Ashutosh0x
+
+# ---------------------------------------------------------------------------
+# Paths below are listed not because they need a different reviewer today —
+# there is one maintainer — but because CODEOWNERS is what a future second
+# maintainer inherits, and because pairing it with branch protection is what
+# turns "please review money changes carefully" into something enforced.
+#
+# These are the files where a mistake is expensive and not obviously wrong on
+# the diff.
+# ---------------------------------------------------------------------------
+
+# Money movement. Settlement, the ledger, and the durable schema behind them.
+/apps/web/src/lib/services/payments.ts   @Ashutosh0x
+/apps/web/src/lib/ledger.ts              @Ashutosh0x
+/apps/web/src/lib/paymentsDb.ts          @Ashutosh0x
+/apps/web/src/lib/x402Settler.ts         @Ashutosh0x
+/apps/web/src/lib/x402Facilitator.ts     @Ashutosh0x
+/supabase/migrations/                    @Ashutosh0x
+
+# Authentication and authorization. authz.ts decides who every request is.
+/apps/web/src/lib/authz.ts               @Ashutosh0x
+/apps/web/src/lib/session.ts             @Ashutosh0x
+/apps/web/src/lib/mcp/                   @Ashutosh0x
+/apps/web/src/middleware.ts              @Ashutosh0x
+
+# The security manifest is executable policy — a classification changed here
+# silently weakens a route that still compiles and still passes its own tests.
+/apps/web/security/route-manifest.json   @Ashutosh0x
+/apps/web/src/lib/security/              @Ashutosh0x
+
+# Signing keys, delegation allowlists and store identity. A wrong value in any
+# of these is not a bug, it is an account takeover.
+/apps/web/src/lib/eip7702.ts             @Ashutosh0x
+/apps/extension/wxt.config.ts            @Ashutosh0x
+/guardian/app/mobile/build.gradle.kts    @Ashutosh0x
+/guardian/app/wear/build.gradle.kts      @Ashutosh0x
+
+# CI holds publish tokens and OIDC identity; a workflow change is a
+# supply-chain change.
+/.github/workflows/                      @Ashutosh0x
+
+# The rules everything else is enforced against.
+/AGENTS.md                               @Ashutosh0x
+/SECURITY.md                             @Ashutosh0x
