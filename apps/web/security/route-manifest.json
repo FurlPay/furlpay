@@ -39,6 +39,7 @@
     "auth/refresh": "AUTHENTICATED_USER",
     "auth/webauthn": "AUTHENTICATED_USER",
     "banking": "AUTHENTICATED_USER",
+    "banking/directory": "PUBLIC_INTENTIONAL",
     "billing/checkout": "AUTHENTICATED_USER",
     "bills": "AUTHENTICATED_USER",
     "cards": "AUTHENTICATED_USER",

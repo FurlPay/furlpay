@@ -82,20 +82,6 @@ export const SwapExecuteSchema = z.object({
 
 export const SwapSchema = z.union([SwapExecuteSchema, SwapQuoteSchema]);
 
-export const HsbcPostSchema = z.discriminatedUnion("action", [
-  z.object({
-    action: z.literal("merchant_onboarding"),
-    companyName: z.string().min(1).max(100),
-    businessRegistrationNumber: z.string().min(1).max(50),
-    contactEmail: z.string().email(),
-  }),
-  z.object({
-    action: z.literal("payme_checkout").optional(),
-    bookingId: z.string().min(1).max(100),
-    amountHkd: z.number().positive().max(1_000_000),
-    userEmail: z.string().email().optional(),
-  }),
-]);
 
 
 export const OfframpSchema = z.object({

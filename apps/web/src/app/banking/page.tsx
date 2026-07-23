@@ -7,6 +7,7 @@ import { PageHeader, Pill, Spinner, usd } from "@/components/ui";
 import { PlusIcon, ArrowUp, ArrowDown, SwapIcon, CheckIcon } from "@/components/icons";
 import { Copy } from "lucide-react";
 import Modal from "@/components/Modal";
+import { BankingHub } from "@/components/banking/BankingHub";
 
 // Mid-market rates to USD (mock; a live build pulls Wise/FX quotes).
 const TO_USD: Record<string, number> = { USD: 1, EUR: 1.09, GBP: 1.27, INR: 0.012, JPY: 0.0064 };
@@ -98,9 +99,15 @@ export default function BankingPage() {
         <Action label="Direct" onClick={() => setModal("direct")}><ArrowUp className="h-5 w-5 rotate-45" /></Action>
       </section>
 
+      {/* Banking Orchestration Hub */}
+      <section className="mt-7 px-5">
+        <BankingHub />
+      </section>
+
       {/* Accounts */}
       <section className="mt-7 px-5">
         <h2 className="mb-3 text-[17px] font-bold tracking-tight">Your accounts</h2>
+
         <div className="space-y-3">
           {accounts.map((a) => (
             <div key={a.currency} className="surface-card p-4">
