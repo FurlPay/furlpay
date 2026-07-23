@@ -3,6 +3,16 @@
   "version": "0.1.1",
   "description": "Furlpay shared design system — dark-mode tokens & primitives",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ashutosh0x/furlpay.git",
+    "directory": "packages/ui"
+  },
+  "homepage": "https://furlpay.com",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {

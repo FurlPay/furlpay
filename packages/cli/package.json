@@ -12,6 +12,18 @@
     "lib"
   ],
   "type": "commonjs",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FurlPay/furlpay-cli.git"
+  },
+  "homepage": "https://furlpay.com",
+  "bugs": {
+    "url": "https://github.com/FurlPay/furlpay-cli/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "keywords": [
     "furlpay",
     "stablecoin",

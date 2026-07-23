@@ -3,6 +3,18 @@
   "version": "0.1.1",
   "description": "Furlpay smart-contract SDK — Safe/ERC-4337 deployment, paymaster & escrow bindings",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FurlPay/furlpay-account-kit.git"
+  },
+  "homepage": "https://furlpay.com",
+  "bugs": {
+    "url": "https://github.com/FurlPay/furlpay-account-kit/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {

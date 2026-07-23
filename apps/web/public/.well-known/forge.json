@@ -1,0 +1,22 @@
+{
+  "publisher": "FurlPay",
+  "$comment": "Forge domain verification. Proves that whoever controls furlpay.com is the same party as the GitHub publisher, which is the claim Forge's +5 domain signal makes. Schema per Forge Trust Spec v0.1: the required field is `publisher`, set to the GitHub login/org that publishes the packages. Everything below is descriptive and safe to ignore by a strict parser. NOTE: v0.1 is an open RFC — re-check the field names against the current spec before relying on this, and remember that domain verification proves identity, never code safety.",
+  "packages": [
+    "@furlpay/cli",
+    "@furlpay/gateway",
+    "@furlpay/x402-guard",
+    "@furlpay/agent-trust",
+    "@furlpay/ap2",
+    "@furlpay/account-kit",
+    "@furlpay/elements",
+    "@furlpay/ui",
+    "@furlpay/auto-invest",
+    "@furlpay/market-data",
+    "@furlpay/travel-mcp",
+    "@furlpay/vercel-ai",
+    "furlpay-mastra"
+  ],
+  "contact": "support@furlpay.com",
+  "securityPolicy": "https://furlpay.com/.well-known/security.txt",
+  "disclosurePolicy": "https://furlpay.com/legal/responsible-disclosure"
+}

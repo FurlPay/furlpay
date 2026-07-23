@@ -58,7 +58,47 @@ jobs:
           publish: ${{ steps.publish_mode.outputs.cmd }}
           title: "chore: version packages"
           commit: "chore: version packages"
+        id: changesets
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
+
+      # ── Supply-chain attestations ────────────────────────────────────────
+      # Everything below runs ONLY when something was actually published, and
+      # each step is individually gated on its own secret. A missing token
+      # skips the step with a notice rather than reddening a release that
+      # already succeeded — the same posture as the NPM_TOKEN gate above.
+
+      - name: Generate SBOM (CycloneDX)
+        if: steps.changesets.outputs.published == 'true'
+        # An SBOM is the artifact that answers "were we affected?" on the day a
+        # transitive dependency turns out to be compromised. Generated from the
+        # resolved tree at publish time, because that is the only moment the
+        # exact versions that shipped are still known.
+        run: npx --yes @cyclonedx/cyclonedx-npm@latest --output-file sbom.cdx.json --output-format JSON || echo "::warning::SBOM generation failed — release not blocked"
+
+      - name: Upload SBOM
+        if: steps.changesets.outputs.published == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Publish to Forge registry
+        # Forge (@forge-registry/cli, verified present on npm) adds the trust
+        # layer npm does not: GitHub publisher verification, an Ed25519 publish
+        # signature, and CVE/static scanning. It complements provenance rather
+        # than replacing it — provenance proves WHERE a package was built,
+        # publisher verification proves WHO owns it.
+        #
+        # Gated: without the token this is skipped, not failed. Verify the exact
+        # env var against Forge's current docs — Trust Spec v0.1 is an open RFC
+        # and this name comes from their published guidance, not a stable API.
+        if: steps.changesets.outputs.published == 'true' && env.FORGE_TOKEN != ''
+        env:
+          FORGE_TOKEN: ${{ secrets.FORGE_GITHUB_TOKEN }}
+          FORGE_GITHUB_TOKEN: ${{ secrets.FORGE_GITHUB_TOKEN }}
+        run: npx --yes @forge-registry/cli@latest publish || echo "::warning::Forge publish failed — npm release already succeeded"

@@ -3,6 +3,18 @@
   "version": "0.1.1",
   "description": "Embeddable Furlpay UI widgets — secure checkout & card credential display",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FurlPay/furlpay-elements.git"
+  },
+  "homepage": "https://furlpay.com",
+  "bugs": {
+    "url": "https://github.com/FurlPay/furlpay-elements/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "main": "src/index.tsx",
   "types": "src/index.tsx",
   "exports": {
