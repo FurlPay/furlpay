@@ -1,3 +1,5 @@
+import java.util.Properties
+
 // Life Guardian phone app — "the brain". Hosts sign-in (email OTP against
 // furlpay.com), the dashboard, the watch voice relay, and the FCM client.
 // google-services.json is needed only for Firebase AT RUNTIME (Gemini + FCM);
@@ -16,6 +18,50 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
+// ---------------------------------------------------------------------------
+// Release signing.
+//
+// Credentials are read from keystore.properties (gitignored) or, for CI, the
+// GUARDIAN_KEYSTORE_* environment variables. Nothing secret is committed: the
+// file is ignored and the env path leaves no artifact on disk.
+//
+// When neither source is configured this returns null and the release build is
+// left UNSIGNED rather than silently falling back to the debug key. A debug-
+// signed release is accepted by `assembleRelease`, installs happily, and is
+// rejected by Play only after upload — failing here instead makes the missing
+// credential obvious at the point it matters.
+// ---------------------------------------------------------------------------
+data class SigningMaterial(
+    val storeFile: File,
+    val storePassword: String,
+    val keyAlias: String,
+    val keyPassword: String,
+)
+
+fun loadSigningMaterial(): SigningMaterial? {
+    // `Properties` is imported at the top of this file: inside the Gradle Kotlin
+    // DSL, `java` resolves to the JavaPluginExtension, so `java.util.Properties`
+    // does not compile here.
+    val props = Properties()
+    val local = rootProject.file("keystore.properties")
+    if (local.exists()) local.inputStream().use { props.load(it) }
+
+    fun value(key: String, env: String): String? =
+        props.getProperty(key) ?: System.getenv(env)
+
+    val path = value("storeFile", "GUARDIAN_KEYSTORE_FILE") ?: return null
+    val storePassword = value("storePassword", "GUARDIAN_KEYSTORE_PASSWORD") ?: return null
+    val alias = value("keyAlias", "GUARDIAN_KEY_ALIAS") ?: return null
+    val keyPassword = value("keyPassword", "GUARDIAN_KEY_PASSWORD") ?: return null
+
+    val file = rootProject.file(path)
+    if (!file.exists()) {
+        logger.warn("Guardian: keystore '{}' is configured but missing — release will be unsigned.", path)
+        return null
+    }
+    return SigningMaterial(file, storePassword, alias, keyPassword)
+}
+
 android {
     namespace = "com.furlpay.guardian.mobile"
     compileSdk = 36
@@ -29,6 +75,40 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
+    }
+
+    signingConfigs {
+        loadSigningMaterial()?.let { material ->
+            create("release") {
+                storeFile = material.storeFile
+                storePassword = material.storePassword
+                keyAlias = material.keyAlias
+                keyPassword = material.keyPassword
+                // Play requires the v2+ block; v1 stays on for the API 26 floor.
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // R8 full mode: shrink code AND resources. A Wear/phone pair ships
+            // over the same connection as the watch APK, so size is not vanity.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            // Only wire the config when credentials actually resolved; otherwise
+            // the build stays unsigned and says so, rather than using the debug key.
+            signingConfig = signingConfigs.findByName("release")
+        }
+        debug {
+            // NO applicationIdSuffix. The Wearable Data Layer pairs a phone and
+            // watch app by IDENTICAL applicationId; suffixing the phone's debug
+            // build silently breaks pairing, and the symptom (watch shows no
+            // data) looks like a sync bug rather than a build-config one.
+            versionNameSuffix = "-debug"
+        }
     }
 
     buildFeatures {

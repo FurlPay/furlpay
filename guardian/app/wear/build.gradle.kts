@@ -1,3 +1,5 @@
+import java.util.Properties
+
 // FurlPay Watch — Wear OS companion (Pixel Watch 3 target, Wear OS 4+).
 // Standalone-capable: the session token syncs from the phone, after which the
 // watch talks to furlpay.com directly and degrades to the snapshot cache.
@@ -6,6 +8,40 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+}
+
+// Release signing — see app/mobile/build.gradle.kts for the full rationale.
+// The watch APK MUST be signed with the same key as the phone APK: Play rejects
+// a Wear/phone pair whose certificates differ, and the Data Layer will not pair
+// across them either. Both modules therefore read the same credentials.
+data class SigningMaterial(
+    val storeFile: File,
+    val storePassword: String,
+    val keyAlias: String,
+    val keyPassword: String,
+)
+
+fun loadSigningMaterial(): SigningMaterial? {
+    // See app/mobile: inside the Gradle Kotlin DSL `java` is the plugin
+    // extension, so Properties must be imported rather than fully qualified.
+    val props = Properties()
+    val local = rootProject.file("keystore.properties")
+    if (local.exists()) local.inputStream().use { props.load(it) }
+
+    fun value(key: String, env: String): String? =
+        props.getProperty(key) ?: System.getenv(env)
+
+    val path = value("storeFile", "GUARDIAN_KEYSTORE_FILE") ?: return null
+    val storePassword = value("storePassword", "GUARDIAN_KEYSTORE_PASSWORD") ?: return null
+    val alias = value("keyAlias", "GUARDIAN_KEY_ALIAS") ?: return null
+    val keyPassword = value("keyPassword", "GUARDIAN_KEY_PASSWORD") ?: return null
+
+    val file = rootProject.file(path)
+    if (!file.exists()) {
+        logger.warn("Guardian: keystore '{}' is configured but missing — release will be unsigned.", path)
+        return null
+    }
+    return SigningMaterial(file, storePassword, alias, keyPassword)
 }
 
 android {
@@ -22,6 +58,33 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+    }
+
+    signingConfigs {
+        loadSigningMaterial()?.let { material ->
+            create("release") {
+                storeFile = material.storeFile
+                storePassword = material.storePassword
+                keyAlias = material.keyAlias
+                keyPassword = material.keyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.findByName("release")
+        }
+        debug {
+            // No applicationIdSuffix — the watch app must keep the same id as
+            // the phone app for the Data Layer to pair. See app/mobile.
+            versionNameSuffix = "-debug"
+        }
     }
 
     buildFeatures {

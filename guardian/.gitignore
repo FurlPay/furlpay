@@ -7,3 +7,10 @@ local.properties
 # Firebase config is per-project secret (like the RN app's) — never commit.
 **/google-services.json
 .kotlin/
+# Release signing. keystore.properties holds the store and key passwords in
+# plaintext; the .jks IS the upload identity — leaking it lets anyone publish
+# an update as us, and Play cannot rotate an upload key without support.
+keystore.properties
+*.jks
+*.keystore
+
