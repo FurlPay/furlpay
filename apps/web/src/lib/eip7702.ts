@@ -1,4 +1,5 @@
 import { EVM_CHAIN_IDS } from "@/lib/x402Signature";
+import { EIP7702_FACTORY_FLAG, PER_EMPTY_ACCOUNT_COST } from "@/lib/erc4337";
 
 // ---------------------------------------------------------------------------
 // EIP-7702 delegation + Circle Paymaster — "pay gas in USDC from a plain EOA".
@@ -251,6 +252,16 @@ export interface SponsoredCapability {
   /** True when at least one network can actually sponsor today. */
   anyAvailable: boolean;
   asset: { symbol: "USDC"; decimals: number };
+  /** ERC-4337 shape a client must build against. See lib/erc4337.ts. */
+  userOperation: {
+    entryPointVersion: "0.8";
+    /** Sentinel that marks the sender as a 7702-delegated EOA, not a factory. */
+    factoryFlag: string;
+    /** Gas the EntryPoint cannot see; MUST be folded into preVerificationGas. */
+    perEmptyAccountCost: string;
+    /** An authorization tuple travels ALONGSIDE the op, never inside it. */
+    authorizationField: "eip7702Auth";
+  };
   detail: string;
 }
 
@@ -263,6 +274,12 @@ export function sponsoredCapability(): SponsoredCapability {
     availability,
     anyAvailable: availability.some((a) => a.available),
     asset: { symbol: "USDC", decimals: USDC_DECIMALS },
+    userOperation: {
+      entryPointVersion: "0.8",
+      factoryFlag: EIP7702_FACTORY_FLAG,
+      perEmptyAccountCost: PER_EMPTY_ACCOUNT_COST.toString(),
+      authorizationField: "eip7702Auth",
+    },
     detail:
       "Delegate an EOA via EIP-7702 and pay gas in USDC through Circle Paymaster. " +
       "No smart-account deployment. Requires a configured Paymaster, bundler and " +
