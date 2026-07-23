@@ -15,7 +15,11 @@ android {
     defaultConfig {
         applicationId = "com.furlpay.guardian"
         minSdk = 30
-        targetSdk = 34
+        // Google Play requires Wear OS apps to target API 35 or higher; 34 is
+        // below the floor and cannot be submitted. Wear is exempt from the
+        // API 36 rule that applies to the phone app from 31 Aug 2026, so 35 is
+        // both compliant and the highest level compileSdk 35 can target.
+        targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
     }

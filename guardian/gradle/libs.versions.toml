@@ -7,6 +7,13 @@
 #   - firebase-ai (Live API) model "gemini-2.5-flash-native-audio-preview-12-2025"
 #   - appfunctions is 1.0.0-alphaNN (alpha, Android 16+) — gate behind SDK check
 [versions]
+# AGP 8.7.3 builds cleanly against compileSdk 36 (verified 23 Jul 2026) but
+# emits an advisory "tested up to compileSdk 35" warning. The warning is NOT
+# suppressed: upgrading to AGP 8.11.x clears it, and that upgrade additionally
+# requires Gradle 8.13+ (verified — AGP 8.11.1 refuses to load on 8.10.2). Do
+# both together, and re-run the app-module builds afterwards. Play validates the
+# manifest's targetSdk, not the AGP version, so this is hygiene rather than a
+# submission blocker.
 agp = "8.7.3"
 kotlin = "2.1.0"
 ksp = "2.1.0-1.0.29"

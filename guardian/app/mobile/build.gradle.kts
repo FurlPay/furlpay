@@ -18,12 +18,15 @@ if (file("google-services.json").exists()) {
 
 android {
     namespace = "com.furlpay.guardian.mobile"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.furlpay.guardian"
         minSdk = 26
-        targetSdk = 35
+        // Google Play requires new submissions and updates to target Android 16
+        // (API 36) from 31 Aug 2026. 35 would still install but could not be
+        // submitted after that date.
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
     }
