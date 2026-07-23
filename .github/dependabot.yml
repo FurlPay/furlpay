@@ -21,9 +21,71 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    # Security fixes land as ONE PR per ecosystem instead of N. Without
+    # `applies-to: security-updates` a `groups` block only affects version
+    # updates, so security PRs stay ungrouped and noisy.
+    security-updates:
+      applies-to: security-updates
+      patterns:
+        - "*"
     # Auto-assign for review
     reviewers:
       - "Ashutosh0x"
+    # Since 2026-07-14 Dependabot applies a 3-day cooldown to VERSION updates
+    # by default (lets a compromised release be caught before we pull it).
+    # Stated explicitly so the intent survives a future default change.
+    # Security updates deliberately bypass cooldown and open immediately.
+    cooldown:
+      default-days: 3
+      semver-major-days: 7
+
+  # npm — linkedin-scout carries its OWN package-lock.json and is NOT in the
+  # root `workspaces` array, so the "/" entry above never sees it. That gap is
+  # why its brace-expansion advisory sat unpatched until a Snyk report caught
+  # it externally on 2026-07-23.
+  - package-ecosystem: "npm"
+    directory: "/apps/web/scratch/linkedin-scout"
+    schedule:
+      interval: "daily"
+      time: "06:00"
+      timezone: "Asia/Kolkata"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "security"
+    groups:
+      scout-deps:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # Docker — the openbb plugin base image. Nothing was watching this, so the
+  # base drifted until an external scan reported the Debian CVEs. Dependabot
+  # bumps the pinned digest in the Dockerfile as new base builds ship.
+  - package-ecosystem: "docker"
+    directory: "/packages/furlpay-openbb-plugin"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "security"
+      - "docker"
+
+  # pip — openbb plugin runtime deps (pinned exactly in requirements.txt, so
+  # they need an updater to stay current).
+  - package-ecosystem: "pip"
+    directory: "/packages/furlpay-openbb-plugin"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "dependencies"
+      - "python"
 
   # GitHub Actions — keep CI/CD actions updated
   - package-ecosystem: "github-actions"

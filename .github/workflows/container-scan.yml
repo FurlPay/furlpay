@@ -1,0 +1,123 @@
+# ---------------------------------------------------------------------------
+# Container Security Scan — Dockerfile + built-image CVE scanning.
+#
+# Gap this closes: nothing in CI ever looked at a container image. The Debian
+# base-image CVEs reported for packages/furlpay-openbb-plugin on 2026-07-23
+# were only ever visible on an external Snyk dashboard, so they could not gate
+# a merge and nobody saw them between weekly emails.
+#
+# Trivy is the gate (no account needed, so it always runs). Snyk runs too when
+# SNYK_TOKEN is present, to keep parity with the dashboard that reports these.
+# ---------------------------------------------------------------------------
+name: Container Scan
+
+on:
+  push:
+    branches: [main, extension-redesign]
+    paths:
+      - "packages/furlpay-openbb-plugin/**"
+      - ".github/workflows/container-scan.yml"
+  pull_request:
+    paths:
+      - "packages/furlpay-openbb-plugin/**"
+      - ".github/workflows/container-scan.yml"
+  schedule:
+    # 07:30 UTC. Base images accrue CVEs with no repo change at all, so the
+    # scheduled run matters more here than the push-triggered one.
+    - cron: "30 7 * * *"
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  scan:
+    name: "🐳 Image CVE Scan"
+    runs-on: ubuntu-latest
+    # Job-level so the optional-Snyk step can test for it. The `secrets`
+    # context is NOT available in a step-level `if`, and a step cannot read its
+    # own `env:` block from its `if` — promoting it here is what makes the
+    # conditional actually evaluate instead of silently always skipping.
+    env:
+      SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Dockerfile misconfiguration (root user, missing USER, secrets in ENV).
+      # Runs against the Dockerfile itself, so it catches problems before a
+      # build is even attempted.
+      - name: Trivy config scan (Dockerfile)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: config
+          scan-ref: packages/furlpay-openbb-plugin
+          format: table
+          exit-code: "0" # advisory — misconfig findings inform, CVEs gate
+
+      - name: Build image
+        run: |
+          docker build \
+            -t furlpay-openbb:scan \
+            packages/furlpay-openbb-plugin
+
+      # The real gate. Fails the run on HIGH/CRITICAL that have a fix
+      # available — `--ignore-unfixed` keeps won't-fix Debian noise (the bulk
+      # of the low-severity list, e.g. CVE-2019-1010023 in glibc) from
+      # permanently blocking every merge.
+      - name: Trivy image scan (gate)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: furlpay-openbb:scan
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+      # Full SARIF (all severities) for the Security tab — reported but never
+      # blocking, so the won't-fix tail stays visible without gating merges.
+      - name: Trivy SARIF (all severities)
+        if: always()
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: furlpay-openbb:scan
+          format: sarif
+          output: trivy-results.sarif
+          exit-code: "0"
+
+      - name: Upload SARIF to GitHub Security
+        if: always()
+        uses: github/codeql-action/upload-sarif@v4
+        with:
+          sarif_file: trivy-results.sarif
+        continue-on-error: true
+
+      # Parity with the Snyk dashboard that generates the weekly report.
+      # Skipped rather than failed when the token is absent.
+      - name: Snyk container scan
+        if: env.SNYK_TOKEN != ''
+        continue-on-error: true
+        run: |
+          npm install -g snyk
+          snyk container test furlpay-openbb:scan \
+            --file=packages/furlpay-openbb-plugin/Dockerfile \
+            --severity-threshold=high \
+            --policy-path=packages/furlpay-openbb-plugin
+
+      - name: Discord alert on container CVEs
+        if: failure()
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_SECURITY_WEBHOOK }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"🐳 Container Scan Failed — fixable HIGH/CRITICAL CVEs\",
+              \"description\": \"The openbb plugin image has high or critical CVEs **with a fix available**. Usually means the pinned base digest is stale — bump it (Dependabot opens this weekly) or add the package upgrade to the Dockerfile.\",
+              \"color\": 15548997,
+              \"fields\": [
+                {\"name\": \"Branch\", \"value\": \"\`${{ github.ref_name }}\`\", \"inline\": true},
+                {\"name\": \"Report\", \"value\": \"[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "$DISCORD_WEBHOOK"

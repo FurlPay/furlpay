@@ -1,0 +1,274 @@
+# ---------------------------------------------------------------------------
+# Security Auto-Fix — the remediation half of the security pipeline.
+#
+# security-audit.yml DETECTS vulnerable deps and shouts on Discord. Dependabot
+# bumps dependencies it has a version update for. Neither one applies the
+# lockfile-only transitive fixes that `npm audit fix` resolves, which is the
+# gap that let brace-expansion sit vulnerable in linkedin-scout.
+#
+# This workflow closes that: audit -> fix -> verify -> open a PR.
+#
+# Deliberate constraints:
+#   • NEVER `npm audit fix --force` (AGENTS.md rule 12). --force installs
+#     semver-major downgrades/upgrades and has silently rolled this repo's
+#     @solana/* deps backwards before. Without --force npm only applies
+#     semver-compatible fixes, which is exactly what we want unattended.
+#   • Opens a PR; never pushes to a protected branch. For a payments repo a
+#     dependency change still gets a human (or at minimum a green CI gate)
+#     before it reaches main.
+#   • Allowlisted advisories (.github/audit-allowlist.json) are not treated as
+#     failures — they have no upstream fix by definition.
+#
+# One-time setup:
+#   • Settings → Actions → General → "Allow GitHub Actions to create and
+#     approve pull requests" must be ON, or the PR step 403s.
+#   • Optional: set repo variable SECURITY_AUTOFIX_AUTOMERGE=true to let
+#     lockfile-only fixes auto-merge once CI is green.
+# ---------------------------------------------------------------------------
+name: Security Auto-Fix
+
+on:
+  schedule:
+    - cron: "0 7 * * *" # 07:00 UTC — after security-audit (06:00) has reported
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  autofix:
+    name: "🛠️ Auto-Fix (${{ matrix.name }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false # one project's failure must not hide another's fix
+      matrix:
+        include:
+          - name: root
+            dir: "."
+            verify: "npm test" # the repo's own definition of green (see root package.json)
+          - name: linkedin-scout
+            dir: "apps/web/scratch/linkedin-scout"
+            verify: "npx tsc --noEmit"
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ---------------------------------------------------------------
+      # Baseline: what is vulnerable before we touch anything?
+      # ---------------------------------------------------------------
+      - name: Audit before fix
+        id: before
+        working-directory: ${{ matrix.dir }}
+        run: |
+          npm install --ignore-scripts --no-audit --no-fund
+          npm audit --json > /tmp/audit-before.json 2>&1 || true
+          TOTAL=$(jq '[.vulnerabilities // {} | to_entries[]] | length' /tmp/audit-before.json)
+          echo "total=$TOTAL" >> $GITHUB_OUTPUT
+          echo "Vulnerable packages before fix: $TOTAL"
+
+          # `npm install` rewrites the lockfile on its own (metadata churn,
+          # peer-dep resolution) even when nothing is fixed. Discard that now
+          # so the only diff surviving into the PR is what audit fix produced —
+          # otherwise this opens an empty "security" PR every single night.
+          # node_modules is untracked, so the installed tree is unaffected.
+          git -C "$GITHUB_WORKSPACE" checkout -- .
+
+      # ---------------------------------------------------------------
+      # The fix. No --force, ever.
+      # ---------------------------------------------------------------
+      - name: Run npm audit fix
+        working-directory: ${{ matrix.dir }}
+        run: npm audit fix --ignore-scripts --no-fund || true
+
+      - name: Detect changes
+        id: diff
+        run: |
+          if git diff --quiet; then
+            echo "changed=false" >> $GITHUB_OUTPUT
+            echo "No changes — nothing to fix."
+            exit 0
+          fi
+          echo "changed=true" >> $GITHUB_OUTPUT
+
+          # A lockfile-only diff is the low-risk case: no manifest range moved,
+          # so nothing outside the resolved tree can shift under us.
+          if git diff --name-only | grep -qv 'package-lock\.json$'; then
+            echo "lock_only=false" >> $GITHUB_OUTPUT
+          else
+            echo "lock_only=true" >> $GITHUB_OUTPUT
+          fi
+
+          git diff --name-only | sed 's/^/  /' > /tmp/changed.txt
+          cat /tmp/changed.txt
+
+      # ---------------------------------------------------------------
+      # Verify the fix did not break the build before proposing it.
+      # ---------------------------------------------------------------
+      - name: Verify build/tests
+        id: verify
+        if: steps.diff.outputs.changed == 'true'
+        working-directory: ${{ matrix.dir }}
+        continue-on-error: true
+        run: ${{ matrix.verify }}
+
+      # ---------------------------------------------------------------
+      # Residual risk after the fix, ignoring accepted advisories.
+      # ---------------------------------------------------------------
+      - name: Audit after fix
+        id: after
+        if: steps.diff.outputs.changed == 'true'
+        working-directory: ${{ matrix.dir }}
+        run: |
+          ALLOW=$(jq -c '[.[].name]' "$GITHUB_WORKSPACE/.github/audit-allowlist.json")
+
+          # Count only advisories we have NOT formally accepted.
+          remaining() { # remaining <file> <severity>
+            jq --argjson allow "$ALLOW" --arg sev "$2" \
+              '[.vulnerabilities // {} | to_entries[]
+                | select(.value.severity == $sev)
+                | select(.key as $k | $allow | index($k) == null)
+               ] | length' "$1"
+          }
+
+          # The GATE is production-only, matching security-audit.yml's
+          # `--omit=dev` threshold. Dev-tree advisories are real but do not ship
+          # to users, and today every dev critical/high in this repo is fixable
+          # only by a semver-MAJOR bump (vitest 4, hardhat 3, wxt, next 16)
+          # that `npm audit fix` deliberately will not make. Gating on them
+          # would wedge auto-merge permanently on issues this workflow cannot
+          # fix — so they are reported, not blocking.
+          npm audit --omit=dev --json > /tmp/audit-prod.json 2>&1 || true
+          CRIT=$(remaining /tmp/audit-prod.json critical)
+          HIGH=$(remaining /tmp/audit-prod.json high)
+
+          # Informational: full tree including devDependencies.
+          npm audit --json > /tmp/audit-all.json 2>&1 || true
+          DEV_CRIT=$(remaining /tmp/audit-all.json critical)
+          DEV_HIGH=$(remaining /tmp/audit-all.json high)
+
+          echo "critical=$CRIT" >> $GITHUB_OUTPUT
+          echo "high=$HIGH" >> $GITHUB_OUTPUT
+          echo "dev_critical=$DEV_CRIT" >> $GITHUB_OUTPUT
+          echo "dev_high=$DEV_HIGH" >> $GITHUB_OUTPUT
+          echo "Production (gating)     — critical: $CRIT, high: $HIGH"
+          echo "Incl. dev (informational) — critical: $DEV_CRIT, high: $DEV_HIGH"
+
+      - name: Open pull request
+        id: pr
+        if: steps.diff.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: security/autofix-${{ matrix.name }}
+          delete-branch: true
+          commit-message: "fix(security): npm audit fix for ${{ matrix.name }}"
+          title: "fix(security): automated dependency fixes (${{ matrix.name }})"
+          labels: |
+            dependencies
+            security
+            automated
+          body: |
+            Automated `npm audit fix` on **${{ matrix.name }}** (`${{ matrix.dir }}`).
+
+            | | |
+            |---|---|
+            | Vulnerable packages before | ${{ steps.before.outputs.total }} |
+            | **Production** critical / high remaining | **${{ steps.after.outputs.critical }} / ${{ steps.after.outputs.high }}** |
+            | Incl. dev critical / high (informational) | ${{ steps.after.outputs.dev_critical }} / ${{ steps.after.outputs.dev_high }} |
+            | Lockfile-only change | ${{ steps.diff.outputs.lock_only }} |
+            | Build/tests | ${{ steps.verify.outcome }} |
+
+            Counts exclude advisories accepted in `.github/audit-allowlist.json`.
+            Only the **production** row gates auto-merge — dev-tree advisories
+            here are fixable only by semver-major bumps that `npm audit fix`
+            will not make, and are tracked as separate upgrades.
+
+            Run with `npm audit fix` — **no `--force`**, so every change here is
+            semver-compatible (AGENTS.md rule 12).
+
+            Advisories with no upstream fix are recorded in
+            `.github/audit-allowlist.json` and are excluded from the counts above.
+
+            > Generated by `.github/workflows/security-autofix.yml`.
+
+      # Auto-merge only when this is genuinely low risk: lockfile-only, tests
+      # green, no non-allowlisted critical/high left, and explicitly opted in.
+      - name: Enable auto-merge
+        if: |
+          steps.pr.outputs.pull-request-number != '' &&
+          vars.SECURITY_AUTOFIX_AUTOMERGE == 'true' &&
+          steps.diff.outputs.lock_only == 'true' &&
+          steps.verify.outcome == 'success' &&
+          steps.after.outputs.critical == '0' &&
+          steps.after.outputs.high == '0'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh pr merge --auto --squash "${{ steps.pr.outputs.pull-request-url }}"
+
+      - name: Discord notification
+        if: steps.diff.outputs.changed == 'true'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_SECURITY_WEBHOOK }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"🛠️ Security Auto-Fix — PR opened (${{ matrix.name }})\",
+              \"color\": 3447003,
+              \"fields\": [
+                {\"name\": \"Vulnerable before\", \"value\": \"${{ steps.before.outputs.total }}\", \"inline\": true},
+                {\"name\": \"Remaining crit/high\", \"value\": \"${{ steps.after.outputs.critical }}/${{ steps.after.outputs.high }}\", \"inline\": true},
+                {\"name\": \"Build\", \"value\": \"${{ steps.verify.outcome }}\", \"inline\": true},
+                {\"name\": \"PR\", \"value\": \"[Review](${{ steps.pr.outputs.pull-request-url }})\", \"inline\": false}
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "$DISCORD_WEBHOOK"
+
+  # -----------------------------------------------------------------------
+  # Supply-chain integrity — the 2026 npm attack pattern is a hijacked
+  # maintainer account publishing a malicious version of a package you already
+  # depend on. `npm audit` scores KNOWN CVEs and will not see that at all;
+  # signature/provenance verification is what catches an unexpected publisher.
+  # -----------------------------------------------------------------------
+  signatures:
+    name: "🔏 Registry Signature & Provenance"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Verify npm registry signatures
+        id: sig
+        continue-on-error: true
+        run: npm audit signatures
+
+      - name: Discord alert on signature failure
+        if: steps.sig.outcome == 'failure'
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_SECURITY_WEBHOOK }}
+        run: |
+          [ -z "$DISCORD_WEBHOOK" ] && exit 0
+          curl -s -H "Content-Type: application/json" -d "{
+            \"embeds\": [{
+              \"title\": \"🔏 CRITICAL — npm signature/provenance verification FAILED\",
+              \"description\": \"A dependency failed registry signature or provenance verification. This is the signature of a compromised or tampered package — do not deploy until triaged.\",
+              \"color\": 15158332,
+              \"fields\": [
+                {\"name\": \"Workflow\", \"value\": \"[View Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})\", \"inline\": false}
+              ],
+              \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\"
+            }]
+          }" "$DISCORD_WEBHOOK"
+
+      - name: Propagate signature failure
+        if: steps.sig.outcome == 'failure'
+        run: exit 1
