@@ -1,0 +1,18 @@
+# Snyk policy file. Mirrors .github/audit-allowlist.json — see that file for the
+# full reasoning. Keep the two in sync.
+version: v1.25.0
+ignore:
+  SNYK-JS-INFLIGHT-6095116:
+    - '*':
+        reason: >-
+          inflight is deprecated and leaks memory by design; no fixed version
+          exists in any release. Reached only via
+          puppeteer-extra-plugin-stealth -> user-preferences -> user-data-dir ->
+          rimraf@3 -> glob@7. Overriding glob/rimraf is not a fix — user-data-dir
+          calls the callback form rimraf(dir, opts, cb) that rimraf v4+ removed,
+          which would break temp-profile cleanup. Scratch tooling, run manually
+          on a dev machine; never imported by apps/web, never bundled, never
+          deployed.
+        expires: 2027-01-23T00:00:00.000Z
+        created: 2026-07-23T00:00:00.000Z
+patch: {}

@@ -115,6 +115,16 @@
     "reviewed": "2026-07-17"
   },
   {
+    "name": "inflight",
+    "reason": "ROOT advisory SNYK-JS-INFLIGHT-6095116 (CWE-772, medium): the package leaks memory by design and is deprecated — no fixed version exists across any of its 7 releases. Only path is apps/web/scratch/linkedin-scout: puppeteer-extra-plugin-stealth -> user-preferences -> user-data-dir -> rimraf@3 -> glob@7 -> inflight. Overriding glob/rimraf is NOT a fix: user-data-dir calls the callback form `rimraf(dir, opts, cb)`, removed in rimraf v4+, so the override would silently break temp-profile cleanup and cause a worse resource leak than the advisory describes. Scratch tooling — run manually on a developer machine, never imported by apps/web and never bundled or deployed.",
+    "reviewed": "2026-07-23"
+  },
+  {
+    "name": "puppeteer-extra-plugin-stealth",
+    "reason": "Umbrella for the linkedin-scout scratch chain (user-preferences, user-data-dir, rimraf@3, glob@7) that is vulnerable only via inflight (see above). The sibling brace-expansion advisory in the same chain IS fixed — bumped to 1.1.16 in the scout lockfile.",
+    "reviewed": "2026-07-23"
+  },
+  {
     "name": "glib (cargo, apps/desktop)",
     "reason": "GHSA VariantStrIter unsoundness in glib 0.18.5 (Tauri desktop app). `cargo update -p glib` locks 0 packages — 0.18.5 is the newest compatible with our Tauri version; fix needs a Tauri major. Desktop app is unreleased.",
     "reviewed": "2026-07-10"
