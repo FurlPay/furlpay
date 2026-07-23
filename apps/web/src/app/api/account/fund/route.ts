@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { settle, type FacilitatorRequest } from "@/lib/x402Facilitator";
 import { PAY_TO } from "@/lib/x402";
 import { creditAccount } from "@/lib/services/account";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { optionalUser } from "@/lib/authz";
 import { getAccountDurable, getDevelopmentDemoAccount } from "@/lib/store";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
@@ -63,9 +63,14 @@ export async function POST(req: NextRequest) {
   // credit: the session user, else an explicitly named existing account (a
   // deposit by account number — worst case a payer donates to someone else),
   // else the demo account in dev only.
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
+  // optionalUser, not a bare verifySession: this route accepts anonymous
+  // deposits by account number, but a session that IS presented must be live —
+  // revoked, deleted, locked and out-of-scope connector tokens are refused
+  // rather than silently treated as an anonymous deposit.
+  const auth = await optionalUser(req);
+  if (auth.kind === "rejected") return auth.res;
   const target =
-    (await getAccountDurable(claims?.sub)) ??
+    (auth.kind === "user" ? auth.account : null) ??
     (await getAccountDurable(typeof body.destinationUserId === "string" ? body.destinationUserId : undefined)) ??
     getDevelopmentDemoAccount();
   if (!target) {

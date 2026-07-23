@@ -91,8 +91,10 @@ const liveIds = live.map((r) => r.route);
  */
 const BACKLOG = new Set<string>([
   // 1. authenticate by hand rather than through requireUser()
-  "account/fund", "agents/keys", "auth/logout", "auth/passkey/authenticate",
-  "auth/passkey/register", "auth/webauthn", "markets/[symbol]", "travel/book",
+  //    account/fund, agents/keys and markets/[symbol] were migrated to
+  //    optionalUser() on 23 Jul 2026 and removed from this list.
+  "auth/logout", "auth/passkey/authenticate",
+  "auth/passkey/register", "auth/webauthn", "travel/book",
   // 2. unauthenticated readers with no rate limit
   "actions/book-car", "agents", "ambassadors/instagram", "analytics/costs",
   "analytics/graph", "chain/contracts", "chain/gas-price", "chain/status",

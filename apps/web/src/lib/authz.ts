@@ -81,6 +81,38 @@ export async function requireUser(req: NextRequest): Promise<AuthResult> {
   return { ok: true, claims, account };
 }
 
+/**
+ * The acting user, for routes that also have a legitimate ANONYMOUS path.
+ *
+ * Some endpoints are deliberately usable without a session — funding an account
+ * by account number, registering a demo agent key — and previously resolved the
+ * caller with a bare `verifySession(cookie)`. That pattern silently skipped
+ * every protection requireUser() applies: the cross-instance revocation
+ * denylist, MCP connector scope enforcement, the deleted-account tombstone, and
+ * the account lock. A revoked session was treated as a valid one.
+ *
+ * The distinction that matters is between "no credential" and "a bad
+ * credential". No credential is anonymous, and the route decides what that
+ * means. A credential that is present but revoked, expired, deleted, locked or
+ * out of scope is REJECTED — never quietly downgraded to anonymous, because a
+ * caller who presented a dead credential must not be served as though they had
+ * presented none.
+ */
+export type OptionalAuth =
+  | { kind: "user"; claims: SessionClaims; account: UserAccount }
+  | { kind: "anonymous" }
+  | { kind: "rejected"; res: NextResponse };
+
+export async function optionalUser(req: NextRequest): Promise<OptionalAuth> {
+  // No credential offered at all — the only case the route may treat as guest.
+  if (!tokenFromRequest(req)) return { kind: "anonymous" };
+  // A credential WAS offered, so it gets the full treatment.
+  const auth = await requireUser(req);
+  return auth.ok
+    ? { kind: "user", claims: auth.claims, account: auth.account }
+    : { kind: "rejected", res: auth.res };
+}
+
 /** requireUser + role check. Roles come from the user record (source of
  *  truth), not just the token, so a role change takes effect immediately. */
 export async function requireRole(req: NextRequest, role: Role): Promise<AuthResult> {

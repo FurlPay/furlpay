@@ -9,8 +9,7 @@ import {
   registerOwnedAgentKey,
   revokeAgentKey,
 } from "@/lib/agentPolicy";
-import { getAccountDurable } from "@/lib/store";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { optionalUser, requireUser } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
@@ -50,8 +49,12 @@ export async function POST(req: NextRequest) {
   }
   const { publicKeyPem, name, policy } = parsed.data;
 
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const account = await getAccountDurable(claims?.sub);
+  // A presented session must be live before it can OWN a key with a spend
+  // policy; only the total absence of a credential falls through to the
+  // anonymous demo path below.
+  const auth = await optionalUser(req);
+  if (auth.kind === "rejected") return auth.res;
+  const account = auth.kind === "user" ? auth.account : null;
 
   try {
     if (account) {
@@ -83,8 +86,14 @@ export async function POST(req: NextRequest) {
 // GET /api/agents/keys — with a session: your keys with policies and status.
 // Without: the legacy anonymous key-id list (unchanged demo behavior).
 export async function GET(req: NextRequest) {
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const account = await getAccountDurable(claims?.sub);
+  // A reader on a route with an anonymous path gets no middleware backstop
+  // (the baseline only covers mutating methods), so it carries its own budget.
+  const limited = await rateLimitOr429(req, "agents.keys.read", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
+  const auth = await optionalUser(req);
+  if (auth.kind === "rejected") return auth.res;
+  const account = auth.kind === "user" ? auth.account : null;
   if (account) {
     const keys = await listAgentKeys(account.user.id);
     return NextResponse.json({ keys: keys.map(redactAgentKey) });
@@ -97,9 +106,12 @@ const RevokeBody = z.object({ keyId: z.string().min(1).max(200) });
 // DELETE /api/agents/keys — revoke one of your keys. Immediate on every
 // instance: verification and spend authorization both read the durable record.
 export async function DELETE(req: NextRequest) {
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const account = await getAccountDurable(claims?.sub);
-  if (!account) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  // Revocation has no anonymous path, so this is a plain requireUser: it also
+  // gives a revoked or locked session the 401/423 it deserves instead of
+  // letting it manage keys.
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  const account = auth.account;
 
   const parsed = RevokeBody.safeParse(await req.json().catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "keyId required" }, { status: 400 });
