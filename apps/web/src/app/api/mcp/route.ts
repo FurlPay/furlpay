@@ -4,6 +4,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { verifyAccessToken, type McpClaims } from "@/lib/mcp/oauth";
 import { serializeResult, toolByName, visibleTools, type ToolContext } from "@/lib/mcp/tools";
 import { hasScope } from "@/lib/mcp/oauth";
+import { verifyDpopProof, DpopError } from "@/lib/mcp/dpop";
 import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
@@ -33,22 +34,52 @@ const rpcOk = (id: unknown, result: unknown) =>
 const rpcErr = (id: unknown, code: number, message: string, status = 200) =>
   NextResponse.json({ jsonrpc: "2.0", id: id ?? null, error: { code, message } }, { status });
 
-function unauthorized(req: NextRequest): NextResponse {
+// A DPoP-bound token additionally advertises the `DPoP` scheme so a client
+// that dropped its proof knows to re-send one (RFC 9449 §7.1).
+function unauthorized(req: NextRequest, withDpop = false): NextResponse {
   const origin = new URL(req.url).origin;
+  const prm = `resource_metadata="${origin}/.well-known/oauth-protected-resource"`;
+  const challenge = withDpop
+    ? `DPoP realm="FurlPay", algs="ES256 RS256 EdDSA", ${prm}`
+    : `Bearer realm="FurlPay", ${prm}`;
   return NextResponse.json(
     { jsonrpc: "2.0", id: null, error: { code: -32001, message: "Unauthorized" } },
-    {
-      status: 401,
-      headers: {
-        "WWW-Authenticate": `Bearer realm="FurlPay", resource_metadata="${origin}/.well-known/oauth-protected-resource"`,
-      },
-    }
+    { status: 401, headers: { "WWW-Authenticate": challenge } }
   );
 }
 
 export async function POST(req: NextRequest) {
-  const claims = await verifyAccessToken(bearer(req));
-  if (!claims) return unauthorized(req);
+  const creds = authorization(req);
+  const claims = creds ? await verifyAccessToken(creds.token) : null;
+  if (!claims || !creds) return unauthorized(req);
+
+  // DPoP enforcement (RFC 9449): a token minted with a key binding is useless
+  // without proof of that key on every call. Unbound (Bearer) tokens skip this,
+  // keeping older connectors working during rollout.
+  if (claims.cnf?.jkt) {
+    // A bound token presented as `Bearer` is a downgrade attempt or a broken
+    // client. The binding is inside the signed token, so it cannot be stripped
+    // — answer with the DPoP challenge so a real client re-sends correctly.
+    if (creds.scheme !== "dpop") return unauthorized(req, true);
+    const proof = req.headers.get("dpop") || undefined;
+    if (!proof) return unauthorized(req, true);
+    const url = new URL(req.url);
+    try {
+      await verifyDpopProof(proof, {
+        htm: "POST",
+        htu: `${url.origin}${url.pathname}`,
+        accessToken: creds.token,
+        expectedJkt: claims.cnf.jkt,
+      });
+    } catch (e) {
+      if (e instanceof DpopError) return unauthorized(req, true);
+      throw e;
+    }
+  } else if (creds.scheme === "dpop") {
+    // An unbound token under the DPoP scheme: there is no key to check it
+    // against, so accepting it would make the scheme decorative. Fail closed.
+    return unauthorized(req);
+  }
 
   // Per-token budget. Money tools are additionally capped by the routes they
   // call (which keep their own limits) — this only stops a runaway agent loop.
@@ -129,14 +160,39 @@ export async function POST(req: NextRequest) {
 
 /** MCP clients probe with GET; we have no server-initiated stream to offer. */
 export async function GET(req: NextRequest) {
-  const claims = await verifyAccessToken(bearer(req));
-  if (!claims) return unauthorized(req);
+  const creds = authorization(req);
+  const claims = creds ? await verifyAccessToken(creds.token) : null;
+  if (!claims || !creds) return unauthorized(req);
+  // Scheme must still match the binding so a bound token is never accepted as
+  // a plain Bearer. No proof is demanded: this path returns no data, and
+  // verifying one would burn a jti from the client's replay window for a 405.
+  if (claims.cnf?.jkt && creds.scheme !== "dpop") return unauthorized(req, true);
   return new NextResponse(null, { status: 405, headers: { Allow: "POST" } });
 }
 
-function bearer(req: NextRequest): string | undefined {
+/**
+ * Parse `Authorization` into its scheme and token.
+ *
+ * RFC 9449 §7.1: a DPoP-bound token travels under the `DPoP` scheme, NOT
+ * `Bearer` — and our token endpoint returns `token_type: "DPoP"` for bound
+ * grants, so a spec-compliant client will always send `Authorization: DPoP …`.
+ * Parsing only `Bearer` here would 401 exactly the clients that implement the
+ * standard correctly, which is the opposite of the intent.
+ *
+ * Both schemes are parsed so the handler can compare the scheme against the
+ * token's own binding and fail closed on a mismatch, rather than silently
+ * treating a bound token as anonymous. Scheme names are case-insensitive
+ * (RFC 9110 §11.1).
+ */
+function authorization(req: NextRequest): { scheme: "bearer" | "dpop"; token: string } | undefined {
   const auth = req.headers.get("authorization");
-  return auth?.startsWith("Bearer ") ? auth.slice(7) : undefined;
+  if (!auth) return undefined;
+  const sp = auth.indexOf(" ");
+  if (sp < 0) return undefined;
+  const scheme = auth.slice(0, sp).toLowerCase();
+  const token = auth.slice(sp + 1).trim();
+  if (!token || (scheme !== "bearer" && scheme !== "dpop")) return undefined;
+  return { scheme, token };
 }
 
 /**
@@ -149,7 +205,9 @@ function bearer(req: NextRequest): string | undefined {
  */
 function apiCaller(req: NextRequest, claims: McpClaims): ToolContext["api"] {
   const origin = new URL(req.url).origin;
-  const token = bearer(req)!;
+  // Internal hops stay Bearer: the proof binds the client to THIS edge, and we
+  // are not that client when calling ourselves. The token itself is unchanged.
+  const token = authorization(req)!.token;
   return async (method, path, body) => {
     const res = await fetch(`${origin}${path}`, {
       method,

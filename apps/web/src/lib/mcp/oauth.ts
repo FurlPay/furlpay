@@ -180,11 +180,27 @@ export async function redeemCode(input: {
 export interface McpClaims extends SessionClaims {
   mcp?: true;
   scopes?: Scope[];
+  /** RFC 9449 confirmation: `jkt` is the SHA-256 thumbprint of the DPoP public
+   *  key this token is bound to. Present only for DPoP-bound tokens. */
+  cnf?: { jkt: string };
 }
 
-/** Mint a connector access token: a normal session JWT marked `mcp` + scoped. */
-export async function issueAccessToken(userId: string, scopes: Scope[], safe?: string): Promise<string> {
-  return signSession({ sub: userId, ...(safe ? { safe } : {}), mcp: true, scopes } as McpClaims);
+/** Mint a connector access token: a normal session JWT marked `mcp` + scoped.
+ *  When `jkt` is given, the token is DPoP-bound (RFC 9449): it can only be used
+ *  by a client that proves possession of the matching private key. */
+export async function issueAccessToken(
+  userId: string,
+  scopes: Scope[],
+  safe?: string,
+  jkt?: string
+): Promise<string> {
+  return signSession({
+    sub: userId,
+    ...(safe ? { safe } : {}),
+    mcp: true,
+    scopes,
+    ...(jkt ? { cnf: { jkt } } : {}),
+  } as McpClaims);
 }
 
 /** Verify a connector bearer token. Rejects non-MCP session tokens: a browser
@@ -217,6 +233,10 @@ interface RefreshRecord {
   clientId: string;
   scopes: Scope[];
   familyId: string;
+  /** DPoP key thumbprint the family is bound to, if the grant was DPoP-bound.
+   *  A DPoP-bound refresh token can only be redeemed by proving the same key
+   *  (RFC 9449 §5), so a stolen refresh token is inert without the key. */
+  jkt?: string;
 }
 
 export async function issueRefreshToken(input: {
@@ -224,6 +244,7 @@ export async function issueRefreshToken(input: {
   clientId: string;
   scopes: Scope[];
   familyId?: string;
+  jkt?: string;
 }): Promise<string> {
   const familyId = input.familyId ?? randomUUID();
   const token = `rt_${randomUUID().replace(/-/g, "")}${randomUUID().replace(/-/g, "")}`;
@@ -232,6 +253,7 @@ export async function issueRefreshToken(input: {
     clientId: input.clientId,
     scopes: input.scopes,
     familyId,
+    ...(input.jkt ? { jkt: input.jkt } : {}),
   };
   await kvSet(refreshKey(token), record, REFRESH_TTL);
   return token;
@@ -242,7 +264,8 @@ export async function rotateRefreshToken(input: {
   token: string;
   clientId: string;
 }): Promise<
-  { ok: true; userId: string; scopes: Scope[]; refreshToken: string } | { ok: false; error: string }
+  | { ok: true; userId: string; scopes: Scope[]; refreshToken: string; jkt?: string }
+  | { ok: false; error: string }
 > {
   const record = await kvGet<RefreshRecord>(refreshKey(input.token));
   if (!record) {
@@ -275,8 +298,9 @@ export async function rotateRefreshToken(input: {
     clientId: record.clientId,
     scopes: record.scopes,
     familyId: record.familyId,
+    ...(record.jkt ? { jkt: record.jkt } : {}),
   });
-  return { ok: true, userId: record.userId, scopes: record.scopes, refreshToken };
+  return { ok: true, userId: record.userId, scopes: record.scopes, refreshToken, jkt: record.jkt };
 }
 
 /** RFC 7009 revocation of a refresh token: kills the token AND its family, so
