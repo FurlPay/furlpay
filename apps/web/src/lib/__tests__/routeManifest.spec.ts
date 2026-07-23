@@ -98,7 +98,8 @@ const BACKLOG = new Set<string>([
   // 2. unauthenticated readers with no rate limit
   "actions/book-car", "agents", "ambassadors/instagram", "analytics/costs",
   "analytics/graph", "chain/contracts", "chain/gas-price", "chain/status",
-  "chain/tx/[hash]", "chain/usdc/supply", "compliance",
+  // `compliance` gained a per-route rate limit on 23 Jul 2026 and is now fixed.
+  "chain/tx/[hash]", "chain/usdc/supply",
   "compliance/attestation/[tx]", "compliance/jurisdiction", "discord/linked-roles",
   "earn/position", "earn/vaults", "insights", "investing/rwa", "investing/schedule",
   "ledger", "markets", "markets/bars", "markets/indices", "markets/movers",

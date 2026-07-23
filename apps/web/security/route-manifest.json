@@ -1,12 +1,12 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 205,
+  "_total": 208,
   "_counts": {
     "ADMIN_ONLY": 15,
-    "AUTHENTICATED_USER": 69,
+    "AUTHENTICATED_USER": 71,
     "DEVELOPMENT_ONLY": 1,
     "PUBLIC_INTENTIONAL": 107,
-    "WEBHOOK_VERIFIED": 13
+    "WEBHOOK_VERIFIED": 14
   },
   "routes": {
     "account": "AUTHENTICATED_USER",
@@ -63,8 +63,10 @@
     "compliance/escrow/[action]": "PUBLIC_INTENTIONAL",
     "compliance/jurisdiction": "PUBLIC_INTENTIONAL",
     "compliance/kyc": "PUBLIC_INTENTIONAL",
+    "compliance/screen": "AUTHENTICATED_USER",
     "compliance/tier": "AUTHENTICATED_USER",
     "compliance/travel-rule": "PUBLIC_INTENTIONAL",
+    "compliance/verify": "AUTHENTICATED_USER",
     "contact": "PUBLIC_INTENTIONAL",
     "credit": "AUTHENTICATED_USER",
     "deposits": "AUTHENTICATED_USER",
@@ -195,6 +197,7 @@
     "wallets/transfer": "AUTHENTICATED_USER",
     "webhooks/bridge": "WEBHOOK_VERIFIED",
     "webhooks/card-auth": "WEBHOOK_VERIFIED",
+    "webhooks/complyadvantage": "WEBHOOK_VERIFIED",
     "webhooks/deposit-detect": "WEBHOOK_VERIFIED",
     "webhooks/github": "WEBHOOK_VERIFIED",
     "webhooks/marqeta": "WEBHOOK_VERIFIED",

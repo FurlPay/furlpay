@@ -10,7 +10,8 @@
   },
   "scripts": {
     "build:test": "tsc -p tsconfig.json",
-    "test": "npm run build:test && node --test test/compliance.test.js"
+    "test": "npm run build:test && node --test test/compliance.test.js test/nameScreening.test.js",
+    "generate-snapshot": "node scripts/generate-sdn-snapshot.mjs"
   },
   "dependencies": {
     "@furlpay/types": "*"

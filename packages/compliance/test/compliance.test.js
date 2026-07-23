@@ -75,9 +75,27 @@ test("KYC verifies a valid adult identity", () => {
 });
 
 test("tiered KYC: small amount needs no tier, large needs higher", () => {
-  assert.strictEqual(c.requiredTierForAmount(500), 0);
-  assert.strictEqual(c.requiredTierForAmount(50000), 2);
-  const gate = c.gateByTier(0, 50000, "transfer");
+  // Boundaries are DERIVED from the tier table, not hardcoded. This assertion
+  // previously pinned $500 to tier 0 and broke when the tier-0 single-transfer
+  // cap was tightened to $50 during the caps consolidation — the test was
+  // encoding one specific policy rather than the rule that policy expresses.
+  const t0Cap = c.TIERS[0].maxSingleTransferUsd;
+  const t2Cap = c.TIERS[2].maxSingleTransferUsd;
+
+  assert.strictEqual(c.requiredTierForAmount(t0Cap), 0, "at the cap, still tier 0");
+  assert.strictEqual(c.requiredTierForAmount(t0Cap + 1), 1, "one dollar over escalates");
+  assert.strictEqual(c.requiredTierForAmount(t2Cap), 2);
+  assert.strictEqual(c.requiredTierForAmount(t2Cap + 1), 3, "above the top cap needs the top tier");
+
+  // Caps must be strictly increasing, or a higher tier could permit less.
+  for (const t of [1, 2, 3]) {
+    assert.ok(
+      c.TIERS[t].maxSingleTransferUsd > c.TIERS[t - 1].maxSingleTransferUsd,
+      `tier ${t} must allow more than tier ${t - 1}`
+    );
+  }
+
+  const gate = c.gateByTier(0, t2Cap, "transfer");
   assert.strictEqual(gate.allowed, false);
   assert.ok(gate.upgradeRequires.length > 0);
 });

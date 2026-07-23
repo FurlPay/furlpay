@@ -174,6 +174,21 @@ export default function Security() {
             sub={profile.email ?? "Not set"}
             on={signals.emailVerified}
           />
+          {/* kycStatus was displayed across the app with no way to act on it.
+              This row is the missing route into the verification flow. */}
+          <AuthRow
+            icon="shield-checkmark"
+            label="Identity verification"
+            sub={
+              profile.kycStatus === "approved"
+                ? "Verified"
+                : profile.kycStatus === "pending" || profile.kycStatus === "review"
+                  ? "In review"
+                  : "Not verified — tap to start"
+            }
+            on={profile.kycStatus === "approved"}
+            onPress={() => router.push("/verify-identity")}
+          />
         </Surface>
 
         {/* Advanced security — real capabilities only */}
