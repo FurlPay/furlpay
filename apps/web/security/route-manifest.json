@@ -1,11 +1,11 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 209,
+  "_total": 210,
   "_counts": {
     "ADMIN_ONLY": 16,
     "AUTHENTICATED_USER": 71,
     "DEVELOPMENT_ONLY": 1,
-    "PUBLIC_INTENTIONAL": 107,
+    "PUBLIC_INTENTIONAL": 108,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -162,6 +162,7 @@
     "telegram/webhook": "WEBHOOK_VERIFIED",
     "transactions": "AUTHENTICATED_USER",
     "transfers/gasless": "AUTHENTICATED_USER",
+    "transfers/sponsored": "PUBLIC_INTENTIONAL",
     "travel/alerts": "PUBLIC_INTENTIONAL",
     "travel/blogs": "PUBLIC_INTENTIONAL",
     "travel/book": "AUTHENTICATED_USER",

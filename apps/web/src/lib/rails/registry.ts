@@ -100,6 +100,11 @@ export function railDescriptors(): RailDescriptor[] {
       endpoints: [
         { method: "GET", path: "/api/transfers/gasless", purpose: "Smart Gas fee quote" },
         { method: "POST", path: "/api/transfers/gasless", purpose: "relay a signed authorization" },
+        {
+          method: "GET",
+          path: "/api/transfers/sponsored",
+          purpose: "EIP-7702 + Circle Paymaster capability probe (pay gas in USDC from an EOA)",
+        },
       ],
       docs: "/docs/payments/agentic-x402",
     },

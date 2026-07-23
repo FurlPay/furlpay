@@ -99,6 +99,17 @@ export const ENV_REGISTRY: EnvGroup[] = [
     ],
   },
   {
+    group: "Compliance providers",
+    vars: [
+      v("SUMSUB_APP_TOKEN"),
+      v("SUMSUB_SECRET_KEY"),
+      v("COMPLYADVANTAGE_API_KEY"),
+      // Which provider to use: 'persona' | 'sumsub' (identity), 'complyadvantage' | 'furlpay' (screening)
+      v("COMPLIANCE_IDENTITY_PROVIDER"),
+      v("COMPLIANCE_SCREENING_PROVIDER"),
+    ],
+  },
+  {
     group: "Payments / banking rails",
     vars: [
       v("STRIPE_SECRET_KEY"),
@@ -114,6 +125,21 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("EMAIL_FROM"),
       v("CDP_API_KEY_ID"),
       v("CDP_API_KEY_SECRET"),
+    ],
+  },
+  {
+    group: "EIP-7702 / Circle Paymaster (pay gas in USDC from an EOA)",
+    vars: [
+      // Per-network Circle Paymaster contract. Absent → /api/transfers/sponsored
+      // reports the scheme unavailable and points clients at the sponsored
+      // EIP-3009 rail instead. Never assumed present.
+      v("CIRCLE_PAYMASTER_ADDRESS_ARBITRUM"),
+      v("CIRCLE_PAYMASTER_ADDRESS_BASE"),
+      v("CIRCLE_PAYMASTER_ADDRESS_ETHEREUM"),
+      // ERC-4337 bundler that accepts the sponsored UserOperation.
+      v("ERC4337_BUNDLER_URL_ARBITRUM"),
+      v("ERC4337_BUNDLER_URL_BASE"),
+      v("ERC4337_BUNDLER_URL_ETHEREUM"),
     ],
   },
   {
