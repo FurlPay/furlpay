@@ -1,6 +1,7 @@
 package com.furlpay.guardian.domain
 
 import com.furlpay.guardian.domain.action.Confirmation
+import com.furlpay.guardian.domain.action.FieldType
 import com.furlpay.guardian.domain.action.GuardianActionRegistry
 import com.furlpay.guardian.domain.action.ResolvedConfirmation
 import kotlin.test.Test
@@ -175,16 +176,83 @@ class GuardianActionRegistryTest {
             action = "execute_swap",
             endpoint = "/swaps",
             body = buildJsonObject {
-                put("fromToken", "USDC")
-                put("toToken", "USDT")
-                put("fromChain", "base")
-                // toChain omitted — optional
-                put("amountIn", 50.0)
+                put("quoteId", VALID_QUOTE_ID)
+                // fromToken / toToken / amountIn omitted — display-only echoes
             },
             summary = "",
         )
         val ok = assertIs<ResolvedConfirmation.Ok>(GuardianActionRegistry.resolve(c))
-        assertNull(ok.body["toChain"])
+        assertNull(ok.body["fromToken"])
+    }
+
+    @Test
+    fun `swap carries the settle discriminator so it does not re-quote`() {
+        val c = Confirmation(
+            action = "execute_swap",
+            endpoint = "/swaps",
+            body = buildJsonObject { put("quoteId", VALID_QUOTE_ID) },
+            summary = "",
+        )
+        val ok = assertIs<ResolvedConfirmation.Ok>(GuardianActionRegistry.resolve(c))
+        // Without `execute: true` the request takes the QUOTE branch of
+        // /api/swaps: the user confirms a swap, sees no error, nothing moves.
+        assertEquals(JsonPrimitive(true), ok.body["execute"])
+    }
+
+    @Test
+    fun `a payload cannot override a registry constant`() {
+        val c = Confirmation(
+            action = "execute_swap",
+            endpoint = "/swaps",
+            body = buildJsonObject {
+                put("quoteId", VALID_QUOTE_ID)
+                put("execute", false) // a model asking for the quote branch
+            },
+            summary = "",
+        )
+        val ok = assertIs<ResolvedConfirmation.Ok>(GuardianActionRegistry.resolve(c))
+        assertEquals(JsonPrimitive(true), ok.body["execute"])
+    }
+
+    @Test
+    fun `a swap with no quote id has nothing to settle`() {
+        val c = Confirmation(
+            action = "execute_swap",
+            endpoint = "/swaps",
+            body = buildJsonObject {
+                put("fromToken", "USDC")
+                put("toToken", "USDT")
+                put("amountIn", 50.0)
+            },
+            summary = "",
+        )
+        assertIs<ResolvedConfirmation.Rejected>(GuardianActionRegistry.resolve(c))
+    }
+
+    @Test
+    fun `a quote id that is not a uuid is rejected`() {
+        val c = Confirmation(
+            action = "execute_swap",
+            endpoint = "/swaps",
+            body = buildJsonObject { put("quoteId", "../../admin") },
+            summary = "",
+        )
+        assertIs<ResolvedConfirmation.Rejected>(GuardianActionRegistry.resolve(c))
+    }
+
+    @Test
+    fun `a support body under the server minimum is rejected`() {
+        val c = Confirmation(
+            action = "create_support_ticket",
+            endpoint = "/support/tickets",
+            body = buildJsonObject {
+                put("category", "other")
+                put("subject", "Help me")
+                put("body", "broke") // server requires 10 characters
+            },
+            summary = "",
+        )
+        assertIs<ResolvedConfirmation.Rejected>(GuardianActionRegistry.resolve(c))
     }
 
     @Test
@@ -192,5 +260,38 @@ class GuardianActionRegistryTest {
         // Every registry action mutates state server-side; none may execute
         // without confirmation. Guard against someone adding a GET-shaped one.
         assertTrue(GuardianActionRegistry.all.values.all { it.method == "POST" })
+    }
+
+    @Test
+    fun `every string field is constrained`() {
+        // A string field with neither an enum nor a pattern accepts anything a
+        // model cares to send. The iOS port shipped in exactly that state on
+        // every action, including the payment recipient.
+        for ((id, spec) in GuardianActionRegistry.all) {
+            for ((name, field) in spec.fields) {
+                if (field.type != FieldType.STRING) continue
+                assertTrue(
+                    field.oneOf != null || field.pattern != null,
+                    "$id.$name accepts arbitrary strings",
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `every usd field shares the one ceiling`() {
+        for ((id, spec) in GuardianActionRegistry.all) {
+            for ((name, field) in spec.fields) {
+                if (!field.usd) continue
+                assertEquals(
+                    GuardianActionRegistry.MAX_ACTION_USD, field.max,
+                    "$id.$name has a cap of its own",
+                )
+            }
+        }
+    }
+
+    private companion object {
+        const val VALID_QUOTE_ID = "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607"
     }
 }

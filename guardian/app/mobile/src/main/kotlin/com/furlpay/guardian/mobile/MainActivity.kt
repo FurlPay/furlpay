@@ -2,6 +2,7 @@ package com.furlpay.guardian.mobile
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,6 +23,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -33,6 +35,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.furlpay.guardian.mobile.ui.LiveVoiceScreen
+import com.furlpay.guardian.mobile.ui.TapToPayScreen
 import com.furlpay.guardian.mobile.ui.NewReminderDialog
 import com.furlpay.guardian.mobile.ui.ReminderRow
 import com.furlpay.guardian.mobile.viewmodel.DashboardViewModel
@@ -61,6 +64,25 @@ private fun GuardianRoot() {
     val context = androidx.compose.ui.platform.LocalContext.current
     val authState by context.mobileServices.authManager.state.collectAsStateWithLifecycle()
     var showVoice by rememberSaveable { mutableStateOf(false) }
+    var showTapToPay by rememberSaveable { mutableStateOf(false) }
+
+    // Signing out must close whatever was open. These are rememberSaveable, so
+    // without this a merchant who signs out from the terminal is dropped
+    // straight back into it on the next sign-in — with someone else's session.
+    LaunchedEffect(authState) {
+        if (authState != AuthManager.AuthState.SignedIn) {
+            showVoice = false
+            showTapToPay = false
+        }
+    }
+
+    // System Back closes the current surface instead of leaving the app.
+    // Without a handler, Back on the voice or terminal screen exits Guardian
+    // outright — on Android that reads as a crash, not as navigation.
+    BackHandler(enabled = showVoice || showTapToPay) {
+        showVoice = false
+        showTapToPay = false
+    }
 
     Scaffold { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -70,10 +92,16 @@ private fun GuardianRoot() {
                 )
                 AuthManager.AuthState.SignedOut -> SignInScreen()
                 AuthManager.AuthState.SignedIn ->
-                    if (showVoice) {
-                        LiveVoiceScreen(onBack = { showVoice = false })
-                    } else {
-                        DashboardScreen(onOpenVoice = { showVoice = true })
+                    when {
+                        showVoice -> LiveVoiceScreen(onBack = { showVoice = false })
+                        showTapToPay -> TapToPayScreen(
+                            viewModel = viewModel(),
+                            onClose = { showTapToPay = false },
+                        )
+                        else -> DashboardScreen(
+                            onOpenVoice = { showVoice = true },
+                            onOpenTapToPay = { showTapToPay = true },
+                        )
                     }
             }
         }
@@ -134,6 +162,7 @@ private fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
 @Composable
 private fun DashboardScreen(
     onOpenVoice: () -> Unit,
+    onOpenTapToPay: () -> Unit,
     viewModel: DashboardViewModel = viewModel(),
     remindersViewModel: RemindersViewModel = viewModel(),
 ) {
@@ -174,6 +203,7 @@ private fun DashboardScreen(
                     Text(if (state.syncing) "Syncing…" else "Sync watch")
                 }
                 OutlinedButton(onClick = onOpenVoice) { Text("Voice") }
+                OutlinedButton(onClick = onOpenTapToPay) { Text("Take payment") }
                 OutlinedButton(onClick = viewModel::signOut) { Text("Sign out") }
             }
         }

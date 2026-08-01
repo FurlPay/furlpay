@@ -53,7 +53,17 @@ class KeystoreTokenStore(context: Context) : TokenStore {
         prefs.edit().putString(KEY_TOKEN, Base64.encodeToString(sealed, Base64.NO_WRAP)).apply()
     }
 
-    private fun key(): SecretKey {
+    /**
+     * Fetch-or-create, under a lock.
+     *
+     * The lock is load-bearing. `token()` and `update()` both run on
+     * Dispatchers.IO and both call this, so a check-then-generate without it can
+     * interleave: two threads miss, both call generateKey() on the same alias,
+     * and the second REPLACES the first. Anything sealed with the displaced key
+     * then fails its GCM tag check and is discarded as unrecoverable — the user
+     * is signed out for no reason they can see.
+     */
+    private fun key(): SecretKey = synchronized(keyLock) {
         val store = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
 
@@ -72,6 +82,9 @@ class KeystoreTokenStore(context: Context) : TokenStore {
     }
 
     private companion object {
+        /** Guards fetch-or-create of the AndroidKeyStore entry. */
+        val keyLock = Any()
+
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "furlpay.guardian.session"
         const val PREFS = "guardian.auth"

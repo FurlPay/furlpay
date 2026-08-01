@@ -50,6 +50,15 @@ export interface ActionSpec {
   /** Disabled actions are rejected even if otherwise well-formed. */
   enabled: boolean;
   fields: Record<string, FieldSpec>;
+  /**
+   * Values the registry ALWAYS sets, whatever the model proposed. A key here
+   * cannot be supplied, overridden or omitted by the payload.
+   *
+   * `execute: true` on the swap is why this exists: /api/swaps is one route
+   * serving both the quote and the settle phase, and the discriminator that
+   * decides whether money moves must come from the app, not from a model's JSON.
+   */
+  constants?: Record<string, unknown>;
 }
 
 const EVM_ADDR = /^0x[0-9a-fA-F]{40}$/;
@@ -89,7 +98,10 @@ const REGISTRY: Record<string, ActionSpec> = {
     method: "POST",
     enabled: true,
     fields: {
-      symbol: { type: "string", label: "Asset", pattern: /^[A-Z0-9.]{1,12}$/ },
+      // Tighter than place_order's: /api/investing/schedule enforces
+      // ^[A-Z]{1,5}$ and rejects anything else, so accepting more here only
+      // defers the failure to the server.
+      symbol: { type: "string", label: "Asset", pattern: /^[A-Z]{1,5}$/ },
       side: { type: "string", label: "Side", oneOf: ["buy", "sell"] },
       notional: { type: "number", label: "Amount", usd: true, min: 1, max: MAX_ACTION_USD },
       cadence: { type: "string", label: "Every", oneOf: ["day", "week", "month"] },
@@ -114,12 +126,26 @@ const REGISTRY: Record<string, ActionSpec> = {
     method: "POST",
     enabled: true,
     fields: {
-      fromToken: { type: "string", label: "From", oneOf: STABLE },
-      toToken: { type: "string", label: "To", oneOf: STABLE },
-      fromChain: { type: "string", label: "Chain", oneOf: CHAINS },
-      toChain: { type: "string", label: "To chain", oneOf: CHAINS, optional: true },
-      amountIn: { type: "number", label: "Amount", usd: true, min: 0.01, max: MAX_ACTION_USD },
+      // The single-use id the server issued for the quote the user was shown.
+      // It is the only field the execute phase acts on: amount, route and rate
+      // all come from the stored quote, so re-pricing at settle time is not
+      // expressible. The pair fields below are accepted and ignored by the
+      // server — they exist so the confirmation card has something to render.
+      quoteId: {
+        type: "string",
+        pattern: /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/,
+      },
+      fromToken: { type: "string", label: "From", oneOf: STABLE, optional: true },
+      toToken: { type: "string", label: "To", oneOf: STABLE, optional: true },
+      amountIn: {
+        type: "number", label: "Amount", usd: true,
+        min: 0.01, max: MAX_ACTION_USD, optional: true,
+      },
     },
+    // Without this the request takes the QUOTE branch of /api/swaps and returns
+    // a fresh price instead of settling — the user confirms a swap, sees no
+    // error, and nothing moves.
+    constants: { execute: true },
   },
   send_payment: {
     id: "send_payment",
@@ -146,7 +172,8 @@ const REGISTRY: Record<string, ActionSpec> = {
         oneOf: ["stablecoins", "cards", "kyc", "travel", "developers", "other"],
       },
       subject: { type: "string", label: "Subject", pattern: /^[\s\S]{4,120}$/ },
-      body: { type: "string", pattern: /^[\s\S]{1,5000}$/ },
+      // Server minimum is 10, not 1 — a shorter body 400s at the route.
+      body: { type: "string", pattern: /^[\s\S]{10,5000}$/ },
     },
   },
 };
@@ -227,6 +254,10 @@ export function resolveConfirmation(c: Confirmation): ResolvedConfirmation {
       });
     }
   }
+
+  // Registry-owned constants last, so nothing validated above can have
+  // shadowed one.
+  Object.assign(body, spec.constants ?? {});
 
   return { ok: true, spec, endpoint: spec.endpoint, method: spec.method, body, details };
 }

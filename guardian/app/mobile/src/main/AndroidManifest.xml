@@ -11,6 +11,17 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SYSTEM_EXEMPTED" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
 
+    <!-- Tap to Pay (merchant contactless acceptance).
+
+         The PERMISSION is unconditional, but the FEATURE is required="false"
+         on purpose: Guardian is a finance app that happens to be able to take a
+         payment, not a payment terminal. Marking NFC required would delist it
+         on Google Play for every phone without an NFC radio, to gate one
+         optional screen. The feature is checked at runtime instead — see
+         TapToPayEnvironment. -->
+    <uses-permission android:name="android.permission.NFC" />
+    <uses-feature android:name="android.hardware.nfc" android:required="false" />
+
     <application
         android:name=".GuardianApp"
         android:label="FurlPay Guardian"

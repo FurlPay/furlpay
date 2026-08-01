@@ -136,19 +136,89 @@ describe("resolveConfirmation — allowlist", () => {
         action: "execute_swap",
         method: "POST",
         endpoint: "/api/swaps",
-        body: { fromToken: "USDC", toToken: "EURC", fromChain: "arbitrum", amountIn: 100 },
+        body: {
+          quoteId: "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607",
+          fromToken: "USDC",
+          toToken: "EURC",
+          amountIn: 100,
+        },
         summary: "Swap",
       },
       {
         action: "create_support_ticket",
         method: "POST",
         endpoint: "/api/support/tickets",
-        body: { category: "other", subject: "Help me", body: "Something broke" },
+        body: { category: "other", subject: "Help me", body: "Something broke here" },
         summary: "Ticket",
       },
     ];
     for (const c of real) {
       expect(resolveConfirmation(c).ok).toBe(true);
     }
+  });
+
+  // --- the swap settle discriminator ------------------------------------
+
+  it("injects execute:true on a swap, so it settles instead of re-quoting", () => {
+    const r = resolveConfirmation({
+      action: "execute_swap",
+      method: "POST",
+      endpoint: "/api/swaps",
+      body: { quoteId: "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607" },
+      summary: "Swap",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    // Without this the request takes the quote branch of /api/swaps and nothing
+    // moves, which is what the previous registry did.
+    expect(r.body.execute).toBe(true);
+    expect(r.body.quoteId).toBe("3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607");
+  });
+
+  it("will not let a payload override a registry constant", () => {
+    const r = resolveConfirmation({
+      action: "execute_swap",
+      method: "POST",
+      endpoint: "/api/swaps",
+      // A model asking for the quote branch on a settle action.
+      body: { quoteId: "3f1a2b4c-5d6e-4f70-8a91-b2c3d4e5f607", execute: false },
+      summary: "Swap",
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    expect(r.body.execute).toBe(true);
+  });
+
+  it("rejects a swap with no quote id — there is nothing to settle", () => {
+    const r = resolveConfirmation({
+      action: "execute_swap",
+      method: "POST",
+      endpoint: "/api/swaps",
+      body: { fromToken: "USDC", toToken: "EURC", amountIn: 100 },
+      summary: "Swap",
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects a quote id that is not a uuid", () => {
+    const r = resolveConfirmation({
+      action: "execute_swap",
+      method: "POST",
+      endpoint: "/api/swaps",
+      body: { quoteId: "../../admin" },
+      summary: "Swap",
+    });
+    expect(r.ok).toBe(false);
+  });
+
+  it("rejects a support body under the server's 10-character minimum", () => {
+    const r = resolveConfirmation({
+      action: "create_support_ticket",
+      method: "POST",
+      endpoint: "/api/support/tickets",
+      body: { category: "other", subject: "Help me", body: "broke" },
+      summary: "Ticket",
+    });
+    expect(r.ok).toBe(false);
   });
 });

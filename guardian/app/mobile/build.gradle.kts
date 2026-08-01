@@ -156,4 +156,10 @@ dependencies {
     // FCM client (server side already live — lib/fcm.ts)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+
+    // The src/test source set existed but had no dependencies, so anything put
+    // in it would silently fail to compile. These are the same two the domain
+    // module already uses.
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

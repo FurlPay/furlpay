@@ -49,6 +49,15 @@ data class ActionSpec(
     val enabled: Boolean = true,
     /** Iteration order is the confirmation-card render order. */
     val fields: Map<String, FieldSpec>,
+    /**
+     * Values the registry ALWAYS sets, whatever the model proposed. A key here
+     * cannot be supplied, overridden or omitted by the payload.
+     *
+     * `execute: true` on the swap is why this exists: /api/swaps is one route
+     * serving both the quote and the settle phase, and the discriminator that
+     * decides whether money moves must come from the app, not a model's JSON.
+     */
+    val constants: Map<String, JsonPrimitive> = emptyMap(),
 )
 
 /** Shape the server returns in `requiresConfirmation`. */
@@ -86,6 +95,9 @@ object GuardianActionRegistry {
     const val MAX_ACTION_USD = 25_000.0
 
     private val EVM_ADDR = Regex("^0x[0-9a-fA-F]{40}$")
+    private val UUID_V4 = Regex(
+        "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
+    )
     private val STABLE = listOf("USDC", "USDT", "EURC", "PYUSD", "DAI")
     private val CHAINS = listOf("arbitrum", "base", "polygon", "ethereum", "solana")
 
@@ -113,7 +125,10 @@ object GuardianActionRegistry {
             title = "Recurring investment",
             endpoint = "/investing/schedule",
             fields = linkedMapOf(
-                "symbol" to FieldSpec(FieldType.STRING, label = "Asset", pattern = Regex("^[A-Z0-9.]{1,12}$")),
+                // Tighter than place_order's: /api/investing/schedule enforces
+                // ^[A-Z]{1,5}$ and rejects anything else, so accepting more here
+                // only defers the failure to the server.
+                "symbol" to FieldSpec(FieldType.STRING, label = "Asset", pattern = Regex("^[A-Z]{1,5}$")),
                 "side" to FieldSpec(FieldType.STRING, label = "Side", oneOf = listOf("buy", "sell")),
                 "notional" to FieldSpec(FieldType.NUMBER, label = "Amount", usd = true, min = 1.0, max = MAX_ACTION_USD),
                 "cadence" to FieldSpec(FieldType.STRING, label = "Every", oneOf = listOf("day", "week", "month")),
@@ -134,12 +149,24 @@ object GuardianActionRegistry {
             title = "Swap",
             endpoint = "/swaps",
             fields = linkedMapOf(
-                "fromToken" to FieldSpec(FieldType.STRING, label = "From", oneOf = STABLE),
-                "toToken" to FieldSpec(FieldType.STRING, label = "To", oneOf = STABLE),
-                "fromChain" to FieldSpec(FieldType.STRING, label = "Chain", oneOf = CHAINS),
-                "toChain" to FieldSpec(FieldType.STRING, label = "To chain", oneOf = CHAINS, optional = true),
-                "amountIn" to FieldSpec(FieldType.NUMBER, label = "Amount", usd = true, min = 0.01, max = MAX_ACTION_USD),
+                // The single-use id the server issued for the quote the user was
+                // shown. It is the only field the execute phase acts on: amount,
+                // route and rate all come from the stored quote, so re-pricing at
+                // settle time is not expressible. The pair fields below are
+                // accepted and ignored by the server — they exist so the
+                // confirmation card has something to render.
+                "quoteId" to FieldSpec(FieldType.STRING, pattern = UUID_V4),
+                "fromToken" to FieldSpec(FieldType.STRING, label = "From", oneOf = STABLE, optional = true),
+                "toToken" to FieldSpec(FieldType.STRING, label = "To", oneOf = STABLE, optional = true),
+                "amountIn" to FieldSpec(
+                    FieldType.NUMBER, label = "Amount", usd = true,
+                    min = 0.01, max = MAX_ACTION_USD, optional = true,
+                ),
             ),
+            // Without this the request takes the QUOTE branch of /api/swaps and
+            // returns a fresh price instead of settling — the user confirms a
+            // swap, sees no error, and nothing moves.
+            constants = mapOf("execute" to JsonPrimitive(true)),
         ),
         ActionSpec(
             id = "send_payment",
@@ -162,7 +189,8 @@ object GuardianActionRegistry {
                     oneOf = listOf("stablecoins", "cards", "kyc", "travel", "developers", "other"),
                 ),
                 "subject" to FieldSpec(FieldType.STRING, label = "Subject", pattern = Regex("^[\\s\\S]{4,120}$")),
-                "body" to FieldSpec(FieldType.STRING, pattern = Regex("^[\\s\\S]{1,5000}$")),
+                // Server minimum is 10, not 1 — a shorter body 400s at the route.
+                "body" to FieldSpec(FieldType.STRING, pattern = Regex("^[\\s\\S]{10,5000}$")),
             ),
         ),
     ).associateBy { it.id }
@@ -255,6 +283,10 @@ object GuardianActionRegistry {
                     }
                 }
             }
+
+            // Registry-owned constants last, so nothing validated above can
+            // have shadowed one.
+            for ((key, value) in spec.constants) put(key, value)
         }
 
         return ResolvedConfirmation.Ok(
