@@ -4,6 +4,9 @@
   "private": true,
   "description": "FurlPay native Android app (Expo + React Native). Standalone install — intentionally NOT an npm workspace so React 19 / react-native never hoist into the Next.js web app's tree.",
   "main": "index.js",
+  "overrides": {
+    "postcss": "^8.5.18"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo run:android",

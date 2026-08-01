@@ -106,8 +106,8 @@
   },
   {
     "name": "uuid",
-    "reason": "ROOT advisory (Jul 2026): missing buffer bounds check in v3/v5/v6 ONLY when the caller passes a pre-allocated buf. Our code uses crypto.randomUUID() (repo rule); the dependents that pull uuid in (jayson JSON-RPC, gaxios) call v4 without buf — the vulnerable path is never reached.",
-    "reviewed": "2026-07-17"
+    "reason": "ROOT advisory (Jul 2026): missing buffer bounds check in v3/v5/v6 ONLY when the caller passes a pre-allocated buf. Our code uses crypto.randomUUID() (repo rule); the dependents that pull uuid in (jayson JSON-RPC, gaxios) call v4 without buf — the vulnerable path is never reached. Same verdict for native-app/package-lock.json, where uuid 7.0.3 arrives via @expo/config-plugins -> xcode: pbxProject.generateUuid() calls uuid.v4() with no buffer argument, and it runs only during `expo prebuild` for an iOS project this Android app does not build.",
+    "reviewed": "2026-08-01"
   },
   {
     "name": "jayson",
