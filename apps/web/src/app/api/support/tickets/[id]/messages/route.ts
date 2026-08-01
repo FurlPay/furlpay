@@ -15,7 +15,8 @@ const Schema = z.object({
   body: z.string().trim().min(1).max(5000),
 });
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const limited = await rateLimitOr429(req, "support.ticket.message", { limit: 20, windowMs: 10 * 60_000 });

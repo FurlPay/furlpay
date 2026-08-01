@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 // GET /api/payments/:id/receipt — on-chain receipt for a settled payment:
 // tx hash, explorer link, fee breakdown. 409 until the payment settles.
-export function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const record = getPayment(params.id);
   if (!record) return NextResponse.json({ error: "payment_not_found" }, { status: 404 });
   if (record.status !== "settled" && record.status !== "refunded") {

@@ -15,7 +15,8 @@ export function generateStaticParams() {
   return JOBS.filter((j) => j.status !== "closed").map((j) => ({ slug: j.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const job = getJob(params.slug);
   if (!job) return {};
   const openness = job.status === "open" ? "Now hiring" : "Opening after our pre-seed";
@@ -32,7 +33,8 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   };
 }
 
-export default function JobPage({ params }: { params: { slug: string } }) {
+export default async function JobPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const job = getJob(params.slug);
   if (!job || job.status === "closed") notFound();
 

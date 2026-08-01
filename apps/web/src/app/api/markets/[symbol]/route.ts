@@ -9,7 +9,8 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // GET /api/markets/[symbol] — full asset detail: quote, key stats, AI digest,
 // current position, related assets and research insights mentioning it.
-export async function GET(req: NextRequest, { params }: { params: { symbol: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ symbol: string }> }) {
+  const params = await props.params;
   // Anonymous callers are served, so the middleware baseline (mutating methods
   // only) does not cover this. getQuotes() reaches a paid upstream, making an
   // unbounded reader someone else's quota bill as well as ours.

@@ -8,7 +8,8 @@ import { getTicketForUser, listMessages, setTicketStatus } from "@/lib/support";
 // /api/support/tickets/[id] — one ticket + its conversation, owner-only.
 // Non-owners get 404 (same as nonexistent), so ticket ids are not an oracle.
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const limited = await rateLimitOr429(req, "support.ticket.read", { limit: 120, windowMs: 60_000 });
@@ -26,7 +27,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
 // and goes through the agent route.
 const PatchSchema = z.object({ status: z.literal("closed") });
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const limited = await rateLimitOr429(req, "support.ticket.patch", { limit: 20, windowMs: 60_000 });

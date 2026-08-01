@@ -15,9 +15,19 @@
     "reviewed": "2026-07-09"
   },
   {
-    "name": "next",
-    "reason": "All high-severity fixes require the Next 15/16 major upgrade (tracked separately). Pages-Router i18n bypass N/A (App Router); image-optimizer DoS mitigated by Vercel hosting.",
-    "reviewed": "2026-07-09"
+    "name": "postcss",
+    "reason": "The ROOT postcss is patched (override bumped to ^8.5.25, resolves 8.5.25). What audit still reports is next's own vendored copy, which next pins at an exact 8.4.31 — a root override does not displace it. Build-time only: that copy runs Next's CSS pipeline over stylesheets in this repo, so neither the </style> stringify XSS nor the attacker-controlled-path file read has an untrusted input. Clears when Next bumps its pin.",
+    "reviewed": "2026-08-01"
+  },
+  {
+    "name": "sharp",
+    "reason": "libvips CVE-2026-33327/33328/35590/35591. sharp is an OPTIONAL dependency of next constrained to ^0.34.3; the fix is 0.35.x, outside that range, and forcing the major on next's image optimizer is a worse risk than the finding. Image optimization runs on Vercel's infrastructure, not on this sharp binary. Clears when next widens the range.",
+    "reviewed": "2026-08-01"
+  },
+  {
+    "name": "adm-zip",
+    "reason": "GHSA crafted-ZIP 4GB allocation — fixed in 0.6.0, which nothing in the tree can reach. hardhat (through the newest 2.x, 2.29.0) still declares ^0.4.16 and web-ext-run -> firefox-profile declares ~0.5.x; a root override to ^0.6.0 does not materialize — npm drops the package from the tree rather than force it across the major, leaving hardhat with an unsatisfied dependency. Dev-only on both paths: the contracts toolchain and the browser-extension dev runner, neither bundled into the web app or any published package, and both only ever open archives they fetched themselves. Fix path is the hardhat 3 major upgrade (same as the 'hardhat' entry).",
+    "reviewed": "2026-08-01"
   },
   {
     "name": "hardhat",

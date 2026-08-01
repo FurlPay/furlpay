@@ -16,7 +16,8 @@ export function generateStaticParams() {
   return POSTS.map((p) => ({ slug: p.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const post = getPost(params.slug);
   if (!post) return {};
   const url = `https://furlpay.com/blog/${post.slug}`;
@@ -36,7 +37,8 @@ export function generateMetadata({ params }: { params: { slug: string } }) {
   };
 }
 
-export default function ArticlePage({ params }: { params: { slug: string } }) {
+export default async function ArticlePage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const post = getPost(params.slug);
   if (!post) notFound();
 

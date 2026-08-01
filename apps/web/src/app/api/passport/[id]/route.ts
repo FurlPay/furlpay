@@ -14,7 +14,8 @@ export const dynamic = "force-dynamic";
 // else. The two are indistinguishable to the caller by design: a 404 that only
 // fired for non-existent ids would confirm which document ids are real.
 
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
@@ -24,7 +25,8 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   return NextResponse.json({ document: maskDocument(doc) });
 }
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
@@ -43,7 +45,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ document: maskDocument(doc) });
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const userId = auth.account.user.id;

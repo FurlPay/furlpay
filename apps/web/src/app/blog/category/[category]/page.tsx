@@ -9,13 +9,15 @@ export function generateStaticParams() {
   return CATEGORIES.map((c) => ({ category: c.id }));
 }
 
-export function generateMetadata({ params }: { params: { category: string } }) {
+export async function generateMetadata(props: { params: Promise<{ category: string }> }) {
+  const params = await props.params;
   const c = categoryById(params.category);
   if (!c) return {};
   return { title: `${c.label} — Furlpay Blog`, description: c.blurb };
 }
 
-export default function CategoryPage({ params }: { params: { category: string } }) {
+export default async function CategoryPage(props: { params: Promise<{ category: string }> }) {
+  const params = await props.params;
   const c = categoryById(params.category);
   if (!c) notFound();
 

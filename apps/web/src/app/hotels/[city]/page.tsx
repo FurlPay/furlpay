@@ -17,7 +17,8 @@ export function generateStaticParams() {
   return CITIES.map((c) => ({ city: c.slug }));
 }
 
-export function generateMetadata({ params }: { params: { city: string } }): Metadata {
+export async function generateMetadata(props: { params: Promise<{ city: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const c = getCity(params.city);
   if (!c) return {};
   return {
@@ -28,7 +29,8 @@ export function generateMetadata({ params }: { params: { city: string } }): Meta
   };
 }
 
-export default function CityHotelsPage({ params }: { params: { city: string } }) {
+export default async function CityHotelsPage(props: { params: Promise<{ city: string }> }) {
+  const params = await props.params;
   const c = getCity(params.city);
   if (!c) notFound();
 

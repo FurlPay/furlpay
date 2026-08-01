@@ -9,13 +9,15 @@ export function generateStaticParams() {
   return ITINERARIES.map((i) => ({ slug: i.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const it = getItinerary(params.slug);
   if (!it) return {};
   return { title: it.title, description: it.summary };
 }
 
-export default function ItineraryPage({ params }: { params: { slug: string } }) {
+export default async function ItineraryPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const it = getItinerary(params.slug);
   if (!it) notFound();
 

@@ -1,6 +1,6 @@
 # FurlPay — Agent Rules
 
-Turborepo monorepo. Web app + API: `apps/web` (Next.js 14 App Router). Deploys
+Turborepo monorepo. Web app + API: `apps/web` (Next.js 15 App Router). Deploys
 manually to Vercel prod (`npx vercel deploy --prod --yes` from repo root);
 pushing to GitHub does NOT deploy. Typecheck before committing:
 `cd apps/web && npx tsc --noEmit`.

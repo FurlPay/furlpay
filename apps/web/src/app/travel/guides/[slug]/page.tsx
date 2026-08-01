@@ -8,13 +8,15 @@ export function generateStaticParams() {
   return GUIDES.map((g) => ({ slug: g.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const g = getGuide(params.slug);
   if (!g) return {};
   return { title: `${g.title} — FurlPay Travels`, description: g.excerpt };
 }
 
-export default function GuidePage({ params }: { params: { slug: string } }) {
+export default async function GuidePage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const g = getGuide(params.slug);
   if (!g) notFound();
 

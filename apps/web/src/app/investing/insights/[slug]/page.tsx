@@ -17,7 +17,8 @@ export function generateStaticParams() {
   return INSIGHTS.map((a) => ({ slug: a.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const a = getInsight(params.slug);
   if (!a) return {};
   const url = `https://furlpay.com/investing/insights/${a.slug}`;
@@ -30,7 +31,8 @@ export function generateMetadata({ params }: { params: { slug: string } }) {
   };
 }
 
-export default function InsightArticlePage({ params }: { params: { slug: string } }) {
+export default async function InsightArticlePage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const a = getInsight(params.slug);
   if (!a) notFound();
 

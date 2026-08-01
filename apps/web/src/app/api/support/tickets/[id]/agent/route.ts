@@ -23,7 +23,8 @@ const Schema = z
     message: "Provide a reply body, a status, or both",
   });
 
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireRole(req, "admin");
   if (!auth.ok) return auth.res;
   const limited = await rateLimitOr429(req, "support.ticket.agent", { limit: 60, windowMs: 60_000 });

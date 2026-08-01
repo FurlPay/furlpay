@@ -15,7 +15,8 @@ export function generateStaticParams() {
   return INTEGRATIONS.map((i) => ({ slug: i.slug }));
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }): Metadata {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const params = await props.params;
   const it = integrationBySlug.get(params.slug);
   if (!it) return {};
   return seoMetadata({
@@ -25,7 +26,8 @@ export function generateMetadata({ params }: { params: { slug: string } }): Meta
   });
 }
 
-export default function IntegrationPage({ params }: { params: { slug: string } }) {
+export default async function IntegrationPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const it = integrationBySlug.get(params.slug);
   if (!it) notFound();
 

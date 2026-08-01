@@ -4,4 +4,6 @@
 // request THIS path; clients that follow the WWW-Authenticate hint from
 // /api/mcp use the un-suffixed twin. Same document either way.
 export const dynamic = "force-dynamic";
+// Nothing to migrate for Next 15's async request APIs: this path has no dynamic
+// segment, and the re-exported handler takes only the request.
 export { GET } from "../../route";

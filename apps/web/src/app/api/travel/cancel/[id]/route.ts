@@ -10,7 +10,8 @@ import { audit } from "@/lib/audit";
 //
 // Scoped to the caller — cancelling is destructive and refund-bearing, so a
 // booking id belonging to someone else must 404, never cancel.
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const userId = auth.account.user.id;

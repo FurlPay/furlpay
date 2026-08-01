@@ -5,7 +5,8 @@ import { generateStays, deriveRooms, STAY_INVENTORY_COUNT } from "@/lib/travel/d
 // GET /api/travel/property/[id]?city=<city> — full property details.
 // Inventory is generated deterministically per city, so the city that produced
 // the id must be supplied to re-derive the same property.
-export async function GET(req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   const city = req.nextUrl.searchParams.get("city") ?? "";
   const stay = generateStays(city, { count: STAY_INVENTORY_COUNT }).find((s) => s.id === params.id);
   if (!stay) {

@@ -11,7 +11,8 @@ export const dynamic = "force-dynamic";
 // submitted (client saw 402 + `pending`): a "pending" record is re-checked
 // against the chain here and upgraded to "confirmed" once the required
 // confirmation depth is observed.
-export async function GET(_req: NextRequest, { params }: { params: { tx: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ tx: string }> }) {
+  const params = await props.params;
   const settlement = await getSettlement(params.tx);
   if (!settlement) {
     return NextResponse.json({ settled: false, error: "settlement_not_found" }, { status: 404 });

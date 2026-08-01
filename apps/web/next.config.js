@@ -45,15 +45,15 @@ const securityHeaders = [
 
 const nextConfig = {
   reactStrictMode: true,
-  experimental: {
-    // Metaplex ships ESM that webpack mis-bundles server-side; load it via
-    // Node require at runtime instead (cNFT ticket minting, lib/travel/cnft.ts).
-    serverComponentsExternalPackages: [
-      "@metaplex-foundation/mpl-bubblegum",
-      "@metaplex-foundation/umi",
-      "@metaplex-foundation/umi-bundle-defaults",
-    ],
-  },
+  // Metaplex ships ESM that webpack mis-bundles server-side; load it via
+  // Node require at runtime instead (cNFT ticket minting, lib/travel/cnft.ts).
+  // Was experimental.serverComponentsExternalPackages until Next 15 promoted it
+  // to a stable top-level option under this name.
+  serverExternalPackages: [
+    "@metaplex-foundation/mpl-bubblegum",
+    "@metaplex-foundation/umi",
+    "@metaplex-foundation/umi-bundle-defaults",
+  ],
   // Compile the shared TypeScript compliance package from the monorepo.
   transpilePackages: [
     "@furlpay/compliance",

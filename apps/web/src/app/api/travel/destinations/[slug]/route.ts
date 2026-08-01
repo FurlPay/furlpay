@@ -4,7 +4,8 @@ import { getDestination, generateStays, generateFlights, generateActivities } fr
 
 // GET /api/travel/destinations/[slug] — destination details plus curated
 // top stays, flights and activities for the destination page.
-export async function GET(_req: NextRequest, { params }: { params: { slug: string } }) {
+export async function GET(_req: NextRequest, props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const destination = getDestination(params.slug);
   if (!destination) {
     return NextResponse.json({ error: "Unknown destination." }, { status: 404 });

@@ -13,7 +13,8 @@ export const metadata = {
 
 // Content hub: practical guides live here; deep-dive stories live on the blog
 // under the "travel" category and are cross-linked below.
-export default function GuidesPage({ searchParams }: { searchParams: { cat?: string } }) {
+export default async function GuidesPage(props: { searchParams: Promise<{ cat?: string }> }) {
+  const searchParams = await props.searchParams;
   const active = GUIDE_CATEGORIES.find((c) => c.id === searchParams.cat)?.id;
   const guides = active ? GUIDES.filter((g) => g.category === active) : GUIDES;
   const travelPosts = getSortedPosts().filter((p) => p.category === "travel").slice(0, 4);

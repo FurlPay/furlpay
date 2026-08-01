@@ -35,7 +35,8 @@ export function generateStaticParams() {
   ];
 }
 
-export function generateMetadata({ params }: { params: { slug: string } }) {
+export async function generateMetadata(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const cat = DESTINATION_CATEGORIES.find((c) => c.slug === params.slug);
   if (cat) return { title: `${cat.title} — FurlPay Travels`, description: cat.blurb };
   const d = getDestination(params.slug);
@@ -45,7 +46,8 @@ export function generateMetadata({ params }: { params: { slug: string } }) {
 
 // /travel/destinations/[slug] serves both category listings (beach, mountains,
 // cities, eco-retreats, historical) and individual destination pages (tokyo…).
-export default function DestinationOrCategoryPage({ params }: { params: { slug: string } }) {
+export default async function DestinationOrCategoryPage(props: { params: Promise<{ slug: string }> }) {
+  const params = await props.params;
   const category = DESTINATION_CATEGORIES.find((c) => c.slug === params.slug);
   if (category) {
     const list = destinationsByCategory(category.slug);

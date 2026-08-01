@@ -17,10 +17,8 @@ const headers = createActionHeaders({ chainId: "mainnet", actionVersion: "2.4" }
 export const OPTIONS = async () => new Response(null, { headers });
 
 // GET /api/actions/pay/[orderId] — metadata used to render the Blink widget.
-export const GET = async (
-  req: Request,
-  { params }: { params: { orderId: string } }
-) => {
+export const GET = async (req: Request, props: { params: Promise<{ orderId: string }> }) => {
+  const params = await props.params;
   const order = getOrder(params.orderId);
   const base = new URL(req.url).origin;
   const price = order.amountUsd.toFixed(2);
@@ -51,10 +49,8 @@ export const GET = async (
 };
 
 // POST /api/actions/pay/[orderId] — return the serialized transaction to sign.
-export const POST = async (
-  req: Request,
-  { params }: { params: { orderId: string } }
-) => {
+export const POST = async (req: Request, props: { params: Promise<{ orderId: string }> }) => {
+  const params = await props.params;
   try {
     const body: ActionPostRequest = await req.json();
 

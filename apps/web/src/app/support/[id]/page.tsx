@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, use } from "react";
 import Link from "next/link";
 import { ChevronLeft, ShieldCheck, Send } from "lucide-react";
 
@@ -33,7 +33,8 @@ const STATUS_LABEL: Record<string, { label: string; cls: string }> = {
   closed: { label: "Closed", cls: "bg-white/10 text-textSecondary" },
 };
 
-export default function TicketThreadPage({ params }: { params: { id: string } }) {
+export default function TicketThreadPage(props: { params: Promise<{ id: string }> }) {
+  const params = use(props.params);
   const { id } = params;
   const [ticket, setTicket] = useState<Ticket | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);

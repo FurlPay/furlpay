@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertCircle, Bell, RefreshCw, Search, Settings, User } from "lucide-react";
@@ -100,13 +101,13 @@ export default function TerminalPage() {
           </div>
 
           {/* Search — a real affordance, wired to the markets search page */}
-          <a
+          <Link
             href="/markets"
             className="ml-auto hidden items-center gap-2 rounded-lg border border-term-border bg-term-panel px-3 py-1.5 text-[12px] text-textSecondary transition-colors hover:text-textPrimary md:flex"
           >
             <Search size={14} />
             <span>Search markets…</span>
-          </a>
+          </Link>
 
           {/* Wallet value — always visible */}
           <div className="flex items-center gap-2 rounded-lg border border-term-border bg-term-panel px-3 py-1.5">
