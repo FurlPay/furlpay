@@ -1,0 +1,49 @@
+{
+  "name": "@furlpay/transaction-guard",
+  "version": "0.1.0",
+  "description": "Refuse malformed, stale, or wrong-chain EVM transactions before a key ever touches them. Validates addresses (EIP-55), chain binding, calldata, quote freshness, and AI-proposed actions. Zero runtime dependencies.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist", "src", "LICENSE", "README.md"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test test/*.test.js",
+    "prepublishOnly": "npm run test"
+  },
+  "keywords": [
+    "ethereum",
+    "evm",
+    "wallet",
+    "security",
+    "eip-55",
+    "checksum",
+    "transaction-validation",
+    "chain-id",
+    "prompt-injection",
+    "ai-agents",
+    "zero-dependencies"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FurlPay/furlpay-transaction-guard.git"
+  },
+  "homepage": "https://github.com/FurlPay/furlpay-transaction-guard#readme",
+  "bugs": {
+    "url": "https://github.com/FurlPay/furlpay-transaction-guard/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false
+}
