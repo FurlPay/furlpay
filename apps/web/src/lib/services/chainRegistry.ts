@@ -151,6 +151,16 @@ export interface ChainStatus {
   blockHeight: number;
   healthy: boolean;
   source: "live" | "mock";
+  /**
+   * Block-explorer base URL, so clients can link a transaction hash without
+   * shipping their own chain table.
+   *
+   * The mobile app deliberately carries no chain metadata: a copy in the
+   * client goes stale the moment a network changes explorer (Robinhood Chain
+   * is on Blockscout today) and can only be corrected by an app-store release.
+   * Served from here, it is a deploy.
+   */
+  explorer: string;
 }
 
 // Plausible mock block heights (mid-2026), advanced by wall clock so repeated
@@ -180,6 +190,7 @@ export async function chainStatus(chain: ChainConfig): Promise<ChainStatus> {
     blockHeight: live ? parseInt(hex, 16) : mockBlockHeight(chain.id),
     healthy: true,
     source: live ? "live" : "mock",
+    explorer: chain.explorer,
   };
 }
 

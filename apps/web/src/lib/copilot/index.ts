@@ -371,17 +371,21 @@ function route(raw: string, t: string): CopilotResult {
         : `I couldn't find a route for ${fromToken} → ${toToken} on ${chain}.`,
       toolCalls: [{ tool: "quote_swap", args: { fromToken, toToken, fromChain: chain, amountIn: amount } }],
       data: plan,
-      requiresConfirmation: plan
-        ? {
-            action: "execute_swap",
-            method: "POST",
-            endpoint: "/api/swaps",
-            body: { fromToken, toToken, fromChain: chain, amountIn: amount },
-            summary: `Swap ${amount} ${fromToken} → ~${round(plan.amountOut)} ${toToken} on ${chain}`,
-            amountUsd: amount,
-          }
-        : undefined,
-      suggestions: ["Swap a different amount", "Use another chain", "Show my balances"],
+      // Deliberately NO `requiresConfirmation`.
+      //
+      // Settling a swap needs the single-use `quoteId` the server issued for the
+      // exact price the user was shown — that is what makes re-pricing at
+      // execution time unrepresentable. `runCopilot` has no authenticated user
+      // in scope (this route is session-gated by middleware, not by
+      // requireUser), so it cannot call issueQuote and cannot produce one.
+      //
+      // What it used to send was a quote-shaped body with no `execute` flag, so
+      // approving it took the QUOTE branch of /api/swaps: the user confirmed a
+      // swap, saw no error, and nothing moved. A confirmation that cannot settle
+      // must not be offered as one. The number above is a route estimate; the
+      // swap screen does the real quote → confirm → execute.
+      requiresConfirmation: undefined,
+      suggestions: ["Open swap", "Swap a different amount", "Show my balances"],
     };
   }
 

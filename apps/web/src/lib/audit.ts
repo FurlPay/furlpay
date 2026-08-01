@@ -29,6 +29,11 @@ export type AuditEvent =
   | "transfer.executed"
   | "transfer.blocked"
   | "travel.cancelled"
+  // Travel-document wallet. The DELETED event deliberately carries no document
+  // detail — an erasure record must not become the surviving copy of the data.
+  | "passport.session_created"
+  | "passport.verified"
+  | "passport.deleted"
   | "travel.rewards_claimed"
   | "auth.handoff_minted"
   | "auth.handoff_redeemed"
@@ -53,6 +58,12 @@ export type AuditEvent =
   | "agent.key_revoked"
   | "agent.spend_authorized"
   | "agent.spend_denied"
+  // MPC co-signing. `mpc.signed` records that a spendable signature was minted
+  // — the closest thing in this system to "money left", since a signature is
+  // irreversible once broadcast. Logged with the digest, which is public the
+  // moment the transaction lands and identifies it uniquely.
+  | "mpc.signed"
+  | "mpc.sign_denied"
   | "webhook.processed"
   | "webhook.failed"
   | "billing.checkout_created"

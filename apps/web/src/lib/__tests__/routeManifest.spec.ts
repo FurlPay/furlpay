@@ -101,7 +101,8 @@ const BACKLOG = new Set<string>([
   // `compliance` gained a per-route rate limit on 23 Jul 2026 and is now fixed.
   "chain/tx/[hash]", "chain/usdc/supply",
   "compliance/attestation/[tx]", "compliance/jurisdiction", "discord/linked-roles",
-  "earn/position", "earn/vaults", "insights", "investing/rwa", "investing/schedule",
+  // `investing/schedule` gained a per-route rate limit and is now fixed.
+  "earn/position", "earn/vaults", "insights", "investing/rwa",
   "ledger", "markets", "markets/bars", "markets/indices", "markets/movers",
   "markets/search", "mpp/fx", "onramp/session/[id]", "payments/[id]",
   "payments/[id]/receipt", "payments/fees/estimate", "payments/history",

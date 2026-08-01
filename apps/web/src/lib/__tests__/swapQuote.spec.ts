@@ -158,8 +158,12 @@ describe("slippage ceiling", () => {
   it("matches the mobile client's ceiling", async () => {
     const { readFileSync } = await import("fs");
     const { join } = await import("path");
+    // The mobile ceiling moved out of app/swap.tsx into the useSwap hook when
+    // the swap screen was split into hook + presentation. The invariant is
+    // unchanged — both clients refuse the same slippage — so this reads the
+    // constant wherever it now lives rather than relaxing the assertion.
     const src = readFileSync(
-      join(__dirname, "..", "..", "..", "..", "..", "native-app", "app", "swap.tsx"),
+      join(__dirname, "..", "..", "..", "..", "..", "native-app", "lib", "swap", "useSwap.ts"),
       "utf8"
     );
     const m = src.match(/const MAX_SLIPPAGE_PCT = (\d+(?:\.\d+)?)/);

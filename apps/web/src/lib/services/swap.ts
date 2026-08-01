@@ -72,6 +72,32 @@ const CHEAPEST_CHAINS: Chain[] = ["solana", "base", "arbitrum"];
 
 const LIFI_API = process.env.LIFI_API_URL ?? "https://li.quest/v1";
 
+/**
+ * How long an execution plan stays signable.
+ *
+ * Ours to choose, because /v1/quote returns no expiry of its own (verified
+ * against the live endpoint). Two minutes is long enough for a user to read a
+ * confirmation, approve a token and sign, and short enough that the embedded
+ * price and `toAmountMin` still reflect a market the user actually saw. An
+ * expired plan is re-quoted, never stretched.
+ *
+ * A POLICY, not a security boundary — so it is configurable, and clamped rather
+ * than trusted: a typo of 0 would make every route stale on arrival, and a very
+ * long TTL would let someone sign calldata priced against a market that no
+ * longer exists.
+ */
+const QUOTE_TTL_MS = clampTtl(Number(process.env.SWAP_QUOTE_TTL_MS));
+
+function clampTtl(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) return 2 * 60 * 1000;
+  return Math.min(Math.max(value, 30 * 1000), 10 * 60 * 1000);
+}
+
+/** A 20-byte hex address. The only address shape any of this accepts. */
+function isAddress(value: unknown): value is string {
+  return typeof value === "string" && /^0x[0-9a-fA-F]{40}$/.test(value);
+}
+
 // Li.Fi chain identifiers: numeric EVM chain ids, "SOL" key for Solana.
 // Robinhood Chain mainnet is 4663 (chainlist.org/chain/4663).
 const LIFI_CHAIN: Record<Chain, number | string> = {
@@ -147,8 +173,23 @@ const QUOTE_PLACEHOLDER_SOL = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 interface LifiQuoteResponse {
   tool?: string;
   toolDetails?: { name?: string };
+  /** Li.Fi's route id — carried through for /v1/status and support tickets. */
+  id?: string;
+  transactionId?: string;
+  /** What the route will actually do, as Li.Fi resolved it. */
+  action?: {
+    fromToken?: { address?: string; decimals?: number; symbol?: string };
+    toToken?: { address?: string; decimals?: number; symbol?: string };
+    fromAmount?: string;
+    /** Fraction, not percent: 0.001 is 0.1%. */
+    slippage?: number;
+  };
   estimate?: {
     toAmount?: string;
+    /** Enforced ON-CHAIN by the router — a route delivering less reverts. */
+    toAmountMin?: string;
+    /** Atomic units the route will PULL from the user — what to approve. */
+    fromAmount?: string;
     executionDuration?: number;
     feeCosts?: { amountUsd?: string }[];
     gasCosts?: { amountUsd?: string }[];
@@ -296,6 +337,50 @@ export interface SwapExecution {
   /** Contract to approve (ERC-20 sends) before submitting transactionRequest;
    *  null when no approval is needed (native token). */
   approvalAddress: string | null;
+  /**
+   * ERC-20 contract of the token being sold, and the exact atomic amount the
+   * route will pull from the user. Both come from the QUOTE — there is no
+   * fallback to a local table, because a fallback is a second source of truth
+   * that goes stale the first time a chain migrates a token (Arbitrum's
+   * USDC.e → native USDC), and approving the wrong contract fails in a way that
+   * looks like a broken app rather than stale data.
+   *
+   * `null` ONLY for a native-token sell, where there is nothing to approve. An
+   * ERC-20 route that cannot name its token is rejected, not defaulted.
+   */
+  fromTokenAddress: string | null;
+  /** Atomic units to approve. Decimal string, not a Number — these exceed 2^53. */
+  fromAmountAtomic: string | null;
+  fromTokenDecimals: number | null;
+  /**
+   * Minimum the user receives after slippage, in atomic units of `toToken`.
+   *
+   * Li.Fi embeds this in the calldata and the router enforces it on-chain, so
+   * it is a guarantee rather than a display value: a route that would deliver
+   * less reverts. Surfaced so the UI can show the floor the user is actually
+   * agreeing to instead of only the optimistic figure.
+   */
+  toAmountMin: string | null;
+  /** Slippage tolerance the route was built with, as a fraction (0.001 = 0.1%). */
+  slippage: number | null;
+  /** Li.Fi's own route id, for /v1/status polling and support correlation. */
+  routeId: string | null;
+  /**
+   * When this execution plan stops being safe to sign.
+   *
+   * STAMPED BY US, because Li.Fi's /v1/quote does not carry one — verified
+   * against the live endpoint, whose top-level keys are type, id, tool,
+   * toolDetails, action, estimate, includedSteps, integrator, transactionId and
+   * transactionRequest, with no validUntil/expiresAt/deadline among them. (The
+   * separate Intents API does return validUntil; this is not that endpoint.)
+   *
+   * So the freshness guarantee has to be ours. The calldata embeds a price and
+   * a toAmountMin computed at build time; signing it ten minutes later asks the
+   * router to honour a market that has moved, which at best reverts on
+   * slippage and at worst executes at a rate the user never saw.
+   */
+  expiresAt: string;
+  builtAt: string;
   /** Ready-to-sign route transaction from Li.Fi, for the user's wallet. */
   transactionRequest: {
     to: string;
@@ -330,10 +415,33 @@ export async function buildSwapExecution(params: {
   const qs = buildLifiQs({ ...params, toChain, slippagePct, fromAddress: params.fromAddress, toAddress });
   if (!qs) return { ok: false, error: "pair_not_routable" };
 
+  const builtAt = Date.now();
   const q = await lifiFetch(qs);
   const tx = q?.transactionRequest;
   const rawOut = q?.estimate?.toAmount;
   if (!q || !tx?.to || !tx?.data || !rawOut) return { ok: false, error: "route_unavailable" };
+
+  // Validate what the aggregator handed back before it becomes something a
+  // user's key signs. These are addresses from a third-party API; trusting the
+  // shape because the call returned 200 is how a malformed field ends up as a
+  // signed transaction to nowhere.
+  if (!isAddress(tx.to)) return { ok: false, error: "malformed_route_target" };
+
+  const approvalAddress = q.estimate?.approvalAddress ?? null;
+  if (approvalAddress !== null && !isAddress(approvalAddress)) {
+    return { ok: false, error: "malformed_approval_address" };
+  }
+
+  // No local-table fallback. If a route needs an approval it must name the
+  // token it will pull; defaulting to our own map would approve a contract the
+  // router may not even use.
+  const fromTokenAddress = q.action?.fromToken?.address ?? null;
+  if (approvalAddress && (!fromTokenAddress || !isAddress(fromTokenAddress))) {
+    return { ok: false, error: "malformed_token_address" };
+  }
+  if (approvalAddress && !q.estimate?.fromAmount && !q.action?.fromAmount) {
+    return { ok: false, error: "missing_approval_amount" };
+  }
 
   const sumUsd = (costs?: { amountUsd?: string }[]) =>
     (costs ?? []).reduce((s, c) => s + (Number(c.amountUsd) || 0), 0);
@@ -359,7 +467,15 @@ export async function buildSwapExecution(params: {
         etaSeconds: q.estimate?.executionDuration ?? (params.fromChain === toChain ? 4 : 120),
         source: "lifi",
       },
-      approvalAddress: q.estimate?.approvalAddress ?? null,
+      approvalAddress,
+      fromTokenAddress,
+      fromAmountAtomic: q.estimate?.fromAmount ?? q.action?.fromAmount ?? null,
+      fromTokenDecimals: q.action?.fromToken?.decimals ?? null,
+      toAmountMin: q.estimate?.toAmountMin ?? null,
+      slippage: q.action?.slippage ?? null,
+      routeId: q.id ?? q.transactionId ?? null,
+      builtAt: new Date(builtAt).toISOString(),
+      expiresAt: new Date(builtAt + QUOTE_TTL_MS).toISOString(),
       transactionRequest: {
         to: tx.to,
         data: tx.data,
