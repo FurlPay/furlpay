@@ -6,6 +6,12 @@ import { bytesToHex, hexToBytes, concatBytes } from "@noble/hashes/utils";
 import { entropyToMnemonic, mnemonicToSeedSync, validateMnemonic } from "@scure/bip39";
 import { wordlist } from "@scure/bip39/wordlists/english";
 import { HDKey } from "@scure/bip32";
+import {
+  serializeSigned,
+  signingHash,
+  transactionHash,
+  type Eip1559Transaction,
+} from "./evm/transaction";
 
 // ---------------------------------------------------------------------------
 // On-device self-custodial wallet (secp256k1 / EIP-3009).
@@ -214,6 +220,54 @@ export async function signMessage(message: string): Promise<string> {
   } finally {
     priv.fill(0); // see signTransferAuthorization
   }
+}
+
+// --- EIP-1559 transaction signing (non-custodial swap execution) -------------
+
+/**
+ * Sign an EIP-1559 transaction with the device key.
+ *
+ * Takes a TRANSACTION, not a digest. A `signDigest(bytes)` helper would be
+ * shorter and would also be a blind-signing oracle: any 32 bytes the caller
+ * produced, signed by the user's key on a biometric they were told was for
+ * something else. Because this takes structured fields, the thing being signed
+ * is inspectable — `describeTransaction` below renders it for confirmation, and
+ * the caller cannot substitute a different payload without going through the
+ * same shape.
+ *
+ * Reading the mnemonic triggers the biometric gate, so this call IS the user's
+ * approval of exactly this transaction.
+ *
+ * Returns the raw broadcastable hex for `eth_sendRawTransaction`, plus the hash
+ * it will have on-chain — the caller needs that to poll for a receipt even if
+ * the broadcast response is lost.
+ */
+export async function signTransaction(
+  tx: Eip1559Transaction
+): Promise<{ raw: string; hash: string; from: string }> {
+  const mnemonic = await SecureStore.getItemAsync(MNEMONIC_KEY, SECURE_OPTS);
+  if (!mnemonic) throw new Error("No wallet on this device.");
+  const { priv, address } = deriveKey(mnemonic);
+
+  try {
+    const digest = signingHash(tx);
+    const sig = secp256k1.sign(digest, priv);
+    // EIP-1559 uses yParity (0/1), NOT the legacy v of 27/28. Adding 27 here
+    // would serialize a signature that recovers to no address at all.
+    const signature = { yParity: sig.recovery, r: sig.r, s: sig.s };
+    return {
+      raw: serializeSigned(tx, signature),
+      hash: transactionHash(tx, signature),
+      from: address,
+    };
+  } finally {
+    priv.fill(0); // see signTransferAuthorization
+  }
+}
+
+/** This device's address without prompting, or null if there is no wallet. */
+export async function addressForSigning(): Promise<string | null> {
+  return getKnownAddress();
 }
 
 // --- EIP-712 (matches viem's TransferWithAuthorization encoding) -------------

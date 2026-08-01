@@ -56,6 +56,7 @@ type Dest =
 const ITEMS: Dest[] = [
   { kind: "route", icon: "person-outline", label: "Profile", to: "/(tabs)/settings" },
   { kind: "route", icon: "receipt-outline", label: "Payments & activity", to: "/transactions" },
+  { kind: "route", icon: "swap-horizontal-outline", label: "Swaps & bridges", to: "/swaps" },
   { kind: "route", icon: "card-outline", label: "Cards", to: "/(tabs)/cards" },
   { kind: "route", icon: "airplane-outline", label: "Travel & bookings", to: "/travel" },
   { kind: "route", icon: "notifications-outline", label: "Notifications", to: "/notifications" },

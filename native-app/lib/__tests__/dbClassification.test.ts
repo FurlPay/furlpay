@@ -61,13 +61,36 @@ describe("SQLite cache — no-secrets invariant", () => {
     expect(found).toEqual([]);
   });
 
-  it("the schema is exactly the four cache tables we classified", () => {
+  it("the schema is exactly the five cache tables we classified", () => {
     const tables = [...db.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]).sort();
     // kv_cache      -> JSON snapshots of GET responses (balances, cards, portfolio)
     // transactions  -> financial transaction METADATA (amounts, titles, status)
     // pending_actions -> offline outbox; replay still requires the session JWT
     // notifications -> cosmetic inbox (title/body/url)
-    expect(tables).toEqual(["kv_cache", "notifications", "pending_actions", "transactions"]);
+    // swaps         -> swap journal: route ids, public tx hashes, amounts and
+    //                  status. Public-ledger metadata — every hash in it is
+    //                  already visible to anyone with a block explorer, and it
+    //                  holds no key, signature or authorization. Persisting it
+    //                  is what lets a bridge survive the app being killed.
+    expect(tables).toEqual([
+      "kv_cache",
+      "notifications",
+      "pending_actions",
+      "swaps",
+      "transactions",
+    ]);
+  });
+
+  it("the swap journal stores no signed payload", () => {
+    // A journal is a record of what happened. If it ever starts holding the raw
+    // signed transaction, that is a broadcastable, replayable artifact sitting
+    // in an unencrypted database — and the invariant at the top of this file
+    // no longer holds.
+    const schema = db.match(/CREATE TABLE IF NOT EXISTS swaps[\s\S]*?\);/)?.[0] ?? "";
+    expect(schema).not.toBe("");
+    for (const forbidden of ["raw", "signed", "signature", "calldata", "payload"]) {
+      expect(schema.toLowerCase()).not.toContain(forbidden);
+    }
   });
 
   it("clearAllCaches wipes every one of them (cross-account leakage guard)", () => {
@@ -75,7 +98,7 @@ describe("SQLite cache — no-secrets invariant", () => {
     expect(wipe).not.toBe("");
     // Every table classified above must be dropped on sign-out, or the next
     // account on this device inherits the previous one's cached data.
-    for (const t of ["kv_cache", "transactions", "pending_actions", "notifications"]) {
+    for (const t of ["kv_cache", "transactions", "pending_actions", "notifications", "swaps"]) {
       expect(wipe).toContain(t);
     }
   });

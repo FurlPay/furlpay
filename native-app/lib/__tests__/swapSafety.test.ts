@@ -13,38 +13,62 @@ import { tryParseUsdcAmount } from "../money";
 //   3. the slippage the server returns is capped client-side
 // A render test would exercise one path; reading the source that ships is what
 // catches a re-introduced `Number(amount)`.
+//
+// The rules now live in lib/swap/useSwap.ts and the screen is presentation
+// only. That split is itself an invariant worth pinning — see the last block:
+// if quoting or execution logic ever migrates back into the screen, these
+// tripwires would be reading the wrong file and silently stop protecting
+// anything, so the test asserts the separation directly.
 
-const swapSrc = readFileSync(join(__dirname, "..", "..", "app", "swap.tsx"), "utf8");
+const root = join(__dirname, "..", "..");
+const strip = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+
+const screenSrc = readFileSync(join(root, "app", "swap.tsx"), "utf8");
+const hookSrc = readFileSync(join(root, "lib", "swap", "useSwap.ts"), "utf8");
 // Comments explain WHY Number() is banned — only code counts.
-const swapCode = swapSrc.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+const screenCode = strip(screenSrc);
+const hookCode = strip(hookSrc);
+const allCode = screenCode + "\n" + hookCode;
 
 describe("swap screen money-path safety", () => {
   it("never validates the amount with Number()", () => {
-    expect(swapCode).not.toMatch(/Number\(\s*amount\s*\)/);
+    expect(allCode).not.toMatch(/Number\(\s*amount\s*\)/);
   });
 
   it("parses the amount through lib/money", () => {
-    expect(swapSrc).toMatch(/from "@\/lib\/money"/);
-    expect(swapCode).toMatch(/tryParseUsdcAmount\(amount\)/);
+    expect(hookSrc).toMatch(/from "@\/lib\/money"/);
+    expect(hookCode).toMatch(/tryParseUsdcAmount\(amount\)/);
   });
 
   it("gates validity on a successful atomic parse, not a float comparison", () => {
-    expect(swapCode).toMatch(/atomic !== null/);
+    expect(hookCode).toMatch(/atomic !== null/);
   });
 
   it("bounds the amount input", () => {
-    expect(swapCode).toMatch(/maxLength=\{AMOUNT_MAX_LENGTH\}/);
+    expect(screenCode).toMatch(/maxLength=\{AMOUNT_MAX_LENGTH\}/);
   });
 
-  it("caps slippage client-side and blocks the button above the ceiling", () => {
-    expect(swapCode).toMatch(/MAX_SLIPPAGE_PCT\s*=\s*\d/);
-    expect(swapCode).toMatch(/slippagePct > MAX_SLIPPAGE_PCT/);
-    expect(swapCode).toMatch(/disabled=\{[^}]*slippageBlocked/);
+  it("caps slippage client-side and blocks the control above the ceiling", () => {
+    expect(hookCode).toMatch(/MAX_SLIPPAGE_PCT\s*=\s*\d/);
+    expect(hookCode).toMatch(/slippagePct > MAX_SLIPPAGE_PCT/);
+    // The confirm control must consult the block, not merely display it.
+    expect(hookCode).toMatch(/slippageBlocked/);
+    expect(screenCode).toMatch(/slippageBlocked/);
   });
 
   it("refuses to execute against a stale quote", () => {
-    expect(swapCode).toMatch(/QUOTE_TTL_MS/);
-    expect(swapCode).toMatch(/Date\.now\(\) - quotedAt > QUOTE_TTL_MS/);
+    expect(hookCode).toMatch(/QUOTE_TTL_MS/);
+    expect(hookCode).toMatch(/Date\.now\(\) - quotedAt > QUOTE_TTL_MS/);
+  });
+
+  it("re-prices a stale quote instead of executing it", () => {
+    // The stale branch must return without reaching the execute request.
+    const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
+    const staleAt = execFn.indexOf("QUOTE_TTL_MS");
+    const requestAt = execFn.indexOf("execute: true");
+    expect(staleAt).toBeGreaterThan(-1);
+    expect(requestAt).toBeGreaterThan(staleAt);
+    expect(execFn.slice(staleAt, requestAt)).toMatch(/return;/);
   });
 });
 
@@ -55,35 +79,76 @@ describe("swap execution is authorized by a server-issued quote", () => {
   // property to pin is that the client cannot execute without an id.
 
   it("holds the quoteId the server issued", () => {
-    expect(swapCode).toMatch(/setQuoteId\(res\.quoteId\)/);
+    expect(hookCode).toMatch(/setQuoteId\(res\.quoteId\)/);
   });
 
   it("sends quoteId on execute", () => {
-    expect(swapCode).toMatch(/execute: true, quoteId/);
+    expect(hookCode).toMatch(/execute: true,\s*quoteId/);
   });
 
   it("never sends execute:true without a quoteId", () => {
-    // Any execute body in this file must carry quoteId alongside it.
-    const executeBodies = swapCode.match(/body: \{[^}]*execute: true[^}]*\}/g) ?? [];
+    // Any execute body in the money path must carry quoteId alongside it.
+    const executeBodies = allCode.match(/body: \{[^}]*execute: true[^}]*\}/g) ?? [];
     expect(executeBodies.length).toBeGreaterThan(0);
     for (const body of executeBodies) expect(body).toMatch(/quoteId/);
   });
 
   it("cannot fire the action without an id in hand", () => {
-    expect(swapCode).toMatch(/if \(!quote \|\| !quoteId/);
-    expect(swapCode).toMatch(/disabled=\{[^}]*!quoteId/);
+    expect(hookCode).toMatch(/if \(!quote \|\| !quoteId/);
+    expect(screenCode).toMatch(/disabled=\{[^}]*!q\.quoteId/);
   });
 
   it("re-quotes rather than erroring when the server rejects a spent id", () => {
-    expect(swapCode).toMatch(/"expired" \|\| code === "already_used"/);
-    expect(swapCode).toMatch(/requote\(/);
+    expect(hookCode).toMatch(/"expired" \|\| code === "already_used"/);
+    expect(hookCode).toMatch(/requote\(/);
   });
 
   it("aborts superseded quote requests so a slow reply cannot repaint a newer price", () => {
-    expect(swapCode).toMatch(/new AbortController\(\)/);
-    expect(swapCode).toMatch(/signal: ctrl\.signal/);
-    expect(swapCode).toMatch(/ctrl\.abort\(\)/);
-    expect(swapCode).toMatch(/instanceof AbortedError/);
+    expect(hookCode).toMatch(/new AbortController\(\)/);
+    // The controller's signal is threaded all the way into the request…
+    expect(hookCode).toMatch(/fetchQuote\(ctrl\.signal\)/);
+    expect(hookCode).toMatch(/signal,/);
+    // …the effect cleanup aborts the superseded request…
+    expect(hookCode).toMatch(/ctrl\.abort\(\)/);
+    // …and an abort is swallowed rather than shown as a failure.
+    expect(hookCode).toMatch(/instanceof AbortedError/);
+  });
+
+  it("guards against a second execution of the same quote while one is in flight", () => {
+    expect(hookCode).toMatch(/inFlight/);
+    expect(hookCode).toMatch(/inFlight\.current\)\s*return/);
+  });
+
+  it("requires a biometric confirmation before submitting", () => {
+    const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
+    const confirmAt = execFn.indexOf("confirmWithBiometrics");
+    const requestAt = execFn.indexOf("execute: true");
+    expect(confirmAt).toBeGreaterThan(-1);
+    expect(requestAt).toBeGreaterThan(confirmAt);
+    // A declined prompt must abandon, not fall through.
+    expect(execFn.slice(confirmAt, requestAt)).toMatch(/if \(!confirmed\)/);
+  });
+});
+
+describe("the swap screen holds no money logic of its own", () => {
+  // If quoting or execution ever moves back into the screen, the tripwires
+  // above would be reading a file that no longer contains the rules. Rather
+  // than fail mysteriously later, fail here and now.
+
+  it("issues no swap requests directly", () => {
+    expect(screenCode).not.toMatch(/api<[^>]*>\(\s*"\/swaps"/);
+    expect(screenCode).not.toMatch(/execute: true/);
+  });
+
+  it("does not re-implement amount parsing", () => {
+    expect(screenCode).not.toMatch(/parseUsdcAmount/);
+  });
+
+  it("delegates validation and quoting to the hooks", () => {
+    expect(screenSrc).toMatch(/from "@\/lib\/swap\/useSwap"/);
+    expect(screenCode).toMatch(/useSwapValidation\(/);
+    expect(screenCode).toMatch(/useSwapQuote\(/);
+    expect(screenCode).toMatch(/useSwapExecution\(/);
   });
 });
 

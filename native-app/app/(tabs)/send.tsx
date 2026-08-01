@@ -1,175 +1,280 @@
-import React, { useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import { useLocalSearchParams } from "expo-router";
-import * as Haptics from "expo-haptics";
-import { api, ApiError, demoSignature, NetworkError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
-import { queuePendingAction } from "@/lib/db";
-import { useOverview, useInvalidateAll } from "@/lib/queries";
-import { validateSend } from "@/lib/sendValidation";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { AmountInput } from "@/components/money/AmountInput";
+import { ProgressTimeline, sendSteps } from "@/components/money/ProgressTimeline";
+import { SwipeToConfirm } from "@/components/money/SwipeToConfirm";
+import { ValuePanel } from "@/components/money/ValuePanel";
+import { WarningList } from "@/components/money/WarningList";
+import { RecipientInput } from "@/components/send/RecipientInput";
+import { SendSummary } from "@/components/send/SendSummary";
+import { SourceSelector } from "@/components/send/SourceSelector";
+import { Button, ErrorNote, Field, Screen } from "@/components/ui";
 import { shortAddress, usd } from "@/lib/format";
+import {
+  AMOUNT_MAX_LENGTH,
+  assetForToken,
+  chainName,
+  useClipboardPaste,
+  useRecipients,
+  useSendBalances,
+  useSendExecution,
+  useSendValidation,
+  useSendWarnings,
+  type SendReceipt,
+} from "@/lib/send/useSend";
+import { type ChainId } from "@/lib/swap/assets";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { Button, ErrorNote, Field, Screen, Surface } from "@/components/ui";
 import type { TokenBalance } from "@/lib/types";
 
-type Result =
-  | { kind: "sent"; hash: string }
-  | { kind: "queued" }
-  | null;
+// Send.
+//
+// The safety rules live in lib/send/useSend.ts, not here, so that changing how
+// this screen LOOKS cannot change what it is allowed to DO — the same split the
+// swap screen uses, and pinned by lib/__tests__/sendSafety.test.ts. This file is
+// the presentation layer: it renders state and forwards intent.
+//
+// The one rule enforced here as well as there is the confirm gate. The swipe is
+// disabled unless every check passes, and the reason is always shown on the
+// control itself — a disabled button with no explanation is the single most
+// common way a payment screen wastes a user's time.
 
 export default function Send() {
   const params = useLocalSearchParams<{ to?: string }>();
-  const { data: overviewResult } = useOverview();
-  const invalidateAll = useInvalidateAll();
-  const balances = overviewResult?.data.tokenBalances ?? [];
+  const router = useRouter();
+
+  const { balances } = useSendBalances();
+  const { recents, remember } = useRecipients();
+  const clipboard = useClipboardPaste();
 
   const [destination, setDestination] = useState(params.to ?? "");
   const [amount, setAmount] = useState("");
   const [source, setSource] = useState<TokenBalance | null>(null);
   const [mfaCode, setMfaCode] = useState("");
-  const [needsMfa, setNeedsMfa] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<Result>(null);
+  const [picking, setPicking] = useState(false);
 
   const selected = source ?? balances[0] ?? null;
 
-  // Money goes through lib/money.ts (via validateSend), never Number(x) > 0 —
-  // and the USD amount is checked against the balance's USD value, not its
-  // token amount. See lib/sendValidation.ts for both bugs this closed.
-  const check = useMemo(
-    () => validateSend({ destination, amount, balance: selected }),
-    [destination, amount, selected]
-  );
-  const validation = check.ok ? null : check.error;
-  const amountUsd = check.ok ? check.amountUsd : 0;
+  /**
+   * Address handed over by the scanner.
+   *
+   * `useState(params.to)` alone is not enough: scan.tsx uses router.replace back
+   * onto this already-mounted tab, so the initialiser never re-runs and the
+   * scanned address silently failed to appear. Applied once per distinct value
+   * so it cannot fight the user's own edits.
+   */
+  const appliedParam = useRef<string | null>(null);
+  useEffect(() => {
+    const to = params.to;
+    if (!to || appliedParam.current === to) return;
+    appliedParam.current = to;
+    setDestination(to);
+  }, [params.to]);
 
-  const send = async () => {
-    setError(null);
-    if (!check.ok) {
-      setError(check.error);
-      return;
-    }
-    // Biometric confirmation before any money moves (honors the Settings →
-    // Security → "Biometric approvals" preference).
-    const confirmed = await confirmWithBiometrics(
-      `Send ${usd(amountUsd)} to ${shortAddress(destination.trim())}`
-    );
-    if (!confirmed) return;
+  const validation = useSendValidation(destination, amount, selected);
+  const warnings = useSendWarnings({
+    amountUsd: validation.amountUsd,
+    destination,
+    balance: selected,
+    addressValid: validation.addressValid,
+    recents,
+  });
 
-    const payload = {
-      destination: destination.trim(),
-      amount: amountUsd,
-      token: selected!.token,
-      chain: selected!.chain,
-      // SECURITY: demoSignature() is a random blob — it authorizes NOTHING.
-      // /wallets/transfer is the demo-ledger custodial path (mock recovery,
-      // same as the web dashboard); its real authorization is the session JWT.
-      // If this endpoint is ever wired to real settlement, this screen MUST
-      // switch to lib/wallet.ts signTransferAuthorization (genuine EIP-3009,
-      // biometric-gated) — see sendGasless for the working pattern.
-      signature: demoSignature(),
-      ...(mfaCode ? { mfaCode } : {}),
-    };
-
-    setBusy(true);
-    try {
-      const res = await api<{ transactionHash: string }>("/wallets/transfer", {
-        method: "POST",
-        body: payload,
-        headers: { "Idempotency-Key": crypto.randomUUID() },
+  const onSent = useCallback(
+    (receipt: SendReceipt) => {
+      // Only a transfer the server accepted becomes history. A queued one has
+      // not happened yet, and the recents list is what the look-alike check
+      // compares against — seeding it with unconfirmed addresses would weaken
+      // exactly the protection it exists to provide.
+      if (receipt.kind !== "sent") return;
+      remember({
+        address: receipt.destination,
+        chain: receipt.chain as TokenBalance["chain"],
+        token: receipt.token,
       });
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setResult({ kind: "sent", hash: res.transactionHash });
-      invalidateAll();
-    } catch (e) {
-      if (e instanceof NetworkError) {
-        // Offline: queue in the outbox; OfflineBanner flushes when back online.
-        queuePendingAction("transfer", payload);
-        setResult({ kind: "queued" });
-      } else if (e instanceof ApiError && (e.data as any)?.stepUpRequired) {
-        setNeedsMfa(true);
-        setError("High-value transfer — enter your authenticator code to continue.");
-      } else {
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-        setError(e instanceof ApiError ? e.message : (e as Error).message);
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
+    },
+    [remember]
+  );
 
-  if (result) {
+  const exec = useSendExecution(
+    { destination, amount, balance: selected, mfaCode },
+    onSent
+  );
+
+  /**
+   * Percentage shortcuts derive from the BALANCE's USD value — the field is
+   * dollar-denominated, so a fraction of the token amount would be the wrong
+   * number for anything that is not exactly $1. Truncated to 6dp so the result
+   * is always a value parseUsdcAmount accepts, and Max uses the exact spendable
+   * value: rounding it up would produce an amount the user cannot send.
+   */
+  const applyPercent = useCallback(
+    (fraction: number) => {
+      if (!selected || selected.usdValue <= 0) return;
+      const raw = fraction >= 1 ? selected.usdValue : selected.usdValue * fraction;
+      const truncated = Math.floor(raw * 1e6) / 1e6;
+      setAmount(truncated > 0 ? String(truncated) : "0");
+    },
+    [selected]
+  );
+
+  const reset = useCallback(() => {
+    exec.dismiss();
+    setDestination("");
+    setAmount("");
+    setMfaCode("");
+    appliedParam.current = null;
+  }, [exec]);
+
+  const secondaryText = useMemo(() => {
+    if (!selected || validation.tokenEquivalent === undefined) return undefined;
+    return `≈ ${validation.tokenEquivalent.toLocaleString(undefined, { maximumFractionDigits: 6 })} ${selected.token}`;
+  }, [selected, validation.tokenEquivalent]);
+
+  // ── receipt ──────────────────────────────────────────────────────────────
+  if (exec.receipt) {
+    const done = exec.receipt;
+    const sent = done.kind === "sent";
     return (
-      <Screen style={styles.done}>
-        <Text style={{ fontSize: 56 }}>{result.kind === "sent" ? "✓" : "⏳"}</Text>
-        <Text style={type.h2}>
-          {result.kind === "sent" ? "Payment sent" : "Queued — you're offline"}
-        </Text>
-        <Text style={[type.dim, { textAlign: "center" }]}>
-          {result.kind === "sent"
-            ? `${usd(amountUsd)} ${selected?.token} to ${shortAddress(destination)}`
-            : "This transfer will send automatically when you're back online."}
-        </Text>
-        {result.kind === "sent" ? <Text style={type.mono}>{shortAddress(result.hash, 10)}</Text> : null}
-        <Button
-          title="Done"
-          onPress={() => {
-            setResult(null);
-            setDestination("");
-            setAmount("");
-            setMfaCode("");
-            setNeedsMfa(false);
-          }}
-          style={{ alignSelf: "stretch" }}
-        />
+      <Screen>
+        <ScrollView contentContainerStyle={styles.receipt}>
+          <View style={[styles.tick, !sent && { backgroundColor: colors.surfaceRaised }]}>
+            <Ionicons
+              name={sent ? "checkmark" : "cloud-offline-outline"}
+              size={40}
+              color={sent ? colors.onNeon : colors.warning}
+            />
+          </View>
+          <Text style={type.h2}>{sent ? "Payment sent" : "Queued — you're offline"}</Text>
+          <Text style={[type.dim, { textAlign: "center" }]}>
+            {sent
+              ? `${usd(done.amountUsd)} ${done.token} to ${shortAddress(done.destination)} on ${chainName(done.chain)}`
+              : "This transfer will send automatically when you're back online. Nothing has left your account yet."}
+          </Text>
+
+          {sent ? (
+            <View style={{ alignSelf: "stretch", marginTop: spacing.md }}>
+              <ProgressTimeline
+                stage="settled"
+                steps={sendSteps(done.chain, done.transactionHash)}
+              />
+            </View>
+          ) : null}
+
+          <Button title="Done" onPress={reset} style={{ alignSelf: "stretch" }} />
+        </ScrollView>
       </Screen>
     );
   }
 
+  // ── in-flight ────────────────────────────────────────────────────────────
+  if (exec.executing || exec.stage === "failed") {
+    return (
+      <Screen>
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={type.h2}>
+            {exec.stage === "failed" ? "Payment didn't go through" : "Sending"}
+          </Text>
+          {/* A send cannot be in flight without a source, so the timeline is
+              rendered from the real chain or not at all — never from a
+              stand-in that would name the wrong network on a receipt. */}
+          {selected ? (
+            <ProgressTimeline
+              stage={exec.stage}
+              steps={sendSteps(selected.chain as ChainId)}
+              // Reaching this screen means the biometric prompt was passed and
+              // the request was sent — so it is the submission that failed, not
+              // the authorization.
+              failedAt={1}
+            />
+          ) : null}
+          {exec.error ? <ErrorNote message={exec.error} /> : null}
+          {exec.correlationId ? (
+            <Text style={styles.correlation}>Reference {exec.correlationId}</Text>
+          ) : null}
+          {exec.stage === "failed" ? <Button title="Back" onPress={exec.dismiss} /> : null}
+        </ScrollView>
+      </Screen>
+    );
+  }
+
+  // ── composer ─────────────────────────────────────────────────────────────
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Field
-          label={selected?.chain === "solana" ? "Recipient (Solana address)" : "Recipient (0x address)"}
-          value={destination}
-          onChangeText={setDestination}
-          placeholder={selected?.chain === "solana" ? "Base58 address…" : "0xabc…"}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
-        <Field
-          label="Amount (USD)"
-          value={amount}
-          onChangeText={setAmount}
-          placeholder="0.00"
-          keyboardType="decimal-pad"
-        />
+        {/* Always tappable — including with no balances, which is precisely
+            when a user taps it to find out why. The picker explains the empty
+            state and offers a way out of it; a dead control explains nothing. */}
+        <ValuePanel
+          caption="YOU SEND"
+          asset={selected ? assetForToken(selected.token) : undefined}
+          chain={selected?.chain as ChainId | undefined}
+          onPress={() => setPicking(true)}
+        >
+          <AmountInput
+            value={amount}
+            onChangeText={setAmount}
+            prefix="$"
+            balance={selected?.usdValue}
+            balanceText={selected ? `Balance ${usd(selected.usdValue)}` : undefined}
+            secondaryText={secondaryText}
+            error={
+              validation.amountError ??
+              (validation.insufficientBalance ? validation.blockedReason : null)
+            }
+            maxLength={AMOUNT_MAX_LENGTH}
+            onPercent={applyPercent}
+            accessibilityLabel="Amount to send, in US dollars"
+          />
+        </ValuePanel>
 
-        <View style={{ gap: 6 }}>
-          <Text style={type.dim}>Pay with</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-            {balances.map((b) => {
-              const active = selected?.token === b.token && selected?.chain === b.chain;
-              return (
-                <Pressable
-                  key={`${b.token}-${b.chain}`}
-                  onPress={() => setSource(b)}
-                  style={[styles.chip, active && styles.chipActive]}
-                >
-                  <Text style={{ color: active ? colors.onNeon : colors.text, fontWeight: "600" }}>
-                    {b.token} · {b.chain}
-                  </Text>
-                  <Text style={{ color: active ? colors.onNeon : colors.textDim, fontSize: 12 }}>
-                    {usd(b.usdValue)}
-                  </Text>
-                </Pressable>
-              );
-            })}
-          </ScrollView>
+        {/* Straddles the seam between the two panels, exactly where the swap
+            screen's flip control sits — so the direction of the movement is
+            readable from layout alone. Send has only one direction, so this is
+            an indicator, not a control. */}
+        <View style={styles.seam} pointerEvents="none">
+          <View style={styles.seamDot}>
+            <Ionicons name="arrow-down" size={20} color={colors.neon} />
+          </View>
         </View>
 
-        {needsMfa ? (
+        <RecipientInput
+          value={destination}
+          onChangeText={(v) => {
+            clipboard.clearNotice();
+            setDestination(v);
+          }}
+          chain={selected?.chain as ChainId | undefined}
+          error={validation.addressError}
+          valid={validation.addressValid}
+          pasteNotice={clipboard.notice}
+          onPaste={() => {
+            void clipboard.paste().then((address) => {
+              if (address) setDestination(address);
+            });
+          }}
+          onScan={() => router.push("/scan")}
+          recents={recents}
+          onPickRecent={(r) => {
+            clipboard.clearNotice();
+            setDestination(r.address);
+          }}
+        />
+
+        {exec.unavailable ? (
+          <View style={styles.notice} accessibilityRole="alert">
+            <Ionicons name="construct-outline" size={16} color={colors.warning} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.noticeTitle}>Sending not enabled here</Text>
+              <Text style={type.dim}>{exec.unavailable}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        <WarningList warnings={warnings} />
+
+        {exec.needsMfa ? (
           <Field
             label="Authenticator code"
             value={mfaCode}
@@ -177,49 +282,93 @@ export default function Send() {
             placeholder="123456"
             keyboardType="number-pad"
             maxLength={8}
+            autoCapitalize="none"
+            autoCorrect={false}
           />
         ) : null}
 
-        {selected && check.ok ? (
-          <Surface style={{ gap: 4 }}>
-            <Text style={type.dim}>Review</Text>
-            <Text style={type.body}>
-              Send {usd(amountUsd)} {selected.token} on {selected.chain}
-            </Text>
-            {/* Full recipient, monospace — address-poisoning relies on you
-                checking only the first/last few characters. Verify all of it. */}
-            <Text style={type.dim}>To</Text>
-            <Text style={[type.mono, { color: colors.text, fontSize: 13 }]} selectable>
-              {destination.trim()}
-            </Text>
-            <Text style={[type.dim, { fontSize: 12 }]}>
-              Check the whole address — sends are irreversible.
-            </Text>
-            <Text style={[type.dim, { color: colors.neon }]}>Gas sponsored by FurlPay — no fee</Text>
-          </Surface>
+        {validation.canSend && selected ? (
+          <SendSummary
+            facts={{
+              amountUsd: validation.amountUsd,
+              token: selected.token,
+              chain: selected.chain as ChainId,
+              destination: destination.trim(),
+              tokenEquivalent: validation.tokenEquivalent,
+              balanceUsd: selected.usdValue,
+            }}
+          />
         ) : null}
 
-        <ErrorNote message={error} />
-        <Button title="Send payment" onPress={() => void send()} loading={busy} disabled={!!validation} />
+        <ErrorNote message={exec.error} />
+
+        <SwipeToConfirm
+          noun="payment"
+          label={
+            validation.canSend
+              ? `Swipe to send ${usd(validation.amountUsd)}`
+              : "Swipe to send"
+          }
+          confirmingLabel="Sending…"
+          disabled={!validation.canSend}
+          disabledReason={validation.blockedReason ?? undefined}
+          onConfirm={() => void exec.execute()}
+        />
       </ScrollView>
+
+      <SourceSelector
+        visible={picking}
+        balances={balances}
+        selected={selected}
+        onClose={() => setPicking(false)}
+        onSelect={setSource}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
-  chip: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radius.md,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    gap: 2,
-  },
-  chipActive: { backgroundColor: colors.neon },
-  done: {
+  receipt: {
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.md,
-    padding: spacing.xl,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  tick: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.neon,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  seam: { alignItems: "center", marginVertical: -18, zIndex: 2 },
+  seamDot: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 3,
+    borderColor: colors.bg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  notice: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.warning + "55",
+  },
+  noticeTitle: { color: colors.warning, fontSize: 13, fontWeight: "700" },
+  correlation: {
+    color: colors.textFaint,
+    fontSize: 11,
+    fontFamily: "monospace",
+    textAlign: "center",
   },
 });

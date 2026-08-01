@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text } from "react-native";
 import { useRouter } from "expo-router";
-import QRCode from "react-native-qrcode-svg";
-import * as Clipboard from "expo-clipboard";
-import * as Haptics from "expo-haptics";
 import { getAddress, getKnownAddress, hasWallet } from "@/lib/wallet";
 import { useSecureScreen } from "@/lib/secureScreen";
-import { colors, radius, spacing, type } from "@/lib/theme";
-import { Button, EmptyState, Screen, Surface } from "@/components/ui";
+import { colors, spacing, type } from "@/lib/theme";
+import { Button, EmptyState, Screen } from "@/components/ui";
+import { WalletQrCard } from "@/components/WalletQrCard";
 
 // ---------------------------------------------------------------------------
 // Receive — shows ONLY the self-custodial device-wallet address (lib/wallet.ts),
@@ -36,7 +34,6 @@ export default function Receive() {
   useSecureScreen("receive");
   const router = useRouter();
   const [state, setState] = useState<WalletState>({ kind: "loading" });
-  const [copied, setCopied] = useState(false);
 
   const load = useCallback(async () => {
     if (!(await hasWallet())) {
@@ -59,14 +56,6 @@ export default function Receive() {
     } catch {
       // Biometric dismissed — stay on the locked state, the button retries.
     }
-  };
-
-  const copy = async () => {
-    if (state.kind !== "ready") return;
-    await Clipboard.setStringAsync(state.address);
-    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
   };
 
   if (state.kind === "loading") return <Screen />;
@@ -100,35 +89,28 @@ export default function Receive() {
   }
 
   return (
-    <Screen style={styles.screen}>
-      <View style={styles.networkChip}>
-        <Text style={{ color: colors.neon, fontWeight: "700", fontSize: 13 }}>
-          {ASSET_LABEL} · {NETWORK_LABEL}
-        </Text>
-      </View>
-      <View style={styles.qrWrap}>
-        <QRCode value={state.address} size={220} backgroundColor="#FFFFFF" color="#000000" />
-      </View>
-      {/* Full address, monospace and selectable — verify ALL of it, not just
-          the ends (address-poisoning counts on partial checks). */}
-      <Surface style={{ alignSelf: "stretch" }}>
-        <Text style={[type.mono, { textAlign: "center" }]} selectable>
+    <Screen>
+      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        {/* Shareable QR + Save/Share + WhatsApp/Telegram/X — the receive card
+            copied from the web (ScanToPay MyQrView), bound to the DEVICE-WALLET
+            address, never safeAddress. */}
+        <WalletQrCard address={state.address} rail={`${ASSET_LABEL} · ${NETWORK_LABEL}`} />
+
+        {/* Full address, selectable — verify ALL of it, not just the ends
+            (address-poisoning relies on partial checks). */}
+        <Text style={[type.mono, styles.fullAddress]} selectable>
           {state.address}
         </Text>
-      </Surface>
-      <Button
-        title={copied ? "Copied" : "Copy address"}
-        onPress={() => void copy()}
-        style={{ alignSelf: "stretch" }}
-      />
-      <Text style={[type.dim, { fontSize: 12, textAlign: "center" }]}>
-        Send only {ASSET_LABEL} on {NETWORK_LABEL} to this address — other tokens or networks may be
-        lost.
-      </Text>
-      <Text style={[type.dim, { fontSize: 12, textAlign: "center" }]}>
-        This address is controlled by the key on this device — FurlPay never holds it. Deposits here
-        are yours on-chain and do not appear in your FurlPay account balance.
-      </Text>
+
+        <Text style={[type.dim, styles.note]}>
+          Send only {ASSET_LABEL} on {NETWORK_LABEL} to this address — other tokens or networks may
+          be lost.
+        </Text>
+        <Text style={[type.dim, styles.note]}>
+          This address is controlled by the key on this device — FurlPay never holds it. Deposits
+          here are yours on-chain and do not appear in your FurlPay account balance.
+        </Text>
+      </ScrollView>
     </Screen>
   );
 }
@@ -140,15 +122,7 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     padding: spacing.lg,
   },
-  networkChip: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-  },
-  qrWrap: {
-    backgroundColor: "#FFFFFF",
-    padding: spacing.md,
-    borderRadius: radius.lg,
-  },
+  scroll: { padding: spacing.lg, gap: spacing.md, alignItems: "center" },
+  fullAddress: { textAlign: "center", alignSelf: "stretch" },
+  note: { fontSize: 12, textAlign: "center" },
 });

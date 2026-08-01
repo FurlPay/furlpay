@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { api, ApiError } from "@/lib/api";
+import { FX_CURRENCIES, FxUnavailable, fxProvenance, useFxQuote } from "@/lib/fx";
 import { usd } from "@/lib/format";
 import { useSecureScreen } from "@/lib/secureScreen";
 import { colors, radius, spacing, type } from "@/lib/theme";
@@ -35,8 +36,9 @@ interface FiatAccount {
 
 const PROVISIONABLE = ["USD", "EUR", "GBP", "INR"] as const;
 
-// Mid-market rates to USD (mock; mirrors the web page's TO_USD table).
-const TO_USD: Record<string, number> = { USD: 1, EUR: 1.09, GBP: 1.27, INR: 0.012, JPY: 0.0064 };
+// No rate table here. Conversion prices through /api/offramp, which reads ECB
+// reference rates — see lib/fx.ts for why a local table is the wrong shape for
+// this and what the old one got wrong.
 const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", INR: "₹", JPY: "¥" };
 
 // Local payment rails per currency (what a sender uses to pay you).
@@ -62,9 +64,6 @@ const DETAIL_LABEL: Record<string, string> = {
 
 function sym(c: string) {
   return SYMBOL[c] ?? c + " ";
-}
-function convert(amount: number, from: string, to: string) {
-  return (amount * (TO_USD[from] ?? 1)) / (TO_USD[to] ?? 1);
 }
 
 function CopyRow({ label, value }: { label: string; value: string }) {
@@ -252,18 +251,25 @@ function ConvertSheet({ accounts }: { accounts: FiatAccount[] }) {
   const amt = Number(amount) || 0;
   const available = accounts.find((a) => a.currency === from)?.amount ?? 0;
   const overBalance = amt > available;
-  const out = convert(amt, from, to);
-  const rate = convert(1, from, to);
 
-  if (done)
+  // Priced by the server. There is no local fallback on purpose: if the rate
+  // cannot be fetched the screen says so, because the alternative is showing an
+  // invented number in the row the user reads to decide.
+  const { data: quote, error, isFetching } = useFxQuote(from, to, amt);
+  const fxError = error instanceof FxUnavailable ? error.message : error ? String(error) : null;
+
+  if (done && quote)
     return (
-      <SuccessNote preview text={`Previewed converting ${sym(from)}${amt.toLocaleString()} → ${sym(to)}${out.toFixed(2)}.`} />
+      <SuccessNote
+        preview
+        text={`Previewed converting ${sym(from)}${amt.toLocaleString()} → ${sym(to)}${quote.amountTo.toFixed(2)}.`}
+      />
     );
   return (
     <View style={{ gap: spacing.md }}>
       <PreviewBanner />
       <ChipPicker label="From" options={accounts.map((a) => a.currency)} value={from} onChange={setFrom} />
-      <ChipPicker label="To" options={["USD", "EUR", "GBP", "INR"]} value={to} onChange={setTo} />
+      <ChipPicker label="To" options={[...FX_CURRENCIES]} value={to} onChange={setTo} />
       <Field
         label={`Amount (${from})`}
         value={amount}
@@ -276,11 +282,35 @@ function ConvertSheet({ accounts }: { accounts: FiatAccount[] }) {
           {available.toLocaleString("en-US", { maximumFractionDigits: 2 })}.
         </Text>
       ) : null}
+
       <Surface style={{ gap: 2 }}>
-        <SummaryRow k="Indicative rate" v={`1 ${from} = ${rate.toFixed(4)} ${to}`} />
-        <SummaryRow k="You get" v={`${sym(to)}${out.toFixed(2)}`} bold />
+        {quote ? (
+          <>
+            <SummaryRow
+              k="Indicative rate"
+              v={`1 ${from} = ${quote.midMarketRate.toFixed(4)} ${to}`}
+            />
+            <SummaryRow k={`Fee (${quote.feePct}%)`} v={`${sym(from)}${quote.feeAmount.toFixed(2)}`} />
+            <SummaryRow k="You get" v={`${sym(to)}${quote.amountTo.toFixed(2)}`} bold />
+            <SummaryRow k="Rail" v={quote.rail} />
+            {/* Provenance sits with the number, not in a tooltip. A rate the
+                user cannot date is a rate they cannot judge. */}
+            <Text style={[type.dim, { marginTop: 6, fontSize: 11 }]}>{fxProvenance(quote)}</Text>
+          </>
+        ) : fxError ? (
+          <ErrorNote message={fxError} />
+        ) : (
+          <SummaryRow k="Indicative rate" v={isFetching ? "Getting rate…" : "—"} />
+        )}
       </Surface>
-      <Button title="Convert" disabled={from === to || amt <= 0 || overBalance} onPress={() => setDone(true)} />
+
+      <Button
+        title="Convert"
+        // Gated on having a real quote. Without one there is nothing to preview
+        // and no rate the user could have agreed to.
+        disabled={from === to || amt <= 0 || overBalance || !quote || isFetching}
+        onPress={() => setDone(true)}
+      />
     </View>
   );
 }

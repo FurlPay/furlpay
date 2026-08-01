@@ -14,12 +14,14 @@ import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { api } from "@/lib/api";
 import { useOverview } from "@/lib/queries";
-import { timeAgo, usd } from "@/lib/format";
+import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { EmptyState, Screen, SectionHeader, Sheet, Surface } from "@/components/ui";
 import { TransactionRow } from "@/components/TransactionRow";
 import { Avatar } from "@/components/Avatar";
 import { AccountDrawer } from "@/components/AccountDrawer";
+import { BalanceHero } from "@/components/BalanceHero";
+import { NotificationBell } from "@/components/NotificationBell";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 
 // Add money — native counterpart of the web dashboard's DepositModal:
@@ -124,24 +126,48 @@ function AddMoneySheet({ open, onClose }: { open: boolean; onClose: () => void }
   );
 }
 
-function QuickAction({
+/** Route accepted by the typed router (app.json sets experiments.typedRoutes). */
+type Route = Parameters<ReturnType<typeof useRouter>["push"]>[0];
+
+// A dashboard tile: rounded-square container, circular mint icon, small label.
+// The container is what turns eight loose icons into a grid the eye reads as
+// one block — and it roughly doubles the touch target, which on the row a user
+// reaches for one-handed is the part that actually matters.
+//
+// It takes a ROUTE, not an onPress. An inline `() => router.push(…)` is a new
+// function on every render, so a memoized tile taking a callback would re-render
+// with the parent anyway — memo with an unstable prop is worse than no memo,
+// because it adds a comparison that can never succeed. With primitives only,
+// the eight tiles render once and stay put through every balance refetch.
+const QuickAction = React.memo(function QuickAction({
   icon,
   label,
-  onPress,
+  to,
 }: {
   icon: keyof typeof Ionicons.glyphMap;
   label: string;
-  onPress: () => void;
+  to: Route;
 }) {
+  const router = useRouter();
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.action, pressed && { opacity: 0.7 }]}>
+    <Pressable
+      onPress={() => {
+        void Haptics.selectionAsync();
+        router.push(to);
+      }}
+      style={({ pressed }) => [styles.action, pressed && styles.actionPressed]}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+    >
       <View style={styles.actionIcon}>
         <Ionicons name={icon} size={20} color={colors.neon} />
       </View>
-      <Text style={type.dim}>{label}</Text>
+      <Text style={styles.actionLabel} numberOfLines={1}>
+        {label}
+      </Text>
     </Pressable>
   );
-}
+});
 
 function greeting(): string {
   const h = new Date().getHours();
@@ -198,15 +224,9 @@ export default function Home() {
           >
             <Ionicons name="sparkles-outline" size={20} color={colors.neon} />
           </Pressable>
-          <Pressable
-            onPress={() => setAddMoneyOpen(true)}
-            hitSlop={8}
-            style={styles.headerIcon}
-            accessibilityRole="button"
-            accessibilityLabel="Add money"
-          >
-            <Ionicons name="add" size={22} color={colors.text} />
-          </Pressable>
+          {/* The unread dot is the only thing on this screen that reports state
+              the user has not already seen, so it sits next to the avatar. */}
+          <NotificationBell onPress={() => router.push("/notifications")} />
           <Pressable
             onPress={() => router.push("/scan")}
             hitSlop={8}
@@ -218,36 +238,30 @@ export default function Home() {
           </Pressable>
         </View>
 
-        {/* Net worth */}
-        <View style={{ gap: 4 }}>
-          <Text style={type.dim}>
-            Net worth
-            {result?.fromCache ? `  ·  cached ${timeAgo(result.updatedAt)}` : ""}
-          </Text>
-          <Text style={styles.netWorth}>
-            {overview ? usd(overview.netWorth) : isLoading ? "· · ·" : "—"}
-          </Text>
-          {overview ? (
-            <Text style={type.dim}>
-              Crypto {usd(overview.breakdown.crypto)} · Fiat {usd(overview.breakdown.fiat)} · Stocks{" "}
-              {usd(overview.breakdown.equities)}
-            </Text>
-          ) : null}
-        </View>
+        {/* Balance hero. Add-money moved off the header and onto the card,
+            next to the balance it changes — and the header lost an icon. */}
+        <BalanceHero
+          overview={overview}
+          loading={isLoading}
+          cachedAt={result?.fromCache ? result.updatedAt : undefined}
+          onAddMoney={() => setAddMoneyOpen(true)}
+        />
 
-        {/* Quick actions — 8, matching the web dashboard */}
+        {/* Quick actions — 8 tiles. Scan is not among them: it has a dedicated
+            header button and the QR flow is reached from there, so the slot
+            goes to Rewards, which previously had no entry point outside
+            Settings → Rewards & referrals. */}
         <View style={styles.actions}>
-          <QuickAction icon="paper-plane-outline" label="Send" onPress={() => router.push("/(tabs)/send")} />
-          <QuickAction icon="download-outline" label="Receive" onPress={() => router.push("/receive")} />
-          <QuickAction icon="repeat-outline" label="Swap" onPress={() => router.push("/swap")} />
-          <QuickAction icon="scan-outline" label="Scan" onPress={() => router.push("/scan")} />
+          <QuickAction icon="paper-plane-outline" label="Send" to="/(tabs)/send" />
+          <QuickAction icon="download-outline" label="Receive" to="/receive" />
+          <QuickAction icon="repeat-outline" label="Swap" to="/swap" />
+          <QuickAction icon="gift-outline" label="Rewards" to="/rewards" />
         </View>
         <View style={styles.actions}>
-          <QuickAction icon="leaf-outline" label="Earn" onPress={() => router.push("/earn")} />
-          <QuickAction icon="receipt-outline" label="Bills" onPress={() => router.push("/bills")} />
-          <QuickAction icon="cash-outline" label="Credit" onPress={() => router.push("/credit")} />
-          {/* Rewards keeps its entry point in Settings → Rewards & referrals. */}
-          <QuickAction icon="airplane-outline" label="Travel" onPress={() => router.push("/travel")} />
+          <QuickAction icon="leaf-outline" label="Earn" to="/earn" />
+          <QuickAction icon="receipt-outline" label="Bills" to="/bills" />
+          <QuickAction icon="cash-outline" label="Credit" to="/credit" />
+          <QuickAction icon="airplane-outline" label="Travel" to="/travel" />
         </View>
 
         {/* Balances */}
@@ -318,20 +332,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  netWorth: { fontSize: 40, fontWeight: "800", color: colors.text, letterSpacing: -1 },
-  actions: {
-    flexDirection: "row",
-    justifyContent: "space-between",
+  actions: { flexDirection: "row", gap: spacing.sm },
+  action: {
+    flex: 1,
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
   },
-  action: { alignItems: "center", gap: 6, flex: 1 },
+  actionPressed: { backgroundColor: colors.surfaceRaised, borderColor: colors.neon },
   actionIcon: {
-    width: 52,
-    height: 52,
+    width: 44,
+    height: 44,
     borderRadius: radius.pill,
     backgroundColor: colors.neonSoft,
     alignItems: "center",
     justifyContent: "center",
   },
+  actionLabel: { color: colors.textDim, fontSize: 11, fontWeight: "600" },
   balanceCard: { width: 170, gap: 4 },
   depositRow: {
     flexDirection: "row",

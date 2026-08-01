@@ -12,6 +12,7 @@ import {
   registerForPush,
 } from "@/lib/push";
 import { queryClient } from "@/lib/queries";
+import { resumeOpenSwaps } from "@/lib/swap/resumeBridges";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, Screen } from "@/components/ui";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -78,8 +79,19 @@ export default function RootLayout() {
     // into the local inbox — the foreground listener above cannot see those.
     // Re-run on every resume, and once now for the cold-start case.
     void reconcileInbox();
+
+    // Same idea for money. A cross-chain swap's destination transfer lands
+    // minutes after the source receipt, and the poller watching it dies with
+    // the screen — so on launch and on every resume we re-read the real state
+    // of anything still open. Fire-and-forget: it never throws, and app start
+    // must not wait on the network.
+    void resumeOpenSwaps();
+
     const appState = AppState.addEventListener("change", (next) => {
-      if (next === "active") void reconcileInbox();
+      if (next === "active") {
+        void reconcileInbox();
+        void resumeOpenSwaps();
+      }
     });
 
     return () => {
@@ -117,6 +129,11 @@ export default function RootLayout() {
               <Stack.Screen name="scan" options={{ title: "Scan to pay" }} />
               <Stack.Screen name="transactions" options={{ title: "All transactions" }} />
               <Stack.Screen name="swap" options={{ title: "Swap" }} />
+              {/* /swap is the execution flow; /swaps is its history. Kept in
+                  separate namespaces so a detail route can never shadow the
+                  screen that starts a swap. */}
+              <Stack.Screen name="swaps" options={{ title: "Swap history" }} />
+              <Stack.Screen name="swaps/[id]" options={{ title: "Swap" }} />
               <Stack.Screen name="earn" options={{ title: "Earn" }} />
               <Stack.Screen name="bills" options={{ title: "Bills" }} />
               <Stack.Screen name="banking" options={{ title: "Banking" }} />
@@ -139,6 +156,8 @@ export default function RootLayout() {
               <Stack.Screen name="support/[id]" options={{ title: "Support conversation" }} />
               <Stack.Screen name="passkeys" options={{ title: "Passkeys" }} />
               <Stack.Screen name="security" options={{ title: "Security" }} />
+              <Stack.Screen name="passport" options={{ title: "Travel documents", headerShown: false }} />
+              <Stack.Screen name="passport-scan" options={{ title: "Add document", presentation: "modal" }} />
               <Stack.Screen name="wallet" options={{ title: "Self-custodial wallet" }} />
               <Stack.Screen name="watch" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ title: "Notifications" }} />

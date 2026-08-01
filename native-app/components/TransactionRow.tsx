@@ -16,7 +16,12 @@ const CATEGORY_ICON: Record<TxCategory, keyof typeof Ionicons.glyphMap> = {
   yield: "leaf-outline",
 };
 
-export function TransactionRow({ tx }: { tx: Transaction }) {
+// Memoized: this row is the repeated element of the transactions FlatList and
+// of the home screen's activity card, both of which re-render on every balance
+// refetch. `tx` objects come straight from the query cache, and react-query's
+// structural sharing keeps the identity of unchanged rows stable — so a refetch
+// that returns the same history re-renders none of them.
+export const TransactionRow = React.memo(function TransactionRow({ tx }: { tx: Transaction }) {
   const router = useRouter();
   const inbound = tx.direction === "in";
   return (
@@ -50,7 +55,7 @@ export function TransactionRow({ tx }: { tx: Transaction }) {
       </View>
     </Pressable>
   );
-}
+});
 
 const styles = StyleSheet.create({
   row: {

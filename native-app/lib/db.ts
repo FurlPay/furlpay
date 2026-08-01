@@ -76,6 +76,43 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX IF NOT EXISTS idx_notif_time ON notifications(received_at DESC);
   `,
+  // v4 — swap journal.
+  //
+  // A cross-chain swap outlives the screen that started it: the source receipt
+  // lands in seconds, the destination transfer can take minutes, and the user
+  // will background the app in between. Held only in React state, that swap is
+  // simply lost — the funds have left, nothing is tracking them, and the next
+  // launch shows no sign it ever happened.
+  //
+  // So the journal is the source of truth for "what is in flight", written
+  // before the first broadcast and updated at every step. Resume-on-launch
+  // reads it (see lib/swap/resumeBridges.ts) and history reads the same rows.
+  `
+  CREATE TABLE IF NOT EXISTS swaps (
+    id TEXT PRIMARY KEY,
+    route_id TEXT,
+    status TEXT NOT NULL,
+    step TEXT,
+    from_chain TEXT NOT NULL,
+    to_chain TEXT NOT NULL,
+    from_token TEXT NOT NULL,
+    to_token TEXT NOT NULL,
+    amount_in REAL NOT NULL,
+    amount_out REAL,
+    tx_hash TEXT,
+    approval_tx_hash TEXT,
+    dest_tx_hash TEXT,
+    bridge_status TEXT,
+    bridge_substatus TEXT,
+    error TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_swaps_time ON swaps(created_at DESC);
+  -- Resume-on-launch scans by status and nothing else; without this it reads
+  -- the whole journal on every cold start.
+  CREATE INDEX IF NOT EXISTS idx_swaps_status ON swaps(status);
+  `,
 ];
 
 export function getDb(): SQLite.SQLiteDatabase {
@@ -282,7 +319,12 @@ export function unreadNotificationCount(): number {
 /** Wipe everything user-scoped (called on sign-out). */
 export function clearAllCaches(): void {
   const d = getDb();
-  d.execSync("DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions; DELETE FROM notifications;");
+  // `swaps` included: the journal holds addresses, amounts and transaction
+  // hashes for the previous user. It is account-scoped data like any other
+  // cache, and leaving it would show one user another's swap history.
+  d.execSync(
+    "DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions; DELETE FROM notifications; DELETE FROM swaps;"
+  );
   // The DELETEs alone are not a wipe: in WAL mode the rows they removed — and
   // the rows before them — sit in furlpay.db-wal until a checkpoint. Without
   // this, the previous user's transaction history is still readable on disk

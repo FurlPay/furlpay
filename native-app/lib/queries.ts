@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, NetworkError } from "./api";
 import { cacheGet, cacheSet, listCachedTransactions, upsertTransactions } from "./db";
@@ -88,4 +89,36 @@ export function usePortfolio() {
 export function useInvalidateAll() {
   const qc = useQueryClient();
   return () => qc.invalidateQueries();
+}
+
+/**
+ * Query keys a money movement can actually change.
+ *
+ * `invalidateQueries()` with no key marks EVERY cached query stale — around
+ * thirty of them, including market bars, travel deals, passkeys and KYC status.
+ * Sending $5 then triggers a refetch storm of endpoints the transfer could not
+ * possibly have affected, on the screen where the user is most likely to be on
+ * mobile data and most likely to be watching for a result.
+ *
+ * Anything derived from balances or history belongs here. Anything else does
+ * not, and adding it "to be safe" is what produced the original problem.
+ */
+const MONEY_MOVEMENT_KEYS = [
+  ["overview"],
+  ["transactions"],
+  ["analytics"],
+  ["insights"],
+  ["portfolio"],
+] as const;
+
+/** Refetch exactly what a completed transfer, swap or trade invalidates. */
+export function useInvalidateAfterMoneyMove() {
+  const qc = useQueryClient();
+  return useCallback(() => {
+    for (const queryKey of MONEY_MOVEMENT_KEYS) {
+      // Prefix match, so ["transactions", "card"] and ["insights", 4] are both
+      // covered without listing every variant.
+      void qc.invalidateQueries({ queryKey: [...queryKey] });
+    }
+  }, [qc]);
 }

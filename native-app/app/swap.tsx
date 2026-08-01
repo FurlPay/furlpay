@@ -1,371 +1,325 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
-import * as Haptics from "expo-haptics";
-import { useQueryClient } from "@tanstack/react-query";
-import { AbortedError, api, ApiError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
-import { usd } from "@/lib/format";
-import { parseUsdcAmount, tryParseUsdcAmount } from "@/lib/money";
+import { Ionicons } from "@expo/vector-icons";
+import { AmountInput } from "@/components/money/AmountInput";
+import { ProgressTimeline, swapSteps } from "@/components/money/ProgressTimeline";
+import { SwipeToConfirm } from "@/components/money/SwipeToConfirm";
+import { ValuePanel } from "@/components/money/ValuePanel";
+import { WarningList } from "@/components/money/WarningList";
+import { FeeBreakdown, QuoteCountdown } from "@/components/swap/QuoteDetails";
+import { SlippageSelector } from "@/components/swap/SlippageSelector";
+import { FlipButton, ReceiveAmount } from "@/components/swap/SwapCard";
+import { TokenSelector } from "@/components/swap/TokenSelector";
+import { Button, ErrorNote, Screen } from "@/components/ui";
+import { type ChainId, type SwapAsset } from "@/lib/swap/assets";
+import {
+  AMOUNT_MAX_LENGTH,
+  MAX_SLIPPAGE_PCT,
+  QUOTE_TTL_MS,
+  useRouting,
+  useSwapExecution,
+  useSwapQuote,
+  useSwapValidation,
+  useSwapWarnings,
+  useTokenBalances,
+  usePriceImpact,
+  type SwapPair,
+} from "@/lib/swap/useSwap";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { Button, ErrorNote, Field, Screen, Surface } from "@/components/ui";
 
-// Mirrors SwapSchema in apps/web/src/lib/schemas.ts.
-const TOKENS = ["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD", "SOL", "ETH"] as const;
-const CHAINS = ["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis", "robinhood", "bsc"] as const;
-
-// A quote is a price at a moment. Executing against one the user fetched before
-// backgrounding the app trades at a price nobody agreed to, so a stale quote is
-// re-fetched and re-shown rather than executed.
+// Cross-chain swap.
 //
-// The server is the authority here: it issues `quoteId`, holds the quote for
-// its own TTL, and executes against the STORED quote (see
-// apps/web/src/lib/services/swapQuote.ts). This constant mirrors that TTL so
-// the app can re-quote before the server would reject — keep them in step.
-const QUOTE_TTL_MS = 30_000;
+// The safety rules live in lib/swap/useSwap.ts, not here, so that changing how
+// this screen LOOKS cannot change what it is allowed to DO. This file is the
+// presentation layer: it renders state and forwards intent.
+//
+// The one rule that is enforced here as well as there is the confirm gate. The
+// swipe is disabled unless every check passes, and the reason is always shown
+// on the control itself — a disabled button with no explanation is the single
+// most common way a payment screen wastes a user's time.
 
-// Client-side slippage ceiling. The server sets slippagePct, but "the server
-// said so" is not a safety property: a misconfigured or hostile response must
-// not be able to hand the user a 50%-slippage trade behind a biometric prompt.
-const MAX_SLIPPAGE_PCT = 5;
-const WARN_SLIPPAGE_PCT = 1;
-
-// Long enough for any real amount (parseUsdcAmount caps at 9 whole digits),
-// short enough that a paste can't build a huge re-quote payload.
-const AMOUNT_MAX_LENGTH = 20;
-
-interface SwapQuote {
-  fromToken: string;
-  toToken: string;
-  fromChain: string;
-  toChain: string;
-  amountIn: number;
-  amountOut: number;
-  slippagePct: number;
-  gasUsd: number;
-  feeUsd: number;
-  route: string[];
-  etaSeconds: number;
-  source: "lifi" | "mock";
-}
-
-/** POST /swaps (quote phase). `quoteId` is what execution is authorized
- *  against — without it the server refuses to execute at all. */
-interface QuoteResponse {
-  quote: SwapQuote;
-  quoteId: string;
-  expiresAt: string;
-}
-
-function ChipPicker<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string;
-  options: readonly T[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <View style={{ gap: 6 }}>
-      <Text style={type.dim}>{label}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
-        {options.map((o) => {
-          const active = o === value;
-          return (
-            <Pressable
-              key={o}
-              onPress={() => onChange(o)}
-              style={[styles.chip, active && { backgroundColor: colors.neon }]}
-            >
-              <Text style={{ color: active ? colors.onNeon : colors.text, fontWeight: "600" }}>{o}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-    </View>
-  );
-}
+const RECENTS_LIMIT = 4;
 
 export default function Swap() {
-  const qc = useQueryClient();
-  const [fromToken, setFromToken] = useState<(typeof TOKENS)[number]>("USDT");
-  const [toToken, setToToken] = useState<(typeof TOKENS)[number]>("USDC");
-  const [fromChain, setFromChain] = useState<(typeof CHAINS)[number]>("arbitrum");
-  const [toChain, setToChain] = useState<(typeof CHAINS)[number]>("arbitrum");
+  const [pair, setPair] = useState<SwapPair>({
+    fromToken: "USDT",
+    toToken: "USDC",
+    fromChain: "arbitrum",
+    toChain: "arbitrum",
+  });
   const [amount, setAmount] = useState("100");
+  const [picking, setPicking] = useState<"from" | "to" | null>(null);
+  const [recents, setRecents] = useState<string[]>([]);
+  const [maxSlippage, setMaxSlippage] = useState<number>(MAX_SLIPPAGE_PCT);
 
-  const [quote, setQuote] = useState<SwapQuote | null>(null);
-  const [quoteId, setQuoteId] = useState<string | null>(null);
-  const [quotedAt, setQuotedAt] = useState(0);
-  const [quoting, setQuoting] = useState(false);
-  const [executing, setExecuting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [executed, setExecuted] = useState<SwapQuote | null>(null);
+  const { balanceOf } = useTokenBalances();
+  const held = balanceOf(pair.fromToken, pair.fromChain);
 
-  // Money is parsed to atomic units, never through `Number()`: "0.0000001"
-  // passes `Number(x) > 0` and then truncates to zero atomic units — the exact
-  // bug lib/sendValidation.ts documents fixing for the Send tab. A swap that
-  // passes validation and biometric confirmation at zero value must be
-  // impossible here too.
-  const atomic = useMemo(() => tryParseUsdcAmount(amount), [amount]);
-  const amountIn = atomic === null ? 0 : Number(atomic) / 1_000_000;
-  const samePair = fromToken === toToken && fromChain === toChain;
-  const valid = atomic !== null && !samePair;
+  const routing = useRouting(pair);
+  const validation = useSwapValidation(amount, pair, held);
+  const q = useSwapQuote(pair, validation.amountIn, validation.canQuote);
+  const priceImpactPct = usePriceImpact(q.quote);
+  const warnings = useSwapWarnings(q.quote, priceImpactPct, routing.fromAsset, routing.toAsset);
+  const exec = useSwapExecution(q);
 
-  // The reason the amount was rejected, shown verbatim (AmountError messages
-  // are written for users: too many decimals, separators, above the cap…).
-  const amountError = useMemo(() => {
-    if (atomic !== null) return null;
-    try {
-      parseUsdcAmount(amount);
-      return null;
-    } catch (e) {
-      return (e as Error).message;
-    }
-  }, [amount, atomic]);
+  // The user's own ceiling tightens the hard 5% limit; it can never loosen it.
+  const slippageRejected =
+    q.quote !== null && (q.quote.slippagePct > maxSlippage || q.slippageBlocked);
 
-  // Live re-quote (debounced) whenever the pair or amount changes. Each request
-  // owns an AbortController so a slow earlier quote can never land after — and
-  // overwrite — the quote for what the user actually typed.
-  useEffect(() => {
-    setQuote(null);
-    setQuoteId(null);
-    setQuotedAt(0);
-    setError(null);
-    if (!valid) return;
-    const ctrl = new AbortController();
-    const t = setTimeout(() => {
-      setQuoting(true);
-      api<QuoteResponse>("/swaps", {
-        method: "POST",
-        body: { fromToken, toToken, fromChain, toChain, amountIn },
-        signal: ctrl.signal,
-      })
-        .then((res) => {
-          setQuote(res.quote);
-          setQuoteId(res.quoteId);
-          setQuotedAt(Date.now());
-        })
-        .catch((e) => {
-          if (e instanceof AbortedError) return; // superseded, not a failure
-          setError(e instanceof ApiError ? e.message : (e as Error).message);
-        })
-        .finally(() => {
-          if (!ctrl.signal.aborted) setQuoting(false);
-        });
-    }, 450);
-    return () => {
-      clearTimeout(t);
-      ctrl.abort();
-    };
-  }, [fromToken, toToken, fromChain, toChain, amountIn, valid]);
+  const remember = useCallback((symbol: string) => {
+    setRecents((r) => [symbol, ...r.filter((s) => s !== symbol)].slice(0, RECENTS_LIMIT));
+  }, []);
 
-  const slippageBlocked = quote !== null && quote.slippagePct > MAX_SLIPPAGE_PCT;
-  const slippageWarn =
-    quote !== null && quote.slippagePct > WARN_SLIPPAGE_PCT && !slippageBlocked;
+  const choose = useCallback(
+    (asset: SwapAsset, chain: ChainId) => {
+      remember(asset.symbol);
+      setPair((p) =>
+        picking === "from"
+          ? { ...p, fromToken: asset.symbol, fromChain: chain }
+          : { ...p, toToken: asset.symbol, toChain: chain }
+      );
+    },
+    [picking, remember]
+  );
 
-  /** Re-price and show the new number; never auto-executes at it. */
-  const requote = async (note: string) => {
-    setQuoting(true);
-    setError(null);
-    try {
-      const res = await api<QuoteResponse>("/swaps", {
-        method: "POST",
-        body: { fromToken, toToken, fromChain, toChain, amountIn },
-      });
-      setQuote(res.quote);
-      setQuoteId(res.quoteId);
-      setQuotedAt(Date.now());
-      setError(note);
-    } catch (e) {
-      setError(e instanceof ApiError ? e.message : (e as Error).message);
-    } finally {
-      setQuoting(false);
-    }
-  };
+  const flip = useCallback(() => {
+    setPair((p) => ({
+      fromToken: p.toToken,
+      toToken: p.fromToken,
+      fromChain: p.toChain,
+      toChain: p.fromChain,
+    }));
+  }, []);
 
-  const execute = async () => {
-    if (!quote || !quoteId || slippageBlocked) return;
+  /**
+   * Percentage shortcuts derive from the BALANCE, not the displayed string, and
+   * are truncated to 6dp so the result is always a value parseUsdcAmount
+   * accepts. Max uses the exact held amount — rounding it up would produce an
+   * amount the user cannot actually swap.
+   */
+  const applyPercent = useCallback(
+    (fraction: number) => {
+      if (!held) return;
+      const raw = fraction >= 1 ? held.amount : held.amount * fraction;
+      const truncated = Math.floor(raw * 1e6) / 1e6;
+      setAmount(truncated > 0 ? String(truncated) : "0");
+    },
+    [held]
+  );
 
-    // Stale quote: re-fetch and hand the new price back to the user for review
-    // instead of executing at a rate they never saw. The server would reject
-    // the expired id anyway — this just makes the outcome a fresh price rather
-    // than an error.
-    if (Date.now() - quotedAt > QUOTE_TTL_MS) {
-      await requote("That quote expired — this is the current price. Review it and swap again.");
-      return;
-    }
+  /**
+   * Fiat value of what the user is paying.
+   *
+   * Derived from the balance snapshot the server already priced
+   * (usdValue / amount), not from a client-side price table. When there is no
+   * balance there is no unit price, and the row simply doesn't render — a made
+   * up dollar figure next to a real one is indistinguishable from a real one.
+   */
+  const fiatValue = useMemo(() => {
+    if (!held || held.amount <= 0 || validation.atomic === null) return undefined;
+    return (held.usdValue / held.amount) * validation.amountIn;
+  }, [held, validation.atomic, validation.amountIn]);
 
-    const confirmed = await confirmWithBiometrics(
-      `Swap ${quote.amountIn} ${quote.fromToken} → ${quote.toToken}`
-    );
-    if (!confirmed) return;
-    setExecuting(true);
-    setError(null);
-    try {
-      // Executes against the quote the server issued and is holding — the
-      // amount and route travel with `quoteId`, not as re-quotable parameters.
-      const res = await api<{ quote: SwapQuote; executed: boolean }>("/swaps", {
-        method: "POST",
-        body: { execute: true, quoteId, fromToken, toToken, fromChain, toChain, amountIn },
-      });
-      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setExecuted(res.quote);
-      void qc.invalidateQueries({ queryKey: ["overview"] });
-    } catch (e) {
-      // The server refused the id — most often because the biometric prompt
-      // outlasted the TTL. Nothing settled, so re-price and let the user decide
-      // against the current number instead of stranding them on an error.
-      const code = e instanceof ApiError ? (e.data as { error?: string })?.error : undefined;
-      if (code === "expired" || code === "already_used") {
-        setExecuting(false);
-        await requote("That quote expired before it was submitted — nothing was swapped. This is the current price.");
-        return;
-      }
-      setError(e instanceof ApiError ? e.message : (e as Error).message);
-    } finally {
-      setExecuting(false);
-    }
-  };
+  const confirmBlockedReason = useMemo(() => {
+    if (validation.blockedReason) return validation.blockedReason;
+    if (q.error) return null; // shown separately, in full
+    if (!q.quote) return q.quoting ? "Finding the best route…" : "Enter an amount";
+    if (q.slippageBlocked) return `Slippage above the ${MAX_SLIPPAGE_PCT}% limit`;
+    if (slippageRejected) return `Above your ${maxSlippage}% slippage limit`;
+    return null;
+  }, [validation.blockedReason, q.error, q.quote, q.quoting, q.slippageBlocked, slippageRejected, maxSlippage]);
 
-  if (executed) {
+  // ── receipt ──────────────────────────────────────────────────────────────
+  if (exec.executed) {
+    const done = exec.executed;
     return (
-      <Screen style={styles.done}>
-        <Text style={{ fontSize: 56 }}>✓</Text>
-        <Text style={type.h2}>Swap complete</Text>
-        <Text style={[type.dim, { textAlign: "center" }]}>
-          {executed.amountIn} {executed.fromToken} on {executed.fromChain} →{" "}
-          {executed.amountOut.toFixed(4)} {executed.toToken} on {executed.toChain}
-        </Text>
-        <Button title="Done" onPress={() => setExecuted(null)} style={{ alignSelf: "stretch" }} />
+      <Screen>
+        <ScrollView contentContainerStyle={styles.receipt}>
+          <View style={styles.tick}>
+            <Ionicons name="checkmark" size={40} color={colors.onNeon} />
+          </View>
+          <Text style={type.h2}>Swap complete</Text>
+          <Text style={[type.dim, { textAlign: "center" }]}>
+            {done.amountIn} {done.fromToken} → {done.amountOut.toFixed(6)} {done.toToken}
+          </Text>
+          <View style={{ alignSelf: "stretch", marginTop: spacing.md }}>
+            <ProgressTimeline
+              stage="settled"
+              steps={swapSteps(done.fromChain as ChainId, done.toChain as ChainId)}
+            />
+          </View>
+          <Button title="Done" onPress={exec.dismiss} style={{ alignSelf: "stretch" }} />
+        </ScrollView>
       </Screen>
     );
   }
 
+  // ── in-flight ────────────────────────────────────────────────────────────
+  if (exec.executing || exec.stage === "failed") {
+    return (
+      <Screen>
+        <ScrollView contentContainerStyle={styles.content}>
+          <Text style={type.h2}>
+            {exec.stage === "failed" ? "Swap didn't go through" : "Swapping"}
+          </Text>
+          <ProgressTimeline
+            stage={exec.stage}
+            steps={swapSteps(pair.fromChain, pair.toChain)}
+          />
+          {exec.error ? <ErrorNote message={exec.error} /> : null}
+          {exec.correlationId ? (
+            <Text style={styles.correlation}>Reference {exec.correlationId}</Text>
+          ) : null}
+          {exec.stage === "failed" ? (
+            <Button title="Back" onPress={exec.dismiss} />
+          ) : null}
+        </ScrollView>
+      </Screen>
+    );
+  }
+
+  // ── composer ─────────────────────────────────────────────────────────────
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <Surface style={{ gap: spacing.md }}>
-          <ChipPicker label="From token" options={TOKENS} value={fromToken} onChange={setFromToken} />
-          <ChipPicker label="From chain" options={CHAINS} value={fromChain} onChange={setFromChain} />
-          <Field
-            label="Amount"
+        <ValuePanel
+          caption="YOU PAY"
+          asset={routing.fromAsset}
+          chain={pair.fromChain}
+          onPress={() => setPicking("from")}
+        >
+          <AmountInput
             value={amount}
             onChangeText={setAmount}
-            keyboardType="decimal-pad"
-            placeholder="0.00"
+            balance={held?.amount}
+            balanceSymbol={pair.fromToken}
+            fiatValue={fiatValue}
+            error={validation.amountError ?? (validation.insufficientBalance ? validation.blockedReason : null)}
             maxLength={AMOUNT_MAX_LENGTH}
+            onPercent={applyPercent}
+            accessibilityLabel="Amount to swap"
           />
-        </Surface>
+        </ValuePanel>
 
-        <View style={{ alignItems: "center" }}>
-          <Pressable
-            onPress={() => {
-              setFromToken(toToken);
-              setToToken(fromToken);
-              setFromChain(toChain);
-              setToChain(fromChain);
-            }}
-            style={styles.flip}
-            hitSlop={8}
-          >
-            <Text style={{ color: colors.neon, fontSize: 18 }}>⇅</Text>
-          </Pressable>
-        </View>
+        <FlipButton onPress={flip} />
 
-        <Surface style={{ gap: spacing.md }}>
-          <ChipPicker label="To token" options={TOKENS} value={toToken} onChange={setToToken} />
-          <ChipPicker label="To chain" options={CHAINS} value={toChain} onChange={setToChain} />
-        </Surface>
+        <ValuePanel
+          caption="YOU RECEIVE"
+          asset={routing.toAsset}
+          chain={pair.toChain}
+          onPress={() => setPicking("to")}
+        >
+          <ReceiveAmount
+            amount={q.quote?.amountOut}
+            symbol={pair.toToken}
+            loading={q.quoting}
+          />
+          {q.quotedAt || q.quoting ? (
+            // Kept mounted when expired: the countdown lands on "Quote
+            // expired" and becomes the tap-to-refresh affordance. Hiding it
+            // would leave a stale price on screen with nothing to act on.
+            <QuoteCountdown
+              quotedAt={q.quotedAt}
+              ttlMs={QUOTE_TTL_MS}
+              refreshing={q.quoting}
+              onRefresh={() => void q.requote(null)}
+            />
+          ) : null}
+        </ValuePanel>
 
-        {quoting ? <Text style={[type.dim, { textAlign: "center" }]}>Fetching best route…</Text> : null}
-
-        {quote ? (
-          <Surface style={{ gap: 6 }}>
-            <View style={styles.row}>
-              <Text style={type.dim}>You receive</Text>
-              <Text style={[type.h2, { color: colors.neon }]}>
-                {quote.amountOut.toFixed(4)} {quote.toToken}
-              </Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={type.dim}>Route</Text>
-              <Text style={type.dim}>{quote.route.join(" → ")}</Text>
-            </View>
-            <View style={styles.row}>
-              <Text style={type.dim}>Fees</Text>
-              <Text style={type.dim}>
-                {usd(quote.feeUsd)} + {usd(quote.gasUsd)} gas · slippage{" "}
-                <Text
-                  style={
-                    slippageBlocked
-                      ? { color: colors.accent }
-                      : slippageWarn
-                        ? { color: colors.warning }
-                        : undefined
-                  }
-                >
-                  {quote.slippagePct}%
-                </Text>
-              </Text>
-            </View>
-            {slippageBlocked ? (
-              <Text style={{ color: colors.accent }}>
-                Slippage is above the {MAX_SLIPPAGE_PCT}% limit — this swap is blocked. Try a
-                smaller amount or a different route.
-              </Text>
-            ) : slippageWarn ? (
-              <Text style={{ color: colors.warning }}>
-                High slippage — you may receive noticeably less than quoted.
-              </Text>
-            ) : null}
-            <View style={styles.row}>
-              <Text style={type.dim}>ETA</Text>
-              <Text style={type.dim}>
-                ~{Math.ceil(quote.etaSeconds / 60)} min · {quote.source === "lifi" ? "Li.Fi live" : "estimate"}
-              </Text>
-            </View>
-          </Surface>
+        {!routing.routable ? (
+          <View style={styles.unroutable}>
+            <Ionicons name="time-outline" size={16} color={colors.warning} />
+            <Text style={[type.dim, { flex: 1 }]}>{routing.reason}</Text>
+          </View>
         ) : null}
 
-        <ErrorNote
-          message={
-            samePair
-              ? "Pick a different token or destination chain."
-              : amount.trim() && atomic === null
-                ? amountError
-                : error
-          }
+        {q.notice ? (
+          <Pressable onPress={q.clearNotice} style={styles.notice} accessibilityRole="alert">
+            <Ionicons name="information-circle" size={16} color={colors.warning} />
+            <Text style={[type.dim, { flex: 1, color: colors.warning }]}>{q.notice}</Text>
+          </Pressable>
+        ) : null}
+
+        {exec.unavailable ? (
+          <View style={styles.notice} accessibilityRole="alert">
+            <Ionicons name="construct-outline" size={16} color={colors.warning} />
+            <View style={{ flex: 1, gap: 2 }}>
+              <Text style={styles.noticeTitle}>Execution not enabled here</Text>
+              <Text style={type.dim}>{exec.unavailable}</Text>
+            </View>
+          </View>
+        ) : null}
+
+        {q.quote ? (
+          <FeeBreakdown quote={{ ...q.quote, fromChain: q.quote.fromChain as ChainId, toChain: q.quote.toChain as ChainId, priceImpactPct }} />
+        ) : null}
+
+        <WarningList warnings={warnings} />
+
+        <SlippageSelector
+          value={maxSlippage}
+          onChange={setMaxSlippage}
+          quoted={q.quote?.slippagePct}
         />
-        <Button
-          title="Swap"
-          onPress={() => void execute()}
-          loading={executing}
-          disabled={!quote || !quoteId || quoting || slippageBlocked}
+
+        <ErrorNote message={q.error} />
+
+        <SwipeToConfirm
+          noun="swap"
+          label={`Swipe to swap${q.quote ? ` for ${q.quote.amountOut.toFixed(4)} ${pair.toToken}` : ""}`}
+          confirmingLabel="Swapping…"
+          disabled={!q.quote || !q.quoteId || q.quoting}
+          disabledReason={confirmBlockedReason ?? undefined}
+          onConfirm={() => void exec.execute()}
         />
       </ScrollView>
+
+      <TokenSelector
+        visible={picking !== null}
+        title={picking === "from" ? "Swap from" : "Swap to"}
+        selected={picking === "from" ? pair.fromToken : pair.toToken}
+        selectedChain={picking === "from" ? pair.fromChain : pair.toChain}
+        recents={recents}
+        onClose={() => setPicking(null)}
+        onSelect={choose}
+      />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
-  chip: {
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radius.pill,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+  receipt: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.md,
+    padding: spacing.lg,
+    paddingBottom: spacing.xl,
   },
-  flip: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: colors.neonSoft,
+  tick: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: colors.neon,
     alignItems: "center",
     justifyContent: "center",
   },
-  row: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: spacing.sm },
-  done: { alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
+  notice: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.warning + "55",
+  },
+  noticeTitle: { color: colors.warning, fontSize: 13, fontWeight: "700" },
+  unroutable: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  correlation: { color: colors.textFaint, fontSize: 11, fontFamily: "monospace", textAlign: "center" },
 });
