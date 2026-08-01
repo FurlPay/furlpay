@@ -21,6 +21,7 @@ import StoreBadges from "@/components/marketing/StoreBadges";
 import CodePreview from "@/components/marketing/CodePreview";
 import PricingCards from "@/components/marketing/PricingCards";
 import PartnerMarquee from "@/components/marketing/PartnerMarquee";
+import VerifiedCapabilities from "@/components/marketing/VerifiedCapabilities";
 import SupportChatBubble from "@/components/marketing/SupportChatBubble";
 import ScheduleCallButton from "@/components/marketing/ScheduleCallButton";
 import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
@@ -37,6 +38,12 @@ export default function LandingPage() {
       <Features />
       <TravelBand />
       <DeveloperPreview />
+      {/* Placed after the developer preview and before Security: a reader who
+          has just seen the API is the one who wants to know which parts are
+          actually running. Every row names the route that backs it, and work
+          that is built but not yet exercised against a live counterparty is
+          listed separately rather than blended in. */}
+      <VerifiedCapabilities />
       <Security />
       <Pricing />
       <NewsletterCTA />
@@ -93,12 +100,12 @@ function Hero() {
       <div className="hero-glow pointer-events-none absolute inset-0" />
       <div className="mx-auto max-w-6xl px-6 pb-10 pt-20 text-center">
         <h1 className="mx-auto max-w-3xl text-[44px] font-extrabold leading-[1.03] tracking-tighter sm:text-[64px]">
-          The On-Chain Financial <span className="text-neon">Operating System.</span>
+          Financial Infrastructure for <span className="text-neon">Developers &amp; AI.</span>
         </h1>
         <p className="mx-auto mt-5 max-w-2xl text-[16px] leading-relaxed text-textSecondary sm:text-[18px]">
-          Stablecoin payments, travel booking, and investing in a single client, settled on Arbitrum.
-          Pay in USDC, book over two million stays and flights, and let AI agents pay per request via x402 —
-          with passkey security and no gas fees.
+          A unified orchestration engine for stablecoin checkouts, banking APIs, and compliance. 
+          Connect local accounts, issue cards, and enable AI agents to pay per request via x402 — 
+          all through a single, compliant developer API.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
           <Link href="/signup" className="btn-green w-full px-7 py-3.5 text-[16px] sm:w-auto">
@@ -144,11 +151,21 @@ function Hero() {
   );
 }
 
+/* Every claim below is anchored to a route or module that exists in this repo.
+   Anything on the roadmap is described as roadmap, in ROADMAP_FEATURES.
+
+   "Banking Hub / instantly connect to global banking API providers" was removed
+   on 22 Jul 2026: the bank connectors it referred to are sandbox descriptors,
+   not live connections, and "instantly connect" asserted a relationship with
+   named institutions that does not exist. It is replaced by the bank directory,
+   which is genuinely live — HKMA public open data, 20 licensed banks, verified
+   returning 200 the same day. A smaller true claim beats a large false one in
+   the only conversation that matters, which is diligence. */
 const FEATURES = [
-  { Icon: CreditCard, title: "Stablecoin Cards", body: "2-of-2 MPC virtual cards with instant fiat settlement." },
-  { Icon: TrendingUp, title: "Stocks & ETFs", body: "Fractional investing from $1 via Alpaca." },
-  { Icon: Landmark, title: "Local Bank Accounts", body: "IBANs, routing, and account numbers via Wise." },
-  { Icon: Code2, title: "Developer SDKs", body: "CLI tools, webhook listeners, and React Elements." },
+  { Icon: Code2, title: "Developer APIs", body: "Versioned REST endpoints for wallets, payments, compliance and agent keys." },
+  { Icon: CreditCard, title: "Payment Orchestration", body: "A single rail registry describing protocol, chains, fees and per-transaction caps." },
+  { Icon: Landmark, title: "HK Bank Directory", body: "Live branch and ATM data for 20 licensed Hong Kong banks, sourced from the HKMA." },
+  { Icon: Bot, title: "AI Agent Payments", body: "x402 settlement with EIP-3009, enforced spend policies, and human passkey approval." },
 ];
 
 const MORE_FEATURES = [
@@ -159,8 +176,9 @@ const MORE_FEATURES = [
   { Icon: BarChart3, title: "Analytics & Insights", body: "Spending by category, MCC merchant tagging, CSV/PDF statements." },
   { Icon: Puzzle, title: "Browser Extension", body: "One-click stablecoin checkout, card autofill, and QR scan-to-pay." },
   { Icon: Monitor, title: "Desktop App", body: "Native Windows, macOS, and Linux via Tauri — full dashboard, lightweight." },
-  { Icon: Bot, title: "AI Agentic Payments", body: "x402 protocol — let AI agents pay for API calls from your balance." },
+  { Icon: ShieldCheck, title: "Compliance API", body: "KYC, KYB, sanctions, and Travel Rule verification under a single schema." },
 ];
+
 
 function FeatureCard({ Icon, title, body }: { Icon: typeof CreditCard; title: string; body: string }) {
   return (
