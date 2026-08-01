@@ -127,6 +127,11 @@ export default function FeeCalculator({ compact = false }: { compact?: boolean }
         Estimates only. Card cost = selected rate × volume + per-transaction fee × (volume ÷ average
         ticket); actual card pricing varies by issuer, category and geography. Furlpay is 0.5% plus
         roughly $0.001–$0.005 of Arbitrum gas per payment (excluded above as negligible). Live quotes:{" "}
+        {/* Deliberately an <a>: the target is an API route that returns JSON, not
+            a page. next/link would prefetch it and client-side navigate into a
+            document the router cannot render. The rule cannot tell the two
+            apart, so it is disabled here rather than obeyed. */}
+        {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a href="/api/payments/fees/estimate?amount=150" className="text-neon">
           /api/payments/fees/estimate
         </a>

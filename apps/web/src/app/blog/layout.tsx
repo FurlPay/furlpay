@@ -14,7 +14,7 @@ export default function BlogLayout({ children }: { children: React.ReactNode }) 
             <span className="text-xl font-extrabold tracking-tighter">Furlpay</span>
           </Link>
           <nav className="hidden items-center gap-7 text-sm text-textSecondary md:flex">
-            <a href="/#features" className="transition-colors hover:text-white">Features</a>
+            <Link href="/#features" className="transition-colors hover:text-white">Features</Link>
             <Link href="/docs" className="transition-colors hover:text-white">Docs</Link>
             <Link href="/blog" className="text-white transition-colors">Blog</Link>
           </nav>
