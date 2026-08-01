@@ -150,3 +150,34 @@ export function parse<T>(schema: z.ZodType<T>, body: unknown): Parsed<T> {
   }
   return { ok: true, data: result.data };
 }
+
+// ── Travel-document wallet ─────────────────────────────────────────────────
+//
+// Note what these schemas do NOT accept: no MRZ, no chip data, no images, no
+// document number. The client never handles those — the verification provider
+// does, in its own hosted flow — so there is no field here for them to arrive
+// in. A schema that cannot express sensitive data cannot be tricked into
+// storing it.
+
+const DocumentTypeEnum = z.enum(["passport", "passport_card", "national_id", "residence_permit"]);
+
+export const DocumentScanInitSchema = z.object({
+  /** ISO 3166-1 alpha-3. Membership is checked against COUNTRIES in the route. */
+  issuingCountry: z.string().trim().toUpperCase().length(3).regex(/^[A-Z]{3}$/),
+  documentType: DocumentTypeEnum,
+});
+
+export const DocumentVerifySchema = z.object({
+  sessionId: z.string().min(1).max(256),
+});
+
+export const DocumentUpdateSchema = z.object({
+  label: z.string().trim().min(1).max(100).optional(),
+  isPrimary: z.boolean().optional(),
+});
+
+/** Deleting a travel document is irreversible — re-verification means going
+ *  through the provider again — so it takes an explicit typed confirmation. */
+export const DocumentDeleteSchema = z.object({
+  confirmation: z.literal("DELETE"),
+});
