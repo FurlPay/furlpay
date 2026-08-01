@@ -53,8 +53,11 @@ jobs:
         with:
           persist-credentials: false
 
+      # Pinned to a tag that exists: ossf/scorecard-action publishes v2.x.y tags
+      # but no floating `v2`, so `@v2` failed to resolve on every run since this
+      # workflow was added — the job never got as far as scoring anything.
       - name: Run analysis
-        uses: ossf/scorecard-action@v2
+        uses: ossf/scorecard-action@v2.4.4
         with:
           results_file: results.sarif
           results_format: sarif
