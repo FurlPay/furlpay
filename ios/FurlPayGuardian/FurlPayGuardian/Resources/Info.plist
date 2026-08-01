@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDisplayName</key>
+    <string>FurlPay Guardian</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
+    <key>CFBundleIdentifier</key>
+    <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+    <key>CFBundleName</key>
+    <string>$(PRODUCT_NAME)</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>$(MARKETING_VERSION)</string>
+    <key>CFBundleVersion</key>
+    <string>$(CURRENT_PROJECT_VERSION)</string>
+
+    <!-- Every one of these is REQUIRED, not optional. iOS terminates the app on
+         first use of the capability if its string is absent, and App Review
+         rejects for a string that does not explain the concrete user benefit. -->
+    <!-- The scheme the identity provider redirects to when document
+         verification finishes, and the one the Smart Stack tiles deep-link
+         with. ASWebAuthenticationSession matches on it; without the
+         registration the callback never fires and the flow appears to hang. -->
+    <key>CFBundleURLTypes</key>
+    <array>
+        <dict>
+            <key>CFBundleURLName</key>
+            <string>com.furlpay.guardian</string>
+            <key>CFBundleTypeRole</key>
+            <string>Editor</string>
+            <key>CFBundleURLSchemes</key>
+            <array>
+                <string>furlpay</string>
+            </array>
+        </dict>
+    </array>
+
+    <!-- AlarmKit (iOS 26+). Distinct from notification permission: this one can
+         override Silent mode and an active Focus, so it is asked for separately
+         and only when the user creates a critical reminder. -->
+    <key>NSAlarmKitUsageDescription</key>
+    <string>Guardian uses alarms so a critical reminder still reaches you when your iPhone is silenced or in Focus.</string>
+
+    <!-- Hosts the AlarmKit Live Activity on the Lock Screen. -->
+    <key>NSSupportsLiveActivities</key>
+    <true/>
+
+    <key>NSFaceIDUsageDescription</key>
+    <string>Face ID confirms payments, card changes and trades before they are sent.</string>
+    <key>NSMicrophoneUsageDescription</key>
+    <string>The microphone lets you talk to Guardian about your balances and spending.</string>
+    <key>NSSpeechRecognitionUsageDescription</key>
+    <string>Speech recognition turns what you say into commands for Guardian.</string>
+    <key>NSCameraUsageDescription</key>
+    <string>The camera scans payment QR codes so you can pay without typing an address.</string>
+
+    <!-- Must match the identifier passed to BGTaskScheduler.register(). A
+         mismatch throws at launch rather than failing quietly later. -->
+    <key>BGTaskSchedulerPermittedIdentifiers</key>
+    <array>
+        <string>com.furlpay.guardian.sync</string>
+    </array>
+
+    <key>UIBackgroundModes</key>
+    <array>
+        <string>fetch</string>
+        <string>remote-notification</string>
+    </array>
+
+    <key>UILaunchScreen</key>
+    <dict>
+        <key>UIColorName</key>
+        <string>LaunchBackground</string>
+    </dict>
+
+    <!-- Portrait only. Guardian is a glanceable financial app; landscape adds
+         layout surface with no use case behind it. -->
+    <key>UISupportedInterfaceOrientations</key>
+    <array>
+        <string>UIInterfaceOrientationPortrait</string>
+    </array>
+
+    <key>ITSAppUsesNonExemptEncryption</key>
+    <false/>
+</dict>
+</plist>

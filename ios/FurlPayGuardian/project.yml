@@ -1,0 +1,220 @@
+# XcodeGen project definition.
+#
+# The .xcodeproj is GENERATED, not committed. Two reasons: a hand-written
+# pbxproj is a merge-conflict generator on a team, and this repo's iOS sources
+# were authored on Windows where no Xcode exists to produce one.
+#
+#   brew install xcodegen
+#   cd ios/FurlPayGuardian && xcodegen generate
+#   open FurlPayGuardian.xcodeproj
+#
+# TWO DIFFERENT VERSIONS ARE IN PLAY HERE, AND CONFUSING THEM IS THE USUAL
+# CAUSE OF A REJECTED UPLOAD:
+#
+#   * The SDK the app is COMPILED against. Since 28 April 2026 App Store
+#     Connect rejects anything not built with Xcode 26 and the iOS/watchOS 26
+#     SDKs. That is enforced in .github/workflows/ios-guardian.yml.
+#   * The deployment target, the OLDEST OS the app will run on. That stays at
+#     18/11 below.
+#
+# Building against the 26 SDK does not drop older devices. It is what lets the
+# app call AlarmKit and FoundationModels behind `if #available` while still
+# installing on an iPhone running 18.
+
+name: FurlPayGuardian
+options:
+  bundleIdPrefix: com.furlpay
+  createIntermediateGroups: true
+  deploymentTarget:
+    # iOS 27 ships around September 2026 and is not on a single user's device
+    # today. Setting it as the MINIMUM would give the app an addressable
+    # audience of zero. iOS 18 is the current widely-installed floor; newer
+    # features are adopted behind `if #available` instead.
+    iOS: "18.0"
+    watchOS: "11.0"
+
+settings:
+  base:
+    SWIFT_VERSION: "6.2"
+    # Strict concurrency from day one. Retrofitting it onto a finished app is
+    # far more expensive than paying for it as each file is written.
+    SWIFT_STRICT_CONCURRENCY: complete
+
+    # Swift 6.2 approachable concurrency: a nonisolated async function now runs
+    # on its CALLER's actor instead of hopping to an arbitrary thread. Pure win
+    # here — it is what lets the domain helpers stay nonisolated without every
+    # call site paying for a hop.
+    SWIFT_APPROACHABLE_CONCURRENCY: YES
+
+    # SWIFT_DEFAULT_ACTOR_ISOLATION is deliberately NOT set to MainActor, even
+    # though that is the Xcode 26 default for NEW projects.
+    #
+    # It is the right default for an app whose types are mostly view state. It
+    # is the wrong one here: roughly half this module is `Shared/` — Sendable
+    # value types that cross actor boundaries by design (the FurlPayAPIClient
+    # actor decodes them, SyncCodec encodes them off-main, the widget process
+    # reads them). Making those main-actor-isolated by default would force an
+    # `await` on every property read from the network actor and defeat the
+    # reason they are value types.
+    #
+    # Isolation here is already explicit and deliberate: `@MainActor` on the
+    # repositories and view models, `actor` on the API client and the token
+    # store, nonisolated on the pure domain functions. Flipping the default
+    # would not remove that annotation burden, only contradict it.
+
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+  configs:
+    debug:
+      # Substituted into FurlPayGuardian.entitlements. Hardcoding `development`
+      # there meant release builds registered for SANDBOX APNs and every
+      # production push was delivered to an endpoint nothing was listening on —
+      # a silent, total loss of notifications with no error to trace.
+      APS_ENVIRONMENT: development
+    release:
+      APS_ENVIRONMENT: production
+      SWIFT_COMPILATION_MODE: wholemodule
+      # Strips Swift symbol names from the shipped binary — the practical
+      # equivalent of the R8/ProGuard step in the Android build.
+      STRIP_SWIFT_SYMBOLS: YES
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+
+targets:
+
+  # ─────────────────────────────────────────────── iPhone
+  FurlPayGuardian:
+    type: application
+    platform: iOS
+    sources:
+      - path: FurlPayGuardian
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian
+        INFOPLIST_FILE: FurlPayGuardian/Resources/Info.plist
+        CODE_SIGN_ENTITLEMENTS: FurlPayGuardian/Resources/FurlPayGuardian.entitlements
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"   # iPhone only; the watch app is its own target
+    dependencies:
+      - target: FurlPayGuardianWatch
+        embed: true
+      - target: FurlPayGuardianActivities
+        embed: true
+      - sdk: WatchConnectivity.framework
+      - sdk: LocalAuthentication.framework
+      - sdk: Security.framework
+      - sdk: PassKit.framework
+      - sdk: SwiftData.framework
+      # Tap to Pay on iPhone. Weak-linked and entitlement-gated — see
+      # Shared/Domain/TapToPay.swift for why this cannot work without a PSP.
+      - sdk: ProximityReader.framework
+        weak: true
+      # Weak-linked: both ship in iOS 26 but the deployment target is 18, so the
+      # dyld lookup must be allowed to fail on older devices rather than
+      # refusing to launch the app.
+      - sdk: AlarmKit.framework
+        weak: true
+      - sdk: FoundationModels.framework
+        weak: true
+
+  # ─────────────────────────────────────────────── Alarm Live Activity (iOS)
+  # AlarmKit will not present an alarm without an ActivityConfiguration, and it
+  # must live in an iOS extension — FurlPayGuardianWidgets is watchOS.
+  FurlPayGuardianActivities:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: FurlPayGuardianActivities
+      - path: Shared/Alarms
+      - path: Shared/Models
+      - path: Shared/Extensions
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian.activities
+        INFOPLIST_FILE: FurlPayGuardianActivities/Info.plist
+        CODE_SIGN_ENTITLEMENTS: FurlPayGuardianActivities/FurlPayGuardianActivities.entitlements
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+      - sdk: AlarmKit.framework
+        weak: true
+
+  # ─────────────────────────────────────────────── Apple Watch
+  FurlPayGuardianWatch:
+    type: application
+    platform: watchOS
+    sources:
+      - path: FurlPayGuardianWatch
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian.watchkitapp
+        INFOPLIST_FILE: FurlPayGuardianWatch/Info.plist
+        CODE_SIGN_ENTITLEMENTS: FurlPayGuardianWatch/FurlPayGuardianWatch.entitlements
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        # Ties the watch app to its phone app. Without it the watch app installs
+        # as a standalone and WCSession never pairs.
+        WKCompanionAppBundleIdentifier: com.furlpay.guardian
+    dependencies:
+      - target: FurlPayGuardianWidgets
+        embed: true
+      - sdk: WatchConnectivity.framework
+
+  # ─────────────────────────────────────────────── Complications
+  FurlPayGuardianWidgets:
+    type: app-extension
+    platform: watchOS
+    sources:
+      - path: FurlPayGuardianWidgets
+      - path: Shared/Models
+      - path: Shared/Extensions
+      # Shared/Domain is NOT here, and neither are Security or Network: the
+      # tiles and complications read the App Group snapshot and nothing else,
+      # so this target has no path to the token, the API, or the tool catalog.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian.watchkitapp.widgets
+        INFOPLIST_FILE: FurlPayGuardianWidgets/Info.plist
+        CODE_SIGN_ENTITLEMENTS: FurlPayGuardianWidgets/FurlPayGuardianWidgets.entitlements
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
+
+  # ─────────────────────────────────────────────── Tests
+  FurlPayGuardianTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      # Tests ONLY. `Shared` is deliberately absent: the tests reach it through
+      # `@testable import FurlPayGuardian`, and listing it here would compile
+      # every shared type a second time into this module — the two copies are
+      # distinct types to the compiler, so `Confirmation` from the app would not
+      # match `Confirmation` from the test bundle.
+      - path: Tests
+    dependencies:
+      - target: FurlPayGuardian
+
+# XcodeGen only writes the schemes declared here — it does not synthesise one
+# per target, and `xcodebuild` on a freshly generated project has no Xcode
+# session to auto-create them. The CI workflow asked for a
+# `FurlPayGuardianWatch` scheme that was never generated, so that step could
+# only ever fail with "scheme not found".
+schemes:
+  FurlPayGuardian:
+    build:
+      targets:
+        FurlPayGuardian: all
+        FurlPayGuardianWatch: all
+    test:
+      targets:
+        - FurlPayGuardianTests
+      gatherCoverageData: true
+
+  FurlPayGuardianWatch:
+    build:
+      targets:
+        FurlPayGuardianWatch: all

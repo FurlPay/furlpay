@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The watch app had NO entitlements file at all, which is not a neutral
+         omission. Shared/Models/SyncProtocol.swift reads and writes the snapshot
+         through UserDefaults(suiteName: "group.com.furlpay.guardian"); without
+         the App Group entitlement that initialiser returns nil, the code falls
+         back to UserDefaults.standard, and the watch and its complications end
+         up reading a different, permanently empty container from the one the
+         watch app writes. Nothing errors — the screens are just blank. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.furlpay.guardian</string>
+    </array>
+
+    <!-- The watch keeps its own copy of the session token (pushed over
+         WatchConnectivity at sign-in) in its own keychain. -->
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.furlpay.guardian</string>
+    </array>
+</dict>
+</plist>

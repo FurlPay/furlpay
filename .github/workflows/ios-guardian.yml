@@ -1,0 +1,218 @@
+name: iOS Guardian
+
+# The iOS sources were authored on Windows, where no Swift toolchain exists.
+# This workflow is the compiler: every push that touches ios/ gets generated,
+# built and tested on a real macOS runner. Nothing here needs a local Mac.
+#
+# Apple requires uploads to App Store Connect to be built with Xcode 26 and the
+# iOS/watchOS 26 SDK as of 28 April 2026, so the toolchain is pinned rather than
+# left to whatever the runner image happens to default to.
+
+on:
+  push:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-guardian.yml'
+  pull_request:
+    paths:
+      - 'ios/**'
+      - '.github/workflows/ios-guardian.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ios-guardian-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: ios/FurlPayGuardian
+
+env:
+  # Deployment targets stay at 18/11 (see project.yml) — this is the SDK the
+  # app is COMPILED against, which is the thing App Store Connect checks.
+  XCODE_VERSION: '26'
+
+jobs:
+  build:
+    name: Build and test
+    runs-on: macos-latest
+    timeout-minutes: 40
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode ${{ env.XCODE_VERSION }} or newer
+        run: |
+          set -euo pipefail
+          # Pick the highest installed Xcode at or above the required major
+          # version. Hardcoding "Xcode_26.app" would break the day the runner
+          # image ships 27; silently accepting an older one would be worse —
+          # a green build on Xcode 16 is a lie about App Store readiness.
+          best=""
+          for app in /Applications/Xcode*.app; do
+            [ -d "$app" ] || continue
+            v=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' \
+                  "$app/Contents/Info.plist" 2>/dev/null || echo 0)
+            major=${v%%.*}
+            if [ "${major:-0}" -ge "$XCODE_VERSION" ]; then
+              best="$app"
+            fi
+          done
+          if [ -z "$best" ]; then
+            echo "::error::No Xcode >= ${XCODE_VERSION} on this runner. App Store"
+            echo "::error::uploads have required Xcode 26 + the 26 SDKs since 2026-04-28."
+            ls -d /Applications/Xcode*.app || true
+            exit 1
+          fi
+          sudo xcode-select -switch "$best"
+          xcodebuild -version
+          echo "--- SDKs ---"
+          xcodebuild -showsdks | grep -Ei 'ios|watchos'
+
+      - name: Install tools
+        run: brew install xcodegen xcbeautify
+
+      - name: Generate the project
+        run: |
+          set -euo pipefail
+          xcodegen generate
+          # The .xcodeproj is generated, never committed. If generation produced
+          # nothing, every later step would fail with a confusing error.
+          test -d FurlPayGuardian.xcodeproj
+
+      # Everything below builds with CODE_SIGNING_ALLOWED=NO, which means Xcode
+      # never reads the entitlements files at all. That is why a missing
+      # associated-domains key (passkeys fail at runtime with a generic error),
+      # a hardcoded aps-environment (release builds register for SANDBOX APNs
+      # and lose every production push), and three targets with no entitlements
+      # file whatsoever (App Group unreachable, so every complication reads an
+      # empty container) all survived a green build. None of those fail to
+      # compile — they fail on a device, silently. So check them directly.
+      - name: Check entitlements
+        run: |
+          set -euo pipefail
+          fail=0
+          note() { echo "::error::$1"; fail=1; }
+
+          for target in \
+            "FurlPayGuardian/Resources/FurlPayGuardian.entitlements" \
+            "FurlPayGuardianWatch/FurlPayGuardianWatch.entitlements" \
+            "FurlPayGuardianWidgets/FurlPayGuardianWidgets.entitlements" \
+            "FurlPayGuardianActivities/FurlPayGuardianActivities.entitlements"
+          do
+            [ -f "$target" ] || { note "missing entitlements file: $target"; continue; }
+            plutil -lint "$target" >/dev/null || note "malformed plist: $target"
+            # Every target that reads the snapshot needs the App Group; without
+            # it UserDefaults(suiteName:) returns nil and the code silently
+            # falls back to a different, empty container.
+            /usr/libexec/PlistBuddy -c \
+              'Print :com.apple.security.application-groups:0' "$target" \
+              >/dev/null 2>&1 || note "$target does not declare the App Group"
+          done
+
+          app="FurlPayGuardian/Resources/FurlPayGuardian.entitlements"
+          /usr/libexec/PlistBuddy -c \
+            'Print :com.apple.developer.associated-domains' "$app" 2>/dev/null \
+            | grep -q 'webcredentials:' \
+            || note "$app has no webcredentials: entry — passkeys cannot work"
+
+          # Must be a build setting, not a literal: a release build that ships
+          # `development` here gets sandbox push tokens and no notifications.
+          /usr/libexec/PlistBuddy -c 'Print :aps-environment' "$app" \
+            | grep -q '^\$(APS_ENVIRONMENT)$' \
+            || note "$app must take aps-environment from APS_ENVIRONMENT"
+
+          exit "$fail"
+
+      # The registry decides whether an AI-proposed action reaches the network,
+      # and it exists three times — here, in Kotlin, and in TypeScript. Drift
+      # between them is a gap in the confirmation gate on one platform only.
+      # ActionRegistryTests pins the iOS copy against the TS field names; this
+      # catches the case where someone edits the TS side and not the tests.
+      - name: Check registry parity with copilotActions.ts
+        working-directory: .
+        run: |
+          set -euo pipefail
+          ts="native-app/lib/copilotActions.ts"
+          swift="ios/FurlPayGuardian/Shared/Security/ActionRegistry.swift"
+          fail=0
+          for id in card_control earn_deposit schedule_dca place_order \
+                    execute_swap send_payment create_support_ticket
+          do
+            grep -q "\"$id\"" "$swift" || { echo "::error::$swift is missing action $id"; fail=1; }
+            grep -q "$id:" "$ts" || { echo "::error::$ts is missing action $id"; fail=1; }
+          done
+          grep -q 'MAX_ACTION_USD = 25_000' "$ts" \
+            || { echo "::error::$ts ceiling moved — update the other two registries"; fail=1; }
+          grep -q 'maxActionUsd: Double = 25_000' "$swift" \
+            || { echo "::error::$swift ceiling differs from the TS registry"; fail=1; }
+          exit "$fail"
+
+      - name: Resolve destinations
+        id: destinations
+        run: |
+          set -euo pipefail
+          # Pick whatever simulators this image actually has rather than
+          # hardcoding a device name that Apple renames every year.
+          phone=$(xcrun simctl list devices available -j \
+            | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];\
+print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")
+          watch=$(xcrun simctl list devices available -j \
+            | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];\
+print(next(x['udid'] for k,v in d.items() if 'watchOS' in k for x in v if 'Watch' in x['name']))")
+          echo "phone=$phone" >> "$GITHUB_OUTPUT"
+          echo "watch=$watch" >> "$GITHUB_OUTPUT"
+          echo "iPhone sim: $phone"
+          echo "Watch sim:  $watch"
+
+      - name: Build the iPhone app
+        run: |
+          set -euo pipefail
+          set -o pipefail && xcodebuild build \
+            -project FurlPayGuardian.xcodeproj \
+            -scheme FurlPayGuardian \
+            -destination "id=${{ steps.destinations.outputs.phone }}" \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
+      - name: Build the watch app
+        run: |
+          set -euo pipefail
+          set -o pipefail && xcodebuild build \
+            -project FurlPayGuardian.xcodeproj \
+            -scheme FurlPayGuardianWatch \
+            -destination "id=${{ steps.destinations.outputs.watch }}" \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
+      - name: Run tests
+        run: |
+          set -euo pipefail
+          set -o pipefail && xcodebuild test \
+            -project FurlPayGuardian.xcodeproj \
+            -scheme FurlPayGuardian \
+            -destination "id=${{ steps.destinations.outputs.phone }}" \
+            -enableCodeCoverage YES \
+            -resultBundlePath TestResults.xcresult \
+            CODE_SIGNING_ALLOWED=NO \
+            | xcbeautify --renderer github-actions
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: guardian-test-results
+          path: ios/FurlPayGuardian/TestResults.xcresult
+          retention-days: 7
+
+  lint:
+    name: SwiftLint
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install swiftlint
+      # Non-blocking to start with: turning 8k lines of never-linted Swift into
+      # a required gate on day one would just get the job disabled.
+      - run: swiftlint lint --reporter github-actions-logging || true

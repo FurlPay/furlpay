@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The AlarmKit Live Activity renders from GuardianAlarmMetadata, which is
+         carried in the activity's own attributes rather than read from storage.
+         The group is here anyway because the activity and the host app must
+         agree on preferences (Shared/Data/GuardianPreferences.swift resolves
+         through the same suite), and a nil suite there silently degrades to
+         UserDefaults.standard. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.furlpay.guardian</string>
+    </array>
+</dict>
+</plist>

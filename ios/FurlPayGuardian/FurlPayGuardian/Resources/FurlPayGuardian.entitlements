@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Set from the build configuration, NOT hardcoded. This was pinned to
+         `development`, which mints sandbox APNs device tokens: the app
+         registers, /api/push/devices stores the token, and production pushes
+         are then delivered to a sandbox endpoint that no release build is
+         listening on — so notifications silently never arrive in TestFlight or
+         on the App Store, with no error anywhere to explain it.
+         project.yml sets APS_ENVIRONMENT per configuration. -->
+    <key>aps-environment</key>
+    <string>$(APS_ENVIRONMENT)</string>
+
+    <!-- REQUIRED for passkeys. ASAuthorizationPlatformPublicKeyCredentialProvider
+         refuses to run a ceremony for a relying party the app is not associated
+         with, and the failure is a generic ASAuthorizationError that reads like
+         an app bug. furlpay.com must serve /.well-known/apple-app-site-association
+         with a `webcredentials` entry naming <TeamID>.com.furlpay.guardian.
+         `applinks` is here too so the identity provider's redirect and the Smart
+         Stack tiles can deep-link over HTTPS rather than the custom scheme. -->
+    <key>com.apple.developer.associated-domains</key>
+    <array>
+        <string>webcredentials:furlpay.com</string>
+        <string>applinks:furlpay.com</string>
+    </array>
+
+    <!-- Critical alerts bypass Do Not Disturb and the ringer switch. This is
+         the iOS equivalent of the Android alarm's bypassDnd stage, and it is
+         the one entitlement here that Apple grants only on request:
+         https://developer.apple.com/contact/request/notifications-critical-alerts
+         The build works without it; alarms simply do not pierce DND. -->
+    <key>com.apple.developer.usernotifications.critical-alerts</key>
+    <true/>
+
+    <!-- Apple Pay. The merchant ID must also exist in the developer portal with
+         the payment processor's certificate registered against it, or
+         canMakePayments() succeeds and authorization then fails opaquely. -->
+    <key>com.apple.developer.in-app-payments</key>
+    <array>
+        <string>merchant.com.furlpay.guardian</string>
+    </array>
+
+    <!-- Tap to Pay on iPhone (merchant acceptance — the OPPOSITE direction to
+         Apple Pay above: this turns the iPhone into a contactless terminal).
+
+         Apple GRANTS THIS BY REQUEST ONLY. It needs an organization-level
+         developer account, the request submitted by the Account Holder, a
+         development entitlement first, then a separate distribution entitlement
+         after internal testing. A build that ships this key without the grant
+         gets an opaque session failure at tap time.
+
+         It is also useless on its own: the merchant must be party to a PSP
+         agreement with an Apple-authorised Payment Service Provider, which is
+         what issues the reader token. See Shared/Domain/TapToPay.swift.
+         https://developer.apple.com/documentation/proximityreader/setting-up-the-entitlement-for-tap-to-pay-on-iphone -->
+    <key>com.apple.developer.proximity-reader.payment.acceptance</key>
+    <true/>
+
+    <!-- Shared with the watch app and the widget extension. Declared in the
+         privacy manifest as required-reason CA92.1. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.furlpay.guardian</string>
+    </array>
+
+    <key>keychain-access-groups</key>
+    <array>
+        <string>$(AppIdentifierPrefix)com.furlpay.guardian</string>
+    </array>
+</dict>
+</plist>

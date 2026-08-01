@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- The ONLY thing this extension can reach. It has no network client, no
+         token and no tool catalog by construction (project.yml deliberately
+         leaves Shared/Domain, Shared/Security and Shared/Network out of its
+         sources), so the App Group snapshot is its entire world — and without
+         this key it could not read even that. -->
+    <key>com.apple.security.application-groups</key>
+    <array>
+        <string>group.com.furlpay.guardian</string>
+    </array>
+</dict>
+</plist>
