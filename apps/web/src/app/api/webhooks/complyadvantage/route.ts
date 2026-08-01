@@ -5,6 +5,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ComplyAdvantageProvider } from "@/lib/compliance/providers/complyAdvantage";
 import { kvSet } from "@/lib/kv";
+import { log } from "@/lib/log";
+import { audit } from "@/lib/audit";
 
 const ca = new ComplyAdvantageProvider();
 
@@ -27,10 +29,17 @@ export async function POST(req: NextRequest) {
       receivedAt: Date.now(),
     });
 
+    log.info("ComplyAdvantage webhook processed", { eventId, referenceId: payload.referenceId });
+    audit("webhook.processed", payload.referenceId || "system", {
+      provider: "complyadvantage",
+      eventType: payload.eventType,
+      status: payload.status,
+    });
+
     return NextResponse.json({ status: "ok", eventId });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Webhook processing failed";
-    console.error("ComplyAdvantage webhook error:", msg);
+    log.error("ComplyAdvantage webhook handler failed", { error: msg });
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 }
