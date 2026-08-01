@@ -27,3 +27,4 @@ google-services.json
 
 # Local expo module build output
 modules/*/android/build/
+keystore.properties
