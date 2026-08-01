@@ -41,6 +41,10 @@ const FULL_BLEED = (pathname: string) =>
   pathname.startsWith("/travel") || // FurlPay Travels portal — full desktop layout (own header/footer)
 
   pathname.startsWith("/investing/insights") || // FurlPay Research portal (blog-style)
+  // Trading terminal — a dense multi-column desktop surface. Scoped to the
+  // exact subtree, NOT /dashboard: the consumer wallet at /dashboard is
+  // designed for the phone frame and must keep it.
+  pathname.startsWith("/dashboard/terminal") ||
   pathname.startsWith("/legal");
 
 // Auth screens keep the frame but hide the status bar / tab bar chrome.

@@ -25,6 +25,18 @@ const config: Config = {
         // Semantic
         gain: "#34C759",
         loss: "#FF453A",
+        // ── Terminal surfaces (/dashboard/terminal only) ───────────────────
+        // The trading terminal needs more elevation steps than the consumer
+        // app: a dense grid of panels on pure #000 has no readable hierarchy.
+        // These are ADDITIVE — brand accent stays `neon`, radius stays `card`
+        // — so the terminal reads as FurlPay, not as a second product.
+        term: {
+          bg: "#0B1118",
+          panel: "#141C26",
+          raised: "#1B2531",
+          border: "#243141",
+          grid: "#1A2432",
+        },
       },
       borderRadius: {
         card: "18px",

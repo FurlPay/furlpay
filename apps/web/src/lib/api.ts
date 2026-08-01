@@ -18,15 +18,15 @@ import {
   writeCached,
 } from "./offline";
 
-class HttpError extends Error {
+export class HttpError extends Error {
   constructor(public readonly status: number, message: string) {
     super(message);
   }
 }
 
-export async function getJSON<T>(url: string): Promise<T> {
+export async function getJSON<T>(url: string, opts: { signal?: AbortSignal } = {}): Promise<T> {
   try {
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, { cache: "no-store", signal: opts.signal });
     if (!res.ok) throw new HttpError(res.status, `GET ${url} failed: ${res.status}`);
     const data = (await res.json()) as T;
     void writeCached(url, data);
@@ -35,6 +35,10 @@ export async function getJSON<T>(url: string): Promise<T> {
   } catch (err) {
     // Server answered → real error, don't serve stale data over it.
     if (err instanceof HttpError) throw err;
+    // An abort is the CALLER superseding itself, not a connectivity failure.
+    // Serving the offline cache here would resurrect a request the caller
+    // deliberately cancelled and repaint the screen with superseded data.
+    if (opts.signal?.aborted) throw err;
     const cached = await readCached<T>(url);
     if (cached) {
       announceOfflineData(cached.savedAt);

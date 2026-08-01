@@ -39,6 +39,7 @@ export default function PriceChart({
   symbol,
   height = 240,
   defaultTf = "1M",
+  defaultMode = "area",
   prefix = "$",
 }: {
   seed: string;
@@ -47,10 +48,11 @@ export default function PriceChart({
   symbol?: string;
   height?: number;
   defaultTf?: Timeframe;
+  defaultMode?: "area" | "candles";
   prefix?: string;
 }) {
   const [tf, setTf] = useState<Timeframe>(defaultTf);
-  const [mode, setMode] = useState<"area" | "candles">("area");
+  const [mode, setMode] = useState<"area" | "candles">(defaultMode);
   const [hover, setHover] = useState<number | null>(null);
   const [real, setReal] = useState<SeriesData | null>(null);
 
