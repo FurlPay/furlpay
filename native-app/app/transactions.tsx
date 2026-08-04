@@ -3,9 +3,9 @@ import { FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { useTransactions } from "@/lib/queries";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { EmptyState, Field, Screen } from "@/components/ui";
+import { EmptyState, Screen } from "@/components/ui";
 import { TransactionRow } from "@/components/TransactionRow";
-import { VoiceSearchButton, VoiceStatus } from "@/components/VoiceSearchButton";
+import { SearchBar } from "@/components/SearchBar";
 import { timeAgo } from "@/lib/format";
 
 const CATEGORIES = ["all", "transfer", "card", "swap", "invest", "bill", "ramp", "yield"] as const;
@@ -20,7 +20,6 @@ export default function Transactions() {
       : "all"
   );
   const [query, setQuery] = useState("");
-  const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const { data: result, isLoading, refetch, isRefetching, error } = useTransactions(
     category === "all" ? undefined : category
   );
@@ -36,22 +35,14 @@ export default function Transactions() {
   return (
     <Screen>
       <View style={{ paddingHorizontal: spacing.md, paddingTop: spacing.sm }}>
-        <Field
+        <SearchBar
           value={query}
           onChangeText={setQuery}
           placeholder="Search transactions…"
-          autoCapitalize="none"
-          autoCorrect={false}
-          clearable
-          right={
-            <VoiceSearchButton
-              onPartial={setQuery}
-              onTranscript={setQuery}
-              onStatus={setVoiceNote}
-            />
-          }
+          /* Its own namespace — offering a stock symbol while someone filters
+             transactions is noise, and a payee's name in a stock search worse. */
+          namespace="transactions"
         />
-        <VoiceStatus message={voiceNote} />
       </View>
       <View style={styles.filters}>
         <FlatList

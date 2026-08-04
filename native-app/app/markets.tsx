@@ -11,7 +11,8 @@ import { EmptyState, Field, Screen, SectionHeader } from "@/components/ui";
 import { CollectionsCarousel, MarketPulse, TrendingCarousel, useMovers } from "@/components/Discover";
 import { AssetLogo } from "@/components/AssetLogo";
 import { GlowSelectionPill } from "@/components/GlowSelectionPill";
-import { VoiceSearchButton, VoiceStatus } from "@/components/VoiceSearchButton";
+import { SearchBar } from "@/components/SearchBar";
+import { useDebounced } from "@/lib/useDebounced";
 
 /** Explicit quote state from the API. Clients switch on this instead of
  *  inferring meaning from a null price — `null >= 0` is TRUE in JS, which
@@ -51,11 +52,15 @@ export default function Markets() {
   );
   const [sort, setSort] = useState<string>("-changePct");
   const [query, setQuery] = useState("");
+  /* Debounced BEFORE it reaches the query key. Undebounced, every keystroke was
+     a request against the ~13k tradable universe, and responses could land out
+     of order — "AAP" arriving after "AAPL" and overwriting it. */
+  const debouncedQuery = useDebounced(query, 400);
 
   const { data, isLoading, refetch, isRefetching, error } = useQuery({
-    queryKey: ["markets", kind, sort, query.trim()],
+    queryKey: ["markets", kind, sort, debouncedQuery.trim()],
     queryFn: () => {
-      const q = query.trim();
+      const q = debouncedQuery.trim();
       const params = new URLSearchParams();
       if (kind !== "all") params.set("kind", kind);
       params.set("limit", "80");
@@ -75,8 +80,8 @@ export default function Markets() {
 
   // Discovery sections (pulse, movers, collections) show on the default view
   // only, mirroring the web /markets page.
-  const [voiceNote, setVoiceNote] = useState<string | null>(null);
-
+  /* Follows the LIVE text, not the debounced one: clearing the field should
+     bring the curated browse view straight back rather than 400ms later. */
   const discover = kind === "all" && !query.trim();
   const { data: moversData } = useMovers(8);
   const trending = moversData
@@ -86,23 +91,14 @@ export default function Markets() {
   return (
     <Screen>
       <View style={{ padding: spacing.md, paddingBottom: 0, gap: spacing.sm }}>
-        <Field
+        <SearchBar
           value={query}
           onChangeText={setQuery}
           placeholder="Search 390+ stocks, ETFs & crypto…"
-          autoCapitalize="none"
-          autoCorrect={false}
-          right={
-            <VoiceSearchButton
-              /* Partials land in the field as they arrive, so the user watches
-                 the query form rather than staring at an empty box. */
-              onPartial={setQuery}
-              onTranscript={setQuery}
-              onStatus={setVoiceNote}
-            />
-          }
+          namespace="markets"
+          /* Shown only until the user has a history of their own. */
+          suggestions={["AAPL", "NVDA", "BTC", "Gold", "S&P 500"]}
         />
-        <VoiceStatus message={voiceNote} />
         <View style={styles.chips}>
           {KINDS.map((k) => (
             <GlowSelectionPill
