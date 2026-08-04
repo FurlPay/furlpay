@@ -205,7 +205,8 @@ export default function Ticket() {
                   {item.state === "sending" ? (
                     <Text style={[styles.meta, { color: colors.onNeon }]}>Sending…</Text>
                   ) : (
-                    <Pressable onPress={() => retry(item)} hitSlop={8}>
+                    <Pressable onPress={() => retry(item)} hitSlop={8}
+                      accessibilityRole="button" accessibilityLabel="Retry sending">
                       <Text style={[styles.meta, { color: colors.onNeon, fontWeight: "700" }]}>
                         {item.error ?? "Failed"} — tap to retry
                       </Text>
@@ -260,6 +261,8 @@ export default function Ticket() {
               />
               <Pressable
                 onPress={send}
+                accessibilityRole="button"
+                accessibilityLabel="Send message"
                 disabled={offline || !input.trim()}
                 style={[styles.sendBtn, (offline || !input.trim()) && { opacity: 0.4 }]}
               >

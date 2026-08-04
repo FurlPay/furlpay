@@ -232,12 +232,14 @@ export default function Login() {
                 }}
               />
 
-              <Pressable disabled={anyBusy} onPress={() => setMode("email")} hitSlop={8}>
+              <Pressable disabled={anyBusy} onPress={() => setMode("email")} hitSlop={8}
+                accessibilityRole="button" accessibilityLabel="Sign in with email instead">
                 <Text style={styles.textLink}>Sign in with email instead</Text>
               </Pressable>
 
               {!guestUnavailable ? (
-                <Pressable disabled={anyBusy} onPress={() => void guest()} hitSlop={8}>
+                <Pressable disabled={anyBusy} onPress={() => void guest()} hitSlop={8}
+                  accessibilityRole="button" accessibilityLabel="Continue as guest">
                   {busy === "guest" ? (
                     <ActivityIndicator color={colors.textDim} />
                   ) : (
@@ -252,6 +254,8 @@ export default function Login() {
                 <Pressable
                   disabled={anyBusy}
                   onPress={() => void passkeyCreate()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Create a passkey"
                   hitSlop={8}
                   style={{ marginTop: spacing.md }}
                 >
@@ -313,6 +317,8 @@ export default function Login() {
                 <Pressable
                   disabled={anyBusy || resendIn > 0}
                   onPress={() => void resendCode()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Resend code"
                   hitSlop={8}
                 >
                   {busy === "resend" ? (

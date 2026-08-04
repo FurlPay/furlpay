@@ -101,11 +101,23 @@ function SheetModal({
 }) {
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
+      {/* The dim behind a sheet dismisses it. Screen readers otherwise see a
+          full-screen unlabelled control and read it before the content. */}
+      <Pressable
+        style={styles.backdrop}
+        onPress={onClose}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+      />
       <View style={styles.sheet}>
         <View style={styles.controlRow}>
           <Text style={type.h2}>{title}</Text>
-          <Pressable onPress={onClose} hitSlop={8}>
+          <Pressable
+            onPress={onClose}
+            hitSlop={8}
+            accessibilityRole="button"
+            accessibilityLabel="Close"
+          >
             <Text style={{ color: colors.textDim, fontSize: 20 }}>✕</Text>
           </Pressable>
         </View>
@@ -205,6 +217,8 @@ function Stepper({
       <View style={{ flexDirection: "row", alignItems: "center", gap: spacing.sm }}>
         <Pressable
           onPress={() => onChange(Math.max(step, value - step))}
+          accessibilityRole="button"
+          accessibilityLabel="Decrease"
           style={styles.stepBtn}
         >
           <Text style={styles.stepText}>−</Text>
@@ -212,7 +226,12 @@ function Stepper({
         <View style={[styles.meter, { flex: 1 }]}>
           <View style={[styles.meterFill, { width: `${Math.min(100, (value / max) * 100)}%` }]} />
         </View>
-        <Pressable onPress={() => onChange(Math.min(max, value + step))} style={styles.stepBtn}>
+        <Pressable
+          onPress={() => onChange(Math.min(max, value + step))}
+          style={styles.stepBtn}
+          accessibilityRole="button"
+          accessibilityLabel="Increase"
+        >
           <Text style={styles.stepText}>+</Text>
         </Pressable>
       </View>

@@ -171,6 +171,8 @@ export default function MarketDetail() {
                   <Pressable
                     key={r.symbol}
                     onPress={() => router.push({ pathname: "/market/[symbol]", params: { symbol: r.symbol } })}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${r.symbol}, ${r.name}`}
                     style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
                   >
                     <View style={{ flex: 1 }}>

@@ -127,7 +127,13 @@ export default function Support() {
         <SectionHeader title="Report an issue" />
         <View style={styles.grid}>
           {CATEGORIES.map((c) => (
-            <Pressable key={c.value} onPress={() => openForm(c.value)} style={styles.gridItem}>
+            <Pressable
+              key={c.value}
+              onPress={() => openForm(c.value)}
+              style={styles.gridItem}
+              accessibilityRole="button"
+              accessibilityLabel={c.label}
+            >
               <Ionicons name={c.icon as keyof typeof Ionicons.glyphMap} size={20} color={colors.neon} />
               <Text style={[type.body, { fontSize: 13, fontWeight: "600" }]}>{c.label}</Text>
             </Pressable>
@@ -149,7 +155,12 @@ export default function Support() {
           tickets.map((t) => {
             const s = statusStyle(t.status);
             return (
-              <Pressable key={t.id} onPress={() => router.push(`/support/${t.id}` as never)}>
+              <Pressable
+                key={t.id}
+                onPress={() => router.push(`/support/${t.id}` as never)}
+                accessibilityRole="button"
+                accessibilityLabel={`Ticket: ${t.subject}`}
+              >
                 {({ pressed }) => (
                   <Surface style={[styles.ticketRow, pressed && { opacity: 0.7 }]}>
                     <View style={{ flex: 1, gap: 2 }}>
@@ -177,6 +188,9 @@ export default function Support() {
             <Pressable
               key={l.path}
               onPress={() => void WebBrowser.openBrowserAsync(`${WEB_ORIGIN}${l.path}`)}
+              accessibilityRole="link"
+              accessibilityLabel={l.label}
+              accessibilityHint="Opens in your browser"
               style={({ pressed }) => [styles.linkRow, pressed && { opacity: 0.7 }]}
             >
               <Ionicons name={l.icon} size={18} color={colors.neon} />

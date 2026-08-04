@@ -54,7 +54,13 @@ function QuickAction({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.action, pressed && { opacity: 0.7 }]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      /* The icon carries no text, so the visible label IS the whole name. */
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.action, pressed && { opacity: 0.7 }]}
+    >
       <View style={styles.actionIcon}>
         <Ionicons name={icon} size={20} color={colors.neon} />
       </View>
@@ -200,6 +206,8 @@ export default function Invest() {
           right={
             <Pressable
               hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Order history"
               onPress={() => router.push({ pathname: "/transactions", params: { category: "invest" } })}
             >
               <Text style={{ color: colors.neon, fontWeight: "600", fontSize: 13 }}>Order history</Text>
@@ -213,6 +221,10 @@ export default function Invest() {
               return (
                 <Pressable
                   key={h.symbol}
+                  accessibilityRole="button"
+                  /* Symbol alone reads as an initialism; the holding's value and
+                     direction are what the row actually communicates. */
+                  accessibilityLabel={`${h.symbol}, ${usd(h.marketValue)}, ${hUp ? "up" : "down"} ${Math.abs(h.changePct).toFixed(2)} percent`}
                   onPress={() => router.push({ pathname: "/market/[symbol]", params: { symbol: h.symbol } })}
                   style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
                 >
@@ -247,7 +259,12 @@ export default function Invest() {
             <SectionHeader
               title="Latest from FurlPay Research"
               right={
-                <Pressable hitSlop={8} onPress={() => router.push("/insights")}>
+                <Pressable
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="View all insights"
+                  onPress={() => router.push("/insights")}
+                >
                   <Text style={{ color: colors.neon, fontWeight: "600" }}>View all</Text>
                 </Pressable>
               }
@@ -256,6 +273,11 @@ export default function Invest() {
               {insights.map((i) => (
                 <Pressable
                   key={i.slug}
+                  accessibilityRole="link"
+                  accessibilityLabel={i.title}
+                  /* Says it leaves the app, which a sighted user infers from
+                     the card styling and a screen-reader user cannot. */
+                  accessibilityHint="Opens in your browser"
                   onPress={() => void Linking.openURL(`${siteBase}/investing/insights/${i.slug}`)}
                   style={({ pressed }) => [styles.insightCard, pressed && { opacity: 0.8 }]}
                 >
@@ -307,6 +329,8 @@ export default function Invest() {
           ).map((c) => (
             <Pressable
               key={c.label}
+              accessibilityRole="button"
+              accessibilityLabel={c.label}
               onPress={c.go}
               style={({ pressed }) => [styles.categoryTile, pressed && { opacity: 0.7 }]}
             >

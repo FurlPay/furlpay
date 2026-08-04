@@ -69,6 +69,8 @@ export default function CollectionScreen() {
           return (
             <Pressable
               onPress={() => router.push({ pathname: "/market/[symbol]", params: { symbol: item.symbol } })}
+              accessibilityRole="button"
+              accessibilityLabel={`${item.symbol}, ${item.name}`}
               style={({ pressed }) => [styles.row, pressed && { opacity: 0.7 }]}
             >
               <View style={styles.logoStub}>

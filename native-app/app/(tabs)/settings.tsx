@@ -79,7 +79,11 @@ function FieldRow({
     </View>
   );
   return onPress ? (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.7 }}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ pressed }) => pressed && { opacity: 0.7 }}
+    >
       {content}
     </Pressable>
   ) : (
@@ -119,7 +123,13 @@ function NavRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.navRow, pressed && { opacity: 0.7 }]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      /* The chevron is decorative; the row label is the whole name. */
+      accessibilityLabel={label}
+      style={({ pressed }) => [styles.navRow, pressed && { opacity: 0.7 }]}
+    >
       <Ionicons name={icon} size={18} color={colors.neon} />
       <Text style={[type.body, { flex: 1 }]}>{label}</Text>
       <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
