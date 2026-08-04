@@ -5,6 +5,7 @@ import { useTransactions } from "@/lib/queries";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { EmptyState, Field, Screen } from "@/components/ui";
 import { TransactionRow } from "@/components/TransactionRow";
+import { VoiceSearchButton, VoiceStatus } from "@/components/VoiceSearchButton";
 import { timeAgo } from "@/lib/format";
 
 const CATEGORIES = ["all", "transfer", "card", "swap", "invest", "bill", "ramp", "yield"] as const;
@@ -19,6 +20,7 @@ export default function Transactions() {
       : "all"
   );
   const [query, setQuery] = useState("");
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
   const { data: result, isLoading, refetch, isRefetching, error } = useTransactions(
     category === "all" ? undefined : category
   );
@@ -40,8 +42,16 @@ export default function Transactions() {
           placeholder="Search transactions…"
           autoCapitalize="none"
           autoCorrect={false}
-          clearButtonMode="while-editing"
+          clearable
+          right={
+            <VoiceSearchButton
+              onPartial={setQuery}
+              onTranscript={setQuery}
+              onStatus={setVoiceNote}
+            />
+          }
         />
+        <VoiceStatus message={voiceNote} />
       </View>
       <View style={styles.filters}>
         <FlatList

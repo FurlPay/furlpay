@@ -153,7 +153,9 @@ export function CountryPicker({ open, onClose, onSelect }: Props) {
             onChangeText={setQuery}
             autoCapitalize="none"
             autoCorrect={false}
-            clearButtonMode="while-editing"
+            /* Was `clearButtonMode`, which is iOS-only — Android users had no
+               way to clear this without holding backspace. */
+            clearable
           />
         </View>
 

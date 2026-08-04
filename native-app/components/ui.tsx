@@ -63,6 +63,15 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
+      /* Declared on the PRIMITIVE, not at each call site. Every screen builds
+         its buttons from this one, so a role here labels hundreds of controls
+         that were previously invisible to VoiceOver and TalkBack — a screen
+         reader announced them as plain text with no hint they could be tapped.
+         `busy` matters too: without it a loading button reads as an ordinary
+         one and gets tapped again. */
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!disabled || !!loading, busy: !!loading }}
       style={({ pressed }) => [
         styles.button,
         { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.8 : 1 },
@@ -91,28 +100,71 @@ export function Button({
  * scrolls under the accessory instead of behind it.
  */
 export function Field(
-  props: TextInputProps & { label?: string; right?: React.ReactNode }
+  props: TextInputProps & {
+    label?: string;
+    right?: React.ReactNode;
+    /** Cross-platform clear button. See the note below on clearButtonMode. */
+    clearable?: boolean;
+  }
 ) {
-  const { label, style, right, ...rest } = props;
-  return (
-    <View style={{ gap: 6 }}>
-      {label ? <Text style={type.dim}>{label}</Text> : null}
-      {right ? (
-        <View style={styles.fieldWrap}>
-          <TextInput
-            placeholderTextColor={colors.textFaint}
-            style={[styles.input, styles.inputFlex, style]}
-            {...rest}
-          />
-          <View style={styles.fieldRight}>{right}</View>
-        </View>
-      ) : (
+  const { label, style, right, clearable, value, onChangeText, ...rest } = props;
+
+  /* `clearButtonMode` is iOS-ONLY — Android has never rendered it, so a field
+     relying on it is inconsistent across the two platforms this app ships to.
+     It also draws in the same place as `right`, so the two would overlap. When
+     either `clearable` or `right` is in play we draw our own, which fixes the
+     platform gap and the collision at once. */
+    const showClear = !!clearable && !!value && String(value).length > 0;
+  const hasAccessory = !!right || showClear;
+
+  if (!hasAccessory) {
+    return (
+      <View style={{ gap: 6 }}>
+        {label ? <Text style={type.dim}>{label}</Text> : null}
         <TextInput
           placeholderTextColor={colors.textFaint}
           style={[styles.input, style]}
+          value={value}
+          onChangeText={onChangeText}
           {...rest}
         />
-      )}
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ gap: 6 }}>
+      {label ? <Text style={type.dim}>{label}</Text> : null}
+      <View style={styles.fieldWrap}>
+        <TextInput
+          placeholderTextColor={colors.textFaint}
+          style={[
+            styles.input,
+            /* Reserve room for however many accessories are actually shown, so
+               long text scrolls under them rather than being covered. */
+            { paddingRight: (showClear ? 34 : 0) + (right ? 44 : 0) + 8 },
+            style,
+          ]}
+          value={value}
+          onChangeText={onChangeText}
+          clearButtonMode="never"
+          {...rest}
+        />
+        <View style={styles.fieldRight}>
+          {showClear ? (
+            <Pressable
+              onPress={() => onChangeText?.("")}
+              hitSlop={8}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              style={styles.fieldClear}
+            >
+              <Text style={styles.fieldClearGlyph}>×</Text>
+            </Pressable>
+          ) : null}
+          {right}
+        </View>
+      </View>
     </View>
   );
 }
@@ -374,18 +426,24 @@ const styles = StyleSheet.create({
     position: "relative",
     justifyContent: "center",
   },
-  inputFlex: {
-    /* Room for a 44pt touch target — the platform minimum — so a long query
-       scrolls under the mic rather than being covered by it. */
-    paddingRight: 48,
-  },
   fieldRight: {
     position: "absolute",
     right: 4,
     height: 44,
-    width: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  fieldClear: {
+    width: 30,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
+  },
+  fieldClearGlyph: {
+    color: colors.textFaint,
+    fontSize: 20,
+    lineHeight: 22,
   },
   sectionHeader: {
     flexDirection: "row",
