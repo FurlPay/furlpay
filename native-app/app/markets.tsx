@@ -11,6 +11,7 @@ import { EmptyState, Field, Screen, SectionHeader } from "@/components/ui";
 import { CollectionsCarousel, MarketPulse, TrendingCarousel, useMovers } from "@/components/Discover";
 import { AssetLogo } from "@/components/AssetLogo";
 import { GlowSelectionPill } from "@/components/GlowSelectionPill";
+import { VoiceSearchButton, VoiceStatus } from "@/components/VoiceSearchButton";
 
 /** Explicit quote state from the API. Clients switch on this instead of
  *  inferring meaning from a null price — `null >= 0` is TRUE in JS, which
@@ -74,6 +75,8 @@ export default function Markets() {
 
   // Discovery sections (pulse, movers, collections) show on the default view
   // only, mirroring the web /markets page.
+  const [voiceNote, setVoiceNote] = useState<string | null>(null);
+
   const discover = kind === "all" && !query.trim();
   const { data: moversData } = useMovers(8);
   const trending = moversData
@@ -89,7 +92,17 @@ export default function Markets() {
           placeholder="Search 390+ stocks, ETFs & crypto…"
           autoCapitalize="none"
           autoCorrect={false}
+          right={
+            <VoiceSearchButton
+              /* Partials land in the field as they arrive, so the user watches
+                 the query form rather than staring at an empty box. */
+              onPartial={setQuery}
+              onTranscript={setQuery}
+              onStatus={setVoiceNote}
+            />
+          }
         />
+        <VoiceStatus message={voiceNote} />
         <View style={styles.chips}>
           {KINDS.map((k) => (
             <GlowSelectionPill

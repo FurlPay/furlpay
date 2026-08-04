@@ -82,16 +82,37 @@ export function Button({
   );
 }
 
-export function Field(props: TextInputProps & { label?: string }) {
-  const { label, style, ...rest } = props;
+/**
+ * A text field, optionally with something on its right edge.
+ *
+ * `right` is rendered INSIDE the input's border rather than beside it, so the
+ * control reads as one field with an affordance rather than a field plus a
+ * loose button. The input keeps its own padding on the right so long text
+ * scrolls under the accessory instead of behind it.
+ */
+export function Field(
+  props: TextInputProps & { label?: string; right?: React.ReactNode }
+) {
+  const { label, style, right, ...rest } = props;
   return (
     <View style={{ gap: 6 }}>
       {label ? <Text style={type.dim}>{label}</Text> : null}
-      <TextInput
-        placeholderTextColor={colors.textFaint}
-        style={[styles.input, style]}
-        {...rest}
-      />
+      {right ? (
+        <View style={styles.fieldWrap}>
+          <TextInput
+            placeholderTextColor={colors.textFaint}
+            style={[styles.input, styles.inputFlex, style]}
+            {...rest}
+          />
+          <View style={styles.fieldRight}>{right}</View>
+        </View>
+      ) : (
+        <TextInput
+          placeholderTextColor={colors.textFaint}
+          style={[styles.input, style]}
+          {...rest}
+        />
+      )}
     </View>
   );
 }
@@ -346,6 +367,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
     paddingVertical: 12,
     fontSize: 16,
+  },
+  /* The field and its accessory sit on one row; the accessory floats over the
+     input's right padding so the border stays a single unbroken rounded rect. */
+  fieldWrap: {
+    position: "relative",
+    justifyContent: "center",
+  },
+  inputFlex: {
+    /* Room for a 44pt touch target — the platform minimum — so a long query
+       scrolls under the mic rather than being covered by it. */
+    paddingRight: 48,
+  },
+  fieldRight: {
+    position: "absolute",
+    right: 4,
+    height: 44,
+    width: 44,
+    alignItems: "center",
+    justifyContent: "center",
   },
   sectionHeader: {
     flexDirection: "row",
