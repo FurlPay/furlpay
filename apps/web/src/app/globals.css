@@ -1,4 +1,7 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+/* Inter for UI text, JetBrains Mono for labels/eyebrows/code. Both are named in
+   the wallet + docs themes; without loading JetBrains Mono here it silently
+   fell back to Menlo/Consolas and those surfaces never rendered as designed. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 
 @tailwind base;
 @tailwind components;

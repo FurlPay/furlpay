@@ -83,6 +83,43 @@ export default function ProductsPage() {
           secondary={{ href: "/pricing", label: "See pricing" }}
         />
 
+        {/* Launch announcement — wallet names. Links to both the reservation
+            funnel and the launch post, so the campaign has one entry point on
+            the highest-traffic product page. */}
+        <section className="mt-12 rounded-2xl border border-neon/25 bg-neon/[0.04] p-6 sm:p-7">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="rounded-full bg-neon px-2.5 py-0.5 text-[11px] font-bold text-black">
+              New
+            </span>
+            <span className="text-[11px] uppercase tracking-[0.14em] text-neon">
+              Wallet names are live
+            </span>
+          </div>
+          <h2 className="mt-3 text-[22px] font-bold leading-snug sm:text-[26px]">
+            Claim the handle your AI agents will pay with.
+          </h2>
+          <p className="mt-2 max-w-2xl text-[14px] leading-relaxed text-textSecondary">
+            Reserve <span className="text-textPrimary">yourname.furlpay.com</span> — one
+            human-readable identity for you and every agent you run, settled in USDC over the
+            open x402 standard. Free to reserve, read-only permissions, and no money can move as
+            a result of claiming a name.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href="/wallet"
+              className="rounded-full bg-neon px-5 py-2.5 text-[14px] font-semibold text-black transition-opacity hover:opacity-90"
+            >
+              Reserve your name
+            </Link>
+            <Link
+              href="/blog/furlpay-wallet-names-are-live-claim-your-payment-handle"
+              className="rounded-full border border-white/15 px-5 py-2.5 text-[14px] font-semibold text-textPrimary transition-colors hover:border-neon/40"
+            >
+              Read the launch post
+            </Link>
+          </div>
+        </section>
+
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {PRODUCTS.map((p) => (
             <Link key={p.href} href={p.href} className="glass-card group p-6 transition-colors hover:border-neon/30">

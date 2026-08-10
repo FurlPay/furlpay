@@ -32,6 +32,25 @@ receive an on-chain receipt.
 - Investing — fractional US stocks, ETFs, and crypto: https://furlpay.com/products/investing
 - Wallet — passkey MPC wallet, no seed phrase: https://furlpay.com/products/wallet
 - x402 — payments for AI agents over HTTP: https://furlpay.com/products/x402
+- Wallet names — reserve a human-readable payment handle (yourname.furlpay.com) for
+  your account and the AI agents you run: https://furlpay.com/wallet
+
+## Wallet names (payment handles)
+
+A FurlPay Wallet name is a human-readable payment handle — yourname.furlpay.com —
+that an account and its AI agents present when paying over the web. It replaces a
+long hexadecimal address with a name a person can read, verify and type.
+
+- Free to reserve; 3–32 characters, letters/digits/hyphens, normalized to lowercase.
+- Reserving requires signing in, so every handle is bound to exactly one verified
+  account. Anonymous reservation is not possible.
+- The reservation grants READ-ONLY permissions (profile, balances, transaction
+  history). Reserving a name can never move money; payments require a separate,
+  stronger authorization that an AI agent never receives implicitly.
+- Settlement is USDC over the open x402 standard, across Arbitrum, Base, Ethereum,
+  Solana, Optimism, Polygon, Avalanche and Gnosis.
+- Reserve at: https://furlpay.com/wallet
+- Launch post: https://furlpay.com/blog/furlpay-wallet-names-are-live-claim-your-payment-handle
 
 ## Solutions (by audience)
 

@@ -1,0 +1,1263 @@
+/*
+ * FurlPay Wallet — reservation landing page.
+ *
+ * Layout, geometry and motion are a faithful reproduction of the launch-page
+ * design; the palette is remapped from the original orange ramp to the FurlPay
+ * green (`neon #00E599` / `neonDeep #00B87A`, tailwind.config.ts). Every orange
+ * value has a green counterpart at the same lightness so the card reads the
+ * same, just green. Foil is left hue-neutral (it is a holographic sheen, not a
+ * brand colour). Fonts (Inter / JetBrains Mono) come from the app shell.
+ */
+
+.launch-page {
+  --accent: #00c888;
+  --accent-hover: #1ee6a3;
+  --foreground: #e7efea;
+  --muted: #93a09a;
+  --border: #24302a;
+  --panel: #121a16;
+  --ink: var(--foreground);
+  isolation: isolate;
+  min-height: 100svh;
+  color: var(--ink);
+  background: #0a0f0c;
+  padding: 0 clamp(20px, 5vw, 72px);
+  position: relative;
+  overflow: hidden;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.launch-page .font-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.ambient-grid {
+  z-index: -1;
+  background-image: linear-gradient(#8fe8c012 1px, #0000 1px),
+    linear-gradient(90deg, #8fe8c012 1px, #0000 1px);
+  background-size: 72px 72px;
+  position: absolute;
+  inset: 0;
+  -webkit-mask-image: linear-gradient(#000, #0000 86%);
+  mask-image: linear-gradient(#000, #0000 86%);
+}
+
+.launch-nav,
+.launch-footer {
+  justify-content: space-between;
+  align-items: center;
+  width: min(1060px, 100%);
+  margin-inline: auto;
+  display: flex;
+}
+
+.launch-nav {
+  height: 82px;
+}
+
+.wordmark {
+  color: var(--ink);
+  letter-spacing: -0.04em;
+  align-items: center;
+  gap: 10px;
+  font-size: 17px;
+  font-weight: 680;
+  text-decoration: none;
+  display: flex;
+}
+
+.wordmark svg {
+  color: #00b87a;
+  width: 28px;
+  height: auto;
+}
+
+/* Official FurlPay app icon (public/wallet/furlpay-icon.png), sized per context. */
+.furl-icon {
+  display: block;
+  object-fit: contain;
+}
+.wordmark .furl-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+.card-brand .furl-icon {
+  width: clamp(28px, 3.8vw, 38px);
+  height: auto;
+  border-radius: 22%;
+  box-shadow: 0 1px 3px #10241a55;
+}
+.success-back-logo .furl-icon {
+  width: 100%;
+  height: auto;
+  border-radius: 18%;
+}
+
+.nav-link {
+  border: 1px solid var(--border);
+  min-height: 40px;
+  color: var(--foreground);
+  letter-spacing: -0.01em;
+  background: var(--panel);
+  border-radius: 999px;
+  justify-content: center;
+  align-items: center;
+  padding: 0 17px;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color 0.18s, border-color 0.18s, background 0.18s, transform 0.18s;
+  display: inline-flex;
+}
+
+.nav-link:hover {
+  color: var(--accent);
+  background: #00e5990a;
+  border-color: #00e59966;
+}
+
+.nav-link:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+.nav-link span {
+  margin-left: 5px;
+  font-size: 14px;
+}
+
+.launch-hero {
+  flex-direction: column;
+  align-items: center;
+  width: min(1060px, 100%);
+  margin: 0 auto;
+  padding: clamp(54px, 8vh, 90px) 0 80px;
+  display: flex;
+}
+
+.hero-copy {
+  text-align: center;
+  max-width: 700px;
+  margin-bottom: 52px;
+}
+
+.hero-eyebrow {
+  color: var(--accent);
+  font: 600 12px/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 0 0 16px;
+}
+
+.hero-copy h1 {
+  max-width: 680px;
+  color: var(--foreground);
+  letter-spacing: -0.032em;
+  text-wrap: balance;
+  margin: 0 auto;
+  font-size: clamp(44px, 5.8vw, 64px);
+  font-weight: 500;
+  line-height: 0.99;
+}
+
+/* ── Feature cards ─────────────────────────────────────────────────────── */
+
+.wallet-features {
+  width: min(1060px, 100%);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  padding: 4px 0 64px;
+}
+
+.feature-card {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.feature-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: grid;
+  place-items: center;
+  background: #0f3a2a;
+  color: var(--accent);
+  margin-bottom: 4px;
+}
+
+.feature-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.feature-card h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--foreground);
+}
+
+.feature-card p {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 0;
+}
+
+.feature-card b {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+/* ── Ecosystem ─────────────────────────────────────────────────────────── */
+
+.wallet-ecosystem {
+  width: min(1060px, 100%);
+  margin: 0 auto;
+  padding: 0 0 72px;
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+
+.eco-eyebrow {
+  color: var(--accent);
+  font: 600 12px/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  margin: 40px 0 0;
+}
+
+.eco-title {
+  font-size: clamp(28px, 4vw, 40px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 14px 0 0;
+  color: var(--foreground);
+}
+
+.eco-sub {
+  max-width: 560px;
+  margin: 14px auto 0;
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.eco-chains {
+  list-style: none;
+  padding: 0;
+  margin: 28px auto 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  max-width: 780px;
+}
+
+.eco-chains li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--foreground);
+}
+
+.eco-chains img {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+
+.eco-chain-mark {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #04150f;
+  display: grid;
+  place-items: center;
+  font: 700 9px/1 "JetBrains Mono", monospace;
+}
+
+.eco-badges {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 26px 0 0;
+}
+
+.eco-badge {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 7px 14px;
+  color: var(--muted);
+  font: 600 11px/1.4 "JetBrains Mono", monospace;
+  letter-spacing: 0.05em;
+}
+
+.eco-badge b {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .wallet-features {
+    grid-template-columns: 1fr;
+  }
+}
+
+.hero-copy p {
+  max-width: 520px;
+  color: var(--muted);
+  letter-spacing: -0.01em;
+  text-wrap: balance;
+  margin: 22px auto 0;
+  font-size: clamp(16px, 1.5vw, 18px);
+  line-height: 1.3;
+}
+
+.interactive-hero {
+  width: min(720px, 100%);
+}
+
+.name-picker {
+  width: min(520px, 100%);
+  margin: -18px auto 22px;
+}
+
+.name-input-shell {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  align-items: center;
+  gap: 2px;
+  height: 56px;
+  padding: 0 16px;
+  transition: border-color 0.18s, box-shadow 0.18s;
+  display: flex;
+  box-shadow: 0 1px 2px #00000030;
+}
+
+.name-input-shell:focus-within {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #00e59924;
+}
+
+.name-at {
+  color: #6b7670;
+  font-size: 18px;
+}
+
+.name-input-shell input {
+  width: 100%;
+  min-width: 0;
+  height: 100%;
+  color: var(--foreground);
+  background: 0 0;
+  border: 0;
+  outline: 0;
+  padding: 0 3px;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.name-input-shell input::placeholder {
+  color: #a3a3a3;
+}
+
+.name-status {
+  color: #2f9e63;
+  place-items: center;
+  width: 20px;
+  font: 700 14px/1 "JetBrains Mono", monospace;
+  display: grid;
+}
+
+.name-input-shell.status-taken .name-status,
+.name-input-shell.status-error .name-status {
+  color: #c44b3e;
+}
+
+.claim-experience {
+  flex-direction: column;
+  align-items: center;
+  width: min(720px, 100%);
+  display: flex;
+}
+
+.claim-experience:focus-within .wallet-card-stage {
+  transform: translateY(-2px);
+}
+
+.wallet-card-stage {
+  perspective: 1300px;
+  width: 100%;
+  margin-bottom: clamp(64px, 8vw, 92px);
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.wallet-card-stage:hover {
+  transform: scale(1.025) translateY(-3px);
+}
+
+.wallet-card-stage.is-rejected {
+  animation: 0.48s cubic-bezier(0.36, 0.07, 0.19, 0.97) both card-rejected;
+}
+
+@keyframes card-rejected {
+  0%,
+  to {
+    transform: translate(0) rotate(0);
+  }
+  18% {
+    transform: translate(-9px) rotate(-0.35deg);
+  }
+  36% {
+    transform: translate(8px) rotate(0.3deg);
+  }
+  54% {
+    transform: translate(-6px) rotate(-0.2deg);
+  }
+  72% {
+    transform: translate(4px) rotate(0.12deg);
+  }
+}
+
+.wallet-card {
+  --rx: 0deg;
+  --ry: 0deg;
+  --mx: 0px;
+  --my: 0px;
+  --card-corner-radius: clamp(16px, 2.4vw, 24px);
+  isolation: isolate;
+  aspect-ratio: 1.76;
+  border-radius: var(--card-corner-radius);
+  width: 100%;
+  clip-path: inset(0 round var(--card-corner-radius));
+  -webkit-clip-path: inset(0 round var(--card-corner-radius));
+  color: #06251a;
+  transform: rotateX(var(--rx)) rotateY(var(--ry)) translateZ(0);
+  transform-style: preserve-3d;
+  will-change: transform;
+  -webkit-user-select: none;
+  user-select: none;
+  background: #0fa46d;
+  border: 1px solid #fffc;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(25px, 4.3vw, 42px);
+  transition: transform 0.65s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.45s;
+  display: flex;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 36px 72px -32px #10241a70, 0 10px 24px -17px #10241a47,
+    inset 0 0 0 1px #ffffff85, inset 0 1px 1px #fff, inset 0 -1px #2d413a2e;
+  -webkit-mask-image: -webkit-radial-gradient(#fff, #000);
+}
+
+.wallet-card-stage:hover .wallet-card {
+  transition-duration: 0.12s, 0.25s;
+  box-shadow: 0 40px 76px -32px #10241a75, 0 12px 25px -17px #10241a3d,
+    inset 0 0 0 1px #ffffff85, inset 0 1px 1px #fff;
+}
+
+.card-base {
+  z-index: -6;
+  transform: translate(calc(var(--mx) * -0.12), calc(var(--my) * -0.12)) scale(1.1);
+  background: radial-gradient(circle at 24% 15%, #8fe6c1, #0000 34%),
+    radial-gradient(circle at 78% 80%, #12b57c, #0000 42%), #0c9462;
+  transition: transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  position: absolute;
+  inset: -5%;
+}
+
+.card-shader {
+  z-index: -5;
+  opacity: 1;
+  width: 110%;
+  height: 110%;
+  transform: translate(calc(var(--mx) * -0.16), calc(var(--my) * -0.16)) scale(1.02);
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s;
+  display: block;
+  position: absolute;
+  inset: -5%;
+}
+
+.card-foil {
+  pointer-events: none;
+  transition: opacity 0.4s, transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+  position: absolute;
+  inset: -25%;
+}
+
+.card-foil-color {
+  z-index: -4;
+  opacity: 0.03;
+  mix-blend-mode: color-dodge;
+  transform: translate(calc(var(--mx) * 0.85), calc(var(--my) * 0.65)) rotate(-7deg);
+  background: linear-gradient(
+    125deg,
+    #0000 8%,
+    #74dce294 28%,
+    #84aff29e 41%,
+    #ffffffe6 50%,
+    #c291e194 61%,
+    #0000 82%
+  );
+}
+
+.wallet-card-stage:hover .card-foil-color {
+  opacity: 0.1;
+}
+
+.card-surface {
+  z-index: -2;
+  opacity: 0.44;
+  mix-blend-mode: soft-light;
+  pointer-events: none;
+  background: linear-gradient(#ffffff26, #0000 24%, #ffffff06);
+  position: absolute;
+  inset: 0;
+}
+
+.card-topline,
+.card-bottomline {
+  z-index: 2;
+  transform: translateZ(6px) translate(calc(var(--mx) * 0.018), calc(var(--my) * 0.018));
+  justify-content: space-between;
+  align-items: flex-start;
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  position: relative;
+}
+
+.card-brand {
+  color: #06271bc7;
+  letter-spacing: -0.035em;
+  text-shadow: 0 -1px #0a3a2657, 0 1px #9defc96b;
+  mix-blend-mode: multiply;
+  align-items: center;
+  gap: 10px;
+  font-size: clamp(11px, 1.5vw, 14px);
+  font-weight: 720;
+  display: flex;
+}
+
+.card-brand svg {
+  color: #0a3a26;
+  filter: drop-shadow(0 -1px #0a3a2647) drop-shadow(0 1px #9defc957);
+  width: clamp(31px, 4vw, 40px);
+  height: auto;
+}
+
+.card-edition,
+.card-label {
+  color: #082a1da3;
+  letter-spacing: 0.14em;
+  text-shadow: 0 -1px #0a3a2640, 0 1px #a6f0d059;
+  mix-blend-mode: multiply;
+  font: 650 clamp(7px, 0.9vw, 9px) / 1.2 "JetBrains Mono", monospace;
+}
+
+.card-name-wrap {
+  z-index: 2;
+  text-align: center;
+  transform: translateZ(8px) translate(calc(var(--mx) * 0.025), calc(var(--my) * 0.025));
+  transition: transform 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+}
+
+.card-name {
+  color: #07281cd1;
+  letter-spacing: -0.065em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  -webkit-text-stroke: 0.25px #0a3a2640;
+  text-shadow: 0 -1.2px 1px #083a2680, 0 1.3px 1px #a6f0d07a;
+  mix-blend-mode: multiply;
+  max-width: 100%;
+  margin: -0.08em 0;
+  padding: 0.1em 0.03em 0.14em;
+  font-size: clamp(32px, 7vw, 64px);
+  font-weight: 640;
+  line-height: 1.12;
+  overflow: hidden;
+}
+
+.card-bottomline > div {
+  gap: 7px;
+  display: grid;
+}
+
+.card-bottomline strong {
+  color: #06251ac7;
+  letter-spacing: 0.09em;
+  text-shadow: 0 -1px #083a2647, 0 1px #9defc961;
+  mix-blend-mode: multiply;
+  font: 650 clamp(8px, 1vw, 10px) / 1 "JetBrains Mono", monospace;
+}
+
+.card-number {
+  text-align: right;
+}
+
+.status-spinner {
+  border: 1.5px solid;
+  border-top-color: #0000;
+  border-radius: 50%;
+  width: 15px;
+  height: 15px;
+  animation: 0.8s linear infinite spin;
+  display: block;
+}
+
+.claim-actions {
+  flex-direction: column;
+  align-items: center;
+  width: min(520px, 100%);
+  margin: 30px auto 0;
+  display: flex;
+}
+
+.claim-button {
+  isolation: isolate;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  border-radius: 999px;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  min-width: 190px;
+  height: 52px;
+  padding: 0 23px;
+  font-size: 15px;
+  font-weight: 500;
+  transition: transform 0.16s cubic-bezier(0.25, 0.46, 0.45, 0.94), background 0.16s,
+    border-color 0.16s, opacity 0.16s;
+  display: flex;
+  position: relative;
+}
+
+.claim-button:before {
+  content: "";
+  z-index: -1;
+  border-radius: inherit;
+  opacity: 0;
+  background: #fff;
+  transition: opacity 0.16s;
+  position: absolute;
+  inset: -1px;
+}
+
+.claim-button:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+}
+
+.claim-button:hover:not(:disabled):before {
+  opacity: 0.08;
+}
+
+.claim-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.claim-button:disabled {
+  opacity: 0.42;
+  cursor: not-allowed;
+}
+
+.claim-button span {
+  font-size: 17px;
+  font-weight: 400;
+}
+
+.form-message {
+  text-align: center;
+  min-height: 18px;
+  color: var(--muted);
+  margin: 11px 3px 0;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.form-message.status-available {
+  color: #2f9e63;
+}
+
+.form-message.status-taken,
+.form-message.status-error {
+  color: #c44b3e;
+}
+
+.reservation-disclaimer {
+  color: #9a9892;
+  text-align: center;
+  text-wrap: balance;
+  max-width: 430px;
+  margin: 15px auto 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+/* ── Success view ──────────────────────────────────────────────────────── */
+
+.success-page {
+  --accent: #00c888;
+  --accent-hover: #1ee6a3;
+  --foreground: #e7efea;
+  --muted: #93a09a;
+  --border: #24302a;
+  --panel: #121a16;
+  min-height: 100svh;
+  color: var(--foreground);
+  background: #0a0f0c;
+  padding: 0 clamp(20px, 5vw, 72px);
+  overflow: hidden;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+.success-hero {
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(65px, 9vw, 105px);
+  width: min(980px, 100%);
+  min-height: calc(100svh - 82px);
+  margin: 0 auto;
+  padding: clamp(55px, 8vh, 90px) 0 80px;
+  display: flex;
+}
+
+.success-card-wrap {
+  width: min(720px, 92%);
+}
+
+.success-card-scene {
+  --card-corner-radius: clamp(16px, 2.4vw, 24px);
+  aspect-ratio: 1.76;
+  perspective: 1400px;
+  width: 100%;
+}
+
+.success-card-float {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  animation: 4.2s ease-in-out infinite success-float;
+}
+
+.success-card-orbit {
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  -webkit-transform-style: preserve-3d;
+  will-change: transform;
+  animation: 22s linear infinite success-orbit;
+  position: relative;
+}
+
+.success-card-scene:hover .success-card-orbit {
+  animation-play-state: paused;
+}
+
+.success-card-depth {
+  border-radius: var(--card-corner-radius);
+  transform: translateZ(var(--card-depth));
+  background: 0 0;
+  border: 2px solid #0c7a50;
+  position: absolute;
+  inset: 1px;
+  box-shadow: inset 0 0 0 1px #7fe8c080, 0 0 2px #0a3a2680;
+}
+
+.success-card-face {
+  --mx: 0px;
+  --my: 0px;
+  isolation: isolate;
+  border-radius: var(--card-corner-radius);
+  clip-path: inset(0 round var(--card-corner-radius));
+  -webkit-clip-path: inset(0 round var(--card-corner-radius));
+  backface-visibility: hidden;
+  background-clip: padding-box;
+  border: 1px solid #ffffffb8;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(25px, 4.3vw, 42px);
+  display: flex;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  box-shadow: 0 38px 75px -34px #06281b7a, inset 0 0 0 1px #ffffff61,
+    inset 0 1px 1px #fff;
+  -webkit-mask-image: -webkit-radial-gradient(#fff, #000);
+}
+
+.success-card-front {
+  background: #0fa46d;
+  transform: rotateY(0) translateZ(1.5px);
+}
+
+.success-card-back {
+  color: #0a3320;
+  background: radial-gradient(circle at 72% 22%, #7fe8c0 0, #0000 26%),
+    radial-gradient(circle at 22% 82%, #0a6b47 0, #0000 38%),
+    linear-gradient(135deg, #1fd79a, #08a366 53%, #16ce90);
+  justify-content: center;
+  align-items: center;
+  transform: rotateY(180deg) translateZ(1.5px);
+}
+
+.success-back-glow {
+  opacity: 0.3;
+  background: linear-gradient(118deg, #0000 33%, #ffffff80 48%, #0000 62%);
+  position: absolute;
+  inset: -30%;
+  transform: rotate(-7deg);
+}
+
+.success-back-logo {
+  color: #0a3320c2;
+  filter: drop-shadow(0 -1px #0a3a2661) drop-shadow(0 3px #9defc961);
+  flex: none;
+  width: 30%;
+  max-width: none;
+  position: relative;
+}
+
+.success-copy {
+  text-align: center;
+  max-width: 540px;
+}
+
+.success-copy h1 {
+  letter-spacing: -0.032em;
+  margin: 0;
+  font-size: clamp(44px, 6vw, 64px);
+  font-weight: 500;
+  line-height: 0.99;
+}
+
+.success-copy p {
+  max-width: 490px;
+  color: var(--muted);
+  text-wrap: balance;
+  margin: 18px auto 0;
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.success-copy strong {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.share-x-button {
+  color: #fff;
+  cursor: pointer;
+  background: #171717;
+  border: 1px solid #171717;
+  border-radius: 999px;
+  justify-content: center;
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  margin-top: 27px;
+  padding: 0 19px;
+  font: 600 14px/1 Inter, sans-serif;
+  transition: transform 0.18s, background-color 0.18s, box-shadow 0.18s;
+  display: inline-flex;
+}
+
+.share-x-button svg {
+  width: 15px;
+  height: 15px;
+}
+
+.share-x-button:hover {
+  background: #292929;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px #00000024;
+}
+
+.share-x-button:active {
+  transform: translateY(0);
+}
+
+.share-x-button:focus-visible {
+  outline-offset: 3px;
+  outline: 3px solid #00e59940;
+}
+
+@keyframes success-orbit {
+  0% {
+    transform: rotateX(3deg) rotateY(-8deg);
+  }
+  25% {
+    transform: rotateX(-2deg) rotateY(82deg);
+  }
+  50% {
+    transform: rotateX(3deg) rotateY(172deg);
+  }
+  75% {
+    transform: rotateX(-3deg) rotateY(262deg);
+  }
+  to {
+    transform: rotateX(3deg) rotateY(352deg);
+  }
+}
+
+@keyframes success-float {
+  0%,
+  to {
+    transform: translateY(0) rotate(-0.25deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(0.25deg);
+  }
+}
+
+.launch-footer {
+  color: #7c877f;
+  letter-spacing: 0.05em;
+  border-top: 1px solid #ffffff12;
+  min-height: 70px;
+  font: 500 10px/1 "JetBrains Mono", monospace;
+}
+
+.launch-footer div {
+  gap: 24px;
+  display: flex;
+}
+
+.launch-footer a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.launch-footer a:hover {
+  color: #00b87a;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ── Authorization / consent screen ────────────────────────────────────── */
+
+.consent-page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px clamp(16px, 5vw, 72px);
+}
+
+.consent-card {
+  width: 100%;
+  max-width: 460px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: clamp(22px, 4vw, 30px);
+  color: var(--foreground);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  box-shadow: 0 30px 60px -30px #000000a0;
+}
+
+.consent-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.consent-head .furl-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 11px;
+  flex: none;
+}
+
+.consent-title {
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  margin: 0;
+}
+
+.consent-dim {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 4px 0 0;
+}
+
+.consent-scopes-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font: 600 11px/1 "JetBrains Mono", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.consent-count {
+  color: var(--accent);
+}
+
+.consent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.consent-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  background: #0d1512;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+}
+
+.consent-check {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #0f3a2a;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.consent-item-label {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.consent-badge {
+  color: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font: 600 10px/1.6 "JetBrains Mono", monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.consent-account {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.consent-account-avatar {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #04150f;
+  font-weight: 700;
+  flex: none;
+}
+
+.consent-notice {
+  color: var(--foreground);
+  font-size: 13px;
+  margin: 0;
+}
+
+.consent-error {
+  color: #ff6b6b;
+  font-size: 13px;
+  margin: 0;
+}
+
+.consent-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 2px;
+}
+
+.consent-actions .claim-button {
+  flex: 1;
+  min-width: 0;
+}
+
+.consent-cancel {
+  flex: 1;
+  background: transparent;
+  color: var(--foreground);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  height: 52px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.16s, background 0.16s, transform 0.16s;
+}
+
+.consent-cancel:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.consent-cancel:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+.consent-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.consent-fineprint {
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0;
+  text-align: center;
+}
+
+@media (max-width: 560px) {
+  .launch-page {
+    padding-inline: 15px;
+  }
+  .launch-nav {
+    height: 70px;
+  }
+  .nav-link {
+    min-height: 36px;
+    padding-inline: 13px;
+    font-size: 12px;
+  }
+  .launch-hero {
+    padding: 48px 0 55px;
+  }
+  .hero-copy {
+    margin-bottom: 38px;
+  }
+  .hero-copy h1 {
+    font-size: clamp(42px, 12vw, 50px);
+  }
+  .hero-copy p {
+    font-size: 16px;
+  }
+  .wallet-card-stage {
+    margin-bottom: 52px;
+  }
+  .wallet-card {
+    --card-corner-radius: 14px;
+    padding: 21px;
+  }
+  .card-edition {
+    display: none !important;
+  }
+  .card-name {
+    font-size: clamp(29px, 10vw, 46px);
+  }
+  .card-number strong {
+    letter-spacing: 0.03em;
+    font-size: 6px;
+  }
+  .name-picker {
+    margin-top: -12px;
+  }
+  .name-input-shell {
+    height: 54px;
+  }
+  .claim-button {
+    border-radius: 12px;
+    height: 52px;
+  }
+  .success-page {
+    padding-inline: 15px;
+  }
+  .success-hero {
+    gap: 58px;
+    min-height: calc(100svh - 70px);
+    padding: 48px 0 64px;
+  }
+  .success-card-wrap {
+    width: 100%;
+  }
+  .success-card-scene {
+    --card-corner-radius: 14px;
+  }
+  .success-card-face {
+    padding: 21px;
+  }
+  .success-copy p {
+    font-size: 15px;
+  }
+  .launch-footer {
+    flex-direction: column;
+    justify-content: center;
+    gap: 12px;
+    padding-block: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-spinner {
+    animation-duration: 1.6s;
+  }
+  .wallet-card-stage,
+  .wallet-card,
+  .card-base,
+  .card-shader,
+  .card-foil,
+  .card-topline,
+  .card-bottomline,
+  .card-name-wrap {
+    transition: none !important;
+    transform: none !important;
+  }
+  .wallet-card-stage:hover,
+  .claim-experience:focus-within .wallet-card-stage {
+    transform: none;
+  }
+  .wallet-card-stage.is-rejected,
+  .success-card-float,
+  .success-card-orbit {
+    animation: none;
+  }
+  .success-card-orbit {
+    transform: rotateX(2deg) rotateY(-8deg);
+  }
+}

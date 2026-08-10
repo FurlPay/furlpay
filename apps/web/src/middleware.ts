@@ -80,6 +80,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/auth/handoff", // native-app → browser session handoff; auth IS the one-time code (redirects to /login otherwise)
   "/discord", // branded Discord links → external redirects (see next.config redirects)
   "/telegram", // branded Telegram links → external redirects (see next.config redirects)
+  "/wallet", // FurlPay Wallet handle-reservation landing (pre-launch, public)
 ];
 const PUBLIC_API_PREFIXES = [
   "/api/auth",
@@ -119,6 +120,10 @@ const PUBLIC_API_PREFIXES = [
   "/api/transfers/gasless", // Smart Gas: GET quote is public; POST enforces its own session via requireUser
   "/api/payments/fees", // public fee estimator — merchants compare vs card interchange
   "/api/discord", // Discord interactions — auth IS the Ed25519 signature (401 otherwise)
+  "/api/check", // public FurlPay Wallet handle availability check (IP rate-limited)
+  // NOTE: /api/wallet is intentionally NOT public. /api/wallet/authorize binds a
+  // handle to an account and self-gates with requireUser (returns 401 → the
+  // consent UI routes to /login). The wallet/link/* routes are authenticated too.
   "/api/telegram", // Telegram webhook — auth IS the secret_token header (401 otherwise)
   "/api/account/fund", // x402 account funding — auth IS the payment (settles or 402s)
   "/api/onramp", // headless on-ramp — publishable-key scoped, embedded by partners

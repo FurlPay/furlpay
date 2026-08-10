@@ -30,6 +30,190 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // Product launch — FurlPay Wallet handles --------------------------------
+  {
+    slug: "furlpay-wallet-names-are-live-claim-your-payment-handle",
+    title: "FurlPay Wallet Names Are Live: Claim the Handle Your AI Agents Will Pay With",
+    excerpt:
+      "Reserve yourname.furlpay.com — one human-readable identity for you and every agent you run. Here is why payment handles suddenly matter in 2026, how the x402 standard turned HTTP into a payment rail, exactly how reservation and consent work under the hood, and the security decisions behind binding a name to an account.",
+    category: "product-news",
+    date: "2026-08-10",
+    readMins: 12,
+    author: "Ashutosh Kumar Singh",
+    featured: true,
+    body: [
+      {
+        type: "p",
+        text: `Wallet names are live. From today you can reserve a FurlPay Wallet handle at furlpay.com/wallet — a short, human-readable name like yourname.furlpay.com that your account, and every AI agent you run, presents when it pays for something on the web. This post is the long version: what a payment handle actually is, why the timing is not an accident, how the reservation and consent flow works line by line, and the security decisions we made that are not obvious from the outside.`,
+      },
+      {
+        type: "p",
+        text: `Two honest framings up front. First, this is a reservation, not a funded wallet — you are claiming the name now so it is yours when the funded flows open. Second, a handle is an addressing layer, not a new form of money. The money underneath is the same USDC settlement FurlPay already runs. What changes is who, or what, can be addressed.`,
+      },
+
+      { type: "h2", text: "The addressing problem nobody solved" },
+      {
+        type: "p",
+        text: `Every payment system needs an answer to a boring question: how do I refer to the party being paid? Banking answered it with account numbers and routing codes. Crypto answered it with a 42-character hexadecimal string. Both answers are machine-friendly and human-hostile. A hex address cannot be read aloud, cannot be typed from memory, cannot be checked at a glance, and offers no way to tell a legitimate counterparty from a lookalike. The industry's response for a decade has been to tell users to "verify the first and last four characters," which is security advice that quietly outsources the hard part to the person least equipped to do it.`,
+      },
+      {
+        type: "p",
+        text: `Naming layers have existed for years and they solved the readability half. What they did not solve is the authorization half. Knowing that a name maps to an address tells you where money goes. It does not tell you what the holder of that name is allowed to do, who vouches for it, or what happens when the thing initiating the payment is not a person at all.`,
+      },
+
+      { type: "h2", text: "Why 2026 made this urgent: HTTP grew a payment rail" },
+      {
+        type: "p",
+        text: `The thing that changed is x402 — a protocol that revives the long-dormant HTTP 402 "Payment Required" status code and turns it into a working handshake. A client requests a resource, the server answers 402 with a price and payment details, the client attaches payment and retries, and the server returns the content. Payment stops being a checkout flow that happens on a separate page and becomes a property of the request itself.`,
+      },
+      {
+        type: "p",
+        text: `That distinction matters enormously once the client is software. A human can be redirected to a payment page, read a form, enter a card, and complete a 3-D Secure challenge. An autonomous agent cannot — not because it is incapable, but because every one of those steps assumes a human is present to consent. x402 removes the assumption. A payment becomes a header, and a header is something a program can produce.`,
+      },
+      {
+        type: "p",
+        text: `x402 is genuinely open, which is the part worth dwelling on. It was co-created by Coinbase and Cloudflare, and the standard is now hosted by the Linux Foundation with an x402 Foundation around it whose membership includes Stripe, Visa, Mastercard, Google, Amazon Web Services and Circle. That is an unusual coalition — card networks, hyperscalers and a stablecoin issuer agreeing on one wire format. It means the rail is not a single company's proprietary channel, and building on it is not a bet on any one vendor surviving.`,
+      },
+      {
+        type: "p",
+        text: `On 4 August 2026, Cloudflare launched its own wallets and opened cloudflare.pay handle reservations on exactly this thesis: agents need a balance and a name to present when they buy APIs, inference and content. When infrastructure companies at that scale start shipping the same primitive in the same quarter, it stops being a speculative feature and starts being table stakes. We are shipping our version because FurlPay has been an x402 product since well before the handle layer existed, and our users should not have to hold an identity on someone else's namespace to use it.`,
+      },
+
+      { type: "h2", text: "What a handle actually buys you" },
+      {
+        type: "p",
+        text: `A payment handle does four things a raw address cannot:`,
+      },
+      {
+        type: "ul",
+        items: [
+          "It is verifiable by eye. yourname.furlpay.com either is or is not the party you meant. There is no truncated-hex ritual and no visual near-collision to fall for.",
+          "It is stable across chains. The address underneath can differ per chain, rotate, or migrate to a new contract; the name you publish on an invoice or a website does not have to change with it.",
+          "It carries a namespace with an operator behind it. A name issued under furlpay.com means an account exists, was authenticated, and can be held accountable — which a self-generated address, by construction, never means.",
+          "It scopes down to agents. A single account can front many agents, each addressable and each independently limited, without scattering unlabeled addresses no one can later attribute.",
+        ],
+      },
+      {
+        type: "table",
+        headers: ["", "Raw address", "Generic name service", "FurlPay handle"],
+        rows: [
+          ["Human-readable", "No", "Yes", "Yes"],
+          ["Bound to an authenticated account", "No", "No", "Yes"],
+          ["Agent sub-identities with spend limits", "No", "No", "Yes"],
+          ["Works as an x402 payment identity", "Partially", "Partially", "Yes"],
+          ["Revocable by the owner", "No", "Varies", "Yes"],
+        ],
+        highlightCol: 3,
+      },
+
+      { type: "h2", text: "Agents are the real reason" },
+      {
+        type: "p",
+        text: `The strongest argument for handles is not human convenience. It is that the agentic web has an accountability gap. When an agent buys an API call, a dataset or a block of inference on your behalf, three questions need answers after the fact: which agent did this, whose authority was it acting under, and what was it permitted to spend? An unlabeled address answers none of them. It is an anonymous payer with no ceiling.`,
+      },
+      {
+        type: "p",
+        text: `A handle plus a spending policy answers all three. The name identifies the actor, the account behind it establishes authority, and the policy sets the ceiling before anything is spent rather than after. This is the model FurlPay already runs in its agent control plane — agent keys owned by an account, with enforced policies — and the handle is the public-facing half of it. The private half was already there.`,
+      },
+      {
+        type: "p",
+        text: `It is worth being precise about what "autonomous" should mean in a payment context. It should mean an agent can complete a purchase inside limits you set in advance, without waking you up. It should not mean an agent can decide its own limits. Any system that blurs those two is not automating your intent; it is removing you from a decision you never delegated.`,
+      },
+
+      { type: "h2", text: "How reservation actually works" },
+      {
+        type: "p",
+        text: `The flow is deliberately short: type a name, see whether it is free, sign in, review what you are granting, authorize. Underneath, each of those steps has a decision behind it worth explaining.`,
+      },
+      {
+        type: "p",
+        text: `Availability checking runs as you type, debounced, against a public read-only endpoint. Every candidate is normalized before it is judged — trimmed, lowercased, and validated against a strict character set of letters, digits and hyphens, with no leading or trailing hyphen so a handle always reads cleanly as a subdomain. Normalization happens in one shared module used by both the availability check and the reservation itself, which matters more than it sounds: if two endpoints disagree about what a name resolves to, a name can appear free and then be claimed as something subtly different.`,
+      },
+      {
+        type: "p",
+        text: `A reserved-word list blocks the names that would be dangerous in a payment namespace — brand terms, support, security, billing, admin, api, and similar. A handle reading support.furlpay.com in the hands of an arbitrary user is a phishing primitive, not a username.`,
+      },
+      {
+        type: "code",
+        lang: "http",
+        code: `GET /api/check?tag=satoshi
+
+200 OK
+{ "available": true, "normalized": "satoshi" }
+
+GET /api/check?tag=support
+
+200 OK
+{ "available": false, "error": "That name is reserved." }`,
+      },
+      {
+        type: "p",
+        text: `The claim itself is a single atomic operation — a set-if-absent against durable storage. The first authenticated request to reach an unclaimed name wins it; a concurrent request for the same name loses cleanly and gets a 409 rather than a second copy of the record. This is the same primitive used for the authorization-code single-use guarantee elsewhere in the system, and it is the only correct answer for first-come-first-served allocation. A read-then-write would leave a window in which two people both see "available" and both proceed.`,
+      },
+
+      { type: "h2", text: "The consent step, and why it requires signing in" },
+      {
+        type: "p",
+        text: `Reserving a handle asks you to sign in and then shows an explicit authorization screen: FurlPay Wallet is requesting read access to your profile, your balances and your transaction history, listed in plain language with a Read badge on each. You authorize or you cancel.`,
+      },
+      {
+        type: "p",
+        text: `We could have skipped it. Anonymous reservation is a lower-friction growth number and a worse product. A handle that is not bound to an authenticated account is a name with no owner — it cannot be recovered if you lose access, it cannot be revoked if it is abused, and it cannot be defended if someone else claims yours. Binding at claim time is what makes the name yours in a sense that survives a dispute.`,
+      },
+      {
+        type: "p",
+        text: `The permissions themselves are read-only by design, and that is a hard boundary rather than a default. Reserving a name grants no ability to move money, ever. In FurlPay's model, moving money is a separate action that requires a separate, stronger authorization — and an AI agent never gets it implicitly. Payments are prepared for approval; they are not executed on the strength of having been asked nicely.`,
+      },
+
+      { type: "h2", text: "The security decisions behind it" },
+      {
+        type: "p",
+        text: `Some of these are invisible when the flow works, which is the point:`,
+      },
+      {
+        type: "ul",
+        items: [
+          "One handle, exactly one account. The binding is atomic, so a race cannot produce two owners, and a name owned by another account is rejected outright rather than silently overwritten.",
+          "Session-gated writes. The reservation endpoint requires a verified session and returns a 401 to anonymous callers, so no handle can ever be claimed without an account behind it.",
+          "Cross-site protection. The write rejects requests whose origin is not our own, so a hostile page cannot ride your session cookie to claim a handle in your name.",
+          "Rate limits on both halves. The public availability check is limited per IP so the namespace cannot be enumerated at speed; the write is limited far more tightly because one account only ever needs a handful.",
+          "Schema validation on every request body, with a hard size cap, before any of it reaches storage.",
+          "Fail closed. If the datastore is unreachable, the check reports unavailable rather than guessing. Claiming a name is not something to be optimistic about.",
+          "An audit record for every reservation — which account claimed which handle, with which scopes, and when.",
+        ],
+      },
+      {
+        type: "p",
+        text: `One decision we deliberately did not make: we did not widen the redirect allowlist on FurlPay's existing OAuth server to accommodate this flow. That allowlist is the single most security-sensitive check in the connector — it is what stands between an authorization code reaching its client and reaching an attacker. Loosening a proven boundary to save writing a first-party flow would have been a poor trade, so the wallet consent is its own session-gated path and the connector's rules are untouched.`,
+      },
+
+      { type: "h2", text: "Reserve yours" },
+      {
+        type: "p",
+        text: `Go to furlpay.com/wallet, type the name you want, and watch the card update live as you type — the handle you are claiming is rendered onto it. If the name is free you will get a green check, then sign in, review the permissions, and authorize. The name is yours from that moment.`,
+      },
+      {
+        type: "ul",
+        items: [
+          "Three to thirty-two characters, letters, digits and hyphens.",
+          "Case does not matter — handles normalize to lowercase, so there is no confusable-capital trick.",
+          "Read-only permissions. No money can move as a result of reserving a name.",
+          "One name per account for now, so the namespace does not get hoarded before launch.",
+        ],
+      },
+
+      { type: "h2", text: "What is next, honestly" },
+      {
+        type: "p",
+        text: `Reservation is phase one. Funded account wallets, per-agent virtual wallets with hard spending policies, and resolution of a handle to a payment endpoint across the chains FurlPay already settles on are the phases after it. We are shipping the identity layer first because it is the piece that has to be right before anything else is built on top: names are the one part of a payment system you cannot quietly re-issue later without breaking every invoice, integration and reference that points at them.`,
+      },
+      {
+        type: "p",
+        text: `The broader bet is not that any single company wins the agentic payments layer. It is that HTTP-native payment becomes ordinary, the way TLS did — unremarkable, expected, and everywhere. When that happens, the useful question stops being which wallet you hold and becomes what your agents are permitted to do, and whether you can prove it afterwards. A name you own, bound to an account that answers for it, is where that starts.`,
+      },
+    ],
+  },
+
   // Product launch — FurlPay on Wear OS -----------------------------------
   {
     slug: "furlpay-on-your-wrist-introducing-the-wear-os-app",

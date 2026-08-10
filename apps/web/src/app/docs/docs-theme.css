@@ -1,0 +1,336 @@
+/*
+ * Docs theme — matched to the FurlPay Wallet launch page (/wallet).
+ *
+ * The docs portal previously sat on pure black with white-alpha borders. This
+ * scopes the wallet surface to the docs shell so the two read as one product:
+ * the same green-tinted near-black ground, the same ambient grid, the same
+ * panel/border tokens, the same green accent, and JetBrains Mono for every
+ * label, eyebrow and code surface.
+ *
+ * Tokens are duplicated (not imported) because wallet.css scopes its variables
+ * to .launch-page; keeping a parallel definition here means neither page can
+ * silently restyle the other.
+ */
+
+.docs-theme {
+  --accent: #00c888;
+  --accent-hover: #1ee6a3;
+  --foreground: #e7efea;
+  --muted: #93a09a;
+  --border: #24302a;
+  --panel: #121a16;
+  --panel-raised: #16211b;
+  --ground: #0a0f0c;
+
+  background: var(--ground);
+  color: var(--foreground);
+  position: relative;
+  isolation: isolate;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Same ambient grid as the wallet hero, faded out down the page. */
+.docs-theme::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(#8fe8c012 1px, #0000 1px),
+    linear-gradient(90deg, #8fe8c012 1px, #0000 1px);
+  background-size: 72px 72px;
+  -webkit-mask-image: linear-gradient(#000, #0000 92%);
+  mask-image: linear-gradient(#000, #0000 92%);
+}
+
+/* ── Shell: header, rails ─────────────────────────────────────────────── */
+
+.docs-theme header {
+  background: color-mix(in srgb, var(--ground) 82%, transparent);
+  border-bottom: 1px solid var(--border);
+}
+
+.docs-theme aside {
+  scrollbar-width: thin;
+}
+
+/* Border tokens used across the docs shell → the wallet border. */
+.docs-theme .border-white\/5,
+.docs-theme .border-white\/10,
+.docs-theme .border-white\/15 {
+  border-color: var(--border);
+}
+
+/* Surface fills → wallet panel. */
+.docs-theme .bg-white\/\[0\.02\],
+.docs-theme .bg-white\/\[0\.03\],
+.docs-theme .bg-white\/\[0\.04\],
+.docs-theme .bg-white\/5 {
+  background-color: var(--panel);
+}
+
+/* ── Type ─────────────────────────────────────────────────────────────── */
+
+.docs-theme .text-textMuted {
+  color: var(--muted);
+}
+
+.docs-theme .text-textSecondary {
+  color: var(--muted);
+}
+
+.docs-theme .text-neon {
+  color: var(--accent);
+}
+
+.docs-theme .bg-neon {
+  background-color: var(--accent);
+}
+
+.docs-theme .bg-neon\/70 {
+  background-color: color-mix(in srgb, var(--accent) 70%, transparent);
+}
+
+.docs-theme h1,
+.docs-theme h2,
+.docs-theme h3,
+.docs-theme h4 {
+  color: var(--foreground);
+  letter-spacing: -0.025em;
+}
+
+/* Eyebrows + any uppercase micro-label render in JetBrains Mono, exactly like
+   the wallet's IDENTITY / ONE OF ONE / section eyebrows. Letter-spacing is NOT
+   set here — each component owns its own tracking, and forcing one value made
+   every label look identically spaced regardless of size. */
+.docs-theme .uppercase {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── Code ─────────────────────────────────────────────────────────────── */
+
+.docs-theme code,
+.docs-theme pre,
+.docs-theme .font-mono {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.docs-theme pre {
+  background: var(--panel) !important;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  /* Long lines scroll INSIDE the block. Without this the widest line stretched
+     the document and the whole page scrolled sideways on a phone. */
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+/* Flex/grid children default to min-width:auto, which lets a wide code block
+   push its column open instead of scrolling. */
+.docs-theme main,
+.docs-theme article,
+.docs-theme article > * {
+  min-width: 0;
+}
+
+.docs-theme article {
+  max-width: 100%;
+}
+
+/* Inline code — the wallet's accent on a raised panel. */
+.docs-theme :not(pre) > code {
+  background-color: var(--panel-raised);
+  border-color: var(--border);
+  color: var(--accent);
+  border-radius: 7px;
+}
+
+/* ── Panels, cards, tables ────────────────────────────────────────────── */
+
+.docs-theme .rounded-xl,
+.docs-theme .rounded-2xl {
+  border-radius: 16px;
+}
+
+.docs-theme table {
+  border-color: var(--border);
+}
+
+.docs-theme thead {
+  background: var(--panel-raised);
+  color: var(--muted);
+}
+
+.docs-theme tbody tr + tr {
+  border-top: 1px solid var(--border);
+}
+
+/* ── Nav rails: quiet by default, green on hover/active ───────────────── */
+
+.docs-theme aside a {
+  border-radius: 9px;
+  transition: color 0.16s, background-color 0.16s;
+}
+
+.docs-theme aside a:hover {
+  color: var(--accent);
+  background-color: var(--panel);
+}
+
+/* ── Buttons ──────────────────────────────────────────────────────────── */
+
+/* The global .btn-green carries a 40px glow and a hover lift — right for a
+   marketing CTA, too loud for a docs header. Here the accent communicates
+   state, not decoration. */
+.docs-theme .btn-green {
+  background: var(--accent);
+  color: #04150f;
+  border-radius: 999px;
+  font-weight: 600;
+  box-shadow: none;
+  transform: none;
+  transition: background-color 0.16s, transform 0.16s;
+}
+
+.docs-theme .btn-green:hover {
+  background: var(--accent-hover);
+  transform: none;
+  box-shadow: none;
+}
+
+.docs-theme .btn-green:active {
+  transform: translateY(1px) scale(0.99);
+}
+
+/* Search field reads as the wallet's name input. */
+.docs-theme input[type="text"],
+.docs-theme input[type="search"],
+.docs-theme input:not([type]) {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--foreground);
+  transition: border-color 0.18s, box-shadow 0.18s;
+}
+
+.docs-theme input[type="text"]:focus,
+.docs-theme input[type="search"]:focus,
+.docs-theme input:not([type]):focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #00e59924;
+}
+
+.docs-theme input::placeholder {
+  color: #6b7670;
+}
+
+/* Selection matches the brand green rather than the browser default. */
+.docs-theme ::selection {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--foreground);
+}
+
+/* ── Header ───────────────────────────────────────────────────────────── */
+
+.docs-header {
+  background: color-mix(in srgb, var(--ground) 78%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+}
+
+/* ── Nav rails: quiet scrollbars ──────────────────────────────────────── */
+/* A default scrollbar in a 240px rail is a bright chrome-coloured slab; it
+   competed with the navigation it was scrolling. */
+
+.docs-theme aside {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+  overscroll-behavior: contain;
+}
+
+.docs-theme aside::-webkit-scrollbar {
+  width: 6px;
+}
+
+.docs-theme aside::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.docs-theme aside::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+/* Reveal the thumb only while the rail is actually being used. */
+.docs-theme aside:hover::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+
+.docs-theme aside:hover::-webkit-scrollbar-thumb:hover {
+  background: #33443b;
+}
+
+/* ── Article rhythm ───────────────────────────────────────────────────── */
+/* One spacing scale, so headings, prose and cards stop being "almost" aligned. */
+
+.docs-theme article > h2 {
+  margin-top: 3.5rem;
+  margin-bottom: 1rem;
+  font-size: 22px;
+  line-height: 1.3;
+  letter-spacing: -0.02em;
+  scroll-margin-top: 6rem;
+}
+
+.docs-theme article > h3 {
+  margin-top: 2.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  scroll-margin-top: 6rem;
+}
+
+.docs-theme article > p,
+.docs-theme article > ul {
+  line-height: 1.72;
+}
+
+/* A hairline above each major section makes the document scannable without
+   adding a visible divider to every element. */
+.docs-theme article > h2::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 1px;
+  background: var(--border);
+  opacity: 0.55;
+  margin-bottom: 1.75rem;
+}
+
+/* The first section heading sits right under the lead paragraph, where a rule
+   would read as a stray line rather than a separator. */
+.docs-theme article > h2:first-of-type::before {
+  display: none;
+}
+
+/* ── Motion ───────────────────────────────────────────────────────────── */
+
+.docs-theme {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .docs-theme,
+  .docs-theme * {
+    scroll-behavior: auto;
+  }
+  .docs-theme *,
+  .docs-theme *::before,
+  .docs-theme *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

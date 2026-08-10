@@ -54,6 +54,9 @@ export type AuditEvent =
   | "wallet.link_challenge_issued"
   | "wallet.link_established"
   | "wallet.link_rejected"
+  // Wallet-handle reservation: which account claimed which pre-launch handle,
+  // and the read scopes granted at consent.
+  | "wallet.handle_reserved"
   | "agent.key_registered"
   | "agent.key_revoked"
   | "agent.spend_authorized"

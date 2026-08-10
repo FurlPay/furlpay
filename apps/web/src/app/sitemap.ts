@@ -34,6 +34,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/ambassadors", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/payouts", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/marketplace", priority: 0.8, changeFrequency: "weekly" as const },
+    // Wallet-name reservation funnel — an active launch surface, so it ranks
+    // alongside the top marketing pages while handles are still open.
+    { path: "/wallet", priority: 0.95, changeFrequency: "daily" as const },
     { path: "/waitlist", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/grants", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/press", priority: 0.5, changeFrequency: "monthly" as const },

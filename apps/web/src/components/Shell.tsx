@@ -27,6 +27,7 @@ const FULL_BLEED = (pathname: string) =>
   pathname === "/waitlist" ||
   pathname === "/grants" ||
   pathname === "/marketplace" ||
+  pathname.startsWith("/wallet") || // Wallet reservation + consent — standalone landing, no app chrome
   pathname === "/ambassadors" || // Creator Program — full desktop marketing landing
   pathname.startsWith("/products") || // Product landing pages — full desktop marketing layout
   pathname.startsWith("/hackathon") || // Build Challenge — full desktop landing
