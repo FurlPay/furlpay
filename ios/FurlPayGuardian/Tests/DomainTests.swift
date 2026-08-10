@@ -16,12 +16,12 @@ import Foundation
 @Suite("Guardian score")
 struct GuardianScoreTests {
 
-    private func rising(_ n: Int) -> [Double] {
-        (0..<n).map { 100.0 * pow(1.01, Double($0)) }
+    private func rising(_ count: Int) -> [Double] {
+        (0..<count).map { 100.0 * pow(1.01, Double($0)) }
     }
 
-    private func falling(_ n: Int) -> [Double] {
-        (0..<n).map { 100.0 * pow(0.99, Double($0)) }
+    private func falling(_ count: Int) -> [Double] {
+        (0..<count).map { 100.0 * pow(0.99, Double($0)) }
     }
 
     @Test("Too little history returns nothing rather than a guess")
@@ -156,8 +156,8 @@ struct PrioritizeEventsTests {
         (24.0 * 60 + 1, EventPriority.low),
     ])
     func urgencyBands(minutes: Double, expected: EventPriority) {
-        let e = event("x", .low, inMinutes: minutes)
-        #expect(subject.effectivePriority(e, at: now) == expected)
+        let lowEvent = event("x", .low, inMinutes: minutes)
+        #expect(subject.effectivePriority(lowEvent, at: now) == expected)
     }
 
     @Test("A past-due event is critical")

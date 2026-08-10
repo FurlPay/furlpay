@@ -15,13 +15,13 @@ struct PushDeepLinkTests {
 
     @Test("Plain links resolve", arguments: [
         ("dashboard", GuardianDeepLink.dashboard),
-        ("cards",     GuardianDeepLink.cards),
-        ("wallet",    GuardianDeepLink.wallet),
-        ("spending",  GuardianDeepLink.spending),
+        ("cards", GuardianDeepLink.cards),
+        ("wallet", GuardianDeepLink.wallet),
+        ("spending", GuardianDeepLink.spending),
         ("portfolio", GuardianDeepLink.portfolio),
-        ("markets",   GuardianDeepLink.markets),
-        ("travel",    GuardianDeepLink.travel),
-        ("reminders", GuardianDeepLink.reminders),
+        ("markets", GuardianDeepLink.markets),
+        ("travel", GuardianDeepLink.travel),
+        ("reminders", GuardianDeepLink.reminders)
     ])
     func plainLinks(raw: String, expected: GuardianDeepLink) {
         #expect(GuardianDeepLink(payload: ["link": raw]) == expected)
@@ -41,7 +41,7 @@ struct PushDeepLinkTests {
 
     @Test("Unknown, empty, and malformed links resolve to nil", arguments: [
         "settings", "admin", "https://furlpay.com/admin", "", "card", "card:",
-        "stock:", "CARDS", "../cards",
+        "stock:", "CARDS", "../cards"
     ])
     func rejectsUnknown(raw: String) {
         #expect(GuardianDeepLink(payload: ["link": raw]) == nil)

@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Select Xcode ${{ env.XCODE_VERSION }} or newer
         run: |
@@ -200,10 +200,14 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: guardian-test-results
           path: ios/FurlPayGuardian/TestResults.xcresult
+          # The bundle exists only if `xcodebuild test` got far enough to write
+          # it. Staying silent keeps the real compile error the loudest thing
+          # in the log instead of a spurious artifact warning next to it.
+          if-no-files-found: ignore
           retention-days: 7
 
   lint:
@@ -211,7 +215,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: brew install swiftlint
       # Non-blocking to start with: turning 8k lines of never-linted Swift into
       # a required gate on day one would just get the job disabled.

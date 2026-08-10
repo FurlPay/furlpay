@@ -98,9 +98,9 @@ struct TapToPayChargeTests {
 
     @Test("Each charge gets its own idempotency key by default")
     func distinctKeys() {
-        let a = TapToPayCharge(amount: 10)
-        let b = TapToPayCharge(amount: 10)
-        #expect(a.idempotencyKey != b.idempotencyKey)
+        let firstCharge = TapToPayCharge(amount: 10)
+        let secondCharge = TapToPayCharge(amount: 10)
+        #expect(firstCharge.idempotencyKey != secondCharge.idempotencyKey)
     }
 
     @Test("An explicit key is preserved, so a retry is the SAME sale")

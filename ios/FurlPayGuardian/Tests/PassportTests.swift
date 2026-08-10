@@ -142,7 +142,10 @@ struct PassportVaultLockTests {
     func deleteRequiresFreshAuth() async {
         // Unlocking is permission to look. Destroying a verified document is a
         // different question, and an unattended unlocked phone must not answer it.
-        let gate = ScriptedBiometricGate(results: [.authenticated, .denied(reason: "cancelled")], fallback: .denied(reason: "cancelled"))
+        let gate = ScriptedBiometricGate(
+            results: [.authenticated, .denied(reason: "cancelled")],
+            fallback: .denied(reason: "cancelled")
+        )
         let repo = repository(gate)
         _ = await repo.unlock()
 
@@ -195,7 +198,7 @@ struct PassportOutcomeTests {
 struct TravelDocumentTests {
 
     @Test("Flags are derived from the ISO code", arguments: [
-        ("GB", "🇬🇧"), ("US", "🇺🇸"), ("IN", "🇮🇳"), ("NL", "🇳🇱"),
+        ("GB", "🇬🇧"), ("US", "🇺🇸"), ("IN", "🇮🇳"), ("NL", "🇳🇱")
     ])
     func flags(code: String, expected: String) {
         #expect(makeDocument(country: code).flag == expected)
@@ -268,7 +271,7 @@ struct PassportAttentionTests {
             makeDocument(id: "soon", status: .verified, expiringSoon: true),
             makeDocument(id: "gone", status: .expired, expired: true),
             makeDocument(id: "bad", status: .failed),
-            makeDocument(id: "waiting", status: .pending),
+            makeDocument(id: "waiting", status: .pending)
         ]
         let ids = PassportRepository.documentsNeedingAttention(docs).map(\.id)
         #expect(Set(ids) == ["soon", "gone", "bad"])

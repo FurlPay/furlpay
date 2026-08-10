@@ -76,28 +76,28 @@ struct SpendingSummaryTests {
     @Test("Window lookup prefers the detailed form")
     func prefersWindows() {
         let detailed = SpendingWindow(totalUsd: 42, transactionCount: 7, topCategory: "Coffee")
-        let s = summary(windows: [SpendingPeriod.today.wireName: detailed])
-        #expect(s.window(.today).totalUsd == 42)
-        #expect(s.window(.today).topCategory == "Coffee")
+        let spending = summary(windows: [SpendingPeriod.today.wireName: detailed])
+        #expect(spending.window(.today).totalUsd == 42)
+        #expect(spending.window(.today).topCategory == "Coffee")
     }
 
     @Test("A snapshot written before `windows` existed still answers with its totals")
     func fallsBackToTotals() {
         // The watch and the phone update independently. An older snapshot must
         // degrade to the bare number, not blank the screen.
-        let s = summary(windows: nil)
-        #expect(s.window(.today).totalUsd == 10)
-        #expect(s.window(.thisWeek).totalUsd == 70)
-        #expect(s.window(.thisMonth).totalUsd == 300)
-        #expect(s.window(.today).transactionCount == 0)
+        let spending = summary(windows: nil)
+        #expect(spending.window(.today).totalUsd == 10)
+        #expect(spending.window(.thisWeek).totalUsd == 70)
+        #expect(spending.window(.thisMonth).totalUsd == 300)
+        #expect(spending.window(.today).transactionCount == 0)
     }
 
     @Test("A summary with only some windows falls back for the rest")
     func partialWindows() {
-        let s = summary(windows: [
+        let spending = summary(windows: [
             SpendingPeriod.today.wireName: SpendingWindow(totalUsd: 42, transactionCount: 7),
         ])
-        #expect(s.window(.today).totalUsd == 42)
+        #expect(spending.window(.today).totalUsd == 42)
         #expect(s.window(.thisMonth).totalUsd == 300)
     }
 

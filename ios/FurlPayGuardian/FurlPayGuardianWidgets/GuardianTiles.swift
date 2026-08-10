@@ -163,12 +163,16 @@ struct MarketTile: Widget {
         ) { entry in
             let quotes = entry.snapshot?.markets ?? []
             let lead = quotes.first
+            // `changePercent24h` and `price` are BOTH optional on MarketQuote.
+            // A missing value renders the dash rather than defaulting to 0 —
+            // a tile that says "+0.00%" when the quote never arrived is worse
+            // than one that admits it has no number yet.
             TileBody(
-                caption: lead.map { $0.changePercent.signedPercent } ?? "Markets",
-                headline: lead.map { "\($0.symbol) \($0.price.usdCompact)" } ?? dash,
-                headlineColor: lead.map { GuardianColors.forChange($0.changePercent) } ?? .secondary,
+                caption: lead?.changePercent24h.map(\.signedPercent) ?? "Markets",
+                headline: lead.map { "\($0.symbol) \($0.price?.usdCompact ?? dash)" } ?? dash,
+                headlineColor: lead?.changePercent24h.map(GuardianColors.forChange) ?? .secondary,
                 detail: quotes.dropFirst().prefix(2)
-                    .map { "\($0.symbol) \($0.changePercent.signedPercent)" }
+                    .map { "\($0.symbol) \($0.changePercent24h.map(\.signedPercent) ?? dash)" }
                     .joined(separator: " · ")
             )
             .widgetURL(TileRoute.markets.url)

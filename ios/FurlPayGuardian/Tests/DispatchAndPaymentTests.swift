@@ -180,9 +180,9 @@ struct AlarmIdentifierTests {
     func deterministic() {
         // Cancel must find what schedule created. A non-deterministic mapping
         // would leave alarms ringing that nothing can stop.
-        let a = GuardianAlarmKitScheduler.alarmId(for: "reminder-abc-123")
-        let b = GuardianAlarmKitScheduler.alarmId(for: "reminder-abc-123")
-        #expect(a == b)
+        let firstId = GuardianAlarmKitScheduler.alarmId(for: "reminder-abc-123")
+        let secondId = GuardianAlarmKitScheduler.alarmId(for: "reminder-abc-123")
+        #expect(firstId == secondId)
     }
 
     @Test("Different event ids map to different alarm ids")
