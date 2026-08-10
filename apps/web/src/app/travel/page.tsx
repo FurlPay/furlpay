@@ -141,12 +141,20 @@ export default function TravelHubPage() {
             </Link>
           </div>
         </div>
-        <div className="flex snap-x gap-4 overflow-x-auto pb-2">
-          {deals.map((d) => (
+        {/* Below lg this is an intentional carousel that scrolls INSIDE itself
+            (it was missing `no-scrollbar`, so a raw scrollbar rendered as a
+            stray line). From lg up it becomes a 4-up grid so cards fit the
+            container exactly instead of the last one being sliced by the edge.
+            Cards past the fourth are hidden on desktop — "View all deals"
+            covers them — so the row never breaks into a lonely orphan. */}
+        <div className="no-scrollbar -mx-1 flex snap-x snap-mandatory gap-4 overflow-x-auto scroll-p-1 px-1 pb-2 lg:mx-0 lg:grid lg:grid-cols-4 lg:overflow-visible lg:px-0">
+          {deals.map((d, i) => (
             <Link
               key={d.id}
               href={`/travel/checkout?kind=stay&ref=${d.id}&name=${encodeURIComponent(d.name)}&amount=${d.nightlyUsd}&nights=1&img=${encodeURIComponent(d.photo)}`}
-              className="group w-56 shrink-0 snap-start overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/25 hover:shadow-glow-sm"
+              className={`group w-56 shrink-0 snap-start overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/25 hover:shadow-glow-sm lg:w-auto ${
+                i >= 4 ? "lg:hidden" : ""
+              }`}
             >
               <div className="relative h-28 overflow-hidden">
                 <img

@@ -55,42 +55,51 @@ export default function TravelHero() {
 
       {/* inputs */}
       <div className="grid gap-2.5 sm:grid-cols-4">
-        <label className="col-span-2 flex items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3">
+        {/* `sm:` prefix is load-bearing: below the breakpoint the grid is a
+            single column, and an unprefixed `col-span-2` forces an implicit
+            SECOND column. Two content-sized inputs then sat side by side and
+            pushed the document to 401px on a 375px phone — the page-level
+            horizontal scroll. */}
+        <label className="flex min-w-0 items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3 sm:col-span-2">
           <MapPin className="h-4 w-4 shrink-0 text-textSecondary" />
           <input
             value={city}
             onChange={(e) => setCity(e.target.value)}
             placeholder={tab === "flights" ? "From → To" : "Where to?"}
-            className="w-full bg-transparent text-sm text-white placeholder:text-textSecondary focus:outline-none"
+            aria-label={tab === "flights" ? "Route, from and to" : "Destination"}
+            className="w-full min-w-0 bg-transparent text-sm text-white placeholder:text-textSecondary focus:outline-none"
           />
         </label>
-        <label className="flex items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3">
+        <label className="flex min-w-0 items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3">
           <CalendarDays className="h-4 w-4 shrink-0 text-textSecondary" />
           <input
             type="date"
             value={checkIn}
             onChange={(e) => setCheckIn(e.target.value)}
-            className="w-full bg-transparent text-sm text-white [color-scheme:dark] focus:outline-none"
+            aria-label={tab === "flights" ? "Departure date" : "Check-in date"}
+            className="w-full min-w-0 bg-transparent text-sm text-white [color-scheme:dark] focus:outline-none"
           />
         </label>
-        <label className="flex items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3">
+        <label className="flex min-w-0 items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3">
           <CalendarDays className="h-4 w-4 shrink-0 text-textSecondary" />
           <input
             type="date"
             value={checkOut}
             onChange={(e) => setCheckOut(e.target.value)}
-            className="w-full bg-transparent text-sm text-white [color-scheme:dark] focus:outline-none"
+            aria-label={tab === "flights" ? "Return date" : "Check-out date"}
+            className="w-full min-w-0 bg-transparent text-sm text-white [color-scheme:dark] focus:outline-none"
           />
         </label>
       </div>
 
       <div className="mt-2.5 grid gap-2.5 sm:grid-cols-4">
-        <label className="flex items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3">
+        <label className="flex min-w-0 items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3">
           <Users className="h-4 w-4 shrink-0 text-textSecondary" />
           <select
             value={guests}
             onChange={(e) => setGuests(Number(e.target.value))}
-            className="w-full bg-transparent text-sm text-white focus:outline-none [&>option]:text-black"
+            aria-label="Number of guests"
+            className="w-full min-w-0 bg-transparent text-sm text-white focus:outline-none [&>option]:text-black"
           >
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <option key={n} value={n}>
