@@ -108,5 +108,13 @@ public actor KeychainTokenStore {
         cached = nil
     }
 
-    public var isSignedIn: Bool { get() != nil }
+    /// `self.` is required, not stylistic: inside a computed property Swift
+    /// reads a bare `get` as the getter keyword and fails with
+    /// "expected '{' to start getter definition". Qualifying it names the
+    /// method instead.
+    ///
+    /// NOTE: this reports only that a token EXISTS. It is a UI hint, not an
+    /// authorization check — the server authorizes every request, and
+    /// FurlPayAPIClient clears the token on a 401.
+    public var isSignedIn: Bool { self.get() != nil }
 }

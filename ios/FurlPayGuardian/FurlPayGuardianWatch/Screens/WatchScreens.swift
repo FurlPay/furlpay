@@ -12,7 +12,9 @@
 import SwiftUI
 import Charts
 import WatchKit
+#if canImport(CoreImage) && !os(watchOS)
 import CoreImage.CIFilterBuiltins
+#endif
 
 // MARK: - Home / AI brief
 
@@ -311,7 +313,14 @@ struct WatchQuickPayView: View {
 }
 
 enum QRRenderer {
+    /// Renders a QR code, or nil when this platform cannot.
+    ///
+    /// `CIContext` is not available on watchOS, so the whole CoreImage path is
+    /// compiled out there rather than failing to build. The return type was
+    /// already Optional and every caller handles nil, so a watch that cannot
+    /// rasterise a code shows its existing fallback instead of a broken view.
     static func image(from string: String) -> UIImage? {
+        #if canImport(CoreImage) && !os(watchOS)
         let filter = CIFilter.qrCodeGenerator()
         filter.message = Data(string.utf8)
         filter.correctionLevel = "M"
@@ -319,6 +328,9 @@ enum QRRenderer {
         let scaled = output.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
         guard let cg = CIContext().createCGImage(scaled, from: scaled.extent) else { return nil }
         return UIImage(cgImage: cg)
+        #else
+        return nil
+        #endif
     }
 }
 
