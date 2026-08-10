@@ -41,6 +41,10 @@ export const POSTS: Post[] = [
     readMins: 12,
     author: "Ashutosh Kumar Singh",
     featured: true,
+    // The wallet card itself — the thing the post is about. Filename avoids the
+    // `furlpay*.png` rule in .gitignore, which would silently keep it out of
+    // the repo and 404 in production.
+    cover: "/blog/wallet-names.png",
     body: [
       {
         type: "p",
