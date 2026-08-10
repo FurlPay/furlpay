@@ -154,12 +154,12 @@ jobs:
           set -euo pipefail
           # Pick whatever simulators this image actually has rather than
           # hardcoding a device name that Apple renames every year.
-          phone=$(xcrun simctl list devices available -j \
-            | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];\
-print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")
-          watch=$(xcrun simctl list devices available -j \
-            | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];\
-print(next(x['udid'] for k,v in d.items() if 'watchOS' in k for x in v if 'Watch' in x['name']))")
+          # Kept on ONE line each: a backslash-continued string whose next line
+          # started at column 1 terminated the YAML block scalar, so GitHub
+          # could not parse this file at all and failed the run in 0s on every
+          # push — regardless of the ios/** path filter above.
+          phone=$(xcrun simctl list devices available -j | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")
+          watch=$(xcrun simctl list devices available -j | python3 -c "import json,sys;d=json.load(sys.stdin)['devices'];print(next(x['udid'] for k,v in d.items() if 'watchOS' in k for x in v if 'Watch' in x['name']))")
           echo "phone=$phone" >> "$GITHUB_OUTPUT"
           echo "watch=$watch" >> "$GITHUB_OUTPUT"
           echo "iPhone sim: $phone"
