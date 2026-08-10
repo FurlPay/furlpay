@@ -59,3 +59,9 @@ wear os*.png
 # repo has outside collaborators. Keep it out of version control entirely.
 furlpay_prospects_enriched_v2.csv
 furlpay_prospects_enriched_v2.xlsx
+
+# Scratch capture of a third-party site, kept locally for analysis only. It
+# contains another company's minified bundle and branding, so it must never
+# enter this repo's history — committing it would ship their code inside a
+# commercial product.
+furlpay_pay/
