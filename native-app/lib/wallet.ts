@@ -53,6 +53,44 @@ const CHAIN_IDS: Record<string, number> = {
   ethereum: 1,
 };
 
+/**
+ * The ONLY token contracts this device will sign a transfer authorization for,
+ * pinned per network. Mirrors the canonical registry in
+ * apps/web/src/lib/services/chainRegistry.ts.
+ *
+ * Why this exists: the EIP-712 domain (`verifyingContract` + `chainId`) is what
+ * binds a signature to a specific token on a specific chain, and both values
+ * previously came straight from the server's /transfers/gasless quote. A
+ * compromised or spoofed backend could therefore name any contract it liked and
+ * the device would sign a valid EIP-3009 authorization against it — the user's
+ * biometric said "send USDC", the bytes said something else. The backend is not
+ * a trust anchor for what we sign; only this table is.
+ *
+ * Fail closed: a network with no pinned address cannot be signed for at all.
+ * Adding a network here is a deliberate act, which is the point.
+ */
+const USDC_BY_NETWORK: Record<string, string> = {
+  arbitrum: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+  "arbitrum-sepolia": "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d",
+  base: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+  ethereum: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  polygon: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+};
+
+/** USDC is 6dp everywhere. lib/money.ts parses to atomic units on that
+ *  assumption, so a quote claiming anything else is a unit-confusion bug or an
+ *  attack, never something to scale around silently. */
+const USDC_DECIMALS = 6;
+
+/** Thrown when a server-supplied quote does not match what this device is
+ *  willing to sign. Separate type so the UI can say "we didn't sign" plainly. */
+export class UntrustedQuoteError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "UntrustedQuoteError";
+  }
+}
+
 // SecureStore options: Keystore-backed, and the mnemonic can only be read after
 // a device biometric/credential check.
 const SECURE_OPTS: SecureStore.SecureStoreOptions = {
@@ -87,9 +125,7 @@ export async function createWallet(): Promise<{ mnemonic: string; address: strin
   const entropy = Crypto.getRandomBytes(16); // 128-bit → 12-word mnemonic
   const mnemonic = entropyToMnemonic(entropy, wordlist);
   const address = addressFromMnemonic(mnemonic);
-  await SecureStore.setItemAsync(MNEMONIC_KEY, mnemonic, SECURE_OPTS);
-  await SecureStore.setItemAsync(EXISTS_KEY, "1");
-  await SecureStore.setItemAsync(ADDRESS_KEY, address);
+  await persistWallet(mnemonic, address);
   return { mnemonic, address };
 }
 
@@ -98,10 +134,32 @@ export async function importWallet(mnemonic: string): Promise<{ address: string 
   const phrase = mnemonic.trim().toLowerCase().replace(/\s+/g, " ");
   if (!validateMnemonic(phrase, wordlist)) throw new Error("That recovery phrase is not valid.");
   const address = addressFromMnemonic(phrase);
-  await SecureStore.setItemAsync(MNEMONIC_KEY, phrase, SECURE_OPTS);
-  await SecureStore.setItemAsync(EXISTS_KEY, "1");
-  await SecureStore.setItemAsync(ADDRESS_KEY, address);
+  await persistWallet(phrase, address);
   return { address };
+}
+
+/**
+ * Write a wallet to secure storage in an order that cannot leave a NEW key
+ * paired with an OLD cached address.
+ *
+ * The writes are three separate, non-atomic SecureStore calls. The previous
+ * order was mnemonic → EXISTS → address, so an address write that failed on an
+ * import left `EXISTS=1` and a stale ADDRESS: `getKnownAddress()` would then
+ * report an address whose key this device no longer holds, and the Receive
+ * screen (app/receive.tsx) renders exactly that value as the deposit target.
+ * Funds sent there would be unspendable.
+ *
+ * Order here: clear the stale cache first, then the key, then the address, and
+ * only then the EXISTS marker that makes the wallet "real" to the rest of the
+ * app. Every partial failure now leaves the wallet looking absent or
+ * address-less, and both of those degrade to the biometric-gated `getAddress()`
+ * which re-derives from the mnemonic — the source of truth.
+ */
+async function persistWallet(mnemonic: string, address: string): Promise<void> {
+  await SecureStore.deleteItemAsync(ADDRESS_KEY).catch(() => {});
+  await SecureStore.setItemAsync(MNEMONIC_KEY, mnemonic, SECURE_OPTS);
+  await SecureStore.setItemAsync(ADDRESS_KEY, address);
+  await SecureStore.setItemAsync(EXISTS_KEY, "1"); // last: the readiness marker
 }
 
 /** Reveal the mnemonic for backup — triggers the biometric gate. */
@@ -153,6 +211,19 @@ export async function signTransferAuthorization(
 ): Promise<string> {
   const chainId = CHAIN_IDS[opts.network];
   if (chainId === undefined) throw new Error(`Unsupported network: ${opts.network}`);
+
+  // Bind the EIP-712 domain to a contract WE pin, not one the caller supplied.
+  // This is the last point before the key touches the digest, so it is the only
+  // place the check is worth anything: every path into signing passes here.
+  const pinned = USDC_BY_NETWORK[opts.network];
+  if (!pinned) {
+    throw new UntrustedQuoteError(`No pinned USDC contract for network: ${opts.network}`);
+  }
+  if (opts.verifyingContract.toLowerCase() !== pinned.toLowerCase()) {
+    throw new UntrustedQuoteError(
+      "Refusing to sign: the token contract does not match the known USDC contract for this network."
+    );
+  }
 
   const mnemonic = await SecureStore.getItemAsync(MNEMONIC_KEY, SECURE_OPTS);
   if (!mnemonic) throw new Error("No wallet on this device.");
@@ -446,6 +517,22 @@ export type GaslessResult =
 export async function sendGasless(to: string, amountUsd: string): Promise<GaslessResult> {
   const atomic = parseUsdcAmount(amountUsd); // throws AmountError; guarantees > 0n
   const quote = await api<GaslessQuote>("/transfers/gasless", { anonymous: false });
+
+  // The quote is untrusted input. `atomic` was scaled by 10^6 on the assumption
+  // the asset is USDC; a quote naming a different precision would mean the
+  // number we sign is not the number the user typed (a 2dp asset would sign
+  // 10,000x the intended amount). Reject rather than rescale — silently
+  // honouring a server-chosen precision is how decimal-confusion drains a
+  // wallet. The contract itself is re-checked inside signTransferAuthorization.
+  if (quote.asset.decimals !== USDC_DECIMALS) {
+    throw new UntrustedQuoteError(
+      `Refusing to sign: expected a ${USDC_DECIMALS}-decimal asset, quote says ${quote.asset.decimals}.`
+    );
+  }
+  if (quote.asset.symbol?.toUpperCase() !== "USDC") {
+    throw new UntrustedQuoteError(`Refusing to sign: expected USDC, quote says ${quote.asset.symbol}.`);
+  }
+
   const from = await getAddress(); // biometric gate #1 (address read)
 
   const now = Math.floor(Date.now() / 1000);
