@@ -1,6 +1,6 @@
 {
   "name": "@furlpay/cli",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "mcpName": "io.github.FurlPay/furlpay-cli",
   "description": "FurlPay CLI â€” stablecoin payments, investing, travel booking, yield and webhook tooling from your terminal. MCP server included.",
   "license": "MIT",
@@ -9,7 +9,8 @@
   },
   "files": [
     "bin",
-    "lib"
+    "lib",
+    "CHANGELOG.md"
   ],
   "type": "commonjs",
   "repository": {
