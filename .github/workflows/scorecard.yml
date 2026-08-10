@@ -38,7 +38,20 @@ jobs:
     runs-on: ubuntu-latest
     # Skip on forks: publish_results would fail without the upstream identity,
     # and a fork's score is not meaningful anyway.
-    if: github.event.repository.fork == false
+    #
+    # Skip while the repository is PRIVATE. Scorecard reads commit history and
+    # branch-protection state through the GitHub GraphQL API, which the default
+    # Actions token cannot reach on a private repo — the run dies with
+    # "githubv4.Query: Resource not accessible by integration" every single
+    # time. That is a permanent red check reporting nothing about the code, and
+    # a check that can never pass is worse than no check: it trains everyone to
+    # ignore a failing badge.
+    #
+    # Written as a visibility test rather than deleting the workflow, so the
+    # analysis starts running by itself the day this repo is made public.
+    if: >-
+      github.event.repository.fork == false &&
+      github.event.repository.visibility == 'public'
     permissions:
       # Upload the SARIF result to the Security tab.
       security-events: write
@@ -49,7 +62,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -67,7 +80,7 @@ jobs:
       # alerts age out, and a grant or enterprise review may ask for a specific
       # historical run.
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: scorecard-results
           path: results.sarif
