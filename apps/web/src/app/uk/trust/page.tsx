@@ -7,7 +7,7 @@ import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
 
 export const metadata: Metadata = {
-  title: "UK Trust, Risk & FCA Status — Furlpay",
+  title: "UK Trust, Risk & FCA Status",
   description:
     "Furlpay's UK regulatory status, cryptoasset risk information, and security posture. Honest status: not yet FCA authorised — the authorisation gateway opens 30 September 2026.",
   alternates: {

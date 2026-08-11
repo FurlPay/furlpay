@@ -8,7 +8,7 @@ import { breadcrumb } from "@/lib/seo/schema";
 import { altLanguages } from "@/lib/seo/hreflang";
 
 export const metadata: Metadata = {
-  title: "Crypto Payment Gateway Japan — Accept USDC at 0.5% | Furlpay",
+  title: "Crypto Payment Gateway Japan — Accept USDC at 0.5%",
   description:
     "Furlpay for Japan: accept USDC stablecoin payments at 0.5% instead of 3–4% card fees plus FX. For Tokyo and Kyoto hotels, ryokans, airlines and merchants. USDC is a legal Electronic Payment Instrument in Japan.",
   alternates: {

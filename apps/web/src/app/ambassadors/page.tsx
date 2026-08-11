@@ -6,7 +6,7 @@ import AmbassadorForm from "@/components/marketing/AmbassadorForm";
 import { XIcon, InstagramIcon, YouTubeIcon, LinkedInIcon, DiscordIcon, TelegramIcon, GitHubIcon } from "@/components/marketing/SocialIcons";
 
 export const metadata: Metadata = {
-  title: "Creator Program — Earn USDC for Travel Content | Furlpay",
+  title: "Creator Program — Earn USDC for Travel Content",
   description:
     "Turn travel content into instant USDC. The Furlpay Creator Program pays up to 10% commission, weekly, on-chain — no 60-day holds, no bank minimums. Your followers earn 2% cashback too.",
   alternates: { canonical: "/ambassadors" },

@@ -7,7 +7,7 @@ import { breadcrumb } from "@/lib/seo/schema";
 import { CITIES } from "@/lib/cities";
 
 export const metadata: Metadata = {
-  title: "Pay for Hotels with Crypto — City Guides | Furlpay",
+  title: "Pay for Hotels with Crypto — City Guides",
   description:
     "City-by-city guides to paying for and accepting hotel payments in crypto (USDC on Arbitrum) — Miami, New York, London, Dubai and more. 0.5% fees, no chargebacks.",
   alternates: { canonical: "/hotels" },
