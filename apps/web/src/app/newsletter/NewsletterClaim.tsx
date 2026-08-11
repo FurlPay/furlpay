@@ -239,9 +239,14 @@ export default function NewsletterClaim({ initialEdition }: { initialEdition: st
             >
               {status === "error" ? message : ""}
             </p>
+            {/* This is the consent notice shown AT the point of consent, so it
+                has to match what the route actually writes — address, topics,
+                timestamp and the originating IP (see lib/newsletter.ts). The
+                earlier wording said "nothing else" while omitting the IP, which
+                the FAQ further down the page disclosed correctly. */}
             <p className="reservation-disclaimer">
-              We store your address, your topic selection and a consent timestamp — nothing
-              else. One-click unsubscribe on every email.
+              We store your address, your topic selection, a consent timestamp and the IP the
+              consent came from — nothing else. One-click unsubscribe on every email.
             </p>
           </div>
         </>

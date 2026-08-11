@@ -52,7 +52,15 @@ jobs:
             p/react
           SEMGREP_TIMEOUT: 300
         run: |
-          semgrep ci \
+          # `semgrep ci` does NOT accept --severity (that is `semgrep scan`),
+          # so this invocation aborted instantly with "unknown option
+          # '--severity'". Nothing was scanned, semgrep-results.sarif was never
+          # written, the SARIF upload then failed with "Path does not exist",
+          # and the job still posted "⚠️ Security issues detected" on every PR.
+          # A scanner that fails open while announcing findings is worse than no
+          # scanner: it trains readers to ignore it.
+          semgrep scan \
+            --config auto \
             --sarif --output=semgrep-results.sarif \
             --exclude="node_modules" \
             --exclude=".next" \
@@ -61,13 +69,23 @@ jobs:
             --exclude="*.spec.*" \
             --severity ERROR \
             --severity WARNING \
+            --metrics off \
             2>&1 | tee semgrep-output.txt
 
-          # Count findings
-          ERRORS=$(grep -c "severity: ERROR" semgrep-output.txt || echo "0")
-          WARNINGS=$(grep -c "severity: WARNING" semgrep-output.txt || echo "0")
-          echo "errors=$ERRORS" >> $GITHUB_OUTPUT
-          echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+          # Count from the SARIF, not from console text: the human-readable
+          # output has no "severity: ERROR" lines, so the old greps could only
+          # ever produce 0. `grep -c` also EXITS 1 on zero matches, so
+          # `$(grep -c … || echo 0)` emitted "0\n0" — a two-line value, which is
+          # what GitHub rejected with "Invalid format '0'".
+          count_sarif() { # count_sarif <sarif level>
+            [ -f semgrep-results.sarif ] || { echo 0; return; }
+            jq --arg lvl "$1" '[.runs[]?.results[]? | select((.level // "warning") == $lvl)] | length' \
+              semgrep-results.sarif 2>/dev/null || echo 0
+          }
+          ERRORS=$(count_sarif error)
+          WARNINGS=$(count_sarif warning)
+          echo "errors=${ERRORS:-0}" >> $GITHUB_OUTPUT
+          echo "warnings=${WARNINGS:-0}" >> $GITHUB_OUTPUT
 
       - name: Upload SARIF to GitHub Security
         if: always()
