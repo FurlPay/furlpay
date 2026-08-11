@@ -11,7 +11,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import CardShader, { handleSeed } from "./CardShader";
+import HoloCard, { FurlIcon, handleSeed } from "@/components/card/HoloCard";
 
 // Stable seed for the live claim card's holographic finish. Constant so the
 // WebGL program is not rebuilt on every keystroke; the success card seeds from
@@ -107,20 +107,6 @@ function parseCheck(data: unknown): CheckResponse {
   };
 }
 
-/** The official FurlPay app icon. Used only on this page. Sized by CSS per
- *  context (nav wordmark, card brand, success back face). */
-function FurlIcon({ className = "" }: { className?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element -- static brand icon in public/, sized by CSS in three contexts; next/image's wrapper fights the 3D card layout
-    <img
-      src="/wallet/mark.png"
-      alt="FurlPay"
-      aria-hidden="true"
-      className={`furl-icon ${className}`.trim()}
-    />
-  );
-}
-
 interface CardProps {
   displayName: string;
   seed: number;
@@ -132,39 +118,19 @@ interface CardProps {
 function WalletCard({ displayName, seed, onPointerMove, onPointerLeave, cardRef }: CardProps) {
   const handle = displayName || "yourname";
   return (
-    <div
-      className="wallet-card"
-      ref={cardRef}
+    <HoloCard
+      seed={seed}
+      brand="FurlPay Wallet"
+      edition={EDITION}
+      name={`@${handle}`}
+      leftLabel="IDENTITY"
+      leftValue="ACCOUNT & AGENT"
+      rightLabel="ONE OF ONE"
+      rightValue={`${handle}.${HANDLE_DOMAIN}`}
+      cardRef={cardRef}
       onPointerMove={onPointerMove}
       onPointerLeave={onPointerLeave}
-    >
-      <div aria-hidden="true" className="card-base" />
-      <CardShader seed={seed} />
-      <div aria-hidden="true" className="card-foil card-foil-color" />
-      <div aria-hidden="true" className="card-surface" />
-      <div className="card-topline">
-        <div className="card-brand">
-          <FurlIcon />
-          <span>FurlPay Wallet</span>
-        </div>
-        <span className="card-edition">{EDITION}</span>
-      </div>
-      <div className="card-name-wrap">
-        <div className="card-name">@{handle}</div>
-      </div>
-      <div className="card-bottomline">
-        <div>
-          <span className="card-label">IDENTITY</span>
-          <strong>ACCOUNT &amp; AGENT</strong>
-        </div>
-        <div className="card-number">
-          <span className="card-label">ONE OF ONE</span>
-          <strong>
-            {handle}.{HANDLE_DOMAIN}
-          </strong>
-        </div>
-      </div>
-    </div>
+    />
   );
 }
 
@@ -321,34 +287,17 @@ export default function WalletClaim({ initialReserved }: { initialReserved?: str
             <div className="success-card-scene">
               <div className="success-card-float">
                 <div className="success-card-orbit">
-                  <div className="success-card-face success-card-front">
-                    <div aria-hidden="true" className="card-base" />
-                    <CardShader seed={handleSeed(reserved)} />
-                    <div aria-hidden="true" className="card-foil card-foil-color" />
-                    <div aria-hidden="true" className="card-surface" />
-                    <div className="card-topline">
-                      <div className="card-brand">
-                        <FurlIcon />
-                        <span>FurlPay Wallet</span>
-                      </div>
-                      <span className="card-edition">{EDITION}</span>
-                    </div>
-                    <div className="card-name-wrap">
-                      <div className="card-name">@{reserved}</div>
-                    </div>
-                    <div className="card-bottomline">
-                      <div>
-                        <span className="card-label">IDENTITY</span>
-                        <strong>ACCOUNT &amp; AGENT</strong>
-                      </div>
-                      <div className="card-number">
-                        <span className="card-label">ONE OF ONE</span>
-                        <strong>
-                          {reserved}.{HANDLE_DOMAIN}
-                        </strong>
-                      </div>
-                    </div>
-                  </div>
+                  <HoloCard
+                    surfaceClassName="success-card-face success-card-front"
+                    seed={handleSeed(reserved)}
+                    brand="FurlPay Wallet"
+                    edition={EDITION}
+                    name={`@${reserved}`}
+                    leftLabel="IDENTITY"
+                    leftValue="ACCOUNT & AGENT"
+                    rightLabel="ONE OF ONE"
+                    rightValue={`${reserved}.${HANDLE_DOMAIN}`}
+                  />
                   <div className="success-card-face success-card-back">
                     <div aria-hidden="true" className="success-back-glow" />
                     <div className="success-back-logo">
