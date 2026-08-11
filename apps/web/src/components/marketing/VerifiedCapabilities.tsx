@@ -100,8 +100,8 @@ function Row({ c, live }: { c: Capability; live: boolean }) {
         />
         <div className="min-w-0">
           <h4 className="text-sm font-semibold text-white">{c.title}</h4>
-          <p className="mt-1 text-sm leading-relaxed text-slate-400">{c.body}</p>
-          <code className="mt-2 block break-words font-mono text-[11px] text-slate-500">{c.path}</code>
+          <p className="mt-1 text-sm leading-relaxed text-textSecondary">{c.body}</p>
+          <code className="mt-2 block break-words font-mono text-[11px] text-textMuted">{c.path}</code>
         </div>
       </div>
     </li>
@@ -110,9 +110,12 @@ function Row({ c, live }: { c: Capability; live: boolean }) {
 
 export default function VerifiedCapabilities() {
   return (
-    <section className="mx-auto max-w-3xl px-6 py-16">
-      <h2 className="text-2xl font-semibold tracking-tight text-white">What is actually running</h2>
-      <p className="mt-2 text-sm text-slate-400">
+    <section className="section section-y max-w-3xl">
+      <p className="section-eyebrow">Provenance</p>
+      <h2 className="mt-3 text-[26px] font-bold tracking-tight text-white sm:text-[30px]">
+        What is actually running
+      </h2>
+      <p className="mt-2 text-sm text-textSecondary">
         Each capability below names the route or module that implements it, so any claim on this page can be
         checked rather than taken on trust.
       </p>
@@ -127,7 +130,7 @@ export default function VerifiedCapabilities() {
       <h3 className="mt-10 text-xs font-semibold uppercase tracking-wider text-amber-400/90">
         Built, not yet exercised
       </h3>
-      <p className="mt-1 text-xs text-slate-500">
+      <p className="mt-1 text-xs text-textMuted">
         Written and typechecked, but not yet run against a live counterparty. Listed separately rather than
         blended into the section above.
       </p>

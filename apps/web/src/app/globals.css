@@ -179,6 +179,161 @@ body {
   .spotlight-group:hover .card-spotlight::before {
     opacity: 1;
   }
+
+  /* ---- Landing page layout system ------------------------------------- */
+  /* One measure, one gutter, one vertical rhythm. Every landing section uses
+     `.section` so the page cannot drift into eleven different max-widths, and
+     `.section-y` so the spacing between major blocks is a single decision. */
+
+  .section {
+    @apply mx-auto w-full max-w-6xl px-5 sm:px-6;
+  }
+  .section-y {
+    padding-block: clamp(56px, 8vw, 112px);
+  }
+  .section-y-sm {
+    padding-block: clamp(40px, 5vw, 72px);
+  }
+
+  .section-eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.18em] text-neon;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  /* Section headings scale with the viewport instead of snapping at one
+     breakpoint — the old sm:text-[40px] step left mobile headings cramped. */
+  .section-title {
+    @apply font-extrabold tracking-tighter text-textPrimary;
+    font-size: clamp(28px, 4.6vw, 44px);
+    line-height: 1.06;
+    text-wrap: balance;
+  }
+  .section-lede {
+    @apply max-w-2xl leading-relaxed text-textSecondary;
+    font-size: clamp(15px, 1.4vw, 17px);
+  }
+
+  /* Card geometry used across the landing sections: one radius, one padding
+     scale, one hover behaviour. */
+  .surface {
+    @apply rounded-card border border-white/[0.08] bg-white/[0.02];
+    transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease,
+      box-shadow 0.25s ease;
+  }
+  .surface-lift:hover {
+    @apply border-neon/30;
+    background: rgba(0, 229, 153, 0.035);
+    transform: translateY(-3px);
+    box-shadow: 0 18px 40px -28px rgba(0, 229, 153, 0.55);
+  }
+
+  /* Monospace chip for languages / protocols / rails. */
+  .tech-chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border border-white/10
+           bg-white/[0.03] px-3 py-1.5 text-[12px] text-textSecondary;
+    font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+}
+
+/* ---- Keyboard focus ------------------------------------------------------
+   One visible focus ring for every interactive element on the marketing
+   surface. Mouse users never see it (:focus-visible), keyboard users always
+   do — previously several CTAs had `outline: none` from the reset and no
+   replacement, so tabbing through the page was invisible. */
+a:focus-visible,
+button:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:not([tabindex="-1"]):focus-visible {
+  outline: 2px solid #00e599;
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* ---- Scroll reveal -------------------------------------------------------
+   Opacity/transform transition toggled by an IntersectionObserver. It is a
+   transition rather than an animation so the global prefers-reduced-motion
+   rule collapses it to ~0ms (content still appears) instead of freezing it. */
+.reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.reveal.is-in {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
+/* Without JS the observer never runs, so the content must not stay hidden —
+   the landing page ships a <noscript> block that neutralises this rule. */
+
+/* ---- Infrastructure flow diagrams ---------------------------------------
+   Shared by the hero flow and the agent flow: a dashed connector whose dashes
+   travel along the path, plus a pulse that rides the same line. GPU-friendly
+   (stroke-dashoffset / transform only), no JS, no animation library. */
+.flow-line {
+  stroke-dasharray: 5 7;
+  animation: flow-dash 1.4s linear infinite;
+}
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+.flow-pulse {
+  animation: flow-pulse 2.6s ease-in-out infinite;
+}
+@keyframes flow-pulse {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+/* Vertical connector between stacked flow nodes. */
+.flow-rail {
+  background: linear-gradient(
+    180deg,
+    rgba(0, 229, 153, 0.05),
+    rgba(0, 229, 153, 0.55),
+    rgba(0, 229, 153, 0.05)
+  );
+  background-size: 100% 260%;
+  animation: flow-rail 3.2s linear infinite;
+}
+@keyframes flow-rail {
+  from {
+    background-position: 0 -160%;
+  }
+  to {
+    background-position: 0 160%;
+  }
+}
+
+/* The /wallet card stage reserves a large bottom margin for that page's claim
+   form. On the landing teaser the CTA sits directly beneath the card, so the
+   gap is reclaimed here rather than by editing the shared stylesheet. */
+.card-teaser .wallet-card-stage {
+  margin-bottom: 24px;
+}
+
+/* Slow ambient drift behind the hero. One transform-only keyframe; the layer
+   is pointer-events:none and sits under everything. */
+.ambient-drift {
+  animation: ambient-drift 18s ease-in-out infinite alternate;
+}
+@keyframes ambient-drift {
+  from {
+    transform: translate3d(-2%, -1%, 0) scale(1);
+  }
+  to {
+    transform: translate3d(2%, 1%, 0) scale(1.06);
+  }
 }
 
 /* ---- Partner trust marquee ----------------------------------------------

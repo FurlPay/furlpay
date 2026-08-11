@@ -1,332 +1,160 @@
 import Link from "next/link";
-import {
-  CreditCard,
-  TrendingUp,
-  Landmark,
-  Code2,
-  ShieldCheck,
-  Fingerprint,
-  Cpu,
-  Zap,
-  ArrowLeftRight,
-  Send,
-  PiggyBank,
-  BarChart3,
-  Puzzle,
-  Monitor,
-  Bot,
-  Plane,
-} from "lucide-react";
-import StoreBadges from "@/components/marketing/StoreBadges";
-import CodePreview from "@/components/marketing/CodePreview";
+import LandingChrome from "@/components/landing/LandingChrome";
+import Hero from "@/components/landing/Hero";
+import AppShowcase from "@/components/landing/AppShowcase";
+import BuildSection from "@/components/landing/BuildSection";
+import InfrastructureSection from "@/components/landing/InfrastructureSection";
+import AgentSection from "@/components/landing/AgentSection";
+import ApiPlayground from "@/components/landing/ApiPlayground";
+import ProductionSection from "@/components/landing/ProductionSection";
+import SecuritySection from "@/components/landing/SecuritySection";
+import ProofSection from "@/components/landing/ProofSection";
+import WhySection from "@/components/landing/WhySection";
+import ResourcesSection from "@/components/landing/ResourcesSection";
+import FinalCta from "@/components/landing/FinalCta";
+import Reveal from "@/components/landing/Reveal";
 import PricingCards from "@/components/marketing/PricingCards";
 import PartnerMarquee from "@/components/marketing/PartnerMarquee";
 import VerifiedCapabilities from "@/components/marketing/VerifiedCapabilities";
 import SupportChatBubble from "@/components/marketing/SupportChatBubble";
-import ScheduleCallButton from "@/components/marketing/ScheduleCallButton";
 import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
-import { XIcon, DiscordIcon, GitHubIcon, TelegramIcon, InstagramIcon, LinkedInIcon, YouTubeIcon } from "@/components/marketing/SocialIcons";
+import {
+  XIcon,
+  DiscordIcon,
+  GitHubIcon,
+  TelegramIcon,
+  InstagramIcon,
+  LinkedInIcon,
+  YouTubeIcon,
+} from "@/components/marketing/SocialIcons";
+// The wallet card teaser renders the real /wallet card, whose geometry, foil
+// and tilt live in that page's stylesheet.
+import "./wallet/wallet.css";
 
-// Furlpay marketing landing page (furlpay.app/). Premium OLED theme with green
-// glow accents. Mostly a Server Component; interactive bits (phone carousel,
-// code preview) are client islands.
+/*
+ * FurlPay landing page.
+ *
+ * Structured as one argument rather than a feature catalogue:
+ *
+ *   what it is (hero)      → the product in your hand (apps, card)
+ *   → the rails it runs on → what you can build → the four primitives
+ *   → the differentiator (agents) → the API itself → production behaviour
+ *   → security → proof → pricing → resources → ask.
+ *
+ * Almost all of it is a Server Component. The client islands are: the nav +
+ * command palette, the API playground, the live rail status, the wallet card
+ * (WebGL), and the newsletter form. Motion is CSS — no animation library is
+ * loaded for this page.
+ */
 export default function LandingPage() {
   return (
-    <div className="relative overflow-hidden">
-      <Nav />
-      <Hero />
-      <Features />
-      <TravelBand />
-      <DeveloperPreview />
-      {/* Placed after the developer preview and before Security: a reader who
-          has just seen the API is the one who wants to know which parts are
-          actually running. Every row names the route that backs it, and work
-          that is built but not yet exercised against a live counterparty is
-          listed separately rather than blended in. */}
-      <VerifiedCapabilities />
-      <Security />
-      <Pricing />
-      <NewsletterCTA />
+    <div className="relative overflow-x-clip">
+      {/* Scroll reveal is a CSS transition toggled by an observer; if JavaScript
+          never runs, nothing may stay invisible. */}
+      <noscript>
+        <style>{`.reveal{opacity:1 !important;transform:none !important}`}</style>
+      </noscript>
+
+      <LandingChrome />
+
+      <main id="main">
+        <Hero />
+
+        {/* Product surfaces: the mobile capture, where to get the apps, and the
+            wallet card — kept above the rails strip. */}
+        <AppShowcase />
+
+        <div className="section pb-4">
+          <PartnerMarquee />
+        </div>
+
+        <BuildSection />
+        <InfrastructureSection />
+        <AgentSection />
+
+        {/* ── API experience ─────────────────────────────────────────── */}
+        <section className="section section-y" id="api" aria-labelledby="api-title">
+          <Reveal>
+            <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+              <div>
+                <p className="section-eyebrow">API</p>
+                <h2 className="section-title mt-3 max-w-2xl" id="api-title">
+                  Read it once, integrate it once.
+                </h2>
+              </div>
+              <Link
+                href="/docs"
+                className="shrink-0 text-[14px] font-semibold text-neon transition-colors hover:text-white"
+              >
+                Read the docs →
+              </Link>
+            </div>
+            <p className="section-lede mt-4">
+              Five surfaces, one client. The Agents tab runs a real, unauthenticated request
+              against this deployment — the rest show documented response shapes.
+            </p>
+          </Reveal>
+          <Reveal className="mt-8" delay={60}>
+            <ApiPlayground />
+          </Reveal>
+        </section>
+
+        <ProductionSection />
+        <SecuritySection />
+
+        {/* Provenance for every claim above: each row names the route or module
+            that implements it. */}
+        <VerifiedCapabilities />
+
+        <ProofSection />
+        <WhySection />
+
+        {/* ── Pricing ────────────────────────────────────────────────── */}
+        <section className="section section-y scroll-mt-20" id="pricing" aria-labelledby="pricing-title">
+          <Reveal>
+            <p className="section-eyebrow">Pricing</p>
+            <h2 className="section-title mt-3 max-w-2xl" id="pricing-title">
+              Start free. Pay when you move money.
+            </h2>
+            <p className="section-lede mt-4">
+              Every line in every tier names something that exists today.
+            </p>
+          </Reveal>
+          <Reveal className="mt-10" delay={60}>
+            <PricingCards />
+          </Reveal>
+        </section>
+
+        <ResourcesSection />
+        <FinalCta />
+        <NewsletterCTA />
+      </main>
+
       <Footer />
       <SupportChatBubble />
     </div>
   );
 }
 
-function Nav() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-white/5 bg-black/70 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-        <Link href="/" className="flex items-center gap-2">
-          <Logo />
-          <span className="text-xl font-extrabold tracking-tighter">Furlpay</span>
-        </Link>
-        <nav className="hidden items-center gap-8 text-sm text-textSecondary md:flex">
-          <a href="#features" className="transition-colors hover:text-white">Features</a>
-          <Link href="/docs" className="transition-colors hover:text-white">Developer Docs</Link>
-          <Link href="/blog" className="transition-colors hover:text-white">Blog</Link>
-          <Link href="/ambassadors" className="transition-colors hover:text-white">Creators</Link>
-          <a href="#pricing" className="transition-colors hover:text-white">Pricing</a>
-        </nav>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/travel"
-            className="nav-btn hidden border border-white/15 bg-black text-white hover:border-white/40 sm:inline-flex"
-          >
-            <Plane className="h-4 w-4" /> Travel with Us
-          </Link>
-          <Link
-            href="/talk-to-us"
-            className="nav-btn border border-white/15 text-textPrimary hover:border-neon/50 hover:text-neon"
-          >
-            Talk to us
-          </Link>
-          <Link
-            href="/dashboard"
-            className="nav-btn bg-neon text-black shadow-glow hover:-translate-y-0.5"
-          >
-            Open App
-          </Link>
-          <ScheduleCallButton className="nav-btn hidden border border-white/15 bg-black text-white hover:border-white/40 md:inline-flex" />
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function Hero() {
-  return (
-    <section className="relative">
-      <div className="hero-glow pointer-events-none absolute inset-0" />
-      <div className="mx-auto max-w-6xl px-6 pb-10 pt-20 text-center">
-        <h1 className="mx-auto max-w-3xl text-[44px] font-extrabold leading-[1.03] tracking-tighter sm:text-[64px]">
-          Financial Infrastructure for <span className="text-neon">Developers &amp; AI.</span>
-        </h1>
-        <p className="mx-auto mt-5 max-w-2xl text-[16px] leading-relaxed text-textSecondary sm:text-[18px]">
-          A unified orchestration engine for stablecoin checkouts, banking APIs, and compliance. 
-          Connect local accounts, issue cards, and enable AI agents to pay per request via x402 — 
-          all through a single, compliant developer API.
-        </p>
-        <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <Link href="/signup" className="btn-green w-full px-7 py-3.5 text-[16px] sm:w-auto">
-            Get Started (Web App)
-          </Link>
-          <Link href="/docs" className="btn-outline w-full px-7 py-3.5 text-[16px] sm:w-auto">
-            Explore Developer Docs
-          </Link>
-        </div>
-        {/* Funnel entry points — creators, platforms, community */}
-        <div className="mt-6 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[13px] text-textSecondary">
-          <Link href="/ambassadors" className="transition-colors hover:text-neon">For creators →</Link>
-          <Link href="/payouts" className="transition-colors hover:text-neon">For platforms →</Link>
-          <Link href="/discord" className="transition-colors hover:text-neon">Join the community →</Link>
-        </div>
-
-        {/* FurlPay Travels in action — phone capture, autoplays muted on loop
-            (muted + playsInline is what lets browsers autoplay it on scroll). */}
-        <div className="mt-14 flex justify-center">
-          <div className="relative w-[280px] overflow-hidden rounded-[2rem] border border-white/15 bg-black shadow-[0_0_80px_-20px_rgba(57,255,20,0.25)] sm:w-[320px]">
-            <video
-              src="/media/travels-phone.mp4"
-              autoPlay
-              muted
-              loop
-              playsInline
-              preload="metadata"
-              className="block h-auto w-full"
-            />
-          </div>
-        </div>
-
-        {/* Partner trust marquee, directly below the hero CTAs */}
-        <div className="mt-14">
-          <PartnerMarquee />
-        </div>
-
-        <div className="mt-16 flex justify-center">
-          <StoreBadges />
-        </div>
-      </div>
-    </section>
-  );
-}
-
-/* Every claim below is anchored to a route or module that exists in this repo.
-   Anything on the roadmap is described as roadmap, in ROADMAP_FEATURES.
-
-   "Banking Hub / instantly connect to global banking API providers" was removed
-   on 22 Jul 2026: the bank connectors it referred to are sandbox descriptors,
-   not live connections, and "instantly connect" asserted a relationship with
-   named institutions that does not exist. It is replaced by the bank directory,
-   which is genuinely live — HKMA public open data, 20 licensed banks, verified
-   returning 200 the same day. A smaller true claim beats a large false one in
-   the only conversation that matters, which is diligence. */
-const FEATURES = [
-  { Icon: Code2, title: "Developer APIs", body: "Versioned REST endpoints for wallets, payments, compliance and agent keys." },
-  { Icon: CreditCard, title: "Payment Orchestration", body: "A single rail registry describing protocol, chains, fees and per-transaction caps." },
-  { Icon: Landmark, title: "HK Bank Directory", body: "Live branch and ATM data for 20 licensed Hong Kong banks, sourced from the HKMA." },
-  { Icon: Bot, title: "AI Agent Payments", body: "x402 settlement with EIP-3009, enforced spend policies, and human passkey approval." },
-];
-
-const MORE_FEATURES = [
-  { Icon: ArrowLeftRight, title: "Instant Convert", body: "Swap fiat ↔ crypto instantly. USDC to EUR, BTC to GBP — real-time FX." },
-  { Icon: Send, title: "Send & Receive", body: "Send stablecoins to any wallet, email, or phone. Receive via QR code." },
-  { Icon: PiggyBank, title: "Earn Yield", body: "Earn APY on idle USDC/EURC. Auto-compound, no lock-up period." },
-  { Icon: Fingerprint, title: "Passkey Security", body: "Passwordless WebAuthn login. 2-of-2 MPC custody. No seed phrases." },
-  { Icon: BarChart3, title: "Analytics & Insights", body: "Spending by category, MCC merchant tagging, CSV/PDF statements." },
-  { Icon: Puzzle, title: "Browser Extension", body: "One-click stablecoin checkout, card autofill, and QR scan-to-pay." },
-  { Icon: Monitor, title: "Desktop App", body: "Native Windows, macOS, and Linux via Tauri — full dashboard, lightweight." },
-  { Icon: ShieldCheck, title: "Compliance API", body: "KYC, KYB, sanctions, and Travel Rule verification under a single schema." },
-];
-
-
-function FeatureCard({ Icon, title, body }: { Icon: typeof CreditCard; title: string; body: string }) {
-  return (
-    <div className="glass-card group p-6 transition-colors hover:border-neon/30">
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl border border-neon/20 bg-neonSoft text-neon shadow-glow-sm">
-        <Icon className="h-5 w-5" />
-      </div>
-      <p className="text-[17px] font-bold">{title}</p>
-      <p className="mt-1.5 text-[13px] leading-relaxed text-textSecondary">{body}</p>
-    </div>
-  );
-}
-
-function Features() {
-  return (
-    <section id="features" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
-      <h2 className="mb-10 max-w-2xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
-        Everything money can do, in one client.
-      </h2>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {FEATURES.map((f) => (
-          <FeatureCard key={f.title} {...f} />
-        ))}
-      </div>
-
-      <p className="mb-6 mt-16 text-[15px] font-semibold text-textSecondary">
-        And everything else
-      </p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {MORE_FEATURES.map((f) => (
-          <FeatureCard key={f.title} {...f} />
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function TravelBand() {
-  return (
-    <section className="mx-auto max-w-6xl px-6 py-16">
-      <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-sky-500/[0.14] via-charcoal to-teal-500/[0.12] p-8 sm:p-10">
-        <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="max-w-xl">
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-              <Plane className="h-3.5 w-3.5" /> Travel with Us
-            </span>
-            <h2 className="mt-4 text-2xl font-bold tracking-tight text-white sm:text-3xl">
-              Book 2.2M+ stays &amp; flights with crypto.
-            </h2>
-            <p className="mt-2 text-sm text-white/70">
-              Pay with USDC, SOL, BTC or 100+ tokens and earn <span className="font-semibold text-neon">2% cashback</span> on
-              every booking. Powered by Travala · settled via x402.
-            </p>
-            <div className="mt-5 flex flex-wrap gap-3">
-              <Link href="/travel/destinations" className="btn-green px-6 py-3 text-sm">Explore destinations</Link>
-              <Link href="/travel" className="btn-outline px-6 py-3 text-sm">Book now →</Link>
-            </div>
-          </div>
-          <div className="flex shrink-0 gap-3 text-center">
-            {[
-              { v: "2.2M+", l: "Stays & flights" },
-              { v: "230+", l: "Countries" },
-              { v: "2%", l: "Cashback" },
-            ].map((s) => (
-              <div key={s.l} className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3">
-                <p className="text-xl font-bold text-white">{s.v}</p>
-                <p className="mt-0.5 text-[11px] text-white/60">{s.l}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function DeveloperPreview() {
-  return (
-    <section className="mx-auto max-w-6xl px-6 py-20">
-      <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <h2 className="max-w-xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
-          Issue a card in a few lines.
-        </h2>
-        <Link href="/docs" className="text-sm font-semibold text-neon hover:underline">
-          Read the docs →
-        </Link>
-      </div>
-      <CodePreview />
-    </section>
-  );
-}
-
-const SECURITY = [
-  { Icon: Cpu, title: "2-of-2 MPC + HSM", body: "Turnkey HSM policy co-signs every spend. No single key ever exists." },
-  { Icon: Fingerprint, title: "WebAuthn passkeys", body: "Phishing-resistant fingerprint or Face ID login, with no passwords to steal." },
-  { Icon: ShieldCheck, title: "Real-time fraud", body: "Sardine biometric + device risk scoring gates every transfer." },
-  { Icon: Zap, title: "Exploit-hardened", body: "Policy engine designed to prevent Gnosis Pay-class card exploits." },
-];
-
-function Security() {
-  return (
-    <section id="security" className="scroll-mt-20 border-y border-white/5 bg-white/[0.015]">
-      <div className="mx-auto max-w-6xl px-6 py-20">
-        <h2 className="mb-10 max-w-2xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
-          Custody-grade security, consumer-grade UX.
-        </h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {SECURITY.map(({ Icon, title, body }) => (
-            <div key={title} className="glow-border p-6">
-              <Icon className="mb-4 h-6 w-6 text-neon" />
-              <p className="font-bold">{title}</p>
-              <p className="mt-1.5 text-[13px] leading-relaxed text-textSecondary">{body}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function Pricing() {
-  return (
-    <section id="pricing" className="mx-auto max-w-6xl scroll-mt-20 px-6 py-20">
-      <h2 className="mb-10 max-w-2xl text-[32px] font-extrabold tracking-tighter sm:text-[40px]">
-        Simple, transparent tiers.
-      </h2>
-      <PricingCards />
-    </section>
-  );
-}
-
 function NewsletterCTA() {
   return (
-    <section className="border-y border-white/5 bg-white/[0.015]">
-      <div className="mx-auto max-w-2xl px-6 py-20 text-center">
-        <h2 className="mx-auto max-w-xl text-[30px] font-extrabold tracking-tighter sm:text-[38px]">
+    <section className="border-t border-white/[0.06] bg-white/[0.012]">
+      <div className="section section-y-sm max-w-2xl text-center">
+        <h2 className="mx-auto max-w-xl text-[26px] font-extrabold tracking-tighter sm:text-[32px]">
           Updates worth reading, from a team that ships.
         </h2>
         <p className="mx-auto mt-3 max-w-lg text-[15px] leading-relaxed text-textSecondary">
           Product launches, engineering deep-dives, and a weekly digest you can actually skim.
           Unsubscribe anytime.
         </p>
-        <div className="mx-auto mt-8 max-w-md">
+        <div className="mx-auto mt-7 max-w-md">
           <NewsletterSignup variant="minimal" />
         </div>
         <p className="mt-4 text-[12px] text-textMuted">
           Want to pick specific topics?{" "}
-          <Link href="/newsletter" className="text-neon hover:underline">Manage preferences</Link>
+          <Link href="/newsletter" className="text-neon hover:underline">
+            Manage preferences
+          </Link>
         </p>
       </div>
     </section>
@@ -336,7 +164,7 @@ function NewsletterCTA() {
 function Footer() {
   return (
     <footer className="border-t border-white/5">
-      <div className="mx-auto max-w-6xl px-6 py-14">
+      <div className="section py-14">
         <div className="flex flex-col items-start justify-between gap-8 md:flex-row md:items-center">
           <div>
             <div className="flex items-center gap-2">
@@ -353,7 +181,7 @@ function Footer() {
               Say hello — hello@furlpay.com
             </a>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             {[
               { Icon: XIcon, href: "https://x.com/furlpayglobal", label: "X" },
               { Icon: LinkedInIcon, href: "https://linkedin.com/company/furlpay", label: "LinkedIn" },
@@ -405,10 +233,11 @@ function Footer() {
             title="Developers"
             links={[
               ["Docs", "/docs"],
+              ["API reference", "/docs/architecture/api-routes"],
               ["Agent Console", "/developer/agents"],
               ["API keys", "/developer/keys"],
+              ["Downloads", "/downloads"],
               ["Marketplace", "/marketplace"],
-              ["Developer portal", "/developer"],
               ["GitHub", "https://github.com/Ashutosh0x/furlpay"],
             ]}
           />
@@ -435,6 +264,7 @@ function Footer() {
               ["Partners", "/partners"],
               ["Careers", "/careers"],
               ["Changelog", "/changelog"],
+              ["Status", "/status"],
               ["Grants", "/grants"],
               ["Press", "/press"],
               ["Contact", "/contact"],
