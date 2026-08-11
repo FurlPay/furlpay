@@ -40,6 +40,7 @@ const PUBLIC_PAGES = new Set([
   "/status",
   "/press",
   "/waitlist",
+  "/downloads", // where every store + desktop badge on the landing page points
   "/grants",
   "/marketplace",
   "/login",
