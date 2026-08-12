@@ -8,7 +8,7 @@ import { breadcrumb } from "@/lib/seo/schema";
 import { altLanguages } from "@/lib/seo/hreflang";
 
 export const metadata: Metadata = {
-  title: "Japan Trust, Risk & JFSA Status — Furlpay",
+  title: "Japan Trust, Risk & JFSA Status",
   description:
     "Furlpay's Japan regulatory status, crypto-asset risk information, and security posture. Honest status: not registered with the JFSA — USDC is a legal Electronic Payment Instrument distributed via registered intermediaries.",
   alternates: {

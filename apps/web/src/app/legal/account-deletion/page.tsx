@@ -11,7 +11,7 @@ import { DocTitle, Lead, H2, P, Callout } from "@/components/docs/prose";
 // If one changes, all of them change.
 
 export const metadata = {
-  title: "Delete your FurlPay account — FurlPay",
+  title: "Delete your FurlPay account",
   description:
     "How to delete your FurlPay account, what is erased, and which records we are required to retain.",
 };

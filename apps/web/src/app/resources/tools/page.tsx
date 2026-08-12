@@ -6,7 +6,7 @@ import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
 
 export const metadata: Metadata = {
-  title: "Free Tools — Fee Calculator & More | Furlpay",
+  title: "Free Tools — Fee Calculator & More",
   description:
     "Free interactive tools from Furlpay: calculate your savings from switching card fees to USDC stablecoin payments on Arbitrum, and more coming soon.",
   alternates: { canonical: "/resources/tools" },

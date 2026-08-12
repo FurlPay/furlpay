@@ -1,63 +1,26 @@
 "use client";
 
 import { useState, FormEvent } from "react";
-import { Package, Wrench, Scale, Lock, Newspaper, Check } from "lucide-react";
-
-const CATEGORIES = [
-  { id: "product-updates", Icon: Package, label: "Product Updates", desc: "New features, launches" },
-  { id: "engineering", Icon: Wrench, label: "Engineering", desc: "Technical deep-dives, open source" },
-  { id: "policy-changes", Icon: Scale, label: "Policy Changes", desc: "Terms, privacy, compliance updates" },
-  { id: "security-bulletins", Icon: Lock, label: "Security Bulletins", desc: "Security advisories, patches" },
-  { id: "weekly-digest", Icon: Newspaper, label: "Weekly Digest", desc: "Curated newsletter, market insights" },
-] as const;
-
-type CategoryId = (typeof CATEGORIES)[number]["id"];
+import { Check } from "lucide-react";
+import { CATEGORIES, DEFAULT_CATEGORIES, type CategoryId } from "./categories";
+import { useNewsletterSubscribe } from "./useNewsletterSubscribe";
 
 type Variant = "inline" | "card" | "footer" | "minimal";
 
 export default function NewsletterSignup({ variant = "card" }: { variant?: Variant }) {
   const [email, setEmail] = useState("");
-  const [categories, setCategories] = useState<CategoryId[]>(["product-updates", "weekly-digest"]);
-  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [message, setMessage] = useState("");
+  const [categories, setCategories] = useState<CategoryId[]>(DEFAULT_CATEGORIES);
+  const { status, message, subscribe, reset } = useNewsletterSubscribe();
 
   const toggleCategory = (id: CategoryId) => {
-    setCategories((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id],
-    );
+    setCategories((prev) => (prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]));
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      setStatus("error");
-      setMessage("Please enter a valid email address.");
-      return;
-    }
-
-    setStatus("loading");
-    try {
-      const res = await fetch("/api/newsletter/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          email,
-          categories: variant === "minimal" ? ["product-updates", "weekly-digest"] : categories,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setStatus("success");
-        setMessage(data.message ?? "You're subscribed!");
-        setEmail("");
-      } else {
-        setStatus("error");
-        setMessage(data.error ?? "Something went wrong.");
-      }
-    } catch {
-      setStatus("error");
-      setMessage("Network error. Please try again.");
-    }
+    if (status === "loading") return;
+    const ok = await subscribe(email, variant === "minimal" ? DEFAULT_CATEGORIES : categories);
+    if (ok) setEmail("");
   };
 
   const showCategories = variant !== "minimal";
@@ -83,8 +46,9 @@ export default function NewsletterSignup({ variant = "card" }: { variant?: Varia
             <div className="flex gap-2">
               <input
                 type="email"
+                aria-label="Email address"
                 value={email}
-                onChange={(e) => { setEmail(e.target.value); setStatus("idle"); }}
+                onChange={(e) => { setEmail(e.target.value); reset(); }}
                 placeholder="you@company.com"
                 className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] text-white placeholder:text-textMuted outline-none transition-colors focus:border-neon"
               />
@@ -196,8 +160,9 @@ export default function NewsletterSignup({ variant = "card" }: { variant?: Varia
         <div className="flex gap-2">
           <input
             type="email"
+            aria-label="Email address"
             value={email}
-            onChange={(e) => { setEmail(e.target.value); setStatus("idle"); }}
+            onChange={(e) => { setEmail(e.target.value); reset(); }}
             placeholder="you@company.com"
             className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-[14px] text-white placeholder:text-textMuted outline-none transition-colors focus:border-neon"
           />
@@ -217,14 +182,18 @@ export default function NewsletterSignup({ variant = "card" }: { variant?: Varia
 }
 
 function Feedback({ status, message }: { status: string; message: string }) {
-  if (status === "idle" || status === "loading") return null;
+  // Rendered unconditionally (empty when idle) so the live region exists in the
+  // DOM before the message arrives — a region inserted at the same moment as
+  // its text is not reliably announced.
   return (
     <p
-      className={`mt-3 text-[13px] font-medium ${
+      role="status"
+      aria-live="polite"
+      className={`text-[13px] font-medium ${message ? "mt-3" : ""} ${
         status === "success" ? "text-neon" : "text-red-400"
       }`}
     >
-      {message}
+      {status === "success" || status === "error" ? message : ""}
     </p>
   );
 }

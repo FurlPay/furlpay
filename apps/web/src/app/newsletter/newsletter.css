@@ -1,0 +1,477 @@
+/*
+ * Newsletter page — /wallet's design language applied to a signup.
+ *
+ * The page reuses wallet.css wholesale (`.launch-page` tokens, `.wallet-card`
+ * and the `.card-*` geometry, `.name-input-shell`, `.claim-button`,
+ * `.feature-card`, `.launch-footer`) so the two pages cannot drift apart.
+ * Everything here is additive: the topic picker, the confirmation panel and
+ * the FAQ grid, all built from the same --panel / --border / --accent tokens
+ * and the same Inter + JetBrains Mono pairing.
+ */
+
+.newsletter-shell {
+  background: #0a0f0c;
+  min-height: 100svh;
+}
+
+/* The shared hero column is sized for a name field; a topic grid needs more. */
+.newsletter-page .claim-experience {
+  width: min(760px, 100%);
+}
+
+.newsletter-page .hero-copy {
+  margin-bottom: 34px;
+}
+
+.newsletter-page .hero-copy h1 {
+  font-size: clamp(38px, 4.6vw, 54px);
+}
+
+/* ── Topic picker ────────────────────────────────────────────────────────── */
+
+.nl-topics {
+  border: 0;
+  margin: 0 auto;
+  padding: 0;
+  width: min(620px, 100%);
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.nl-topics-legend {
+  color: var(--accent);
+  font: 600 12px/1 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  padding: 0;
+  margin-bottom: 4px;
+  grid-column: 1 / -1;
+}
+
+/* Five topics in two columns leaves a hole; the last one takes the full row so
+   the grid reads as deliberate. */
+.nl-topics .nl-topic:last-child {
+  grid-column: 1 / -1;
+}
+
+.nl-topic {
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  color: var(--foreground);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px 15px;
+  text-align: left;
+  transition: border-color 0.18s, background 0.18s, transform 0.18s;
+}
+
+.nl-topic:hover {
+  border-color: #00e59966;
+}
+
+.nl-topic:active {
+  transform: translateY(1px);
+}
+
+.nl-topic:focus-visible {
+  outline: 0;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px #00e59924;
+}
+
+.nl-topic.is-on {
+  border-color: #00e59966;
+  background: #00e5990f;
+}
+
+.nl-topic-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #0f3a2a;
+  color: var(--accent);
+}
+
+.nl-topic-icon svg {
+  width: 17px;
+  height: 17px;
+}
+
+.nl-topic-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.nl-topic-label {
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.nl-topic-desc {
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.35;
+}
+
+.nl-topic-check {
+  margin-left: auto;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--accent);
+}
+
+.nl-topic-check svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* ── Email field ─────────────────────────────────────────────────────────── */
+
+.nl-field {
+  width: min(620px, 100%);
+  margin: 22px auto 0;
+}
+
+.nl-field .name-input-shell {
+  padding-inline: 18px;
+}
+
+/* ── Confirmation ────────────────────────────────────────────────────────── */
+
+.nl-confirmed {
+  width: min(620px, 100%);
+  margin: 0 auto;
+  background: var(--panel);
+  border: 1px solid #00e59933;
+  border-radius: 18px;
+  padding: 30px 26px;
+  text-align: center;
+}
+
+.nl-confirmed-mark {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: #0f3a2a;
+  color: var(--accent);
+}
+
+.nl-confirmed-mark svg {
+  width: 24px;
+  height: 24px;
+}
+
+.nl-confirmed-title {
+  color: var(--foreground);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin: 0;
+}
+
+.nl-confirmed-body {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+  margin: 9px auto 0;
+  max-width: 440px;
+  text-wrap: balance;
+}
+
+.nl-confirmed-body strong {
+  color: var(--foreground);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.nl-confirmed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.nl-textlink {
+  background: 0 0;
+  border: 0;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  padding: 4px 2px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  transition: color 0.18s;
+}
+
+.nl-textlink:hover {
+  color: var(--foreground);
+}
+
+.nl-textlink:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
+}
+
+/* ── FAQ ─────────────────────────────────────────────────────────────────── */
+
+.nl-faq {
+  width: min(1060px, 100%);
+  margin: 0 auto;
+  padding: 0 0 72px;
+  border-top: 1px solid var(--border);
+}
+
+.nl-faq-title {
+  color: var(--foreground);
+  font-size: clamp(26px, 3.4vw, 34px);
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  margin: 44px 0 0;
+  text-align: center;
+}
+
+.nl-faq-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 26px;
+}
+
+.nl-faq-item {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px 22px;
+}
+
+.nl-faq-item h3 {
+  color: var(--foreground);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+
+.nl-faq-item p {
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.55;
+  margin: 8px 0 0;
+}
+
+.nl-faq-item a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.nl-faq-item a:hover {
+  text-decoration: underline;
+}
+
+.nl-faq-foot {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.nl-faq-foot a.nl-manage {
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color 0.18s;
+}
+
+.nl-faq-foot a.nl-manage:hover {
+  color: var(--foreground);
+}
+
+/* ── Unsubscribe / preferences ───────────────────────────────────────────── */
+
+.nl-unsub {
+  width: min(560px, 100%);
+  margin: 0 auto;
+  padding: clamp(40px, 7vh, 72px) 0 72px;
+}
+
+.nl-unsub .hero-eyebrow {
+  text-align: center;
+}
+
+.nl-unsub-title {
+  color: var(--foreground);
+  font-size: clamp(30px, 4.4vw, 42px);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  line-height: 1.04;
+  margin: 0;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.nl-unsub-sub {
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1.5;
+  margin: 14px auto 0;
+  max-width: 460px;
+  text-align: center;
+  text-wrap: balance;
+}
+
+.nl-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  margin-top: 30px;
+  padding: 26px 24px;
+}
+
+.nl-label {
+  color: var(--muted);
+  display: block;
+  font: 600 11px/1 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  margin-bottom: 9px;
+  text-transform: uppercase;
+}
+
+/* Inside a panel the shell sits on a lighter ground than the page. */
+.nl-field-shell {
+  background: #0a0f0c;
+}
+
+.nl-topics-wide {
+  grid-template-columns: 1fr;
+  margin-top: 24px;
+  width: 100%;
+}
+
+.nl-topic.is-removing {
+  background: #ff453a12;
+  border-color: #ff453a4d;
+}
+
+.nl-topic.is-removing .nl-topic-icon {
+  background: #3a1512;
+  color: #ff6b60;
+}
+
+/* The unsubscribe list writes the word "remove" where the subscribe list draws
+   a green check — scoped so it cannot recolour the subscribe page. */
+.nl-topics-wide .nl-topic-check {
+  color: #ff6b60;
+  font: 600 11px/1 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  width: auto;
+}
+
+.nl-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  background: 0 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--foreground);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  margin-top: 18px;
+  padding: 13px 18px;
+  transition: border-color 0.18s, background 0.18s, opacity 0.18s;
+  width: 100%;
+}
+
+.nl-btn:hover:not(:disabled) {
+  border-color: #00e59966;
+  background: #00e5990a;
+}
+
+.nl-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.nl-danger {
+  align-items: center;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+  padding-top: 24px;
+}
+
+.nl-danger-btn {
+  -webkit-appearance: none;
+  appearance: none;
+  background: #ff453a12;
+  border: 1px solid #ff453a4d;
+  border-radius: 12px;
+  color: #ff6b60;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 13px 18px;
+  transition: background 0.18s, border-color 0.18s, opacity 0.18s;
+  width: 100%;
+}
+
+.nl-danger-btn:hover:not(:disabled) {
+  background: #ff453a1f;
+}
+
+.nl-danger-btn.is-armed {
+  background: #ff453a26;
+  border-color: #ff453a99;
+}
+
+.nl-danger-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 760px) {
+  .nl-faq-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .nl-topics,
+  .nl-field,
+  .nl-confirmed {
+    width: 100%;
+  }
+  .nl-topics {
+    grid-template-columns: 1fr;
+  }
+  .newsletter-page .hero-copy h1 {
+    font-size: clamp(34px, 10vw, 44px);
+  }
+  .nl-confirmed {
+    padding: 26px 20px;
+  }
+}

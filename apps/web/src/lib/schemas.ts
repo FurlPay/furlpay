@@ -181,3 +181,34 @@ export const DocumentUpdateSchema = z.object({
 export const DocumentDeleteSchema = z.object({
   confirmation: z.literal("DELETE"),
 });
+
+// ── Newsletter ─────────────────────────────────────────────────────────────
+//
+// Both endpoints are public, so the schema is the only thing standing between
+// an anonymous caller and the subscriber store: the address is length-capped
+// (254 is the RFC 5321 maximum), categories are a closed enum, and the array
+// is bounded so a caller cannot post a million-element list.
+
+const NewsletterCategoryEnum = z.enum([
+  "product-updates",
+  "engineering",
+  "policy-changes",
+  "security-bulletins",
+  "weekly-digest",
+]);
+
+const SubscriberEmail = z.string().trim().toLowerCase().min(3).max(254).email();
+
+/** Duplicates in the request must not produce duplicates in the record. */
+const dedupe = (cats: string[]) => Array.from(new Set(cats));
+
+export const NewsletterSubscribeSchema = z.object({
+  email: SubscriberEmail,
+  categories: z.array(NewsletterCategoryEnum).min(1).max(5).transform(dedupe),
+});
+
+/** Omitted / empty `categories` means a full unsubscribe. */
+export const NewsletterUnsubscribeSchema = z.object({
+  email: SubscriberEmail,
+  categories: z.array(NewsletterCategoryEnum).max(5).transform(dedupe).optional(),
+});

@@ -126,12 +126,24 @@ jobs:
         run: |
           ALLOW=$(jq -c '[.[].name]' "$GITHUB_WORKSPACE/.github/audit-allowlist.json")
 
-          # Count only advisories we have NOT formally accepted.
+          # Count only advisories we have NOT formally accepted. Acceptance
+          # matches security-audit.yml: named in the allowlist, OR carrying no
+          # advisory of its own while every parent it inherits from is named.
+          # Keeping the two in step matters — if this job were stricter it would
+          # block its own auto-merge on findings the gate already accepts.
           remaining() { # remaining <file> <severity>
             jq --argjson allow "$ALLOW" --arg sev "$2" \
               '[.vulnerabilities // {} | to_entries[]
                 | select(.value.severity == $sev)
-                | select(.key as $k | $allow | index($k) == null)
+                | . as $e
+                | select(
+                    ( (($allow | index($e.key)) != null)
+                      or
+                      ( ([$e.value.via[] | select(type == "object")] | length) == 0
+                        and ([$e.value.via[] | select(type == "string")] | length) > 0
+                        and ( [$e.value.via[] | select(type == "string")]
+                              | all(. as $p | ($allow | index($p)) != null) ) )
+                    ) | not )
                ] | length' "$1"
           }
 

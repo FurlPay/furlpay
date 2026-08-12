@@ -7,7 +7,7 @@ import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
 
 export const metadata: Metadata = {
-  title: "Crypto Payment Gateway Dubai — Accept USDC at 0.5% | Furlpay",
+  title: "Crypto Payment Gateway Dubai — Accept USDC at 0.5%",
   description:
     "Furlpay for the UAE: accept USDC stablecoin payments at 0.5% instead of 2.9–3.5% card fees. For Dubai hotels, airlines and merchants. Aligned with Dubai's cashless 2026 vision.",
   alternates: {

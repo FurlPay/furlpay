@@ -55,11 +55,34 @@ jobs:
           # fail the build, so real regressions stay signal, not noise.
           ALLOW=$(jq -c '[.[].name]' .github/audit-allowlist.json)
 
-          count() { # count()  severity  allowlisted(true|false)
+          # An advisory is ACCEPTED when either:
+          #   a) the package is named in the allowlist, or
+          #   b) it carries no advisory of its own and every parent it inherits
+          #      from is named there.
+          #
+          # (b) exists so a package that is only guilty by association — next,
+          # whose audit entry is nothing but its vendored postcss and optional
+          # sharp — does not have to be named. Naming it would suppress every
+          # FUTURE high against next itself, including a direct Next.js RCE,
+          # which is precisely the masking we do not want. `via` distinguishes
+          # the two: objects are real advisories, strings are parent packages.
+          #
+          # Deliberately one level deep. A chain (spl-token -> buffer-layout-utils
+          # -> bigint-buffer) still names each link, so accepting the middle of a
+          # chain stays an explicit, reviewed decision rather than a side effect.
+          count() { # count()  severity  accepted(true|false)
             jq --argjson allow "$ALLOW" --arg sev "$1" --argjson inlist "$2" \
               '[.vulnerabilities // {} | to_entries[]
                 | select(.value.severity == $sev)
-                | select((.key as $k | $allow | index($k) != null) == $inlist)
+                | . as $e
+                | ( (($allow | index($e.key)) != null)
+                    or
+                    ( ([$e.value.via[] | select(type == "object")] | length) == 0
+                      and ([$e.value.via[] | select(type == "string")] | length) > 0
+                      and ( [$e.value.via[] | select(type == "string")]
+                            | all(. as $p | ($allow | index($p)) != null) ) )
+                  ) as $accepted
+                | select($accepted == $inlist)
                ] | length' audit-report.json
           }
           CRITICAL=$(count critical false)
@@ -126,6 +149,16 @@ jobs:
   secret-scan:
     name: "🔑 Secret Leak Scan"
     runs-on: ubuntu-latest
+    # On a pull_request event gitleaks-action enumerates the PR's commits via
+    # GET /repos/{owner}/{repo}/pulls/{n}/commits, which the workflow-level
+    # `contents: read` does not cover. Without this the action crashed with
+    # "Resource not accessible by integration" (403) on every PR — red check,
+    # no scan performed, and a "🔴 CRITICAL — Secret Leaked" Discord alert that
+    # had nothing to do with secrets. Push events were unaffected, which is why
+    # the same commit passed on push and failed on the PR.
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - uses: actions/checkout@v7
         with:

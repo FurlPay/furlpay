@@ -7,7 +7,7 @@ import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
 
 export const metadata: Metadata = {
-  title: "UAE Trust, Risk & VARA Status — Furlpay",
+  title: "UAE Trust, Risk & VARA Status",
   description:
     "Furlpay's UAE regulatory status, virtual-asset risk information, and security posture. Honest status: not currently VARA-licensed and evaluating licensing.",
   alternates: {

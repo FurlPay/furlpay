@@ -14,7 +14,9 @@ export default function BlogLayout({ children }: { children: React.ReactNode }) 
             <span className="text-xl font-extrabold tracking-tighter">Furlpay</span>
           </Link>
           <nav className="hidden items-center gap-7 text-sm text-textSecondary md:flex">
-            <Link href="/#features" className="transition-colors hover:text-white">Features</Link>
+            {/* The landing page's feature grid became the four-primitive
+                infrastructure section; #features no longer exists. */}
+            <Link href="/#infrastructure" className="transition-colors hover:text-white">Platform</Link>
             <Link href="/docs" className="transition-colors hover:text-white">Docs</Link>
             <Link href="/blog" className="text-white transition-colors">Blog</Link>
           </nav>

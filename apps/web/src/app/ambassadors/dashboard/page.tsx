@@ -3,7 +3,7 @@ import MarketingBar from "@/components/marketing/MarketingBar";
 import CreatorDashboard from "./CreatorDashboard";
 
 export const metadata: Metadata = {
-  title: "Creator Dashboard | Furlpay",
+  title: "Creator Dashboard",
   description: "Track your clicks, bookings and weekly USDC payouts — live and on-chain.",
   robots: { index: false, follow: false }, // private, per-creator view
 };
