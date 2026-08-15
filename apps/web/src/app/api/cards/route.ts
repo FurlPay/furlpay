@@ -1,7 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { z } from "zod";
 import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { PaymentCard } from "@/lib/types";
+import type { UserAccount } from "@/lib/store";
+import { validateBody } from "@/lib/validate";
+import { withIdempotency } from "@/lib/idempotency";
+
+const IssueCardBody = z.object({
+  cardType: z.enum(["virtual", "physical"]),
+  kycToken: z.string().min(1).max(512),
+});
 
 // GET /api/cards — list the caller's own cards.
 export async function GET(req: NextRequest) {
@@ -12,22 +22,33 @@ export async function GET(req: NextRequest) {
 
 // POST /api/cards — issue a virtual or physical Visa card (Marqeta/Lithic).
 // body: { cardType: "virtual" | "physical", kycToken: string }
+// Retries are safe: send an Idempotency-Key header (UUID) — a duplicate key
+// replays the original response instead of issuing a second card.
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const { cardType, kycToken } = await req.json().catch(() => ({}));
+  const limited = await rateLimitOr429(req, "cards.issue", { limit: 5, windowMs: 10 * 60_000 }, account.user.id);
+  if (limited) return limited;
 
-  if (cardType !== "virtual" && cardType !== "physical") {
-    return NextResponse.json({ error: "cardType must be 'virtual' or 'physical'" }, { status: 400 });
-  }
+  const body = await validateBody(req, IssueCardBody);
+  if (body instanceof NextResponse) return body;
+
   // Card issuance requires a completed KYC (a valid kycToken).
-  if (!kycToken || account.user.kycStatus !== "verified") {
+  if (account.user.kycStatus !== "verified") {
     return NextResponse.json({ error: "Valid KYC required to issue a card" }, { status: 403 });
   }
 
-  const last4 = String(1000 + Math.floor(Math.random() * 9000));
+  // Scope the key per user so one client's key can't replay (or conflict with)
+  // another account's request.
+  return withIdempotency(req.headers.get("Idempotency-Key"), `cards.issue:${account.user.id}`, async () =>
+    issueCard(account, body.cardType)
+  );
+}
+
+function issueCard(account: UserAccount, cardType: "virtual" | "physical"): NextResponse {
+  const last4 = String(crypto.randomInt(1000, 10_000));
   const card: PaymentCard = {
     id: "card_" + crypto.randomBytes(5).toString("hex"),
     kind: cardType,

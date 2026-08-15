@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { CATALOG, assetLogoPath } from "@/lib/markets/catalog";
 import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
 
 // GET /api/markets/movers?kind=stock|etf|crypto&limit=6 — top gainers/losers.
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "markets.movers", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const kind = req.nextUrl.searchParams.get("kind");
   const limit = Number(req.nextUrl.searchParams.get("limit")) || 6;
   const quotes = await getQuotes();

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { listResourcesRanked } from "@/lib/x402Registry";
 import { PAY_TO, USDC_ASSET, X402_VERSION } from "@/lib/x402";
 import { SITE } from "@/lib/seo/schema";
@@ -37,7 +38,10 @@ function clampInt(v: string | null, def: number, min: number, max: number): numb
   return Math.min(max, Math.max(min, Math.floor(n)));
 }
 
-export function GET(req: NextRequest) {
+export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "x402.discovery.resources", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   // Per-host-diversified order (Attack IV E2) so no single registrant can
   // dominate the shortlist an agent sees.
   const all = listResourcesRanked();

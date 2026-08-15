@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { getTeam, updatePolicy, SpendingPolicy } from "@/lib/travel/business";
 
 // GET /api/travel/business/policies?teamId=<id> — current spending policy.
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "travel.business.policies", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const team = getTeam(req.nextUrl.searchParams.get("teamId") ?? undefined);
   if (!team) return NextResponse.json({ error: "Team not found." }, { status: 404 });
   return NextResponse.json({ teamId: team.id, policy: team.policy });

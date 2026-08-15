@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { parse } from "@/lib/schemas";
+import { withIdempotency } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -78,6 +79,8 @@ export async function GET(req: NextRequest) {
 }
 
 // POST /api/investing/schedule — create a DCA schedule for the acting user.
+// Retries are safe: send an Idempotency-Key header (UUID) — a duplicate key
+// replays the original response instead of creating a second standing order.
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
@@ -95,8 +98,19 @@ export async function POST(req: NextRequest) {
 
   const parsed = parse(ScheduleSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
-  const { symbol, notional, cadence } = parsed.data;
-  const side = parsed.data.side ?? "buy";
+
+  // Scope the key per user so one client's key can't replay (or conflict with)
+  // another account's request.
+  return withIdempotency(req.headers.get("Idempotency-Key"), `investing.schedule:${userId}`, async () =>
+    createSchedule(userId, parsed.data)
+  );
+}
+
+type ScheduleInput = ReturnType<typeof ScheduleSchema.parse>;
+
+async function createSchedule(userId: string, data: ScheduleInput): Promise<NextResponse> {
+  const { symbol, notional, cadence } = data;
+  const side = data.side ?? "buy";
 
   const schedules = schedulesFor(userId);
   if (schedules.filter((s) => s.active).length >= MAX_ACTIVE_SCHEDULES) {

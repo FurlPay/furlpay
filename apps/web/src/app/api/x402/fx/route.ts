@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { quoteFx } from "@/lib/services/fx";
 import {
   X402_VERSION,
@@ -35,6 +36,9 @@ import { recordRailHealth } from "@/lib/ops/overview";
 const PRICE_USD = 0.01;
 
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "x402.fx", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const url = new URL(req.url);
   // Resource identity is the ENDPOINT, not the endpoint+query: one payment buys
   // one call to /api/x402/fx with whichever pair the agent picks. That is safe

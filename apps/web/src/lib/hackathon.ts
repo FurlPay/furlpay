@@ -8,6 +8,8 @@
 // and emails the team on each submission.
 // ---------------------------------------------------------------------------
 
+import { randomUUID } from "crypto";
+
 export type TrackId = "agentic" | "consumer" | "infra" | "wildcard";
 
 export interface Track {
@@ -65,7 +67,7 @@ const store: Submission[] = g.__hackathon ?? (g.__hackathon = []);
 export function addSubmission(s: Omit<Submission, "id" | "at">): Submission {
   const entry: Submission = {
     ...s,
-    id: `sub_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`,
+    id: `sub_${randomUUID()}`,
     at: new Date().toISOString(),
   };
   store.unshift(entry);

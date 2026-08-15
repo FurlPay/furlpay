@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import type { Hex } from "viem";
 import { resolveEscrow, readEscrowEntry, guardStatus, GuardNotConfiguredError } from "@/lib/complianceGuard";
 import { requireOperator } from "@/lib/complianceOperator";
@@ -10,6 +11,9 @@ export const dynamic = "force-dynamic";
 // POST /api/compliance/escrow/refund  — refund an escrowed tranche to the payer
 // after the release deadline. Both operator-gated (spend relayer gas).
 export async function POST(req: NextRequest, { params }: { params: Promise<{ action: string }> }) {
+  const limited = await rateLimitOr429(req, "compliance.escrow.action", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const denied = requireOperator(req);
   if (denied) return denied;
 

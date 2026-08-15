@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { quoteFx } from "@/lib/services/fx";
 import {
   buildChallenge,
@@ -38,6 +39,9 @@ function challenge402(realm: string, from: string, to: string, extra?: { problem
 }
 
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "mpp.fx", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const url = new URL(req.url);
   const realm = `${url.origin}/api/mpp/fx`;
   const from = (url.searchParams.get("from") || "USD").toUpperCase();

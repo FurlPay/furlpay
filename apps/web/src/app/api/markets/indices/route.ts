@@ -1,4 +1,5 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { getQuotes } from "@/lib/markets/quotes";
 
@@ -13,7 +14,10 @@ const INDICES = [
   { id: "eth", label: "Ethereum", proxy: "ETH" },
 ] as const;
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "markets.indices", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const quotes = await getQuotes();
   const items = INDICES.map((ix) => {
     const q = quotes.get(ix.proxy);

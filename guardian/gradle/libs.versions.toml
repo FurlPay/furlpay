@@ -54,8 +54,13 @@ watchface = "1.2.1"
 concurrent-futures = "1.2.0"
 # Ambient mode (AmbientLifecycleObserver)
 androidx-wear = "1.3.0"
-# QR encoding (QuickPay receive screen)
+# QR encoding (QuickPay receive screen) AND decoding (UPI scanner on phone).
+# zxing-core does both, so scanning needs no extra decoder dependency — CameraX
+# supplies the frames and MultiFormatReader reads them.
 zxing = "3.5.3"
+# CameraX — phone UPI QR scanner. India's merchant payments are QR-first, so
+# without a scanner Guardian cannot pay a shop at all.
+camerax = "1.4.1"
 # Remote SVG asset logos (furlpay.com/logos/* + Duffel airline marks)
 coil = "2.7.0"
 
@@ -124,6 +129,10 @@ wear-protolayout-material = { module = "androidx.wear.protolayout:protolayout-ma
 watchface-complications-data-source-ktx = { module = "androidx.wear.watchface:watchface-complications-data-source-ktx", version.ref = "watchface" }
 androidx-wear = { module = "androidx.wear:wear", version.ref = "androidx-wear" }
 zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+camera-core = { module = "androidx.camera:camera-core", version.ref = "camerax" }
+camera-camera2 = { module = "androidx.camera:camera-camera2", version.ref = "camerax" }
+camera-lifecycle = { module = "androidx.camera:camera-lifecycle", version.ref = "camerax" }
+camera-view = { module = "androidx.camera:camera-view", version.ref = "camerax" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 coil-svg = { module = "io.coil-kt:coil-svg", version.ref = "coil" }
 concurrent-futures-ktx = { module = "androidx.concurrent:concurrent-futures-ktx", version.ref = "concurrent-futures" }

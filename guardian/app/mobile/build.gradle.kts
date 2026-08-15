@@ -153,6 +153,15 @@ dependencies {
     // Periodic background sync (events → alarms → watch)
     implementation(libs.work.runtime)
 
+    // UPI QR scanning. CameraX supplies frames; zxing-core (already used by the
+    // watch's QuickPay QR *encoder*) decodes them, so no separate barcode
+    // library is pulled in.
+    implementation(libs.camera.core)
+    implementation(libs.camera.camera2)
+    implementation(libs.camera.lifecycle)
+    implementation(libs.camera.view)
+    implementation(libs.zxing.core)
+
     // FCM client (server side already live — lib/fcm.ts)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)

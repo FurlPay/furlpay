@@ -6,6 +6,7 @@
 // the Duffel / Travala rate stream.
 
 import { DESTINATIONS, generateFlights } from "@/lib/travel/data";
+import { randomUUID } from "crypto";
 
 export type AlertKind = "flight" | "hotel";
 export type SuccessBand = "high" | "medium" | "low";
@@ -84,7 +85,7 @@ export function createAlert(input: {
   const currentUsd = currentLowestUsd(input.kind, input.from, input.to, input.date);
   const { successPct, band } = scoreTarget(input.targetUsd, currentUsd, input.date);
   const alert: PriceAlert = {
-    id: `alrt_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+    id: `alrt_${randomUUID()}`,
     kind: input.kind,
     from: input.kind === "flight" ? (input.from || "DEL").toUpperCase().slice(0, 3) : undefined,
     to: input.kind === "flight" ? input.to.toUpperCase().slice(0, 3) : input.to,

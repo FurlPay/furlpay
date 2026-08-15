@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { settle, type AnyFacilitatorRequest } from "@/lib/x402Facilitator";
 
 // POST /api/x402/facilitator/settle — verify then submit settlement on-chain.
@@ -10,6 +11,9 @@ import { settle, type AnyFacilitatorRequest } from "@/lib/x402Facilitator";
 // success:false, never throws. Public by protocol design — auth IS the
 // payment. Throttled by the middleware baseline (150/min/IP).
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "x402.facilitator.settle", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   let body: AnyFacilitatorRequest;
   try {
     body = await req.json();

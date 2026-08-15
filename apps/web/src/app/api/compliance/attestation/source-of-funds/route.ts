@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { isAddress, type Address, type Hex } from "viem";
 import {
   hashSoFEvidence,
@@ -19,6 +20,9 @@ export const dynamic = "force-dynamic";
 //
 // Body: a full SoFEvidence object, or { subject, evidenceHash, expiry? }.
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "compliance.attestation.source.of.funds", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const denied = requireOperator(req);
   if (denied) return denied;
 

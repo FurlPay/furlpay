@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { getDestination, generateStays, generateFlights, generateActivities } from "@/lib/travel/data";
 
 // GET /api/travel/destinations/[slug] — destination details plus curated
 // top stays, flights and activities for the destination page.
-export async function GET(_req: NextRequest, props: { params: Promise<{ slug: string }> }) {
+export async function GET(req: NextRequest, props: { params: Promise<{ slug: string }> }) {
+  const limited = await rateLimitOr429(req, "travel.destinations.slug", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const params = await props.params;
   const destination = getDestination(params.slug);
   if (!destination) {

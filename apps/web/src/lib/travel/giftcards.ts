@@ -2,6 +2,8 @@
 // Codes never expire; redeemable for travel credit. A live build persists these
 // and settles the purchase via the FurlPay API.
 
+import { randomInt } from "crypto";
+
 export interface GiftCard {
   code: string;
   amountUsd: number;
@@ -15,7 +17,7 @@ export interface GiftCard {
 const cards: Map<string, GiftCard> = ((globalThis as any).__furlpayGiftCards ??= new Map<string, GiftCard>());
 
 function genCode(): string {
-  const part = () => Math.random().toString(36).slice(2, 6).toUpperCase();
+  const part = () => randomInt(0, 36 ** 4).toString(36).padStart(4, "0").toUpperCase();
   return `FURL-${part()}-${part()}-${part()}`;
 }
 

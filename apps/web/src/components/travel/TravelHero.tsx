@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, MapPin, CalendarDays, Users, Building2, Plane, Car, Ticket } from "lucide-react";
+import VoiceInputButton from "@/components/VoiceInputButton";
 
 const TABS = [
   { id: "stays", label: "Stays", Icon: Building2 },
@@ -60,7 +61,9 @@ export default function TravelHero() {
             SECOND column. Two content-sized inputs then sat side by side and
             pushed the document to 401px on a 375px phone — the page-level
             horizontal scroll. */}
-        <label className="flex min-w-0 items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3 sm:col-span-2">
+        {/* `relative` anchors the voice button's error message, which is
+            absolutely positioned so it cannot reflow the search grid. */}
+        <label className="relative flex min-w-0 items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3 sm:col-span-2">
           <MapPin className="h-4 w-4 shrink-0 text-textSecondary" />
           <input
             value={city}
@@ -68,6 +71,12 @@ export default function TravelHero() {
             placeholder={tab === "flights" ? "From → To" : "Where to?"}
             aria-label={tab === "flights" ? "Route, from and to" : "Destination"}
             className="w-full min-w-0 bg-transparent text-sm text-white placeholder:text-textSecondary focus:outline-none"
+          />
+          {/* Fills the field only — the human still presses Search, so a
+              misheard city is a typo rather than a wrong booking. */}
+          <VoiceInputButton
+            onResult={setCity}
+            label={tab === "flights" ? "Say your route" : "Say your destination"}
           />
         </label>
         <label className="flex min-w-0 items-center gap-2 rounded-xl bg-white/[0.06] px-3 py-3">

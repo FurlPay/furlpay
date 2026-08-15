@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { parseQrPayload } from "@/lib/qrPayload";
 import {
   X,
   Flashlight,
@@ -14,12 +15,17 @@ import {
   ShieldCheck,
   ShieldAlert,
   Keyboard,
+  Users,
+  UserPlus,
 } from "lucide-react";
 import QRCode from "qrcode";
 import { getJSON, postJSON } from "@/lib/api";
-import { TokenBalance, RiskScreenResult } from "@/lib/types";
+import { TokenBalance, RiskScreenResult, Contact } from "@/lib/types";
 import { CoinLogo, ChainLogo } from "@furlpay/ui";
 import { usd } from "@/components/ui";
+import { AVATAR_COLORS, chainKind } from "@/lib/contactConstants";
+import ContactAvatar from "@/components/ContactAvatar";
+import ContactPicker from "@/components/ContactPicker";
 
 // ---------------------------------------------------------------------------
 // Scan to Pay — full-screen scanner + "My QR" receive view.
@@ -50,33 +56,9 @@ interface QrDetector {
 }
 declare const BarcodeDetector: { new (opts: { formats: string[] }): QrDetector } | undefined;
 
-/** Extract a pay-to address (and optional amount/token) from a QR payload. */
-export function parseQrPayload(raw: string): { address: string; amount?: number; token?: string } | null {
-  const text = raw.trim();
-  // Furlpay JSON payload: { "address": "0x…", "amount": 25, "token": "USDC" }
-  if (text.startsWith("{")) {
-    try {
-      const j = JSON.parse(text);
-      if (typeof j.address === "string" && j.address.length >= 20) {
-        return { address: j.address, amount: Number(j.amount) || undefined, token: j.token };
-      }
-    } catch {
-      /* fall through */
-    }
-  }
-  // EIP-681 style: ethereum:0xabc…?value=…  /  solana:ADDR?amount=…
-  const uri = text.match(/^(?:ethereum|solana|furlpay):([1-9A-HJ-NP-Za-km-z0-9xa-fA-F]{20,64})(?:\?(.*))?$/);
-  if (uri) {
-    const params = new URLSearchParams(uri[2] ?? "");
-    const amt = Number(params.get("amount") ?? params.get("value"));
-    return { address: uri[1], amount: Number.isFinite(amt) && amt > 0 ? amt : undefined };
-  }
-  // Bare EVM address.
-  if (/^0x[a-fA-F0-9]{40}$/.test(text)) return { address: text };
-  // Bare Solana address (base58, 32–44 chars).
-  if (/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(text)) return { address: text };
-  return null;
-}
+// Re-exported so existing importers keep working; the implementation (and its
+// tests) now live in lib/qrPayload.ts.
+export { parseQrPayload } from "@/lib/qrPayload";
 
 /** Mock owner signature (0x + 130 hex) — real build signs with the passkey. */
 function mockSignature(): string {
@@ -373,9 +355,40 @@ function PaySheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [paidTx, setPaidTx] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [contacts, setContacts] = useState<Contact[]>([]);
 
   const src = balances[srcIdx];
   const addressValid = useMemo(() => !!parseQrPayload(address), [address]);
+
+  // The caller's address book for the SOURCE chain. Loaded once per chain so
+  // the sheet can name a recipient without spending the resolve budget on an
+  // address it can answer locally.
+  const srcChain = src?.chain;
+  useEffect(() => {
+    if (!srcChain) return;
+    const controller = new AbortController();
+    getJSON<{ contacts: Contact[] }>(`/api/contacts?chain=${srcChain}`, { signal: controller.signal })
+      .then((r) => setContacts(r.contacts))
+      .catch(() => setContacts([]));
+    return () => controller.abort();
+  }, [srcChain]);
+
+  // Who this address belongs to, if the user has saved them. Showing a name the
+  // user chose themselves is the strongest confirmation available that the
+  // money is going where they think — far stronger than a shortened hex string.
+  const knownContact = useMemo(() => {
+    if (!address.trim() || !srcChain) return undefined;
+    // Matched by chain FAMILY, not by exact chain: one EVM address is payable
+    // on every EVM chain, so a contact saved on Arbitrum is still this
+    // recipient when the source balance sits on Base. And folded to lowercase
+    // only for EVM — base58 is case-sensitive, so folding it would let two
+    // different Solana keys compare equal.
+    const fold = (value: string) =>
+      chainKind(srcChain) === "evm" ? value.trim().toLowerCase() : value.trim();
+    const key = fold(address);
+    return contacts.find((c) => c.addresses.some((a) => fold(a.address) === key));
+  }, [contacts, address, srcChain]);
 
   // AML screen the destination as soon as we have a plausible address.
   useEffect(() => {
@@ -438,6 +451,17 @@ function PaySheet({
         <p className="mt-3 max-w-full truncate rounded-full bg-white/[0.06] px-3 py-1 font-mono text-[11px] text-textMuted">
           {short(paidTx)}
         </p>
+
+        {/* The one moment the user knows exactly who this address belongs to.
+            Asking later means asking about a hex string with no context. */}
+        {!knownContact && src && (
+          <SaveRecipient
+            address={address}
+            chain={src.chain}
+            onSaved={(contact) => setContacts((prev) => [...prev, contact])}
+          />
+        )}
+
         <button onClick={onPaid} className="tap mt-8 w-full rounded-pill bg-accent py-3.5 font-semibold">
           Done
         </button>
@@ -457,8 +481,43 @@ function PaySheet({
       </div>
 
       {/* Recipient */}
-      <label className="mb-1 block text-[12px] text-textSecondary">To</label>
-      {to.editable ? (
+      <div className="mb-1 flex items-center justify-between">
+        <label className="text-[12px] text-textSecondary">To</label>
+        {to.editable && src && (
+          <button
+            onClick={() => setPickerOpen(true)}
+            className="tap flex items-center gap-1.5 text-[12px] font-semibold text-accent"
+          >
+            <Users className="h-3.5 w-3.5" /> Contacts
+          </button>
+        )}
+      </div>
+
+      {/* A saved contact outranks the raw string in both branches: the name is
+          what the user verified, the hex is what they cannot. */}
+      {knownContact ? (
+        <div className="mb-2 flex items-center gap-3 rounded-2xl bg-surface px-4 py-3">
+          <ContactAvatar
+            name={knownContact.name}
+            color={knownContact.avatarColor}
+            size="sm"
+            favorite={knownContact.isFavorite}
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-[14px] font-semibold">{knownContact.name}</span>
+            <span className="block truncate font-mono text-[11px] text-textMuted">{short(address)}</span>
+          </span>
+          {to.editable && (
+            <button
+              onClick={() => setAddress("")}
+              aria-label="Choose a different recipient"
+              className="tap text-textSecondary hover:text-white"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+      ) : to.editable ? (
         <input
           value={address}
           onChange={(e) => setAddress(e.target.value.trim())}
@@ -469,6 +528,26 @@ function PaySheet({
       ) : (
         <div className="mb-2 flex items-center justify-between rounded-2xl bg-surface px-4 py-3">
           <span className="font-mono text-[13px]">{short(address)}</span>
+        </div>
+      )}
+
+      {pickerOpen && src && (
+        <div className="absolute inset-0 z-40 flex flex-col rounded-t-[28px] bg-charcoal p-5 pb-8">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="text-lg font-bold">Pay a contact</h3>
+            <button onClick={() => setPickerOpen(false)} aria-label="Close contacts" className="text-textSecondary hover:text-white">
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="-mx-1 flex-1 overflow-y-auto px-1">
+            <ContactPicker
+              chain={src.chain}
+              onPick={(picked) => {
+                setAddress(picked.address);
+                setPickerOpen(false);
+              }}
+            />
+          </div>
         </div>
       )}
 
@@ -558,6 +637,95 @@ function PaySheet({
       <p className="mt-2 text-center text-[11px] text-textMuted">Gas sponsored by Furlpay · screened in real time</p>
 
       <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Save the address just paid, on the success screen.
+//
+// Deliberately here and not in a later prompt: right now the user knows who
+// they paid. A day later the same question is about a hex string they cannot
+// place, which is why address books stay empty and people keep pasting.
+// ---------------------------------------------------------------------------
+
+function SaveRecipient({
+  address,
+  chain,
+  onSaved,
+}: {
+  address: string;
+  chain: TokenBalance["chain"];
+  onSaved: (contact: Contact) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+
+  // Stable for the life of this success screen — re-picking on each render
+  // would make the avatar flicker a new colour as the user types.
+  const color = useMemo(() => AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)], []);
+
+  async function save() {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    setError(null);
+    const res = await postJSON<{ contact?: Contact; message?: string }>("/api/contacts", {
+      name: name.trim(),
+      avatarColor: color,
+      addresses: [{ address, chain }],
+    });
+    setBusy(false);
+    if (res.ok && res.data.contact) {
+      onSaved(res.data.contact);
+      setSaved(true);
+      return;
+    }
+    setError(res.data.message ?? "Could not save that contact.");
+  }
+
+  if (saved) {
+    return (
+      <p className="mt-6 flex items-center gap-1.5 text-[13px] text-gain">
+        <Check className="h-4 w-4" /> Saved to your address book
+      </p>
+    );
+  }
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="tap mt-6 flex items-center gap-2 rounded-pill bg-white/[0.08] px-4 py-2.5 text-[13px] font-semibold"
+      >
+        <UserPlus className="h-4 w-4" /> Save this recipient
+      </button>
+    );
+  }
+
+  return (
+    <div className="mt-6 w-full">
+      <div className="flex items-center gap-2">
+        <ContactAvatar name={name || "?"} color={color} />
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Name this recipient"
+          maxLength={64}
+          autoFocus
+          className="w-full rounded-2xl bg-white/[0.06] px-4 py-3 text-left text-[14px] font-semibold outline-none placeholder:text-textMuted"
+        />
+      </div>
+      {error && <p className="mt-2 text-[12px] text-loss">{error}</p>}
+      <button
+        onClick={save}
+        disabled={!name.trim() || busy}
+        className="tap mt-2 w-full rounded-pill bg-white/[0.12] py-3 text-[14px] font-semibold disabled:opacity-40"
+      >
+        {busy ? "Saving…" : "Save contact"}
+      </button>
     </div>
   );
 }

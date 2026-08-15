@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,10 @@ function state() {
   return (g.__agents ??= seed());
 }
 
-export function GET() {
+export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "agents", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const s = state();
   const totalSpent = s.agents.reduce((a, x) => a + x.spentToday, 0);
   const pending = s.activity.filter((a) => a.state === "pending").length;

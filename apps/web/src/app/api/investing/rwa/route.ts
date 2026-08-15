@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/authz";
 import { getQuotes } from "@/lib/markets/quotes";
 
@@ -30,6 +31,9 @@ const TOKENIZED = [
 ];
 
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "investing.rwa", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const holdings = auth.account.holdings ?? [];

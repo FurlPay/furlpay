@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import {
   verifyDiscordSignature,
   handleCommand,
@@ -17,6 +18,9 @@ export const dynamic = "force-dynamic";
 // (Discord probes with bad signatures and removes endpoints that accept
 // them). PING answers PONG so the Developer Portal can verify the URL.
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "discord.interactions", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const rawBody = await req.text();
   const ok = verifyDiscordSignature(
     rawBody,

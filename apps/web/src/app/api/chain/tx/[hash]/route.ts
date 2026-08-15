@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { getChain, getTransaction } from "@/lib/services/chainRegistry";
 
 export const dynamic = "force-dynamic";
@@ -6,6 +7,9 @@ export const dynamic = "force-dynamic";
 // GET /api/chain/tx/:hash?chain=arbitrum — look up a transaction on a
 // supported chain. Defaults to Arbitrum One (the settlement rail).
 export async function GET(req: NextRequest, props: { params: Promise<{ hash: string }> }) {
+  const limited = await rateLimitOr429(req, "chain.tx.hash", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const params = await props.params;
   const hash = params.hash;
   if (!/^0x[0-9a-fA-F]{64}$/.test(hash)) {

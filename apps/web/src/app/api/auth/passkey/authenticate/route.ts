@@ -16,7 +16,10 @@ import { isMobileClient } from "@/lib/clientKind";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // GET /api/auth/passkey/authenticate — real WebAuthn authentication options.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "auth.passkey.authenticate.options", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const user = db.user;
   const creds = await getCredentials(user.id);
   const options = await generateAuthenticationOptions({

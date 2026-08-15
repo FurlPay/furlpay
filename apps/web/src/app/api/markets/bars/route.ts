@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { bySymbol } from "@/lib/markets/catalog";
 
@@ -36,6 +37,9 @@ async function alpacaBars(url: string, headers: Record<string, string>, key: "ba
 }
 
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "markets.bars", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const symbol = (req.nextUrl.searchParams.get("symbol") ?? "").toUpperCase();
   const tf = (req.nextUrl.searchParams.get("tf") ?? "1M") as Tf;
   const asset = bySymbol.get(symbol);

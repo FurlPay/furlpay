@@ -11,6 +11,7 @@ import {
 import type { TradeLot } from "./corporateActions/types";
 import {
   Bill,
+  Contact,
   FiatBalance,
   Holding,
   PaymentCard,
@@ -179,6 +180,13 @@ export interface UserAccount {
   cards: PaymentCard[];
   bills: Bill[];
   transactions: Transaction[];
+  /**
+   * Address book. Optional so that an account loaded by a deployment WITHOUT
+   * migration 0010 (or hydrated from an older cached row) is still a valid
+   * UserAccount rather than one with a silently missing field — every reader
+   * goes through contactsFor() in lib/contacts.ts, which normalises it.
+   */
+  contacts?: Contact[];
 }
 
 interface AppState {
@@ -409,7 +417,7 @@ function tx(
   hoursAgo: number
 ): Transaction {
   return {
-    id: "tx_" + Math.random().toString(36).slice(2, 10),
+    id: "tx_" + randomUUID(),
     category,
     direction,
     title,
@@ -816,7 +824,7 @@ export function recordTransaction(userId: string, t: Transaction): void {
 export function newTx(partial: Omit<Transaction, "id" | "timestamp">): Transaction {
   return {
     ...partial,
-    id: "tx_" + Math.random().toString(36).slice(2, 10),
+    id: "tx_" + randomUUID(),
     timestamp: new Date().toISOString(),
   };
 }

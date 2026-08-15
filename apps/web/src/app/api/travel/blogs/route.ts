@@ -1,11 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { getSortedPosts } from "@/lib/blog/posts";
 import { GUIDES } from "@/lib/travel/guides";
 
 // GET /api/travel/blogs — travel stories: blog deep-dives (travel category)
 // plus practical guides, newest first.
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "travel.blogs", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const stories = getSortedPosts()
     .filter((p) => p.category === "travel")
     .map((p) => ({

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import {
   authorizeCart,
   toX402Settlement,
@@ -22,6 +23,9 @@ const nonceStore = g.__ap2Nonce ?? (g.__ap2Nonce = memoryNonceStore());
 // AP2 adapter that settles a cart over stablecoins. Public (the mandate
 // signatures ARE the auth — an invalid cart 4xxs).
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "agents.ap2", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const body = await req.json().catch(() => null);
   if (!body?.cart || !body?.intent || !body?.userPublicKey || !body?.cartSignerPublicKey) {
     return NextResponse.json(

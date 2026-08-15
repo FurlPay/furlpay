@@ -50,6 +50,10 @@ const CASCADE_TABLES = [
   "transactions",
   "trips",
   "linked_wallets",
+  // Contacts are third-party personal data the user entered (names paired with
+  // wallet addresses). Nothing about them is a financial record of the user's
+  // own activity, so there is no retention argument — they are erased outright.
+  "contacts",
 ];
 
 describe("account deletion — retention contract (schema-enforced)", () => {

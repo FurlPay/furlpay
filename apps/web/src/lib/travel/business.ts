@@ -1,6 +1,8 @@
 // FurlPay Business Travel — in-memory demo store for team wallets, spending
 // policies and expense reporting. A live build persists per-org in the DB.
 
+import { randomUUID } from "crypto";
+
 export interface SpendingPolicy {
   perTripBudgetUsd: number;
   maxHotelStars: number;
@@ -53,7 +55,7 @@ function seed() {
 export function createTeam(name: string, walletUsdc = 0, members: TeamMember[] = []): BusinessTeam {
   seed();
   const team: BusinessTeam = {
-    id: "team_" + Math.random().toString(36).slice(2, 10),
+    id: "team_" + randomUUID(),
     name,
     walletUsdc,
     members,

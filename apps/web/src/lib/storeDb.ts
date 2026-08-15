@@ -10,6 +10,8 @@ import type {
 } from "./corporateActions/types";
 import type {
   Bill,
+  Contact,
+  ContactAddress,
   FiatBalance,
   Holding,
   PaymentCard,
@@ -149,6 +151,16 @@ interface TransactionRow {
   status: Transaction["status"];
 }
 
+interface ContactRow {
+  id: string;
+  name: string;
+  avatar_color: string;
+  addresses: ContactAddress[] | null;
+  is_favorite: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 type UserRowEmbedded = UserRow & {
   token_balances: TokenBalanceRow[];
   fiat_balances: FiatBalanceRow[];
@@ -256,6 +268,10 @@ function accountFromRow(r: UserRowEmbedded): UserAccount {
       dueDate: b.due_date,
       autopay: b.autopay,
     })),
+    // Attached by loadAccount as a SEPARATE query, for the same reason as
+    // tradeLots above: `contacts(*)` embedded here 400s the WHOLE account load
+    // on any deployment without migration 0010.
+    contacts: [],
     // Embedded order is applied at query time (ts desc), but re-sort
     // defensively — the feed everywhere assumes newest-first.
     transactions: r.transactions
@@ -294,7 +310,43 @@ export async function loadAccount(userId: string): Promise<UserAccount | undefin
   const ledger = await loadLots(userId);
   account.tradeLots = ledger.lots;
   account.lotsReadable = ledger.readable;
+  account.contacts = await loadContacts(userId);
   return account;
+}
+
+/**
+ * Address book for one user — a SEPARATE query, for the reason documented on
+ * loadLots(): embedding an optional table fails the entire account load on a
+ * deployment that has not applied its migration.
+ *
+ * Unlike the lot ledger there is no readable/empty distinction to preserve. A
+ * lost lot resurrects a sold position; a contact list that reads empty is a
+ * momentarily empty address book, and the next successful load restores it.
+ * Contacts are never the source of truth for money movement — the address the
+ * user confirms is — so degrading to [] is safe.
+ */
+async function loadContacts(userId: string): Promise<Contact[]> {
+  try {
+    const rows = await sbSelect<ContactRow>(
+      "contacts",
+      `user_id=eq.${encodeURIComponent(userId)}&select=*&order=name.asc`
+    );
+    return rows.map((c) => ({
+      id: c.id,
+      name: c.name,
+      avatarColor: c.avatar_color,
+      addresses: c.addresses ?? [],
+      isFavorite: c.is_favorite,
+      createdAt: Date.parse(c.created_at) || Date.now(),
+      updatedAt: Date.parse(c.updated_at) || Date.now(),
+    }));
+  } catch (e) {
+    log.error("contacts unreadable — address book degrades to empty", {
+      userId,
+      error: (e as Error).message,
+    });
+    return [];
+  }
 }
 
 /**
@@ -709,6 +761,15 @@ export async function saveAccount(account: UserAccount): Promise<void> {
       due_date: b.dueDate,
       autopay: b.autopay,
     })),
+    p_contacts: (account.contacts ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      avatar_color: c.avatarColor,
+      addresses: c.addresses,
+      is_favorite: c.isFavorite,
+      created_at: new Date(c.createdAt).toISOString(),
+      updated_at: new Date(c.updatedAt).toISOString(),
+    })),
   };
 
   // Preferred path: the whole child write is one Postgres transaction, so no
@@ -824,8 +885,47 @@ export async function saveAccount(account: UserAccount): Promise<void> {
       })),
       (r) => r.id
     ),
+    // Best-effort, unlike the tables above: on a deployment without migration
+    // 0010 the table does not exist, and a rejected address-book write must not
+    // fail the flush that carries balances and cards.
+    syncContacts(account, uid),
     sbUpsert<TransactionRow>("transactions", txRows(account, uid)),
   ]);
+}
+
+/** Contacts for the non-atomic fallback path. Never rejects. */
+async function syncContacts(account: UserAccount, uid: string): Promise<void> {
+  const contacts = account.contacts ?? [];
+  try {
+    await sbUpsert<ContactRow & { user_id: string }>(
+      "contacts",
+      contacts.map((c) => ({
+        id: c.id,
+        user_id: uid,
+        name: c.name,
+        avatar_color: c.avatarColor,
+        addresses: c.addresses,
+        is_favorite: c.isFavorite,
+        created_at: new Date(c.createdAt).toISOString(),
+        updated_at: new Date(c.updatedAt).toISOString(),
+      }))
+    );
+    // Prune deleted contacts. Ids are app-generated UUIDs, so they satisfy
+    // SAFE_KEY; anything else is left alone rather than risking a wrong filter.
+    const ids = contacts.map((c) => c.id);
+    const byUser = `user_id=eq.${encodeURIComponent(uid)}`;
+    if (!ids.length) {
+      await sbDelete("contacts", byUser);
+    } else if (ids.every((k) => SAFE_KEY.test(k))) {
+      const list = ids.map((k) => `"${k}"`).join(",");
+      await sbDelete("contacts", `${byUser}&id=not.in.(${list})`);
+    }
+  } catch (e) {
+    log.error("contacts write failed — address book not persisted this flush", {
+      userId: uid,
+      error: (e as Error).message,
+    });
+  }
 }
 
 /** Transactions are append-mostly: the newest TX_LIMIT are upserted and older

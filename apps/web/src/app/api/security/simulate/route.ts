@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { screenTransaction, type TxRequest } from "@furlpay/security";
 
 export const dynamic = "force-dynamic";
@@ -8,6 +9,9 @@ export const dynamic = "force-dynamic";
 // returning an allow/warn/block gate the client enforces BEFORE signing.
 // Body: TxRequest ({ from, to, valueUsd, approvalAmount?, recipientAgeDays?, ... }).
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "security.simulate", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const b = (await req.json().catch(() => ({}))) as Partial<TxRequest>;
   if (!b?.to || typeof b.to !== "string") {
     return NextResponse.json({ error: "recipient `to` is required" }, { status: 400 });

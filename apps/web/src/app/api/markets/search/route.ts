@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { searchUniverse, universeStats, type MergedAsset } from "@/lib/markets/universe";
 import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
@@ -34,6 +35,9 @@ const MAX_LIMIT = 50;
 export type QuoteStatus = "live" | "delayed" | "unavailable";
 
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "markets.search", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const p = req.nextUrl.searchParams;
   const q = (p.get("q") ?? "").slice(0, 64);
   const kindParam = p.get("kind");

@@ -22,6 +22,32 @@
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
 
+    <!-- UPI QR scanning. Same reasoning as NFC above: the permission is
+         declared, but the camera is NOT required=true — a phone without one
+         should still install and use every other Guardian surface. The scan
+         screen asks at runtime and degrades to an explanation if refused. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+
+    <!-- UPI package visibility.
+
+         Android 11 (API 30) hid other installed apps by default. WITHOUT this,
+         resolving a `upi://pay?…` intent finds nothing even when GPay, PhonePe
+         and Paytm are all installed — so a scanned merchant QR would report "no
+         UPI app found" and tell the user to install one they already have.
+         Nothing throws and nothing logs; the feature is simply dead.
+
+         Only the scheme is declared, not individual <package> entries: NPCI
+         requires every PSP app to register `upi://`, so naming apps would be a
+         list that goes stale as PSPs come and go, and it buys nothing. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="upi" />
+        </intent>
+    </queries>
+
     <application
         android:name=".GuardianApp"
         android:label="FurlPay Guardian"

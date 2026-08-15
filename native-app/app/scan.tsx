@@ -5,6 +5,7 @@ import { useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { parseScannedAddress } from "@/lib/qr";
+import { looksLikeUpiUri, parseUpiUri } from "@/lib/upi";
 import { ScannerFrame } from "@/components/ScannerFrame";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, Field, Screen, Sheet } from "@/components/ui";
@@ -12,7 +13,7 @@ import { Button, Field, Screen, Sheet } from "@/components/ui";
 export default function Scan() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
-  const [invalid, setInvalid] = useState(false);
+  const [invalid, setInvalid] = useState<null | "not_payable" | "bad_upi">(null);
   const [requesting, setRequesting] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manual, setManual] = useState("");
@@ -24,7 +25,25 @@ export default function Scan() {
   // parser the camera uses, so a bad paste is rejected here rather than
   // surfacing as a failed send later.
   const submitManual = () => {
-    const address = parseScannedAddress(manual.trim());
+    const entry = manual.trim();
+
+    // A UPI URI can be pasted as text (shared over WhatsApp is common), so the
+    // manual path accepts the same inputs the camera does.
+    const upi = parseUpiUri(entry);
+    if (upi) {
+      setManualOpen(false);
+      setManual("");
+      setManualError(null);
+      void Haptics.selectionAsync();
+      router.replace({ pathname: "/upi/confirm", params: { uri: entry } });
+      return;
+    }
+    if (looksLikeUpiUri(entry)) {
+      setManualError("That UPI link is damaged or incomplete.");
+      return;
+    }
+
+    const address = parseScannedAddress(entry);
     if (!address) {
       setManualError("That doesn't look like a payable address.");
       return;
@@ -88,13 +107,31 @@ export default function Scan() {
         barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
         onBarcodeScanned={({ data }) => {
           if (handled.current) return;
+
+          // UPI first: India's merchant QRs are upi:// URIs, and they can never
+          // be mistaken for a crypto address, so the order costs nothing.
+          const upi = parseUpiUri(data);
+          if (upi) {
+            handled.current = true;
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.replace({ pathname: "/upi/confirm", params: { uri: data } });
+            return;
+          }
+          // A UPI QR we could not parse is a DIFFERENT failure from a QR that
+          // holds no payment at all — say which, or the user just re-scans a QR
+          // that will never work.
+          if (looksLikeUpiUri(data)) {
+            setInvalid("bad_upi");
+            return;
+          }
+
           const address = parseScannedAddress(data);
           if (address) {
             handled.current = true;
             void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             router.replace({ pathname: "/(tabs)/send", params: { to: address } });
           } else {
-            setInvalid(true);
+            setInvalid("not_payable");
           }
         }}
       />
@@ -102,9 +139,11 @@ export default function Scan() {
 
       <View style={styles.overlay}>
         <Text style={[type.dim, styles.hint]}>
-          {invalid
-            ? "That QR doesn't contain a payable address — try another."
-            : "Point at a wallet address or FurlPay payment QR."}
+          {invalid === "bad_upi"
+            ? "That UPI QR is damaged or incomplete — ask for a fresh one."
+            : invalid === "not_payable"
+              ? "That QR doesn't contain a payable address — try another."
+              : "Point at a UPI QR, wallet address, or FurlPay payment QR."}
         </Text>
         <Pressable
           onPress={() => {

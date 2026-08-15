@@ -93,31 +93,11 @@ const BACKLOG = new Set<string>([
   // 1. authenticate by hand rather than through requireUser()
   //    account/fund, agents/keys and markets/[symbol] were migrated to
   //    optionalUser() on 23 Jul 2026 and removed from this list.
-  "auth/logout", "auth/passkey/authenticate",
-  "auth/passkey/register", "auth/webauthn", "travel/book",
   // 2. unauthenticated readers with no rate limit
-  "actions/book-car", "agents", "ambassadors/instagram", "analytics/costs",
-  "analytics/graph", "chain/contracts", "chain/gas-price", "chain/status",
+  "actions/book-car",
   // `compliance` gained a per-route rate limit on 23 Jul 2026 and is now fixed.
-  "chain/tx/[hash]", "chain/usdc/supply",
-  "compliance/attestation/[tx]", "compliance/jurisdiction", "discord/linked-roles",
   // `investing/schedule` gained a per-route rate limit and is now fixed.
-  "earn/position", "earn/vaults", "insights", "investing/rwa",
-  "ledger", "markets", "markets/bars", "markets/indices", "markets/movers",
-  "markets/search", "mpp/fx", "onramp/session/[id]", "payments/[id]",
-  "payments/[id]/receipt", "payments/fees/estimate", "payments/history",
-  "receipts/match", "reports/pnl", "reports/spending", "reports/tax",
-  "travel/blogs", "travel/business/policies", "travel/business/team",
-  "travel/deals", "travel/destinations", "travel/destinations/[slug]",
-  "travel/hotels", "travel/itineraries", "travel/property/[id]", "travel/referral",
-  "travel/restaurants", "travel/vlogs", "x402/discovery/resources",
-  "x402/facilitator/supported", "x402/fx", "x402/policy/evaluate", "x402/price",
-  "x402/resources", "x402/settlement/[tx]",
   // 3. public mutators — middleware baseline applies, per-route budget missing
-  "agents/ap2", "compliance/attestation/source-of-funds", "compliance/escrow/[action]",
-  "discord/interactions", "security/simulate", "travel/gift-cards",
-  "travel/referral/track", "travel/trip-match", "x402/facilitator/settle",
-  "x402/facilitator/verify", "x402/policy/settle",
 ]);
 
 // ── Completeness (preserved verbatim from the original suite) ──────────────

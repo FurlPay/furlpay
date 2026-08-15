@@ -81,6 +81,36 @@ export interface Transaction {
   status: "settled" | "pending" | "escrow" | "declined";
 }
 
+/** One saved address belonging to a contact. */
+export interface ContactAddress {
+  id: string;
+  address: string;
+  chain: Chain;
+  /** Optional user label, e.g. "salary" or "cold wallet". */
+  label?: string;
+  /** Preferred address for this contact on this chain family. */
+  isDefault: boolean;
+  /** Epoch ms of the last send to this address — drives "recent" ordering. */
+  lastUsedAt?: number;
+}
+
+/**
+ * An address-book entry. A contact is a SAFETY control first: the mistake it
+ * prevents is paying a 42-character string that looks right and is not. The
+ * name is what the user recognises, but the ADDRESS is what moves money, so
+ * every surface that shows a contact must show both.
+ */
+export interface Contact {
+  id: string;
+  name: string;
+  /** Hex from the app palette; validated so it can be interpolated into style. */
+  avatarColor: string;
+  addresses: ContactAddress[];
+  isFavorite: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
 export interface Bill {
   id: string;
   provider: string;

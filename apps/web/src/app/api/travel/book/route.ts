@@ -23,8 +23,7 @@ import { acquireLock, releaseLock } from "@/lib/locks";
 import { kvGet, kvSet } from "@/lib/kv";
 import { sendEmail } from "@/lib/email";
 import { bookingConfirmationEmail } from "@/lib/emailTemplates";
-import { verifySession, tokenFromRequest } from "@/lib/session";
-import { hasScope, type McpClaims } from "@/lib/mcp/oauth";
+import { optionalUser } from "@/lib/authz";
 import crypto from "crypto";
 
 // POST /api/travel/book — authorize a booking and record it as a trip.
@@ -96,10 +95,24 @@ export async function POST(req: NextRequest) {
   const body = parsed.data;
 
   // Resolve the owner BEFORE anything else — idempotency is scoped per owner so
-  // one user's key can never replay another's booking. Public funnel: an
-  // unauthenticated (or under-scoped MCP) caller books anonymously.
-  const raw = (await verifySession(tokenFromRequest(req), { durable: true })) as McpClaims | null;
-  const claims = raw?.mcp === true && !hasScope(raw, "travel:write") ? null : raw;
+  // one user's key can never replay another's booking. Public funnel: a caller
+  // with NO credential books anonymously, by design.
+  //
+  // optionalUser, not a bare verifySession: this route spends money, and the
+  // hand-rolled resolution it replaces skipped the cross-instance revocation
+  // denylist, the deleted-account tombstone and the account lock — a revoked or
+  // deleted session booked as though it were live. It also silently downgraded
+  // an out-of-scope connector token to an anonymous booking; a caller who
+  // presents a dead credential must be REFUSED, not served as though they had
+  // presented none.
+  //
+  // Connector (MCP) tokens are now default-denied here by lib/mcp/routeScopes,
+  // which is the documented intent: the only travel:write tool is
+  // `book_travel_link`, and it exists precisely so a connector hands the user a
+  // deep link instead of booking an irreversible trip autonomously.
+  const auth = await optionalUser(req);
+  if (auth.kind === "rejected") return auth.res;
+  const claims = auth.kind === "user" ? auth.claims : null;
   const ownerId = claims?.sub ?? `anon:${crypto.randomUUID()}`;
 
   // Idempotency replay — return the prior booking untouched, no new trip.

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { ITINERARIES, getItinerary } from "@/lib/travel/discover";
 import { CASHBACK_RATE } from "@/lib/travel/data";
@@ -6,6 +7,9 @@ import { CASHBACK_RATE } from "@/lib/travel/data";
 // GET /api/travel/itineraries — bookable day-by-day itineraries.
 // ?slug=<slug> returns the full plan for one itinerary.
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "travel.itineraries", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const slug = req.nextUrl.searchParams.get("slug");
   if (slug) {
     const itinerary = getItinerary(slug);

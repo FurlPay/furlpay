@@ -4,6 +4,8 @@
 // the web app. Runs on deterministic demo inventory; a live build swaps
 // generate* for the Travala Travel MCP and authorize* for the FurlPay API.
 
+import { randomInt, randomUUID } from "crypto";
+
 export type StayType = "Hotel" | "Resort" | "Villa" | "Apartment" | "Hostel";
 export type BookingSource = "travala" | "legacy";
 
@@ -487,7 +489,7 @@ export const MCC = { LODGING: "7011", AIRLINES: "4511", CAR_RENTAL: "7512" } as 
 export type Mcc = (typeof MCC)[keyof typeof MCC];
 const REBATE_RATE = 0.1;
 const DEVELOPER_SHARE = 0.7;
-const rid = (p: string) => p + Math.random().toString(36).slice(2, 10);
+const rid = (p: string) => p + randomUUID();
 
 export interface Authorization {
   route: BookingSource;
@@ -516,7 +518,7 @@ export function authorizeBooking(amountUsd: number, source: BookingSource, mcc: 
   return {
     route: "legacy",
     amountUsd,
-    card: { last4: String(1000 + Math.floor(Math.random() * 9000)).slice(-4), mcc: [mcc], singleUse: true, limitUsd: amountUsd },
+    card: { last4: String(randomInt(1000, 10_000)), mcc: [mcc], singleUse: true, limitUsd: amountUsd },
     cashbackUsd,
     simulated: true,
   };

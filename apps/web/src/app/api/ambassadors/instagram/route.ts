@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // GET /api/ambassadors/instagram?handle=&email=
 // Fetches an Instagram Business/Creator profile via Meta's business_discovery
@@ -92,6 +93,9 @@ async function realProfile(handle: string): Promise<IgProfile | null> {
 }
 
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "ambassadors.instagram", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const handle = cleanHandle(str(req.nextUrl.searchParams.get("handle")));
   if (!handle) {
     return NextResponse.json({ ok: false, error: "A ?handle= is required." }, { status: 400 });

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { CATALOG, assetLogoPath, AssetKind } from "@/lib/markets/catalog";
 import { collectionBySlug } from "@/lib/markets/collections";
@@ -9,6 +10,9 @@ import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
 //          ?collection=<slug>  ?chain=<crypto chain>  ?cap=mega|large|mid|small  ?q=<search>
 // Sorting: ?sort=changePct|-changePct|price|-price|symbol   Paging: ?limit=
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "markets", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const p = req.nextUrl.searchParams;
   const kind = p.get("kind") as AssetKind | null;
   const sector = p.get("sector");

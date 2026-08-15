@@ -15,8 +15,12 @@ import { listAgentKeys, revokeAgentKey } from "@/lib/agentPolicy";
 //
 //   ERASED (on delete cascade from users):
 //     token_balances, fiat_balances, holdings, cards, bills, transactions,
-//     trips, linked_wallets  — plus the users row itself (name, email, phone,
-//     googleSub/appleSub, security JSONB incl. totpSecret, notification prefs).
+//     trips, linked_wallets, contacts  — plus the users row itself (name, email,
+//     phone, googleSub/appleSub, security JSONB incl. totpSecret, notification
+//     prefs). `contacts` (0010) holds THIRD-PARTY personal data the user typed
+//     in — other people's names against their wallet addresses. None of it is a
+//     record of the user's own financial activity, so no retention argument
+//     applies and it goes in full.
 //
 //   PSEUDONYMIZED (on delete set null):
 //     deposits.user_id — the on-chain deposit ledger is the "permanent record"
@@ -134,6 +138,7 @@ export async function deleteUserAccount(userId: string): Promise<DeletionOutcome
       "Profile and contact details",
       "Passkeys and linked sign-in identities",
       "Balances, holdings, cards and bills",
+      "Saved contacts (your address book)",
       "Transaction history",
       "Trips and bookings",
       "Linked wallet address",

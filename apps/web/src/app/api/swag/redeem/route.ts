@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomUUID } from "crypto";
 import { z } from "zod";
 import { parse } from "@/lib/schemas";
 import { getSwag } from "@/lib/swag";
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
   const totalPoints = lines.reduce((n, l) => n + l.points, 0);
 
   const order: Order = {
-    id: `swag_${Math.random().toString(36).slice(2, 10)}`,
+    id: `swag_${randomUUID()}`,
     at: new Date().toISOString(),
     email: d.email,
     items: d.items,

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { db } from "@/lib/store";
 import type { Transaction } from "@/lib/types";
 
@@ -83,7 +84,10 @@ export async function POST(req: NextRequest) {
   });
 }
 
-export function GET() {
+export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "receipts.match", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const txns = outgoing();
   const reconciled = txns.filter((t) => matched[t.id]);
   return NextResponse.json({

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { curatedHotels } from "@/lib/travel/discover";
 import { generateStays, STAY_INVENTORY_COUNT } from "@/lib/travel/data";
@@ -8,6 +9,9 @@ import { searchDuffelStays } from "@/lib/travel/duffel";
 // ?city=<name> returns top-rated hotels for that city instead (live Duffel
 // Stays with real property photos when the key is set).
 export async function GET(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "travel.hotels", { limit: 60, windowMs: 60_000 });
+  if (limited) return limited;
+
   const city = req.nextUrl.searchParams.get("city");
   if (city) {
     const live = await searchDuffelStays(city);

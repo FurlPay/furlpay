@@ -84,10 +84,10 @@ function evictStale(store: Map<string, Bucket>, now: number, windowMs: number): 
 }
 
 /** Best-effort client IP (Vercel sets x-forwarded-for; first hop is client). */
-export function clientIp(req: NextRequest): string {
+export function clientIp(req: NextRequest | undefined): string {
   return (
-    req.headers.get("x-real-ip") ||
-    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    req?.headers.get("x-real-ip") ||
+    req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
     "unknown"
   );
 }
@@ -117,7 +117,7 @@ export function rateLimitHeaders(limitVal: number, remaining: number, resetSecon
  * exhaust another user's budget, and one user can't rotate IPs freely.
  */
 export async function rateLimitOr429(
-  req: NextRequest,
+  req: NextRequest | undefined,
   name: string,
   opts: RateLimitOptions,
   extraKey = ""

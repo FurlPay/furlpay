@@ -1,5 +1,6 @@
 import { Chain, Token } from "../types";
 import { kvGet, kvSet, kvSetNx, kvListPush, kvListRange } from "../kv";
+import { randomInt } from "crypto";
 
 // ---------------------------------------------------------------------------
 // Real-time on-chain deposit tracking. Node providers (QuickNode Streams /
@@ -67,7 +68,7 @@ const RECENT_KEY = "deposit:recent";
 function orderId(): string {
   const d = new Date();
   const stamp = d.toISOString().replace(/\D/g, "").slice(0, 14);
-  return `FP${stamp}${Math.floor(Math.random() * 1e6).toString().padStart(6, "0")}`;
+  return `FP${stamp}${randomInt(0, 1_000_000).toString().padStart(6, "0")}`;
 }
 
 /**

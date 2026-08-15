@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { generateSecret, otpauthUrl, verifyTotp } from "@furlpay/security";
 import { requireUser } from "@/lib/authz";
 import { persistAccount } from "@/lib/store";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
+import { validateBody } from "@/lib/validate";
 
 export const dynamic = "force-dynamic";
+
+const MfaBody = z.object({
+  action: z.enum(["enroll", "verify", "disable"]),
+  code: z.string().trim().min(6).max(10).optional(),
+});
 
 // TOTP MFA management for the AUTHENTICATED user.
 //
@@ -38,11 +45,12 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "security.mfa", { limit: 10, windowMs: 5 * 60_000 });
   if (limited) return limited;
 
-  const { action, code } = await req.json().catch(() => ({}));
+  const body = await validateBody(req, MfaBody);
+  if (body instanceof NextResponse) return body;
   const user = auth.account.user;
   const sec = user.security;
 
-  if (action === "enroll") {
+  if (body.action === "enroll") {
     // Generate a pending secret and return the otpauth URI for QR enrollment.
     // Returned once, to the authenticated owner only.
     const secret = generateSecret();
@@ -56,9 +64,9 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  if (action === "verify") {
-    if (!code) return NextResponse.json({ error: "code required" }, { status: 400 });
-    const ok = verifyTotp(sec.totpSecret, code);
+  if (body.action === "verify") {
+    if (!body.code) return NextResponse.json({ error: "code required" }, { status: 400 });
+    const ok = verifyTotp(sec.totpSecret, body.code);
     if (!ok) {
       audit("auth.mfa_failed", user.id, {});
       return NextResponse.json({ error: "Invalid code" }, { status: 401 });
@@ -69,7 +77,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, totpEnabled: true });
   }
 
-  if (action === "disable") {
+  if (body.action === "disable") {
     sec.totpEnabled = false;
     await persistAccount(user.id);
     audit("auth.mfa_disabled", user.id, {});

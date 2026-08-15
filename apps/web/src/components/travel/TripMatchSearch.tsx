@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Sparkles, Search, ArrowRight } from "lucide-react";
+import VoiceInputButton from "@/components/VoiceInputButton";
 import type { TripMatch, TripMatchSignal } from "@/lib/travel/tripmatch";
 
 // Furl AI Trip Match — describe the trip in plain language, get ranked
@@ -65,8 +66,15 @@ export default function TripMatchSearch() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder='Try "beach under $100 a night, visa-free, good wifi"'
-            className="w-full rounded-lg border border-white/10 bg-black/40 py-2.5 pl-9 pr-3 text-sm text-white outline-none placeholder:text-textMuted focus:border-neon/60"
+            aria-label="Describe your trip"
+            className="w-full rounded-lg border border-white/10 bg-black/40 py-2.5 pl-9 pr-11 text-sm text-white outline-none placeholder:text-textMuted focus:border-neon/60"
           />
+          {/* A whole sentence is far easier to say than to thumb-type, so this
+              field benefits from dictation more than the city one does. It only
+              fills the input; matching still runs on submit. */}
+          <span className="absolute right-2 top-1/2 -translate-y-1/2">
+            <VoiceInputButton onResult={setQuery} label="Describe your trip by voice" />
+          </span>
         </div>
         <button
           type="submit"

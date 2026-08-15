@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { isAddress, type Address, type Hex } from "viem";
 import {
   settleWithPolicy,
@@ -22,6 +23,9 @@ export const dynamic = "force-dynamic";
 //   { mode: "single", from, to, resource, txId, auth }
 //   { mode: "tranche", from, to, resource, txId, releaseDeadline, compliantAuth, escrowAuth }
 export async function POST(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "x402.policy.settle", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
+
   const denied = requireOperator(req);
   if (denied) return denied;
 
