@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Package } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import {
   DiscordIcon,
   GitHubIcon,
@@ -79,7 +79,7 @@ const REPOS = [
 export default function CommunityPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar active="community" />
+      <LandingChrome />
       <main className="mx-auto max-w-4xl px-6 pb-24 pt-14">
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">
           Community

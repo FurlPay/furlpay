@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { seoMetadata } from "@/lib/seo/meta";
 
 // /downloads — the destination every store badge and desktop link on the
@@ -75,7 +75,7 @@ const PLATFORMS: {
 export default function DownloadsPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <main className="section pb-24 pt-14">
         <p className="section-eyebrow">Downloads</p>
         <h1 className="section-title mt-3">Get FurlPay.</h1>

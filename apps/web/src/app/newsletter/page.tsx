@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata, Viewport } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import JsonLd from "@/components/JsonLd";
 import { editionLabel } from "@/components/card/edition";
 import { seoMetadata } from "@/lib/seo/meta";
@@ -89,7 +89,7 @@ export default function NewsletterPage() {
           ]),
         ]}
       />
-      <MarketingBar />
+      <LandingChrome />
       <main className="launch-page newsletter-page">
         <div aria-hidden="true" className="ambient-grid" />
 

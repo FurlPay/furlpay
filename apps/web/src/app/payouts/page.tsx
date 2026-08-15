@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Zap, Globe, Code2, ShieldCheck, Clock, Wallet, ArrowRight } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 export const metadata: Metadata = {
   title: "Furlpay Payouts — Instant USDC Payouts API for Platforms",
@@ -44,7 +44,7 @@ const STEPS = [
 export default function PayoutsPage() {
   return (
     <div className="min-h-screen bg-black text-textPrimary">
-      <MarketingBar />
+      <LandingChrome />
 
       {/* Hero */}
       <section className="relative overflow-hidden">
@@ -72,7 +72,7 @@ export default function PayoutsPage() {
       </section>
 
       {/* The problem */}
-      <section className="mx-auto max-w-5xl px-6 py-12">
+      <section className="section py-12">
         <h2 className="text-center text-[26px] font-extrabold tracking-tighter sm:text-[32px]">The payout problem everyone lives with</h2>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           {PROBLEM.map(([big, small]) => (
@@ -142,7 +142,7 @@ const payout = await furlpay.payouts.create({
       </section>
 
       {/* How it works */}
-      <section className="mx-auto max-w-5xl px-6 py-12">
+      <section className="section py-12">
         <h2 className="text-center text-[26px] font-extrabold tracking-tighter sm:text-[32px]">Live in three steps</h2>
         <div className="mt-8 grid gap-4 sm:grid-cols-3">
           {STEPS.map((s) => (

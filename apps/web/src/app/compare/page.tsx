@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { ArrowRight } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
 import { seoMetadata } from "@/lib/seo/meta";
@@ -41,7 +41,7 @@ export default function CompareIndexPage() {
   const ALL = GROUPS.flatMap((g) => g.items);
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar active="compare" />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },

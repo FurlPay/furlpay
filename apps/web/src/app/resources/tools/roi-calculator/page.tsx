@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import RoiCalculator from "@/components/marketing/RoiCalculator";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
@@ -32,7 +32,7 @@ const FAQ = [
 export default function RoiCalculatorPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={[
           webApplication({ name: "Furlpay Stablecoin ROI Calculator", description: "Calculate annual ROI from switching card payments to USDC on Arbitrum.", url: URL }),

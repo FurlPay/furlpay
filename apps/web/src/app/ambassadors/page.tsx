@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Zap, Globe, ShieldCheck, Coins, Store, LinkIcon, BarChart3, Users, Plane } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import AmbassadorForm from "@/components/marketing/AmbassadorForm";
 import { XIcon, InstagramIcon, YouTubeIcon, LinkedInIcon, DiscordIcon, TelegramIcon, GitHubIcon } from "@/components/marketing/SocialIcons";
 
@@ -124,7 +124,7 @@ const SOCIALS = [
 export default function AmbassadorsPage() {
   return (
     <div className="min-h-screen bg-black text-textPrimary">
-      <MarketingBar active="ambassadors" />
+      <LandingChrome />
 
       {/* Hero */}
       <section className="relative overflow-hidden">
@@ -160,7 +160,7 @@ export default function AmbassadorsPage() {
       </section>
 
       {/* Creator reel — autoplaying travel content */}
-      <section className="mx-auto max-w-5xl px-6 pt-6">
+      <section className="section pt-6">
         <div className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]">
           {/* Muted + playsInline so browsers allow autoplay; loops silently. */}
           <video

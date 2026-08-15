@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { GitPullRequest, Coins, Gift, Star } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, Section, CtaBand } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
@@ -43,7 +43,7 @@ const FAQ = [
 export default function SwagPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },

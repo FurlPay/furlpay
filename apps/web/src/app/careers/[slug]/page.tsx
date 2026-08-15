@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, MapPin, Briefcase, Wallet, Percent } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import CareersForm from "@/components/marketing/CareersForm";
 import { JOBS, getJob, jobPostingJsonLd } from "@/lib/careers/jobs";
 
@@ -42,7 +42,7 @@ export default async function JobPage(props: { params: Promise<{ slug: string }>
 
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <main className="mx-auto max-w-3xl px-6 pb-24 pt-14">
         {job.status === "open" && (
           <script

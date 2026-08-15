@@ -1,4 +1,4 @@
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, Section, CtaBand, CompareTable } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
@@ -23,7 +23,7 @@ export type CompareProps = {
 export default function ComparePage(p: CompareProps) {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar active="compare" />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },

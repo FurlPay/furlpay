@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import CreatorDashboard from "./CreatorDashboard";
 
 export const metadata: Metadata = {
@@ -16,7 +16,7 @@ export default async function CreatorDashboardPage({
   const { email } = await searchParams;
   return (
     <div className="min-h-screen bg-black text-textPrimary">
-      <MarketingBar active="ambassadors" />
+      <LandingChrome />
       <CreatorDashboard initialEmail={email ?? ""} />
     </div>
   );

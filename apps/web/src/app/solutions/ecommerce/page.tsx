@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, FeatureGrid, Section, CtaBand } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
 import FeeCalculator from "@/components/marketing/FeeCalculator";
@@ -54,7 +54,7 @@ const FAQ = [
 export default function EcommercePage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },
@@ -62,7 +62,7 @@ export default function EcommercePage() {
           { name: "E-commerce", path: "/solutions/ecommerce" },
         ])}
       />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Solutions · E-commerce"
           title="Crypto payments for your online store."

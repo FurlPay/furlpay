@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Search } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 const EVENTS = [
   { id: "evt_9f21", type: "x402.settled", time: "12:45:02", detail: "0.01 USDC · base · payer 0x11…", ok: true },
@@ -26,7 +26,7 @@ export default function EventsPage() {
 
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <main className="mx-auto max-w-4xl px-6 pb-24 pt-12">
         <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Developer · Event log</p>
         <h1 className="text-[32px] font-extrabold tracking-tighter sm:text-[40px]">Events</h1>

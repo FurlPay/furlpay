@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, CtaBand } from "@/components/marketing/blocks";
 import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
@@ -68,7 +68,7 @@ const PRODUCTS = [
 export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },

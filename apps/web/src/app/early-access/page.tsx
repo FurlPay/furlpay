@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Bot, Code2, CreditCard, Globe2, Plane, Repeat } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import EarlyAccessSignup from "@/components/marketing/EarlyAccessSignup";
 
 export const metadata: Metadata = {
@@ -88,7 +88,7 @@ const FAQ = [
 export default function EarlyAccessPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <main className="mx-auto max-w-6xl px-6 pb-24">
         {/* Hero */}
         <section className="grid items-center gap-10 pt-16 md:grid-cols-2">

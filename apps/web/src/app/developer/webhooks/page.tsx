@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Copy, Check } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 const EVENTS = [
   "payment.completed", "payment.failed", "card.issued", "card.frozen",
@@ -29,7 +29,7 @@ export default function WebhooksPage() {
 
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <main className="mx-auto max-w-4xl px-6 pb-24 pt-12">
         <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Developer · Webhooks</p>
         <h1 className="text-[32px] font-extrabold tracking-tighter sm:text-[40px]">Webhooks</h1>

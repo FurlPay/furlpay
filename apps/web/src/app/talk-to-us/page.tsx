@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Mail, MessageSquare, Building2 } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import ContactForm from "@/components/marketing/ContactForm";
 import ScheduleCallButton from "@/components/marketing/ScheduleCallButton";
 
@@ -20,8 +20,8 @@ const REASONS = [
 export default function TalkToUsPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <LandingChrome />
+      <main className="section pb-24 pt-14">
         <div className="grid grid-cols-1 gap-12 lg:grid-cols-2">
           {/* Left: pitch */}
           <div>

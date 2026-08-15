@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { Code2, Users, ShieldCheck, ScrollText, GitBranch, ArrowRight } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import CareersForm from "@/components/marketing/CareersForm";
 import StackExplorer from "@/components/careers/StackExplorer";
 import TerminalPlayground from "@/components/careers/TerminalPlayground";
@@ -50,8 +50,8 @@ const PROCESS = [
 export default function CareersPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <LandingChrome />
+      <main className="section pb-24 pt-14">
         {/* Hero */}
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Careers</p>
         <h1 className="max-w-3xl text-[40px] font-extrabold leading-tight tracking-tighter sm:text-[52px]">

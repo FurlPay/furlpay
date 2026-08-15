@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, FeatureGrid, Section, CtaBand } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
@@ -42,7 +42,7 @@ const FAQ = [
 export default function WalletPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={[
           financialProduct({
@@ -59,7 +59,7 @@ export default function WalletPage() {
           ]),
         ]}
       />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Wallet"
           title="A wallet with no seed phrase to lose."

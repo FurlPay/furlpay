@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Check } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import NewsletterSignup from "@/components/newsletter/NewsletterSignup";
 
 export const metadata: Metadata = {
@@ -18,7 +18,7 @@ const PERKS = [
 export default function WaitlistPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <main className="mx-auto max-w-xl px-6 pb-24 pt-16 text-center">
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Early access</p>
         <h1 className="text-[40px] font-extrabold leading-tight tracking-tighter sm:text-[50px]">

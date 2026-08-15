@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Bot, Check, X, Pause, Play, Shield, Activity as ActivityIcon } from "lucide-react";
 import { getJSON } from "@/lib/api";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { usd } from "@/components/ui";
 
 interface Agent {
@@ -30,8 +30,8 @@ export default function AgentConsole() {
 
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-12">
+      <LandingChrome />
+      <main className="section pb-24 pt-12">
         <p className="mb-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Developer · Agent Console</p>
         <h1 className="text-[34px] font-extrabold tracking-tighter sm:text-[42px]">Corporate cards for AI agents.</h1>
         <p className="mt-3 max-w-2xl text-[15px] leading-relaxed text-textSecondary">

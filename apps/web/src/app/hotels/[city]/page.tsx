@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, FeatureGrid, Section, CtaBand } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
 import FeeCalculator from "@/components/marketing/FeeCalculator";
@@ -60,7 +60,7 @@ export default async function CityHotelsPage(props: { params: Promise<{ city: st
 
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },
@@ -68,7 +68,7 @@ export default async function CityHotelsPage(props: { params: Promise<{ city: st
           { name: c.name, path: `/hotels/${c.slug}` },
         ])}
       />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow={`Crypto hotels · ${c.name}`}
           title={`Pay for hotels with crypto in ${c.name}.`}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
 import { webApplication, breadcrumb, SITE } from "@/lib/seo/schema";
@@ -41,7 +41,7 @@ const FAQ = [
 export default function StablecoinComparisonPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={[
           webApplication({ name: "Furlpay Stablecoin Comparison", description: "Compare USDC, USDT, EURC, and DAI for payments.", url: URL, category: "ReferenceApplication" }),
