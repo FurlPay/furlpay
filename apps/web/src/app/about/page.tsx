@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 export const metadata: Metadata = {
   title: "About",
@@ -30,7 +30,7 @@ const PRINCIPLES = [
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar active="about" />
+      <LandingChrome />
       <main className="mx-auto max-w-4xl px-6 pb-24 pt-14">
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">About</p>
         <h1 className="max-w-3xl text-[40px] font-extrabold leading-tight tracking-tighter sm:text-[52px]">

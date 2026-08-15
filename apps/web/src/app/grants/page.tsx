@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 export const metadata: Metadata = {
   title: "Grants & Ecosystem",
@@ -18,7 +18,7 @@ const GRANTS = [
 export default function GrantsPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <main className="mx-auto max-w-3xl px-6 pb-24 pt-14">
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Ecosystem</p>
         <h1 className="text-[36px] font-extrabold tracking-tighter sm:text-[46px]">Grants &amp; programs</h1>

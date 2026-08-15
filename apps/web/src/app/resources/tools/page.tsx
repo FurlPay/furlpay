@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero } from "@/components/marketing/blocks";
 import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
@@ -22,7 +22,7 @@ const TOOLS = [
 export default function ToolsPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },
@@ -30,7 +30,7 @@ export default function ToolsPage() {
           { name: "Tools", path: "/resources/tools" },
         ])}
       />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Free tools"
           title="Interactive tools."

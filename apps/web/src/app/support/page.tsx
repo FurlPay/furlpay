@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero } from "@/components/marketing/blocks";
 import JsonLd from "@/components/JsonLd";
 import { breadcrumb, ORG_ID, SITE } from "@/lib/seo/schema";
@@ -65,7 +65,7 @@ const faqSchema = {
 export default function SupportPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar active="talk-to-us" />
+      <LandingChrome />
       <JsonLd
         data={[
           faqSchema,
@@ -75,7 +75,7 @@ export default function SupportPage() {
           ]),
         ]}
       />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Support Center"
           title="How can we help?"

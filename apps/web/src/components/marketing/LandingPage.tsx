@@ -1,4 +1,4 @@
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, FeatureGrid, Section, CtaBand } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
@@ -28,9 +28,14 @@ export type LandingProps = {
 export default function LandingPage(p: LandingProps) {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd data={breadcrumb(p.crumbs)} />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      {/* `.section` rather than a bespoke max-w-5xl px-6. The nav is `.section`
+          (max-w-6xl, px-5 sm:px-6), so a narrower body sat 128px inside its own
+          header and read as a squeezed, mobile-ish layout on a desktop. Sharing
+          the utility is what holds header and content to one edge — and it
+          fixes all 16 pages that render this template at once. */}
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow={p.eyebrow}
           title={p.title}

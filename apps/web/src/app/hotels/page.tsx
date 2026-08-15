@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, CtaBand } from "@/components/marketing/blocks";
 import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
@@ -21,14 +21,14 @@ export default function HotelsIndexPage() {
 
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },
           { name: "Hotels", path: "/hotels" },
         ])}
       />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Crypto hotels"
           title="Pay for hotels with crypto, city by city."

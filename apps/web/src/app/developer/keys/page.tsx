@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Copy, Check, Eye, EyeOff, MoreHorizontal, KeyRound } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 // Mirrors the Stripe dashboard API keys page (Standard + Restricted sections,
 // table columns: Name · Token · Access policy · Last used · Created), plus
@@ -40,8 +40,8 @@ export default function KeysPage() {
 
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-12">
+      <LandingChrome />
+      <main className="section pb-24 pt-12">
         {/* Sandbox banner */}
         <div className="mb-6 flex flex-wrap items-center gap-2 rounded-2xl border border-yellow-400/20 bg-yellow-400/[0.06] px-4 py-3 text-[13px]">
           <span className="rounded-full bg-yellow-400/20 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-yellow-300">Sandbox</span>

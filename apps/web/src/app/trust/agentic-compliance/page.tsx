@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, FeatureGrid, Section } from "@/components/marketing/blocks";
 import AgenticComplianceDemo from "@/components/marketing/AgenticComplianceDemo";
 import JsonLd from "@/components/JsonLd";
@@ -25,7 +25,7 @@ const CONTRACTS = [
 export default function AgenticCompliancePage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },
@@ -33,7 +33,7 @@ export default function AgenticCompliancePage() {
           { name: "Agentic compliance", path: "/trust/agentic-compliance" },
         ])}
       />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Programmable compliance"
           title="Compliance enforced on-chain, at the moment of settlement."

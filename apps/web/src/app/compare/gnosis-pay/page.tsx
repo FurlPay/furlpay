@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 export const metadata: Metadata = {
   title: "Furlpay vs Gnosis Pay — Self-Custodial Card Comparison",
@@ -42,7 +42,7 @@ const ROWS: { feature: string; furlpay: string; gnosispay: string; furlpayWins: 
 export default function CompareGnosisPayPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar active="compare" />
+      <LandingChrome />
       <main className="mx-auto max-w-4xl px-6 pb-24 pt-14">
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">
           Compare

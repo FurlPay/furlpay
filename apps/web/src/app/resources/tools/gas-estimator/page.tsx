@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import GasEstimator from "@/components/marketing/GasEstimator";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
@@ -32,7 +32,7 @@ const FAQ = [
 export default function GasEstimatorPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={[
           webApplication({ name: "Furlpay Gas Cost Estimator", description: "Estimate USDC payment gas costs across Arbitrum, Ethereum, Base, Polygon, and Solana.", url: URL }),

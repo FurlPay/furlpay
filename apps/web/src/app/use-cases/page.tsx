@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { Metadata } from "next";
 import type { ComponentType } from "react";
 import { Code2, Bot, Building2 } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 export const metadata: Metadata = {
   title: "Use Cases",
@@ -74,7 +74,7 @@ const USE_CASES: UseCase[] = [
 export default function UseCasesPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar active="use-cases" />
+      <LandingChrome />
       <main className="mx-auto max-w-4xl px-6 pb-24 pt-14">
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">
           Use Cases

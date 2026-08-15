@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import JsonLd from "@/components/JsonLd";
 import { breadcrumb, faqPage, howTo } from "@/lib/seo/schema";
 import { seoMetadata } from "@/lib/seo/meta";
@@ -33,7 +33,7 @@ export default async function IntegrationPage(props: { params: Promise<{ slug: s
 
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Calendar, MapPin, Users, Video, ExternalLink, ArrowRight, PlayCircle, Code } from "lucide-react";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import JsonLd from "@/components/JsonLd";
 import { breadcrumb } from "@/lib/seo/schema";
 
@@ -109,7 +109,7 @@ const TRACKS = [
 export default function EventsPage() {
   return (
     <div className="min-h-screen bg-black text-textPrimary">
-      <MarketingBar active="events" />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },

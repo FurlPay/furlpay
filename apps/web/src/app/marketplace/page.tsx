@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 
 export const metadata: Metadata = {
   title: "App Marketplace",
@@ -25,8 +25,8 @@ const CATEGORIES = ["All", "AI Agent Tools", "Developer Tools", "Commerce", "Ana
 export default function MarketplacePage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      <LandingChrome />
+      <main className="section pb-24 pt-14">
         <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Marketplace</p>
         <h1 className="max-w-3xl text-[40px] font-extrabold leading-tight tracking-tighter sm:text-[50px]">
           The agentic-first app marketplace.

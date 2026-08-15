@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, CtaBand } from "@/components/marketing/blocks";
 import { FcaRiskWarning, FcaStatusNote } from "@/components/marketing/UkCompliance";
 import JsonLd from "@/components/JsonLd";
@@ -28,7 +28,7 @@ const CARDS = [
 export default function UkHomePage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },

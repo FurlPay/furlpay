@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MarketingBar from "@/components/marketing/MarketingBar";
+import LandingChrome from "@/components/landing/LandingChrome";
 import FaqSection from "@/components/marketing/FaqSection";
 import { VaraRiskNote, VaraStatusNote } from "@/components/marketing/AeCompliance";
 
@@ -30,7 +30,7 @@ const FAQ = [
 export default function AePricingPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar active="pricing" />
+      <LandingChrome />
       <main className="mx-auto max-w-6xl px-6 pb-24 pt-14">
         <div className="text-center">
           <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">UAE Pricing</p>
