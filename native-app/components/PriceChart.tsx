@@ -129,6 +129,29 @@ export function PriceChart({ symbol }: { symbol: string }) {
 
   const periodPct = n >= 2 ? ((candles[n - 1].close - candles[0].close) / candles[0].close) * 100 : 0;
 
+  // Candle geometry is memoized so a scrub does NOT rebuild it. Scrubbing sets
+  // state on every distinct candle under the finger — up to 60 updates/second —
+  // and without this memo each one re-created every <Line>/<Rect> on the chart,
+  // which is exactly the load profile where SVG charts fall over. The candles
+  // depend only on the data and the layout; the moving parts of a scrub are the
+  // crosshair and the readout row, and now they are the only parts that render.
+  const candleNodes = useMemo(() => {
+    if (!yOf) return null;
+    return candles.map((c, i) => {
+      const cx = (i + 0.5) * slot;
+      const rising = c.close >= c.open;
+      const color = rising ? colors.neon : colors.accent;
+      const top = yOf(Math.max(c.open, c.close));
+      const bottom = yOf(Math.min(c.open, c.close));
+      return (
+        <React.Fragment key={c.time}>
+          <Line x1={cx} y1={yOf(c.high)} x2={cx} y2={yOf(c.low)} stroke={color} strokeWidth={1} />
+          <Rect x={cx - bodyW / 2} y={top} width={bodyW} height={Math.max(1, bottom - top)} fill={color} />
+        </React.Fragment>
+      );
+    });
+  }, [candles, yOf, slot, bodyW]);
+
   return (
     <View style={styles.wrap}>
       {/* Readout row: scrubbed OHLC while a finger is down, period summary
@@ -185,25 +208,7 @@ export function PriceChart({ symbol }: { symbol: string }) {
                 <Path d={geom.line} stroke={stroke} strokeWidth={2} fill="none" />
               </>
             ) : (
-              candles.map((c, i) => {
-                const cx = (i + 0.5) * slot;
-                const rising = c.close >= c.open;
-                const color = rising ? colors.neon : colors.accent;
-                const top = yOf(Math.max(c.open, c.close));
-                const bottom = yOf(Math.min(c.open, c.close));
-                return (
-                  <React.Fragment key={c.time}>
-                    <Line x1={cx} y1={yOf(c.high)} x2={cx} y2={yOf(c.low)} stroke={color} strokeWidth={1} />
-                    <Rect
-                      x={cx - bodyW / 2}
-                      y={top}
-                      width={bodyW}
-                      height={Math.max(1, bottom - top)}
-                      fill={color}
-                    />
-                  </React.Fragment>
-                );
-              })
+              candleNodes
             )}
 
             {crossX !== null && (

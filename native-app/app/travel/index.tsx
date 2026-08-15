@@ -6,6 +6,7 @@ import { colors, radius, spacing, type } from "@/lib/theme";
 import { usd } from "@/lib/format";
 import { fetchDeals, fetchTrips, type Deal, type Trip } from "@/lib/travel";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, StatusBadge, Surface } from "@/components/ui";
+import { VoiceSearchButton, VoiceStatus } from "@/components/VoiceSearchButton";
 
 // Fully-native travel home. Deals and trips render natively; tapping a deal or
 // searching a destination opens the native hotel results screen — no browser
@@ -75,6 +76,9 @@ function TripRow({ trip, onPress }: { trip: Trip; onPress: () => void }) {
 export default function Travel() {
   const router = useRouter();
   const [destination, setDestination] = useState("");
+  // Voice status is a line under the field, not an alert: "listening…",
+  // "didn't catch that" and permission refusals are all ordinary states.
+  const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
 
   const deals = useQuery({ queryKey: ["travel", "deals"], queryFn: fetchDeals, staleTime: 60_000 });
   const trips = useQuery({ queryKey: ["travel", "trips"], queryFn: fetchTrips, staleTime: 30_000 });
@@ -113,7 +117,22 @@ export default function Travel() {
             autoCapitalize="words"
             returnKeyType="search"
             onSubmitEditing={search}
+            /* Dictation: partials fill the field as the user speaks, the final
+               transcript stays put for review — saying a city name must not
+               fire the search before the speaker can see what was heard. The
+               button renders nothing on devices without the speech module. */
+            right={
+              <VoiceSearchButton
+                onPartial={setDestination}
+                onTranscript={(text) => {
+                  setDestination(text);
+                  setVoiceStatus(null);
+                }}
+                onStatus={setVoiceStatus}
+              />
+            }
           />
+          <VoiceStatus message={voiceStatus} />
           <Button title="Search stays" onPress={search} disabled={!destination.trim()} />
           <Text style={styles.hint}>Book stays with USDC, SOL or BTC — 2% cashback, paid natively in the app.</Text>
         </Surface>

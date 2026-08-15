@@ -374,6 +374,32 @@ export default function Settings() {
 
         <ErrorNote message={error} />
 
+        {/* App-store reviewers check that the governing documents are reachable
+            AFTER login, not only from the marketing site. Each opens the web
+            page in an in-app browser tab — one source of truth, no second copy
+            of the legal text to drift out of date inside the binary. */}
+        <SectionHeader title="Legal" />
+        <Surface style={{ gap: 2 }}>
+          {(
+            [
+              ["document-text-outline", "Terms of service", "/legal/terms"],
+              ["shield-checkmark-outline", "Privacy policy", "/legal/privacy"],
+              ["warning-outline", "Risk disclosure", "/legal/risk-disclosure"],
+              ["finger-print-outline", "AML / KYC policy", "/legal/aml-kyc"],
+              ["pricetag-outline", "Fees & pricing", "/pricing"],
+            ] as const
+          ).map(([icon, label, path]) => (
+            <NavRow
+              key={path}
+              icon={icon}
+              label={label}
+              onPress={() =>
+                void WebBrowser.openBrowserAsync(`${API_BASE.replace(/\/api$/, "")}${path}`)
+              }
+            />
+          ))}
+        </Surface>
+
         <SectionHeader title="About" />
         <Surface style={{ gap: 4 }}>
           {/* No hardcoded fallback — a stale literal (this said "2.0.0" at v2.2.0)

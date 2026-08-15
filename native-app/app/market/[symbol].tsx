@@ -6,7 +6,7 @@ import * as Haptics from "expo-haptics";
 import { api, ApiError } from "@/lib/api";
 import { confirmWithBiometrics } from "@/lib/biometrics";
 import { usd } from "@/lib/format";
-import { colors, spacing, type } from "@/lib/theme";
+import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, Surface } from "@/components/ui";
 import { PriceChart } from "@/components/PriceChart";
 import { AssetLogo } from "@/components/AssetLogo";
@@ -52,7 +52,7 @@ export default function MarketDetail() {
     if (!(amt > 0) || !data) return;
     setOrderError(null);
     const confirmed = await confirmWithBiometrics(
-      `${side === "buy" ? "Buy" : "Sell"} ${usd(amt)} of ${data.asset.symbol}`
+      `${side === "buy" ? "Buy" : "Sell"} ${usd(amt)} of ${data.asset.symbol} — about ${(amt / data.quote.price).toFixed(4)} shares at ${usd(data.quote.price)}`
     );
     if (!confirmed) return;
     setBusy(true);
@@ -149,6 +149,36 @@ export default function MarketDetail() {
               keyboardType="decimal-pad"
               placeholder="25.00"
             />
+            {/* Order preview — what the confirmation is actually confirming.
+                Every line reflects what /investing/order will do: a market
+                order filled at the latest quote, no commission, and shares
+                derived as amount ÷ price. "Estimated" is honest, not hedging:
+                the quote can move between preview and fill. */}
+            {Number(notional) > 0 && data.quote.price > 0 ? (
+              <View style={styles.preview}>
+                <View style={styles.previewRow}>
+                  <Text style={type.dim}>Est. shares</Text>
+                  <Text style={type.body}>
+                    {(Number(notional) / data.quote.price).toFixed(4)}
+                  </Text>
+                </View>
+                <View style={styles.previewRow}>
+                  <Text style={type.dim}>At quote</Text>
+                  <Text style={type.body}>
+                    {usd(data.quote.price)}
+                    {data.quote.live ? "" : " (delayed)"}
+                  </Text>
+                </View>
+                <View style={styles.previewRow}>
+                  <Text style={type.dim}>Commission</Text>
+                  <Text style={type.body}>{usd(0)}</Text>
+                </View>
+                <Text style={[type.dim, { color: colors.textFaint, fontSize: 12 }]}>
+                  Market order — fills at the latest quote, which may differ from
+                  the estimate above. Investing involves risk of loss.
+                </Text>
+              </View>
+            ) : null}
             <Button
               title={`${side === "buy" ? "Buy" : "Sell"} ${data.asset.symbol}`}
               loading={busy}
@@ -234,6 +264,14 @@ export default function MarketDetail() {
 
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
+  preview: {
+    gap: 6,
+    borderRadius: radius.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: spacing.sm,
+  },
+  previewRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   hero: { fontSize: 36, fontWeight: "800", color: colors.text, letterSpacing: -1 },
   row: {
     flexDirection: "row",

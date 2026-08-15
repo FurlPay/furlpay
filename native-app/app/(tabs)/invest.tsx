@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { api, API_BASE, ApiError } from "@/lib/api";
+import * as Haptics from "expo-haptics";
+import { confirmWithBiometrics } from "@/lib/biometrics";
 import { usePortfolio } from "@/lib/queries";
 import { COLLECTIONS } from "@/lib/discover";
 import { usd } from "@/lib/format";
@@ -66,6 +68,74 @@ function QuickAction({
       </View>
       <Text style={type.dim}>{label}</Text>
     </Pressable>
+  );
+}
+
+// Dividend settlement — the engine and route existed (dividends/settle, with
+// DRIP built in) but the app only DISPLAYED entitlements: a user could see
+// unsettled money with no way to receive it. Two actions, one flag apart.
+//
+// No client idempotency key on purpose: the settle route reconciles against
+// its own settlement state and is designed to be safe to run twice — the
+// server, not this screen, decides what was already paid. The response is
+// reported verbatim (settled 0 → "nothing to settle yet"), never guessed.
+function DividendActions({ onSettled }: { onSettled: () => void }) {
+  const [busy, setBusy] = useState<"cash" | "drip" | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const settle = async (drip: boolean) => {
+    setError(null);
+    setMessage(null);
+    const confirmed = await confirmWithBiometrics(
+      drip ? "Reinvest dividends into more shares" : "Collect dividends as cash"
+    );
+    if (!confirmed) return;
+    setBusy(drip ? "drip" : "cash");
+    try {
+      const res = await api<{ settled: number; cashCredited: number; reinvested: number }>(
+        "/investing/dividends/settle",
+        { method: "POST", body: { drip } }
+      );
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setMessage(
+        res.settled === 0
+          ? "Nothing to settle yet — entitlements are still pending."
+          : drip
+            ? `Reinvested ${usd(res.reinvested)} across ${res.settled} dividend${res.settled === 1 ? "" : "s"}.`
+            : `Credited ${usd(res.cashCredited)} to your balance.`
+      );
+      onSettled();
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : (e as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <View style={{ gap: spacing.sm }}>
+      <View style={{ flexDirection: "row", gap: spacing.sm }}>
+        <Button
+          title="Collect as cash"
+          variant="secondary"
+          loading={busy === "cash"}
+          disabled={busy !== null}
+          onPress={() => void settle(false)}
+          style={{ flex: 1 }}
+        />
+        <Button
+          title="Reinvest (DRIP)"
+          variant="primary"
+          loading={busy === "drip"}
+          disabled={busy !== null}
+          onPress={() => void settle(true)}
+          style={{ flex: 1 }}
+        />
+      </View>
+      {message ? <Text style={{ color: colors.neon }}>{message}</Text> : null}
+      <ErrorNote message={error} />
+    </View>
   );
 }
 
@@ -375,6 +445,7 @@ export default function Invest() {
                 </View>
               ))}
             </Surface>
+            <DividendActions onSettled={() => void refetch()} />
           </>
         ) : null}
       </ScrollView>
