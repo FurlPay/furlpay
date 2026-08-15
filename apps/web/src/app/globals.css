@@ -9,6 +9,39 @@
 
 :root {
   color-scheme: dark;
+
+  /* ---- Motion ------------------------------------------------------------
+     One curve and three durations for the whole site. The curve is not new —
+     `.reveal` has used it since the landing rebuild — but it lived in a single
+     rule, so every hover elsewhere fell back to the browser default and the
+     page moved in two unrelated ways. Naming it is what makes it a system.
+
+     --ease-out    decelerating; the default for anything entering or settling
+     --ease-spring slight overshoot; for a control that should feel physical
+                   (a press, a toggle), never for text or layout
+
+     Durations are deliberately few. A page with eleven timings does not read
+     as considered, it reads as unowned. */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.22, 1.2, 0.36, 1);
+  --dur-fast: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 600ms;
+
+  /* ---- Component surfaces ------------------------------------------------
+     Role-named, not value-named: `--surface-raised`, never `--white-3`. The
+     point is that changing what a card looks like is one edit here rather
+     than a search for every `bg-white/[0.02]` in the tree. Values match the
+     utilities already in use, so this is a name for current behaviour, not a
+     restyle. */
+  --surface-raised: rgb(255 255 255 / 0.02);
+  --surface-raised-hover: rgb(255 255 255 / 0.04);
+  --surface-glass: rgb(255 255 255 / 0.03);
+  --border-subtle: rgb(255 255 255 / 0.08);
+  --border-glass: rgb(255 255 255 / 0.1);
+  --border-strong: rgb(255 255 255 / 0.15);
+  --border-accent: rgb(0 229 153 / 0.3);
+  --ring-accent: rgb(0 229 153 / 0.45);
 }
 
 html,
@@ -94,8 +127,14 @@ body {
   /* ---- Marketing / docs (green glassmorphic system) ------------------- */
 
   /* Glassmorphic card: translucent fill, subtle border, backdrop blur. */
+  /* Tokenised, not restyled: the border and fill resolve to what the utility
+     classes already produced. Hover is intentionally NOT added here — this
+     class is used on static panels as well as links, and a lift on something
+     that cannot be clicked is a lie about affordance. */
   .glass-card {
-    @apply rounded-card border border-white/10 bg-white/[0.03] backdrop-blur-xl;
+    @apply rounded-card border backdrop-blur-xl;
+    border-color: var(--border-glass);
+    background-color: var(--surface-glass);
   }
 
   /* Glowing green gradient border (via layered background-clip). */
@@ -108,16 +147,26 @@ body {
   }
 
   /* Solid green CTA with glow. */
+  /* The lift is the site's one physical gesture, so it gets the spring curve;
+     the shadow follows on the same clock so the button does not appear to
+     leave its own glow behind. */
   .btn-green {
-    @apply rounded-pill bg-neon font-semibold text-black shadow-glow transition-transform;
+    @apply rounded-pill bg-neon font-semibold text-black shadow-glow;
+    transition: transform var(--dur-base) var(--ease-spring),
+      box-shadow var(--dur-base) var(--ease-out);
   }
   .btn-green:hover {
     @apply -translate-y-0.5;
+    box-shadow: 0 0 44px -6px var(--ring-accent);
   }
 
   /* Outline CTA. */
   .btn-outline {
-    @apply rounded-pill border border-white/15 font-semibold text-textPrimary transition-colors;
+    @apply rounded-pill border font-semibold text-textPrimary;
+    border-color: var(--border-strong);
+    transition: border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out),
+      color var(--dur-fast) var(--ease-out);
   }
   .btn-outline:hover {
     @apply border-neon/50 text-neon;
@@ -227,6 +276,29 @@ body {
   }
 
   /* Monospace chip for languages / protocols / rails. */
+  /* Monogram avatar. The lift is the same gesture and the same spring the
+     primary button uses — one vocabulary, so a hover anywhere on the page
+     feels like the same hand. Raising z-index on hover pulls the circle clear
+     of the ones overlapping it instead of letting a neighbour clip it. */
+  .avatar-chip {
+    border: 1px solid var(--border-subtle);
+    background-color: var(--surface-raised);
+    transition: transform var(--dur-base) var(--ease-spring),
+      background-color var(--dur-fast) var(--ease-out),
+      border-color var(--dur-fast) var(--ease-out);
+  }
+  .avatar-row a:hover > .avatar-chip,
+  .avatar-row a:focus-visible > .avatar-chip {
+    transform: translateY(-2px);
+    background-color: var(--surface-raised-hover);
+    border-color: var(--border-accent);
+  }
+  /* Scoped to the row on purpose: an unscoped `li:has(> a:hover)` would raise
+     the z-index of every list item containing a link on the site. */
+  .avatar-row li:has(> a:hover) {
+    z-index: 1;
+  }
+
   .tech-chip {
     @apply inline-flex items-center gap-1.5 rounded-full border border-white/10
            bg-white/[0.03] px-3 py-1.5 text-[12px] text-textSecondary;
@@ -258,8 +330,8 @@ textarea:focus-visible,
 .reveal {
   opacity: 0;
   transform: translateY(14px);
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-    transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity var(--dur-slow) var(--ease-out),
+    transform var(--dur-slow) var(--ease-out);
   will-change: opacity, transform;
 }
 .reveal.is-in {
