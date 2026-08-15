@@ -2,11 +2,10 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import InfraFlow from "./InfraFlow";
 
-// Six chips, each backed by something that exists: four first-party SDKs in
-// sdks/{node,python,go,rust}, the REST surface documented at
-// /docs/architecture/api-routes, and signed webhook delivery at
-// /docs/architecture/webhooks.
-const STACK = ["TypeScript", "Python", "Go", "Rust", "REST API", "Webhooks"];
+// The stack chips that used to sit under the CTAs are gone: TypeScript /
+// Python / Go / Rust and REST / Webhooks are now stated by the first two
+// stages of InfraFlow directly below, with the context of where in the
+// pipeline they apply. Two rows of the same six words read as filler.
 
 export default function Hero() {
   return (
@@ -20,7 +19,11 @@ export default function Hero() {
         <div>
           <p className="section-eyebrow">Financial infrastructure</p>
 
-          <h1 className="mt-4 max-w-xl font-extrabold tracking-tighter text-textPrimary" style={{ fontSize: "clamp(34px, 5.4vw, 58px)", lineHeight: 1.03, textWrap: "balance" }}>
+          {/* max-w-3xl, not max-w-xl. `.section` is max-w-6xl, so a 36rem
+              headline left half the container empty and read as an accident.
+              48rem lets the line break where the sentence wants to and gives
+              the type the dominance the page is asking of it. */}
+          <h1 className="mt-4 max-w-3xl font-extrabold tracking-tighter text-textPrimary" style={{ fontSize: "clamp(34px, 5.4vw, 58px)", lineHeight: 1.03, textWrap: "balance" }}>
             The financial infrastructure for apps, agents, and the{" "}
             <span className="text-neon">internet economy.</span>
           </h1>
@@ -53,21 +56,16 @@ export default function Hero() {
             </Link>
           </div>
 
-          <div className="mt-8 flex flex-wrap gap-2">
-            {STACK.map((item) => (
-              <span key={item} className="tech-chip">
-                {item}
-              </span>
-            ))}
-          </div>
         </div>
 
         {/* ── Diagram ───────────────────────────────────────────────── */}
-        {/* Centred beneath the copy rather than beside it: the stack reads
-            top-to-bottom (your app → API → products → settlement), so a
-            column next to the headline fought the vertical flow it is
-            trying to describe. */}
-        <div className="mx-auto mt-14 w-full max-w-xl lg:mt-16">
+        {/* Full container width, beneath the copy. Beside the headline it was
+            a narrow column fighting its own top-to-bottom reading order;
+            centred and narrow it left the same emptiness it was meant to
+            resolve. Run across the full measure it becomes the thing that
+            balances the composition — the stages read left to right, in the
+            same direction as the sentence above them. */}
+        <div className="mt-14 w-full lg:mt-16">
           <InfraFlow />
         </div>
       </div>
