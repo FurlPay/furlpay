@@ -1,6 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MarketingBar from "@/components/marketing/MarketingBar";
+// LandingChrome, not MarketingBar: this page carries the security argument, and
+// arriving at it from an ad or a search result should not feel like leaving the
+// site. MarketingBar is seven flat links with no dropdowns, no ⌘K and — below
+// 768px — no navigation at all, since its nav is `hidden md:flex` with no
+// hamburger behind it. Same header as the landing page, same way out of it.
+import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, Section } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
@@ -47,18 +52,20 @@ const FAQ = [
 export default function TrustPage() {
   return (
     <div className="min-h-screen bg-oled">
-      <MarketingBar />
+      <LandingChrome />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },
           { name: "Trust", path: "/trust" },
         ])}
       />
-      {/* max-w-6xl px-6 — matched to MarketingBar deliberately. The bar is
-          max-w-6xl and this was max-w-5xl, so the content sat 128px narrower
-          than the header above it and the logo overhung the page by 64px a
-          side. Same container, same padding, one edge. */}
-      <main className="mx-auto max-w-6xl px-6 pb-24 pt-14">
+      {/* `.section`, the same utility LandingNav uses, rather than a bespoke
+          max-width. This was max-w-5xl px-6 against a max-w-6xl bar, so the
+          content sat 128px narrower than its own header. Sharing the class is
+          what keeps the two edges aligned at every breakpoint — globals.css
+          says as much: it exists "so the page cannot drift into eleven
+          different max-widths". It had drifted. */}
+      <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Trust & security"
           title="Security you can audit."
