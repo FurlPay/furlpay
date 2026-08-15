@@ -4,6 +4,7 @@ import { selectVault, buildDepositBundle, earnIsLive } from "@/lib/services/morp
 import { addToPosition } from "@/lib/services/earn";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { withIdempotency } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,14 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
     return NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 });
   }
+
+  // A deposit debits the USDC balance and opens a position, so a retry after a
+  // timeout would debit twice. Same contract as wallets/transfer and
+  // investing/order: scoped per user so one client's key can never replay
+  // another account's deposit, and a request without the header behaves
+  // exactly as before.
+  const idempotencyKey = req.headers.get("Idempotency-Key");
+  return withIdempotency(idempotencyKey, `earn.deposit:${account.user.id}`, async () => {
 
   const vault = await selectVault(typeof body?.vault === "string" ? body.vault : undefined);
 
@@ -89,6 +98,7 @@ export async function POST(req: NextRequest) {
     vault: { address: vault.address, name: vault.name, netApy: vault.netApy },
     position: { principalUsd: pos.principalUsd, apy: pos.apy },
     projectedYearly: round((pos.principalUsd * pos.apy) / 100),
+  });
   });
 }
 

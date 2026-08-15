@@ -4,6 +4,7 @@ import { selectVault, buildWithdrawBundle, earnIsLive } from "@/lib/services/mor
 import { withdrawFromPosition } from "@/lib/services/earn";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { withIdempotency } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
@@ -30,6 +31,13 @@ export async function POST(req: NextRequest) {
   if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
     return NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 });
   }
+
+  // A withdrawal reduces the position and credits the balance, so a retry
+  // after a timeout would withdraw twice. Same contract as earn/deposit and
+  // wallets/transfer: scoped per user, and a request without the header
+  // behaves exactly as before.
+  const idempotencyKey = req.headers.get("Idempotency-Key");
+  return withIdempotency(idempotencyKey, `earn.withdraw:${account.user.id}`, async () => {
 
   const vault = await selectVault(typeof body?.vault === "string" ? body.vault : undefined);
 
@@ -77,6 +85,7 @@ export async function POST(req: NextRequest) {
     mode: "mock",
     withdrawnUsd: result.withdrawnUsd,
     remainingUsd: result.remainingUsd,
+  });
   });
 }
 
