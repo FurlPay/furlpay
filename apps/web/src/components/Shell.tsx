@@ -7,54 +7,16 @@ import CommandPalette from "@/components/CommandPalette";
 import OfflineBanner from "@/components/OfflineBanner";
 import CacheWarmer from "@/components/CacheWarmer";
 
-// Layout switch. Marketing (/), the docs portal (/docs*), the blog (/blog*) and
-// the legal section (/legal*) render full-bleed so they can use the whole
-// viewport; every other route keeps the phone-frame app chrome (centered 440px
-// column, live status bar + home indicator, bottom tab bar).
-const FULL_BLEED = (pathname: string) =>
-  pathname === "/" ||
-  pathname === "/~offline" ||
-  pathname === "/pricing" ||
-  pathname === "/about" ||
-  pathname === "/talk-to-us" ||
-  pathname === "/changelog" ||
-  pathname === "/community" ||
-  pathname === "/partners" ||
-  pathname === "/use-cases" ||
-  pathname === "/careers" ||
-  pathname === "/status" ||
-  pathname === "/press" ||
-  pathname === "/waitlist" ||
-  pathname === "/grants" ||
-  pathname === "/marketplace" ||
-  pathname.startsWith("/wallet") || // Wallet reservation + consent — standalone landing, no app chrome
-  pathname === "/ambassadors" || // Creator Program — full desktop marketing landing
-  pathname.startsWith("/products") || // Product landing pages — full desktop marketing layout
-  pathname.startsWith("/hackathon") || // Build Challenge — full desktop landing
-  pathname.startsWith("/early-access") || // Early-access waitlist — full desktop landing
-  pathname.startsWith("/swag") || // Swag Center store — full desktop layout
-  pathname.startsWith("/compare") ||
-  pathname.startsWith("/newsletter") ||
-  pathname.startsWith("/developer") ||
-  pathname.startsWith("/ops") ||
-  pathname.startsWith("/docs") ||
-  pathname.startsWith("/blog") ||
-  pathname.startsWith("/travel") || // FurlPay Travels portal — full desktop layout (own header/footer)
-
-  pathname.startsWith("/investing/insights") || // FurlPay Research portal (blog-style)
-  // Trading terminal — a dense multi-column desktop surface. Scoped to the
-  // exact subtree, NOT /dashboard: the consumer wallet at /dashboard is
-  // designed for the phone frame and must keep it.
-  pathname.startsWith("/dashboard/terminal") ||
-  pathname.startsWith("/legal");
-
-// Auth screens keep the frame but hide the status bar / tab bar chrome.
-const BARE = (pathname: string) => pathname === "/login" || pathname === "/signup";
+// Layout switch. The app-frame vs full-bleed classification lives in
+// lib/shellRoutes.ts (with the reasoning for its inverted polarity), where the
+// layout regression test can import it without dragging in this client
+// component's dependency chain.
+import { isAppFrame, isBare } from "@/lib/shellRoutes";
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
-  if (FULL_BLEED(pathname)) {
+  if (!isAppFrame(pathname) && !isBare(pathname)) {
     return (
       <div className="min-h-screen bg-oled">
         <OfflineBanner />
@@ -64,7 +26,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const bare = BARE(pathname);
+  const bare = isBare(pathname);
 
   return (
     <div className="app-ambient mx-auto min-h-screen w-full max-w-[440px]">
