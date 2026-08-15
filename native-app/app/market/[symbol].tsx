@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
@@ -37,6 +37,16 @@ export default function MarketDetail() {
   const [orderError, setOrderError] = useState<string | null>(null);
   const [placed, setPlaced] = useState<string | null>(null);
 
+  // One Idempotency-Key per order INTENT, not per tap. A timeout followed by a
+  // re-tap must replay the same order, never place a second one — so the key
+  // survives network failures, and rotates only when the intent changes
+  // (amount/side edited) or the server has actually answered: a fill consumes
+  // it, a rejection ends it, and the next attempt is a new order either way.
+  const orderKey = useRef<string | null>(null);
+  useEffect(() => {
+    orderKey.current = null;
+  }, [notional, side]);
+
   const placeOrder = async () => {
     const amt = Number(notional);
     if (!(amt > 0) || !data) return;
@@ -46,17 +56,25 @@ export default function MarketDetail() {
     );
     if (!confirmed) return;
     setBusy(true);
+    orderKey.current ??= crypto.randomUUID();
     try {
       const res = await api<{ orderId: string; status: string; filledQty: number }>("/investing/order", {
         method: "POST",
+        headers: { "Idempotency-Key": orderKey.current },
         body: { symbol: data.asset.symbol, side, notional: amt },
       });
+      orderKey.current = null;
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setPlaced(`${res.status === "filled" ? "Filled" : "Placed"} — ${res.filledQty.toFixed(4)} shares`);
       setNotional("");
       await qc.invalidateQueries({ queryKey: ["portfolio"] });
       await qc.invalidateQueries({ queryKey: ["market", symbol] });
     } catch (e) {
+      // A server rejection is final — the next attempt is a new order, so the
+      // key rotates. A network failure means the server may or may not have
+      // seen it, which is exactly when the key must be kept: the re-tap
+      // replays instead of double-buying.
+      if (e instanceof ApiError) orderKey.current = null;
       setOrderError(e instanceof ApiError ? e.message : (e as Error).message);
     } finally {
       setBusy(false);

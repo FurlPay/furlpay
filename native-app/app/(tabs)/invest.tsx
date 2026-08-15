@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -79,12 +79,22 @@ function SipSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Same idempotency contract as the order ticket: the key survives a network
+  // failure (a re-tap replays, never double-buys) and rotates when the intent
+  // changes or the server has answered. See market/[symbol].tsx.
+  const orderKey = useRef<string | null>(null);
+  useEffect(() => {
+    orderKey.current = null;
+  }, [symbol, amount]);
+
   const start = async () => {
     setBusy(true);
     setError(null);
+    orderKey.current ??= crypto.randomUUID();
     try {
       await api("/investing/order", {
         method: "POST",
+        headers: { "Idempotency-Key": orderKey.current },
         body: {
           symbol: symbol.toUpperCase(),
           side: "buy",
@@ -93,8 +103,10 @@ function SipSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
           time_in_force: "day",
         },
       });
+      orderKey.current = null;
       setDone(true);
     } catch (e) {
+      if (e instanceof ApiError) orderKey.current = null;
       setError(e instanceof ApiError ? e.message : (e as Error).message);
     } finally {
       setBusy(false);
