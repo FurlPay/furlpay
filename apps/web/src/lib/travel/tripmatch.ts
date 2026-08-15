@@ -43,6 +43,56 @@ const VIBES: Array<{ words: string[]; categories: string[]; hints: string[]; lab
   { words: ["culture", "history", "temple", "ancient", "heritage"], categories: [], hints: ["temple", "history", "ancient", "heritage", "shrine"], label: "culture & history" },
 ];
 
+// ---------------------------------------------------------------------------
+// Typo-tolerant destination-name matching.
+//
+// The exact check below (`q.includes(name)`) fails on exactly the inputs the
+// search now receives most: dictated queries. Speech recognition and thumbs
+// both produce near-misses — "tokio", "lisbonn", "marakech" — and a search
+// that silently returns nothing for a one-letter slip reads as broken, not
+// strict. Tolerance is deliberately tight: one edit (or a 4+-letter prefix),
+// per-token, minimum lengths on both sides — "pari" must reach Paris without
+// "peru" tagging along.
+// ---------------------------------------------------------------------------
+
+/** Damerau–Levenshtein distance, capped at 1: equal / one substitution /
+ *  one insertion or deletion / one adjacent transposition. Anything further
+ *  returns 2. Bounded by construction, so no matrix allocation. */
+export function editDistanceIsAtMost1(a: string, b: string): boolean {
+  if (a === b) return true;
+  const la = a.length;
+  const lb = b.length;
+  if (Math.abs(la - lb) > 1) return false;
+  if (la === lb) {
+    // one substitution, or one adjacent transposition
+    let i = 0;
+    while (i < la && a[i] === b[i]) i++;
+    if (i === la) return true;
+    if (a.slice(i + 1) === b.slice(i + 1)) return true; // substitution
+    return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2); // transposition
+  }
+  // one insertion/deletion: align the longer against the shorter
+  const [long, short] = la > lb ? [a, b] : [b, a];
+  let i = 0;
+  while (i < short.length && long[i] === short[i]) i++;
+  return long.slice(i + 1) === short.slice(i);
+}
+
+/** Does any token of the query nearly name this destination?
+ *  Matches a destination-name token when a query token of >=4 chars is a
+ *  prefix of it, or when both are >=5 chars and within one edit. */
+export function fuzzyNameMatch(query: string, name: string): boolean {
+  const qTokens = query.toLowerCase().split(/[^a-zà-ÿ]+/).filter((t) => t.length >= 4);
+  const nTokens = name.toLowerCase().split(/[^a-zà-ÿ]+/).filter(Boolean);
+  for (const qt of qTokens) {
+    for (const nt of nTokens) {
+      if (nt.startsWith(qt)) return true;
+      if (qt.length >= 5 && nt.length >= 5 && editDistanceIsAtMost1(qt, nt)) return true;
+    }
+  }
+  return false;
+}
+
 export function parseSignals(query: string): TripMatchSignal[] {
   const q = query.toLowerCase();
   const signals: TripMatchSignal[] = [];
@@ -120,6 +170,12 @@ export function matchTrips(query: string, limit = 4): { signals: TripMatchSignal
     // direct name/country mention always wins
     if (q.includes(d.name.toLowerCase()) || q.includes(d.country.toLowerCase())) {
       score += 6;
+      hits.unshift(d.name);
+    } else if (fuzzyNameMatch(q, d.name)) {
+      // Near-miss on the name — dictation and typos ("tokio", "lisbonn").
+      // Scored just under an exact mention so a correctly-spelled competitor
+      // still outranks a fuzzy one, but a lone near-miss still surfaces.
+      score += 5;
       hits.unshift(d.name);
     }
 

@@ -13,6 +13,7 @@ import { checkVelocity, commitVelocity } from "@/lib/services/velocity";
 import { analyzeDevice } from "@/lib/services/deviceIntel";
 import { withIdempotency } from "@/lib/idempotency";
 import { checkTransferAmount } from "@/lib/kycTiers";
+import { notifyTransaction } from "@/lib/notify";
 
 // POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via
 // Paymaster, from the SESSION user's balances.
@@ -195,5 +196,16 @@ async function executeTransfer(
   void commitVelocity({ userId: account.user.id, amountUsd: amount, country });
 
   audit("transfer.executed", account.user.id, { destination, amount, token, chain, transactionHash });
+
+  // Fire-and-forget: the transfer is recorded and the ledger has moved; a
+  // notification failure must neither slow nor fail it. Truncated address on
+  // purpose — a push and an email are not places to print a full destination.
+  void notifyTransaction(account, {
+    kind: "transfer_out",
+    amountUsd: amount,
+    counterparty: `${destination.slice(0, 10)}… (${chain})`,
+    dateIso: new Date().toISOString(),
+  });
+
   return NextResponse.json({ transactionHash, gasSponsored: true, screen, ledgerTxId: entry.id });
 }

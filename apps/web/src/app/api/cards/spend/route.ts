@@ -4,6 +4,7 @@ import { newTx, recordTransaction } from "@/lib/store";
 import { evaluateSpend } from "@/lib/services/policyEngine";
 import { requireUser } from "@/lib/authz";
 import { validateBody } from "@/lib/validate";
+import { notifyTransaction } from "@/lib/notify";
 
 // POST /api/cards/spend — simulate a card authorization through the policy
 // engine, against the SESSION user's card.
@@ -54,6 +55,20 @@ export async function POST(req: NextRequest) {
   if (decision.approved) {
     card.limits.dailySpent += amountUsd;
   }
+
+  // Fire-and-forget on purpose: the authorization decision has been made and
+  // recorded; a notification failure must neither slow nor fail it. Declines
+  // carry the policy engine's reasons verbatim — the user reads the same
+  // words the engine wrote when it refused.
+  void notifyTransaction(auth.account, {
+    kind: decision.approved ? "card_approved" : "card_declined",
+    amountUsd,
+    counterparty: merchant || "Card purchase",
+    cardLabel: `${card.label} · ${card.network}`,
+    mcc: mcc ? String(mcc) : undefined,
+    reasons: decision.approved ? undefined : decision.reasons,
+    dateIso: new Date().toISOString(),
+  });
 
   return NextResponse.json({ decision, transaction: tx });
 }

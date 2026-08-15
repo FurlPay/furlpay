@@ -197,6 +197,46 @@ export function paymentReceiptEmail(input: {
   };
 }
 
+export function transactionDeclinedEmail(input: {
+  name?: string;
+  amountUsd: number;
+  merchant: string;
+  cardLabel?: string;
+  mcc?: string;
+  /** Policy-engine reasons, verbatim — they are already written for humans
+   *  ("Exceeds per-purchase limit ($500)"). An empty array renders a generic
+   *  line rather than inventing a cause. */
+  reasons: string[];
+  dateIso: string;
+}): RenderedEmail {
+  const amount = usd(input.amountUsd);
+  const why =
+    input.reasons.length > 0
+      ? input.reasons.map((r) => p(`• ${r}`)).join("")
+      : p("The payment did not pass your card's spending controls.");
+  return {
+    subject: `Declined: ${amount} at ${input.merchant}`,
+    html: shell(
+      "Card payment declined",
+      p(`${input.name ? `Hi ${input.name}, a` : "A"} card payment was declined. No money left your account.`) +
+        spotlight(amount, input.merchant) +
+        why +
+        detailsTable(
+          row("Merchant", input.merchant) +
+            row("Date", new Date(input.dateIso).toUTCString()) +
+            (input.cardLabel ? row("Card", input.cardLabel) : "") +
+            (input.mcc ? row("Merchant category", input.mcc) : "") +
+            row("Status", "Declined")
+        ) +
+        p(
+          `<span style="font-size:13px;color:#888">Expected this to go through? Review your limits and controls at <a href="https://furlpay.com/cards" style="color:#00E599">furlpay.com/cards</a>. Didn't attempt this payment? <a href="https://furlpay.com/profile/security" style="color:#00E599">Secure your account</a>.</span>`
+        ),
+      `Declined: ${amount} at ${input.merchant}`
+    ),
+    text: `Card payment declined — no money left your account.\n${amount} at ${input.merchant} (${new Date(input.dateIso).toUTCString()})${input.cardLabel ? `\nCard: ${input.cardLabel}` : ""}${input.mcc ? `\nMerchant category: ${input.mcc}` : ""}\n${input.reasons.length ? `Reason: ${input.reasons.join("; ")}` : "The payment did not pass your card's spending controls."}\nReview your limits: https://furlpay.com/cards\nDidn't attempt this? Secure your account: https://furlpay.com/profile/security`,
+  };
+}
+
 export function depositReceivedEmail(input: {
   amount: number;
   token: string;
