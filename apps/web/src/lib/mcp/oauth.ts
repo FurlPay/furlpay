@@ -38,13 +38,14 @@ export const SCOPES = [
   "wallets:read",
   "transactions:read",
   "travel:read",
+  "investing:read",
   "payments:write",
   "travel:write",
 ] as const;
 export type Scope = (typeof SCOPES)[number];
 
 /** Read-only by default: a client that asks for nothing gets nothing dangerous. */
-export const DEFAULT_SCOPES: Scope[] = ["profile:read", "wallets:read", "transactions:read", "travel:read"];
+export const DEFAULT_SCOPES: Scope[] = ["profile:read", "wallets:read", "transactions:read", "travel:read", "investing:read"];
 
 export interface OAuthClient {
   client_id: string;

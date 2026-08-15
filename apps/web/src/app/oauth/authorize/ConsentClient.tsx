@@ -15,6 +15,7 @@ const SCOPE_COPY: Record<string, { label: string; detail: string; sensitive?: bo
   "wallets:read": { label: "Balances", detail: "Stablecoin balances across your chains." },
   "transactions:read": { label: "Transaction history", detail: "Past payments, cards and spending." },
   "travel:read": { label: "Travel", detail: "Your trips and available stays." },
+  "investing:read": { label: "Portfolio", detail: "Holdings, performance and dividend entitlements. Read-only — no trading." },
   "payments:write": {
     label: "Prepare payments",
     detail: "Draft payments and invoices for you to approve. Cannot send money on its own.",

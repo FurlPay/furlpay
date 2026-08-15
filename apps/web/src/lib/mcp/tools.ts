@@ -109,6 +109,16 @@ export const TOOLS: McpTool[] = [
     },
   },
   {
+    name: "get_portfolio",
+    title: "Investment portfolio",
+    description:
+      "Holdings, performance and dividend entitlements for the signed-in account, projected from the trade-lot ledger. Read-only: an agent can monitor a portfolio with this, but no tool places, changes or cancels orders — trading requires the human in the app. Dividend entitlements marked 'pending' have not reached their payment date; 'paid' means payable, and actual settlement (cash or reinvestment) is the user's action, not the agent's.",
+    scope: "investing:read",
+    inputSchema: obj({}),
+    annotations: READ,
+    run: (_a, ctx) => ctx.api("GET", "/api/investing/portfolio"),
+  },
+  {
     name: "get_wallet_risk",
     title: "Screen a wallet address",
     description:

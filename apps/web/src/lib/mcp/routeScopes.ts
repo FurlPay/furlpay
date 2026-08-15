@@ -25,6 +25,7 @@ const ROUTE_SCOPES: Record<string, Scope> = {
   "GET /api/wallets": "wallets:read",
   "GET /api/transactions": "transactions:read",
   "GET /api/analytics": "transactions:read",
+  "GET /api/investing/portfolio": "investing:read",
   "GET /api/compliance": "wallets:read", // address risk screening
   "POST /api/swaps": "wallets:read", // quote only — /api/swaps/execute is NOT mapped
   "GET /api/travel/deals": "travel:read",
