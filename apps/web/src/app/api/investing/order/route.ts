@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { newTx, persistAccount, recordTransaction } from "@/lib/store";
+import { newTx, persistAccount, recordTransaction, type UserAccount } from "@/lib/store";
+import { withIdempotency } from "@/lib/idempotency";
 import { recordMovement } from "@/lib/ledger";
 import { bySymbol } from "@/lib/markets/catalog";
 import { quoteFor } from "@/lib/markets/quotes";
@@ -20,9 +21,23 @@ export async function POST(req: NextRequest) {
 
   const parsed = parse(OrderSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
-  const { symbol, side, notional, qty, limit_price, stop_price } = parsed.data;
-  const type = parsed.data.type ?? "market";
-  const time_in_force = parsed.data.time_in_force ?? "day";
+
+  // Mobile networks make "tap → timeout → tap again" routine, and without a
+  // key that sequence is two orders. Same contract as wallets/transfer:
+  // scoped per user, so one client's key cannot replay another account's
+  // request. No key (older clients, curl) → the handler runs normally.
+  const idempotencyKey = req.headers.get("Idempotency-Key");
+  return withIdempotency(idempotencyKey, `investing.order:${account.user.id}`, () =>
+    executeOrder(account, parsed.data)
+  );
+}
+
+type OrderInput = ReturnType<typeof OrderSchema.parse>;
+
+async function executeOrder(account: UserAccount, input: OrderInput): Promise<NextResponse> {
+  const { symbol, side, notional, qty, limit_price, stop_price } = input;
+  const type = input.type ?? "market";
+  const time_in_force = input.time_in_force ?? "day";
 
   // Alpaca: qty and notional are mutually exclusive; exactly one required.
   const hasNotional = notional !== undefined && notional !== null;
