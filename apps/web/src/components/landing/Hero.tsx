@@ -15,7 +15,7 @@ export default function Hero() {
         aria-hidden="true"
         className="hero-glow pointer-events-none absolute inset-x-0 top-0 h-[560px]"
       />
-      <div className="section relative grid items-center gap-12 pb-16 pt-14 sm:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pb-24">
+      <div className="section relative pb-16 pt-14 sm:pt-20 lg:pb-24">
         {/* ── Copy ──────────────────────────────────────────────────── */}
         <div>
           <p className="section-eyebrow">Financial infrastructure</p>
@@ -63,7 +63,11 @@ export default function Hero() {
         </div>
 
         {/* ── Diagram ───────────────────────────────────────────────── */}
-        <div className="lg:pl-4">
+        {/* Centred beneath the copy rather than beside it: the stack reads
+            top-to-bottom (your app → API → products → settlement), so a
+            column next to the headline fought the vertical flow it is
+            trying to describe. */}
+        <div className="mx-auto mt-14 w-full max-w-xl lg:mt-16">
           <InfraFlow />
         </div>
       </div>
