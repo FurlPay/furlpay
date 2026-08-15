@@ -54,7 +54,11 @@ export default function TrustPage() {
           { name: "Trust", path: "/trust" },
         ])}
       />
-      <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
+      {/* max-w-6xl px-6 — matched to MarketingBar deliberately. The bar is
+          max-w-6xl and this was max-w-5xl, so the content sat 128px narrower
+          than the header above it and the logo overhung the page by 64px a
+          side. Same container, same padding, one edge. */}
+      <main className="mx-auto max-w-6xl px-6 pb-24 pt-14">
         <Hero
           eyebrow="Trust & security"
           title="Security you can audit."
