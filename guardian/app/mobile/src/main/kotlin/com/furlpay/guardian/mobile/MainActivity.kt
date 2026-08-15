@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.furlpay.guardian.mobile.ui.LiveVoiceScreen
 import com.furlpay.guardian.mobile.ui.TapToPayScreen
+import com.furlpay.guardian.mobile.ui.UpiScanScreen
 import com.furlpay.guardian.mobile.ui.NewReminderDialog
 import com.furlpay.guardian.mobile.ui.ReminderRow
 import com.furlpay.guardian.mobile.viewmodel.DashboardViewModel
@@ -51,6 +52,16 @@ import com.furlpay.guardian.security.AuthManager
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // FLAG_SECURE for the whole activity: this app shows approval amounts,
+        // security events and pairing codes, and there is no screen in it that
+        // a user needs to screenshot. Blocks capture, screen recording AND the
+        // recents-switcher thumbnail — the same posture the wallet app takes
+        // per-screen (native-app/lib/secureScreen.ts), applied globally here
+        // because Guardian has no shareable surface to carve out.
+        window.setFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE
+        )
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 GuardianRoot()
@@ -65,6 +76,7 @@ private fun GuardianRoot() {
     val authState by context.mobileServices.authManager.state.collectAsStateWithLifecycle()
     var showVoice by rememberSaveable { mutableStateOf(false) }
     var showTapToPay by rememberSaveable { mutableStateOf(false) }
+    var showUpiScan by rememberSaveable { mutableStateOf(false) }
 
     // Signing out must close whatever was open. These are rememberSaveable, so
     // without this a merchant who signs out from the terminal is dropped
@@ -73,15 +85,17 @@ private fun GuardianRoot() {
         if (authState != AuthManager.AuthState.SignedIn) {
             showVoice = false
             showTapToPay = false
+            showUpiScan = false
         }
     }
 
     // System Back closes the current surface instead of leaving the app.
     // Without a handler, Back on the voice or terminal screen exits Guardian
     // outright — on Android that reads as a crash, not as navigation.
-    BackHandler(enabled = showVoice || showTapToPay) {
+    BackHandler(enabled = showVoice || showTapToPay || showUpiScan) {
         showVoice = false
         showTapToPay = false
+        showUpiScan = false
     }
 
     Scaffold { padding ->
@@ -98,9 +112,11 @@ private fun GuardianRoot() {
                             viewModel = viewModel(),
                             onClose = { showTapToPay = false },
                         )
+                        showUpiScan -> UpiScanScreen(onClose = { showUpiScan = false })
                         else -> DashboardScreen(
                             onOpenVoice = { showVoice = true },
                             onOpenTapToPay = { showTapToPay = true },
+                            onOpenUpiScan = { showUpiScan = true },
                         )
                     }
             }
@@ -163,6 +179,7 @@ private fun SignInScreen(viewModel: SignInViewModel = viewModel()) {
 private fun DashboardScreen(
     onOpenVoice: () -> Unit,
     onOpenTapToPay: () -> Unit,
+    onOpenUpiScan: () -> Unit,
     viewModel: DashboardViewModel = viewModel(),
     remindersViewModel: RemindersViewModel = viewModel(),
 ) {
@@ -204,6 +221,7 @@ private fun DashboardScreen(
                 }
                 OutlinedButton(onClick = onOpenVoice) { Text("Voice") }
                 OutlinedButton(onClick = onOpenTapToPay) { Text("Take payment") }
+                OutlinedButton(onClick = onOpenUpiScan) { Text("Scan UPI") }
                 OutlinedButton(onClick = viewModel::signOut) { Text("Sign out") }
             }
         }
