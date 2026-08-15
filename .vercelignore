@@ -40,3 +40,8 @@ packages/contracts
 # Guardian Wear OS / phone app (Kotlin/Gradle — huge build outputs, ships to
 # Play + its own public repo, never Vercel)
 /guardian
+
+# Third-party site captures (reference only). `vercel deploy` uploads the
+# working directory, so without this a competitor's site would be published
+# from furlpay.com.
+/reference

@@ -65,3 +65,8 @@ furlpay_prospects_enriched_v2.xlsx
 # enter this repo's history — committing it would ship their code inside a
 # commercial product.
 furlpay_pay/
+
+# Cloned capture of tangem.com, kept locally as a design/reference artefact.
+# Same reasoning as furlpay_pay/ above: it is another company's markup, minified
+# bundles, fonts and branding. It must never enter this repo's history.
+reference/
