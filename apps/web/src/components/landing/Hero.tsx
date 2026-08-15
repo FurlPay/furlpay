@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import InfraFlow from "./InfraFlow";
 
 // Six chips, each backed by something that exists: four first-party SDKs in
 // sdks/{node,python,go,rust}, the REST surface documented at
@@ -19,8 +18,8 @@ const STACK = ["TypeScript", "Python", "Go", "Rust", "REST API", "Webhooks"];
  *
  * `.section` is max-w-6xl, which is the right container for the dense sections
  * further down the page but far too wide to read a sentence across. So the
- * copy sits in its own max-w-3xl column inside it, and the width of `.section`
- * is spent on the one thing that benefits from it: the InfraFlow pipeline.
+ * copy sits in its own max-w-3xl column inside it, with the product capture
+ * centred beneath.
  */
 export default function Hero() {
   return (
@@ -91,13 +90,24 @@ export default function Hero() {
           </div>
         </div>
 
-        {/* ── Diagram ───────────────────────────────────────────────── */}
-        {/* The full width of `.section`, under a centred column that is
-            deliberately narrower. The asymmetry is the point: the copy is a
-            readable measure, the pipeline is the wide thing that anchors it,
-            and the stages read left to right beneath centred type. */}
-        <div className="mt-16 w-full lg:mt-20">
-          <InfraFlow />
+        {/* ── Product capture ───────────────────────────────────────── */}
+        {/* The phone frame matches AppShowcase's treatment so the two read as
+            one product rather than two videos that happen to share a file.
+            muted + playsInline is what permits autoplay at all; without both,
+            browsers refuse and the reader gets a still first frame. */}
+        <div className="mt-16 flex justify-center lg:mt-20">
+          <div className="relative w-[260px] overflow-hidden rounded-[2rem] border border-white/15 bg-black shadow-[0_0_80px_-20px_rgba(0,229,153,0.25)] sm:w-[300px]">
+            <video
+              src="/media/travels-phone.mp4"
+              autoPlay
+              muted
+              loop
+              playsInline
+              preload="metadata"
+              aria-label="FurlPay running in the mobile app"
+              className="block h-auto w-full"
+            />
+          </div>
         </div>
       </div>
     </section>
