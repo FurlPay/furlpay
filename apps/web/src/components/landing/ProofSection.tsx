@@ -1,5 +1,6 @@
 import Link from "next/link";
 import Reveal from "./Reveal";
+import AvatarStrip from "./AvatarStrip";
 import { GitHubIcon } from "@/components/marketing/SocialIcons";
 
 /*
@@ -67,13 +68,14 @@ export default function ProofSection() {
             <p className="mt-2 text-[13px] text-textSecondary">
               Drop-in tools so an agent can pay from inside the framework you already use.
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {ADAPTERS.map((a) => (
-                <span key={a} className="tech-chip">
-                  {a}
-                </span>
-              ))}
-            </div>
+            {/* The portrait-row treatment a testimonial wall would use, spent
+                on the integrations that exist rather than on faces that do
+                not. Same visual weight, nothing invented. */}
+            <AvatarStrip
+              className="mt-5"
+              items={ADAPTERS.map((name) => ({ name }))}
+              caption="Eight framework adapters, each a published package rather than a logo on a page."
+            />
           </div>
         </Reveal>
 

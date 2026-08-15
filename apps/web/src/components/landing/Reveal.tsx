@@ -30,6 +30,39 @@ function observer(): IntersectionObserver | null {
   return shared;
 }
 
+/*
+ * A grid whose children arrive in sequence rather than all at once.
+ *
+ * Sequence is the cue that separates choreography from a page that simply
+ * fades in: six cards appearing together reads as one lazy block, the same six
+ * arriving 60ms apart reads as deliberate. The stagger is capped rather than
+ * multiplied without limit — by about the eighth item a linear ramp stops
+ * looking like rhythm and starts looking like the page is struggling.
+ */
+export function RevealGroup({
+  children,
+  className = "",
+  stagger = 60,
+  maxDelay = 240,
+}: {
+  children: ReactNode[];
+  className?: string;
+  /** Gap between consecutive children, in ms. */
+  stagger?: number;
+  /** Ceiling for the ramp, so long lists do not trail off. */
+  maxDelay?: number;
+}) {
+  return (
+    <div className={className}>
+      {children.map((child, i) => (
+        <Reveal key={i} delay={Math.min(i * stagger, maxDelay)}>
+          {child}
+        </Reveal>
+      ))}
+    </div>
+  );
+}
+
 export default function Reveal({
   children,
   className = "",
