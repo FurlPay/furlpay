@@ -412,6 +412,30 @@ struct UpdateProfileRequest: Encodable, Sendable {
     let notifications: NotificationPreferences?
 }
 
+/// Relying-party identifier for passkeys. Must match the `webcredentials:`
+/// domain in the app's associated-domains entitlement.
+///
+/// Declared in Shared rather than on PasskeyService because the decoder in
+/// PasskeyRegistrationOptions below falls back to it, and this file compiles
+/// into the watch target where PasskeyService does not exist. PasskeyService
+/// re-exports it so existing phone call sites are unaffected.
+public enum PasskeyConfig {
+    public static let relyingParty = "furlpay.com"
+}
+
+/// Moved here from FurlPayGuardian/Features/Security/PasskeyService.swift.
+/// That file belongs to the iPhone target alone, but this one compiles into
+/// the watch target as well, so the watch build could not see the type the
+/// two responses below decode into. A plain data type belongs with the DTOs;
+/// PasskeyService keeps the AuthenticationServices work that is phone-only.
+public struct PasskeyCredential: Identifiable, Codable, Sendable, Hashable {
+    public let id: String
+    public let label: String?
+    public let createdAt: Date?
+    public let lastUsedAt: Date?
+    public let deviceName: String?
+}
+
 struct PasskeysResponse: Decodable, Sendable {
     let credentials: [PasskeyCredential]
 }
@@ -439,7 +463,7 @@ public struct PasskeyRegistrationOptions: Decodable, Sendable {
         // Falls back to the compiled-in relying party rather than failing:
         // authentication options legitimately omit it.
         relyingPartyId = try c.decodeIfPresent(String.self, forKey: .relyingPartyId)
-            ?? PasskeyService.relyingParty
+            ?? PasskeyConfig.relyingParty
     }
 }
 

@@ -17,13 +17,13 @@
 import Foundation
 import AuthenticationServices
 
-public struct PasskeyCredential: Identifiable, Codable, Sendable, Hashable {
-    public let id: String
-    public let label: String?
-    public let createdAt: Date?
-    public let lastUsedAt: Date?
-    public let deviceName: String?
-}
+// PasskeyCredential now lives in Shared/Network/DTOs.swift, beside the
+// PasskeysResponse and PasskeyCredentialResponse that decode it. It was
+// declared here, in a file that only belongs to the iPhone target, while
+// DTOs.swift compiles into the watch target too — so the watch build failed
+// with "cannot find type 'PasskeyCredential' in scope". It is a plain data
+// type with no AuthenticationServices dependency; only the service below
+// needs that framework, and only the phone runs the service.
 
 public enum PasskeyError: Error, LocalizedError {
     case cancelled
@@ -44,7 +44,9 @@ public final class PasskeyService: NSObject {
 
     /// Must match the `webcredentials:` domain in the app's associated-domains
     /// entitlement.
-    public static let relyingParty = "furlpay.com"
+    /// Re-exported from PasskeyConfig (Shared), which is the single source of
+    /// truth so the watch target can see it too.
+    public static let relyingParty = PasskeyConfig.relyingParty
 
     private let api: FurlPayAPIClient
     private var continuation: CheckedContinuation<ASAuthorization, Error>?

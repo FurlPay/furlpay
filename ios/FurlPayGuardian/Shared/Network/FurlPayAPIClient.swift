@@ -810,13 +810,21 @@ public struct EmptyResponse: Decodable, Sendable {
 }
 
 extension ISO8601DateFormatter {
-    static let standard: ISO8601DateFormatter = {
+    // `nonisolated(unsafe)` because ISO8601DateFormatter is not Sendable, and
+    // Swift 6 concurrency checking rejects a shared `static let` of a
+    // non-Sendable type outright. The sharing is safe in this specific case:
+    // both instances are configured once inside their initialisers and then
+    // only ever read from — `formatOptions` is never mutated afterwards, and
+    // Foundation's date formatters are documented as safe for concurrent
+    // formatting and parsing. Anything that needs to change formatOptions must
+    // create its own instance rather than mutate these.
+    nonisolated(unsafe) static let standard: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime]
         return f
     }()
 
-    static let withFractionalSeconds: ISO8601DateFormatter = {
+    nonisolated(unsafe) static let withFractionalSeconds: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
