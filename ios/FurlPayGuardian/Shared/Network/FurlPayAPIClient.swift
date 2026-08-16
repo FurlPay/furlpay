@@ -184,7 +184,7 @@ public actor FurlPayAPIClient {
         _ method: String,
         _ path: String,
         query: [String: String] = [:],
-        body: Encodable? = nil,
+        body: (Encodable & Sendable)? = nil,
         authenticated: Bool = true,
         idempotencyKey: String? = nil
     ) async throws -> URLRequest {
@@ -798,7 +798,13 @@ public actor FurlPayAPIClient {
 /// into every call site.
 private struct AnyEncodable: Encodable {
     private let encodeTo: @Sendable (Encoder) throws -> Void
-    init(_ wrapped: Encodable) {
+    /// `some Encodable & Sendable` rather than a bare existential: the closure
+    /// below is `@Sendable`, and Swift 6 refuses to let it capture a
+    /// non-Sendable `any Encodable`. Constraining here rather than dropping
+    /// `@Sendable` keeps the guarantee, and costs nothing — every request body
+    /// in this client is one of the project's own DTOs, all of which are
+    /// already declared `Encodable, Sendable` (or String).
+    init(_ wrapped: some Encodable & Sendable) {
         encodeTo = { encoder in try wrapped.encode(to: encoder) }
     }
     func encode(to encoder: Encoder) throws { try encodeTo(encoder) }
