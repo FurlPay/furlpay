@@ -38,9 +38,49 @@ async function tickerMap(): Promise<Record<string, string> | null> {
   });
 }
 
+/** Last-resort ticker resolution through EDGAR's company browser.
+ *
+ * company_tickers.json is not complete. Both it and company_tickers_exchange
+ * carry exactly 10,387 rows and both omit Electronic Arts, American Electric
+ * Power and BNY Mellon — all three of which are actively filing (AEP filed
+ * 2026-08-04, EA 2026-08-14). The submissions API knows them by CIK, so the
+ * gap is in the published mapping rather than in the companies.
+ *
+ * This is deliberately only a fallback. The browser's ticker matching is fuzzy
+ * where the bulk file is exact: BNY resolves here to BlackRock New York
+ * Municipal Income Trust rather than to BNY Mellon. Consulted only after an
+ * exact lookup misses, it recovers real omissions; consulted first, it would
+ * introduce wrong answers for symbols the bulk file already had right. */
+async function cikByEdgarSearch(ticker: string): Promise<string | null> {
+  return cachedJson(`sec:cik:${ticker}`, TTL.tickerMap, async () => {
+    const url =
+      "https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=" +
+      `${encodeURIComponent(ticker)}&type=10-K&dateb=&owner=include&count=1&output=atom`;
+    try {
+      const res = await fetch(url, {
+        headers: SEC_HEADERS,
+        signal: AbortSignal.timeout(10_000),
+        cache: "no-store",
+      });
+      if (!res.ok) return null;
+      const cik = /<cik>(\d+)<\/cik>/i.exec(await res.text())?.[1];
+      return cik ? cik.padStart(10, "0") : null;
+    } catch {
+      return null;
+    }
+  });
+}
+
 export async function cikFor(symbol: string): Promise<string | null> {
   const map = await tickerMap();
-  return map?.[symbol.toUpperCase()] ?? null;
+  const upper = symbol.toUpperCase();
+  // EDGAR spells share classes with a dash: Berkshire class B is BRK-B, never
+  // BRK.B. Catalogs (and this one) commonly use the dot, so a direct lookup
+  // misses every dual-class name.
+  const dashed = upper.replace(/\./g, "-");
+  const exact = map?.[upper] ?? map?.[dashed] ?? null;
+  if (exact) return exact;
+  return cikByEdgarSearch(dashed);
 }
 
 // ---------------------------------------------------------------------------

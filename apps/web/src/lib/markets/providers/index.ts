@@ -88,6 +88,20 @@ export interface RealStats {
   provenance: Provenance;
 }
 
+/** How this catalog's ticker is spelled on Yahoo.
+ *
+ * Two rewrites, both of which are silent 404s otherwise:
+ *
+ * - Share classes use a dash. BRK.B is not a symbol Yahoo knows; BRK-B is.
+ * - Crypto is quoted as a pair. A bare BTC resolves to an unrelated equity or
+ *   to nothing at all, while BTC-USD is the coin — which is how the 101 crypto
+ *   entries here get a real 52-week range instead of none. */
+export function yahooSymbolFor(symbol: string, kind: string): string {
+  const upper = symbol.toUpperCase();
+  if (kind === "crypto") return `${upper}-USD`;
+  return upper.replace(/\./g, "-");
+}
+
 /** Beta against SPY from one year of daily returns.
  *
  * This is the only headline statistic neither provider publishes, and it is the
@@ -180,12 +194,21 @@ function pct(numerator: number | null, denominator: number | null): number | nul
  * say about an ETF or a coin, and Yahoo occasionally drops a symbol. Either
  * side returning null degrades the sections that depend on it and leaves the
  * rest intact. */
-export async function realStatsFor(symbol: string): Promise<RealStats> {
+export async function realStatsFor(
+  symbol: string,
+  kind: "stock" | "etf" | "crypto" = "stock"
+): Promise<RealStats> {
+  const y = yahooSymbolFor(symbol, kind);
+  const isCrypto = kind === "crypto";
+
+  // A coin has no filings and no meaningful beta against SPY, and asking EDGAR
+  // for a crypto ticker resolves against whichever registrant happens to share
+  // the letters. Price, range and volume still apply, so those are fetched.
   const [q, fRaw, avgVol, beta] = await Promise.all([
-    yahooQuote(symbol).catch(() => null),
-    fundamentalsFor(symbol).catch(() => null),
-    averageVolume(symbol).catch(() => null),
-    betaVsMarket(symbol).catch(() => null),
+    yahooQuote(y).catch(() => null),
+    isCrypto ? Promise.resolve(null) : fundamentalsFor(symbol).catch(() => null),
+    averageVolume(y).catch(() => null),
+    isCrypto ? Promise.resolve(null) : betaVsMarket(y).catch(() => null),
   ]);
   return combine(q, fRaw, avgVol, beta);
 }

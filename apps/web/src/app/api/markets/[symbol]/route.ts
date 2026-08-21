@@ -30,14 +30,12 @@ export async function GET(req: NextRequest, props: { params: Promise<{ symbol: s
   const asset = bySymbol.get(sym);
   if (!asset) return NextResponse.json({ error: "Unknown symbol" }, { status: 404 });
 
-  // Crypto has no SEC filings and no SPY beta, and CoinGecko already covers it
-  // through getQuotes(). Asking EDGAR for a coin ticker would resolve against
-  // an unrelated registrant that happens to share the symbol.
-  const isSecurity = asset.kind === "stock" || asset.kind === "etf";
-
+  // Crypto goes through the same path, quoted as a pair (BTC-USD): it has no
+  // filings and no SPY beta, but it does have a real 52-week range, which it
+  // otherwise would not have at all.
   const [quotes, real] = await Promise.all([
     getQuotes(),
-    isSecurity ? realStatsFor(sym).catch(() => null) : Promise.resolve(null),
+    realStatsFor(sym, asset.kind).catch(() => null),
   ]);
 
   // Prefer the consolidated Yahoo print for securities; it carries an exchange

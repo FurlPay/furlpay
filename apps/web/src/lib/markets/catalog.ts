@@ -225,7 +225,8 @@ export const CATALOG: MarketAsset[] = [
   s("COF", "Capital One Financial", "Financials", "Consumer Finance"),
   s("USB", "U.S. Bancorp", "Financials", "Banks", "mid"),
   s("PNC", "PNC Financial Services", "Financials", "Banks", "mid"),
-  s("BK", "BNY Mellon", "Financials", "Custody Banks", "mid"),
+  // Ticker changed from BK; BK no longer trades and Yahoo 404s on it.
+  s("BNY", "BNY Mellon", "Financials", "Custody Banks", "mid"),
   s("AIG", "American International Group", "Financials", "Insurance", "mid"),
   s("MET", "MetLife Inc.", "Financials", "Insurance", "mid"),
   s("ALL", "Allstate Corp.", "Financials", "Insurance", "mid"),
@@ -488,7 +489,44 @@ export function assetLogoPath(a: MarketAsset): string | null {
   return HAS_LOGO.has(`${dir}/${file}`) ? `/logos/${dir}/${file}.svg` : null;
 }
 
-export const bySymbol = new Map(CATALOG.map((a) => [a.symbol, a]));
+/** Tickers claimed by more than one asset class in this catalog.
+ *
+ * Currently STX (Seagate / Stacks) and DASH (DoorDash / Dash). */
+export const AMBIGUOUS_TICKERS: ReadonlySet<string> = (() => {
+  const seen = new Map<string, number>();
+  for (const a of CATALOG) seen.set(a.symbol, (seen.get(a.symbol) ?? 0) + 1);
+  return new Set([...seen].filter(([, n]) => n > 1).map(([t]) => t));
+})();
+
+/** Exact lookup: `stock:STX` is Seagate, `crypto:STX` is Stacks. Always prefer
+ * this when the caller knows the asset class. */
+export const byKindSymbol = new Map(CATALOG.map((a) => [`${a.kind}:${a.symbol}`, a]));
+
+/** Bare-ticker lookup, resolving collisions towards the security.
+ *
+ * This used to be `new Map(CATALOG.map(...))`, which is last-write-wins. The
+ * crypto entries sit after the equities in this file, so `bySymbol.get("STX")`
+ * returned Stacks the token rather than Seagate, and DASH returned Dash rather
+ * than DoorDash — making both equities unreachable by ticker.
+ *
+ * That is not only a display problem: this map is what /api/investing/order and
+ * /api/investing/portfolio resolve against, so an order for STX was priced and
+ * booked as a crypto asset. quotes.ts already documents this hazard for the
+ * price cache; the same collision was live here.
+ *
+ * A bare ticker on a finance surface conventionally means the listed security,
+ * so stocks and ETFs win. Crypto remains reachable through `byKindSymbol`. */
+export const bySymbol = (() => {
+  const m = new Map<string, MarketAsset>();
+  for (const a of CATALOG) {
+    const held = m.get(a.symbol);
+    if (!held) { m.set(a.symbol, a); continue; }
+    const heldIsSecurity = held.kind === "stock" || held.kind === "etf";
+    const nextIsSecurity = a.kind === "stock" || a.kind === "etf";
+    if (nextIsSecurity && !heldIsSecurity) m.set(a.symbol, a);
+  }
+  return m;
+})();
 
 export const STOCK_SECTORS: StockSector[] = [
   "Technology", "Communication", "Consumer Cyclical", "Consumer Staples", "Healthcare",
