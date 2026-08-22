@@ -198,3 +198,104 @@ export async function averageVolume(symbol: string): Promise<number | null> {
     return vols.reduce((s, v) => s + v, 0) / vols.length;
   });
 }
+
+// ---------------------------------------------------------------------------
+// Symbol search
+// ---------------------------------------------------------------------------
+
+interface SearchQuote {
+  symbol?: string;
+  shortname?: string;
+  longname?: string;
+  exchDisp?: string;
+  exchange?: string;
+  quoteType?: string;
+  isYahooFinance?: boolean;
+}
+
+interface SearchResponse {
+  quotes?: SearchQuote[];
+}
+
+export interface SymbolHit {
+  symbol: string;
+  name: string;
+  exchange: string | null;
+  kind: "stock" | "etf" | "crypto";
+}
+
+/** US exchanges whose listings quote in USD.
+ *
+ * An allowlist rather than a denylist, because the failure is silent and
+ * expensive. `universe.json` is US-only for exactly one reason: nothing in this
+ * codebase carries a currency alongside a price, so a KRW quote rendered
+ * through a dollar-formatted component is off by a factor of about 1,375 and
+ * looks entirely normal. Yahoo's search happily returns the Frankfurt, Milan
+ * and Vienna lines of the same company — searching "alcoa" returns AA followed
+ * by 1850.F, 185.F, 1AA.MI and ALCA.VI — so anything not on this list is
+ * dropped until prices are currency-aware. */
+const US_EXCHANGES = new Set([
+  "NMS", "NYQ", "NGM", "NCM", "ASE", "PCX", "BTS", "NYS", "NAS", "OPR", "PNK", "OQB", "OQX",
+]);
+
+function kindOf(quoteType: string | undefined): SymbolHit["kind"] | null {
+  switch ((quoteType ?? "").toUpperCase()) {
+    case "EQUITY":
+      return "stock";
+    case "ETF":
+    case "MUTUALFUND":
+      return "etf";
+    case "CRYPTOCURRENCY":
+      return "crypto";
+    default:
+      // INDEX, FUTURE, CURRENCY, OPTION — none of which this app can price or
+      // trade, and all of which would render as a tradable asset if admitted.
+      return null;
+  }
+}
+
+/** Search Yahoo for symbols matching a name or ticker.
+ *
+ * The one endpoint here that answers a question the local universe cannot:
+ * `universe.json` is a snapshot synced from a broker, so anything listed since
+ * — an IPO, a ticker change, a new ETF — is invisible to it until someone
+ * re-runs the sync. This looks past the snapshot.
+ *
+ * Cached under the normalised query. Search traffic is long-tailed and the same
+ * few hundred queries dominate, so even a short TTL removes most upstream
+ * calls. */
+export async function searchSymbols(query: string, limit = 8): Promise<SymbolHit[] | null> {
+  const q = query.trim().toUpperCase();
+  if (q.length < 1 || q.length > 40) return null;
+
+  return cachedJson(`ysearch:${q}:${limit}`, TTL.search, async () => {
+    const res = await fetchJson<SearchResponse>(
+      "https://query2.finance.yahoo.com/v1/finance/search" +
+        `?q=${encodeURIComponent(q)}&quotesCount=${Math.min(limit * 3, 25)}&newsCount=0` +
+        "&enableFuzzyQuery=false&quotesQueryId=tss_match_phrase_query",
+      { headers: BROWSER_UA, timeoutMs: 8_000 }
+    );
+    const rows = res?.quotes;
+    if (!Array.isArray(rows)) return null;
+
+    const out: SymbolHit[] = [];
+    for (const r of rows) {
+      if (!r?.symbol || r.isYahooFinance === false) continue;
+      const kind = kindOf(r.quoteType);
+      if (!kind) continue;
+      // Crypto is quoted as a pair and is fully covered by the local catalog;
+      // admitting `BTC-USD` here would create a second, differently-spelled
+      // page for a coin that already has one.
+      if (kind === "crypto") continue;
+      if (!US_EXCHANGES.has((r.exchange ?? "").toUpperCase())) continue;
+      out.push({
+        symbol: r.symbol.toUpperCase(),
+        name: r.longname ?? r.shortname ?? r.symbol.toUpperCase(),
+        exchange: r.exchDisp ?? r.exchange ?? null,
+        kind,
+      });
+      if (out.length >= limit) break;
+    }
+    return out.length ? out : null;
+  });
+}

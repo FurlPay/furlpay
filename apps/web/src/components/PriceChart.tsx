@@ -17,9 +17,20 @@ import { generateSeries, TIMEFRAMES, type Timeframe } from "@/lib/chartData";
 // Dual-mode price chart (TradingView lightweight-charts v5): area ⇄ candlestick
 // with a 1D–ALL timeframe selector and crosshair scrubbing that reports the
 // hovered value/change to the parent — the pattern INDmoney and Robinhood use.
-// Pass `symbol` to load REAL OHLC history from /api/markets/bars (Alpaca /
-// CoinGecko); without it — or if history is unavailable — the seeded synthetic
-// series renders instead (portfolio/net-worth charts have no market history).
+//
+// Pass `symbol` to load REAL OHLC history from /api/markets/bars (Alpaca ->
+// Yahoo -> CoinGecko).
+//
+// The synthetic series exists for the shapes that have no market history to
+// fetch: a net-worth line, an empty-state card, a decorative background. It is
+// a seeded random walk ending at `endValue` — stable across reloads and
+// entirely invented.
+//
+// `allowSynthetic={false}` forbids that substitution, and every market surface
+// must pass it. A random walk drawn under a real ticker is indistinguishable
+// from a price history: it has the right shape, the right end point and the
+// right volatility, and a reader scrubbing it reads off levels that never
+// traded. Where history is genuinely missing, the chart says so.
 
 const UP = "#00E599";
 const DOWN = "#FF3B30";
@@ -41,6 +52,7 @@ export default function PriceChart({
   defaultTf = "1M",
   defaultMode = "area",
   prefix = "$",
+  allowSynthetic = true,
 }: {
   seed: string;
   endValue: number;
@@ -50,11 +62,14 @@ export default function PriceChart({
   defaultTf?: Timeframe;
   defaultMode?: "area" | "candles";
   prefix?: string;
+  /** False on market surfaces: render "unavailable" rather than invent a line. */
+  allowSynthetic?: boolean;
 }) {
   const [tf, setTf] = useState<Timeframe>(defaultTf);
   const [mode, setMode] = useState<"area" | "candles">(defaultMode);
   const [hover, setHover] = useState<number | null>(null);
   const [real, setReal] = useState<SeriesData | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -65,6 +80,7 @@ export default function PriceChart({
     setReal(null);
     if (!symbol) return;
     let stale = false;
+    setLoading(true);
     fetch(`/api/markets/bars?symbol=${encodeURIComponent(symbol)}&tf=${tf}`)
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((j: { candles: Candle[] }) => {
@@ -78,22 +94,32 @@ export default function PriceChart({
           changeAbs: candles[candles.length - 1].close - (candles[0].open || candles[0].close),
         });
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => {
+        if (!stale) setLoading(false);
+      });
     return () => {
       stale = true;
     };
   }, [symbol, tf]);
 
   const synthetic = useMemo(() => generateSeries(seed, tf, endValue), [seed, tf, endValue]);
-  const data: SeriesData = real ?? synthetic;
-  const up = data.changeAbs >= 0;
+  // On a market surface the fallback is refused, not silently swapped in. Until
+  // real bars arrive `data` is null and the canvas stays empty, which is the
+  // honest rendering of "we do not have this history".
+  const data: SeriesData | null = real ?? (allowSynthetic ? synthetic : null);
+  const unavailable = !data && !loading;
+  const up = (data?.changeAbs ?? 0) >= 0;
   const color = up ? UP : DOWN;
 
   // Header shows the hovered point while scrubbing, else the latest value.
-  const shownValue = hover ?? data.last;
-  const shownChangeAbs = shownValue - data.first;
-  const shownChangePct = (shownChangeAbs / data.first) * 100;
-  const shownUp = shownChangeAbs >= 0;
+  const shownValue = hover ?? data?.last ?? null;
+  const shownChangeAbs = shownValue !== null && data ? shownValue - data.first : null;
+  const shownChangePct =
+    shownChangeAbs !== null && data && data.first !== 0
+      ? (shownChangeAbs / data.first) * 100
+      : null;
+  const shownUp = (shownChangeAbs ?? 0) >= 0;
 
   // Create the chart once.
   useEffect(() => {
@@ -150,6 +176,7 @@ export default function PriceChart({
       chart.removeSeries(seriesRef.current);
       seriesRef.current = null;
     }
+    if (!data) return;
     if (mode === "candles") {
       const s = chart.addSeries(CandlestickSeries, {
         upColor: UP,
@@ -183,15 +210,26 @@ export default function PriceChart({
       <div className="mb-3 flex items-end justify-between px-1">
         <div>
           <p className="text-[28px] font-extrabold leading-none tracking-tighter">
-            {prefix}
-            {shownValue.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {shownValue === null
+              ? "—"
+              : prefix +
+                shownValue.toLocaleString("en-US", {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
           </p>
-          <p className={`mt-1 text-[13px] font-semibold ${shownUp ? "text-gain" : "text-loss"}`}>
-            {shownUp ? "▲" : "▼"} {prefix}
-            {Math.abs(shownChangeAbs).toLocaleString("en-US", { maximumFractionDigits: 2 })} (
-            {shownUp ? "+" : ""}
-            {shownChangePct.toFixed(2)}%) · {tf}
-          </p>
+          {shownChangeAbs !== null && shownChangePct !== null ? (
+            <p className={`mt-1 text-[13px] font-semibold ${shownUp ? "text-gain" : "text-loss"}`}>
+              {shownUp ? "▲" : "▼"} {prefix}
+              {Math.abs(shownChangeAbs).toLocaleString("en-US", { maximumFractionDigits: 2 })} (
+              {shownUp ? "+" : ""}
+              {shownChangePct.toFixed(2)}%) · {tf}
+            </p>
+          ) : (
+            <p className="mt-1 text-[13px] font-semibold text-textMuted">
+              {loading ? "Loading…" : "No history"} · {tf}
+            </p>
+          )}
         </div>
         <button
           onClick={() => setMode((m) => (m === "area" ? "candles" : "area"))}
@@ -202,8 +240,22 @@ export default function PriceChart({
         </button>
       </div>
 
-      {/* Chart canvas */}
-      <div ref={containerRef} style={{ height }} className="w-full" />
+      {/* Chart canvas. The container is always mounted — lightweight-charts
+          binds to it on first render — and the unavailable notice sits over it
+          rather than replacing it. */}
+      <div className="relative w-full" style={{ height }}>
+        <div ref={containerRef} className="h-full w-full" />
+        {unavailable && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 rounded-xl bg-white/[0.02] text-center">
+            <p className="text-[13px] font-semibold text-textSecondary">
+              Price history unavailable
+            </p>
+            <p className="max-w-[240px] text-[11px] leading-relaxed text-textMuted">
+              No source returned bars for {symbol ?? "this asset"} over {tf}.
+            </p>
+          </div>
+        )}
+      </div>
 
       {/* Timeframe selector */}
       <div className="mt-3 flex items-center justify-between rounded-full border border-white/[0.06] bg-white/[0.03] p-1">

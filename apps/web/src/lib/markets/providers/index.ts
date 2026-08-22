@@ -18,6 +18,7 @@
 // no branch in this file that invents a number.
 // ---------------------------------------------------------------------------
 
+import { cryptoStatsFor, type CryptoStats } from "./coingecko";
 import { fundamentalsFor, type Fundamentals } from "./sec";
 import { averageVolume, bars, quote as yahooQuote, type YahooQuote } from "./yahoo";
 
@@ -26,6 +27,8 @@ import { averageVolume, bars, quote as yahooQuote, type YahooQuote } from "./yah
 export interface Provenance {
   price: "yahoo" | null;
   fundamentals: "sec-edgar" | null;
+  /** Supply and market cap for a coin, which has no filings to read. */
+  crypto: "coingecko" | null;
   /** Period end the filed figures cover, e.g. "2025-09-27". */
   fiscalAsOf: string | null;
   /** Whether income figures are a true trailing twelve months or a fiscal year. */
@@ -73,6 +76,17 @@ export interface RealStats {
   /** Against SPY, one year of daily returns. Null for crypto. */
   beta: number | null;
 
+  // --- crypto supply (null for equities, which report shares instead) ---
+  circulatingSupply: number | null;
+  totalSupply: number | null;
+  maxSupply: number | null;
+  fullyDilutedValuation: number | null;
+  athPrice: number | null;
+  athDate: string | null;
+  atlPrice: number | null;
+  atlDate: string | null;
+  marketCapRank: number | null;
+
   // --- balance sheet ---
   currentRatio: number | null;
   debtToEquity: number | null;
@@ -88,17 +102,41 @@ export interface RealStats {
   provenance: Provenance;
 }
 
-/** How this catalog's ticker is spelled on Yahoo.
+/** How this symbol is spelled on Yahoo.
  *
- * Two rewrites, both of which are silent 404s otherwise:
+ * Alpaca and Yahoo disagree about punctuation, and every disagreement is a
+ * silent 404 rather than an error — the page renders with an em-dash where the
+ * price should be, which looks like an asset that does not trade.
  *
- * - Share classes use a dash. BRK.B is not a symbol Yahoo knows; BRK-B is.
  * - Crypto is quoted as a pair. A bare BTC resolves to an unrelated equity or
- *   to nothing at all, while BTC-USD is the coin — which is how the 101 crypto
- *   entries here get a real 52-week range instead of none. */
+ *   to nothing at all; BTC-USD is the coin.
+ * - Share classes use a dash: BRK.B is not a symbol Yahoo knows, BRK-B is.
+ * - Preferred series, warrants and units each have their own spelling, and the
+ *   plain dot-to-dash rewrite gets all three wrong. `ALL.PRB` becomes
+ *   `ALL-PRB`, which does not exist; the security is `ALL-PB`. That pattern
+ *   covers 368 preferred series, 66 warrants and 49 units in the tradable
+ *   universe — every one of them previously priceless and chartless.
+ *
+ * Rights (`.RT`, 16 symbols) are deliberately not mapped. They are short-lived
+ * instruments and no Yahoo spelling was found that resolves them, so they fall
+ * through to the generic rewrite and miss honestly. */
 export function yahooSymbolFor(symbol: string, kind: string): string {
   const upper = symbol.toUpperCase();
   if (kind === "crypto") return `${upper}-USD`;
+
+  // Preferred series: ABR.PRD -> ABR-PD. The series letter is optional, since
+  // a single-series issuer tags it plain `.PR`.
+  const preferred = /^(.+)\.PR([A-Z]?)$/.exec(upper);
+  if (preferred) return `${preferred[1]}-P${preferred[2]}`;
+
+  // Warrants: AMPX.WS and AMPX.WSA both quote as AMPX-WT.
+  const warrant = /^(.+)\.WS[A-Z]?$/.exec(upper);
+  if (warrant) return `${warrant[1]}-WT`;
+
+  // SPAC units: ALUB.U -> ALUB-UN.
+  const unit = /^(.+)\.U$/.exec(upper);
+  if (unit) return `${unit[1]}-UN`;
+
   return upper.replace(/\./g, "-");
 }
 
@@ -188,6 +226,27 @@ function pct(numerator: number | null, denominator: number | null): number | nul
   return r === null ? null : r * 100;
 }
 
+/** A margin: a share of revenue, so it cannot exceed all of it.
+ *
+ * The ceiling is a backstop against inputs that came from different places
+ * without either of them looking wrong on its own. American Tower tags
+ * revenue-from-contracts at $0.94B and total revenues at $10.64B for the same
+ * year; dividing a company-wide operating income by the first produced a 522%
+ * operating margin, and both numbers were real, filed, and current.
+ *
+ * `sec.ts` now picks the broader tag, so this should not fire. It is kept
+ * because the failure it catches is silent — a margin over 100% is arithmetic
+ * nonsense that renders as an impressive statistic — and because the next
+ * filer to nest its revenue tags differently will not announce itself.
+ *
+ * Losses have no such floor: a pre-revenue company really can post a margin of
+ * several hundred percent negative, and that is a fact about the company. */
+function marginPct(numerator: number | null, denominator: number | null): number | null {
+  const p = pct(numerator, denominator);
+  if (p === null) return null;
+  return p > 100.5 ? null : p;
+}
+
 /** Combine live price with filed fundamentals into one snapshot.
  *
  * The two halves are fetched concurrently and independently: SEC has nothing to
@@ -196,28 +255,36 @@ function pct(numerator: number | null, denominator: number | null): number | nul
  * rest intact. */
 export async function realStatsFor(
   symbol: string,
-  kind: "stock" | "etf" | "crypto" = "stock"
+  kind: "stock" | "etf" | "crypto" = "stock",
+  /** CoinGecko id from the catalog. Required to resolve a coin's supply —
+   * CoinGecko is keyed by slug, and a ticker alone is ambiguous across the
+   * several thousand coins that share one. */
+  cgId?: string | null
 ): Promise<RealStats> {
   const y = yahooSymbolFor(symbol, kind);
   const isCrypto = kind === "crypto";
 
   // A coin has no filings and no meaningful beta against SPY, and asking EDGAR
   // for a crypto ticker resolves against whichever registrant happens to share
-  // the letters. Price, range and volume still apply, so those are fetched.
-  const [q, fRaw, avgVol, beta] = await Promise.all([
+  // the letters. Price, range and volume still apply, so those are fetched —
+  // and supply comes from CoinGecko, which is the coin equivalent of the share
+  // count on a cover page.
+  const [q, fRaw, avgVol, beta, crypto] = await Promise.all([
     yahooQuote(y).catch(() => null),
     isCrypto ? Promise.resolve(null) : fundamentalsFor(symbol).catch(() => null),
     averageVolume(y).catch(() => null),
     isCrypto ? Promise.resolve(null) : betaVsMarket(y).catch(() => null),
+    isCrypto && cgId ? cryptoStatsFor(cgId).catch(() => null) : Promise.resolve(null),
   ]);
-  return combine(q, fRaw, avgVol, beta);
+  return combine(q, fRaw, avgVol, beta, crypto);
 }
 
 function combine(
   q: YahooQuote | null,
   f: Fundamentals | null,
   avgVol: number | null,
-  beta: number | null = null
+  beta: number | null = null,
+  crypto: CryptoStats | null = null
 ): RealStats {
   const price = q?.price ?? null;
 
@@ -226,7 +293,11 @@ function combine(
   // as current as the share count, which moves on buybacks and issuance — so
   // the filing date travels with it in `provenance`.
   const marketCap =
-    price !== null && f?.sharesOutstanding ? price * f.sharesOutstanding : null;
+    price !== null && f?.sharesOutstanding
+      ? price * f.sharesOutstanding
+      : // A coin's market cap is reported rather than derived: circulating
+        // supply is the moving part, and CoinGecko tracks it directly.
+        (crypto?.marketCap ?? null);
 
   // EV = market cap + debt - cash. Total liabilities overstates debt (it sweeps
   // in payables and deferred revenue), so this is an approximation and is
@@ -266,12 +337,22 @@ function combine(
 
     revenueTtm: f?.revenueTtm ?? null,
     netIncomeTtm: f?.netIncomeTtm ?? null,
-    grossMarginPct: pct(f?.grossProfitTtm ?? null, f?.revenueTtm ?? null),
-    operatingMarginPct: pct(f?.operatingIncomeTtm ?? null, f?.revenueTtm ?? null),
-    profitMarginPct: pct(f?.netIncomeTtm ?? null, f?.revenueTtm ?? null),
+    grossMarginPct: marginPct(f?.grossProfitTtm ?? null, f?.revenueTtm ?? null),
+    operatingMarginPct: marginPct(f?.operatingIncomeTtm ?? null, f?.revenueTtm ?? null),
+    profitMarginPct: marginPct(f?.netIncomeTtm ?? null, f?.revenueTtm ?? null),
     roePct: pct(f?.netIncomeTtm ?? null, equity),
     roaPct: pct(f?.netIncomeTtm ?? null, f?.assets ?? null),
     beta,
+
+    circulatingSupply: crypto?.circulatingSupply ?? null,
+    totalSupply: crypto?.totalSupply ?? null,
+    maxSupply: crypto?.maxSupply ?? null,
+    fullyDilutedValuation: crypto?.fullyDilutedValuation ?? null,
+    athPrice: crypto?.athPrice ?? null,
+    athDate: crypto?.athDate ?? null,
+    atlPrice: crypto?.atlPrice ?? null,
+    atlDate: crypto?.atlDate ?? null,
+    marketCapRank: crypto?.marketCapRank ?? null,
 
     currentRatio: ratio(f?.assetsCurrent ?? null, f?.liabilitiesCurrent ?? null),
     debtToEquity: ratio(f?.liabilities ?? null, equity),
@@ -286,6 +367,7 @@ function combine(
     provenance: {
       price: q ? "yahoo" : null,
       fundamentals: f ? "sec-edgar" : null,
+      crypto: crypto ? "coingecko" : null,
       fiscalAsOf: f?.asOf ?? null,
       incomeBasis: f?.incomeBasis ?? null,
       cik: f?.cik ?? null,
@@ -294,4 +376,4 @@ function combine(
 }
 
 /** Exposed for tests: the pure half, with no network. */
-export const __test = { combine, ratio, pct };
+export const __test = { combine, ratio, pct, marginPct };

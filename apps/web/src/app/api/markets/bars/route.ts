@@ -2,12 +2,43 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { bySymbol } from "@/lib/markets/catalog";
+import { resolveAsset } from "@/lib/markets/resolve";
+import { bars as yahooBars, type Timeframe as YahooTf } from "@/lib/markets/providers/yahoo";
+import { yahooSymbolFor } from "@/lib/markets/providers";
 
 // GET /api/markets/bars?symbol=AAPL&tf=1M — real OHLC history for the charts.
-// Equities + major crypto pairs come from Alpaca Market Data; other crypto
-// falls back to CoinGecko OHLC. 404 → the client keeps its synthetic series.
+//
+// Three sources, tried in order, because each covers a different slice of the
+// catalog and only the union covers all of it:
+//
+//   Alpaca      requires API keys and covers US equities plus its own crypto
+//               pairs. Preferred when configured — it is the same feed the
+//               order path trades against, so the chart and the fill agree.
+//   CoinGecko   coins, up to a year back, where it is far denser than Yahoo's
+//               thin `-USD` pairs. Tried before Yahoo, and only for crypto.
+//   Yahoo       no key, and the only source here that answers for every
+//               catalog symbol: share classes (BRK.B -> BRK-B) as well as
+//               coins. Last, as the backstop that leaves no symbol without a
+//               chart on a deployment with no Alpaca keys.
+//
+// A 404 means no source had history. The caller must show that as unavailable:
+// the client's synthetic series is a plausible-looking invented price history,
+// which is the one thing a chart on a trading surface must never be.
 
 type Tf = "1D" | "1W" | "1M" | "3M" | "1Y" | "ALL";
+
+/** This route's timeframe vocabulary in Yahoo's terms.
+ *
+ * Not a rename — Yahoo rejects range/interval pairs outside its own table
+ * rather than degrading, so each of these maps to a pair it actually serves. */
+const YAHOO_TF: Record<Tf, YahooTf> = {
+  "1D": "1D",
+  "1W": "5D",
+  "1M": "1M",
+  "3M": "3M",
+  "1Y": "1Y",
+  ALL: "MAX",
+};
 interface Candle { time: number; open: number; high: number; low: number; close: number }
 
 const ALPACA_TF: Record<Tf, { timeframe: string; days: number }> = {
@@ -18,7 +49,18 @@ const ALPACA_TF: Record<Tf, { timeframe: string; days: number }> = {
   "1Y": { timeframe: "1Week", days: 380 },
   ALL: { timeframe: "1Month", days: 3650 },
 };
-const CG_DAYS: Record<Tf, string> = { "1D": "1", "1W": "7", "1M": "30", "3M": "90", "1Y": "365", ALL: "max" };
+/** CoinGecko OHLC windows, in days.
+ *
+ * ALL is deliberately absent. The public API caps historical queries at 365
+ * days and answers `days=max` with error 10012, so asking is a request that
+ * cannot succeed — the full-history view is Yahoo's from the start. */
+const CG_DAYS: Partial<Record<Tf, string>> = {
+  "1D": "1",
+  "1W": "7",
+  "1M": "30",
+  "3M": "90",
+  "1Y": "365",
+};
 
 // Small in-memory cache: history doesn't need sub-minute freshness.
 const cache = new Map<string, { at: number; candles: Candle[]; source: string }>();
@@ -42,7 +84,10 @@ export async function GET(req: NextRequest) {
 
   const symbol = (req.nextUrl.searchParams.get("symbol") ?? "").toUpperCase();
   const tf = (req.nextUrl.searchParams.get("tf") ?? "1M") as Tf;
-  const asset = bySymbol.get(symbol);
+  // Same universe resolution as the detail route. Gating this on the curated
+  // catalog would leave every uncurated symbol with a page and no chart, which
+  // is the shape a reader reads as "this asset has never traded".
+  const asset = await resolveAsset(symbol);
   if (!asset || !ALPACA_TF[tf]) return NextResponse.json({ error: "Unknown symbol/timeframe" }, { status: 404 });
 
   const cacheKey = `${symbol}:${tf}`;
@@ -89,10 +134,18 @@ export async function GET(req: NextRequest) {
   }
 
   // Crypto not on Alpaca (or Alpaca unavailable) → CoinGecko OHLC.
-  if (candles.length === 0 && asset.kind === "crypto" && asset.cg) {
+  //
+  // Ahead of Yahoo for coins, and only for coins, and only inside the year it
+  // covers. Yahoo quotes a `-USD` pair for most tokens but thinly: PEPE's last
+  // year there is a handful of weekly points against 92 daily bars here. Past
+  // a year the comparison reverses — CoinGecko's public tier refuses the
+  // query outright — so the ALL view is Yahoo's.
+  const cgDays = CG_DAYS[tf];
+  const cgId = bySymbol.get(symbol)?.cg;
+  if (candles.length === 0 && asset.kind === "crypto" && cgId && cgDays) {
     try {
       const res = await fetch(
-        `https://api.coingecko.com/api/v3/coins/${asset.cg}/ohlc?vs_currency=usd&days=${CG_DAYS[tf]}`,
+        `https://api.coingecko.com/api/v3/coins/${cgId}/ohlc?vs_currency=usd&days=${cgDays}`,
         { headers: { "User-Agent": "Mozilla/5.0 (compatible; FurlpayMarkets/1.0)" }, signal: AbortSignal.timeout(5000) }
       );
       if (res.ok) {
@@ -104,6 +157,20 @@ export async function GET(req: NextRequest) {
       }
     } catch {
       /* fall through to 404 */
+    }
+  }
+
+  // Universal backstop. Yahoo needs no credentials and knows every symbol in
+  // this catalog — share classes as `BRK-B`, coins as `BTC-USD` — so it is
+  // what keeps a chart real rather than synthetic on a deployment with no
+  // Alpaca keys, which is every preview build.
+  if (candles.length === 0) {
+    const rows = await yahooBars(yahooSymbolFor(symbol, asset.kind), YAHOO_TF[tf]).catch(
+      () => null
+    );
+    if (rows?.length) {
+      candles = rows.map((b) => ({ time: b.t, open: b.o, high: b.h, low: b.l, close: b.c }));
+      source = "yahoo";
     }
   }
 

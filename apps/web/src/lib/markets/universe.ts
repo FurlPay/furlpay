@@ -170,6 +170,53 @@ export function searchUniverse(
   return scored.slice(0, limit).map((s) => s.a);
 }
 
+/** The asset behind `/markets/<symbol>`, curated or not.
+ *
+ * The detail route used to resolve through `bySymbol`, which holds only the 391
+ * hand-curated entries. Search, meanwhile, ranks over all 12,970 tradable
+ * symbols — so searching "Alcoa" returned AA, and following it produced "Asset
+ * not found". Every uncurated listing was reachable, linkable and dead: 12,655
+ * of them, including S&P 500 members like Agilent, Alcoa and Albemarle.
+ *
+ * Curated metadata was never what made those pages possible. Price, range and
+ * volume come from the ticker alone, and fundamentals from EDGAR's own
+ * ticker-to-CIK map; the catalog contributes a logo, a sector and a cap tier.
+ * Those are enrichments, and their absence is a thinner page rather than no
+ * page — so resolution falls through to the universe, and the sections that
+ * need curation drop out on their own.
+ *
+ * Crypto is checked first because it lives only in the catalog. `bySymbol`
+ * already resolves a bare ambiguous ticker (STX, DASH) toward the security. */
+export function resolveMergedAsset(symbol: string): MergedAsset | undefined {
+  const upper = symbol.toUpperCase();
+
+  const curated = bySymbol.get(upper);
+  if (curated?.kind === "crypto") return CRYPTO.find((c) => c.symbol === upper);
+
+  const u = universeBySymbol.get(upper);
+  if (u) return merge(u);
+
+  // Curated but absent from the broker's list — 74 entries, mostly crypto and
+  // a few delisted or renamed tickers. Still a real page.
+  if (curated) {
+    return {
+      symbol: curated.symbol,
+      name: curated.name,
+      kind: curated.kind,
+      sector: curated.sector ?? null,
+      industry: curated.industry ?? null,
+      cap: curated.cap ?? "small",
+      chain: curated.chain ?? null,
+      logo: assetLogoPath(curated) ?? "",
+      exchange: null,
+      fractionable: true,
+      curated: true,
+      currency: "USD",
+    };
+  }
+  return CRYPTO.find((c) => c.symbol === upper);
+}
+
 /** Universe counts for ops/monitoring. */
 export function universeStats() {
   return {

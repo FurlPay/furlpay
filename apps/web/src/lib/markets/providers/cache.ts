@@ -26,6 +26,12 @@ export const TTL = {
   fundamentals: 86_400,
   /** Ticker -> CIK map. New listings are rare and we fail soft without them. */
   tickerMap: 604_800,
+  /** Symbol search results. Long-tailed traffic, and a listing does not appear
+   * or vanish within an hour. */
+  search: 3_600,
+  /** "Does this symbol exist at all" — including the negative answer, which is
+   * what stops a crawler walking /markets/AAAA..ZZZZ into the upstream. */
+  symbolExists: 21_600,
 } as const;
 
 /** Read-through cache. A miss, a cache error, or a failed fetch all end up in

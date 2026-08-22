@@ -87,7 +87,7 @@ export async function cikFor(symbol: string): Promise<string | null> {
 // Company facts
 // ---------------------------------------------------------------------------
 
-interface XbrlFact {
+export interface XbrlFact {
   start?: string;
   end: string;
   val: number;
@@ -98,7 +98,7 @@ interface XbrlFact {
   frame?: string;
 }
 
-interface CompanyFacts {
+export interface CompanyFacts {
   entityName: string;
   facts: Record<string, Record<string, { label?: string; units: Record<string, XbrlFact[]> }>>;
 }
@@ -112,6 +112,44 @@ async function companyFacts(cik: string): Promise<CompanyFacts | null> {
   );
 }
 
+/** Forms that carry the financial statements themselves.
+ *
+ * The distinction is load-bearing, not bookkeeping. A registrant tags the same
+ * period in several kinds of filing, and only these state it in whole dollars.
+ * The pay-versus-performance table in a proxy tags net income in whatever unit
+ * that table is presented in, so FedEx's fiscal 2026 appears twice: as
+ * 4,433,000,000 in the 10-K filed 2026-07-20, and as 4,433 in the DEF 14A
+ * filed 2026-08-17. Same concept, same period, same USD unit, six orders of
+ * magnitude apart. Schwab's proxy states the same year in thousands and
+ * Arista's in millions.
+ *
+ * Preferring the later filing — the rule that correctly resolves a restatement
+ * — picks the proxy every time, because proxy season follows the annual report.
+ * FedEx's net income became $4,433. */
+const STATEMENT_FORM = /^(10-K|10-Q|20-F|40-F|6-K|8-K)/i;
+
+function fromStatement(f: XbrlFact): boolean {
+  return !!f.form && STATEMENT_FORM.test(f.form);
+}
+
+/** How to resolve two facts covering the same period.
+ *
+ * `restated` — the newest view of the period, which is what a restatement is.
+ * `broadest` — the largest value. Only for revenue, where the synonyms are
+ *   nested rather than alternative: revenue from contracts with customers is a
+ *   component of total revenues, not another name for it. American Tower tags
+ *   both for 2025, at $0.94B and $10.64B; taking the narrower one against a
+ *   company-wide operating income produced a 522% operating margin. */
+type MergePolicy = "restated" | "broadest";
+
+function preferFact(a: XbrlFact, b: XbrlFact, policy: MergePolicy): XbrlFact {
+  const aStatement = fromStatement(a);
+  const bStatement = fromStatement(b);
+  if (aStatement !== bStatement) return aStatement ? a : b;
+  if (policy === "broadest" && a.val !== b.val) return b.val > a.val ? b : a;
+  return b.filed > a.filed ? b : a;
+}
+
 /** Every fact for a concept, merged across all of its synonyms.
  *
  * Concept naming is neither standardised across filers nor stable within one.
@@ -123,12 +161,13 @@ async function companyFacts(cik: string): Promise<CompanyFacts | null> {
  * exists. First-match-wins looked correct and was catastrophically wrong:
  * NVIDIA's older tag is still present but stops in 2020, so picking it yielded
  * $10.9B of revenue "as of" 2026 and a 1240% net margin. Merging every synonym
- * and de-duplicating by period keeps the newest filed value for each period
- * regardless of which tag carried it. */
+ * and de-duplicating by period keeps a value for each period regardless of
+ * which tag carried it; `preferFact` decides which one. */
 function mergeConcept(
   facts: CompanyFacts,
   names: readonly string[],
-  unit: string
+  unit: string,
+  policy: MergePolicy = "restated"
 ): XbrlFact[] {
   const byPeriod = new Map<string, XbrlFact>();
   for (const taxonomy of ["us-gaap", "ifrs-full", "dei"]) {
@@ -138,7 +177,7 @@ function mergeConcept(
       for (const f of bucket[name]?.units?.[unit] ?? []) {
         const k = `${f.start ?? ""}:${f.end}`;
         const prev = byPeriod.get(k);
-        if (!prev || f.filed > prev.filed) byPeriod.set(k, f);
+        byPeriod.set(k, prev ? preferFact(prev, f, policy) : f);
       }
     }
   }
@@ -151,15 +190,45 @@ function durationDays(f: XbrlFact): number {
   return (Date.parse(f.end) - Date.parse(f.start)) / 86_400_000;
 }
 
+/** How stale a filed fact may be and still describe the company today.
+ *
+ * Eighteen months clears the widest legitimate gap: a December year-end filed
+ * the following February is still the newest annual figure eleven months later,
+ * and a late filer stretches that further. Anything beyond it is not a lagging
+ * report, it is a concept the registrant stopped tagging. */
+const MAX_FACT_AGE_DAYS = 550;
+
+/** Does this fact's period end recently enough to be worth reporting?
+ *
+ * This guard exists because both of the worst wrong numbers this file has
+ * produced were stale rather than miscomputed, and staleness is invisible on
+ * screen — a 2014 revenue renders exactly like a 2026 one.
+ *
+ * `companyfacts` returns a registrant's whole tagging history and silently
+ * drops dimensional facts, so a concept that moved onto an axis simply stops
+ * appearing. Berkshire last reported an undimensioned share count in 2011
+ * (941,481 Class A shares); multiplied by a Class B price that produced a
+ * $470M market cap for a trillion-dollar company. JPMorgan stopped tagging
+ * quarterly `Revenues` in 2015, so "the last four quarters" summed calendar
+ * 2014 and reported $95B against an actual $182B.
+ *
+ * Neither is recoverable here, and both are better shown as unknown. */
+function isRecent(endIso: string, now: number = Date.now()): boolean {
+  const t = Date.parse(endIso);
+  if (!Number.isFinite(t)) return false;
+  return (now - t) / 86_400_000 <= MAX_FACT_AGE_DAYS;
+}
+
 /** Latest value of a point-in-time concept (balance sheet, share counts).
  *
  * Facts are restated: the same end date appears in several filings as later
  * ones revise it. Sorting by period then filing date and taking the last means
  * we report the most recently filed view of the most recent period, which is
  * what the company currently stands behind. */
-function latestInstant(rows: XbrlFact[]): XbrlFact | null {
-  if (!rows.length) return null;
-  const sorted = [...rows].sort((a, b) =>
+function latestInstant(rows: XbrlFact[], now: number = Date.now()): XbrlFact | null {
+  const fresh = rows.filter((f) => isRecent(f.end, now));
+  if (!fresh.length) return null;
+  const sorted = [...fresh].sort((a, b) =>
     a.end === b.end ? a.filed.localeCompare(b.filed) : a.end.localeCompare(b.end)
   );
   return sorted[sorted.length - 1] ?? null;
@@ -186,10 +255,9 @@ function latestInstant(rows: XbrlFact[]): XbrlFact | null {
  *    so would be a lie. In that case the annual figure is returned, labelled
  *    `annual`, so the caller can show what it actually is. */
 function trailingTwelveMonths(
-  rows: XbrlFact[]
+  rows: XbrlFact[],
+  now: number = Date.now()
 ): { value: number; basis: "ttm" | "annual"; asOf: string } | null {
-  if (!rows.length) return null;
-
   const quarters = rows.filter((f) => {
     const d = durationDays(f);
     return d >= 60 && d <= 120; // a fiscal quarter, allowing for 13-week years
@@ -234,17 +302,82 @@ function trailingTwelveMonths(
       return Math.abs(thisStart - prevEnd) <= 5 * 86_400_000;
     });
     const span = last4.reduce((s, q) => s + durationDays(q), 0);
-    if (contiguous && span >= 330 && span <= 400) {
+    const windowEnd = last4[last4.length - 1]!.end;
+    // Recency is tested on the assembled window, not on its inputs. Testing
+    // the inputs looks equivalent and is not: a trailing year that ends today
+    // necessarily begins twelve months ago, and Apple's derived fourth quarter
+    // is reconstructed from three quarters up to twenty months old. Filtering
+    // those away dismantles the very window that makes them current, which
+    // silently downgraded Apple from a $467B TTM to a $416B fiscal year.
+    if (contiguous && span >= 330 && span <= 400 && isRecent(windowEnd, now)) {
       return {
         value: last4.reduce((s, q) => s + q.val, 0),
         basis: "ttm",
-        asOf: last4[last4.length - 1]!.end,
+        asOf: windowEnd,
       };
     }
   }
 
+  // Falling back to the fiscal year is only a fallback while that year is still
+  // the company's latest word. Past the staleness horizon it is a historical
+  // record, and reporting it beside a live price would date the whole page to
+  // whenever the registrant stopped tagging the concept.
   const fy = annuals[annuals.length - 1];
-  return fy ? { value: fy.val, basis: "annual", asOf: fy.end } : null;
+  return fy && isRecent(fy.end, now) ? { value: fy.val, basis: "annual", asOf: fy.end } : null;
+}
+
+interface Period {
+  value: number;
+  basis: "ttm" | "annual";
+  asOf: string;
+}
+
+/** Earnings per share, or null when it disagrees with net income and the
+ * share count.
+ *
+ * Those three are one identity — EPS times shares is net income — so a wide
+ * disagreement means one of them is on a different basis from the other two.
+ *
+ * In practice it is EPS, for a reason nothing above can catch. Per-share
+ * figures are restated by a stock split while dollar figures are not, so a
+ * trailing twelve months assembled across one sums quarters denominated in
+ * different shares. Booking split during fiscal 2026: its fiscal 2025 diluted
+ * EPS is $165.57 and its June 2026 quarter is $2.53, both correct as filed and
+ * not addable. Summing them gave a TTM EPS of $167.96 against a post-split
+ * price of $210 — a P/E of 1.25 on a company trading near 30. A dual-class
+ * registrant fails the same way: Carvana's $8.45 is per Class A share against
+ * a diluted count covering every class.
+ *
+ * The share count is a single point-in-time figure from the latest filing and
+ * has neither failure mode, so it is what survives. EPS is dropped, taking the
+ * P/E and payout ratio with it. Market cap does not depend on EPS and is
+ * unaffected, which is right — it was correct all along.
+ *
+ * Recomputing EPS as net income over shares was the alternative and is worse:
+ * it would pair whichever period the income happens to cover with today's
+ * share count and present the quotient as a filed figure.
+ *
+ * Two tolerances, because the comparison is not always like-for-like. When the
+ * income and EPS windows share a basis the identity should hold tightly, and
+ * 35% still absorbs buybacks between the period end and the cover date. When
+ * they differ — an annual income against a TTM EPS — they are expected to
+ * disagree, so only an order-of-magnitude gap is a defect. Both bands sit far
+ * below the twentyfold a split produces. */
+function reconcileEps(
+  eps: Period | null,
+  netIncome: Period | null,
+  shares: { value: number } | null
+): Period | null {
+  if (!eps || !netIncome || !shares) return eps;
+  if (eps.value === 0 || !(shares.value > 0)) return eps;
+
+  const impliedEps = netIncome.value / shares.value;
+  if (!Number.isFinite(impliedEps) || impliedEps === 0) return eps;
+
+  const hi = Math.max(Math.abs(eps.value), Math.abs(impliedEps));
+  const lo = Math.min(Math.abs(eps.value), Math.abs(impliedEps));
+  const limit = netIncome.basis === eps.basis ? 1.35 : 2.5;
+  return hi / lo > limit ? null : eps;
 }
 
 // Synonym lists. All of these are merged, not tried in order.
@@ -261,14 +394,38 @@ const EPS = [
   "EarningsPerShareBasicAndDiluted",
   "EarningsPerShareBasic",
 ] as const;
-const SHARES = ["EntityCommonStockSharesOutstanding", "CommonStockSharesOutstanding"] as const;
+/** Share-count sources, best first — tried in order rather than merged.
+ *
+ * These are not synonyms and must not be pooled the way the concept lists above
+ * are. The cover-page count is a point-in-time total as of the filing date; the
+ * weighted-average diluted count is a period average that includes unexercised
+ * dilution and so runs roughly a percent high. Merging them and taking the
+ * latest period end lets a tie on date decide which definition wins.
+ *
+ * The last entry is what rescues registrants who moved their cover-page tag
+ * onto a share-class axis, where `companyfacts` no longer surfaces it. */
+const SHARE_SOURCES = [
+  ["EntityCommonStockSharesOutstanding"],
+  ["CommonStockSharesOutstanding"],
+  ["WeightedAverageNumberOfDilutedSharesOutstanding"],
+] as const;
 
 /** Exposed for tests: the pure period arithmetic, with no network.
  *
  * This is the part worth pinning. Both bugs found while building it — the
  * stale-synonym pick and the missing fourth quarter — produced numbers that
  * looked entirely reasonable on screen. */
-export const __test = { mergeConcept, trailingTwelveMonths, latestInstant, durationDays };
+export const __test = {
+  mergeConcept,
+  fromStatement,
+  preferFact,
+  trailingTwelveMonths,
+  latestInstant,
+  durationDays,
+  isRecent,
+  MAX_FACT_AGE_DAYS,
+  reconcileEps,
+};
 
 export interface Fundamentals {
   entityName: string;
@@ -310,19 +467,27 @@ export async function fundamentalsFor(symbol: string): Promise<Fundamentals | nu
   const facts = await companyFacts(cik);
   if (!facts) return null;
 
-  const flow = (names: readonly string[]) => trailingTwelveMonths(mergeConcept(facts, names, "USD"));
+  const flow = (names: readonly string[], policy: MergePolicy = "restated") =>
+    trailingTwelveMonths(mergeConcept(facts, names, "USD", policy));
   const instant = (names: readonly string[], unit = "USD") => {
     const f = latestInstant(mergeConcept(facts, names, unit));
     return f ? { value: f.val, asOf: f.end } : null;
   };
 
-  const revenue = flow(REVENUE);
+  const revenue = flow(REVENUE, "broadest");
   const netIncome = flow(NET_INCOME);
-  const eps = trailingTwelveMonths(mergeConcept(facts, EPS, "USD/shares"));
+  const epsRaw = trailingTwelveMonths(mergeConcept(facts, EPS, "USD/shares"));
   const dividendTtm = trailingTwelveMonths(
     mergeConcept(facts, ["CommonStockDividendsPerShareDeclared"], "USD/shares")
   );
-  const shares = instant(SHARES, "shares");
+  let shares: { value: number; asOf: string } | null = null;
+  for (const source of SHARE_SOURCES) {
+    shares = instant(source, "shares");
+    if (shares) break;
+  }
+
+  const eps = reconcileEps(epsRaw, netIncome, shares);
+
   const assets = instant(["Assets"]);
 
   return {

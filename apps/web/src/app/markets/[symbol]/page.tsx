@@ -5,57 +5,37 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Sparkles, ArrowLeftRight, FileText } from "lucide-react";
 import { getJSON, postJSON } from "@/lib/api";
-import { Spinner, pct, usd } from "@/components/ui";
+import { Spinner, usd } from "@/components/ui";
 import { AssetLogo } from "@furlpay/ui";
 import PriceChart from "@/components/PriceChart";
-import StatsGrid, { fmtCompact, StatItem } from "@/components/StatsGrid";
-import AssetRow, { fmtPrice } from "@/components/AssetRow";
+import AssetRow from "@/components/AssetRow";
 import SignalBadge from "@/components/insights/SignalBadge";
 import Modal from "@/components/Modal";
+import StockHeader from "@/components/markets/StockHeader";
+import KeyStatsGrid from "@/components/markets/KeyStatsGrid";
+import Provenance from "@/components/markets/Provenance";
+import type { SymbolDetail } from "@/components/markets/types";
 
-// Asset detail — full quote, chart, Furl AI digest, key stats, position,
-// related research and one-tap trading (equities) / swap routing (crypto).
-
-interface Detail {
-  asset: {
-    symbol: string;
-    name: string;
-    kind: "stock" | "etf" | "crypto";
-    sector: string | null;
-    industry: string | null;
-    cap: string;
-    chain: string | null;
-    logo: string | null;
-  };
-  quote: { price: number; changePct: number; live: boolean };
-  stats: {
-    marketCap: number;
-    peRatio: number | null;
-    eps: number | null;
-    dividendYieldPct: number | null;
-    beta: number | null;
-    high52w: number;
-    low52w: number;
-    volume: number;
-    avgVolume: number;
-    circulatingSupply: number | null;
-    athPrice: number | null;
-  };
-  digest: string;
-  position: { shares: number; marketValue: number } | null;
-  related: { symbol: string; name: string; logo: string | null; price: number; changePct: number }[];
-  insights: { slug: string; title: string; category: string; date: string; readMins: number; signal: "bullish" | "bearish" | "neutral" | null }[];
-}
+// Asset detail — full quote, real OHLC chart, key statistics, provenance,
+// position, related research and one-tap trading (equities) / swap routing
+// (crypto).
+//
+// The response shape lives in components/markets/types.ts. It is imported
+// rather than redeclared here because the copy that used to live in this file
+// had drifted from the route: it declared statistics non-nullable that the
+// route returns as null, and still declared `circulatingSupply` and `athPrice`
+// after the route stopped sending them. Both arrived undefined, both were
+// coalesced to 0, and the page printed a $0.00 all-time high for every coin.
 
 export default function AssetDetailPage() {
   const { symbol } = useParams<{ symbol: string }>();
   const router = useRouter();
-  const [data, setData] = useState<Detail | null>(null);
+  const [data, setData] = useState<SymbolDetail | null>(null);
   const [missing, setMissing] = useState(false);
   const [trade, setTrade] = useState<"buy" | "sell" | null>(null);
 
   const load = useCallback(() => {
-    getJSON<Detail>(`/api/markets/${symbol}`)
+    getJSON<SymbolDetail>(`/api/markets/${symbol}`)
       .then(setData)
       .catch(() => setMissing(true));
   }, [symbol]);
@@ -72,28 +52,7 @@ export default function AssetDetailPage() {
   if (!data) return <Spinner />;
 
   const { asset, quote, stats, position } = data;
-  const up = quote.changePct >= 0;
   const isEquity = asset.kind !== "crypto";
-
-  const statItems: StatItem[] = [
-    { label: "Market cap", value: "$" + fmtCompact(stats.marketCap) },
-    { label: "Volume (24h)", value: fmtCompact(stats.volume) },
-    { label: "52-wk high", value: fmtPrice(stats.high52w) },
-    { label: "52-wk low", value: fmtPrice(stats.low52w) },
-    ...(isEquity
-      ? ([
-          { label: "P/E ratio", value: stats.peRatio ? String(stats.peRatio) : "—" },
-          { label: "EPS", value: stats.eps ? `$${stats.eps}` : "—" },
-          { label: "Dividend yield", value: stats.dividendYieldPct ? `${stats.dividendYieldPct}%` : "—" },
-          { label: "Beta", value: stats.beta ? String(stats.beta) : "—" },
-        ] as StatItem[])
-      : ([
-          { label: "Circulating supply", value: fmtCompact(stats.circulatingSupply ?? 0) },
-          { label: "All-time high", value: fmtPrice(stats.athPrice ?? 0) },
-          { label: "Network", value: asset.chain === "own" ? "Native L1" : asset.chain ? asset.chain[0].toUpperCase() + asset.chain.slice(1) : "—" },
-          { label: "Category", value: asset.industry ?? "—" },
-        ] as StatItem[])),
-  ];
 
   return (
     <>
@@ -105,27 +64,38 @@ export default function AssetDetailPage() {
         <AssetLogo src={asset.logo} label={asset.symbol} size={34} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold tracking-tight">{asset.symbol}</p>
-          <p className="truncate text-[12px] text-textSecondary">{asset.name}</p>
+          {/* Sector for a curated asset, listing venue for the rest. The
+              uncurated majority have no sector at all, and a blank line under
+              the name reads as a page that failed to load rather than one
+              that simply has less to say. */}
+          <p className="truncate text-[12px] text-textSecondary">
+            {asset.name}
+            {(asset.sector ?? asset.exchange) && (
+              <span className="text-textMuted"> · {asset.sector ?? asset.exchange}</span>
+            )}
+          </p>
         </div>
-        {quote.live && (
-          <span className="flex items-center gap-1 rounded-full bg-gain/10 px-2 py-0.5 text-[10px] font-semibold text-gain">
-            <span className="h-1 w-1 animate-pulse rounded-full bg-gain" /> LIVE
-          </span>
-        )}
       </header>
 
-      {/* Price */}
-      <section className="px-5">
-        <p className="text-[34px] font-extrabold leading-none tracking-tighter">{fmtPrice(quote.price)}</p>
-        <p className={`mt-1 text-[14px] font-semibold ${up ? "text-gain" : "text-loss"}`}>
-          {pct(quote.changePct)} today
-        </p>
-      </section>
+      {/* Price, ranges, volume */}
+      <StockHeader price={quote.price} changePct={quote.changePct} stats={stats} />
 
-      {/* Chart */}
+
+      {/* Chart. allowSynthetic={false}: on a page that quotes a real ticker,
+          an invented price history is the one thing this chart must not draw.
+          Where no source has bars, it says so. */}
       <section className="mt-4 px-5">
         <div className="surface-card p-4">
-          <PriceChart seed={`asset-${asset.symbol}`} symbol={asset.symbol} endValue={quote.price} height={210} defaultTf="1M" />
+          <PriceChart
+            seed={`asset-${asset.symbol}`}
+            symbol={asset.symbol}
+            // Seeds the synthetic series only, and that path is disabled
+            // below — no invented history is drawn from this number.
+            endValue={quote.price ?? 0}
+            height={210}
+            defaultTf="1M"
+            allowSynthetic={false}
+          />
         </div>
       </section>
 
@@ -133,12 +103,19 @@ export default function AssetDetailPage() {
       <section className="mt-4 px-5">
         {isEquity ? (
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setTrade("buy")} className="tap rounded-pill bg-accent py-3 font-semibold">
+            {/* An order is sized against the price. With no quote there is
+                nothing to size against, so the sheet cannot be opened rather
+                than opening against a zero. */}
+            <button
+              onClick={() => setTrade("buy")}
+              disabled={quote.price === null}
+              className="tap rounded-pill bg-accent py-3 font-semibold disabled:opacity-40"
+            >
               Buy
             </button>
             <button
               onClick={() => setTrade("sell")}
-              disabled={!position?.shares}
+              disabled={!position?.shares || quote.price === null}
               className="tap rounded-pill bg-white/[0.08] py-3 font-semibold disabled:opacity-40"
             >
               Sell
@@ -155,26 +132,37 @@ export default function AssetDetailPage() {
               <p className="text-[12px] text-textSecondary">Your position</p>
               <p className="font-semibold">{position.shares.toFixed(4)} shares</p>
             </div>
-            <p className="font-semibold">{usd(position.marketValue)}</p>
+            <p className="font-semibold">
+              {position.marketValue === null ? "—" : usd(position.marketValue)}
+            </p>
           </div>
         )}
       </section>
 
-      {/* Furl AI digest */}
-      <section className="mt-5 px-5">
-        <div className="rounded-2xl border border-white/[0.07] bg-gradient-to-br from-white/[0.05] to-transparent p-4">
-          <p className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider text-accent">
-            <Sparkles className="h-3.5 w-3.5" /> Furl AI digest
-          </p>
-          <p className="mt-2 text-[13.5px] leading-relaxed text-textSecondary">{data.digest}</p>
-          <p className="mt-2 text-[10px] text-textMuted">AI-generated summary. Not investment advice.</p>
-        </div>
-      </section>
+      {/* Furl AI digest. The route omits it when the 52-week range it narrates
+          is unknown, so the whole card is conditional — a digest that has lost
+          its numbers would still read like a confident summary. */}
+      {data.digest && (
+        <section className="mt-5 px-5">
+          <div className="rounded-2xl border border-white/[0.07] bg-gradient-to-br from-white/[0.05] to-transparent p-4">
+            <p className="flex items-center gap-1.5 text-[12px] font-bold uppercase tracking-wider text-accent">
+              <Sparkles className="h-3.5 w-3.5" /> Furl AI digest
+            </p>
+            <p className="mt-2 text-[13.5px] leading-relaxed text-textSecondary">{data.digest}</p>
+            <p className="mt-2 text-[10px] text-textMuted">AI-generated summary. Not investment advice.</p>
+          </div>
+        </section>
+      )}
 
       {/* Key stats */}
       <section className="mt-6 px-5">
-        <h2 className="mb-1 text-[15px] font-bold tracking-tight">Key stats</h2>
-        <StatsGrid items={statItems} />
+        <h2 className="mb-2 text-[15px] font-bold tracking-tight">Key stats</h2>
+        <KeyStatsGrid stats={stats} kind={asset.kind} />
+      </section>
+
+      {/* Attribution for everything above. */}
+      <section className="mt-5 px-5">
+        <Provenance data={data.provenance} />
       </section>
 
       {/* Research insights */}
@@ -209,7 +197,7 @@ export default function AssetDetailPage() {
         </section>
       )}
 
-      {trade && (
+      {trade && quote.price !== null && (
         <TradeSheet
           symbol={asset.symbol}
           price={quote.price}

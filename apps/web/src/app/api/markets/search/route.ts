@@ -3,6 +3,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { searchUniverse, universeStats, type MergedAsset } from "@/lib/markets/universe";
 import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
+import { searchSymbols } from "@/lib/markets/providers/yahoo";
 
 // GET /api/markets/search?q=hynix&kind=stock|etf|crypto&limit=25&fractionable=1
 //
@@ -46,6 +47,45 @@ export async function GET(req: NextRequest) {
   const fractionableOnly = p.get("fractionable") === "1";
 
   const matches = searchUniverse(q, { kind, limit, fractionableOnly });
+
+  // Widen to Yahoo when the local snapshot has little or nothing to offer.
+  //
+  // `universe.json` is a broker sync dated 2026-07-18, refreshed by a script
+  // that needs credentials which currently 401 — so it cannot see anything
+  // listed since. A user searching a company that IPO'd last month gets no
+  // result and no explanation, which reads as "this app does not have it"
+  // rather than "this list is old".
+  //
+  // Only on a thin local result, and never for crypto, which lives entirely in
+  // the catalog and is already complete. The local rows stay first: they are
+  // exact and carry curation, while these are a fuzzy name match.
+  const seen = new Set(matches.map((m) => m.symbol.toUpperCase()));
+  if (q && kind !== "crypto" && matches.length < Math.min(limit, 5)) {
+    const online = await searchSymbols(q, limit - matches.length).catch(() => null);
+    for (const hit of online ?? []) {
+      if (seen.has(hit.symbol)) continue;
+      if (kind && hit.kind !== kind) continue;
+      // `fractionable` is a broker property. Nothing online knows it, so a
+      // fractionable-only filter cannot honestly include these.
+      if (fractionableOnly) continue;
+      seen.add(hit.symbol);
+      matches.push({
+        symbol: hit.symbol,
+        name: hit.name,
+        kind: hit.kind,
+        sector: null,
+        industry: null,
+        cap: "small",
+        chain: null,
+        logo: "",
+        exchange: hit.exchange,
+        fractionable: false,
+        curated: false,
+        currency: "USD",
+      });
+      if (matches.length >= limit) break;
+    }
+  }
 
   // One cached batch; misses simply carry no price.
   const quotes = await getQuotes().catch(() => null);

@@ -98,11 +98,40 @@ export function digestFor(a: MarketAsset, quote: Quote, stats: KeyStats): string
   }
   const val = stats.peRatio
     ? stats.peRatio > 40
-      ? `Valuation is rich at ${stats.peRatio}× earnings, so execution needs to stay flawless.`
+      ? `Valuation is rich at ${stats.peRatio.toFixed(1)}× earnings, so execution needs to stay flawless.`
       : stats.peRatio > 20
-        ? `At ${stats.peRatio}× earnings the market is pricing steady growth.`
-        : `At ${stats.peRatio}× earnings the valuation leaves room for multiple expansion.`
+        ? `At ${stats.peRatio.toFixed(1)}× earnings the market is pricing steady growth.`
+        : `At ${stats.peRatio.toFixed(1)}× earnings the valuation leaves room for multiple expansion.`
     : "";
-  const div = stats.dividendYieldPct ? ` A ${stats.dividendYieldPct}% dividend yield adds an income cushion.` : "";
-  return `${a.name} is ${dir} ${move}% today and sits ${posIn52w}% of the way up its 52-week range. ${a.kind === "etf" ? `The fund gives diversified ${a.industry?.toLowerCase() ?? "market"} exposure in a single ticker.` : `The ${a.industry?.toLowerCase() ?? "company"} name remains a ${(a.cap ?? "large") === "mega" ? "core mega-cap" : a.cap === "small" ? "higher-beta small-cap" : `${a.cap}-cap`} holding in the ${a.sector} sector.`} ${val}${div}`.trim();
+  // Rounded at the point of interpolation. These values used to be pre-rounded
+  // by `keyStatsFor`, which invented them; the real ones arrive as full-
+  // precision quotients, and Apple's yield rendered mid-sentence as
+  // "a 0.33757716049382713% dividend yield".
+  const div = stats.dividendYieldPct
+    ? ` A ${stats.dividendYieldPct.toFixed(2)}% dividend yield adds an income cushion.`
+    : "";
+  // The middle clause describes what kind of company this is, and every word of
+  // it comes from curated metadata. Most symbols have none — `merge()` fills a
+  // cap tier of "small" for anything uncurated — so asserting it anyway made
+  // the page tell readers that Alcoa, at a $13.8B market cap, "remains a
+  // higher-beta small-cap holding in the undefined sector". Both halves were
+  // wrong, and `undefined` reached the screen verbatim. No sector, no clause.
+  const character =
+    a.kind === "etf"
+      ? `The fund gives diversified ${a.industry?.toLowerCase() ?? "market"} exposure in a single ticker.`
+      : a.sector
+        ? `The ${a.industry?.toLowerCase() ?? "company"} name remains a ${
+            a.cap === "mega"
+              ? "core mega-cap"
+              : a.cap === "small"
+                ? "higher-beta small-cap"
+                : a.cap
+                  ? `${a.cap}-cap`
+                  : ""
+          } holding in the ${a.sector} sector.`.replace(/\s+/g, " ").replace(" holding", " holding")
+        : "";
+
+  return `${a.name} is ${dir} ${move}% today and sits ${posIn52w}% of the way up its 52-week range. ${character} ${val}${div}`
+    .replace(/\s+/g, " ")
+    .trim();
 }
