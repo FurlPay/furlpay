@@ -93,9 +93,10 @@ Not personal names, not `test`, not `final-v2`. The branch name is the first
 thing anyone reads about the change.
 
 Keep work branches short-lived. `extension-redesign` currently runs 20+ commits
-ahead of `main` for weeks at a time, and that is the reason two broken commits
-reached production: CI now runs on it explicitly, but a branch that never lands
-accumulates risk faster than any gate removes it.
+ahead of `main` for weeks at a time. A branch that never lands accumulates risk
+faster than any gate removes it, and it also means CI failures pile up on a PR
+nobody is about to merge — which is how two red commits sat on the branch while
+production deployments failed against them.
 
 ## Commits and pull requests
 
