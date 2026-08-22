@@ -31,7 +31,7 @@ export default function HotelsPage() {
         href="/travel/stays"
         className="mt-4 inline-flex min-h-[44px] items-center gap-2 rounded-lg border border-white/15 px-4 text-sm font-semibold text-white transition hover:bg-white/[0.06]"
       >
-        <Search className="h-4 w-4" /> Search all 2.2M+ stays
+        <Search className="h-4 w-4" /> Search all stays
       </Link>
 
       {collections.map((col) => (

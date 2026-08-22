@@ -21,7 +21,7 @@ export default function TravelsMcpPage() {
       <DocTitle eyebrow="Payments">FurlPay Travels (Travel MCP)</DocTitle>
       <Lead>
         <Code>@furlpay/travel-mcp</Code> lets an AI agent <b>search, budget-check, pay and book travel
-        autonomously</b> — live flight inventory, 2.2M+ hotels, and two payment rails (gasless USDC over
+        autonomously</b> — live flight inventory, hotels, and two payment rails (gasless USDC over
         x402, or a single-use MCC-locked Visa virtual card), gated by user-signed mandates. It runs as an
         MCP server for Claude, Cursor and any MCP client, or as a typed library.
       </Lead>

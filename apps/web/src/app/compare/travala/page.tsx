@@ -32,13 +32,13 @@ export default function Page() {
       atomicAnswer={
         <>
           Furlpay is a Travala alternative for <strong className="text-white">booking travel with
-          crypto</strong>: it offers 2.2M+ properties, settles in USDC on Arbitrum with on-chain
+          crypto</strong>: it offers properties, settles in USDC on Arbitrum with on-chain
           receipts, uses a passkey wallet with no seed phrase, and combines travel with payments and
           investing in a single account.
         </>
       }
       rows={[
-        { feature: "Inventory", furlpay: "2.2M+ hotels + flights", other: "3M+ properties", furlpayWins: false },
+        { feature: "Inventory", furlpay: "Hotels + flights via Duffel", other: "3M+ properties", furlpayWins: false },
         { feature: "Pay in", furlpay: "USDC (dollar-stable)", other: "AVA + many coins", furlpayWins: true },
         { feature: "Settlement", furlpay: "On-chain, Arbitrum receipts", other: "Off-chain processing", furlpayWins: true },
         { feature: "Wallet", furlpay: "Passkey MPC, no seed", other: "External wallet", furlpayWins: true },

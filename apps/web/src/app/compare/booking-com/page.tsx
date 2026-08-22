@@ -4,20 +4,20 @@ import ComparePage from "@/components/marketing/ComparePage";
 export const metadata: Metadata = {
   title: "Furlpay vs Booking.com — Book Hotels with USDC (2026)",
   description:
-    "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book 2.2M+ stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
+    "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
   alternates: { canonical: "/compare/booking-com" },
   openGraph: {
     type: "website",
     url: "https://furlpay.com/compare/booking-com",
     siteName: "Furlpay",
     title: "Furlpay vs Booking.com — Book Hotels with USDC (2026)",
-    description: "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book 2.2M+ stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
+    description: "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
     images: [{ url: "/og.png" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Furlpay vs Booking.com — Book Hotels with USDC (2026)",
-    description: "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book 2.2M+ stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
+    description: "Furlpay vs Booking.com for hotels: Booking.com bills in fiat, Furlpay lets you book stays and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any property, and a creator program paying up to 10% weekly.",
     images: ["/og.png"],
   },
 };
@@ -28,11 +28,11 @@ export default function Page() {
       competitor="Booking.com"
       slug="booking-com"
       title="Furlpay vs Booking.com"
-      subtitle="Booking.com is the world's largest fiat OTA. Furlpay lets you book 2.2M+ stays and pay in USDC on Arbitrum — with on-chain receipts, a single-use Visa card for merchants that only take cards, and a creator program that pays up to 10% in USDC weekly."
+      subtitle="Booking.com is the world's largest fiat OTA. Furlpay lets you book stays and pay in USDC on Arbitrum — with on-chain receipts, a single-use Visa card for merchants that only take cards, and a creator program that pays up to 10% in USDC weekly."
       atomicAnswer={
         <>
           <strong className="text-white">Booking.com</strong> is a fiat online travel agency — it does not
-          settle bookings in crypto. <strong className="text-white">Furlpay</strong> lets you book 2.2M+ stays
+          settle bookings in crypto. <strong className="text-white">Furlpay</strong> lets you book stays
           and flights and pay in USDC on Arbitrum, returns an on-chain receipt for every booking, and issues a
           single-use Visa virtual card for any property that only accepts cards — so you can spend stablecoins
           on effectively any stay while creators earn up to 10% in USDC, paid weekly.
@@ -41,7 +41,7 @@ export default function Page() {
       rows={[
         { feature: "Pay in stablecoins", furlpay: "USDC on Arbitrum", other: "Fiat only (card/bank)", furlpayWins: true },
         { feature: "On-chain receipt", furlpay: "Yes (Arbiscan)", other: "No", furlpayWins: true },
-        { feature: "Inventory", furlpay: "2.2M+ stays + flights", other: "28M+ listings", furlpayWins: false },
+        { feature: "Inventory", furlpay: "stays + flights", other: "28M+ listings", furlpayWins: false },
         { feature: "Pay any card-only property", furlpay: "Single-use Visa VCN", other: "Card / bank", furlpayWins: true },
         { feature: "AI-agent booking", furlpay: "Yes (x402 / MCP)", other: "No", furlpayWins: true },
         { feature: "Creator / affiliate", furlpay: "Up to 10% USDC, weekly", other: "Affiliate in fiat, delayed", furlpayWins: true },
@@ -54,7 +54,7 @@ export default function Page() {
         { title: "Agentic booking", body: "An AI agent can search Furlpay inventory and pay per resource over x402 within a user-signed budget — an early, working example of agentic commerce that a traditional OTA checkout does not offer." },
       ]}
       faq={[
-        { q: "Can I pay for Booking.com with crypto?", a: "Booking.com itself bills in fiat and does not settle in crypto. Furlpay is an alternative that lets you book 2.2M+ stays and pay in USDC on Arbitrum, and for card-only properties it issues a single-use Visa virtual card funded by your stablecoins." },
+        { q: "Can I pay for Booking.com with crypto?", a: "Booking.com itself bills in fiat and does not settle in crypto. Furlpay is an alternative that lets you book stays and pay in USDC on Arbitrum, and for card-only properties it issues a single-use Visa virtual card funded by your stablecoins." },
         { q: "What is the best crypto alternative to Booking.com?", a: "Furlpay is a strong Booking.com alternative if you want to pay in USDC with on-chain receipts, a single-use Visa card for any property, AI-agent booking, and a creator program that pays up to 10% in USDC weekly." },
         { q: "Do I get a receipt I can use for expenses?", a: "Yes. Each Furlpay booking settles on Arbitrum and returns an Arbiscan-verifiable receipt, which is useful for expense reports and reimbursements." },
       ]}

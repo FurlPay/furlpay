@@ -41,7 +41,7 @@ export default function Page() {
       rows={[
         { feature: "Stablecoin checkout", furlpay: "USDC — native settlement", other: "USDT/USDC (added 2026)", furlpayWins: true },
         { feature: "Settlement", furlpay: "On-chain, Arbitrum receipt", other: "Off-chain processor", furlpayWins: true },
-        { feature: "Inventory", furlpay: "2.2M+ stays + flights", other: "1.4M+ hotels, flights, trains", furlpayWins: false },
+        { feature: "Inventory", furlpay: "stays + flights", other: "1.4M+ hotels, flights, trains", furlpayWins: false },
         { feature: "AI-agent booking", furlpay: "Yes (x402 / MCP)", other: "No", furlpayWins: true },
         { feature: "Pay non-crypto merchants", furlpay: "Single-use Visa VCN", other: "Not applicable", furlpayWins: true },
         { feature: "Creator / affiliate", furlpay: "Up to 10% USDC, weekly", other: "Standard affiliate (fiat)", furlpayWins: true },

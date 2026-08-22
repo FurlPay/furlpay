@@ -42,7 +42,7 @@ const PRODUCTS = [
   {
     href: "/products/travel",
     name: "Travel",
-    tag: "2.2M+ hotels",
+    tag: "hotels",
     body: "Book hotels and flights and pay in USDC, with on-chain receipts and rewards.",
   },
   {

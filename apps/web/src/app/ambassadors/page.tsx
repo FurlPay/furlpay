@@ -87,7 +87,7 @@ const WEDGE = [
 
 const STEPS = [
   { n: 1, title: "Apply in two minutes", body: "No follower minimum. We look for genuine travel content, not vanity metrics." },
-  { n: 2, title: "Get your Travel Shop", body: "A personal storefront and trackable links across 2.2M+ stays and flights in 230+ countries." },
+  { n: 2, title: "Get your Travel Shop", body: "A personal storefront and trackable links across stays and flights in 230+ countries." },
   { n: 3, title: "Share what you love", body: "Drop links in your bio, videos and posts. A 90-day cookie window captures delayed bookings." },
   { n: 4, title: "Earn USDC weekly", body: "Commission settles to your wallet every week. Track it live, on-chain, in your dashboard." },
 ];
@@ -149,7 +149,7 @@ export default function AmbassadorsPage() {
             </a>
           </div>
           <div className="mx-auto mt-10 grid max-w-2xl grid-cols-3 gap-4">
-            {[["10%", "top commission"], ["Weekly", "USDC payouts"], ["2.2M+", "stays & flights"]].map(([big, small]) => (
+            {[["10%", "top commission"], ["Weekly", "USDC payouts"], ["Global", "stays & flights"]].map(([big, small]) => (
               <div key={small} className="rounded-2xl border border-white/10 bg-white/[0.02] px-4 py-5">
                 <div className="text-[26px] font-extrabold tracking-tight text-neon">{big}</div>
                 <div className="mt-1 text-[12px] text-textSecondary">{small}</div>

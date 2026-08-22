@@ -154,6 +154,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("ALPACA_API_SECRET_KEY"),
       v("DUFFEL_API_KEY"),
       v("DUFFEL_API_BASE"),
+      // Tripadvisor Terra. Discovery/content only -- no prices, no availability,
+      // no booking. Absent => discovery degrades, booking is unaffected.
+      v("TRIPADVISOR_API_KEY"),
       v("RESEND_API_KEY"),
       v("EMAIL_FROM"),
       v("CDP_API_KEY_ID"),

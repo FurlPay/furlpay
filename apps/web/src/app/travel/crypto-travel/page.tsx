@@ -9,7 +9,7 @@ export const metadata = {
 const TOKENS = ["USDC", "USDT", "SOL", "BTC", "ETH", "cbBTC", "USDG", "PYUSD", "+ 100 more"];
 
 const STEPS = [
-  { t: "Search & select", b: "Find a stay, flight, car or activity from 2.2M+ listings." },
+  { t: "Search & select", b: "Find a stay, flight, car or activity." },
   { t: "Choose crypto at checkout", b: "Pick USDC, SOL, BTC — or connect Phantom / Coinbase Wallet." },
   { t: "Rate locks for 15 minutes", b: "Your price is fixed while you confirm — no volatility risk." },
   { t: "Instant settlement", b: "Gasless USDC on Base via x402 settles in seconds (~$0.01 fee)." },

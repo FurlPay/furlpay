@@ -8,15 +8,15 @@ import { financialProduct, breadcrumb, SITE } from "@/lib/seo/schema";
 const URL = `${SITE}/products/travel`;
 
 export const metadata: Metadata = {
-  title: "Book Travel with Crypto — 2.2M+ Hotels & Flights in USDC",
+  title: "Book Travel with Crypto — Hotels & Flights in USDC",
   description:
-    "Book from 2.2M+ hotels and flights and pay in USDC. On-chain receipts, crypto cashback, AI trip planning, and no card FX fees. Powered by Furlpay Travels on Arbitrum.",
+    "Book from hotels and flights and pay in USDC. On-chain receipts, crypto cashback, AI trip planning, and no card FX fees. Powered by Furlpay Travels on Arbitrum.",
   alternates: { canonical: "/products/travel" },
   openGraph: { type: "website", url: URL, title: "Book Travel with Crypto — Pay in USDC" },
 };
 
 const FEATURES = [
-  { title: "2.2M+ properties", body: "Hotels, apartments, and flights worldwide, priced in USDC with no card FX markup or dynamic-currency-conversion games." },
+  { title: "properties", body: "Hotels, apartments, and flights worldwide, priced in USDC with no card FX markup or dynamic-currency-conversion games." },
   { title: "On-chain receipts", body: "Every booking settles on Arbitrum and returns an Arbiscan-linked receipt — useful for expense reports and reimbursements." },
   { title: "Crypto cashback", body: "Earn USDC rewards on eligible bookings, paid to your balance and withdrawable to fiat or crypto." },
   { title: "AI trip planning", body: "Describe a trip in plain language and let an agent assemble and book the itinerary, paying over x402." },
@@ -27,7 +27,7 @@ const FEATURES = [
 const FAQ = [
   {
     q: "Can I book hotels and flights with crypto?",
-    a: "Yes. Furlpay Travels lets you book from 2.2M+ hotels and flights and pay in USDC on Arbitrum. You get an on-chain receipt and can earn USDC cashback on eligible bookings.",
+    a: "Yes. Furlpay Travels lets you book from hotels and flights and pay in USDC on Arbitrum. You get an on-chain receipt and can earn USDC cashback on eligible bookings.",
   },
   {
     q: "How is paying with USDC cheaper than a card abroad?",
@@ -51,7 +51,7 @@ export default function TravelPage() {
         data={[
           financialProduct({
             name: "Furlpay Travels",
-            description: "Book 2.2M+ hotels and flights and pay in USDC on Arbitrum with on-chain receipts and cashback.",
+            description: "Book hotels and flights and pay in USDC on Arbitrum with on-chain receipts and cashback.",
             url: URL,
             serviceUrl: `${SITE}/travel`,
             category: "Travel booking",
@@ -66,14 +66,14 @@ export default function TravelPage() {
       <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Travel"
-          title="Book 2.2M hotels and flights. Pay in USDC."
+          title="Book hotels and flights. Pay in USDC."
           subtitle="Furlpay Travels settles bookings on Arbitrum with on-chain receipts, crypto cashback, and AI trip planning — no card FX fees, no seed phrase."
           primary={{ href: "/travel", label: "Search stays" }}
           secondary={{ href: "/travel/crypto-travel", label: "Crypto travel guide" }}
         />
 
         <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
-          Furlpay Travels lets you book from <strong className="text-white">2.2M+</strong> hotels and
+          Furlpay Travels lets you book hotels and
           flights and pay in <strong className="text-white">USDC on Arbitrum</strong> — with an
           on-chain receipt on every booking and USDC cashback on eligible stays, and no
           foreign-transaction fee.

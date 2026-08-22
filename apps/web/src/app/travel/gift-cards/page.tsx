@@ -67,7 +67,7 @@ export default function GiftCardsPage() {
         </div>
         <h1 className="mt-3 text-2xl font-bold text-white">Give the gift of travel.</h1>
         <p className="mt-1 text-sm text-textSecondary">
-          Redeemable for 2.2M+ properties and flights in 230+ countries. Never expires.
+          Redeemable across FurlPay Travels. Never expires.
         </p>
       </div>
 
