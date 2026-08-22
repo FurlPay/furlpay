@@ -18,7 +18,8 @@ export interface Collection {
 
 export const COLLECTIONS: Collection[] = [
   // ---- Themes ----
-  { slug: "ai-robotics", title: "AI & Robotics", blurb: "The companies building the $2T AI infrastructure buildout — chips, memory, networking and models.", kind: "theme", gradient: ["#1B2A6B", "#0EA5E9"], icon: "BrainCircuit", symbols: ["NVDA", "MU", "AVGO", "AMD", "TSM", "ASML", "SMCI", "ARM", "PLTR", "ANET", "MRVL", "ISRG", "BOTZ"] },
+  { slug: "ai-robotics", title: "AI & Robotics", blurb: "The companies building the $2T AI infrastructure buildout — chips, memory, networking and models.", kind: "theme", gradient: ["#1B2A6B", "#0EA5E9"], icon: "BrainCircuit", symbols: ["NVDA", "MU", "AVGO", "AMD", "TSM", "ASML", "SMCI", "ARM", "PLTR", "ANET", "MRVL", "ISRG", "BOTZ", "NBIS", "AAOI", "LITE", "COHR", "CIEN"] },
+  { slug: "ai-datacenter", title: "AI Datacenter Buildout", blurb: "The physical layer of the AI buildout — optical interconnect, networking silicon and the neoclouds renting out GPUs.", kind: "theme", gradient: ["#0C2A4A", "#38BDF8"], icon: "Network", symbols: ["NBIS", "AAOI", "LITE", "COHR", "CIEN", "ANET", "AVGO", "MRVL", "NVDA", "SMCI", "ETN", "VRT"] },
   { slug: "semiconductors", title: "Semiconductors", blurb: "The picks and shovels of the AI era — foundries, memory, EDA and equipment.", kind: "theme", gradient: ["#3B0764", "#9333EA"], icon: "Cpu", symbols: ["NVDA", "TSM", "AVGO", "AMD", "MU", "ASML", "LRCX", "KLAC", "AMAT", "ADI", "TXN", "QCOM", "INTC", "ON", "NXPI", "MRVL", "SMH", "SOXX"] },
   { slug: "clean-energy", title: "Clean Energy", blurb: "Solar, renewables and the grid buildout powering AI datacenters.", kind: "theme", gradient: ["#052E16", "#22C55E"], icon: "Leaf", symbols: ["NEE", "ICLN", "TAN", "LIT", "URA", "GE", "ETN", "EMR"] },
   { slug: "cybersecurity", title: "Cybersecurity", blurb: "Zero-trust, endpoint and network security in the agentic-AI threat era.", kind: "theme", gradient: ["#450A0A", "#EF4444"], icon: "ShieldCheck", symbols: ["PANW", "CRWD", "FTNT", "ZS", "OKTA", "NET", "HACK", "CIBR"] },
@@ -38,7 +39,10 @@ export const COLLECTIONS: Collection[] = [
   { slug: "layer-2-scaling", title: "Layer 2 Scaling", blurb: "Rollups and Bitcoin L2s scaling the base layers.", kind: "crypto", gradient: ["#134E4A", "#2DD4BF"], icon: "Network", symbols: ["ARB", "OP", "POL", "IMX", "STRK", "MNT", "STX"] },
   { slug: "defi-blue-chips", title: "DeFi Blue Chips", blurb: "Battle-tested protocols with real fees — DEXs, lending and liquid staking.", kind: "crypto", gradient: ["#701A75", "#E879F9"], icon: "Landmark", symbols: ["UNI", "AAVE", "MKR", "LDO", "LINK", "CRV", "COMP", "SNX", "INJ", "JUP", "PENDLE", "ENA", "ONDO"] },
   { slug: "ai-tokens", title: "AI Tokens", blurb: "Decentralized compute, agents and data networks for the AI economy.", kind: "crypto", gradient: ["#0F172A", "#22D3EE"], icon: "Bot", symbols: ["TAO", "RENDER", "FET", "AKT", "WLD", "GRT", "AR", "HNT"] },
-  { slug: "meme-coins", title: "Meme Coins", blurb: "High-beta community coins — size positions accordingly.", kind: "crypto", gradient: ["#713F12", "#FACC15"], icon: "Laugh", symbols: ["DOGE", "SHIB", "PEPE", "WIF", "BONK", "FLOKI", "NOT"] },
+  // The "Meme Coins" collection was removed with the Meme category itself
+  // (see catalog.ts). A collection whose every symbol has left the catalog
+  // renders as an empty themed card, which reads as a broken feature rather
+  // than a deliberate absence.
   { slug: "gaming-metaverse", title: "Gaming & Metaverse", blurb: "Game engines, virtual land and on-chain gaming economies.", kind: "crypto", gradient: ["#4C0519", "#FB7185"], icon: "Gamepad2", symbols: ["IMX", "SAND", "MANA", "AXS", "GALA", "ENJ", "APE", "CHZ", "RBLX", "U"] },
 ];
 

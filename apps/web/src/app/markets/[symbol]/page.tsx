@@ -1,3 +1,4 @@
+import { cache } from "react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import JsonLd from "@/components/JsonLd";
@@ -32,9 +33,19 @@ import StockClient from "./StockClient";
 // off a cold render for every crawl.
 export const revalidate = 300;
 
-/** Fetch once per request and reuse for metadata + body. Next dedupes these two
- *  calls within a render pass, so the upstreams see one round trip, not two. */
-async function load(rawSymbol: string): Promise<{ asset: MergedAsset; stats: RealStats | null } | null> {
+/**
+ * Fetch once per request and reuse for metadata + body.
+ *
+ * Wrapped in React's `cache` because Next only de-duplicates `fetch()`, and
+ * neither of these is one: `resolveAsset` reads an in-process map and
+ * `realStatsFor` goes through Redis. Without the memo, generateMetadata and the
+ * page component each ran the whole chain — two Redis round trips on a good
+ * day, and two live hits on Yahoo and SEC EDGAR whenever Redis was unreachable,
+ * which is exactly when the upstreams can least afford the extra traffic.
+ */
+const load = cache(async function load(
+  rawSymbol: string
+): Promise<{ asset: MergedAsset; stats: RealStats | null } | null> {
   const symbol = decodeURIComponent(rawSymbol).toUpperCase();
   const asset = await resolveAsset(symbol);
   if (!asset) return null;
@@ -42,7 +53,7 @@ async function load(rawSymbol: string): Promise<{ asset: MergedAsset; stats: Rea
     () => null
   );
   return { asset, stats };
-}
+});
 
 export async function generateMetadata(props: {
   params: Promise<{ symbol: string }>;

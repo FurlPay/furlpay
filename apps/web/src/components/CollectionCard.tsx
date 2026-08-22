@@ -6,12 +6,12 @@
 import Link from "next/link";
 import {
   BrainCircuit, Cpu, Leaf, ShieldCheck, Car, CreditCard, Rocket, Plane, Crown, TrendingUp,
-  Gem, Scale, CalendarClock, Bitcoin, Layers, Network, Landmark, Bot, Laugh, Gamepad2, Sparkles,
+  Gem, Scale, CalendarClock, Bitcoin, Layers, Network, Landmark, Bot, Gamepad2, Sparkles,
 } from "lucide-react";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   BrainCircuit, Cpu, Leaf, ShieldCheck, Car, CreditCard, Rocket, Plane, Crown, TrendingUp,
-  Gem, Scale, CalendarClock, Bitcoin, Layers, Network, Landmark, Bot, Laugh, Gamepad2,
+  Gem, Scale, CalendarClock, Bitcoin, Layers, Network, Landmark, Bot, Gamepad2,
 };
 
 export default function CollectionCard({

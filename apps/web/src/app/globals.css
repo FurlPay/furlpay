@@ -193,6 +193,109 @@ body {
       #000000;
   }
 
+  /* ---- Markets terminal (/markets) ------------------------------------
+     A near-black navy ground with two very low-opacity colour fields — one
+     cyan at the top-left, one violet at the top-right — so the page has
+     depth without any single element looking like it is glowing. Percentages
+     rather than pixels: the wash has to sit in the same place at 1024px and
+     at 2560px, or it reads as a stray highlight on a wide monitor.
+
+     `background-attachment: fixed` keeps the wash anchored to the viewport
+     while the (very long) page scrolls under it. Without it the gradient
+     scrolls away in the first screenful and every section below is flat. */
+  .mkt-ambient {
+    background:
+      radial-gradient(58% 42% at 12% -6%, rgba(34, 211, 238, 0.09), transparent 64%),
+      radial-gradient(52% 38% at 88% -4%, rgba(139, 92, 246, 0.09), transparent 62%),
+      #05070d;
+    background-attachment: fixed;
+  }
+
+  /* The one card surface every markets panel uses. A single definition is what
+     stops the page turning into eleven slightly different greys. */
+  .mkt-panel {
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: linear-gradient(180deg, rgba(18, 24, 38, 0.72) 0%, rgba(11, 15, 26, 0.72) 100%);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  /* An interactive panel — a market card, a trending tile. Only the border and
+     the fill move on hover; a card that lifts or scales makes a dense grid of
+     them feel unstable. */
+  .mkt-panel-interactive {
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      background-color var(--dur-fast) var(--ease-out);
+  }
+  .mkt-panel-interactive:hover {
+    border-color: rgba(34, 211, 238, 0.32);
+    background-color: rgba(18, 24, 38, 0.92);
+  }
+
+  /* Selected filter pill. Cyan fill, dark text — the only bright fill on the
+     page, so "what am I looking at" is answerable at a glance. */
+  .mkt-pill-active {
+    background: linear-gradient(180deg, #2ee0f5 0%, #22d3ee 100%);
+    color: #04202a;
+    box-shadow: 0 0 22px -6px rgba(34, 211, 238, 0.55);
+  }
+
+  /* Every figure in the table. Tabular numerals are not cosmetic here: with
+     proportional digits a column of prices has a ragged decimal point, and the
+     eye can no longer compare magnitudes down the column. */
+  .mkt-num {
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+
+  /* A visible, narrow scrollbar for the horizontal rails. `no-scrollbar` hides
+     it entirely, which on a desktop pointer removes the only affordance that
+     says the row continues past the edge. */
+  .mkt-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  }
+  .mkt-scroll::-webkit-scrollbar {
+    height: 6px;
+  }
+  .mkt-scroll::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+  }
+  .mkt-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Popover / dropdown surface — profile menu, filters, the search palette. */
+  .mkt-pop {
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(11, 15, 26, 0.94);
+    backdrop-filter: blur(18px);
+    box-shadow:
+      0 24px 60px -20px rgba(0, 0, 0, 0.9),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  /* The dropdown entrance. Kept at 120ms — a menu that animates for longer
+     than that feels like latency rather than polish. The global
+     prefers-reduced-motion rule at the bottom of this file flattens it. */
+  @keyframes mkt-pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.985);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .mkt-pop-in {
+    animation: mkt-pop-in 120ms var(--ease-out);
+    transform-origin: top right;
+  }
+
   /* Pointer-tracking border. The ::before paints a green radial gradient at the
      cursor (--mx/--my) but is masked to the 1px border ring, so the bright
      "line" slides along the edge as the mouse moves across the pricing grid. */

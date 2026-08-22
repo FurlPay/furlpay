@@ -23,10 +23,6 @@
     "price": 0.164008,
     "changePct": 5.3
   },
-  "DOGE": {
-    "price": 0.074445,
-    "changePct": 1.7
-  },
   "TRX": {
     "price": 0.316921,
     "changePct": 0.27
@@ -327,26 +323,6 @@
     "price": 0.01859047,
     "changePct": 2.67
   },
-  "SHIB": {
-    "price": 4.24e-06,
-    "changePct": -2.25
-  },
-  "PEPE": {
-    "price": 2.46e-06,
-    "changePct": 3.17
-  },
-  "WIF": {
-    "price": 0.172012,
-    "changePct": -0.19
-  },
-  "BONK": {
-    "price": 4.37e-06,
-    "changePct": 1.64
-  },
-  "FLOKI": {
-    "price": 2.231e-05,
-    "changePct": 1.25
-  },
   "XMR": {
     "price": 316.6,
     "changePct": 2.45
@@ -374,10 +350,6 @@
   "WLD": {
     "price": 0.414951,
     "changePct": 10.44
-  },
-  "NOT": {
-    "price": 0.00038709,
-    "changePct": 1.87
   },
   "USDC": {
     "price": 0.999749,

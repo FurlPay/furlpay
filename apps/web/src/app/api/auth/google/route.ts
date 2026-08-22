@@ -7,6 +7,7 @@ import { isMobileClient } from "@/lib/clientKind";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/emailTemplates";
+import { setAvatarUrl } from "@/lib/profileAvatar";
 
 // POST /api/auth/google — body: { credential } (the GIS ID token JWT).
 // Verifies the token server-side, resolves (or creates) the account for that
@@ -58,6 +59,11 @@ export async function POST(req: NextRequest) {
     authProvider: "google",
     ...(identity.name ? { name: identity.name } : {}),
   });
+  // The profile photo Google already hosts, so the header avatar can show the
+  // user's own face instead of their initials. Best-effort and awaited only to
+  // keep the write ordered before the response — setAvatarUrl swallows its own
+  // failures, because an avatar is never worth failing a sign-in over.
+  await setAvatarUrl(account.user.id, identity.picture);
 
   const token = await signSession({
     sub: account.user.id,

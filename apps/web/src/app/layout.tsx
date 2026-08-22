@@ -3,6 +3,7 @@ import Script from "next/script";
 import "./globals.css";
 import Shell from "@/components/Shell";
 import ConsentManager from "@/components/ConsentManager";
+import SessionProvider from "@/components/auth/SessionProvider";
 
 // Search-console / analytics ids come from env so they never hardcode secrets
 // and are easy to set per-environment in Vercel. All optional — unset → no-op.
@@ -117,8 +118,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Script>
           </>
         )}
-        {/* Shell picks full-bleed (marketing/docs) vs phone-frame app chrome. */}
-        <Shell>{children}</Shell>
+        {/* Shell picks full-bleed (marketing/docs) vs phone-frame app chrome.
+            SessionProvider wraps it so identity is available to any client
+            component. It is LAZY — nothing is fetched until something calls
+            useSession() — so marketing pages cost no extra request. */}
+        <SessionProvider>
+          <Shell>{children}</Shell>
+        </SessionProvider>
         {GA_ID && <ConsentManager />}
       </body>
     </html>

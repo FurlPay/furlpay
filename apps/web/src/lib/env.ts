@@ -42,6 +42,39 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // Self-custodial wallet rollout stage (0=off). 1=wallet linking only.
       // docs/SELF-CUSTODIAL-WALLET-DESIGN.md.
       v("FURLPAY_SELF_CUSTODY_STAGE"),
+      // The deployment's FINANCIAL environment: development | staging |
+      // production. Deliberately separate from NODE_ENV, which Next sets to
+      // "production" for preview branches too — inferring from it would mark a
+      // preview as a place real money may move. See lib/flags.ts.
+      v("FURLPAY_ENV"),
+    ],
+  },
+  {
+    // ── Money-feature flags ────────────────────────────────────────────
+    // Per-capability switches, all default OFF, each gated on its own
+    // credentials and permitted environments. None is `requiredWhenLive`: a
+    // production deployment with every one of them off is correctly
+    // configured — it simply cannot perform those operations, and says so.
+    // See lib/flags.ts for what each one gates and what it requires.
+    group: "Money feature flags",
+    vars: [
+      // Emergency stop. Disables every money capability at once, checked
+      // before any per-flag setting so nothing can defeat it.
+      v("FURLPAY_MONEY_KILL_SWITCH"),
+      v("BROKERAGE_LIVE"),
+      v("TOKENIZED_STOCKS_LIVE"),
+      v("ONCHAIN_SETTLEMENT_LIVE"),
+      v("ONCHAIN_BALANCES_LIVE"),
+      v("DEFI_COLLATERAL_LIVE"),
+      v("AI_TRADING_LIVE"),
+      v("CROSS_CHAIN_STOCKS_LIVE"),
+      v("HARDWARE_WALLET_LIVE"),
+      // Set only after a person has verified at least one tokenized-equity
+      // contract address against its issuer — see lib/onchain/stockTokenRegistry.ts.
+      v("FURLPAY_STOCK_TOKEN_REGISTRY_VERIFIED"),
+      // Which key-management backend signs on-chain transactions. Absent or
+      // "env" keeps ONCHAIN_SETTLEMENT_LIVE unavailable.
+      v("FURLPAY_KMS_PROVIDER"),
     ],
   },
   {

@@ -27,7 +27,10 @@ export type StockSector =
 
 export type EtfCategory = "Broad Market" | "Sector" | "Bond" | "Commodity" | "Thematic" | "Crypto-linked" | "Dividend & Factor" | "International";
 
-export type CryptoCategory = "L1" | "L2" | "DeFi" | "Gaming" | "AI" | "Meme" | "Stablecoin" | "Infrastructure" | "Exchange" | "Privacy" | "RWA";
+// "Meme" was retired from this union deliberately, not merely emptied. Leaving
+// the member in place would let a future entry re-introduce the category with a
+// one-line edit and no discussion; removing it makes that a type error.
+export type CryptoCategory = "L1" | "L2" | "DeFi" | "Gaming" | "AI" | "Stablecoin" | "Infrastructure" | "Exchange" | "Privacy" | "RWA";
 
 export interface MarketAsset {
   symbol: string;
@@ -111,6 +114,20 @@ export const CATALOG: MarketAsset[] = [
   s("RBLX", "Roblox Corp.", "Technology", "Gaming Platforms", "mid"),
   s("PATH", "UiPath Inc.", "Technology", "Automation", "small"),
   s("ARM", "Arm Holdings", "Technology", "Semiconductors"),
+
+  // ---- AI infrastructure: optical interconnect & neoclouds ----
+  //
+  // Cap tiers are the ones the live quote actually supports, not the ones a
+  // pitch assigns. AAOI is a ~$10B company and is tagged `mid`; NBIS is ~$60B
+  // and is `large`. Nothing in this file encodes a price target, a revenue
+  // forecast or a thesis — the catalog says what an asset IS, and every
+  // number a reader sees comes from the providers at request time.
+  s("AAOI", "Applied Optoelectronics, Inc.", "Technology", "Optical Networking", "mid"),
+  s("LITE", "Lumentum Holdings Inc.", "Technology", "Optical Networking", "large"),
+  s("COHR", "Coherent Corp.", "Technology", "Optical Networking", "large"),
+  s("CIEN", "Ciena Corporation", "Technology", "Optical Networking", "large"),
+  s("NBIS", "Nebius Group N.V.", "Technology", "AI Cloud Infrastructure", "large"),
+  s("VRT", "Vertiv Holdings Co", "Industrials", "Datacenter Power & Cooling", "large"),
 
   // ==================== US STOCKS — Communication =======================
   s("GOOGL", "Alphabet Inc.", "Communication", "Internet & Search", "mega"),
@@ -200,7 +217,7 @@ export const CATALOG: MarketAsset[] = [
   s("CI", "Cigna Group", "Healthcare", "Health Insurance"),
   s("MCK", "McKesson Corp.", "Healthcare", "Distribution"),
   s("BMY", "Bristol-Myers Squibb", "Healthcare", "Pharmaceuticals", "mid"),
-  s("MRNA", "Moderna Inc.", "Healthcare", "Biotech", "small"),
+  s("MRNA", "Moderna, Inc.", "Healthcare", "Biotech", "large"),
   s("HCA", "HCA Healthcare", "Healthcare", "Hospitals"),
 
   // ====================== US STOCKS — Financials ========================
@@ -375,7 +392,6 @@ export const CATALOG: MarketAsset[] = [
   c("BNB", "BNB", "binancecoin", "Exchange", "own", "mega"),
   c("XRP", "XRP", "ripple", "L1", "own", "mega"),
   c("ADA", "Cardano", "cardano", "L1"),
-  c("DOGE", "Dogecoin", "dogecoin", "Meme"),
   c("TRX", "TRON", "tron", "L1"),
   c("AVAX", "Avalanche", "avalanche-2", "L1"),
   c("TON", "Toncoin", "the-open-network", "L1"),
@@ -456,12 +472,6 @@ export const CATALOG: MarketAsset[] = [
   c("ENJ", "Enjin Coin", "enjincoin", "Gaming", "own", "small"),
   c("APE", "ApeCoin", "apecoin", "Gaming", "ethereum", "small"),
   c("CHZ", "Chiliz", "chiliz", "Gaming", "own", "small"),
-  // Meme
-  c("SHIB", "Shiba Inu", "shiba-inu", "Meme", "ethereum"),
-  c("PEPE", "Pepe", "pepe", "Meme", "ethereum", "mid"),
-  c("WIF", "dogwifhat", "dogwifcoin", "Meme", "solana", "small"),
-  c("BONK", "Bonk", "bonk", "Meme", "solana", "small"),
-  c("FLOKI", "FLOKI", "floki", "Meme", "ethereum", "small"),
   // Privacy
   c("XMR", "Monero", "monero", "Privacy", "own", "mid"),
   c("ZEC", "Zcash", "zcash", "Privacy", "own", "mid"),
@@ -471,7 +481,6 @@ export const CATALOG: MarketAsset[] = [
   c("OKB", "OKB", "okb", "Exchange", "own", "mid"),
   c("BAT", "Basic Attention Token", "basic-attention-token", "Infrastructure", "ethereum", "small"),
   c("WLD", "Worldcoin", "worldcoin-wld", "AI", "ethereum", "mid"),
-  c("NOT", "Notcoin", "notcoin", "Meme", "ton", "small"),
   // Stablecoins (used across the app)
   c("USDC", "USD Coin", "usd-coin", "Stablecoin", "ethereum", "large"),
   c("USDT", "Tether", "tether", "Stablecoin", "ethereum", "mega"),
@@ -534,5 +543,5 @@ export const STOCK_SECTORS: StockSector[] = [
 ];
 
 export const CRYPTO_CATEGORIES: CryptoCategory[] = [
-  "L1", "L2", "DeFi", "AI", "Gaming", "Meme", "Stablecoin", "Infrastructure", "Exchange", "Privacy", "RWA",
+  "L1", "L2", "DeFi", "AI", "Gaming", "Stablecoin", "Infrastructure", "Exchange", "Privacy", "RWA",
 ];
