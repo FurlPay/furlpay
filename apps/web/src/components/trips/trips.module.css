@@ -1,0 +1,374 @@
+/* Surfaces for the FurlPay Trips composition (/trips).
+   Scoped as a CSS module rather than added to globals.css: these are layered
+   gradients and a hand-built device frame that exist for exactly one route, and
+   nothing else on the site should be able to pick them up by class name. */
+
+/* ── Stage ───────────────────────────────────────────────────────────────── */
+
+.stage {
+  position: relative;
+  isolation: isolate;
+  /* Apple's own UI face where it exists — the reference is set in SF Pro, which
+     runs ~13% narrower than Inter at the same cap height, and the three-line
+     headline break depends on that width. Inter stays in the stack as the
+     already-loaded fallback for platforms with neither SF Pro nor Segoe. */
+  font-family:
+    -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text",
+    "Segoe UI Variable Display", "Segoe UI", Inter, system-ui, sans-serif;
+  background:
+    /* the key light: a green wash off the left wall, brightest low */
+    radial-gradient(36% 27% at -5% 71%, rgba(32, 138, 100, 0.9) 0%, rgba(12, 62, 45, 0.4) 44%, rgba(4, 26, 18, 0) 76%),
+    radial-gradient(62% 46% at 16% 54%, rgba(16, 76, 55, 0.5) 0%, rgba(3, 22, 15, 0) 72%),
+    /* fill light wrapping the device */
+    radial-gradient(64% 56% at 60% 38%, rgba(22, 92, 68, 0.42) 0%, rgba(4, 26, 18, 0) 74%),
+    /* floor bounce */
+    radial-gradient(80% 22% at 44% 104%, rgba(24, 60, 54, 0.5) 0%, rgba(3, 18, 14, 0) 70%),
+    linear-gradient(176deg, #03180f 0%, #041d14 52%, #0b2320 100%);
+}
+
+/* The room the phone is standing in, thrown far out of focus: a glazed wall that
+   runs the full height, cool at the top, warm where the horizon crosses it, dark
+   through the middle, then the sheen of the floor. It is the only thing in the
+   composition that is not FurlPay green, which is exactly why it has to stay
+   this soft — it is depth, not content. */
+.environment {
+  position: absolute;
+  inset: -8% -8% -6% 52%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      182deg,
+      rgba(178, 190, 198, 0.9) 0%,
+      rgba(158, 172, 181, 0.86) 14%,
+      rgba(190, 178, 160, 0.8) 26%,
+      rgba(158, 145, 130, 0.62) 34%,
+      rgba(92, 100, 98, 0.46) 43%,
+      rgba(44, 54, 52, 0.5) 55%,
+      rgba(32, 40, 39, 0.58) 68%,
+      rgba(52, 62, 62, 0.5) 80%,
+      rgba(92, 102, 104, 0.44) 92%,
+      rgba(70, 80, 82, 0.4) 100%
+    ),
+    repeating-linear-gradient(93deg, rgba(4, 14, 11, 0.85) 0 18px, rgba(4, 14, 11, 0) 18px 230px);
+  filter: blur(34px) saturate(0.7);
+  -webkit-mask-image: linear-gradient(to left, #000 0%, #000 22%, rgba(0, 0, 0, 0.4) 56%, rgba(0, 0, 0, 0.08) 84%, transparent 100%);
+  mask-image: linear-gradient(to left, #000 0%, #000 22%, rgba(0, 0, 0, 0.4) 56%, rgba(0, 0, 0, 0.08) 84%, transparent 100%);
+}
+
+/* Mullions, carried on their own layer because they need less blur than the
+   light behind them — a window reads as a window from the bars, not the glow. */
+.mullions {
+  position: absolute;
+  inset: -8% -8% 22% 52%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    repeating-linear-gradient(93deg, rgba(3, 12, 10, 0.6) 0 13px, rgba(3, 12, 10, 0) 13px 224px),
+    linear-gradient(180deg, rgba(6, 16, 13, 0) 76%, rgba(6, 16, 13, 0.5) 100%);
+  filter: blur(11px);
+  -webkit-mask-image: linear-gradient(to left, #000 0%, rgba(0, 0, 0, 0.5) 46%, transparent 88%);
+  mask-image: linear-gradient(to left, #000 0%, rgba(0, 0, 0, 0.5) 46%, transparent 88%);
+}
+
+/* The desk the phone stands on: a dark reflective plane across the lower edge. */
+.floor {
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 24%;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* the device's own reflection, smeared into the surface */
+    radial-gradient(30% 78% at 66% 6%, rgba(120, 136, 140, 0.3) 0%, rgba(20, 34, 32, 0) 76%),
+    linear-gradient(
+      180deg,
+      rgba(10, 26, 22, 0) 0%,
+      rgba(28, 48, 46, 0.55) 30%,
+      rgba(64, 76, 78, 0.55) 74%,
+      rgba(88, 100, 102, 0.46) 100%
+    );
+  -webkit-mask-image: linear-gradient(to left, #000 0%, rgba(0, 0, 0, 0.55) 52%, transparent 100%);
+  mask-image: linear-gradient(to left, #000 0%, rgba(0, 0, 0, 0.55) 52%, transparent 100%);
+  filter: blur(16px);
+}
+
+/* Key light behind the device. */
+.keyLight {
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+  inset: 6% 2% 10% 40%;
+  background: radial-gradient(
+    52% 46% at 52% 44%,
+    rgba(66, 208, 146, 0.24) 0%,
+    rgba(28, 122, 88, 0.14) 38%,
+    rgba(4, 30, 21, 0) 72%
+  );
+  filter: blur(24px);
+}
+
+/* Ground shadow + reflection under the device. */
+.groundShadow {
+  position: absolute;
+  z-index: 0;
+  left: 44%;
+  bottom: 1%;
+  width: 58%;
+  height: 16%;
+  background: radial-gradient(46% 50% at 48% 46%, rgba(0, 0, 0, 0.8) 0%, rgba(0, 0, 0, 0) 72%);
+  filter: blur(22px);
+  pointer-events: none;
+}
+
+/* ── Glass cards ─────────────────────────────────────────────────────────── */
+
+.glass {
+  border-radius: 28px;
+  border: 1px solid rgba(120, 214, 168, 0.26);
+  background:
+    linear-gradient(158deg, rgba(9, 46, 33, 0.82) 0%, rgba(4, 25, 17, 0.86) 58%, rgba(3, 20, 14, 0.9) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(160, 240, 200, 0.09),
+    0 24px 60px -28px rgba(0, 0, 0, 0.85);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* The payment card sits on the brightest part of the ambient wash, so it needs a
+   slightly warmer fill and a stronger rim to keep the same apparent weight. */
+.glassWarm {
+  border-radius: 28px;
+  border: 1px solid rgba(132, 226, 178, 0.3);
+  background:
+    linear-gradient(150deg, rgba(11, 54, 39, 0.8) 0%, rgba(5, 32, 22, 0.86) 62%, rgba(3, 22, 15, 0.9) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(170, 245, 208, 0.1),
+    0 24px 60px -30px rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* Inner tiles (Gate / Seat / Boarding, Status). */
+.tile {
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.055) 0%, rgba(255, 255, 255, 0.022) 100%);
+}
+
+/* ── Device ──────────────────────────────────────────────────────────────── */
+
+.phoneStage {
+  perspective: 2400px;
+  perspective-origin: 46% 42%;
+}
+
+.phoneTilt {
+  transform: rotateY(-13deg) rotateZ(-1.3deg);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+/* `--s` maps the 419x878 frame onto the space the grid actually gives it.
+   1.3 puts the frame at 545x1141 — the same envelope the reference device fills
+   beside a 384px card column in a 1122px stage. It is a compromise: the device
+   in the reference is drawn ~18% taller than its width allows, taller than any
+   real iPhone, so matching its width and its height at once would mean
+   stretching a phone that is supposed to look like hardware. Width wins, since
+   width is what sets the left/right balance of the composition.
+
+   Below the reference width the device steps down rather than the layout
+   reflowing, so the composition holds all the way to the tablet break. */
+.phoneSlot {
+  --s: 1.3;
+  position: relative;
+  width: calc(419px * var(--s));
+  height: calc(878px * var(--s));
+}
+
+@media (max-width: 1121px) {
+  .phoneSlot {
+    --s: 1.12;
+  }
+}
+
+@media (max-width: 1023px) {
+  .phoneSlot {
+    --s: 0.95;
+  }
+}
+
+.phoneScale {
+  position: absolute;
+  inset: 0;
+  width: 419px;
+  height: 878px;
+  transform-origin: top left;
+  transform: scale(var(--s));
+}
+
+/* Titanium band: light catches the upper-left and the lower-right edge. */
+.frame {
+  position: relative;
+  height: 100%;
+  border-radius: 62px;
+  padding: 3px;
+  background: linear-gradient(
+    122deg,
+    #d3dade 0%,
+    #6a7378 7%,
+    #2b3134 20%,
+    #12171a 42%,
+    #1d2427 58%,
+    #59636a 74%,
+    #c0c8cd 87%,
+    #3a4145 100%
+  );
+  box-shadow:
+    0 2px 3px rgba(255, 255, 255, 0.16) inset,
+    0 40px 90px -30px rgba(0, 0, 0, 0.9),
+    0 90px 120px -60px rgba(0, 0, 0, 0.85);
+}
+
+.bezel {
+  height: 100%;
+  border-radius: 59px;
+  padding: 11px;
+  background: #04070a;
+  box-shadow: inset 0 0 2px 1px rgba(255, 255, 255, 0.12);
+}
+
+.screen {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+  border-radius: 48px;
+  background: #f4f6f5;
+}
+
+/* Specular sheen across the glass. Non-interactive and blend-limited so it
+   lightens the display without washing the UI out. */
+.glare {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: 48px;
+  background: linear-gradient(
+    118deg,
+    rgba(255, 255, 255, 0.16) 0%,
+    rgba(255, 255, 255, 0.05) 16%,
+    rgba(255, 255, 255, 0) 34%,
+    rgba(255, 255, 255, 0) 72%,
+    rgba(190, 225, 235, 0.07) 92%
+  );
+}
+
+/* Hardware buttons, sitting proud of the band on each side. */
+.btnRight {
+  position: absolute;
+  right: -3px;
+  width: 4px;
+  border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, #6e777c, #262b2e 40%, #3d4448);
+}
+
+.btnLeft {
+  position: absolute;
+  left: -3px;
+  width: 4px;
+  border-radius: 3px 0 0 3px;
+  background: linear-gradient(180deg, #6e777c, #262b2e 40%, #3d4448);
+}
+
+/* ── Motion ──────────────────────────────────────────────────────────────── */
+
+.livePulse {
+  animation: fpPulse 2.4s var(--ease-out, ease-out) infinite;
+}
+
+@keyframes fpPulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(85, 230, 161, 0.5);
+  }
+  60% {
+    opacity: 0.72;
+    box-shadow: 0 0 0 6px rgba(85, 230, 161, 0);
+  }
+}
+
+/* Dashes drift along the route so the card reads as tracking something rather
+   than as a printed diagram. -24 is a whole number of periods for both dash
+   rhythms in use ("5 7" and "3 5"), so the loop has no visible seam. */
+.dashFlow {
+  animation: fpDash 2.6s linear infinite;
+}
+
+@keyframes fpDash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .livePulse,
+  .dashFlow {
+    animation: none;
+  }
+}
+
+/* Phone-width viewports: the device costume is dropped entirely and the app
+   becomes a full-bleed preview. Squeezing a 419px frame into a 360px screen
+   would shrink the real UI below its own legible size, which is the opposite of
+   what a product preview is for. */
+@media (max-width: 639px) {
+  .phoneStage {
+    perspective: none;
+  }
+  .phoneTilt {
+    transform: none;
+  }
+  .phoneSlot,
+  .phoneScale {
+    position: static;
+    width: 100%;
+    height: auto;
+    transform: none;
+  }
+  .frame {
+    border-radius: 34px;
+    padding: 1px;
+    background: linear-gradient(140deg, #39423d, #101614);
+    box-shadow: 0 26px 60px -30px rgba(0, 0, 0, 0.9);
+  }
+  .bezel {
+    border-radius: 33px;
+    padding: 0;
+    box-shadow: none;
+  }
+  .screen {
+    border-radius: 32px;
+  }
+  .glare,
+  .btnLeft,
+  .btnRight {
+    display: none;
+  }
+}
+
+/* At phone widths the device is gone and the marketing column runs the whole
+   page. A blurred room behind a full-width column reads as a smudge, not as
+   depth, so the stage falls back to the emerald ground alone. */
+@media (max-width: 639px) {
+  .environment,
+  .mullions,
+  .floor,
+  .groundShadow {
+    display: none;
+  }
+  .keyLight {
+    inset: 0;
+  }
+}

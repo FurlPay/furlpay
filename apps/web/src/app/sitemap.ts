@@ -81,6 +81,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     // — FurlPay Travels (public funnel + content) —
     { path: "/travel", priority: 0.9, changeFrequency: "weekly" as const },
+    { path: "/trips", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/travel/flights", priority: 0.8, changeFrequency: "weekly" as const },
     { path: "/travel/stays", priority: 0.8, changeFrequency: "weekly" as const },
     { path: "/travel/hotels", priority: 0.8, changeFrequency: "weekly" as const },

@@ -37,6 +37,28 @@ const config: Config = {
           border: "#243141",
           grid: "#1A2432",
         },
+        // ── Trips / travel showcase surfaces (/trips) ──────────────────────
+        // A second, warmer brand register: near-black *emerald* rather than the
+        // pure-black consumer app. Kept as its own scale instead of retuning
+        // `neon`, because the travel poster needs greens that sit legibly on a
+        // green ground — `neon` (#00E599) blows out against #021A12 — and the
+        // rest of the site must not shift underneath it. Values are sampled
+        // from the FurlPay Trips reference composition.
+        fp: {
+          bg: "#021A12", // page ground
+          bgDeep: "#03130E", // vignette / far corners
+          green: "#35D98B", // primary accent
+          bright: "#55E6A1", // hover / highlight
+          dim: "#57C987", // accent as it reads inside a glass card
+          emerald: "#063D2A", // filled emerald chips
+          ink: "#1B7A4E", // the accent on LIGHT surfaces (in-phone UI)
+          inkDeep: "#146B44",
+          white: "#F7FAF8",
+          sub: "#B6C4BE",
+          muted: "#71827B",
+          app: "#F4F6F5", // phone app background
+          dark: "#111715", // Apple Wallet button / dark controls
+        },
       },
       borderRadius: {
         card: "18px",
