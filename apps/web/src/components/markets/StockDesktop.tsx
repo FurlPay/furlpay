@@ -34,11 +34,15 @@ export default function StockDesktop({
   signInHref,
   onBuy,
   onSell,
+  children,
 }: {
   data: SymbolDetail;
   signInHref: string;
   onBuy: () => void;
   onSell: () => void;
+  /** Server-rendered SEO body. Lives in the main column so the page reads as
+   *  one document rather than an app with an article bolted underneath. */
+  children?: React.ReactNode;
 }) {
   const router = useRouter();
   const { asset, quote, stats } = data;
@@ -64,9 +68,12 @@ export default function StockDesktop({
             <AssetLogo src={asset.logo} label={asset.symbol} size={44} />
 
             <div className="min-w-0">
-              <h1 className="truncate text-[22px] font-bold leading-tight tracking-tight">
+              {/* NOT an <h1>: the document's single heading is server-rendered
+                  in SeoSections, where a crawler can read it without running
+                  any JavaScript. */}
+              <p className="truncate text-[22px] font-bold leading-tight tracking-tight">
                 {asset.symbol}
-              </h1>
+              </p>
               <p className="truncate text-[13px] text-textSecondary">
                 {asset.name}
                 {(asset.sector ?? asset.exchange) && (
@@ -204,6 +211,7 @@ export default function StockDesktop({
                 </div>
               </section>
             )}
+            {children}
           </main>
 
           {/* Sticky so the ticket stays reachable while the reader scrolls the

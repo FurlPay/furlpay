@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Search, List, Grid3X3, LayoutGrid, Link2, TrendingUp, TrendingDown } from "lucide-react";
 import { getJSON } from "@/lib/api";
+import MarketsShell from "@/components/markets/MarketsShell";
 import { PageHeader, Spinner, pct } from "@/components/ui";
 import { AssetLogo } from "@furlpay/ui";
 import AssetRow, { fmtPrice } from "@/components/AssetRow";
@@ -150,7 +151,7 @@ function MarketsInner() {
   const discover = tab === "all" && !q;
 
   return (
-    <>
+    <MarketsShell>
       <PageHeader
         title="Markets"
         right={
@@ -310,7 +311,7 @@ function MarketsInner() {
           <p className="mt-3 text-center text-[11px] text-textMuted">Block size = market cap tier · colour = day move</p>
         </div>
       ) : view === "grid" ? (
-        <div className="mt-3 grid grid-cols-2 gap-2.5 px-5 pb-8">
+        <div className="mt-3 grid grid-cols-2 gap-2.5 px-5 pb-8 md:grid-cols-3 lg:grid-cols-5 xl:grid-cols-6">
           {filtered.slice(0, 60).map((i) => {
             const up = (i.changePct ?? 0) >= 0;
             return (
@@ -327,7 +328,7 @@ function MarketsInner() {
           })}
         </div>
       ) : (
-        <ul className="mt-1 space-y-0.5 px-2 pb-8">
+        <ul className="mt-1 space-y-0.5 px-2 pb-8 lg:grid lg:grid-cols-2 lg:gap-x-4 lg:space-y-0 xl:grid-cols-3">
           {filtered.slice(0, 120).map((i) => (
             <li key={i.symbol}>
               <AssetRow
@@ -341,6 +342,6 @@ function MarketsInner() {
           )}
         </ul>
       )}
-    </>
+    </MarketsShell>
   );
 }

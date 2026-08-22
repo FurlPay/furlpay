@@ -57,6 +57,11 @@ export function isAppFrame(pathname: string): boolean {
   // Only the ticker page: /markets, /markets/chains and /markets/collections/*
   // are scrolling lists that read fine in the phone column and keep it.
   if (isSymbolPage(pathname)) return false;
+  // The Markets index is a search-and-browse surface: a 13,000-symbol search
+  // field, a heatmap and a grid all have somewhere to put extra width. It
+  // supplies its own column and tab bar below `lg` (MarketsShell), same as a
+  // ticker page does.
+  if (pathname === "/markets") return false;
   return APP_FRAME_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 

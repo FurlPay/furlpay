@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import LandingChrome from "@/components/landing/LandingChrome";
 import Hero from "@/components/landing/Hero";
@@ -30,6 +31,21 @@ import {
 // The wallet card teaser renders the real /wallet card, whose geometry, foil
 // and tilt live in that page's stylesheet.
 import "./wallet/wallet.css";
+
+// The site canonical lives HERE, not on the root layout.
+//
+// It used to be `alternates: { canonical: "/" }` in layout.tsx, which every
+// page without its own canonical inherited — so ~123 pages, every ticker page
+// among them, told Google they were duplicates of the homepage. Owning it on
+// the one page it is true for means a page that forgets to set a canonical now
+// simply has none, and Google self-canonicalises, instead of being pointed at
+// the wrong URL.
+export const metadata: Metadata = {
+  alternates: {
+    canonical: "/",
+    languages: { "en-US": "/", "en-IN": "/", "x-default": "/" },
+  },
+};
 
 /*
  * FurlPay landing page.

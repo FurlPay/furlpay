@@ -141,8 +141,13 @@ describe("shell layout classification", () => {
   });
 
   describe("/markets", () => {
-    it("keeps the phone frame for the index and its list pages", () => {
-      expect(isAppFrame("/markets")).toBe(true);
+    it("drops the frame for the index, which is a search-and-browse surface", () => {
+      // 13,000 searchable symbols, a heatmap and a grid all have somewhere to
+      // put extra width. MarketsShell supplies the phone column below `lg`.
+      expect(isAppFrame("/markets")).toBe(false);
+    });
+
+    it("keeps the phone frame for the remaining list pages", () => {
       expect(isAppFrame("/markets/chains")).toBe(true);
       expect(isAppFrame("/markets/collections")).toBe(true);
       expect(isAppFrame("/markets/collections/ai")).toBe(true);

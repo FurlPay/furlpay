@@ -6,6 +6,9 @@ import { INSIGHT_CATEGORIES } from "@/lib/insights/categories";
 import { CITIES } from "@/lib/cities";
 import { INTEGRATIONS } from "@/lib/integrations/frameworks";
 import { visibleJobs } from "@/lib/careers/jobs";
+import { UNIVERSE } from "@/lib/markets/universe";
+import { CATALOG, bySymbol } from "@/lib/markets/catalog";
+import { sitemapSymbols } from "@/lib/markets/seo";
 
 const BASE = "https://furlpay.com";
 // Dynamic so lastmod reflects the actual build/deploy, not a frozen date.
@@ -235,5 +238,33 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
-  return [...staticPages, ...posts, ...categories, ...insights, ...insightCategories, ...cityHotels];
+  // Ticker pages. The single largest indexable surface on the site — roughly
+  // 13,000 securities, each with its own server-rendered price, filings and
+  // FAQ — and none of them were listed here before.
+  //
+  // Curated names rank above the rest because their pages carry a sector, a
+  // logo and a peer list; the priority is a hint about relative importance
+  // within the site, not a ranking request.
+  // Curated first so the dedupe inside sitemapSymbols keeps the richer entry
+  // when a symbol appears in both lists.
+  const tickers = sitemapSymbols([
+    ...CATALOG.map((a) => ({ symbol: a.symbol, curated: true })),
+    ...UNIVERSE.map((u) => ({ symbol: u.symbol, curated: bySymbol.has(u.symbol) })),
+  ]).map((a) => ({
+    url: `${BASE}/markets/${a.symbol}`,
+    lastModified: NOW,
+    // Quotes move daily; the filings behind the rest of the page do not.
+    changeFrequency: "daily" as const,
+    priority: a.curated ? 0.7 : 0.5,
+  }));
+
+  return [
+    ...staticPages,
+    ...posts,
+    ...categories,
+    ...insights,
+    ...insightCategories,
+    ...cityHotels,
+    ...tickers,
+  ];
 }

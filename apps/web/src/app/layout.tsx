@@ -31,12 +31,6 @@ export const metadata: Metadata = {
     "MiCA",
     "account abstraction",
   ],
-  alternates: {
-    canonical: "/",
-    // Single global English site; declare regional variants at x-default so
-    // Google serves the same content to US and India English queries.
-    languages: { "en-US": "/", "en-IN": "/", "x-default": "/" },
-  },
   verification: {
     ...(GSC_VERIFICATION ? { google: GSC_VERIFICATION } : {}),
     ...(BING_VERIFICATION ? { other: { "msvalidate.01": BING_VERIFICATION } } : {}),
