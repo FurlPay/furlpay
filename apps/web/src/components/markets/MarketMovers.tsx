@@ -57,7 +57,7 @@ export default function MarketMovers({
   }, [rows, tab]);
 
   return (
-    <section className="mkt-panel p-3.5" aria-labelledby="movers-heading">
+    <section className="surface-card p-3.5" aria-labelledby="movers-heading">
       <h2 id="movers-heading" className="text-[13.5px] font-bold text-white">
         Market Movers
       </h2>
@@ -74,8 +74,8 @@ export default function MarketMovers({
             type="button"
             aria-selected={tab === t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 rounded-md py-1 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mkt-cyan ${
-              tab === t.id ? "bg-white/[0.1] text-white" : "text-white/45 hover:text-white/75"
+            className={`flex-1 rounded-md py-1 text-[11px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
+              tab === t.id ? "bg-white/[0.1] text-white" : "text-textSecondary hover:text-white/75"
             }`}
           >
             {t.label}
@@ -91,7 +91,7 @@ export default function MarketMovers({
             ))}
           </div>
         ) : list.length === 0 ? (
-          <p className="px-1 py-5 text-center text-[11.5px] text-white/35">
+          <p className="px-1 py-5 text-center text-[11.5px] text-textMuted">
             No movers to show right now.
           </p>
         ) : (
@@ -102,9 +102,9 @@ export default function MarketMovers({
                 <li key={row.symbol}>
                   <Link
                     href={`/markets/${encodeURIComponent(row.symbol)}`}
-                    className="flex items-center gap-2 rounded-lg px-1 py-1.5 transition-colors hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mkt-cyan"
+                    className="flex items-center gap-2 rounded-lg px-1 py-1.5 transition-colors hover:bg-white/[0.05] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
                   >
-                    <span className="w-3 shrink-0 text-[11px] font-semibold text-white/30 mkt-num">
+                    <span className="w-3 shrink-0 text-[11px] font-semibold text-textMuted font-mono">
                       {i + 1}
                     </span>
                     <AssetLogo src={row.logo} label={row.symbol} size={20} className="shrink-0" />
@@ -112,13 +112,13 @@ export default function MarketMovers({
                       {row.symbol}
                     </span>
                     {tab === "volume" ? (
-                      <span className="shrink-0 text-[11.5px] font-semibold text-white/60 mkt-num">
+                      <span className="shrink-0 text-[11.5px] font-semibold text-textSecondary font-mono">
                         {row.volume24h == null ? DASH : fmtCountCompact(row.volume24h)}
                       </span>
                     ) : (
                       <span
-                        className={`shrink-0 text-[11.5px] font-bold mkt-num ${
-                          up ? "text-mkt-up" : "text-mkt-down"
+                        className={`shrink-0 text-[11.5px] font-bold font-mono ${
+                          up ? "text-gain" : "text-loss"
                         }`}
                       >
                         {fmtPctSigned(row.changePct)}
@@ -135,7 +135,7 @@ export default function MarketMovers({
       <button
         type="button"
         onClick={() => onViewAll(tab)}
-        className="mt-2 w-full rounded-lg border border-white/[0.08] py-1.5 text-[11.5px] font-semibold text-white/60 transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+        className="mt-2 w-full rounded-lg border border-white/[0.08] py-1.5 text-[11.5px] font-semibold text-textSecondary transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         View all →
       </button>

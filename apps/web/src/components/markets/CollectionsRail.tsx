@@ -54,11 +54,11 @@ export default function CollectionsRail({
           <h2 id="collections-heading" className="text-[15px] font-bold tracking-tight text-white">
             Collections
           </h2>
-          <p className="text-[11.5px] text-white/40">Discover by theme</p>
+          <p className="text-[11.5px] text-textMuted">Discover by theme</p>
         </div>
         <Link
           href="/markets/collections/ai-robotics"
-          className="text-[12px] font-semibold text-mkt-cyan transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+          className="text-[12px] font-semibold text-accent transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           View all →
         </Link>
@@ -67,7 +67,7 @@ export default function CollectionsRail({
       <div className="relative">
         <div
           ref={railRef}
-          className="mkt-scroll flex snap-x gap-2.5 overflow-x-auto pb-2"
+          className="rail-scroll flex snap-x gap-2.5 overflow-x-auto pb-2"
           role="group"
           aria-label="Asset collections"
         >
@@ -94,8 +94,8 @@ export default function CollectionsRail({
                 style={{
                   background: `linear-gradient(135deg, ${col.gradient[0]}, ${col.gradient[1]}cc)`,
                 }}
-                className={`relative w-[152px] shrink-0 snap-start overflow-hidden rounded-2xl p-3.5 text-left transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan ${
-                  active ? "ring-2 ring-mkt-cyan ring-offset-2 ring-offset-mkt-bg" : "hover:scale-[1.015]"
+                className={`relative w-[152px] shrink-0 snap-start overflow-hidden rounded-2xl p-3.5 text-left transition-transform focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                  active ? "ring-2 ring-accent ring-offset-2 ring-offset-oled" : "hover:scale-[1.015]"
                 }`}
               >
                 {/* A soft highlight rather than a second gradient — the card
@@ -104,16 +104,16 @@ export default function CollectionsRail({
                   className="pointer-events-none absolute -right-5 -top-5 h-16 w-16 rounded-full bg-white/15 blur-xl"
                   aria-hidden
                 />
-                <Icon className="h-5 w-5 text-white/90" aria-hidden />
+                <Icon className="h-5 w-5 text-textPrimary" aria-hidden />
                 <span className="mt-2 block text-[12.5px] font-bold leading-tight text-white">
                   {col.title}
                 </span>
-                <span className="mt-1 block text-[10.5px] font-medium text-white/65 mkt-num">
+                <span className="mt-1 block text-[10.5px] font-medium text-textSecondary font-mono">
                   {members.length} asset{members.length === 1 ? "" : "s"}
                 </span>
                 {avg != null && (
                   <span
-                    className={`mt-0.5 block text-[10.5px] font-bold mkt-num ${
+                    className={`mt-0.5 block text-[10.5px] font-bold font-mono ${
                       up ? "text-emerald-200" : "text-rose-200"
                     }`}
                   >
@@ -132,7 +132,7 @@ export default function CollectionsRail({
           aria-hidden
           tabIndex={-1}
           onClick={() => railRef.current?.scrollBy({ left: 320, behavior: "smooth" })}
-          className="absolute right-0 top-1/2 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-mkt-panel/90 text-white/70 backdrop-blur transition-colors hover:text-white lg:grid"
+          className="absolute right-0 top-1/2 hidden h-8 w-8 -translate-y-1/2 place-items-center rounded-full border border-white/10 bg-surface/90 text-textSecondary backdrop-blur transition-colors hover:text-white lg:grid"
         >
           <ChevronRight className="h-4 w-4" />
         </button>

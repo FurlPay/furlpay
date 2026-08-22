@@ -35,7 +35,7 @@ interface Badge {
 
 function badgeFor(row: TableRow, index: number, topVolumeSymbol: string | null): Badge {
   if (index === 0) {
-    return { label: "Top Gainer", className: "bg-mkt-up/15 text-mkt-up border-mkt-up/25" };
+    return { label: "Top Gainer", className: "bg-gain/15 text-gain border-gain/25" };
   }
   if (row.symbol === topVolumeSymbol) {
     return { label: "High Volume", className: "bg-amber-400/15 text-amber-300 border-amber-400/25" };
@@ -45,13 +45,13 @@ function badgeFor(row: TableRow, index: number, topVolumeSymbol: string | null):
   if (row.category) {
     return {
       label: row.category,
-      className: "bg-mkt-violet/15 text-violet-300 border-mkt-violet/25",
+      className: "bg-accent/15 text-violet-300 border-accent/25",
     };
   }
   const up = (row.changePct ?? 0) >= 0;
   return up
-    ? { label: "Gaining", className: "bg-mkt-up/15 text-mkt-up border-mkt-up/25" }
-    : { label: "Falling", className: "bg-mkt-down/15 text-mkt-down border-mkt-down/25" };
+    ? { label: "Gaining", className: "bg-gain/15 text-gain border-gain/25" }
+    : { label: "Falling", className: "bg-loss/15 text-loss border-loss/25" };
 }
 
 export default function TrendingToday({
@@ -80,7 +80,7 @@ export default function TrendingToday({
         <h2 className="mb-2.5 text-[15px] font-bold tracking-tight text-white">Trending Today</h2>
         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="mkt-panel h-[150px] animate-pulse" aria-hidden />
+            <div key={i} className="surface-card h-[150px] animate-pulse" aria-hidden />
           ))}
         </div>
       </section>
@@ -98,7 +98,7 @@ export default function TrendingToday({
         <button
           type="button"
           onClick={onSeeAll}
-          className="text-[12px] font-semibold text-mkt-cyan transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+          className="text-[12px] font-semibold text-accent transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
           See all →
         </button>
@@ -112,11 +112,11 @@ export default function TrendingToday({
             <Link
               key={row.symbol}
               href={`/markets/${encodeURIComponent(row.symbol)}`}
-              className="mkt-panel mkt-panel-interactive flex flex-col p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+              className="surface-card surface-card-interactive flex flex-col p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <div className="flex items-start justify-between gap-1.5">
                 <span
-                  className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-white/[0.07] text-[10.5px] font-bold text-white/70 mkt-num"
+                  className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-white/[0.07] text-[10.5px] font-bold text-textSecondary font-mono"
                   aria-label={`Rank ${i + 1}`}
                 >
                   {i + 1}
@@ -132,18 +132,18 @@ export default function TrendingToday({
                 <AssetLogo src={row.logo} label={row.symbol} size={26} className="shrink-0" />
                 <span className="min-w-0">
                   <span className="block truncate text-[12.5px] font-bold text-white">{row.symbol}</span>
-                  <span className="block truncate text-[10.5px] text-white/40">{row.name}</span>
+                  <span className="block truncate text-[10.5px] text-textMuted">{row.name}</span>
                 </span>
               </div>
 
               <p
-                className={`mt-2.5 text-[17px] font-bold tracking-tight mkt-num ${
-                  row.changePct == null ? "text-white/30" : up ? "text-mkt-up" : "text-mkt-down"
+                className={`mt-2.5 text-[17px] font-bold tracking-tight font-mono ${
+                  row.changePct == null ? "text-textMuted" : up ? "text-gain" : "text-loss"
                 }`}
               >
                 {fmtPctSigned(row.changePct)}
               </p>
-              <p className="mt-auto pt-1.5 text-[12px] font-semibold text-white/60 mkt-num">
+              <p className="mt-auto pt-1.5 text-[12px] font-semibold text-textSecondary font-mono">
                 {fmtPrice(row.price)}
               </p>
             </Link>

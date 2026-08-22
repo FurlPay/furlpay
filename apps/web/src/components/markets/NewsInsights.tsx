@@ -53,13 +53,13 @@ export default function NewsInsights() {
   }, []);
 
   return (
-    <section className="mkt-panel p-3.5" aria-labelledby="news-heading">
+    <section className="surface-card p-3.5" aria-labelledby="news-heading">
       <h2 id="news-heading" className="text-[13.5px] font-bold text-white">
         News &amp; Insights
       </h2>
 
       {failed ? (
-        <p className="mt-2.5 text-[11.5px] text-white/40">
+        <p className="mt-2.5 text-[11.5px] text-textMuted">
           Research could not be loaded right now.
         </p>
       ) : !items ? (
@@ -69,7 +69,7 @@ export default function NewsInsights() {
           ))}
         </div>
       ) : items.length === 0 ? (
-        <p className="mt-2.5 text-[11.5px] text-white/40">No research published yet.</p>
+        <p className="mt-2.5 text-[11.5px] text-textMuted">No research published yet.</p>
       ) : (
         <ul className="mt-2 divide-y divide-white/[0.05]">
           {items.map((item) => {
@@ -78,18 +78,18 @@ export default function NewsInsights() {
               <li key={item.slug}>
                 <Link
                   href={`/investing/insights/${item.slug}`}
-                  className="block rounded-lg px-1 py-2.5 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mkt-cyan"
+                  className="block rounded-lg px-1 py-2.5 transition-colors hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
                 >
                   {ticker && (
                     <span className="mb-1.5 flex items-center gap-1.5">
                       <AssetLogo src={logoForSymbol(ticker)} label={ticker} size={16} className="shrink-0" />
-                      <span className="text-[10.5px] font-bold text-white/55">{ticker}</span>
+                      <span className="text-[10.5px] font-bold text-textSecondary">{ticker}</span>
                     </span>
                   )}
                   <span className="block text-[12px] font-semibold leading-snug text-white/85 line-clamp-2">
                     {item.title}
                   </span>
-                  <span className="mt-1 block text-[10.5px] text-white/35">
+                  <span className="mt-1 block text-[10.5px] text-textMuted">
                     {/* Attributed to who actually wrote it. */}
                     FurlPay Research · {formatDate(item.date)} · {item.readMins} min read
                   </span>
@@ -102,7 +102,7 @@ export default function NewsInsights() {
 
       <Link
         href="/investing/insights"
-        className="mt-2 block w-full rounded-lg border border-white/[0.08] py-1.5 text-center text-[11.5px] font-semibold text-white/60 transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+        className="mt-2 block w-full rounded-lg border border-white/[0.08] py-1.5 text-center text-[11.5px] font-semibold text-textSecondary transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         View all research →
       </Link>

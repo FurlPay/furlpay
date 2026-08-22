@@ -182,8 +182,8 @@ export default function GlobalSearch({
 
   return (
     <div ref={rootRef} className={`relative ${className ?? ""}`}>
-      <div className="flex h-10 items-center gap-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3.5 transition-colors focus-within:border-mkt-cyan/40">
-        <Search className="h-4 w-4 shrink-0 text-white/35" aria-hidden />
+      <div className="flex h-10 items-center gap-2.5 rounded-xl border border-white/[0.07] bg-white/[0.03] px-3.5 transition-colors focus-within:border-accent/40">
+        <Search className="h-4 w-4 shrink-0 text-textMuted" aria-hidden />
         <input
           ref={inputRef}
           type="search"
@@ -205,24 +205,24 @@ export default function GlobalSearch({
           aria-controls={listId}
           aria-autocomplete="list"
           aria-activedescendant={showPanel && items?.length ? `${listId}-${active}` : undefined}
-          className="min-w-0 flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-white/30 [&::-webkit-search-cancel-button]:hidden"
+          className="min-w-0 flex-1 bg-transparent text-[13px] text-white outline-none placeholder:text-textMuted [&::-webkit-search-cancel-button]:hidden"
         />
         {busy ? (
-          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-white/35" aria-hidden />
+          <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin text-textMuted" aria-hidden />
         ) : (
-          <kbd className="hidden shrink-0 rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-semibold text-white/35 sm:block">
+          <kbd className="hidden shrink-0 rounded border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-[10px] font-semibold text-textMuted sm:block">
             {isMac ? "⌘" : "Ctrl"} K
           </kbd>
         )}
       </div>
 
       {showPanel && (
-        <div className="mkt-pop mkt-pop-in absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-[min(60vh,420px)] overflow-y-auto">
+        <div className="app-pop app-pop-in absolute left-0 right-0 top-[calc(100%+8px)] z-50 max-h-[min(60vh,420px)] overflow-y-auto">
           <ul id={listId} role="listbox" aria-label="Search results" className="p-1.5">
             {items === null || (busy && items.length === 0) ? (
-              <li className="px-3 py-6 text-center text-[12.5px] text-white/40">Searching…</li>
+              <li className="px-3 py-6 text-center text-[12.5px] text-textMuted">Searching…</li>
             ) : items.length === 0 ? (
-              <li className="px-3 py-6 text-center text-[12.5px] text-white/40">
+              <li className="px-3 py-6 text-center text-[12.5px] text-textMuted">
                 No assets match “{q.trim()}”.
               </li>
             ) : (
@@ -245,19 +245,19 @@ export default function GlobalSearch({
                       <span className="min-w-0 flex-1">
                         <span className="flex items-center gap-1.5">
                           <span className="truncate text-[13px] font-semibold text-white">{item.symbol}</span>
-                          <span className="shrink-0 rounded border border-white/10 px-1 py-px text-[9.5px] font-semibold uppercase tracking-wide text-white/40">
+                          <span className="shrink-0 rounded border border-white/10 px-1 py-px text-[9.5px] font-semibold uppercase tracking-wide text-textMuted">
                             {KIND_LABEL[item.kind]}
                           </span>
                         </span>
-                        <span className="block truncate text-[11.5px] text-white/45">{item.name}</span>
+                        <span className="block truncate text-[11.5px] text-textSecondary">{item.name}</span>
                       </span>
                       <span className="shrink-0 text-right">
-                        <span className="block text-[12.5px] font-semibold text-white mkt-num">
+                        <span className="block text-[12.5px] font-semibold text-white font-mono">
                           {fmtPrice(item.price)}
                         </span>
                         <span
-                          className={`block text-[11px] font-semibold mkt-num ${
-                            item.changePct == null ? "text-white/30" : up ? "text-mkt-up" : "text-mkt-down"
+                          className={`block text-[11px] font-semibold font-mono ${
+                            item.changePct == null ? "text-textMuted" : up ? "text-gain" : "text-loss"
                           }`}
                         >
                           {fmtPctSigned(item.changePct)}

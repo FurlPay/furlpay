@@ -7,7 +7,7 @@ import { Flame, Grid3X3, LayoutGrid, List, MoreHorizontal, Search, Star } from "
 import BottomNav from "@/components/BottomNav";
 import Heatmap from "@/components/Heatmap";
 import { useSession } from "@/components/auth/SessionProvider";
-import MarketsSidebar from "./MarketsSidebar";
+import DesktopNav from "./DesktopNav";
 import MarketsTopBar from "./MarketsTopBar";
 import MarketOverview, { type IndexItem } from "./MarketOverview";
 import TrendingToday from "./TrendingToday";
@@ -301,25 +301,21 @@ export default function MarketsWorkspace() {
   const showDiscovery = panel === "assets" && view === "list" && !collection && !tableQuery;
 
   return (
-    <div className="mkt-ambient flex min-h-screen">
-      <MarketsSidebar
-        watchlistCount={watchlist.loading ? undefined : watchlist.count}
-        watchlistActive={panel === "watchlist"}
-        onWatchlist={() => setParams({ panel: panel === "watchlist" ? null : "watchlist" })}
-      />
+    <div className="bg-oled flex min-h-screen">
+      <DesktopNav />
 
       <div className="min-w-0 flex-1">
         <MarketsTopBar universeSize={universeSize} live={anyLive} asOf={meta?.asOf ?? null} />
 
-        <div className="mx-auto flex w-full max-w-[1560px] gap-5 px-4 pb-28 pt-4 sm:px-5 lg:px-6 lg:pb-10">
+        <div className="mx-auto flex w-full max-w-[1440px] gap-8 px-5 pb-28 pt-6 lg:px-8 lg:pb-12 2xl:px-12">
           {/* ── Main workspace ─────────────────────────────────────────── */}
           <main className="min-w-0 flex-1">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h1 className="text-[30px] font-bold leading-none tracking-tight text-white sm:text-[34px]">
+                <h1 className="text-[34px] font-bold leading-none tracking-tighter text-textPrimary">
                   Markets
                 </h1>
-                <p className="mt-1.5 text-[12.5px] text-white/45">
+                <p className="mt-1.5 text-[12.5px] text-textSecondary">
                   Global markets. Real-time. All in one place.
                 </p>
               </div>
@@ -328,17 +324,17 @@ export default function MarketsWorkspace() {
 
             {/* Category filters + quick controls */}
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <div className="mkt-scroll flex gap-1.5 overflow-x-auto">
+              <div className="rail-scroll flex gap-1.5 overflow-x-auto">
                 {TABS.map((t) => (
                   <button
                     key={t.id}
                     type="button"
                     aria-pressed={tab === t.id}
                     onClick={() => setParams({ tab: t.id === "all" ? null : t.id })}
-                    className={`h-8 shrink-0 rounded-full px-3.5 text-[12.5px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan ${
+                    className={`h-8 shrink-0 rounded-full px-3.5 text-[12.5px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
                       tab === t.id
-                        ? "mkt-pill-active"
-                        : "border border-white/[0.08] text-white/60 hover:border-white/20 hover:text-white"
+                        ? "bg-white text-black"
+                        : "border border-white/[0.08] text-textSecondary hover:border-white/20 hover:text-white"
                     }`}
                   >
                     {t.label}
@@ -346,7 +342,7 @@ export default function MarketsWorkspace() {
                 ))}
                 <Link
                   href="/markets/chains"
-                  className="flex h-8 shrink-0 items-center rounded-full border border-white/[0.08] px-3.5 text-[12.5px] font-semibold text-white/60 transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+                  className="flex h-8 shrink-0 items-center rounded-full border border-white/[0.08] px-3.5 text-[12.5px] font-semibold text-textSecondary transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   Chains
                 </Link>
@@ -374,7 +370,7 @@ export default function MarketsWorkspace() {
                 <Link
                   href="/markets/collections/ai-robotics"
                   aria-label="More market views"
-                  className="grid h-8 w-8 place-items-center rounded-full border border-white/[0.08] text-white/55 transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+                  className="grid h-8 w-8 place-items-center rounded-full border border-white/[0.08] text-textSecondary transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   <MoreHorizontal className="h-4 w-4" />
                 </Link>
@@ -423,7 +419,7 @@ export default function MarketsWorkspace() {
                     count={watchlist.loading ? undefined : watchlist.count}
                   />
                 </div>
-                <p id="assets-heading" className="text-[11.5px] text-white/35 mkt-num">
+                <p id="assets-heading" className="text-[11.5px] text-textMuted font-mono">
                   {loading && !all
                     ? "Loading…"
                     : `${filtered.length.toLocaleString("en-US")} of ${(meta?.catalogTotal ?? 0).toLocaleString("en-US")} assets`}
@@ -432,13 +428,13 @@ export default function MarketsWorkspace() {
 
               {collection && (
                 <div className="mt-2.5 flex items-center gap-2">
-                  <span className="rounded-full border border-mkt-cyan/40 bg-mkt-cyan/[0.1] px-2.5 py-1 text-[11.5px] font-semibold text-mkt-cyan">
+                  <span className="rounded-full border border-accent/40 bg-accent/[0.1] px-2.5 py-1 text-[11.5px] font-semibold text-accent">
                     {COLLECTION_TITLES.get(collection) ?? collection}
                   </span>
                   <button
                     type="button"
                     onClick={() => setParams({ collection: null })}
-                    className="text-[11.5px] font-semibold text-white/45 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+                    className="text-[11.5px] font-semibold text-textSecondary hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
                     Clear
                   </button>
@@ -447,8 +443,8 @@ export default function MarketsWorkspace() {
 
               {/* Controls */}
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <label className="flex h-9 min-w-[180px] flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 transition-colors focus-within:border-mkt-cyan/40 sm:max-w-[280px]">
-                  <Search className="h-3.5 w-3.5 shrink-0 text-white/30" aria-hidden />
+                <label className="flex h-9 min-w-[180px] flex-1 items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.02] px-3 transition-colors focus-within:border-accent/40 sm:max-w-[280px]">
+                  <Search className="h-3.5 w-3.5 shrink-0 text-textMuted" aria-hidden />
                   <input
                     type="search"
                     value={tableQuery}
@@ -458,17 +454,17 @@ export default function MarketsWorkspace() {
                     }}
                     placeholder="Search assets…"
                     aria-label="Filter the assets in this table"
-                    className="min-w-0 flex-1 bg-transparent text-[12.5px] text-white outline-none placeholder:text-white/30 [&::-webkit-search-cancel-button]:hidden"
+                    className="min-w-0 flex-1 bg-transparent text-[12.5px] text-white outline-none placeholder:text-textMuted [&::-webkit-search-cancel-button]:hidden"
                   />
                 </label>
 
-                <label className="flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] px-2.5 text-[12px] text-white/55">
+                <label className="flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.08] px-2.5 text-[12px] text-textSecondary">
                   <span className="whitespace-nowrap">Sort:</span>
                   <select
                     value={sort}
                     onChange={(e) => setParams({ sort: e.target.value, dir: defaultDirFor(e.target.value as SortKey) })}
                     aria-label="Sort assets by"
-                    className="bg-transparent font-semibold text-white outline-none [&>option]:bg-mkt-panel"
+                    className="bg-transparent font-semibold text-white outline-none [&>option]:bg-surface"
                   >
                     {(Object.keys(SORT_LABELS) as SortKey[]).map((k) => (
                       <option key={k} value={k}>
@@ -519,8 +515,8 @@ export default function MarketsWorkspace() {
                       aria-label={`${id} view`}
                       aria-pressed={view === id}
                       onClick={() => setParams({ view: id === "list" ? null : id })}
-                      className={`grid h-7 w-7 place-items-center rounded-md transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mkt-cyan ${
-                        view === id ? "bg-white/[0.1] text-white" : "text-white/40 hover:text-white"
+                      className={`grid h-7 w-7 place-items-center rounded-md transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
+                        view === id ? "bg-white/[0.1] text-white" : "text-textMuted hover:text-white"
                       }`}
                     >
                       <Icon className="h-3.5 w-3.5" />
@@ -530,7 +526,7 @@ export default function MarketsWorkspace() {
               </div>
 
               {watchlist.error && (
-                <p role="alert" className="mt-2 text-[12px] font-medium text-mkt-down">
+                <p role="alert" className="mt-2 text-[12px] font-medium text-loss">
                   {watchlist.error}
                 </p>
               )}
@@ -552,7 +548,7 @@ export default function MarketsWorkspace() {
                       }))}
                     onSelect={(sym) => router.push(`/markets/${sym}`)}
                   />
-                  <p className="mt-3 text-center text-[11px] text-white/35">
+                  <p className="mt-3 text-center text-[11px] text-textMuted">
                     Block size = market cap tier · colour = day move
                   </p>
                 </div>
@@ -602,8 +598,8 @@ export default function MarketsWorkspace() {
           </main>
 
           {/* ── Intelligence rail ──────────────────────────────────────── */}
-          <aside className="hidden w-[268px] shrink-0 space-y-3 lg:block" aria-label="Market intelligence">
-            <div className="sticky top-[68px] space-y-3">
+          <aside className="hidden w-[372px] shrink-0 xl:block" aria-label="Market intelligence">
+            <div className="sticky top-6 space-y-5">
               <MarketMovers
                 rows={all}
                 loading={loading}
@@ -619,7 +615,7 @@ export default function MarketsWorkspace() {
           </aside>
         </div>
 
-        <div className="xl:hidden">
+        <div className="lg:hidden">
           <BottomNav />
         </div>
       </div>
@@ -664,10 +660,10 @@ function QuickButton({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan ${
+      className={`flex h-8 items-center gap-1.5 rounded-full border px-3 text-[12px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
         active
-          ? "border-mkt-cyan/45 bg-mkt-cyan/[0.1] text-mkt-cyan"
-          : "border-white/[0.08] text-white/60 hover:border-white/20 hover:text-white"
+          ? "border-accent/45 bg-accent/[0.1] text-accent"
+          : "border-white/[0.08] text-textSecondary hover:border-white/20 hover:text-white"
       }`}
     >
       <Icon className="h-3.5 w-3.5" />
@@ -682,10 +678,10 @@ function QuickChip({ active, onClick, label }: { active: boolean; onClick: () =>
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`h-9 rounded-lg border px-2.5 text-[12px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan ${
+      className={`h-9 rounded-lg border px-2.5 text-[12px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
         active
-          ? "border-mkt-cyan/45 bg-mkt-cyan/[0.1] text-mkt-cyan"
-          : "border-white/[0.08] text-white/55 hover:border-white/20 hover:text-white"
+          ? "border-accent/45 bg-accent/[0.1] text-accent"
+          : "border-white/[0.08] text-textSecondary hover:border-white/20 hover:text-white"
       }`}
     >
       {label}
@@ -709,17 +705,17 @@ function PanelTab({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`relative flex items-center gap-1.5 pb-2 text-[15px] font-bold tracking-tight transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan ${
-        active ? "text-white" : "text-white/35 hover:text-white/65"
+      className={`relative flex items-center gap-1.5 pb-2 text-[15px] font-bold tracking-tight transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+        active ? "text-white" : "text-textMuted hover:text-textSecondary"
       }`}
     >
       {label}
       {count !== undefined && (
-        <span className="rounded-md bg-white/[0.08] px-1.5 py-0.5 text-[11px] font-bold text-white/60 mkt-num">
+        <span className="rounded-md bg-white/[0.08] px-1.5 py-0.5 text-[11px] font-bold text-textSecondary font-mono">
           {count}
         </span>
       )}
-      {active && <span className="absolute -bottom-[9px] left-0 right-0 h-0.5 rounded-full bg-mkt-cyan" />}
+      {active && <span className="absolute -bottom-[9px] left-0 right-0 h-0.5 rounded-full bg-accent" />}
     </button>
   );
 }
@@ -731,7 +727,7 @@ function WatchlistEmpty({ authed, onExplore }: { authed: boolean; onExplore: () 
       <p className="mt-3 text-[14px] font-semibold text-white">
         {authed ? "Your watchlist is empty." : "Sign in to save assets."}
       </p>
-      <p className="mt-1 text-[12.5px] text-white/40">
+      <p className="mt-1 text-[12.5px] text-textMuted">
         {authed
           ? "Star any asset to track it here."
           : "Star an asset and we'll add it as soon as you sign in."}
@@ -739,7 +735,7 @@ function WatchlistEmpty({ authed, onExplore }: { authed: boolean; onExplore: () 
       <button
         type="button"
         onClick={onExplore}
-        className="mt-4 rounded-lg bg-mkt-cyan px-4 py-2 text-[12.5px] font-bold text-[#04202a] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+        className="mt-4 rounded-lg bg-accent px-4 py-2 text-[12.5px] font-bold text-[#04202a] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         Explore Markets
       </button>
@@ -756,16 +752,16 @@ function GridView({ rows }: { rows: TableRow[] }) {
           <Link
             key={`${r.kind}:${r.symbol}`}
             href={`/markets/${encodeURIComponent(r.symbol)}`}
-            className="mkt-panel mkt-panel-interactive p-3.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+            className="surface-card surface-card-interactive p-3.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             <p className="truncate text-[13.5px] font-bold text-white">{r.symbol}</p>
-            <p className="truncate text-[11px] text-white/40">{r.name}</p>
-            <p className="mt-2 text-[15px] font-semibold tracking-tight text-white mkt-num">
+            <p className="truncate text-[11px] text-textMuted">{r.name}</p>
+            <p className="mt-2 text-[15px] font-semibold tracking-tight text-white font-mono">
               {r.price == null ? "—" : r.price >= 1 ? `$${r.price.toFixed(2)}` : `$${r.price.toPrecision(3)}`}
             </p>
             <p
-              className={`text-[12px] font-semibold mkt-num ${
-                r.changePct == null ? "text-white/25" : up ? "text-mkt-up" : "text-mkt-down"
+              className={`text-[12px] font-semibold font-mono ${
+                r.changePct == null ? "text-textMuted" : up ? "text-gain" : "text-loss"
               }`}
             >
               {r.changePct == null ? "—" : `${r.changePct >= 0 ? "+" : ""}${r.changePct.toFixed(2)}%`}

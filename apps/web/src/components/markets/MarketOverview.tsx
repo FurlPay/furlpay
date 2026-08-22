@@ -39,7 +39,7 @@ export default function MarketOverview({
     return (
       <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 xl:grid-cols-6">
         {Array.from({ length: 6 }).map((_, i) => (
-          <div key={i} className="mkt-panel h-[124px] animate-pulse" aria-hidden />
+          <div key={i} className="surface-card h-[124px] animate-pulse" aria-hidden />
         ))}
       </div>
     );
@@ -56,14 +56,14 @@ export default function MarketOverview({
               key={ix.id}
               href={`/markets/${ix.proxy}`}
               title={`${ix.label} — tracked via ${ix.proxy}`}
-              className="mkt-panel mkt-panel-interactive flex flex-col p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+              className="surface-card surface-card-interactive flex flex-col p-3 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               <div className="flex items-center gap-1.5">
                 <AssetLogo src={null} label={ix.proxy} size={16} className="shrink-0 opacity-80" />
-                <span className="truncate text-[11px] font-semibold text-white/50">{ix.label}</span>
+                <span className="truncate text-[11px] font-semibold text-textSecondary">{ix.label}</span>
               </div>
 
-              <p className="mt-2 text-[17px] font-bold tracking-tight text-white mkt-num">
+              <p className="mt-2 text-[17px] font-bold tracking-tight text-white font-mono">
                 {ix.price == null
                   ? DASH
                   : ix.price.toLocaleString("en-US", {
@@ -73,8 +73,8 @@ export default function MarketOverview({
               </p>
 
               <p
-                className={`mt-0.5 text-[11.5px] font-semibold mkt-num ${
-                  ix.changePct == null ? "text-white/30" : up ? "text-mkt-up" : "text-mkt-down"
+                className={`mt-0.5 text-[11.5px] font-semibold font-mono ${
+                  ix.changePct == null ? "text-textMuted" : up ? "text-gain" : "text-loss"
                 }`}
               >
                 {ix.changePct != null && (

@@ -27,7 +27,7 @@ export default function MarketsPage() {
  *  page makes the layout appear to jump into place when it resolves. */
 function MarketsSkeleton() {
   return (
-    <div className="mkt-ambient flex min-h-screen" aria-busy="true" aria-label="Loading markets">
+    <div className="bg-oled flex min-h-screen" aria-busy="true" aria-label="Loading markets">
       <div className="hidden w-[188px] shrink-0 border-r border-white/[0.06] bg-black/40 xl:block" />
       <div className="min-w-0 flex-1">
         <div className="h-[57px] border-b border-white/[0.06]" />

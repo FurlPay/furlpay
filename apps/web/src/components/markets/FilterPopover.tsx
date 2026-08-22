@@ -122,16 +122,16 @@ export default function FilterPopover({
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="dialog"
         aria-expanded={open}
-        className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan ${
+        className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[12px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
           count > 0
-            ? "border-mkt-cyan/40 bg-mkt-cyan/[0.1] text-mkt-cyan"
-            : "border-white/[0.09] text-white/65 hover:border-white/20 hover:text-white"
+            ? "border-accent/40 bg-accent/[0.1] text-accent"
+            : "border-white/[0.09] text-textSecondary hover:border-white/20 hover:text-white"
         }`}
       >
         <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden />
         Filters
         {count > 0 && (
-          <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-mkt-cyan px-1 text-[10px] font-bold text-[#04202a] mkt-num">
+          <span className="ml-0.5 grid h-4 min-w-4 place-items-center rounded-full bg-accent px-1 text-[10px] font-bold text-[#04202a] font-mono">
             {count}
           </span>
         )}
@@ -141,7 +141,7 @@ export default function FilterPopover({
         <div
           role="dialog"
           aria-label="Filter assets"
-          className="mkt-pop mkt-pop-in absolute left-0 top-[calc(100%+8px)] z-50 w-[min(300px,calc(100vw-32px))] p-4"
+          className="app-pop app-pop-in absolute left-0 top-[calc(100%+8px)] z-50 w-[min(300px,calc(100vw-32px))] p-4"
         >
           <Group label="Asset type">
             <div className="flex flex-wrap gap-1.5">
@@ -200,7 +200,7 @@ export default function FilterPopover({
                 value={draft.priceMin}
                 onChange={(v) => setDraft((d) => ({ ...d, priceMin: v }))}
               />
-              <span className="text-white/25" aria-hidden>
+              <span className="text-textMuted" aria-hidden>
                 –
               </span>
               <NumberField
@@ -220,7 +220,7 @@ export default function FilterPopover({
                 value={draft.volumeMin}
                 onChange={(v) => setDraft((d) => ({ ...d, volumeMin: v }))}
               />
-              <span className="text-white/25" aria-hidden>
+              <span className="text-textMuted" aria-hidden>
                 –
               </span>
               <NumberField
@@ -240,7 +240,7 @@ export default function FilterPopover({
                 onApply(EMPTY_FILTERS);
                 setOpen(false);
               }}
-              className="flex-1 rounded-lg border border-white/[0.1] py-2 text-[12px] font-semibold text-white/65 transition-colors hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+              className="flex-1 rounded-lg border border-white/[0.1] py-2 text-[12px] font-semibold text-textSecondary transition-colors hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               Reset
             </button>
@@ -250,7 +250,7 @@ export default function FilterPopover({
                 onApply(draft);
                 setOpen(false);
               }}
-              className="flex-1 rounded-lg bg-mkt-cyan py-2 text-[12px] font-bold text-[#04202a] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+              className="flex-1 rounded-lg bg-accent py-2 text-[12px] font-bold text-[#04202a] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
               Apply Filters
             </button>
@@ -264,7 +264,7 @@ export default function FilterPopover({
 function Group({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <fieldset className="mb-3.5 last:mb-0">
-      <legend className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-white/35">
+      <legend className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-textMuted">
         {label}
       </legend>
       {children}
@@ -288,10 +288,10 @@ function Chip({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`rounded-lg border px-2.5 py-1.5 text-[11.5px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mkt-cyan ${
+      className={`rounded-lg border px-2.5 py-1.5 text-[11.5px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
         active
-          ? "border-mkt-cyan/45 bg-mkt-cyan/[0.12] text-mkt-cyan"
-          : "border-white/[0.09] text-white/55 hover:border-white/20 hover:text-white"
+          ? "border-accent/45 bg-accent/[0.12] text-accent"
+          : "border-white/[0.09] text-textSecondary hover:border-white/20 hover:text-white"
       }`}
     >
       {label}
@@ -320,7 +320,7 @@ function NumberField({
       placeholder={placeholder}
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="min-w-0 flex-1 rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-[12px] text-white outline-none transition-colors placeholder:text-white/25 focus:border-mkt-cyan/45 mkt-num"
+      className="min-w-0 flex-1 rounded-lg border border-white/[0.09] bg-white/[0.03] px-2 py-1.5 text-[12px] text-white outline-none transition-colors placeholder:text-textMuted focus:border-accent/45 font-mono"
     />
   );
 }

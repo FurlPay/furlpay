@@ -37,14 +37,14 @@ export default function Pagination({
         onClick={() => onChange(page - 1)}
         disabled={page <= 1}
         aria-label="Previous page"
-        className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] text-white/55 transition-colors hover:border-white/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+        className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] text-textSecondary transition-colors hover:border-white/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <ChevronLeft className="h-4 w-4" />
       </button>
 
       {pages.map((p, i) =>
         p === null ? (
-          <span key={`gap-${i}`} className="px-1 text-[12px] text-white/25" aria-hidden>
+          <span key={`gap-${i}`} className="px-1 text-[12px] text-textMuted" aria-hidden>
             …
           </span>
         ) : (
@@ -54,10 +54,10 @@ export default function Pagination({
             onClick={() => onChange(p)}
             aria-current={p === page ? "page" : undefined}
             aria-label={`Page ${p}`}
-            className={`h-8 min-w-8 rounded-lg px-2 text-[12px] font-semibold transition-colors mkt-num focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan ${
+            className={`h-8 min-w-8 rounded-lg px-2 text-[12px] font-semibold transition-colors font-mono focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
               p === page
-                ? "mkt-pill-active"
-                : "border border-white/[0.08] text-white/55 hover:border-white/20 hover:text-white"
+                ? "bg-white text-black"
+                : "border border-white/[0.08] text-textSecondary hover:border-white/20 hover:text-white"
             }`}
           >
             {p}
@@ -70,7 +70,7 @@ export default function Pagination({
         onClick={() => onChange(page + 1)}
         disabled={page >= pageCount}
         aria-label="Next page"
-        className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] text-white/55 transition-colors hover:border-white/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+        className="grid h-8 w-8 place-items-center rounded-lg border border-white/[0.08] text-textSecondary transition-colors hover:border-white/20 hover:text-white disabled:pointer-events-none disabled:opacity-30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <ChevronRight className="h-4 w-4" />
       </button>

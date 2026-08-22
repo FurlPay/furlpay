@@ -59,22 +59,22 @@ export default function LiveStatus({
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 rounded-full border border-white/[0.07] bg-white/[0.03] px-2.5 py-1.5 text-[11px] font-semibold ${className ?? ""}`}
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-semibold ${live ? "bg-gain/10 text-gain" : "bg-white/[0.06] text-textMuted"} ${className ?? ""}`}
       // Polite, not assertive: a per-second timestamp must never interrupt a
       // screen reader mid-sentence.
       aria-live="polite"
     >
       <span
-        className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-mkt-up" : "bg-white/30"}`}
+        className={`h-1.5 w-1.5 rounded-full ${live ? "animate-pulse bg-gain" : "bg-white/30"}`}
         aria-hidden
       />
-      <span className={live ? "text-mkt-up" : "text-white/45"}>{live ? "Live" : "Delayed"}</span>
+      <span>{live ? "LIVE" : "DELAYED"}</span>
       {age && (
         <>
-          <span className="text-white/20" aria-hidden>
+          <span className="text-textMuted" aria-hidden>
             ·
           </span>
-          <span className="text-white/45 mkt-num">Updated {age}</span>
+          <span className="text-textSecondary font-mono">Updated {age}</span>
         </>
       )}
     </span>

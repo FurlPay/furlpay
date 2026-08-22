@@ -124,7 +124,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? menuId : undefined}
-        className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.04] transition-colors hover:border-mkt-cyan/50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+        className="tap flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white/[0.05] transition-colors hover:bg-white/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
       >
         <Avatar loading={loading} name={user?.name} initials={user?.initials} avatarUrl={user?.avatarUrl} />
       </button>
@@ -139,7 +139,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
           // Right-anchored on desktop; on a narrow viewport it becomes a
           // near-full-width sheet pinned to the right edge so it cannot run off
           // the screen the way a fixed 260px panel would.
-          className="mkt-pop mkt-pop-in absolute right-0 top-[calc(100%+8px)] z-50 w-[min(268px,calc(100vw-24px))] overflow-hidden"
+          className="app-pop app-pop-in absolute right-0 top-[calc(100%+8px)] z-50 w-[min(268px,calc(100vw-24px))] overflow-hidden"
         >
           {authed ? (
             <>
@@ -149,7 +149,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-[13.5px] font-semibold text-white">{user.name}</span>
-                  <span className="block truncate text-[11.5px] text-white/45">{user.email}</span>
+                  <span className="block truncate text-[11.5px] text-textSecondary">{user.email}</span>
                 </span>
               </div>
 
@@ -165,7 +165,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
                     href={href}
                     role="menuitem"
                     onClick={() => close(false)}
-                    className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-white/70 transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:bg-white/[0.06] focus-visible:text-white focus-visible:outline-none"
+                    className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-textSecondary transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:bg-white/[0.06] focus-visible:text-white focus-visible:outline-none"
                   >
                     <Icon className="h-4 w-4 shrink-0" />
                     {label}
@@ -179,7 +179,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
                   role="menuitem"
                   disabled={signingOut}
                   onClick={signOut}
-                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-mkt-down transition-colors hover:bg-mkt-down/[0.1] focus-visible:bg-mkt-down/[0.1] focus-visible:outline-none disabled:opacity-60"
+                  className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-loss transition-colors hover:bg-loss/[0.1] focus-visible:bg-loss/[0.1] focus-visible:outline-none disabled:opacity-60"
                 >
                   <LogOut className="h-4 w-4 shrink-0" />
                   {signingOut ? "Signing out…" : "Sign out"}
@@ -191,7 +191,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
               <p className="text-[14px] font-bold text-white">
                 {status === "expired" ? "Your session has expired" : "Welcome to FurlPay"}
               </p>
-              <p className="mt-1.5 text-[12px] leading-relaxed text-white/50">
+              <p className="mt-1.5 text-[12px] leading-relaxed text-textSecondary">
                 {status === "expired"
                   ? "Sign in again to get back to your portfolio and watchlist."
                   : status === "error"
@@ -204,7 +204,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
                   type="button"
                   role="menuitem"
                   onClick={() => void refresh()}
-                  className="mt-3.5 w-full rounded-lg border border-white/15 py-2 text-[13px] font-semibold text-white transition-colors hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+                  className="mt-3.5 w-full rounded-lg border border-white/15 py-2 text-[13px] font-semibold text-white transition-colors hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                 >
                   Try again
                 </button>
@@ -214,18 +214,18 @@ export default function ProfileMenu({ className }: { className?: string }) {
                     href={signInHref}
                     role="menuitem"
                     onClick={() => close(false)}
-                    className="mt-3.5 block w-full rounded-lg bg-mkt-cyan py-2 text-center text-[13px] font-bold text-[#04202a] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+                    className="mt-3.5 block w-full rounded-lg bg-accent py-2 text-center text-[13px] font-bold text-[#04202a] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                   >
                     {status === "expired" ? "Sign in again" : "Sign In"}
                   </Link>
                   {status !== "expired" && (
-                    <p className="mt-3 text-center text-[11.5px] text-white/40">
+                    <p className="mt-3 text-center text-[11.5px] text-textMuted">
                       Don&apos;t have an account?{" "}
                       <Link
                         href="/signup"
                         role="menuitem"
                         onClick={() => close(false)}
-                        className="font-semibold text-mkt-cyan hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+                        className="font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
                       >
                         Create account
                       </Link>
@@ -295,12 +295,12 @@ function Avatar({
       <span
         aria-hidden
         title={name ?? undefined}
-        className="grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-mkt-cyan/30 to-mkt-violet/30 text-[11.5px] font-bold text-white"
+        className="grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-accent/30 to-accent/30 text-[11.5px] font-bold text-white"
       >
         {initials}
       </span>
     );
   }
 
-  return <UserIcon className="h-[18px] w-[18px] text-white/55" aria-hidden />;
+  return <UserIcon className="h-[18px] w-[18px] text-textSecondary" aria-hidden />;
 }

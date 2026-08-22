@@ -146,7 +146,7 @@ export default function Sparkline({
 
       {hover && (
         <span
-          className="pointer-events-none absolute -top-7 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-mkt-panel px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-lg mkt-num"
+          className="pointer-events-none absolute -top-7 left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-md border border-white/10 bg-surface px-1.5 py-0.5 text-[10px] font-semibold text-white shadow-lg font-mono"
           role="status"
         >
           {formatValue(hover.value)}

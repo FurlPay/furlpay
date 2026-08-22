@@ -95,19 +95,19 @@ export default function PortfolioSnapshot() {
   const signInHref = `/login?next=${encodeURIComponent(pathname || "/markets")}`;
 
   return (
-    <section className="mkt-panel p-3.5" aria-labelledby="portfolio-heading">
+    <section className="surface-card p-3.5" aria-labelledby="portfolio-heading">
       <h2 id="portfolio-heading" className="text-[13.5px] font-bold text-white">
         Portfolio Snapshot
       </h2>
 
       {status !== "authenticated" ? (
         <>
-          <p className="mt-2 text-[11.5px] leading-relaxed text-white/45">
+          <p className="mt-2 text-[11.5px] leading-relaxed text-textSecondary">
             Track your portfolio in one place. Sign in to see your holdings and performance.
           </p>
           <Link
             href={signInHref}
-            className="mt-3 block w-full rounded-lg bg-mkt-cyan py-2 text-center text-[12px] font-bold text-[#04202a] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+            className="mt-3 block w-full rounded-lg bg-accent py-2 text-center text-[12px] font-bold text-[#04202a] transition-opacity hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             Sign In
           </Link>
@@ -119,38 +119,38 @@ export default function PortfolioSnapshot() {
           <div className="h-2 animate-pulse rounded-full bg-white/[0.06]" />
         </div>
       ) : state === "error" ? (
-        <p className="mt-2 text-[11.5px] leading-relaxed text-white/45">
+        <p className="mt-2 text-[11.5px] leading-relaxed text-textSecondary">
           We could not load your portfolio just now.{" "}
-          <Link href="/investing" className="font-semibold text-mkt-cyan hover:underline">
+          <Link href="/investing" className="font-semibold text-accent hover:underline">
             Open Portfolio →
           </Link>
         </p>
       ) : !data || data.performance.marketValue <= 0 ? (
         <>
-          <p className="mt-2 text-[11.5px] leading-relaxed text-white/45">
+          <p className="mt-2 text-[11.5px] leading-relaxed text-textSecondary">
             You don&apos;t hold any assets yet. Anything you buy will appear here.
           </p>
           <Link
             href="/investing"
-            className="mt-3 block w-full rounded-lg border border-white/[0.1] py-2 text-center text-[12px] font-semibold text-white transition-colors hover:border-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+            className="mt-3 block w-full rounded-lg border border-white/[0.1] py-2 text-center text-[12px] font-semibold text-white transition-colors hover:border-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             View Portfolio
           </Link>
         </>
       ) : (
         <>
-          <p className="mt-2.5 text-[11px] text-white/40">Total Value</p>
-          <p className="text-[22px] font-bold tracking-tight text-white mkt-num">
+          <p className="mt-2.5 text-[11px] text-textMuted">Total Value</p>
+          <p className="text-[22px] font-bold tracking-tight text-white font-mono">
             {usd(data.performance.marketValue)}
           </p>
 
           <p
-            className={`mt-0.5 text-[12px] font-semibold mkt-num ${
-              data.performance.dayChange >= 0 ? "text-mkt-up" : "text-mkt-down"
+            className={`mt-0.5 text-[12px] font-semibold font-mono ${
+              data.performance.dayChange >= 0 ? "text-gain" : "text-loss"
             }`}
           >
             {fmtPctSigned(data.performance.dayChangePct)}{" "}
-            <span className="text-white/35">
+            <span className="text-textMuted">
               ({data.performance.dayChange >= 0 ? "+" : ""}
               {usd(data.performance.dayChange)} today)
             </span>
@@ -177,14 +177,14 @@ export default function PortfolioSnapshot() {
               </div>
               <ul className="mt-2 flex flex-wrap gap-x-2.5 gap-y-1">
                 {slices.slice(0, 4).map((s) => (
-                  <li key={s.symbol} className="flex items-center gap-1 text-[10.5px] text-white/45">
+                  <li key={s.symbol} className="flex items-center gap-1 text-[10.5px] text-textSecondary">
                     <span
                       className="h-1.5 w-1.5 shrink-0 rounded-full"
                       style={{ backgroundColor: s.color }}
                       aria-hidden
                     />
                     {s.symbol}
-                    <span className="text-white/25 mkt-num">{s.pct.toFixed(0)}%</span>
+                    <span className="text-textMuted font-mono">{s.pct.toFixed(0)}%</span>
                   </li>
                 ))}
               </ul>
@@ -193,7 +193,7 @@ export default function PortfolioSnapshot() {
 
           <Link
             href="/investing"
-            className="mt-3.5 block w-full rounded-lg border border-white/[0.1] py-2 text-center text-[12px] font-semibold text-white transition-colors hover:border-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+            className="mt-3.5 block w-full rounded-lg border border-white/[0.1] py-2 text-center text-[12px] font-semibold text-white transition-colors hover:border-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             View Portfolio
           </Link>

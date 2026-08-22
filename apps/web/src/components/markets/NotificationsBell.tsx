@@ -53,7 +53,7 @@ export default function NotificationsBell({ className }: { className?: string })
         aria-label="Notifications"
         aria-haspopup="dialog"
         aria-expanded={open}
-        className="grid h-9 w-9 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/55 transition-colors hover:border-white/25 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+        className="tap flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05] text-textSecondary transition-colors hover:bg-white/[0.1] hover:text-textPrimary focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
       >
         <Bell className="h-[17px] w-[17px]" />
       </button>
@@ -62,10 +62,10 @@ export default function NotificationsBell({ className }: { className?: string })
         <div
           role="dialog"
           aria-label="Notifications"
-          className="mkt-pop mkt-pop-in absolute right-0 top-[calc(100%+8px)] z-50 w-[min(280px,calc(100vw-24px))] p-4"
+          className="app-pop app-pop-in absolute right-0 top-[calc(100%+8px)] z-50 w-[min(280px,calc(100vw-24px))] p-4"
         >
           <p className="text-[13px] font-bold text-white">Notifications</p>
-          <p className="mt-1.5 text-[12px] leading-relaxed text-white/45">
+          <p className="mt-1.5 text-[12px] leading-relaxed text-textSecondary">
             {status === "authenticated"
               ? "You have no notifications yet. Price and transaction alerts are delivered to your devices."
               : "Sign in to receive price and transaction alerts."}
@@ -73,7 +73,7 @@ export default function NotificationsBell({ className }: { className?: string })
           <Link
             href={status === "authenticated" ? "/profile" : "/login?next=/markets"}
             onClick={() => setOpen(false)}
-            className="mt-3 inline-block text-[12px] font-semibold text-mkt-cyan hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+            className="mt-3 inline-block text-[12px] font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {status === "authenticated" ? "Notification settings →" : "Sign in →"}
           </Link>

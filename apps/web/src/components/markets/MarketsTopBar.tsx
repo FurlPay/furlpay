@@ -8,6 +8,15 @@ import LiveStatus from "./LiveStatus";
 // ---------------------------------------------------------------------------
 // The sticky header: search on the left, live status, bell, avatar on the right.
 //
+// SAME BAND AS THE TICKER PAGE. /markets/[symbol] marks its identity block with
+// `app-ambient` — the burgundy radial wash — over a hairline bottom border, and
+// this header uses the same treatment at the same measure. Clicking a row
+// should not change the material the page is made of.
+//
+// The wash sits behind the HEADER ONLY, exactly as it does there. Running it
+// down the whole page would tint the sparklines, and their green and red are
+// the two colours on this surface that must stay true.
+//
 // Sticky rather than fixed, so it participates in the layout and cannot cover
 // the first row of the table on a short viewport.
 //
@@ -29,11 +38,11 @@ export default function MarketsTopBar({
   asOf: string | null;
 }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-mkt-bg/85 backdrop-blur-xl">
-      <div className="flex items-center gap-2.5 px-4 py-2.5 sm:gap-4 sm:px-5 lg:px-6">
-        <GlobalSearch universeSize={universeSize} className="min-w-0 flex-1 lg:max-w-[440px]" />
+    <header className="app-ambient sticky top-0 z-40 border-b border-white/[0.06]">
+      <div className="mx-auto flex max-w-[1440px] items-center gap-3 px-5 py-4 sm:gap-4 lg:px-8 2xl:px-12">
+        <GlobalSearch universeSize={universeSize} className="min-w-0 flex-1 lg:max-w-[460px]" />
 
-        <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-2.5">
+        <div className="ml-auto flex shrink-0 items-center gap-2">
           <LiveStatus live={live} asOf={asOf} className="hidden sm:flex" />
           <NotificationsBell />
           <ProfileMenu />

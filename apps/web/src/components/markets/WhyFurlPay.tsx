@@ -56,7 +56,7 @@ const CARDS = [
 
 export default function WhyFurlPay() {
   return (
-    <section className="mt-8 mkt-panel p-5" aria-labelledby="why-heading">
+    <section className="mt-8 surface-card p-5" aria-labelledby="why-heading">
       <h2 id="why-heading" className="text-[15px] font-bold tracking-tight text-white">
         Why trade on FurlPay?
       </h2>
@@ -66,15 +66,15 @@ export default function WhyFurlPay() {
           <li key={title}>
             <Link
               href={href}
-              className="flex h-full flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5 transition-colors hover:border-mkt-cyan/30 hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+              className="flex h-full flex-col rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5 transition-colors hover:border-accent/30 hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
             >
-              <span className="grid h-8 w-8 place-items-center rounded-lg bg-mkt-cyan/[0.12] text-mkt-cyan">
+              <span className="grid h-8 w-8 place-items-center rounded-lg bg-accent/[0.12] text-accent">
                 <Icon className="h-4 w-4" aria-hidden />
               </span>
               <span className="mt-2.5 block text-[12.5px] font-bold leading-snug text-white">
                 {title}
               </span>
-              <span className="mt-1 block text-[11px] leading-relaxed text-white/45">{body}</span>
+              <span className="mt-1 block text-[11px] leading-relaxed text-textSecondary">{body}</span>
             </Link>
           </li>
         ))}

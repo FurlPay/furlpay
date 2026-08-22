@@ -95,7 +95,7 @@ export default function AssetTable({
   }
 
   if (rows.length === 0) {
-    return <>{emptyState ?? <p className="py-14 text-center text-[13px] text-white/40">No assets match these filters.</p>}</>;
+    return <>{emptyState ?? <p className="py-14 text-center text-[13px] text-textMuted">No assets match these filters.</p>}</>;
   }
 
   return (
@@ -115,14 +115,14 @@ export default function AssetTable({
                     key={col.label}
                     scope="col"
                     aria-sort={active ? (dir === "asc" ? "ascending" : "descending") : undefined}
-                    className={`${col.className} ${col.wide ? "hidden xl:table-cell" : ""} py-2 text-[11px] font-semibold text-white/35`}
+                    className={`${col.className} ${col.wide ? "hidden xl:table-cell" : ""} py-2 text-[11px] font-semibold text-textMuted`}
                   >
                     {col.key ? (
                       <button
                         type="button"
                         onClick={() => onSort(col.key as SortKey)}
-                        className={`inline-flex items-center gap-1 rounded transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan ${
-                          active ? "text-mkt-cyan" : ""
+                        className={`inline-flex items-center gap-1 rounded transition-colors hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                          active ? "text-accent" : ""
                         }`}
                       >
                         {col.label}
@@ -205,12 +205,12 @@ const AssetTableRow = memo(function AssetTableRow({
         if (target.closest("a, button")) return;
         router.push(href);
       }}
-      className="group cursor-pointer border-b border-mkt-line transition-colors hover:bg-white/[0.03]"
+      className="group cursor-pointer border-b border-white/[0.05] transition-colors hover:bg-white/[0.03]"
     >
       <td className="w-[52px] py-2 pl-3">
         <span className="flex items-center gap-1">
           <WatchStar symbol={row.symbol} starred={starred} onToggle={onToggleStar} size={14} />
-          <span className="text-[11.5px] text-white/30 mkt-num">{index}</span>
+          <span className="text-[11.5px] text-textMuted font-mono">{index}</span>
         </span>
       </td>
 
@@ -222,44 +222,44 @@ const AssetTableRow = memo(function AssetTableRow({
               <Link
                 href={href}
                 onClick={(e) => e.stopPropagation()}
-                className="truncate text-[13px] font-bold text-white hover:text-mkt-cyan focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+                className="truncate text-[13px] font-bold text-white hover:text-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
               >
                 {row.symbol}
               </Link>
-              <span className="shrink-0 rounded border border-white/[0.09] px-1 py-px text-[9.5px] font-semibold text-white/40">
+              <span className="shrink-0 rounded border border-white/[0.09] px-1 py-px text-[9.5px] font-semibold text-textMuted">
                 {row.category ?? KIND_LABEL[row.kind]}
               </span>
             </span>
-            <span className="block max-w-[220px] truncate text-[11px] text-white/40">{row.name}</span>
+            <span className="block max-w-[220px] truncate text-[11px] text-textMuted">{row.name}</span>
           </span>
         </span>
       </td>
 
-      <td className="w-[110px] py-2 text-right text-[12.5px] font-semibold text-white mkt-num">
+      <td className="w-[110px] py-2 text-right text-[12.5px] font-semibold text-white font-mono">
         {fmtPrice(row.price)}
       </td>
 
       <td
-        className={`w-[86px] py-2 text-right text-[12.5px] font-semibold mkt-num ${
-          row.changePct == null ? "text-white/25" : up24 ? "text-mkt-up" : "text-mkt-down"
+        className={`w-[86px] py-2 text-right text-[12.5px] font-semibold font-mono ${
+          row.changePct == null ? "text-textMuted" : up24 ? "text-gain" : "text-loss"
         }`}
       >
         {fmtPctSigned(row.changePct)}
       </td>
 
       <td
-        className={`hidden w-[86px] py-2 text-right text-[12.5px] font-semibold mkt-num xl:table-cell ${
-          row.changePct7d == null ? "text-white/25" : up7 ? "text-mkt-up" : "text-mkt-down"
+        className={`hidden w-[86px] py-2 text-right text-[12.5px] font-semibold font-mono xl:table-cell ${
+          row.changePct7d == null ? "text-textMuted" : up7 ? "text-gain" : "text-loss"
         }`}
       >
         {fmtPctSigned(row.changePct7d)}
       </td>
 
-      <td className="w-[104px] py-2 text-right text-[12.5px] text-white/70 mkt-num">
+      <td className="w-[104px] py-2 text-right text-[12.5px] text-textSecondary font-mono">
         {row.marketCap == null ? DASH : fmtMoneyCompact(row.marketCap)}
       </td>
 
-      <td className="hidden w-[110px] py-2 text-right text-[12.5px] text-white/70 mkt-num xl:table-cell">
+      <td className="hidden w-[110px] py-2 text-right text-[12.5px] text-textSecondary font-mono xl:table-cell">
         {row.volume24h == null
           ? DASH
           : // Crypto volume is a USD figure; equity volume is a share count.
@@ -278,7 +278,7 @@ const AssetTableRow = memo(function AssetTableRow({
           <Link
             href={canTrade ? `${href}?action=trade` : `/login?next=${encodeURIComponent(href)}`}
             onClick={(e) => e.stopPropagation()}
-            className="rounded-lg border border-white/[0.1] px-2.5 py-1 text-[11.5px] font-semibold text-white/80 transition-colors hover:border-mkt-cyan/50 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+            className="rounded-lg border border-white/[0.1] px-2.5 py-1 text-[11.5px] font-semibold text-white/80 transition-colors hover:border-accent/50 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             Trade
           </Link>
@@ -286,7 +286,7 @@ const AssetTableRow = memo(function AssetTableRow({
             href={href}
             onClick={(e) => e.stopPropagation()}
             aria-label={`More about ${row.name}`}
-            className="grid h-6 w-6 place-items-center rounded-lg text-white/30 transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mkt-cyan"
+            className="grid h-6 w-6 place-items-center rounded-lg text-textMuted transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent"
           >
             <MoreHorizontal className="h-3.5 w-3.5" />
           </Link>
@@ -313,29 +313,29 @@ const AssetCard = memo(function AssetCard({
 }) {
   const up = row.changePct != null && row.changePct >= 0;
   return (
-    <li className="border-b border-mkt-line">
+    <li className="border-b border-white/[0.05]">
       <Link
         href={`/markets/${encodeURIComponent(row.symbol)}`}
-        className="flex items-center gap-2.5 py-2.5 transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-mkt-cyan"
+        className="flex items-center gap-2.5 py-2.5 transition-colors hover:bg-white/[0.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       >
         <WatchStar symbol={row.symbol} starred={starred} onToggle={onToggleStar} size={15} />
-        <span className="w-4 shrink-0 text-[11px] text-white/25 mkt-num">{index}</span>
+        <span className="w-4 shrink-0 text-[11px] text-textMuted font-mono">{index}</span>
         <AssetLogo src={row.logo} label={row.symbol} size={32} className="shrink-0" />
 
         <span className="min-w-0 flex-1">
           <span className="block truncate text-[13.5px] font-bold text-white">{row.symbol}</span>
-          <span className="block truncate text-[11px] text-white/40">{row.name}</span>
+          <span className="block truncate text-[11px] text-textMuted">{row.name}</span>
         </span>
 
         <Sparkline points={row.spark} width={54} height={24} className="hidden shrink-0 sm:block" />
 
         <span className="shrink-0 text-right">
-          <span className="block text-[13px] font-semibold text-white mkt-num">
+          <span className="block text-[13px] font-semibold text-white font-mono">
             {fmtPrice(row.price)}
           </span>
           <span
-            className={`block text-[11.5px] font-semibold mkt-num ${
-              row.changePct == null ? "text-white/25" : up ? "text-mkt-up" : "text-mkt-down"
+            className={`block text-[11.5px] font-semibold font-mono ${
+              row.changePct == null ? "text-textMuted" : up ? "text-gain" : "text-loss"
             }`}
           >
             {fmtPctSigned(row.changePct)}

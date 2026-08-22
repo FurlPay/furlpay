@@ -43,8 +43,8 @@ export default function WatchStar({
         // Enter inside a link row would follow the link. Claim both keys.
         if (e.key === "Enter" || e.key === " ") e.stopPropagation();
       }}
-      className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-mkt-cyan ${
-        starred ? "text-amber-300" : "text-white/25 hover:text-white/60"
+      className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg transition-colors hover:bg-white/[0.07] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent ${
+        starred ? "text-amber-300" : "text-textMuted hover:text-textSecondary"
       } ${className ?? ""}`}
     >
       <Star

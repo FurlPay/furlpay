@@ -59,30 +59,6 @@ const config: Config = {
           app: "#F4F6F5", // phone app background
           dark: "#111715", // Apple Wallet button / dark controls
         },
-        // ── Markets terminal (/markets) ────────────────────────────────────
-        // A third register, and the reason it is its own scale rather than a
-        // retune of `term`: the trading terminal is BLUE-grey with a neon-green
-        // accent, and the markets surface is near-black navy with a CYAN one.
-        // Pointing both at the same tokens would mean every future adjustment
-        // to /dashboard/terminal silently repaints /markets, and vice versa.
-        //
-        // Cyan, not the consumer app's red `accent`: on a page where green
-        // means "up" and red means "down", a red brand accent on a selected
-        // filter pill reads as a market signal. The active state has to sit
-        // outside the gain/loss axis entirely, which is what cyan buys.
-        mkt: {
-          bg: "#05070D", // page ground
-          deep: "#03050A", // vignette / far corners
-          panel: "#0B0F1A", // card + rail surface
-          raised: "#121826", // hover, and the row a pointer is on
-          border: "#1B2333", // hairline between panels
-          line: "#141B29", // table row separator — quieter than `border`
-          cyan: "#22D3EE", // selected / active
-          cyanDeep: "#0891B2", // pressed, and cyan text on a light fill
-          violet: "#8B5CF6", // secondary accent — badges, promo card
-          up: "#34D399", // positive move
-          down: "#F87171", // negative move
-        },
       },
       borderRadius: {
         card: "18px",
