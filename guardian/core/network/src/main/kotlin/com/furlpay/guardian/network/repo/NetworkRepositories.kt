@@ -2,6 +2,7 @@ package com.furlpay.guardian.network.repo
 
 import com.furlpay.guardian.domain.GuardianResult
 import com.furlpay.guardian.domain.model.AssetDetail
+import com.furlpay.guardian.domain.model.BoardingPass
 import com.furlpay.guardian.domain.model.BookingReceipt
 import com.furlpay.guardian.domain.model.Candle
 import com.furlpay.guardian.domain.model.Card
@@ -98,6 +99,26 @@ class FurlPayTravelRepository(private val api: FurlPayApi) : TravelRepository {
             api.trips().upcoming
                 .mapNotNull { it.toDomain() }
                 .sortedBy { it.startAt }
+        }
+
+    /**
+     * The caller's flight boarding passes, soonest departure first.
+     *
+     * Rows whose instants do not parse are dropped by [BoardingPassDto.toDomain]
+     * rather than surfaced with a fabricated timeline, and landed flights are
+     * already filtered server-side. An empty list therefore means "nothing to
+     * board", which is exactly what the Trips screen renders — never a
+     * placeholder pass.
+     *
+     * Not on the [TravelRepository] interface, for the same reason [deals] and
+     * [flights] are not: that contract is the narrow one :core:ai and the watch
+     * compile against, and only the phone shows a gate document.
+     */
+    suspend fun boardingPasses(): GuardianResult<List<BoardingPass>> =
+        guard {
+            api.boardingPasses().passes
+                .mapNotNull { it.toDomain() }
+                .sortedBy { it.departsAt }
         }
 
     /** Trip rows with amount/method/status — what the watch travel list shows. */

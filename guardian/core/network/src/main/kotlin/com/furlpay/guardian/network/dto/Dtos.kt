@@ -1,11 +1,16 @@
 package com.furlpay.guardian.network.dto
 
 import com.furlpay.guardian.domain.model.AssetDetail
+import com.furlpay.guardian.domain.model.BoardingPass
+import com.furlpay.guardian.domain.model.BoardingPassFlight
+import com.furlpay.guardian.domain.model.BoardingPassPassenger
+import com.furlpay.guardian.domain.model.BoardingPassPayment
 import com.furlpay.guardian.domain.model.BookingReceipt
 import com.furlpay.guardian.domain.model.Candle
 import com.furlpay.guardian.domain.model.Card
 import com.furlpay.guardian.domain.model.CardLimits
 import com.furlpay.guardian.domain.model.FlightOffer
+import com.furlpay.guardian.domain.model.FlightStatus
 import com.furlpay.guardian.domain.model.MarketQuote
 import com.furlpay.guardian.domain.model.OrderFill
 import com.furlpay.guardian.domain.model.Portfolio
@@ -496,5 +501,117 @@ internal fun parseFlexibleInstant(value: String): Instant? {
         } catch (_: Exception) {
             null
         }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GET /api/travel/boarding-passes — { count, passes[] }
+//
+// Shape verified against apps/web/src/app/api/travel/boarding-passes/route.ts.
+// The route strips `userId` and appends the two clock-derived fields, so what
+// arrives is the stored pass minus ownership plus minutesToBoarding/progress.
+//
+// The same payload feeds web, the Expo app and SwiftUI. Every field the pass
+// PRINTS is required — a gate document with a defaulted seat or gate is worse
+// than no document, because it looks authoritative. Only the derived numbers
+// and `verified` carry defaults, and toDomain() drops any row whose instants
+// do not parse rather than rendering a pass with a fabricated timeline.
+// ---------------------------------------------------------------------------
+
+@Serializable
+data class BoardingPassesResponse(
+    val count: Int = 0,
+    val passes: List<BoardingPassDto> = emptyList(),
+)
+
+@Serializable
+data class BoardingPassFlightDto(
+    val number: String,
+    val aircraft: String,
+    val originCode: String,
+    val originCity: String,
+    val destinationCode: String,
+    val destinationCity: String,
+    val gate: String,
+    val seat: String,
+    val boardingTime: String,
+    val departureTime: String,
+    val arrivalTime: String,
+) {
+    fun toDomain() = BoardingPassFlight(
+        number = number,
+        aircraft = aircraft,
+        originCode = originCode,
+        originCity = originCity,
+        destinationCode = destinationCode,
+        destinationCity = destinationCity,
+        gate = gate,
+        seat = seat,
+        boardingTime = boardingTime,
+        departureTime = departureTime,
+        arrivalTime = arrivalTime,
+    )
+}
+
+@Serializable
+data class BoardingPassPassengerDto(
+    val name: String,
+    val verified: Boolean = false,
+) {
+    fun toDomain() = BoardingPassPassenger(name = name, verified = verified)
+}
+
+@Serializable
+data class BoardingPassPaymentDto(
+    val currency: String = "USDC",
+    val amount: Double = 0.0,
+    val rewardsRate: Double = 0.0,
+) {
+    fun toDomain() = BoardingPassPayment(
+        currency = currency,
+        amount = amount,
+        rewardsRate = rewardsRate,
+    )
+}
+
+@Serializable
+data class BoardingPassDto(
+    val id: String,
+    val title: String = "",
+    val routeLabel: String = "",
+    val flight: BoardingPassFlightDto,
+    val passenger: BoardingPassPassengerDto,
+    val payment: BoardingPassPaymentDto = BoardingPassPaymentDto(),
+    val boardingAt: String,
+    val departsAt: String,
+    val arrivesAt: String,
+    val status: String? = null,
+    val minutesToBoarding: Int? = null,
+    val progress: Double = 0.0,
+) {
+    /**
+     * Null when the timeline is unusable. Every countdown, the status ladder
+     * and the route progress are derived from these three instants, so a pass
+     * that cannot supply them cannot be rendered honestly — dropping the row
+     * is the only non-fabricating option.
+     */
+    fun toDomain(): BoardingPass? {
+        val boarding = parseFlexibleInstant(boardingAt) ?: return null
+        val departs = parseFlexibleInstant(departsAt) ?: return null
+        val arrives = parseFlexibleInstant(arrivesAt) ?: return null
+        return BoardingPass(
+            id = id,
+            title = title,
+            routeLabel = routeLabel,
+            flight = flight.toDomain(),
+            passenger = passenger.toDomain(),
+            payment = payment.toDomain(),
+            boardingAt = boarding,
+            departsAt = departs,
+            arrivesAt = arrives,
+            status = FlightStatus.fromWire(status),
+            minutesToBoarding = minutesToBoarding,
+            progress = progress.coerceIn(0.0, 1.0),
+        )
     }
 }

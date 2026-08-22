@@ -36,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
 import com.furlpay.guardian.mobile.ui.LiveVoiceScreen
 import com.furlpay.guardian.mobile.ui.TapToPayScreen
+import com.furlpay.guardian.mobile.ui.trips.TripsScreen
 import com.furlpay.guardian.mobile.ui.UpiScanScreen
 import com.furlpay.guardian.mobile.ui.NewReminderDialog
 import com.furlpay.guardian.mobile.ui.ReminderRow
@@ -77,6 +78,7 @@ private fun GuardianRoot() {
     var showVoice by rememberSaveable { mutableStateOf(false) }
     var showTapToPay by rememberSaveable { mutableStateOf(false) }
     var showUpiScan by rememberSaveable { mutableStateOf(false) }
+    var showTrips by rememberSaveable { mutableStateOf(false) }
 
     // Signing out must close whatever was open. These are rememberSaveable, so
     // without this a merchant who signs out from the terminal is dropped
@@ -86,16 +88,18 @@ private fun GuardianRoot() {
             showVoice = false
             showTapToPay = false
             showUpiScan = false
+            showTrips = false
         }
     }
 
     // System Back closes the current surface instead of leaving the app.
     // Without a handler, Back on the voice or terminal screen exits Guardian
     // outright — on Android that reads as a crash, not as navigation.
-    BackHandler(enabled = showVoice || showTapToPay || showUpiScan) {
+    BackHandler(enabled = showVoice || showTapToPay || showUpiScan || showTrips) {
         showVoice = false
         showTapToPay = false
         showUpiScan = false
+        showTrips = false
     }
 
     Scaffold { padding ->
@@ -113,10 +117,12 @@ private fun GuardianRoot() {
                             onClose = { showTapToPay = false },
                         )
                         showUpiScan -> UpiScanScreen(onClose = { showUpiScan = false })
+                        showTrips -> TripsScreen(onClose = { showTrips = false })
                         else -> DashboardScreen(
                             onOpenVoice = { showVoice = true },
                             onOpenTapToPay = { showTapToPay = true },
                             onOpenUpiScan = { showUpiScan = true },
+                            onOpenTrips = { showTrips = true },
                         )
                     }
             }
@@ -180,6 +186,7 @@ private fun DashboardScreen(
     onOpenVoice: () -> Unit,
     onOpenTapToPay: () -> Unit,
     onOpenUpiScan: () -> Unit,
+    onOpenTrips: () -> Unit,
     viewModel: DashboardViewModel = viewModel(),
     remindersViewModel: RemindersViewModel = viewModel(),
 ) {
@@ -222,6 +229,7 @@ private fun DashboardScreen(
                 OutlinedButton(onClick = onOpenVoice) { Text("Voice") }
                 OutlinedButton(onClick = onOpenTapToPay) { Text("Take payment") }
                 OutlinedButton(onClick = onOpenUpiScan) { Text("Scan UPI") }
+                OutlinedButton(onClick = onOpenTrips) { Text("Trips") }
                 OutlinedButton(onClick = viewModel::signOut) { Text("Sign out") }
             }
         }

@@ -4,6 +4,8 @@ import com.furlpay.guardian.domain.GuardianResult
 import com.furlpay.guardian.domain.action.Confirmation
 import com.furlpay.guardian.domain.action.GuardianActionRegistry
 import com.furlpay.guardian.domain.action.ResolvedConfirmation
+import com.furlpay.guardian.domain.model.BoardingPass
+import com.furlpay.guardian.domain.model.FlightStatus
 import com.furlpay.guardian.domain.model.SpendingPeriod
 import com.furlpay.guardian.domain.model.TravelKind
 import com.furlpay.guardian.network.repo.FurlPayCardRepository
@@ -17,6 +19,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlinx.coroutines.test.runTest
+import kotlinx.datetime.Instant
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
@@ -134,6 +137,109 @@ class NetworkRepositoriesTest {
         assertEquals(TravelKind.HOTEL, bookings[0].kind)
         assertEquals("Marriott Marquis", bookings[0].title)
         assertEquals("Singapore · 3 nights", bookings[0].detail)
+    }
+
+    @Test
+    fun `boarding passes parse, sort by departure, and keep the derived fields`() = runTest {
+        // Enqueued out of order on purpose: the screen shows the soonest
+        // departure first, and it must not depend on the server's ordering.
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"count":2,"passes":[
+                  {"id":"bp_later","title":"Tokyo Trip","routeLabel":"Paris to Tokyo",
+                   "flight":{"number":"GE900","aircraft":"B789","originCode":"CDG",
+                     "originCity":"Paris","destinationCode":"HND","destinationCity":"Tokyo",
+                     "gate":"K12","seat":"3C","boardingTime":"11:00","departureTime":"11:40",
+                     "arrivalTime":"06:20"},
+                   "passenger":{"name":"Arthur Fleck","verified":true},
+                   "payment":{"currency":"USDC","amount":1240.0,"rewardsRate":2},
+                   "boardingAt":"2026-09-01T09:00:00Z","departsAt":"2026-09-01T09:40:00Z",
+                   "arrivesAt":"2026-09-01T21:20:00Z","status":"scheduled",
+                   "minutesToBoarding":null,"progress":0},
+                  {"id":"bp_sooner","title":"Paris Trip","routeLabel":"New York to Paris",
+                   "flight":{"number":"GE352","aircraft":"A321","originCode":"JFK",
+                     "originCity":"New York","destinationCode":"CDG","destinationCity":"Paris",
+                     "gate":"34","seat":"19A","boardingTime":"10:20","departureTime":"17:20",
+                     "arrivalTime":"07:30"},
+                   "passenger":{"name":"Arthur Fleck","verified":true},
+                   "payment":{"currency":"USDC","amount":486.2,"rewardsRate":2},
+                   "boardingAt":"2026-08-22T17:00:00Z","departsAt":"2026-08-22T17:40:00Z",
+                   "arrivesAt":"2026-08-23T01:00:00Z","status":"boarding_soon",
+                   "minutesToBoarding":18,"progress":0}
+                ]}
+                """.trimIndent(),
+            ),
+        )
+
+        val passes = assertIs<GuardianResult.Ok<List<BoardingPass>>>(
+            FurlPayTravelRepository(client.api).boardingPasses(),
+        ).value
+
+        assertEquals(listOf("bp_sooner", "bp_later"), passes.map { it.id })
+
+        val paris = passes.first()
+        assertEquals("GE352", paris.flight.number)
+        assertEquals("34", paris.flight.gate)
+        assertEquals("19A", paris.flight.seat)
+        assertEquals("Arthur Fleck", paris.passenger.name)
+        assertTrue(paris.passenger.verified)
+        assertEquals(FlightStatus.BOARDING_SOON, paris.status)
+        assertEquals(18, paris.minutesToBoarding)
+        assertEquals(Instant.parse("2026-08-22T17:00:00Z"), paris.boardingAt)
+
+        assertEquals("/api/travel/boarding-passes", server.takeRequest().path)
+    }
+
+    @Test
+    fun `a pass with an unparseable timeline is dropped, not rendered`() = runTest {
+        // Every countdown on the screen derives from these instants. A row that
+        // cannot supply them has no honest rendering, so it is dropped rather
+        // than shown with a fabricated clock beside a real gate and seat.
+        server.enqueue(
+            MockResponse().setBody(
+                """
+                {"count":2,"passes":[
+                  {"id":"bp_broken","title":"Paris Trip","routeLabel":"New York to Paris",
+                   "flight":{"number":"GE352","aircraft":"A321","originCode":"JFK",
+                     "originCity":"New York","destinationCode":"CDG","destinationCity":"Paris",
+                     "gate":"34","seat":"19A","boardingTime":"10:20","departureTime":"17:20",
+                     "arrivalTime":"07:30"},
+                   "passenger":{"name":"Arthur Fleck","verified":true},
+                   "boardingAt":"soon","departsAt":"2026-08-22T17:40:00Z",
+                   "arrivesAt":"2026-08-23T01:00:00Z"},
+                  {"id":"bp_ok","title":"Paris Trip","routeLabel":"New York to Paris",
+                   "flight":{"number":"GE352","aircraft":"A321","originCode":"JFK",
+                     "originCity":"New York","destinationCode":"CDG","destinationCity":"Paris",
+                     "gate":"34","seat":"19A","boardingTime":"10:20","departureTime":"17:20",
+                     "arrivalTime":"07:30"},
+                   "passenger":{"name":"Arthur Fleck","verified":true},
+                   "boardingAt":"2026-08-22T17:00:00Z","departsAt":"2026-08-22T17:40:00Z",
+                   "arrivesAt":"2026-08-23T01:00:00Z"}
+                ]}
+                """.trimIndent(),
+            ),
+        )
+
+        val passes = assertIs<GuardianResult.Ok<List<BoardingPass>>>(
+            FurlPayTravelRepository(client.api).boardingPasses(),
+        ).value
+
+        assertEquals(listOf("bp_ok"), passes.map { it.id })
+        // Absent payment block defaults rather than failing the whole parse.
+        assertEquals("USDC", passes[0].payment.currency)
+        assertEquals(0.0, passes[0].payment.amount)
+    }
+
+    @Test
+    fun `no boarding passes is an empty list, never a placeholder`() = runTest {
+        server.enqueue(MockResponse().setBody("""{"count":0,"passes":[]}"""))
+
+        val passes = assertIs<GuardianResult.Ok<List<BoardingPass>>>(
+            FurlPayTravelRepository(client.api).boardingPasses(),
+        ).value
+
+        assertTrue(passes.isEmpty())
     }
 
     @Test

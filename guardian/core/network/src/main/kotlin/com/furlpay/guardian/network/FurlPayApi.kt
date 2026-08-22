@@ -2,6 +2,7 @@ package com.furlpay.guardian.network
 
 import com.furlpay.guardian.network.dto.AssetDetailResponse
 import com.furlpay.guardian.network.dto.BarsResponse
+import com.furlpay.guardian.network.dto.BoardingPassesResponse
 import com.furlpay.guardian.network.dto.BookRequest
 import com.furlpay.guardian.network.dto.BookResponse
 import com.furlpay.guardian.network.dto.CardSettingsRequest
@@ -55,6 +56,14 @@ interface FurlPayApi {
 
     @GET("travel/trips")
     suspend fun trips(): TripsResponse
+
+    /**
+     * Flight boarding passes for the signed-in caller. Session-scoped
+     * server-side — a pass carries the passenger's name, seat and gate, so
+     * there is no userId parameter to get wrong here.
+     */
+    @GET("travel/boarding-passes")
+    suspend fun boardingPasses(): BoardingPassesResponse
 
     @GET("markets")
     suspend fun markets(
