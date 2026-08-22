@@ -45,3 +45,11 @@ packages/contracts
 # working directory, so without this a competitor's site would be published
 # from furlpay.com.
 /reference
+
+# Never upload local env files. The CLI already honours .gitignore, but this
+# is the belt to that braces: an env file reaching the build would put
+# credentials into a deployment artifact, and Vercel's own project env vars are
+# the only place production secrets should come from.
+.env
+.env.*
+!.env.example
