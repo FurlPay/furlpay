@@ -30,6 +30,27 @@
 import { kvDel, kvGet, kvListPush, kvListRange, kvSet, kvSetNx } from "@/lib/kv";
 import { log } from "@/lib/log";
 
+// ---------------------------------------------------------------------------
+// A PLATFORM CONSTRAINT WORTH KNOWING, because it changes what this scheduler
+// can promise. This Vercel project is on the Hobby plan, which permits cron
+// expressions that fire AT MOST ONCE PER DAY -- a `*/30 * * * *` schedule is
+// rejected at deploy time. vercel.json therefore runs reconciliation daily.
+//
+// Daily reconciliation is real and far better than none, but it is not the
+// cadence this code was designed for: a discrepancy can now stand for up to 24
+// hours before anything notices. The mitigations already in place are what make
+// that survivable rather than acceptable:
+//
+//   - GET /api/investing/orders syncs on read, so a user looking at their own
+//     orders gets current state without waiting for the daily tick.
+//   - The order record is written before submission, so nothing is lost in the
+//     interval -- only unnoticed.
+//
+// Raising the cadence needs a Pro plan, or an external scheduler calling
+// /api/cron/* with FURLPAY_CRON_SECRET on whatever interval it likes. The
+// endpoints are indifferent to who invokes them.
+// ---------------------------------------------------------------------------
+
 /** How long a job's lock survives if the process dies holding it. */
 const LOCK_TTL_SECONDS = 300;
 /** Execution records are kept long enough to answer "did it run last week". */
