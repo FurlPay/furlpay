@@ -8,6 +8,9 @@ import { registryAudit } from "@/lib/onchain/stockTokenRegistry";
 import { evmRpcFor, solanaRpc } from "@/lib/onchain/balances";
 import { backerAudit } from "@/lib/markets/backers";
 import { kvBackend } from "@/lib/kv";
+import { cronConfigured } from "@/lib/cron/auth";
+import { notifierConfigured } from "@/lib/alerts";
+import { lastRun } from "@/lib/cron/runner";
 
 // GET /api/ops/readiness — can this deployment move real money, and if not, why?
 //
@@ -143,6 +146,38 @@ export async function GET(req: NextRequest) {
         : kms === "env"
           ? "Signing keys are read from environment variables. Acceptable outside production; not for production custody."
           : `Signing goes through ${kms}.`,
+  });
+
+  // ── Scheduler ─────────────────────────────────────────────────────────
+  checks.push({
+    id: "cron.configured",
+    ok: cronConfigured(),
+    blocking: false,
+    detail: cronConfigured()
+      ? "A cron secret is set; scheduled jobs will run."
+      : "No CRON_SECRET or FURLPAY_CRON_SECRET. Scheduled jobs return 503 and reconciliation never runs.",
+  });
+
+  // Has the reconciler actually run, as opposed to merely being configured?
+  // The distinction matters: a job that silently stops generates no errors.
+  const reconcileRun = await lastRun("brokerage.reconcile");
+  checks.push({
+    id: "cron.reconcile_ran",
+    ok: reconcileRun !== null,
+    blocking: false,
+    detail: reconcileRun
+      ? `Reconciliation last ran ${reconcileRun.finishedAt} (ok: ${reconcileRun.ok}).`
+      : "Reconciliation has never run on this deployment.",
+  });
+
+  // ── Alerting ──────────────────────────────────────────────────────────
+  checks.push({
+    id: "alerts.notifier",
+    ok: notifierConfigured(),
+    blocking: false,
+    detail: notifierConfigured()
+      ? "An alert notifier is configured."
+      : "No alert notifier. Findings are written to logs only — nobody is paged.",
   });
 
   const blockingFailures = checks.filter((c) => c.blocking && !c.ok);

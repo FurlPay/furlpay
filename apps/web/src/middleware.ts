@@ -121,6 +121,14 @@ const PUBLIC_API_PREFIXES = [
   "/api/agents", // public Agent Console demo data
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
+  // Scheduled jobs. NOT public: every /api/cron route calls requireCron(),
+  // which demands a constant-time match against CRON_SECRET or
+  // FURLPAY_CRON_SECRET and returns 503 when neither is configured. The
+  // middleware has to stand aside because Vercel Cron authenticates with an
+  // `Authorization: Bearer` header and carries no session cookie — without
+  // this entry the cookie gate returns 401 before the route's own, stronger
+  // check ever runs, and the scheduler silently never fires.
+  "/api/cron",
   "/api/markets", // public market data — powers the research portal's pulse strip
   "/api/insights", // public research metadata
   "/api/travel", // FurlPay Travels — public search/deals/booking demo surface
