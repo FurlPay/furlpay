@@ -64,26 +64,31 @@ export default function AssetDetailPage() {
   }, [symbol]);
   useEffect(() => load(), [load]);
 
+  // Loading and not-found commit to NEITHER layout.
+  //
+  // The media query only resolves after mount, so a phone-framed spinner would
+  // render on a desktop too — 440px column, floating tab bar and all — and then
+  // snap to the full-width terminal the moment the quote landed. Centring on
+  // the shared ambient ground is correct at every width and reflows into
+  // neither layout.
   if (missing) {
     return (
-      <PhoneFrame>
-        <div className="px-5 py-16 text-center">
-          <p className="font-semibold">Asset not found</p>
-          <p className="mt-1 text-[13px] text-textSecondary">
-            No exchange lists {String(symbol).toUpperCase()}.
-          </p>
-          <Link href="/markets" className="mt-3 inline-block text-[13px] text-accent">
-            Back to markets
-          </Link>
-        </div>
-      </PhoneFrame>
+      <div className="app-ambient flex min-h-screen flex-col items-center justify-center px-5 text-center">
+        <p className="font-semibold">Asset not found</p>
+        <p className="mt-1 text-[13px] text-textSecondary">
+          No exchange lists {String(symbol).toUpperCase()}.
+        </p>
+        <Link href="/markets" className="mt-3 text-[13px] text-accent hover:underline">
+          Back to markets
+        </Link>
+      </div>
     );
   }
   if (!data) {
     return (
-      <PhoneFrame>
+      <div className="app-ambient flex min-h-screen items-center justify-center">
         <Spinner />
-      </PhoneFrame>
+      </div>
     );
   }
 
