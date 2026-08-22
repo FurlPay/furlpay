@@ -1,9 +1,30 @@
 name: CI
 
+# `extension-redesign` is the branch development actually happens on — it runs
+# 18+ commits ahead of main for weeks at a time and is pushed to directly. With
+# only [main] here, every one of those pushes ran NO CI, and the `Build web app`
+# step below — the one that runs `next build` — first executed on Vercel.
+# That is how commits 024b84b and 941ab52 shipped a lint error that broke two
+# production deployments while `tsc --noEmit` and the unit tests stayed green.
+#
+# Dependabot and other short-lived branches are covered by `pull_request`, so
+# they are not listed: adding them would double every run.
 on:
   push:
-    branches: [main]
+    branches: [main, extension-redesign]
   pull_request:
+
+# One run per ref. Pushing three times in a minute should leave one live run,
+# not three competing for the same runners.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Least privilege: every job here builds and tests, none writes to the repo.
+# Publishing and release automation live in release*.yml, which declare their
+# own elevated scopes.
+permissions:
+  contents: read
 
 jobs:
   web-and-node:
