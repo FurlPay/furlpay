@@ -16,6 +16,7 @@ import {
 } from "@/lib/travel/data";
 import { searchDuffelFlights, searchDuffelStays, searchDuffelCars } from "@/lib/travel/duffel";
 import { assessResultSet, rankingWeight } from "@/lib/property/intelligence";
+import { rankStays } from "@/lib/travel/ranking";
 
 // POST /api/travel/search — search travel inventory.
 // Body: { type: "stays"|"flights"|"cars"|"activities", city, checkIn, checkOut,
@@ -106,15 +107,21 @@ export async function POST(req: NextRequest) {
 
     const sellable = stays.filter((x) => !trustById.get(x.id)?.suppress);
 
-    // Trust nudges the order; it does not become the sort key. A cheaper,
-    // better-located property must not be buried because its country runs no
-    // public register — that would demote everything outside a handful of
-    // European jurisdictions.
-    const ranked = [...sellable].sort((a, b) => {
-      const wa = trustById.get(a.id) ? rankingWeight(trustById.get(a.id)!) : 1;
-      const wb = trustById.get(b.id) ? rankingWeight(trustById.get(b.id)!) : 1;
-      if (wa !== wb) return wb - wa;
-      return 0;
+    // Ranked on quality, value, trust and fit — see lib/travel/ranking.ts.
+    //
+    // The headline behaviour: ratings are Bayesian-shrunk by review count, so a
+    // 5.0 from two reviews cannot outrank a 4.6 from three thousand. A brand-new
+    // listing with two friendly reviews is exactly what a fraudulent one looks
+    // like, and a raw-average sort promotes it.
+    const ranked = rankStays(sellable, {
+      preferences: {
+        maxNightlyUsd: body.maxNightlyUsd ? Number(body.maxNightlyUsd) : undefined,
+        minStars: body.minStars ? Number(body.minStars) : undefined,
+      },
+      trustWeight: (id) => {
+        const trust = trustById.get(id);
+        return trust ? rankingWeight(trust) : 1;
+      },
     });
 
     return NextResponse.json({
@@ -122,10 +129,15 @@ export async function POST(req: NextRequest) {
       city: body.city ?? "",
       nights: n,
       count: ranked.length,
-      results: ranked.map((x) => {
+      results: ranked.map(({ stay: x, adjustedRating, effectiveNightlyUsd }) => {
         const trust = trustById.get(x.id);
         return {
           ...x,
+          /** The rating after shrinking for review count. Differs from
+           *  `rating` on purpose, and is what the order was computed from. */
+          adjustedRating: Math.round(adjustedRating * 100) / 100,
+          /** Per-night cost after cashback — what the traveller actually pays. */
+          effectiveNightlyUsd,
           // Only what a traveller should see. The evidence array, the score and
           // the contradiction list stay server-side: a precise percentage
           // beside a price reads as a quality rating, which is not what it is.

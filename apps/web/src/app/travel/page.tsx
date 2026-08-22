@@ -29,7 +29,7 @@ import TripMatchSearch from "@/components/travel/TripMatchSearch";
 import { DESTINATION_CATEGORIES, TRAVEL_STATS, type Deal } from "@/lib/travel/data";
 
 const STEPS = [
-  { Icon: Search, title: "Search", body: "Find stays, flights, cars & activities from 2.2M+ listings." },
+  { Icon: Search, title: "Search", body: "Search stays, flights, cars and activities — book and pay in crypto." },
   { Icon: CalendarCheck, title: "Book", body: "Pick your room, flight or car and add traveler info." },
   { Icon: Coins, title: "Pay", body: "Pay with USDC, SOL or 100+ cryptos. Instant settlement." },
   { Icon: Wallet, title: "Earn", body: "Get 2% cashback in USDC, auto-deposited to your wallet." },
@@ -70,14 +70,27 @@ export default function TravelHubPage() {
       {/* Hero */}
       <div className="mb-3 flex items-center gap-2">
         <Pill tone="accent">FurlPay Travels</Pill>
-        <span className="text-xs text-textSecondary">Powered by Travala · Settled via x402</span>
+        {/* Attribution names what this app actually calls.
+            /api/travel/search reaches Duffel Stays and Duffel Flights when
+            DUFFEL_API_KEY is set, and the deterministic generator otherwise —
+            each response says which in its `source` field. Travala is wired
+            into @furlpay/travel-mcp for agent booking, NOT into this web app's
+            search, so crediting it here as the power behind these results
+            claimed an integration the page does not use. */}
+        <span className="text-xs text-textSecondary">Powered by Duffel · Settled via x402</span>
       </div>
       <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
         Book the world, <span className="text-neon">pay with crypto.</span>
       </h1>
       <p className="mt-2 max-w-xl text-sm text-textSecondary">
-        2.2M+ stays and flights across 230+ countries. Pay with USDC, SOL, BTC or 100+ tokens — and earn 2%
-        cashback on every booking.
+        {/* The inventory figure was 2.2M+ stays across 230+ countries, which
+            described Travala's catalogue rather than what this app searches.
+            /api/travel/search queries Duffel Stays and Duffel Flights, and
+            falls back to a deterministic generator when no key is set. Since
+            the reachable count depends on the deployment's credentials, the
+            copy no longer names one. */}
+        Stays, flights, cars and activities — searched, verified and booked in one place. Pay with
+        USDC, SOL, BTC or 100+ tokens, and earn 2% cashback on every booking.
       </p>
       <div className="mt-5">
         <TravelHero />
