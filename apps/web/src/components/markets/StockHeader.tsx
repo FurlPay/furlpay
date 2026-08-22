@@ -14,13 +14,18 @@ export default function StockHeader({
   price,
   changePct,
   stats,
+  variant = "phone",
 }: {
   /** Null when no provider quoted the symbol. Renders as an em-dash, and the
    * range markers below drop out with it rather than parking at one end. */
   price: number | null;
   changePct: number | null;
   stats: SymbolStats;
+  /** `desktop` drops the phone column's gutter and scales the price up. Same
+   *  component either way — the block is identical, only its size changes. */
+  variant?: "phone" | "desktop";
 }) {
+  const desktop = variant === "desktop";
   const fresh = freshness(stats.marketTime);
   const up = (changePct ?? 0) >= 0;
 
@@ -37,14 +42,18 @@ export default function StockHeader({
       : null;
 
   return (
-    <section className="px-5">
+    <section className={desktop ? "" : "px-5"}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="font-mono text-[34px] font-extrabold leading-none tracking-tighter">
+          <p
+            className={`font-mono font-extrabold leading-none tracking-tighter ${
+              desktop ? "text-[52px]" : "text-[34px]"
+            }`}
+          >
             {fmtPerShare(price)}
           </p>
           <p
-            className={`mt-1.5 font-mono text-[14px] font-semibold ${
+            className={`mt-2 font-mono font-semibold ${desktop ? "text-[16px]" : "text-[14px]"} ${
               changePct === null ? "text-textMuted" : up ? "text-gain" : "text-loss"
             }`}
           >
@@ -75,13 +84,13 @@ export default function StockHeader({
         )}
       </div>
 
-      <div className="mt-4 space-y-3">
+      <div className={desktop ? "mt-6 grid grid-cols-2 gap-x-10 gap-y-3" : "mt-4 space-y-3"}>
         <RangeBar label="Day range" low={stats.dayLow} high={stats.dayHigh} value={price} />
         <RangeBar label="52-week range" low={stats.low52w} high={stats.high52w} value={price} />
       </div>
 
       {volumeRatio !== null && (
-        <p className="mt-3 font-mono text-[11.5px] text-textMuted">
+        <p className={`mt-3 font-mono text-textMuted ${desktop ? "text-[13px]" : "text-[11.5px]"}`}>
           Vol {fmtCountCompact(stats.volume)} / avg {fmtCountCompact(stats.avgVolume)}
           <span className={volumeRatio >= 1 ? "ml-1.5 text-gain" : "ml-1.5 text-textSecondary"}>
             ({volumeRatio.toFixed(2)}×)

@@ -12,6 +12,9 @@ import AssetRow from "@/components/AssetRow";
 import SignalBadge from "@/components/insights/SignalBadge";
 import Modal from "@/components/Modal";
 import StockHeader from "@/components/markets/StockHeader";
+import StockDesktop from "@/components/markets/StockDesktop";
+import BottomNav from "@/components/BottomNav";
+import { useMediaQuery, DESKTOP_QUERY } from "@/lib/useMediaQuery";
 import KeyStatsGrid from "@/components/markets/KeyStatsGrid";
 import Provenance from "@/components/markets/Provenance";
 import type { SymbolDetail } from "@/components/markets/types";
@@ -27,9 +30,29 @@ import type { SymbolDetail } from "@/components/markets/types";
 // after the route stopped sending them. Both arrived undefined, both were
 // coalesced to 0, and the page printed a $0.00 all-time high for every coin.
 
+/**
+ * The phone column, supplied by this page rather than by Shell.
+ *
+ * Ticker pages opt out of the global app frame (see lib/shellRoutes.ts) so the
+ * desktop layout can use the full viewport. That opt-out is all-or-nothing, so
+ * below `lg` the page re-creates what it gave up: the 440px column, the red
+ * ambient wash and the floating tab bar.
+ */
+function PhoneFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="app-ambient mx-auto min-h-screen w-full max-w-[440px] pb-32">
+      {children}
+      <BottomNav />
+    </div>
+  );
+}
+
 export default function AssetDetailPage() {
   const { symbol } = useParams<{ symbol: string }>();
   const router = useRouter();
+  // One tree, not two. Rendering both and hiding one with `lg:hidden` would
+  // mount two PriceCharts — two chart canvases, two OHLC fetches — to show one.
+  const isDesktop = useMediaQuery(DESKTOP_QUERY);
   const [data, setData] = useState<SymbolDetail | null>(null);
   const [missing, setMissing] = useState(false);
   const [trade, setTrade] = useState<"buy" | "sell" | null>(null);
@@ -43,13 +66,26 @@ export default function AssetDetailPage() {
 
   if (missing) {
     return (
-      <div className="px-5 py-16 text-center">
-        <p className="font-semibold">Asset not found</p>
-        <Link href="/markets" className="mt-2 inline-block text-[13px] text-accent">Back to markets</Link>
-      </div>
+      <PhoneFrame>
+        <div className="px-5 py-16 text-center">
+          <p className="font-semibold">Asset not found</p>
+          <p className="mt-1 text-[13px] text-textSecondary">
+            No exchange lists {String(symbol).toUpperCase()}.
+          </p>
+          <Link href="/markets" className="mt-3 inline-block text-[13px] text-accent">
+            Back to markets
+          </Link>
+        </div>
+      </PhoneFrame>
     );
   }
-  if (!data) return <Spinner />;
+  if (!data) {
+    return (
+      <PhoneFrame>
+        <Spinner />
+      </PhoneFrame>
+    );
+  }
 
   const { asset, quote, stats, position } = data;
   const isEquity = asset.kind !== "crypto";
@@ -57,8 +93,31 @@ export default function AssetDetailPage() {
   // anyone. Only the actions below need a session.
   const signInHref = `/login?next=${encodeURIComponent(`/markets/${asset.symbol}`)}`;
 
+  if (isDesktop) {
+    return (
+      <>
+        <StockDesktop
+          data={data}
+          signInHref={signInHref}
+          onBuy={() => setTrade("buy")}
+          onSell={() => setTrade("sell")}
+        />
+        {trade && quote.price !== null && (
+          <TradeSheet
+            symbol={asset.symbol}
+            price={quote.price}
+            side={trade}
+            maxShares={position?.shares ?? 0}
+            onClose={() => setTrade(null)}
+            onDone={load}
+          />
+        )}
+      </>
+    );
+  }
+
   return (
-    <>
+    <PhoneFrame>
       {/* Header */}
       <header className="flex items-center gap-3 px-5 pb-2 pt-3">
         <button aria-label="Back" onClick={() => router.back()} className="tap flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.05]">
@@ -225,7 +284,7 @@ export default function AssetDetailPage() {
           onDone={load}
         />
       )}
-    </>
+    </PhoneFrame>
   );
 }
 

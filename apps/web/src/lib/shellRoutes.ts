@@ -36,10 +36,27 @@ export const APP_FRAME_PREFIXES = [
   "/oauth", // MCP consent screens — built for the 440px column
 ] as const;
 
+/** Sub-pages of /markets that are LISTS, and keep the phone column. Anything
+ *  else one segment under /markets is a ticker. */
+const MARKETS_LIST_PAGES = new Set(["chains", "collections"]);
+
+/** `/markets/AAPL` — a ticker detail page, not a list. */
+function isSymbolPage(pathname: string): boolean {
+  const parts = pathname.split("/").filter(Boolean);
+  return parts.length === 2 && parts[0] === "markets" && !MARKETS_LIST_PAGES.has(parts[1]!);
+}
+
 export function isAppFrame(pathname: string): boolean {
   // Desktop-grade subtrees inside app prefixes keep their full-bleed carve-outs.
   if (pathname.startsWith("/dashboard/terminal")) return false; // dense multi-column terminal
   if (pathname.startsWith("/investing/insights")) return false; // Research portal (blog-style)
+  // A ticker page is a two-column desktop surface — chart plus a trading rail —
+  // that cannot live in a 440px column. It renders its own phone layout and tab
+  // bar below `lg`, so opting out here costs nothing on mobile.
+  //
+  // Only the ticker page: /markets, /markets/chains and /markets/collections/*
+  // are scrolling lists that read fine in the phone column and keep it.
+  if (isSymbolPage(pathname)) return false;
   return APP_FRAME_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 

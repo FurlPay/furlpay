@@ -123,7 +123,10 @@ describe("shell layout classification", () => {
 
   // The consumer app keeps its frame — every bottom-tab destination, plus the
   // companions that were designed for the 440px column.
-  const APP = ["/dashboard", "/cards", "/investing", "/bills", "/profile", "/banking", "/markets", "/swaps"];
+  //
+  // /markets is tested separately: the index and its list pages keep the frame,
+  // but a ticker page underneath it does not.
+  const APP = ["/dashboard", "/cards", "/investing", "/bills", "/profile", "/banking", "/swaps"];
   for (const p of APP) {
     it(`${p} keeps the phone frame`, () => {
       expect(isAppFrame(p)).toBe(true);
@@ -135,6 +138,30 @@ describe("shell layout classification", () => {
     expect(isAppFrame("/dashboard/terminal")).toBe(false);
     expect(isAppFrame("/investing/insights")).toBe(false);
     expect(isAppFrame("/investing/insights/some-post")).toBe(false);
+  });
+
+  describe("/markets", () => {
+    it("keeps the phone frame for the index and its list pages", () => {
+      expect(isAppFrame("/markets")).toBe(true);
+      expect(isAppFrame("/markets/chains")).toBe(true);
+      expect(isAppFrame("/markets/collections")).toBe(true);
+      expect(isAppFrame("/markets/collections/ai")).toBe(true);
+    });
+
+    it("drops the frame for a ticker page, which is a two-column desktop surface", () => {
+      // These render their own 440px column and tab bar below `lg`, so the
+      // opt-out costs nothing on a phone — see markets/[symbol]/page.tsx.
+      expect(isAppFrame("/markets/GOOGL")).toBe(false);
+      expect(isAppFrame("/markets/AAPL")).toBe(false);
+      expect(isAppFrame("/markets/BTC")).toBe(false);
+    });
+
+    it("treats a punctuated or lowercased ticker the same way", () => {
+      // URLs get typed by hand and share classes carry a dot; neither may fall
+      // back into the phone column just because of its spelling.
+      expect(isAppFrame("/markets/BRK.B")).toBe(false);
+      expect(isAppFrame("/markets/googl")).toBe(false);
+    });
   });
 
   it("auth screens are bare: framed, but without status bar or tab bar", () => {
