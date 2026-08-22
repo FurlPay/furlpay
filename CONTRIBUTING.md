@@ -68,12 +68,86 @@ Add them for behaviour, not for coverage. Two conventions worth copying:
 - **Assert the thing that would actually break.** Byte layouts, concurrency
   outcomes and failure modes — not that a function returns a value.
 
+## Branches
+
+One long-lived branch, `main`, plus short-lived work branches off it. There is
+no `develop` and no release branch — the repository is small enough that a
+second permanent branch would only ever be a queue with no one in it.
+
+```
+main ──────────────────────────────────────────►  production
+  │                                             ▲
+  └── feat/markets-real-data ── PR ── CI ── preview ──┘
+```
+
+Name a branch `<type>/<what>`, using the same types as the commit convention:
+
+```
+feat/markets-real-data      fix/vercel-build
+fix/ios-watch-build         security/npm-audit
+chore/bump-next             docs/api-auth
+refactor/market-providers
+```
+
+Not personal names, not `test`, not `final-v2`. The branch name is the first
+thing anyone reads about the change.
+
+Keep work branches short-lived. `extension-redesign` currently runs 20+ commits
+ahead of `main` for weeks at a time, and that is the reason two broken commits
+reached production: CI now runs on it explicitly, but a branch that never lands
+accumulates risk faster than any gate removes it.
+
 ## Commits and pull requests
 
-- Conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`) with a scope.
+- Conventional commits (`feat:`, `fix:`, `chore:`, `refactor:`, `security:`,
+  `ci:`, `docs:`) with a scope.
 - Explain *why* in the body. The diff already shows what.
-- Run `npx tsc --noEmit`, the test suite and `next lint` before opening.
+- Run `npx tsc --noEmit`, the test suite, **and the production build** before
+  opening — see below.
 - Add a changeset (`npx changeset`) for any change to a published package.
+- Squash on merge. One reviewable change becomes one commit on `main`; the
+  discussion stays on the PR where it is searchable.
+
+### `next build` is not implied by the other two
+
+`npx tsc --noEmit` and `vitest` can both pass on a commit that fails
+`next build`, because only the build runs ESLint. That is exactly how commits
+`024b84b` and `941ab52` broke two production deployments — with an
+`// eslint-disable-next-line @typescript-eslint/no-explicit-any` comment, for a
+rule this ESLint config (`next/core-web-vitals`) never registers. ESLint treats
+a disable comment for an unknown rule as an error.
+
+So: run `npm run build --workspace @furlpay/web` before you push, and do not
+reach for a disable comment when the fix is to type the thing properly.
+
+## Deployment
+
+Vercel builds a **preview** for every branch and PR. Production is a separate,
+deliberate step:
+
+```
+push branch → CI + Vercel preview → PR → review → merge to main
+                                                      │
+                                    npx vercel deploy --prod --yes
+```
+
+Pushing to GitHub does **not** deploy production. The production deploy is run
+manually from the repo root, and it uploads your **working directory** — not the
+last commit — so deploy from a clean tree on the branch you mean to ship.
+
+## Database migrations
+
+`supabase/migrations/` is append-only and numerically ordered. Applied
+migrations are never edited afterwards; a mistake is corrected by a new
+migration, because staging and production have already run the old one and will
+not run it again. Ship the migration and the code that needs it together, and
+apply to staging before the PR merges.
+
+## Security fixes
+
+Branch `security/<what>`, keep it to the fix alone, and do not fold in a
+refactor — a security PR should be reviewable in one sitting. Never open a
+public issue describing an unpatched vulnerability; see [SECURITY.md](SECURITY.md).
 
 ## Reporting a bug
 
