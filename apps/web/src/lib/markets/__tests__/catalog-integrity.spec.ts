@@ -94,7 +94,15 @@ describe("meme assets are gone", () => {
 describe("newly added assets", () => {
   // Every one of these was verified against a live provider quote before it
   // was added, and each is present in the broker's tradable universe.
-  const ADDED = ["AAOI", "LITE", "COHR", "CIEN", "NBIS", "VRT", "MRNA"];
+  const ADDED = [
+    "AAOI", "LITE", "COHR", "CIEN", "NBIS", "VRT", "MRNA",
+    // AI power + grid
+    "CEG", "VST", "TLN", "GEV", "PWR", "OKLO", "SMR",
+    // AI silicon, interconnect, storage, neoclouds
+    "ALAB", "CRDO", "SNDK", "TER", "HPE", "CRWV", "APP", "MOD", "NVT",
+    // Quantum
+    "IONQ", "RGTI", "QBTS",
+  ];
 
   it.each(ADDED)("%s is in the catalog and tradable", (symbol) => {
     expect(SYMBOLS.has(symbol)).toBe(true);
@@ -104,6 +112,20 @@ describe("newly added assets", () => {
   it("groups the optical-interconnect names under one industry", () => {
     const optical = CATALOG.filter((a) => a.industry === "Optical Networking").map((a) => a.symbol);
     expect(optical.sort()).toEqual(["AAOI", "CIEN", "COHR", "LITE"]);
+  });
+
+  it("keeps the quantum names at the cap tier their market value supports", () => {
+    // Verified against live quotes when added: RGTI ~$6.0B and QBTS ~$7.6B are
+    // mid-caps. The tier drives heatmap block size and the market-cap filter,
+    // so inflating one produces a wrong screen, not a flattering one.
+    const tierOf = (sym: string) => CATALOG.find((a) => a.symbol === sym)?.cap;
+    expect(tierOf("RGTI")).toBe("mid");
+    expect(tierOf("QBTS")).toBe("mid");
+    expect(tierOf("OKLO")).toBe("mid");
+    expect(tierOf("SMR")).toBe("mid");
+    // And the genuinely large ones are not understated either.
+    expect(tierOf("GEV")).toBe("mega");
+    expect(tierOf("SNDK")).toBe("mega");
   });
 
   it("gives Moderna a cap tier that matches its actual size", () => {

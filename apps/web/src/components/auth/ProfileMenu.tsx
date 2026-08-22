@@ -157,7 +157,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
                 {[
                   { href: "/profile", label: "Profile", Icon: UserIcon },
                   { href: "/investing", label: "Portfolio", Icon: Briefcase },
-                  { href: "/markets?view=watchlist", label: "Watchlist", Icon: Star },
+                  { href: "/markets?panel=watchlist", label: "Watchlist", Icon: Star },
                   { href: "/profile", label: "Settings", Icon: Settings },
                 ].map(({ href, label, Icon }) => (
                   <Link

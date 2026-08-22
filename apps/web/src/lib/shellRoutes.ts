@@ -57,15 +57,25 @@ export function isAppFrame(pathname: string): boolean {
   // Only the ticker page: /markets, /markets/chains and /markets/collections/*
   // are scrolling lists that read fine in the phone column and keep it.
   if (isSymbolPage(pathname)) return false;
-  // The Markets index is a search-and-browse surface: a 13,000-symbol search
-  // field, a heatmap and a grid all have somewhere to put extra width. It
-  // supplies its own column and tab bar below `lg` (MarketsShell), same as a
-  // ticker page does.
-  if (pathname === "/markets") return false;
+  // The WHOLE /markets subtree is full-bleed, not just the index and the
+  // tickers. /markets/chains and /markets/collections/* used to keep the phone
+  // column, which meant clicking "Chains" from the desktop terminal dropped the
+  // reader into a 440px strip centred on a 1440px monitor — the same two-
+  // products mismatch the index and the ticker page had, on the routes the
+  // migration did not reach. Each supplies its own layout and tab bar below
+  // `lg`, exactly as the other two do.
+  if (pathname === "/markets" || pathname.startsWith("/markets/")) return false;
   return APP_FRAME_PREFIXES.some((p) => pathname === p || pathname.startsWith(p + "/"));
 }
 
-/** Auth screens keep the frame but hide the status bar / tab bar chrome. */
+/** Auth screens: no status bar, no tab bar, and no phone column either.
+ *
+ * These used to render inside the 440px frame with its chrome hidden, which on
+ * a desktop monitor is a narrow strip of form fields floating in black — the
+ * layout reads as an unfinished mobile page rather than as a sign-in surface.
+ * They are now full-bleed and centre their own card, so the same markup is a
+ * proper full-screen experience on a monitor and unchanged on a phone.
+ */
 export function isBare(pathname: string): boolean {
   return pathname === "/login" || pathname === "/signup";
 }

@@ -128,6 +128,29 @@ export const CATALOG: MarketAsset[] = [
   s("CIEN", "Ciena Corporation", "Technology", "Optical Networking", "large"),
   s("NBIS", "Nebius Group N.V.", "Technology", "AI Cloud Infrastructure", "large"),
   s("VRT", "Vertiv Holdings Co", "Industrials", "Datacenter Power & Cooling", "large"),
+  s("MOD", "Modine Manufacturing Co.", "Industrials", "Datacenter Power & Cooling", "large"),
+  s("NVT", "nVent Electric plc", "Industrials", "Datacenter Power & Cooling", "large"),
+  s("PWR", "Quanta Services, Inc.", "Industrials", "Grid Construction", "large"),
+  s("GEV", "GE Vernova Inc.", "Industrials", "Power Equipment", "mega"),
+
+  // ---- AI silicon, interconnect and storage ----
+  s("ALAB", "Astera Labs, Inc.", "Technology", "Connectivity Silicon", "large"),
+  s("CRDO", "Credo Technology Group", "Technology", "Connectivity Silicon", "large"),
+  s("SNDK", "Sandisk Corp.", "Technology", "Storage", "mega"),
+  s("TER", "Teradyne, Inc.", "Technology", "Semi Equipment", "large"),
+  s("HPE", "Hewlett Packard Enterprise", "Technology", "AI Hardware", "large"),
+  s("CRWV", "CoreWeave, Inc.", "Technology", "AI Cloud Infrastructure", "large"),
+  s("APP", "AppLovin Corp.", "Technology", "Adtech Software", "large"),
+
+  // ---- Quantum computing ----
+  //
+  // Cap tiers are what the live quote supports, not what the narrative wants:
+  // RGTI and QBTS are mid-caps and are tagged as such. The tier drives the
+  // heatmap block size and the market-cap filter, so inflating one produces a
+  // wrong screen rather than a flattering one.
+  s("IONQ", "IonQ, Inc.", "Technology", "Quantum Computing", "large"),
+  s("RGTI", "Rigetti Computing, Inc.", "Technology", "Quantum Computing", "mid"),
+  s("QBTS", "D-Wave Quantum Inc.", "Technology", "Quantum Computing", "mid"),
 
   // ==================== US STOCKS — Communication =======================
   s("GOOGL", "Alphabet Inc.", "Communication", "Internet & Search", "mega"),
@@ -294,6 +317,11 @@ export const CATALOG: MarketAsset[] = [
 
   // ================== US STOCKS — Utilities / RE / Materials ============
   s("NEE", "NextEra Energy", "Utilities", "Renewables"),
+  s("CEG", "Constellation Energy Corp.", "Utilities", "Nuclear Power", "large"),
+  s("VST", "Vistra Corp.", "Utilities", "Independent Power", "large"),
+  s("TLN", "Talen Energy Corp.", "Utilities", "Independent Power", "large"),
+  s("OKLO", "Oklo Inc.", "Utilities", "Advanced Nuclear", "mid"),
+  s("SMR", "NuScale Power Corp.", "Utilities", "Advanced Nuclear", "mid"),
   s("DUK", "Duke Energy", "Utilities", "Electric", "mid"),
   s("SO", "Southern Co.", "Utilities", "Electric", "mid"),
   s("D", "Dominion Energy", "Utilities", "Electric", "mid"),

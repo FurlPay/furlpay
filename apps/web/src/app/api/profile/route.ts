@@ -5,6 +5,7 @@ import { persistAccount } from "@/lib/store";
 import { validateBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
+import { getAvatarUrl, initialsFor } from "@/lib/profileAvatar";
 
 // GET /api/profile - full profile + security + notification state for the
 // authenticated account. Never use the seeded demo account for this route.
@@ -14,10 +15,17 @@ export async function GET(req: NextRequest) {
 
   const u = auth.account.user;
   const { totpSecret, ...security } = u.security;
+  // The SAME identity fields /api/auth/session serves the header avatar.
+  // Without them this route could only offer `name`, so the profile page drew a
+  // single letter while the header three inches away showed the user's actual
+  // photo — one person, two avatars, on the same screen.
+  const avatarUrl = await getAvatarUrl(u.id);
   return NextResponse.json({
     id: u.id,
     name: u.name,
     email: u.email,
+    avatarUrl,
+    initials: initialsFor(u.name),
     safeAddress: u.safeAddress,
     kycStatus: u.kycStatus,
     region: u.region,

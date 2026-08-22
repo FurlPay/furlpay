@@ -10,6 +10,10 @@ interface Device { name: string; location: string; lastActive: string; current: 
 interface Profile {
   name: string;
   email: string;
+  /** Provider-hosted photo, when one is known. */
+  avatarUrl: string | null;
+  /** Up to two letters from the real name; null when there is no name. */
+  initials: string | null;
   safeAddress: string;
   kycStatus: "verified" | "pending" | "unverified";
   region: string;
@@ -35,6 +39,12 @@ export default function ProfilePage() {
   const router = useRouter();
   const [p, setP] = useState<Profile | null>(null);
   const [deleting, setDeleting] = useState(false);
+  // Display-name editing. `PATCH /api/profile` has always accepted and
+  // validated a name; nothing ever sent one, so the capability was unreachable.
+  const [editingName, setEditingName] = useState(false);
+  const [draftName, setDraftName] = useState("");
+  const [savingName, setSavingName] = useState(false);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     getJSON<Profile>("/api/profile").then(setP).catch(console.error);
@@ -71,11 +81,99 @@ export default function ProfilePage() {
       {/* Identity header */}
       <section className="px-5">
         <div className="flex items-center gap-4">
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-2xl font-bold">
-            {p.name.charAt(0)}
+          {/* The SAME avatar the header shows. This used to be
+              `p.name.charAt(0)` on a flat red circle, so a user signed in with
+              Google saw their photo in the top bar and a single letter here. */}
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/[0.06]">
+            {p.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- a remote
+              // provider URL; next/image would need it in remotePatterns and
+              // buys nothing for a 64px square that is already cached.
+              <img
+                src={p.avatarUrl}
+                alt=""
+                width={64}
+                height={64}
+                referrerPolicy="no-referrer"
+                className="h-full w-full object-cover"
+              />
+            ) : p.initials ? (
+              <span className="text-xl font-bold text-textPrimary">{p.initials}</span>
+            ) : (
+              <span className="text-xl font-bold text-textSecondary" aria-hidden>·</span>
+            )}
           </div>
-          <div className="min-w-0">
-            <p className="truncate text-xl font-bold">{p.name}</p>
+          <div className="min-w-0 flex-1">
+            {editingName ? (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setSavingName(true);
+                  setNameError(null);
+                  try {
+                    await sendJSON("/api/profile", { name: draftName.trim() }, "PATCH");
+                    setEditingName(false);
+                    load();
+                  } catch (err) {
+                    // The server's own message: it validates length and
+                    // character set, and its wording is more useful than a
+                    // generic "could not save".
+                    setNameError(err instanceof Error ? err.message : "Could not save your name.");
+                  } finally {
+                    setSavingName(false);
+                  }
+                }}
+                className="flex flex-col gap-2"
+              >
+                <input
+                  autoFocus
+                  value={draftName}
+                  onChange={(e) => setDraftName(e.target.value)}
+                  maxLength={50}
+                  aria-label="Display name"
+                  className="w-full rounded-xl border border-white/[0.12] bg-white/[0.04] px-3 py-2 text-[15px] font-semibold outline-none focus:border-accent/50"
+                />
+                <div className="flex gap-2">
+                  <button
+                    type="submit"
+                    disabled={savingName || draftName.trim().length === 0}
+                    className="tap rounded-pill bg-accent px-4 py-1.5 text-[13px] font-semibold disabled:opacity-50"
+                  >
+                    {savingName ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditingName(false);
+                      setNameError(null);
+                    }}
+                    className="tap rounded-pill border border-white/[0.12] px-4 py-1.5 text-[13px] font-semibold text-textSecondary"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                {nameError && (
+                  <p role="alert" className="text-[12px] text-loss">
+                    {nameError}
+                  </p>
+                )}
+              </form>
+            ) : (
+              <div className="flex items-center gap-2">
+                <p className="truncate text-xl font-bold">{p.name}</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDraftName(p.name);
+                    setEditingName(true);
+                  }}
+                  aria-label="Edit display name"
+                  className="tap shrink-0 rounded-lg px-2 py-1 text-[12px] font-semibold text-accent hover:bg-white/[0.06]"
+                >
+                  Edit
+                </button>
+              </div>
+            )}
             <p className="truncate text-[13px] text-textSecondary">{p.email}</p>
             <p className="mt-0.5 font-mono text-[11px] text-textMuted">{p.safeAddress} · {p.region}</p>
           </div>

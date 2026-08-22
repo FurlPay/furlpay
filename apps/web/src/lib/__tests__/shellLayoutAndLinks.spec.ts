@@ -147,10 +147,19 @@ describe("shell layout classification", () => {
       expect(isAppFrame("/markets")).toBe(false);
     });
 
-    it("keeps the phone frame for the remaining list pages", () => {
-      expect(isAppFrame("/markets/chains")).toBe(true);
-      expect(isAppFrame("/markets/collections")).toBe(true);
-      expect(isAppFrame("/markets/collections/ai")).toBe(true);
+    it("drops the frame for EVERY page under /markets, not just the index", () => {
+      // This assertion was inverted. It used to pin `true` — chains and
+      // collections kept the 440px phone column — which was correct while the
+      // index was a phone-shaped list too. Once /markets and /markets/[symbol]
+      // became full-bleed desktop surfaces, that left two routes behind:
+      // clicking "Chains" from the desktop terminal dropped the reader into a
+      // 440px strip centred on a 1440px monitor.
+      //
+      // The whole subtree is now full-bleed. Each page supplies its own layout
+      // and tab bar below `lg`, exactly as the index and the ticker page do.
+      expect(isAppFrame("/markets/chains")).toBe(false);
+      expect(isAppFrame("/markets/collections")).toBe(false);
+      expect(isAppFrame("/markets/collections/ai")).toBe(false);
     });
 
     it("drops the frame for a ticker page, which is a two-column desktop surface", () => {

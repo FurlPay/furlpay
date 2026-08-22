@@ -26,23 +26,43 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     );
   }
 
-  const bare = isBare(pathname);
+  // Auth screens (/login, /signup) are full-bleed and centre their own card.
+  //
+  // They used to share the phone frame with its chrome switched off, which on a
+  // desktop monitor rendered a 440px strip of form fields floating in black — a
+  // layout that reads as an unfinished mobile page rather than as the entry
+  // point to the product. Full-bleed with the ambient wash behind it lets the
+  // same markup be a proper full-screen surface on a monitor and identical on a
+  // phone, where 440px is the whole viewport anyway.
+  //
+  // No StatusBar, no BottomNav, no CommandPalette: there is no session yet, so
+  // every one of those would be chrome pointing at places the visitor cannot go.
+  if (isBare(pathname)) {
+    return (
+      <div className="app-ambient flex min-h-screen w-full flex-col">
+        <OfflineBanner />
+        <CacheWarmer authed={false} />
+        <main className="flex flex-1 items-center justify-center px-5 py-10">
+          {/* The card keeps the phone measure — a sign-in form wider than this
+              has line lengths no one wants — but it is now CENTRED in the
+              viewport rather than pinned to a column at the left edge. */}
+          <div className="w-full max-w-[440px]">{children}</div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="app-ambient mx-auto min-h-screen w-full max-w-[440px]">
       <OfflineBanner />
-      {/* Any non-bare app page sits behind the session middleware — safe to
-          warm the protected app-shell routes for offline. */}
-      <CacheWarmer authed={!bare} />
-      {!bare && <StatusBar />}
-      <main className={bare ? "" : "pb-32"}>{children}</main>
-      {!bare && (
-        <>
-          <BottomNav />
-          <div className="app-home-indicator fixed inset-x-0 bottom-0 z-40 mx-auto max-w-[440px]" />
-          <CommandPalette />
-        </>
-      )}
+      {/* Any app page sits behind the session middleware — safe to warm the
+          protected app-shell routes for offline. */}
+      <CacheWarmer authed />
+      <StatusBar />
+      <main className="pb-32">{children}</main>
+      <BottomNav />
+      <div className="app-home-indicator fixed inset-x-0 bottom-0 z-40 mx-auto max-w-[440px]" />
+      <CommandPalette />
     </div>
   );
 }
