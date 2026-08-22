@@ -79,6 +79,14 @@ const PUBLIC_PAGE_PREFIXES = [
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
   "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
   "/trips", // FurlPay Trips product page — marketing composition, no user data
+  // Market data is public: /api/markets* already serves every quote, stat and
+  // chart anonymously (rate-limited per IP), so gating the PAGE only stopped
+  // people READING published prices — it protected nothing. The one
+  // caller-specific field on these screens is the position line, and the route
+  // resolves that through optionalUser, so an anonymous reader simply has none.
+  // Trading still requires a session; the page offers sign-in instead of a
+  // trade sheet that would 401.
+  "/markets",
   "/auth/handoff", // native-app → browser session handoff; auth IS the one-time code (redirects to /login otherwise)
   "/discord", // branded Discord links → external redirects (see next.config redirects)
   "/telegram", // branded Telegram links → external redirects (see next.config redirects)

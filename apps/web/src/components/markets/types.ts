@@ -105,6 +105,9 @@ export interface SymbolDetail {
   provenance: ProvenanceData;
   /** Omitted by the route when the 52-week range it narrates is unknown. */
   digest: string | null;
+  /** Whether the request carried a valid session. Distinct from `position`,
+   *  which is null for an anonymous reader AND for a holder-of-nothing. */
+  authenticated: boolean;
   position: { shares: number; marketValue: number | null } | null;
   related: RelatedAsset[];
   insights: SymbolInsight[];

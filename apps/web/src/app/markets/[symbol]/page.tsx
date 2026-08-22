@@ -53,6 +53,9 @@ export default function AssetDetailPage() {
 
   const { asset, quote, stats, position } = data;
   const isEquity = asset.kind !== "crypto";
+  // Everything above the trade bar is published market data and renders for
+  // anyone. Only the actions below need a session.
+  const signInHref = `/login?next=${encodeURIComponent(`/markets/${asset.symbol}`)}`;
 
   return (
     <>
@@ -101,7 +104,17 @@ export default function AssetDetailPage() {
 
       {/* Trade bar */}
       <section className="mt-4 px-5">
-        {isEquity ? (
+        {!data.authenticated ? (
+          // An anonymous reader gets the invitation, not a button that opens a
+          // sheet and fails on POST. The `next` param returns them to this
+          // exact symbol rather than the dashboard.
+          <Link
+            href={signInHref}
+            className="tap flex items-center justify-center gap-2 rounded-pill bg-accent py-3 font-semibold"
+          >
+            Sign in to trade {asset.symbol}
+          </Link>
+        ) : isEquity ? (
           <div className="grid grid-cols-2 gap-2">
             {/* An order is sized against the price. With no quote there is
                 nothing to size against, so the sheet cannot be opened rather
@@ -125,6 +138,11 @@ export default function AssetDetailPage() {
           <Link href="/dashboard" className="tap flex items-center justify-center gap-2 rounded-pill bg-accent py-3 font-semibold">
             <ArrowLeftRight className="h-4 w-4" /> Trade via stablecoin swap
           </Link>
+        )}
+        {!data.authenticated && (
+          <p className="mt-2.5 text-center text-[12px] text-textMuted">
+            Prices, statistics and filings above are public.
+          </p>
         )}
         {position && position.shares > 0 && (
           <div className="mt-2.5 flex items-center justify-between surface-card px-4 py-3">

@@ -233,6 +233,11 @@ export async function GET(req: NextRequest, props: { params: Promise<{ symbol: s
       cik: null,
     },
     digest,
+    // Whether this request carried a valid session — not who it belongs to.
+    // The page needs it to decide between a trade sheet and a sign-in prompt,
+    // and `position` cannot answer that: it is null both for an anonymous
+    // reader and for a signed-in user who does not hold the symbol.
+    authenticated: auth.kind === "user",
     position: holding
       ? {
           shares: holding.shares,
