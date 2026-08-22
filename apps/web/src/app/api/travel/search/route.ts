@@ -15,6 +15,7 @@ import {
   ActivityCategory,
 } from "@/lib/travel/data";
 import { searchDuffelFlights, searchDuffelStays, searchDuffelCars } from "@/lib/travel/duffel";
+import { assessResultSet, rankingWeight } from "@/lib/property/intelligence";
 
 // POST /api/travel/search — search travel inventory.
 // Body: { type: "stays"|"flights"|"cars"|"activities", city, checkIn, checkOut,
@@ -73,13 +74,68 @@ export async function POST(req: NextRequest) {
       if (body.propertyType) stays = stays.filter((x) => x.type === body.propertyType);
       if (body.maxNightlyUsd) stays = stays.filter((x) => x.nightlyUsd <= Number(body.maxNightlyUsd));
     }
+    // ---- Property intelligence ------------------------------------------
+    //
+    // Runs over the WHOLE result set, not per property: duplicates and price
+    // outliers are only visible with the set in hand. A property whose
+    // registration the issuing authority contradicts is withheld from sale —
+    // that is the only condition that removes inventory, because suppressing
+    // on a weaker signal would quietly delist legitimate hosts.
+    //
+    // Never fails the search. If the assessment throws, every property keeps
+    // its place unbadged: a bug in our trust code must not empty a results
+    // page.
+    let trustById = new Map<string, Awaited<ReturnType<typeof assessResultSet>> extends Map<string, infer V> ? V : never>();
+    try {
+      trustById = await assessResultSet(
+        stays.map((x) => ({
+          id: x.id,
+          name: x.name,
+          city: x.city,
+          country: x.country,
+          nightlyUsd: x.nightlyUsd,
+          stars: x.stars,
+          rating: x.rating,
+          reviews: x.reviews,
+          provider: source,
+        }))
+      );
+    } catch {
+      /* unbadged results beat no results */
+    }
+
+    const sellable = stays.filter((x) => !trustById.get(x.id)?.suppress);
+
+    // Trust nudges the order; it does not become the sort key. A cheaper,
+    // better-located property must not be buried because its country runs no
+    // public register — that would demote everything outside a handful of
+    // European jurisdictions.
+    const ranked = [...sellable].sort((a, b) => {
+      const wa = trustById.get(a.id) ? rankingWeight(trustById.get(a.id)!) : 1;
+      const wb = trustById.get(b.id) ? rankingWeight(trustById.get(b.id)!) : 1;
+      if (wa !== wb) return wb - wa;
+      return 0;
+    });
+
     return NextResponse.json({
       type: "stays",
       city: body.city ?? "",
       nights: n,
-      count: stays.length,
-      results: stays,
+      count: ranked.length,
+      results: ranked.map((x) => {
+        const trust = trustById.get(x.id);
+        return {
+          ...x,
+          // Only what a traveller should see. The evidence array, the score and
+          // the contradiction list stay server-side: a precise percentage
+          // beside a price reads as a quality rating, which is not what it is.
+          trust: trust?.badge ? { ...trust.badge, checkedAt: trust.checkedAt } : null,
+        };
+      }),
       source,
+      /** How many properties the trust layer withheld. Reported so an empty
+       *  page is explainable rather than mysterious. */
+      withheld: stays.length - sellable.length,
     });
   }
 
