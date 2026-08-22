@@ -122,6 +122,7 @@ struct DashboardView: View {
         case .markets:               MarketsView()
         case .stock(let symbol):     StockDetailView(symbol: symbol)
         case .travel:                TravelView()
+        case .boardingPass:          BoardingPassView()
         case .quickPay:              QuickPayView()
         case .passport:              PassportVaultView()
         case .earn:                  EarnView()

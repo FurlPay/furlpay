@@ -196,6 +196,10 @@ struct HotelsSearchResponse: Decodable, Sendable {
     let hotels: [HotelBooking]
 }
 
+struct BoardingPassesResponse: Decodable, Sendable {
+    let passes: [BoardingPass]
+}
+
 struct FlightSearchRequest: Encodable, Sendable {
     let origin: String
     let destination: String

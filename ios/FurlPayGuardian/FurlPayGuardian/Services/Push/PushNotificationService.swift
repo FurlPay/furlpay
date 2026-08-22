@@ -33,6 +33,9 @@ public enum GuardianDeepLink: Equatable, Hashable, Sendable {
     case markets
     case stock(symbol: String)
     case travel
+    /// The boarding pass. A gate change is the single most useful push this app
+    /// can send, and it must land on the pass rather than on the travel index.
+    case boardingPass
     case reminders
     case passport
     case send
@@ -54,6 +57,19 @@ public enum GuardianDeepLink: Equatable, Hashable, Sendable {
     /// notification whose answer is "show your own receive code".
     case quickPay
 
+    /// `furlpay://<host>` — how a Live Activity's `widgetURL` and the watch's
+    /// Smart Stack tiles hand a destination to the app.
+    ///
+    /// Routed through the SAME closed enum as the push payload, on purpose. A
+    /// custom URL scheme is open to anything on the device that can call
+    /// `openURL`, so treating the host as a free-form route would hand every
+    /// other app on the phone a way to drive this one's navigation.
+    init?(url: URL) {
+        guard url.scheme == "furlpay", let host = url.host() else { return nil }
+        let path = url.path().trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        self.init(payload: ["link": path.isEmpty ? host : path])
+    }
+
     /// APNs carries this in the custom `link` key alongside `aps`.
     init?(payload: [AnyHashable: Any]) {
         guard let raw = payload["link"] as? String else { return nil }
@@ -71,6 +87,8 @@ public enum GuardianDeepLink: Equatable, Hashable, Sendable {
         case "stock":      guard let id, !id.isEmpty else { return nil }
                            self = .stock(symbol: id.uppercased())
         case "travel":     self = .travel
+        case "boardingPass", "boarding-pass":
+                           self = .boardingPass
         case "reminders":  self = .reminders
         case "passport":   self = .passport
         case "send":       self = .send

@@ -17,6 +17,16 @@ struct TravelView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
+                // A flight in progress outranks everything else on this screen,
+                // so the pass is pinned above the stays rather than filed under
+                // them. Absent when nothing is booked — never a placeholder.
+                if let pass = container.travel.activePass() {
+                    NavigationLink { BoardingPassView() } label: {
+                        BoardingPassRow(pass: pass)
+                    }
+                    .buttonStyle(.plain)
+                }
+
                 if !container.travel.activeTrips.isEmpty {
                     Text("Your Trips").sectionTitle()
                     ForEach(container.travel.activeTrips) { trip in
@@ -238,5 +248,43 @@ struct BookingConfirmView: View {
             // the original booking instead of making a second one.
             self.error = error.localizedDescription
         }
+    }
+}
+
+/// Compact summary of the flight in progress, linking to the full pass.
+struct BoardingPassRow: View {
+    let pass: BoardingPass
+
+    var body: some View {
+        HStack(spacing: 12) {
+            FurlPayMark(size: 30)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("\(pass.flight.originCode) → \(pass.flight.destinationCode)")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                Text("\(pass.flight.number) · Gate \(pass.flight.gate) · Seat \(pass.flight.seat)")
+                    .font(.caption)
+                    .foregroundStyle(TripsPalette.subText)
+                Text(pass.statusLine())
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(TripsPalette.green)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(GuardianColors.textTertiary)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            LinearGradient(
+                colors: [TripsPalette.liveTop, TripsPalette.liveBottom],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            ),
+            in: RoundedRectangle(cornerRadius: 20, style: .continuous)
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Boarding pass for \(pass.flight.number), \(pass.routeSummary). \(pass.statusLine()). Opens your boarding pass.")
     }
 }

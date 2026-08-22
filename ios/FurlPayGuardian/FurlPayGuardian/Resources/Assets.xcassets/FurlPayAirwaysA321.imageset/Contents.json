@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "furlpay-airways-a321.jpg",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

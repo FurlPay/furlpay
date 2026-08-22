@@ -106,6 +106,9 @@ targets:
       - sdk: Security.framework
       - sdk: PassKit.framework
       - sdk: SwiftData.framework
+      # The app is what requests, updates and ends the flight Live Activity;
+      # the extension only draws it.
+      - sdk: ActivityKit.framework
       # Tap to Pay on iPhone. Weak-linked and entitlement-gated — see
       # Shared/Domain/TapToPay.swift for why this cannot work without a PSP.
       - sdk: ProximityReader.framework
@@ -129,6 +132,10 @@ targets:
       - path: Shared/Alarms
       - path: Shared/Models
       - path: Shared/Extensions
+      # Shared/UI carries the FurlPay mark and the Trips palette. The flight
+      # Live Activity draws both, and an extension cannot reach the app's
+      # bundle for an asset — so the mark has to be a Shape compiled in here.
+      - path: Shared/UI
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian.activities
@@ -139,6 +146,9 @@ targets:
     dependencies:
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework
+      # Flight Live Activity. Not weak-linked: ActivityKit has shipped since
+      # iOS 16.1 and the deployment target is 18, so it is always present.
+      - sdk: ActivityKit.framework
       - sdk: AlarmKit.framework
         weak: true
 

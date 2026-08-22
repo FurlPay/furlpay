@@ -260,17 +260,29 @@ public final class TravelRepository: BaseRepository {
     private let api: FurlPayAPIClient
     public private(set) var trips: [TravelBooking] = []
     public private(set) var deals: [TravelDeal] = []
+    public private(set) var boardingPasses: [BoardingPass] = []
 
     public init(api: FurlPayAPIClient) { self.api = api }
 
     public func refresh() async {
         async let tripsResult = load { try await api.fetchTrips() }
         async let dealsResult = load { try await api.fetchDeals() }
+        async let passesResult = load { try await api.fetchBoardingPasses() }
         if let value = await tripsResult { trips = value }
         if let value = await dealsResult { deals = value }
+        if let value = await passesResult { boardingPasses = value }
     }
 
-    public func clear() { trips = []; deals = []; lastUpdated = nil }
+    public func clear() { trips = []; deals = []; boardingPasses = []; lastUpdated = nil }
+
+    /// The pass to put in front of the traveller: the next flight that has not
+    /// landed. Sorted by departure so a same-day connection does not outrank
+    /// the leg being flown right now.
+    public func activePass(at now: Date = .now) -> BoardingPass? {
+        boardingPasses
+            .filter { $0.status(at: now) != .landed }
+            .min { $0.departsAt < $1.departsAt }
+    }
 
     public var activeTrips: [TravelBooking] {
         trips.filter(\.isActive).sorted { $0.startDate < $1.startDate }

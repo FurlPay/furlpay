@@ -55,6 +55,13 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.15), value: scenePhase)
+        // Tapping the flight Live Activity opens furlpay://boarding-pass. It is
+        // parked on the same `pendingLink` a notification tap uses, so there is
+        // one path into navigation rather than two that can disagree.
+        .onOpenURL { url in
+            guard let link = GuardianDeepLink(url: url) else { return }
+            container.push.pendingLink = link
+        }
         // A crossfade rather than a push: signing in is not navigation, and a
         // slide implies a back gesture that does not exist.
         .animation(.easeInOut(duration: 0.25), value: container.isSignedIn)

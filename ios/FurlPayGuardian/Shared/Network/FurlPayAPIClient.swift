@@ -365,6 +365,16 @@ public actor FurlPayAPIClient {
         try await send(try await makeRequest("GET", "travel/deals"), as: DealsResponse.self).deals
     }
 
+    /// Flight boarding passes. Session-scoped server-side: the route derives the
+    /// owner from the token and never from a parameter, so there is no user id
+    /// to pass and no way for this client to ask for someone else's seat.
+    public func fetchBoardingPasses() async throws -> [BoardingPass] {
+        try await send(
+            try await makeRequest("GET", "travel/boarding-passes"),
+            as: BoardingPassesResponse.self
+        ).passes
+    }
+
     public func searchHotels(city: String) async throws -> [HotelBooking] {
         try await send(
             try await makeRequest("GET", "travel/hotels", query: ["city": city]),
