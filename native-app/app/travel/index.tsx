@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { usd } from "@/lib/format";
 import { fetchDeals, fetchTrips, type Deal, type Trip } from "@/lib/travel";
+import { fetchBoardingPasses, statusLine } from "@/lib/boardingPass";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, StatusBadge, Surface } from "@/components/ui";
 import { VoiceSearchButton, VoiceStatus } from "@/components/VoiceSearchButton";
 
@@ -82,11 +83,21 @@ export default function Travel() {
 
   const deals = useQuery({ queryKey: ["travel", "deals"], queryFn: fetchDeals, staleTime: 60_000 });
   const trips = useQuery({ queryKey: ["travel", "trips"], queryFn: fetchTrips, staleTime: 30_000 });
+  // Flights are a separate booking type from stays (see lib/boardingPass.ts).
+  // A pass in flight today outranks everything else on this screen, so it is
+  // fetched here and pinned above the search field.
+  const passes = useQuery({
+    queryKey: ["travel", "boarding-passes"],
+    queryFn: fetchBoardingPasses,
+    staleTime: 30_000,
+  });
+  const activePass = passes.data?.passes[0];
 
   const refreshing = deals.isRefetching || trips.isRefetching;
   const refresh = () => {
     void deals.refetch();
     void trips.refetch();
+    void passes.refetch();
   };
 
   const openCity = (city: string) => router.push({ pathname: "/travel/hotels", params: { city } });
@@ -108,6 +119,30 @@ export default function Travel() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.text} />}
       >
+        {activePass && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel={`Boarding pass for flight ${activePass.flight.number}, ${statusLine(activePass)}. Opens your boarding pass.`}
+            onPress={() => router.push("/travel/boarding-pass")}
+          >
+            <Surface style={styles.pass}>
+              <View style={styles.passMain}>
+                <Text style={styles.passRoute} numberOfLines={1}>
+                  {activePass.flight.originCode} → {activePass.flight.destinationCode}
+                </Text>
+                <Text style={type.dim} numberOfLines={1}>
+                  {activePass.flight.number} · Gate {activePass.flight.gate} · Seat {activePass.flight.seat}
+                </Text>
+                <Text style={styles.passStatus} numberOfLines={1}>
+                  {statusLine(activePass)}
+                </Text>
+              </View>
+              <Text style={styles.passOpen}>Boarding pass</Text>
+            </Surface>
+          </TouchableOpacity>
+        )}
+
         <Surface style={styles.search}>
           <Field
             label="Where to?"
@@ -175,6 +210,11 @@ export default function Travel() {
 const styles = StyleSheet.create({
   content: { padding: spacing.md, gap: spacing.md, paddingBottom: spacing.xl },
   search: { gap: spacing.sm },
+  pass: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
+  passMain: { flex: 1, gap: 2 },
+  passRoute: { ...type.body, fontSize: 19, fontWeight: "700" },
+  passStatus: { ...type.dim, color: colors.neon },
+  passOpen: { ...type.dim, fontSize: 12, color: colors.neon },
   hint: { ...type.dim, fontSize: 12 },
   list: { gap: spacing.sm },
 
