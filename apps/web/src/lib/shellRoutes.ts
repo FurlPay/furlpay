@@ -34,6 +34,7 @@ export const APP_FRAME_PREFIXES = [
   "/swaps",
   "/auth",
   "/oauth", // MCP consent screens — built for the 440px column
+  "/notifications", // per-user feed, reads as a phone-column list
 ] as const;
 
 /** Sub-pages of /markets that are LISTS, and keep the phone column. Anything

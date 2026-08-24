@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bell, ArrowUpRight, Search, ScanLine, Plus, Copy, Check, Landmark, QrCode, Users, Sprout } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { FiatBalance, TokenBalance, Transaction } from "@/lib/types";
+import NotificationBell from "@/components/NotificationBell";
 import { Spinner, usd } from "@/components/ui";
 import { SwapIcon, ArrowDown, InvestIcon, CardIcon } from "@/components/icons";
 import TransactionList from "@/components/TransactionList";
@@ -78,13 +79,7 @@ export default function HomePage() {
           >
             <Search className="h-5 w-5 text-textSecondary" />
           </button>
-          <button
-            aria-label="Notifications"
-            className="tap relative flex h-11 w-11 items-center justify-center rounded-full border border-white/[0.08] bg-white/[0.04]"
-          >
-            <Bell className="h-5 w-5 text-textSecondary" />
-            <span className="absolute right-3 top-3 h-2 w-2 rounded-full bg-accent ring-2 ring-black" />
-          </button>
+          <NotificationBell />
         </div>
       </header>
 

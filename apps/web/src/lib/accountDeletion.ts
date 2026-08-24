@@ -143,6 +143,7 @@ export async function deleteUserAccount(userId: string): Promise<DeletionOutcome
       "Trips and bookings",
       "Linked wallet address",
       "Push notification registrations",
+      "In-app notification history",
       "Support conversations",
       "Agent / API keys",
     ],

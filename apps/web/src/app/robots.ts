@@ -19,6 +19,10 @@ const DISALLOW = [
   "/credit",
   "/rewards",
   "/analytics",
+  // Per-user account history. Nothing here is indexable and every path under
+  // it is user-scoped, so it is disallowed explicitly rather than relying on
+  // the auth redirect — a crawler should not spend budget discovering that.
+  "/notifications",
 ];
 
 // Named AI/LLM crawlers we explicitly allow (same surface as search engines).

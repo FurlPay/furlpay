@@ -237,3 +237,26 @@ export const ApplePayTopUpSchema = z.object({
   amountUsd: z.number().positive().max(10_000),
   idempotencyKey: z.string().uuid(),
 });
+
+// ── Notifications ──────────────────────────────────────────────────────────
+//
+// The list endpoint takes its parameters from the query string, so the schema
+// coerces: everything arrives as a string. `before` is a keyset cursor the
+// client echoes back from a previous page, and it is validated as a real
+// datetime rather than trusted — it is interpolated into a PostgREST filter.
+
+export const NotificationListSchema = z.object({
+  before: z.string().datetime().optional(),
+  limit: z.coerce.number().int().min(1).max(50).optional(),
+  unreadOnly: z
+    .enum(["true", "false"])
+    .transform((v) => v === "true")
+    .optional(),
+});
+
+/** Mark-one-read carries no body fields worth setting — the id is in the path
+ *  and the only transition is unread → read. An explicit literal keeps the
+ *  contract closed rather than accepting an arbitrary object. */
+export const NotificationPatchSchema = z.object({
+  read: z.literal(true),
+});

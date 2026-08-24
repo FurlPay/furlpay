@@ -54,6 +54,13 @@ const CASCADE_TABLES = [
   // wallet addresses). Nothing about them is a financial record of the user's
   // own activity, so there is no retention argument — they are erased outright.
   "contacts",
+  // Notifications are denormalised display copy ("your deposit completed"),
+  // never the record of the thing they describe — the ledger, the audit log and
+  // the order store hold that, and each is classified on its own terms above.
+  // So there is no retention argument here, and a positive reason to erase: an
+  // erasure request that leaves "your withdrawal failed" addressed to a deleted
+  // account has not erased anything the user cared about.
+  "notifications",
 ];
 
 describe("account deletion — retention contract (schema-enforced)", () => {
