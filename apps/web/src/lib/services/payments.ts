@@ -73,8 +73,12 @@ export interface PaymentRecord {
   transactionHash?: string;
   refundTransactionHash?: string;
   blockedReason?: string;
-  /** Ledger transaction id of the settlement posting (reversed on refund). */
+  /** Ledger transaction id of the SETTLEMENT posting. Never overwritten: the
+   *  record's link to the entry that moved the money is part of the audit
+   *  trail, and a refund adds a compensating entry rather than replacing it. */
   ledgerTxId?: string;
+  /** Ledger transaction id of the refund's compensating entry, once refunded. */
+  refundLedgerTxId?: string;
   // HITL compliance review
   reviewReason?: string;
   reviewRequestedAt?: string;
@@ -472,7 +476,11 @@ export function refundPayment(id: string, actingUserId: string): ExecuteResult {
   try {
     if (record.ledgerTxId) {
       const entry = reverseLedgerTx(record.ledgerTxId, `Refund of ${record.id}`);
-      record.ledgerTxId = entry.id;
+      // Record the compensating entry ALONGSIDE the settlement, not over it.
+      // Overwriting ledgerTxId lost the only link back to the posting that
+      // moved the money, and left the field pointing at a reversal — which a
+      // second refund attempt would then try to reverse, "un-refunding" it.
+      record.refundLedgerTxId = entry.id;
     }
   } catch (e) {
     log.error("refund ledger reversal failed", { paymentId: record.id, error: (e as Error).message });

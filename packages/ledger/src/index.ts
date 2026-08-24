@@ -48,6 +48,12 @@ export class LedgerError extends Error {}
 export class Ledger {
   private accounts = new Map<string, Account>();
   private transactions: Transaction[] = [];
+  /** id -> transaction. Lookups must not be a linear scan of history, and a
+   *  duplicate id must be rejected rather than shadowed (see post()). */
+  private byId = new Map<string, Transaction>();
+  /** original tx id -> the reversal that compensated it. A transaction may be
+   *  reversed at most ONCE; see reverse() for why this is a hard invariant. */
+  private reversedBy = new Map<string, string>();
   private seq = 0;
 
   openAccount(a: Omit<Account, "id"> & { id?: string }): Account {
@@ -87,21 +93,75 @@ export class Ledger {
       throw new LedgerError(`Unbalanced transaction: debits ${debits} != credits ${credits}`);
     }
 
+    const id = opts.id ?? `txn_${++this.seq}`;
+    // A caller-supplied id must be unique. Without this, two transactions can
+    // share an id, and every id-addressed operation (reverse, lookup, audit)
+    // silently resolves to whichever was posted first — so reversing "the"
+    // transaction reverses a different one and leaves the real posting live.
+    if (this.byId.has(id)) {
+      throw new LedgerError(`Duplicate transaction id: ${id}`);
+    }
+
     const tx: Transaction = {
-      id: opts.id ?? `txn_${++this.seq}`,
+      id,
       ts: opts.ts ?? new Date().toISOString(),
       memo,
       postings,
       reverses: opts.reverses,
     };
     this.transactions.push(tx);
+    this.byId.set(id, tx);
+    if (opts.reverses) this.reversedBy.set(opts.reverses, id);
     return tx;
   }
 
-  /** Post a compensating transaction that flips every posting of the original. */
+  getTransaction(txId: string): Transaction | undefined {
+    return this.byId.get(txId);
+  }
+
+  /** The reversal that compensated `txId`, if one exists. Lets a caller make a
+   *  refund path idempotent by asking, rather than by reversing and hoping. */
+  reversalOf(txId: string): Transaction | undefined {
+    const rid = this.reversedBy.get(txId);
+    return rid ? this.byId.get(rid) : undefined;
+  }
+
+  /**
+   * Post a compensating transaction that flips every posting of the original.
+   *
+   * TWO THINGS THIS REFUSES TO DO, both of which create money from nothing:
+   *
+   *   1. Reverse the same transaction twice. The second reversal is a second
+   *      credit against an original that was already compensated, so a $100
+   *      refund issued twice leaves the user's cash account at -$100. The
+   *      global trial balance stays balanced throughout — both sides move
+   *      together — so `trialBalance()` does NOT catch this. Nothing catches
+   *      it except refusing to do it.
+   *
+   *   2. Reverse a reversal. That re-applies the original postings, which is
+   *      "un-refunding" a refund: the money was returned and is now silently
+   *      taken back. If a refund was issued in error the answer is a new,
+   *      intentional charge with its own audit trail — not resurrecting a
+   *      compensating entry.
+   *
+   * Both are LedgerError rather than silent no-ops: a caller that reverses
+   * twice has a bug, and swallowing it would hide the bug while leaving the
+   * caller believing a second refund was issued.
+   */
   reverse(txId: string, memo?: string): Transaction {
-    const original = this.transactions.find((t) => t.id === txId);
+    const original = this.byId.get(txId);
     if (!original) throw new LedgerError(`Transaction not found: ${txId}`);
+
+    if (original.reverses) {
+      throw new LedgerError(
+        `Cannot reverse a reversal: ${txId} already compensates ${original.reverses}`
+      );
+    }
+    const existing = this.reversedBy.get(txId);
+    if (existing) {
+      throw new LedgerError(`Transaction ${txId} was already reversed by ${existing}`);
+    }
+
     const flipped: Posting[] = original.postings.map((p) => ({
       accountId: p.accountId,
       side: p.side === "debit" ? "credit" : "debit",
