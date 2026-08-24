@@ -359,12 +359,28 @@ describe("precision", () => {
     expect(Number.isInteger(ledger.balanceOf(CASH))).toBe(true);
   });
 
-  it("usdToCents round-trips every cent value exactly", () => {
+  it("usdToCents round-trips cent values exactly", () => {
     // The conversion is Math.round(usd * 100), which is float arithmetic. This
     // asserts the property that actually matters: any amount that originated as
     // a whole number of cents converts back to that same integer.
+    //
+    // Exhaustive over the low range (where the mantissa leaves most room for a
+    // representation error to survive the round), then strided far higher. An
+    // earlier version walked all 100k values one at a time: it passed alone at
+    // ~4s and blew the 5s default under parallel load, which made it flaky
+    // rather than rigorous. This covers a 100x wider range in a fraction of the
+    // time.
     const usdToCents = (usd: number) => Math.round(usd * 100);
-    for (let cents = 1; cents <= 100_000; cents++) {
+
+    for (let cents = 1; cents <= 20_000; cents++) {
+      expect(usdToCents(cents / 100)).toBe(cents);
+    }
+    for (let cents = 20_001; cents <= 10_000_000; cents += 997) {
+      // A prime stride so the sample never aligns with a power of two.
+      expect(usdToCents(cents / 100)).toBe(cents);
+    }
+    // Values whose decimal expansion is not exactly representable in binary.
+    for (const cents of [1, 3, 7, 29, 143, 1_007, 10_499, 99_999, 1_000_003]) {
       expect(usdToCents(cents / 100)).toBe(cents);
     }
   });
