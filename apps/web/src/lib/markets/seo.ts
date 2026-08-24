@@ -35,10 +35,15 @@ export function entityLabel(asset: MergedAsset): string {
   return ex ? `${asset.name} (${ex}: ${asset.symbol})` : `${asset.name} (${asset.symbol})`;
 }
 
-/** The single H1. One per page, and the same shape for every security. */
+/** The single H1. One per page, and the same shape for every security.
+ *
+ *  "& Chart" is carried because a chart genuinely renders above this heading —
+ *  "<ticker> stock chart" is a distinct high-volume query from "<ticker> stock
+ *  price", and the page answers both. It would not be here if the chart were
+ *  client-only vapour. */
 export function pageH1(asset: MergedAsset): string {
   const noun = asset.kind === "crypto" ? "Price" : "Stock Price";
-  return `${asset.name} (${asset.symbol}) ${noun}`;
+  return `${asset.name} (${asset.symbol}) ${noun} & Chart`;
 }
 
 export function canonicalPath(symbol: string): string {
@@ -269,6 +274,166 @@ export function companyJsonLd(asset: MergedAsset, stats: RealStats | null) {
   }
 
   return node;
+}
+
+/**
+ * The security itself, as a financial instrument.
+ *
+ * `InvestmentOrDeposit` is schema.org's own subtype of FinancialProduct, which
+ * is what a listed equity actually is — unlike Product/Offer, rejected above.
+ * Be clear about what this buys: Google publishes NO rich result for this type.
+ * It is an entity-disambiguation signal, telling a crawler that this page is
+ * about a tradable instrument with a price in a currency, not a shopping
+ * listing. Anyone expecting a price snippet from it will be disappointed, and
+ * chasing one is how the Product-schema mistake gets made.
+ *
+ * Emitted only when a price exists: `amount` is the one property that carries
+ * a factual claim, and a MonetaryAmount with no value is noise.
+ *
+ * DELIBERATELY ABSENT: `feesAndCommissionsSpecification`. FurlPay publishes no
+ * commission schedule for equities — there is no fee constant in the investing
+ * service, no rate in the order route, and no such claim anywhere in the UI.
+ * Asserting "0% commission" here would put a commercial term Google indexes
+ * into machine-readable form on a page that never says it, which is both a
+ * structured-data policy violation (markup must reflect visible content) and a
+ * consumer claim this company has not actually made. Add it when a real fee
+ * schedule exists and the page displays it — not before.
+ */
+export function investmentJsonLd(asset: MergedAsset, stats: RealStats | null) {
+  if (stats?.price == null) return null;
+
+  const node: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "InvestmentOrDeposit",
+    name:
+      asset.kind === "crypto"
+        ? `${asset.name} (${asset.symbol})`
+        : `${asset.name} Stock (${asset.symbol})`,
+    description: `Live ${asset.symbol} ${
+      asset.kind === "crypto" ? "price" : "stock price"
+    }, chart and market data on FurlPay.`,
+    url: `${SITE}${canonicalPath(asset.symbol)}`,
+    category: asset.kind === "crypto" ? "Cryptocurrency" : "Stock",
+    amount: {
+      "@type": "MonetaryAmount",
+      value: stats.price.toFixed(2),
+      currency: "USD",
+    },
+  };
+
+  // The listing venue, where one is known. For crypto there is no single
+  // issuing venue, so the property is omitted rather than filled with FurlPay —
+  // FurlPay quotes the asset, it does not provide it.
+  const ex = exchangeLabel(asset);
+  if (ex) node.provider = { "@type": "Organization", name: ex };
+
+  return node;
+}
+
+/**
+ * The statistics table, as a dataset.
+ *
+ * This describes the fact tables the page renders — valuation, financials,
+ * trading range — which is a genuine structured dataset with a named source.
+ * It is emitted only when at least one of those tables will actually have rows,
+ * because a Dataset node pointing at a page of em-dashes describes nothing.
+ *
+ * `temporalCoverage` is omitted rather than hardcoded. A fixed "2020/.." would
+ * be a claim about history depth that varies per symbol and is not tracked in
+ * `RealStats`; where the SEC filing period IS known it is stated exactly.
+ */
+export function datasetJsonLd(asset: MergedAsset, stats: RealStats | null) {
+  if (!stats) return null;
+  const hasFacts =
+    stats.marketCap != null ||
+    stats.peRatio != null ||
+    stats.revenueTtm != null ||
+    stats.epsTtm != null ||
+    stats.high52w != null;
+  if (!hasFacts) return null;
+
+  const node: Record<string, unknown> = {
+    "@context": "https://schema.org",
+    "@type": "Dataset",
+    name: `${asset.symbol} financial data`,
+    description: `Market capitalisation, valuation multiples, trailing-twelve-month financials and 52-week trading range for ${asset.name} (${asset.symbol}).`,
+    url: `${SITE}${canonicalPath(asset.symbol)}`,
+    creator: { "@type": "Organization", name: "FurlPay", url: SITE },
+    isAccessibleForFree: true,
+  };
+
+  // Source attribution matches what the visible "Data sources" section says.
+  const sources: string[] = ["Yahoo Finance"];
+  if (stats.provenance?.fundamentals === "sec-edgar") sources.push("U.S. SEC EDGAR");
+  if (stats.provenance?.crypto === "coingecko") sources.push("CoinGecko");
+  node.creditText = sources.join(", ");
+
+  const asOf = stats.provenance?.fiscalAsOf;
+  if (asOf) node.temporalCoverage = `../${asOf}`;
+
+  return node;
+}
+
+// ---------------------------------------------------------------------------
+// How to buy
+//
+// Transactional intent ("how to buy NVDA", "can I buy fractional NVDA") is a
+// different query class from the informational ones the fact tables serve, and
+// it is the one where FurlPay has something to say that a data site does not.
+//
+// The hard constraint is the same as everywhere else in this file: only claims
+// the product actually makes. There is no published commission schedule and no
+// stated minimum investment, so neither appears here — including as an FAQ
+// question, because an FAQPage entry answering "does FurlPay charge
+// commission?" with a hedge is worse than not asking it.
+// ---------------------------------------------------------------------------
+
+export interface HowToStep {
+  title: string;
+  detail: string;
+}
+
+export function howToBuySteps(asset: MergedAsset): HowToStep[] {
+  return [
+    {
+      title: "Create a FurlPay account",
+      detail: "Sign up with a passkey and complete identity verification.",
+    },
+    {
+      title: "Fund your balance",
+      detail: "Add USDC from a wallet you control, or top up from a card or bank account.",
+    },
+    {
+      title: `Place a ${asset.symbol} order`,
+      detail: `Search for ${asset.symbol}, enter the amount you want to invest, and submit the order.`,
+    },
+  ];
+}
+
+/**
+ * FAQ entries about buying, appended to the data-derived ones.
+ *
+ * Every answer here is checkable against the code: fractional quantities are
+ * carried end-to-end (see lib/brokerage/reconcile.ts and sync.ts), and orders
+ * are recorded before submission and reconciled against the provider rather
+ * than filled locally (see api/investing/order/route.ts).
+ */
+export function buildHowToBuyFaq(asset: MergedAsset): FaqEntry[] {
+  if (asset.kind === "crypto") return [];
+  return [
+    {
+      question: `How do I buy ${asset.symbol} on FurlPay?`,
+      answer: `Create a FurlPay account and verify your identity, fund your balance with USDC or from a card or bank account, then search for ${asset.symbol} and place an order for the amount you want to invest.`,
+    },
+    {
+      question: `Can I buy fractional shares of ${asset.symbol}?`,
+      answer: `Yes. FurlPay carries fractional quantities end to end, so you can invest a chosen dollar amount in ${asset.symbol} rather than buying whole shares.`,
+    },
+    {
+      question: `How does FurlPay settle ${asset.symbol} trades?`,
+      answer: `Orders are routed to a brokerage for execution on the market, not filled internally. Each order is recorded before it is submitted and then reconciled against the broker's own record, so a submission that times out leaves an auditable order rather than a silent gap. Holdings are tracked as FIFO lots.`,
+    },
+  ];
 }
 
 export function faqJsonLd(faq: FaqEntry[]) {

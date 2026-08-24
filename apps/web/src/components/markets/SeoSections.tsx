@@ -3,8 +3,10 @@ import type { MergedAsset } from "@/lib/markets/universe";
 import type { RealStats } from "@/lib/markets/providers";
 import {
   buildFaq,
+  buildHowToBuyFaq,
   entityLabel,
   exchangeLabel,
+  howToBuySteps,
   overviewSentence,
   pageH1,
 } from "@/lib/markets/seo";
@@ -34,7 +36,9 @@ export default function SeoSections({
   stats: RealStats | null;
   related: { symbol: string; name: string }[];
 }) {
-  const faq = buildFaq(asset, stats);
+  // The visible FAQ and the FAQPage JSON-LD must be the same list — the page
+  // builds it the same way page.tsx does, so the two cannot drift apart.
+  const faq = [...buildFaq(asset, stats), ...buildHowToBuyFaq(asset)];
   const ex = exchangeLabel(asset);
   const isStock = asset.kind !== "crypto";
 
@@ -194,6 +198,8 @@ export default function SeoSections({
         </section>
       )}
 
+      {isStock && <HowToBuy asset={asset} />}
+
       {faq.length > 0 && (
         <section>
           <h2 className="text-[19px] font-bold tracking-tight">
@@ -290,6 +296,68 @@ function FactTable({
           ))}
         </tbody>
       </table>
+    </section>
+  );
+}
+
+/**
+ * Transactional-intent section: "how to buy NVDA" is a different query from
+ * "NVDA stock price", and this is the part of the page where FurlPay has an
+ * answer a data site does not.
+ *
+ * Server-rendered like everything else here, so it is in the initial HTML.
+ *
+ * No commission figure and no minimum investment appear, in the copy or in the
+ * FAQ. FurlPay publishes neither, and inventing one to fill an obvious gap in a
+ * "how to buy" section is how a page ends up making a financial claim its own
+ * product does not honour. See the note in lib/markets/seo.ts.
+ */
+function HowToBuy({ asset }: { asset: MergedAsset }) {
+  const steps = howToBuySteps(asset);
+  return (
+    <section>
+      <h2 className="text-[19px] font-bold tracking-tight">
+        How to buy {asset.symbol} on FurlPay
+      </h2>
+      <p className="mt-2 max-w-[72ch] text-[13px] text-textSecondary">
+        Invest a chosen dollar amount in {asset.name} with fractional shares.
+      </p>
+      <ol className="mt-4 space-y-3">
+        {steps.map((step, i) => (
+          <li key={step.title} className="flex gap-3.5">
+            <span
+              aria-hidden="true"
+              className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-white/[0.12] text-[12px] font-semibold tabular-nums text-textSecondary"
+            >
+              {i + 1}
+            </span>
+            <span className="max-w-[68ch]">
+              <span className="block text-[14.5px] font-semibold">{step.title}</span>
+              <span className="mt-0.5 block text-[13.5px] leading-relaxed text-textSecondary">
+                {step.detail}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-4 flex flex-wrap gap-2.5">
+        <Link
+          href="/investing"
+          className="inline-block rounded-full bg-accent px-4 py-2 text-[13.5px] font-semibold text-black transition-opacity hover:opacity-90"
+        >
+          Start investing
+        </Link>
+        <Link
+          href="/signup"
+          className="inline-block rounded-full border border-white/[0.12] px-4 py-2 text-[13.5px] font-semibold text-textSecondary transition-colors hover:border-white/25 hover:text-textPrimary"
+        >
+          Create an account
+        </Link>
+      </p>
+      <p className="mt-3 max-w-[72ch] text-[11.5px] leading-relaxed text-textMuted">
+        Investing involves risk, including possible loss of principal. Nothing here is investment
+        advice or a recommendation to buy or sell {asset.symbol}.
+      </p>
     </section>
   );
 }

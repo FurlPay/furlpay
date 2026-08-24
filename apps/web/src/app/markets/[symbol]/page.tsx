@@ -11,9 +11,12 @@ import type { MergedAsset } from "@/lib/markets/universe";
 import {
   breadcrumbJsonLd,
   buildFaq,
+  buildHowToBuyFaq,
   canonicalPath,
   companyJsonLd,
+  datasetJsonLd,
   faqJsonLd,
+  investmentJsonLd,
   pageDescription,
   pageTitle,
 } from "@/lib/markets/seo";
@@ -123,17 +126,24 @@ export default async function Page(props: { params: Promise<{ symbol: string }> 
   if (!loaded) notFound();
 
   const { asset, stats } = loaded;
-  const faq = buildFaq(asset, stats);
+  // Composed exactly as SeoSections composes it, so the FAQPage graph and the
+  // visible <dl> can never describe different questions.
+  const faq = [...buildFaq(asset, stats), ...buildHowToBuyFaq(asset)];
   const company = companyJsonLd(asset, stats);
+  const investment = investmentJsonLd(asset, stats);
+  const dataset = datasetJsonLd(asset, stats);
   const faqLd = faqJsonLd(faq);
 
   return (
     <>
       {/* Structured data describes only what the body below actually renders:
-          the breadcrumb trail, the company entity, and the FAQ — which is
-          emitted only when those questions are visible on the page. */}
+          the breadcrumb trail, the company entity, the instrument and its
+          price, the statistics tables as a dataset, and the FAQ — each emitted
+          only when the corresponding content is genuinely on the page. */}
       <JsonLd data={breadcrumbJsonLd(asset)} />
       {company && <JsonLd data={company} />}
+      {investment && <JsonLd data={investment} />}
+      {dataset && <JsonLd data={dataset} />}
       {faqLd && <JsonLd data={faqLd} />}
 
       <StockClient symbol={asset.symbol}>
