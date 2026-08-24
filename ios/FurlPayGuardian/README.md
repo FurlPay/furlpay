@@ -142,7 +142,7 @@ transliteration, which is worth stating plainly:
 
 | Feature | Notes |
 | --- | --- |
-| Apple Pay top-up | No Android counterpart — the Wear app has no Google Pay. Collects an authorized `PKPaymentToken` and posts it; **`/api/topup/apple-pay` does not exist server-side yet**, so this is not live. |
+| Apple Pay top-up | No Android counterpart — the Wear app has no Google Pay. Collects an authorized `PKPaymentToken` and posts it. `/api/topup/apple-pay` now exists (Zod-validated, 10/min per user, idempotent), but its live path needs processor credentials (`STRIPE_SECRET_KEY` + `APPLE_PAY_MERCHANT_ID`), so `applePayTopUpEnabled` stays `false` until those are set. |
 | Tap to Pay on iPhone | Merchant acceptance — the opposite direction. Code-complete and **not shippable yet**; see below. |
 
 ## Passport vault

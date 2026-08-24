@@ -147,6 +147,10 @@ export const ENV_REGISTRY: EnvGroup[] = [
     vars: [
       v("STRIPE_SECRET_KEY"),
       v("NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"),
+      // Apple Pay merchant identifier ("merchant.com.furlpay.app"). Paired
+      // with STRIPE_SECRET_KEY by /api/topup/apple-pay: without both, a live
+      // deployment refuses the capture instead of simulating one.
+      v("APPLE_PAY_MERCHANT_ID"),
       v("PERSONA_API_KEY"),
       v("NEXT_PUBLIC_PERSONA_TEMPLATE_ID"),
       v("NEXT_PUBLIC_PERSONA_ENV"),

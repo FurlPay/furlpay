@@ -748,13 +748,20 @@ public actor FurlPayAPIClient {
     /// must not try. Decryption needs the merchant private key, which lives
     /// with the payment processor and never on a device.
     ///
-    /// NOTE: `/api/topup/apple-pay` does not exist server-side yet, so this
-    /// throws `applePayUnavailable` rather than posting into a 404 and telling
-    /// the user "Server error 404" about a payment they just authorised with
-    /// Face ID. Per AGENTS.md the route will need Zod validation with a
-    /// positive, bounded amount, a tighter per-route rate limit (this moves
-    /// money), and idempotency keyed on `idempotencyKey`. Flip
-    /// `applePayTopUpEnabled` when it lands.
+    /// NOTE: `/api/topup/apple-pay` now EXISTS server-side — Zod-validated
+    /// against this exact DTO, rate limited 10/min per user, and deduped on
+    /// `Idempotency-Key` so a retried POST cannot capture twice.
+    ///
+    /// Still `false`, because the route's LIVE path is not wired to a payment
+    /// processor: capture needs a Stripe account plus an Apple Pay merchant
+    /// certificate (`APPLE_PAY_MERCHANT_ID`), and until both exist the server
+    /// returns 502 `processor_not_implemented` rather than crediting against a
+    /// capture that never happened. Flipping this now would only trade a clean
+    /// "unavailable" for a server error on a payment the user just authorised
+    /// with Face ID.
+    ///
+    /// Flip it once the processor credentials are set in production. The
+    /// endpoint, its schema, and the ledger credit are already in place.
     public static let applePayTopUpEnabled = false
 
     public func submitApplePayTopUp(

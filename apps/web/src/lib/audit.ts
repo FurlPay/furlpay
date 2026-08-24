@@ -28,6 +28,12 @@ export type AuditEvent =
   | "payment.refunded"
   | "transfer.executed"
   | "transfer.blocked"
+  // Apple Pay top-up. A capture that succeeded but failed to credit is the
+  // one state that needs a human: the money moved and the balance did not.
+  | "topup.applePay.settled"
+  | "topup.applePay.failed"
+  | "topup.applePay.amount_mismatch"
+  | "topup.applePay.credit_failed"
   | "travel.cancelled"
   // Travel-document wallet. The DELETED event deliberately carries no document
   // detail — an erasure record must not become the surviving copy of the data.

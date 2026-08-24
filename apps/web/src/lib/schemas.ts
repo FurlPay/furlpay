@@ -212,3 +212,28 @@ export const NewsletterUnsubscribeSchema = z.object({
   email: SubscriberEmail,
   categories: z.array(NewsletterCategoryEnum).max(5).transform(dedupe).optional(),
 });
+
+// ── Apple Pay top-up ───────────────────────────────────────────────────────
+//
+// The wire shape is dictated by the iOS client, not chosen here: see
+// `ApplePayTopUpRequest` in ios/FurlPayGuardian/Shared/Network/DTOs.swift.
+// Keys are camelCase because the client's JSONEncoder uses default keys.
+//
+// `paymentData` is the base64 of PKPaymentToken.paymentData — opaque
+// ciphertext that only the merchant private key held by the processor can
+// open. The server never decrypts it here and must never log or echo it.
+// The 64KB cap is well above a real token (~2-4KB) and well below the 100KB
+// body cap, so a padded blob is rejected by the schema rather than by memory
+// pressure.
+//
+// `amountUsd` is advisory only. It is what the sheet displayed, and it is
+// checked against the amount the processor actually captured — the captured
+// figure is what gets credited. A client cannot inflate a credit by lying here.
+
+export const ApplePayTopUpSchema = z.object({
+  paymentData: z.string().min(1).max(65_536),
+  network: z.string().min(1).max(32).nullish(),
+  displayName: z.string().min(1).max(64).nullish(),
+  amountUsd: z.number().positive().max(10_000),
+  idempotencyKey: z.string().uuid(),
+});
