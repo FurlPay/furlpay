@@ -13,9 +13,12 @@
     }
   },
   "files": [
-    "dist",
+    "dist/index.js",
+    "dist/index.d.ts",
+    "dist/src",
     "src",
     "index.ts",
+    "README.md",
     "LICENSE"
   ],
   "scripts": {
