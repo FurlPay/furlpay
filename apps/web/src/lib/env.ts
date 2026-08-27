@@ -161,6 +161,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // Tripadvisor Terra. Discovery/content only -- no prices, no availability,
       // no booking. Absent => discovery degrades, booking is unaffected.
       v("TRIPADVISOR_API_KEY"),
+      v("GOOGLE_PLACES_API_KEY"),
       v("RESEND_API_KEY"),
       v("EMAIL_FROM"),
       v("CDP_API_KEY_ID"),
@@ -270,6 +271,13 @@ export const ENV_REGISTRY: EnvGroup[] = [
     vars: [
       v("DISCORD_PUBLIC_KEY"),
       v("DISCORD_GITHUB_WEBHOOK_URL"),
+      // Channel webhook the daily market brief posts to
+      // (/api/cron/market-brief). Unset = the job reports not_configured
+      // rather than building a brief nobody receives.
+      v("DISCORD_MARKET_WEBHOOK_URL"),
+      // Comma-separated watchlist tickers for the daily brief. Unset =
+      // the default mega-cap list. Validated in brief.ts, not trusted.
+      v("FURLPAY_BRIEF_TICKERS"),
       v("TELEGRAM_BOT_TOKEN"),
       v("TELEGRAM_CHANNEL_ID"),
       v("IG_ACCESS_TOKEN"),

@@ -1,12 +1,12 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification \u2014 an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 239,
+  "_total": 246,
   "_counts": {
     "ADMIN_ONLY": 17,
     "AUTHENTICATED_USER": 89,
     "DEVELOPMENT_ONLY": 1,
-    "INTERNAL_ONLY": 2,
-    "PUBLIC_INTENTIONAL": 116,
+    "INTERNAL_ONLY": 3,
+    "PUBLIC_INTENTIONAL": 122,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -80,6 +80,7 @@
     "contacts/resolve": "AUTHENTICATED_USER",
     "credit": "AUTHENTICATED_USER",
     "cron/health": "INTERNAL_ONLY",
+    "cron/market-brief": "INTERNAL_ONLY",
     "cron/reconcile": "INTERNAL_ONLY",
     "deposits": "AUTHENTICATED_USER",
     "discord/interactions": "PUBLIC_INTENTIONAL",
@@ -176,6 +177,7 @@
     "security/simulate": "PUBLIC_INTENTIONAL",
     "summary": "AUTHENTICATED_USER",
     "support/ask": "PUBLIC_INTENTIONAL",
+    "support/kb": "PUBLIC_INTENTIONAL",
     "support/message": "PUBLIC_INTENTIONAL",
     "support/sso": "AUTHENTICATED_USER",
     "support/tickets": "AUTHENTICATED_USER",
@@ -207,6 +209,11 @@
     "travel/gift-cards": "PUBLIC_INTENTIONAL",
     "travel/gift-cards/redeem": "PUBLIC_INTENTIONAL",
     "travel/hotels": "PUBLIC_INTENTIONAL",
+    "travel/hotels/detail": "PUBLIC_INTENTIONAL",
+    "travel/hotels/map": "PUBLIC_INTENTIONAL",
+    "travel/hotels/photo": "PUBLIC_INTENTIONAL",
+    "travel/hotels/preview": "PUBLIC_INTENTIONAL",
+    "travel/hotels/price": "PUBLIC_INTENTIONAL",
     "travel/itineraries": "PUBLIC_INTENTIONAL",
     "travel/property/[id]": "PUBLIC_INTENTIONAL",
     "travel/referral": "PUBLIC_INTENTIONAL",
