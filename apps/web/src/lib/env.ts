@@ -278,6 +278,10 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // Comma-separated watchlist tickers for the daily brief. Unset =
       // the default mega-cap list. Validated in brief.ts, not trusted.
       v("FURLPAY_BRIEF_TICKERS"),
+      // Telegram chat the daily brief posts to. Falls back to
+      // TELEGRAM_CHANNEL_ID so the existing channel works with no new
+      // config; set this to send the brief somewhere else.
+      v("TELEGRAM_MARKET_CHAT_ID"),
       v("TELEGRAM_BOT_TOKEN"),
       v("TELEGRAM_CHANNEL_ID"),
       v("IG_ACCESS_TOKEN"),
