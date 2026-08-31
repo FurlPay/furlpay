@@ -86,7 +86,11 @@ fun TravelScreen(viewModel: TravelViewModel = viewModel()) {
     }
 
     ScreenScaffold(scrollState = columnState) { contentPadding ->
-        TransformingLazyColumn(state = columnState, contentPadding = contentPadding) {
+        TransformingLazyColumn(
+            modifier = Modifier.rotaryScroll(columnState),
+            state = columnState,
+            contentPadding = contentPadding,
+        ) {
             item {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,

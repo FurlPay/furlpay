@@ -33,6 +33,7 @@ fun SpendingScreen(viewModel: SpendingViewModel = viewModel()) {
 
     ScreenScaffold(scrollState = columnState) { contentPadding ->
         TransformingLazyColumn(
+            modifier = Modifier.rotaryScroll(columnState),
             state = columnState,
             contentPadding = contentPadding,
         ) {

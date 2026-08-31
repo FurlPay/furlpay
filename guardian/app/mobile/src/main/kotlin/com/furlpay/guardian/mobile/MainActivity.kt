@@ -34,6 +34,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.saveable.rememberSaveable
+import com.furlpay.guardian.mobile.ui.DeleteAccountScreen
 import com.furlpay.guardian.mobile.ui.LiveVoiceScreen
 import com.furlpay.guardian.mobile.ui.TapToPayScreen
 import com.furlpay.guardian.mobile.ui.trips.TripsScreen
@@ -79,6 +80,7 @@ private fun GuardianRoot() {
     var showTapToPay by rememberSaveable { mutableStateOf(false) }
     var showUpiScan by rememberSaveable { mutableStateOf(false) }
     var showTrips by rememberSaveable { mutableStateOf(false) }
+    var showDeleteAccount by rememberSaveable { mutableStateOf(false) }
 
     // Signing out must close whatever was open. These are rememberSaveable, so
     // without this a merchant who signs out from the terminal is dropped
@@ -89,17 +91,21 @@ private fun GuardianRoot() {
             showTapToPay = false
             showUpiScan = false
             showTrips = false
+            showDeleteAccount = false
         }
     }
 
     // System Back closes the current surface instead of leaving the app.
     // Without a handler, Back on the voice or terminal screen exits Guardian
     // outright — on Android that reads as a crash, not as navigation.
-    BackHandler(enabled = showVoice || showTapToPay || showUpiScan || showTrips) {
+    BackHandler(
+        enabled = showVoice || showTapToPay || showUpiScan || showTrips || showDeleteAccount,
+    ) {
         showVoice = false
         showTapToPay = false
         showUpiScan = false
         showTrips = false
+        showDeleteAccount = false
     }
 
     Scaffold { padding ->
@@ -118,11 +124,19 @@ private fun GuardianRoot() {
                         )
                         showUpiScan -> UpiScanScreen(onClose = { showUpiScan = false })
                         showTrips -> TripsScreen(onClose = { showTrips = false })
+                        showDeleteAccount -> DeleteAccountScreen(
+                            // The ViewModel already signed out; closing the
+                            // surface is all that is left, and the authState
+                            // change swaps in SignInScreen underneath.
+                            onDeleted = { showDeleteAccount = false },
+                            onBack = { showDeleteAccount = false },
+                        )
                         else -> DashboardScreen(
                             onOpenVoice = { showVoice = true },
                             onOpenTapToPay = { showTapToPay = true },
                             onOpenUpiScan = { showUpiScan = true },
                             onOpenTrips = { showTrips = true },
+                            onOpenDeleteAccount = { showDeleteAccount = true },
                         )
                     }
             }
@@ -187,6 +201,7 @@ private fun DashboardScreen(
     onOpenTapToPay: () -> Unit,
     onOpenUpiScan: () -> Unit,
     onOpenTrips: () -> Unit,
+    onOpenDeleteAccount: () -> Unit,
     viewModel: DashboardViewModel = viewModel(),
     remindersViewModel: RemindersViewModel = viewModel(),
 ) {
@@ -231,6 +246,16 @@ private fun DashboardScreen(
                 OutlinedButton(onClick = onOpenUpiScan) { Text("Scan UPI") }
                 OutlinedButton(onClick = onOpenTrips) { Text("Trips") }
                 OutlinedButton(onClick = viewModel::signOut) { Text("Sign out") }
+            }
+        }
+
+        // Google Play requires deletion to be reachable IN the app for any app
+        // that creates accounts. It sits below the action row rather than in
+        // it: destructive and rarely wanted, but findable without a support
+        // ticket, which is the whole requirement.
+        item {
+            OutlinedButton(onClick = onOpenDeleteAccount) {
+                Text("Delete account", color = MaterialTheme.colorScheme.error)
             }
         }
         state.syncMessage?.let { message ->

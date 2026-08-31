@@ -55,6 +55,7 @@ fun PortfolioScreen(
 
     ScreenScaffold(scrollState = columnState) { contentPadding ->
         TransformingLazyColumn(
+            modifier = Modifier.rotaryScroll(columnState),
             state = columnState,
             contentPadding = contentPadding,
         ) {

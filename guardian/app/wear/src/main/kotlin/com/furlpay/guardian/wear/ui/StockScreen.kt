@@ -44,6 +44,7 @@ import androidx.wear.compose.material3.Button
 import androidx.wear.compose.material3.ButtonDefaults
 import androidx.wear.compose.material3.CircularProgressIndicator
 import androidx.wear.compose.material3.MaterialTheme
+import androidx.wear.compose.material3.minimumInteractiveComponentSize
 import androidx.wear.compose.material3.OutlinedButton
 import androidx.wear.compose.material3.ScreenScaffold
 import androidx.wear.compose.material3.Text
@@ -234,11 +235,15 @@ private fun ChartFace(
         }
 
         Row(
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            // Tighter spacing than before: minimumInteractiveComponentSize
+            // already holds the targets apart, so the old 10.dp gap stacked on
+            // top of it would push the last timeframe off a 41mm screen.
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .padding(top = 6.dp)
                 .horizontalScroll(rememberScrollState())
-                .padding(horizontal = 26.dp),
+                .padding(horizontal = 20.dp),
         ) {
             StockViewModel.TIMEFRAMES.forEach { tf ->
                 val selected = tf == state.timeframe
@@ -246,7 +251,16 @@ private fun ChartFace(
                     text = tf,
                     style = MaterialTheme.typography.labelMedium,
                     color = if (selected) FurlPayColors.Primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
                     modifier = Modifier
+                        // These were bare Text nodes whose touch target was the
+                        // glyph box — roughly 20x14dp for "1D" on a 1.4-inch
+                        // round screen, well under the 48dp minimum and a
+                        // reliable mis-tap. This expands the TOUCH target
+                        // without changing what is drawn, so the row still
+                        // reads as a line of labels rather than a row of
+                        // buttons that would not fit anyway.
+                        .minimumInteractiveComponentSize()
                         .clickableNoRipple {
                             haptics.tick()
                             viewModel.setTimeframe(tf)

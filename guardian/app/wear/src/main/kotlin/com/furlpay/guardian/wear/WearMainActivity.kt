@@ -15,6 +15,8 @@ import androidx.wear.compose.material3.TimeText
 import androidx.wear.compose.navigation.SwipeDismissableNavHost
 import androidx.wear.compose.navigation.composable
 import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
+import com.furlpay.guardian.wear.complication.ComplicationLockReceiver
+import com.furlpay.guardian.wear.complication.ComplicationPrivacy
 import com.furlpay.guardian.wear.tile.EXTRA_ROUTE
 import com.furlpay.guardian.wear.ui.CardsScreen
 import com.furlpay.guardian.wear.ui.HomeScreen
@@ -44,6 +46,17 @@ class WearMainActivity : ComponentActivity() {
     /** Route requests arriving while the activity is alive (tile taps). */
     private val pendingRoute = mutableStateOf<String?>(null)
 
+    /**
+     * Re-renders the money complications when the watch is unlocked.
+     *
+     * They redact themselves while the device is locked, and the watch-face
+     * system caches whatever a provider last returned — so without a nudge on
+     * unlock a user would keep seeing dots long after unlocking. Registered
+     * here rather than in the manifest because ACTION_USER_PRESENT and
+     * ACTION_SCREEN_ON are not delivered to manifest-declared receivers.
+     */
+    private val lockReceiver = ComplicationLockReceiver()
+
     private val ambientObserver = AmbientLifecycleObserver(
         this,
         object : AmbientLifecycleObserver.AmbientLifecycleCallback {
@@ -59,7 +72,30 @@ class WearMainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // FLAG_SECURE, for the same reason app/mobile sets it: every screen
+        // here shows balances, card last-4s or holdings, and none of them is
+        // something a user needs to screenshot. The phone app had this from the
+        // start and the watch did not, so the watch's recents thumbnail and any
+        // screen-recording service kept a legible copy of the wallet.
+        //
+        // Wear OS honours the flag the same way the phone does — this is not a
+        // no-op on a small screen.
+        window.setFlags(
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+            android.view.WindowManager.LayoutParams.FLAG_SECURE,
+        )
+
         lifecycle.addObserver(ambientObserver)
+
+        // RECEIVER_NOT_EXPORTED: these are system broadcasts and nothing else
+        // may send them to us. Required from API 34 and correct before it.
+        androidx.core.content.ContextCompat.registerReceiver(
+            this,
+            lockReceiver,
+            ComplicationLockReceiver.filter,
+            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
 
         val start = intent?.getStringExtra(EXTRA_ROUTE)
             ?.takeIf { it in VALID_ROUTES }
@@ -75,6 +111,18 @@ class WearMainActivity : ComponentActivity() {
                 onRouteConsumed = { pendingRoute.value = null },
             )
         }
+    }
+
+    override fun onDestroy() {
+        unregisterReceiver(lockReceiver)
+        super.onDestroy()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // The app being in the foreground means the watch is unlocked, and the
+        // complications may have redacted themselves while it was not.
+        ComplicationPrivacy.requestRefresh(this)
     }
 
     // A tile tap while the app is already open lands here, not onCreate —

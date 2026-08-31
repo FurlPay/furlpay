@@ -478,6 +478,35 @@ data class OtpCheckRequest(
 @Serializable
 data class OtpCheckResponse(val verified: Boolean = false, val token: String? = null)
 
+// GET /api/profile — only the fields this app needs. The route returns more,
+// and every extra field decoded here is one more thing to keep in sync with a
+// response the watch never reads.
+@Serializable
+data class ProfileResponse(val email: String? = null, val name: String? = null)
+
+// GET /api/account — what deletion would erase and what it cannot.
+//
+// `retained` comes from the SERVER (lib/accountDeletion.ts RETENTION_NOTICE),
+// never from a copy written into the app. A client-side list would drift from
+// what the API actually keeps, and the difference between the two is a promise
+// the product did not keep.
+@Serializable
+data class AccountDeletionPreview(
+    val stepUpSatisfied: Boolean = false,
+    val retained: List<RetainedRecord> = emptyList(),
+)
+
+@Serializable
+data class RetainedRecord(val record: String = "", val reason: String = "")
+
+// DELETE /api/account
+@Serializable
+data class AccountDeletionResult(
+    val deleted: Boolean = false,
+    val erased: List<String> = emptyList(),
+    val retained: List<String> = emptyList(),
+)
+
 // POST /api/push/devices
 @Serializable
 data class RegisterDeviceRequest(val token: String, val device: String)

@@ -74,6 +74,7 @@ fun HomeScreen(
         },
     ) { contentPadding ->
         TransformingLazyColumn(
+            modifier = Modifier.rotaryScroll(columnState),
             state = columnState,
             contentPadding = contentPadding,
         ) {

@@ -11,11 +11,19 @@ import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.wear.ui.compactUsd
 import com.furlpay.guardian.wear.wearServices
 
-/** Watch-face slot: "+$42 ▲" — portfolio day change. Cache only. */
+/**
+ * Watch-face slot: "+$42 ▲" — portfolio day change. Cache only.
+ *
+ * Redacted while the device is locked. A day change is a smaller number than
+ * the balance but it still sizes the portfolio behind it.
+ */
 class PortfolioChangeComplicationService : SuspendingComplicationDataSourceService() {
 
     override suspend fun onComplicationRequest(request: ComplicationRequest): ComplicationData? {
         if (request.complicationType != ComplicationType.SHORT_TEXT) return null
+        if (ComplicationPrivacy.isRedacted(applicationContext)) {
+            return shortText(ComplicationPrivacy.REDACTED, description = "Portfolio hidden while locked")
+        }
         val snapshot = applicationContext.wearServices.snapshots
             .read(SyncProtocol.DATA_PORTFOLIO)
             ?.let { stored ->
@@ -34,9 +42,12 @@ class PortfolioChangeComplicationService : SuspendingComplicationDataSourceServi
     override fun getPreviewData(type: ComplicationType): ComplicationData? =
         if (type == ComplicationType.SHORT_TEXT) shortText("+$42▲") else null
 
-    private fun shortText(text: String): ComplicationData =
+    private fun shortText(
+        text: String,
+        description: String = "Portfolio day change",
+    ): ComplicationData =
         ShortTextComplicationData.Builder(
             text = PlainComplicationText.Builder(text).build(),
-            contentDescription = PlainComplicationText.Builder("Portfolio day change").build(),
+            contentDescription = PlainComplicationText.Builder(description).build(),
         ).build()
 }

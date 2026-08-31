@@ -44,6 +44,7 @@ fun CardsScreen(viewModel: CardsViewModel = viewModel()) {
 
     ScreenScaffold(scrollState = columnState) { contentPadding ->
         TransformingLazyColumn(
+            modifier = Modifier.rotaryScroll(columnState),
             state = columnState,
             contentPadding = contentPadding,
         ) {

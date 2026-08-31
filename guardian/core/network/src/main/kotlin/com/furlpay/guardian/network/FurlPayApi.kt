@@ -1,5 +1,7 @@
 package com.furlpay.guardian.network
 
+import com.furlpay.guardian.network.dto.AccountDeletionPreview
+import com.furlpay.guardian.network.dto.AccountDeletionResult
 import com.furlpay.guardian.network.dto.AssetDetailResponse
 import com.furlpay.guardian.network.dto.BarsResponse
 import com.furlpay.guardian.network.dto.BoardingPassesResponse
@@ -19,6 +21,7 @@ import com.furlpay.guardian.network.dto.OtpCheckRequest
 import com.furlpay.guardian.network.dto.OtpCheckResponse
 import com.furlpay.guardian.network.dto.OtpStartRequest
 import com.furlpay.guardian.network.dto.PortfolioResponse
+import com.furlpay.guardian.network.dto.ProfileResponse
 import com.furlpay.guardian.network.dto.RegisterDeviceRequest
 import com.furlpay.guardian.network.dto.RegisterDeviceResponse
 import com.furlpay.guardian.network.dto.TransactionsResponse
@@ -26,6 +29,7 @@ import com.furlpay.guardian.network.dto.TripsResponse
 import com.furlpay.guardian.network.dto.WalletsResponse
 import kotlinx.serialization.json.JsonObject
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -100,6 +104,30 @@ interface FurlPayApi {
 
     @POST("push/devices")
     suspend fun registerDevice(@Body body: RegisterDeviceRequest): RegisterDeviceResponse
+
+    /**
+     * The signed-in identity. The session JWT carries only a user id, so the
+     * address a re-verification code is sent to has to come from the server —
+     * asking the user to retype it would let a shoulder-surfer send the code
+     * somewhere else.
+     */
+    @GET("profile")
+    suspend fun profile(): ProfileResponse
+
+    /**
+     * What deletion would erase, and whether this session has already stepped
+     * up. Read before the confirm screen is shown, never after.
+     */
+    @GET("account")
+    suspend fun accountDeletionPreview(): AccountDeletionPreview
+
+    /**
+     * Irreversible. The route requires a session-bound step-up (an OTP or
+     * passkey re-auth within the window) and 403s without one, so the screen
+     * sends the user back through the login code first.
+     */
+    @DELETE("account")
+    suspend fun deleteAccount(): AccountDeletionResult
 
     // Anonymous (no bearer yet) — the interceptor simply finds no stored token.
     @POST("auth/otp/start")

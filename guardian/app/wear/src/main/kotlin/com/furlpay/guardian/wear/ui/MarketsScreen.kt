@@ -56,7 +56,11 @@ fun MarketsScreen(navController: NavController, viewModel: MarketsViewModel = vi
     val haptics = rememberHaptics()
 
     ScreenScaffold(scrollState = columnState) { contentPadding ->
-        TransformingLazyColumn(state = columnState, contentPadding = contentPadding) {
+        TransformingLazyColumn(
+            modifier = Modifier.rotaryScroll(columnState),
+            state = columnState,
+            contentPadding = contentPadding,
+        ) {
             item {
                 Text(
                     text = "Markets",
