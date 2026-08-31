@@ -18,6 +18,8 @@ import { notifyTransaction } from "@/lib/notify";
 // POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via
 // Paymaster, from the SESSION user's balances.
 // body: { safeAddress, destination, amount, token, chain, signature, mfaCode?, deviceSignals? }
+// `amount` is denominated in TOKEN units, not USD. It is converted to USD once,
+// at the caller's own priced balance, for the KYC/velocity/step-up gates.
 // Retries are safe: send an Idempotency-Key header (UUID) — a duplicate key
 // replays the original response instead of double-spending.
 export async function POST(req: NextRequest) {
@@ -62,9 +64,29 @@ async function executeTransfer(
 ): Promise<NextResponse> {
   const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = data;
 
+  // `amount` is TOKEN units — it is what gets debited from the token balance
+  // below, and it is what every client sends (web ScanToPay, native-app
+  // useSend). Every gate underneath is denominated in USD, so the two must be
+  // converted here rather than conflated: 5,000 EURC is not $5,000, and
+  // treating it as such mis-scales the KYC cap, the velocity ceiling and the
+  // step-up threshold for every token that is not 1:1 with the dollar.
+  //
+  // Only the LOOKUP moves up here — the funds check itself stays below the AML
+  // screen, so a transfer to a sanctioned destination still produces its
+  // compliance audit event rather than being turned away earlier as an
+  // overdraw.
+  //
+  // The rate is derived from the user's own priced balance, never from a price
+  // table on this route. An absent or unpriced balance falls back to par: for
+  // the stablecoins TransferSchema accepts that is the right reading, and the
+  // funds check below rejects the request anyway.
+  const src = account.tokenBalances.find((b) => b.token === token && b.chain === chain);
+  const unitUsd = src && src.amount > 0 && src.usdValue > 0 ? src.usdValue / src.amount : 1;
+  const amountUsd = Math.round(amount * unitUsd * 100) / 100;
+
   // KYC-tier gate: per-transfer cap scales with verification level
   // (progressive access — see lib/kycTiers.ts).
-  const tierCheck = checkTransferAmount(account.user.kycTier, amount);
+  const tierCheck = checkTransferAmount(account.user.kycTier, amountUsd);
   if (!tierCheck.allowed) {
     audit("transfer.blocked", account.user.id, { destination, amount, reason: tierCheck.code });
     return NextResponse.json(
@@ -104,7 +126,7 @@ async function executeTransfer(
   // Cross-instance velocity (Redis): burst caps, daily USD volume, and
   // impossible travel via the CDN's IP-country header. Burst → hard block;
   // volume/geo anomalies escalate to step-up MFA below.
-  const velocity = await checkVelocity({ userId: account.user.id, amountUsd: amount, country });
+  const velocity = await checkVelocity({ userId: account.user.id, amountUsd, country });
   if (velocity.action === "block") {
     audit("transfer.blocked", account.user.id, { destination, amount, reason: "velocity", flags: velocity.flags });
     return NextResponse.json({ error: "Transfer blocked by velocity policy", velocity }, { status: 429 });
@@ -112,7 +134,7 @@ async function executeTransfer(
 
   // Step-up MFA for high-value transfers (>= $5000), velocity anomalies, or a
   // device-intelligence challenge (e.g. suspected AI browsing agent).
-  const stepUp = requiresStepUp({ action: "transfer", amountUsd: amount });
+  const stepUp = requiresStepUp({ action: "transfer", amountUsd });
   if (stepUp.required || velocity.action === "review" || deviceChallenge) {
     if (!mfaCode) {
       return NextResponse.json(
@@ -161,7 +183,7 @@ async function executeTransfer(
   }
 
   // Funds check before anything is recorded — a transfer can't overdraw.
-  const src = account.tokenBalances.find((b) => b.token === token && b.chain === chain);
+  // Compared in TOKEN units, against the token balance.
   if (!src || src.amount < amount) {
     return NextResponse.json(
       { error: `Insufficient ${token} balance on ${chain}.`, available: src?.amount ?? 0 },
@@ -177,7 +199,7 @@ async function executeTransfer(
       direction: "out",
       title: `Sent ${token}`,
       subtitle: `${destination.slice(0, 10)}… · gas sponsored · ${chain}`,
-      amountUsd: amount,
+      amountUsd,
       token,
       chain,
       status: "settled",
@@ -186,23 +208,22 @@ async function executeTransfer(
 
   // Deduct in token units, re-mark USD value at the balance's unit price so
   // non-USD tokens (e.g. EURC) keep their FX rate instead of collapsing to 1:1.
-  const unitUsd = src.amount > 0 ? src.usdValue / src.amount : 1;
   src.amount -= amount;
   src.usdValue = Math.round(src.amount * unitUsd * 100) / 100;
 
   // Double-entry: funds leave user cash.
-  const entry = recordMovement("out", amount, `Transfer ${token} to ${destination.slice(0, 10)}…`, account.user.id);
+  const entry = recordMovement("out", amountUsd, `Transfer ${token} to ${destination.slice(0, 10)}…`, account.user.id);
 
-  void commitVelocity({ userId: account.user.id, amountUsd: amount, country });
+  void commitVelocity({ userId: account.user.id, amountUsd, country });
 
-  audit("transfer.executed", account.user.id, { destination, amount, token, chain, transactionHash });
+  audit("transfer.executed", account.user.id, { destination, amount, amountUsd, token, chain, transactionHash });
 
   // Fire-and-forget: the transfer is recorded and the ledger has moved; a
   // notification failure must neither slow nor fail it. Truncated address on
   // purpose — a push and an email are not places to print a full destination.
   void notifyTransaction(account, {
     kind: "transfer_out",
-    amountUsd: amount,
+    amountUsd,
     counterparty: `${destination.slice(0, 10)}… (${chain})`,
     dateIso: new Date().toISOString(),
   });

@@ -111,6 +111,18 @@ const PUBLIC_API_PREFIXES = [
   "/api/mpp", // Machine Payments Protocol (Stripe/Tempo) — auth IS the payment
   "/api/contact", // public "Talk to us" lead capture
   "/api/support/message", // public chat-bubble → support mailbox (IP rate-limited)
+  // Tier-1 AI deflection for the public chat bubble. The route was written to
+  // be public — IP rate limit of 15/min, secret redaction on the question and
+  // every history turn — but was never listed here, so it answered
+  // "Unauthorized" to the one caller it exists for. It reads nothing
+  // user-specific: retrieval runs over the published help centre only, and the
+  // model is instructed to answer from those articles or escalate.
+  "/api/support/ask",
+  // The help-centre index and its search. Publishes only what /docs/help/*
+  // already shows anyone. Listed as its own entry rather than widening this to
+  // "/api/support" — that prefix would also expose /api/support/tickets, which
+  // is session-gated and reads other people's conversations.
+  "/api/support/kb",
   "/api/support/sso", // Zendesk JWT handoff — browser flow; the route itself requires a session (redirects to /login) and 404s until configured
   "/api/hackathon", // public Build Challenge submissions
   "/api/swag", // public Swag Center redemption/order requests
@@ -299,6 +311,11 @@ export const config = {
   // file extension (images, og.png, svgo logos, fonts) so crawlers and social
   // scrapers fetch them directly without hitting the auth redirect.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|json|xml|txt|mp4|webm|mov|mp3|m4a)).*)",
+    // `mjs` is in the list because of the MapLibre tile worker in public/.
+    // Static files under public/ still pass through middleware when the matcher
+    // admits them, and a worker script that comes back as a redirect or an HTML
+    // shell fails in the least legible way available: the map renders, the
+    // controls work, and nothing ever paints.
+    "/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|sw.js|.*\\.(?:png|svg|jpg|jpeg|webp|gif|ico|woff2?|ttf|json|xml|txt|mp4|webm|mov|mp3|m4a|mjs)).*)",
   ],
 };

@@ -155,8 +155,54 @@ export const SUPPORT_KB: KbEntry[] = [
 /** Lightweight retrieval: token overlap over title/keywords/content, weighted.
  *  No embeddings — the corpus is 14 entries, so exact+fuzzy token scoring is
  *  both sufficient and dependency-free. Returns the best matches, score > 0. */
+/**
+ * Words that carry no retrieval signal.
+ *
+ * Not merely noise — actively harmful here, because they appear in every
+ * article. Scoring them meant any English sentence matched the whole corpus.
+ */
+const STOPWORDS = new Set([
+  "the", "and", "for", "are", "but", "not", "you", "your", "with", "that",
+  "this", "from", "have", "has", "can", "how", "what", "why", "when", "where",
+  "does", "did", "was", "were", "will", "would", "should", "could", "about",
+  "into", "out", "get", "got", "any", "all", "our", "its", "it's", "there",
+  "here", "than", "then", "them", "they", "some", "just", "like", "who",
+]);
+
+/**
+ * A score below this is noise, not a match.
+ *
+ * One incidental word shared with an article is not a reason to answer from it.
+ * Three is roughly "one keyword hit" or "a title word plus a content word" —
+ * enough to be about the same subject rather than merely written in English.
+ */
+const MIN_SCORE = 3;
+
+/** Whole-word test. See the note in `retrieveKb` for why substrings are wrong. */
+function hasWord(haystack: string, word: string): boolean {
+  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`\\b${escaped}\\b`).test(haystack);
+}
+
+/**
+ * Retrieve the articles that actually bear on `query`.
+ *
+ * WORD BOUNDARIES, NOT SUBSTRINGS. This used to score `content.includes(t)`,
+ * which meant "an" matched inside *balance* and *and*, "is" inside *this*, and
+ * "of" inside prose everywhere. Every article therefore scored above zero for
+ * any English sentence, so the answerer never saw an empty result and never set
+ * `escalate` — it answered a question about unladen swallows from the virtual
+ * cards article, confidently and with citations.
+ *
+ * Returning NOTHING is a real and useful answer here: `answerSupportQuestion`
+ * turns an empty result into an escalation, which is what should happen when
+ * the help centre does not cover something.
+ */
 export function retrieveKb(query: string, limit = 3): KbEntry[] {
-  const tokens = query.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 1);
+  const tokens = query
+    .toLowerCase()
+    .split(/[^a-z0-9']+/)
+    .filter((t) => t.length > 2 && !STOPWORDS.has(t));
   if (!tokens.length) return [];
 
   const scored = SUPPORT_KB.map((entry) => {
@@ -165,15 +211,15 @@ export function retrieveKb(query: string, limit = 3): KbEntry[] {
     const content = entry.content.toLowerCase();
     let score = 0;
     for (const t of tokens) {
-      if (kw.includes(t)) score += 3; // keyword hit — strongest signal
-      if (title.includes(t)) score += 2;
-      if (content.includes(t)) score += 1;
+      if (hasWord(kw, t)) score += 3; // keyword hit — strongest signal
+      if (hasWord(title, t)) score += 2;
+      if (hasWord(content, t)) score += 1;
     }
     return { entry, score };
   });
 
   return scored
-    .filter((s) => s.score > 0)
+    .filter((s) => s.score >= MIN_SCORE)
     .sort((a, b) => b.score - a.score)
     .slice(0, limit)
     .map((s) => s.entry);
