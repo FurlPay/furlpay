@@ -7,7 +7,7 @@ import { BillIcon, CardIcon, HomeIcon, InvestIcon, UserIcon } from "./icons";
 const TABS = [
   { href: "/dashboard", label: "Home", Icon: HomeIcon },
   { href: "/cards", label: "Cards", Icon: CardIcon },
-  { href: "/investing", label: "Invest", Icon: InvestIcon },
+  { href: "/portfolio", label: "Portfolio", Icon: InvestIcon },
   { href: "/bills", label: "Bills", Icon: BillIcon },
   { href: "/profile", label: "Profile", Icon: UserIcon },
 ];

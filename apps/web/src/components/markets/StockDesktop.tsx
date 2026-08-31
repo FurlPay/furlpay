@@ -7,7 +7,7 @@ import { AssetLogo } from "@furlpay/ui";
 import PriceChart from "@/components/PriceChart";
 import AssetRow from "@/components/AssetRow";
 import SignalBadge from "@/components/insights/SignalBadge";
-import DesktopNav from "./DesktopNav";
+import AppSidebar from "@/components/AppSidebar";
 import KeyStatsGrid from "./KeyStatsGrid";
 import Provenance from "./Provenance";
 import StockHeader from "./StockHeader";
@@ -49,7 +49,7 @@ export default function StockDesktop({
 
   return (
     <div className="flex min-h-screen bg-oled">
-      <DesktopNav />
+      <AppSidebar />
 
       <div className="min-w-0 flex-1">
         {/* The burgundy wash sits behind the header only, exactly as on the

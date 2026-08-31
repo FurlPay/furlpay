@@ -121,7 +121,7 @@ export default function PortfolioSnapshot() {
       ) : state === "error" ? (
         <p className="mt-2 text-[11.5px] leading-relaxed text-textSecondary">
           We could not load your portfolio just now.{" "}
-          <Link href="/investing" className="font-semibold text-accent hover:underline">
+          <Link href="/portfolio" className="font-semibold text-accent hover:underline">
             Open Portfolio →
           </Link>
         </p>
@@ -131,7 +131,7 @@ export default function PortfolioSnapshot() {
             You don&apos;t hold any assets yet. Anything you buy will appear here.
           </p>
           <Link
-            href="/investing"
+            href="/portfolio"
             className="mt-3 block w-full rounded-lg border border-white/[0.1] py-2 text-center text-[12px] font-semibold text-white transition-colors hover:border-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             View Portfolio
@@ -192,7 +192,7 @@ export default function PortfolioSnapshot() {
           )}
 
           <Link
-            href="/investing"
+            href="/portfolio"
             className="mt-3.5 block w-full rounded-lg border border-white/[0.1] py-2 text-center text-[12px] font-semibold text-white transition-colors hover:border-white/25 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             View Portfolio

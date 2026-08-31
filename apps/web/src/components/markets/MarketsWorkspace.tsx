@@ -7,7 +7,7 @@ import { Flame, Grid3X3, LayoutGrid, List, MoreHorizontal, Search, Star } from "
 import BottomNav from "@/components/BottomNav";
 import Heatmap from "@/components/Heatmap";
 import { useSession } from "@/components/auth/SessionProvider";
-import DesktopNav from "./DesktopNav";
+import AppSidebar from "@/components/AppSidebar";
 import MarketsTopBar from "./MarketsTopBar";
 import MarketOverview, { type IndexItem } from "./MarketOverview";
 import TrendingToday from "./TrendingToday";
@@ -352,7 +352,7 @@ export default function MarketsWorkspace() {
 
   return (
     <div className="bg-oled flex min-h-screen">
-      <DesktopNav />
+      <AppSidebar />
 
       <div className="min-w-0 flex-1">
         <MarketsTopBar universeSize={universeSize} live={anyLive} asOf={meta?.asOf ?? null} />

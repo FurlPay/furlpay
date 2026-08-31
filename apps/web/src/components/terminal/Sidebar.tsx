@@ -38,7 +38,7 @@ const NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard/terminal", icon: Home, self: true },
   { label: "Wallet", href: "/dashboard", icon: Wallet },
   { label: "Markets", href: "/markets", icon: LineChart },
-  { label: "Portfolio", href: "/investing", icon: PieChart },
+  { label: "Portfolio", href: "/portfolio", icon: PieChart },
   { label: "Treasury", href: "/earn", icon: Landmark },
   { label: "Payments", href: "/dashboard", icon: Send },
   { label: "Cards", href: "/cards", icon: CreditCard },

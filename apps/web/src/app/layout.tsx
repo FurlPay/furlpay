@@ -32,6 +32,24 @@ export const metadata: Metadata = {
     "MiCA",
     "account abstraction",
   ],
+  /**
+   * The favicon, declared explicitly.
+   *
+   * WHY IT IS DECLARED RATHER THAN INFERRED. Next serves a file named
+   * `app/icon.png` as the icon automatically — but `public/icon.png` also
+   * claims the `/icon.png` URL, and when both exist Next refuses to serve
+   * either and answers 500 ("A conflicting public file and page file was
+   * found"). The two files were byte-identical, added in the same commit.
+   *
+   * `public/` is the one that had to stay: ten places reference `/icon.png` as
+   * a plain, stable URL — the web manifest, the JSON-LD organisation logo, the
+   * press-kit download link, and the Solana Action metadata — and a hashed
+   * route would break all of them. So `app/icon.png` was removed and the icon
+   * is named here instead, which produces the same <link rel="icon"> without
+   * competing for the URL. `app/apple-icon.png` has no such twin and keeps
+   * working by file convention.
+   */
+  icons: { icon: "/icon.png" },
   verification: {
     ...(GSC_VERIFICATION ? { google: GSC_VERIFICATION } : {}),
     ...(BING_VERIFICATION ? { other: { "msvalidate.01": BING_VERIFICATION } } : {}),
@@ -95,7 +113,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body>
+      {/* suppressHydrationWarning is scoped to this ELEMENT's attributes, not
+          its subtree, and it is here for one reason: browser extensions inject
+          attributes onto <body> before React hydrates. ColorZilla adds
+          `cz-shortcut-listen="true"`, Grammarly adds `data-gr-*`, and each one
+          trips a hydration mismatch that no application change can prevent —
+          the server cannot know what the visitor has installed. Children still
+          hydrate normally, so a real mismatch inside the app is still reported. */}
+      <body suppressHydrationWarning>
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}

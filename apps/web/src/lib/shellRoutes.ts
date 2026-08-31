@@ -20,7 +20,6 @@
 export const APP_FRAME_PREFIXES = [
   "/dashboard", // consumer wallet home (/dashboard/terminal opts back out below)
   "/cards",
-  "/investing", // except /investing/insights — the Research portal is blog-style
   "/bills",
   "/profile",
   "/banking",
@@ -49,8 +48,27 @@ function isSymbolPage(pathname: string): boolean {
 
 export function isAppFrame(pathname: string): boolean {
   // Desktop-grade subtrees inside app prefixes keep their full-bleed carve-outs.
-  if (pathname.startsWith("/dashboard/terminal")) return false; // dense multi-column terminal
-  if (pathname.startsWith("/investing/insights")) return false; // Research portal (blog-style)
+  // The wallet home is a balance hero, a quick-action grid, a card carousel and
+  // an activity feed. In the 440px column those sat in a strip on a monitor
+  // while the Deposit flow that opens over them is full-width; it supplies its
+  // own sidebar and tab bar now. (/dashboard/terminal was always full-bleed.)
+  if (pathname === "/dashboard" || pathname.startsWith("/dashboard/")) return false;
+  // /investing/insights — the Research portal, blog-style and full-bleed. The
+  // /investing hub itself was retired in favour of /portfolio, so this prefix
+  // now only ever matches the research subtree.
+  if (pathname.startsWith("/investing")) return false;
+  // Bills is a list of payable cards plus an off-ramp form. In the phone column
+  // the cards were one per row on a monitor with the provider name, the due
+  // date, an autopay switch and a pay button crammed into 440px; they tile now.
+  if (pathname === "/bills" || pathname.startsWith("/bills/")) return false;
+  // The portfolio workstation supplies its own three-column chrome (rail,
+  // header, research column) and cannot live in a 440px strip.
+  if (pathname === "/portfolio" || pathname.startsWith("/portfolio/")) return false;
+  // Account settings is a desktop-grade surface: a section index beside seven
+  // blocks of label/value rows, several of which (a wallet address, a session's
+  // device + location + last-active line) wrap onto three lines in a 440px
+  // column. It supplies its own header and stacks to one column below `xl`.
+  if (pathname === "/profile" || pathname.startsWith("/profile/")) return false;
   // A ticker page is a two-column desktop surface — chart plus a trading rail —
   // that cannot live in a 440px column. It renders its own phone layout and tab
   // bar below `lg`, so opting out here costs nothing on mobile.
@@ -58,6 +76,8 @@ export function isAppFrame(pathname: string): boolean {
   // Only the ticker page: /markets, /markets/chains and /markets/collections/*
   // are scrolling lists that read fine in the phone column and keep it.
   if (isSymbolPage(pathname)) return false;
+  // A world map cannot live in a 440px column.
+  if (pathname.startsWith("/hotels/map")) return false;
   // The WHOLE /markets subtree is full-bleed, not just the index and the
   // tickers. /markets/chains and /markets/collections/* used to keep the phone
   // column, which meant clicking "Chains" from the desktop terminal dropped the

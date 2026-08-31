@@ -16,6 +16,8 @@ import { CoinLogo, ChainLogo } from "@furlpay/ui";
 import FeatureHub from "@/components/FeatureHub";
 import PriceChart from "@/components/PriceChart";
 import DepositToast from "@/components/DepositToast";
+import BottomNav from "@/components/BottomNav";
+import AppSidebar from "@/components/AppSidebar";
 
 interface Overview {
   user: { name: string; tier: string; region: string; safeAddress: string };
@@ -45,14 +47,36 @@ export default function HomePage() {
 
   useEffect(() => load(), [load]);
 
-  if (!data) return <Spinner />;
+  // The loading state wears the SHELL too. A bare spinner here would paint a
+  // blank black page with no sidebar and no tab bar — this page is full-bleed
+  // now, so nothing else supplies that chrome while the fetch is in flight.
+  if (!data) {
+    return (
+      <div className="flex min-h-screen bg-oled">
+        <AppSidebar />
+        <div className="grid min-w-0 flex-1 place-items-center pb-28 lg:pb-8">
+          <Spinner />
+        </div>
+        <div className="lg:hidden">
+          <BottomNav />
+        </div>
+      </div>
+    );
+  }
 
   const { breakdown } = data;
   const available = breakdown.crypto + breakdown.fiat;
   const initial = data.user.name.trim().charAt(0).toUpperCase() || "U";
 
   return (
-    <>
+    <div className="flex min-h-screen bg-oled">
+      <AppSidebar />
+
+      <div className="min-w-0 flex-1 pb-28 lg:pb-8">
+        {/* The page keeps its OWN header — the greeting, scan, search and bell
+            are the wallet's identity and none of them exist in the app-wide
+            chrome. It just gains a 1440px measure and a sidebar around it. */}
+        <div className="mx-auto w-full max-w-[1440px]">
       {/* Top bar */}
       <header className="flex items-center justify-between px-5 pb-3 pt-3">
         <div className="flex items-center gap-3">
@@ -83,6 +107,8 @@ export default function HomePage() {
         </div>
       </header>
 
+      <div className="xl:grid xl:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)] xl:items-start xl:gap-2">
+        <div className="min-w-0">
       {/* Balance hero */}
       <section className="px-5">
         <div className="app-hero p-5">
@@ -215,6 +241,11 @@ export default function HomePage() {
       </section>
 
       {/* Recent activity */}
+        </div>
+
+        {/* Activity rail. Loses its top margin at xl, where it sits beside the
+            balance hero rather than beneath the card carousel. */}
+        <div className="min-w-0 xl:[&>section]:mt-0">
       <section className="mt-8 px-5">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-[17px] font-bold tracking-tight">Recent activity</h2>
@@ -226,6 +257,15 @@ export default function HomePage() {
           <TransactionList items={data.recentTransactions} />
         </div>
       </section>
+
+        </div>
+      </div>
+        </div>
+
+        <div className="lg:hidden">
+          <BottomNav />
+        </div>
+      </div>
 
       <SwapModal open={swapOpen} onClose={() => setSwapOpen(false)} onDone={load} />
       <DepositToast />
@@ -249,7 +289,7 @@ export default function HomePage() {
           setScanner({ mode: "myqr" });
         }}
       />
-    </>
+    </div>
   );
 }
 

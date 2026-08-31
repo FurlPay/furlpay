@@ -15,7 +15,7 @@ const PUBLIC_ROUTES = ["/", "/login"];
 const PROTECTED_ROUTES = [
   "/dashboard",
   "/banking",
-  "/investing",
+  "/portfolio",
   "/markets",
   "/cards",
   "/bills",

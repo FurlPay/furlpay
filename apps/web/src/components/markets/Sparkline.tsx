@@ -15,6 +15,24 @@ import { useId, useMemo, useState } from "react";
 // So: `points` are closes from lib/markets/extras.ts, oldest to newest. No
 // points means no chart. There is no fallback shape, because the honest render
 // of "we have no history for this asset" is empty space.
+//
+// CONTAINMENT. This used to paint outside its own box, and three separate
+// things allowed it:
+//
+//   1. the <svg> carried `overflow: visible`, which switches OFF the clipping
+//      an outer <svg> does by default — so the stroke, the gradient fill and
+//      any antialiasing bled past the viewBox;
+//   2. the width was a fixed pixel number even when the caller asked for a
+//      fluid chart (`className="w-full"` loses to an inline `width`), so in a
+//      card narrower than that number the chart simply hung out of it;
+//   3. nothing clipped to the card's 18px corner radius.
+//
+// The fix is `fluid`: the wrapper takes the container's width, the viewBox
+// stays the drawing coordinate system, and `preserveAspectRatio="none"`
+// stretches the plot to fit. Stroke width is held constant through
+// `vector-effect: non-scaling-stroke`, so a stretched chart does not draw a
+// fatter line than an unstretched one. A clipPath backs the overflow rule up,
+// because a clip is geometric and cannot be defeated by a stray style.
 // ---------------------------------------------------------------------------
 
 export interface SparklineProps {
@@ -30,6 +48,14 @@ export interface SparklineProps {
   /** Accessible description. The chart is decorative when the row already
    *  states the move in text, which is the usual case. */
   label?: string;
+  /**
+   * Fill the container's width instead of `width` pixels.
+   *
+   * `width`/`height` still define the viewBox — the coordinate system the path
+   * is computed in — so the curve is identical; only the rendered box changes.
+   * Use this anywhere the chart sits in a responsive card.
+   */
+  fluid?: boolean;
   className?: string;
 }
 
@@ -46,6 +72,7 @@ export default function Sparkline({
   tone,
   interactive = false,
   label,
+  fluid = false,
   className,
 }: SparklineProps) {
   const uid = useId();
@@ -61,7 +88,10 @@ export default function Sparkline({
     // NaN and the path disappears. Draw it as the horizontal line it is.
     const span = max - min || 1;
 
-    const pad = 2;
+    // Half the stroke would still cross the viewBox edge at pad = 1, and a
+    // round linecap adds another half on top. 3 keeps the whole cap inside the
+    // box on all four sides, so nothing relies on the clip to look right.
+    const pad = 3;
     const usableW = width - pad * 2;
     const usableH = height - pad * 2;
 
@@ -72,7 +102,10 @@ export default function Sparkline({
     }));
 
     const line = coords.map((c, i) => `${i === 0 ? "M" : "L"}${c.x.toFixed(2)} ${c.y.toFixed(2)}`).join(" ");
-    const area = `${line} L${(width - pad).toFixed(2)} ${height} L${pad} ${height} Z`;
+    // Closed one pixel short of the bottom edge for the same reason as `pad`:
+    // a fill that ends exactly on the boundary antialiases across it.
+    const baseline = (height - 1).toFixed(2);
+    const area = `${line} L${(width - pad).toFixed(2)} ${baseline} L${pad} ${baseline} Z`;
 
     // Direction comes from the series itself, not from a separate percentage
     // that could disagree with the line the reader is looking at.
@@ -89,11 +122,18 @@ export default function Sparkline({
   if (!geometry) {
     // Reserve the space so the column stays aligned when a neighbouring row
     // does have a chart. An empty cell that collapses re-flows the whole table.
-    return <span aria-hidden style={{ display: "inline-block", width, height }} className={className} />;
+    return (
+      <span
+        aria-hidden
+        style={{ display: "inline-block", width: fluid ? "100%" : width, height }}
+        className={className}
+      />
+    );
   }
 
   const color = COLORS[tone ?? geometry.direction];
   const gradientId = `spark-${uid}`;
+  const clipId = `spark-clip-${uid}`;
 
   function onMove(e: React.PointerEvent<SVGSVGElement>) {
     if (!interactive || !geometry) return;
@@ -109,39 +149,65 @@ export default function Sparkline({
   }
 
   return (
-    <span className={`relative inline-block ${className ?? ""}`} style={{ width, height }}>
+    <span
+      className={`relative inline-block ${className ?? ""}`}
+      style={{ width: fluid ? "100%" : width, height }}
+    >
       <svg
-        width={width}
+        width={fluid ? "100%" : width}
         height={height}
         viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio={fluid ? "none" : "xMidYMid meet"}
         role={label ? "img" : "presentation"}
         aria-label={label}
         aria-hidden={label ? undefined : true}
         onPointerMove={interactive ? onMove : undefined}
         onPointerLeave={interactive ? () => setHover(null) : undefined}
-        style={{ display: "block", overflow: "visible" }}
+        // `hidden` is the outer-svg default; it is stated because the previous
+        // `visible` here is what let the plot escape its box.
+        style={{ display: "block", overflow: "hidden" }}
       >
         <defs>
           <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor={color} stopOpacity="0.28" />
             <stop offset="100%" stopColor={color} stopOpacity="0" />
           </linearGradient>
+          {/* Geometric containment, independent of any CSS that might later
+              re-enable overflow on this element or an ancestor. */}
+          <clipPath id={clipId}>
+            <rect x="0" y="0" width={width} height={height} />
+          </clipPath>
         </defs>
-        <path d={geometry.area} fill={`url(#${gradientId})`} />
-        <path
-          d={geometry.line}
-          fill="none"
-          stroke={color}
-          strokeWidth={1.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {hover && (
-          <>
-            <line x1={hover.x} y1={0} x2={hover.x} y2={height} stroke={color} strokeWidth={0.75} opacity={0.4} />
-            <circle cx={hover.x} cy={hover.y} r={2.5} fill={color} />
-          </>
-        )}
+        <g clipPath={`url(#${clipId})`}>
+          <path d={geometry.area} fill={`url(#${gradientId})`} />
+          <path
+            d={geometry.line}
+            fill="none"
+            stroke={color}
+            strokeWidth={1.5}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            // Keeps the line 1.5px wide however far the viewBox is stretched,
+            // so a wide card does not render a visibly fatter chart than a
+            // narrow one.
+            vectorEffect="non-scaling-stroke"
+          />
+          {hover && (
+            <>
+              <line
+                x1={hover.x}
+                y1={0}
+                x2={hover.x}
+                y2={height}
+                stroke={color}
+                strokeWidth={0.75}
+                opacity={0.4}
+                vectorEffect="non-scaling-stroke"
+              />
+              <circle cx={hover.x} cy={hover.y} r={2.5} fill={color} />
+            </>
+          )}
+        </g>
       </svg>
 
       {hover && (

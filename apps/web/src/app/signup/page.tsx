@@ -10,6 +10,7 @@ import {
   registerFingerprint,
 } from "@/lib/passkey";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
+import DateOfBirthField from "@/components/form/DateOfBirthField";
 import PhoneInput from "@/components/PhoneInput";
 import PersonaKycButton from "@/components/PersonaKycButton";
 
@@ -149,7 +150,7 @@ export default function SignupPage() {
             </label>
             <PhoneInput onChange={setPhone} disabled={busy} />
           </div>
-          <Input label="Date of birth" value={dob} onChange={setDob} type="date" />
+          <DateOfBirthField value={dob} onChange={setDob} disabled={busy} />
           <Input label="Document number" value={doc} onChange={setDoc} placeholder="Passport / ID" />
           <button
             onClick={runKyc}

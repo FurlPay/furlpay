@@ -266,6 +266,23 @@ body {
     transform-origin: top right;
   }
 
+  /* Wallet modal entrance. 200ms — the brief's 180–250ms band, and long enough
+     that a full-screen surface reads as arriving rather than snapping. The
+     global prefers-reduced-motion rule flattens it. */
+  @keyframes wallet-modal-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px) scale(0.975);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+  .wallet-modal-in {
+    animation: wallet-modal-in 200ms var(--ease-out);
+  }
+
   /* Pointer-tracking border. The ::before paints a green radial gradient at the
      cursor (--mx/--my) but is masked to the 1px border ring, so the bright
      "line" slides along the edge as the mouse moves across the pricing grid. */
@@ -571,4 +588,161 @@ textarea:focus-visible,
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* --- map, as a list ------------------------------------------------------
+
+   The markers are drawn on a GPU canvas, which puts nothing in the
+   accessibility tree. This is the same set of features as real buttons, kept
+   IN the tree and merely not painted — `display:none` would remove them again.
+
+   It becomes visible on focus rather than staying hidden, because a list that
+   silently takes focus is its own bug: a sighted keyboard user has to be able
+   to see where they are.                                                      */
+
+.hm-a11y-list {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 45;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.hm-a11y-list:focus-within {
+  width: min(24rem, calc(100% - 2rem));
+  height: auto;
+  max-height: min(70vh, 34rem);
+  overflow-y: auto;
+  clip-path: none;
+  margin: 0.75rem;
+  padding: 0.65rem;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  box-shadow: 0 15px 40px rgba(15, 23, 42, 0.16);
+}
+
+.hm-a11y-heading {
+  font: 700 11px/1.4 var(--font-sans, ui-sans-serif), system-ui, sans-serif;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin: 0 0 0.4rem;
+  padding: 0 0.35rem;
+}
+
+.hm-a11y-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.hm-a11y-list button {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-radius: 8px;
+  padding: 0.4rem 0.5rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.hm-a11y-list button:hover { background: #f8fafc; }
+
+.hm-a11y-list button:focus-visible {
+  outline: 2px solid #1b7a4e;
+  outline-offset: -2px;
+  background: #ecf7f1;
+}
+
+.hm-a11y-primary {
+  font-size: 13px;
+  font-weight: 600;
+  color: #0f172a;
+}
+.hm-a11y-secondary {
+  font-size: 11.5px;
+  color: #64748b;
+}
+
+/* --- hover card ----------------------------------------------------------- */
+
+.hm-card {
+  background: #ffffff;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 15px 40px rgba(15, 23, 42, 0.16);
+  animation: hmCardIn 300ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* The pointer aims at the marker the card describes, and moves to the side the
+   card flipped to. Two stacked triangles fake a border on the arrow, which a
+   single rotated square cannot do without also rotating the shadow. */
+.hm-card__pointer,
+.hm-card__pointer::after {
+  position: absolute;
+  width: 0;
+  height: 0;
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+}
+
+.hm-card__pointer::after {
+  content: "";
+  top: -9px;
+}
+
+.hm-card__pointer--left {
+  left: -9px;
+  border-right: 9px solid rgba(15, 23, 42, 0.08);
+}
+.hm-card__pointer--left::after {
+  left: 1px;
+  border-right: 9px solid #ffffff;
+}
+
+.hm-card__pointer--right {
+  right: -9px;
+  border-left: 9px solid rgba(15, 23, 42, 0.08);
+}
+.hm-card__pointer--right::after {
+  right: 1px;
+  border-left: 9px solid #ffffff;
+}
+
+@keyframes hmCardIn {
+  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* The map is the background for a floating UI, so its own canvas must never
+   paint a focus ring that competes with the controls. MapLibre's built-in
+   keyboard panning still works; the marker list is what makes the CONTENT
+   reachable. */
+.maplibregl-canvas:focus {
+  outline: none;
+}
+
+@keyframes hmSlide {
+  from { transform: translateX(12px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes hmFade {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hm-card { animation: none; }
 }

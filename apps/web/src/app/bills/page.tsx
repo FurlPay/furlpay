@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { getJSON, sendJSON } from "@/lib/api";
 import { Bill } from "@/lib/types";
-import { PageHeader, Pill, Spinner, usd } from "@/components/ui";
+import { Pill, Spinner, usd } from "@/components/ui";
+import AppPageShell from "@/components/AppPageShell";
 import Modal from "@/components/Modal";
 
 interface FxQuote {
@@ -29,10 +30,10 @@ export default function BillsPage() {
   }
 
   return (
-    <>
-      <PageHeader title="Bills & Off-ramp" />
-
-      <div className="mx-5 mb-5 grid grid-cols-2 gap-2 rounded-pill bg-surface p-1">
+    <AppPageShell title="Bills & Off-ramp">
+      {/* The tab pair keeps a phone-sized measure at every width. Two buttons
+          stretched across 1440px read as a banner, not as a control. */}
+      <div className="mx-5 mb-5 grid max-w-[420px] grid-cols-2 gap-2 rounded-pill bg-surface p-1">
         {(["bills", "offramp"] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)} className={`rounded-pill py-2 text-sm font-semibold ${tab === t ? "bg-accent" : "text-textSecondary"}`}>
             {t === "bills" ? "Pay bills" : "Bank off-ramp"}
@@ -41,8 +42,12 @@ export default function BillsPage() {
       </div>
 
       {tab === "bills" ? (
-        !bills.length ? <Spinner /> : (
-          <ul className="space-y-3 px-5">
+        !bills.length ? (
+          <div className="grid min-h-[40vh] place-items-center">
+            <Spinner />
+          </div>
+        ) : (
+          <ul className="grid gap-3 px-5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
             {bills.map((b) => (
               <li key={b.id} className="surface-card p-4">
                 <div className="flex items-start justify-between">
@@ -74,7 +79,7 @@ export default function BillsPage() {
       ) : (
         <OffRampPanel />
       )}
-    </>
+    </AppPageShell>
   );
 }
 
@@ -108,7 +113,7 @@ function OffRampPanel() {
   }
 
   return (
-    <div className="px-5">
+    <div className="max-w-[520px] px-5">
       <p className="mb-4 text-[13px] text-textSecondary">
         Off-ramp USDC to a local bank at the Wise mid-market rate + flat fee — no crypto spread.
       </p>

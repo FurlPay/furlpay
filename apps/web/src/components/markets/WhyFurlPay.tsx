@@ -32,7 +32,7 @@ const CARDS = [
     Icon: LineChart,
     title: "Stocks · ETFs · Crypto",
     body: "Search thousands of tradable assets and follow the ones you care about.",
-    href: "/investing",
+    href: "/portfolio",
   },
   {
     Icon: Wallet,

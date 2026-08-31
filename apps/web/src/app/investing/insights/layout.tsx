@@ -23,7 +23,7 @@ export default function InsightsLayout({ children }: { children: React.ReactNode
           </nav>
           <div className="ml-auto flex items-center gap-3">
             <InsightSearch />
-            <Link href="/investing" className="btn-green flex-shrink-0 px-4 py-2 text-sm">
+            <Link href="/portfolio" className="btn-green flex-shrink-0 px-4 py-2 text-sm">
               Open App
             </Link>
           </div>

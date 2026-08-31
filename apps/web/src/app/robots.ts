@@ -14,7 +14,7 @@ const DISALLOW = [
   "/cards",
   "/banking",
   "/bills",
-  "/investing",
+  "/portfolio",
   "/earn",
   "/credit",
   "/rewards",

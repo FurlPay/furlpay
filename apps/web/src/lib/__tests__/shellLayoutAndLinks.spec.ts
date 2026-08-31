@@ -126,7 +126,7 @@ describe("shell layout classification", () => {
   //
   // /markets is tested separately: the index and its list pages keep the frame,
   // but a ticker page underneath it does not.
-  const APP = ["/dashboard", "/cards", "/investing", "/bills", "/profile", "/banking", "/swaps"];
+  const APP = ["/cards", "/banking", "/swaps"];
   for (const p of APP) {
     it(`${p} keeps the phone frame`, () => {
       expect(isAppFrame(p)).toBe(true);
@@ -135,9 +135,19 @@ describe("shell layout classification", () => {
   }
 
   it("desktop-grade subtrees carve back out of app prefixes", () => {
+    expect(isAppFrame("/dashboard")).toBe(false);
     expect(isAppFrame("/dashboard/terminal")).toBe(false);
+    // The portfolio workstation and the Research portal both supply their own
+    // chrome. (/investing itself was retired in favour of /portfolio.)
+    expect(isAppFrame("/portfolio")).toBe(false);
+    // Bills: payable cards that tile once there is width, plus an off-ramp form.
+    expect(isAppFrame("/bills")).toBe(false);
     expect(isAppFrame("/investing/insights")).toBe(false);
     expect(isAppFrame("/investing/insights/some-post")).toBe(false);
+    // Account settings: a section index beside seven blocks of label/value
+    // rows. In the 440px column a wallet address and a session's
+    // device/location/last-active line each wrapped onto three lines.
+    expect(isAppFrame("/profile")).toBe(false);
   });
 
   describe("/markets", () => {

@@ -342,7 +342,7 @@ function HowToBuy({ asset }: { asset: MergedAsset }) {
       </ol>
       <p className="mt-4 flex flex-wrap gap-2.5">
         <Link
-          href="/investing"
+          href="/portfolio"
           className="inline-block rounded-full bg-accent px-4 py-2 text-[13.5px] font-semibold text-black transition-opacity hover:opacity-90"
         >
           Start investing

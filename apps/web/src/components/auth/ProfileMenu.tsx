@@ -156,9 +156,12 @@ export default function ProfileMenu({ className }: { className?: string }) {
               <div className="p-1.5">
                 {[
                   { href: "/profile", label: "Profile", Icon: UserIcon },
-                  { href: "/investing", label: "Portfolio", Icon: Briefcase },
+                  { href: "/portfolio", label: "Portfolio", Icon: Briefcase },
                   { href: "/markets?panel=watchlist", label: "Watchlist", Icon: Star },
-                  { href: "/profile", label: "Settings", Icon: Settings },
+                  // Deep-links to the preferences block rather than repeating
+                  // the Profile entry's destination — the account page carries
+                  // an id per section.
+                  { href: "/profile#preferences", label: "Settings", Icon: Settings },
                 ].map(({ href, label, Icon }) => (
                   <Link
                     key={label}
