@@ -70,3 +70,25 @@ furlpay_pay/
 # Same reasoning as furlpay_pay/ above: it is another company's markup, minified
 # bundles, fonts and branding. It must never enter this repo's history.
 reference/
+
+# Product screenshots kept locally for design review. Same reasoning as the
+# marketing assets above: multi-MB PNGs are permanent once committed. The
+# existing furlpay*.png / wear os*.png rules did not cover these filenames.
+/hotels map.png
+/portfolio dashboard.png
+/portfolio dashboard and wallet.png
+/screen app 2 .png
+/ticket confirmation screen.png
+/trading chart.png
+
+# Scratch scaffolding that rewrites audit/mobile-ux-audit.md from empty.
+# Keeping it in the repo invites someone to run it and truncate the audit.
+/build_sections.py
+
+# Another company's logo, kept locally as a reference artefact only.
+/wikiexpo-lo.svg
+
+# Personal fundraising / founder-community research. Not product material and
+# this repo has outside collaborators.
+/fintech_founder_opportunities_2026.csv
+/stablecoin_funding_investors_2026.csv
