@@ -101,8 +101,7 @@ struct AddDocumentView: View {
             .scrollContentBackground(.hidden)
 
             Button("Start verification") { start() }
-                .buttonStyle(.borderedProminent)
-                .tint(GuardianColors.primaryAccent)
+                .guardianProminentButton()
                 .controlSize(.large)
                 .padding(.horizontal, 20)
                 .padding(.bottom, 20)

@@ -89,12 +89,36 @@ public extension Date {
 /// AMOLED-first palette, matching the Wear OS theme. Pure black is deliberate:
 /// on an OLED watch face an unlit pixel draws no power, and the Guardian screens
 /// are mostly background.
+///
+/// "Matching the Wear OS theme" was not true of the accent: this shipped Dodger
+/// Blue while `GuardianTheme.kt` used emerald, so the two halves of the same
+/// companion product — a phone app and the watch app it pairs with — drew their
+/// primary buttons in different colours. The accent below is now
+/// FurlPayColors.Primary from the Wear theme, value for value.
+///
+/// The wider palette split is NOT resolved here and is deliberate to leave
+/// alone: the web tokens (`packages/ui/src/tokens.ts`) lead with red #FF3B30
+/// and the React Native app with mint #00E599. Picking one across all four
+/// surfaces is a brand decision, not a bug fix.
 public enum GuardianColors {
     public static let background = Color(red: 0.02, green: 0.02, blue: 0.04)
     public static let surface = Color(red: 0.08, green: 0.08, blue: 0.12)
     public static let surfaceElevated = Color(red: 0.12, green: 0.12, blue: 0.18)
 
-    public static let primaryAccent = Color(red: 0.29, green: 0.56, blue: 1.00)
+    /// Emerald #5CE5A6 — the same value as FurlPayColors.Primary in
+    /// guardian/app/wear/.../theme/GuardianTheme.kt.
+    public static let primaryAccent = Color(red: 0.361, green: 0.898, blue: 0.651)
+
+    /// What goes ON [primaryAccent]. Deep green #04291B, the Wear theme's
+    /// OnPrimary.
+    ///
+    /// This pair is not optional. The old accent was a mid-blue that white text
+    /// sat on legibly; emerald is a LIGHT colour, and white on it lands around
+    /// 1.6:1 — far under the 4.5:1 body-text floor and unreadable in sunlight,
+    /// which is exactly when someone is holding up a payment screen. Every call
+    /// site that fills with primaryAccent must take its foreground from here
+    /// rather than hardcoding .white.
+    public static let onPrimaryAccent = Color(red: 0.016, green: 0.161, blue: 0.106)
     public static let positive = Color(red: 0.20, green: 0.78, blue: 0.35)
     public static let negative = Color(red: 0.96, green: 0.26, blue: 0.21)
     public static let warning = Color(red: 1.00, green: 0.76, blue: 0.03)
@@ -107,5 +131,29 @@ public enum GuardianColors {
     /// never accidentally rendered in the positive colour.
     public static func forChange(_ value: Double) -> Color {
         value >= 0 ? positive : negative
+    }
+}
+
+
+// MARK: - Prominent buttons
+
+public extension View {
+    /// A filled brand-accent button whose label colour is PINNED, not inherited.
+    ///
+    /// Every prominent button in the app used to be
+    /// `.buttonStyle(.borderedProminent).tint(GuardianColors.primaryAccent)`,
+    /// leaving the label colour to SwiftUI. Whether `.borderedProminent` derives
+    /// a contrasting label from the tint's luminance, or just uses white, has
+    /// varied by OS version and is not something the source can answer — and
+    /// with a light accent the two answers are 9.9:1 and 1.6:1. Guessing right
+    /// on today's SDK is not the same as being right, so the foreground is
+    /// stated here instead of inferred.
+    ///
+    /// The modifier order is what the call sites already had, plus the
+    /// foreground, so nothing about the geometry changes.
+    func guardianProminentButton() -> some View {
+        buttonStyle(.borderedProminent)
+            .tint(GuardianColors.primaryAccent)
+            .foregroundStyle(GuardianColors.onPrimaryAccent)
     }
 }

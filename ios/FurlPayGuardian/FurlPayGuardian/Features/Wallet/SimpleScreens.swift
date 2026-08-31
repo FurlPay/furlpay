@@ -65,7 +65,7 @@ struct WalletView: View {
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
                         .background(GuardianColors.primaryAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(GuardianColors.onPrimaryAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .padding(.top, 6)
@@ -164,9 +164,15 @@ struct QuickPayView: View {
     @Environment(ServiceContainer.self) private var container
     @State private var previousBrightness: CGFloat = UIScreen.main.brightness
 
-    /// Whatever the first wallet exposes as a receive target.
-    private var payload: String {
-        container.wallets.overview?.sortedByValue.first?.id ?? "furlpay:unavailable"
+    /// The Safe smart-account address a payer sends to.
+    ///
+    /// The ADDRESS, not a wallet id: an id is an internal key that no wallet
+    /// app or terminal can pay, so the code scanned perfectly and paid nobody.
+    /// The `"furlpay:unavailable"` fallback was the same failure with extra
+    /// steps — it encoded cleanly too, so a missing address rendered as a
+    /// working code rather than as a missing address.
+    private var payload: String? {
+        container.wallets.overview?.safeAddress
     }
 
     var body: some View {
@@ -175,7 +181,7 @@ struct QuickPayView: View {
                 .font(.subheadline)
                 .foregroundStyle(GuardianColors.textSecondary)
 
-            if let image = Self.qrCode(from: payload) {
+            if let payload, let image = Self.qrCode(from: payload) {
                 Image(uiImage: image)
                     .interpolation(.none)          // keep the modules crisp
                     .resizable()
@@ -184,17 +190,27 @@ struct QuickPayView: View {
                     .padding(16)
                     .background(.white)            // scanners need the light quiet zone
                     .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            } else {
-                Text("Could not generate a code.")
-                    .foregroundStyle(GuardianColors.negative)
-            }
 
-            Text(payload)
-                .font(.caption2.monospaced())
-                .foregroundStyle(GuardianColors.textTertiary)
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 32)
+                Text(payload)
+                    .font(.caption2.monospaced())
+                    .foregroundStyle(GuardianColors.textTertiary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 32)
+            } else {
+                // No address is a different state from a failed render, and
+                // saying "could not generate" for it sends the user looking for
+                // a bug that is not there.
+                ContentUnavailableView(
+                    payload == nil ? "No address yet" : "Could not generate a code",
+                    systemImage: "qrcode",
+                    description: Text(
+                        payload == nil
+                            ? "Your receive address hasn't loaded yet. Pull to refresh on Wallet."
+                            : "Something went wrong drawing the code."
+                    )
+                )
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(GuardianColors.background.ignoresSafeArea())

@@ -28,18 +28,33 @@ struct OtpCheckResponse: Decodable, Sendable {
 
 // MARK: - Wallets
 
+/// One row of GET /api/wallets `balances`.
+///
+/// The route returns `{ safeAddress, modules[], balances[] }` and has never
+/// returned a `wallets` key or an `id`/`currency` field — this used to decode
+/// `{ wallets: [{ id, currency, balance, usdValue, chain }], totalUsd }`, a
+/// shape nothing on the server produces. `wallets` was non-optional, so every
+/// call to `fetchWallets()` threw a `keyNotFound` before returning: the
+/// dashboard total, the Send screen's wallet picker, the watch snapshot and the
+/// QuickPay code were all dead behind one decode error. The Kotlin client
+/// (guardian/core/network/.../Dtos.kt) had the shape right all along.
+///
+/// `amount` is a STRING on the wire — the route serialises it with
+/// `.toFixed(2)`. Decoding it as a number fails.
 struct WalletDTO: Decodable, Sendable {
-    let id: String
-    let currency: String
-    let balance: Decimal?
-    let usdValue: Decimal?
+    let token: String
+    let amount: String?
     let chain: String?
+    let usdValue: Decimal?
 
     func toDomain() -> Wallet {
         Wallet(
-            id: id,
-            currency: currency,
-            balance: balance ?? 0,
+            // No id exists on the wire. Token + chain is the natural key: the
+            // same token on two chains is two rows, and the pair is stable
+            // across refreshes so SwiftUI diffing does not churn the list.
+            id: "\(token)-\(chain ?? "unknown")",
+            currency: token,
+            balance: amount.flatMap { Decimal(string: $0) } ?? 0,
             usdValue: usdValue ?? 0,
             chain: chain
         )
@@ -47,16 +62,22 @@ struct WalletDTO: Decodable, Sendable {
 }
 
 struct WalletsResponse: Decodable, Sendable {
-    let wallets: [WalletDTO]
+    let safeAddress: String?
+    /// Optional so a response missing the key degrades to "no balances"
+    /// instead of throwing — the same lenient-parse rule the Kotlin DTOs use.
+    /// A decode error here blanks the entire money surface, which is precisely
+    /// what the old `wallets` key did.
+    let balances: [WalletDTO]?
     let totalUsd: Decimal?
 
     func toDomain() -> WalletOverview {
-        let mapped = wallets.map { $0.toDomain() }
-        // Trust the server's total when it sends one; otherwise sum locally so
-        // the dashboard is never blank because one field was omitted.
+        let mapped = (balances ?? []).map { $0.toDomain() }
+        // The route does not send a total, so the local sum is the normal path
+        // rather than a fallback. Kept conditional in case one lands later.
         return WalletOverview(
             totalUsd: totalUsd ?? mapped.reduce(Decimal.zero) { $0 + $1.usdValue },
-            wallets: mapped
+            wallets: mapped,
+            safeAddress: safeAddress
         )
     }
 }
@@ -503,10 +524,28 @@ struct RefreshResponse: Decodable, Sendable {
 
 // MARK: - Money movement
 
+/// Body of POST /api/wallets/transfer.
+///
+/// Field names are the route's own (`TransferSchema` in apps/web/src/lib/
+/// schemas.ts), which this did not match on a single field: it sent
+/// `amountUsd`/`asset` where the schema requires `amount`/`token`, and omitted
+/// the required `chain` and `signature` entirely. Every request built from it
+/// was rejected with a 400 before reaching any business logic.
+///
+/// `amount` is denominated in TOKEN units, not USD — the route spends it
+/// against the token balance (`src.amount -= amount`). Converting from a
+/// USD-denominated field is the caller's job, at the balance's own unit price.
 struct TransferRequest: Encodable, Sendable {
     let destination: String
-    let amountUsd: Decimal
-    let asset: String
+    let amount: Decimal
+    let token: String
+    let chain: String
+    /// Demo-ledger authorisation. This rail is the custodial mock path, whose
+    /// real authorisation is the session JWT; the route shape-validates this
+    /// blob and only verifies it cryptographically once an account has a
+    /// linked wallet. It is not a signature over anything.
+    let signature: String
+    let mfaCode: String?
 }
 
 /// Quote phase of POST /api/swaps. Field names are the route's own

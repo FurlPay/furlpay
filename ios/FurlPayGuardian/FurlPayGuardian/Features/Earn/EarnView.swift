@@ -95,8 +95,7 @@ struct EarnView: View {
             Spacer()
             if let best = overview.vaults.max(by: { $0.netApy < $1.netApy }) {
                 Button("Deposit") { depositing = best }
-                    .buttonStyle(.borderedProminent)
-                    .tint(GuardianColors.primaryAccent)
+                    .guardianProminentButton()
                     .controlSize(.small)
             }
         }
@@ -233,7 +232,7 @@ struct EarnDepositSheet: View {
                     .disabled(Money.tryParseUsdc(amount) == nil || working)
                 }
                 .listRowBackground(GuardianColors.primaryAccent.opacity(0.9))
-                .foregroundStyle(.white)
+                .foregroundStyle(GuardianColors.onPrimaryAccent)
             }
             .scrollContentBackground(.hidden)
             .background(GuardianColors.background.ignoresSafeArea())

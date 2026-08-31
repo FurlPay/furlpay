@@ -132,8 +132,7 @@ public struct AlarmView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 16)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(GuardianColors.primaryAccent)
+            .guardianProminentButton()
             // Spring entrance, per the motion bible the Android build follows.
             .scaleEffect(pulse ? 1.0 : 0.92)
             .animation(.spring(response: 0.5, dampingFraction: 0.6), value: pulse)

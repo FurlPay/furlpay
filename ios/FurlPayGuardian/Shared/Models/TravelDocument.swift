@@ -83,18 +83,24 @@ public struct TravelDocument: Identifiable, Codable, Sendable, Hashable {
         self.isPrimary = isPrimary
     }
 
-    /// Flag emoji from the ISO country code, computed rather than shipped as an
-    /// asset catalogue of 200 flags.
-    public var flag: String {
-        let base: UInt32 = 0x1F1E6
-        let code = issuingCountry.uppercased()
-        guard code.count == 2 else { return "🌐" }
-        var result = ""
-        for scalar in code.unicodeScalars {
-            guard let value = UnicodeScalar(base + scalar.value - 65) else { return "🌐" }
-            result.unicodeScalars.append(value)
-        }
-        return result
+    /// The issuing country as a short code, for the typographic chip the card
+    /// renders in place of a flag.
+    ///
+    /// This used to build a regional-indicator flag emoji from the country
+    /// code. native-app/components/PassportCard.tsx deliberately does not, and
+    /// says why: many Android OEM font stacks ship no flag glyphs at all and
+    /// fall back to two letters in a tofu box, so a card whose identity rests
+    /// on one renders broken on the platform this product ships to first. Two
+    /// platforms drawing the same card two different ways is the drift; the
+    /// code chip renders identically everywhere and is what is printed on the
+    /// document itself.
+    ///
+    /// Falls back to an em dash rather than a globe: an unknown country is
+    /// missing information, and a placeholder pictograph dressed as data reads
+    /// like a value.
+    public var countryCode: String {
+        let code = issuingCountry.uppercased().filter(\.isLetter)
+        return (2...3).contains(code.count) ? code : "\u{2014}"
     }
 
     /// What VoiceOver reads. The masked number is spoken as loose characters so

@@ -209,7 +209,12 @@ struct LiveVoiceView: View {
                             .background(model.state == .listening
                                         ? GuardianColors.negative
                                         : GuardianColors.primaryAccent)
-                            .foregroundStyle(.white)
+                            // The fill flips between a dark red and a light
+                            // emerald, so the label has to flip with it — one
+                            // fixed foreground is unreadable on one of them.
+                            .foregroundStyle(model.state == .listening
+                                             ? Color.white
+                                             : GuardianColors.onPrimaryAccent)
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                     }
                     .padding(.horizontal, 24)

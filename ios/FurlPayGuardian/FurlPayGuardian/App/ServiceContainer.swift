@@ -105,12 +105,40 @@ public final class ServiceContainer {
     ///   2. Biometric gate.
     ///   3. Dispatch, which only accepts the registry's own copy.
     ///
-    /// Returns the rejection reason, or nil on success.
+    /// Returns the rejection reason, or nil on success. The server's response
+    /// is discarded — use `confirmAndDispatchReturning` when the caller has to
+    /// report what the request actually did.
     public func confirmAndDispatch(_ confirmation: Confirmation) async -> String? {
+        if case .rejected(let reason) = await confirmAndDispatchReturning(confirmation) {
+            return reason
+        }
+        return nil
+    }
+
+    /// What a dispatch actually produced.
+    ///
+    /// `confirmAndDispatch` above collapses this to "nil means it worked",
+    /// which is right for a fire-and-forget approval but wrong for anything
+    /// that has to report an outcome: the server's response was thrown away,
+    /// so a caller could only ASSUME what the request did. SendView assumed a
+    /// two-phase payment route had settled a payment when it had only quoted
+    /// one, and told the user "Sent". A screen that reports an outcome must
+    /// read one.
+    public enum DispatchOutcome: Sendable {
+        case rejected(reason: String)
+        case dispatched(response: JSONValue)
+    }
+
+    /// The full security order for an AI-proposed action, returning the
+    /// server's own response. See `confirmAndDispatch` for the step list — this
+    /// is that method; the other one discards the payload.
+    public func confirmAndDispatchReturning(
+        _ confirmation: Confirmation
+    ) async -> DispatchOutcome {
         let resolved = GuardianActionRegistry.resolve(confirmation)
         guard let action = resolved.approved else {
-            if case .rejected(let reason) = resolved { return reason }
-            return "That action could not be validated."
+            if case .rejected(let reason) = resolved { return .rejected(reason: reason) }
+            return .rejected(reason: "That action could not be validated.")
         }
 
         // Built from the VALIDATED body, never from the payload's own
@@ -138,16 +166,16 @@ public final class ServiceContainer {
         // transfer one tap.
         if preferences.biometricApprovals || action.amountUsd != nil {
             guard await biometrics.authenticate(reason: prompt).isAuthenticated else {
-                return "Not confirmed."
+                return .rejected(reason: "Not confirmed.")
             }
         }
 
         do {
-            try await GuardianActionDispatcher(api: api).dispatch(action)
+            let response = try await GuardianActionDispatcher(api: api).dispatch(action)
             await refreshAll()
-            return nil
+            return .dispatched(response: response)
         } catch {
-            return "That action could not be completed."
+            return .rejected(reason: "That action could not be completed.")
         }
     }
 

@@ -35,10 +35,17 @@ public struct Wallet: Identifiable, Codable, Sendable, Hashable {
 public struct WalletOverview: Codable, Sendable, Hashable {
     public let totalUsd: Decimal
     public let wallets: [Wallet]
+    /// The Safe smart-account address — the thing a payer actually scans.
+    ///
+    /// Optional because it rides the watch snapshot, and a snapshot written by
+    /// an older build will not carry it. A QuickPay screen with no address
+    /// says so rather than encoding a placeholder.
+    public let safeAddress: String?
 
-    public init(totalUsd: Decimal, wallets: [Wallet]) {
+    public init(totalUsd: Decimal, wallets: [Wallet], safeAddress: String? = nil) {
         self.totalUsd = totalUsd
         self.wallets = wallets
+        self.safeAddress = safeAddress
     }
 
     /// Largest balance first — the ordering the Wear OS wallet screen uses, and

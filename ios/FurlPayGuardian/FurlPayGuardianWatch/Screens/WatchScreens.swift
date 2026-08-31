@@ -12,9 +12,6 @@
 import SwiftUI
 import Charts
 import WatchKit
-#if canImport(CoreImage) && !os(watchOS)
-import CoreImage.CIFilterBuiltins
-#endif
 
 // MARK: - Home / AI brief
 
@@ -289,20 +286,34 @@ struct WatchSpendingView: View {
 struct WatchQuickPayView: View {
     @Environment(WatchStore.self) private var store
 
-    private var payload: String {
-        store.snapshot.wallets?.sortedByValue.first?.id ?? "furlpay:unavailable"
+    /// The Safe smart-account address the code pays into.
+    ///
+    /// The ADDRESS, not a wallet id. A wallet id is an internal key that no
+    /// payer, wallet app or terminal can send funds to, so encoding one
+    /// produced a code that scanned perfectly and paid nobody. The Wear OS
+    /// screen has always encoded `wallets().safeAddress`; this is the same
+    /// value, carried on the snapshot.
+    ///
+    /// Optional rather than a "furlpay:unavailable" sentinel, for the same
+    /// reason: that string also encoded cleanly into a scannable code that
+    /// resolved to nothing.
+    private var payload: String? {
+        store.snapshot.wallets?.safeAddress
     }
 
     var body: some View {
-        VStack {
-            if let image = QRRenderer.image(from: payload) {
-                Image(uiImage: image)
-                    .interpolation(.none)
-                    .resizable()
-                    .scaledToFit()
+        VStack(spacing: 8) {
+            if let payload {
+                QRCodeView(text: payload)
                     .padding(6)
                     .background(.white)
                     .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } else {
+                ContentUnavailableView(
+                    "No address yet",
+                    systemImage: "wallet.bifold",
+                    description: Text("Open FurlPay on your phone once to sync your receive address.")
+                )
             }
         }
         .navigationTitle("Receive")
@@ -312,25 +323,58 @@ struct WatchQuickPayView: View {
     }
 }
 
-enum QRRenderer {
-    /// Renders a QR code, or nil when this platform cannot.
-    ///
-    /// `CIContext` is not available on watchOS, so the whole CoreImage path is
-    /// compiled out there rather than failing to build. The return type was
-    /// already Optional and every caller handles nil, so a watch that cannot
-    /// rasterise a code shows its existing fallback instead of a broken view.
-    static func image(from string: String) -> UIImage? {
-        #if canImport(CoreImage) && !os(watchOS)
-        let filter = CIFilter.qrCodeGenerator()
-        filter.message = Data(string.utf8)
-        filter.correctionLevel = "M"
-        guard let output = filter.outputImage else { return nil }
-        let scaled = output.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
-        guard let cg = CIContext().createCGImage(scaled, from: scaled.extent) else { return nil }
-        return UIImage(cgImage: cg)
-        #else
-        return nil
-        #endif
+/// Draws a QR code as vector rectangles.
+///
+/// Not a rasterised UIImage: Core Image is unavailable on watchOS, and shapes
+/// stay crisp at whatever size the layout gives them without the caller having
+/// to pick a pixel scale. `QRCode` does the encoding — see
+/// Shared/Domain/QRCode.swift for why this app carries its own encoder.
+struct QRCodeView: View {
+    let text: String
+
+    /// Modules of margin on every side. The specification asks for four, and a
+    /// code without a quiet zone is the single most common reason a scanner
+    /// locks onto nothing.
+    private let quietZone = 4
+
+    var body: some View {
+        // A payload too long to encode is a bug in the caller, not something to
+        // hide: an empty white square would look like a code that failed to
+        // scan rather than one that was never drawn.
+        if let code = try? QRCode.encode(text) {
+            Canvas { context, size in
+                let modules = code.size + quietZone * 2
+                let scale = min(size.width, size.height) / CGFloat(modules)
+                // Snap to whole points. A fractional module width leaves seams
+                // between adjacent dark modules that a scanner reads as light.
+                let module = max(1, scale.rounded(.down))
+                let drawn = module * CGFloat(modules)
+                let originX = (size.width - drawn) / 2
+                let originY = (size.height - drawn) / 2
+
+                for row in 0..<code.size {
+                    for column in 0..<code.size where code[row, column] {
+                        context.fill(
+                            Path(CGRect(
+                                x: originX + CGFloat(column + quietZone) * module,
+                                y: originY + CGFloat(row + quietZone) * module,
+                                width: module,
+                                height: module
+                            )),
+                            with: .color(.black)
+                        )
+                    }
+                }
+            }
+            .aspectRatio(1, contentMode: .fit)
+            .accessibilityLabel("QR code to receive a payment")
+        } else {
+            ContentUnavailableView(
+                "Code unavailable",
+                systemImage: "qrcode",
+                description: Text("This address is too long to show as a code.")
+            )
+        }
     }
 }
 

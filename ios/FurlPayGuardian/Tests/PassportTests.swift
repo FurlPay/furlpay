@@ -197,18 +197,30 @@ struct PassportOutcomeTests {
 @Suite("Travel document")
 struct TravelDocumentTests {
 
-    @Test("Flags are derived from the ISO code", arguments: [
-        ("GB", "🇬🇧"), ("US", "🇺🇸"), ("IN", "🇮🇳"), ("NL", "🇳🇱")
+    // The card shows an ISO country code in a chip, NOT a flag emoji — the
+    // Android card does the same and for a concrete reason (tofu boxes on OEM
+    // font stacks with no flag glyphs). These pin the chip text so the emoji
+    // cannot creep back in on one platform only.
+    @Test("The country chip is the ISO code, alpha-2 or alpha-3", arguments: [
+        ("GB", "GB"), ("us", "US"), ("IN", "IN"), ("nld", "NLD")
     ])
-    func flags(code: String, expected: String) {
-        #expect(makeDocument(country: code).flag == expected)
+    func countryChip(code: String, expected: String) {
+        #expect(makeDocument(country: code).countryCode == expected)
     }
 
-    @Test("A malformed country code degrades to a globe, not a crash")
+    @Test("The country chip carries no emoji on any input", arguments: [
+        "GB", "us", "nld", "", "XYZW", "1"
+    ])
+    func chipIsNeverAnEmoji(code: String) {
+        let chip = makeDocument(country: code).countryCode
+        #expect(!chip.unicodeScalars.contains { $0.properties.isEmoji && $0.value > 0x7F })
+    }
+
+    @Test("A malformed country code degrades to a dash, not a crash")
     func badCodeIsSafe() {
-        #expect(makeDocument(country: "").flag == "🌐")
-        #expect(makeDocument(country: "XYZ").flag == "🌐")
-        #expect(makeDocument(country: "1").flag == "🌐")
+        #expect(makeDocument(country: "").countryCode == "\u{2014}")
+        #expect(makeDocument(country: "XYZW").countryCode == "\u{2014}")
+        #expect(makeDocument(country: "1").countryCode == "\u{2014}")
     }
 
     @Test("The model carries no field that could identify the holder")

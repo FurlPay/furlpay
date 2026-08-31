@@ -27,6 +27,12 @@ struct TravelView: View {
                     .buttonStyle(.plain)
                 }
 
+                // The other way in. Search needs a destination already in mind;
+                // the map is for finding one, which is the more common of the
+                // two — so it sits above the trips rather than under them.
+                NavigationLink { HotelMapView() } label: { ExploreMapCard() }
+                    .buttonStyle(.plain)
+
                 if !container.travel.activeTrips.isEmpty {
                     Text("Your Trips").sectionTitle()
                     ForEach(container.travel.activeTrips) { trip in
@@ -191,13 +197,13 @@ struct BookingConfirmView: View {
                         Task { await book() }
                     } label: {
                         ZStack {
-                            if isBooking { ProgressView().tint(.white) }
+                            if isBooking { ProgressView().tint(GuardianColors.onPrimaryAccent) }
                             else { Text("Confirm Booking").font(.headline) }
                         }
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
                         .background(GuardianColors.primaryAccent)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(GuardianColors.onPrimaryAccent)
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                     .disabled(isBooking)

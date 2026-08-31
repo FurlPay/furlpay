@@ -95,8 +95,7 @@ struct PassportVaultView: View {
                 .foregroundStyle(GuardianColors.textSecondary)
                 .multilineTextAlignment(.center)
             Button("Add a document") { showScanner = true }
-                .buttonStyle(.borderedProminent)
-                .tint(GuardianColors.primaryAccent)
+                .guardianProminentButton()
                 .padding(.top, 4)
         }
         .padding(28)
@@ -139,8 +138,7 @@ struct LockedVaultView: View {
                 .multilineTextAlignment(.center)
 
             Button("Unlock") { Task { await unlock() } }
-                .buttonStyle(.borderedProminent)
-                .tint(GuardianColors.primaryAccent)
+                .guardianProminentButton()
                 .controlSize(.large)
                 .padding(.top, 6)
         }
@@ -158,7 +156,22 @@ struct PassportCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .top) {
                 HStack(spacing: 8) {
-                    Text(document.flag).font(.title2)
+                    // Country CODE, not a flag emoji. See TravelDocument
+                    // .countryCode, and PassportCard.tsx which draws the same
+                    // chip on Android.
+                    Text(document.countryCode)
+                        .font(.caption.weight(.bold).monospaced())
+                        .foregroundStyle(GuardianColors.textPrimary)
+                        .kerning(0.5)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                .fill(GuardianColors.textPrimary.opacity(0.08))
+                        )
+                        // countryName is right beside it and says the same
+                        // thing in words.
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(document.countryName)
                             .font(.subheadline.weight(.bold))

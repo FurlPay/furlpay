@@ -61,6 +61,19 @@ public actor FurlPayAPIClient {
     public static let shared = FurlPayAPIClient()
 
     private let baseURL: URL
+
+    /// The site the API is mounted under — `https://furlpay.com` for
+    /// `https://furlpay.com/api/`.
+    ///
+    /// `nonisolated` so a SwiftUI view can read it without awaiting the actor.
+    /// Safe because it is an immutable `let` holding a Sendable `URL`; there is
+    /// no state to race on.
+    ///
+    /// The hotel map needs it: the dataset stores photographs as paths relative
+    /// to the web app (`/hotels/<category>/<slug>.jpg`), and a native client has
+    /// no origin of its own to resolve them against.
+    public nonisolated let webOrigin: URL
+
     private let session: URLSession
     private let tokenStore: KeychainTokenStore
     private let clientHeader: String
@@ -114,6 +127,18 @@ public actor FurlPayAPIClient {
         clientHeader: String = FurlPayAPIClient.defaultClientHeader
     ) {
         self.baseURL = baseURL
+        // Scheme, host and port; no path. Derived through URLComponents rather
+        // than by trimming path components, because "/api/" and "/api" and a
+        // base with no path at all all have to land on the same origin.
+        self.webOrigin = {
+            guard var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: true) else {
+                return baseURL
+            }
+            components.path = ""
+            components.query = nil
+            components.fragment = nil
+            return components.url ?? baseURL
+        }()
         self.session = session
         self.tokenStore = tokenStore
         self.clientHeader = clientHeader
@@ -382,6 +407,43 @@ public actor FurlPayAPIClient {
         ).hotels
     }
 
+    /// Clusters and points for one viewport of the hotel map.
+    ///
+    /// The SAME endpoint the web map and the Android app read. It already does
+    /// the clustering, the OpenStreetMap merge and the counting, so the client
+    /// recomputes none of it — a second implementation would be a second set of
+    /// numbers to keep true.
+    ///
+    /// UNAUTHENTICATED, deliberately. The map is public, and a signed-out user
+    /// must still see it; asking for a token would put a refresh round trip in
+    /// front of every pan for a response that ignores it.
+    public func fetchHotelMap(
+        bbox: MapBBox,
+        zoom: Double,
+        families: [PropertyFamily] = [],
+        categories: [String] = [],
+        minStars: Int? = nil,
+        query searchText: String? = nil,
+        exactOnly: Bool = false
+    ) async throws -> MapResponse {
+        var query: [String: String] = [
+            "bbox": bbox.queryValue,
+            "z": String(format: "%.2f", zoom),
+        ]
+        if !families.isEmpty {
+            query["families"] = families.map(\.rawValue).joined(separator: ",")
+        }
+        if !categories.isEmpty { query["categories"] = categories.joined(separator: ",") }
+        if let minStars { query["minStars"] = String(minStars) }
+        if let searchText, !searchText.isEmpty { query["q"] = searchText }
+        if exactOnly { query["exactOnly"] = "1" }
+
+        return try await send(
+            try await makeRequest("GET", "travel/hotels/map", query: query, authenticated: false),
+            as: MapResponse.self
+        )
+    }
+
     public func searchFlights(origin: String, destination: String, departDate: Date) async throws -> [FlightSegment] {
         let request = try await makeRequest(
             "POST", "travel/search",
@@ -588,13 +650,26 @@ public actor FurlPayAPIClient {
     // the ServiceContainer level. These methods are the transport, not the
     // authorisation — see confirmAndDispatch.
 
+    /// Custodial transfer on the demo ledger rail.
+    ///
+    /// `amount` is TOKEN units. The route debits the token balance by exactly
+    /// this number and derives the USD figure itself from the caller's own
+    /// priced balance, so passing a dollar amount here over-debits every token
+    /// that is not 1:1 with the dollar.
     public func transfer(
-        destination: String, amountUsd: Decimal, asset: String, idempotencyKey: String
+        destination: String,
+        amount: Decimal,
+        token: String,
+        chain: String,
+        signature: String,
+        mfaCode: String? = nil,
+        idempotencyKey: String
     ) async throws -> TransferResult {
         let request = try await makeRequest(
             "POST", "wallets/transfer",
             body: TransferRequest(
-                destination: destination, amountUsd: amountUsd, asset: asset
+                destination: destination, amount: amount, token: token,
+                chain: chain, signature: signature, mfaCode: mfaCode
             ),
             idempotencyKey: idempotencyKey
         )

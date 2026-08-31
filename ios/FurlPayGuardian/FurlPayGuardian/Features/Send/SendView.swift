@@ -11,6 +11,12 @@
 //  The send itself goes through the action registry — the same path an
 //  AI-proposed payment takes. One authorisation path, not two.
 //
+//  `/payments/create` is phase ONE of a two-phase route: it prices the payment
+//  and returns EIP-712 typed data; `/payments/execute` is what settles. This
+//  view therefore reports the state the server actually reached — settled, or
+//  awaiting a signature — and never announces a send it cannot evidence with a
+//  transaction hash.
+//
 
 import SwiftUI
 
@@ -25,10 +31,15 @@ struct SendView: View {
     @State private var phase: Phase = .editing
     @State private var showScanner = false
 
-    private enum Phase: Equatable {
+    enum Phase: Equatable {
         case editing
         case sending
-        case sent(String)
+        /// The route settled and returned a transaction hash.
+        case settled(reference: String)
+        /// The route created a payment intent that is waiting on a signature
+        /// this app cannot produce. NOT a completed send, and never rendered
+        /// as one — see `quotedSection`.
+        case quoted(paymentId: String, expiresAt: String?)
         case failed(String)
     }
 
@@ -60,8 +71,10 @@ struct SendView: View {
                     amountSection
                     noteSection
                     sendSection
-                case .sent(let reference):
-                    sentSection(reference)
+                case .settled(let reference):
+                    settledSection(reference)
+                case .quoted(let paymentId, let expiresAt):
+                    quotedSection(paymentId: paymentId, expiresAt: expiresAt)
                 case .failed(let message):
                     failedSection(message)
                 }
@@ -177,22 +190,60 @@ struct SendView: View {
             .disabled(check.errorMessage != nil || phase == .sending)
         }
         .listRowBackground(GuardianColors.primaryAccent.opacity(0.9))
-        .foregroundStyle(.white)
+        .foregroundStyle(GuardianColors.onPrimaryAccent)
     }
 
-    private func sentSection(_ reference: String) -> some View {
+    private func settledSection(_ reference: String) -> some View {
         Section {
             VStack(spacing: 12) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 44))
                     .foregroundStyle(GuardianColors.positive)
                 Text("Sent").font(.title3.weight(.semibold))
+                // The settlement hash, not the idempotency key: a reference the
+                // user can actually look up.
                 Text(reference)
                     .font(.caption.monospaced())
                     .foregroundStyle(GuardianColors.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
                 Button("Done") { dismiss() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(GuardianColors.primaryAccent)
+                    .guardianProminentButton()
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 20)
+        }
+        .listRowBackground(GuardianColors.surface)
+    }
+
+    /// A priced, unsigned payment intent — money has NOT moved.
+    ///
+    /// The Guardian app is custodial and carries no signing key, so it cannot
+    /// complete the second phase itself. Saying that plainly is the only honest
+    /// option: a tick and the word "Sent" over an unsigned intent is a
+    /// fabricated receipt, and the user would stop chasing a payment that never
+    /// happened.
+    private func quotedSection(paymentId: String, expiresAt: String?) -> some View {
+        Section {
+            VStack(spacing: 12) {
+                Image(systemName: "clock.badge.exclamationmark.fill")
+                    .font(.system(size: 40))
+                    .foregroundStyle(GuardianColors.warning)
+                Text("Awaiting signature").font(.title3.weight(.semibold))
+                Text("This payment is priced and reserved, but it has not been sent. Approve it in the FurlPay app or dashboard to sign and settle it.")
+                    .font(.footnote)
+                    .multilineTextAlignment(.center)
+                    .foregroundStyle(GuardianColors.textSecondary)
+                Text(paymentId)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(GuardianColors.textSecondary)
+                if let expiresAt, let expiry = ISO8601DateFormatter().date(from: expiresAt) {
+                    Text("Expires \(expiry.formatted(date: .omitted, time: .shortened))")
+                        .font(.caption2)
+                        .foregroundStyle(GuardianColors.textSecondary)
+                }
+                Button("Done") { dismiss() }
+                    .guardianProminentButton()
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 20)
@@ -214,8 +265,7 @@ struct SendView: View {
                     // Retry keeps the SAME idempotency key — this is the same
                     // payment, and the server must be able to tell.
                     Button("Try again") { send() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(GuardianColors.primaryAccent)
+                        .guardianProminentButton()
                     Button("Edit") { phase = .editing }
                         .buttonStyle(.bordered)
                 }
@@ -247,7 +297,14 @@ struct SendView: View {
                 "sourceChain": .string((wallet.chain ?? "arbitrum").lowercased()),
             ]
 
-            let rejection = await container.confirmAndDispatch(Confirmation(
+            // Read the response instead of inferring the outcome from the
+            // absence of an error. `/payments/create` is the FIRST half of a
+            // two-phase route: it prices the payment and returns EIP-712 typed
+            // data for the payer to sign, and only `/payments/execute` moves
+            // money. This screen used to treat "no rejection" as "sent", show a
+            // green tick and a reference, and dismiss — for a payment that was
+            // never signed, never submitted and never settled.
+            let outcome = await container.confirmAndDispatchReturning(Confirmation(
                 action: "send_payment",
                 endpoint: "/payments/create",
                 method: "POST",
@@ -256,12 +313,35 @@ struct SendView: View {
                 amountUsd: amountUsd.doubleValue
             ))
 
-            if let rejection {
-                phase = .failed(rejection)
-            } else {
-                phase = .sent(idempotencyKey)
+            switch outcome {
+            case .rejected(let reason):
+                phase = .failed(reason)
+            case .dispatched(let response):
+                phase = Self.outcomePhase(for: response)
             }
         }
+    }
+
+    /// Maps the route's own response onto a phase.
+    ///
+    /// A `transactionHash` is the only thing that means money moved; anything
+    /// else is an intent in some pre-settlement state, and the screen says so.
+    /// An unrecognised shape is NOT optimistically treated as success — the
+    /// whole defect here was a success state that nothing had returned.
+    static func outcomePhase(for response: JSONValue) -> Phase {
+        guard case .object(let fields) = response else {
+            return .failed("The server sent back a response this app could not read.")
+        }
+        if let hash = fields["transactionHash"]?.stringValue, !hash.isEmpty {
+            return .settled(reference: hash)
+        }
+        if let paymentId = fields["paymentId"]?.stringValue, !paymentId.isEmpty {
+            return .quoted(paymentId: paymentId, expiresAt: fields["expiresAt"]?.stringValue)
+        }
+        if let detail = fields["detail"]?.stringValue ?? fields["error"]?.stringValue {
+            return .failed(detail)
+        }
+        return .failed("The server sent back a response this app could not read.")
     }
 }
 

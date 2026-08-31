@@ -105,8 +105,7 @@ struct QRScannerView: View {
                     UIApplication.shared.open(url)
                 }
             }
-            .buttonStyle(.borderedProminent)
-            .tint(GuardianColors.primaryAccent)
+            .guardianProminentButton()
         }
         .padding(32)
     }

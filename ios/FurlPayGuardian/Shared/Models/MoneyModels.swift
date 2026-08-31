@@ -14,13 +14,18 @@ import Foundation
 
 // MARK: - Transfer
 
+/// Response of POST /api/wallets/transfer.
+///
+/// The route returns `{ transactionHash, gasSponsored, screen, ledgerTxId }`.
+/// This used to declare a completely different shape — `id`/`status`/
+/// `amountUsd`/`destination`/`txHash`/`at`, none of which the route emits — so
+/// even a request that had passed validation would have failed to decode.
+/// Everything past the hash is optional: a field the deployment omits must
+/// degrade, not throw.
 public struct TransferResult: Codable, Sendable, Hashable {
-    public let id: String
-    public let status: String
-    public let amountUsd: Decimal
-    public let destination: String
-    public let txHash: String?
-    public let at: Date?
+    public let transactionHash: String
+    public let gasSponsored: Bool?
+    public let ledgerTxId: String?
 }
 
 // MARK: - Swap

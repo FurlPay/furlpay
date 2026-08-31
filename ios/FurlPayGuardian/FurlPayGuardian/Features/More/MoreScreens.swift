@@ -268,8 +268,7 @@ struct ApprovalsView: View {
                             }
                             HStack(spacing: 12) {
                                 Button("Approve") { decide(challenge, approved: true) }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(GuardianColors.primaryAccent)
+                                    .guardianProminentButton()
                                 Button("Decline", role: .destructive) {
                                     decide(challenge, approved: false)
                                 }

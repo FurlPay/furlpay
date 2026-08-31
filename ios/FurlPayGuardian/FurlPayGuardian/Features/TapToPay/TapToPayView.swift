@@ -116,8 +116,7 @@ public struct TapToPayView: View {
                     detail: result.cardDescription, pulsing: false
                 )
                 Button("New sale") { startNewSale() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(GuardianColors.primaryAccent)
+                    .guardianProminentButton()
                     .controlSize(.large)
             }
 
@@ -132,8 +131,7 @@ public struct TapToPayView: View {
                     // sale, and the server must be able to tell.
                     if recoverable {
                         Button("Try again") { charge() }
-                            .buttonStyle(.borderedProminent)
-                            .tint(GuardianColors.primaryAccent)
+                            .guardianProminentButton()
                     }
                     Button("New sale") { startNewSale() }
                         .buttonStyle(.bordered)
@@ -203,8 +201,7 @@ public struct TapToPayView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 16)
         }
-        .buttonStyle(.borderedProminent)
-        .tint(GuardianColors.primaryAccent)
+        .guardianProminentButton()
         .disabled(!(service?.availability.isAvailable ?? false) || entry.amount <= 0)
         .padding(.top, 12)
     }
@@ -319,8 +316,7 @@ struct HowToTapFallbackView: View {
             Spacer()
 
             Button("Got it") { dismiss() }
-                .buttonStyle(.borderedProminent)
-                .tint(GuardianColors.primaryAccent)
+                .guardianProminentButton()
                 .controlSize(.large)
                 .frame(maxWidth: .infinity)
         }

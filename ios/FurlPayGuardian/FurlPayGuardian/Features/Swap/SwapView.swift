@@ -237,8 +237,7 @@ struct SwapView: View {
                     .font(.subheadline)
                     .foregroundStyle(GuardianColors.textSecondary)
                 Button("Done") { dismiss() }
-                    .buttonStyle(.borderedProminent)
-                    .tint(GuardianColors.primaryAccent)
+                    .guardianProminentButton()
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 20)
@@ -263,8 +262,7 @@ struct SwapView: View {
                     idempotencyKey = UUID().uuidString
                     phase = .editing
                 }
-                .buttonStyle(.borderedProminent)
-                .tint(GuardianColors.primaryAccent)
+                .guardianProminentButton()
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 16)

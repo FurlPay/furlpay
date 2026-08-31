@@ -14,8 +14,9 @@
 //
 //    * `GuardianIcon` — one named mapping, so a screen never hardcodes a symbol
 //      string and the set stays consistent.
-//    * `FurlPayMark` — the brand mark, which IS drawn by hand because it is the
-//      exact apps/web/public/furlpay-mark.svg geometry.
+//
+//  The brand mark is NOT here — it lives in Shared/UI/FurlPayMark.swift, which
+//  is the version the web and Expo apps also ship.
 //
 //  Brand voice rule carried over verbatim: no emoji anywhere.
 //
@@ -71,52 +72,18 @@ public enum GuardianIcon: String, CaseIterable, Sendable {
     }
 }
 
-/// The FurlPay mark: gradient tile with a white F.
-///
-/// Hand-drawn because it is brand geometry, not an icon — matching
-/// `apps/web/public/furlpay-mark.svg`. Drawn rather than shipped as an asset so
-/// it stays crisp at complication sizes and costs no bundle space in three
-/// targets.
-public struct FurlPayMark: View {
-    var size: CGFloat
-
-    public init(size: CGFloat = 28) {
-        self.size = size
-    }
-
-    public var body: some View {
-        // The F, on a 24-unit grid to match the Kotlin. Proportions are the
-        // reason this is a Path and not a Text("F") in some font.
-        let unit = size / 24
-
-        RoundedRectangle(cornerRadius: size * 0.24, style: .continuous)
-            .fill(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.29, green: 0.56, blue: 1.00),
-                        Color(red: 0.42, green: 0.35, blue: 0.98),
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .frame(width: size, height: size)
-            .overlay {
-                Path { path in
-                    path.move(to: CGPoint(x: 8 * unit, y: 6 * unit))
-                    path.addLine(to: CGPoint(x: 17 * unit, y: 6 * unit))
-                    path.addLine(to: CGPoint(x: 17 * unit, y: 9 * unit))
-                    path.addLine(to: CGPoint(x: 11 * unit, y: 9 * unit))
-                    path.addLine(to: CGPoint(x: 11 * unit, y: 13 * unit))
-                    path.addLine(to: CGPoint(x: 16 * unit, y: 13 * unit))
-                    path.addLine(to: CGPoint(x: 16 * unit, y: 16 * unit))
-                    path.addLine(to: CGPoint(x: 11 * unit, y: 16 * unit))
-                    path.addLine(to: CGPoint(x: 11 * unit, y: 19 * unit))
-                    path.addLine(to: CGPoint(x: 8 * unit, y: 19 * unit))
-                    path.closeSubpath()
-                }
-                .fill(.white)
-            }
-            .accessibilityLabel("FurlPay")
-    }
-}
+// THE FURLPAY MARK USED TO BE DECLARED HERE, and removing it is the fix for a
+// build that had been broken since 2026-08-22.
+//
+// The boarding-pass commit added Shared/UI/FurlPayMark.swift — the green
+// two-hook mark matching components/trips/FurlPayLogo.tsx on the web and
+// FurlPayMark.tsx in the Expo app — without removing the blue gradient tile
+// that lived here. Two `public struct FurlPayMark` in one module is a
+// redeclaration, and the Activities target compiles BOTH Shared/Extensions and
+// Shared/UI, so it failed first and loudest:
+//
+//     error: invalid redeclaration of 'FurlPayMark'
+//
+// The Trips version is the one that survives: every caller is a boarding pass,
+// a Live Activity or the Dynamic Island, all drawn against it, and it is the
+// version the other two platforms ship.

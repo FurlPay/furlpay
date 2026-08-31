@@ -177,13 +177,17 @@ struct PropertyView: View {
                     } label: {
                         HStack {
                             Spacer()
-                            if booking { ProgressView().tint(.white) } else { Text("Book \(offer.totalUsd.usd)") }
+                            if booking {
+                                ProgressView().tint(GuardianColors.onPrimaryAccent)
+                            } else {
+                                Text("Book \(offer.totalUsd.usd)")
+                            }
                             Spacer()
                         }
                         .padding(.vertical, 14)
                     }
                     .background(GuardianColors.primaryAccent)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(GuardianColors.onPrimaryAccent)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
 
