@@ -6,5 +6,11 @@ public/sw.js
 public/swe-worker*.js
 
 # Runtime file-store data (newsletter subscribers etc.)
-data/
+#
+# ANCHORED to apps/web/data on purpose. An unanchored "data/" matches at every
+# depth, so it also swallowed src/data — where the resolved luxury-property
+# dataset lives. That file is imported by the hotel map route, so ignoring it
+# builds fine locally (the file is on disk) and fails on Vercel, where the
+# checkout does not have it.
+/data/
 .cnft-payer.json

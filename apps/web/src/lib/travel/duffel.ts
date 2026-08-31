@@ -190,22 +190,154 @@ function toStayType(raw?: string): StayType {
 }
 
 /**
- * Live accommodation search via Duffel Stays (same token as flights).
- * Returns null when no key, unknown city, or any failure — callers fall back
- * to the demo generator. Each result carries a real property photo.
+ * Validate supplier coordinates before they reach a map.
+ *
+ * Returns an empty object when the pair is missing or out of range, so the
+ * Stay simply has no position rather than a wrong one. The 0,0 case is
+ * rejected explicitly: it is Null Island, and it is what a supplier sends when
+ * it means "unknown" — rendering a hotel there is worse than omitting it,
+ * because a marker in the Gulf of Guinea looks like data rather than absence.
  */
-export async function searchDuffelStays(
-  city: string,
-  checkIn?: string,
-  checkOut?: string,
-  guests = 2,
-): Promise<Stay[] | null> {
-  const apiKey = duffelKey();
-  const coords = CITY_COORDS[city];
-  if (!apiKey || !coords) return null;
+function coordsOf(raw: unknown): { latitude?: number; longitude?: number } {
+  if (!raw || typeof raw !== "object") return {};
+  const g = raw as { latitude?: unknown; longitude?: unknown };
+  const lat = Number(g.latitude);
+  const lng = Number(g.longitude);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return {};
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return {};
+  if (lat === 0 && lng === 0) return {};
+  return { latitude: lat, longitude: lng };
+}
+
+// ── Coordinate-first Stays primitives ──────────────────────────────────────
+//
+// WHY THIS EXISTS. Duffel's Stays search has always taken
+// `location.geographic_coordinates` + `location.radius`; the old
+// searchDuffelStays only used CITY_COORDS to *derive* that pair, which capped
+// the whole product at the cities we happened to have anchors for. That was an
+// application limit, never an API one. These primitives take the coordinate
+// directly, so any point on earth is searchable and the city helper below
+// becomes a convenience wrapper rather than the gate.
+
+export type { DuffelMode };
+
+/** The configured token's mode, safe to expose — it reveals no secret and the
+ *  UI needs it to avoid presenting sandbox inventory as bookable. */
+export function duffelMode(): DuffelMode {
+  return duffelKeyMode(process.env.DUFFEL_API_KEY);
+}
+
+export type DuffelGuest = { type: "adult" } | { type: "child"; age: number };
+
+/** Duffel documents radius in kilometres, integer, 1-100. */
+const RADIUS_MIN_KM = 1;
+const RADIUS_MAX_KM = 100;
+
+export interface DuffelStayQuery {
+  latitude: number;
+  longitude: number;
+  /** Kilometres. Clamped to Duffel's documented 1-100. */
+  radiusKm?: number;
+  checkIn?: string;
+  checkOut?: string;
+  adults?: number;
+  /** Ages of accompanying children; Duffel requires an age per child guest. */
+  children?: number[];
+  rooms?: number;
+}
+
+/**
+ * One accommodation from a Stays search.
+ *
+ * EVERY SUPPLIER FIELD IS OPTIONAL, deliberately. The legacy `Stay` type
+ * requires `stars`, `rating` and `reviews` as plain numbers, which is why the
+ * old mapper filled them with `?? 4` and `4.5` — inventing a star class and a
+ * review score for properties Duffel said nothing about. Here, absent means
+ * absent, and the UI renders nothing rather than a number nobody measured.
+ */
+export interface DuffelStayRate {
+  accommodationId: string;
+  searchResultId: string;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  city?: string;
+  countryCode?: string;
+  /** Duffel `rating`: star class, integer 1-5. */
+  stars?: number;
+  /** Duffel `review_score`: 1.0-10.0 on Duffel's own scale, NOT rescaled here. */
+  reviewScore?: number;
+  chain?: string;
+  brand?: string;
+  photo?: string;
+  /** Total for the whole stay, as Duffel priced it. Per-night is derived by
+   *  the caller that knows the night count. */
+  cheapestTotalAmount?: number;
+  cheapestCurrency?: string;
+  /** When Duffel's quoted price stops being valid. */
+  expiresAt?: string;
+}
+
+export interface DuffelStayResponse {
+  results: DuffelStayRate[];
+  meta: {
+    source: "duffel";
+    mode: DuffelMode;
+    /** ISO timestamp of the upstream call, so freshness wording can be honest. */
+    fetchedAt: string;
+    /** True ONLY against a live token. Test-mode inventory is Duffel's sandbox
+     *  and must never be labelled a live price. */
+    isLiveSearch: boolean;
+    nights: number;
+  };
+}
+
+function clampRadius(km: number | undefined): number {
+  const n = Math.round(Number(km ?? 5));
+  if (!Number.isFinite(n)) return 5;
+  return Math.min(RADIUS_MAX_KM, Math.max(RADIUS_MIN_KM, n));
+}
+
+/** Default window, used when the caller has no search context yet. */
+function defaultDates(checkIn?: string, checkOut?: string): [string, string] {
   const inDate = checkIn || new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
   const outDate = checkOut || new Date(Date.now() + 33 * 86_400_000).toISOString().slice(0, 10);
+  return [inDate, outDate];
+}
+
+function buildGuests(adults: number, children: number[]): DuffelGuest[] {
+  const out: DuffelGuest[] = [];
+  for (let i = 0; i < Math.max(1, Math.min(adults, 9)); i++) out.push({ type: "adult" });
+  for (const age of children.slice(0, 9)) {
+    const a = Math.max(0, Math.min(17, Math.round(Number(age))));
+    if (Number.isFinite(a)) out.push({ type: "child", age: a });
+  }
+  return out;
+}
+
+function numOrUndef(raw: unknown): number | undefined {
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
+
+/**
+ * Stays search around an arbitrary coordinate.
+ *
+ * Returns null on missing key or any failure, matching the convention every
+ * caller in this file already handles.
+ */
+export async function searchDuffelStaysByLocation(
+  q: DuffelStayQuery,
+): Promise<DuffelStayResponse | null> {
+  const apiKey = duffelKey();
+  if (!apiKey) return null;
+  if (!Number.isFinite(q.latitude) || !Number.isFinite(q.longitude)) return null;
+  if (q.latitude < -90 || q.latitude > 90 || q.longitude < -180 || q.longitude > 180) return null;
+
+  const [inDate, outDate] = defaultDates(q.checkIn, q.checkOut);
   const n = nightsBetween(inDate, outDate);
+  const mode = duffelKeyMode(apiKey);
+
   try {
     const res = await fetch(`${BASE}/stays/search`, {
       method: "POST",
@@ -219,51 +351,198 @@ export async function searchDuffelStays(
         data: {
           check_in_date: inDate,
           check_out_date: outDate,
-          rooms: 1,
-          guests: Array.from({ length: Math.max(1, Math.min(guests, 4)) }, () => ({ type: "adult" })),
+          rooms: Math.max(1, Math.min(Number(q.rooms ?? 1), 9)),
+          guests: buildGuests(q.adults ?? 2, q.children ?? []),
           location: {
-            radius: 15,
-            geographic_coordinates: { latitude: coords.lat, longitude: coords.lng },
+            radius: clampRadius(q.radiusKm),
+            geographic_coordinates: { latitude: q.latitude, longitude: q.longitude },
           },
         },
       }),
       cache: "no-store",
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      log.warn("duffel.stays.search.http", { status: res.status });
+      return null;
+    }
     const json: any = await res.json();
-    const results: any[] = json?.data?.results ?? [];
-    if (!results.length) return null;
-    return results
-      .map((r, i): Stay => {
-        const a = r?.accommodation ?? r ?? {};
-        const total = Number(r?.cheapest_rate_total_amount ?? a?.cheapest_rate_total_amount ?? 0);
-        const stars = Math.max(1, Math.min(5, Math.round(Number(a.rating ?? 4)))); // Duffel rating = star class
-        const review = Number(a.review_score); // /10 → /5
-        return {
-          id: String(a.id ?? `duffel_${i}`),
-          name: String(a.name ?? "Hotel"),
-          brand: String(a.chain?.name ?? "Independent"),
-          city,
-          country: String(a.location?.address?.country_code ?? "—"),
-          type: toStayType(a.type ?? a.name),
-          stars,
-          rating: isFinite(review) && review > 0 ? Math.round((review / 2) * 10) / 10 : 4.5,
-          reviews: Number(a.review_count ?? 0),
-          nightlyUsd: Math.round((total / Math.max(1, n)) * 100) / 100,
-          image: GRADIENT_FALLBACK[i % GRADIENT_FALLBACK.length],
-          photo: a.photos?.[0]?.url ?? undefined,
-          amenities: (a.amenities ?? []).slice(0, 5).map((x: any) => String(x?.description ?? x?.type ?? "")).filter(Boolean),
-          roomsLeft: 5,
-          freeCancellation: false,
-          eco: false,
-        };
-      })
-      .filter((s) => s.nightlyUsd > 0)
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, 16);
-  } catch {
+    const raw: any[] = json?.data?.results ?? [];
+
+    const results: DuffelStayRate[] = raw.map((r: any): DuffelStayRate => {
+      const a = r?.accommodation ?? {};
+      const coords = coordsOf(a?.location?.geographic_coordinates);
+      const stars = Number(a?.rating);
+      return {
+        accommodationId: String(a?.id ?? ""),
+        searchResultId: String(r?.id ?? ""),
+        name: String(a?.name ?? ""),
+        ...coords,
+        city: a?.location?.address?.city_name || undefined,
+        countryCode: a?.location?.address?.country_code || undefined,
+        stars: Number.isFinite(stars) && stars >= 1 && stars <= 5 ? Math.round(stars) : undefined,
+        reviewScore: numOrUndef(a?.review_score),
+        chain: a?.chain?.name || undefined,
+        brand: a?.brand?.name || undefined,
+        photo: a?.photos?.[0]?.url || undefined,
+        cheapestTotalAmount: numOrUndef(r?.cheapest_rate_total_amount),
+        cheapestCurrency: r?.cheapest_rate_currency || undefined,
+        expiresAt: r?.expires_at || undefined,
+      };
+    }).filter((x) => x.accommodationId && x.name);
+
+    return {
+      results,
+      meta: {
+        source: "duffel",
+        mode,
+        fetchedAt: new Date().toISOString(),
+        isLiveSearch: mode === "live",
+        nights: n,
+      },
+    };
+  } catch (e) {
+    log.warn("duffel.stays.search.failed", { error: (e as Error).message });
     return null;
   }
+}
+
+export interface DuffelAccommodation {
+  id: string;
+  name: string;
+  latitude?: number;
+  longitude?: number;
+  city?: string;
+  countryCode?: string;
+  stars?: number;
+  chain?: string;
+  brand?: string;
+}
+
+/**
+ * The accommodation catalog: GET /stays/accommodation, which lists supplier
+ * properties near a coordinate WITHOUT dates or pricing.
+ *
+ * Its role is candidate discovery for matching an OSM hotel to a Duffel
+ * property — not a replacement for the OSM layer. Duffel documents radius as
+ * 1-100 km and limit as 1-200 with cursor pagination.
+ */
+export async function duffelAccommodationCatalog(opts: {
+  latitude: number;
+  longitude: number;
+  radiusKm?: number;
+  limit?: number;
+  after?: string;
+}): Promise<{ items: DuffelAccommodation[]; nextCursor?: string } | null> {
+  const apiKey = duffelKey();
+  if (!apiKey) return null;
+  if (!Number.isFinite(opts.latitude) || !Number.isFinite(opts.longitude)) return null;
+
+  const params = new URLSearchParams({
+    latitude: String(opts.latitude),
+    longitude: String(opts.longitude),
+    radius: String(clampRadius(opts.radiusKm)),
+    limit: String(Math.min(200, Math.max(1, Math.round(Number(opts.limit ?? 50))))),
+  });
+  if (opts.after) params.set("after", opts.after);
+
+  try {
+    const res = await fetch(`${BASE}/stays/accommodation?${params}`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Duffel-Version": "v2",
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    });
+    if (!res.ok) {
+      log.warn("duffel.accommodation.http", { status: res.status });
+      return null;
+    }
+    const json: any = await res.json();
+    const items: DuffelAccommodation[] = (json?.data ?? []).map((a: any) => {
+      const stars = Number(a?.rating);
+      return {
+        id: String(a?.id ?? ""),
+        name: String(a?.name ?? ""),
+        ...coordsOf(a?.location?.geographic_coordinates),
+        city: a?.location?.address?.city_name || undefined,
+        countryCode: a?.location?.address?.country_code || undefined,
+        stars: Number.isFinite(stars) && stars >= 1 && stars <= 5 ? Math.round(stars) : undefined,
+        chain: a?.chain?.name || undefined,
+        brand: a?.brand?.name || undefined,
+      };
+    }).filter((x: DuffelAccommodation) => x.id && x.name);
+
+    return { items, nextCursor: json?.meta?.after || undefined };
+  } catch (e) {
+    log.warn("duffel.accommodation.failed", { error: (e as Error).message });
+    return null;
+  }
+}
+
+/**
+ * Live accommodation search for one of the known search-anchor cities.
+ *
+ * CONVENIENCE WRAPPER ONLY. It resolves a city name to a coordinate and then
+ * calls searchDuffelStaysByLocation. Nothing in the map path may depend on it —
+ * the map works from viewport coordinates and has no city whitelist.
+ */
+export async function searchDuffelStays(
+  city: string,
+  checkIn?: string,
+  checkOut?: string,
+  guests = 2,
+): Promise<Stay[] | null> {
+  const apiKey = duffelKey();
+  const coords = CITY_COORDS[city];
+  if (!apiKey || !coords) return null;
+  const [inDate, outDate] = defaultDates(checkIn, checkOut);
+  const n = nightsBetween(inDate, outDate);
+
+  const resp = await searchDuffelStaysByLocation({
+    latitude: coords.lat,
+    longitude: coords.lng,
+    radiusKm: 15,
+    checkIn: inDate,
+    checkOut: outDate,
+    adults: guests,
+  });
+  if (!resp || !resp.results.length) return null;
+
+  // Adapting the honest DuffelStayRate onto the legacy `Stay`, whose stars /
+  // rating / reviews are required numbers. Where Duffel said nothing we emit 0
+  // rather than the old `?? 4` and `4.5`, which invented a star class and a
+  // review score for properties nobody had rated. Consumers already treat 0 as
+  // "no data" (the map drops unpriced stays), so this removes a fabrication
+  // without changing the shape every existing caller depends on.
+  return resp.results
+    .map((r, i): Stay => ({
+      id: r.accommodationId,
+      name: r.name,
+      brand: r.chain ?? r.brand ?? "",
+      city,
+      country: r.countryCode ?? "",
+      type: toStayType(r.name),
+      stars: r.stars ?? 0,
+      // Duffel scores out of 10; Stay.rating is out of 5.
+      rating: r.reviewScore !== undefined ? Math.round((r.reviewScore / 2) * 10) / 10 : 0,
+      reviews: 0,
+      nightlyUsd:
+        r.cheapestTotalAmount !== undefined
+          ? Math.round((r.cheapestTotalAmount / Math.max(1, n)) * 100) / 100
+          : 0,
+      image: GRADIENT_FALLBACK[i % GRADIENT_FALLBACK.length],
+      photo: r.photo,
+      latitude: r.latitude,
+      longitude: r.longitude,
+      amenities: [],
+      roomsLeft: 0,
+      freeCancellation: false,
+      eco: false,
+    }))
+    .filter((s) => s.nightlyUsd > 0)
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 16);
 }
 
 // ── Duffel Cars: live rentals across 40+ brands (launched April 2026) ───────

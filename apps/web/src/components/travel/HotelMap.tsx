@@ -1,0 +1,1320 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+// maplibre-gl v6 is ESM-only and exports NO default — the bundle ends in a
+// named-export list. `import maplibregl from "maplibre-gl"` therefore binds
+// undefined, and the failure surfaces late and confusingly as
+// "Cannot read properties of undefined (reading 'Map')" at first render.
+// Named imports are the supported shape.
+import {
+  Map as MapLibreMap,
+  setWorkerUrl,
+  type GeoJSONSource,
+  type LngLatBounds,
+  type MapGeoJSONFeature,
+} from "maplibre-gl";
+import "maplibre-gl/dist/maplibre-gl.css";
+
+// ---------------------------------------------------------------------------
+// Tell MapLibre where its tile-parsing worker is. THIS IS LOAD-BEARING: without
+// it the map draws nothing at all.
+//
+// MapLibre v6 finds its own worker with `new URL("./maplibre-gl-worker.mjs",
+// import.meta.url)`, guarded by `if (!/^https?:/.test(import.meta.url)) return
+// ""`. Webpack rewrites import.meta.url to a non-http value inside a bundle, so
+// that guard trips and the resolver hands back an empty string — which is then
+// passed straight to `new Worker("")`. An empty worker URL resolves against the
+// current document, so the browser loads the HTML page and tries to execute it
+// as a module worker.
+//
+// It fails without throwing anywhere visible. The map still constructs, the
+// canvas still appears, the controls still work and tiles are still fetched —
+// they are simply never decoded, because the decoder never started. A blank map
+// with a fully working interface is the signature of this bug.
+//
+// The path is served from public/ and kept in step with the installed version
+// by scripts/sync-maplibre-worker.mjs, which runs before dev and before build.
+// A bare specifier here would NOT work: webpack does not resolve package names
+// inside new URL(), so `new URL("maplibre-gl/dist/...", import.meta.url)`
+// silently produces a 404 under /_next/static/chunks/.
+//
+// Module scope on purpose — it has to be set before any Map is constructed.
+// ---------------------------------------------------------------------------
+setWorkerUrl("/maplibre-gl-worker.mjs");
+import type { MapCluster, MapPoint, MapResponse } from "@/app/api/travel/hotels/map/route";
+import type { ClusterMember, PropertyFamily } from "@/lib/hotels/curated";
+import { LUXURY_MAP_CATEGORIES, type LuxuryCategoryId } from "@/lib/hotels/luxuryTiers";
+import { luxuryMapStyle } from "@/lib/hotels/mapStyle";
+import HotelDetailPanel, { type DetailTarget } from "./HotelDetailPanel";
+import HotelMapSearchHeader, { type Destination } from "./map/HotelMapSearchHeader";
+import { clearRecent, pushRecent, readRecent } from "@/lib/hotels/recentSearches";
+import { decideViewAction, type BBox } from "@/lib/hotels/viewport";
+import { useSavedIds } from "./map/SaveButton";
+import { ThumbnailRegistry, thumbId, thumbnailSource } from "@/lib/hotels/markerThumbnails";
+import HotelMapHoverCard, { type HoverTarget } from "./map/HotelMapHoverCard";
+import AccessibleMarkerList, { type ListEntry } from "./map/AccessibleMarkerList";
+import {
+  buildFeatures,
+  categoryColor,
+  layerSpecs,
+  INTERACTIVE_LAYERS,
+  LYR_PULSE,
+  bandFor,
+  SRC_LEADERS,
+  SRC_POINTS,
+  SRC_PULSE,
+  type BuiltFeatures,
+} from "./map/layers";
+import { CategoryIcon, CloseIcon, SearchIcon } from "./map/icons";
+
+// ---------------------------------------------------------------------------
+// The luxury hotel map.
+//
+// MapLibre over OpenFreeMap tiles, recoloured to a warm ivory palette by
+// lib/hotels/mapStyle.ts. The map is the whole viewport and the whole
+// navigation surface: a user discovers properties by moving the pointer, not by
+// filling in a form.
+//
+// EVERYTHING IS DRAWN ON THE GPU. Markers used to be DOM buttons handed to
+// MapLibre's Marker class — the approach MapLibre's own large-data guide names
+// as the classic way to make a GL map slow, because every pin is a style
+// recalculation on the main thread for every frame of a pan. They are now
+// features in a GeoJSON source; see map/layers.ts.
+//
+// AND EVERYTHING IS ALSO IN THE DOM, ONCE. A canvas has nothing to focus, so
+// AccessibleMarkerList renders the same features as real buttons off-screen.
+// That is what makes the map keyboard-operable — which the DOM-marker version
+// never actually was, because a pin's blur handler closed the card before Tab
+// could reach it.
+//
+// THREE KINDS OF MARKER, and the differences carry information:
+//
+//   cluster   N curated properties, sized and coloured by N. The number is a
+//             real count and clicking it zooms to exactly what it counted.
+//   property  one curated luxury property, coloured by category, drawn with a
+//             translucent ring when its position is approximate.
+//   osm dot   any other hotel OpenStreetMap records here — small and quiet,
+//             because OSM knows where it is and little else.
+//
+// HOVER IS THE PRIMARY INTERACTION, which makes the open/close timing the most
+// important behaviour in the file. It lives here rather than in the card,
+// because only this component sees both the markers and the card and can tell
+// the difference between "the pointer left" and "the pointer is on its way".
+// ---------------------------------------------------------------------------
+
+const DEBOUNCE_MS = 350;
+/** How long the card stays after the pointer leaves both marker and card. Long
+ *  enough to cross the gap between them, short enough not to feel stuck. */
+const HOVER_GRACE_MS = 200;
+
+/** World view: the whole map, at the first zoom the basemap labels cities. */
+const DEFAULT_VIEW = { center: [20, 25] as [number, number], zoom: 3 };
+
+/** Map movement, per the reference's timing. Never a teleport. */
+const FLY_MS = 650;
+
+/**
+ * Ease-in-out cubic, for camera moves the reader did not initiate.
+ *
+ * MapLibre's default is a linear ramp, which starts and stops abruptly enough
+ * that a long fly reads as the map being dragged rather than travelling. Easing
+ * both ends makes the same duration feel deliberate.
+ */
+const easeInOutCubic = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+/** One full breath of the halo behind the active marker, in ms. */
+const PULSE_MS = 1800;
+
+/**
+ * Initial camera from `?lat=&lng=&z=`.
+ *
+ * Makes a view shareable — "look at this hotel" is a link rather than a set of
+ * directions. Anything malformed or out of range falls back to the world view
+ * rather than throwing the map to Null Island.
+ */
+function viewFromUrl(): { center: [number, number]; zoom: number } {
+  if (typeof window === "undefined") return DEFAULT_VIEW;
+  const q = new URLSearchParams(window.location.search);
+  const lat = Number(q.get("lat"));
+  const lng = Number(q.get("lng"));
+  const z = Number(q.get("z"));
+  if (
+    !Number.isFinite(lat) || !Number.isFinite(lng) ||
+    lat < -90 || lat > 90 || lng < -180 || lng > 180
+  ) {
+    return DEFAULT_VIEW;
+  }
+  return { center: [lng, lat], zoom: Number.isFinite(z) ? Math.min(18, Math.max(1, z)) : 14 };
+}
+
+const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
+
+export default function HotelMap() {
+  const container = useRef<HTMLDivElement>(null);
+  const map = useRef<MapLibreMap | null>(null);
+  const inflight = useRef<AbortController | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** id -> the full record behind a rendered feature. Feature properties can
+   *  only hold primitives, so the objects live here. */
+  const index = useRef<BuiltFeatures["index"]>(new Map());
+  /** The feature currently lit by feature-state, so it can be cleared. */
+  const litId = useRef<number | null>(null);
+  /**
+   * Which feature the pointer is currently over.
+   *
+   * mousemove fires per FRAME, so without this the hit test would call
+   * setHover() sixty times a second and re-render the card on every one — the
+   * same main-thread cost that moving off DOM markers was meant to remove,
+   * reintroduced one layer up. Only a CHANGE of feature is a state change.
+   */
+  const hoveredId = useRef<string | null>(null);
+  const cursorRef = useRef<string>("");
+  const latest = useRef<{ clusters: MapCluster[]; points: MapPoint[] }>({ clusters: [], points: [] });
+
+  const [hover, setHover] = useState<{ target: HoverTarget; anchor: { x: number; y: number } } | null>(null);
+  const [entries, setEntries] = useState<ListEntry[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [meta, setMeta] = useState<Omit<MapResponse, "points" | "clusters"> | null>(null);
+  const [noWebgl, setNoWebgl] = useState(false);
+  const [selected, setSelected] = useState<DetailTarget | null>(null);
+
+  // --- filters --------------------------------------------------------------
+  //
+  // `query` drives the header's suggestions only; `textFilter` narrows the map.
+  // They were one value, which meant typing a destination silently emptied the
+  // map while the user was still reading the list.
+  const [query, setQuery] = useState("");
+  const [textFilter, setTextFilter] = useState("");
+  const [families, setFamilies] = useState<PropertyFamily[]>([]);
+  const [categories, setCategories] = useState<LuxuryCategoryId[]>([]);
+  const [minStars, setMinStars] = useState(0);
+  const [exactOnly, setExactOnly] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // What "More filters" stands for: everything NOT already named by its own
+  // button in the header. `minStars` is excluded because the Rating button
+  // reports it directly — counting it here would show the same filter twice.
+  const moreFilterCount =
+    categories.length + (exactOnly ? 1 : 0) + (textFilter.trim() ? 1 : 0);
+  const filterKey = useMemo(
+    () =>
+      `${[...families].sort().join(",")}|${[...categories].sort().join(",")}|${minStars}|${textFilter.trim()}|${exactOnly}`,
+    [families, categories, minStars, textFilter, exactOnly]
+  );
+  // Read inside `load` without making it a dependency: `load` is wired into
+  // MapLibre event handlers once at mount, and rebuilding it on every keystroke
+  // would tear those down and re-register them mid-pan.
+  const filters = useRef({ textFilter, families, categories, minStars, exactOnly });
+  filters.current = { textFilter, families, categories, minStars, exactOnly };
+
+  // --- hover timing ---------------------------------------------------------
+  const cancelClose = useCallback(() => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  }, []);
+
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setHover(null), HOVER_GRACE_MS);
+  }, [cancelClose]);
+
+  /** Light a feature via feature-state — a GPU-side hover, no DOM involved. */
+  const light = useCallback((featureId: number | null) => {
+    const m = map.current;
+    if (!m) return;
+    if (litId.current !== null && litId.current !== featureId) {
+      m.setFeatureState({ source: SRC_POINTS, id: litId.current }, { hover: false });
+    }
+    if (featureId !== null) {
+      m.setFeatureState({ source: SRC_POINTS, id: featureId }, { hover: true });
+    }
+    litId.current = featureId;
+  }, []);
+
+  const openFor = useCallback(
+    (id: string, featureId: number | null) => {
+      const m = map.current;
+      const entry = index.current.get(id);
+      if (!m || !entry) return;
+      cancelClose();
+      light(featureId);
+      const pt = m.project(entry.lngLat);
+      const target: HoverTarget =
+        entry.kind === "cluster"
+          ? { kind: "cluster", cluster: entry.cluster! }
+          : { kind: "property", point: entry.point! };
+      setHover({ target, anchor: { x: pt.x, y: pt.y } });
+    },
+    [cancelClose, light]
+  );
+
+  /** Zoom a cluster to exactly the properties it counted. */
+  const expandCluster = useCallback((c: MapCluster) => {
+    programmatic.current = true;
+    map.current?.fitBounds(
+      [[c.bounds.minLng, c.bounds.minLat], [c.bounds.maxLng, c.bounds.maxLat]],
+      { padding: 120, maxZoom: 15, duration: FLY_MS, easing: easeInOutCubic }
+    );
+    setHover(null);
+  }, []);
+
+  const openDetail = useCallback((p: MapPoint | ClusterMember) => {
+    setSelected({
+      id: p.id,
+      name: p.name,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      city: p.city,
+      country: p.country,
+      stars: p.stars,
+      placeId: p.placeId,
+    });
+    setHover(null);
+  }, []);
+
+  /**
+   * Push the built features into the two GeoJSON sources.
+   *
+   * Wrapped, because this is the single point where a bug stops being visible.
+   * Building features projects every coordinate through MapLibre; if any of
+   * that throws, the sources keep their previous contents and the map simply
+   * shows nothing — no error, no empty state, just a basemap and no pins, which
+   * is indistinguishable from "there are no hotels here". Catching it turns a
+   * silent blank into a message the user and the console can both act on.
+   */
+  const paint = useCallback((clusters: MapCluster[], points: MapPoint[]) => {
+    const m = map.current;
+    if (!m || !m.getSource(SRC_POINTS)) return;
+    try {
+      // Where `styleimagemissing` looks up what to fetch. A GeoJSON feature can
+      // only carry primitives, and the event hands back nothing but the icon
+      // id, so the id → (url, ring colour) mapping has to live beside the map.
+      // Rebuilt each paint from the features actually drawn, so it never grows
+      // past what is on screen.
+      const srcs = new Map<string, { url: string; ring: string }>();
+      for (const p of points) {
+        const url = thumbnailSource(p);
+        if (url && p.source === "curated") {
+          srcs.set(thumbId(p.id), { url, ring: categoryColor(p) });
+        }
+      }
+      thumbSrcById.current = srcs;
+
+      // The Saved filter narrows what is DRAWN, not what is fetched — it is
+      // answered from the response already in hand, so toggling it costs no
+      // request and is instant.
+      //
+      // Read through a ref, not from props, for the same reason `load` does:
+      // `paint` is registered on MapLibre events once at mount, and changing
+      // its identity would re-run the mount effect and rebuild the whole map.
+      const { savedOnly, savedIds } = saved.current;
+      if (savedOnly) {
+        // CLUSTERS ARE DROPPED ENTIRELY, not filtered. A cluster's count is of
+        // every property in its cell; showing "38" over a cell holding two
+        // saved hotels would be a straightforward lie, and there is no way to
+        // recount from here — the members are not in the response.
+        clusters = [];
+        points = points.filter((p) => savedIds.has(p.id));
+      }
+      const built = buildFeatures(clusters, points, m);
+      index.current = built.index;
+      (m.getSource(SRC_POINTS) as GeoJSONSource).setData(built.points);
+      (m.getSource(SRC_LEADERS) as GeoJSONSource).setData(built.leaders);
+      setEntries([...built.index.entries()].map(([id, e]) => ({ id, ...e })));
+    } catch (e) {
+      console.error("hotel map: could not draw markers", e);
+      setError("Could not draw the markers for this view");
+    }
+  }, []);
+
+  /** Fetch points for the current viewport. Debounced and cancellable, so a
+   *  fast pan issues one request rather than one per frame. */
+  const load = useCallback(
+    async (bounds: LngLatBounds, zoom: number) => {
+      inflight.current?.abort();
+      const ac = new AbortController();
+      inflight.current = ac;
+      setLoading(true);
+
+      // getBounds() reports the viewport, which at low zoom spans the world more
+      // than once — longitudes come back beyond ±180. Clamp before sending so
+      // the request describes a real region of the earth.
+      const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
+      const west = clamp(bounds.getWest(), -180, 180);
+      const south = clamp(bounds.getSouth(), -90, 90);
+      const east = clamp(bounds.getEast(), -180, 180);
+      const north = clamp(bounds.getNorth(), -90, 90);
+      const bbox = [west, south, east, north].map((n) => n.toFixed(4)).join(",");
+
+      const f = filters.current;
+      const params = new URLSearchParams({ bbox, z: zoom.toFixed(2) });
+      if (f.families.length) params.set("families", f.families.join(","));
+      if (f.categories.length) params.set("categories", f.categories.join(","));
+      if (f.minStars) params.set("minStars", String(f.minStars));
+      if (f.textFilter.trim()) params.set("q", f.textFilter.trim());
+      if (f.exactOnly) params.set("exactOnly", "1");
+
+      try {
+        const res = await fetch(`/api/travel/hotels/map?${params}`, { signal: ac.signal });
+        if (!res.ok) throw new Error(`hotels ${res.status}`);
+        const data: MapResponse = await res.json();
+        loadedView.current = {
+          bbox: { minLng: west, minLat: south, maxLng: east, maxLat: north },
+          zoom,
+        };
+        setViewDrifted(false);
+        latest.current = { clusters: data.clusters, points: data.points };
+        paint(data.clusters, data.points);
+        const { points: _points, clusters: _clusters, ...rest } = data;
+        setMeta(rest);
+        setError(null);
+      } catch (e) {
+        // Check the SIGNAL, not just the error name. Aborting during fetch()
+        // raises AbortError, but aborting while res.json() is still reading the
+        // body raises SyntaxError: "Unexpected end of JSON input" — a truncated
+        // read, not a server fault. Matching on the name alone let that surface
+        // as a spurious "unavailable" banner every time a fast pan superseded
+        // an in-flight request.
+        if (ac.signal.aborted || (e as Error).name === "AbortError") return;
+        setError("Could not reach the hotel service");
+      } finally {
+        if (inflight.current === ac) setLoading(false);
+      }
+    },
+    [paint]
+  );
+
+  useEffect(() => {
+    if (!container.current || map.current) return;
+
+    // MapLibre is a WebGL2 renderer with no 2D fallback. When the context is
+    // unavailable — hardware acceleration off, a blocklisted driver, a headless
+    // or remote session — the constructor throws from deep inside GPU init and
+    // the error surfaces as "Cannot read properties of undefined (reading '0')",
+    // which says nothing about the cause and takes the whole route down.
+    const probe = document.createElement("canvas");
+    const gl = probe.getContext("webgl2");
+    if (!gl) {
+      setNoWebgl(true);
+      return;
+    }
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+
+    const ac = new AbortController();
+    let disposed = false;
+
+    void (async () => {
+      const style = await luxuryMapStyle(ac.signal);
+      if (disposed || !container.current) return;
+
+      let m: MapLibreMap;
+      try {
+        const view = viewFromUrl();
+        m = new MapLibreMap({
+          container: container.current,
+          style,
+          center: view.center,
+          zoom: view.zoom,
+          minZoom: 1,
+          maxZoom: 18,
+          // The built-in control clashes with the design; attribution is
+          // rendered in the status bar instead, where the licences still get
+          // the visible credit they require.
+          attributionControl: false,
+        });
+      } catch {
+        setNoWebgl(true);
+        return;
+      }
+      map.current = m;
+
+      m.on("load", () => {
+        if (disposed) return;
+        m.addSource(SRC_LEADERS, { type: "geojson", data: EMPTY_FC });
+        // `generateId` is off: ids are assigned in buildFeatures so they stay
+        // stable across repaints, which is what makes feature-state hover
+        // survive a pan.
+        m.addSource(SRC_POINTS, { type: "geojson", data: EMPTY_FC });
+        m.addSource(SRC_PULSE, { type: "geojson", data: EMPTY_FC });
+        for (const spec of layerSpecs()) m.addLayer(spec);
+
+        // Photograph markers, loaded ON DEMAND rather than up front.
+        //
+        // MapLibre fires this for an `icon-image` it does not hold, which makes
+        // it exactly the right hook: only the thumbnails for markers actually
+        // in view are ever fetched or decoded, and panning away costs nothing.
+        // Loading all 141 at mount would decode a megabyte of images for a
+        // world view that renders none of them.
+        thumbs.current = new ThumbnailRegistry(m);
+        m.on("styleimagemissing", (e: { id: string }) => {
+          const src = thumbSrcById.current.get(e.id);
+          if (!src) return;
+          void thumbs.current?.ensure(e.id, src.url, src.ring);
+        });
+
+        // ONE hit-test replaces per-marker DOM listeners: the renderer is asked
+        // what sits under the pointer, instead of 400 elements each waiting for
+        // an event that will only ever reach one of them.
+        m.on("mousemove", (ev) => {
+          const hit = m.queryRenderedFeatures(ev.point, { layers: INTERACTIVE_LAYERS })[0] as
+            | MapGeoJSONFeature
+            | undefined;
+
+          // Writing style.cursor is a DOM write; only do it on a change.
+          const wanted = hit ? "pointer" : "";
+          if (cursorRef.current !== wanted) {
+            m.getCanvas().style.cursor = wanted;
+            cursorRef.current = wanted;
+          }
+
+          const id = hit ? (hit.properties.id as string) : null;
+          if (id === hoveredId.current) return; // same feature, nothing changed
+          hoveredId.current = id;
+
+          if (!id) {
+            scheduleClose();
+            light(null);
+            return;
+          }
+          openFor(id, (hit!.id as number) ?? null);
+        });
+
+        // Leaving the canvas entirely is not a mousemove, so it needs its own
+        // handler — otherwise the card stays open when the pointer exits onto
+        // the header or off the window.
+        m.on("mouseout", () => {
+          hoveredId.current = null;
+          light(null);
+          scheduleClose();
+        });
+
+        m.on("click", (ev) => {
+          const hit = m.queryRenderedFeatures(ev.point, { layers: INTERACTIVE_LAYERS })[0] as
+            | MapGeoJSONFeature
+            | undefined;
+          if (!hit) {
+            setHover(null);
+            return;
+          }
+          const entry = index.current.get(hit.properties.id as string);
+          if (!entry) return;
+          if (entry.kind === "cluster") expandCluster(entry.cluster!);
+          else openDetail(entry.point!);
+        });
+
+        void load(m.getBounds(), m.getZoom());
+      });
+
+      const schedule = () => {
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => void load(m.getBounds(), m.getZoom()), DEBOUNCE_MS);
+      };
+      m.on("moveend", () => {
+        // Our own camera moves always load: the reader asked to go somewhere, so
+        // making them then ask again for what is there would be absurd.
+        if (programmatic.current) {
+          programmatic.current = false;
+          schedule();
+          return;
+        }
+        const b = m.getBounds();
+        const action = decideViewAction(loadedView.current, {
+          bbox: {
+            minLng: b.getWest(), minLat: b.getSouth(),
+            maxLng: b.getEast(), maxLat: b.getNorth(),
+          },
+          zoom: m.getZoom(),
+        });
+        if (action === "refetch") schedule();
+        else if (action === "offer") setViewDrifted(true);
+      });
+      // Spiderfy offsets are computed in SCREEN space, so they have to be
+      // rebuilt when the scale changes — otherwise a fanned group drifts apart
+      // as you zoom and the leader lines stretch across the city.
+      m.on("zoomend", () => paint(latest.current.clusters, latest.current.points));
+      // Keep an open card pinned to its marker while the map moves.
+      m.on("move", () => {
+        setHover((h) => {
+          if (!h) return h;
+          const at: [number, number] =
+            h.target.kind === "cluster"
+              ? [h.target.cluster.longitude, h.target.cluster.latitude]
+              : [h.target.point.longitude, h.target.point.latitude];
+          const pt = m.project(at);
+          return { ...h, anchor: { x: pt.x, y: pt.y } };
+        });
+      });
+    })();
+
+    return () => {
+      disposed = true;
+      ac.abort();
+      if (timer.current) clearTimeout(timer.current);
+      if (closeTimer.current) clearTimeout(closeTimer.current);
+      inflight.current?.abort();
+      thumbs.current?.dispose();
+      thumbs.current = null;
+      map.current?.remove();
+      map.current = null;
+    };
+  }, [load, paint, openFor, expandCluster, openDetail, scheduleClose, light]);
+
+  // A filter change re-asks the same viewport, on the same debounce as a pan so
+  // typing issues one request rather than one per character.
+  useEffect(() => {
+    const m = map.current;
+    if (!m) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => void load(m.getBounds(), m.getZoom()), DEBOUNCE_MS);
+  }, [filterKey, load]);
+
+  // Escape closes whatever is open, innermost first.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (selected) setSelected(null);
+      else if (hover) setHover(null);
+      else if (filtersOpen) setFiltersOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [selected, hover, filtersOpen]);
+
+  // --- search suggestions ---------------------------------------------------
+  //
+  // Built from what the last response actually returned, so every row is
+  // somewhere the map can go and every count beside one is real. A hardcoded
+  // list of glamorous cities would look identical until somebody picked one the
+  // dataset holds nothing in.
+  const suggestions: Destination[] = useMemo(() => {
+    const { clusters, points } = latest.current;
+    const q = query.trim().toLowerCase();
+    const hit = (s: string) => !q || s.toLowerCase().includes(q);
+
+    const destinations: Destination[] = clusters
+      .filter((c) => hit(c.label))
+      .slice(0, 6)
+      .map((c) => ({
+        label: c.label,
+        sublabel: c.sublabel,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        count: c.count,
+        kind: "destination" as const,
+      }));
+
+    const properties: Destination[] = points
+      .filter((p) => p.source === "curated" && hit(p.name))
+      .slice(0, 6)
+      .map((p) => ({
+        label: p.name,
+        sublabel: [p.city, p.country].filter(Boolean).join(", "),
+        latitude: p.latitude,
+        longitude: p.longitude,
+        count: 1,
+        kind: "property" as const,
+      }));
+
+    return [...destinations, ...properties];
+    // `latest` is a ref, so writing it does not re-render and the linter cannot
+    // see it as a dependency. `meta` is set from the SAME response, one line
+    // later, so listing it is what makes this recompute when new data arrives.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [meta, query]);
+
+  // Recent searches. Seeded from localStorage AFTER mount rather than in the
+  // initial state, because the server renders this component too and reading
+  // the store during render would produce markup the client cannot reproduce.
+  // Starting empty and filling in on mount means the first paint matches.
+  const [recent, setRecent] = useState<Destination[]>([]);
+  useEffect(() => setRecent(readRecent()), []);
+
+  // Saved hotels, and whether the map is currently showing only those.
+  const savedIds = useSavedIds();
+  const [savedOnly, setSavedOnly] = useState(false);
+  // Mirrored into a ref so `paint` can read it without taking it as a
+  // dependency — see the note inside `paint`.
+  const saved = useRef({ savedOnly, savedIds });
+  saved.current = { savedOnly, savedIds };
+
+  /** On-demand photograph markers. See markerThumbnails for the LRU it holds. */
+  const thumbs = useRef<ThumbnailRegistry | null>(null);
+  const thumbSrcById = useRef<Map<string, { url: string; ring: string }>>(new Map());
+
+  // How far down the map the header reaches, measured rather than assumed.
+  // Everything that hangs below it is offset from this, so a filter row that
+  // wraps on a narrow phone pushes the zoom controls down instead of ending up
+  // underneath them. The seed value is the height at the common case, so the
+  // first paint is already correct and nothing visibly jumps on mount.
+  const headerBox = useRef<HTMLDivElement>(null);
+  const [headerH, setHeaderH] = useState(136);
+  useEffect(() => {
+    const el = headerBox.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setHeaderH(el.getBoundingClientRect().height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  /** Top edge for any overlay that must clear the header. */
+  const belowHeader = headerH + 12;
+
+  // ── "Search this area" ───────────────────────────────────────────────────
+  //
+  // What the last response actually described, so a move can be compared
+  // against it. Null until the first load returns.
+  const loadedView = useRef<{ bbox: BBox; zoom: number } | null>(null);
+  const [viewDrifted, setViewDrifted] = useState(false);
+  // Set immediately before any camera move THIS COMPONENT initiates. A move the
+  // reader asked for (picking a destination, expanding a cluster, locating
+  // themselves) should just load; only a move they made by hand gets offered.
+  const programmatic = useRef(false);
+
+  // Redraw when the filter is toggled, and when a hotel is saved or un-saved
+  // while it is on — otherwise a marker the reader just removed stays painted.
+  useEffect(() => {
+    paint(latest.current.clusters, latest.current.points);
+  }, [savedOnly, savedIds, paint]);
+
+  const flyTo = useCallback((d: Destination) => {
+    const m = map.current;
+    if (!m) return;
+    // Recorded here, at the single point every pick passes through — the
+    // suggestion list, the recent list and the keyboard path all land on this
+    // callback, so none of them can forget to write history.
+    setRecent(pushRecent(d));
+    programmatic.current = true;
+    m.flyTo({
+      center: [d.longitude, d.latitude],
+      zoom: d.kind === "property" ? 15 : Math.max(m.getZoom(), 9),
+      duration: FLY_MS,
+      easing: easeInOutCubic,
+      essential: true,
+    });
+  }, []);
+
+  // The halo behind the active marker.
+  //
+  // Runs ONLY while something is hovered. An idle rAF loop on a map page costs a
+  // frame's work forever for a decoration nobody is looking at, so the loop is
+  // started by a hover and cancelled the moment it ends — and the source is
+  // emptied on the way out so no stale ring is left painted.
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !m.getSource(SRC_PULSE)) return;
+    const src = m.getSource(SRC_PULSE) as GeoJSONSource;
+
+    if (!hover) {
+      src.setData(EMPTY_FC);
+      m.setPaintProperty(LYR_PULSE, "circle-opacity", 0);
+      return;
+    }
+
+    const at: [number, number] =
+      hover.target.kind === "cluster"
+        ? [hover.target.cluster.longitude, hover.target.cluster.latitude]
+        : [hover.target.point.longitude, hover.target.point.latitude];
+    const base = hover.target.kind === "cluster" ? bandFor(hover.target.cluster.count).r : 11;
+
+    src.setData({
+      type: "FeatureCollection",
+      features: [{ type: "Feature", geometry: { type: "Point", coordinates: at }, properties: {} }],
+    });
+
+    let raf = 0;
+    const started = performance.now();
+    const tick = (now: number) => {
+      // Sawtooth: the ring grows out from the marker and fades, then restarts.
+      const t = ((now - started) % PULSE_MS) / PULSE_MS;
+      m.setPaintProperty(LYR_PULSE, "circle-radius", base * (1 + t * 1.6));
+      m.setPaintProperty(LYR_PULSE, "circle-opacity", 0.3 * (1 - t));
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      // The map can be torn down between the hover ending and this running.
+      if (!map.current?.getSource(SRC_PULSE)) return;
+      src.setData(EMPTY_FC);
+      m.setPaintProperty(LYR_PULSE, "circle-opacity", 0);
+    };
+  }, [hover]);
+
+  const toggleFamily = useCallback((f: PropertyFamily) => {
+    setFamilies((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
+  }, []);
+
+  if (noWebgl) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-[#F7F5EF] p-6">
+        <div className="max-w-[420px] text-center">
+          <p className="text-[16px] font-bold text-[#0F172A]">This map needs WebGL2</p>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-[#64748B]">
+            The renderer could not get a WebGL2 context, so the map cannot draw. This is a
+            browser or driver setting rather than a problem with the page.
+          </p>
+          <ul className="mt-4 space-y-1.5 text-left text-[13px] text-[#64748B]">
+            <li>
+              • Chrome: enable{" "}
+              <span className="text-[#0F172A]">Settings → System → Use graphics acceleration</span>,
+              then restart the browser.
+            </li>
+            <li>
+              • Check <span className="text-[#0F172A]">chrome://gpu</span> — it lists WebGL2 as
+              enabled or blocklisted, and why.
+            </li>
+            <li>• Remote desktop and VM sessions often have no GPU to hand through.</li>
+          </ul>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative h-full w-full overflow-hidden bg-[#F7F5EF]">
+      <div ref={container} className="h-full w-full" />
+
+      {/* The map, as a list. Off-screen until focused — see AccessibleMarkerList. */}
+      <AccessibleMarkerList
+        entries={entries}
+        onFocusEntry={(e) => openFor(e.id, null)}
+        onBlurEntry={scheduleClose}
+        onActivate={(e) => (e.kind === "cluster" ? expandCluster(e.cluster!) : openDetail(e.point!))}
+      />
+
+      <div ref={headerBox} className="pointer-events-none absolute inset-x-0 top-0 z-30 p-3">
+        <HotelMapSearchHeader
+          query={query}
+          onQuery={setQuery}
+          suggestions={suggestions}
+          onPick={flyTo}
+          families={families}
+          minStars={minStars}
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen((v) => !v)}
+          moreFilterCount={moreFilterCount}
+          recent={recent}
+          onClearRecent={() => setRecent(clearRecent())}
+        />
+      </div>
+
+      {filtersOpen && (
+        <FilterPanel
+          top={belowHeader}
+          categories={categories}
+          onToggleCategory={(id) =>
+            setCategories((prev) =>
+              prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
+            )
+          }
+          minStars={minStars}
+          onMinStars={setMinStars}
+          exactOnly={exactOnly}
+          onExactOnly={setExactOnly}
+          families={families}
+          onToggleFamily={toggleFamily}
+          textFilter={textFilter}
+          onTextFilter={setTextFilter}
+          onClose={() => setFiltersOpen(false)}
+          onReset={() => {
+            setCategories([]);
+            setMinStars(0);
+            setExactOnly(false);
+            setFamilies([]);
+            setTextFilter("");
+          }}
+        />
+      )}
+
+      <MapControls
+        top={belowHeader}
+        onZoom={(delta) => {
+          const m = map.current;
+          if (m) m.easeTo({ zoom: m.getZoom() + delta, duration: 220 });
+        }}
+      />
+
+      <SavedFilterButton
+        active={savedOnly}
+        count={savedIds.size}
+        drawn={savedOnly ? latest.current.points.filter((p) => savedIds.has(p.id)).length : 0}
+        onToggle={() => setSavedOnly((v) => !v)}
+      />
+
+      <LocateButton
+        onLocate={(lat, lng) => {
+          programmatic.current = true;
+          map.current?.flyTo({
+            center: [lng, lat],
+            zoom: 11,
+            duration: FLY_MS,
+            easing: easeInOutCubic,
+            essential: true,
+          });
+        }}
+      />
+
+      {/* The offer. Occupies the same slot as the loading pill and never both:
+          while a request is in flight there is nothing to ask for. */}
+      {viewDrifted && !loading && (
+        <div
+          className="absolute left-1/2 z-20 -translate-x-1/2"
+          style={{ top: belowHeader }}
+        >
+          <button
+            type="button"
+            onClick={() => {
+              const m = map.current;
+              if (!m) return;
+              setViewDrifted(false);
+              void load(m.getBounds(), m.getZoom());
+            }}
+            className="app-pop-in flex items-center gap-2 rounded-full bg-[#181C23] px-4 py-2.5 text-[13px] font-semibold text-[#F5F7FA] shadow-[0_10px_30px_rgba(0,0,0,0.45)] transition-colors hover:bg-[#20242D] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50"
+          >
+            <SearchIcon className="h-4 w-4 shrink-0" />
+            Search this area
+          </button>
+        </div>
+      )}
+
+      {loading && (
+        <div
+          className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11.5px] font-medium text-[#64748B] shadow-[0_4px_14px_rgba(15,23,42,0.10)]"
+          style={{ top: belowHeader }}
+        >
+          Loading…
+        </div>
+      )}
+
+      {hover && (
+        <HotelMapHoverCard
+          target={hover.target}
+          anchor={hover.anchor}
+          onEnter={cancelClose}
+          onLeave={scheduleClose}
+          onOpenProperty={openDetail}
+          onViewAll={() => {
+            if (hover.target.kind === "cluster") expandCluster(hover.target.cluster);
+          }}
+        />
+      )}
+
+      <StatusBar error={error} meta={meta} loading={loading} />
+
+      <HotelDetailPanel target={selected} onClose={() => setSelected(null)} />
+    </div>
+  );
+}
+
+/** Zoom controls, styled to the design rather than MapLibre's default. */
+function MapControls({ top, onZoom }: { top: number; onZoom: (delta: number) => void }) {
+  return (
+    <div
+      className="absolute right-4 z-20 flex flex-col overflow-hidden rounded-xl bg-white shadow-[0_4px_12px_rgba(15,23,42,0.12)]"
+      style={{ top }}
+    >
+      <button
+        type="button"
+        onClick={() => onZoom(1)}
+        aria-label="Zoom in"
+        className="flex h-[42px] w-[42px] items-center justify-center text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+      >
+        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
+      <div className="h-px bg-[#F1F5F9]" />
+      <button
+        type="button"
+        onClick={() => onZoom(-1)}
+        aria-label="Zoom out"
+        className="flex h-[42px] w-[42px] items-center justify-center text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+      >
+        <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden>
+          <path d="M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+/**
+ * Show only saved hotels.
+ *
+ * Sits beside the locate button rather than in the filter sheet because it is a
+ * mode, not a facet: it changes what the map IS rather than narrowing what it
+ * is already showing, and the reader needs to see at a glance that it is on.
+ *
+ * It filters the CURRENT VIEW, since that is all the map has in hand — so the
+ * honest empty state is "none of your saved hotels are in this view", not "you
+ * have no saved hotels". The two are very different messages and getting them
+ * the wrong way round would tell a reader with 40 saves that they have none.
+ */
+function SavedFilterButton({
+  active,
+  count,
+  drawn,
+  onToggle,
+}: {
+  active: boolean;
+  /** Total saved, everywhere. */
+  count: number;
+  /** How many of them are in the current view. Only meaningful when active. */
+  drawn: number;
+  onToggle: () => void;
+}) {
+  // Nothing saved anywhere: the control would filter to an empty map and could
+  // not explain why, so it is not offered until it can do something.
+  if (count === 0) return null;
+
+  return (
+    <div className="absolute bottom-[72px] left-[74px] z-20 flex items-center gap-2 max-sm:hidden">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-pressed={active}
+        className={`flex h-[46px] items-center gap-2 rounded-full px-4 text-[13px] font-semibold shadow-[0_4px_12px_rgba(15,23,42,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1B7A4E] ${
+          active
+            ? "bg-[#1B7A4E] text-white hover:bg-[#146B44]"
+            : "bg-white text-[#334155] hover:bg-[#F8FAFC]"
+        }`}
+      >
+        <svg
+          className="h-[18px] w-[18px] shrink-0"
+          viewBox="0 0 20 20"
+          fill={active ? "currentColor" : "none"}
+          aria-hidden
+        >
+          <path
+            d="M10 16.5S3.5 12.6 3.5 8.2A3.7 3.7 0 0 1 10 5.9a3.7 3.7 0 0 1 6.5 2.3c0 4.4-6.5 8.3-6.5 8.3Z"
+            stroke="currentColor"
+            strokeWidth="1.7"
+            strokeLinejoin="round"
+          />
+        </svg>
+        Saved
+        <span className={active ? "text-white/70" : "text-[#94A3B8]"}>{count}</span>
+      </button>
+
+      {active && drawn === 0 && (
+        <p
+          role="status"
+          className="rounded-lg bg-white px-3 py-1.5 text-[12px] font-medium text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.10)]"
+        >
+          None of your saved hotels are in this view
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The circular control at the bottom left: centre the map on the reader.
+ *
+ * REAL GEOLOCATION, WITH A REAL REFUSAL PATH. The browser prompt can be
+ * dismissed, denied permanently, or simply never answered, and a device with no
+ * fix will sit there indefinitely. Each of those ends with a message rather than
+ * a spinner that never stops, because a control that silently does nothing is
+ * indistinguishable from a broken one.
+ *
+ * The result is used to move the camera and nothing else — no coordinate is
+ * stored, sent anywhere, or added to the URL.
+ */
+function LocateButton({ onLocate }: { onLocate: (lat: number, lng: number) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // The message clears itself; a permission error pinned to the corner forever
+  // is just clutter once it has been read.
+  useEffect(() => {
+    if (!error) return;
+    const t = setTimeout(() => setError(null), 5000);
+    return () => clearTimeout(t);
+  }, [error]);
+
+  const locate = () => {
+    if (busy) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setError("This browser cannot report a location");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setBusy(false);
+        onLocate(pos.coords.latitude, pos.coords.longitude);
+      },
+      (err) => {
+        setBusy(false);
+        setError(
+          err.code === err.PERMISSION_DENIED
+            ? "Location permission denied"
+            : err.code === err.TIMEOUT
+              ? "Timed out finding your location"
+              : "Could not determine your location"
+        );
+      },
+      // A coarse fix is enough to pick a city, arrives far faster than a GPS
+      // lock, and asks for less than the reason needs.
+      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+    );
+  };
+
+  return (
+    <div className="absolute bottom-[72px] left-4 z-20 flex items-center gap-2 max-sm:hidden">
+      <button
+        type="button"
+        onClick={locate}
+        disabled={busy}
+        aria-label="Centre the map on my location"
+        className="grid h-[46px] w-[46px] place-items-center rounded-full bg-white text-[#334155] shadow-[0_4px_12px_rgba(15,23,42,0.12)] transition-colors hover:bg-[#F8FAFC] disabled:cursor-progress disabled:text-[#94A3B8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB]"
+      >
+        <svg className={`h-5 w-5 ${busy ? "animate-spin" : ""}`} viewBox="0 0 20 20" fill="none" aria-hidden>
+          {busy ? (
+            <path
+              d="M10 3a7 7 0 1 1-7 7"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            />
+          ) : (
+            <>
+              <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.8" />
+              <path
+                d="M10 1.5v2.2M10 16.3v2.2M18.5 10h-2.2M3.7 10H1.5"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              />
+            </>
+          )}
+        </svg>
+      </button>
+      {error && (
+        <p
+          role="status"
+          className="rounded-lg bg-white px-3 py-1.5 text-[12px] font-medium text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.10)]"
+        >
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The Filters popover: everything the header pills have no room for. */
+function FilterPanel({
+  top,
+  categories, onToggleCategory, minStars, onMinStars, exactOnly, onExactOnly,
+  families, onToggleFamily, textFilter, onTextFilter, onClose, onReset,
+}: {
+  top: number;
+  categories: LuxuryCategoryId[];
+  onToggleCategory: (id: LuxuryCategoryId) => void;
+  minStars: number;
+  onMinStars: (n: number) => void;
+  exactOnly: boolean;
+  onExactOnly: (b: boolean) => void;
+  families: PropertyFamily[];
+  onToggleFamily: (f: PropertyFamily) => void;
+  textFilter: string;
+  onTextFilter: (s: string) => void;
+  onClose: () => void;
+  onReset: () => void;
+}) {
+  return (
+    <div
+      className="absolute right-4 z-30 w-[340px] max-w-[calc(100%-32px)] rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_15px_40px_rgba(15,23,42,0.16)]"
+      style={{ top }}
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-[14px] font-bold text-[#0F172A]">Filters</p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close filters"
+          className="text-[#94A3B8] transition-colors hover:text-[#0F172A]"
+        >
+          <CloseIcon />
+        </button>
+      </div>
+
+      {/* Filtering BY NAME lives here, not in the header.
+          The header's search box used to do both jobs at once: typing "dubai"
+          narrowed the world from 507 properties to 8, emptying the map while
+          the user was still reading the suggestions. Search now only suggests
+          and flies; narrowing the set is this explicit control. */}
+      <label className="mt-3 block">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">
+          Name contains
+        </span>
+        <input
+          value={textFilter}
+          onChange={(e) => onTextFilter(e.target.value)}
+          placeholder="Aman, Belmond, Kyoto…"
+          className="mt-1.5 w-full rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1.5 text-[12.5px] text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[#B6DCC8]"
+        />
+      </label>
+
+      {/* On a narrow viewport the header's family pills are hidden, so they
+          appear here instead — a control is never simply unreachable. */}
+      {/* Shown at EVERY width. This used to be `lg:hidden` because the header
+          carried its own family pills on desktop; those are gone, so this is
+          now the only place property type can be set. */}
+      <div className="mt-3">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">Property type</p>
+        <div className="mt-2 flex gap-1.5">
+          {(["hotels", "resorts", "villas"] as PropertyFamily[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => onToggleFamily(f)}
+              aria-pressed={families.includes(f)}
+              className={`flex-1 rounded-lg border px-2 py-1.5 text-[12px] font-medium capitalize transition-colors ${
+                families.includes(f)
+                  ? "border-[#B6DCC8] bg-[#ECF7F1] text-[#1B7A4E]"
+                  : "border-[#E2E8F0] bg-white text-[#64748B]"
+              }`}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <p className="mt-3.5 text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">Collection</p>
+      <div className="mt-2 flex flex-wrap gap-1.5">
+        {LUXURY_MAP_CATEGORIES.map((c) => {
+          const on = categories.includes(c.id);
+          return (
+            <button
+              key={c.id}
+              type="button"
+              onClick={() => onToggleCategory(c.id)}
+              aria-pressed={on}
+              title={
+                c.basis === "editorial"
+                  ? "Editorial: FurlPay's own classification"
+                  : c.basis === "furlpay"
+                    ? "A fact about FurlPay's own systems"
+                    : "Observed: recorded in the source data"
+              }
+              className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
+                on ? "border-transparent text-white" : "border-[#E2E8F0] bg-white text-[#64748B]"
+              }`}
+              style={on ? { background: c.color } : undefined}
+            >
+              <CategoryIcon id={c.id} className="h-3.5 w-3.5 shrink-0" />
+              {c.label}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="mt-4 flex items-center justify-between">
+        <label className="flex items-center gap-2 text-[12.5px] text-[#64748B]">
+          Min stars
+          <select
+            value={minStars}
+            onChange={(e) => onMinStars(Number(e.target.value))}
+            className="rounded-lg border border-[#E2E8F0] bg-white px-2 py-1 text-[12.5px] text-[#0F172A]"
+          >
+            <option value={0}>Any</option>
+            <option value={4}>4+</option>
+            <option value={5}>5</option>
+          </select>
+        </label>
+        <button
+          type="button"
+          onClick={onReset}
+          className="text-[12px] font-semibold text-[#1B7A4E] transition-opacity hover:opacity-75"
+        >
+          Reset
+        </button>
+      </div>
+
+      <label
+        className="mt-2.5 flex items-center gap-2 text-[12.5px] text-[#64748B]"
+        title="Hide properties whose position could not be confirmed against Google"
+      >
+        <input
+          type="checkbox"
+          checked={exactOnly}
+          onChange={(e) => onExactOnly(e.target.checked)}
+          className="accent-[#1B7A4E]"
+        />
+        Confirmed positions only
+      </label>
+    </div>
+  );
+}
+
+/**
+ * The one place the map talks about itself, plus the attribution the tile and
+ * Places licences require.
+ *
+ * Several DIFFERENT facts, each given its own referent rather than folded into
+ * one number. A Manhattan viewport draws 8 curated properties and 196
+ * OpenStreetMap hotels; "204 shown of 507" was true of nothing in particular.
+ */
+function StatusBar({
+  error, meta, loading,
+}: {
+  error: string | null;
+  meta: Omit<MapResponse, "points" | "clusters"> | null;
+  loading: boolean;
+}) {
+  const notes: string[] = [];
+  if (meta && !loading) {
+    const { curatedInView, curatedClustered, osmInView, curatedMatchingWorldwide } = meta.counts;
+    const luxuryHere = curatedInView + curatedClustered;
+
+    if (luxuryHere === 0) {
+      notes.push(
+        curatedMatchingWorldwide > 0
+          ? `No luxury properties in view — ${curatedMatchingWorldwide} elsewhere`
+          : "No luxury properties match these filters"
+      );
+    } else {
+      notes.push(`${luxuryHere} luxury ${luxuryHere === 1 ? "property" : "properties"} in view`);
+    }
+    if (osmInView > 0) notes.push(`${osmInView} other mapped hotels`);
+    // Never silently. A cap that does not announce itself reads as "this is
+    // everything", which is exactly what it is not.
+    if (meta.truncated > 0) notes.push(`${meta.truncated} more not drawn — zoom in`);
+    if (meta.osmUnavailable) notes.push("OpenStreetMap layer unavailable");
+    else if (meta.osmFilteredOut) notes.push("Filters apply to luxury properties only — other hotels hidden");
+    else if (meta.osmZoomIn) notes.push("Zoom in for all mapped hotels");
+  }
+
+  const warn = Boolean(error) || Boolean(meta?.osmUnavailable);
+
+  return (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 p-4 max-sm:flex-col max-sm:items-stretch">
+      <div
+        className={`rounded-xl px-3.5 py-2 text-[12.5px] font-medium shadow-[0_4px_14px_rgba(15,23,42,0.10)] ${
+          warn ? "bg-[#F97316] text-white" : "bg-white/95 text-[#334155]"
+        }`}
+      >
+        {error ?? notes.join(" · ")}
+        {!error && meta && (
+          <span className="ml-2 text-[#94A3B8]">
+            {meta.dataset.exact} of {meta.dataset.total} positions confirmed
+          </span>
+        )}
+      </div>
+      {/* Required by the ODbL and by Google's Places policy. Rendered
+          unconditionally: it is the condition under which the data may be shown
+          at all, not a caption. */}
+      <p className="rounded-lg bg-white/85 px-2 py-1 text-[10.5px] text-[#94A3B8]">
+        {meta?.attribution ?? "© OpenStreetMap contributors"}
+      </p>
+    </div>
+  );
+}

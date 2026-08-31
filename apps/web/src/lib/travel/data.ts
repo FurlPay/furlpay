@@ -23,6 +23,18 @@ export interface Stay {
   image: string; // gradient token (no external assets)
   /** Real property photo (Duffel Stays) — preferred over the city fallback. */
   photo?: string;
+  /**
+   * Property coordinates, when the supplier gives them.
+   *
+   * OPTIONAL ON PURPOSE. Duffel returns per-property geographic coordinates;
+   * the demo generator has none, and there is no honest way to invent them —
+   * scattering hotels around a city centre would put a marker somewhere the
+   * hotel is not. Consumers that need a position (the map) must treat absence
+   * as "cannot place this hotel" rather than substituting the city anchor,
+   * which would stack every hotel in a city on one point.
+   */
+  latitude?: number;
+  longitude?: number;
   amenities: string[];
   roomsLeft: number;
   freeCancellation: boolean;
@@ -85,6 +97,15 @@ export const RATES = { USDC: 1, XSGD: 1 / 0.78, SOL: 1 / 175, BTC: 1 / 96000, ET
 export type PayToken = keyof typeof RATES;
 
 export const CASHBACK_RATE = 0.02;
+
+/**
+ * The tokens travel checkout actually accepts.
+ *
+ * Exported so the deal generator and the stats tile read the SAME list. The
+ * tile previously advertised "100+ Cryptos Accepted" against this array of
+ * three, which is the failure mode a shared constant makes impossible.
+ */
+export const TRAVEL_PAY_TOKENS: Deal["payToken"][] = ["USDC", "SOL", "BTC"];
 export const TAX_RATE = 0.1;
 
 // How many stays a city's deterministic inventory generates. The hotels list,
@@ -142,12 +163,6 @@ export function deriveRooms(stay: Stay): RoomOption[] {
   });
 }
 
-export const TRAVEL_STATS = [
-  { value: "2.2M+", label: "Stays & Flights" },
-  { value: "230+", label: "Countries" },
-  { value: "100+", label: "Cryptos Accepted" },
-  { value: "2%", label: "Cashback / Booking" },
-];
 
 export const REWARD_TIERS = [
   { tier: "Explorer", req: "Free — any user", cashback: "2%", perks: "Basic support" },
@@ -251,6 +266,27 @@ export const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
   Kerala: { lat: 9.9312, lng: 76.2673 }, Petra: { lat: 30.3285, lng: 35.4444 },
   Patagonia: { lat: -50.3379, lng: -72.2648 },
 };
+
+/**
+ * Headline stats for /travel.
+ *
+ * EVERY VALUE IS COUNTED FROM THE DATA ABOVE, not written by hand. The previous
+ * version claimed "2.2M+ Stays & Flights", "230+ Countries" and "100+ Cryptos
+ * Accepted"; the code behind them has 18 destinations, no country list at all,
+ * and exactly three accepted tokens. Deriving the numbers means a tile cannot
+ * drift away from the product again — adding a city or a token updates the
+ * page, and no figure exists here that nothing backs.
+ *
+ * Flights are described rather than counted: they come from Duffel live, so
+ * the honest claim is which supplier answers the query, not a number this
+ * repo is in no position to verify.
+ */
+export const TRAVEL_STATS = [
+  { value: String(Object.keys(CITY_COORDS).length), label: "Destinations" },
+  { value: "Live", label: "Flight search via Duffel" },
+  { value: String(TRAVEL_PAY_TOKENS.length), label: TRAVEL_PAY_TOKENS.join(" · ") },
+  { value: `${Math.round(CASHBACK_RATE * 100)}%`, label: "Cashback / Booking" },
+];
 const GRADIENTS = [
   "from-sky-500/40 to-indigo-600/40",
   "from-fuchsia-500/40 to-purple-700/40",
@@ -465,7 +501,7 @@ export function featuredDeals(): Deal[] {
     ["Bali", "Indonesia"], ["Tokyo", "Japan"], ["London", "UK"], ["Dubai", "UAE"],
     ["Lisbon", "Portugal"], ["Cancún", "Mexico"], ["Reykjavík", "Iceland"], ["Cape Town", "South Africa"],
   ];
-  const tokens: Deal["payToken"][] = ["USDC", "SOL", "BTC"];
+  const tokens = TRAVEL_PAY_TOKENS;
   return cities.map(([city, country], i) => {
     const s = ((seed >> i) ^ (i * 40503)) >>> 0;
     return {
