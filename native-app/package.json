@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "^14.1.0",
+    "@maplibre/maplibre-react-native": "^10.4.2",
     "@noble/curves": "^1.9.7",
     "@noble/hashes": "^1.8.0",
     "@react-native-community/netinfo": "11.4.1",

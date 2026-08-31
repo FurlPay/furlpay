@@ -158,6 +158,23 @@ function SipSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   }, [symbol, amount]);
 
   const start = async () => {
+    const notional = Number(amount);
+    if (!(notional > 0)) {
+      setError("Enter an amount above zero.");
+      return;
+    }
+
+    // Same gate as the one-off order ticket (market/[symbol].tsx) and the DRIP
+    // sheet above. This sheet used to POST straight to /investing/order: its
+    // first installment buys immediately and it commits to buying again every
+    // period, so it is a larger authorisation than a single order, not a
+    // smaller one — and it was the only money-moving control in the app that
+    // asked for nothing.
+    const confirmed = await confirmWithBiometrics(
+      `Start a ${cadence} ${usd(notional)} investment in ${symbol.toUpperCase()} — the first buy executes now`
+    );
+    if (!confirmed) return;
+
     setBusy(true);
     setError(null);
     orderKey.current ??= crypto.randomUUID();
@@ -168,7 +185,7 @@ function SipSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
         body: {
           symbol: symbol.toUpperCase(),
           side: "buy",
-          notional: Number(amount),
+          notional,
           type: "market",
           time_in_force: "day",
         },

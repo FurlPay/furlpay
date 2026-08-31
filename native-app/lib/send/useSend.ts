@@ -259,18 +259,13 @@ export function useSendValidation(
   /**
    * The amount restated in the source token.
    *
-   * Derived from the balance snapshot the server already priced
-   * (usdValue / amount) — never a client-side price table. With no balance
-   * there is no unit price, and the line simply does not render: a made-up
-   * token figure next to a real dollar one is indistinguishable from a real one.
+   * This is validateSend's own `amountTokens` — the exact number that goes on
+   * the wire — so the token figure the user reads is the quantity that will be
+   * debited, not a second independent estimate of it. With no priceable
+   * balance the line simply does not render: a made-up token figure next to a
+   * real dollar one is indistinguishable from a real one.
    */
-  const tokenEquivalent = useMemo(() => {
-    if (!balance || balance.amount <= 0 || balance.usdValue <= 0) return undefined;
-    if (atomic === null) return undefined;
-    const unitPrice = balance.usdValue / balance.amount;
-    if (!Number.isFinite(unitPrice) || unitPrice <= 0) return undefined;
-    return amountUsd / unitPrice;
-  }, [balance, atomic, amountUsd]);
+  const tokenEquivalent = check.ok ? check.amountTokens : undefined;
 
   return {
     atomic,
@@ -417,7 +412,12 @@ export function useSendExecution(
 
     const payload = {
       destination: destination.trim(),
-      amount: check.amountUsd,
+      // TOKEN units, not the USD the field is denominated in.
+      // /api/wallets/transfer spends this against the token balance
+      // (`src.amount -= amount`) — posting the USD figure debited the wrong
+      // quantity of every token that is not 1:1 with the dollar (EURC, XSGD,
+      // SOL). validateSend converts at the server-priced unit rate.
+      amount: check.amountTokens,
       token: balance.token,
       chain: balance.chain,
       // SECURITY: demoSignature() is a random blob — it authorizes NOTHING.

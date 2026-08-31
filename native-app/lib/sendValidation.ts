@@ -13,11 +13,36 @@ import type { TokenBalance } from "./types";
 //  2. The field is USD-denominated but was compared against the balance's
 //     TOKEN amount: 2 SOL (~$350) vs a $100 entry read as "insufficient".
 //     The comparison belongs against usdValue.
+//  3. The USD figure was then POSTed to /api/wallets/transfer as `amount`,
+//     which that route spends in TOKEN units (`src.amount -= amount`, and the
+//     web's ScanToPay sends token units). For a non-1:1 token — EURC, XSGD,
+//     SOL — that debited the wrong quantity. The check now also returns
+//     `amountTokens`, and the wire carries that.
 // ---------------------------------------------------------------------------
 
 export type SendCheck =
   | { ok: false; error: string }
-  | { ok: true; amountUsd: number };
+  | {
+      ok: true;
+      /** What the user typed and approved, for display and risk copy. */
+      amountUsd: number;
+      /** What goes on the wire: the same value in the source token's units. */
+      amountTokens: number;
+    };
+
+/**
+ * The source token's USD unit price, taken from the balance snapshot the
+ * server already priced — never a client-side price table.
+ *
+ * Returns null when the snapshot cannot imply a price (empty or unpriced
+ * balance). A caller must not fall back to 1:1: for EURC that silently
+ * under-debits by the FX spread, which is the bug this exists to prevent.
+ */
+export function unitPriceUsd(balance: TokenBalance): number | null {
+  if (balance.amount <= 0 || balance.usdValue <= 0) return null;
+  const price = balance.usdValue / balance.amount;
+  return Number.isFinite(price) && price > 0 ? price : null;
+}
 
 export function validateSend(input: {
   destination: string;
@@ -55,5 +80,24 @@ export function validateSend(input: {
   if (amountUsd > balance.usdValue) {
     return { ok: false, error: `Insufficient ${balance.token} balance.` };
   }
-  return { ok: true, amountUsd };
+
+  // USD → token units. Reaching here guarantees usdValue >= amountUsd > 0, so
+  // a priceable balance is implied; if the snapshot still cannot imply one we
+  // fail closed rather than send a number in the wrong denomination.
+  const unitPrice = unitPriceUsd(balance);
+  if (unitPrice === null) {
+    return { ok: false, error: `${balance.token} has no price on this balance yet.` };
+  }
+
+  // Round to the 6dp the amount field itself is parsed at, then clamp: a
+  // "send everything" entry must land on exactly the held quantity rather than
+  // a float hair above it, which the server would reject as an overdraw.
+  const amountTokens = Math.min(
+    Math.round((amountUsd / unitPrice) * 1_000_000) / 1_000_000,
+    balance.amount
+  );
+  if (!(amountTokens > 0)) {
+    return { ok: false, error: "That amount rounds to zero in the source token." };
+  }
+  return { ok: true, amountUsd, amountTokens };
 }

@@ -30,6 +30,11 @@ export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   );
 }
 
+/** How long the app may sit in the background before the lock screen returns.
+ *  Long enough to survive a Face ID prompt, a share sheet or a hand-off to a
+ *  wallet app; short enough that a pocketed phone is locked. */
+const LOCK_AFTER_BACKGROUND_MS = 30_000;
+
 function LockScreen() {
   const unlock = useAuth((s) => s.unlock);
   const signOut = useAuth((s) => s.signOut);
@@ -44,7 +49,9 @@ function LockScreen() {
     <Screen style={styles.lock}>
       <Text style={type.title}>FurlPay</Text>
       <Text style={[type.dim, { textAlign: "center" }]}>
-        {failed ? "Authentication failed — try again." : "Unlock with your fingerprint or face."}
+        {failed
+          ? "Authentication failed — try again."
+          : "Unlock with your fingerprint, face, or device PIN."}
       </Text>
       <View style={{ gap: spacing.sm, alignSelf: "stretch" }}>
         <Button title="Unlock" onPress={() => void unlock().then((ok) => setFailed(!ok))} />
@@ -100,6 +107,35 @@ export default function RootLayout() {
       appState.remove();
     };
   }, [status]);
+
+  // Re-lock a backgrounded session.
+  //
+  // The app has an app-lock gate and a LockScreen, but nothing ever re-armed
+  // it after hydrate(): once unlocked, the session stayed unlocked for as long
+  // as the process lived. Handing someone an unlocked phone with FurlPay in
+  // the recents therefore handed them the balances, transactions and card
+  // list too.
+  //
+  // Grace period rather than an instant lock: the OS backgrounds the app for
+  // the biometric prompt itself, for the share sheet, for the camera picker
+  // and for the UPI/wallet app hand-off, and re-prompting on the way back from
+  // those trains users to swat the prompt away. The clock starts when the app
+  // leaves the foreground and is read when it returns, so a device that never
+  // wakes the JS thread while backgrounded still locks.
+  useEffect(() => {
+    let leftForegroundAt: number | null = null;
+    const sub = AppState.addEventListener("change", (next) => {
+      if (next === "background" || next === "inactive") {
+        leftForegroundAt ??= Date.now();
+        return;
+      }
+      if (next !== "active") return;
+      const away = leftForegroundAt === null ? 0 : Date.now() - leftForegroundAt;
+      leftForegroundAt = null;
+      if (away >= LOCK_AFTER_BACKGROUND_MS) useAuth.getState().lock();
+    });
+    return () => sub.remove();
+  }, []);
 
   return (
     <SafeAreaProvider>

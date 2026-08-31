@@ -1,6 +1,6 @@
 import { create } from "zustand";
-import * as LocalAuthentication from "expo-local-authentication";
 import { api, getToken, setToken, setUnauthorizedHandler } from "./api";
+import { authenticateDeviceOwner } from "./biometrics";
 import { authenticateWithPasskey, registerPasskey } from "./passkey";
 import { unregisterFromPush } from "./push";
 import { clearAllCaches } from "./db";
@@ -40,8 +40,12 @@ interface AuthState {
   status: AuthStatus;
   email: string | null;
   hydrate: () => Promise<void>;
-  /** Biometric gate. Falls through when the device has no biometrics enrolled. */
+  /** Device-owner gate: biometrics, or the device PIN/passcode when no
+   *  biometric is enrolled. Only a device with NO screen lock falls through. */
   unlock: () => Promise<boolean>;
+  /** Re-arm the lock screen over a live session (backgrounding, idle timeout).
+   *  A no-op unless the session is currently unlocked. */
+  lock: () => void;
   /** Send a one-time code to an email address or an E.164 phone number. */
   startOtp: (to: string, channel?: OtpChannel) => Promise<{ devCode?: string }>;
   verifyOtp: (to: string, code: string, channel?: OtpChannel) => Promise<void>;
@@ -69,18 +73,32 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   unlock: async () => {
-    const hasHardware = await LocalAuthentication.hasHardwareAsync();
-    const enrolled = hasHardware && (await LocalAuthentication.isEnrolledAsync());
-    if (!enrolled) {
+    // Device-owner proof, not "biometrics if enrolled". The old check asked
+    // hasHardware && isEnrolled and, on false, set signedIn and returned true —
+    // so on a phone with fingerprint switched off the lock screen unlocked
+    // itself the moment it appeared. A device PIN or passcode proves ownership
+    // just as well, and authenticateDeviceOwner will prompt for it.
+    const result = await authenticateDeviceOwner("Unlock FurlPay");
+    if (result.ok) {
       set({ status: "signedIn" });
       return true;
     }
-    const result = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Unlock FurlPay",
-      cancelLabel: "Cancel",
-    });
-    if (result.success) set({ status: "signedIn" });
-    return result.success;
+    // A device with no screen lock at all has nothing to prompt with. Refusing
+    // to open would strand the user in an unopenable app, so the session
+    // proceeds — but the app-lock control is honestly not a control there, and
+    // LockScreen says so rather than pretending it passed.
+    if (result.reason === "no_device_lock") {
+      set({ status: "signedIn" });
+      return true;
+    }
+    return false;
+  },
+
+  lock: () => {
+    // Only a live session can be re-locked. Doing this from "signedOut" would
+    // strand the user on a lock screen with no token behind it, and from
+    // "loading" it would race hydrate().
+    if (get().status === "signedIn") set({ status: "locked" });
   },
 
   // An email address is normalised to lowercase; an E.164 phone number must be

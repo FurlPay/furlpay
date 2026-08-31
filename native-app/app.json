@@ -75,6 +75,7 @@
           }
         }
       ],
+      "@maplibre/maplibre-react-native",
       [
         "expo-local-authentication",
         {

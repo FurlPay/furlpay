@@ -169,6 +169,14 @@ export default function Travel() {
           />
           <VoiceStatus message={voiceStatus} />
           <Button title="Search stays" onPress={search} disabled={!destination.trim()} />
+          {/* The map is the other way in: search needs a destination in mind,
+              the map is for finding one. It sits beside the search rather than
+              in a menu because browsing is the more common of the two. */}
+          <Button
+            title="Explore the map"
+            variant="secondary"
+            onPress={() => router.push("/travel/map")}
+          />
           <Text style={styles.hint}>Book stays with USDC, SOL or BTC — 2% cashback, paid natively in the app.</Text>
         </Surface>
 

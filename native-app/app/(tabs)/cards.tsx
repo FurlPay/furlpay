@@ -13,11 +13,10 @@ import {
 } from "react-native";
 import * as Haptics from "expo-haptics";
 import { LinearGradient } from "expo-linear-gradient";
-import * as LocalAuthentication from "expo-local-authentication";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, NetworkError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { authenticateDeviceOwner, confirmWithBiometrics } from "@/lib/biometrics";
 import { OFFLINE_MUTATION_MESSAGE, useIsOffline } from "@/lib/net";
 import { useCards } from "@/lib/queries";
 import { usd } from "@/lib/format";
@@ -136,34 +135,44 @@ function SheetModal({
  *  the user turns "Biometric approvals" off (the same norm as Google Wallet). */
 function DetailsModal({ card, onClose }: { card: PaymentCard; onClose: () => void }) {
   const [authed, setAuthed] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [denial, setDenial] = useState<"rejected" | "no_device_lock" | null>(null);
   // Card PAN/CVV must not land in a screenshot or the recents thumbnail.
   useSecureScreen("card-details");
 
   const authenticate = async () => {
-    const enrolled =
-      (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-    if (!enrolled) {
+    // Device-owner proof, not "biometrics if you happen to have them". This
+    // used to reveal on an un-enrolled device: hasHardware/isEnrolled came
+    // back false and the handler set authed and returned, so switching
+    // fingerprint off in system Settings was enough to walk straight past the
+    // gate. authenticateDeviceOwner falls back to the device PIN/passcode
+    // instead, and reports the no-lock case rather than passing it.
+    const res = await authenticateDeviceOwner("Reveal full card details");
+    if (res.ok) {
+      setDenial(null);
       setAuthed(true);
-      return;
+    } else {
+      setDenial(res.reason);
     }
-    const res = await LocalAuthentication.authenticateAsync({
-      promptMessage: "Reveal full card details",
-    });
-    if (res.success) setAuthed(true);
-    else setFailed(true);
   };
+
+  // Nothing on this device can prove ownership — there is no honest way to
+  // show card credentials, so the reveal control goes away entirely.
+  const lockless = denial === "no_device_lock";
 
   return (
     <SheetModal title="Card details" visible onClose={onClose}>
       {!authed ? (
         <View style={{ gap: spacing.md, paddingVertical: spacing.md }}>
           <Text style={[type.dim, { textAlign: "center" }]}>
-            {failed
-              ? "Authentication failed — try again."
-              : "Revealing full card details requires your fingerprint or face."}
+            {lockless
+              ? "Set a screen lock (PIN, pattern, or biometrics) on this device to view full card details."
+              : denial === "rejected"
+                ? "Authentication failed — try again."
+                : "Revealing full card details requires your fingerprint, face, or device PIN."}
           </Text>
-          <Button title="Authenticate to reveal" onPress={() => void authenticate()} />
+          {!lockless ? (
+            <Button title="Authenticate to reveal" onPress={() => void authenticate()} />
+          ) : null}
         </View>
       ) : (
         <View style={{ gap: spacing.sm, paddingVertical: spacing.sm }}>
