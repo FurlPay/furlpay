@@ -55,7 +55,14 @@ public final class ServiceContainer {
     /// constructing it in `init` would mean passing `self` before it exists.
     @ObservationIgnored
     public private(set) lazy var tools: RepositoryToolExecutor = {
-        RepositoryToolExecutor(container: self) { [weak self] invocation in
+        // confirmMutating: is spelled out rather than passed as a trailing
+        // closure. RepositoryToolExecutor's init takes TWO function-typed
+        // parameters — `now: () -> Date` and `confirmMutating:` — so an
+        // unlabelled trailing closure binds to the wrong one, and the compiler
+        // reports it as "cannot convert '(_) async -> Date' to '() -> Date'"
+        // and "cannot infer type of closure parameter 'invocation'", neither of
+        // which points at the actual problem.
+        RepositoryToolExecutor(container: self, confirmMutating: { [weak self] invocation in
             guard let self else { return false }
             // `.unavailable` counts as a refusal, not a pass. A device with no
             // enrolled biometrics must not become the easy path to a mutating
@@ -63,7 +70,7 @@ public final class ServiceContainer {
             return await self.biometrics.authenticate(
                 reason: "Confirm: \(invocation.tool.description)"
             ).isAuthenticated
-        }
+        })
     }()
 
     /// Drives the root view. Set once at launch from the keychain, then only by
