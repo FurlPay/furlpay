@@ -247,6 +247,96 @@ export interface HeadingMetrics {
    * first-crossing measure would credit it as if it had.
    */
   convergenceSec: number | null;
+  /**
+   * Area under the risk-coverage curve, in degrees. Lower is better.
+   *
+   * The threshold-free summary, and the reason it matters: every other
+   * confidence metric here is quoted at confidentAt=0.7 and wrongBeyondDeg=45,
+   * two numbers we chose. Sweep the confidence threshold instead, take the mean
+   * angular error among the samples still accepted at each level, and average
+   * over all of them. No thresholds survive.
+   *
+   * This is the standard selective-prediction construction (risk against
+   * coverage), with mean angular error as the risk rather than a binary error
+   * rate — which suits a continuous, circular quantity far better than
+   * binarising it does.
+   */
+  aurc: number | null;
+  /**
+   * Expected calibration error against P(error <= 20 deg), 0-1. Lower is better.
+   *
+   * Asks the only question that makes "confidence-aware" mean anything: when
+   * this engine says 0.8, is it right about 80% of the time? Confidence is
+   * currently an arbitrary score with no such promise attached, so a large
+   * value here is the expected result and is the finding, not a bug.
+   *
+   * One honest limitation: a single scalar cannot be calibrated against every
+   * error threshold at once unless it defines a full distribution. This is
+   * calibration against ONE decision, chosen because 20 deg is roughly where a
+   * heading stops being useful for choosing a direction at a junction.
+   */
+  ece20: number | null;
+}
+
+/**
+ * Area under the risk-coverage curve.
+ *
+ * Accept samples in order of decreasing confidence. At each coverage level the
+ * selective risk is the mean angular error among those accepted. A well-ordered
+ * confidence signal puts its worst errors last, so risk climbs as coverage
+ * grows; a confidence signal unrelated to error leaves the curve near the
+ * overall mean, which is exactly the diagnosis we want to be able to make.
+ *
+ * TIES. Where several samples share a confidence, their relative order is
+ * arbitrary and AURC depends on it — averaged over random tie-breaks the
+ * expectation is the mean error, but any single ordering can sit well above or
+ * below that. The sort here is stable, so ties keep input (time) order: the
+ * number is at least reproducible. An algorithm emitting one constant
+ * confidence is therefore being ranked arbitrarily, which is a reason to
+ * distrust that algorithm's AURC specifically — not the metric.
+ */
+export function aurc(scored: { err: number; confidence: number }[]): number | null {
+  if (!scored.length) return null;
+  const byConf = [...scored].sort((a, b) => b.confidence - a.confidence);
+  let sum = 0;
+  let acc = 0;
+  for (let k = 0; k < byConf.length; k++) {
+    acc += byConf[k].err;
+    sum += acc / (k + 1); // selective risk at coverage (k+1)/n
+  }
+  return sum / byConf.length;
+}
+
+/**
+ * Expected calibration error against the event "error <= withinDeg".
+ *
+ * Bin by stated confidence; in each bin compare the mean confidence against the
+ * observed frequency of being within the threshold; average the gaps weighted
+ * by bin population. Zero means the number means what it says.
+ */
+export function ece(
+  scored: { err: number; confidence: number }[],
+  withinDeg: number,
+  bins = 10
+): number | null {
+  if (!scored.length) return null;
+  const lo = new Array(bins).fill(0);
+  const conf = new Array(bins).fill(0);
+  const hit = new Array(bins).fill(0);
+  for (const s of scored) {
+    const c = Math.max(0, Math.min(1, s.confidence));
+    // Math.min keeps confidence exactly 1.0 inside the last bin.
+    const b = Math.min(bins - 1, Math.floor(c * bins));
+    lo[b]++;
+    conf[b] += c;
+    if (s.err <= withinDeg) hit[b]++;
+  }
+  let total = 0;
+  for (let b = 0; b < bins; b++) {
+    if (!lo[b]) continue;
+    total += (lo[b] / scored.length) * Math.abs(conf[b] / lo[b] - hit[b] / lo[b]);
+  }
+  return total;
 }
 
 function percentile(sorted: number[], p: number): number | null {
@@ -413,6 +503,8 @@ export function measure(
       ? scoredSeries.reduce((acc, x) => acc + x.err * x.confidence, 0) / scoredSeries.length
       : null,
     convergenceSec: convergence(scoredSeries, thresholds.convergedWithinDeg),
+    aurc: aurc(scoredSeries),
+    ece20: ece(scoredSeries, 20),
   };
 }
 
@@ -429,7 +521,7 @@ export function formatMetrics(rows: HeadingMetrics[]): string {
   const n = (v: number | null, d = 1) => (v === null ? "—" : v.toFixed(d));
   const pct = (v: number) => (v * 100).toFixed(1) + "%";
   const head =
-    "  algorithm          scored   p50    p95   confWrong  confCov  riskErr  conv(s)  jitter";
+    "  algorithm          scored   p50    p95   confWrong  confCov   AURC    ECE20  conv(s)";
   const lines = rows.map(
     (r) =>
       "  " +
@@ -441,9 +533,9 @@ export function formatMetrics(rows: HeadingMetrics[]): string {
       // either one alone can be gamed, and the pair cannot.
       pct(r.confidentWrong).padStart(11) +
       pct(r.confidentCoverage).padStart(9) +
-      n(r.riskWeightedError).padStart(9) +
-      n(r.convergenceSec).padStart(9) +
-      n(r.stationaryJitter).padStart(8)
+      n(r.aurc).padStart(8) +
+      n(r.ece20, 3).padStart(9) +
+      n(r.convergenceSec).padStart(9)
   );
   return [head, ...lines].join("\n");
 }

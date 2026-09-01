@@ -13,6 +13,8 @@ import {
   benchmark,
   formatMetrics,
   headingFromOrientation,
+  aurc,
+  ece,
   measure,
   recoveryTime,
   replay,
@@ -347,5 +349,62 @@ describe("recovery after a disturbance", () => {
   it("returns null when there is nothing after the disturbance to judge", () => {
     const t = walk({ scenario: "x", trueHeading: 0, samples: 4 });
     expect(recoveryTime(t, from(t, [1, 1, 1, 1]), 99_000)).toBeNull();
+  });
+});
+
+describe("AURC — threshold-free selective risk", () => {
+  it("rewards a confidence signal that ranks its own errors correctly", () => {
+    // Same errors, same coverage, opposite orderings. Only the ranking differs,
+    // and AURC is the metric that can see it — p50 and p95 are identical here.
+    const errs = [0, 5, 10, 40, 80];
+    const good = errs.map((e, i) => ({ err: e, confidence: 1 - i * 0.2 })); // confident when right
+    const bad = errs.map((e, i) => ({ err: e, confidence: i * 0.2 }));      // confident when wrong
+    expect(aurc(good)!).toBeLessThan(aurc(bad)!);
+  });
+
+  it("is order-dependent under tied confidence, and says so", () => {
+    // Worth pinning down because it is a trap. With one constant confidence
+    // there is no ranking to score, so AURC falls out of the arbitrary input
+    // order: ascending gives the best possible value, descending the worst, and
+    // only the average over random tie-breaks equals the mean error (25).
+    const asc = [10, 20, 30, 40].map((e) => ({ err: e, confidence: 0.5 }));
+    const desc = [40, 30, 20, 10].map((e) => ({ err: e, confidence: 0.5 }));
+    expect(aurc(asc)!).toBeCloseTo(17.5, 5);
+    expect(aurc(desc)!).toBeCloseTo(32.5, 5);
+    expect((aurc(asc)! + aurc(desc)!) / 2).toBeCloseTo(25, 5);
+  });
+
+  it("is zero for a perfect algorithm and null with nothing to score", () => {
+    expect(aurc([{ err: 0, confidence: 1 }, { err: 0, confidence: 0.2 }])).toBe(0);
+    expect(aurc([])).toBeNull();
+  });
+});
+
+describe("ECE — does the confidence number mean anything?", () => {
+  it("is ~0 when stated confidence matches observed frequency", () => {
+    // 80 of 100 samples within 20 deg, all claiming 0.8. Honest.
+    const scored = Array.from({ length: 100 }, (_, i) => ({
+      err: i < 80 ? 5 : 60, confidence: 0.8,
+    }));
+    expect(ece(scored, 20)!).toBeLessThan(0.01);
+  });
+
+  it("is large when the engine is confident and wrong", () => {
+    // Claims 0.95 everywhere, right 10% of the time. Gap ~0.85.
+    const scored = Array.from({ length: 100 }, (_, i) => ({
+      err: i < 10 ? 5 : 90, confidence: 0.95,
+    }));
+    expect(ece(scored, 20)!).toBeGreaterThan(0.8);
+  });
+
+  it("is large when the engine is needlessly timid", () => {
+    // Miscalibration is symmetric: always right, always claiming 0.2.
+    const scored = Array.from({ length: 50 }, () => ({ err: 2, confidence: 0.2 }));
+    expect(ece(scored, 20)!).toBeGreaterThan(0.7);
+  });
+
+  it("puts confidence exactly 1.0 in the last bin rather than overflowing", () => {
+    const scored = Array.from({ length: 20 }, () => ({ err: 1, confidence: 1 }));
+    expect(ece(scored, 20)!).toBeCloseTo(0, 6);
   });
 });
