@@ -180,9 +180,24 @@ export async function autocompletePlaces(opts: {
   const body: Record<string, unknown> = {
     input,
     sessionToken: opts.sessionToken,
-    // Accommodation and geography. Without this a hotel search competes with
-    // every restaurant and petrol station sharing the name.
-    includedPrimaryTypes: ["lodging", "locality", "administrative_area_level_1", "country"],
+    // NO includedPrimaryTypes, and it is not an oversight.
+    //
+    // This used to send ["lodging", "locality", "administrative_area_level_1",
+    // "country"] to keep petrol stations out of a hotel search. Google rejects
+    // that combination outright: the parameter takes "up to five type values
+    // from Table A, Table B, or only (regions), or only (cities)", and the
+    // request is refused if "any type is specified in addition to (cities) or
+    // (regions)". `lodging` is an establishment type and the other three are
+    // region types, so every single autocomplete request returned HTTP 400 and
+    // the search box had been dead in production since it shipped.
+    //
+    // The constraint cannot be satisfied in one call — we need both hotels and
+    // cities, and the API will not return both under a type filter. Two calls
+    // would double the bill on a per-keystroke endpoint. So the request is
+    // unfiltered and the split happens on the way out, where isLodging() sorts
+    // suggestions into properties and destinations. That separation was already
+    // there and is what the caller renders from; the type filter was only ever
+    // trimming noise ahead of it.
   };
 
   if (opts.near) {

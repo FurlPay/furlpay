@@ -62,6 +62,45 @@ describe("cost control", () => {
     expect(body.sessionToken).toBe("sess-abc");
   });
 
+  it("never mixes establishment and region types, which Google rejects with 400", async () => {
+    // The regression that killed the production search box. Google takes "up to
+    // five type values from Table A, Table B, or only (regions), or only
+    // (cities)" and refuses the request outright if "any type is specified in
+    // addition to (cities) or (regions)". We sent `lodging` alongside
+    // `locality`, `administrative_area_level_1` and `country`, so EVERY
+    // autocomplete call returned 400 and the box was dead from the day it
+    // shipped — silently, because the route turns a null into a generic 502.
+    const fetchMock = mockFetch({ suggestions: [] });
+    await autocompletePlaces({ input: "bali", sessionToken: "sess-abc" });
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+
+    const REGION_TYPES = ["locality", "administrative_area_level_1", "country", "postal_code"];
+    const types: string[] = body.includedPrimaryTypes ?? [];
+    const hasRegion = types.some((t) => REGION_TYPES.includes(t));
+    const hasEstablishment = types.some((t) => !REGION_TYPES.includes(t));
+    expect(hasRegion && hasEstablishment).toBe(false);
+    // Five is the documented ceiling, whatever the mix.
+    expect(types.length).toBeLessThanOrEqual(5);
+  });
+
+  it("asks for hotels and cities in ONE call and separates them afterwards", async () => {
+    // Why the parameter is absent rather than corrected: the search box needs
+    // both a hotel and a city from the same keystroke, and no single legal
+    // value of includedPrimaryTypes returns both. Two calls would double the
+    // bill on a per-keystroke endpoint, so the sorting happens on the way out.
+    const fetchMock = mockFetch({
+      suggestions: [
+        { placePrediction: { placeId: "h1", text: { text: "Bulgari Resort" }, types: ["resort_hotel"] } },
+        { placePrediction: { placeId: "c1", text: { text: "Bali" }, types: ["locality"] } },
+      ],
+    });
+    const out = await autocompletePlaces({ input: "bali", sessionToken: "s" });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(out).toHaveLength(2);
+    expect(out!.filter((s) => isLodging(s.types))).toHaveLength(1);
+    expect(out!.filter((s) => !isLodging(s.types))).toHaveLength(1);
+  });
+
   it("passes the same token through to resolution, closing the session", async () => {
     const fetchMock = mockFetch({
       id: "p1",
