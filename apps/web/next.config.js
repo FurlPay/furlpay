@@ -70,6 +70,15 @@ const nextConfig = {
     return [
       // Retired blog post — send any lingering links to the blog.
       { source: "/blog/i-decompiled-robinhood-redotpay-indmoney", destination: "/blog", permanent: true },
+      // The hotel-map engineering post was retired in favour of the
+      // traveller-facing guide to the same surface. It was live and in the
+      // sitemap, so this points at the replacement rather than at /blog —
+      // a reader following an old link wanted the map, not an index.
+      {
+        source: "/blog/furlpay-hotel-map-luxury-properties-openstreetmap-book-in-usdc",
+        destination: "/blog/explore-hotels-resorts-villas-on-the-world-map",
+        permanent: true,
+      },
       // Branded Discord links (temporary redirects so the target can change
       // without stale caching). /discord → join the community server;
       // /discord/bot → add the Furlpay bot to your own server.
