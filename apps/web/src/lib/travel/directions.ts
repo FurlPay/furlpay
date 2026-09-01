@@ -18,6 +18,8 @@
 // rendering a link that leads somewhere wrong.
 // ---------------------------------------------------------------------------
 
+import { isValidCoordinate } from "@/lib/geo/coordinates";
+
 /** How the reader wants to travel. Google's own parameter values. */
 export type TravelMode = "driving" | "walking" | "bicycling" | "transit" | "two-wheeler";
 
@@ -31,20 +33,16 @@ export interface DirectionsTarget {
 }
 
 /**
- * A coordinate that is actually on Earth.
+ * Re-exported so existing callers keep working, but the implementation now
+ * lives in lib/geo/coordinates.
  *
- * `0,0` is deliberately rejected: it is in the Gulf of Guinea, and it is the
- * value a missing latitude and longitude collapse to when something upstream
- * has coerced null to zero. A property genuinely at Null Island does not
- * exist; a bug that produces it does.
+ * It was defined here first, which meant the directions button owned its own
+ * opinion about whether a property has a position — and the distance label,
+ * the marker and the native app each had room to form a different one. A card
+ * reading "0.4 km away" beside a hidden Directions button is what that
+ * disagreement looks like.
  */
-export function isPlottable(lat?: number | null, lng?: number | null): boolean {
-  if (typeof lat !== "number" || typeof lng !== "number") return false;
-  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return false;
-  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return false;
-  if (lat === 0 && lng === 0) return false;
-  return true;
-}
+export { isValidCoordinate as isPlottable } from "@/lib/geo/coordinates";
 
 /**
  * Directions to a property, or null when we cannot say where it is.
@@ -58,7 +56,7 @@ export function directionsUrl(
   target: DirectionsTarget,
   mode: TravelMode = "driving"
 ): string | null {
-  if (!isPlottable(target.latitude, target.longitude)) return null;
+  if (!isValidCoordinate(target.latitude, target.longitude)) return null;
 
   const params = new URLSearchParams({
     api: "1",
@@ -85,14 +83,14 @@ export function placeUrl(target: DirectionsTarget): string | null {
     params.set(
       "query",
       target.name ??
-        (isPlottable(target.latitude, target.longitude)
+        (isValidCoordinate(target.latitude, target.longitude)
           ? `${target.latitude},${target.longitude}`
           : "")
     );
     return `https://www.google.com/maps/search/?${params.toString()}`;
   }
 
-  if (!isPlottable(target.latitude, target.longitude)) return null;
+  if (!isValidCoordinate(target.latitude, target.longitude)) return null;
   const params = new URLSearchParams({
     api: "1",
     query: `${target.latitude},${target.longitude}`,
