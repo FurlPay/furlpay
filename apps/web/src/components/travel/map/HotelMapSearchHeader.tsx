@@ -309,7 +309,12 @@ export default function HotelMapSearchHeader({
             <div
               id="hm-suggestions"
               role="listbox"
-              className="absolute inset-x-0 top-[calc(100%+8px)] max-h-[420px] overflow-y-auto rounded-[15px] border border-black/[0.07] py-2 backdrop-blur-xl backdrop-saturate-150 shadow-[0_12px_32px_rgba(15,23,42,0.13),0_2px_8px_rgba(15,23,42,0.07)]"
+              // `no-scrollbar` (globals.css) hides the bar without disabling the
+              // scroll — a native scrollbar cuts through the rounded corner and
+              // the blur, and reads as a rendering fault rather than a control.
+              // `overscroll-contain` stops a wheel gesture that reaches the end
+              // of this list from continuing into the map and panning it.
+              className="no-scrollbar absolute inset-x-0 top-[calc(100%+8px)] max-h-[420px] overflow-y-auto overscroll-contain rounded-[15px] border border-black/[0.07] py-2 backdrop-blur-xl backdrop-saturate-150 shadow-[0_12px_32px_rgba(15,23,42,0.13),0_2px_8px_rgba(15,23,42,0.07)]"
               style={{ background: BAR }}
             >
               {showRecent && (
