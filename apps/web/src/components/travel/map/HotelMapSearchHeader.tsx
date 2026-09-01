@@ -33,12 +33,16 @@ import { ClockIcon, CloseIcon, HotelIcon, PinIcon, SearchIcon } from "./icons";
 // controls behind a gesture most people never make.
 // ---------------------------------------------------------------------------
 
-/** The bar and the dropdown share one ground. */
-const BAR = "#181C23";
-/** The inset well the input sits in. */
-const WELL = "#20242D";
+/** The bar and the dropdown share one ground: white, and translucent enough
+ *  that the map reads through it without the text on top losing contrast. The
+ *  blur is what makes that legible — over an unblurred map, coastlines and
+ *  labels show through the panel and fight the words sitting on it. */
+const BAR = "rgba(255,255,255,0.82)";
+/** The inset well the input sits in. On a white ground "inset" is a step
+ *  DARKER, not lighter — the dark build had this the other way round. */
+const WELL = "rgba(15,23,42,0.045)";
 /** The keyboard-shortcut badge. */
-const KBD = "#252A33";
+const KBD = "rgba(15,23,42,0.06)";
 
 export interface Destination {
   /** What the user sees and what gets searched. */
@@ -208,7 +212,7 @@ export default function HotelMapSearchHeader({
           say "these are different things" — a divider here would reintroduce
           exactly the boxed-in look this layout is shedding. */}
       <div
-        className="pointer-events-auto mx-auto flex flex-col gap-3 rounded-[15px] border border-white/[0.08] p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45),0_2px_8px_rgba(0,0,0,0.30)]"
+        className="pointer-events-auto mx-auto flex flex-col gap-3 rounded-[15px] border border-black/[0.07] p-3 backdrop-blur-xl backdrop-saturate-150 shadow-[0_12px_32px_rgba(15,23,42,0.13),0_2px_8px_rgba(15,23,42,0.07)]"
         style={{ background: BAR }}
       >
         <div ref={wrap} className="relative min-w-0">
@@ -217,15 +221,15 @@ export default function HotelMapSearchHeader({
               own right rather than as a state. */}
           <div
             className={`flex h-[52px] items-center gap-2.5 rounded-xl border pl-2 pr-3 transition-colors duration-200 ${
-              focused ? "border-white/[0.22]" : "border-white/[0.08] hover:border-white/[0.14]"
+              focused ? "border-black/[0.24]" : "border-black/[0.07] hover:border-black/[0.12]"
             }`}
             style={{ background: WELL }}
           >
-            {/* The icon sits in its own recessed tile — a step DARKER than the
-                well, so it reads as inset rather than as another button. */}
+            {/* The icon sits in its own recessed tile — a step darker again than
+                the well, so it reads as inset rather than as another button. */}
             <span
               className="grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors duration-200"
-              style={{ background: BAR, color: focused ? "#F5F7FA" : "#AAB2C0" }}
+              style={{ background: "rgba(15,23,42,0.075)", color: focused ? "#0F172A" : "#475569" }}
             >
               <SearchIcon />
             </span>
@@ -245,7 +249,7 @@ export default function HotelMapSearchHeader({
               // screen reader learns that Enter is about to choose something
               // other than what was typed.
               aria-activedescendant={open && flat[highlight] ? optionId(highlight) : undefined}
-              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#F5F7FA] outline-none placeholder:text-[#8992A3]"
+              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#0F172A] outline-none placeholder:text-[#64748B]"
             />
             {query ? (
               <button
@@ -255,7 +259,7 @@ export default function HotelMapSearchHeader({
                   input.current?.focus();
                 }}
                 aria-label="Clear search"
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[#8992A3] transition-colors hover:bg-white/[0.08] hover:text-[#F5F7FA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white/40"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[#64748B] transition-colors hover:bg-black/[0.06] hover:text-[#0F172A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/30"
               >
                 <CloseIcon />
               </button>
@@ -267,7 +271,7 @@ export default function HotelMapSearchHeader({
               shortcut && !focused && (
                 <kbd
                   aria-hidden
-                  className="shrink-0 rounded-md border border-white/[0.08] px-1.5 py-0.5 font-sans text-[11px] font-semibold text-[#8992A3] max-sm:hidden"
+                  className="shrink-0 rounded-md border border-black/[0.07] px-1.5 py-0.5 font-sans text-[11px] font-semibold text-[#64748B] max-sm:hidden"
                   style={{ background: KBD }}
                 >
                   {shortcut}
@@ -280,7 +284,7 @@ export default function HotelMapSearchHeader({
             <div
               id="hm-suggestions"
               role="listbox"
-              className="absolute inset-x-0 top-[calc(100%+8px)] max-h-[420px] overflow-y-auto rounded-[15px] border border-white/[0.08] py-2 shadow-[0_16px_40px_rgba(0,0,0,0.45),0_2px_8px_rgba(0,0,0,0.30)]"
+              className="absolute inset-x-0 top-[calc(100%+8px)] max-h-[420px] overflow-y-auto rounded-[15px] border border-black/[0.07] py-2 backdrop-blur-xl backdrop-saturate-150 shadow-[0_12px_32px_rgba(15,23,42,0.13),0_2px_8px_rgba(15,23,42,0.07)]"
               style={{ background: BAR }}
             >
               {showRecent && (
@@ -297,7 +301,7 @@ export default function HotelMapSearchHeader({
                         e.preventDefault();
                         onClearRecent();
                       }}
-                      className="rounded px-1 text-[11.5px] font-semibold text-[#AAB2C0] transition-colors hover:text-[#F5F7FA] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-white/40"
+                      className="rounded px-1 text-[11.5px] font-semibold text-[#475569] transition-colors hover:text-[#0F172A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/30"
                     >
                       Clear
                     </button>
@@ -410,18 +414,21 @@ function FilterButton({
       onClick={onClick}
       aria-expanded={expanded}
       aria-haspopup="dialog"
-      // State is surface lightness, not hue. An active filter is a slightly
-      // lifted chip with brighter text; there is no coloured fill or border
-      // anywhere in this row.
+      // State is surface contrast, not hue. On the white bar an active filter
+      // is a slightly deeper chip with darker text; there is no coloured fill
+      // or border anywhere in this row.
       className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors duration-200 ${
         active
-          ? "border-white/[0.14] bg-white/[0.10] text-[#F5F7FA]"
-          : "border-white/[0.08] bg-white/[0.03] text-[#8992A3] hover:bg-white/[0.07] hover:text-[#F5F7FA]"
+          ? "border-black/[0.12] bg-black/[0.07] text-[#0F172A]"
+          : "border-black/[0.07] bg-black/[0.03] text-[#64748B] hover:bg-black/[0.05] hover:text-[#0F172A]"
       }`}
     >
       {label}
+      {/* The one inverted chip in the row: a dark pill with white numerals. On
+          the white bar that is what makes a count read as a count rather than
+          as more label text. */}
       {count !== undefined && count > 0 && (
-        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#F5F7FA] px-1 text-[10.5px] font-bold text-[#181C23]">
+        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0F172A] px-1 text-[10.5px] font-bold text-white">
           {count}
         </span>
       )}
@@ -445,7 +452,7 @@ function Group({
   return (
     <div className="px-2 py-1">
       <div className="flex items-center justify-between gap-2 px-3 py-1.5">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-[#8992A3]">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#64748B]">
           {title}
         </p>
         {action}
@@ -476,24 +483,24 @@ function Suggestion({
       onClick={onPick}
       // The divider is a hairline at 4% and is suppressed on the first row of
       // each group, so it separates siblings without drawing a box around them.
-      className={`flex w-full items-center gap-3 rounded-lg border-t border-white/[0.04] px-3 py-3 text-left transition-colors first:border-t-0 ${
-        active ? "bg-white/[0.08]" : "hover:bg-white/[0.05]"
+      className={`flex w-full items-center gap-3 rounded-lg border-t border-black/[0.05] px-3 py-3 text-left transition-colors first:border-t-0 ${
+        active ? "bg-black/[0.06]" : "hover:bg-black/[0.04]"
       }`}
     >
       <span
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.06] ${
-          history ? "text-[#8992A3]" : "text-[#AAB2C0]"
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black/[0.05] ${
+          history ? "text-[#64748B]" : "text-[#475569]"
         }`}
       >
         {history ? <ClockIcon /> : d.kind === "destination" ? <PinIcon /> : <HotelIcon />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] font-semibold text-[#F5F7FA]">{d.label}</span>
-        <span className="block truncate text-[12.5px] text-[#8992A3]">{d.sublabel}</span>
+        <span className="block truncate text-[14px] font-semibold text-[#0F172A]">{d.label}</span>
+        <span className="block truncate text-[12.5px] text-[#64748B]">{d.sublabel}</span>
       </span>
       {/* The real number of curated properties there. This is what stops the
           list being decorative — every row is somewhere the map can go. */}
-      <span className="shrink-0 text-[12px] font-semibold text-[#8992A3]">
+      <span className="shrink-0 text-[12px] font-semibold text-[#64748B]">
         {d.count}
       </span>
     </button>
