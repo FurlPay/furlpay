@@ -53,6 +53,8 @@
 //   --only <text>    Only properties whose name, city or country contains this
 //   --delay <ms>     Between calls, per worker. Default 5000
 //   --concurrency <n> Requests in flight at once. Default 1
+//   --missing <field> Only properties lacking that field, checkpoint ignored.
+//                    For topping up after the field mask grows.
 //   --rated          Only properties that already have a rating
 //   --unrated        Only properties that do not
 //   --atmosphere     Add reviews + the food/accessibility fields (costs more)
@@ -136,6 +138,17 @@ const DRY_RUN = flag("dry-run");
 const COMMIT_ONLY = flag("commit-only");
 const ATMOSPHERE = flag("atmosphere");
 const RATED_ONLY = flag("rated");
+/**
+ * Re-fetch only properties missing a given field, ignoring the checkpoint.
+ *
+ * For topping up after the mask grows. When `coordinateSource` was added the
+ * 11,000 records already fetched had no way to acquire it — they were fetched
+ * correctly, under an older mask, and the checkpoint rightly says so. This is
+ * the one case where skipping "already done" is wrong, so --missing overrides
+ * it. Deliberately narrow: it names the field, so the re-spend is bounded and
+ * visible rather than a blanket re-run.
+ */
+const MISSING = value("missing");
 const UNRATED_ONLY = flag("unrated");
 
 // --- field mask --------------------------------------------------------------
@@ -395,7 +408,13 @@ async function main() {
   const done = readCheckpoint();
 
   let work = dataset.properties.filter((p) => {
-    if (done.has(p.placeId)) return false;
+    if (MISSING) {
+      // Selecting BY the gap, so the checkpoint must not veto it.
+      const v = p[MISSING];
+      if (v !== undefined && v !== null && v !== "") return false;
+    } else if (done.has(p.placeId)) {
+      return false;
+    }
     if (RATED_ONLY && typeof p.rating !== "number") return false;
     if (UNRATED_ONLY && typeof p.rating === "number") return false;
     if (ONLY) {

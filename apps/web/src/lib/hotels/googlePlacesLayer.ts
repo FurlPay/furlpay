@@ -94,6 +94,44 @@ function bookable(p: GooglePlaceProperty): boolean {
   return p.businessStatus !== "CLOSED_PERMANENTLY" && p.businessStatus !== "CLOSED_TEMPORARILY";
 }
 
+/**
+ * Google's own category for places that are plainly not somewhere to sleep.
+ *
+ * These arrived because the loader searched for accommodation and Google
+ * returned whatever sat nearby under a loose type. It was invisible until the
+ * enrichment pass fetched `typeDisplay` — before that the dataset carried no
+ * category at all, so a gym and a guest house were indistinguishable rows.
+ *
+ * 254 records match, and every one was being drawn on the map as a place to
+ * stay: Vondelgym in Amsterdam, Ziggy's Bar, a museum, a church, a car park.
+ */
+const NOT_ACCOMMODATION = new Set([
+  "Pub", "Restaurant", "Bar", "Spa", "Banquet hall", "Corporate Office",
+  "Consultant", "Association / Organization", "Travel Agency", "Tour Agency",
+  "Real Estate Agency", "Cafe", "Coffee Shop", "Gym", "Store", "Shop",
+  "Parking Lot", "Event Venue", "Wedding Venue", "Bank", "Hospital",
+  "School", "Church", "Museum",
+]);
+
+/** Words that overrule the category, because the NAME is better evidence. */
+const STAY_WORDS =
+  /(hotel|hostel|guest\s?house|guesthouse|inn|resort|lodge|motel|b&b|homestay|villa|apartment|aparthotel|residence)/i;
+
+/**
+ * Is this somewhere a person can actually stay?
+ *
+ * The category alone would be too blunt. "Baan Glang Soi Restaurant &
+ * Guesthouse" is typed Restaurant by Google and is demonstrably a guesthouse,
+ * so a name that says what it is overrules a category that disagrees.
+ * Filtering out a real property is the worse error: a reader can ignore a pin
+ * they can see, and cannot find one that was removed.
+ */
+function isAccommodation(p: GooglePlaceProperty): boolean {
+  const t = p.typeDisplay;
+  if (!t || !NOT_ACCOMMODATION.has(t)) return true;
+  return STAY_WORDS.test(p.name);
+}
+
 export interface GooglePlacesFilter {
   /** FurlPay property types: hotel, resort, villa, hostel, motel, … */
   types?: string[];
@@ -128,6 +166,7 @@ export function googlePlacesInBBox(
     if (p.latitude < box.minLat || p.latitude > box.maxLat) continue;
     if (p.longitude < box.minLng || p.longitude > box.maxLng) continue;
     if (!bookable(p)) continue;
+    if (!isAccommodation(p)) continue;
     if (types && !types.has(p.propertyType)) continue;
     if (min !== undefined && (p.rating === null || p.rating < min)) continue;
     if (q && !p.name.toLowerCase().includes(q) && !(p.city ?? "").toLowerCase().includes(q)) continue;

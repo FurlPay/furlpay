@@ -63,3 +63,30 @@ describe("spatial sampling vs pure ranking", () => {
     expect(selectSpatially(all, flat, 10)).toHaveLength(10);
   });
 });
+
+describe("the map only pins places you can sleep in", () => {
+  // The enrichment pass fetched typeDisplay for the first time, and it showed
+  // 254 records that are not accommodation at all — a gym, a bar, a museum, a
+  // church, a car park — every one of which was being drawn as somewhere to
+  // stay. Before that field existed the dataset had no category to filter on.
+  it("excludes gyms, bars and other non-accommodation from the viewport", () => {
+    // Amsterdam, where Vondelgym and Ziggy's Bar both sat in the dataset.
+    const box = { minLat: 52.3, maxLat: 52.42, minLng: 4.8, maxLng: 4.95 };
+    const names = googlePlacesInBBox(box).map((p) => p.name.toLowerCase());
+    expect(names.some((n) => n.includes("vondelgym"))).toBe(false);
+    expect(names.some((n) => n.includes("ziggy's bar"))).toBe(false);
+    // And the filter has not emptied the city.
+    expect(googlePlacesInBBox(box).length).toBeGreaterThan(50);
+  });
+
+  it("keeps a property whose NAME says it is lodging, whatever Google typed it", () => {
+    // "Baan Glang Soi Restaurant & Guesthouse" is typed Restaurant and is
+    // demonstrably a guesthouse. Removing a real property is the worse error:
+    // a reader can ignore a pin they can see and cannot find one that is gone.
+    const world = { minLat: -90, maxLat: 90, minLng: -180, maxLng: 180 };
+    const kept = googlePlacesInBBox(world).filter((p) =>
+      /guesthouse|guest house/i.test(p.name)
+    );
+    expect(kept.length).toBeGreaterThan(0);
+  });
+});
