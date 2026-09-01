@@ -44,11 +44,22 @@ export const LYR_CLUSTER = "hm-cluster";
 export const LYR_CLUSTER_LABEL = "hm-cluster-label";
 export const LYR_PROPERTY = "hm-property";
 export const LYR_PROPERTY_LABEL = "hm-property-label";
+/** The property NAME beside the pin, as opposed to the star inside it. */
+export const LYR_PROPERTY_NAME = "hm-property-name";
 export const LYR_OSM = "hm-osm";
 export const LYR_LEADERS = "hm-leaders-line";
 
 /** Layers that answer a hover, topmost first. */
-export const INTERACTIVE_LAYERS = [LYR_CLUSTER, LYR_PHOTO, LYR_PROPERTY, LYR_OSM];
+export const INTERACTIVE_LAYERS = [
+  LYR_CLUSTER,
+  LYR_PHOTO,
+  LYR_PROPERTY,
+  LYR_OSM,
+  // The name is part of the marker, not a caption beside it: pointing at
+  // either opens the same card. Last in the list because the pin wins a tie —
+  // a label overlapping a NEIGHBOUR's pin must not hijack that pin's hover.
+  LYR_PROPERTY_NAME,
+];
 
 /**
  * Count bands. Radius and colour are read off the same row, so a marker's size
@@ -72,6 +83,42 @@ const BANDS = [
   { max: 120, r: 25, bg: "#F0862B", fg: "#1F2937" },
   { max: Infinity, r: 27, bg: "#E85D32", fg: "#FFFFFF" },
 ] as const;
+
+/**
+ * Which names survive when a street has more properties than room for labels.
+ *
+ * Lower sorts first. The ordering is deliberately about how much the map can
+ * SAY about a property, not about how much we like it: a curated property with
+ * a photograph, a confirmed position and a star class supports a label that
+ * carries real information, while an unnamed OSM dot supports a name and
+ * nothing else. Selection wins outright because the reader just asked for it.
+ */
+export function labelRankFor(p: MapPoint, selectedId: string | null): number {
+  // The reader asked for this one by name — it outranks everything.
+  if (selectedId && p.id === selectedId) return 0;
+
+  // OSM points are context rather than subject, and are labelled last.
+  if (p.source !== "curated") return 900;
+
+  // 100 is the curated baseline; every signal below claws back from it, so a
+  // fully-described property lands near 40 and a bare one stays near 100.
+  let rank = 100;
+  if (p.lScore !== undefined) rank -= Math.min(30, p.lScore * 0.3);
+  if (p.stars) rank -= p.stars * 2;
+  if (p.precision === "exact") rank -= 6;
+  if (p.imageLocalPath || p.imageUrl) rank -= 5;
+  if ((p.categories?.length ?? 0) > 0) rank -= 3;
+  return Math.round(rank);
+}
+
+/** The label's second line: a FurlPay collection when the property has one,
+ *  otherwise the source's own type, tidied. Never invented. */
+export function categoryLabelFor(p: MapPoint): string {
+  const collection = LUXURY_MAP_CATEGORIES.find((c) => (p.categories ?? []).includes(c.id));
+  if (collection) return collection.label;
+  const t = (p.hotelType ?? "").replace(/_/g, " ").trim();
+  return t ? t[0].toUpperCase() + t.slice(1) : "";
+}
 
 export function bandFor(count: number) {
   return BANDS.find((b) => count <= b.max) ?? BANDS[BANDS.length - 1];
@@ -112,6 +159,25 @@ export interface FeatureProps {
   thumb: string;
   /** Where to fetch the photograph from. Empty when there is none. */
   thumbSrc: string;
+  /**
+   * The property's real name, for the map label. Empty for clusters and for
+   * anything unnamed, which the label layer filters out rather than drawing an
+   * empty box for.
+   */
+  name: string;
+  /** "Resort", "Villa", "Ultra Luxury" — the second line of the label. */
+  categoryLabel: string;
+  /**
+   * Placement priority, LOWER WINS.
+   *
+   * MapLibre drops a colliding label rather than moving it, and resolves ties
+   * by `symbol-sort-key`, so this decides which name survives in a dense
+   * street. It is computed from the data rather than from feature-state
+   * because layout properties cannot read feature-state — and because
+   * recomputing the whole source on every hover would reintroduce the
+   * per-frame main-thread cost the GPU rewrite removed.
+   */
+  labelRank: number;
   /** 1 when the position was never confirmed — drives the dashed ring. */
   approx: number;
 }
@@ -206,7 +272,10 @@ function spiderfy(
 export function buildFeatures(
   clusters: MapCluster[],
   points: MapPoint[],
-  map: MapLibreMap
+  map: MapLibreMap,
+  /** The property the reader has opened, if any. Its name outranks every other
+   *  label so a chosen property never loses its name to a neighbour. */
+  selectedId: string | null = null
 ): BuiltFeatures {
   const project = (ll: [number, number]) => map.project(ll);
   const unproject = (p: [number, number]) => map.unproject(p);
@@ -233,6 +302,12 @@ export function buildFeatures(
         id: c.id,
         kind: "cluster",
         label: String(c.count),
+        // A cluster is not a place, so it never gets a name label. The keys
+        // exist anyway because a source with two feature shapes is a source
+        // where half the expressions silently evaluate to null.
+        name: "",
+        categoryLabel: "",
+        labelRank: 1000,
         color: band.bg,
         textColor: band.fg,
         radius: band.r,
@@ -280,6 +355,9 @@ export function buildFeatures(
         // imagery at all, and are context rather than the subject.
         thumb: curated && thumbSrc ? thumbId(p.id) : "",
         thumbSrc: curated && thumbSrc ? thumbSrc : "",
+        name: p.name ?? "",
+        categoryLabel: categoryLabelFor(p),
+        labelRank: labelRankFor(p, selectedId),
       },
     });
     // The listing and the hover card both need the TRUE position, not the
@@ -450,6 +528,65 @@ export function layerSpecs(): LayerSpecification[] {
         "text-ignore-placement": true,
       },
       paint: { "text-color": ["get", "textColor"] },
+    },
+    {
+      // ── PROPERTY NAMES ────────────────────────────────────────────────
+      // The layer that turns a map of anonymous dots into a directory.
+      //
+      // COLLISION IS ON HERE, deliberately unlike every other symbol layer in
+      // this file. A star inside a circle belongs to that circle and must never
+      // be moved or dropped, so those layers set allow-overlap. A NAME beside a
+      // pin is the opposite case: in a dense street there is not room for all
+      // of them, and drawing them anyway produces a stack of overlapping words
+      // that is less readable than no names at all. So MapLibre may drop the
+      // ones that do not fit, and `symbol-sort-key` decides which survive.
+      //
+      // MINZOOM IS THE OTHER HALF. Below 12 a viewport spans a country, and
+      // hundreds of names would be a wall of text over the geography — which is
+      // the exact failure the cluster counts exist to prevent.
+      id: LYR_PROPERTY_NAME,
+      type: "symbol",
+      source: SRC_POINTS,
+      filter: [
+        "all",
+        ["in", ["get", "kind"], ["literal", ["property", "osm"]]],
+        // No name, no label. Never an empty box beside a pin.
+        ["!=", ["get", "name"], ""],
+      ],
+      minzoom: 12,
+      layout: {
+        // Two lines in ONE label, so the name and its category collide, move
+        // and drop together rather than drifting apart.
+        "text-field": [
+          "format",
+          ["get", "name"], {},
+          "\n", {},
+          ["get", "categoryLabel"], { "font-scale": 0.82 },
+        ],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 11, 16, 12.5],
+        // Anchored left and offset right of the pin, so the label reads as
+        // belonging to that marker rather than floating between two.
+        "text-anchor": "left",
+        "text-offset": [1.25, 0],
+        "text-max-width": 10,
+        "text-allow-overlap": false,
+        "text-ignore-placement": false,
+        // If the name cannot be placed, the PIN still draws. Without this
+        // MapLibre drops the marker along with its label.
+        "text-optional": true,
+        "text-padding": 3,
+        "symbol-sort-key": ["get", "labelRank"],
+      },
+      paint: {
+        // A halo rather than a drawn pill: legible over terrain, water and
+        // roads without putting an opaque rectangle on the cartography, which
+        // is what makes a label feel part of the map instead of on top of it.
+        "text-color": "#0F172A",
+        "text-halo-color": "#FFFFFF",
+        "text-halo-width": 1.6,
+        "text-halo-blur": 0.3,
+      },
     },
     {
       id: LYR_CLUSTER_LABEL,
