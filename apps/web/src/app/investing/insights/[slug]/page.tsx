@@ -1,4 +1,5 @@
 import Link from "next/link";
+import JsonLd from "@/components/JsonLd";
 import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { categoryById } from "@/lib/insights/categories";
@@ -62,7 +63,7 @@ export default async function InsightArticlePage(props: { params: Promise<{ slug
 
   return (
     <div className="mx-auto max-w-3xl">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <JsonLd data={jsonLd} />
       <Link href="/investing/insights" className="text-[13px] text-textSecondary transition-colors hover:text-neon">
         ← Back to insights
       </Link>

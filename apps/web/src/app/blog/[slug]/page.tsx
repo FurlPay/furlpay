@@ -1,4 +1,5 @@
 import Link from "next/link";
+import JsonLd from "@/components/JsonLd";
 import { notFound } from "next/navigation";
 import { categoryById } from "@/lib/blog/categories";
 import { POSTS, getPost, postsByCategory, formatDate } from "@/lib/blog/posts";
@@ -63,10 +64,7 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
 
   return (
     <div className="mx-auto max-w-3xl">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={jsonLd} />
       <Link href="/blog" className="text-[13px] text-textSecondary transition-colors hover:text-neon">
         ← Back to blog
       </Link>

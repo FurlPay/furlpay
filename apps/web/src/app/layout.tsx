@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import JsonLd from "@/components/JsonLd";
 import Script from "next/script";
 import "./globals.css";
 import Shell from "@/components/Shell";
@@ -121,10 +122,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           the server cannot know what the visitor has installed. Children still
           hydrate normally, so a real mismatch inside the app is still reported. */}
       <body suppressHydrationWarning>
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
-        />
+        <JsonLd data={JSON_LD} />
         {/* Google Analytics 4 — loads only when NEXT_PUBLIC_GA4_ID is set. */}
         {GA_ID && (
           <>

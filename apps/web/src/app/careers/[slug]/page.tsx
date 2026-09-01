@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import JsonLd from "@/components/JsonLd";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronLeft, MapPin, Briefcase, Wallet, Percent } from "lucide-react";
@@ -45,10 +46,7 @@ export default async function JobPage(props: { params: Promise<{ slug: string }>
       <LandingChrome />
       <main className="mx-auto max-w-3xl px-6 pb-24 pt-14">
         {job.status === "open" && (
-          <script
-            type="application/ld+json"
-            dangerouslySetInnerHTML={{ __html: JSON.stringify(jobPostingJsonLd(job)) }}
-          />
+          <JsonLd data={jobPostingJsonLd(job)} />
         )}
 
         <Link

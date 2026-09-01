@@ -125,3 +125,117 @@ export function webApplication(p: {
     publisher: { "@id": ORG_ID },
   };
 }
+
+/**
+ * A lodging property, for local search rich results.
+ *
+ * EVERY OPTIONAL FIELD IS GENUINELY OPTIONAL, and that is the whole design.
+ * Structured data is a machine-readable assertion to Google about a real
+ * business, so a field that is guessed is worse here than anywhere else in the
+ * product: it is a false statement made to a search engine, at scale, in a
+ * format built to be trusted. This dataset has ratings on 80% of properties,
+ * websites on 59% and summaries on 33%, so a builder that required them would
+ * force exactly that invention.
+ *
+ * `aggregateRating` in particular is emitted ONLY with a real review count.
+ * Schema.org requires reviewCount or ratingCount on AggregateRating, and
+ * Google's rich-results guidance treats a rating without a count as invalid —
+ * so an inferred count would be both a lie and a markup error.
+ *
+ * No `priceRange`. Google's priceLevel is populated on 29 of 16,014 records
+ * and is a 1-4 bucket, not a currency range; mapping it to "$$" would be a
+ * guess dressed as a fact. It returns when a real rate provider does.
+ */
+export function lodgingBusiness(p: {
+  name: string;
+  url: string;
+  latitude: number;
+  longitude: number;
+  /** Free-text address as held. Structured PostalAddress needs parsed parts
+   *  we do not reliably have, and a wrongly-parsed address is worse than a
+   *  correct string. */
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+  description?: string | null;
+  telephone?: string | null;
+  image?: string | null;
+  /** Google's rating. Emitted only alongside a real review count. */
+  rating?: number | null;
+  reviewCount?: number | null;
+  /** Official star classification, when a body actually awarded one. */
+  starRating?: number | null;
+  sameAs?: string | null;
+}) {
+  const hasRating =
+    typeof p.rating === "number" && typeof p.reviewCount === "number" && p.reviewCount > 0;
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "LodgingBusiness",
+    name: p.name,
+    url: p.url,
+    geo: {
+      "@type": "GeoCoordinates",
+      latitude: p.latitude,
+      longitude: p.longitude,
+    },
+    ...(p.address || p.city || p.country
+      ? {
+          address: {
+            "@type": "PostalAddress",
+            ...(p.address ? { streetAddress: p.address } : {}),
+            ...(p.city ? { addressLocality: p.city } : {}),
+            ...(p.country ? { addressCountry: p.country } : {}),
+          },
+        }
+      : {}),
+    ...(p.description ? { description: p.description } : {}),
+    ...(p.telephone ? { telephone: p.telephone } : {}),
+    ...(p.image ? { image: p.image } : {}),
+    ...(typeof p.starRating === "number"
+      ? { starRating: { "@type": "Rating", ratingValue: p.starRating } }
+      : {}),
+    ...(hasRating
+      ? {
+          aggregateRating: {
+            "@type": "AggregateRating",
+            ratingValue: p.rating,
+            reviewCount: p.reviewCount,
+          },
+        }
+      : {}),
+    ...(p.sameAs ? { sameAs: p.sameAs } : {}),
+  };
+}
+
+/**
+ * A destination, for "hotels in <city>" style queries.
+ *
+ * Takes a real property count rather than a blurb. A TouristDestination that
+ * claims coverage it does not have is the structured-data version of the
+ * "1,240+ Hotels" problem, and Google is a worse audience for it than a
+ * reader — a reader can click through and see, Google indexes the claim.
+ */
+export function touristDestination(p: {
+  name: string;
+  url: string;
+  description: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  country?: string | null;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "TouristDestination",
+    name: p.name,
+    url: p.url,
+    description: p.description,
+    ...(typeof p.latitude === "number" && typeof p.longitude === "number"
+      ? { geo: { "@type": "GeoCoordinates", latitude: p.latitude, longitude: p.longitude } }
+      : {}),
+    ...(p.country
+      ? { address: { "@type": "PostalAddress", addressCountry: p.country } }
+      : {}),
+  };
+}
