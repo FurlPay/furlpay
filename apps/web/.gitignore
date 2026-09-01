@@ -14,3 +14,6 @@ public/swe-worker*.js
 # checkout does not have it.
 /data/
 .cnft-payer.json
+
+# Resumable enrichment checkpoint — a scratch file, not data.
+src/data/.places-enrich.jsonl
