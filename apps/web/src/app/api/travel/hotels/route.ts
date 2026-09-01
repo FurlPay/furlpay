@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { curatedHotels } from "@/lib/travel/discover";
-import { generateStays, STAY_INVENTORY_COUNT } from "@/lib/travel/data";
+import { searchProperties, isKnownCity } from "@/lib/travel/propertySource";
 import { searchDuffelStays } from "@/lib/travel/duffel";
 
 // GET /api/travel/hotels — curated 4–5★ hotel collections by destination.
@@ -19,15 +19,29 @@ export async function GET(req: NextRequest) {
       const hotels = live.filter((h) => h.stars >= 4).slice(0, 12);
       if (hotels.length) return NextResponse.json({ city, count: hotels.length, hotels, source: "duffel" });
     }
-    const hotels = generateStays(city, { minStars: 4, count: STAY_INVENTORY_COUNT }).sort(
-      (a, b) => b.rating - a.rating
-    );
-    return NextResponse.json({ city, count: hotels.length, hotels, source: "demo" });
+    // Duffel had nothing (or is not configured). Fall back to the INDEXED
+    // dataset, not to invention: this used to call generateStays(city), which
+    // meant a city we have never indexed still returned a full page of hotels
+    // with plausible names, ratings and nightly rates.
+    //
+    // searchProperties returns [] for a city we hold no coordinate for, and []
+    // for a city we can place but have not indexed. Both are honest, and the
+    // UI is expected to show an empty state rather than a populated one.
+    const hotels = searchProperties({ city, minRating: 4, limit: 24 });
+    return NextResponse.json({
+      city,
+      count: hotels.length,
+      hotels,
+      // Distinguishes "we looked and there is nothing" from "we do not know
+      // where that is", which a bare empty array cannot express.
+      known: isKnownCity(city),
+      source: "indexed_dataset",
+    });
   }
   const collections = curatedHotels(3);
   return NextResponse.json({
     count: collections.reduce((n, c) => n + c.hotels.length, 0),
     collections,
-    source: "demo",
+    source: "indexed_dataset",
   });
 }

@@ -1,0 +1,23 @@
+{
+  "_doc": "Known synthetic-travel call sites when the gate was introduced. This list may only SHRINK. A new entry fails CI; an entry that has been fixed but is still listed ALSO fails, so it cannot rot into a permanent exemption.",
+  "_introduced": "2026-09-02",
+  "_remaining": 16,
+  "known": [
+    "web/src/app/api/actions/book-car/route.ts#generateCars",
+    "web/src/app/api/travel/deals/route.ts#featuredDeals",
+    "web/src/app/api/travel/destinations/[slug]/route.ts#generateActivities",
+    "web/src/app/api/travel/destinations/[slug]/route.ts#generateFlights",
+    "web/src/app/api/travel/destinations/[slug]/route.ts#generateStays",
+    "web/src/app/api/travel/search/route.ts#generateActivities",
+    "web/src/app/api/travel/search/route.ts#generateCars",
+    "web/src/app/api/travel/search/route.ts#generateFlights",
+    "web/src/app/api/travel/search/route.ts#generateStays",
+    "web/src/app/travel/destinations/[slug]/page.tsx#generateActivities",
+    "web/src/app/travel/destinations/[slug]/page.tsx#generateFlights",
+    "web/src/app/travel/destinations/[slug]/page.tsx#generateStays",
+    "web/src/lib/copilot/index.ts#generateStays",
+    "web/src/lib/discord.ts#generateFlights",
+    "web/src/lib/telegram.ts#generateFlights",
+    "web/src/lib/travel/alerts.ts#generateFlights"
+  ]
+}

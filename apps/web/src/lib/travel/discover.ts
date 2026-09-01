@@ -8,7 +8,8 @@
 //    crypto-accepting venues and settle the bill in USDC.
 //  - Travala caps cashback at 5% and requires AVA staking → 2–7% USDC, no token.
 
-import { CITY_PHOTOS, generateStays, type Stay } from "@/lib/travel/data";
+import { CITY_PHOTOS } from "@/lib/travel/data";
+import { searchProperties, type IndexedProperty } from "@/lib/travel/propertySource";
 
 // --- itineraries ---------------------------------------------------------------
 
@@ -249,7 +250,7 @@ export interface HotelCollection {
   city: string;
   destinationSlug: string;
   photo: string;
-  hotels: Stay[];
+  hotels: IndexedProperty[];
 }
 
 const HOTEL_CITIES: Array<[string, string]> = [
@@ -261,13 +262,22 @@ const HOTEL_CITIES: Array<[string, string]> = [
   ["Maldives", "maldives"],
 ];
 
+/**
+ * Top real properties for each showcase city.
+ *
+ * This used to call generateStays(city) and sort the invented ratings, which
+ * meant the home page's "curated" hotels were six cities' worth of hash output
+ * — names, star ratings, review counts and nightly prices, none of it real.
+ *
+ * Now it reads the indexed dataset. Cities we have not indexed simply return
+ * no hotels and the collection is dropped, so the row shrinks rather than
+ * filling itself. A shorter honest row beats a full invented one.
+ */
 export function curatedHotels(perCity = 3): HotelCollection[] {
   return HOTEL_CITIES.map(([city, destinationSlug]) => ({
     city,
     destinationSlug,
     photo: CITY_PHOTOS[city],
-    hotels: generateStays(city, { minStars: 4, count: 10 })
-      .sort((a, b) => b.rating - a.rating)
-      .slice(0, perCity),
-  }));
+    hotels: searchProperties({ city, minRating: 4, limit: perCity }),
+  })).filter((c) => c.hotels.length > 0);
 }

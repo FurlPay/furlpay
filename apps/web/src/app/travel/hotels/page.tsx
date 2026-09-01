@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { BedDouble, ArrowRight, Search } from "lucide-react";
 import { Pill } from "@/components/ui";
-import PropertyCard from "@/components/travel/PropertyCard";
+import IndexedPropertyCard from "@/components/travel/IndexedPropertyCard";
 import { curatedHotels } from "@/lib/travel/discover";
 
 export const metadata = {
@@ -47,7 +47,7 @@ export default function HotelsPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {col.hotels.map((h) => (
-              <PropertyCard key={h.id} stay={h} nights={3} />
+              <IndexedPropertyCard key={h.id} property={h} nights={3} />
             ))}
           </div>
         </section>

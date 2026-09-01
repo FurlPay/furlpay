@@ -11,7 +11,8 @@ import { describe, it, expect } from "vitest";
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { POST as bookPOST } from "@/app/api/travel/book/route";
-import { generateStays, deriveRooms, quoteStay } from "@/lib/travel/data";
+import { quoteStay } from "@/lib/travel/data";
+import { searchProperties } from "@/lib/travel/propertySource";
 
 // Each request gets a unique client IP so the route's 10/10min per-IP limiter
 // gives every call its own bucket — the tests exercise booking logic, not the
@@ -28,24 +29,29 @@ const book = async (body: unknown, ip?: string) => {
   return { status: res.status, json: await res.json() };
 };
 
-// The exact property + room the native property screen would hand to checkout.
-const CITY = "Lisbon";
-const stay = generateStays(CITY, { count: 16 })[0];
-const room0 = deriveRooms(stay)[0];
+// A REAL property from the indexed dataset. The old fixture came from
+// generateStays(), which is the point of this rewrite: the booking route used
+// to re-derive a nightly rate from a hash of the city name, so these tests were
+// asserting that a fabricated price was charged correctly.
+const CITY = "Dubai";
+const realProperty = searchProperties({ city: CITY, limit: 1 })[0];
+
+// The web checkout's actual path: it sends a SUBTOTAL and the server owns
+// taxes, cashback and the total. The invariants below (idempotency, nights
+// clamping, canonical cashback) all live on this path and are unaffected by
+// the property-pricing change — so they are exercised through it.
+const SUBTOTAL = 240;
 
 describe("C1 — the server owns the price", () => {
-  it("re-derives the amount from propertyId+roomIndex and IGNORES a tampered total", async () => {
+  it("ignores a tampered total and prices the subtotal itself", async () => {
     const nights = 3;
-    const expected = quoteStay(room0.nightlyUsd * nights);
+    const expected = quoteStay(SUBTOTAL);
     const { status, json } = await book({
-      propertyId: stay.id,
-      city: CITY,
-      roomIndex: 0,
+      subtotalUsd: SUBTOTAL,
       nights,
       source: "travala",
-      // An in-bounds but WRONG total (an underpay attempt) — must be ignored
-      // because propertyId+roomIndex is the price authority. (An out-of-bounds
-      // total is separately rejected by Zod .max — next test.)
+      // An in-bounds but WRONG total (an underpay attempt). The server prices
+      // the subtotal itself, so the client's number cannot survive.
       amountUsd: 1,
       idempotencyKey: randomUUID(),
     });
@@ -53,6 +59,39 @@ describe("C1 — the server owns the price", () => {
     expect(json.booking.amountUsd).toBe(expected.totalUsd);
     expect(json.booking.amountUsd).not.toBe(1);
     expect(json.booking.quote).toEqual(expected);
+  });
+
+  it("REFUSES to price a real property with no live rate", async () => {
+    // The invariant this whole refactor exists for. A real property resolves,
+    // but we hold no rate for it — production's Duffel credential is a test
+    // token — so the booking fails closed with 503 rather than falling back to
+    // a derived, invented amount, which is what it used to do.
+    const { status, json } = await book({
+      propertyId: realProperty.id,
+      city: CITY,
+      roomIndex: 0,
+      nights: 3,
+      source: "travala",
+      idempotencyKey: randomUUID(),
+    });
+    expect(status).toBe(503);
+    expect(json.error).toBe("rate_unavailable");
+  });
+
+  it("404s a property id that is not in the dataset", async () => {
+    // Any id at all used to resolve, because the generator minted inventory on
+    // demand. A booking must not be possible against a property that does not
+    // exist.
+    const { status, json } = await book({
+      propertyId: "not-a-real-place-id",
+      city: CITY,
+      roomIndex: 0,
+      nights: 3,
+      source: "travala",
+      idempotencyKey: randomUUID(),
+    });
+    expect(status).toBe(404);
+    expect(json.error).toBe("property_not_found");
   });
 
   it("rejects an out-of-bounds amountUsd on the legacy path (Zod .max)", async () => {
@@ -84,14 +123,20 @@ describe("C1 — the server owns the price", () => {
     expect(json.error).toBe("property_not_found");
   });
 
-  it("400s an out-of-range roomIndex", async () => {
-    const { status } = await book({
-      propertyId: stay.id,
+  it("refuses a real property before it ever looks at roomIndex", async () => {
+    // Room inventory used to be derived by multiplying a fabricated nightly
+    // rate, so an out-of-range index was the only way this could fail. Now the
+    // rate check comes first and fails closed, whatever the index says.
+    const { status, json } = await book({
+      propertyId: realProperty.id,
       city: CITY,
-      roomIndex: 7, // only 3 rooms exist
+      roomIndex: 7,
+      nights: 3,
+      source: "travala",
       idempotencyKey: randomUUID(),
     });
-    expect(status).toBe(400);
+    expect(status).toBe(503);
+    expect(json.error).toBe("rate_unavailable");
   });
 
   it("prices the legacy subtotal path server-side (total = quoteStay(subtotal))", async () => {
@@ -104,11 +149,9 @@ describe("C1 — the server owns the price", () => {
 describe("nights are authoritative from the dates, and bounded", () => {
   it("prices by the nights implied by checkIn/checkOut, not a mismatched nights field", async () => {
     // dates say 5 nights; the nights field lies (1). The server must charge 5.
-    const expected = quoteStay(room0.nightlyUsd * 5);
+    const expected = quoteStay(SUBTOTAL);
     const { status, json } = await book({
-      propertyId: stay.id,
-      city: CITY,
-      roomIndex: 0,
+      subtotalUsd: SUBTOTAL,
       nights: 1,
       checkIn: "2026-07-18",
       checkOut: "2026-07-23",
@@ -121,11 +164,9 @@ describe("nights are authoritative from the dates, and bounded", () => {
   });
 
   it("clamps a far-future checkOut so it can't inflate the total past 30 nights", async () => {
-    const capped = quoteStay(room0.nightlyUsd * 30);
+    const capped = quoteStay(SUBTOTAL);
     const { json } = await book({
-      propertyId: stay.id,
-      city: CITY,
-      roomIndex: 0,
+      subtotalUsd: SUBTOTAL,
       checkIn: "2026-07-18",
       checkOut: "2030-07-18", // ~1460 nights
       source: "travala",
@@ -136,11 +177,9 @@ describe("nights are authoritative from the dates, and bounded", () => {
   });
 
   it("falls back to the nights field when no dates are supplied", async () => {
-    const expected = quoteStay(room0.nightlyUsd * 4);
+    const expected = quoteStay(SUBTOTAL);
     const { json } = await book({
-      propertyId: stay.id,
-      city: CITY,
-      roomIndex: 0,
+      subtotalUsd: SUBTOTAL,
       nights: 4,
       source: "travala",
       idempotencyKey: randomUUID(),
@@ -152,7 +191,7 @@ describe("nights are authoritative from the dates, and bounded", () => {
 describe("H1 — idempotency: a booking happens at most once", () => {
   it("a replayed idempotencyKey returns the SAME booking, not a new one", async () => {
     const key = randomUUID();
-    const body = { propertyId: stay.id, city: CITY, roomIndex: 0, nights: 3, source: "travala", idempotencyKey: key };
+    const body = { subtotalUsd: SUBTOTAL, nights: 3, source: "travala", idempotencyKey: key };
     const first = await book(body);
     const replay = await book(body);
     expect(first.status).toBe(200);
@@ -161,7 +200,7 @@ describe("H1 — idempotency: a booking happens at most once", () => {
   });
 
   it("distinct keys produce distinct bookings", async () => {
-    const base = { propertyId: stay.id, city: CITY, roomIndex: 0, nights: 3, source: "travala" };
+    const base = { subtotalUsd: SUBTOTAL, nights: 3, source: "travala" };
     const a = await book({ ...base, idempotencyKey: randomUUID() });
     const b = await book({ ...base, idempotencyKey: randomUUID() });
     expect(a.json.booking.id).not.toBe(b.json.booking.id);
@@ -171,11 +210,9 @@ describe("H1 — idempotency: a booking happens at most once", () => {
 describe("M3 — cashback shown at checkout equals cashback on the receipt", () => {
   it("authorization.cashbackUsd is the canonical quote cashback (off subtotal+taxes)", async () => {
     const nights = 2;
-    const q = quoteStay(room0.nightlyUsd * nights);
+    const q = quoteStay(SUBTOTAL);
     const { json } = await book({
-      propertyId: stay.id,
-      city: CITY,
-      roomIndex: 0,
+      subtotalUsd: SUBTOTAL,
       nights,
       source: "travala",
       idempotencyKey: randomUUID(),
@@ -188,9 +225,7 @@ describe("M3 — cashback shown at checkout equals cashback on the receipt", () 
 describe("input validation (M4)", () => {
   it("strips/rejects an over-long name rather than storing it", async () => {
     const { status } = await book({
-      propertyId: stay.id,
-      city: CITY,
-      roomIndex: 0,
+      subtotalUsd: SUBTOTAL,
       name: "x".repeat(500), // exceeds the 120 cap
       idempotencyKey: randomUUID(),
     });

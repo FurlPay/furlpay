@@ -11,7 +11,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "sync:maplibre-worker": "node scripts/sync-maplibre-worker.mjs"
+    "sync:maplibre-worker": "node scripts/sync-maplibre-worker.mjs",
+    "check:travel-data": "node scripts/check-no-synthetic-travel.mjs"
   },
   "dependencies": {
     "@furlpay/account-kit": "*",

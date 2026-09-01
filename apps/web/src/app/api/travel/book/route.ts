@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { findPropertyById } from "@/lib/travel/propertySource";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { z } from "zod";
@@ -9,10 +10,8 @@ import {
   MCC,
   RATES,
   quoteStay,
-  deriveRooms,
-  generateStays,
+
   nights as nightsFromDates,
-  STAY_INVENTORY_COUNT,
 } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
@@ -183,18 +182,35 @@ export async function POST(req: NextRequest) {
   let quote: ReturnType<typeof quoteStay> | null = null;
 
   if (body.propertyId && body.city && body.roomIndex !== undefined) {
-    // (1) Re-derive the room rate from deterministic inventory. Uses the shared
-    // STAY_INVENTORY_COUNT so the id the hotels list minted always resolves here
-    // (a stay id encodes its index; a smaller count would 404 a bookable hotel).
-    const stay = generateStays(body.city, { count: STAY_INVENTORY_COUNT }).find((s) => s.id === body.propertyId);
-    if (!stay) {
+    // (1) Price a specific property.
+    //
+    // This used to re-derive the rate from generateStays() — which meant the
+    // amount a booking charged came out of a hash of the city name. The
+    // property was fabricated, its nightly rate was fabricated, and the flow
+    // could not tell the difference because a fabricated stay satisfies the
+    // same type as a real one.
+    //
+    // Now the id must resolve against the indexed dataset, and the rate must
+    // be a real one. We hold no live rates today (Duffel production carries a
+    // test token, which lib/hotels/pricing.ts correctly refuses to serve as
+    // real), so this path fails closed. That is the intended behaviour: a
+    // booking that cannot be priced from a real rate must not be priced at
+    // all. The web checkout is unaffected — it sends subtotalUsd below.
+    const property = findPropertyById(body.propertyId);
+    if (!property) {
       return NextResponse.json({ error: "property_not_found" }, { status: 404 });
     }
-    const room = deriveRooms(stay)[body.roomIndex];
-    if (!room) {
-      return NextResponse.json({ error: "invalid_room" }, { status: 400 });
+    if (!property.rate) {
+      return NextResponse.json(
+        {
+          error: "rate_unavailable",
+          message: "No live rate is available for this property.",
+          propertyId: property.id,
+        },
+        { status: 503 }
+      );
     }
-    quote = quoteStay(room.nightlyUsd * bookedNights);
+    quote = quoteStay(property.rate.amount * bookedNights);
     amountUsd = quote.totalUsd;
   } else if (body.subtotalUsd !== undefined) {
     // (3a) Subtotal given → server owns taxes/cashback/total.

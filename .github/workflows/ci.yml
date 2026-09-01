@@ -49,6 +49,13 @@ jobs:
       # AGENTS.md rules 1 & 2: no mutating route may read an unvalidated body,
       # and sensitive public routes need a tighter budget than the middleware
       # baseline. Generic SAST (deep-security-scan.yml) can't express this.
+      # generateStays() fabricated names, ratings, review counts and nightly
+      # prices from a hash seed and reached seven live routes, including the one
+      # that priced a booking. Deleting the calls fixes today; this fixes the
+      # next person who needs a hotel-shaped object in a hurry.
+      - name: No synthetic travel data in production paths
+        run: node apps/web/scripts/check-no-synthetic-travel.mjs
+
       - name: Route security invariants
         run: node apps/web/scripts/check-route-security.mjs
       - name: Test web app (wallet-link security matrix + units)
