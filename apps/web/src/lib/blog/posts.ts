@@ -30,6 +30,221 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // Travel — the traveller-facing companion to the hotel map engineering post
+  {
+    slug: "explore-hotels-resorts-villas-on-the-world-map",
+    title:
+      "Explore the World, One Stay at a Time: Finding Hotels, Resorts and Villas on the Map",
+    excerpt:
+      "Most hotel searches start with a text box and end with a list of 400 results you scroll past. This one starts with the world. Open the FurlPay map and explore destinations visually — 507 curated luxury properties across 79 countries, every hotel OpenStreetMap knows layered underneath, ten collections from overwater villas to alpine chalets, and rates you can settle in USDC. Here is how to actually use it.",
+    category: "travel",
+    date: "2026-09-01",
+    readMins: 11,
+    author: "Ashutosh Kumar Singh",
+    cover: "/blog/hotel-map-explore.jpg",
+    body: [
+      {
+        type: "p",
+        text: `Almost every hotel search begins the same way: a blank text box asking where you are going, as though you had already decided. Then a list. Then forty minutes of opening a map in one tab and a property page in another, trying to work out whether "5 minutes from the beach" means five minutes walking or five minutes in a taxi through traffic.`,
+      },
+      {
+        type: "p",
+        text: `The [FurlPay hotel map](https://furlpay.com/hotels/map) inverts that. It opens on the whole world, with real properties already on it, and you find somewhere to stay by looking rather than by typing. This post is the practical guide — what is on the map, how to move through it, and what each control actually does.`,
+      },
+
+      { type: "h2", text: "Location is the thing people actually choose on" },
+      {
+        type: "p",
+        text: `This is not a stylistic preference. When SiteMinder surveyed almost 12,000 travellers across 14 countries for its [Changing Traveller Report 2026](https://www.siteminder.com/changing-traveller-report/), location came out at the top of what people scrutinise before booking — ahead of the things a list view is good at showing. The same research found 58% of travellers now choose superior or luxury rooms, and that [stays are getting shorter](https://www.siteminder.com/r/latest-trends-in-hotel-industry/), with one-night bookings rising sharply over the last three years.`,
+      },
+      {
+        type: "p",
+        text: `Put those together and you get a very specific kind of traveller: someone taking more, shorter, better trips, for whom exactly where a property sits matters more than it used to. A two-night stay has no slack in it. Being on the wrong side of a city is not a minor inconvenience — it is a meaningful fraction of the trip.`,
+      },
+      {
+        type: "p",
+        text: `A list cannot answer that question. A map answers it before you have read a single description.`,
+      },
+
+      { type: "h2", text: "Explore the world, one stay at a time" },
+      {
+        type: "p",
+        text: `The map opens on the world. There is nothing to fill in first, and no empty state telling you to zoom in before it will show you anything. At that height, properties gather into numbered circles — and those numbers are real counts, so clicking one zooms to exactly the properties it just counted. Nothing appears or disappears in a way you cannot follow.`,
+      },
+      {
+        type: "p",
+        text: `Zoom into a city and the circles break apart into individual properties. 150 of the curated ones draw as a small round photograph of the actual building rather than a coloured dot, which is genuinely useful at speed: you recognise the Burj Al Arab's sail or a Maldivian overwater villa from the marker itself, without reading a word.`,
+      },
+      {
+        type: "p",
+        text: `Underneath the curated layer sits every hotel OpenStreetMap has recorded in that view — smaller, quieter markers that fill in the neighbourhood around the headline properties. So a zoomed-in view of Lisbon shows you both the handful of properties we have written about and the couple of hundred others that exist on that street.`,
+      },
+
+      { type: "h2", text: "Find your perfect destination" },
+      {
+        type: "p",
+        text: `The search box takes two completely different kinds of question, and it is worth knowing both:`,
+      },
+      {
+        type: "ul",
+        items: [
+          "A place — \"Kyoto\", \"Amalfi Coast\", \"Queenstown\". The map flies there and shows you what is around.",
+          "A property or a brand — \"Aman\", \"Belmond\", \"Oberoi\", \"Six Senses\". The map narrows to that name worldwide, which turns it into a way of seeing where a group actually operates. Type one and watch the pins scatter across four continents.",
+        ],
+      },
+      {
+        type: "p",
+        text: `Your last six searches are remembered, so returning to somewhere you were looking at last night is one click rather than retyping. There is also a "centre on my location" control, for the case where the destination is wherever you happen to be standing.`,
+      },
+
+      { type: "h2", text: "Ten collections, not a wall of filters" },
+      {
+        type: "p",
+        text: `Rather than thirty checkboxes, the curated properties are sorted into ten collections. These are the ones that exist, with what is actually in each:`,
+      },
+      {
+        type: "table",
+        headers: ["Collection", "Properties", "What lands in it"],
+        rows: [
+          ["Ultra-luxury", "312", "Aman, Four Seasons, Rosewood, Mandarin Oriental, Belmond and their peers"],
+          ["Boutique", "214", "Smaller houses with a point of view — design-led, independent, or a single-property operator"],
+          ["Heritage castles", "169", "Castles, manors, palaces and châteaux that were something else first"],
+          ["Vineyard & wellness", "111", "Estates among the vines, and properties built around a spa rather than around a lobby"],
+          ["Michelin dining", "99", "Where the restaurant is a reason to book the room"],
+          ["Executive suites", "75", "City properties built for people travelling on business who would rather not feel like it"],
+          ["Alpine chalets", "54", "Ski-in and mountain-side, concentrated in the Alps"],
+          ["Overwater villas", "22", "The Maldives, French Polynesia, and the handful of others that do it properly"],
+          ["Helipad transit", "19", "Properties you can actually arrive at by air"],
+          ["Crypto escrow", "0 so far", "A FurlPay-defined collection for properties settling on our own rail — nothing has been classified into it yet"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: `Alongside those, three simpler controls: property type (hotels, resorts or villas), a minimum star rating, and a toggle that hides any property whose exact position we could not independently confirm. That last one is unusual and worth explaining — it exists because we would rather show you a slightly rough pin and say so than quietly move it to a building we are not certain about.`,
+      },
+
+      { type: "h2", text: "Discover luxury in Dubai and the UAE" },
+      {
+        type: "p",
+        text: `Dubai is one of the densest single cities on the map — eight curated properties, level with Tokyo and New York and just behind Paris and London on nine. It is a good place to see how the collections work in practice. Ten UAE properties are curated, eight of them in Dubai:`,
+      },
+      {
+        type: "ul",
+        items: [
+          "Burj Al Arab Jumeirah — the sail, and still the shorthand for the whole city.",
+          "Atlantis The Royal and One&Only The Palm — the Palm Jumeirah at two very different registers.",
+          "Armani Hotel Dubai — inside the Burj Khalifa, for people who want the tower rather than the beach.",
+          "Jumeirah Al Qasr — the Madinat, waterways and all.",
+          "Bulgari Resort Dubai — Jumeirah Bay island, deliberately apart from the strip.",
+          "Four Seasons Resort Dubai at Jumeirah Beach and Four Seasons Hotel DIFC — beach and business district, the same operator answering two different trips.",
+          "Emirates Palace Mandarin Oriental, Abu Dhabi — an hour down the coast and a completely different scale.",
+          "Qasr Al Sarab Desert Resort by Anantara — in the Liwa dunes, which is the answer to \"what else is there beyond the skyline?\"",
+        ],
+      },
+      {
+        type: "p",
+        text: `Seeing them on a map rather than in a list makes the geography obvious in a way the names never do: the beach properties cluster on one coastline, the business hotels sit inland around the financial district, and Qasr Al Sarab is a two-and-a-half hour drive into the desert. That is a trip-shaping fact, and it is invisible in a ranked list.`,
+      },
+
+      { type: "h2", text: "Travel by region" },
+      {
+        type: "p",
+        text: `Because the map is global and always answering, you can explore by simply moving it. The curated set is weighted towards where luxury hospitality is actually concentrated, and the distribution is worth knowing before you go looking:`,
+      },
+      {
+        type: "table",
+        headers: ["Region", "Curated properties", "Where they cluster"],
+        rows: [
+          ["Europe", "167", "Paris and London (9 each), Courchevel (7), Rome (5), plus the Italian lakes and the Alps"],
+          ["North America", "80", "New York (8), and resort country across the US and Canada"],
+          ["Southeast Asia", "40", "Singapore (6), Thailand (12 nationwide), Bali and the Vietnamese coast"],
+          ["East Asia", "38", "Tokyo (8), Kyoto (6), Hong Kong (6), Shanghai (6)"],
+          ["South America", "29", "São Paulo (4), Patagonia, the Atacama and the Peruvian highlands"],
+          ["Middle East", "28", "Dubai (8) and Abu Dhabi, plus the Levant and Oman"],
+          ["Africa", "25", "Safari camps and lodges, Cape Town and Marrakech"],
+          ["South Asia", "23", "India (17), plus Sri Lanka, Bhutan and Nepal"],
+          ["Indian Ocean", "20", "The Maldives (14), Seychelles and Mauritius"],
+          ["Caribbean", "20", "Island resorts and private-island properties"],
+          ["Australia, NZ & Pacific", "33", "Including Bora Bora (5) and the French Polynesian atolls"],
+        ],
+      },
+      {
+        type: "p",
+        text: `That is the curated spine. Zoom into any of those regions and OpenStreetMap fills in everything else that is mapped around them — which is how a map with 507 curated properties still shows you hundreds of options in a single city.`,
+      },
+
+      { type: "h2", text: "Beaches, cities, mountains and the far-flung" },
+      {
+        type: "p",
+        text: `The collections make some very specific kinds of trip easy to find, and it is worth naming them as trips rather than as filters.`,
+      },
+      {
+        type: "p",
+        text: `BEACH AND ISLAND. Turn on overwater villas and 22 properties light up across the Maldives, French Polynesia and the Indian Ocean — the whole category, visible at once, which is a far better way to choose between atolls than reading twenty descriptions. The Maldives alone carries 14 curated properties across several atolls.`,
+      },
+      {
+        type: "p",
+        text: `CITY BREAKS. Paris and London hold nine each, Tokyo and New York eight, Kyoto, Hong Kong, Shanghai and Singapore six. In a city the map earns its keep on the question a list cannot answer: is this actually where I want to wake up? Zoom to street level and the answer is right there — the river, the park, the station, the distance to the thing you came for.`,
+      },
+      {
+        type: "p",
+        text: `MOUNTAIN AND ALPINE. 54 alpine chalet properties, with Courchevel alone holding seven — enough that the map shows you the shape of a ski region rather than a list of names you cannot place relative to a lift.`,
+      },
+      {
+        type: "p",
+        text: `DESERT, SAFARI AND SLOW TRAVEL. This is where the map is most useful, because these properties are defined by being far from everything and a list flattens that completely. 40 lodges and 5 camps sit in the dataset — Qasr Al Sarab in the Liwa dunes, safari camps across Botswana and Kenya, lodges in Patagonia. Forbes called ["deep luxury" the trend that would set the tone for 2026](https://www.forbes.com/sites/angelinavillaclarke/2025/11/19/deep-luxury-the-travel-trend-that-will-set-the-tone-for-2026/) — fewer places, longer, with more intent. Remoteness is the point, and remoteness is a geographic fact you have to see.`,
+      },
+      {
+        type: "p",
+        text: `PRIVATE AND VILLA STAYS. Filter to villas for properties with more space and more privacy, and note what else is in the mix: 10 estates, 3 castles, 3 châteaux, 3 manor houses and 3 ryokan. Whole buildings rather than rooms in them.`,
+      },
+
+      { type: "h2", text: "What you can compare at a glance — and what you cannot" },
+      {
+        type: "p",
+        text: `Hover a marker (or tap it on a phone) and a card gives you the photograph, the star class, the collections it belongs to, and where the information came from. Click through and the full panel opens with a photo gallery you can page through.`,
+      },
+      {
+        type: "p",
+        text: `Here is the honest limitation, and it is deliberate. The map does not show you a price on every pin, and it will not let you filter the world by budget. Nightly rates are fetched for the property you are actually looking at, for your dates, at the moment you ask — because a rate stored last week and shown as today's is simply a wrong number. If a rate cannot be confirmed for a specific property, the map leaves it blank rather than estimating one.`,
+      },
+      {
+        type: "p",
+        text: `The trade is real and worth stating plainly: you lose the ability to sort a hundred hotels by price at once, and you gain the guarantee that every price you do see is a live quote for your dates rather than a plausible-looking number. We think that is the right way round for a discovery surface. It is also why the map is fast — drawing it costs no rate lookups at all.`,
+      },
+
+      { type: "h2", text: "Save what you like, and send it to someone" },
+      {
+        type: "ul",
+        items: [
+          "Tap the heart on any property to save it. The list works signed-out, lives in your browser, and holds up to 500 places — enough for a shortlist you build over weeks.",
+          "Any view of the map is a link. Pan to a spot, copy the URL, and whoever opens it sees exactly what you were looking at, at the same zoom. Planning a trip with other people usually means arguing about locations, and this is the fastest way to end that argument.",
+          "The same map, the same properties and the same counts run on the website, the iPhone app and the Android app — so a shortlist you build on a laptop is the one you open on a phone at the airport.",
+        ],
+      },
+
+      { type: "h2", text: "And then you can actually pay for it" },
+      {
+        type: "p",
+        text: `The map is the front half. The back half is that a booking made through FurlPay settles in USDC on Arbitrum — around a second to settle, 0.5% rather than the 2.9–3.5% a card takes, no FX spread when both sides are already holding dollars, and a signed receipt rather than an authorisation that can be reversed months later.`,
+      },
+      {
+        type: "p",
+        text: `For a traveller that mostly shows up as not being quietly charged a foreign transaction fee on an international booking. For the property it shows up as keeping roughly three percent of the booking that a card network would otherwise take. Same room, same night, different rail.`,
+      },
+
+      { type: "h2", text: "Start exploring" },
+      {
+        type: "p",
+        text: `The map is at [furlpay.com/hotels/map](https://furlpay.com/hotels/map). It opens on the world, so there is nothing to decide before you start. Turn on a collection and see where in the world it lands. Type a brand you like and watch where it operates. Zoom into a city you already know and check whether the property you were considering is really where you assumed it was.`,
+      },
+      {
+        type: "p",
+        text: `Where you go next is a better question when you can see all of the answers at once.`,
+      },
+    ],
+  },
   // Travel — the global hotel map ------------------------------------------
   {
     slug: "furlpay-hotel-map-luxury-properties-openstreetmap-book-in-usdc",
