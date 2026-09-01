@@ -11,9 +11,15 @@ import WatchConnectivity
 
 final class WatchConnectivityService: NSObject, WCSessionDelegate {
 
-    var onSnapshot: (@MainActor (GuardianSnapshot) -> Void)?
-    var onToken: (@MainActor (String) -> Void)?
-    var onReachabilityChange: (@MainActor (Bool) -> Void)?
+    // @Sendable so a delegate callback can hand the closure to a @MainActor Task
+    // without also sending `self`. WCSessionDelegate methods are nonisolated and
+    // this class is not Sendable, so capturing `self` in that Task is a Swift 6
+    // data-race error ("sending 'self' risks causing data races"). Capturing
+    // only the closure avoids it. Safe because the sole consumer, WatchStore, is
+    // @MainActor and therefore implicitly Sendable.
+    var onSnapshot: (@MainActor @Sendable (GuardianSnapshot) -> Void)?
+    var onToken: (@MainActor @Sendable (String) -> Void)?
+    var onReachabilityChange: (@MainActor @Sendable (Bool) -> Void)?
 
     func activate() {
         guard WCSession.isSupported() else { return }
@@ -63,12 +69,14 @@ final class WatchConnectivityService: NSObject, WCSessionDelegate {
         error: Error?
     ) {
         let reachable = session.isReachable
-        Task { @MainActor in onReachabilityChange?(reachable) }
+        let notify = onReachabilityChange
+        Task { @MainActor in notify?(reachable) }
     }
 
     func sessionReachabilityDidChange(_ session: WCSession) {
         let reachable = session.isReachable
-        Task { @MainActor in onReachabilityChange?(reachable) }
+        let notify = onReachabilityChange
+        Task { @MainActor in notify?(reachable) }
     }
 
     /// Queued transfers — the periodic snapshot arrives here.
@@ -87,10 +95,12 @@ final class WatchConnectivityService: NSObject, WCSessionDelegate {
 
     private func handle(_ payload: [String: Any]) {
         if let token = payload[SyncKey.token] as? String, !token.isEmpty {
-            Task { @MainActor in onToken?(token) }
+            let deliver = onToken
+            Task { @MainActor in deliver?(token) }
         }
         if let snapshot = SyncCodec.decode(payload) {
-            Task { @MainActor in onSnapshot?(snapshot) }
+            let deliver = onSnapshot
+            Task { @MainActor in deliver?(snapshot) }
         }
     }
 }

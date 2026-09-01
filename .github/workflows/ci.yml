@@ -29,6 +29,13 @@ permissions:
 jobs:
   web-and-node:
     runs-on: ubuntu-latest
+    # tsc walks the whole app in one process and the project outgrew Node's
+    # default ~2GB old-space cap: the type-check step began dying with
+    # "JavaScript heap out of memory" (exit 134) at 2040MB, which reads like a
+    # type error in the log and is not one. Raised job-wide so `npm run build`
+    # does not hit the same wall next.
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
