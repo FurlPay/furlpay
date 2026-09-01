@@ -22,13 +22,25 @@ function Stars({ n }: { n: number }) {
 }
 
 function StayCard({ stay, onPress }: { stay: Stay; onPress: () => void }) {
-  const total = stay.nightlyUsd * NIGHTS;
+  // A rate is absent whenever no live provider returned one, which today is
+  // every property: the indexed dataset carries no prices. The card used to
+  // multiply a fabricated nightlyUsd into a total; now it shows what it knows
+  // and says so about the rest.
+  const total = stay.nightlyUsd !== undefined ? stay.nightlyUsd * NIGHTS : null;
   return (
     <TouchableOpacity
       style={styles.card}
       activeOpacity={0.85}
       accessibilityRole="button"
-      accessibilityLabel={`${stay.name}. ${stay.stars} star ${stay.type}, rated ${stay.rating}. ${usd(stay.nightlyUsd)} a night.`}
+      accessibilityLabel={[
+        stay.name,
+        stay.stars !== undefined ? `${stay.stars} star` : null,
+        stay.type ?? null,
+        stay.rating !== undefined ? `rated ${stay.rating}` : "no rating yet",
+        stay.nightlyUsd !== undefined ? `${usd(stay.nightlyUsd)} a night` : "price unavailable",
+      ]
+        .filter(Boolean)
+        .join(". ")}
       onPress={onPress}
     >
       <View style={styles.photoWrap}>
@@ -57,33 +69,45 @@ function StayCard({ stay, onPress }: { stay: Stay; onPress: () => void }) {
               </Text>
             </View>
           </View>
-          <View style={styles.ratingBadge}>
-            <Ionicons name="star" size={11} color={colors.neon} />
-            <Text style={styles.ratingText}>{stay.rating}</Text>
-          </View>
+          {stay.rating !== undefined && (
+            <View style={styles.ratingBadge}>
+              <Ionicons name="star" size={11} color={colors.neon} />
+              <Text style={styles.ratingText}>{stay.rating}</Text>
+            </View>
+          )}
         </View>
 
         <View style={styles.starsRow}>
-          <Stars n={stay.stars} />
-          <Text style={styles.reviews}>({stay.reviews.toLocaleString()} reviews)</Text>
+          {stay.stars !== undefined && <Stars n={stay.stars} />}
+          {stay.reviews !== undefined && (
+            <Text style={styles.reviews}>({stay.reviews.toLocaleString()} reviews)</Text>
+          )}
         </View>
 
         <View style={styles.priceRow}>
           <View>
-            <Text style={styles.price}>
-              {usd(stay.nightlyUsd)}
-              <Text style={styles.perNight}> /night</Text>
-            </Text>
-            <Text style={styles.totalLine}>
-              {usd(total)} total · {NIGHTS} nights
-            </Text>
+            {total !== null && stay.nightlyUsd !== undefined ? (
+              <>
+                <Text style={styles.price}>
+                  {usd(stay.nightlyUsd)}
+                  <Text style={styles.perNight}> /night</Text>
+                </Text>
+                <Text style={styles.totalLine}>
+                  {usd(total)} total · {NIGHTS} nights
+                </Text>
+              </>
+            ) : (
+              // Saying why beats an empty gap that reads as a spinner that
+              // never resolves.
+              <Text style={styles.totalLine}>Live pricing unavailable</Text>
+            )}
           </View>
           <View style={styles.cta}>
             <Text style={styles.ctaText}>View</Text>
           </View>
         </View>
 
-        {stay.roomsLeft <= 3 && (
+        {stay.roomsLeft !== undefined && stay.roomsLeft <= 3 && (
           <Text style={styles.roomsLeft}>
             Only {stay.roomsLeft} {stay.roomsLeft === 1 ? "room" : "rooms"} left
           </Text>

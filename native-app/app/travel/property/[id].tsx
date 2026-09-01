@@ -144,11 +144,22 @@ export default function Property() {
     );
   }
 
-  const room = rooms[Math.min(roomIdx, rooms.length - 1)];
-  const roomTotal = Math.round(room.nightlyUsd * nights * 100) / 100;
+  // undefined when there are no rooms — see the footer.
+  //
+  // Math.min(roomIdx, rooms.length - 1) is -1 on an empty list, so this used
+  // to read rooms[-1] and dereference undefined one line later. That never
+  // happened while the server always returned three derived rooms; it does now
+  // that a property with no live rate returns none, and it would have been a
+  // crash on the first such screen.
+  const room: Room | undefined =
+    rooms.length > 0 ? rooms[Math.min(roomIdx, rooms.length - 1)] : undefined;
+  const roomTotal = room ? Math.round(room.nightlyUsd * nights * 100) / 100 : 0;
 
-  const book = () =>
-    router.push({
+  const book = () => {
+    // Unreachable while the footer hides the button without a room, but the
+    // guard is cheap and this is the function that spends money.
+    if (!room) return;
+    return router.push({
       pathname: "/travel/checkout",
       params: {
         name: `${p.name} · ${room.name}`,
@@ -165,6 +176,7 @@ export default function Property() {
         roomIndex: String(roomIdx),
       },
     });
+  };
 
   return (
     <Screen>
@@ -181,17 +193,24 @@ export default function Property() {
         <View style={styles.headerBlock}>
           <Text style={styles.name}>{p.name}</Text>
           <View style={styles.metaRow}>
-            <View style={styles.stars}>
-              {Array.from({ length: p.stars }).map((_, i) => (
-                <Ionicons key={i} name="star" size={13} color={GOLD} />
-              ))}
-            </View>
-            <View style={styles.ratingBadge}>
-              <Ionicons name="star" size={12} color={colors.neon} />
-              <Text style={styles.ratingText}>
-                {p.rating} · {p.reviews.toLocaleString()} reviews
-              </Text>
-            </View>
+            {p.stars !== undefined && (
+              <View style={styles.stars}>
+                {Array.from({ length: p.stars }).map((_, i) => (
+                  <Ionicons key={i} name="star" size={13} color={GOLD} />
+                ))}
+              </View>
+            )}
+            {/* The rating and its count travel together: 4.9 over three
+                reviews and 4.4 over nine thousand are not the same claim. */}
+            {p.rating !== undefined && (
+              <View style={styles.ratingBadge}>
+                <Ionicons name="star" size={12} color={colors.neon} />
+                <Text style={styles.ratingText}>
+                  {p.rating}
+                  {p.reviews !== undefined ? ` · ${p.reviews.toLocaleString()} reviews` : ""}
+                </Text>
+              </View>
+            )}
           </View>
           <View style={styles.cityRow}>
             <Ionicons name="location-outline" size={13} color={colors.textDim} />
@@ -201,7 +220,7 @@ export default function Property() {
           </View>
         </View>
 
-        {p.amenities.length > 0 && (
+        {p.amenities !== undefined && p.amenities.length > 0 && (
           <View style={styles.amenities}>
             {p.amenities.map((a) => (
               <View key={a} style={styles.amenity}>
@@ -235,23 +254,45 @@ export default function Property() {
           </View>
         </View>
 
-        <Text style={styles.sectionTitle}>Choose your room</Text>
-        <View style={styles.rooms}>
-          {rooms.map((r, i) => (
-            <RoomOption key={r.name} room={r} selected={i === roomIdx} onPress={() => setRoomIdx(i)} />
-          ))}
-        </View>
+        {rooms.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Choose your room</Text>
+            <View style={styles.rooms}>
+              {rooms.map((r, i) => (
+                <RoomOption key={r.name} room={r} selected={i === roomIdx} onPress={() => setRoomIdx(i)} />
+              ))}
+            </View>
+          </>
+        )}
       </ScrollView>
 
-      <View style={styles.footer}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.footerTotal}>{usd(roomTotal)}</Text>
-          <Text style={type.dim} numberOfLines={1}>
-            {nights} {nights === 1 ? "night" : "nights"} · {guests} {guests === 1 ? "guest" : "guests"} · {room.name}
-          </Text>
+      {/* NO ROOMS MEANS NO BOOKING, and the button goes with them.
+          Room tiers are multipliers over a live nightly rate; without one
+          there is nothing to price, and the server agrees — /api/travel/book
+          answers 503 rate_unavailable rather than charging a derived amount.
+          Leaving "Book now" on screen would offer a purchase that cannot
+          complete, which is worse than saying so. */}
+      {rooms.length > 0 && room ? (
+        <View style={styles.footer}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.footerTotal}>{usd(roomTotal)}</Text>
+            <Text style={type.dim} numberOfLines={1}>
+              {nights} {nights === 1 ? "night" : "nights"} · {guests} {guests === 1 ? "guest" : "guests"} · {room.name}
+            </Text>
+          </View>
+          <Button title="Book now" onPress={book} style={{ paddingHorizontal: spacing.xl }} />
         </View>
-        <Button title="Book now" onPress={book} style={{ paddingHorizontal: spacing.xl }} />
-      </View>
+      ) : (
+        <View style={styles.footer}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.footerTotal}>Live pricing unavailable</Text>
+            <Text style={type.dim} numberOfLines={2}>
+              This property is indexed with its rating and photographs. Rates need a
+              live booking provider, which is not connected yet.
+            </Text>
+          </View>
+        </View>
+      )}
     </Screen>
   );
 }

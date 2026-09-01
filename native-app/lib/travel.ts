@@ -14,23 +14,42 @@ import { api } from "./api";
 
 export type StayType = "Hotel" | "Resort" | "Villa" | "Apartment" | "Hostel";
 
+/**
+ * A property as the server now returns it.
+ *
+ * MOST OF THIS IS OPTIONAL, and that is the correction rather than a
+ * loosening. These fields were all required, which meant the only server
+ * implementation the type accepted was one that invented values — and that is
+ * exactly what generateStays() did, from a hash of the city name: brand, star
+ * rating, review count and a nightly rate between $380 and $780.
+ *
+ * The server now returns real indexed properties with the unknown parts
+ * absent, so the type has to be able to say "absent". A screen that reads
+ * nightlyUsd must handle it being undefined and show the unavailable state,
+ * not a zero and not a placeholder.
+ */
 export interface Stay {
   id: string;
   name: string;
-  brand: string;
+  brand?: string;
   city: string;
   country: string;
-  type: StayType;
-  stars: number;
-  rating: number; // /5
-  reviews: number;
-  nightlyUsd: number;
-  image: string; // gradient token (fallback)
+  type?: StayType;
+  stars?: number;
+  /** Google's rating, /5. Absent for the ~20% with none. */
+  rating?: number;
+  reviews?: number;
+  /** Absent unless a live rate provider returned one. Never derived. */
+  nightlyUsd?: number;
+  image?: string; // gradient token (fallback)
   photo?: string; // real property/city photo
-  amenities: string[];
-  roomsLeft: number;
-  freeCancellation: boolean;
-  eco: boolean;
+  amenities?: string[];
+  /** Live inventory. Absent when no provider reported any — it is NOT zero. */
+  roomsLeft?: number;
+  freeCancellation?: boolean;
+  eco?: boolean;
+  /** Where the record came from. "indexed_dataset" carries no rate. */
+  source?: string;
 }
 
 export interface Deal {
@@ -70,10 +89,15 @@ export interface Room {
 
 export interface PropertyDetail {
   property: Stay;
+  /** Empty when no live rate provider is configured. Room options used to be
+   *  built by multiplying a fabricated nightly rate, so every "room" was an
+   *  invented price with a name on it. */
   rooms: Room[];
-  cashbackPct: number;
-  rateLockMinutes: number;
+  cashbackPct?: number;
+  rateLockMinutes?: number;
   source: string;
+  /** Why there is no price, when there is none. */
+  rateUnavailableReason?: string | null;
 }
 
 export type TripStatus = "confirmed" | "pending" | "cancelled";
@@ -195,13 +219,24 @@ export function formatStayDate(iso: string): string {
  * dependence on the server being able to re-resolve the id.
  */
 export function deriveRooms(stay: Stay): Room[] {
+  // NO RATE, NO ROOMS. These tiers are multipliers over a base nightly rate,
+  // so without a real base every "room" is an invented price with a name on
+  // it — which is exactly what this produced while the server was returning
+  // hash-generated stays. The server's own deriveRooms path was removed for
+  // the same reason and its /property route now returns rooms: [].
+  //
+  // Returning [] rather than a placeholder keeps the parity that the comment
+  // above claims, and the property screen shows its unavailable state.
+  if (stay.nightlyUsd === undefined) return [];
+
+  const base = stay.nightlyUsd;
   const round2 = (n: number) => Math.round(n * 100) / 100;
   return [
-    { name: "Standard Room", multiplier: 1, cancellable: stay.freeCancellation },
+    { name: "Standard Room", multiplier: 1, cancellable: stay.freeCancellation ?? false },
     { name: "Deluxe King Room", multiplier: 1.25, cancellable: true },
     { name: `${stay.type === "Resort" ? "Ocean" : "City"} View Suite`, multiplier: 1.7, cancellable: true },
   ].map((r) => {
-    const nightlyUsd = round2(stay.nightlyUsd * r.multiplier);
+    const nightlyUsd = round2(base * r.multiplier);
     return { ...r, nightlyUsd, nightlyUsdc: nightlyUsd, nightlySol: round2(nightlyUsd * TRAVEL_RATES.SOL) };
   });
 }
@@ -214,14 +249,16 @@ export function fetchTrips(): Promise<TripsResponse> {
   return api<TripsResponse>("/travel/trips");
 }
 
-/** Top-rated 4–5★ stays for a city (live Duffel Stays when the key is set,
- *  deterministic demo inventory otherwise). */
+/** Top-rated stays for a city. Live Duffel Stays when a real key is set,
+ *  otherwise the indexed dataset — which is real, and carries no rate. An
+ *  uncovered city returns an empty list rather than invented inventory. */
 export function fetchHotels(city: string): Promise<HotelsResponse> {
   return api<HotelsResponse>(`/travel/hotels?city=${encodeURIComponent(city)}`);
 }
 
-/** Full property detail + room options. The city that produced the id must be
- *  supplied so the server can re-derive the same deterministic property. */
+/** Full property detail. `city` is no longer needed — a place id is globally
+ *  unique — but is still sent so older builds keep working. An id that is not
+ *  in the dataset now 404s instead of being conjured into existence. */
 export function fetchProperty(id: string, city: string): Promise<PropertyDetail> {
   return api<PropertyDetail>(`/travel/property/${encodeURIComponent(id)}?city=${encodeURIComponent(city)}`);
 }
