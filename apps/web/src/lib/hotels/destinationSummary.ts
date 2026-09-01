@@ -133,3 +133,38 @@ export function summariseDestination(box: BBox, topN = 3): DestinationSummary {
 export function formatCount(n: number, capped = false): string {
   return capped ? `${n.toLocaleString()}+` : n.toLocaleString();
 }
+
+/**
+ * Box around a point, in degrees of latitude.
+ *
+ * 0.25 deg is roughly 28km north-south, which covers a metropolitan area
+ * without swallowing the next city. Longitude is widened by latitude so the
+ * box stays roughly square on the ground — at Reykjavik a degree of longitude
+ * is half what it is at Singapore, and a fixed offset would make northern
+ * cities look emptier than they are.
+ */
+export function boxAround(lat: number, lng: number, latSpanDeg = 0.25): BBox {
+  const lngSpan = latSpanDeg / Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  return {
+    minLat: lat - latSpanDeg,
+    maxLat: lat + latSpanDeg,
+    minLng: lng - lngSpan,
+    maxLng: lng + lngSpan,
+  };
+}
+
+/**
+ * Summarise a named destination, or return null when we hold no coordinate
+ * for it.
+ *
+ * Null rather than an empty summary on purpose: "we have no properties there"
+ * and "we do not know where that is" are different statements, and a card
+ * that renders zeroes for an unrecognised name claims to have looked.
+ */
+export function summariseNamedDestination(
+  coords: { lat: number; lng: number } | undefined,
+  topN = 3
+): DestinationSummary | null {
+  if (!coords) return null;
+  return summariseDestination(boxAround(coords.lat, coords.lng), topN);
+}

@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { summariseDestination, formatCount } from "../destinationSummary";
+import {
+  summariseDestination,
+  summariseNamedDestination,
+  boxAround,
+  formatCount,
+} from "../destinationSummary";
 
 // A destination card is the easiest surface in the product to quietly inflate:
 // "1,240+ Hotels" reads the same whether it was counted or invented, and only
@@ -86,5 +91,44 @@ describe("formatCount", () => {
     expect(formatCount(1240, true)).toBe("1,240+");
     expect(formatCount(1240, false)).toBe("1,240");
     expect(formatCount(7)).toBe("7");
+  });
+});
+
+describe("a named destination we cannot place", () => {
+  it("returns null rather than a card full of zeroes", () => {
+    // "We hold no properties there" and "we do not know where that is" are
+    // different statements. Rendering zeroes for an unrecognised name claims
+    // to have looked.
+    expect(summariseNamedDestination(undefined)).toBeNull();
+  });
+
+  it("returns an honestly empty summary for a place we can locate but do not cover", () => {
+    // Mid-Pacific. A real coordinate, no indexed properties. The page shows
+    // "Not yet indexed" from this, not an invented figure.
+    const s = summariseNamedDestination({ lat: -25, lng: -140 });
+    expect(s).not.toBeNull();
+    expect(s!.total).toBe(0);
+    expect(s!.rating).toBeNull();
+    expect(s!.fromPrice).toBeNull();
+  });
+});
+
+describe("boxAround keeps its shape on the ground", () => {
+  it("widens longitude as latitude rises", () => {
+    // A degree of longitude at Reykjavik is about half what it is at the
+    // equator. A fixed offset would make northern cities look emptier than
+    // they are, purely as an artefact of the projection.
+    const equator = boxAround(0, 0);
+    const north = boxAround(64, 0);
+    const width = (b: { minLng: number; maxLng: number }) => b.maxLng - b.minLng;
+    expect(width(north)).toBeGreaterThan(width(equator) * 2);
+    // Latitude span is unaffected.
+    expect(north.maxLat - north.minLat).toBeCloseTo(equator.maxLat - equator.minLat, 6);
+  });
+
+  it("stays finite at the poles instead of dividing by zero", () => {
+    const polar = boxAround(90, 0);
+    expect(Number.isFinite(polar.maxLng)).toBe(true);
+    expect(Number.isFinite(polar.minLng)).toBe(true);
   });
 });

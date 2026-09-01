@@ -4,13 +4,15 @@ import {
   ChevronLeft,
   CalendarDays,
   BedDouble,
-  Plane,
   Stamp,
   Coins,
+  Star,
   Lightbulb,
   ArrowRight,
   Thermometer,
 } from "lucide-react";
+import { summariseNamedDestination } from "@/lib/hotels/destinationSummary";
+import { CITY_COORDS } from "@/lib/travel/data";
 import { Pill } from "@/components/ui";
 import PropertyCard from "@/components/travel/PropertyCard";
 import FlightCard from "@/components/travel/FlightCard";
@@ -81,10 +83,37 @@ export default async function DestinationOrCategoryPage(props: { params: Promise
   const topActivities = generateActivities(d.name).slice(0, 3);
   const maxTemp = Math.max(...d.weather.map(Math.abs), 1);
 
+  // Counted from the indexed dataset, not authored. Null when we hold no
+  // coordinate for this destination, which is a different statement from
+  // holding no properties there and must not render as a zero.
+  const indexed = summariseNamedDestination(CITY_COORDS[d.name]);
+
+  // `avgHotelUsd` and `avgFlightUsd` are NOT shown, and that is deliberate.
+  // They are editorial numbers on a hand-authored record — nobody measured
+  // them — but rendered in a stats row beside the visa rule and the currency
+  // they read as observations. That is the same failure as an inferred star
+  // rating drawn identically to a counted one. They stay in the type for the
+  // copy that references them in prose; they do not get a statistic's frame.
+  //
+  // What replaces them is a real count, or nothing at all.
   const stats = [
     { Icon: CalendarDays, label: "Best time to visit", value: d.bestTime },
-    { Icon: BedDouble, label: "Avg. hotel / night", value: `$${d.avgHotelUsd}` },
-    { Icon: Plane, label: "Avg. round-trip flight", value: `$${d.avgFlightUsd}` },
+    {
+      Icon: BedDouble,
+      label: "Properties indexed",
+      value: indexed && indexed.total > 0 ? indexed.total.toLocaleString() : "Not yet indexed",
+    },
+    {
+      Icon: Star,
+      label: "Average rating",
+      // The denominator matters: a 4.6 over eleven rated properties is not the
+      // destination's rating. Below a floor we say nothing rather than imply
+      // the whole city was measured.
+      value:
+        indexed?.rating && indexed.rating.over >= 25
+          ? `${indexed.rating.mean.toFixed(1)} over ${indexed.rating.over.toLocaleString()}`
+          : "Not enough ratings",
+    },
     { Icon: Stamp, label: "Visa", value: d.visa },
     { Icon: Coins, label: "Currency", value: d.currency },
   ];
