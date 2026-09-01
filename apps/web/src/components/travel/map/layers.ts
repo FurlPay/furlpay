@@ -120,6 +120,19 @@ export function categoryLabelFor(p: MapPoint): string {
   return t ? t[0].toUpperCase() + t.slice(1) : "";
 }
 
+/**
+ * The label itself: the property's name, then its category a size smaller.
+ *
+ * Held as one value because it appears twice in the zoom `step` below, and two
+ * copies would be two things to keep in agreement.
+ */
+const NAME_LABEL: ExpressionSpecification = [
+  "format",
+  ["get", "name"], {},
+  "\n", {},
+  ["get", "categoryLabel"], { "font-scale": 0.82 },
+];
+
 export function bandFor(count: number) {
   return BANDS.find((b) => count <= b.max) ?? BANDS[BANDS.length - 1];
 }
@@ -557,11 +570,26 @@ export function layerSpecs(): LayerSpecification[] {
       layout: {
         // Two lines in ONE label, so the name and its category collide, move
         // and drop together rather than drifting apart.
+        //
+        // DENSITY IS GATED BY ZOOM, not left to the collision detector alone.
+        // Collision guarantees labels never overlap, but it does not decide
+        // WHICH ones are worth showing: at zoom 12 a Dubai viewport holds ~200
+        // mapped hotels and the detector will happily fill every gap, which is
+        // readable and still far too busy to read a city through. So below
+        // zoom 14 only the well-described properties are named — labelRank
+        // puts curated ones near 40-100 and bare OSM points at 900 — and the
+        // rest of the names arrive as the reader zooms in and earns the room
+        // for them. An empty text-field draws nothing and reserves no
+        // collision box, so a hidden label also frees space for a kept one.
+        //
+        // `["zoom"]` sits at the top level of a `step`, which is the only form
+        // the style spec allows it in.
         "text-field": [
-          "format",
-          ["get", "name"], {},
-          "\n", {},
-          ["get", "categoryLabel"], { "font-scale": 0.82 },
+          "step",
+          ["zoom"],
+          ["case", [">=", ["get", "labelRank"], 500], "", NAME_LABEL],
+          14,
+          NAME_LABEL,
         ],
         "text-font": ["Noto Sans Bold"],
         "text-size": ["interpolate", ["linear"], ["zoom"], 12, 11, 16, 12.5],
