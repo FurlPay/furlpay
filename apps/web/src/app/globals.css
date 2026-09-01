@@ -679,10 +679,13 @@ textarea:focus-visible,
 
 .hm-card {
   background: #ffffff;
-  border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.8);
-  box-shadow: 0 15px 40px rgba(15, 23, 42, 0.16);
-  animation: hmCardIn 300ms cubic-bezier(0.22, 1, 0.36, 1);
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.6);
+  box-shadow:
+    0 4px 6px -1px rgba(15, 23, 42, 0.05),
+    0 10px 15px -3px rgba(15, 23, 42, 0.08),
+    0 20px 50px -5px rgba(15, 23, 42, 0.12);
+  animation: hmCardIn 200ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 /* The pointer aims at the marker the card describes, and moves to the side the
@@ -693,35 +696,37 @@ textarea:focus-visible,
   position: absolute;
   width: 0;
   height: 0;
-  border-top: 9px solid transparent;
-  border-bottom: 9px solid transparent;
+  border-top: 10px solid transparent;
+  border-bottom: 10px solid transparent;
 }
 
 .hm-card__pointer::after {
   content: "";
-  top: -9px;
+  top: -10px;
 }
 
 .hm-card__pointer--left {
-  left: -9px;
-  border-right: 9px solid rgba(15, 23, 42, 0.08);
+  left: -10px;
+  border-right: 10px solid rgba(226, 232, 240, 0.9);
+  filter: drop-shadow(-2px 2px 2px rgba(15, 23, 42, 0.06));
 }
 .hm-card__pointer--left::after {
   left: 1px;
-  border-right: 9px solid #ffffff;
+  border-right: 10px solid #ffffff;
 }
 
 .hm-card__pointer--right {
-  right: -9px;
-  border-left: 9px solid rgba(15, 23, 42, 0.08);
+  right: -10px;
+  border-left: 10px solid rgba(226, 232, 240, 0.9);
+  filter: drop-shadow(2px 2px 2px rgba(15, 23, 42, 0.06));
 }
 .hm-card__pointer--right::after {
   right: 1px;
-  border-left: 9px solid #ffffff;
+  border-left: 10px solid #ffffff;
 }
 
 @keyframes hmCardIn {
-  from { opacity: 0; transform: translateY(6px) scale(0.985); }
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 

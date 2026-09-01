@@ -319,8 +319,10 @@ export default function HotelMapHoverCard({
       {target.kind === "cluster" ? (
         <>
         {/* --- header ------------------------------------------------------- */}
-        <div className="flex items-center gap-3 px-4 pb-3 pt-4">
-          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-[#F1F5F9] ring-1 ring-[#E2E8F0]">
+        {/* A faint wash behind the header separates the destination's identity
+            from the photograph below it without drawing a rule. */}
+        <div className="flex items-center gap-3 rounded-t-[19px] bg-gradient-to-b from-[#F0F4FF] to-white px-4 pb-3 pt-4">
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-[#F1F5F9] ring-2 ring-white shadow-sm">
             {heroImage.url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={heroImage.url} alt="" className="h-full w-full object-cover" loading="lazy" />
@@ -337,7 +339,7 @@ export default function HotelMapHoverCard({
           {/* The rating pill renders only when Google actually has a rating.
               There is no default and no placeholder star. */}
           {rating !== undefined && (
-            <span className="flex shrink-0 items-center gap-1 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[13px] font-bold text-[#0F172A]">
+            <span className="flex shrink-0 items-center gap-1 rounded-full border border-[#D4DEFF] bg-white px-2.5 py-1 text-[13px] font-bold text-[#0F172A] shadow-sm">
               <StarIcon className="h-3.5 w-3.5 shrink-0 text-[#F4B400]" /> {rating.toFixed(1)}
             </span>
           )}
@@ -347,7 +349,7 @@ export default function HotelMapHoverCard({
         </div>
 
         {/* --- hero --------------------------------------------------------- */}
-        <div className="relative mx-4 h-[150px] overflow-hidden rounded-xl bg-[#F1F5F9]">
+        <div className="relative mx-4 h-[160px] overflow-hidden rounded-2xl bg-[#F1F5F9]">
           {heroImage.url ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -381,7 +383,7 @@ export default function HotelMapHoverCard({
         </div>
 
         {/* --- statistics ---------------------------------------------------- */}
-          <div className="mt-3.5 grid grid-cols-4 gap-1 border-b border-[#F1F5F9] px-4 pb-3.5">
+          <div className="mt-4 grid grid-cols-4 gap-2 border-b border-[#F1F5F9] px-4 pb-4">
             <Stat icon={<HotelIcon />} value={target.cluster.families.hotels} label="Hotels" />
             <Stat icon={<ResortIcon />} value={target.cluster.families.resorts} label="Resorts" />
             <Stat icon={<VillaIcon />} value={target.cluster.families.villas} label="Villas" />
@@ -475,7 +477,10 @@ function PropertyPreview({
   return (
     <>
       {/* --- hero, full bleed --------------------------------------------- */}
-      <div className="relative h-[168px] overflow-hidden rounded-t-[16px] bg-[#F1F5F9]">
+      {/* rounded-t-[19px] rather than 20: the hero sits INSIDE a 20px card with
+          a 1px border, so matching the outer radius exactly leaves a hairline of
+          border showing through at the corners. */}
+      <div className="relative h-[180px] overflow-hidden rounded-t-[19px] bg-[#F1F5F9]">
         {image.url ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -487,8 +492,15 @@ function PropertyPreview({
             />
             {/* Attribution travels with the picture: a licence condition for
                 Commons, a policy requirement for Google. */}
+            {/* A scrim rather than a heavier chip: the credit has to stay
+                readable over a bright photograph without putting a black box on
+                top of the thing the reader is looking at. */}
+            <span
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-black/35 to-transparent"
+              aria-hidden
+            />
             {image.credit && (
-              <span className="absolute bottom-1.5 right-2 max-w-[70%] truncate rounded bg-black/45 px-1.5 py-0.5 text-[9.5px] text-white/90">
+              <span className="absolute bottom-1.5 right-2 max-w-[70%] truncate rounded px-1.5 py-0.5 text-[9.5px] font-medium text-white/95">
                 {image.credit}
               </span>
             )}
@@ -531,14 +543,14 @@ function PropertyPreview({
       <div className="px-4 pb-3.5 pt-3">
         {/* Two lines then ellipsis. Hotel names run long, and a preview that
             grows to fit one starts covering the map it is describing. */}
-        <p className="line-clamp-2 text-[15px] font-bold leading-snug text-[#0F172A]">
+        <p className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.01em] text-[#0F172A]">
           {point.name}
         </p>
 
-        <div className="mt-1.5 flex items-center gap-2 text-[12.5px]">
+        <div className="mt-2 flex items-center gap-2 text-[12.5px]">
           {stars !== undefined && (
             <span className="flex shrink-0 items-center gap-1">
-              <StarIcon className="h-3.5 w-3.5 shrink-0 text-[#F4B400]" />
+              <StarIcon className="h-4 w-4 shrink-0 text-[#F4B400]" />
               <span className="font-semibold text-[#0F172A]">{stars.toFixed(1)}</span>
             </span>
           )}
@@ -573,7 +585,7 @@ function PropertyPreview({
           <button
             type="button"
             onClick={onOpen}
-            className="flex shrink-0 items-center gap-1 text-[12px] font-semibold text-[#1B7A4E] transition-opacity hover:opacity-75"
+            className="flex shrink-0 items-center gap-1 rounded-full bg-[#ECF7F1] px-2.5 py-1 text-[12px] font-semibold text-[#1B7A4E] transition-colors hover:bg-[#DCEFE5]"
           >
             View details
             <ArrowRightIcon />
@@ -627,7 +639,7 @@ function PropertyCard({
       className="group min-w-0 text-left transition-transform duration-200 hover:-translate-y-0.5"
     >
       <div
-        className={`overflow-hidden rounded-lg bg-[#F1F5F9] ${wide ? "h-[140px]" : "h-[115px]"}`}
+        className={`overflow-hidden rounded-xl bg-[#F1F5F9] ${wide ? "h-[140px]" : "h-[120px]"}`}
       >
         {image.url ? (
           // eslint-disable-next-line @next/next/no-img-element
