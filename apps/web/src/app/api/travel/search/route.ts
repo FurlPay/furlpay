@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { z } from "zod";
+import { searchProperties } from "@/lib/travel/propertySource";
 import { validateBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import {
   generateStays,
-  generateFlights,
-  generateCars,
-  generateActivities,
   nights,
   StayType,
   Flight,
-  CarCategory,
-  ActivityCategory,
 } from "@/lib/travel/data";
-import { searchDuffelFlights, searchDuffelStays, searchDuffelCars } from "@/lib/travel/duffel";
+import {
+  duffelMode,
+  searchDuffelCars,
+  searchDuffelFlights,
+  searchDuffelStays,
+} from "@/lib/travel/duffel";
 import { assessResultSet, rankingWeight } from "@/lib/property/intelligence";
 import { rankStays } from "@/lib/travel/ranking";
 
@@ -62,19 +63,33 @@ export async function POST(req: NextRequest) {
     // Live Duffel Stays (real properties + photos) when the key is set and the
     // city is a known anchor; demo generator otherwise. Filters apply to both.
     let stays = await searchDuffelStays(body.city ?? "", body.checkIn, body.checkOut, Number(body.guests) || 2);
-    const source = stays?.length ? "duffel" : "demo";
+    const source = "duffel";
     if (!stays?.length) {
-      stays = generateStays(body.city ?? "", {
-        maxNightlyUsd: body.maxNightlyUsd ? Number(body.maxNightlyUsd) : undefined,
-        minStars: body.minStars ? Number(body.minStars) : undefined,
-        type: body.propertyType as StayType | undefined,
-        count: 16,
+      // Bookable stays are BOOKABLE — they carry a live rate someone will
+      // honour. This used to fall through to generateStays(), so a city Duffel
+      // could not answer returned sixteen invented hotels at invented prices.
+      //
+      // We do hold 16,014 real properties, but they are indexed records with
+      // no rate, and putting them here would answer "what can I book tonight
+      // for this price" with "here are some buildings". They are served by
+      // /api/travel/hotels and the map, which do not promise a bookable rate.
+      // `indexedAlternatives` tells the caller how many exist so it can offer
+      // that route instead of an empty page.
+      const alternatives = searchProperties({ city: body.city ?? "", limit: 1 });
+      return NextResponse.json({
+        type: "stays",
+        city: body.city ?? "",
+        nights: n,
+        count: 0,
+        results: [],
+        source: "unavailable",
+        unavailableReason: duffelMode() === "live" ? "no_offers" : "no_live_provider",
+        indexedAlternatives: alternatives.length > 0,
       });
-    } else {
-      if (body.minStars) stays = stays.filter((x) => x.stars >= Number(body.minStars));
-      if (body.propertyType) stays = stays.filter((x) => x.type === body.propertyType);
-      if (body.maxNightlyUsd) stays = stays.filter((x) => x.nightlyUsd <= Number(body.maxNightlyUsd));
     }
+    if (body.minStars) stays = stays.filter((x) => x.stars >= Number(body.minStars));
+    if (body.propertyType) stays = stays.filter((x) => x.type === body.propertyType);
+    if (body.maxNightlyUsd) stays = stays.filter((x) => x.nightlyUsd <= Number(body.maxNightlyUsd));
     // ---- Property intelligence ------------------------------------------
     //
     // Runs over the WHOLE result set, not per property: duplicates and price
@@ -158,8 +173,18 @@ export async function POST(req: NextRequest) {
     if (live?.length) {
       return NextResponse.json({ type: "flights", count: live.length, results: live, source: "duffel" });
     }
-    const flights: Flight[] = generateFlights(body.from ?? "", body.to ?? "", body.date ?? "", cabin);
-    return NextResponse.json({ type: "flights", count: flights.length, results: flights, source: "demo" });
+    // No fallback. This used to call generateFlights(), which invented
+    // carriers, times and fares from a hash of the route — so a search Duffel
+    // could not answer returned a full page of flights that do not exist, at
+    // prices nobody quoted, and the only tell was `source: "demo"` in a field
+    // the UI does not render.
+    return NextResponse.json({
+      type: "flights",
+      count: 0,
+      results: [],
+      source: "unavailable",
+      unavailableReason: duffelMode() === "live" ? "no_offers" : "no_live_provider",
+    });
   }
 
   if (kind === "cars") {
@@ -167,26 +192,44 @@ export async function POST(req: NextRequest) {
     // Live Duffel Cars (40+ brands) when the key is set and the city is a
     // known anchor; demo generator otherwise. Filters apply to both.
     let cars = await searchDuffelCars(body.city ?? "", body.pickUp ?? body.checkIn, body.dropOff ?? body.checkOut);
-    const source = cars?.length ? "duffel" : "demo";
     if (!cars?.length) {
-      cars = generateCars(body.city ?? "", {
-        category: body.category as CarCategory | undefined,
-        maxDailyUsd: body.maxDailyUsd ? Number(body.maxDailyUsd) : undefined,
-        count: 14,
+      // Same as flights: generateCars() minted vehicles and daily rates from a
+      // seed. An empty result is the honest answer when the supplier has none.
+      return NextResponse.json({
+        type: "cars",
+        city: body.city ?? "",
+        days,
+        count: 0,
+        results: [],
+        source: "unavailable",
+        unavailableReason: duffelMode() === "live" ? "no_offers" : "no_live_provider",
       });
-    } else {
-      if (body.category) cars = cars.filter((x) => x.category === body.category);
-      if (body.maxDailyUsd) cars = cars.filter((x) => x.dailyUsd <= Number(body.maxDailyUsd));
     }
-    return NextResponse.json({ type: "cars", city: body.city ?? "", days, count: cars.length, results: cars, source });
+    if (body.category) cars = cars.filter((x) => x.category === body.category);
+    if (body.maxDailyUsd) cars = cars.filter((x) => x.dailyUsd <= Number(body.maxDailyUsd));
+    return NextResponse.json({
+      type: "cars",
+      city: body.city ?? "",
+      days,
+      count: cars.length,
+      results: cars,
+      source: "duffel",
+    });
   }
 
   if (kind === "activities") {
-    const activities = generateActivities(body.city ?? "", {
-      category: body.category as ActivityCategory | undefined,
-      maxPriceUsd: body.maxPriceUsd ? Number(body.maxPriceUsd) : undefined,
+    // There is no activities provider integrated at all — unlike flights,
+    // stays and cars, this never had one, so generateActivities() was the ONLY
+    // source. Every tour, price and duration on the activities page was
+    // invented. Until a real supplier is wired, the honest answer is nothing.
+    return NextResponse.json({
+      type: "activities",
+      city: body.city ?? "",
+      count: 0,
+      results: [],
+      source: "unavailable",
+      unavailableReason: "no_provider_integrated",
     });
-    return NextResponse.json({ type: "activities", city: body.city ?? "", count: activities.length, results: activities, source: "demo" });
   }
 
   return NextResponse.json({ type: kind, results: [], note: "Unknown search type.", source: "demo" }, { status: 400 });
