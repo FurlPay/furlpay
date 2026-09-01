@@ -3,8 +3,43 @@
   "ui": "stream",
   "tasks": {
     "build": {
-      "dependsOn": ["^build"],
-      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        ".next/**",
+        "!.next/cache/**",
+        "dist/**"
+      ],
+      "env": [
+        "ALPACA_*",
+        "CNFT_*",
+        "CONTACT_INBOX",
+        "CRON_SECRET",
+        "DISCORD_*",
+        "DUFFEL_API_KEY",
+        "EMAIL_FROM",
+        "FURLPAY_*",
+        "GITHUB_WEBHOOK_SECRET",
+        "GOOGLE_PLACES_API_KEY",
+        "HELIUS_API_KEY",
+        "INTEGRATION_MODE",
+        "KV_*",
+        "LIFI_*",
+        "MERCHANT_SOLANA_WALLET",
+        "NEXT_PUBLIC_*",
+        "NODE_ENV",
+        "REDIS_URL",
+        "RESEND_*",
+        "SOLANA_*",
+        "SUPABASE_*",
+        "SUPPORT_INBOX",
+        "TELEGRAM_*",
+        "TREASURY_ADDRESS_BSC",
+        "VERCEL_ENV",
+        "VERCEL_URL",
+        "X402_PAY_TO"
+      ]
     },
     "dev": {
       "cache": false,
