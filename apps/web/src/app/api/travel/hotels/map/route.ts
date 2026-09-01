@@ -258,9 +258,15 @@ function parseFilter(sp: URLSearchParams): CuratedFilter {
 function familiesToTypes(families: PropertyFamily[]): string[] {
   const out = new Set<string>();
   for (const f of families) {
+    // Serviced apartments and motels are what a traveller means by "a hotel
+    // room" even when Google files them separately.
     if (f === "hotels") ["hotel", "extended_stay", "motel"].forEach((t) => out.add(t));
     if (f === "resorts") out.add("resort");
-    if (f === "villas") ["villa", "guest_house"].forEach((t) => out.add(t));
+    // WHOLE-PROPERTY STAYS ONLY. This used to include guest_house, and before
+    // the taxonomy was corrected it also swept up private_guest_room — so a
+    // Villas filter returned 1,922 spare bedrooms in other people's houses.
+    // A villa is a place you have to yourself.
+    if (f === "villas") out.add("villa");
   }
   return [...out];
 }

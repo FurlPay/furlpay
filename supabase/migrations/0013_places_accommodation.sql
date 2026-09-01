@@ -74,9 +74,14 @@ create table places_accommodation (
   -- FurlPay's normalized taxonomy, derived ONLY from google_types. Never from
   -- the property's name: "Villa Rotana" is a hotel.
   property_type text not null default 'other_accommodation'
+                -- Kept in step with PropertyType in lib/hotels/placesStore.ts.
+                -- `private_room` is separate from `villa` on purpose: a room in
+                -- someone's home and a whole cottage are not the same product,
+                -- and collapsing them mislabelled 1,922 properties.
                 check (property_type in (
-                  'hotel','resort','villa','hostel','motel',
-                  'guest_house','extended_stay','other_accommodation')),
+                  'hotel','resort','villa','private_room','bed_and_breakfast',
+                  'guest_house','hostel','motel','extended_stay',
+                  'other_accommodation')),
 
   formatted_address text check (formatted_address is null or length(formatted_address) <= 500),
   city          text check (city is null or length(city) <= 160),

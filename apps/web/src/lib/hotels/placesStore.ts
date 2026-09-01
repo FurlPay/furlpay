@@ -28,11 +28,46 @@ export type PropertyType =
   | "hotel"
   | "resort"
   | "villa"
+  | "private_room"
+  | "bed_and_breakfast"
+  | "guest_house"
   | "hostel"
   | "motel"
-  | "guest_house"
   | "extended_stay"
   | "other_accommodation";
+
+/**
+ * Google type -> FurlPay type -> what a traveller is shown.
+ *
+ * THE ONE RULE: the display label must describe what you actually get to sleep
+ * in. An earlier version folded `private_guest_room`, `cottage` and `farmstay`
+ * together as "villa", and the audit showed what that produced — 84% of 2,284
+ * "villas" were private guest rooms. Someone filtering for a villa expecting a
+ * house to themselves was being handed a spare bedroom in a stranger's home.
+ * The two are not variations of one thing.
+ *
+ *   resort_hotel        -> resort             Resort
+ *   hotel               -> hotel              Hotel
+ *   cottage, farmstay   -> villa              Villa & Cottage    (whole property)
+ *   private_guest_room  -> private_room       Private Room       (a room in a home)
+ *   bed_and_breakfast   -> bed_and_breakfast  B&B
+ *   guest_house         -> guest_house        Guest House
+ *   hostel              -> hostel             Hostel             (shared dorm)
+ *   motel               -> motel              Motel
+ *   extended_stay_hotel -> extended_stay      Serviced Apartment
+ */
+export const PROPERTY_TYPE_LABEL: Record<PropertyType, string> = {
+  hotel: "Hotel",
+  resort: "Resort",
+  villa: "Villa & Cottage",
+  private_room: "Private Room",
+  bed_and_breakfast: "B&B",
+  guest_house: "Guest House",
+  hostel: "Hostel",
+  motel: "Motel",
+  extended_stay: "Serviced Apartment",
+  other_accommodation: "Stay",
+};
 
 /**
  * Normalize Google's type vocabulary into FurlPay's.
@@ -50,10 +85,17 @@ export type PropertyType =
 export function classifyPropertyType(googleTypes: readonly string[]): PropertyType {
   const t = new Set(googleTypes);
   if (t.has("resort_hotel")) return "resort";
-  if (t.has("cottage") || t.has("private_guest_room") || t.has("farmstay")) return "villa";
+  // A whole property to yourself. `private_guest_room` deliberately does NOT
+  // belong here — see the mapping table above.
+  if (t.has("cottage") || t.has("farmstay")) return "villa";
+  if (t.has("private_guest_room")) return "private_room";
   if (t.has("hostel")) return "hostel";
   if (t.has("motel")) return "motel";
-  if (t.has("bed_and_breakfast") || t.has("guest_house")) return "guest_house";
+  // B&B and guest house are kept apart: both are small and hosted, but one
+  // serves breakfast as the point of the thing and the reader knows which they
+  // want.
+  if (t.has("bed_and_breakfast")) return "bed_and_breakfast";
+  if (t.has("guest_house")) return "guest_house";
   if (t.has("extended_stay_hotel")) return "extended_stay";
   if (t.has("hotel")) return "hotel";
   return "other_accommodation";
@@ -246,8 +288,8 @@ export function summarize(rows: readonly AccommodationRow[]): {
   byType: Record<PropertyType, number>;
 } {
   const byType = {
-    hotel: 0, resort: 0, villa: 0, hostel: 0,
-    motel: 0, guest_house: 0, extended_stay: 0, other_accommodation: 0,
+    hotel: 0, resort: 0, villa: 0, private_room: 0, bed_and_breakfast: 0,
+    guest_house: 0, hostel: 0, motel: 0, extended_stay: 0, other_accommodation: 0,
   } as Record<PropertyType, number>;
 
   let total = 0;

@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   CONTENT_TTL_DAYS,
+  PROPERTY_TYPE_LABEL,
+  type PropertyType,
   classifyPropertyType,
   extractAddress,
   isBookable,
@@ -29,12 +31,13 @@ describe("classification is driven by tags, never by the name", () => {
   it.each([
     [["resort_hotel"], "resort"],
     [["cottage"], "villa"],
-    [["private_guest_room"], "villa"],
     [["farmstay"], "villa"],
+    // A room in someone's home, NOT a villa. See the mapping table.
+    [["private_guest_room"], "private_room"],
     [["hostel"], "hostel"],
     [["motel"], "motel"],
     [["guest_house"], "guest_house"],
-    [["bed_and_breakfast"], "guest_house"],
+    [["bed_and_breakfast"], "bed_and_breakfast"],
     [["extended_stay_hotel"], "extended_stay"],
     [["hotel"], "hotel"],
   ])("maps %j to %s", (types, expected) => {
@@ -46,6 +49,31 @@ describe("classification is driven by tags, never by the name", () => {
       "other_accommodation"
     );
     expect(classifyPropertyType([])).toBe("other_accommodation");
+  });
+
+  it("keeps a whole-property stay apart from a room in someone's home", () => {
+    // The regression this guards: folding private_guest_room into `villa` made
+    // 84% of 2,284 "villas" spare bedrooms. A traveller filtering for a villa
+    // wants a place to themselves, and the two are not variations of one thing.
+    expect(classifyPropertyType(["cottage"])).toBe("villa");
+    expect(classifyPropertyType(["farmstay"])).toBe("villa");
+    expect(classifyPropertyType(["private_guest_room"])).not.toBe("villa");
+    expect(classifyPropertyType(["private_guest_room"])).toBe("private_room");
+  });
+
+  it("keeps a B&B apart from a guest house", () => {
+    expect(classifyPropertyType(["bed_and_breakfast"])).toBe("bed_and_breakfast");
+    expect(classifyPropertyType(["guest_house"])).toBe("guest_house");
+  });
+
+  it("every type has a traveller-facing label", () => {
+    for (const t of Object.keys(PROPERTY_TYPE_LABEL) as PropertyType[]) {
+      expect(PROPERTY_TYPE_LABEL[t].length).toBeGreaterThan(0);
+    }
+    // The label has to say what you sleep in, not what Google calls it.
+    expect(PROPERTY_TYPE_LABEL.private_room).toBe("Private Room");
+    expect(PROPERTY_TYPE_LABEL.villa).toBe("Villa & Cottage");
+    expect(PROPERTY_TYPE_LABEL.extended_stay).toBe("Serviced Apartment");
   });
 
   it("ignores the property's name entirely", () => {
