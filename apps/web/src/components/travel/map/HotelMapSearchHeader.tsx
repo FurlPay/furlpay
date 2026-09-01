@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { PropertyFamily } from "@/lib/hotels/curated";
+import VoiceInputButton from "@/components/VoiceInputButton";
 import { ClockIcon, CloseIcon, HotelIcon, PinIcon, SearchIcon } from "./icons";
 
 // ---------------------------------------------------------------------------
@@ -278,6 +279,30 @@ export default function HotelMapSearchHeader({
                 </kbd>
               )
             )}
+
+            {/* Dictation, at the right edge where the clear button and the
+                shortcut hint already live.
+
+                It fills the field rather than searching on your behalf: the
+                transcript lands in the input, the suggestion list opens
+                underneath it, and picking a destination stays a deliberate
+                act. Speech recognition mishears place names often enough that
+                flying the map straight off a transcript would send people
+                somewhere they did not ask for, with no obvious way back.
+
+                VoiceInputButton renders nothing at all where SpeechRecognition
+                is missing — Firefox, and every browser with the API disabled —
+                so this is additive and never leaves a dead control on screen. */}
+            <VoiceInputButton
+              label="Search destinations by voice"
+              onResult={(transcript) => {
+                onQuery(transcript);
+                // Focus last: it opens the suggestion list against the text we
+                // just set, so the spoken query behaves exactly like a typed one.
+                input.current?.focus();
+              }}
+              className="text-[#64748B] hover:bg-black/[0.06] hover:text-[#0F172A]"
+            />
           </div>
 
           {open && (
