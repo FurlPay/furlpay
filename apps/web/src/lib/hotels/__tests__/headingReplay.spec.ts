@@ -14,7 +14,9 @@ import {
   formatMetrics,
   headingFromOrientation,
   measure,
+  recoveryTime,
   replay,
+  type ReplayResult,
 } from "../headingReplay";
 
 const ENV: TraceEnvironment = {
@@ -238,5 +240,112 @@ describe("baseline comparison on synthetic traces", () => {
     console.log(`\n  raw-compass    confidentWrong ${(raw.confidentWrong * 100).toFixed(1)}%`);
     console.log(`  furlpay-fusion confidentWrong ${(fused.confidentWrong * 100).toFixed(1)}%\n`);
     expect(fused.confidentWrong).toBeLessThan(raw.confidentWrong);
+  });
+});
+
+describe("coverage — the counterweight to confidentWrong", () => {
+  /** Hand-built results, so a specific gaming strategy can be scored directly. */
+  const results = (t: HeadingTrace, f: (i: number) => { heading: number | null; confidence: number }): ReplayResult => ({
+    algorithm: "probe",
+    samples: t.location.map((s, i) => ({ t: s.t, source: "probe", ...f(i) })),
+  });
+
+  it("reports zero coverage for an algorithm that never answers", () => {
+    const t = walk({ scenario: "x", trueHeading: 45 });
+    const m = measure(t, replay(t, "always-uncertain"));
+    expect(m.coverage).toBe(0);
+    expect(m.confidentCoverage).toBe(0);
+  });
+
+  it("catches the hedging cheat that confidentWrong alone rewards", () => {
+    // Answers every sample, 90 degrees wrong, but always just under the
+    // confidence bar. confidentWrong says it is flawless. It is not: the reader
+    // is shown a wrong arrow, permanently, in a wide wedge.
+    const t = walk({ scenario: "hedge", trueHeading: 0 });
+    const hedged = measure(t, results(t, () => ({ heading: 90, confidence: 0.69 })));
+    expect(hedged.confidentWrong).toBe(0);   // gamed
+    expect(hedged.coverage).toBe(1);         // and full coverage, so that misses it too
+    expect(hedged.confidentCoverage).toBe(0); // only this column notices
+    expect(hedged.p50).toBeCloseTo(90, 0);
+  });
+
+  it("gives an honest confident algorithm full confident coverage", () => {
+    const t = walk({ scenario: "honest", trueHeading: 0 });
+    const m = measure(t, results(t, () => ({ heading: 0, confidence: 0.9 })));
+    expect(m.confidentCoverage).toBe(1);
+    expect(m.confidentWrong).toBe(0);
+  });
+});
+
+describe("risk-weighted error", () => {
+  const flat = (t: HeadingTrace, heading: number, confidence: number): ReplayResult => ({
+    algorithm: "probe",
+    samples: t.location.map((s) => ({ t: s.t, heading, confidence, source: "probe" })),
+  });
+
+  it("charges less for the same error when it was asserted quietly", () => {
+    const t = walk({ scenario: "x", trueHeading: 0 });
+    const loud = measure(t, flat(t, 40, 1.0));
+    const quiet = measure(t, flat(t, 40, 0.2));
+    // Identical p50; the cost to a reader is not identical.
+    expect(loud.p50).toBeCloseTo(quiet.p50!, 3);
+    expect(quiet.riskWeightedError!).toBeLessThan(loud.riskWeightedError!);
+    expect(loud.riskWeightedError!).toBeCloseTo(40, 0);
+    expect(quiet.riskWeightedError!).toBeCloseTo(8, 0);
+  });
+
+  it("is null when nothing could be scored", () => {
+    const t = walk({ scenario: "x", trueHeading: 0 });
+    expect(measure(t, replay(t, "always-uncertain")).riskWeightedError).toBeNull();
+  });
+});
+
+describe("convergence is measured from the LAST excursion, not the first crossing", () => {
+  const from = (t: HeadingTrace, errs: number[]): ReplayResult => ({
+    algorithm: "probe",
+    samples: errs.map((e, i) => ({ t: t.location[i].t, heading: (t.truth[i].heading + e) % 360, confidence: 1, source: "probe" })),
+  });
+
+  it("does not credit an algorithm that passes through the right answer", () => {
+    const t = walk({ scenario: "x", trueHeading: 0, samples: 6 });
+    // Correct at sample 1, then wrong again, and only settles at sample 4.
+    const m = measure(t, from(t, [80, 2, 80, 80, 3, 2]));
+    // First crossing was 1s in. It had not converged; it left again.
+    expect(m.convergenceSec).toBe(4);
+  });
+
+  it("returns null when the error never settles", () => {
+    const t = walk({ scenario: "x", trueHeading: 0, samples: 5 });
+    // Null, not zero and not the trace length: "never converged" is a finding.
+    expect(measure(t, from(t, [80, 80, 5, 80, 80])).convergenceSec).toBeNull();
+  });
+
+  it("reports zero when it was right from the first sample", () => {
+    const t = walk({ scenario: "x", trueHeading: 0, samples: 4 });
+    expect(measure(t, from(t, [1, 1, 2, 1])).convergenceSec).toBe(0);
+  });
+});
+
+describe("recovery after a disturbance", () => {
+  const from = (t: HeadingTrace, errs: number[]): ReplayResult => ({
+    algorithm: "probe",
+    samples: errs.map((e, i) => ({ t: t.location[i].t, heading: (t.truth[i].heading + e) % 360, confidence: 1, source: "probe" })),
+  });
+
+  it("measures from the moment of the disturbance, not the start of the walk", () => {
+    const t = walk({ scenario: "magnet at 3s", trueHeading: 0, samples: 8 });
+    // Clean, then a magnet at t=3000, wrong for two fixes, then settled.
+    const r = from(t, [1, 2, 1, 90, 88, 4, 2, 1]);
+    expect(recoveryTime(t, r, 3000)).toBe(2);
+  });
+
+  it("returns null when it never recovers inside the trace", () => {
+    const t = walk({ scenario: "x", trueHeading: 0, samples: 6 });
+    expect(recoveryTime(t, from(t, [1, 1, 1, 90, 90, 90]), 3000)).toBeNull();
+  });
+
+  it("returns null when there is nothing after the disturbance to judge", () => {
+    const t = walk({ scenario: "x", trueHeading: 0, samples: 4 });
+    expect(recoveryTime(t, from(t, [1, 1, 1, 1]), 99_000)).toBeNull();
   });
 });

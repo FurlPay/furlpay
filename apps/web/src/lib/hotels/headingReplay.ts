@@ -172,6 +172,8 @@ export interface MetricThresholds {
   confidentAt: number;
   /** Error beyond which that claim is wrong enough to mislead someone. */
   wrongBeyondDeg: number;
+  /** Error within which the estimate counts as settled, for convergence. */
+  convergedWithinDeg: number;
 }
 
 /**
@@ -183,7 +185,11 @@ export interface MetricThresholds {
  * exactly the error that sends someone the wrong way. Both are configurable
  * because they are product judgements, not physics.
  */
-export const DEFAULT_THRESHOLDS: MetricThresholds = { confidentAt: 0.7, wrongBeyondDeg: 45 };
+export const DEFAULT_THRESHOLDS: MetricThresholds = {
+  confidentAt: 0.7,
+  wrongBeyondDeg: 45,
+  convergedWithinDeg: 20,
+};
 
 export interface HeadingMetrics {
   algorithm: string;
@@ -203,6 +209,44 @@ export interface HeadingMetrics {
   stationaryJitter: number | null;
   /** Source changes per minute. High means a visibly flickering arrow. */
   sourceSwitchesPerMin: number;
+  /**
+   * Share of samples where the algorithm produced an answer at all.
+   *
+   * The counterweight to confidentWrong. Silence scores perfectly on that
+   * metric, so the two must always be read together — and a table showing one
+   * without the other can be gamed by refusing to answer.
+   */
+  coverage: number;
+  /**
+   * Share of samples answered AT OR ABOVE the confidence threshold.
+   *
+   * This is the honest counterweight to confidentWrong, and `coverage` is not.
+   * Plain coverage is the exact complement of nullRate, so it only catches an
+   * algorithm that goes silent. The cheaper cheat is to keep answering while
+   * quietly dropping confidence below the threshold — that scores a perfect
+   * confidentWrong, a perfect coverage, and shows the reader a permanently
+   * hedged arrow. Only this column notices.
+   */
+  confidentCoverage: number;
+  /**
+   * Mean of error x confidence, in degrees.
+   *
+   * Weights each mistake by how firmly it was asserted, which is the thing that
+   * actually costs a reader something: 20 degrees wrong at 0.95 confidence
+   * sends someone down the wrong street, and the same 20 degrees at 0.20 shows
+   * a wide wedge that invites them to look up. A plain error average calls
+   * those identical.
+   */
+  riskWeightedError: number | null;
+  /**
+   * Seconds from the first scored sample until the error stays within
+   * `convergedWithinDeg` and does not leave it again.
+   *
+   * "Does not leave it again" is the whole point: an algorithm that brushes
+   * past the right answer on its way somewhere wrong has not converged, and a
+   * first-crossing measure would credit it as if it had.
+   */
+  convergenceSec: number | null;
 }
 
 function percentile(sorted: number[], p: number): number | null {
@@ -240,6 +284,61 @@ function movingAt(trace: HeadingTrace, t: number, windowMs = 3000): boolean | nu
   return best.speed >= 0.5;
 }
 
+/**
+ * Time from the first scored sample until the error settles for good.
+ *
+ * Measured from the LAST excursion outside the band rather than the first entry
+ * into it. An algorithm that swings through the correct heading on its way to a
+ * wrong one crosses the band early, and a first-crossing measure would score
+ * that as fast convergence — precisely backwards, since that algorithm never
+ * converged at all. Returns null when the error never settles, which is a real
+ * answer and must not be rendered as zero.
+ */
+function convergence(
+  series: { t: number; err: number }[],
+  withinDeg: number
+): number | null {
+  if (!series.length) return null;
+  let settledAt: number | null = null;
+  for (let i = series.length - 1; i >= 0; i--) {
+    if (series[i].err > withinDeg) break;
+    settledAt = series[i].t;
+  }
+  if (settledAt === null) return null;
+  return (settledAt - series[0].t) / 1000;
+}
+
+/**
+ * Seconds from a known disturbance until the error settles again.
+ *
+ * Separate from `measure()` because it needs something the trace cannot infer:
+ * the moment the disturbance began. Pass the timestamp where the magnet was
+ * introduced, or where the GPS fix was lost — from the scenario for a synthetic
+ * trace, from a field note for a real one. Returns null if it never recovers
+ * within the trace, which is the finding, not a missing value.
+ */
+export function recoveryTime(
+  trace: HeadingTrace,
+  result: ReplayResult,
+  disturbedAtMs: number,
+  thresholds: MetricThresholds = DEFAULT_THRESHOLDS
+): number | null {
+  const after: { t: number; err: number }[] = [];
+  for (const s of result.samples) {
+    if (s.t < disturbedAtMs || s.heading === null) continue;
+    const truth = truthAt(trace, s.t);
+    if (truth === null) continue;
+    after.push({ t: s.t, err: Math.abs(angleDelta(s.heading, truth)) });
+  }
+  if (!after.length) return null;
+  let settledAt: number | null = null;
+  for (let i = after.length - 1; i >= 0; i--) {
+    if (after[i].err > thresholds.convergedWithinDeg) break;
+    settledAt = after[i].t;
+  }
+  return settledAt === null ? null : (settledAt - disturbedAtMs) / 1000;
+}
+
 export function measure(
   trace: HeadingTrace,
   result: ReplayResult,
@@ -254,8 +353,18 @@ export function measure(
   const stationaryDeltas: number[] = [];
   let prevStationary: { t: number; heading: number } | null = null;
 
+  // Kept in time order (errors[] gets sorted for percentiles, so it cannot
+  // answer "when did this settle?").
+  const scoredSeries: { t: number; err: number; confidence: number }[] = [];
+  let answered = 0;
+  let confidentlyAnswered = 0;
+
   for (const s of result.samples) {
     if (s.heading === null) nulls++;
+    else {
+      answered++;
+      if (s.confidence >= thresholds.confidentAt) confidentlyAnswered++;
+    }
     if (lastSource !== null && s.source !== lastSource) switches++;
     lastSource = s.source;
 
@@ -270,6 +379,7 @@ export function measure(
     if (truth === null || s.heading === null) continue;
     const err = Math.abs(angleDelta(s.heading, truth));
     errors.push(err);
+    scoredSeries.push({ t: s.t, err, confidence: s.confidence });
     if (s.confidence >= thresholds.confidentAt && err > thresholds.wrongBeyondDeg) confidentWrong++;
   }
 
@@ -280,6 +390,8 @@ export function measure(
     ? result.samples[result.samples.length - 1].t - result.samples[0].t
     : 0;
   const minutes = spanMs > 0 ? spanMs / 60_000 : 0;
+
+  const total = result.samples.length;
 
   return {
     algorithm: result.algorithm,
@@ -295,6 +407,12 @@ export function measure(
     confidentWrong: errors.length ? confidentWrong / errors.length : 0,
     stationaryJitter: percentile(stationaryDeltas, 50),
     sourceSwitchesPerMin: minutes > 0 ? switches / minutes : 0,
+    coverage: total ? answered / total : 0,
+    confidentCoverage: total ? confidentlyAnswered / total : 0,
+    riskWeightedError: scoredSeries.length
+      ? scoredSeries.reduce((acc, x) => acc + x.err * x.confidence, 0) / scoredSeries.length
+      : null,
+    convergenceSec: convergence(scoredSeries, thresholds.convergedWithinDeg),
   };
 }
 
@@ -311,7 +429,7 @@ export function formatMetrics(rows: HeadingMetrics[]): string {
   const n = (v: number | null, d = 1) => (v === null ? "—" : v.toFixed(d));
   const pct = (v: number) => (v * 100).toFixed(1) + "%";
   const head =
-    "  algorithm          scored   p50    p95    max   confWrong  nullRate  jitter  switch/min";
+    "  algorithm          scored   p50    p95   confWrong  confCov  riskErr  conv(s)  jitter";
   const lines = rows.map(
     (r) =>
       "  " +
@@ -319,11 +437,13 @@ export function formatMetrics(rows: HeadingMetrics[]): string {
       String(r.scored).padStart(6) +
       n(r.p50).padStart(7) +
       n(r.p95).padStart(7) +
-      n(r.max).padStart(7) +
+      // confidentWrong and confidentCoverage sit side by side deliberately:
+      // either one alone can be gamed, and the pair cannot.
       pct(r.confidentWrong).padStart(11) +
-      pct(r.nullRate).padStart(10) +
-      n(r.stationaryJitter).padStart(8) +
-      n(r.sourceSwitchesPerMin).padStart(12)
+      pct(r.confidentCoverage).padStart(9) +
+      n(r.riskWeightedError).padStart(9) +
+      n(r.convergenceSec).padStart(9) +
+      n(r.stationaryJitter).padStart(8)
   );
   return [head, ...lines].join("\n");
 }
