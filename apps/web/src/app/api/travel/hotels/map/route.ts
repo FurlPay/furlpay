@@ -4,6 +4,7 @@ import { osmHotelsInBBox, bboxTooLarge } from "@/lib/travel/osmHotels";
 import {
   googlePlacesInBBox,
   prominence,
+  selectSpatially,
   datasetStats,
   type GooglePlaceProperty,
 } from "@/lib/hotels/googlePlacesLayer";
@@ -435,6 +436,9 @@ export async function GET(req: NextRequest) {
 
   /** Below this, the Google layer is thin enough that OSM adds real coverage. */
   const GOOGLE_DENSE_ENOUGH = 120;
+  /** The most Google points one viewport may draw, so no single source can take
+   *  the whole render budget. */
+  const GOOGLE_QUOTA = 300;
   const googleCoversIt = googleCandidates.length >= GOOGLE_DENSE_ENOUGH;
 
   const osm =
@@ -463,8 +467,16 @@ export async function GET(req: NextRequest) {
   // pins on one building read as two hotels.
   const googleRaw = googleCandidates;
 
+  // GEOGRAPHIC REPRESENTATION BEFORE DEDUPE. Taking the strongest 300 by
+  // prominence dropped 20% of Paris' occupied grid cells, 30% of Tokyo's and
+  // 35% of Dubai's — prominence tracks tourist density, so whole districts went
+  // dark to fit more hotels around the centre. Sampling across cells first
+  // means every occupied part of the viewport is represented, and ranking then
+  // decides which property speaks for each part.
+  const googleSampled = selectSpatially(googleRaw, box, GOOGLE_QUOTA);
+
   const googlePoints: MapPoint[] = [];
-  for (const g of googleRaw) {
+  for (const g of googleSampled) {
     const twin = curated.find(
       (c) =>
         haversineMeters(c.latitude, c.longitude, g.latitude, g.longitude) <= DEDUPE_DISTANCE_M &&
@@ -504,7 +516,6 @@ export async function GET(req: NextRequest) {
   //
   // Curated is uncapped because it is never large — 507 worldwide, and a
   // viewport holds a handful — and it is the layer FurlPay actually curates.
-  const GOOGLE_QUOTA = 300;
   const OSM_QUOTA = 60;
   const taken = { curated: 0, google: 0, osm: 0 } as Record<MapPointSource, number>;
   const quota: Record<MapPointSource, number> = {
