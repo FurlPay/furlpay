@@ -239,3 +239,42 @@ export function touristDestination(p: {
       : {}),
   };
 }
+
+/**
+ * A service offered in a place.
+ *
+ * For the /hotels/<city> pages, which are about FurlPay's payment service in
+ * that city and — importantly — do NOT list any hotels. An SEO audit asked for
+ * LodgingBusiness markup there; that would have described properties the page
+ * never renders, and Google's structured-data policy requires markup to
+ * describe content visible on the page. Marking up absent content is a
+ * penalty, not a ranking signal.
+ *
+ * `areaServed` carries the city, which is the local signal the page can
+ * honestly make.
+ */
+export function service(p: {
+  name: string;
+  description: string;
+  url: string;
+  serviceType: string;
+  areaServed: string;
+  country?: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Service",
+    name: p.name,
+    description: p.description,
+    url: p.url,
+    serviceType: p.serviceType,
+    provider: { "@id": ORG_ID },
+    areaServed: {
+      "@type": "City",
+      name: p.areaServed,
+      ...(p.country
+        ? { address: { "@type": "PostalAddress", addressCountry: p.country } }
+        : {}),
+    },
+  };
+}

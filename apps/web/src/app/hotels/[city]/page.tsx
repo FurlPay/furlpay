@@ -6,7 +6,7 @@ import { Hero, FeatureGrid, Section, CtaBand } from "@/components/marketing/bloc
 import FaqSection from "@/components/marketing/FaqSection";
 import FeeCalculator from "@/components/marketing/FeeCalculator";
 import JsonLd from "@/components/JsonLd";
-import { breadcrumb, SITE } from "@/lib/seo/schema";
+import { breadcrumb, service, SITE } from "@/lib/seo/schema";
 import { CITIES, getCity } from "@/lib/cities";
 
 // Only the known city slugs are valid pages — any other slug returns a real 404
@@ -61,6 +61,18 @@ export default async function CityHotelsPage(props: { params: Promise<{ city: st
   return (
     <div className="min-h-screen bg-oled">
       <LandingChrome />
+      <JsonLd
+        data={[
+          service({
+            name: `Crypto hotel payments in ${c.name}`,
+            description: `Accept and pay for hotels in ${c.name} in USDC on Arbitrum at a flat 0.5%, with no FX on international guests and no chargebacks.`,
+            url: `${SITE}/hotels/${c.slug}`,
+            serviceType: "Cryptocurrency payment processing",
+            areaServed: c.name,
+            country: c.country,
+          }),
+        ]}
+      />
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },

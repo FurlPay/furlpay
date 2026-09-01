@@ -11,6 +11,8 @@ import {
   ArrowRight,
   Thermometer,
 } from "lucide-react";
+import JsonLd from "@/components/JsonLd";
+import { breadcrumb, touristDestination, SITE } from "@/lib/seo/schema";
 import { summariseNamedDestination } from "@/lib/hotels/destinationSummary";
 import { CITY_COORDS } from "@/lib/travel/data";
 import { Pill } from "@/components/ui";
@@ -118,8 +120,35 @@ export default async function DestinationOrCategoryPage(props: { params: Promise
     { Icon: Coins, label: "Currency", value: d.currency },
   ];
 
+  const coords = CITY_COORDS[d.name];
+
   return (
     <div className="mx-auto max-w-6xl px-5 pb-24 pt-6">
+      {/* TouristDestination describes the destination this page is actually
+          about. It carries geo only when we hold a real coordinate — a made-up
+          one would be a false pinpoint claim to a search engine, and geo is
+          precisely the field Google treats as authoritative. No property
+          counts or ratings go in the markup: those are rendered above from the
+          indexed dataset and can be zero, and a destination that claims
+          coverage it lacks is the structured-data form of the same dishonesty
+          the stats row was fixed for. */}
+      <JsonLd
+        data={[
+          touristDestination({
+            name: `${d.name}, ${d.country}`,
+            url: `${SITE}/travel/destinations/${d.slug}`,
+            description: d.tagline,
+            latitude: coords?.lat ?? null,
+            longitude: coords?.lng ?? null,
+            country: d.country,
+          }),
+          breadcrumb([
+            { name: "Travel", path: "/travel" },
+            { name: "Destinations", path: "/travel/destinations" },
+            { name: d.name, path: `/travel/destinations/${d.slug}` },
+          ]),
+        ]}
+      />
       <Link href="/travel/destinations" className="mb-3 inline-flex items-center gap-1 text-sm text-textSecondary hover:text-white">
         <ChevronLeft className="h-4 w-4" /> Destinations
       </Link>

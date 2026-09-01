@@ -108,7 +108,11 @@ export const viewport: Viewport = {
   themeColor: "#000000",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
+  // No maximumScale. Capping it at 1 blocks pinch-to-zoom, which is the
+  // primary way a low-vision reader enlarges a page on a phone — WCAG 1.4.4
+  // treats preventing it as a failure. It was presumably there to stop iOS
+  // auto-zooming on focused inputs; the fix for that is a >=16px font size on
+  // the input, not disabling zoom for everyone.
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

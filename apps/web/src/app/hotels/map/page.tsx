@@ -1,9 +1,14 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import HotelMap from "@/components/travel/HotelMap";
 
 export const metadata: Metadata = {
   title: "Hotel map",
-  description: "Browse hotels worldwide on a live map with nightly rates.",
+  // Not "with nightly rates". There are none: the indexed dataset holds no
+  // prices and production has no live rate provider, so the old description
+  // promised a search engine something the page cannot show.
+  description:
+    "Browse 16,000 hotels, resorts and villas worldwide on a live map, with ratings and photographs from Google Places.",
 };
 
 // Full-bleed map, no chrome — no sidebar, no page header, no avatar. The map's
@@ -17,6 +22,23 @@ export const metadata: Metadata = {
 export default function HotelMapPage() {
   return (
     <div className="h-[100dvh] w-full">
+      {/* The map is WebGL and client-rendered, so a crawler that does not run
+          JS — and Googlebot, which runs it but never drags or zooms — sees an
+          empty canvas and nothing to index. This gives both a real route into
+          the same inventory rather than a dead end. It is also the honest
+          fallback for a reader with JS disabled or no GPU. */}
+      <noscript>
+        <div className="mx-auto max-w-xl px-6 py-16 text-center">
+          <h1 className="text-xl font-semibold text-white">Hotel map</h1>
+          <p className="mt-2 text-sm text-textSecondary">
+            The interactive map needs JavaScript and WebGL. The same properties are
+            browsable by city.
+          </p>
+          <Link href="/hotels" className="mt-4 inline-block text-neon hover:underline">
+            Browse hotels by city
+          </Link>
+        </div>
+      </noscript>
       <HotelMap />
     </div>
   );
