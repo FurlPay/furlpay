@@ -174,6 +174,35 @@ export default function HotelMap() {
   const latest = useRef<{ clusters: MapCluster[]; points: MapPoint[] }>({ clusters: [], points: [] });
 
   const [hover, setHover] = useState<{ target: HoverTarget; anchor: { x: number; y: number } } | null>(null);
+  /**
+   * The current hover, readable from the map's event handlers.
+   *
+   * Those handlers are registered once, inside the `load` effect, so they close
+   * over the FIRST render's `hover` forever. Reading state through a ref is how
+   * the tap path can ask "is the card already showing this property?" and get
+   * today's answer rather than `null`.
+   */
+  const hoverRef = useRef<{ target: HoverTarget; anchor: { x: number; y: number } } | null>(null);
+  hoverRef.current = hover;
+  /**
+   * Does this device point coarsely (finger) rather than finely (mouse)?
+   *
+   * Read once and kept in a ref rather than state: it decides behaviour inside
+   * an event handler and must never trigger a re-render. `matchMedia` is
+   * guarded because this component is server-rendered too, where there is no
+   * window to ask.
+   */
+  const coarsePointer = useRef(false);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.matchMedia) return;
+    const mq = window.matchMedia("(pointer: coarse)");
+    coarsePointer.current = mq.matches;
+    // A hybrid laptop can gain or lose a touchscreen mid-session, and a mouse
+    // plugged into a tablet changes the right answer. Cheap to follow.
+    const onChange = (e: MediaQueryListEvent) => { coarsePointer.current = e.matches; };
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
   const [entries, setEntries] = useState<ListEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -501,10 +530,44 @@ export default function HotelMap() {
             setHover(null);
             return;
           }
-          const entry = index.current.get(hit.properties.id as string);
+          const id = hit.properties.id as string;
+          const entry = index.current.get(id);
           if (!entry) return;
-          if (entry.kind === "cluster") expandCluster(entry.cluster!);
-          else openDetail(entry.point!);
+
+          // A cluster means the same thing under either input: show me what you
+          // counted. Only the property branch differs.
+          if (entry.kind === "cluster") {
+            expandCluster(entry.cluster!);
+            return;
+          }
+
+          // TOUCH HAS NO HOVER, so a tap has to do the work of two gestures.
+          //
+          // On a mouse the card is already open by the time a click lands — the
+          // pointer had to cross the marker to get there — so a click is
+          // unambiguously "I have seen the preview, show me the whole thing".
+          // On a touch screen `mousemove` never fires, so going straight to the
+          // detail panel means the preview card is unreachable: the reader is
+          // dropped into a full-screen surface for a marker they were only
+          // pointing at.
+          //
+          // So on a coarse pointer the first tap opens the card and the second
+          // opens the detail. The state that distinguishes them is the card
+          // already being open for THIS property — no extra timer, no
+          // double-tap window, and tapping a different marker still just moves
+          // the card, which is what the gesture looks like it should do.
+          if (coarsePointer.current) {
+            const showing =
+              hoverRef.current?.target.kind === "property" &&
+              hoverRef.current.target.point.id === id;
+            if (!showing) {
+              hoveredId.current = id;
+              openFor(id, (hit.id as number) ?? null);
+              return;
+            }
+          }
+
+          openDetail(entry.point!);
         });
 
         void load(m.getBounds(), m.getZoom());
