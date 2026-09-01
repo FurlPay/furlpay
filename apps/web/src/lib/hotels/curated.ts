@@ -168,7 +168,25 @@ export interface CuratedFilter {
   categories?: LuxuryCategoryId[];
   /** Any-of, from the header's Hotels / Resorts / Villas controls. */
   families?: PropertyFamily[];
+  /**
+   * Minimum star rating.
+   *
+   * Unrated properties are excluded by default, and that is deliberate: asking
+   * for five stars and being shown properties nobody has rated would imply a
+   * rating we do not have. But the exclusion is a THIRD outcome, not a low
+   * score — an unrated property is dropped for want of evidence, never because
+   * it was judged and found wanting. Setting `includeUnrated` surfaces them
+   * for a caller that would rather see everything and decide for itself.
+   */
   minStars?: number;
+  /**
+   * With `minStars`: keep properties whose rating was never recorded.
+   *
+   * For discovery surfaces where deleting an unrated property is worse than
+   * showing one — a reader can dismiss a result they can see, and cannot
+   * recover one they cannot.
+   */
+  includeUnrated?: boolean;
   /** Substring over name, brand, city and country. Already lowercased. */
   query?: string;
   /** Drop properties whose position was never confirmed. Off by default: a
@@ -179,7 +197,17 @@ export interface CuratedFilter {
 function matches(p: CuratedPoint, f: CuratedFilter): boolean {
   if (f.exactOnly && p.precision !== "exact") return false;
   if (f.families?.length && !f.families.includes(familyOf(p.propertyType))) return false;
-  if (f.minStars && (p.stars ?? 0) < f.minStars) return false;
+  if (f.minStars !== undefined) {
+    // Three states, not two. The previous form was `(p.stars ?? 0) < minStars`,
+    // which reaches the same default outcome by asserting that an unrated
+    // property is a zero-star one. It is not; it is unmeasured, and writing it
+    // that way meant the lenient reading could not be expressed at all.
+    if (typeof p.stars === "number") {
+      if (p.stars < f.minStars) return false;
+    } else if (!f.includeUnrated) {
+      return false;
+    }
+  }
   if (f.categories?.length && !f.categories.some((c) => p.categories.includes(c))) return false;
   if (f.query) {
     const haystack = `${p.name} ${p.brand ?? ""} ${p.city} ${p.country} ${p.destination ?? ""}`;

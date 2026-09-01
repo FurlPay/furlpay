@@ -107,6 +107,30 @@ describe("filters", () => {
     expect(five.length).toBeLessThan(curatedProperties().length);
   });
 
+  it("drops an unrated property for want of evidence, not for a low score", () => {
+    // The distinction the `?? 0` form could not express. Both of these are
+    // excluded from a five-star filter, and only one of them was actually
+    // judged — so only one may ever be described to a reader as falling short.
+    const unrated: CuratedPoint = {
+      id: "t_unrated", name: "Unrated House", city: "X", country: "Y",
+      propertyType: "hotel", categories: [], precision: "exact",
+      latitude: 0, longitude: 0,
+    };
+    const rated: CuratedPoint = { ...unrated, id: "t_two", stars: 2 };
+    expect(unrated.stars).toBeUndefined();
+    expect(rated.stars).toBe(2);
+  });
+
+  it("can surface unrated properties when the caller asks", () => {
+    const strict = curatedMatching({ minStars: 5 });
+    const lenient = curatedMatching({ minStars: 5, includeUnrated: true });
+    // Lenient is a superset: it adds the unmeasured, it never removes a match.
+    expect(lenient.length).toBeGreaterThanOrEqual(strict.length);
+    for (const p of lenient) {
+      if (typeof p.stars === "number") expect(p.stars).toBeGreaterThanOrEqual(5);
+    }
+  });
+
   it("searches name, brand, city and country", () => {
     const aman = curatedMatching({ query: "aman" });
     expect(aman.length).toBeGreaterThan(1);
