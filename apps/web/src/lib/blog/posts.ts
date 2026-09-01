@@ -246,21 +246,8 @@ export const POSTS: Post[] = [
         text: `Neither half of the obvious solution works alone. Matching on name merges every Hilton Garden Inn in a city. Matching on distance merges a hotel with the hostel in its basement. So a merge requires both: proximity and name agreement, at thresholds chosen from what the sources actually disagree by. A centroid-versus-entrance offset on a large hotel runs to about 60m; genuinely distinct hotels in dense districts are rarely closer than about 100m.`,
       },
       {
-        type: "diagram",
-        text: `candidate ──> H3 cell (res 9, ~174m edge) ──> compare against own cell + 6 neighbours
-                                                        │
-                          ┌─────────────────────────────┴─────────────────────────────┐
-                          │                                                           │
-              haversine distance <= 120m                              Jaro-Winkler(name) >= 0.82
-                          │                                                           │
-                          └──────────────────────── BOTH ────────────────────────────┘
-                                                     │
-                                    curated record keeps the identity;
-                                    OSM record folded in as corroboration`,
-      },
-      {
         type: "p",
-        text: `H3 is what makes this cheap. Comparing every candidate against every other is quadratic — at 100,000 properties that is five billion comparisons. Binning each candidate into a hexagon and comparing only within its own cell and the six touching it bounds the work to the local neighbourhood. A hexagonal grid rather than a square one because every H3 neighbour shares an edge at an equal centre-to-centre distance; on a square grid the four corner neighbours sit 1.41x further than the four edge neighbours, so a fixed-ring search covers an uneven area and the merge radius silently varies with compass direction.`,
+        text: `Doing that comparison naively is the expensive part. Checking every property against every other one grows with the square of the list — at 100,000 properties, five billion comparisons. So the map lays a hexagonal grid over the world and only ever compares a property against the cell it falls in and the six cells touching it, which keeps the work local no matter how large the dataset gets. Hexagons rather than squares because every neighbouring hexagon sits the same distance away; on a square grid the diagonal neighbours are 1.4 times further than the side ones, so how close two records had to be before they merged would quietly depend on which direction you looked.`,
       },
 
       { type: "h2", text: "Drawing 400 markers without melting the browser" },
@@ -287,27 +274,8 @@ export const POSTS: Post[] = [
         text: `The response carries four separate counts, and keeping them separate is not pedantry. A Manhattan viewport drawing 8 curated properties and 196 OSM hotels was once reported as "204 shown of 507 matching" — every number correct, and the sentence invites the reading that 204 of the 507 curated properties are on screen. They are two populations, and the interface has to be able to name each one.`,
       },
       {
-        type: "code",
-        lang: "json",
-        code: `GET /api/travel/hotels/map?bbox=-74.02,40.70,-73.93,40.79&z=13
-
-{
-  "counts": {
-    "curatedInView": 8,            // curated properties drawn individually
-    "curatedClustered": 0,         // curated properties folded into clusters
-    "osmInView": 196,              // OSM hotels drawn here
-    "curatedMatchingWorldwide": 507 // matching the filter ANYWHERE
-  },
-  "truncated": 0,          // dropped by the 400-marker render budget
-  "osmZoomIn": false,      // viewport too wide for Overpass
-  "osmUnavailable": false, // Overpass was asked and failed
-  "osmFilteredOut": false, // a curated-only filter is active, so OSM was not asked
-  "attribution": "© OpenStreetMap contributors (ODbL) · Curated positions verified with Google"
-}`,
-      },
-      {
         type: "p",
-        text: `The three booleans exist because "no hotels here" has three completely different causes and one of them is our fault. The viewport is too wide for Overpass; Overpass was asked and did not answer; or a collection filter is active and OSM — which has no notion of a FurlPay collection — could not honestly be included. Collapsing them into an empty result would let a working system read as an outage, and would let an outage read as an empty neighbourhood.`,
+        text: `An empty stretch of map is treated the same way. "No hotels here" has three completely different causes, and only one of them is our fault: the view may be zoomed out too far for OpenStreetMap to answer, OpenStreetMap may have been asked and failed, or a collection filter may be active — and OpenStreetMap has no notion of a FurlPay collection, so it could not honestly be included. The map says which of the three it is. Collapsing them into one blank space would let a working system read as an outage, and let a genuine outage read as an empty neighbourhood.`,
       },
 
       { type: "h2", text: "A canvas has nothing to focus" },
