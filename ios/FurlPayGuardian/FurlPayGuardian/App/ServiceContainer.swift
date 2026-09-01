@@ -40,10 +40,20 @@ public final class ServiceContainer {
     let alarmKitObserver = GuardianAlarmKitScheduler()
 
     /// The on-device model. Fallback only — see FoundationModelsAssistant.
+    ///
+    /// @ObservationIgnored is required, not decorative. @Observable rewrites
+    /// every stored property into a computed one backed by the observation
+    /// registrar, and `lazy` cannot be applied to a computed property — so
+    /// without this the macro expansion fails with "'lazy' cannot be used on a
+    /// computed property" and "init accessor cannot refer to property
+    /// '_assistant'". It is also correct on the merits: these are services, not
+    /// state a view should redraw on.
+    @ObservationIgnored
     public private(set) lazy var assistant = FoundationModelsAssistant(container: self)
 
     /// Built lazily because it holds a reference back to this container —
     /// constructing it in `init` would mean passing `self` before it exists.
+    @ObservationIgnored
     public private(set) lazy var tools: RepositoryToolExecutor = {
         RepositoryToolExecutor(container: self) { [weak self] invocation in
             guard let self else { return false }
