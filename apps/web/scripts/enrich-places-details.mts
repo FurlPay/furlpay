@@ -301,9 +301,24 @@ function isTransient(status: number): boolean {
 }
 
 async function fetchDetails(placeId: string, key: string, attempt = 0) {
-  const res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
-    headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": MASK },
-  });
+  let res: Response;
+  try {
+    res = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}`, {
+      headers: { "X-Goog-Api-Key": key, "X-Goog-FieldMask": MASK },
+    });
+  } catch {
+    // A THROWN failure, not an HTTP one: a reset socket, a DNS blip, a dropped
+    // connection. fetch() rejects rather than returning a status, so without
+    // this the rejection escapes the worker, escapes Promise.all, and kills
+    // every other worker with it — which is exactly how a run at 23/sec died
+    // at 71% with nothing committed. Network errors are transient by nature,
+    // so they retry on the same ladder as a 429 and are never checkpointed.
+    if (attempt < MAX_RETRIES) {
+      await sleep(BASE_BACKOFF_MS * 2 ** attempt + Math.random() * 250);
+      return fetchDetails(placeId, key, attempt + 1);
+    }
+    return { ok: false as const, status: 0, transient: true };
+  }
   if (res.ok) return { ok: true as const, status: 200, details: (await res.json()) as PlaceDetails };
 
   if (isTransient(res.status) && attempt < MAX_RETRIES) {
@@ -504,7 +519,15 @@ async function main() {
 
   // Workers beyond the current limit park here rather than exiting, so the
   // pool can grow again without respawning.
-  await Promise.all(Array.from({ length: ADAPTIVE ? MAX_WORKERS : CONCURRENCY }, worker));
+  // allSettled, not all: one worker throwing must not abandon the other
+  // fifteen mid-flight and skip the commit. Anything that still escapes a
+  // worker is reported after the results are safely merged.
+  const outcomes = await Promise.allSettled(
+    Array.from({ length: ADAPTIVE ? MAX_WORKERS : CONCURRENCY }, worker)
+  );
+  for (const o of outcomes) {
+    if (o.status === "rejected") console.error(`  ! worker died: ${String(o.reason).slice(0, 200)}`);
+  }
 
   const mins = (Date.now() - started) / 60_000;
   console.log(
