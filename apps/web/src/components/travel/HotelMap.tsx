@@ -66,6 +66,7 @@ import {
   type BuiltFeatures,
 } from "./map/layers";
 import { CategoryIcon, CloseIcon, SearchIcon } from "./map/icons";
+import { startTracking, type UserLocation, type LocationTracker } from "@/lib/hotels/userLocation";
 
 // ---------------------------------------------------------------------------
 // The luxury hotel map.
@@ -103,6 +104,14 @@ import { CategoryIcon, CloseIcon, SearchIcon } from "./map/icons";
 // ---------------------------------------------------------------------------
 
 const DEBOUNCE_MS = 350;
+
+// --- user location layers ---------------------------------------------------
+/** The GeoJSON source holding the user's live position. */
+const SRC_USER_LOC = "hm-user-loc";
+const LYR_USER_ACCURACY = "hm-user-accuracy";
+const LYR_USER_DOT = "hm-user-dot";
+const LYR_USER_DOT_INNER = "hm-user-dot-inner";
+const LYR_USER_HEADING = "hm-user-heading";
 /** How long the card stays after the pointer leaves both marker and card. Long
  *  enough to cross the gap between them, short enough not to feel stuck. */
 const HOVER_GRACE_MS = 200;
@@ -209,6 +218,104 @@ export default function HotelMap() {
   const [meta, setMeta] = useState<Omit<MapResponse, "points" | "clusters"> | null>(null);
   const [noWebgl, setNoWebgl] = useState(false);
   const [selected, setSelected] = useState<DetailTarget | null>(null);
+
+  // --- user location tracking -----------------------------------------------
+  //
+  // THREE MODES, matching Google Maps' locate button behaviour:
+  //   "off"     not tracking — the default
+  //   "locate"  one-shot: centre the map, show the dot, do not follow
+  //   "track"   continuous: the map follows, heading rotates the cone
+  //
+  // The transition is off → locate → track → off.
+  const [trackMode, setTrackMode] = useState<"off" | "locate" | "track">("off");
+  const [userLoc, setUserLoc] = useState<UserLocation | null>(null);
+  const [locError, setLocError] = useState<string | null>(null);
+  const tracker = useRef<LocationTracker | null>(null);
+
+  /** Push a location fix to the map's user-location source. */
+  const paintUserLoc = useCallback((loc: UserLocation | null) => {
+    const m = map.current;
+    const src = m?.getSource(SRC_USER_LOC) as GeoJSONSource | undefined;
+    if (!src) return;
+    if (!loc) {
+      src.setData(EMPTY_FC);
+      return;
+    }
+    src.setData({
+      type: "FeatureCollection",
+      features: [{
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [loc.longitude, loc.latitude] },
+        properties: {
+          accuracy: loc.accuracy,
+          lat: loc.latitude,
+          ...(loc.heading !== null ? { heading: loc.heading } : {}),
+        },
+      }],
+    });
+  }, []);
+
+  // When tracking mode changes, start or stop the tracker.
+  useEffect(() => {
+    // Clear stale errors when mode changes.
+    setLocError(null);
+
+    if (trackMode === "off") {
+      tracker.current?.stop();
+      tracker.current = null;
+      setUserLoc(null);
+      paintUserLoc(null);
+      return;
+    }
+
+    // Already tracking from a prior mode transition.
+    if (tracker.current) return;
+
+    let centred = false;
+    tracker.current = startTracking(
+      (loc) => {
+        setUserLoc(loc);
+        paintUserLoc(loc);
+
+        // Centre the map on the first fix (both locate and track modes).
+        if (!centred) {
+          centred = true;
+          programmatic.current = true;
+          map.current?.flyTo({
+            center: [loc.longitude, loc.latitude],
+            zoom: Math.max(map.current.getZoom(), 14),
+            duration: FLY_MS,
+            easing: easeInOutCubic,
+            essential: true,
+          });
+        }
+        // In track mode, keep following.
+        else if (trackMode === "track") {
+          map.current?.easeTo({
+            center: [loc.longitude, loc.latitude],
+            duration: 400,
+          });
+        }
+      },
+      (msg) => {
+        setLocError(msg);
+        setTrackMode("off");
+      }
+    );
+
+    return () => {
+      tracker.current?.stop();
+      tracker.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trackMode, paintUserLoc]);
+
+  // Clear location error after 5 seconds.
+  useEffect(() => {
+    if (!locError) return;
+    const t = setTimeout(() => setLocError(null), 5000);
+    return () => clearTimeout(t);
+  }, [locError]);
 
   // --- filters --------------------------------------------------------------
   //
@@ -471,6 +578,99 @@ export default function HotelMap() {
         m.addSource(SRC_POINTS, { type: "geojson", data: EMPTY_FC });
         m.addSource(SRC_PULSE, { type: "geojson", data: EMPTY_FC });
         for (const spec of layerSpecs()) m.addLayer(spec);
+
+        // --- user location layers -------------------------------------------
+        // Source: one point with accuracy (metres) and heading (degrees) as
+        // properties. Empty until the first fix arrives.
+        m.addSource(SRC_USER_LOC, { type: "geojson", data: EMPTY_FC });
+
+        // Accuracy circle — metres converted to screen pixels by MapLibre's
+        // `circle-radius` expression, which can read the zoom and do the math.
+        m.addLayer({
+          id: LYR_USER_ACCURACY,
+          type: "circle",
+          source: SRC_USER_LOC,
+          paint: {
+            // Accuracy in metres → pixels at the current zoom/latitude.
+            // Formula: pixels = metres / (cos(lat) × 78271.484 / 2^zoom)
+            // MapLibre resolves this per frame, so the circle scales with zoom.
+            "circle-radius": [
+              "interpolate", ["exponential", 2], ["zoom"],
+              0, 0,
+              20, [
+                "/",
+                ["get", "accuracy"],
+                ["*", ["cos", ["*", ["get", "lat"], ["/", ["pi"], 180]]], 0.075]
+              ],
+            ],
+            "circle-color": "#4285F4",
+            "circle-opacity": 0.12,
+            "circle-stroke-width": 0,
+            "circle-pitch-alignment": "map",
+          },
+        });
+
+        // Outer ring of the blue dot.
+        m.addLayer({
+          id: LYR_USER_DOT,
+          type: "circle",
+          source: SRC_USER_LOC,
+          paint: {
+            "circle-radius": 11,
+            "circle-color": "#FFFFFF",
+            "circle-pitch-alignment": "map",
+          },
+        });
+
+        // Inner blue dot.
+        m.addLayer({
+          id: LYR_USER_DOT_INNER,
+          type: "circle",
+          source: SRC_USER_LOC,
+          paint: {
+            "circle-radius": 7,
+            "circle-color": "#4285F4",
+            "circle-pitch-alignment": "map",
+          },
+        });
+
+        // Heading cone — a triangle pointing in the compass direction.
+        // Built as a symbol layer so it can be rotated per feature.
+        // The icon is generated once below as a tiny canvas image.
+        m.addLayer({
+          id: LYR_USER_HEADING,
+          type: "symbol",
+          source: SRC_USER_LOC,
+          filter: ["has", "heading"],
+          layout: {
+            "icon-image": "user-heading-cone",
+            "icon-size": 0.55,
+            "icon-rotate": ["get", "heading"],
+            "icon-rotation-alignment": "map",
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": true,
+            // Push it away from the dot centre so it sits at the edge.
+            "icon-offset": [0, -20],
+          },
+        });
+
+        // Generate the heading cone icon: a simple triangle pointing up.
+        if (!m.hasImage("user-heading-cone")) {
+          const sz = 48;
+          const canvas = document.createElement("canvas");
+          canvas.width = sz;
+          canvas.height = sz;
+          const ctx = canvas.getContext("2d")!;
+          ctx.fillStyle = "rgba(66, 133, 244, 0.55)";
+          ctx.beginPath();
+          ctx.moveTo(sz / 2, 2);
+          ctx.lineTo(sz - 6, sz - 2);
+          ctx.lineTo(sz / 2, sz * 0.65);
+          ctx.lineTo(6, sz - 2);
+          ctx.closePath();
+          ctx.fill();
+          m.addImage("user-heading-cone", ctx.getImageData(0, 0, sz, sz), { pixelRatio: 2 });
+        }
 
         // Photograph markers, loaded ON DEMAND rather than up front.
         //
@@ -910,16 +1110,14 @@ export default function HotelMap() {
       />
 
       <LocateButton
-        onLocate={(lat, lng) => {
-          programmatic.current = true;
-          map.current?.flyTo({
-            center: [lng, lat],
-            zoom: 11,
-            duration: FLY_MS,
-            easing: easeInOutCubic,
-            essential: true,
-          });
-        }}
+        mode={trackMode}
+        userLoc={userLoc}
+        error={locError}
+        onToggle={() =>
+          setTrackMode((m) =>
+            m === "off" ? "locate" : m === "locate" ? "track" : "off"
+          )
+        }
       />
 
       {/* The offer. Occupies the same slot as the loading pill and never both:
@@ -1077,78 +1275,69 @@ function SavedFilterButton({
 }
 
 /**
- * The circular control at the bottom left: centre the map on the reader.
+ * The circular control at the bottom left: centre the map on the reader, then
+ * optionally track them continuously with compass heading.
  *
- * REAL GEOLOCATION, WITH A REAL REFUSAL PATH. The browser prompt can be
- * dismissed, denied permanently, or simply never answered, and a device with no
- * fix will sit there indefinitely. Each of those ends with a message rather than
- * a spinner that never stops, because a control that silently does nothing is
- * indistinguishable from a broken one.
+ * THREE STATES, matching Google Maps' locate button:
+ *   off     → tap → locate (one-shot centre + blue dot)
+ *   locate  → tap → track  (continuous follow with compass cone)
+ *   track   → tap → off    (stop tracking, remove blue dot)
  *
- * The result is used to move the camera and nothing else — no coordinate is
- * stored, sent anywhere, or added to the URL.
+ * Each state has its own icon and colour so the reader knows what tapping will
+ * do. The accuracy badge shows the same High/Medium/Low labels Google Maps
+ * uses in its compass calibration screen.
+ *
+ * No location data is stored, sent to the server, or added to the URL.
  */
-function LocateButton({ onLocate }: { onLocate: (lat: number, lng: number) => void }) {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // The message clears itself; a permission error pinned to the corner forever
-  // is just clutter once it has been read.
-  useEffect(() => {
-    if (!error) return;
-    const t = setTimeout(() => setError(null), 5000);
-    return () => clearTimeout(t);
-  }, [error]);
-
-  const locate = () => {
-    if (busy) return;
-    if (typeof navigator === "undefined" || !navigator.geolocation) {
-      setError("This browser cannot report a location");
-      return;
-    }
-    setBusy(true);
-    setError(null);
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setBusy(false);
-        onLocate(pos.coords.latitude, pos.coords.longitude);
-      },
-      (err) => {
-        setBusy(false);
-        setError(
-          err.code === err.PERMISSION_DENIED
-            ? "Location permission denied"
-            : err.code === err.TIMEOUT
-              ? "Timed out finding your location"
-              : "Could not determine your location"
-        );
-      },
-      // A coarse fix is enough to pick a city, arrives far faster than a GPS
-      // lock, and asks for less than the reason needs.
-      { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
-    );
-  };
+function LocateButton({
+  mode,
+  userLoc,
+  error,
+  onToggle,
+}: {
+  mode: "off" | "locate" | "track";
+  userLoc: UserLocation | null;
+  error: string | null;
+  onToggle: () => void;
+}) {
+  const active = mode !== "off";
 
   return (
-    <div className="absolute bottom-[72px] left-4 z-20 flex items-center gap-2 max-sm:hidden">
+    <div className="absolute bottom-[72px] left-4 z-20 flex flex-col items-start gap-2 max-sm:hidden">
       <button
         type="button"
-        onClick={locate}
-        disabled={busy}
-        aria-label="Centre the map on my location"
-        className="grid h-[46px] w-[46px] place-items-center rounded-full bg-white text-[#334155] shadow-[0_4px_12px_rgba(15,23,42,0.12)] transition-colors hover:bg-[#F8FAFC] disabled:cursor-progress disabled:text-[#94A3B8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB]"
+        onClick={onToggle}
+        aria-label={
+          mode === "off"
+            ? "Centre the map on my location"
+            : mode === "locate"
+              ? "Track my location continuously"
+              : "Stop tracking"
+        }
+        aria-pressed={active}
+        className={`grid h-[46px] w-[46px] place-items-center rounded-full shadow-[0_4px_12px_rgba(15,23,42,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] ${
+          mode === "track"
+            ? "bg-[#4285F4] text-white hover:bg-[#3574D4]"
+            : active
+              ? "bg-white text-[#4285F4] hover:bg-[#F0F7FF]"
+              : "bg-white text-[#334155] hover:bg-[#F8FAFC]"
+        }`}
       >
-        <svg className={`h-5 w-5 ${busy ? "animate-spin" : ""}`} viewBox="0 0 20 20" fill="none" aria-hidden>
-          {busy ? (
+        <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden>
+          {mode === "track" ? (
+            // Navigation arrow — actively tracking.
             <path
-              d="M10 3a7 7 0 1 1-7 7"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
+              d="M10 2 L16 16 L10 12 L4 16 Z"
+              fill="currentColor"
             />
           ) : (
+            // Crosshair — locate or idle.
             <>
-              <circle cx="10" cy="10" r="3" stroke="currentColor" strokeWidth="1.8" />
+              <circle
+                cx="10" cy="10" r="3"
+                stroke="currentColor" strokeWidth="1.8"
+                fill={active ? "currentColor" : "none"}
+              />
               <path
                 d="M10 1.5v2.2M10 16.3v2.2M18.5 10h-2.2M3.7 10H1.5"
                 stroke="currentColor"
@@ -1159,6 +1348,41 @@ function LocateButton({ onLocate }: { onLocate: (lat: number, lng: number) => vo
           )}
         </svg>
       </button>
+
+      {/* Accuracy badge — shows the same High/Medium/Low levels as Google Maps
+          calibration. Only visible while tracking. */}
+      {active && userLoc && (
+        <div className="rounded-lg bg-white px-3 py-1.5 shadow-[0_4px_14px_rgba(15,23,42,0.10)]">
+          <p className="flex items-center gap-1.5 text-[12px] font-medium text-[#334155]">
+            <span
+              className={`inline-block h-2 w-2 rounded-full ${
+                userLoc.accuracyLevel === "high"
+                  ? "bg-[#34A853]"
+                  : userLoc.accuracyLevel === "medium"
+                    ? "bg-[#F4B400]"
+                    : "bg-[#EA4335]"
+              }`}
+            />
+            {userLoc.accuracyLevel === "high"
+              ? "High accuracy"
+              : userLoc.accuracyLevel === "medium"
+                ? "Medium accuracy"
+                : "Low accuracy"}
+            <span className="text-[#94A3B8]">
+              ±{Math.round(userLoc.accuracy)}m
+            </span>
+          </p>
+          {userLoc.heading !== null && (
+            <p className="mt-0.5 text-[11px] text-[#94A3B8]">
+              Heading {Math.round(userLoc.heading)}°
+              {userLoc.speed !== null && userLoc.speed > 0.5
+                ? ` · ${(userLoc.speed * 3.6).toFixed(1)} km/h`
+                : ""}
+            </p>
+          )}
+        </div>
+      )}
+
       {error && (
         <p
           role="status"
