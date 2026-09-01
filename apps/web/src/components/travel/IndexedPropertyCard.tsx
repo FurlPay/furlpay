@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Star, MapPin } from "lucide-react";
+import { Star, MapPin, Navigation } from "lucide-react";
 import { CITY_PHOTOS } from "@/lib/travel/data";
 import type { IndexedProperty } from "@/lib/travel/propertySource";
+import { directionsUrl } from "@/lib/travel/directions";
 
 // ---------------------------------------------------------------------------
 // A property card for real indexed data.
@@ -35,6 +36,16 @@ export default function IndexedPropertyCard({
 
   const rate = property.rate;
   const total = rate ? rate.amount * nights : null;
+
+  // Null when the coordinate is missing or nonsense, in which case no button
+  // is rendered at all. A directions link that opens a map pointed at nowhere
+  // is worse than none: it looks like it worked.
+  const directions = directionsUrl({
+    latitude: property.coordinates.latitude,
+    longitude: property.coordinates.longitude,
+    placeId: property.id,
+    name: property.name,
+  });
 
   return (
     <div className="group overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/20">
@@ -118,6 +129,22 @@ export default function IndexedPropertyCard({
             </p>
           )}
         </div>
+
+        {/* Directions sits below the price row so it is available whether or
+            not the property can be booked — knowing where somewhere is does
+            not depend on us being able to sell it. */}
+        {directions && (
+          <a
+            href={directions}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs font-semibold text-white transition hover:border-white/25 hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
+            aria-label={`Directions to ${property.name} on Google Maps, opens in a new tab`}
+          >
+            <Navigation className="h-3.5 w-3.5" aria-hidden="true" />
+            Directions
+          </a>
+        )}
       </div>
     </div>
   );

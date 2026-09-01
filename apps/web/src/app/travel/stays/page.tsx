@@ -27,17 +27,38 @@ function StaysResults() {
   const [freeCancel, setFreeCancel] = useState(false);
   const [ecoOnly, setEcoOnly] = useState(false);
   const [sort, setSort] = useState<SortId>("price");
+  /** Why the provider returned nothing, when it did. */
+  const [unavailable, setUnavailable] = useState<string | null>(null);
+  /** Whether we hold indexed properties for this city, so the empty state can
+   *  offer a real route instead of a dead end. */
+  const [hasIndexed, setHasIndexed] = useState(false);
+  const [failed, setFailed] = useState(false);
+  /** Bumped by Retry. `city` comes from the URL and cannot be re-set. */
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setLoading(true);
-    sendJSON<{ results: Stay[]; nights: number }>("/api/travel/search", { type: "stays", city, checkIn, checkOut })
+    setFailed(false);
+    sendJSON<{
+      results: Stay[];
+      nights: number;
+      unavailableReason?: string;
+      indexedAlternatives?: boolean;
+    }>("/api/travel/search", { type: "stays", city, checkIn, checkOut })
       .then((d) => {
         setStays(d.results);
         setNights(d.nights);
+        setUnavailable(d.unavailableReason ?? null);
+        setHasIndexed(Boolean(d.indexedAlternatives));
       })
-      .catch(() => setStays([]))
+      // A network failure is not "no results". Conflating them tells someone
+      // their search came back empty when in fact it never ran.
+      .catch(() => {
+        setStays([]);
+        setFailed(true);
+      })
       .finally(() => setLoading(false));
-  }, [city, checkIn, checkOut]);
+  }, [city, checkIn, checkOut, reloadKey]);
 
   const filtered = useMemo(() => {
     let out = stays.filter(
@@ -127,6 +148,40 @@ function StaysResults() {
         <div>
           {loading ? (
             <SkeletonCards count={6} imageH="h-40" />
+          ) : failed ? (
+            <div className="py-16 text-center">
+              <p className="text-sm text-white">Search couldn&apos;t run.</p>
+              <p className="mt-1 text-sm text-textSecondary">
+                Something went wrong reaching the search service. Nothing was booked.
+              </p>
+              <button
+                type="button"
+                onClick={() => setReloadKey((k) => k + 1)}
+                className="mt-4 rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
+              >
+                Try again
+              </button>
+            </div>
+          ) : unavailable ? (
+            // The distinction that matters: the old copy said "No stays match
+            // your filters", which blames the reader for a gap on our side and
+            // sends them adjusting filters that were never the cause.
+            <div className="py-16 text-center">
+              <p className="text-sm text-white">No bookable rates for {city}.</p>
+              <p className="mx-auto mt-1 max-w-md text-sm text-textSecondary">
+                {unavailable === "no_live_provider"
+                  ? "Live rates need a booking provider, which isn't connected yet — so there is nothing to quote."
+                  : "Our provider returned no availability for these dates."}
+              </p>
+              {hasIndexed && (
+                <Link
+                  href={`/hotels/map`}
+                  className="mt-4 inline-block rounded-full bg-white/10 px-4 py-2 text-sm font-semibold text-white hover:bg-white/15"
+                >
+                  Browse indexed properties in {city}
+                </Link>
+              )}
+            </div>
           ) : filtered.length === 0 ? (
             <p className="py-16 text-center text-sm text-textSecondary">No stays match your filters.</p>
           ) : (
