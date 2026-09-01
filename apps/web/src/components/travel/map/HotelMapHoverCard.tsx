@@ -467,7 +467,19 @@ function PropertyPreview({
   onOpen: () => void;
 }) {
   const location = [point.city, point.country].filter(Boolean).join(", ");
+  // TWO DIFFERENT MEASUREMENTS, never blended. `stars` is an official
+  // classification a source recorded; `rating` is what visitors scored it. A
+  // curated property usually has the first, a Google-discovered one the second,
+  // and the suffix below says which is on screen so a 4.3 average is never
+  // mistaken for a 4-star classification.
   const stars = typeof point.stars === "number" ? point.stars : undefined;
+  const rating = typeof point.rating === "number" ? point.rating : undefined;
+  const score = stars ?? rating;
+  const scoreNote = stars !== undefined
+    ? "Star classification"
+    : rating !== undefined
+      ? `Google rating${point.ratingCount ? ` · ${point.ratingCount.toLocaleString()} reviews` : ""}`
+      : null;
   // A FurlPay collection names the property better than a raw source type, so
   // it wins when there is one.
   const typeLabel =
@@ -548,13 +560,20 @@ function PropertyPreview({
         </p>
 
         <div className="mt-2 flex items-center gap-2 text-[12.5px]">
-          {stars !== undefined && (
-            <span className="flex shrink-0 items-center gap-1">
+          {score !== undefined && (
+            <span className="flex shrink-0 items-center gap-1" title={scoreNote ?? undefined}>
               <StarIcon className="h-4 w-4 shrink-0 text-[#F4B400]" />
-              <span className="font-semibold text-[#0F172A]">{stars.toFixed(1)}</span>
+              <span className="font-semibold text-[#0F172A]">{score.toFixed(1)}</span>
+              {/* The review count is the tell that this is an average rather
+                  than a classification, so it rides beside the number. */}
+              {stars === undefined && point.ratingCount ? (
+                <span className="text-[11px] text-[#94A3B8]">
+                  ({point.ratingCount.toLocaleString()})
+                </span>
+              ) : null}
             </span>
           )}
-          {stars !== undefined && typeLabel ? <span className="text-[#CBD5E1]">·</span> : null}
+          {score !== undefined && typeLabel ? <span className="text-[#CBD5E1]">·</span> : null}
           {typeLabel ? <span className="truncate text-[#64748B]">{typeLabel}</span> : null}
         </div>
 
@@ -578,7 +597,9 @@ function PropertyPreview({
           >
             {point.source === "osm"
               ? "OpenStreetMap"
-              : point.precision === "exact"
+              : point.source === "google"
+                ? "Powered by Google"
+                : point.precision === "exact"
                 ? "Position confirmed"
                 : "Approximate position"}
           </span>

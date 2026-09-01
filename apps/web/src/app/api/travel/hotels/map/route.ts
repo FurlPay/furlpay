@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { osmHotelsInBBox, bboxTooLarge } from "@/lib/travel/osmHotels";
 import {
+  googlePlacesInBBox,
+  prominence,
+  datasetStats,
+  type GooglePlaceProperty,
+} from "@/lib/hotels/googlePlacesLayer";
+import {
   clusterPoints,
   curatedInBBox,
   curatedMatching,
@@ -49,7 +55,7 @@ export const dynamic = "force-dynamic";
 // map costs no supplier requests.
 
 export type MapPointKind = "property" | "cluster";
-export type MapPointSource = "curated" | "osm";
+export type MapPointSource = "curated" | "osm" | "google";
 
 export interface MapPoint {
   id: string;
@@ -62,6 +68,13 @@ export interface MapPoint {
   country: string;
   /** Star class, when a source recorded one. Absent is not zero. */
   stars?: number;
+  /**
+   * Google's user rating, 1-5. A DIFFERENT MEASUREMENT from `stars`: one is an
+   * official classification, the other is what visitors thought. They are never
+   * blended, and a card that shows one says which it is.
+   */
+  rating?: number;
+  ratingCount?: number;
   brand?: string;
   website?: string;
   /** OSM `tourism` value, or the curated property type. */
@@ -118,6 +131,8 @@ export interface MapResponse {
     curatedClustered: number;
     /** OSM hotels drawn in this viewport. */
     osmInView: number;
+    /** Google-discovered accommodation drawn in this viewport. */
+    googleInView: number;
     /** Curated properties matching the filter ANYWHERE, so a viewport with
      *  none can still say how many exist elsewhere. */
     curatedMatchingWorldwide: number;
@@ -142,11 +157,13 @@ export interface MapResponse {
    */
   osmFilteredOut: boolean;
   dataset: ReturnType<typeof curatedStats>;
+  googleDataset: ReturnType<typeof datasetStats>;
   fetchedAt: string;
   attribution: string;
 }
 
-const ATTRIBUTION = "© OpenStreetMap contributors (ODbL) · Curated positions verified with Google";
+const ATTRIBUTION =
+  "© OpenStreetMap contributors (ODbL) · Powered by Google · Curated positions verified with Google";
 
 /**
  * The most markers worth putting on screen at once.
@@ -226,6 +243,51 @@ function parseFilter(sp: URLSearchParams): CuratedFilter {
     minStars: Number.isFinite(minStars) && minStars >= 1 && minStars <= 5 ? minStars : undefined,
     query: q || undefined,
     exactOnly: sp.get("exactOnly") === "1",
+  };
+}
+
+/**
+ * The property-type families the UI offers, mapped onto the taxonomy the Google
+ * layer normalizes to.
+ *
+ * "Villas" deliberately includes guest houses: Google files private guest rooms,
+ * cottages and farmstays under types that mean the same thing to a traveller
+ * looking for a whole place to themselves, and a Villas filter that returned
+ * only the literal `villa` type would hide most of what it should show.
+ */
+function familiesToTypes(families: PropertyFamily[]): string[] {
+  const out = new Set<string>();
+  for (const f of families) {
+    if (f === "hotels") ["hotel", "extended_stay", "motel"].forEach((t) => out.add(t));
+    if (f === "resorts") out.add("resort");
+    if (f === "villas") ["villa", "guest_house"].forEach((t) => out.add(t));
+  }
+  return [...out];
+}
+
+/** A Google place as a map point. Every field is passed through or left absent;
+ *  nothing is derived to fill a gap. */
+function googleToPoint(g: GooglePlaceProperty): MapPoint {
+  return {
+    id: `gp_${g.placeId}`,
+    kind: "property",
+    source: "google",
+    latitude: g.latitude,
+    longitude: g.longitude,
+    name: g.name,
+    city: g.city ?? "",
+    country: g.country ?? "",
+    // The label's second line. Google's own display name for the type when it
+    // has one ("Hotel", "Resort hotel"), else the normalized family.
+    hotelType: g.typeDisplay ?? g.propertyType,
+    // Google's user rating is NOT a star class, so it does not go in `stars`.
+    rating: g.rating ?? undefined,
+    ratingCount: g.ratingCount ?? undefined,
+    website: g.website ?? undefined,
+    placeId: g.placeId,
+    googleMapsUri: g.googleMapsUrl ?? undefined,
+    // A discovered position is Google's own, so it is exact by construction.
+    precision: "exact",
   };
 }
 
@@ -355,6 +417,38 @@ export async function GET(req: NextRequest) {
 
   const { points: osmPoints, corroborated } = dedupe(curated, osm);
 
+  // --- Google layer ---------------------------------------------------------
+  //
+  // Real accommodation with real coordinates across the destinations that have
+  // been discovered, sitting between the curated spine and the OSM coverage:
+  // richer than an OSM dot (it carries a rating, a type and an address) and
+  // broader than the curated 507. Served from a static dataset, so it costs no
+  // upstream call and answers at any zoom the viewport allows.
+  //
+  // Deduped against the curated layer on the same proximity-plus-name rule as
+  // OSM, because a curated property is very often ALSO a Google place, and two
+  // pins on one building read as two hotels.
+  const googleRaw = zoom >= CLUSTER_MAX_ZOOM - 2
+    ? googlePlacesInBBox(box, {
+        types: filter.families?.length ? familiesToTypes(filter.families) : undefined,
+        query: filter.query,
+      })
+    : [];
+
+  const googlePoints: MapPoint[] = [];
+  for (const g of googleRaw) {
+    const twin = curated.find(
+      (c) =>
+        haversineMeters(c.latitude, c.longitude, g.latitude, g.longitude) <= DEDUPE_DISTANCE_M &&
+        jaroWinkler(normalizeName(c.name), normalizeName(g.name)) >= DEDUPE_NAME_MIN
+    );
+    if (twin) {
+      corroborated.add(twin.id);
+      continue;
+    }
+    googlePoints.push(googleToPoint(g));
+  }
+
   // --- assemble --------------------------------------------------------------
   const { clusters, singles } = clusterPoints(curated, zoom);
 
@@ -363,8 +457,12 @@ export async function GET(req: NextRequest) {
   // Rank before capping, so what survives a cap is the most significant rather
   // than whatever the sources happened to list first. Curated properties outrank
   // OSM dots: they carry a verified position and the metadata the map is for.
-  const all = [...curatedPoints, ...osmPoints].sort((a, b) => {
-    if (a.source !== b.source) return a.source === "curated" ? -1 : 1;
+  const RANK: Record<MapPointSource, number> = { curated: 0, google: 1, osm: 2 };
+  const all = [...curatedPoints, ...googlePoints, ...osmPoints].sort((a, b) => {
+    if (a.source !== b.source) return RANK[a.source] - RANK[b.source];
+    // Within a source, the most significant first, so a cap keeps the
+    // properties a reader is most likely to be looking for.
+    if (a.source === "google") return (b.ratingCount ?? 0) - (a.ratingCount ?? 0);
     return (b.lScore ?? 0) - (a.lScore ?? 0) || (b.stars ?? 0) - (a.stars ?? 0);
   });
 
@@ -377,6 +475,7 @@ export async function GET(req: NextRequest) {
       curatedInView: points.filter((p) => p.source === "curated").length,
       curatedClustered: clusters.reduce((n, c) => n + c.count, 0),
       osmInView: points.filter((p) => p.source === "osm").length,
+      googleInView: points.filter((p) => p.source === "google").length,
       curatedMatchingWorldwide: curatedMatching(filter).length,
     },
     truncated: all.length - points.length,
@@ -384,6 +483,9 @@ export async function GET(req: NextRequest) {
     osmUnavailable,
     osmFilteredOut: osmWanted && filtersCurated,
     dataset: curatedStats(),
+    // Freshness of the Google layer, so the UI can say why coverage thinned if
+    // the dataset ages out rather than silently drawing fewer pins.
+    googleDataset: datasetStats(),
     fetchedAt: new Date().toISOString(),
     attribution: ATTRIBUTION,
   };
