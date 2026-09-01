@@ -47,7 +47,12 @@ export interface Anchor {
   y: number;
 }
 
+/** The destination card carries a stats row and three properties, so it needs
+ *  the width. */
 const CARD_W = 440;
+/** A single property has one image and four lines of text. At 440 it read as a
+ *  panel that had lost its page; this is a preview that sits ON the map. */
+const CARD_W_PROPERTY = 320;
 const CARD_MARGIN = 16;
 /**
  * Height used before the card has been measured once.
@@ -85,9 +90,7 @@ function usePreview(placeIds: string[]) {
   // These were one `unavailable` state rendering "Photography not configured",
   // which told a user who had simply hovered too fast that their deployment was
   // misconfigured.
-  const [state, setState] = useState<
-    "idle" | "loading" | "ready" | "rate-limited" | "unconfigured" | "failed"
-  >("idle");
+  const [state, setState] = useState<PreviewState>("idle");
 
   useEffect(() => {
     if (!placeIds.length) {
@@ -146,6 +149,11 @@ function usePreview(placeIds: string[]) {
   return { places, state };
 }
 
+/** How the on-demand photography lookup is currently getting on. Named so the
+ *  preview component can be handed it rather than re-deriving it. */
+export type PreviewState =
+  | "idle" | "loading" | "ready" | "rate-limited" | "unconfigured" | "failed";
+
 /**
  * Place the card so it never leaves the viewport, flipping across the marker
  * rather than sliding, so the pointer keeps aiming at the thing it describes.
@@ -156,13 +164,23 @@ function usePreview(placeIds: string[]) {
  */
 function place(
   anchor: Anchor,
-  height: number
-): { left: number; top: number; maxHeight: number; side: "left" | "right" } {
+  height: number,
+  width: number
+): { left: number; top: number; maxHeight: number; side: "left" | "right"; width: number } {
   const vw = typeof window === "undefined" ? 1440 : window.innerWidth;
   const vh = typeof window === "undefined" ? 900 : window.innerHeight;
 
-  const side: "left" | "right" = anchor.x + CARD_W + 56 > vw ? "left" : "right";
-  const left = side === "right" ? anchor.x + 28 : anchor.x - CARD_W - 28;
+  // On a narrow screen the card must not be wider than the screen. Clamped
+  // before anything is positioned, so the flip below reasons about the width
+  // the card will actually have.
+  const w = Math.min(width, vw - CARD_MARGIN * 2);
+
+  const side: "left" | "right" = anchor.x + w + 56 > vw ? "left" : "right";
+  let left = side === "right" ? anchor.x + 28 : anchor.x - w - 28;
+  // Flipping handles the common case; this catches the rest — a marker close to
+  // BOTH edges on a phone, where neither side has room and the card would
+  // otherwise hang off the screen.
+  left = Math.max(CARD_MARGIN, Math.min(left, vw - CARD_MARGIN - w));
 
   // The card may never be taller than the space between the header and the
   // bottom margin; past that it scrolls internally rather than off-screen.
@@ -172,7 +190,7 @@ function place(
   let top = anchor.y - effective / 2;
   top = Math.max(HEADER_CLEARANCE, Math.min(top, vh - CARD_MARGIN - effective));
 
-  return { left, top, maxHeight: available, side };
+  return { left, top, maxHeight: available, side, width: w };
 }
 
 export default function HotelMapHoverCard({
@@ -207,6 +225,17 @@ export default function HotelMapHoverCard({
             placeId: target.point.placeId,
             latitude: target.point.latitude,
             longitude: target.point.longitude,
+            // THE PICTURE THE POINT ALREADY CARRIES. Omitting these made a
+            // single-property card ask Google for a photograph the dataset was
+            // already holding: imageFor() found no local file, no Commons URL,
+            // and fell through to the Places lookup. That is a billable call
+            // per hover for the 150 properties whose photograph ships with the
+            // app, and it left the hero reading "Loading photography…" whenever
+            // that call was slow, rate-limited or unconfigured.
+            imageLocalPath: target.point.imageLocalPath,
+            imageUrl: target.point.imageUrl,
+            imageThumbUrl: target.point.imageThumbUrl,
+            imageCredit: target.point.imageCredit,
           },
         ];
 
@@ -252,7 +281,7 @@ export default function HotelMapHoverCard({
     return () => ro.disconnect();
   }, []);
 
-  const pos = place(anchor, height);
+  const pos = place(anchor, height, target.kind === "cluster" ? CARD_W : CARD_W_PROPERTY);
   // The arrow tracks the marker within the card's real bounds, so it keeps
   // pointing at the thing the card describes even when the card was clamped.
   const pointerTop = Math.max(28, Math.min(Math.min(height, pos.maxHeight) - 40, anchor.y - pos.top));
@@ -272,7 +301,7 @@ export default function HotelMapHoverCard({
       style={{
         left: pos.left,
         top: pos.top,
-        width: CARD_W,
+        width: pos.width,
         maxHeight: pos.maxHeight,
         overflowY: "auto",
       }}
@@ -287,153 +316,280 @@ export default function HotelMapHoverCard({
         aria-hidden
       />
 
-      {/* --- header ------------------------------------------------------- */}
-      <div className="flex items-center gap-3 px-4 pb-3 pt-4">
-        <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-[#F1F5F9] ring-1 ring-[#E2E8F0]">
-          {heroImage.url ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={heroImage.url} alt="" className="h-full w-full object-cover" loading="lazy" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-[#94A3B8]">
-              <HotelIcon />
+      {target.kind === "cluster" ? (
+        <>
+        {/* --- header ------------------------------------------------------- */}
+        <div className="flex items-center gap-3 px-4 pb-3 pt-4">
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-[#F1F5F9] ring-1 ring-[#E2E8F0]">
+            {heroImage.url ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={heroImage.url} alt="" className="h-full w-full object-cover" loading="lazy" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-[#94A3B8]">
+                <HotelIcon />
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[17px] font-bold leading-tight text-[#0F172A]">{title}</p>
+            <p className="mt-0.5 truncate text-[13px] text-[#64748B]">{subtitle}</p>
+          </div>
+          {/* The rating pill renders only when Google actually has a rating.
+              There is no default and no placeholder star. */}
+          {rating !== undefined && (
+            <span className="flex shrink-0 items-center gap-1 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[13px] font-bold text-[#0F172A]">
+              <StarIcon className="h-3.5 w-3.5 shrink-0 text-[#F4B400]" /> {rating.toFixed(1)}
             </span>
           )}
+          {/* A CLUSTER is not savable: "save this region" is not something the
+              wishlist can hold. The properties inside it are each savable from
+              their own card, and a single property saves from its preview. */}
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[17px] font-bold leading-tight text-[#0F172A]">{title}</p>
-          <p className="mt-0.5 truncate text-[13px] text-[#64748B]">{subtitle}</p>
-        </div>
-        {/* The rating pill renders only when Google actually has a rating.
-            There is no default and no placeholder star. */}
-        {rating !== undefined && (
-          <span className="flex shrink-0 items-center gap-1 rounded-full border border-[#E2E8F0] bg-white px-2.5 py-1 text-[13px] font-bold text-[#0F172A]">
-            <StarIcon className="h-3.5 w-3.5 shrink-0 text-[#F4B400]" /> {rating.toFixed(1)}
-          </span>
-        )}
-        {/* A single property can be saved from here — the fastest path there
-            is, since hovering a marker is already how you look at one. A
-            CLUSTER cannot: "save this region" is not a thing the wishlist can
-            hold, and the individual properties are each savable from their own
-            card below. */}
-        {target.kind === "property" && (
-          <SaveButton
-            size="sm"
-            saved={savedIds.has(target.point.id)}
-            place={{
-              id: target.point.id,
-              name: target.point.name,
-              latitude: target.point.latitude,
-              longitude: target.point.longitude,
-              city: target.point.city,
-              country: target.point.country,
-            }}
-            className="border-[#E2E8F0] bg-white text-[#64748B] hover:bg-[#F1F5F9] hover:text-[#0F172A]"
-          />
-        )}
-      </div>
 
-      {/* --- hero --------------------------------------------------------- */}
-      <div className="relative mx-4 h-[150px] overflow-hidden rounded-xl bg-[#F1F5F9]">
-        {heroImage.url ? (
+        {/* --- hero --------------------------------------------------------- */}
+        <div className="relative mx-4 h-[150px] overflow-hidden rounded-xl bg-[#F1F5F9]">
+          {heroImage.url ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={heroImage.url}
+                alt={hero?.name ?? title}
+                className="h-full w-full object-cover"
+                loading="lazy"
+              />
+              {/* Attribution travels with the picture. For Commons it is the
+                  licence condition; for Google it is the policy requirement. */}
+              {heroImage.credit && (
+                <span className="absolute bottom-1 right-1.5 max-w-[70%] truncate rounded bg-black/45 px-1.5 py-0.5 text-[9.5px] text-white/90">
+                  {heroImage.credit}
+                </span>
+              )}
+            </>
+          ) : (
+            <div className="flex h-full items-center justify-center text-[12.5px] text-[#94A3B8]">
+              {state === "loading"
+                ? "Loading photography…"
+                : state === "rate-limited"
+                  ? "Too many previews — pausing briefly"
+                  : state === "unconfigured"
+                    ? "Photography not configured"
+                    : state === "failed"
+                      ? "Photography could not be loaded"
+                      : "No photograph available"}
+            </div>
+          )}
+        </div>
+
+        {/* --- statistics ---------------------------------------------------- */}
+          <div className="mt-3.5 grid grid-cols-4 gap-1 border-b border-[#F1F5F9] px-4 pb-3.5">
+            <Stat icon={<HotelIcon />} value={target.cluster.families.hotels} label="Hotels" />
+            <Stat icon={<ResortIcon />} value={target.cluster.families.resorts} label="Resorts" />
+            <Stat icon={<VillaIcon />} value={target.cluster.families.villas} label="Villas" />
+            {/* The fourth column is "confirmed", not an average nightly rate. The
+                dataset holds no prices, and this is the number it does hold that
+                a traveller has a reason to care about. */}
+            <Stat
+              icon={<VerifiedIcon />}
+              value={target.cluster.confirmed}
+              label="Confirmed"
+              title="Positions verified against Google Places"
+            />
+          </div>
+
+        {/* --- top properties ------------------------------------------------ */}
+        <div className="px-4 pb-4 pt-3">
+          <div className="flex items-center justify-between">
+            <p className="text-[13px] font-bold text-[#1E293B]">
+              Top Properties
+            </p>
+            {target.kind === "cluster" && target.cluster.count > members.length && (
+              <button
+                type="button"
+                onClick={onViewAll}
+                className="flex items-center gap-1 text-[12px] font-semibold text-[#1B7A4E] transition-opacity hover:opacity-75"
+              >
+                View all
+                <ArrowRightIcon />
+              </button>
+            )}
+          </div>
+
+          <div className={`mt-2.5 grid gap-2.5 ${members.length === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
+            {members.map((m) => (
+              <PropertyCard
+                key={m.id}
+                member={m}
+                image={imageFor(m)}
+                preview={m.placeId ? places.get(m.placeId) : undefined}
+                wide={members.length === 1}
+                onOpen={() => onOpenProperty(m)}
+              />
+            ))}
+          </div>
+        </div>
+        </>
+      ) : (
+        <PropertyPreview
+          point={target.point}
+          image={heroImage}
+          state={state}
+          saved={savedIds.has(target.point.id)}
+          onOpen={() => onOpenProperty(target.point)}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The single-property preview.
+ *
+ * WHY THIS IS NOT THE CLUSTER LAYOUT WITH ONE ITEM IN IT. It used to be, and it
+ * read badly: the name appeared in the header and then again on the mini-card
+ * below it, the photograph sat inset in a box under both, and a card describing
+ * ONE hotel stood as tall as one describing a whole region. Reading the same
+ * name twice is the tell that a layout is being reused rather than designed.
+ *
+ * The order here is the order the question actually gets asked: what does it
+ * look like, what is it called, how good is it, where is it. The image leads at
+ * full bleed because on a map a photograph identifies a property faster than
+ * its name does.
+ */
+function PropertyPreview({
+  point, image, state, saved, onOpen,
+}: {
+  point: MapPoint;
+  image: { url?: string; credit?: string };
+  state: PreviewState;
+  saved: boolean;
+  onOpen: () => void;
+}) {
+  const location = [point.city, point.country].filter(Boolean).join(", ");
+  const stars = typeof point.stars === "number" ? point.stars : undefined;
+  // A FurlPay collection names the property better than a raw source type, so
+  // it wins when there is one.
+  const typeLabel =
+    LUXURY_MAP_CATEGORIES.find((c) => (point.categories ?? []).includes(c.id))?.label ??
+    prettyType(point.hotelType);
+
+  return (
+    <>
+      {/* --- hero, full bleed --------------------------------------------- */}
+      <div className="relative h-[168px] overflow-hidden rounded-t-[16px] bg-[#F1F5F9]">
+        {image.url ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={heroImage.url}
-              alt={hero?.name ?? title}
+              src={image.url}
+              alt={point.name}
               className="h-full w-full object-cover"
               loading="lazy"
             />
-            {/* Attribution travels with the picture. For Commons it is the
-                licence condition; for Google it is the policy requirement. */}
-            {heroImage.credit && (
-              <span className="absolute bottom-1 right-1.5 max-w-[70%] truncate rounded bg-black/45 px-1.5 py-0.5 text-[9.5px] text-white/90">
-                {heroImage.credit}
+            {/* Attribution travels with the picture: a licence condition for
+                Commons, a policy requirement for Google. */}
+            {image.credit && (
+              <span className="absolute bottom-1.5 right-2 max-w-[70%] truncate rounded bg-black/45 px-1.5 py-0.5 text-[9.5px] text-white/90">
+                {image.credit}
               </span>
             )}
           </>
         ) : (
-          <div className="flex h-full items-center justify-center text-[12.5px] text-[#94A3B8]">
-            {state === "loading"
-              ? "Loading photography…"
-              : state === "rate-limited"
-                ? "Too many previews — pausing briefly"
-                : state === "unconfigured"
-                  ? "Photography not configured"
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 text-[#94A3B8]">
+            <HotelIcon className="h-7 w-7" />
+            <span className="px-4 text-center text-[11.5px]">
+              {state === "loading"
+                ? "Loading photography…"
+                : state === "rate-limited"
+                  ? "Too many previews — pausing briefly"
                   : state === "failed"
                     ? "Photography could not be loaded"
                     : "No photograph available"}
+            </span>
           </div>
         )}
-      </div>
 
-      {/* --- statistics ---------------------------------------------------- */}
-      {target.kind === "cluster" ? (
-        <div className="mt-3.5 grid grid-cols-4 gap-1 border-b border-[#F1F5F9] px-4 pb-3.5">
-          <Stat icon={<HotelIcon />} value={target.cluster.families.hotels} label="Hotels" />
-          <Stat icon={<ResortIcon />} value={target.cluster.families.resorts} label="Resorts" />
-          <Stat icon={<VillaIcon />} value={target.cluster.families.villas} label="Villas" />
-          {/* The fourth column is "confirmed", not an average nightly rate. The
-              dataset holds no prices, and this is the number it does hold that
-              a traveller has a reason to care about. */}
-          <Stat
-            icon={<VerifiedIcon />}
-            value={target.cluster.confirmed}
-            label="Confirmed"
-            title="Positions verified against Google Places"
+        {/* Saving is the one action worth having on a preview, and it sits on
+            the image rather than competing with the name for a line. */}
+        <div className="absolute right-2 top-2">
+          <SaveButton
+            size="sm"
+            saved={saved}
+            place={{
+              id: point.id,
+              name: point.name,
+              latitude: point.latitude,
+              longitude: point.longitude,
+              city: point.city,
+              country: point.country,
+            }}
+            className="border-white/60 bg-white/90 text-[#64748B] shadow-sm backdrop-blur hover:bg-white hover:text-[#0F172A]"
           />
         </div>
-      ) : (
-        <div className="mt-3.5 flex flex-wrap gap-1.5 border-b border-[#F1F5F9] px-4 pb-3.5">
-          {(target.point.categories ?? []).map((id) => {
-            const c = LUXURY_MAP_CATEGORIES.find((x) => x.id === id);
-            if (!c) return null;
-            return (
-              <span
-                key={id}
-                className="flex items-center gap-1.5 rounded-md px-2 py-1 text-[11px] font-semibold"
-                style={{ background: `${c.color}1A`, color: c.color }}
-              >
-                <CategoryIcon id={id} className="h-3.5 w-3.5 shrink-0" />
-                {c.label}
-              </span>
-            );
-          })}
-        </div>
-      )}
+      </div>
 
-      {/* --- top properties ------------------------------------------------ */}
-      <div className="px-4 pb-4 pt-3">
-        <div className="flex items-center justify-between">
-          <p className="text-[13px] font-bold text-[#1E293B]">
-            {target.kind === "cluster" ? "Top Properties" : "Property"}
-          </p>
-          {target.kind === "cluster" && target.cluster.count > members.length && (
-            <button
-              type="button"
-              onClick={onViewAll}
-              className="flex items-center gap-1 text-[12px] font-semibold text-[#1B7A4E] transition-opacity hover:opacity-75"
-            >
-              View all
-              <ArrowRightIcon />
-            </button>
+      {/* --- information --------------------------------------------------- */}
+      <div className="px-4 pb-3.5 pt-3">
+        {/* Two lines then ellipsis. Hotel names run long, and a preview that
+            grows to fit one starts covering the map it is describing. */}
+        <p className="line-clamp-2 text-[15px] font-bold leading-snug text-[#0F172A]">
+          {point.name}
+        </p>
+
+        <div className="mt-1.5 flex items-center gap-2 text-[12.5px]">
+          {stars !== undefined && (
+            <span className="flex shrink-0 items-center gap-1">
+              <StarIcon className="h-3.5 w-3.5 shrink-0 text-[#F4B400]" />
+              <span className="font-semibold text-[#0F172A]">{stars.toFixed(1)}</span>
+            </span>
           )}
+          {stars !== undefined && typeLabel ? <span className="text-[#CBD5E1]">·</span> : null}
+          {typeLabel ? <span className="truncate text-[#64748B]">{typeLabel}</span> : null}
         </div>
 
-        <div className={`mt-2.5 grid gap-2.5 ${members.length === 1 ? "grid-cols-1" : "grid-cols-3"}`}>
-          {members.map((m) => (
-            <PropertyCard
-              key={m.id}
-              member={m}
-              image={imageFor(m)}
-              preview={m.placeId ? places.get(m.placeId) : undefined}
-              wide={members.length === 1}
-              onOpen={() => onOpenProperty(m)}
-            />
-          ))}
+        {location ? (
+          <p className="mt-1 truncate text-[12px] text-[#94A3B8]">{location}</p>
+        ) : null}
+
+        {/* NO PRICE SLOT, deliberately. Duffel runs in test mode on this
+            deployment, so any rate here would be a sandbox figure — and a wrong
+            price is the single thing that would make the whole surface
+            untrustworthy. Omitted rather than filled with a placeholder. */}
+
+        <div className="mt-2.5 flex items-center justify-between border-t border-[#F1F5F9] pt-2.5">
+          <span
+            className="truncate text-[11.5px] font-medium text-[#94A3B8]"
+            title={
+              point.precision === "exact"
+                ? "Position verified against Google Places"
+                : "Position could not be confirmed; the curated coordinate stands"
+            }
+          >
+            {point.source === "osm"
+              ? "OpenStreetMap"
+              : point.precision === "exact"
+                ? "Position confirmed"
+                : "Approximate position"}
+          </span>
+          <button
+            type="button"
+            onClick={onOpen}
+            className="flex shrink-0 items-center gap-1 text-[12px] font-semibold text-[#1B7A4E] transition-opacity hover:opacity-75"
+          >
+            View details
+            <ArrowRightIcon />
+          </button>
         </div>
       </div>
-    </div>
+    </>
   );
+}
+
+/** "resort_hotel" -> "Resort hotel". Used only when a property carries no
+ *  FurlPay collection to name it by. */
+function prettyType(t: string | undefined): string {
+  if (!t) return "";
+  const v = t.replace(/_/g, " ").trim();
+  return v ? v[0].toUpperCase() + v.slice(1) : "";
 }
 
 function Stat({
