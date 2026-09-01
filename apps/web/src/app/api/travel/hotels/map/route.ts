@@ -413,13 +413,40 @@ export async function GET(req: NextRequest) {
     filter.query || filter.categories?.length || filter.families?.length || filter.exactOnly
   );
 
+  // --- is Overpass worth waiting for? ---------------------------------------
+  //
+  // MEASURED, NOT ASSUMED. A Paris viewport at zoom 13 took 10-50 SECONDS, and
+  // the same zoom over open ocean took 1.8s: the entire difference is the
+  // Overpass round trip. Worse, the OSM points it returned were then discarded
+  // — `osmInView` was 0, because the render budget had already filled with
+  // Google properties that outrank them. The map was paying half a minute of
+  // latency for data it threw away.
+  //
+  // So OSM is fetched only where it can actually help: viewports the Google
+  // layer covers thinly. That inverts the failure — instead of OSM being
+  // permanently invisible behind better data, it appears exactly where the
+  // better data runs out, which is the only place it was ever adding anything.
+  const googleCandidates = zoom >= CLUSTER_MAX_ZOOM - 2
+    ? googlePlacesInBBox(box, {
+        types: filter.families?.length ? familiesToTypes(filter.families) : undefined,
+        query: filter.query,
+      })
+    : [];
+
+  /** Below this, the Google layer is thin enough that OSM adds real coverage. */
+  const GOOGLE_DENSE_ENOUGH = 120;
+  const googleCoversIt = googleCandidates.length >= GOOGLE_DENSE_ENOUGH;
+
   const osm =
-    osmWanted && !filtersCurated
+    osmWanted && !filtersCurated && !googleCoversIt
       ? await osmHotelsInBBox(box, filter.minStars ?? 0)
       : null;
   // null from a call we made is an upstream failure; null because we never
   // called is not. Collapsing the two would let a wide zoom read as an outage.
-  const osmUnavailable = osmWanted && !filtersCurated && osm === null;
+  // Only an attempted call can fail. Skipping Overpass because Google already
+  // covers the viewport is not an outage and must not be reported as one.
+  const osmAttempted = osmWanted && !filtersCurated && !googleCoversIt;
+  const osmUnavailable = osmAttempted && osm === null;
 
   const { points: osmPoints, corroborated } = dedupe(curated, osm);
 
@@ -434,12 +461,7 @@ export async function GET(req: NextRequest) {
   // Deduped against the curated layer on the same proximity-plus-name rule as
   // OSM, because a curated property is very often ALSO a Google place, and two
   // pins on one building read as two hotels.
-  const googleRaw = zoom >= CLUSTER_MAX_ZOOM - 2
-    ? googlePlacesInBBox(box, {
-        types: filter.families?.length ? familiesToTypes(filter.families) : undefined,
-        query: filter.query,
-      })
-    : [];
+  const googleRaw = googleCandidates;
 
   const googlePoints: MapPoint[] = [];
   for (const g of googleRaw) {
@@ -472,7 +494,32 @@ export async function GET(req: NextRequest) {
     return (b.lScore ?? 0) - (a.lScore ?? 0) || (b.stars ?? 0) - (a.stars ?? 0);
   });
 
-  const points = all.slice(0, RENDER_BUDGET);
+  // --- per-source quotas ------------------------------------------------------
+  //
+  // A single ranked slice let the densest source take everything: Paris drew
+  // 391 Google properties, 9 curated and 0 OSM. Ranking still decides WHICH
+  // properties survive within a source, but each source gets a floor so the map
+  // stays a picture of what is there rather than of whichever layer happens to
+  // be deepest.
+  //
+  // Curated is uncapped because it is never large — 507 worldwide, and a
+  // viewport holds a handful — and it is the layer FurlPay actually curates.
+  const GOOGLE_QUOTA = 300;
+  const OSM_QUOTA = 60;
+  const taken = { curated: 0, google: 0, osm: 0 } as Record<MapPointSource, number>;
+  const quota: Record<MapPointSource, number> = {
+    curated: Number.POSITIVE_INFINITY,
+    google: GOOGLE_QUOTA,
+    osm: OSM_QUOTA,
+  };
+
+  const points: MapPoint[] = [];
+  for (const p of all) {
+    if (points.length >= RENDER_BUDGET) break;
+    if (taken[p.source] >= quota[p.source]) continue;
+    taken[p.source] += 1;
+    points.push(p);
+  }
 
   const body: MapResponse = {
     points,
