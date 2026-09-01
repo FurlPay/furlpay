@@ -30,6 +30,393 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // Travel — the global hotel map ------------------------------------------
+  {
+    slug: "furlpay-hotel-map-luxury-properties-openstreetmap-book-in-usdc",
+    title:
+      "Introducing the FurlPay Hotel Map: 507 Luxury Properties, Global Coverage, and Rates You Can Settle in USDC",
+    excerpt:
+      "A world hotel map that never invents a pin, a count or a price. 507 curated luxury properties resolved against Google Places, every hotel OpenStreetMap knows layered underneath, nightly rates pulled from Duffel only when you ask for one — and settlement on the USDC rail at 0.5% instead of 2.9–3.5% on a card. This is the whole build: the spatial database, the coordinate verification, the deduplication, the GPU rendering, and the licence rules that shaped all three.",
+    category: "travel",
+    date: "2026-09-01",
+    readMins: 18,
+    author: "Ashutosh Kumar Singh",
+    // The map itself. Filename avoids the furlpay*.png / "hotels map.png"
+    // rules in .gitignore, which would silently keep it out of the repo and
+    // 404 in production.
+    cover: "/blog/hotel-map.jpg",
+    body: [
+      {
+        type: "p",
+        text: `The FurlPay hotel map is live at [furlpay.com/hotels/map](https://furlpay.com/hotels/map), and on the iPhone and Android apps. It opens on the whole world, it draws real hotels at coordinates somebody actually recorded, and it will tell you what it does not know rather than filling the gap with something plausible. That last sentence is the entire design brief, and most of this post is about what it cost to honour it.`,
+      },
+      {
+        type: "p",
+        text: `A marker on this map makes exactly one claim — "this hotel is here" — and that claim is always true. It never asserts a price it has not fetched, a count it has not counted, or a position a second source has not confirmed. Everywhere the map is uncertain, it says so on the pin.`,
+      },
+
+      { type: "h2", text: "What shipped" },
+      {
+        type: "ul",
+        items: [
+          "A full-bleed world map at /hotels/map — MapLibre GL over OpenFreeMap tiles, recoloured to a warm ivory palette so the cartography sits behind the interface rather than fighting it.",
+          "507 curated luxury properties across 79 countries and 327 cities, each one resolved against Google Places before it was allowed on the map.",
+          "Every hotel OpenStreetMap records in the viewport, layered underneath the curated spine and deduplicated against it.",
+          "Ten luxury collections — ultra-luxury, boutique, overwater villas, alpine chalets, heritage castles, vineyard and wellness, executive suites, Michelin dining, helipad transit and crypto escrow — as filter pills with an honest basis label on each.",
+          "150 property photographs served from our own origin under Wikimedia Commons licences, with per-file attribution in public/hotels/CREDITS.md.",
+          "Lazy per-hotel pricing from Duffel: the map itself costs zero supplier requests to draw.",
+          "The same endpoint, the same clustering and the same counts on the web, on iOS (MapKit) and in the React Native app — 214 TypeScript unit tests and 23 Swift tests hold the three surfaces to the same numbers.",
+        ],
+      },
+
+      { type: "h2", text: "Every hotel map you have used is a catalogue, not a map" },
+      {
+        type: "p",
+        text: `Open the map view on any booking site and look carefully at what is on it. You are not seeing the hotels in that city. You are seeing the hotels that supplier has contracted inventory for, on the dates you happened to type, filtered by whatever commercial sort is running that week. A property with no availability vanishes. A property the supplier does not carry never existed. The map is a rendering of a catalogue, and it is shaped like a map because a map is persuasive.`,
+      },
+      {
+        type: "p",
+        text: `That is a defensible product decision for a shop. It is a bad one for a discovery surface, because it quietly answers a different question from the one being asked. "What is around here?" and "what can I buy from this vendor right now?" are not the same question, and a map that conflates them is confidently wrong in a way you cannot see from the outside.`,
+      },
+      {
+        type: "p",
+        text: `We wanted the first question answered properly, and the commerce to arrive afterwards, clearly labelled. That splits the system in two: geography, which is durable and can be stored, and price, which is perishable and must never be.`,
+      },
+
+      { type: "h2", text: "Two layers, one claim per pin" },
+      {
+        type: "p",
+        text: `Every point on the map comes from one of two sources, and the source is stated per point rather than blended into an anonymous average.`,
+      },
+      {
+        type: "table",
+        headers: ["", "Curated layer", "OpenStreetMap layer", "What the map does with it"],
+        rows: [
+          [
+            "Size",
+            "507 properties",
+            "Every hotel OSM records in view",
+            "Curated is the spine; OSM is the coverage",
+          ],
+          [
+            "Coverage",
+            "Bounded, held locally, answers at any zoom",
+            "Only where Overpass can be queried",
+            "The world view is never empty",
+          ],
+          [
+            "Position",
+            "479 confirmed against Google Places; 28 approximate and labelled so",
+            "Whatever a mapper surveyed",
+            "Approximate pins draw with a translucent ring",
+          ],
+          [
+            "Metadata",
+            "Collections, brand, star class, L-Score, place ID, photography",
+            "Name, star class, brand, website when tagged",
+            "OSM dots are small and quiet — OSM knows where it is and little else",
+          ],
+          [
+            "Prices",
+            "None stored",
+            "None stored",
+            "Fetched per hotel, on demand, from Duffel",
+          ],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: `Where both sources describe the same building, they are merged into one pin — the curated record wins the identity and the OSM record is folded in as corroboration. That is a harder problem than it sounds, and it gets its own section below.`,
+      },
+
+      { type: "h2", text: "Why a curated spine had to exist at all" },
+      {
+        type: "p",
+        text: `The map was OpenStreetMap-only first, and OSM can only be queried through Overpass — a free, volunteer-run service with a polite-use policy and no SLA. Overpass will not answer a bounding box wider than a few degrees; our limit is six. So every view above a single metropolitan area returned nothing and the map said "Zoom in to load hotels". Technically true. Also a world map whose world view is empty, which is a product that fails at the exact moment a new visitor first sees it.`,
+      },
+      {
+        type: "p",
+        text: `The obvious fix is the wrong one. Falling back to generated city pins — one dot per known city carrying a hotel count and an average nightly price — is what the route used to do, and both of those numbers were invented. A count you cannot verify by zooming in is not a count. The curated layer replaced it: 507 real properties, held in memory, bounded and local, so it answers at zoom 1 instantly and without an upstream call. Zoom in and Overpass still supplies every mapped hotel around them.`,
+      },
+      {
+        type: "p",
+        text: `The distinction that matters: the curated set is the map's spine, not its coverage. It is there so the world view has something true on it, not so we can pretend 507 properties are all the hotels on earth.`,
+      },
+
+      { type: "h2", text: "Turning 507 approximate coordinates into 479 confirmed ones" },
+      {
+        type: "p",
+        text: `The curated set began as a CSV with a name, a country, a city and a coordinate. The coordinates were approximations, and measuring how approximate was sobering: across the 507 rows, 22 were precise to about 11km, 161 to about 1.1km, 296 to about 110m, and only 28 to about 11m. Aman Venice sat 410m from the palazzo it occupies. "The Berkeley" and "The Peninsula London" sat 69m apart when the real buildings are several hundred metres apart. Drawn straight onto a map, those pins are in the wrong street — and a pin in the wrong street is a false statement rendered as a dot.`,
+      },
+      {
+        type: "p",
+        text: `The obvious repair is to look each property up in Google Places and write down the coordinate it returns. That approach is worse than doing nothing, and it took one test to prove it: Google Text Search always answers. Asked for the invented "Zzqx Grand Palace Hotel Atlantis", it confidently returns Atlantis — The Palm in Dubai. Take the top hit and you have silently relocated every property Google could not find to whatever it returned instead. That is fabrication wearing verification's clothes, and it is undetectable afterwards because the output looks exactly like success.`,
+      },
+      {
+        type: "p",
+        text: `So the resolver is built as hard gates followed by weighted evidence. Gates are disqualifying and absolute: a candidate in the wrong country is not a weak match, it is a different building, and no amount of name similarity may rescue it. That single gate turns the Atlantis case from a silent corruption into a clean "unresolved". Past the gates, several independent signals are combined, and only the top verdict is permitted to move a pin.`,
+      },
+      {
+        type: "p",
+        text: `The strongest signal turned out not to be the name. It is the website domain. Google returns "Wilderness Mombo" for the CSV's "Mombo Camp" — the property was renamed, so name similarity alone reads as a mismatch and would have thrown away a correct answer. Both records cite wildernessdestinations.com. An operator publishing the same domain is near-conclusive evidence of identity in a way no string metric is.`,
+      },
+      {
+        type: "ul",
+        items: [
+          "479 confirmed — Google agreed under every gate, and its coordinate moved the pin. These render as solid markers.",
+          "16 probable — enough evidence to believe, not enough to move a coordinate. Keeps the curated position, labelled approximate.",
+          "12 unqueried, 0 rejected — no candidate cleared the gates, so nothing was written. A property is never dropped for being unresolved: dropping it hides a real hotel, and promoting it claims a precision nobody measured.",
+        ],
+      },
+      {
+        type: "p",
+        text: `One more constraint shaped this. Google's Places policy permits storing the place ID indefinitely and caching other content only briefly. A coordinate read from a Places response is that other content, so it expires after 30 days: past that age a property falls back to its curated coordinate and is re-labelled approximate until the resolver is re-run. The consequence of forgetting to refresh is a map that gets vaguer and admits it — never one that quietly keeps serving data it is no longer allowed to hold.`,
+      },
+
+      { type: "h2", text: "The map never invents a price" },
+      {
+        type: "p",
+        text: `Neither source carries a nightly rate, and that is deliberate rather than a gap. A stored rate is a stale rate, and a stale rate shown as current is a wrong price — the single failure that would make the whole surface untrustworthy. So the hotels table holds no prices, no availability and no supplier content, and pricing is a separate, lazy, per-hotel call. A viewport can hold thousands of hotels; pricing them on load would be one upstream request per marker, mostly wasted on properties nobody looks at.`,
+      },
+      {
+        type: "p",
+        text: `A rate is fetched only for the hotel someone actually points at, behind three defences in order of cheapness:`,
+      },
+      {
+        type: "ul",
+        items: [
+          "A TTL cache keyed on the hotel and the full search context — dates, adults, children, rooms, currency. Change any field and the cached rate is meaningless, so it is not reused.",
+          "In-flight coalescing, so N concurrent hovers over the same marker share one upstream request rather than issuing N.",
+          "An escalating radius: candidates are sought at 1km, then 2km, then 5km, and the search stops as soon as it is conclusive rather than always widening.",
+        ],
+      },
+      {
+        type: "p",
+        text: `And the honesty rule underneath all three: a rate is displayed only behind a HIGH-confidence match between the mapped hotel and a Duffel property. A MEDIUM match prices a hotel that might be the one next door — which is a fabricated price wearing a real number's clothes. Everything below HIGH leaves the marker priceless rather than wrong. The map's coordinate is authoritative and a commercial match never moves it: OSM supplies geography, Duffel supplies commerce, and neither is allowed to overwrite the other.`,
+      },
+
+      { type: "h2", text: "A database that holds geography and nothing else" },
+      {
+        type: "p",
+        text: `Hotel geography is ingested from OpenStreetMap into a PostGIS table (migration 0012) as a batch job. Querying Overpass on every viewport change would be both abusive to a free shared service and slow, so the map reads Postgres and the crawl happens on our own schedule.`,
+      },
+      {
+        type: "code",
+        lang: "sql",
+        code: `create table hotels_geo (
+  -- The OSM element id IS the natural key: unique, stable, and already how
+  -- every other layer refers to a hotel.
+  osm_id        text primary key check (osm_id ~ '^osm_[nwr][0-9]+$'),
+  name          text not null check (length(btrim(name)) between 1 and 200),
+  latitude      double precision not null check (latitude between -90 and 90),
+  longitude     double precision not null check (longitude between -180 and 180),
+
+  -- geography, not geometry: distance and radius queries return metres on the
+  -- spheroid without the caller picking a projection. A hotel map is global,
+  -- so a planar projection would be wrong somewhere.
+  location      geography(Point, 4326) not null,
+
+  -- OSM 'stars' is free text ("5", "5S", "4.5"). NULL means "not recorded",
+  -- which is different from — and must never be rendered as — zero stars.
+  stars         numeric(2,1) check (stars is null or stars between 1 and 5),
+
+  -- An identifier, never supplier content, and NULL until a HIGH-confidence
+  -- match exists. Anything weaker is not durable knowledge.
+  duffel_accommodation_id text,
+  duffel_matched_at       timestamptz
+);`,
+      },
+      {
+        type: "p",
+        text: `The indexes follow the questions the map actually asks. A GiST index on the geography column, because every map load is "hotels inside this box". A hash lookup on the H3 cell for clustering and deduplication. Partial indexes on star class and L-Score — the filtered views are the ones that need to stay fast, and unrated hotels are the bulk. A GIN trigram index on the name, so searching "oberoi" finds "The Oberoi Bengaluru" without a leading-wildcard table scan.`,
+      },
+      {
+        type: "p",
+        text: `One detail worth stealing: the geography column is maintained by a trigger rather than by the writer. Trusting the ingest to keep the point in agreement with its own latitude and longitude means an ingest bug can store a row whose index disagrees with its payload — a hotel that is findable at one location and displayed at another. Deriving it in the database makes that state unrepresentable.`,
+      },
+
+      { type: "h2", text: "One building, two sources" },
+      {
+        type: "p",
+        text: `OpenStreetMap calls it "Aman Tokyo". Google calls it "Aman Tokyo - Amman Tokyo". OSM puts it on the building centroid; Google puts it on the entrance 40m away. It is one hotel, and if you do not detect that, a confirmed luxury property draws twice — once with its collections and photography, once as a bare dot a few metres off — and the two read as neighbouring hotels rather than one building described twice.`,
+      },
+      {
+        type: "p",
+        text: `Neither half of the obvious solution works alone. Matching on name merges every Hilton Garden Inn in a city. Matching on distance merges a hotel with the hostel in its basement. So a merge requires both: proximity and name agreement, at thresholds chosen from what the sources actually disagree by. A centroid-versus-entrance offset on a large hotel runs to about 60m; genuinely distinct hotels in dense districts are rarely closer than about 100m.`,
+      },
+      {
+        type: "diagram",
+        text: `candidate ──> H3 cell (res 9, ~174m edge) ──> compare against own cell + 6 neighbours
+                                                        │
+                          ┌─────────────────────────────┴─────────────────────────────┐
+                          │                                                           │
+              haversine distance <= 120m                              Jaro-Winkler(name) >= 0.82
+                          │                                                           │
+                          └──────────────────────── BOTH ────────────────────────────┘
+                                                     │
+                                    curated record keeps the identity;
+                                    OSM record folded in as corroboration`,
+      },
+      {
+        type: "p",
+        text: `H3 is what makes this cheap. Comparing every candidate against every other is quadratic — at 100,000 properties that is five billion comparisons. Binning each candidate into a hexagon and comparing only within its own cell and the six touching it bounds the work to the local neighbourhood. A hexagonal grid rather than a square one because every H3 neighbour shares an edge at an equal centre-to-centre distance; on a square grid the four corner neighbours sit 1.41x further than the four edge neighbours, so a fixed-ring search covers an uneven area and the merge radius silently varies with compass direction.`,
+      },
+
+      { type: "h2", text: "Drawing 400 markers without melting the browser" },
+      {
+        type: "p",
+        text: `Markers started as DOM buttons handed to MapLibre's Marker class — the approach MapLibre's own large-data guide names as the classic way to make a GL map slow, because every pin becomes a style recalculation on the main thread for every frame of a pan. They are now features in a GeoJSON source, drawn on the GPU. Hover is a hit test against the rendered features, and because mousemove fires once per frame, only a change of feature counts as a state change — otherwise the card would re-render sixty times a second and reintroduce the exact cost the rewrite removed, one layer up.`,
+      },
+      {
+        type: "p",
+        text: `The response is capped at 400 markers. That is not a performance limit — MapLibre draws far more than that comfortably. It is a legibility limit: past a few hundred pins a dense city is a solid block of overlapping labels and the map stops answering questions. What gets dropped is chosen by rank rather than by arrival order, and the number dropped is returned in the response, because a silent truncation reads as "this is everything".`,
+      },
+      {
+        type: "p",
+        text: `150 of the curated properties render as a circular photograph of the actual building rather than a coloured dot. Those images are served from our own origin for three reasons: a canvas that has drawn a cross-origin image without CORS headers cannot be read back with getImageData(), and that read is the whole point; a marker path that runs for every pin in view should not depend on another host's availability; and latency should be predictable. Every registered image is GPU texture memory MapLibre holds until it is explicitly removed, so the registry is an LRU that evicts on insert — which is what makes panning a continent for an hour safe.`,
+      },
+      {
+        type: "p",
+        text: `One bug from this build is worth passing on, because it fails in the most confusing way possible. MapLibre v6 locates its tile-parsing worker with new URL("./maplibre-gl-worker.mjs", import.meta.url), guarded by a check that the URL starts with http. Webpack rewrites import.meta.url to a non-http value inside a bundle, so the guard trips, the resolver returns an empty string, and that string is passed to new Worker(""). An empty worker URL resolves against the current document — the browser loads the HTML page and tries to execute it as a module worker. Nothing throws. The map constructs, the canvas appears, the controls work, tiles are fetched — and they are never decoded, because the decoder never started. A blank map with a fully working interface is the signature.`,
+      },
+
+      { type: "h2", text: "Counting honestly" },
+      {
+        type: "p",
+        text: `The response carries four separate counts, and keeping them separate is not pedantry. A Manhattan viewport drawing 8 curated properties and 196 OSM hotels was once reported as "204 shown of 507 matching" — every number correct, and the sentence invites the reading that 204 of the 507 curated properties are on screen. They are two populations, and the interface has to be able to name each one.`,
+      },
+      {
+        type: "code",
+        lang: "json",
+        code: `GET /api/travel/hotels/map?bbox=-74.02,40.70,-73.93,40.79&z=13
+
+{
+  "counts": {
+    "curatedInView": 8,            // curated properties drawn individually
+    "curatedClustered": 0,         // curated properties folded into clusters
+    "osmInView": 196,              // OSM hotels drawn here
+    "curatedMatchingWorldwide": 507 // matching the filter ANYWHERE
+  },
+  "truncated": 0,          // dropped by the 400-marker render budget
+  "osmZoomIn": false,      // viewport too wide for Overpass
+  "osmUnavailable": false, // Overpass was asked and failed
+  "osmFilteredOut": false, // a curated-only filter is active, so OSM was not asked
+  "attribution": "© OpenStreetMap contributors (ODbL) · Curated positions verified with Google"
+}`,
+      },
+      {
+        type: "p",
+        text: `The three booleans exist because "no hotels here" has three completely different causes and one of them is our fault. The viewport is too wide for Overpass; Overpass was asked and did not answer; or a collection filter is active and OSM — which has no notion of a FurlPay collection — could not honestly be included. Collapsing them into an empty result would let a working system read as an outage, and would let an outage read as an empty neighbourhood.`,
+      },
+
+      { type: "h2", text: "A canvas has nothing to focus" },
+      {
+        type: "p",
+        text: `Markers drawn on a GPU canvas are invisible to the accessibility tree: there is no element to focus, and a screen reader is told only that a canvas exists. Mapbox shipped an accessibility plugin for exactly this and discontinued it in 2022. The pattern that outlived it is the one here — keep a semantic DOM equivalent of everything meaningful that is drawn, and let the keyboard operate that. Every rendered feature is also a real button in a visually-hidden list, in the same focus order as the card it opens.`,
+      },
+      {
+        type: "p",
+        text: `This is not a consolation prize for keyboard users; it is strictly better than the DOM-marker version it replaced. There, focusing a pin opened the hover card and the pin's blur handler closed it 200ms later, so Tab could never land inside the card and "View all" was unreachable by any means at all. And while we were in there: the basemap label colour was #A5A29A on ivory, roughly a 2:1 contrast ratio. The place names were being drawn and were effectively invisible, which reads as "this map has no labels" rather than as restraint. They now clear 4.5:1 against every land colour in the palette.`,
+      },
+
+      { type: "h2", text: "Licensing is a feature here, not paperwork" },
+      {
+        type: "p",
+        text: `OpenStreetMap data is ODbL. Attribution to OpenStreetMap contributors is required wherever it is displayed, and a derived database distributed publicly carries the same licence — an obligation that travels with the table, not just with the screen. It is rendered by the map's attribution control on all three platforms.`,
+      },
+      {
+        type: "p",
+        text: `The 150 property photographs are Wikimedia Commons files under CC0, public domain, or a BY / BY-SA licence. A 44-pixel marker has nowhere to carry a credit line, so attribution travels with the picture at the two places it can actually be read: the hover card prints the credit beside the photograph, and public/hotels/CREDITS.md lists every file with its photographer, licence and source link. An unattributed CC-BY image is a licence breach, not a formatting detail.`,
+      },
+      {
+        type: "p",
+        text: `Google Places is the strictest of the three and it shaped real architecture. The policy permits storing the place ID and nothing else — ratings, photos, addresses and editorial summaries may not be pre-fetched, cached or written to disk. So nothing in that module touches Redis or Postgres, every request sets no-store, and the one durable value is the place ID. Places photography is never on a marker either: its content may be shown on a Google map, or off a map entirely with attribution, but not drawn as pins on a non-Google basemap. It appears in the hover card, which is not a map.`,
+      },
+      {
+        type: "p",
+        text: `Photos also stream through our own route rather than being linked directly, for a reason worth checking in your own code: Google's photo media endpoint takes the API key as a query parameter. Putting that URL in an img src ships the key to every visitor, where it can be lifted from devtools and spent against your account. The proxy holds the key, validates the photo name before it reaches a URL, refuses to relay anything whose content type is not an image, and caches privately for five minutes and no longer.`,
+      },
+      {
+        type: "p",
+        text: `There is a billing dimension too. The Places field mask decides the SKU, and a request bills at the highest tier any field in the mask belongs to — so asking for a rating and an editorial summary in the same call moves it from roughly $32 per thousand to roughly $40 per thousand, against a free allowance of 1,000 calls a month at the top tier. That is why there are two masks rather than one convenient superset.`,
+      },
+
+      { type: "h2", text: "The same numbers on iPhone, Android and the web" },
+      {
+        type: "p",
+        text: `All three surfaces read the same /api/travel/hotels/map endpoint. The clustering, the OSM merge, the deduplication and the counting happen once, on the server, so the three clients cannot disagree about how many properties are in a place. A second implementation would be a second set of numbers to keep true, and one of them would eventually drift.`,
+      },
+      {
+        type: "p",
+        text: `The cartography differs on purpose. iOS draws MapKit rather than shipping a second renderer and a MapLibre dependency: it is already on the device, needs no key, and behaves the way an iPhone user expects a map to behave, down to the rotation gesture. The markers carry the FurlPay design; the basemap is Apple's, and the result looks native rather than like a ported web page. What changes for touch is the interaction — the web's hover card is anchored beside a marker and survives the cursor travelling into it, and neither idea exists on a touch screen, so a tap opens a sheet. What a marker's size means, what its colour means, and what the status pill is allowed to claim are unchanged, because those are properties of the data rather than of the pointer.`,
+      },
+
+      { type: "h2", text: "What the map is actually for" },
+      {
+        type: "p",
+        text: `Discovery is the front half of a booking, and the back half is where FurlPay is different. A hotel booking paid by card carries 2.9–3.5% in card fees, an FX spread on any international guest, and chargeback exposure for the property for months afterwards. The same booking settled in USDC on Arbitrum costs 0.5%, carries no FX leg between two parties already holding dollars, settles in about a second, and produces a signed receipt instead of a reversible authorisation.`,
+      },
+      {
+        type: "table",
+        headers: ["", "Card booking", "Bank transfer", "USDC on FurlPay"],
+        rows: [
+          ["Fee to the property", "2.9–3.5%", "Flat fee + correspondent charges", "0.5%"],
+          ["International guest", "FX spread on top", "2–5 days, opaque cut", "No FX leg — both sides hold dollars"],
+          ["Settlement", "T+2 or later", "Days", "About a second"],
+          ["Reversibility", "Chargeback window for months", "Recall possible", "Final, with a signed receipt"],
+          ["Agent-initiated", "Requires a human for 3-D Secure", "No", "Yes, per request via x402"],
+        ],
+        highlightCol: 3,
+      },
+      {
+        type: "p",
+        text: `The map is what makes that rail usable by a person rather than by an API client. You find the property visually, the rate is fetched for that property and those dates when you ask for it, and the payment settles on the rail FurlPay already runs. Nothing about the discovery layer had to be compromised to get there — which is the point of keeping geography and commerce in separate systems.`,
+      },
+
+      { type: "h2", text: "Who this is useful for" },
+      {
+        type: "ul",
+        items: [
+          "Travellers paying in stablecoins. A world map that shows what is actually around a destination rather than one supplier's contracted inventory, with rates that appear only when they are real, and settlement that does not lose 3% and a weekend to the card network.",
+          "Hotels and hosts. A discovery surface you appear on because you exist and are mapped, not because you bought placement — and, when a guest books, 0.5% instead of 2.9–3.5%, with no chargeback exposure and no FX cut on international guests.",
+          "Developers and AI agents. The map endpoint returns structured hotel geography with explicit provenance, confidence and counts, which is exactly what an agent needs to reason without hallucinating. Combined with x402, an agent can search, price and pay per request without a human present for a 3-D Secure challenge.",
+          "Anyone building a map product. The parts we found hardest — coordinate verification that cannot fabricate, deduplication across disagreeing sources, honest empty-states, and licence-shaped architecture — are described here in enough detail to reimplement.",
+        ],
+      },
+
+      { type: "h2", text: "The edge cases that turned out to matter" },
+      {
+        type: "p",
+        text: `Two of these were reported as outages before they were understood, which is the useful part. At low zoom a MapLibre viewport shows the world more than once and getBounds() reports that honestly: at zoom 1 it returns longitudes from about -253 to +253. Those are legitimate map state, not malformed input, and rejecting them made the world view answer HTTP 400 — which the interface then displayed as "could not reach the hotel service". An outage message, from a working system, on the first screen anyone sees. Out-of-range bounds are now clamped rather than rejected; genuine garbage is still refused.`,
+      },
+      {
+        type: "p",
+        text: `The antimeridian is the same class of bug with a better disguise. A map centred on Fiji, Auckland or Hawaii reports a west edge of +177 and an east edge of -179 — the viewport crosses 180, and the western number is larger than the eastern one. Treated as inverted-and-invalid, that returned 400 across most of the Pacific. It is now widened to a world box, which the curated layer answers in full.`,
+      },
+      {
+        type: "p",
+        text: `And the map no longer chases the reader. Every moveend used to fire a request on a 350ms debounce, so dragging across a continent issued a request per pause. A zoom change refetches immediately — the API clusters for a given zoom and caps the response, so a different zoom is a genuinely different answer. A pan only offers, with a button, once more than a quarter of the visible area falls outside what was already fetched. The threshold is a pure function with tests rather than a number tuned by dragging a map around and squinting at it.`,
+      },
+
+      { type: "h2", text: "What is next" },
+      {
+        type: "ul",
+        items: [
+          "Scaling the OpenStreetMap ingest into hotels_geo beyond the current batches, so the Postgres layer serves viewports that Overpass currently has to answer live.",
+          "Persisting HIGH-confidence Duffel matches against the geography table, so a hotel that has been priced once does not need re-matching — with a matched-at timestamp, so a match can be re-verified rather than trusted forever.",
+          "Saved places move from localStorage to the account when there is an endpoint to hold them. The module is deliberately the only thing that touches that store, so it is a one-file change.",
+          "Re-running the resolver on a schedule, so confirmed coordinates stay inside the 30-day window instead of decaying back to approximate.",
+        ],
+      },
+
+      { type: "h2", text: "Try it" },
+      {
+        type: "p",
+        text: `The map is at [furlpay.com/hotels/map](https://furlpay.com/hotels/map) — it opens on the world, so there is nothing to type first. Filter by collection, hover a property to see what we know and where it came from, and note the pins that admit they are approximate. If you find a marker making a claim it cannot support, that is a bug and we want it: the whole surface is built on the premise that a map which says "I do not know" is worth more than one that always has an answer.`,
+      },
+    ],
+  },
   // Product launch — FurlPay Wallet handles --------------------------------
   {
     slug: "furlpay-wallet-names-are-live-claim-your-payment-handle",
