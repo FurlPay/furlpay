@@ -67,6 +67,8 @@ import {
 } from "./map/layers";
 import { CategoryIcon, CloseIcon, SearchIcon } from "./map/icons";
 import { startTracking, type UserLocation, type LocationTracker } from "@/lib/hotels/userLocation";
+import { CompassConfidenceEstimator } from "@/lib/hotels/compassConfidence";
+import { HeadingFusion } from "@/lib/hotels/headingFusion";
 
 // ---------------------------------------------------------------------------
 // The luxury hotel map.
@@ -182,6 +184,11 @@ export default function HotelMap() {
   const cursorRef = useRef<string>("");
   const latest = useRef<{ clusters: MapCluster[]; points: MapPoint[] }>({ clusters: [], points: [] });
 
+  /** Rolling compass-confidence estimate, and the fusion engine it feeds.
+   *  Refs because both are stateful across updates and neither should ever
+   *  trigger a re-render of its own. */
+  const compass = useRef(new CompassConfidenceEstimator());
+  const fusion = useRef(new HeadingFusion());
   const [hover, setHover] = useState<{ target: HoverTarget; anchor: { x: number; y: number } } | null>(null);
   /**
    * The current hover, readable from the map's event handlers.
@@ -239,8 +246,40 @@ export default function HotelMap() {
     if (!src) return;
     if (!loc) {
       src.setData(EMPTY_FC);
+      compass.current.reset();
+      fusion.current.reset();
       return;
     }
+
+    // --- heading fusion ------------------------------------------------------
+    //
+    // The cone used to be drawn from `loc.heading`, the raw magnetometer
+    // reading, which is wrong in two situations the reader never sees coming: a
+    // compass thrown ninety degrees by a steel doorframe, and a stationary
+    // phone whose reading wanders. Both drew a confident arrow.
+    //
+    // The fusion engine decides between the compass, the GPS course and (later)
+    // a matched road bearing, and is allowed to answer "I do not know" — which
+    // the layer filter below renders as a dot with NO cone rather than a cone
+    // pointing at nothing.
+    //
+    // Run here rather than in a hook of its own on purpose: UserLocation
+    // already carries compass heading, course, speed and accuracy, so a
+    // separate hook would have to open a SECOND watchPosition. Two GPS
+    // subscriptions cost battery and give two sources of truth about where the
+    // reader is.
+    if (loc.heading !== null) compass.current.push(loc.heading);
+    const fused = fusion.current.update({
+      compassHeading: loc.heading,
+      compassConfidence: compass.current.confidence(),
+      gpsCourse: loc.courseHeading,
+      speed: loc.speed,
+      positionAccuracy: loc.accuracy,
+      // Map matching needs road geometry queried from the rendered tiles; that
+      // is the next phase. Null is a supported input meaning "no opinion".
+      mapMatch: null,
+      now: loc.timestamp,
+    });
     src.setData({
       type: "FeatureCollection",
       features: [{
@@ -249,7 +288,12 @@ export default function HotelMap() {
         properties: {
           accuracy: loc.accuracy,
           lat: loc.latitude,
-          ...(loc.heading !== null ? { heading: loc.heading } : {}),
+          // Absent, not zero, when the engine has no trustworthy heading — the
+          // cone layer filters on `has`, so omitting it draws no cone at all.
+          ...(fused.heading !== null ? { heading: fused.heading } : {}),
+          // Drives the cone's spread: a wide translucent wedge is the honest
+          // way to say "somewhere this way".
+          headingConfidence: fused.confidence,
         },
       }],
     });
@@ -641,10 +685,22 @@ export default function HotelMap() {
           id: LYR_USER_HEADING,
           type: "symbol",
           source: SRC_USER_LOC,
+          // No heading, no cone. The fusion engine omits the property entirely
+          // when it has nothing trustworthy, and a dot with no cone is the
+          // honest rendering of "I know where you are, not which way you face".
           filter: ["has", "heading"],
           layout: {
             "icon-image": "user-heading-cone",
-            "icon-size": 0.55,
+            // UNCERTAINTY IS DRAWN AS SIZE. A crisp cone at 20% confidence is
+            // the specific lie a confident-arrow app tells; growing the wedge
+            // as confidence falls makes a doubtful heading look doubtful.
+            // Interpolated rather than stepped so it breathes as confidence
+            // recovers instead of snapping between two widths.
+            "icon-size": [
+              "interpolate", ["linear"], ["coalesce", ["get", "headingConfidence"], 0],
+              0, 0.95,
+              1, 0.55,
+            ],
             "icon-rotate": ["get", "heading"],
             "icon-rotation-alignment": "map",
             "icon-allow-overlap": true,
