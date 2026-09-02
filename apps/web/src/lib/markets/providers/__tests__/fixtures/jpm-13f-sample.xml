@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<ns1:informationTable xmlns:ns1="http://www.sec.gov/edgar/document/thirteenf/informationtable">
+	<ns1:infoTable>
+		<ns1:nameOfIssuer>NVIDIA CORPORATION</ns1:nameOfIssuer>
+		<ns1:titleOfClass>COMMON</ns1:titleOfClass>
+		<ns1:cusip>67066G104</ns1:cusip>
+		<ns1:value>11889466</ns1:value>
+		<ns1:shrsOrPrnAmt>
+			<ns1:sshPrnamt>60981</ns1:sshPrnamt>
+			<ns1:sshPrnamtType>SH</ns1:sshPrnamtType>
+		</ns1:shrsOrPrnAmt>
+		<ns1:investmentDiscretion>OTR</ns1:investmentDiscretion>
+		<ns1:otherManager>4</ns1:otherManager>
+		<ns1:votingAuthority>
+			<ns1:Sole>0</ns1:Sole>
+			<ns1:Shared>1718</ns1:Shared>
+			<ns1:None>59263</ns1:None>
+		</ns1:votingAuthority>
+	</ns1:infoTable>
+<ns1:infoTable>
+		<ns1:nameOfIssuer>ISHARES BITCOIN TRUST ETF</ns1:nameOfIssuer>
+		<ns1:titleOfClass>FUND</ns1:titleOfClass>
+		<ns1:cusip>46438F101</ns1:cusip>
+		<ns1:value>11673582</ns1:value>
+		<ns1:shrsOrPrnAmt>
+			<ns1:sshPrnamt>341532</ns1:sshPrnamt>
+			<ns1:sshPrnamtType>SH</ns1:sshPrnamtType>
+		</ns1:shrsOrPrnAmt>
+		<ns1:investmentDiscretion>OTR</ns1:investmentDiscretion>
+		<ns1:otherManager>23</ns1:otherManager>
+		<ns1:votingAuthority>
+			<ns1:Sole>0</ns1:Sole>
+			<ns1:Shared>0</ns1:Shared>
+			<ns1:None>341532</ns1:None>
+		</ns1:votingAuthority>
+	</ns1:infoTable>
+<ns1:infoTable>
+		<ns1:nameOfIssuer>ISHARES BITCOIN TRUST ETF</ns1:nameOfIssuer>
+		<ns1:titleOfClass>OPTION</ns1:titleOfClass>
+		<ns1:cusip>46438F901</ns1:cusip>
+		<ns1:value>134840100</ns1:value>
+		<ns1:shrsOrPrnAmt>
+			<ns1:sshPrnamt>3945000</ns1:sshPrnamt>
+			<ns1:sshPrnamtType>SH</ns1:sshPrnamtType>
+		</ns1:shrsOrPrnAmt>
+		<ns1:putCall>Call</ns1:putCall>
+		<ns1:investmentDiscretion>DFND</ns1:investmentDiscretion>
+		<ns1:otherManager>5</ns1:otherManager>
+		<ns1:votingAuthority>
+			<ns1:Sole>3945000</ns1:Sole>
+			<ns1:Shared>0</ns1:Shared>
+			<ns1:None>0</ns1:None>
+		</ns1:votingAuthority>
+	</ns1:infoTable>
+<ns1:infoTable>
+		<ns1:nameOfIssuer>ISHARES BITCOIN TRUST ETF</ns1:nameOfIssuer>
+		<ns1:titleOfClass>OPTION</ns1:titleOfClass>
+		<ns1:cusip>46438F951</ns1:cusip>
+		<ns1:value>119486444</ns1:value>
+		<ns1:shrsOrPrnAmt>
+			<ns1:sshPrnamt>3495800</ns1:sshPrnamt>
+			<ns1:sshPrnamtType>SH</ns1:sshPrnamtType>
+		</ns1:shrsOrPrnAmt>
+		<ns1:putCall>Put</ns1:putCall>
+		<ns1:investmentDiscretion>DFND</ns1:investmentDiscretion>
+		<ns1:otherManager>5</ns1:otherManager>
+		<ns1:votingAuthority>
+			<ns1:Sole>3495800</ns1:Sole>
+			<ns1:Shared>0</ns1:Shared>
+			<ns1:None>0</ns1:None>
+		</ns1:votingAuthority>
+	</ns1:infoTable>
+<ns1:infoTable>
+		<ns1:nameOfIssuer>JOHNSON &amp; JOHNSON</ns1:nameOfIssuer>
+		<ns1:titleOfClass>COMMON</ns1:titleOfClass>
+		<ns1:cusip>478160104</ns1:cusip>
+		<ns1:value>1699445</ns1:value>
+		<ns1:shrsOrPrnAmt>
+			<ns1:sshPrnamt>6574</ns1:sshPrnamt>
+			<ns1:sshPrnamtType>SH</ns1:sshPrnamtType>
+		</ns1:shrsOrPrnAmt>
+		<ns1:investmentDiscretion>OTR</ns1:investmentDiscretion>
+		<ns1:otherManager>4</ns1:otherManager>
+		<ns1:votingAuthority>
+			<ns1:Sole>0</ns1:Sole>
+			<ns1:Shared>199</ns1:Shared>
+			<ns1:None>6375</ns1:None>
+		</ns1:votingAuthority>
+	</ns1:infoTable>
+</informationTable>
