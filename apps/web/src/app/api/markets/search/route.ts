@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { searchUniverse, universeStats, type MergedAsset } from "@/lib/markets/universe";
 import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
 import { searchSymbols } from "@/lib/markets/providers/yahoo";
+import { searchInstruments, assetClassLabel } from "@/lib/markets/instruments";
 
 // GET /api/markets/search?q=hynix&kind=stock|etf|crypto&limit=25&fractionable=1
 //
@@ -112,10 +113,37 @@ export async function GET(req: NextRequest) {
     };
   });
 
+  // Market instruments that are not securities: gold, FX pairs, indices, the
+  // ten-year. They have no CUSIP and no issuer, so they are not in the
+  // universe and cannot be found by the search above — a reader typing
+  // "XAUUSD" or "gold" would otherwise get nothing.
+  //
+  // Returned in their own list rather than mixed into `items`. The two have
+  // different identity models and different fields, and flattening them would
+  // invite a caller to treat an FX pair as a tradable catalog asset.
+  const instruments = searchInstruments(q, 8).map((i) => ({
+    symbol: i.symbol,
+    displayName: i.displayName,
+    assetClass: i.assetClass,
+    assetClassLabel: assetClassLabel(i.assetClass),
+    currency: i.currency,
+    exchange: i.exchange ?? null,
+    supports: {
+      price: i.priceSupported,
+      volume: i.volumeSupported,
+      marketCap: i.marketCapSupported,
+    },
+    providerNote: i.providerNote ?? null,
+    /** Quotes come from /api/markets/instruments/[symbol]; search does not
+     *  price them, for the same reason it does not price uncurated symbols. */
+    href: `/api/markets/instruments/${i.symbol}`,
+  }));
+
   return NextResponse.json({
     query: q,
     count: items.length,
     items,
+    instruments,
     universe: universeStats(),
   });
 }
