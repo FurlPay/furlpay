@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="JPMorgan Q2 2026 13F top ten holdings by value">
+<rect width="1600" height="900" fill="#07080A"/>
+<text x="92" y="108" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="25" letter-spacing="3.5" fill="#0A84FF">SEC FORM 13F-HR &#183; Q2 2026</text>
+<text x="92" y="178" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="60" font-weight="700" fill="#F2F3F5">JPMorgan Chase &amp; Co.</text>
+<text x="92" y="220" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="24" fill="#8A9099">$1,807,041,234,839 &#183; 34,064 positions &#183; accession 0000019617-26-000325</text>
+<rect x="92" y="252" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="252" width="940" height="34" rx="3" fill="#0A84FF" fill-opacity="0.95"/>
+<text x="108" y="275" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">NVIDIA</text>
+<text x="1052" y="275" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$87.62B</text>
+<rect x="92" y="297" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="297" width="868" height="34" rx="3" fill="#0A84FF" fill-opacity="0.90"/>
+<text x="108" y="320" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Alphabet</text>
+<text x="1052" y="320" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$80.93B</text>
+<rect x="92" y="342" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="342" width="691" height="34" rx="3" fill="#0A84FF" fill-opacity="0.86"/>
+<text x="108" y="365" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Apple</text>
+<text x="1052" y="365" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$64.45B</text>
+<rect x="92" y="387" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="387" width="534" height="34" rx="3" fill="#0A84FF" fill-opacity="0.81"/>
+<text x="108" y="410" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Microsoft</text>
+<text x="1052" y="410" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$49.82B</text>
+<rect x="92" y="432" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="432" width="432" height="34" rx="3" fill="#0A84FF" fill-opacity="0.77"/>
+<text x="108" y="455" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Amazon</text>
+<text x="1052" y="455" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$40.34B</text>
+<rect x="92" y="477" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="477" width="379" height="34" rx="3" fill="#0A84FF" fill-opacity="0.72"/>
+<text x="108" y="500" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Broadcom</text>
+<text x="1052" y="500" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$35.39B</text>
+<rect x="92" y="522" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="522" width="378" height="34" rx="3" fill="#0A84FF" fill-opacity="0.68"/>
+<text x="108" y="545" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">SPDR S&amp;P 500 ETF</text>
+<text x="1052" y="545" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$35.31B</text>
+<rect x="92" y="567" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="567" width="317" height="34" rx="3" fill="#0A84FF" fill-opacity="0.64"/>
+<text x="108" y="590" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Micron</text>
+<text x="1052" y="590" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$29.59B</text>
+<rect x="92" y="612" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="612" width="277" height="34" rx="3" fill="#0A84FF" fill-opacity="0.59"/>
+<text x="108" y="635" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Meta Platforms</text>
+<text x="1052" y="635" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$25.85B</text>
+<rect x="92" y="657" width="940" height="34" rx="3" fill="#161A20"/>
+<rect x="92" y="657" width="233" height="34" rx="3" fill="#0A84FF" fill-opacity="0.54"/>
+<text x="108" y="680" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">AMD</text>
+<text x="1052" y="680" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#8A9099">$21.75B</text>
+<line x1="92" y1="714" x2="1202" y2="714" stroke="#22262D" stroke-width="1"/>
+<text x="92" y="756" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="19" letter-spacing="2" fill="#8A9099">NAMED IN SUMMARIES, ABSENT FROM THE FILING</text>
+<rect x="92" y="775" width="4" height="23" rx="2" fill="#FF453A"/>
+<text x="110" y="792" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#F2F3F5">Applied Materials</text>
+<text x="522" y="792" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#FF453A">no share line &#8212; $0</text>
+<rect x="92" y="809" width="4" height="23" rx="2" fill="#FF453A"/>
+<text x="110" y="826" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#F2F3F5">iShares Ethereum Trust (ETHA)</text>
+<text x="522" y="826" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="20" fill="#FF453A">no share line &#8212; $0</text>
+<text x="92" y="872" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="19" fill="#8A9099">Share lines only; option rows excluded. Parsed from the filing&#8217;s 19,472,014-byte information table.</text>
+<text x="1508" y="872" text-anchor="end" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="700" fill="#F2F3F5">FurlPay</text>
+</svg>

@@ -30,6 +30,340 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // Markets research — the JPMorgan 13F post. Every figure below was read out
+  // of the filing itself (see the methodology section); nothing is carried over
+  // from secondary summaries, several of which were wrong in checkable ways.
+  {
+    slug: "what-jpmorgans-13f-actually-says",
+    title:
+      "We Read JPMorgan's Actual 13F. Half the Numbers Going Around Are Wrong.",
+    excerpt:
+      "JPMorgan disclosed $1,807,041,234,839 across 34,064 positions on 12 August 2026. The filing is public, so we parsed all 19MB of it rather than trusting a summary — and found that the widely-repeated figures get Broadcom and Alphabet exactly right, overstate the semiconductor book by roughly seven times, and describe an Ethereum position that does not exist. Here is what the filing says, line by line, and how to check it yourself.",
+    category: "engineering",
+    date: "2026-09-02",
+    readMins: 16,
+    author: "Ashutosh Kumar Singh",
+    // Generated from the filing itself rather than stock photography -- the top
+    // ten share lines, drawn to scale, plus the two names summaries assert that
+    // the filing does not contain. Regenerate it if the numbers ever change.
+    cover: "/blog/jpmorgan-13f.svg",
+    body: [
+      {
+        type: "p",
+        text: `On 12 August 2026, JPMorgan Chase & Co. filed its quarterly Form 13F-HR with the SEC. It is a public document. Anyone can download it, and almost nobody does — which is how a set of numbers about that filing came to circulate widely while being, in several specific and checkable places, wrong.`,
+      },
+      {
+        type: "p",
+        text: `We parsed the filing because FurlPay lists many of the same securities, and we have a rule about this: no number reaches a surface we own unless we can point at where it came from. This post is what that rule produced. It is longer than a summary and less exciting in places, because the filing is less exciting than the story told about it — and quite a lot more interesting in the places nobody quotes.`,
+      },
+
+      { type: "h2", text: "The provenance, so you can check every number here" },
+      {
+        type: "p",
+        text: `Everything below comes from one document. Not a data vendor, not an aggregator, not a screenshot of a screenshot.`,
+      },
+      {
+        type: "ul",
+        items: [
+          "Filer: JPMORGAN CHASE & CO, CIK 0000019617",
+          "Form: 13F-HR, filed 2026-08-12, reporting period 2026-06-30",
+          "Accession number: 0000019617-26-000325",
+          "Information table: 19,472,014 bytes of XML, 34,064 entries",
+          "Reported total: $1,807,041,234,839",
+          "Confidential omissions: none",
+        ],
+      },
+      {
+        type: "code",
+        lang: "bash",
+        code: `# The whole filing, no key, no vendor. Set a real User-Agent --
+# the SEC requires one and refuses anonymous traffic.
+BASE=https://www.sec.gov/Archives/edgar/data/19617/000001961726000325
+curl -H "User-Agent: your-name your@email" $BASE/primary_doc.xml
+curl -H "User-Agent: your-name your@email" \
+     -o infotable.xml $BASE/Information_Table_06.30.2026.xml`,
+      },
+      {
+        type: "p",
+        text: `The headline is confirmed on the first read. The filing's own total is $1,807,041,234,839, so "over $1.81 trillion" is fair. Its entry count is 34,064 — which is the first place the circulating summary goes wrong, since it reports 7,712 positions. That is not a rounding disagreement. It is a different number.`,
+      },
+
+      { type: "h2", text: "The one distinction that explains most of the confusion" },
+      {
+        type: "p",
+        text: `A 13F does not only list shares. Each row carries a put/call field, and when it is populated the row is an option position — reported at the notional value of the underlying, not at what the option cost. Roughly 5.2% of this filing by value is derivatives: $1,712,331,516,547 of the $1,807,041,234,839 total sits in ordinary share lines.`,
+      },
+      {
+        type: "p",
+        text: `Whether you count those option rows changes almost every figure you can quote, and it is the difference between two people arguing about the same filing while both reading it correctly. It also produces the single most misleading claim in the version going around, which we will come to.`,
+      },
+      {
+        type: "quote",
+        text: `A 13F is a quarterly snapshot of long US-listed positions, filed 45 days after quarter end. It excludes short positions, cash, bonds and non-US listings — and for a bank of this size, much of what it shows is market-making and client facilitation inventory rather than a house view.`,
+      },
+
+      { type: "h2", text: "The ten largest positions, as filed" },
+      {
+        type: "p",
+        text: `Share lines only, options excluded, percentages against the full reported total.`,
+      },
+      {
+        type: "table",
+        headers: ["Issuer", "Value (shares only)", "% of filing"],
+        rows: [
+          ["NVIDIA", "$87.62B", "4.85%"],
+          ["Alphabet", "$80.93B", "4.48%"],
+          ["Apple", "$64.45B", "3.57%"],
+          ["Microsoft", "$49.82B", "2.76%"],
+          ["Amazon", "$40.34B", "2.23%"],
+          ["Broadcom", "$35.39B", "1.96%"],
+          ["SPDR S&P 500 ETF (SPY)", "$35.31B", "1.95%"],
+          ["Micron Technology", "$29.59B", "1.64%"],
+          ["Meta Platforms", "$25.85B", "1.43%"],
+          ["Advanced Micro Devices", "$21.75B", "1.20%"],
+        ],
+      },
+      {
+        type: "p",
+        text: `Nvidia is the largest equity position, and that part of the popular story is true. The rest of the table is where it gets interesting — because Micron sits eighth, ahead of Meta, and essentially nobody mentions it.`,
+      },
+
+      { type: "h2", text: "Where the circulating numbers hold up" },
+      {
+        type: "p",
+        text: `Credit where it is due. Several figures match the filing exactly, which tells you they were taken from it at some point.`,
+      },
+      {
+        type: "table",
+        headers: ["Claim", "Filing", "Verdict"],
+        rows: [
+          ["Broadcom $35.39B", "$35.39B (shares)", "Exact"],
+          ["Eli Lilly $15.50B", "$15.50B (shares)", "Exact"],
+          ["Alphabet $80.9B", "$80,925,389,615 (common)", "Exact"],
+          ["IBIT 10.4M shares / $355.7M", "10,407,635 / $355,732,983", "Exact"],
+          ["IBIT 3.94M calls, 3.5M puts", "3,945,000 / 3,495,800", "Exact"],
+          ["Total over $1.81 trillion", "$1,807,041,234,839", "Correct"],
+        ],
+      },
+      {
+        type: "p",
+        text: `We had this partly wrong ourselves on a first pass, and it is worth saying so. Summing share and option rows together produces $92.58B for Nvidia and $610M for IBIT, and we briefly believed the IBIT figure was overstated when in fact it was the share line, quoted correctly. The lesson is the one above: say which basis you are counting on, or you will end up disagreeing with people who agree with you.`,
+      },
+
+      { type: "h2", text: "Where they do not" },
+      {
+        type: "p",
+        text: `Four claims fail against the filing, and they fail badly rather than marginally.`,
+      },
+      {
+        type: "p",
+        text: `The semiconductor book is not $240 billion. The claim is that Taiwan Semiconductor, AMD, Qualcomm and Applied Materials together account for "$240+ billion". As filed:`,
+      },
+      {
+        type: "table",
+        headers: ["Issuer", "Value (shares only)"],
+        rows: [
+          ["Advanced Micro Devices", "$21,746,429,376"],
+          ["Taiwan Semiconductor", "$10,844,709,209"],
+          ["Qualcomm", "$1,560,803,624"],
+          ["Applied Materials", "$0 — not held"],
+          ["Total", "$34.15B"],
+        ],
+      },
+      {
+        type: "p",
+        text: `That is off by a factor of seven. Including every option row lifts it only to $37.38B. And Applied Materials does not appear in the filing at all — a named holding that is not a holding.`,
+      },
+      {
+        type: "p",
+        text: `Berkshire Hathaway is not the top non-tech holding. It is $6.50B in shares. SPY at $35.31B, Micron at $29.59B, Johnson & Johnson at $15.07B, Mastercard at $14.39B and AbbVie at $12.17B are all larger, and several of those are not technology by any reading.`,
+      },
+      {
+        type: "p",
+        text: `The Solana position is 33 shares. The claim is roughly 47,500 shares of the Bitwise Solana Staking ETF. The filing shows 33 shares, worth $340. The same claim gives the ticker as "SOL", which is not a US-listed equity ticker at all — the fund trades as BSOL. A wrong ticker and a position overstated by more than a thousand times, in a single line.`,
+      },
+      {
+        type: "p",
+        text: `MicroStrategy is understated rather than overstated. The claim is "624,387+ shares" of what is now Strategy Inc. The filing shows 3,830,709 shares worth $61,062,310, plus 338,000 calls and 715,700 puts — roughly six times the claimed share count.`,
+      },
+
+      { type: "h2", text: "The Ethereum position that is not one" },
+      {
+        type: "p",
+        text: `This is the finding that justified the whole exercise. The circulating summary describes 1.17 million shares of the iShares Ethereum Trust worth about $14.3 million, and calls it a fourfold quarterly increase.`,
+      },
+      {
+        type: "p",
+        text: `JPMorgan holds zero shares of ETHA. The filing contains no share line for it. What it contains is 600,000 call contracts and 600,000 put contracts, each carrying $7,344,000 of notional — $14,688,000 combined across 1,200,000 contracts. Someone read contracts as shares and notional as market value, and a derivatives book became an accumulation story.`,
+      },
+      {
+        type: "table",
+        headers: ["ETHA row", "Notional", "Contracts"],
+        rows: [
+          ["Shares", "$0", "0"],
+          ["Call", "$7,344,000", "600,000"],
+          ["Put", "$7,344,000", "600,000"],
+        ],
+      },
+      {
+        type: "p",
+        text: `Equal calls and equal puts is not a directional bet. It is the shape of a book that exists to make markets in the option, and describing it as institutional conviction inverts what the filing says.`,
+      },
+      {
+        type: "p",
+        text: `The same trap catches QQQ, described as a "massive liquidity position" alongside SPY. SPY is real and large — $35.31B of actual shares. QQQ has no share line either: $2.75B of calls against $9.17B of puts. Whatever that position is, it is not a long index holding, and it leans the other way.`,
+      },
+
+      { type: "h2", text: "The bitcoin ETF book, read properly" },
+      {
+        type: "p",
+        text: `IBIT is the one place the popular account is precisely right, so it deserves the detail.`,
+      },
+      {
+        type: "table",
+        headers: ["IBIT row", "Value", "Quantity"],
+        rows: [
+          ["Shares", "$355,732,983", "10,407,635"],
+          ["Call", "$134,840,100", "3,945,000"],
+          ["Put", "$119,486,444", "3,495,800"],
+        ],
+      },
+      {
+        type: "p",
+        text: `One correction to the framing. Calls exceed puts by about 449,200 contracts — roughly 13% more calls than puts. That is a mild tilt, not the "structurally, systematically long" posture the summary describes. A book carrying 3.5 million puts is not a conviction trade.`,
+      },
+      {
+        type: "p",
+        text: `The rest of the crypto-linked exposure, share lines only:`,
+      },
+      {
+        type: "table",
+        headers: ["Ticker", "Value", "Shares"],
+        rows: [
+          ["HOOD — Robinhood", "$1,609,321,182", "15,803,996"],
+          ["IBIT — iShares Bitcoin Trust", "$355,732,983", "10,407,635"],
+          ["COIN — Coinbase", "$220,486,248", "11,148,552"],
+          ["IREN", "$128,027,666", "3,993,785"],
+          ["MSTR — Strategy", "$61,062,310", "3,830,709"],
+          ["MARA — MARA Holdings", "$36,077,799", "3,495,920"],
+          ["RIOT — Riot Platforms", "$36,938,390", "1,557,533"],
+          ["CLSK — CleanSpark", "$26,127,126", "1,973,744"],
+          ["CIFR — Cipher Mining", "$17,583,910", "692,770"],
+          ["BTC — Grayscale Mini Trust", "$3,889,201", "145,717"],
+          ["FBTC — Fidelity Wise Origin", "$214,266", "4,079"],
+          ["GBTC — Grayscale Bitcoin Trust", "$20,952", "448"],
+          ["BSOL — Bitwise Solana Staking", "$340", "33"],
+        ],
+      },
+      {
+        type: "p",
+        text: `Robinhood is the largest crypto-adjacent position by a wide margin and is usually described as merely "substantial". GBTC, the fund whose outflows are written about constantly, is a 448-share line worth $20,952 — a rounding error inside a $1.8 trillion filing.`,
+      },
+
+      { type: "h2", text: "JPMorgan's own stock, checked the same way" },
+      {
+        type: "p",
+        text: `Since the summary quotes these too, they deserve the same treatment. Price from the consolidated tape, share count from the company's own filing.`,
+      },
+      {
+        type: "table",
+        headers: ["Metric", "Claimed", "Measured"],
+        rows: [
+          ["Last price", "$354.95–$357.62", "$354.95 (1 Sep 2026 close)"],
+          ["All-time high", "$366.50 on 12 Aug", "$366.50 intraday on 13 Aug"],
+          ["Highest close", "not stated", "$365.18 on 12 Aug"],
+          ["Market capitalisation", "~$945–950B", "$943.5B"],
+          ["3-month return", "+20.6%", "+17.9%"],
+          ["1-year return", "+19.2%", "+18.4%"],
+        ],
+      },
+      {
+        type: "p",
+        text: `Market cap is 2,658,186,195 shares outstanding as of 30 June 2026, taken from JPMorgan's own filed share-count tag, times the 1 September close. The two return figures are simply wrong in the summary — not wildly, but wrong, and in the flattering direction both times.`,
+      },
+
+      { type: "h2", text: "What we changed in FurlPay because of this" },
+      {
+        type: "p",
+        text: `This was not an academic exercise. Eleven of the securities in that filing were tradable in FurlPay but missing from our asset catalog. They priced and traded correctly, but carried no sector, no market-cap tier and no logo — which meant screening and collections could not see them. GOOG, MSTR, IREN, RIOT, CIFR, MARA, CLSK, GBTC, BSOL, JEPI and JEPQ are now catalogued.`,
+      },
+      {
+        type: "p",
+        text: `Market-cap tiers were computed rather than assigned: live price times shares outstanding from each issuer's own SEC filing, using the basic weighted average where a company reports per share class, as Strategy does. That puts GOOG at mega, MSTR and IREN at large, and RIOT, CIFR, MARA and CLSK at mid. The tier drives heatmap block size and the market-cap screen, so an inflated one produces a wrong screen rather than a flattering one.`,
+      },
+      {
+        type: "p",
+        text: `No dollar figure from the filing was written into our code. A 13F is a quarterly snapshot; embedding its values would make them stale within weeks and unverifiable forever. What we stored is the durable part — which securities exist, what kind they are, and how large they are.`,
+      },
+
+      { type: "h2", text: "Two tickers we deliberately did not add" },
+      {
+        type: "p",
+        text: `The most interesting engineering consequence was a decision to leave something out.`,
+      },
+      {
+        type: "p",
+        text: `"BTC" is a real, tradable US ticker — the Grayscale Bitcoin Mini Trust. So is "XRP", the Bitwise XRP ETF. Both are also, obviously, the tickers of the two assets people mean when they type those letters.`,
+      },
+      {
+        type: "p",
+        text: `Our catalog resolves a bare ticker towards the listed security, because a bare ticker on a finance surface conventionally means the equity. That rule exists for a good reason: it was added after "STX" resolved to Stacks rather than Seagate, and "DASH" to Dash rather than DoorDash. But the map it governs is also what our order endpoint books against.`,
+      },
+      {
+        type: "p",
+        text: `So adding a catalog row for the Grayscale ETF would not have been a display change. It would have quietly redefined what "buy BTC" means, turning a bitcoin order into a purchase of a Grayscale share class. We left both out, wrote the reasoning beside the entry, and added a test that fails the moment someone adds the row — verified by adding it and watching two assertions go red. The ETFs stay reachable through a kind-qualified key; what they do not get is the bare ticker.`,
+      },
+      {
+        type: "code",
+        lang: "typescript",
+        code: `// The tripwire, not the comment, is what actually protects this.
+it("BTC still resolves to the coin, not an ETF", () => {
+  expect(bySymbol.get("BTC")?.kind).toBe("crypto");
+  expect(byKindSymbol.has("etf:BTC")).toBe(false);
+});`,
+      },
+
+      { type: "h2", text: "How to check any of this yourself" },
+      {
+        type: "p",
+        text: `The reason this post can be specific is that the underlying data is free and the tools are ordinary. If you want to audit a filing — ours, JPMorgan's, anyone's:`,
+      },
+      {
+        type: "ul",
+        items: [
+          "EDGAR's submissions and archive endpoints need no API key, only a descriptive User-Agent header carrying a contact address.",
+          "data.sec.gov/submissions/CIK##########.json lists every filing a company has made, newest first.",
+          "The information table XML is the filing itself. Parse it rather than reading a summary of it.",
+          "Separate share rows from option rows before quoting any number, and state which basis you used.",
+          "Option rows are reported at the notional value of the underlying, not the premium paid. Treating contracts as shares is the easiest way to invent a position that does not exist.",
+        ],
+      },
+
+      { type: "h2", text: "Why a payments company cares about any of this" },
+      {
+        type: "p",
+        text: `FurlPay is built on a rule we apply to ourselves before anyone else: if a number cannot be traced to a source, it does not ship. Our fractional investing surface carries a double-entry lot ledger tracking cost basis, realised and unrealised profit and loss, dividends with DRIP and withholding, splits, mergers and spin-offs — because those are exactly the places where a plausible-looking wrong number does real damage to somebody's tax position.`,
+      },
+      {
+        type: "p",
+        text: `The same instinct produced this post. A filing was available, a summary of it was circulating, and the two disagreed. Reading the primary source cost an afternoon and produced eleven catalog entries, one order-routing bug prevented, and a clearer picture of what the largest bank in the world actually owns than the version being repeated.`,
+      },
+      {
+        type: "p",
+        text: `That picture is genuinely interesting, incidentally — though not for the reason the summary suggests. The crypto exposure is small, largely facilitation inventory, and in Ethereum's case not a share position at all. What is striking is that a $1.8 trillion filing has Micron eighth, holds no Applied Materials, and expresses its Nasdaq view through $9.17 billion of puts. None of that fits a tidy narrative, which is probably why a tidy narrative got written instead.`,
+      },
+
+      { type: "h2", text: "Corrections, and a standing invitation" },
+      {
+        type: "p",
+        text: `Everything above is checkable against accession 0000019617-26-000325. If you parse it and reach a different number, we would like to know — that is the point of citing the accession rather than asserting a figure. We will correct this post and say plainly what changed.`,
+      },
+      {
+        type: "p",
+        text: `None of this is investment advice. A 13F is a backward-looking snapshot of long US-listed positions, filed 45 days after the quarter it describes, and for an institution of this size much of it reflects market-making and client facilitation rather than any house view. It tells you what was held on 30 June 2026. It does not tell you what anyone thinks.`,
+      },
+    ],
+  },
   // Travel — the traveller-facing companion to the hotel map engineering post
   {
     slug: "explore-hotels-resorts-villas-on-the-world-map",
