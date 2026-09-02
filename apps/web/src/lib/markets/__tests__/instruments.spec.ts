@@ -5,6 +5,7 @@ import {
   searchInstruments,
   catalogInstrument,
   assetClassLabel,
+  resolveInstrumentOrAlias,
 } from "../instruments";
 
 // ---------------------------------------------------------------------------
@@ -34,13 +35,14 @@ describe("resolving an instrument", () => {
     expect(gold.providerNote).toMatch(/differs from spot/i);
   });
 
-  it("resolves by explicit alias and by display name", () => {
+  it("resolves by explicit alias and by display name, on the query surface", () => {
     // Written-down market conventions, not fuzzy matching. "Gold" means XAUUSD
-    // because that is the convention, and the mapping is in the registry.
-    expect(resolveInstrument("gold")?.symbol).toBe("XAUUSD");
-    expect(resolveInstrument("Euro Dollar")?.symbol).toBe("EURUSD");
-    expect(resolveInstrument("dow")?.symbol).toBe("DJI");
-    expect(resolveInstrument("Gold / US Dollar")?.symbol).toBe("XAUUSD");
+    // because that is the convention, and the mapping is in the registry --
+    // but only where a human typed a query, never for a route segment.
+    expect(resolveInstrumentOrAlias("gold")?.symbol).toBe("XAUUSD");
+    expect(resolveInstrumentOrAlias("Euro Dollar")?.symbol).toBe("EURUSD");
+    expect(resolveInstrumentOrAlias("dow")?.symbol).toBe("DJI");
+    expect(resolveInstrumentOrAlias("Gold / US Dollar")?.symbol).toBe("XAUUSD");
   });
 
   it("accepts the spellings a reader actually types", () => {
@@ -230,5 +232,35 @@ describe("the quote window", () => {
     } finally {
       globalThis.fetch = real;
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Route precedence: a real ticker must never be shadowed by an instrument.
+//
+// /markets/[symbol] tries the securities catalog first and the instrument
+// registry only after it misses. That order matters: GOLD is a listed equity
+// ticker, and resolving it to the metal would send someone looking at a company
+// to a commodity page.
+// ---------------------------------------------------------------------------
+describe("symbol precedence", () => {
+  it("does not claim tickers that belong to listed securities", () => {
+    // Each of these is a real listed ticker. The instrument registry must not
+    // answer for any of them, or the securities page loses to a commodity.
+    for (const t of ["GOLD", "SPY", "NVDA", "IBIT", "GLD", "SLV", "UUP"]) {
+      expect(resolveInstrument(t), t).toBeNull();
+    }
+  });
+
+  it("claims the pair symbols that no equity uses", () => {
+    for (const t of ["XAUUSD", "XAGUSD", "EURUSD", "USDJPY", "SPX", "US10Y"]) {
+      expect(resolveInstrument(t), t).not.toBeNull();
+    }
+  });
+
+  it("resolves the alias only through search, not as a bare ticker", () => {
+    // "gold" as a query is fine; GOLD as a route segment is an equity.
+    expect(resolveInstrumentOrAlias("gold")?.symbol).toBe("XAUUSD");
+    expect(resolveInstrument("GOLD")).toBeNull();
   });
 });

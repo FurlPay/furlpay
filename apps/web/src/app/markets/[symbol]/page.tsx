@@ -21,6 +21,9 @@ import {
   pageTitle,
 } from "@/lib/markets/seo";
 import StockClient from "./StockClient";
+import InstrumentView from "./InstrumentView";
+import { resolveInstrument, assetClassLabel } from "@/lib/markets/instruments";
+import { instrumentQuote } from "@/lib/markets/instrumentQuote";
 
 // Server shell for /markets/[symbol].
 //
@@ -52,10 +55,23 @@ const load = cache(async function load(
   const symbol = decodeURIComponent(rawSymbol).toUpperCase();
   const asset = await resolveAsset(symbol);
   if (!asset) return null;
+  // A securities lookup only. Instruments that are not securities -- gold, FX
+  // pairs, indices -- are resolved separately in `loadInstrument`, because they
+  // have no issuer, no CUSIP and none of the fields this page is built around.
   const stats = await realStatsFor(symbol, asset.kind, bySymbol.get(symbol)?.cg ?? null).catch(
     () => null
   );
   return { asset, stats };
+});
+
+/** The non-security fallback: gold, FX, indices, yields.
+ *
+ * Tried only after the securities catalog misses, so a real ticker can never be
+ * shadowed by an instrument alias. */
+const loadInstrument = cache(async function loadInstrument(rawSymbol: string) {
+  const inst = resolveInstrument(decodeURIComponent(rawSymbol));
+  if (!inst) return null;
+  return { inst, quote: await instrumentQuote(inst).catch(() => null) };
 });
 
 export async function generateMetadata(props: {
@@ -63,6 +79,23 @@ export async function generateMetadata(props: {
 }): Promise<Metadata> {
   const { symbol } = await props.params;
   const loaded = await load(symbol);
+
+  // An instrument gets its own metadata rather than the equity template, which
+  // would advertise a "Stock Price" page for the euro.
+  if (!loaded) {
+    const i = await loadInstrument(symbol);
+    if (i) {
+      const price = i.quote?.price;
+      const label = assetClassLabel(i.inst.assetClass);
+      return {
+        title: `${i.inst.symbol} ${label} Price | ${i.inst.displayName} | FurlPay`,
+        description:
+          `Live ${i.inst.displayName} (${i.inst.symbol}) price` +
+          (price !== null && price !== undefined ? ` — ${price.toLocaleString("en-US")} ${i.quote?.currency ?? i.inst.currency}` : "") +
+          `. ${i.inst.providerNote ?? ""}`.trimEnd(),
+      };
+    }
+  }
 
   // An unknown ticker gets no indexable metadata. It 404s below, and a 404 that
   // still advertises a title is how soft-404s get indexed.
@@ -123,7 +156,14 @@ function relatedFor(asset: MergedAsset): { symbol: string; name: string }[] {
 export default async function Page(props: { params: Promise<{ symbol: string }> }) {
   const { symbol } = await props.params;
   const loaded = await load(symbol);
-  if (!loaded) notFound();
+
+  // Not a security. Try the instrument registry before giving up: this is what
+  // makes /markets/XAUUSD resolve to gold rather than to "Asset not found".
+  if (!loaded) {
+    const i = await loadInstrument(symbol);
+    if (i) return <InstrumentView instrument={i.inst} quote={i.quote} />;
+    notFound();
+  }
 
   const { asset, stats } = loaded;
   // Composed exactly as SeoSections composes it, so the FAQPage graph and the

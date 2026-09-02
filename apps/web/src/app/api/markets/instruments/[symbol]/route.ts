@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-import { resolveInstrument, assetClassLabel } from "@/lib/markets/instruments";
+import { resolveInstrumentOrAlias, assetClassLabel } from "@/lib/markets/instruments";
 import { instrumentQuote } from "@/lib/markets/instrumentQuote";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ symbol: s
   if (limited) return limited;
 
   const { symbol } = await props.params;
-  const inst = resolveInstrument(decodeURIComponent(symbol));
+  const inst = resolveInstrumentOrAlias(decodeURIComponent(symbol));
   // No near misses. An unknown symbol is a 404, not the closest thing we have.
   if (!inst) {
     return NextResponse.json({ error: "Unknown instrument" }, { status: 404 });

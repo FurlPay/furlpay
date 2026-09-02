@@ -200,11 +200,11 @@ export const INSTRUMENTS: MarketInstrument[] = [
 ];
 
 const bySymbol = new Map(INSTRUMENTS.map((i) => [i.symbol.toUpperCase(), i]));
+const byProviderSymbol = new Map(INSTRUMENTS.map((i) => [i.providerSymbol.toUpperCase(), i]));
 const byAlias = new Map<string, MarketInstrument>();
 for (const i of INSTRUMENTS) {
   for (const a of i.aliases) byAlias.set(a.toLowerCase(), i);
   byAlias.set(i.displayName.toLowerCase(), i);
-  byAlias.set(i.providerSymbol.toLowerCase(), i);
 }
 
 /** Canonical spellings a reader might type for the same pair. */
@@ -213,19 +213,31 @@ function normalizeSymbol(q: string): string {
 }
 
 /**
- * Resolve a query to an instrument: exact symbol, provider symbol, alias, or
- * display name. Returns null rather than a near miss.
+ * Resolve a SYMBOL to an instrument. Exact symbol or provider symbol only.
  *
- * Alias matching is acceptable HERE and nowhere near the 13F path. "Gold" means
- * XAUUSD by market convention and the mapping is written down explicitly; that
- * is a different thing from inferring that an issuer called CIPHER DIGITAL is
- * the company someone meant by "Cipher Mining".
+ * Aliases are deliberately excluded here, and the reason is a live collision:
+ * "gold" is an alias for XAUUSD, and GOLD is also a listed equity ticker. A
+ * resolver that accepts aliases would answer for /markets/GOLD and send someone
+ * looking at a company to a commodity page. Route resolution must be exact.
+ *
+ * Aliases live in `resolveInstrumentOrAlias` and `searchInstruments`, which are
+ * search surfaces where "gold" is a query rather than an identifier.
  */
 export function resolveInstrument(query: string): MarketInstrument | null {
   if (!query) return null;
-  const exact = bySymbol.get(normalizeSymbol(query));
-  if (exact) return exact;
-  return byAlias.get(query.trim().toLowerCase()) ?? null;
+  return bySymbol.get(normalizeSymbol(query)) ?? byProviderSymbol.get(query.trim().toUpperCase()) ?? null;
+}
+
+/**
+ * Resolve a symbol OR an explicit market alias: XAUUSD, "gold", "euro dollar".
+ *
+ * For search and for the instruments API, where the caller has typed a query
+ * rather than followed a link. Never use this to resolve a route segment: see
+ * `resolveInstrument` for why.
+ */
+export function resolveInstrumentOrAlias(query: string): MarketInstrument | null {
+  if (!query) return null;
+  return resolveInstrument(query) ?? byAlias.get(query.trim().toLowerCase()) ?? null;
 }
 
 /** Prefix search across symbols, names and aliases, for the search surface. */
