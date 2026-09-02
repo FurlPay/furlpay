@@ -74,6 +74,11 @@ const COLORS = {
 
 const SITE = "https://furlpay.com";
 
+// A COMBINED chart strip was tried here and removed. Six assets in one picture
+// is a dashboard, and a dashboard is the wrong shape for a feed: nothing in it
+// can be updated, linked to or read on its own. Each asset now gets its own
+// message and its own chart, rendered by /api/og/price-card/[symbol].
+
 export interface DiscordEmbedField {
   name: string;
   value: string;
@@ -376,14 +381,6 @@ export function renderBrief(brief: MarketBrief): DiscordWebhookPayload {
     color: headerColor(brief),
     fields: [],
     timestamp: new Date(brief.generatedAt).toISOString(),
-    // The chart strip. Referenced by URL rather than uploaded, because this
-    // post goes through a webhook and the webhook poster speaks JSON -- adding
-    // multipart to it would mean changing a well-tested path for one image.
-    //
-    // The session date is in the query string on purpose: Discord caches an
-    // embed image by URL and would otherwise show the first day's chart
-    // forever. A new date is a new URL is a new fetch.
-    image: { url: `${SITE}/api/og/market-brief?d=${encodeURIComponent(brief.sessionDate)}` },
   };
 
   // The evidence behind the narrative. Without it the paragraph is a set of

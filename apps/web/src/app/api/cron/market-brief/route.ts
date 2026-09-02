@@ -9,6 +9,7 @@ import { buildBrief } from "@/lib/markets/brief/brief";
 import { renderBrief } from "@/lib/markets/brief/render";
 import { renderTelegramBrief } from "@/lib/markets/brief/renderTelegram";
 import { postToDiscordWebhook, isDiscordWebhookUrl, redactWebhookUrl } from "@/lib/discordWebhook";
+import { postBriefAsBot, briefBotTarget } from "@/lib/priceCards/briefBot";
 import { postToTelegram, looksLikeBotToken } from "@/lib/telegramPost";
 import { kvGet, kvSet } from "@/lib/kv";
 
@@ -96,7 +97,13 @@ export async function GET(req: NextRequest) {
   const tgToken = (process.env.TELEGRAM_BOT_TOKEN ?? "").trim();
   const tgChat = (process.env.TELEGRAM_MARKET_CHAT_ID ?? process.env.TELEGRAM_CHANNEL_ID ?? "").trim();
 
-  const discordReady = isDiscordWebhookUrl(webhook);
+  // Two ways to reach Discord. A webhook is the simplest and needs no bot in
+  // the server; posting as the bot needs a token and a channel id but no
+  // webhook, and is what a deployment already running the price cards has to
+  // hand. The webhook wins when both are set, because it is the older path and
+  // switching author mid-history would look like two different publishers.
+  const bot = briefBotTarget();
+  const discordReady = isDiscordWebhookUrl(webhook) || bot !== null;
   const telegramReady = looksLikeBotToken(tgToken) && tgChat.length > 0;
 
   if (!dry && !discordReady && !telegramReady) {
@@ -108,7 +115,8 @@ export async function GET(req: NextRequest) {
         status: "not_configured",
         detail:
           "No destination is configured. Set DISCORD_MARKET_WEBHOOK_URL (Edit Channel → " +
-          "Integrations → New Webhook) and/or TELEGRAM_BOT_TOKEN plus " +
+          "Integrations → New Webhook), or DISCORD_BOT_TOKEN plus " +
+          "MARKET_BRIEF_CHANNEL_ID to post as the bot, and/or TELEGRAM_BOT_TOKEN plus " +
           "TELEGRAM_MARKET_CHAT_ID. Use ?dry=1 to build the brief without sending.",
         discord: webhook ? "set but not a valid Discord webhook URL" : "unset",
         telegram: tgToken
@@ -222,11 +230,13 @@ export async function GET(req: NextRequest) {
         });
         ctx.metric("duplicate_suppressed", 1);
       } else {
-        const res = await postToDiscordWebhook(webhook, discordPayload);
+        const res = isDiscordWebhookUrl(webhook)
+          ? await postToDiscordWebhook(webhook, discordPayload)
+          : await postBriefAsBot(bot!, discordPayload);
         deliveries.push({
           target: "discord",
           ok: res.ok,
-          detail: res.ok ? `HTTP ${res.status}` : res.error,
+          detail: res.ok ? `HTTP ${res.status}` : (res.error ?? "unknown error"),
         });
         if (res.ok) {
           ctx.metric("posted_discord", 1);
@@ -237,8 +247,12 @@ export async function GET(req: NextRequest) {
             kind: "markets.brief_post_failed",
             severity: "medium",
             title: "Daily market brief did not reach Discord",
-            detail: res.error,
-            dimensions: { job: JOB, target: redactWebhookUrl(webhook) },
+            detail: res.error ?? "unknown error",
+            dimensions: {
+              job: JOB,
+              // Redacted either way; the bot path has no URL to leak.
+              target: isDiscordWebhookUrl(webhook) ? redactWebhookUrl(webhook) : "discord-bot",
+            },
           });
         }
       }
@@ -331,7 +345,11 @@ export async function GET(req: NextRequest) {
     status: outcome.status,
     dryRun: dry,
     targets: {
-      discord: dry ? (discordReady ? "configured" : "not configured") : redactWebhookUrl(webhook),
+      discord: dry
+        ? discordReady
+          ? isDiscordWebhookUrl(webhook) ? "configured (webhook)" : "configured (bot)"
+          : "not configured"
+        : isDiscordWebhookUrl(webhook) ? redactWebhookUrl(webhook) : "bot",
       telegram: telegramReady ? `chat ${tgChat}` : "not configured",
     },
     deliveries,

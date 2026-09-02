@@ -14,7 +14,7 @@
 
 import type { PriceCardData } from "./data";
 import {
-  DASH, formatCompactUsd, formatPct, formatRank, formatUsd,
+  DASH, formatCompactUsd, formatLevel, formatPct, formatRank, formatUsd,
 } from "./format";
 
 /** Discord embed colours are integers, not hex strings. */
@@ -53,14 +53,19 @@ export function buildPriceCardMessage(
   const chg = data.changePct24h;
   const color = chg === null || chg === 0 ? GREY : chg > 0 ? GREEN : RED;
 
+  // An index is quoted in points. "$7,670.92" for the S&P 500 makes the number
+  // look like a price you could pay for one, which is a different claim.
+  const price = (n: number | null) =>
+    data.unit === "points" ? formatLevel(n) : formatUsd(n);
+
   // "$97.81 (-4.24% 24h)" — the price dominant, the change beside it.
   const priceLine =
-    `**${formatUsd(data.price)}** ` +
+    `**${price(data.price)}** ` +
     (chg === null ? `(${DASH} 24h)` : `(${formatPct(chg)} 24h)`);
 
   const fields = [
-    { name: "24h high", value: formatUsd(data.high24h), inline: true },
-    { name: "24h low", value: formatUsd(data.low24h), inline: true },
+    { name: "24h high", value: price(data.high24h), inline: true },
+    { name: "24h low", value: price(data.low24h), inline: true },
     { name: "Rank", value: formatRank(data.rank), inline: true },
     { name: "Market cap", value: formatCompactUsd(data.marketCap), inline: true },
     { name: "Volume 24h", value: formatCompactUsd(data.volume24h), inline: true },

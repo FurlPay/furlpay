@@ -22,6 +22,7 @@ const sample: PriceCardData = {
   athPrice: 294.33, fromAthPct: -66.77,
   sparkline: [100, 102, 99, 101, 98, 97.81],
   accent: "#14F195", source: "CoinGecko", note: null,
+  unit: "usd", sparklineLabel: "7d",
 };
 
 describe("formatting", () => {
@@ -200,5 +201,42 @@ describe("configuration", () => {
     const { ready, skipped } = configuredChannels();
     const covered = new Set([...ready.map((r) => r.symbol), ...skipped.map((s) => s.symbol)]);
     for (const k of Object.keys(CARD_ASSETS)) expect(covered.has(k as never), k).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// An index level is not a price.
+//
+// The S&P 500 at 7,670.92 is a number of points. Rendering it as "$7,670.92"
+// makes it look like something you could buy one of, and the same mistake in
+// the other direction would strip the dollar sign off Bitcoin.
+// ---------------------------------------------------------------------------
+describe("units", () => {
+  const index: PriceCardData = {
+    ...sample, symbol: "SPX", name: "S&P 500", pair: "SPX · INDEX",
+    price: 7670.92, high24h: 7700.1, low24h: 7600.5,
+    rank: null, marketCap: null, volume24h: null, fromAthPct: null,
+    unit: "points", sparklineLabel: "30d",
+  };
+
+  it("quotes an index in points, with no currency symbol", () => {
+    const e = buildPriceCardMessage(index, "spx.png").embeds[0] as Record<string, unknown>;
+    expect(e.description).toBe("**7,670.92** (-4.24% 24h)");
+    const fields = e.fields as { name: string; value: string }[];
+    expect(fields.find((f) => f.name === "24h high")!.value).toBe("7,700.10");
+    expect(fields.find((f) => f.name === "24h low")!.value).toBe("7,600.50");
+  });
+
+  it("still quotes a coin in dollars", () => {
+    const e = buildPriceCardMessage(sample, "sol.png").embeds[0] as Record<string, unknown>;
+    expect(e.description).toBe("**$97.81** (-4.24% 24h)");
+  });
+
+  it("renders dashes for the statistics an index does not have", () => {
+    const fields = (buildPriceCardMessage(index, "spx.png").embeds[0] as Record<string, unknown>)
+      .fields as { name: string; value: string }[];
+    for (const n of ["Rank", "Market cap", "Volume 24h", "From ATH"]) {
+      expect(fields.find((f) => f.name === n)!.value, n).toBe(DASH);
+    }
   });
 });

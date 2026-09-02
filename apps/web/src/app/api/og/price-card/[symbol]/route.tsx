@@ -3,7 +3,7 @@ import { NextRequest } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { CARD_ASSETS, getPriceCardData, type CardSymbol } from "@/lib/priceCards/data";
 import {
-  COLORS, DASH, changeColor, formatCompactUsd, formatPct, formatUsd, sparklinePath,
+  COLORS, DASH, changeColor, formatCompactUsd, formatLevel, formatPct, formatUsd, sparklinePath,
 } from "@/lib/priceCards/format";
 
 export const runtime = "nodejs";
@@ -63,6 +63,9 @@ export async function GET(
   const lineColor = negative ? COLORS.negative : COLORS.positive;
   const chg = data.changePct24h;
 
+  // Points for an index, dollars for anything you can buy one of.
+  const price = (n: number | null) => (data.unit === "points" ? formatLevel(n) : formatUsd(n));
+
   const metrics: { label: string; value: string; color: string }[] = [
     { label: "1h", value: formatPct(data.changePct1h), color: changeColor(data.changePct1h) },
     { label: "7d", value: formatPct(data.changePct7d), color: changeColor(data.changePct7d) },
@@ -98,7 +101,7 @@ export async function GET(
 
           <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
             <span style={{ fontSize: 42, fontWeight: 700, lineHeight: 1 }}>
-              {formatUsd(data.price)}
+              {price(data.price)}
             </span>
             <div style={{ display: "flex", alignItems: "center", marginTop: 7 }}>
               {/* The direction marker is DRAWN, not typed. Satori's default
@@ -164,7 +167,7 @@ export async function GET(
               background: "rgba(24,26,31,0.82)", borderRadius: 5, padding: "3px 7px",
             }}>
               <span style={{ fontSize: 11, color: COLORS.textSecondary }}>
-                7d high {formatUsd(spark.max)}
+                {data.sparklineLabel} high {price(spark.max)}
               </span>
             </div>
           )}
@@ -174,7 +177,7 @@ export async function GET(
               background: "rgba(24,26,31,0.82)", borderRadius: 5, padding: "3px 7px",
             }}>
               <span style={{ fontSize: 11, color: COLORS.textSecondary }}>
-                7d low {formatUsd(spark.min)}
+                {data.sparklineLabel} low {price(spark.min)}
               </span>
             </div>
           )}

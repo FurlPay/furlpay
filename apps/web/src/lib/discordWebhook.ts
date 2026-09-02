@@ -80,6 +80,17 @@ export interface PostOptions {
   /** Injected in tests. */
   fetchImpl?: typeof fetch;
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * A file to upload alongside the payload, referenced from an embed as
+   * `attachment://<filename>`.
+   *
+   * Uploading beats linking an image by URL: Discord then hosts the bytes on
+   * its own CDN, so the picture does not depend on our route staying public,
+   * reachable and un-cached. A linked image also has to carry a cache-busting
+   * query string forever, because Discord caches by URL and will otherwise show
+   * the first day's chart indefinitely.
+   */
+  file?: { filename: string; bytes: Uint8Array; contentType?: string };
 }
 
 /**
@@ -112,15 +123,33 @@ export async function postToDiscordWebhook(
     };
   }
 
-  const body = JSON.stringify(payload);
+  const json = JSON.stringify(payload);
+  const { file } = options;
+
+  // Multipart when a file rides along, JSON otherwise. The Content-Type header
+  // is omitted for multipart on purpose: fetch sets it, including the boundary,
+  // and setting it by hand produces a body Discord cannot parse.
+  const buildRequest = (): RequestInit => {
+    if (!file) {
+      return {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: json,
+        signal: AbortSignal.timeout(timeoutMs),
+      };
+    }
+    const form = new FormData();
+    form.append("payload_json", json);
+    form.append(
+      "files[0]",
+      new Blob([file.bytes as unknown as BlobPart], { type: file.contentType ?? "image/png" }),
+      file.filename
+    );
+    return { method: "POST", body: form, signal: AbortSignal.timeout(timeoutMs) };
+  };
 
   const attempt = async (): Promise<{ status: number; retryAfterMs: number | null; detail: string }> => {
-    const res = await fetchImpl(webhookUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
+    const res = await fetchImpl(webhookUrl, buildRequest());
     let retryAfterMs: number | null = null;
     let detail = "";
     if (res.status === 429) {

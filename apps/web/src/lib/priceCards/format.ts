@@ -20,6 +20,15 @@ export function formatUsd(n: number | null): string {
   return `$${n.toLocaleString("en-US", { minimumFractionDigits: dp, maximumFractionDigits: dp })}`;
 }
 
+/** A level with no currency symbol: an index is quoted in points.
+ *
+ * Separate from formatUsd rather than a flag on it, so the choice is visible at
+ * every call site. "$7,670.92" for the S&P 500 reads as a price you could pay. */
+export function formatLevel(n: number | null): string {
+  if (n === null || !Number.isFinite(n)) return DASH;
+  return n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
 /** Compact money: $57.25B, $3.33B, $912.4M. */
 export function formatCompactUsd(n: number | null): string {
   if (n === null || !Number.isFinite(n)) return DASH;

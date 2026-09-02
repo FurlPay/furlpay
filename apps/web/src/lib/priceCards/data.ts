@@ -57,6 +57,15 @@ export interface PriceCardData {
   source: string;
   /** Set when the quoted instrument is not what the symbol implies. */
   note: string | null;
+  /**
+   * How the price is denominated. An index level is a number of POINTS, not a
+   * price in dollars: "$7,670.92" for the S&P 500 is a category error that
+   * makes the number look like something you could buy one of.
+   */
+  unit: "usd" | "points";
+  /** The window the sparkline actually covers, for its high/low labels. A
+   *  label that says 7d over a month of data is a small, quiet lie. */
+  sparklineLabel: string;
 }
 
 interface CgMarketRow {
@@ -76,13 +85,35 @@ interface CgMarketRow {
   sparkline_in_7d?: { price?: number[] };
 }
 
-/** Assets this card system knows how to draw, and how to reach each one. */
+/**
+ * Assets this card system knows how to draw, and how to reach each one.
+ *
+ * Adding one is a single line here: the renderer, the Discord layer and the
+ * scheduler all iterate this map and none of them names an asset. Nothing about
+ * the pipeline is specific to any one symbol.
+ *
+ * An index is an `instrument` rather than a `coin` because it genuinely is one:
+ * it has no supply, no market cap, no rank and no all-time-high series from this
+ * provider, and the card renders a dash for each rather than inventing them.
+ */
 export const CARD_ASSETS = {
+  // ---- Indices ----
+  SPX: { kind: "instrument", providerSymbol: "^GSPC", symbol: "SPX", name: "S&P 500", accent: "#4C8DFF" },
+  NDX: { kind: "instrument", providerSymbol: "^IXIC", symbol: "NDX", name: "NASDAQ", accent: "#7C5CFF" },
+  DJI: { kind: "instrument", providerSymbol: "^DJI", symbol: "DJI", name: "DOW", accent: "#38BDF8" },
+
+  // ---- Crypto ----
   BTC: { kind: "coin", cgId: "bitcoin", symbol: "BTC", name: "Bitcoin", accent: "#F7931A" },
   ETH: { kind: "coin", cgId: "ethereum", symbol: "ETH", name: "Ethereum", accent: "#8A92B2" },
   SOL: { kind: "coin", cgId: "solana", symbol: "SOL", name: "Solana", accent: "#14F195" },
+
+  // ---- Commodities ----
   XAUUSD: { kind: "instrument", providerSymbol: "GC=F", symbol: "XAUUSD", name: "Gold", accent: "#D4AF37" },
 } as const;
+
+/** Display order for a channel that carries every card. Indices, then crypto,
+ *  then commodities — the order a market reader scans in. */
+export const CARD_ORDER: CardSymbol[] = ["SPX", "NDX", "DJI", "BTC", "ETH", "SOL", "XAUUSD"];
 
 export type CardSymbol = keyof typeof CARD_ASSETS;
 
@@ -225,6 +256,8 @@ export async function getPriceCardData(
         accent: spec.accent,
         source: "CoinGecko",
         note: null,
+        unit: "usd",
+        sparklineLabel: "7d",
       });
     }
   }
@@ -237,12 +270,15 @@ export async function getPriceCardData(
     const price = h.price ?? h.closes[h.closes.length - 1] ?? null;
     if (price === null) continue;
     const change24 = h.prevClose && h.prevClose > 0 ? (price / h.prevClose - 1) * 100 : null;
-    // Seven calendar days is about five sessions for a futures contract.
-    const week = h.closes.slice(-8);
+    // The whole month, not a week. Eight daily closes draw a jagged polyline
+    // that looks like a data error rather than a chart; a month of daily bars
+    // has enough points to read as a price series.
+    const window = h.closes.slice(-22);
+    const isIndex = spec.symbol !== "XAUUSD";
     out.set(s, {
       symbol: spec.symbol,
       name: spec.name,
-      pair: "XAU / USD",
+      pair: spec.symbol === "XAUUSD" ? "XAU / USD" : `${spec.symbol} · INDEX`,
       price,
       changePct24h: change24,
       // No intraday series here, so there is no honest 1h number to show.
@@ -256,10 +292,15 @@ export async function getPriceCardData(
       volume24h: null,
       athPrice: null,
       fromAthPct: null,
-      sparkline: week,
+      sparkline: window,
       accent: spec.accent,
-      source: "COMEX via Yahoo",
-      note: "Front-month futures, not spot",
+      source: spec.symbol === "XAUUSD" ? "COMEX via Yahoo" : "Yahoo Finance",
+      // An index is quoted in points; gold is quoted in dollars an ounce.
+      unit: isIndex ? "points" : "usd",
+      sparklineLabel: "30d",
+      // Only gold carries a caveat: its symbol and the contract we can quote
+      // are different instruments. An index is exactly what it says it is.
+      note: spec.symbol === "XAUUSD" ? "Front-month futures, not spot" : null,
     });
   }
 

@@ -1,13 +1,23 @@
 // ---------------------------------------------------------------------------
-// Configuration for the price cards.
+// Where each price card is posted.
 //
-// Every asset gets its own channel, so each is configured independently and a
-// missing channel id disables just that card rather than the whole job. Nothing
-// here has a default channel: posting a price card into the wrong Discord
-// channel is not a failure mode worth risking to save an environment variable.
+// TWO WAYS TO ARRANGE THE SAME CARDS, and both are legitimate:
+//
+//   ONE CHANNEL, MANY CARDS. `MARKET_CARDS_CHANNEL_ID` puts every asset into a
+//   single channel as a vertical feed of independent messages — one per asset,
+//   each with its own chart and its own message id, each edited on its own.
+//   This is the layout a reader scans top to bottom.
+//
+//   ONE CHANNEL PER ASSET. A per-asset variable overrides the shared channel
+//   for that asset, which suits a dedicated #btc-price channel someone follows
+//   on its own.
+//
+// A per-asset setting always wins, so adding the shared channel does not move
+// cards that already have a home. What NEVER happens is a card in two places:
+// each asset resolves to exactly one channel.
 // ---------------------------------------------------------------------------
 
-import type { CardSymbol } from "./data";
+import { CARD_ORDER, type CardSymbol } from "./data";
 
 export interface CardChannel {
   symbol: CardSymbol;
@@ -16,7 +26,11 @@ export interface CardChannel {
   envVar: string;
 }
 
+/** Per-asset overrides. Absent entries fall back to the shared channel. */
 const CHANNEL_ENV: Record<CardSymbol, string> = {
+  SPX: "SPX_PRICE_CHANNEL_ID",
+  NDX: "NDX_PRICE_CHANNEL_ID",
+  DJI: "DJI_PRICE_CHANNEL_ID",
   BTC: "BTC_PRICE_CHANNEL_ID",
   ETH: "ETH_PRICE_CHANNEL_ID",
   SOL: "SOL_PRICE_CHANNEL_ID",
@@ -36,32 +50,46 @@ export function botToken(): string | null {
 }
 
 /**
- * Which cards are configured well enough to post.
+ * Which cards are configured well enough to post, in display order.
  *
- * Returns the reasons for the ones that are not, so an operator gets "SOL is
- * missing SOL_PRICE_CHANNEL_ID" rather than silence.
+ * Returns the reasons for the ones that are not, so an operator gets "SOL has
+ * no channel" rather than silence.
  */
 export function configuredChannels(): {
   ready: CardChannel[];
   skipped: { symbol: CardSymbol; reason: string }[];
 } {
+  const shared = process.env.MARKET_CARDS_CHANNEL_ID;
+  const sharedOk = isSnowflake(shared);
+
   const ready: CardChannel[] = [];
   const skipped: { symbol: CardSymbol; reason: string }[] = [];
 
-  for (const [symbol, envVar] of Object.entries(CHANNEL_ENV) as [CardSymbol, string][]) {
-    const raw = process.env[envVar];
-    if (!raw) {
-      skipped.push({ symbol, reason: `${envVar} is not set` });
-      continue;
-    }
-    if (!isSnowflake(raw)) {
+  // CARD_ORDER rather than Object.keys: the order cards appear in a shared
+  // channel is the order they are posted, and that should be deliberate.
+  for (const symbol of CARD_ORDER) {
+    const envVar = CHANNEL_ENV[symbol];
+    const own = process.env[envVar];
+
+    if (own && !isSnowflake(own)) {
       skipped.push({
         symbol,
-        reason: `${envVar} is not a Discord id (expected 17-20 digits, e.g. 1234567890123456789)`,
+        reason: `${envVar} is not a Discord id (expected 17-20 digits)`,
       });
       continue;
     }
-    ready.push({ symbol, channelId: raw.trim(), envVar });
+    if (isSnowflake(own)) {
+      ready.push({ symbol, channelId: own.trim(), envVar });
+      continue;
+    }
+    if (sharedOk) {
+      ready.push({ symbol, channelId: shared.trim(), envVar: "MARKET_CARDS_CHANNEL_ID" });
+      continue;
+    }
+    skipped.push({
+      symbol,
+      reason: `neither ${envVar} nor MARKET_CARDS_CHANNEL_ID is set`,
+    });
   }
   return { ready, skipped };
 }
