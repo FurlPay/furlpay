@@ -1,4 +1,5 @@
-import { getAuthor } from "@/lib/blog/authors";
+import Link from "next/link";
+import { getAuthor, authorSlug } from "@/lib/blog/authors";
 
 // Visible author box for articles — the human-facing half of E-E-A-T. Pairs
 // with the Person/Organization node emitted into the article's JSON-LD.
@@ -21,7 +22,13 @@ export default function AuthorBio({ author }: { author: string }) {
         </div>
       )}
       <div className="min-w-0">
-        <p className="text-[15px] font-bold">{a.name}</p>
+        {/* Linked, not plain text: the Person entity needs an internal path
+            pointing at it or the credentials below never accumulate anywhere. */}
+        <p className="text-[15px] font-bold">
+          <Link href={`/blog/author/${authorSlug(a.name)}`} className="transition-colors hover:text-neon">
+            {a.name}
+          </Link>
+        </p>
         <p className="text-[12px] text-textMuted">
           {a.role}
           {a.credentials ? ` · ${a.credentials}` : ""}

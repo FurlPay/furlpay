@@ -1,6 +1,8 @@
 import type { MetadataRoute } from "next";
 import { POSTS } from "@/lib/blog/posts";
 import { CATEGORIES } from "@/lib/blog/categories";
+import { allAuthorNames } from "@/lib/blog/authors";
+import { TERMS } from "@/lib/learn/glossary";
 import { INSIGHTS } from "@/lib/insights/articles";
 import { INSIGHT_CATEGORIES } from "@/lib/insights/categories";
 import { CITIES } from "@/lib/cities";
@@ -217,6 +219,35 @@ export default function sitemap(): MetadataRoute.Sitemap {
     priority: 0.6,
   }));
 
+  // One entry per distinct byline. Derived from POSTS so it can never list an
+  // author page that does not exist, and never miss one that does.
+  const authors = allAuthorNames(POSTS.map((p) => p.author)).map(({ slug, name }) => ({
+    url: `${BASE}/blog/author/${slug}`,
+    lastModified: POSTS.filter((p) => p.author === name).reduce(
+      (latest, p) => (new Date(p.date) > latest ? new Date(p.date) : latest),
+      new Date(0)
+    ),
+    changeFrequency: "weekly" as const,
+    priority: 0.5,
+  }));
+
+  // Glossary. High priority relative to its size: these answer the
+  // informational queries every transactional page assumes have been asked.
+  const learn = [
+    {
+      url: `${BASE}/learn`,
+      lastModified: NOW,
+      changeFrequency: "weekly" as const,
+      priority: 0.6,
+    },
+    ...TERMS.map((t) => ({
+      url: `${BASE}/learn/${t.slug}`,
+      lastModified: NOW,
+      changeFrequency: "monthly" as const,
+      priority: 0.5,
+    })),
+  ];
+
   const insights = INSIGHTS.map((a) => ({
     url: `${BASE}/investing/insights/${a.slug}`,
     lastModified: new Date(a.date),
@@ -262,6 +293,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...staticPages,
     ...posts,
     ...categories,
+    ...authors,
+    ...learn,
     ...insights,
     ...insightCategories,
     ...cityHotels,

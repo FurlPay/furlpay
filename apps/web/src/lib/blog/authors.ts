@@ -56,3 +56,42 @@ function teamAuthor(name: string): Author {
 export function getAuthor(name: string): Author {
   return REGISTRY[name] ?? teamAuthor(name);
 }
+
+// ---------------------------------------------------------------------------
+// Author pages.
+//
+// A byline that is only a string is invisible to a search engine: there is no
+// URL to attach a Person entity to, so the credentials above never accumulate
+// into an authority signal. Giving each author a real page — with their posts,
+// their profiles, and a Person node with sameAs — is what turns a name into an
+// entity Google and AI answer engines can resolve.
+//
+// Slugs are derived, not stored, so a byline can never point at a page that
+// does not exist: every author reachable through getAuthor() has a page.
+// ---------------------------------------------------------------------------
+
+/** URL-safe slug for an author name. Stable: derived from the name alone. */
+export function authorSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+/** Every distinct byline that appears on a post, as {name, slug}. */
+export function allAuthorNames(bylines: readonly string[]): { name: string; slug: string }[] {
+  const seen = new Map<string, string>();
+  for (const b of bylines) {
+    const slug = authorSlug(b);
+    // First writer wins so the canonical spelling of a name is the one used.
+    if (!seen.has(slug)) seen.set(slug, b);
+  }
+  return [...seen].map(([slug, name]) => ({ name, slug }));
+}
+
+/** Resolve a slug back to the byline string, or null when nothing matches. */
+export function authorBySlug(bylines: readonly string[], slug: string): string | null {
+  return bylines.find((b) => authorSlug(b) === slug) ?? null;
+}
