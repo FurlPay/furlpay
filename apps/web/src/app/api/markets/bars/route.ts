@@ -5,6 +5,7 @@ import { bySymbol } from "@/lib/markets/catalog";
 import { resolveAsset } from "@/lib/markets/resolve";
 import { bars as yahooBars, type Timeframe as YahooTf } from "@/lib/markets/providers/yahoo";
 import { yahooSymbolFor } from "@/lib/markets/providers";
+import { resolveInstrument } from "@/lib/markets/instruments";
 
 // GET /api/markets/bars?symbol=AAPL&tf=1M — real OHLC history for the charts.
 //
@@ -88,6 +89,28 @@ export async function GET(req: NextRequest) {
   // catalog would leave every uncurated symbol with a page and no chart, which
   // is the shape a reader reads as "this asset has never traded".
   const asset = await resolveAsset(symbol);
+
+  // Not a security. Gold, an FX pair and an index all have real price history
+  // and no CUSIP, and `resolveAsset` correctly misses them -- which left
+  // /markets/XAUUSD with a page and no chart, the shape a reader reads as "this
+  // has never traded". They are served straight from the provider under their
+  // own provider symbol, skipping the broker path entirely: Alpaca has no
+  // GC=F and never will.
+  const instrument = asset ? null : resolveInstrument(symbol);
+  if (instrument && ALPACA_TF[tf]) {
+    const cacheKey = `${symbol}:${tf}`;
+    const hit = cache.get(cacheKey);
+    if (hit && Date.now() - hit.at < TTL_MS) {
+      return NextResponse.json({ candles: hit.candles, source: hit.source, cached: true });
+    }
+    const rows = await yahooBars(instrument.providerSymbol, YAHOO_TF[tf]).catch(() => null);
+    const candles: Candle[] = (rows ?? []).map((b) => ({
+      time: b.t, open: b.o, high: b.h, low: b.l, close: b.c,
+    }));
+    if (candles.length) cache.set(cacheKey, { at: Date.now(), candles, source: "yahoo" });
+    return NextResponse.json({ candles, source: "yahoo", cached: false });
+  }
+
   if (!asset || !ALPACA_TF[tf]) return NextResponse.json({ error: "Unknown symbol/timeframe" }, { status: 404 });
 
   const cacheKey = `${symbol}:${tf}`;
