@@ -152,8 +152,31 @@ export const CATALOG: MarketAsset[] = [
   s("RGTI", "Rigetti Computing, Inc.", "Technology", "Quantum Computing", "mid"),
   s("QBTS", "D-Wave Quantum Inc.", "Technology", "Quantum Computing", "mid"),
 
+  // ---- Bitcoin treasuries and miners ----
+  //
+  // Equities, not crypto: they price on an exchange, file with the SEC and
+  // trade when the venue is open, so they belong here rather than beside the
+  // coins. Their correlation to bitcoin is a property of the business, not a
+  // reason to model them as tokens.
+  //
+  // Cap tiers below are computed, not judged -- live price times shares
+  // outstanding from each company's own SEC filing (dei:EntityCommonStock-
+  // SharesOutstanding, or the basic weighted average where the issuer reports
+  // per class, as Strategy does). Recompute rather than nudge them; the tier
+  // drives heatmap block size and the market-cap screen.
+  s("MSTR", "Strategy Inc.", "Technology", "Bitcoin Treasury", "large"),
+  s("IREN", "IREN Limited", "Technology", "Bitcoin Mining", "large"),
+  s("RIOT", "Riot Platforms, Inc.", "Technology", "Bitcoin Mining", "mid"),
+  s("CIFR", "Cipher Mining Inc.", "Technology", "Bitcoin Mining", "mid"),
+  s("MARA", "MARA Holdings, Inc.", "Technology", "Bitcoin Mining", "mid"),
+  s("CLSK", "CleanSpark, Inc.", "Technology", "Bitcoin Mining", "mid"),
+
   // ==================== US STOCKS — Communication =======================
   s("GOOGL", "Alphabet Inc.", "Communication", "Internet & Search", "mega"),
+  // Class C, non-voting. Listed separately because it prices separately: the
+  // A/C spread is real money on a large position, and showing one line for
+  // both would quote the wrong share for whichever the reader holds.
+  s("GOOG", "Alphabet Inc. (Class C)", "Communication", "Internet & Search", "mega"),
   s("META", "Meta Platforms Inc.", "Communication", "Social Media", "mega"),
   s("NFLX", "Netflix Inc.", "Communication", "Streaming", "mega"),
   s("DIS", "Walt Disney Co.", "Communication", "Entertainment"),
@@ -403,6 +426,16 @@ export const CATALOG: MarketAsset[] = [
   e("FBTC", "Fidelity Wise Origin Bitcoin", "Crypto-linked"),
   e("ETHA", "iShares Ethereum Trust", "Crypto-linked"),
   e("BITQ", "Bitwise Crypto Industry", "Crypto-linked"),
+  // GBTC is the original Grayscale trust. Its low-fee sibling lists as "BTC",
+  // which collides with the bitcoin entry further down and is therefore NOT
+  // added here -- see the note on that entry.
+  e("GBTC", "Grayscale Bitcoin Trust", "Crypto-linked"),
+  e("BSOL", "Bitwise Solana Staking ETF", "Crypto-linked"),
+  // Covered-call income funds. Filed under income rather than Crypto-linked or
+  // Thematic because that is what the reader is buying: distributions funded by
+  // written calls, with the upside capped in exchange.
+  e("JEPI", "JPMorgan Equity Premium Income", "Dividend & Factor"),
+  e("JEPQ", "JPMorgan Nasdaq Equity Premium Income", "Dividend & Factor"),
   e("SCHD", "Schwab US Dividend Equity", "Dividend & Factor"),
   e("VIG", "Vanguard Dividend Appreciation", "Dividend & Factor"),
   e("VYM", "Vanguard High Dividend Yield", "Dividend & Factor"),
@@ -414,6 +447,23 @@ export const CATALOG: MarketAsset[] = [
 
   // ============================= CRYPTO =================================
   // Layer 1s
+  // "BTC" is also a live US ticker -- the Grayscale Bitcoin Mini Trust ETF,
+  // present in universe.json and tradable. It is deliberately NOT given a
+  // catalog entry, and the reason is the order path rather than the page.
+  //
+  // bySymbol resolves a bare ticker towards the security, so an e("BTC", ...)
+  // row here would outrank this coin for every caller that looks a ticker up
+  // without a kind. /api/investing/order is one of those callers. Someone
+  // buying "BTC" would be priced and booked into a Grayscale share class --
+  // exactly the STX/DASH defect documented on bySymbol, reintroduced on the
+  // one ticker where the crypto reading is overwhelmingly the intended one.
+  //
+  // XRP below is the same shape: the Bitwise XRP ETF lists under the coin's
+  // ticker and is likewise left out.
+  //
+  // The ETFs are not lost, only unreachable by bare symbol. Giving them pages
+  // needs kind-qualified route keys (byKindSymbol already distinguishes them),
+  // not a catalog row that silently changes what an order means.
   c("BTC", "Bitcoin", "bitcoin", "L1", "own", "mega"),
   c("ETH", "Ethereum", "ethereum", "L1", "own", "mega"),
   c("SOL", "Solana", "solana", "L1", "own", "mega"),
