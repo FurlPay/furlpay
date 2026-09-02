@@ -127,6 +127,8 @@ export async function GET(req: NextRequest) {
     assetClass: i.assetClass,
     assetClassLabel: assetClassLabel(i.assetClass),
     currency: i.currency,
+    /** Null, not a placeholder image, when there is no honest artwork. */
+    logo: i.logo ?? null,
     exchange: i.exchange ?? null,
     supports: {
       price: i.priceSupported,

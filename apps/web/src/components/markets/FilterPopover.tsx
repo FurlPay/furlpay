@@ -54,6 +54,7 @@ const KINDS: { id: AssetKindFilter; label: string }[] = [
   { id: "stock", label: "Stocks" },
   { id: "etf", label: "ETFs" },
   { id: "crypto", label: "Crypto" },
+  { id: "instrument", label: "Commodities & FX" },
 ];
 
 const CAPS: { id: CapBand; label: string; hint: string }[] = [

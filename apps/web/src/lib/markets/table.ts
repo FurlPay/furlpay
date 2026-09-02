@@ -13,7 +13,10 @@
 // not know this asset's market cap" is not a claim that it is the smallest.
 // ---------------------------------------------------------------------------
 
-export type AssetKindFilter = "stock" | "etf" | "crypto";
+/** "instrument" is everything that is not a security: gold, the crude grades,
+ *  natural gas, the FX pairs. They have no CUSIP, no issuer and no market cap,
+ *  which is why they are a separate kind rather than a sector of "stock". */
+export type AssetKindFilter = "stock" | "etf" | "crypto" | "instrument";
 
 /** One rendered row. Every market figure is nullable and draws as an em-dash. */
 export interface TableRow {

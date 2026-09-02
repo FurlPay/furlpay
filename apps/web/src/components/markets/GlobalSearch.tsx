@@ -41,10 +41,67 @@ interface SearchItem {
   curated?: boolean;
 }
 
+/** A non-security the API matched: gold, an FX pair, an index, the ten-year.
+ *  Search does not price these (see the route's comment), so they carry no
+ *  quote and render an em-dash rather than an invented number. */
+interface SearchInstrument {
+  symbol: string;
+  displayName: string;
+  assetClassLabel: string;
+  logo: string | null;
+}
+
 interface SearchResponse {
   items: SearchItem[];
+  instruments?: SearchInstrument[];
   count: number;
   universe: { tradable: number; fractionable: number; curated: number };
+}
+
+/**
+ * One flat row type for the dropdown.
+ *
+ * The API returns securities and instruments in two lists because they have
+ * different identity models — an FX pair has no CUSIP and no issuer. The
+ * dropdown flattens them anyway: arrow keys, `aria-activedescendant` and Enter
+ * all index into a single list, and maintaining two parallel cursors is how a
+ * typeahead ends up highlighting one row and navigating to another.
+ */
+interface Row {
+  symbol: string;
+  name: string;
+  badge: string;
+  logo: string | null;
+  price: number | null;
+  changePct: number | null;
+}
+
+/**
+ * Instruments first.
+ *
+ * They are matched on a short, explicit alias table, so a hit is a deliberate
+ * convention — "gold" means XAUUSD — whereas the universe match is a fuzzy
+ * name search that answers "gold" with eight mining companies. Burying the
+ * gold price under Barrick Gold is the behaviour being fixed here.
+ */
+function toRows(data: SearchResponse): Row[] {
+  const instruments: Row[] = (data.instruments ?? []).map((i) => ({
+    symbol: i.symbol,
+    name: i.displayName,
+    badge: i.assetClassLabel,
+    logo: i.logo,
+    price: null,
+    changePct: null,
+  }));
+  const securities: Row[] = data.items.map((i) => ({
+    symbol: i.symbol,
+    name: i.name,
+    badge: KIND_LABEL[i.kind],
+    logo: i.logo,
+    price: i.price,
+    changePct: i.changePct,
+  }));
+  return [...instruments, ...securities];
 }
 
 const KIND_LABEL: Record<SearchItem["kind"], string> = {
@@ -64,7 +121,7 @@ export default function GlobalSearch({
 }) {
   const router = useRouter();
   const [q, setQ] = useState("");
-  const [items, setItems] = useState<SearchItem[] | null>(null);
+  const [items, setItems] = useState<Row[] | null>(null);
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -129,7 +186,7 @@ export default function GlobalSearch({
         .then((r) => (r.ok ? (r.json() as Promise<SearchResponse>) : Promise.reject(r.status)))
         .then((data) => {
           if (id !== reqId.current) return;
-          setItems(data.items);
+          setItems(toRows(data));
           setActive(0);
         })
         .catch(() => {
@@ -145,7 +202,7 @@ export default function GlobalSearch({
   }, [q]);
 
   const go = useCallback(
-    (item: SearchItem) => {
+    (item: Row) => {
       setOpen(false);
       setQ("");
       setItems(null);
@@ -229,7 +286,7 @@ export default function GlobalSearch({
               items.map((item, i) => {
                 const up = item.changePct != null && item.changePct >= 0;
                 return (
-                  <li key={`${item.kind}:${item.symbol}`} role="none">
+                  <li key={`${item.badge}:${item.symbol}`} role="none">
                     <button
                       id={`${listId}-${i}`}
                       role="option"
@@ -246,7 +303,7 @@ export default function GlobalSearch({
                         <span className="flex items-center gap-1.5">
                           <span className="truncate text-[13px] font-semibold text-white">{item.symbol}</span>
                           <span className="shrink-0 rounded border border-white/10 px-1 py-px text-[9.5px] font-semibold uppercase tracking-wide text-textMuted">
-                            {KIND_LABEL[item.kind]}
+                            {item.badge}
                           </span>
                         </span>
                         <span className="block truncate text-[11.5px] text-textSecondary">{item.name}</span>

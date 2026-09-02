@@ -13,7 +13,7 @@ import MarketOverview, { type IndexItem } from "./MarketOverview";
 import TrendingToday from "./TrendingToday";
 import CollectionsRail from "./CollectionsRail";
 import AssetTable from "./AssetTable";
-import FilterPopover, { EMPTY_FILTERS, type FilterValues } from "./FilterPopover";
+import FilterPopover, { EMPTY_FILTERS, activeFilterCount, type FilterValues } from "./FilterPopover";
 import Pagination from "./Pagination";
 import MarketMovers from "./MarketMovers";
 import PortfolioSnapshot from "./PortfolioSnapshot";
@@ -21,6 +21,7 @@ import NewsInsights from "./NewsInsights";
 import WhyFurlPay from "./WhyFurlPay";
 import LiveStatus from "./LiveStatus";
 import { useWatchlist } from "./useWatchlist";
+import { remoteSearchRows, type RemoteSearchResponse } from "@/lib/markets/searchRows";
 import {
   defaultDirFor,
   isSortKey,
@@ -59,7 +60,7 @@ import {
 // the search box — are local.
 // ---------------------------------------------------------------------------
 
-type Tab = "all" | "stock" | "etf" | "crypto";
+type Tab = "all" | "stock" | "etf" | "crypto" | "instrument";
 type View = "list" | "heatmap" | "grid";
 type Panel = "assets" | "watchlist";
 
@@ -68,6 +69,10 @@ const TABS: { id: Tab; label: string }[] = [
   { id: "stock", label: "Stocks" },
   { id: "etf", label: "ETFs" },
   { id: "crypto", label: "Crypto" },
+  // Commodities and currencies. One tab rather than four, because six metals
+  // and energy contracts plus seven FX pairs do not fill four tabs — the
+  // collections rail below carries the finer split.
+  { id: "instrument", label: "Commodities & FX" },
 ];
 
 const SORT_LABELS: Record<SortKey, string> = {
@@ -119,6 +124,9 @@ export default function MarketsWorkspace() {
   const [indices, setIndices] = useState<IndexItem[] | null>(null);
   const [universeSize, setUniverseSize] = useState<number | undefined>();
   const [tableQuery, setTableQuery] = useState("");
+  /** Search hits from outside the loaded catalog. See the effect below. */
+  const [remote, setRemote] = useState<TableRow[]>([]);
+  const [remoteBusy, setRemoteBusy] = useState(false);
   const [filters, setFilters] = useState<FilterValues>(EMPTY_FILTERS);
   const [loading, setLoading] = useState(true);
   const tableTop = useRef<HTMLDivElement>(null);
@@ -242,6 +250,59 @@ export default function MarketsWorkspace() {
     return () => controller.abort();
   }, []);
 
+  // ── Search beyond the loaded catalog ──────────────────────────────────
+  //
+  // The field below the tabs used to be a pure client-side filter over the
+  // ~420 rows this page loads. That is the right behaviour for a table filter
+  // and the wrong behaviour for a box labelled "Search assets": typing a symbol
+  // that is real, tradable and reachable at /markets/<symbol> returned an empty
+  // table and no explanation, which reads as "we do not have it".
+  //
+  // So the filter stays — instant, no request, and it is what most queries
+  // need — and the same query is ALSO sent to /api/markets/search, which spans
+  // the full tradable universe plus the non-security instruments (gold, FX,
+  // indices, the ten-year). Anything the local pass already matched is dropped,
+  // so a symbol never appears twice.
+  //
+  // Same three disciplines as the header typeahead: a debounce, an
+  // AbortController per keystroke, and a monotonic request id so a slow "NV"
+  // cannot land after "NVDA".
+  const remoteReq = useRef(0);
+  useEffect(() => {
+    const needle = tableQuery.trim();
+    if (needle.length < 2) {
+      setRemote([]);
+      setRemoteBusy(false);
+      return;
+    }
+    const id = ++remoteReq.current;
+    setRemoteBusy(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/markets/search?q=${encodeURIComponent(needle)}&limit=25`, {
+        signal: controller.signal,
+        cache: "no-store",
+      })
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then((d: RemoteSearchResponse) => {
+          if (id !== remoteReq.current) return;
+          setRemote(remoteSearchRows(d));
+        })
+        .catch(() => {
+          // An abort is this effect superseding itself. Either way the local
+          // filter still stands on its own, so there is nothing to report.
+          if (id === remoteReq.current) setRemote([]);
+        })
+        .finally(() => {
+          if (id === remoteReq.current) setRemoteBusy(false);
+        });
+    }, 220);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [tableQuery]);
+
   // ── Derived views over the loaded catalog ─────────────────────────────
 
   /** Rows that are up on the day, for Trending. Nulls excluded, never as 0. */
@@ -253,9 +314,12 @@ export default function MarketsWorkspace() {
   }, [all]);
 
   /** The table's rows: tab + collection + panel + filters + query, then sort. */
-  const filtered = useMemo(() => {
-    if (!all) return [];
+  /** How many of the rows on screen came from outside the loaded catalog.
+   *  Reported to the reader rather than blended into one total. */
+  const [filtered, beyondCatalogCount] = useMemo<[TableRow[], number]>(() => {
+    if (!all) return [[], 0];
     let rows = all;
+    let beyondCatalog = 0;
 
     if (tab !== "all") rows = rows.filter((r) => r.kind === (tab as AssetKindFilter));
 
@@ -299,6 +363,22 @@ export default function MarketsWorkspace() {
       rows = rows.filter((r) =>
         `${r.symbol} ${r.name} ${r.category ?? ""}`.toLowerCase().includes(q)
       );
+      // Append what the catalog does not hold. Only on the plain asset list:
+      // a watchlist, a collection and a kind tab are each a statement about
+      // membership, and an uncurated symbol is by definition not a member.
+      //
+      // And only with no filters active. The filter block runs ABOVE this one,
+      // so anything appended here would escape it. Re-running those predicates
+      // would drop every one of these rows anyway — a market-cap band, a price
+      // range and a gainers filter all test fields the search does not return —
+      // so the honest behaviour is to leave the filtered view alone rather than
+      // to smuggle unfiltered rows into it.
+      if (panel === "assets" && !collection && tab === "all" && activeFilterCount(filters) === 0) {
+        const have = new Set(rows.map((r) => r.symbol.toUpperCase()));
+        const extra = remote.filter((r) => !have.has(r.symbol.toUpperCase()));
+        if (extra.length) rows = rows.concat(extra);
+        beyondCatalog = extra.length;
+      }
     }
 
     // Sort. Nulls sink in both directions — an unknown market cap is not the
@@ -313,7 +393,7 @@ export default function MarketsWorkspace() {
       : sort === "popularity" ? r.rank
       : null;
 
-    return [...rows].sort((a, b) => {
+    const sorted = [...rows].sort((a, b) => {
       if (sort === "name") return sign * a.symbol.localeCompare(b.symbol);
       const va = valueOf(a);
       const vb = valueOf(b);
@@ -323,11 +403,12 @@ export default function MarketsWorkspace() {
       if (va === vb) return a.rank - b.rank;
       return sign * (va - vb);
     });
+    return [sorted, beyondCatalog];
     // `watchlist.symbols`, NOT `watchlist`: the hook returns a fresh object
     // literal on every render, so depending on it made this memo recompute
     // always — a 390-row filter and sort on every keystroke. The Set's identity
     // changes only when the list actually changes.
-  }, [all, tab, panel, collection, filters, tableQuery, sort, dir, watchlistSymbols]);
+  }, [all, tab, panel, collection, filters, tableQuery, remote, sort, dir, watchlistSymbols]);
 
   const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const currentPage = Math.min(page, pageCount);
@@ -475,10 +556,26 @@ export default function MarketsWorkspace() {
                     count={watchlist.loading ? undefined : watchlist.count}
                   />
                 </div>
+                {/* Two numbers, never blended into one. "436 of 420" would be
+                    nonsense; the extras are not part of the catalog, they are
+                    reached past it, and saying so is what tells a reader the
+                    box searches more than this table. */}
                 <p id="assets-heading" className="text-[11.5px] text-textMuted font-mono">
-                  {loading && !all
-                    ? "Loading…"
-                    : `${filtered.length.toLocaleString("en-US")} of ${(meta?.catalogTotal ?? 0).toLocaleString("en-US")} assets`}
+                  {loading && !all ? (
+                    "Loading…"
+                  ) : (
+                    <>
+                      {`${filtered.length.toLocaleString("en-US")} of ${(meta?.catalogTotal ?? 0).toLocaleString("en-US")} assets`}
+                      {beyondCatalogCount > 0 && (
+                        <span className="text-accent">
+                          {` · +${beyondCatalogCount} beyond the catalog`}
+                        </span>
+                      )}
+                      {remoteBusy && tableQuery.trim().length >= 2 && (
+                        <span className="text-textMuted">{" · searching all assets…"}</span>
+                      )}
+                    </>
+                  )}
                 </p>
               </div>
 

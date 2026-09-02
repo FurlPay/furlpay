@@ -79,6 +79,13 @@ export interface MarketInstrument {
    *  fuzzy matching — "Gold" means XAUUSD by convention, and that convention is
    *  written down here rather than inferred. */
   aliases: string[];
+  /** Self-hosted artwork under /logos/instruments/, or absent.
+   *
+   *  Absent is a real answer, not an oversight: there is no artwork for an
+   *  index or a Treasury yield that is not somebody's brand mark, and a
+   *  borrowed one would imply an issuer that does not exist. Those fall back
+   *  to the letter badge, which claims nothing. */
+  logo?: string;
 }
 
 const fx = (
@@ -86,7 +93,12 @@ const fx = (
   base: string,
   quote: string,
   name: string,
-  aliases: string[]
+  aliases: string[],
+  /** The currency whose flag identifies the pair. Deliberately NOT the base:
+   *  four of these pairs are base USD, so a base-currency flag would render
+   *  USDJPY and USDINR as the same picture. The non-dollar leg is the one that
+   *  tells them apart. */
+  logo?: string
 ): MarketInstrument => ({
   symbol,
   providerSymbol: `${symbol}=X`,
@@ -101,6 +113,7 @@ const fx = (
   volumeSupported: false,
   marketCapSupported: false,
   aliases,
+  logo,
 });
 
 const index = (
@@ -128,7 +141,8 @@ const future = (
   name: string,
   base: string,
   aliases: string[],
-  providerNote?: string
+  providerNote?: string,
+  logo?: string
 ): MarketInstrument => ({
   symbol,
   providerSymbol,
@@ -143,6 +157,7 @@ const future = (
   marketCapSupported: false,
   aliases,
   providerNote,
+  logo,
 });
 
 /** The note attached to every metal quoted from a futures contract. */
@@ -158,23 +173,23 @@ const FUTURES_NOTE =
  */
 export const INSTRUMENTS: MarketInstrument[] = [
   // ---- Precious metals. Futures, and labelled as such. ----
-  future("XAUUSD", "GC=F", "Gold / US Dollar", "XAU", ["gold", "xau", "gold usd", "gold price"], FUTURES_NOTE),
-  future("XAGUSD", "SI=F", "Silver / US Dollar", "XAG", ["silver", "xag", "silver usd"], FUTURES_NOTE),
+  future("XAUUSD", "GC=F", "Gold / US Dollar", "XAU", ["gold", "xau", "gold usd", "gold price"], FUTURES_NOTE, "/logos/instruments/gold.svg"),
+  future("XAGUSD", "SI=F", "Silver / US Dollar", "XAG", ["silver", "xag", "silver usd"], FUTURES_NOTE, "/logos/instruments/silver.svg"),
 
   // ---- Energy and industrial ----
-  future("WTIUSD", "CL=F", "WTI Crude Oil", "WTI", ["oil", "crude", "wti", "crude oil"], FUTURES_NOTE),
-  future("BRENTUSD", "BZ=F", "Brent Crude Oil", "BRENT", ["brent", "brent crude"], FUTURES_NOTE),
-  future("NATGASUSD", "NG=F", "Natural Gas", "NG", ["natural gas", "gas", "natgas"], FUTURES_NOTE),
-  future("COPPERUSD", "HG=F", "Copper", "HG", ["copper"], FUTURES_NOTE),
+  future("WTIUSD", "CL=F", "WTI Crude Oil", "WTI", ["oil", "crude", "wti", "crude oil"], FUTURES_NOTE, "/logos/instruments/crude-oil.svg"),
+  future("BRENTUSD", "BZ=F", "Brent Crude Oil", "BRENT", ["brent", "brent crude"], FUTURES_NOTE, "/logos/instruments/crude-oil.svg"),
+  future("NATGASUSD", "NG=F", "Natural Gas", "NG", ["natural gas", "gas", "natgas"], FUTURES_NOTE, "/logos/instruments/natural-gas.svg"),
+  future("COPPERUSD", "HG=F", "Copper", "HG", ["copper"], FUTURES_NOTE, "/logos/instruments/copper.svg"),
 
   // ---- FX ----
-  fx("EURUSD", "EUR", "USD", "Euro / US Dollar", ["euro", "eur", "euro dollar", "eur usd"]),
-  fx("GBPUSD", "GBP", "USD", "British Pound / US Dollar", ["pound", "sterling", "gbp", "cable"]),
-  fx("USDJPY", "USD", "JPY", "US Dollar / Japanese Yen", ["yen", "jpy", "dollar yen"]),
-  fx("USDINR", "USD", "INR", "US Dollar / Indian Rupee", ["rupee", "inr", "dollar rupee"]),
-  fx("USDCHF", "USD", "CHF", "US Dollar / Swiss Franc", ["franc", "chf", "swissie"]),
-  fx("AUDUSD", "AUD", "USD", "Australian Dollar / US Dollar", ["aussie", "aud"]),
-  fx("USDCAD", "USD", "CAD", "US Dollar / Canadian Dollar", ["loonie", "cad"]),
+  fx("EURUSD", "EUR", "USD", "Euro / US Dollar", ["euro", "eur", "euro dollar", "eur usd"], "/logos/instruments/eur.svg"),
+  fx("GBPUSD", "GBP", "USD", "British Pound / US Dollar", ["pound", "sterling", "gbp", "cable"], "/logos/instruments/gbp.svg"),
+  fx("USDJPY", "USD", "JPY", "US Dollar / Japanese Yen", ["yen", "jpy", "dollar yen"], "/logos/instruments/jpy.svg"),
+  fx("USDINR", "USD", "INR", "US Dollar / Indian Rupee", ["rupee", "inr", "dollar rupee"], "/logos/instruments/inr.svg"),
+  fx("USDCHF", "USD", "CHF", "US Dollar / Swiss Franc", ["franc", "chf", "swissie"], "/logos/instruments/chf.svg"),
+  fx("AUDUSD", "AUD", "USD", "Australian Dollar / US Dollar", ["aussie", "aud"], "/logos/instruments/aud.svg"),
+  fx("USDCAD", "USD", "CAD", "US Dollar / Canadian Dollar", ["loonie", "cad"], "/logos/instruments/cad.svg"),
 
   // ---- Indices ----
   index("SPX", "^GSPC", "S&P 500", true, ["s&p", "sp500", "s&p 500", "gspc", "spx"]),

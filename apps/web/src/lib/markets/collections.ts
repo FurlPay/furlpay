@@ -8,7 +8,7 @@ export interface Collection {
   slug: string;
   title: string;
   blurb: string;
-  kind: "sector" | "theme" | "strategy" | "crypto";
+  kind: "sector" | "theme" | "strategy" | "crypto" | "instrument";
   /** Card gradient [from, to] and accent for hover glow. */
   gradient: [string, string];
   /** lucide-react icon name rendered by CollectionCard. */
@@ -46,6 +46,17 @@ export const COLLECTIONS: Collection[] = [
   // renders as an empty themed card, which reads as a broken feature rather
   // than a deliberate absence.
   { slug: "gaming-metaverse", title: "Gaming & Metaverse", blurb: "Game engines, virtual land and on-chain gaming economies.", kind: "crypto", gradient: ["#4C0519", "#FB7185"], icon: "Gamepad2", symbols: ["IMX", "SAND", "MANA", "AXS", "GALA", "ENJ", "APE", "CHZ", "RBLX", "U"] },
+
+  // ---- Commodities & currencies ----
+  //
+  // These hold instrument symbols, not catalog symbols. Nothing in the model
+  // required them to be equities — a collection is a slugged set of symbols and
+  // the table resolves them against whatever rows it holds, which now includes
+  // commodities and FX.
+  { slug: "precious-metals", title: "Precious Metals", blurb: "Gold and silver, priced from the front-month futures contract. The reserve assets that trade against every currency at once.", kind: "instrument", gradient: ["#422006", "#EAB308"], icon: "Coins", symbols: ["XAUUSD", "XAGUSD"] },
+  { slug: "energy-commodities", title: "Energy", blurb: "The two crude benchmarks and US natural gas — the inputs whose price shows up in every other market eventually.", kind: "instrument", gradient: ["#431407", "#F97316"], icon: "Flame", symbols: ["WTIUSD", "BRENTUSD", "NATGASUSD"] },
+  { slug: "industrial-metals", title: "Industrial Metals", blurb: "Copper, the metal every electrification and datacenter forecast is denominated in.", kind: "instrument", gradient: ["#431407", "#EA580C"], icon: "Factory", symbols: ["COPPERUSD"] },
+  { slug: "major-currencies", title: "Major Currencies", blurb: "The dollar against the euro, sterling, yen, franc, rupee and the commodity dollars. No volume column: the FX market is over-the-counter and reports none.", kind: "instrument", gradient: ["#0C4A6E", "#38BDF8"], icon: "Banknote", symbols: ["EURUSD", "GBPUSD", "USDJPY", "USDCHF", "USDINR", "AUDUSD", "USDCAD"] },
 ];
 
 export function collectionBySlug(slug: string): Collection | undefined {

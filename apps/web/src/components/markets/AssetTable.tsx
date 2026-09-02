@@ -70,6 +70,9 @@ const KIND_LABEL: Record<TableRow["kind"], string> = {
   stock: "Stock",
   etf: "ETF",
   crypto: "Crypto",
+  // The row's own category says which kind of instrument ("Precious metal",
+  // "Currency pair"), so this badge only has to say it is not a security.
+  instrument: "Market",
 };
 
 export default function AssetTable({

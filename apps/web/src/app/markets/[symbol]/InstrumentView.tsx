@@ -5,6 +5,7 @@ import { ArrowLeft } from "lucide-react";
 import PriceChart from "@/components/PriceChart";
 import BottomNav from "@/components/BottomNav";
 import AppSidebar from "@/components/AppSidebar";
+import { AssetLogo } from "@furlpay/ui";
 import { useMediaQuery, DESKTOP_QUERY } from "@/lib/useMediaQuery";
 import { assetClassLabel, type MarketInstrument } from "@/lib/markets/instruments";
 import type { InstrumentQuote } from "@/lib/markets/instrumentQuote";
@@ -25,6 +26,18 @@ import type { InstrumentQuote } from "@/lib/markets/instrumentQuote";
 // Those are not styling, they are claims: nothing here is tradable through
 // FurlPay, and a Buy button on a COMEX futures quote would be a lie told in
 // component form.
+
+/**
+ * The instrument's mark.
+ *
+ * Metals, energy and the FX currencies have real artwork; an index and a
+ * Treasury yield do not, because neither has an issuer whose mark it would be.
+ * AssetLogo falls back to a letter badge for those and also if the file 404s,
+ * so the absence degrades to a monogram rather than a broken image.
+ */
+function InstrumentMark({ logo, symbol, size }: { logo?: string; symbol: string; size: number }) {
+  return <AssetLogo src={logo ?? null} label={symbol} size={size} title={symbol} className="shrink-0" />;
+}
 
 /** The same frame the stock page uses: one column, phone width, bottom nav.
  *  Defined locally there too — this mirrors it rather than inventing a shell. */
@@ -94,9 +107,7 @@ export default function InstrumentView({
               >
                 <ArrowLeft className="h-5 w-5" />
               </button>
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[13px] font-bold tracking-tight">
-                {instrument.symbol.slice(0, 3)}
-              </div>
+              <InstrumentMark logo={instrument.logo} symbol={instrument.symbol} size={44} />
               <div className="min-w-0">
                 <p className="truncate text-[22px] font-bold leading-tight tracking-tight">
                   {instrument.symbol}
@@ -222,12 +233,7 @@ export default function InstrumentView({
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-        {/* No AssetLogo: an index and a currency pair have no issuer and so no
-            mark. A monogram of the ticker stands in rather than a broken image
-            or a blank square where every other page has a logo. */}
-        <div className="flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-[11px] font-bold tracking-tight">
-          {instrument.symbol.slice(0, 3)}
-        </div>
+        <InstrumentMark logo={instrument.logo} symbol={instrument.symbol} size={34} />
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold tracking-tight">{instrument.symbol}</p>
           <p className="truncate text-[12px] text-textSecondary">

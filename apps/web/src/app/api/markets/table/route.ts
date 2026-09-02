@@ -3,6 +3,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { CATALOG, assetLogoPath } from "@/lib/markets/catalog";
 import { collectionBySlug } from "@/lib/markets/collections";
+import { instrumentRows } from "@/lib/markets/instrumentRows";
 import { getQuotes, resolveQuote } from "@/lib/markets/quotes";
 import { getExtras, resolveExtras } from "@/lib/markets/extras";
 import {
@@ -38,7 +39,7 @@ import {
 // client renders an em-dash. No field on this route is ever defaulted to zero.
 
 const MAX_PAGE_SIZE = 100;
-const KINDS: AssetKindFilter[] = ["stock", "etf", "crypto"];
+const KINDS: AssetKindFilter[] = ["stock", "etf", "crypto", "instrument"];
 
 function csv(v: string | null): string[] {
   return (v ?? "")
@@ -61,14 +62,18 @@ export async function GET(req: NextRequest) {
 
   // Quotes are required; extras are not. A CoinGecko rate-limit or a Yahoo
   // outage must cost the table its cap/volume columns, not the whole page.
-  const [quotes, extras] = await Promise.all([
+  //
+  // Instruments are on the same footing as extras: a Yahoo outage costs the
+  // table its commodity and FX rows, not the equities beside them.
+  const [quotes, extras, instruments] = await Promise.all([
     getQuotes(),
     getExtras().catch(() => new Map()),
+    instrumentRows(CATALOG.length).catch(() => [] as TableRow[]),
   ]);
 
   const collection = p.get("collection") ? collectionBySlug(p.get("collection") as string) : null;
 
-  const rows: TableRow[] = CATALOG.map((a, i) => {
+  const catalogRows: TableRow[] = CATALOG.map((a, i) => {
     const quote = resolveQuote(quotes, a);
     const extra = resolveExtras(extras, a);
     return {
@@ -89,6 +94,8 @@ export async function GET(req: NextRequest) {
       live: quote?.live ?? false,
     };
   });
+
+  const rows: TableRow[] = [...catalogRows, ...instruments];
 
   const kinds = csv(p.get("kind")).filter((k): k is AssetKindFilter =>
     (KINDS as string[]).includes(k)

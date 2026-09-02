@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { CATALOG, bySymbol, byKindSymbol, assetLogoPath } from "../catalog";
 import { COLLECTIONS, collectionBySlug } from "../collections";
+import { TABLE_INSTRUMENTS } from "../instrumentRows";
 import { backerAudit, backersFor, BACKERS } from "../backers";
 import universe from "../universe.json";
 
@@ -15,6 +16,10 @@ import universe from "../universe.json";
 // ---------------------------------------------------------------------------
 
 const SYMBOLS = new Set(CATALOG.map((a) => a.symbol));
+/** Everything the markets table can actually render a row for. The catalog is
+ *  securities; commodities and FX pairs come from the instrument list, which
+ *  has no CUSIP and no issuer and so was never part of the catalog. */
+const ROWABLE = new Set([...SYMBOLS, ...TABLE_INSTRUMENTS.map((i) => i.symbol)]);
 const TRADABLE = new Set(
   (universe as { assets: { symbol: string }[] }).assets.map((a) => a.symbol)
 );
@@ -137,11 +142,28 @@ describe("newly added assets", () => {
 });
 
 describe("collections", () => {
-  it("every collection symbol exists in the catalog", () => {
+  it("every collection symbol can actually be rendered as a row", () => {
+    // The point of this test is that a collection card must never open onto an
+    // empty table. Which list a symbol comes from does not matter; whether the
+    // table holds a row for it does.
     const missing = COLLECTIONS.flatMap((c) =>
-      c.symbols.filter((s) => !SYMBOLS.has(s)).map((s) => `${c.slug}:${s}`)
+      c.symbols.filter((s) => !ROWABLE.has(s)).map((s) => `${c.slug}:${s}`)
     );
     expect(missing).toEqual([]);
+  });
+
+  it("keeps instrument collections free of securities, and vice versa", () => {
+    // A "Precious Metals" card that quietly contained a mining equity would be
+    // making a claim about what the reader is looking at. The two have
+    // different identity models and different columns.
+    for (const c of COLLECTIONS) {
+      const instrumentSymbols = c.symbols.filter((s) => !SYMBOLS.has(s));
+      if (c.kind === "instrument") {
+        expect(instrumentSymbols, c.slug).toEqual(c.symbols);
+      } else {
+        expect(instrumentSymbols, c.slug).toEqual([]);
+      }
+    }
   });
 
   it("has no duplicate slug", () => {
