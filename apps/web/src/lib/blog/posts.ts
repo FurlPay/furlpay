@@ -232,15 +232,25 @@ curl -H "User-Agent: your-name your@email" \\
         type: "table",
         headers: ["Strategy Inc (MSTR)", "Q1 2026", "Q2 2026"],
         rows: [
-          ["Ordinary shares", "7,110,804", "3,830,709"],
-          ["Reported value of shares", "$75,306,172", "$61,062,310"],
+          ["Common and preferred shares", "567,804", "630,709"],
+          ["Reported value of those shares", "$68,740,805", "$58,244,442"],
+          ["Convertible debt, principal", "$6,543,000", "$3,200,000"],
+          ["Reported value of that debt", "$6,565,367", "$2,817,868"],
           ["Calls, underlying shares", "90,000", "338,000"],
           ["Puts, underlying shares", "207,100", "715,700"],
         ],
       },
       {
         type: "p",
-        text: `The ordinary share count roughly halved over the quarter while both option lines grew. A summary that reports a single "MSTR position" has to pick one of these to be the number, and whichever it picks will be wrong for some readers. We publish the three separately for the same reason the SEC collects them separately.`,
+        text: `Strategy is the clearest case in the filing of why the row type has to be read before the number. Nineteen rows sit under the CUSIP prefix 594972: eleven of common stock, two of a convertible preferred series, four of convertible notes, and one each of calls and puts. The equity rows total 630,709 shares. The note rows are a principal amount of $3,200,000, and adding them to the equity gives 3,830,709 — a figure that is not a share count of anything.`,
+      },
+      {
+        type: "p",
+        text: `That is the number the first version of this article published, and it led it to dismiss a circulating claim of "624,387+ shares" as understating the position roughly sixfold. In fact 624,387 is exactly the common-stock line under CUSIP 594972408. The circulating figure was the correct one; ours was the equity and the debt principal added together.`,
+      },
+      {
+        type: "p",
+        text: `Read properly, the equity position rose over the quarter — 567,804 shares to 630,709 — while the convertible principal roughly halved, from $6,543,000 to $3,200,000. The first version reported the opposite, that the position had halved, because the debt was driving a number labelled as shares.`,
       },
       { type: "h2", text: "The crypto-linked names, share rows only" },
       {
@@ -251,7 +261,7 @@ curl -H "User-Agent: your-name your@email" \\
           ["iShares Bitcoin Trust", "10,407,635", "$355,732,983"],
           ["Coinbase Global", "11,148,552", "$220,486,248"],
           ["IREN Limited (common, CUSIP Q4982L109)", "2,699,785", "$123,947,214"],
-          ["Strategy Inc", "3,830,709", "$61,062,310"],
+          ["Strategy Inc (common and preferred)", "630,709", "$58,244,442"],
           ["Riot Platforms", "1,557,533", "$36,938,390"],
           ["MARA Holdings", "3,495,920", "$36,077,799"],
           ["CleanSpark", "1,973,744", "$26,127,126"],
@@ -270,6 +280,10 @@ curl -H "User-Agent: your-name your@email" \\
       {
         type: "p",
         text: `An earlier draft of this article reported IREN at 3,993,785 shares and $128,027,666. That is the common stock plus the bond principal added together as though principal were a share count, and the value of the debt folded into the equity line. The corrected figures are above. The remaining two rows in that name search belong to IRENIC ACQUISITION CORP and YIREN DIGITAL LTD, which are not the same company as IREN Limited and not related to it.`,
+      },
+      {
+        type: "p",
+        text: `IREN also marks the limit of the approach we use. Grouping by the first six CUSIP characters folds an issuer's options onto its stock, but IREN's shares carry a CINS beginning Q4982L — the identifier range used for foreign issuers — while its US-registered notes begin 46270C. Same company, two unrelated prefixes, so our aggregation reports them as two entries. That is a defensible choice and a visible one; it is not a complete answer to corporate identity, and we would rather say where the method stops than imply it does not.`,
       },
       {
         type: "p",
@@ -461,6 +475,10 @@ it("BTC still resolves to the coin, not an ETF", () => {
         type: "p",
         text: `A draft of this rewrite reported IREN Limited at 3,993,785 shares and $128,027,666. That added convertible-bond principal to a share count. The common stock is 2,699,785 shares worth $123,947,214, with the debt reported separately. The same draft described $1,712,331,516,547 as the total of ordinary share lines; that figure is the total of all non-option rows, and share rows alone total $1,710,607,343,286.`,
       },
+      {
+        type: "p",
+        text: `The published version reported Strategy Inc at 3,830,709 shares and said a circulating claim of "624,387+ shares" understated the position roughly sixfold. Both were wrong, and for the same reason: 3,830,709 is 630,709 shares of stock plus $3,200,000 of convertible note principal. The circulating claim matched the common-stock line exactly. The published version also said the position had halved over the quarter; the equity rose, and it was the note principal that fell.`,
+      },
       { type: "h2", text: "The audit, claim by claim" },
       {
         type: "p",
@@ -479,7 +497,9 @@ it("BTC still resolves to the coin, not an ETF", () => {
           ["Option amounts are contract counts", "Underlying shares; class OPTION, type SH (reported)", "False"],
           ["BSOL ~47,500 shares", "33 shares at 30 Jun; 47,460 at 31 Mar (reported)", "Stale, not invented"],
           ["IBIT 10,407,635 shares / $355,732,983", "Matches (reported); +25.4% on the quarter (computed)", "Confirmed"],
-          ["MSTR 3,830,709 shares / $61,062,310", "Matches; down from 7,110,804 (reported)", "Confirmed"],
+          ["MSTR 3,830,709 shares / $61,062,310", "630,709 shares / $58,244,442; rest was $3.2m of note principal", "Corrected"],
+          ["MSTR share count halved on the quarter", "Equity rose 567,804 → 630,709; the debt halved (computed)", "Corrected"],
+          ["Circulating \"624,387+ MSTR shares\" understated", "624,387 is exactly the common-stock line (reported)", "False"],
           ["IREN 3,993,785 shares / $128,027,666", "2,699,785 shares / $123,947,214; rest was bond principal", "Corrected"],
           ["Cipher Mining not in the filing", "Filed as CIPHER DIGITAL INC, $17,583,910 (reported)", "False"],
           ["Semiconductor claim of $240B+", "$34,151,942,209 across AMD, TSMC, Qualcomm (computed)", "Confirmed as overstated"],
