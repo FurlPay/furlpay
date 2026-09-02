@@ -396,6 +396,12 @@ export default function MarketsWorkspace() {
                 >
                   Chains
                 </Link>
+                <Link
+                  href="/markets/institutions"
+                  className="flex h-8 shrink-0 items-center rounded-full border border-white/[0.08] px-3.5 text-[12.5px] font-semibold text-textSecondary transition-colors hover:border-white/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                >
+                  13F Filings
+                </Link>
               </div>
 
               <div className="ml-auto flex flex-wrap items-center gap-1.5">

@@ -7,6 +7,7 @@ import {
   positionsByIssuer,
   shareTotal,
   reportedTotal,
+  latestFiling,
 } from "../thirteenF";
 
 // ---------------------------------------------------------------------------
@@ -187,5 +188,185 @@ describe("namespace tolerance", () => {
 
   it("returns nothing rather than guessing on unrelated XML", () => {
     expect(parseInformationTable("<html><body>not a filing</body></html>")).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A notice for a later quarter means the holdings report is not current.
+//
+// The fixture is the real filing index for The Vanguard Group (CIK 0000102909),
+// which stopped filing its own holdings report after 2025-12-31 and has filed
+// 13F-NT for the two quarters since. Walking to the newest 13F-HR and stopping
+// there returns a book that is three quarters old with nothing marking it, so
+// the notice is carried back to the caller instead.
+// ---------------------------------------------------------------------------
+describe("a superseding notice", () => {
+  const SUBMISSIONS = readFileSync(
+    join(__dirname, "fixtures", "vanguard-submissions.json"),
+    "utf8"
+  );
+
+  /** Serve one canned submissions body for any URL.
+   *
+   * Each case passes a DIFFERENT cik, because `latestFiling` caches on it —
+   * reusing one key across cases replays the first case's answer whatever the
+   * stub returns, which is how the last three of these first passed while
+   * asserting nothing. */
+  function withSubmissions(body: string, run: () => Promise<void>) {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async () =>
+      new Response(body, { status: 200 })) as unknown as typeof fetch;
+    return run().finally(() => {
+      globalThis.fetch = realFetch;
+    });
+  }
+
+  it("reports the notice that covers a later quarter than the holdings", async () => {
+    await withSubmissions(SUBMISSIONS, async () => {
+      const ref = await latestFiling("0000102909");
+      expect(ref).not.toBeNull();
+      // The newest HOLDINGS report, not the newest filing.
+      expect(ref?.periodOfReport).toBe("2025-12-31");
+      expect(ref?.accession).toBe("0000102909-26-000031");
+      // ...and the reason it is not the newest filing.
+      expect(ref?.supersededBy).toEqual({
+        form: "13F-NT",
+        periodOfReport: "2026-06-30",
+        filedAt: "2026-08-13",
+      });
+    });
+  });
+
+  it("leaves supersededBy null when the holdings report is the newest filing", async () => {
+    // The same index with the two notices removed: the ordinary case, and the
+    // one where a false "stale" badge would be its own kind of wrong.
+    const parsed = JSON.parse(SUBMISSIONS) as {
+      filings: { recent: Record<string, string[]> };
+    };
+    const r = parsed.filings.recent;
+    for (const k of Object.keys(r)) r[k] = r[k].slice(2);
+
+    await withSubmissions(JSON.stringify(parsed), async () => {
+      const ref = await latestFiling("0000000002");
+      expect(ref?.periodOfReport).toBe("2025-12-31");
+      expect(ref?.supersededBy).toBeNull();
+    });
+  });
+
+  it("does not treat a notice for the SAME quarter as superseding", async () => {
+    // A manager can file both for one period — routine housekeeping, and no
+    // statement at all about whether the holdings are current.
+    const parsed = JSON.parse(SUBMISSIONS) as {
+      filings: { recent: Record<string, string[]> };
+    };
+    const r = parsed.filings.recent;
+    for (const k of Object.keys(r)) r[k] = r[k].slice(1);
+    r.reportDate[0] = "2025-12-31"; // notice now covers the same quarter
+
+    await withSubmissions(JSON.stringify(parsed), async () => {
+      const ref = await latestFiling("0000000003");
+      expect(ref?.periodOfReport).toBe("2025-12-31");
+      expect(ref?.supersededBy).toBeNull();
+    });
+  });
+
+  it("accepts an amended holdings report as a holdings report", async () => {
+    // 13F-HR/A is the filer correcting their own numbers. Skipping it would
+    // serve the superseded original in preference to the correction.
+    const parsed = JSON.parse(SUBMISSIONS) as {
+      filings: { recent: Record<string, string[]> };
+    };
+    const r = parsed.filings.recent;
+    for (const k of Object.keys(r)) r[k] = r[k].slice(2);
+    r.form[0] = "13F-HR/A";
+
+    await withSubmissions(JSON.stringify(parsed), async () => {
+      const ref = await latestFiling("0000000004");
+      expect(ref?.accession).toBe("0000102909-26-000031");
+      expect(ref?.periodOfReport).toBe("2025-12-31");
+    });
+  });
+
+  it("returns null when the manager has only ever filed notices", async () => {
+    const parsed = JSON.parse(SUBMISSIONS) as {
+      filings: { recent: Record<string, string[]> };
+    };
+    const r = parsed.filings.recent;
+    for (const k of Object.keys(r)) r[k] = r[k].slice(0, 2);
+
+    await withSubmissions(JSON.stringify(parsed), async () => {
+      // Honest absence. An empty portfolio would read as "holds nothing".
+      expect(await latestFiling("0000000005")).toBeNull();
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// An amendment is not automatically a portfolio.
+//
+// The fixture is Berkshire Hathaway's real 13F-HR/A for 2025-03-31 (accession
+// 0000950123-25-008361): amendment number one, type NEW HOLDINGS, four entries
+// totalling $1,106,550,356. Their actual book that quarter was around $259bn.
+//
+// The SEC's Form 13F FAQ is explicit that the two amendment kinds differ this
+// way — a restatement "resubmit[s] your entire filing, as corrected", while an
+// amendment adding holdings "must list only the holdings for which
+// confidential treatment was denied", with totals "limited to the information
+// contained in the amendment itself". Both arrive as form 13F-HR/A and are
+// indistinguishable in the filing index.
+// ---------------------------------------------------------------------------
+describe("amendment types", () => {
+  const AMENDMENT = readFileSync(
+    join(__dirname, "fixtures", "brk-13fhra-new-holdings.xml"),
+    "utf8"
+  );
+
+  it("reads a NEW HOLDINGS amendment as what it is", () => {
+    const meta = parsePrimaryDoc(AMENDMENT);
+    expect(meta.isAmendment).toBe(true);
+    expect(meta.amendmentNo).toBe(1);
+    expect(meta.amendmentType).toBe("NEW HOLDINGS");
+    // Four entries. Anything that treats this as a portfolio has deleted 99.6%
+    // of the manager's book and will reconcile perfectly while doing so.
+    expect(meta.reportedEntryTotal).toBe(4);
+    expect(meta.reportedValueTotal).toBe(1_106_550_356);
+  });
+
+  it("reads the confidential-omission flag the filer sets", () => {
+    // False here, but the field is the filer's own statement that positions
+    // are missing from the report. When true, no total on it is the whole book.
+    expect(parsePrimaryDoc(AMENDMENT).isConfidentialOmitted).toBe(false);
+  });
+
+  it("does not call an ordinary report an amendment", () => {
+    // A plain 13F-HR carries no amendment block at all, and absence must read
+    // as "not an amendment" rather than as an unknown one.
+    const plain = `<?xml version="1.0"?>
+<edgarSubmission><formData>
+  <coverPage>
+    <reportCalendarOrQuarter>06-30-2026</reportCalendarOrQuarter>
+    <filingManager><name>BERKSHIRE HATHAWAY INC</name></filingManager>
+  </coverPage>
+  <summaryPage>
+    <tableEntryTotal>114</tableEntryTotal>
+    <tableValueTotal>257521776925</tableValueTotal>
+    <isConfidentialOmitted>false</isConfidentialOmitted>
+  </summaryPage>
+</formData></edgarSubmission>`;
+    const meta = parsePrimaryDoc(plain);
+    expect(meta.isAmendment).toBe(false);
+    expect(meta.amendmentType).toBeNull();
+    expect(meta.amendmentNo).toBeNull();
+  });
+
+  it("treats an unreadable amendment type as partial, not as a restatement", () => {
+    // The two mistakes are not symmetric. Guessing "restatement" on an
+    // amendment we cannot classify swaps a portfolio for a fragment; guessing
+    // "partial" costs one extra fetch and shows the correct book.
+    const mangled = AMENDMENT.replace(
+      /<amendmentType>[^<]*<\/amendmentType>/,
+      "<amendmentType>SOMETHING NEW</amendmentType>"
+    );
+    expect(parsePrimaryDoc(mangled).amendmentType).toBe("UNKNOWN");
   });
 });
