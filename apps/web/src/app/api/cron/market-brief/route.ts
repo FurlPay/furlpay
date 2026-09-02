@@ -7,6 +7,10 @@ import { runJob } from "@/lib/cron/runner";
 import { raiseAlert } from "@/lib/alerts";
 import { buildBrief } from "@/lib/markets/brief/brief";
 import { renderBrief } from "@/lib/markets/brief/render";
+import {
+  previousEntry, recordPicks, scoreBoard, type BoardOutcome,
+} from "@/lib/markets/brief/pickLedger";
+import { batchQuotes } from "@/lib/markets/providers/yahooBatch";
 import { renderTelegramBrief } from "@/lib/markets/brief/renderTelegram";
 import { postToDiscordWebhook, isDiscordWebhookUrl, redactWebhookUrl } from "@/lib/discordWebhook";
 import { postBriefAsBot, briefBotTarget } from "@/lib/priceCards/briefBot";
@@ -194,7 +198,48 @@ export async function GET(req: NextRequest) {
         throw new Error("no_data: every market-data upstream failed");
       }
 
-      discordPayload = renderBrief(brief);
+      // ---- Score the LAST board, then record today's ----------------------
+      //
+      // Order matters: `previousEntry` must run before today's board is
+      // written, or the brief would score itself against its own prices and
+      // report a very consistent zero.
+      let lastBoard: BoardOutcome | null = null;
+      try {
+        const prev = await previousEntry(brief.sessionDate);
+        if (prev) {
+          const quotes = await batchQuotes(prev.picks.map((p) => p.symbol)).catch(() => new Map());
+          lastBoard = scoreBoard(
+            prev,
+            (sym) => {
+              const q = quotes.get(sym);
+              return typeof q?.price === "number" && Number.isFinite(q.price) ? q.price : null;
+            },
+            new Date(brief.generatedAt)
+          );
+          ctx.metric("scored_picks", lastBoard.priced);
+          if (lastBoard.winners !== null) ctx.metric("scored_winners", lastBoard.winners);
+        }
+      } catch {
+        // A scoreboard that cannot be computed costs the section, not the brief.
+        ctx.note("Could not score the previous board; publishing without it.");
+      }
+
+      // Written after scoring, and never overwritten: see pickLedger.
+      if (brief.bullish.length > 0) {
+        const wrote = await recordPicks({
+          sessionDate: brief.sessionDate,
+          publishedAt: brief.generatedAt,
+          picks: brief.bullish.slice(0, 5).map((b) => ({
+            symbol: b.symbol,
+            referencePrice: b.price,
+            score: b.score,
+            changePercentThatDay: b.changePercent,
+          })),
+        }).catch(() => "already-recorded" as const);
+        ctx.note(`Pick ledger: ${wrote}.`);
+      }
+
+      discordPayload = renderBrief(brief, lastBoard);
       telegramPayload = renderTelegramBrief(brief);
       ctx.metric("telegram_chars", telegramPayload.text.length);
       for (const name of telegramPayload.omitted) {

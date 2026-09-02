@@ -42,6 +42,7 @@
 // ---------------------------------------------------------------------------
 
 import type { LevelRow, MarketBrief, MoverRow } from "./brief";
+import { disclaimer as pickDisclaimer, type BoardOutcome, type PickOutcome } from "./pickLedger";
 import type { ScoredQuote } from "./score";
 import type { Signal } from "./analysis";
 import { ansiBlock, cell, color, directionColor, fitsMobile, MOBILE_COLUMNS } from "./ansi";
@@ -354,7 +355,12 @@ export function enforceMessageBudget(
 
 // ---- The message ----------------------------------------------------------
 
-export function renderBrief(brief: MarketBrief): DiscordWebhookPayload {
+export function renderBrief(
+  brief: MarketBrief,
+  /** How the previous board actually did. Omitted on the first ever run, when
+   *  there is genuinely nothing to report. */
+  lastBoard?: BoardOutcome | null
+): DiscordWebhookPayload {
   const dateLabel = new Intl.DateTimeFormat("en-GB", {
     timeZone: "America/New_York",
     weekday: "short",
@@ -395,6 +401,38 @@ export function renderBrief(brief: MarketBrief): DiscordWebhookPayload {
     });
   }
   embeds.push(header);
+
+  // ---- 1b. How the last board did ----------------------------------------
+  //
+  // Placed immediately after the narrative and BEFORE today's picks, on
+  // purpose. A scoreboard printed under the new board reads as a footnote; a
+  // reader should meet the last set of calls before the next set.
+  if (lastBoard && lastBoard.priced > 0) {
+    const rows = lastBoard.outcomes.map((o: PickOutcome) => {
+      const ret = o.returnPct === null ? "  n/a" : `${o.returnPct >= 0 ? "+" : ""}${o.returnPct.toFixed(2)}%`;
+      return `${o.symbol.padEnd(6)} ${ret.padStart(9)}`;
+    });
+    const mean = lastBoard.meanReturnPct;
+    const median = lastBoard.medianReturnPct;
+    const headline =
+      `${lastBoard.winners}/${lastBoard.priced} up · ` +
+      `median ${median === null ? "n/a" : (median >= 0 ? "+" : "") + median.toFixed(2) + "%"} · ` +
+      `mean ${mean === null ? "n/a" : (mean >= 0 ? "+" : "") + mean.toFixed(2) + "%"}`;
+
+    embeds.push({
+      color: (median ?? 0) >= 0 ? COLORS.up : COLORS.down,
+      fields: [
+        {
+          name: `How the ${lastBoard.sessionDate} board did · ${lastBoard.calendarDaysElapsed}d`,
+          value: clamp(`${ansiBlock(rows)}
+${headline}`, DISCORD_LIMITS.fieldValue),
+        },
+      ],
+      // The median leads the headline because one name at +129% moves a
+      // five-name mean by 26 points on its own and says nothing about the rest.
+      footer: { text: pickDisclaimer() },
+    });
+  }
 
   // ---- 2. Most bullish ---------------------------------------------------
   if (brief.bullish.length > 0) {
