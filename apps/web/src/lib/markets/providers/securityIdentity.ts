@@ -95,7 +95,13 @@ export function classifyInstrument(securityType: string, exchCode: string | null
   if (exchCode === "TRACE" || t.includes("BOND") || t.includes("NOTE") || t === "US DOMESTIC") {
     return "bond";
   }
-  if (t.includes("COMMON") || t.includes("SHRS") || t.includes("SHARE")) return "equity";
+  // An MLP unit and a New York registered share are listed, quoted and priced
+  // like common stock. Found in the reconciliation against JPMorgan's filing,
+  // where both appear in the top 300 positions and would otherwise have fallen
+  // through to "other" and never been priced.
+  if (t === "MLP" || t.includes("COMMON") || t.includes("SHRS") || t.includes("SHARE")) {
+    return "equity";
+  }
   return "other";
 }
 

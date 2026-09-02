@@ -9,6 +9,7 @@ import {
   optionTotals,
   reportedTotal,
 } from "@/lib/markets/providers/thirteenF";
+import { enrichPositions, marketDataTargetFor } from "@/lib/markets/positionIdentity";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
 /** Positions per page. A large filer reports thousands of issuers — JPMorgan's
@@ -31,11 +32,16 @@ const MAX_PAGE = 250;
 // `providers/thirteenF.ts` rather than here — this route's job is to pass the
 // distinctions through intact rather than flatten them into one number.
 //
-// It also does not map a position to a tradable symbol. A 13F identifies
-// securities by CUSIP, this app has no CUSIP-to-ticker map, and matching on
-// issuer NAME is the defect the provider documents: "RIOT" matches MARRIOTT,
-// "MARA" matches MARATHON PETROLEUM. A wrong link from a holdings row to a
-// trade ticket is worse than no link, so rows carry their CUSIP and no symbol.
+// It maps a position to a ticker through IDENTIFIERS ONLY. The CUSIP (or the
+// debt CUSIP, for a debt-only line) goes to OpenFIGI; an issuer name never
+// does. Name matching is the defect the provider documents -- "RIOT" matches
+// MARRIOTT, "MARA" matches MARATHON PETROLEUM -- and a wrong link from a
+// holdings row to a trade ticket is worse than no link. An unresolved security
+// carries `ticker: null` rather than a guess.
+//
+// A position built only from option rows resolves to nothing. Option CUSIPs are
+// constructed from the underlying's, so borrowing the prefix would report a
+// share position the filing does not contain.
 export async function GET(req: NextRequest, props: { params: Promise<{ cik: string }> }) {
   // EDGAR publishes a 10 req/s ceiling for the whole site, and an information
   // table is tens of megabytes. The cache absorbs repeats; this stops one
@@ -78,7 +84,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ cik: stri
   }
 
   const positions = positionsByIssuer(filing.holdings);
-  const page = positions.slice(offset, offset + limit);
+  // Identity is resolved for the PAGE, not the filing. A large filer reports
+  // thousands of issuers and enriching all of them would spend hundreds of
+  // upstream requests to render fifty rows.
+  const page = await enrichPositions(positions.slice(offset, offset + limit));
 
   // Two totals, never one. `shareValue` is what a reader means by "holdings";
   // `reported` is the filer's own tableValueTotal and includes option notional.
@@ -159,6 +168,18 @@ export async function GET(req: NextRequest, props: { params: Promise<{ cik: stri
       issuer: p.issuer,
       cusip: p.cusip,
       cusip6: p.cusip6,
+      /** Canonical identity, resolved from an identifier and never a name. */
+      ticker: p.ticker,
+      instrumentType: p.instrumentType,
+      figi: p.figi,
+      /** Which line the identity came from, and which identifier type resolved
+       *  it. "none" means an options-only position, which has no identity of
+       *  its own by design. */
+      identityBasis: p.identityBasis,
+      resolvedVia: p.resolvedVia,
+      /** What the next stage should ask the market-data provider for, or null
+       *  when this position is not something to price as an equity. */
+      marketData: marketDataTargetFor(p),
       shareValue: p.shareValue,
       shares: p.shares,
       // Convertible debt on the same issuer. `debtPrincipal` is a principal

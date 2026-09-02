@@ -43,6 +43,14 @@ describe("classifying an instrument", () => {
     expect(classifyInstrument("NY Reg Shrs", "US")).toBe("equity");
   });
 
+  it("treats listed partnership units and NY registered shares as equity", () => {
+    // Both appear in JPMorgan's top 300 positions. Left unclassified they fall
+    // to "other", which means never priced — found by reconciling the type
+    // distribution against the real filing rather than by reading the docs.
+    expect(classifyInstrument("MLP", "US")).toBe("equity");
+    expect(classifyInstrument("NY Reg Shrs", "US")).toBe("equity");
+  });
+
   it("falls back to 'other' rather than guessing equity", () => {
     // An unrecognised type must not default into the equity bucket, which is
     // the bucket every downstream screen reads.

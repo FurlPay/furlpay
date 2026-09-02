@@ -290,6 +290,10 @@ export interface IssuerPosition {
   cusip6: string;
   /** Full CUSIP of the share line, when there is one. */
   cusip: string | null;
+  /** Full CUSIP of a convertible-debt line, when there is one. Kept separate
+   *  from `cusip` because it identifies a different instrument: resolving it
+   *  yields the bond, not the equity. */
+  debtCusip: string | null;
   /** Share lines only — the position a person means by "owns". */
   shareValue: number;
   shares: number;
@@ -337,6 +341,7 @@ export function positionsByIssuer(holdings: readonly Holding[]): IssuerPosition[
         issuer: h.issuer,
         cusip6: key,
         cusip: null,
+        debtCusip: null,
         shareValue: 0,
         shares: 0,
         debtValue: 0,
@@ -355,6 +360,7 @@ export function positionsByIssuer(holdings: readonly Holding[]): IssuerPosition[
       // JPMorgan's Q2 2026 filing carries 447 such rows worth $1,724,173,261;
       // IREN alone reports $1,294,000 of principal that reads as 1.29m
       // "shares" if the type field is ignored.
+      p.debtCusip ??= h.cusip;
       p.debtValue += h.value;
       p.debtPrincipal += h.amount;
     } else if (h.type === "share") {
