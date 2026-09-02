@@ -23,17 +23,17 @@ export default function FinalCta() {
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
-              href="/developer/keys"
+              href="/markets"
               className="btn-green inline-flex w-full items-center justify-center gap-2 px-7 py-3.5 text-[16px] sm:w-auto"
             >
-              Get your API key
+              Explore markets
               <ArrowRight aria-hidden className="h-4 w-4" />
             </Link>
             <Link
-              href="/talk-to-us"
+              href="/travel"
               className="btn-outline inline-flex w-full items-center justify-center px-7 py-3.5 text-[16px] sm:w-auto"
             >
-              Talk to engineering
+              Travel with us
             </Link>
           </div>
 

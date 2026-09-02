@@ -178,11 +178,20 @@ export default function LandingNav({ onOpenPalette }: { onOpenPalette: () => voi
             Get API key
           </Link>
 
-          {/* Sign in sits to the right of the primary action and stays
-              secondary: two filled buttons side by side would make the reader
-              choose between them, and for a visitor who does not have an
-              account yet the API key is the one that should win. Existing
-              users know to look for this word and will find it either way. */}
+          {/* Three actions, one of them filled. Get API key is the only
+              primary: a visitor without an account should be pulled there, and
+              two filled buttons side by side make the reader choose instead of
+              act. Talk to us and Sign in are both outlined and both secondary —
+              one is for a visitor who wants a person, the other for a user who
+              already has an account and only needs the door. Ordered by how
+              likely a first-time reader is to want them, left to right. */}
+          <Link
+            href="/talk-to-us"
+            className="btn-outline hidden px-4 py-2 text-[14px] sm:inline-flex sm:items-center"
+          >
+            Talk to us
+          </Link>
+
           <Link
             href="/login"
             className="btn-outline hidden px-4 py-2 text-[14px] sm:inline-flex sm:items-center"
@@ -246,7 +255,7 @@ export default function LandingNav({ onOpenPalette }: { onOpenPalette: () => voi
                 className="btn-outline px-5 py-3 text-center text-[15px]"
                 onClick={() => setMobileOpen(false)}
               >
-                Talk to engineering
+                Talk to us
               </Link>
               {/* The desktop Sign in is `hidden sm:inline-flex`, so without
                   this entry there is no way into an existing account from a

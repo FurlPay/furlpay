@@ -96,7 +96,7 @@ export const PALETTE_LINKS: NavLink[] = [
   { label: "Status", href: "/status", desc: "System status board" },
   { label: "Changelog", href: "/changelog", desc: "What shipped, when" },
   { label: "Blog", href: "/blog", desc: "Engineering writing" },
-  { label: "Talk to engineering", href: "/talk-to-us", desc: "Book a technical call" },
+  { label: "Talk to us", href: "/talk-to-us", desc: "Book a technical call" },
   { label: "Open the app", href: "/dashboard", desc: "Your FurlPay dashboard" },
   { label: "GitHub", href: "https://github.com/Ashutosh0x/furlpay", desc: "Source and issues", external: true },
 ];
