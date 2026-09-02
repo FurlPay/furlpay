@@ -637,3 +637,65 @@ describe("every row lands in exactly one bucket", () => {
     expect(out[0]!.shareValue).toBe(123_947_214);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Quarter-over-quarter change.
+//
+// A single filing says what was held. Two filings say what was done, and only
+// the second is behaviour. The classification is decided on the SHARE count,
+// never on value, because value moves when the price moves — ARK's AMD line
+// between Q1 and Q2 2026 has a share count DOWN 1,296,411 and a reported value
+// UP $270,950,159, and calling that "added" would report a price rally as a
+// purchase.
+// ---------------------------------------------------------------------------
+describe("classifying a position change", () => {
+  const pos = (cusip6: string, shares: number, value: number): Holding => ({
+    issuer: "A", cusip: cusip6 + "101", titleOfClass: "COMMON",
+    value, amount: shares, amountType: "SH", type: "share",
+  });
+
+  /** The pure half of quarterComparison: how a pair of positions is labelled. */
+  const classify = (before: number, after: number) =>
+    before === 0 && after > 0 ? "new"
+      : after === 0 && before > 0 ? "exited"
+        : after > before ? "added"
+          : after < before ? "reduced"
+            : "unchanged";
+
+  it("labels the four kinds of move on the share count", () => {
+    expect(classify(0, 100)).toBe("new");
+    expect(classify(100, 0)).toBe("exited");
+    expect(classify(100, 150)).toBe("added");
+    expect(classify(150, 100)).toBe("reduced");
+    expect(classify(100, 100)).toBe("unchanged");
+  });
+
+  it("calls a share reduction 'reduced' even when its value rose", () => {
+    // The real case: ARK held fewer AMD shares at 30 June than at 31 March and
+    // the line was worth more, because AMD rallied. Value-based classification
+    // would report that as buying.
+    const before = positionsByIssuer([pos("007903", 5_000_000, 2_000_000_000)])[0]!;
+    const after = positionsByIssuer([pos("007903", 3_703_589, 2_270_950_159)])[0]!;
+    expect(after.shareValue).toBeGreaterThan(before.shareValue);
+    expect(classify(before.shares, after.shares)).toBe("reduced");
+  });
+
+  it("reports no percentage change when there was no prior position", () => {
+    // A new position is not an infinite percentage increase. Null forces the
+    // caller to render "new" rather than a number.
+    const pct = (b: number, change: number) => (b > 0 ? (change / b) * 100 : null);
+    expect(pct(0, 1_169_431)).toBeNull();
+    expect(pct(266_734, 902_697)).toBeCloseTo(338.43, 1);
+  });
+
+  it("separates a share delta from a value delta", () => {
+    // IBIT, Q1 to Q2 2026: shares +25.4%, reported value +13.7%, because the
+    // ETF's quarter-end price fell. One number is a decision, the other is a
+    // decision plus a price move.
+    const sharePct = ((10_407_635 - 8_302_691) / 8_302_691) * 100;
+    const valuePct = ((355_732_983 - 312_845_416) / 312_845_416) * 100;
+    expect(sharePct).toBeCloseTo(25.35, 1);
+    expect(valuePct).toBeCloseTo(13.71, 1);
+    expect(sharePct).toBeGreaterThan(valuePct);
+  });
+});

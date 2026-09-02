@@ -447,6 +447,146 @@ export function toDollars(holdings: readonly Holding[], unit: ValueUnit): Holdin
   return holdings.map((h) => ({ ...h, value: h.value * 1000 }));
 }
 
+// ---------------------------------------------------------------------------
+// Quarter-over-quarter change
+//
+// A single 13F says what a manager held. It does not say what they did, and
+// "what they did" is the only part of a filing that carries information about
+// behaviour rather than about position size. That requires two filings and a
+// subtraction, and the subtraction has three traps in it.
+//
+// FIRST: the comparison must be against an earlier PERIOD, not simply the next
+// filing in the index. A manager who amends a quarter files two documents for
+// the same period end, and differencing those measures the correction, not the
+// trading.
+//
+// SECOND: shares and value move for different reasons. A position can fall in
+// value while the share count rises, because the price fell — which is what
+// JPMorgan's iShares Bitcoin Trust line does between Q1 and Q2 2026: shares up
+// 25.4%, reported value up only 13.7%. A "position change" measured in dollars
+// silently mixes a trading decision with a price move. Both are reported here
+// and the share delta is the one that describes behaviour.
+//
+// THIRD: an issuer absent from the prior filing is a new position, and an
+// issuer absent from the current one is an exit. Treating a missing row as
+// zero is right in both directions here, but only because both filings are
+// complete reports — which is why this refuses to compare against a partial
+// amendment.
+// ---------------------------------------------------------------------------
+
+export interface IssuerDelta {
+  cusip6: string;
+  issuer: string;
+  /** Share counts from each filing, and the change between them. */
+  sharesBefore: number;
+  sharesAfter: number;
+  shareChange: number;
+  /** Null when there was no prior position — a percentage change from zero is
+   *  not "infinite", it is a new position, and the caller should say so. */
+  shareChangePct: number | null;
+  valueBefore: number;
+  valueAfter: number;
+  valueChange: number;
+  /** What kind of move this is, decided on the SHARE count rather than value,
+   *  so a price move is never reported as a trade. */
+  kind: "new" | "added" | "reduced" | "exited" | "unchanged";
+}
+
+export interface QuarterComparison {
+  cik: string;
+  managerName: string;
+  /** The two periods being differenced, newest first. */
+  currentPeriod: string;
+  priorPeriod: string;
+  currentAccession: string;
+  priorAccession: string;
+  deltas: IssuerDelta[];
+}
+
+/** Compare a manager's two most recent COMPLETE filings, issuer by issuer.
+ *
+ * Returns null when there is no earlier complete filing to compare against —
+ * a manager's first 13F has no delta, and inventing one from an empty prior
+ * quarter would report their entire book as new buying. */
+export async function quarterComparison(cik: string): Promise<QuarterComparison | null> {
+  const padded = cik.padStart(10, "0");
+  const current = await latestThirteenF(padded);
+  if (!current) return null;
+
+  const candidates = await holdingsFilings(padded, 12);
+  // Strictly earlier period. An amendment shares the current period end and
+  // differencing it would measure a correction rather than any trading.
+  const older = candidates.filter((r) => r.periodOfReport < current.periodOfReport);
+  if (older.length === 0) return null;
+
+  return cachedJson(
+    `13f:${SCHEMA}:delta:${padded}:${current.accession}`,
+    TTL_HOLDINGS,
+    async () => {
+      let prior: { meta: ReturnType<typeof parsePrimaryDoc>; holdings: Holding[] } | null = null;
+      let priorAccession = "";
+      for (const ref of older) {
+        const got = await fetchFiling(padded, ref);
+        if (!got) continue;
+        // Same rule as latestThirteenF: a partial amendment is a fragment, and
+        // differencing against a fragment reports the rest of the book as sold.
+        if (got.meta.isAmendment && got.meta.amendmentType !== "RESTATEMENT") continue;
+        prior = got;
+        priorAccession = ref.accession;
+        break;
+      }
+      if (!prior) return null;
+
+      const unit = detectValueUnit(prior.holdings).unit;
+      const before = positionsByIssuer(toDollars(prior.holdings, unit));
+      const after = positionsByIssuer(current.holdings);
+
+      const byKey = new Map<string, { b?: IssuerPosition; a?: IssuerPosition }>();
+      for (const b of before) byKey.set(b.cusip6, { ...(byKey.get(b.cusip6) ?? {}), b });
+      for (const a of after) byKey.set(a.cusip6, { ...(byKey.get(a.cusip6) ?? {}), a });
+
+      const deltas: IssuerDelta[] = [];
+      for (const [cusip6, { b, a }] of byKey) {
+        const sharesBefore = b?.shares ?? 0;
+        const sharesAfter = a?.shares ?? 0;
+        const shareChange = sharesAfter - sharesBefore;
+        deltas.push({
+          cusip6,
+          issuer: a?.issuer ?? b?.issuer ?? "",
+          sharesBefore,
+          sharesAfter,
+          shareChange,
+          shareChangePct: sharesBefore > 0 ? (shareChange / sharesBefore) * 100 : null,
+          valueBefore: b?.shareValue ?? 0,
+          valueAfter: a?.shareValue ?? 0,
+          valueChange: (a?.shareValue ?? 0) - (b?.shareValue ?? 0),
+          kind:
+            sharesBefore === 0 && sharesAfter > 0
+              ? "new"
+              : sharesAfter === 0 && sharesBefore > 0
+                ? "exited"
+                : shareChange > 0
+                  ? "added"
+                  : shareChange < 0
+                    ? "reduced"
+                    : "unchanged",
+        });
+      }
+      deltas.sort((x, y) => Math.abs(y.valueChange) - Math.abs(x.valueChange));
+
+      return {
+        cik: padded,
+        managerName: current.managerName,
+        currentPeriod: current.periodOfReport,
+        priorPeriod: prior.meta.periodOfReport,
+        currentAccession: current.accession,
+        priorAccession,
+        deltas,
+      };
+    }
+  );
+}
+
 /** Is this row a principal amount of debt rather than a share count?
  *
  * `sshPrnamtType` is SH for shares and PRN for a principal amount. A filing

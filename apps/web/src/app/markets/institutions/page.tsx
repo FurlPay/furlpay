@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Building2, Landmark, LineChart, Users } from "lucide-react";
+import { ArrowLeft, Building2, Landmark, LineChart, Repeat, Users } from "lucide-react";
 import { INSTITUTIONS, type InstitutionKind } from "@/lib/markets/institutions";
 
 // /markets/institutions — the filers whose 13F this app can read.
@@ -38,6 +38,13 @@ const GROUPS: { kind: InstitutionKind; title: string; blurb: string; icon: typeo
     blurb:
       "Discretionary and systematic managers. A 13F shows only their long US-listed book: no shorts, no hedges, no derivatives at cost.",
     icon: LineChart,
+  },
+  {
+    kind: "market-maker",
+    title: "Market makers & liquidity providers",
+    blurb:
+      "Their reported positions are inventory from quoting and hedging, sized by order flow rather than by a view. Read these as a liquidity signal on a security, never as accumulation.",
+    icon: Repeat,
   },
   {
     kind: "other",

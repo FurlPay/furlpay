@@ -45,6 +45,14 @@
 // name every reader recognises. Its advisory subsidiary VANGUARD ADVISERS INC
 // (0000947529) files the holdings report and is what appears here.
 //
+// The market-maker entries were resolved the same way on the same date. Two
+// names that appear in published ETF holder tables are deliberately absent:
+// Flow Traders US LLC, which EDGAR's company search returns no 13F-HR filer for
+// under that name, and "SIG Holding LLC", which is not the conformed name of a
+// filing entity — Susquehanna files through SIG BROKERAGE, LP (0001094429),
+// which is what is listed. Neither is included on the strength of a vendor
+// table alone.
+//
 // A test walks this list against EDGAR and fails when an entry stops filing,
 // so the next entity to restructure the way Vanguard did is caught rather than
 // quietly served as current.
@@ -59,6 +67,27 @@ export type InstitutionKind =
   | "asset-manager"
   /** Discretionary and systematic funds. */
   | "hedge-fund"
+  /**
+   * Designated market makers and ETF authorised participants.
+   *
+   * This is the classification that changes how a filing should be read, and
+   * the one almost no coverage applies. A market maker's reported position is
+   * inventory: the residue of quoting two sides and hedging, sized by order
+   * flow and creation/redemption activity rather than by any view on the
+   * security. When one of these firms appears at the top of a new ETF's holder
+   * list, that is a statement about who is providing liquidity in it, not
+   * about who believes in it.
+   *
+   * The tell is that they turn over. In the Q2 2026 spot XRP ETF filings,
+   * Citadel Advisors, Susquehanna, Flow Traders and IMC were all net SELLERS
+   * of exposure while the ETF's overall holder base grew by 59%. A reader who
+   * counts them as accumulation gets the direction of the flow backwards.
+   *
+   * Kept distinct from "hedge-fund" deliberately. Several of these firms run
+   * discretionary money too; the label describes why the 13F position exists,
+   * which for these names is predominantly liquidity provision.
+   */
+  | "market-maker"
   /** Operating companies and family offices that file for their own account. */
   | "other";
 
@@ -96,10 +125,23 @@ export const INSTITUTIONS: Institution[] = [
   { slug: "dodge-and-cox", cik: "0000200217", name: "DODGE & COX", label: "Dodge & Cox", kind: "asset-manager" },
   { slug: "ark-invest", cik: "0001697748", name: "ARK Investment Management LLC", label: "ARK Investment Management LLC", kind: "asset-manager" },
 
+  // ---- Market makers and liquidity providers ----
+  //
+  // Their 13F lines are inventory from quoting and hedging, not positions
+  // taken for a view. Read them as a liquidity signal on the security, never
+  // as accumulation. See `InstitutionKind` for why this matters.
+  // All verified against EDGAR on 2026-09-02 with a 13F-HR for 2026-06-30.
+  { slug: "citadel-advisors", cik: "0001423053", name: "CITADEL ADVISORS LLC", label: "Citadel Advisors LLC", kind: "market-maker" },
+  { slug: "jane-street", cik: "0001595888", name: "JANE STREET GROUP, LLC", label: "Jane Street Group, LLC", kind: "market-maker" },
+  { slug: "sig-brokerage", cik: "0001094429", name: "SIG BROKERAGE, LP", label: "SIG Brokerage, LP (Susquehanna)", kind: "market-maker" },
+  { slug: "imc-chicago", cik: "0001452861", name: "IMC-Chicago, LLC", label: "IMC-Chicago, LLC", kind: "market-maker" },
+  { slug: "wolverine-asset-management", cik: "0001279891", name: "WOLVERINE ASSET MANAGEMENT LLC", label: "Wolverine Asset Management LLC", kind: "market-maker" },
+  { slug: "parallax-volatility", cik: "0001521001", name: "Parallax Volatility Advisers, L.P.", label: "Parallax Volatility Advisers, L.P.", kind: "market-maker" },
+  { slug: "virtu-financial", cik: "0001533964", name: "Virtu Financial LLC", label: "Virtu Financial LLC", kind: "market-maker" },
+
   // ---- Hedge funds ----
   { slug: "bridgewater", cik: "0001350694", name: "Bridgewater Associates, LP", label: "Bridgewater Associates, LP", kind: "hedge-fund" },
   { slug: "renaissance-technologies", cik: "0001037389", name: "RENAISSANCE TECHNOLOGIES LLC", label: "Renaissance Technologies LLC", kind: "hedge-fund" },
-  { slug: "citadel-advisors", cik: "0001423053", name: "CITADEL ADVISORS LLC", label: "Citadel Advisors LLC", kind: "hedge-fund" },
   { slug: "millennium-management", cik: "0001273087", name: "MILLENNIUM MANAGEMENT LLC", label: "Millennium Management LLC", kind: "hedge-fund" },
   { slug: "two-sigma", cik: "0001179392", name: "TWO SIGMA INVESTMENTS, LP", label: "Two Sigma Investments, LP", kind: "hedge-fund" },
   { slug: "de-shaw", cik: "0001009207", name: "D. E. Shaw & Co., Inc.", label: "D. E. Shaw & Co., Inc.", kind: "hedge-fund" },
