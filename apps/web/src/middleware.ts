@@ -93,6 +93,11 @@ const PUBLIC_PAGE_PREFIXES = [
   "/wallet", // FurlPay Wallet handle-reservation landing (pre-launch, public)
 ];
 const PUBLIC_API_PREFIXES = [
+  // Generated card images for the Discord price bot. Public market data drawn
+  // as a PNG -- the same numbers /api/markets already serves, in a different
+  // format. Readable so Discord can fall back to fetching the URL if an
+  // attachment upload fails; the normal path uploads the bytes directly.
+  "/api/og",
   "/api/auth",
   "/api/webhooks",
   // MCP connector (Claude). The transport route self-authenticates with an

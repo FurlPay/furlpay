@@ -40,9 +40,16 @@ function liveRoutes(dir: string): { route: string; file: string }[] {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = join(dir, e.name);
     if (e.isDirectory()) out.push(...liveRoutes(p));
-    else if (e.name === "route.ts") {
+    // BOTH extensions. A route that renders JSX — an ImageResponse card, for
+    // instance — must be a .tsx file, and matching only "route.ts" meant every
+    // such route was invisible to this gate: unclassified, uncounted, and never
+    // flagged by the completeness check that exists to catch exactly that.
+    else if (e.name === "route.ts" || e.name === "route.tsx") {
       out.push({
-        route: p.replace(/\\/g, "/").replace(/^.*\/app\/api\//, "").replace(/\/route\.ts$/, ""),
+        route: p
+          .replace(/\\/g, "/")
+          .replace(/^.*\/app\/api\//, "")
+          .replace(/\/route\.tsx?$/, ""),
         file: p,
       });
     }
