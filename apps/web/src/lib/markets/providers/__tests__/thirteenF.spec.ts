@@ -8,6 +8,9 @@ import {
   shareTotal,
   reportedTotal,
   latestFiling,
+  detectValueUnit,
+  toDollars,
+  type Holding,
 } from "../thirteenF";
 
 // ---------------------------------------------------------------------------
@@ -368,5 +371,101 @@ describe("amendment types", () => {
       "<amendmentType>SOMETHING NEW</amendmentType>"
     );
     expect(parsePrimaryDoc(mangled).amendmentType).toBe("UNKNOWN");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Dollars or thousands.
+//
+// The SEC has required whole dollars since January 2023 and filers still submit
+// in thousands, with nothing in the form to say which. Measured across this
+// app's 35 registered filers on 2026-09-02: 33 produced a median implied price
+// per share between $22.27 and $357.37, and two — Baupost and Duquesne — came
+// in at $0.127 and $0.089. Reading those two as dollars reports a $5.2bn book
+// as $5.2m.
+// ---------------------------------------------------------------------------
+describe("value units", () => {
+  const share = (value: number, amount: number): Holding => ({
+    issuer: "X",
+    cusip: "000000000",
+    titleOfClass: "COM",
+    value,
+    amount,
+    amountType: "SH",
+    type: "share",
+  });
+
+  it("reads an ordinary dollar-denominated filing as dollars", () => {
+    // Berkshire's real implied prices: Apple $289.36, Coca-Cola $81.27.
+    const rows = [
+      share(23_341_172_315, 80_664_820),
+      share(22_976_876_186, 282_722_729),
+      share(17_595_909_185, 308_808_515),
+      ...Array.from({ length: 6 }, () => share(1_000_000, 10_000)), // $100/sh
+    ];
+    const u = detectValueUnit(rows);
+    expect(u.unit).toBe("dollars");
+    expect(u.medianPricePerShare).toBeGreaterThan(1);
+  });
+
+  it("detects a thousands-denominated filing", () => {
+    // Duquesne's real rows: Amazon 541,600 shares at a stated 129,085.
+    const rows = [
+      share(129_085, 541_600),
+      share(281_613, 589_680),
+      share(151_900, 1_424_690),
+      share(142_726, 3_138_897),
+      share(864_923, 3_186_306),
+      share(232_375, 3_102_880),
+      share(50_000, 500_000),
+      share(60_000, 600_000),
+    ];
+    const u = detectValueUnit(rows);
+    expect(u.unit).toBe("thousands");
+    expect(u.medianPricePerShare).toBeLessThan(1);
+  });
+
+  it("restates a thousands filing into whole dollars, and leaves shares alone", () => {
+    const rows = [share(129_085, 541_600)];
+    const [out] = toDollars(rows, "thousands");
+    expect(out!.value).toBe(129_085_000);
+    // The share count was never in thousands. Scaling it too would be a second
+    // and larger error than the one being corrected.
+    expect(out!.amount).toBe(541_600);
+  });
+
+  it("leaves a dollar filing untouched", () => {
+    const rows = [share(23_341_172_315, 80_664_820)];
+    expect(toDollars(rows, "dollars")[0]!.value).toBe(23_341_172_315);
+  });
+
+  it("ignores option rows when inferring the unit", () => {
+    // sshPrnamt counts CONTRACTS on an option row and value is the notional of
+    // the underlying, so value/amount is not a price and would skew the median.
+    const opts: Holding[] = Array.from({ length: 20 }, () => ({
+      issuer: "X", cusip: "000000000", titleOfClass: "CALL",
+      value: 1_000_000, amount: 50_000_000, amountType: "SH", type: "call",
+    }));
+    const rows = [...opts, ...Array.from({ length: 8 }, () => share(1_000_000, 10_000))];
+    expect(detectValueUnit(rows).unit).toBe("dollars");
+    expect(detectValueUnit(rows).sampled).toBe(8);
+  });
+
+  it("does not guess from too small a sample", () => {
+    // A handful of penny-priced rows is not evidence about a whole filing, and
+    // dollars is the mandated unit — so ambiguity resolves there.
+    const u = detectValueUnit([share(1, 1000), share(2, 3000)]);
+    expect(u.unit).toBe("dollars");
+    expect(u.medianPricePerShare).toBeNull();
+  });
+
+  it("is not fooled by a minority of genuinely penny-priced rows", () => {
+    // Warrants, rights and units really do imply prices in cents. A median over
+    // the whole filing is unmoved by them; a mean would not be.
+    const rows = [
+      ...Array.from({ length: 4 }, () => share(1_000, 100_000)), // $0.01/sh
+      ...Array.from({ length: 10 }, () => share(5_000_000, 50_000)), // $100/sh
+    ];
+    expect(detectValueUnit(rows).unit).toBe("dollars");
   });
 });

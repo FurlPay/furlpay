@@ -57,6 +57,8 @@ interface Filing {
   isAmendment: boolean;
   amendmentNo: number | null;
   confidentialOmitted: boolean;
+  valueUnit: "dollars" | "thousands";
+  medianPricePerShare: number | null;
   partialAmendments: {
     accession: string;
     filedAt: string;
@@ -215,6 +217,19 @@ export default function InstitutionPage() {
               . Those positions are not added into the totals here: the sums
               shown are the filer&rsquo;s own, and merging would replace them
               with ours.
+            </Notice>
+          )}
+
+          {f.valueUnit === "thousands" && (
+            <Notice tone="muted">
+              This filer reports values in thousands of dollars rather than the
+              whole dollars the SEC has required since 2023. The figures below
+              have been multiplied by 1,000 so they read in dollars like every
+              other filing here
+              {f.medianPricePerShare !== null
+                ? ` — inferred from a median implied price of $${f.medianPricePerShare.toFixed(3)} per share across its own rows, against $22 to $357 for filings denominated in dollars`
+                : ""}
+              . Share counts are untouched; only the money column carries a unit.
             </Notice>
           )}
 

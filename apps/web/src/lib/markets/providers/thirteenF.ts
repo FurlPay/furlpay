@@ -24,7 +24,16 @@
 //    the sum across every entity in that structure, not a single desk's book.
 //    otherIncludedManagers is surfaced so the caller can say so.
 //
-// 3. IT IS NARROW AND STALE BY CONSTRUCTION. Long positions in 13(f) securities
+// 3. NOT EVERY FILER REPORTS IN DOLLARS. The June 2022 amendments require the
+//    value column in whole dollars from January 2023, and filers still submit
+//    in THOUSANDS -- the pre-2023 convention. Nothing in the form declares
+//    which, so the unit has to be inferred from the filing itself. Two of the
+//    thirty-five managers on this app's registry file in thousands (Baupost and
+//    Duquesne), and reading their columns as dollars understates each book by
+//    a factor of a thousand: $5.2 million on screen for a $5.2 billion
+//    portfolio. See `detectValueUnit`.
+//
+// 4. IT IS NARROW AND STALE BY CONSTRUCTION. Long positions in 13(f) securities
 //    only: no shorts, no cash, no bonds, no non-US listings. And it describes a
 //    quarter-end that is up to 45 days in the past on the day it is published.
 //    `periodOfReport` and `filedAt` both travel with the data so no surface can
@@ -57,7 +66,7 @@ const TTL_HOLDINGS = 604_800; // 7d — a filed information table is immutable
  * A version in the key makes a shape change a cache miss instead of a
  * type-safe lie.
  */
-const SCHEMA = "v2";
+const SCHEMA = "v3";
 
 export type PositionType = "share" | "call" | "put";
 
@@ -88,8 +97,18 @@ export interface ThirteenF {
   /** Other managers rolled into this report. Empty for a single-entity filer. */
   otherIncludedManagers: string[];
   holdings: Holding[];
-  /** True when our sum matched the filer's stated total exactly. */
+  /** True when our sum matched the filer's stated total, within the rounding
+   *  the filer's own summary page can introduce. */
   reconciled: boolean;
+  /**
+   * How the filing denominated its value column. Every figure exposed on this
+   * object is in WHOLE DOLLARS regardless — a "thousands" filing has already
+   * been restated — but the unit travels so a surface can say the number was
+   * converted rather than read.
+   */
+  valueUnit: ValueUnit;
+  /** Median implied price per share, the evidence behind `valueUnit`. */
+  medianPricePerShare: number | null;
   /** "13F-HR", or "13F-HR/A" when the complete report is itself a restatement. */
   form: string;
   isAmendment: boolean;
@@ -324,6 +343,77 @@ export function positionsByIssuer(holdings: readonly Holding[]): IssuerPosition[
     }
   }
   return [...map.values()].sort((a, b) => b.shareValue - a.shareValue);
+}
+
+export type ValueUnit = "dollars" | "thousands";
+
+export interface UnitInference {
+  unit: ValueUnit;
+  /** Median value/shares across share rows — the evidence for the verdict. */
+  medianPricePerShare: number | null;
+  /** How many rows the median was taken over. */
+  sampled: number;
+}
+
+/**
+ * Is this filing's value column denominated in dollars or thousands?
+ *
+ * The form does not say. The rows do: a value column divided by its own share
+ * count is a price per share, and prices per share are the one quantity here
+ * whose plausible range is common knowledge. A US-listed equity trades in
+ * dollars, not in tenths of a cent.
+ *
+ * Measured across the registry on 2026-09-02, the two populations do not come
+ * close to touching. Thirty-three filers produced a median implied price
+ * between $22.27 (Geode) and $357.37 (Coatue). The two that file in thousands
+ * produced $0.127 (Baupost) and $0.089 (Duquesne) — three orders of magnitude
+ * below the nearest dollar-denominated filer. A $1 threshold sits in the middle
+ * of that gap with room to spare in both directions.
+ *
+ * The median, not the mean: a mean is moved by one mispriced row, and these
+ * filings contain rows for warrants, rights and units whose implied prices are
+ * genuinely pennies. A median over hundreds of rows is not.
+ *
+ * Only share rows are sampled. An option row's `sshPrnamt` counts contracts
+ * and its value is the notional of the underlying, so value/amount is not a
+ * price and would poison the sample.
+ *
+ * Ambiguity resolves to dollars — the SEC-mandated unit and the overwhelming
+ * majority — because the failure directions are not symmetric. Reading dollars
+ * as thousands multiplies a real book by a thousand; the reverse divides it.
+ * Both are bad, but only the first invents money that was never reported.
+ */
+export function detectValueUnit(holdings: readonly Holding[]): UnitInference {
+  const prices: number[] = [];
+  for (const h of holdings) {
+    if (h.type !== "share") continue;
+    if (h.value <= 0 || h.amount <= 0) continue;
+    // "PRN" rows are a principal amount of debt, not a share count, so
+    // value/amount is not a price per share.
+    if (h.amountType && h.amountType.toUpperCase() !== "SH") continue;
+    prices.push(h.value / h.amount);
+  }
+  if (prices.length < 8) {
+    // Too few rows to hold a median steady. Default to the mandated unit.
+    return { unit: "dollars", medianPricePerShare: null, sampled: prices.length };
+  }
+  prices.sort((a, b) => a - b);
+  const median = prices[Math.floor(prices.length / 2)]!;
+  return {
+    unit: median < 1 ? "thousands" : "dollars",
+    medianPricePerShare: median,
+    sampled: prices.length,
+  };
+}
+
+/** Restate a filing's values in whole dollars.
+ *
+ * Only `value` is scaled. Share counts and contract counts are already
+ * absolute in every filing — it is the money column alone that carries the
+ * unit, and multiplying the share count too would be a second, worse error. */
+export function toDollars(holdings: readonly Holding[], unit: ValueUnit): Holding[] {
+  if (unit === "dollars") return holdings as Holding[];
+  return holdings.map((h) => ({ ...h, value: h.value * 1000 }));
 }
 
 /** Total across share lines only. This is the number to quote as "holdings". */
@@ -594,17 +684,40 @@ export async function latestThirteenF(cik: string): Promise<ThirteenF | null> {
             amendmentType: meta.amendmentType ?? "UNKNOWN",
             amendmentNo: meta.amendmentNo,
             entries: holdings.length,
-            value: reportedTotal(holdings),
+            value: reportedTotal(toDollars(holdings, detectValueUnit(holdings).unit)),
           });
           continue;
         }
 
         // Reconciliation is the point of parsing the source ourselves: if our
-        // sum does not equal the filer's stated total, our parse is wrong and
+        // sum does not match the filer's stated total, our parse is wrong and
         // the flag says so rather than shipping a plausible number.
+        //
+        // Done in the filing's OWN units, before any restatement, so the
+        // comparison is against the number actually printed on the summary
+        // page.
+        //
+        // The tolerance is not slack, it is arithmetic. Filers round each row's
+        // value to the nearest dollar, so a total computed before rounding
+        // differs from the sum of the rounded rows by up to half a dollar per
+        // row. Three filers on the registry sit exactly there — FMR is $5 off
+        // across 13,978 rows, Wellington $1 across 7,448, Duquesne $4 across 95
+        // — and demanding exact equality flagged all three as disagreeing with
+        // their own source when the parse was perfect. Half a dollar per entry
+        // bounds honest rounding and still fails any error worth catching: a
+        // dropped row, a misread column, or a unit off by a thousand.
+        const nativeSum = reportedTotal(holdings);
+        const roundingSlack = Math.max(1, meta.reportedEntryTotal / 2);
         const reconciled =
-          reportedTotal(holdings) === meta.reportedValueTotal &&
+          Math.abs(nativeSum - meta.reportedValueTotal) <= roundingSlack &&
           holdings.length === meta.reportedEntryTotal;
+
+        // Restate to whole dollars once reconciliation has been checked against
+        // the filing as printed. Everything downstream — totals, per-issuer
+        // aggregation, the API, the page — then works in one unit.
+        const units = detectValueUnit(holdings);
+        const dollarHoldings = toDollars(holdings, units.unit);
+        const scale = units.unit === "thousands" ? 1000 : 1;
 
         return {
           cik: padded,
@@ -615,11 +728,16 @@ export async function latestThirteenF(cik: string): Promise<ThirteenF | null> {
           form: ref.form,
           isAmendment: meta.isAmendment,
           amendmentNo: meta.amendmentNo,
-          reportedValueTotal: meta.reportedValueTotal,
+          reportedValueTotal: meta.reportedValueTotal * scale,
           reportedEntryTotal: meta.reportedEntryTotal,
           otherIncludedManagers: meta.otherIncludedManagers,
-          holdings,
+          holdings: dollarHoldings,
           reconciled,
+          // How the money column was denominated, and the evidence for it.
+          // Carried so a surface can attribute a restated figure rather than
+          // silently present it as filed.
+          valueUnit: units.unit,
+          medianPricePerShare: units.medianPricePerShare,
           // The filer's own statement that this report omits positions under
           // confidential treatment. When true the totals are not the book.
           confidentialOmitted: meta.isConfidentialOmitted,

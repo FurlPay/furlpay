@@ -136,6 +136,14 @@ export async function GET(req: NextRequest, props: { params: Promise<{ cik: stri
        * source.
        */
       partialAmendments: filing.partialAmendments,
+      /**
+       * How the filing denominated its value column. Every money figure on
+       * this response is whole dollars either way — a "thousands" filing has
+       * already been restated — but the unit is sent so a surface can say the
+       * number was converted rather than read as filed.
+       */
+      valueUnit: filing.valueUnit,
+      medianPricePerShare: filing.medianPricePerShare,
     },
     positions: page.map((p) => ({
       issuer: p.issuer,
