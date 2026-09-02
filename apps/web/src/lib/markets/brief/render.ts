@@ -88,6 +88,8 @@ export interface DiscordEmbed {
   fields?: DiscordEmbedField[];
   footer?: { text: string };
   timestamp?: string;
+  /** A chart rendered above the tables. Discord fetches this URL itself. */
+  image?: { url: string };
 }
 
 export interface DiscordWebhookPayload {
@@ -374,6 +376,14 @@ export function renderBrief(brief: MarketBrief): DiscordWebhookPayload {
     color: headerColor(brief),
     fields: [],
     timestamp: new Date(brief.generatedAt).toISOString(),
+    // The chart strip. Referenced by URL rather than uploaded, because this
+    // post goes through a webhook and the webhook poster speaks JSON -- adding
+    // multipart to it would mean changing a well-tested path for one image.
+    //
+    // The session date is in the query string on purpose: Discord caches an
+    // embed image by URL and would otherwise show the first day's chart
+    // forever. A new date is a new URL is a new fetch.
+    image: { url: `${SITE}/api/og/market-brief?d=${encodeURIComponent(brief.sessionDate)}` },
   };
 
   // The evidence behind the narrative. Without it the paragraph is a set of

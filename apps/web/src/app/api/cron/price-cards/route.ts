@@ -116,6 +116,10 @@ export async function GET(req: NextRequest) {
         channel: access.name ?? chan.channelId,
         ok: posted.ok,
         messageId: posted.messageId,
+        // "edited" is the healthy daily state. "posted" should appear once per
+        // channel ever, and "adopted" means the remembered id was lost and the
+        // existing card was recovered from Discord instead of duplicated.
+        action: posted.action,
         error: posted.error,
         price: d.price,
         change24h: d.changePct24h,

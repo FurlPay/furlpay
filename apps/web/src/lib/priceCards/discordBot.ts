@@ -13,22 +13,48 @@
 // would work against the same endpoints and is against Discord's terms; the
 // header prefix here makes the distinction explicit rather than incidental.
 //
-// ── EDIT, DO NOT SPAM ──────────────────────────────────────────────────────
+// ── ONE CARD PER CHANNEL, FOREVER ──────────────────────────────────────────
 //
-// One card per asset per channel, edited in place. The message id is kept in KV
-// under a per-channel key. If the edit fails because the message was deleted,
-// the next run posts a fresh one and stores the new id — a deleted card should
-// heal, not leave the channel permanently empty.
+// The whole point of this module is that a channel holds exactly one card,
+// edited daily, rather than a growing column of stale ones. That is harder than
+// it looks, because it depends on remembering a message id across runs, and
+// there are three ways that memory fails:
+//
+//   1. THE KEY EXPIRES. A stored id with a finite TTL eventually vanishes even
+//      though the message is still there. Every successful edit therefore
+//      REFRESHES the TTL, so an actively-updated card never ages out. Writing
+//      the id once at post time and never touching it again guarantees a
+//      duplicate on the day the key expires.
+//
+//   2. THE STORE IS BRIEFLY UNAVAILABLE. A failed read looks exactly like "no
+//      card here yet", and posting on that assumption is how a channel acquires
+//      a second card. So before posting anything new, `findOwnCard` scans the
+//      channel's recent history for a card this bot already posted and adopts
+//      it. Discord's own message list is the durable record; KV is only a
+//      shortcut past this lookup.
+//
+//   3. THE MESSAGE IS DELETED. Then there is nothing to edit and a new card is
+//      correct. That is the only path that should ever post.
 // ---------------------------------------------------------------------------
 
 import { kvGet, kvSet } from "@/lib/kv";
 
 const API = "https://discord.com/api/v10";
 
+/** How long a remembered message id survives without being refreshed. Long
+ *  enough that a paused job resumes cleanly; every edit pushes it out again. */
+const ID_TTL_SECONDS = 60 * 60 * 24 * 90;
+
+/** How far back to look for a card we already posted. A channel that holds one
+ *  card only ever has it near the top. */
+const RECOVERY_SCAN_LIMIT = 25;
+
 export interface DiscordResult {
   ok: boolean;
   /** Present on success. */
   messageId?: string;
+  /** How the card was written, for the job report. */
+  action?: "edited" | "adopted" | "posted";
   /** Safe to log: never contains the token or a response body that might. */
   error?: string;
   status?: number;
@@ -81,6 +107,65 @@ export async function checkChannel(
   }
 }
 
+/** This bot's own user id, cached for the life of the process. */
+let selfId: string | null = null;
+async function botUserId(token: string): Promise<string | null> {
+  if (selfId) return selfId;
+  try {
+    const res = await fetch(`${API}/users/@me`, {
+      headers: authHeaders(token),
+      signal: AbortSignal.timeout(8_000),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const j = (await res.json()) as { id?: string };
+    selfId = j.id ?? null;
+    return selfId;
+  } catch {
+    return null;
+  }
+}
+
+interface DiscordMessage {
+  id: string;
+  author?: { id?: string };
+  embeds?: { image?: { url?: string } }[];
+  attachments?: { filename?: string }[];
+}
+
+/**
+ * Find a card this bot already posted in the channel.
+ *
+ * Matched on authorship AND the card's own filename, so a different FurlPay
+ * message in the same channel is never mistaken for the card and edited into
+ * one. Returns null when there is genuinely nothing to adopt.
+ */
+async function findOwnCard(
+  token: string,
+  channelId: string,
+  filename: string
+): Promise<string | null> {
+  const me = await botUserId(token);
+  if (!me) return null;
+  try {
+    const res = await fetch(
+      `${API}/channels/${channelId}/messages?limit=${RECOVERY_SCAN_LIMIT}`,
+      { headers: authHeaders(token), signal: AbortSignal.timeout(10_000), cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const msgs = (await res.json()) as DiscordMessage[];
+    for (const m of msgs) {
+      if (m.author?.id !== me) continue;
+      const named = (m.attachments ?? []).some((a) => a.filename === filename);
+      const imaged = (m.embeds ?? []).some((e) => (e.image?.url ?? "").includes(filename));
+      if (named || imaged) return m.id;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 /** Multipart body carrying the embed payload and the card PNG together. */
 function buildForm(payload: unknown, png: Uint8Array, filename: string): FormData {
   const form = new FormData();
@@ -94,10 +179,11 @@ function buildForm(payload: unknown, png: Uint8Array, filename: string): FormDat
 }
 
 /**
- * Post a new card, or edit the one already in the channel.
+ * Write the card into its channel: edit the existing one, adopt an orphaned
+ * one, or post the first.
  *
  * Retries once on 429 using Discord's own retry_after, which is the only
- * backoff signal worth trusting here. Anything else fails the single card and
+ * backoff signal worth trusting here. Anything else fails this single card and
  * leaves the rest of the run alone.
  */
 export async function upsertCardMessage(opts: {
@@ -111,7 +197,13 @@ export async function upsertCardMessage(opts: {
 }): Promise<DiscordResult> {
   const { token, channelId, cardKey, payload, png, filename } = opts;
   const stateKey = `pricecard:msg:${channelId}:${cardKey}`;
-  const existing = await kvGet<string>(stateKey).catch(() => null);
+
+  const remember = async (id: string) => {
+    // Rewritten on EVERY successful write, not only the first. An id stored
+    // once with a finite TTL expires under a daily job and the next run posts a
+    // duplicate; refreshing it means an actively-updated card never ages out.
+    await kvSet(stateKey, id, ID_TTL_SECONDS).catch(() => {});
+  };
 
   const send = async (url: string, method: "POST" | "PATCH"): Promise<Response | null> => {
     try {
@@ -127,30 +219,54 @@ export async function upsertCardMessage(opts: {
     }
   };
 
-  // Try to edit first when we have an id.
-  if (existing) {
-    const res = await send(`${API}/channels/${channelId}/messages/${existing}`, "PATCH");
+  const edit = async (id: string): Promise<DiscordResult | null> => {
+    const res = await send(`${API}/channels/${channelId}/messages/${id}`, "PATCH");
     if (res?.ok) {
       const j = (await res.json()) as { id?: string };
-      return { ok: true, messageId: j.id ?? existing };
+      const finalId = j.id ?? id;
+      await remember(finalId);
+      return { ok: true, messageId: finalId, action: "edited" };
     }
-    // A 404 means someone deleted the card. Fall through and post a new one
-    // rather than leaving the channel empty forever.
+    // 404 means the card was deleted; fall through so a new one can be posted.
     if (res && res.status !== 404) {
       if (res.status === 429) {
         const retry = Number(res.headers.get("retry-after") ?? "1");
         await new Promise((r) => setTimeout(r, Math.min(retry * 1000, 8_000)));
-      } else {
-        return { ok: false, error: describeFailure(res.status), status: res.status };
+        const again = await send(`${API}/channels/${channelId}/messages/${id}`, "PATCH");
+        if (again?.ok) {
+          const j = (await again.json()) as { id?: string };
+          const finalId = j.id ?? id;
+          await remember(finalId);
+          return { ok: true, messageId: finalId, action: "edited" };
+        }
       }
+      return { ok: false, error: describeFailure(res.status), status: res.status };
     }
+    return null;
+  };
+
+  // 1. The remembered id.
+  const known = await kvGet<string>(stateKey).catch(() => null);
+  if (known) {
+    const r = await edit(known);
+    if (r) return r;
   }
 
+  // 2. No id, or it pointed at a deleted message. Before posting anything,
+  //    ask Discord whether a card is already sitting in the channel. This is
+  //    what stops a KV outage from turning into a second card.
+  const orphan = await findOwnCard(token, channelId, filename);
+  if (orphan && orphan !== known) {
+    const r = await edit(orphan);
+    if (r) return { ...r, action: "adopted" };
+  }
+
+  // 3. Genuinely nothing to update.
   const res = await send(`${API}/channels/${channelId}/messages`, "POST");
   if (!res) return { ok: false, error: "Could not reach Discord." };
   if (!res.ok) return { ok: false, error: describeFailure(res.status), status: res.status };
 
   const j = (await res.json()) as { id?: string };
-  if (j.id) await kvSet(stateKey, j.id, 60 * 60 * 24 * 90).catch(() => {});
-  return { ok: true, messageId: j.id };
+  if (j.id) await remember(j.id);
+  return { ok: true, messageId: j.id, action: "posted" };
 }
