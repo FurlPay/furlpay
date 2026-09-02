@@ -22,8 +22,8 @@ const MAX_PAGE = 250;
 //
 // ── WHAT THIS ROUTE REFUSES TO DO ──────────────────────────────────────────
 //
-// It does not add share values to option notional. It does not report a
-// contract count as a share count. It does not describe the filing as current
+// It does not add share values to option values. It does not describe an
+// option row's underlying-share count as a share position. It does not describe the filing as current
 // when the manager has since filed a notice for a later quarter. Each of those
 // is a specific way published 13F summaries go wrong, and each is handled in
 // `providers/thirteenF.ts` rather than here — this route's job is to pass the
@@ -151,13 +151,20 @@ export async function GET(req: NextRequest, props: { params: Promise<{ cik: stri
       cusip6: p.cusip6,
       shareValue: p.shareValue,
       shares: p.shares,
-      // Derivatives, reported at the notional value of the underlying and
-      // counted in CONTRACTS. Kept in their own fields so no caller can add
-      // them to the share line by accident.
+      // Convertible debt on the same issuer. `debtPrincipal` is a principal
+      // amount in dollars, NOT a share count — never add it to `shares`.
+      debtValue: p.debtValue,
+      debtPrincipal: p.debtPrincipal,
+      // Long options. An option row reports the UNDERLYING security, so these
+      // are counts of underlying shares at the quarter-end price -- not
+      // contracts, and not the premium paid. Kept in their own fields so no
+      // caller can add them to the share line by accident: a right over shares
+      // is not ownership of them. Written options are not reportable, so these
+      // are long-only and cannot be netted into a position.
       callValue: p.callValue,
-      callContracts: p.callContracts,
+      callShares: p.callShares,
       putValue: p.putValue,
-      putContracts: p.putContracts,
+      putShares: p.putShares,
       /** This issuer's share of the share-only total, or null when there is
        *  nothing to divide by. Never a zero standing in for "unknown". */
       shareOfPortfolioPct: shares > 0 ? (p.shareValue / shares) * 100 : null,

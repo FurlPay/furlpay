@@ -10,6 +10,7 @@ import {
   latestFiling,
   detectValueUnit,
   toDollars,
+  debtTotal,
   type Holding,
 } from "../thirteenF";
 
@@ -82,8 +83,8 @@ describe("aggregation keeps shares and derivatives apart", () => {
     const ibit = positions.find((p) => p.cusip6 === "46438F")!;
     expect(ibit.shares).toBe(341_532);
     expect(ibit.shareValue).toBe(11_673_582);
-    expect(ibit.callContracts).toBe(3_945_000);
-    expect(ibit.putContracts).toBe(3_495_800);
+    expect(ibit.callShares).toBe(3_945_000);
+    expect(ibit.putShares).toBe(3_495_800);
   });
 
   it("never folds notional into the share value", () => {
@@ -100,7 +101,7 @@ describe("aggregation keeps shares and derivatives apart", () => {
     // unrelated securities; the 6-character issuer prefix is what unites them.
     const ibit = positions.find((p) => p.cusip6 === "46438F")!;
     expect(ibit.cusip).toBe("46438F101");
-    expect(ibit.callContracts).toBe(3_945_000);
+    expect(ibit.callShares).toBe(3_945_000);
     expect(positions).toHaveLength(3);
   });
 
@@ -467,5 +468,100 @@ describe("value units", () => {
       ...Array.from({ length: 10 }, () => share(5_000_000, 50_000)), // $100/sh
     ];
     expect(detectValueUnit(rows).unit).toBe("dollars");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// An option row is denominated in the UNDERLYING security.
+//
+// This is the check that would have caught a wrong assumption this module
+// shipped with, and that a blog post repeated: that an option row's amount is a
+// count of contracts. Per the SEC's Form 13F FAQ on Column 5, "most of the
+// column entries for an option refer to the underlying security, rather than to
+// the option itself", and the filings agree — value divided by amount is the
+// same price on an option row as on the issuer's share row.
+//
+// If the amount were a contract count, the implied price would come out ~100x
+// the share row's. Across JPMorgan's Q2 2026 filing, 869 issuers carry both
+// kinds of row and not one shows that ratio.
+// ---------------------------------------------------------------------------
+describe("option rows describe the underlying", () => {
+  it("implies the same price per unit as the issuer's share rows", () => {
+    const rows = parseInformationTable(XML);
+    const [ibit] = positionsByIssuer(rows).filter((p) => p.shares > 0 && p.callShares > 0);
+    expect(ibit).toBeDefined();
+    if (!ibit) return;
+    const sharePx = ibit.shareValue / ibit.shares;
+    const callPx = ibit.callValue / ibit.callShares;
+    // Equal to the cent. A contract count would put callPx near 100x sharePx.
+    expect(callPx).toBeCloseTo(sharePx, 2);
+    expect(callPx / sharePx).toBeGreaterThan(0.5);
+    expect(callPx / sharePx).toBeLessThan(2);
+  });
+
+  it("never folds underlying-share counts into the share position", () => {
+    // A right over shares is not ownership of them. The share count must come
+    // from share rows alone, whatever the option lines carry.
+    const rows = parseInformationTable(XML);
+    const [ibit] = positionsByIssuer(rows).filter((p) => p.callShares > 0);
+    expect(ibit).toBeDefined();
+    if (!ibit) return;
+    const shareRowTotal = rows
+      .filter((r) => r.type === "share" && r.cusip.startsWith(ibit.cusip6))
+      .reduce((s, r) => s + r.amount, 0);
+    expect(ibit.shares).toBe(shareRowTotal);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Convertible debt is not equity, and PRN is not a share count.
+//
+// sshPrnamtType is SH for shares and PRN for a principal amount. Convertible
+// bonds sit on the same information table as stock, and because they are not
+// options, every "is this an option?" test waves them straight into the share
+// bucket. JPMorgan's Q2 2026 filing carries 447 such rows worth $1,724,173,261.
+// IREN alone reports $1,294,000 of principal that reads as 1.29m extra
+// "shares" if the type field is ignored — which is how this article's first
+// draft reported IREN at 3,993,785 shares instead of 2,699,785.
+// ---------------------------------------------------------------------------
+describe("principal amounts are not shares", () => {
+  const bond = (value: number, principal: number): Holding => ({
+    issuer: "IREN LIMITED", cusip: "46270CAB5", titleOfClass: "BOND",
+    value, amount: principal, amountType: "PRN", type: "share",
+  });
+  const stock = (value: number, shares: number): Holding => ({
+    issuer: "IREN LIMITED", cusip: "46270C109", titleOfClass: "COMMON",
+    value, amount: shares, amountType: "SH", type: "share",
+  });
+
+  it("keeps debt principal out of the share count", () => {
+    const [p] = positionsByIssuer([stock(123_947_214, 2_699_785), bond(4_080_452, 1_294_000)]);
+    expect(p).toBeDefined();
+    if (!p) return;
+    expect(p.shares).toBe(2_699_785);
+    expect(p.shareValue).toBe(123_947_214);
+    expect(p.debtPrincipal).toBe(1_294_000);
+    expect(p.debtValue).toBe(4_080_452);
+  });
+
+  it("excludes debt from the share total but still counts it as money", () => {
+    const rows = [stock(123_947_214, 2_699_785), bond(4_080_452, 1_294_000)];
+    expect(shareTotal(rows)).toBe(123_947_214);
+    expect(debtTotal(rows)).toBe(4_080_452);
+    // Both are real reported value; the point is that they are different kinds.
+    expect(reportedTotal(rows)).toBe(128_027_666);
+  });
+
+  it("does not let a bond's price-per-dollar skew the unit inference", () => {
+    // A bond trades near par, so value/principal is about 1 — squarely under
+    // the $1 threshold that means "this filing is denominated in thousands".
+    // Enough of them would flip a dollar filing to thousands and divide a real
+    // book by a thousand.
+    const rows = [
+      ...Array.from({ length: 12 }, () => bond(1_000_000, 1_010_000)),
+      ...Array.from({ length: 10 }, () => stock(5_000_000, 50_000)), // $100/sh
+    ];
+    expect(detectValueUnit(rows).unit).toBe("dollars");
+    expect(detectValueUnit(rows).sampled).toBe(10);
   });
 });

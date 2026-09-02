@@ -16,8 +16,9 @@ import { resolveInstitution } from "@/lib/markets/institutions";
 //
 //   * share value and option NOTIONAL are different quantities. They are shown
 //     in separate columns and never summed.
-//   * option rows count CONTRACTS, not shares. The share column is blank for a
-//     row that has no share line, rather than showing the contract count.
+//   * an option row reports the UNDERLYING security -- its amount is a count of
+//     underlying shares, not contracts. Those shares are shown as what they are
+//     (a right over shares) and never in the share column.
 //   * the filer's own total includes derivatives; the "holdings" figure a
 //     reader means does not. Both are shown, labelled.
 //
@@ -31,10 +32,12 @@ interface Position {
   cusip6: string;
   shareValue: number;
   shares: number;
+  debtValue: number;
+  debtPrincipal: number;
   callValue: number;
-  callContracts: number;
+  callShares: number;
   putValue: number;
-  putContracts: number;
+  putShares: number;
   shareOfPortfolioPct: number | null;
 }
 
@@ -267,9 +270,10 @@ export default function InstitutionPage() {
           <section className="mt-7 px-5">
             <h2 className="text-[15px] font-bold">Largest positions</h2>
             <p className="mt-1 text-[12px] leading-relaxed text-textSecondary">
-              Ordered by share value. Option rows are reported at notional and
-              counted in contracts, so they are kept in their own columns and
-              never added to the share line.
+              Ordered by share value. An option row describes the security it is
+              written over, so its figures are counts of underlying shares — a
+              right over shares, not ownership — and are never added to the share
+              line. Only long options are reportable.
             </p>
 
             <ul className="mt-3 space-y-2">
@@ -304,16 +308,22 @@ export default function InstitutionPage() {
                         read as "holds none", which is different from "this row
                         is a derivative". */}
                     {p.shares > 0 && <span>{p.shares.toLocaleString("en-US")} shares</span>}
-                    {p.callContracts > 0 && (
+                    {p.debtPrincipal > 0 && (
                       <span>
-                        calls {compactUsd(p.callValue)} notional ·{" "}
-                        {p.callContracts.toLocaleString("en-US")} contracts
+                        convertible debt {compactUsd(p.debtValue)} · principal{" "}
+                        {p.debtPrincipal.toLocaleString("en-US")}
                       </span>
                     )}
-                    {p.putContracts > 0 && (
+                    {p.callShares > 0 && (
                       <span>
-                        puts {compactUsd(p.putValue)} notional ·{" "}
-                        {p.putContracts.toLocaleString("en-US")} contracts
+                        calls over {p.callShares.toLocaleString("en-US")} shares ·{" "}
+                        {compactUsd(p.callValue)}
+                      </span>
+                    )}
+                    {p.putShares > 0 && (
+                      <span>
+                        puts over {p.putShares.toLocaleString("en-US")} shares ·{" "}
+                        {compactUsd(p.putValue)}
                       </span>
                     )}
                   </div>

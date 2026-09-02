@@ -10,14 +10,25 @@
 //
 // ── THREE THINGS THAT MAKE 13F DATA WRONG ──────────────────────────────────
 //
-// 1. OPTION ROWS ARE NOT SHARES. Every row carries a putCall field. When it is
-//    populated the row is a derivative position, reported at the NOTIONAL value
-//    of the underlying rather than the premium paid, and sshPrnamt counts
-//    contracts, not shares. Summing the two together inflates a position; worse,
-//    reading contracts as shares invents share positions that do not exist. We
-//    have seen a widely-circulated summary describe a manager's "1.17M shares"
-//    of an ETF that the filing shows as zero shares and 1.2M option contracts.
-//    So shares and derivatives are separated here and never silently merged.
+// 1. OPTION ROWS ARE NOT SHARE POSITIONS -- BUT THEY ARE DENOMINATED IN SHARES.
+//    Every row carries a putCall field, and when it is populated the row is an
+//    option. What that row reports is the UNDERLYING SECURITY, not the contract:
+//    per the SEC's Form 13F FAQ on Column 5, "most of the column entries for an
+//    option refer to the underlying security, rather than to the option itself".
+//    So sshPrnamt is a count of underlying SHARES and value is those shares at
+//    the quarter-end price -- not a contract count, and not the premium paid.
+//
+//    This module previously documented the opposite, and the filing disproves it
+//    in one division. Value divided by amount on a share row and on that
+//    issuer's option rows gives the same price to four decimals: NVIDIA $194.97,
+//    Apple $281.74, QQQ $724.08, IBIT $34.18, ETHA $12.24. Across JPMorgan's
+//    Q2 2026 filing, 869 issuers carry both share and option rows and NONE shows
+//    the 100x ratio a contract count would produce.
+//
+//    Shares and options are still kept apart and never summed: an option row is
+//    a right over shares, not ownership of them, and the two answer different
+//    questions. Note also that written options are not reportable at all (FAQ
+//    43), so every option row is a long position and no net book can be derived.
 //
 // 2. A 13F IS A CONSOLIDATED REPORT, NOT ONE PORTFOLIO. Large filers submit a
 //    combination report covering many included managers — the reported total is
@@ -66,7 +77,7 @@ const TTL_HOLDINGS = 604_800; // 7d — a filed information table is immutable
  * A version in the key makes a shape change a cache miss instead of a
  * type-safe lie.
  */
-const SCHEMA = "v3";
+const SCHEMA = "v5";
 
 export type PositionType = "share" | "call" | "put";
 
@@ -76,7 +87,8 @@ export interface Holding {
   titleOfClass: string;
   /** Fair market value in whole US dollars, as reported. */
   value: number;
-  /** Shares for a share row; CONTRACTS for an option row. */
+  /** Shares. On an option row this is the number of UNDERLYING shares the
+   *  option is written over -- not a contract count. See the header. */
   amount: number;
   /** "SH" or "PRN" — principal amount rather than share count. */
   amountType: string;
@@ -281,11 +293,18 @@ export interface IssuerPosition {
   /** Share lines only — the position a person means by "owns". */
   shareValue: number;
   shares: number;
+  /** Convertible debt reported on this issuer. `debtPrincipal` is a PRINCIPAL
+   *  AMOUNT in dollars, not a share count, and the two must never be added. */
+  debtValue: number;
+  debtPrincipal: number;
   /** Derivative notional, kept separate and never added to shareValue. */
+  /** Value of the shares underlying long calls, at the quarter-end price. */
   callValue: number;
-  callContracts: number;
+  /** Underlying shares covered by long calls. NOT a contract count. */
+  callShares: number;
   putValue: number;
-  putContracts: number;
+  /** Underlying shares covered by long puts. NOT a contract count. */
+  putShares: number;
 }
 
 /** The 6-character issuer portion of a CUSIP.
@@ -320,14 +339,25 @@ export function positionsByIssuer(holdings: readonly Holding[]): IssuerPosition[
         cusip: null,
         shareValue: 0,
         shares: 0,
+        debtValue: 0,
+        debtPrincipal: 0,
         callValue: 0,
-        callContracts: 0,
+        callShares: 0,
         putValue: 0,
-        putContracts: 0,
+        putShares: 0,
       };
       map.set(key, p);
     }
-    if (h.type === "share") {
+    if (h.type === "share" && isPrincipal(h)) {
+      // A convertible bond row. sshPrnamtType says PRN, and the amount is a
+      // PRINCIPAL AMOUNT in dollars — not a share count. Adding it to `shares`
+      // adds dollars to a count of shares and silently inflates the position.
+      // JPMorgan's Q2 2026 filing carries 447 such rows worth $1,724,173,261;
+      // IREN alone reports $1,294,000 of principal that reads as 1.29m
+      // "shares" if the type field is ignored.
+      p.debtValue += h.value;
+      p.debtPrincipal += h.amount;
+    } else if (h.type === "share") {
       // The share line owns the canonical CUSIP; option CUSIPs are artefacts
       // of the contract, not identifiers anyone would look the security up by.
       p.cusip ??= h.cusip;
@@ -336,10 +366,10 @@ export function positionsByIssuer(holdings: readonly Holding[]): IssuerPosition[
       p.shares += h.amount;
     } else if (h.type === "call") {
       p.callValue += h.value;
-      p.callContracts += h.amount;
+      p.callShares += h.amount;
     } else {
       p.putValue += h.value;
-      p.putContracts += h.amount;
+      p.putShares += h.amount;
     }
   }
   return [...map.values()].sort((a, b) => b.shareValue - a.shareValue);
@@ -374,9 +404,10 @@ export interface UnitInference {
  * filings contain rows for warrants, rights and units whose implied prices are
  * genuinely pennies. A median over hundreds of rows is not.
  *
- * Only share rows are sampled. An option row's `sshPrnamt` counts contracts
- * and its value is the notional of the underlying, so value/amount is not a
- * price and would poison the sample.
+ * Only share rows are sampled. An option row's amount is a count of underlying
+ * shares, so its value/amount ratio is the same price as the share row's -- it
+ * would not skew the median, but it would double-weight issuers that happen to
+ * carry options, so it is left out.
  *
  * Ambiguity resolves to dollars — the SEC-mandated unit and the overwhelming
  * majority — because the failure directions are not symmetric. Reading dollars
@@ -388,9 +419,9 @@ export function detectValueUnit(holdings: readonly Holding[]): UnitInference {
   for (const h of holdings) {
     if (h.type !== "share") continue;
     if (h.value <= 0 || h.amount <= 0) continue;
-    // "PRN" rows are a principal amount of debt, not a share count, so
-    // value/amount is not a price per share.
-    if (h.amountType && h.amountType.toUpperCase() !== "SH") continue;
+    // A PRN row is a principal amount of debt, so value/amount is a price per
+    // dollar of principal, not a price per share.
+    if (isPrincipal(h)) continue;
     prices.push(h.value / h.amount);
   }
   if (prices.length < 8) {
@@ -408,17 +439,44 @@ export function detectValueUnit(holdings: readonly Holding[]): UnitInference {
 
 /** Restate a filing's values in whole dollars.
  *
- * Only `value` is scaled. Share counts and contract counts are already
- * absolute in every filing — it is the money column alone that carries the
- * unit, and multiplying the share count too would be a second, worse error. */
+ * Only `value` is scaled. Share counts are already absolute in every filing
+ * — it is the money column alone that carries the unit, and multiplying the
+ * share count too would be a second, worse error. */
 export function toDollars(holdings: readonly Holding[], unit: ValueUnit): Holding[] {
   if (unit === "dollars") return holdings as Holding[];
   return holdings.map((h) => ({ ...h, value: h.value * 1000 }));
 }
 
-/** Total across share lines only. This is the number to quote as "holdings". */
+/** Is this row a principal amount of debt rather than a share count?
+ *
+ * `sshPrnamtType` is SH for shares and PRN for a principal amount. A filing
+ * reports convertible debt on the same information table as equity, and the
+ * only thing separating them is this field — the row is not an option, so
+ * every "is it an option?" check waves it through into the share bucket. */
+function isPrincipal(h: Holding): boolean {
+  return h.amountType.toUpperCase() === "PRN";
+}
+
+/** Total across ordinary share lines. This is the number to quote as
+ * "holdings".
+ *
+ * Excludes convertible debt: a PRN row is a principal amount, and its VALUE is
+ * real money but it is not an equity position. In JPMorgan's Q2 2026 filing
+ * that distinction is $1,724,173,261 — non-option rows total
+ * $1,712,331,516,547 while genuine share rows total $1,710,607,343,286. */
 export function shareTotal(holdings: readonly Holding[]): number {
-  return holdings.reduce((s, h) => (h.type === "share" ? s + h.value : s), 0);
+  return holdings.reduce(
+    (s, h) => (h.type === "share" && !isPrincipal(h) ? s + h.value : s),
+    0
+  );
+}
+
+/** Value of convertible-debt rows, which are neither equity nor options. */
+export function debtTotal(holdings: readonly Holding[]): number {
+  return holdings.reduce(
+    (s, h) => (h.type === "share" && isPrincipal(h) ? s + h.value : s),
+    0
+  );
 }
 
 /** Total across every row, matching the filer's own tableValueTotal. */
