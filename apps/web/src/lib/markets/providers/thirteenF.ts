@@ -471,6 +471,20 @@ export function shareTotal(holdings: readonly Holding[]): number {
   );
 }
 
+/** Value of long call and put rows, which describe underlying securities. */
+export function optionTotals(holdings: readonly Holding[]): {
+  callValue: number;
+  putValue: number;
+} {
+  let callValue = 0;
+  let putValue = 0;
+  for (const h of holdings) {
+    if (h.type === "call") callValue += h.value;
+    else if (h.type === "put") putValue += h.value;
+  }
+  return { callValue, putValue };
+}
+
 /** Value of convertible-debt rows, which are neither equity nor options. */
 export function debtTotal(holdings: readonly Holding[]): number {
   return holdings.reduce(

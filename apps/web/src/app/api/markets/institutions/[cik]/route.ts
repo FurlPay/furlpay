@@ -5,6 +5,8 @@ import {
   latestThirteenF,
   positionsByIssuer,
   shareTotal,
+  debtTotal,
+  optionTotals,
   reportedTotal,
 } from "@/lib/markets/providers/thirteenF";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -82,6 +84,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ cik: stri
   // `reported` is the filer's own tableValueTotal and includes option notional.
   // Quoting the second as the first is how a book gets overstated by billions.
   const shares = shareTotal(filing.holdings);
+  const debt = debtTotal(filing.holdings);
+  const options = optionTotals(filing.holdings);
   const reported = reportedTotal(filing.holdings);
 
   return NextResponse.json({
@@ -97,7 +101,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ cik: stri
       entries: filing.reportedEntryTotal,
       /** Distinct issuers after options are folded onto their underlying. */
       issuers: positions.length,
+      // The four buckets every row falls into, and they sum to the filer's own
+      // total exactly. Serving them separately is what stops a caller inventing
+      // an "exposure" figure by adding whichever two look additive.
       shareValueTotal: shares,
+      debtValueTotal: debt,
+      callValueTotal: options.callValue,
+      putValueTotal: options.putValue,
       reportedValueTotal: reported,
       /** The filer's own stated total, for comparison with ours. */
       filerReportedValueTotal: filing.reportedValueTotal,

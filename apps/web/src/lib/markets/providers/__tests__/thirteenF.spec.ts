@@ -11,6 +11,7 @@ import {
   detectValueUnit,
   toDollars,
   debtTotal,
+  optionTotals,
   type Holding,
 } from "../thirteenF";
 
@@ -563,5 +564,76 @@ describe("principal amounts are not shares", () => {
     ];
     expect(detectValueUnit(rows).unit).toBe("dollars");
     expect(detectValueUnit(rows).sampled).toBe(10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The classification identity.
+//
+// Every row in an information table is exactly one of four things: an ordinary
+// share line, a principal amount of debt, a long call, or a long put. If the
+// classification is right, those four buckets sum to the filer's own stated
+// total — and if any row is being counted twice or dropped, they do not.
+//
+// This is the check that would have caught BOTH downstream bugs at once. It is
+// stronger than testing each bucket separately, because a row miscounted from
+// one bucket into another leaves each individual total looking plausible.
+// ---------------------------------------------------------------------------
+describe("every row lands in exactly one bucket", () => {
+  it("shares + debt + calls + puts equals the reported total", () => {
+    const rows = parseInformationTable(XML);
+    const opts = optionTotals(rows);
+    const sum = shareTotal(rows) + debtTotal(rows) + opts.callValue + opts.putValue;
+    expect(sum).toBe(reportedTotal(rows));
+  });
+
+  it("holds when debt is present", () => {
+    // The fixture has no PRN row, so the identity is proved on one built to
+    // contain all four kinds at once.
+    const mixed: Holding[] = [
+      { issuer: "A", cusip: "111111101", titleOfClass: "COMMON", value: 1000, amount: 10, amountType: "SH", type: "share" },
+      { issuer: "A", cusip: "111111AB5", titleOfClass: "BOND", value: 500, amount: 400, amountType: "PRN", type: "share" },
+      { issuer: "A", cusip: "111111901", titleOfClass: "OPTION", value: 300, amount: 3, amountType: "SH", type: "call" },
+      { issuer: "A", cusip: "111111951", titleOfClass: "OPTION", value: 200, amount: 2, amountType: "SH", type: "put" },
+    ];
+    const o = optionTotals(mixed);
+    expect(shareTotal(mixed)).toBe(1000);
+    expect(debtTotal(mixed)).toBe(500);
+    expect(o.callValue).toBe(300);
+    expect(o.putValue).toBe(200);
+    expect(shareTotal(mixed) + debtTotal(mixed) + o.callValue + o.putValue).toBe(reportedTotal(mixed));
+  });
+
+  it("keeps an issuer's debt, equity and options on one issuer row without merging them", () => {
+    // Same issuer prefix 111111, four different full CUSIPs. They belong to one
+    // issuer and to four different instruments, and both facts must survive.
+    const mixed: Holding[] = [
+      { issuer: "A", cusip: "111111101", titleOfClass: "COMMON", value: 1000, amount: 10, amountType: "SH", type: "share" },
+      { issuer: "A", cusip: "111111AB5", titleOfClass: "BOND", value: 500, amount: 400, amountType: "PRN", type: "share" },
+      { issuer: "A", cusip: "111111901", titleOfClass: "OPTION", value: 300, amount: 3, amountType: "SH", type: "call" },
+    ];
+    const [p] = positionsByIssuer(mixed);
+    expect(p).toBeDefined();
+    if (!p) return;
+    expect(p.shares).toBe(10);
+    expect(p.debtPrincipal).toBe(400);
+    expect(p.callShares).toBe(3);
+    // The canonical CUSIP is the share line's, never the bond's or the option's.
+    expect(p.cusip).toBe("111111101");
+  });
+
+  it("does not merge two issuers that merely share a name fragment", () => {
+    // IREN LIMITED, IRENIC ACQUISITION CORP and YIREN DIGITAL LTD all appear in
+    // JPMorgan's filing and all match a substring search for "IREN". Only the
+    // identifier separates them.
+    const rows: Holding[] = [
+      { issuer: "IREN LIMITED", cusip: "Q4982L109", titleOfClass: "COMMON", value: 123_947_214, amount: 2_699_785, amountType: "SH", type: "share" },
+      { issuer: "IRENIC ACQUISITION CORP", cusip: "G4939F107", titleOfClass: "COMMON", value: 1_223_618, amount: 122_730, amountType: "SH", type: "share" },
+      { issuer: "YIREN DIGITAL LTD", cusip: "98585L100", titleOfClass: "ADR", value: 457, amount: 415, amountType: "SH", type: "share" },
+    ];
+    const out = positionsByIssuer(rows);
+    expect(out).toHaveLength(3);
+    expect(out[0]!.shares).toBe(2_699_785);
+    expect(out[0]!.shareValue).toBe(123_947_214);
   });
 });
