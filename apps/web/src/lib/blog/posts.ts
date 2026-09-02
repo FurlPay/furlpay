@@ -30,19 +30,22 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
-  // Markets research — the JPMorgan 13F investigation. Rewritten 2026-09-02
-  // after re-verification against the raw filing overturned three claims in the
-  // first version of this post, including its headline finding. Every figure
-  // below was parsed from Information_Table_06.30.2026.xml with a
-  // namespace-tolerant parser that reconciles exactly to the filer's own stated
-  // entry count and total. Do not edit a number here without re-running that
-  // reconciliation; the corrections section is part of the record.
+  // Markets research — the JPMorgan Q2 2026 13F reference piece. Restructured
+  // 2026-09-02 to lead with the filing rather than with our own corrections,
+  // which now sit in a dated editor's note and a Corrections section at the end
+  // where a reader expects them.
+  //
+  // Every figure was parsed from Information_Table_06.30.2026.xml twice — once
+  // with a namespace-tolerant pattern reader, once with a streaming XML parser —
+  // and both reconcile to the filer's stated 34,064 entries and
+  // $1,807,041,234,839 exactly. Do not edit a number here without re-running
+  // that reconciliation. The corrections list is part of the record: append to
+  // it, never quietly rewrite a figure it names.
   {
     slug: "what-jpmorgans-13f-actually-says",
-    title:
-      "JPMorgan's 13F Was Not Wrong. Everything Downstream of It Was — Including Us.",
+    title: "JPMorgan 13F Q2 2026: What the SEC Filing Actually Shows",
     excerpt:
-      "A viral summary of JPMorgan's $1.807 trillion Q2 filing got several things right that we said were wrong. We reparsed all 34,064 rows of the original SEC XML and found the real story is not a bad filing but a fragile pipeline: option rows that describe the underlying security rather than the option, a share count that depends entirely on how you define a position, and an issuer named CIPHER DIGITAL that our own name-matching missed. Here is the filing, line by line, and the three corrections we owe readers.",
+      "JPMorgan reported $1,807,041,234,839 across 34,064 information-table rows for the quarter ended 30 June 2026. We parsed the original SEC XML twice and reconciled it to the dollar. Here is what the filing shows on the iShares Ethereum and Bitcoin trusts, Strategy, the bitcoin miners and the semiconductor names — and why the same filing produces different position counts, share totals and rankings depending on how the rows are read.",
     category: "engineering",
     date: "2026-09-02",
     readMins: 18,
@@ -51,17 +54,17 @@ export const POSTS: Post[] = [
     body: [
       {
         type: "p",
-        text: `An earlier version of this article said JPMorgan held zero shares of the iShares Ethereum Trust, and that a widely circulated claim of roughly 1.17 million shares had been manufactured by mistaking option contracts for stock. That was our error, not theirs. The filing contains three ordinary share rows for that ETF totalling 1,169,431 shares and $14,313,835. The circulating number was right. Ours was wrong.`,
+        text: `On 12 August 2026, JPMorgan Chase & Co. filed its Form 13F-HR for the quarter ended 30 June. The information table runs to 19,472,014 bytes and 34,064 rows, and reports securities worth $1,807,041,234,839. It is a public document, and the numbers in it are not in dispute.`,
       },
       {
         type: "p",
-        text: `This is the corrected version. It is also a different article, because the reason we got it wrong turned out to be more interesting than the thing we were trying to correct. The filing is not misleading. It is a precise regulatory document that says exactly what it means. What is fragile is everything that happens after it: how rows get counted, how options get read, how an issuer gets matched to a name. Three of those steps failed in our own pipeline, and each failure is one a commercial data vendor could make just as easily.`,
+        text: `What is in dispute is what those numbers mean. Depending on how the rows are counted, the same filing contains 34,064 positions, or 7,720, or 4,737. Depending on how one field is read, JPMorgan holds 3.8 million shares of Strategy Inc or 630,709. Depending on whether you match securities by name or by identifier, one bitcoin miner in the filing has no position at all. Every one of those readings is arithmetically defensible and only one of each pair is correct.`,
+      },
+      {
+        type: "p",
+        text: `This is what the filing reports, parsed from the original XML rather than from a summary of it, with the aggregation choices stated wherever they change an answer.`,
       },
       { type: "h2", text: "The primary document" },
-      {
-        type: "p",
-        text: `Every number in this article comes from one file on EDGAR. No vendor, no aggregator, no summary of a summary. Where a figure comes from somewhere else — a market price, a share count from a 10-Q — it is labelled as such.`,
-      },
       {
         type: "table",
         headers: ["Field", "Value"],
@@ -83,7 +86,7 @@ export const POSTS: Post[] = [
       },
       {
         type: "p",
-        text: `The parse reconciles exactly — same entry count, same total to the dollar. We then threw the parser away and did it again with a streaming XML parser rather than pattern matching, and it returned the same 34,064 rows, the same $1,807,041,234,839, and the same distinct-CUSIP counts. That is the minimum bar for saying anything else, and it is worth stating plainly that it was met, because every error described below happened downstream of a parse that was already correct.`,
+        text: `The parse reconciles exactly — same entry count, same total to the dollar. We then discarded that parser and did it again with a streaming XML parser rather than pattern matching, written independently. It returned the same 34,064 rows, the same $1,807,041,234,839, and the same distinct-CUSIP counts. Reconciliation against the filer's own stated totals is the minimum bar before quoting anything from a filing, and it is the step most summaries skip.`,
       },
       {
         type: "code",
@@ -98,11 +101,7 @@ curl -H "User-Agent: your-name your@email" \\
       { type: "h2", text: "34,064 entries is not 34,064 positions" },
       {
         type: "p",
-        text: `The filing's summary page reports 34,064 information-table entries. Various databases describe the same filing as containing roughly 7,720 positions. Our first version treated the second number as an error. It is not. The two count different things, and both are defensible.`,
-      },
-      {
-        type: "p",
-        text: `A Form 13F information table is a list of rows, not a list of holdings. The same security appears on many rows because the SEC requires separate reporting by investment discretion and by other managers, so one position held across several mandates is several rows. Counting the same filing six ways gives six answers:`,
+        text: `A Form 13F information table is a list of rows, not a list of holdings. The SEC requires separate reporting by investment discretion and by other included managers, so one position held across several mandates appears as several rows. Counting the same filing six ways gives six answers, and all six are reproducible from the document:`,
       },
       {
         type: "table",
@@ -118,28 +117,24 @@ curl -H "User-Agent: your-name your@email" \\
       },
       {
         type: "p",
-        text: `The 7,720 figure is the count of distinct CUSIPs. It is a reasonable definition of "position" and it is reproducible from the filing. So is 4,737, which folds an issuer's option CUSIPs onto the security they are written on. So is 34,064. "How many positions does JPMorgan report?" has no answer until someone says which of these they mean, and a summary that quotes one number against another quoting a different one is not a disagreement about facts.`,
+        text: `Databases that describe this filing as roughly 7,720 positions are counting distinct CUSIPs. That is a reasonable definition. So is 4,737, which folds an issuer's option CUSIPs onto the security they are written on. So is 34,064. "How many positions does JPMorgan report?" has no answer until someone says which of these they mean.`,
       },
       {
         type: "quote",
         text: `Different aggregation methodologies are not competing claims about reality. They become misleading only when the methodology is not stated — which is nearly always.`,
       },
-      { type: "h2", text: "The option problem, and what Column 5 actually holds" },
+      { type: "h2", text: "How the filing reports options" },
       {
         type: "p",
-        text: `This is where the first version of this article went wrong, and the mistake is worth walking through because it is the single easiest way to misread a 13F in either direction.`,
+        text: `This is the single easiest place to misread a 13F, in either direction. The SEC's Form 13F FAQ, answering what belongs in Column 5, is explicit: most of the column entries for an option "refer to the underlying security, rather than to the option itself", covering Columns 1 through 5 and 7 through 8. The option is identified by the PUT or CALL designation alone. The value, the amount and the class all describe the underlying.`,
       },
       {
         type: "p",
-        text: `We wrote that an option row's share field "counts contracts, not shares", and described JPMorgan's Ethereum ETF position as 600,000 call contracts and 600,000 put contracts. That is not what the filing reports. The SEC's own Form 13F FAQ, answering what belongs in Column 5, is explicit: most of the column entries for an option "refer to the underlying security, rather than to the option itself", covering Columns 1 through 5 and 7 through 8. The option is identified by the PUT or CALL designation alone. Everything else on the row — the value, the amount, the class — describes the underlying.`,
+        text: `Two fields settle it before any arithmetic. Option rows carry titleOfClass "OPTION" and a distinct CUSIP — the iShares Ethereum Trust's shares are 46438R105 while its calls and puts are 46438R905 and 46438R955 — and they carry sshPrnamtType "SH". The type field on an option row says shares.`,
       },
       {
         type: "p",
-        text: `Two further fields settle it before any arithmetic. The option rows carry titleOfClass "OPTION" and a distinct CUSIP — the Ethereum ETF's shares are 46438R105 while its calls and puts are 46438R905 and 46438R955 — and both option rows carry sshPrnamtType "SH". The type field on an option row literally says shares.`,
-      },
-      {
-        type: "p",
-        text: `The arithmetic agrees. Divide reported value by reported amount on a share row, and again on that issuer's option rows, and the two would differ by a factor of 100 if the option rows were denominated in contracts. They do not differ at all:`,
+        text: `The arithmetic agrees. Divide reported value by reported amount on a share row, then on the same issuer's option rows. If option rows were denominated in contracts the two would differ by a factor of about 100. They do not differ at all:`,
       },
       {
         type: "table",
@@ -154,29 +149,69 @@ curl -H "User-Agent: your-name your@email" \\
       },
       {
         type: "p",
-        text: `Across the whole filing there are 869 cases where an issuer has both share rows and option rows. In 729 of them the two implied prices agree within two percent. In none of them — zero out of 869 — is the ratio anywhere near 100. The option rows are denominated in underlying shares at the same quarter-end price as the stock.`,
+        text: `Across the filing, 869 issuers carry both share rows and option rows. In 729 the implied prices agree within two percent, and in none of them — zero out of 869 — is the ratio anywhere near 100. So an option row reads: this manager held options over this many shares of this security, and those shares were worth this much at quarter end. It is not a count of contracts, not a statement of what the options cost, and not a share position.`,
       },
       {
         type: "p",
-        text: `For scale: 466 call rows carry $37,970,606,604 and 473 put rows carry $56,739,111,688, together about 5.2 percent of the filing's reported value. Those are values of underlying securities, not money at risk, and they cannot be netted against each other because written options are not reportable.`,
-      },
-      {
-        type: "p",
-        text: `So the correct reading of an option row is: this manager held options over this many shares of this security, and those shares were worth this much at quarter end. It is not a statement about what the options cost, and it is not a share position. Two further constraints come straight from the SEC's guidance and matter for anyone tempted to net these figures: written options are not reportable at all, so every option row is a long position, and short equity positions never appear either. A filing therefore cannot show you a net book, and no arithmetic on it will produce one.`,
+        text: `For scale, 466 call rows carry $37,970,606,604 and 473 put rows carry $56,739,111,688, together about 5.2 percent of the filing's reported value. Two constraints from the SEC's guidance matter for anyone tempted to net them: written options are not reportable at all, so every option row is a long position, and short equity positions never appear either. A 13F cannot show a net book, and no arithmetic on it will produce one.`,
       },
       { type: "h2", text: "A third row type that is neither stock nor options" },
       {
         type: "p",
-        text: `Splitting rows into "shares" and "options" is still not enough, because a 13F information table also carries convertible debt. The field that distinguishes it is sshPrnamtType: SH for a share count, PRN for a principal amount in dollars. A bond row is not an option, so every test that asks only "is this an option?" waves it straight into the share bucket — where a principal amount gets added to a count of shares.`,
+        text: `Splitting rows into shares and options is still not enough, because the information table also carries convertible debt. The field that distinguishes it is sshPrnamtType: SH for a share count, PRN for a principal amount in dollars. A bond row is not an option, so any test that asks only "is this an option?" passes it into the share bucket, where a principal amount is added to a count of shares.`,
       },
       {
         type: "p",
-        text: `This filing carries 447 such rows worth $1,724,173,261, including convertible debt of Western Digital, Alibaba, Microchip and On Semiconductor. It also means a number we published above needs qualifying: $1,712,331,516,547 is the total of non-option rows, not of share rows. Genuine share rows total $1,710,607,343,286. The difference is the convertible debt.`,
+        text: `This filing carries 447 such rows worth $1,724,173,261 — convertible debt of Western Digital, Alibaba, Microchip, On Semiconductor and others. It is the difference between two totals that look interchangeable: non-option rows total $1,712,331,516,547, while genuine share rows total $1,710,607,343,286.`,
       },
-      { type: "h2", text: "The Ethereum ETF position, corrected" },
       {
         type: "p",
-        text: `With the methodology straight, here is what the filing reports for the iShares Ethereum Trust, CUSIP 46438R105 for the fund and 46438R905 and 46438R955 for the option lines. Three ordinary share rows, filed under different investment-discretion categories, plus one call line and one put line.`,
+        text: `Classified properly, every row in the filing falls into exactly one of four buckets, and the four sum to the filer's own stated total:`,
+      },
+      {
+        type: "table",
+        headers: ["Bucket", "Rows", "Reported value"],
+        rows: [
+          ["Ordinary shares (SH, non-option)", "32,678", "$1,710,607,343,286"],
+          ["Convertible debt (PRN)", "447", "$1,724,173,261"],
+          ["Calls, over underlying shares", "466", "$37,970,606,604"],
+          ["Puts, over underlying shares", "473", "$56,739,111,688"],
+          ["Total", "34,064", "$1,807,041,234,839"],
+        ],
+      },
+      { type: "h2", text: "The largest lines, counted two ways" },
+      {
+        type: "p",
+        text: `Ranked by ordinary share value, aggregating each issuer by its six-character CUSIP prefix:`,
+      },
+      {
+        type: "table",
+        headers: ["#", "Security", "Ordinary shares", "Reported value", "% of share total"],
+        rows: [
+          ["1", "NVIDIA", "449,404,578", "$87.62B", "5.12%"],
+          ["2", "Alphabet (all classes)", "230,990,188", "$80.93B", "4.73%"],
+          ["3", "Apple", "228,762,008", "$64.45B", "3.76%"],
+          ["4", "JPM Diversified Return US MC Equity", "726,063,576", "$53.35B", "3.12%"],
+          ["5", "Microsoft", "135,173,516", "$49.82B", "2.91%"],
+          ["6", "iShares S&P Small-Cap 600 Growth", "286,317,285", "$48.55B", "2.84%"],
+          ["7", "Amazon", "167,979,147", "$40.34B", "2.36%"],
+          ["8", "Broadcom", "95,016,148", "$35.39B", "2.07%"],
+          ["9", "SPDR S&P 500 ETF", "47,650,227", "$35.31B", "2.06%"],
+          ["10", "Micron Technology", "25,836,011", "$29.59B", "1.73%"],
+        ],
+      },
+      {
+        type: "p",
+        text: `Four of those ten are funds rather than operating companies, and one is JPMorgan's own product. Restricting to operating companies gives a different list: NVIDIA, Alphabet, Apple, Microsoft, Amazon, Broadcom, Micron, then Meta at $25.85 billion, AMD at $21.75 billion and Lam Research at $18.62 billion. Neither ranking is more correct — they answer different questions, and publishing one while implying the other is how "largest holding" claims go wrong.`,
+      },
+      {
+        type: "p",
+        text: `Alphabet is aggregated across share classes here. Splitting Class A from Class C would move it down the table. We state the choice rather than leave a reader to discover it by disagreeing with a different site.`,
+      },
+      { type: "h2", text: "The iShares Ethereum Trust position" },
+      {
+        type: "p",
+        text: `A widely circulated figure put JPMorgan at roughly 1.17 million shares of the iShares Ethereum Trust, worth about $14.3 million, up around fourfold on the quarter. The filing supports all three parts of that.`,
       },
       {
         type: "table",
@@ -189,21 +224,17 @@ curl -H "User-Agent: your-name your@email" \\
       },
       {
         type: "p",
-        text: `The circulating claim of roughly 1.17 million shares worth about $14.3 million is correct, and matches the filing to the dollar. The three share rows are split by investment discretion — one OTR row of 156 shares and two DFND rows — which is why they appear separately rather than as one line. The share line was there the whole time.`,
+        text: `The three share rows are split by investment discretion — one OTR row of 156 shares and two DFND rows — which is why they appear separately rather than as one line. JPMorgan's Q1 2026 filing, accession 0000019617-26-000225 for the period ended 31 March, reports 266,734 ordinary shares worth $4,073,028. The increase to 1,169,431 shares is 902,697 shares, or 338 percent.`,
       },
       {
         type: "p",
-        text: `One detail from those rows is worth keeping. The share rows name the issuer "ISHARES ETHEREUM TRUST ETF"; the option rows name it "ISHARES ETHEREUM TR". The same security, two spellings, in the same filing. Anything matching on issuer name rather than identifier splits the position in half without reporting an error.`,
+        text: `One detail from those rows is worth keeping. The share rows name the issuer "ISHARES ETHEREUM TRUST ETF"; the option rows name it "ISHARES ETHEREUM TR". The same security, two spellings, in the same filing. Anything matching on issuer name rather than identifier splits the position without reporting an error.`,
       },
       {
         type: "p",
-        text: `The claim that the position roughly quadrupled over the quarter is also correct. JPMorgan's Q1 2026 filing — accession 0000019617-26-000225, period 31 March 2026 — reports 266,734 ordinary shares worth $4,073,028. Against 1,169,431 shares at 30 June, that is an increase of 902,697 shares, or 338 percent. What the filing does not establish is why. It shows a reported position growing. It does not identify the position as proprietary, as client facilitation, as a hedge, or as a directional view, and nothing in the document distinguishes between them.`,
+        text: `What the filing does not establish is why the position grew. It shows a reported position increasing. It does not identify that position as proprietary, as client facilitation, as a hedge or as a directional view, and nothing in the document distinguishes between them. The same restraint applies to the equal call and put lines: 600,000 underlying shares on each side is consistent with a hedged or non-directional structure, and consistent with several other things too.`,
       },
-      {
-        type: "p",
-        text: `The same discipline applies to the equal call and put lines. Six hundred thousand underlying shares on each side is consistent with a hedged or non-directional structure. It is also consistent with several other things. Our first version said it was "the shape of a book that exists to make markets in the option". The filing does not say that, and neither should we.`,
-      },
-      { type: "h2", text: "The bitcoin ETF position, which really did move" },
+      { type: "h2", text: "The iShares Bitcoin Trust position" },
       {
         type: "table",
         headers: ["iShares Bitcoin Trust", "Q1 2026 (31 Mar)", "Q2 2026 (30 Jun)", "Change"],
@@ -216,18 +247,18 @@ curl -H "User-Agent: your-name your@email" \\
       },
       {
         type: "p",
-        text: `The ordinary share count rose about 25 percent quarter over quarter. The put line fell by more than a quarter. Both are computed from two filings, and both are facts about what was reported. Neither establishes a house view, and the reported value rose less than the share count did because the ETF's quarter-end price fell — which is itself a reminder that a change in reported value mixes a change in position with a change in price.`,
+        text: `The ordinary share count rose about 25 percent quarter over quarter and the put line fell by more than a quarter. Both are computed from two filings and both are facts about what was reported. The reported value rose less than the share count did because the ETF's quarter-end price fell — a reminder that a change in reported value mixes a change in position with a change in price.`,
       },
       { type: "h2", text: "The 33-share Solana position" },
       {
         type: "p",
-        text: `A circulating claim put JPMorgan at roughly 47,500 shares of the Bitwise Solana Staking ETF. The Q2 filing reports 33 shares, worth $340. Our first version called this a position "overstated by more than a thousand times". The prior quarter explains it better than that: at 31 March the filing reports 47,460 shares, worth $523,484. The claim was not invented. It was a quarter out of date.`,
+        text: `A circulating claim put JPMorgan at roughly 47,500 shares of the Bitwise Solana Staking ETF. The Q2 filing reports 33 shares, worth $340. The prior quarter explains the gap: at 31 March the filing reports 47,460 shares, worth $523,484. The claim was not invented. It was a quarter out of date, which is the most common failure in filing-derived data and looks identical to fabrication from the outside.`,
       },
       {
         type: "p",
-        text: `That is a more useful diagnosis than an accusation, because stale-quarter errors are the most common failure in filing-derived data and they look identical to fabrication from the outside. The ticker point stands, though: the fund trades as BSOL, and "SOL" is not a US equity ticker. A summary that writes the position as SOL has conflated a listed ETF with the token it tracks — the exact identity collapse discussed below.`,
+        text: `The ticker in that claim is a separate problem. The fund trades as BSOL. "SOL" is not a US equity ticker at all — it is the token the fund tracks.`,
       },
-      { type: "h2", text: "Strategy, and why three numbers are not one position" },
+      { type: "h2", text: "Strategy Inc: why three numbers are not one position" },
       {
         type: "table",
         headers: ["Strategy Inc (MSTR)", "Q1 2026", "Q2 2026"],
@@ -242,17 +273,13 @@ curl -H "User-Agent: your-name your@email" \\
       },
       {
         type: "p",
-        text: `Strategy is the clearest case in the filing of why the row type has to be read before the number. Nineteen rows sit under the CUSIP prefix 594972: eleven of common stock, two of a convertible preferred series, four of convertible notes, and one each of calls and puts. The equity rows total 630,709 shares. The note rows are a principal amount of $3,200,000, and adding them to the equity gives 3,830,709 — a figure that is not a share count of anything.`,
+        text: `Nineteen rows sit under the CUSIP prefix 594972: eleven of common stock, two of a convertible preferred series, four of convertible notes, and one each of calls and puts. The equity rows total 630,709 shares — 624,387 of common under CUSIP 594972408 plus 6,322 of preferred. The note rows are a principal amount of $3,200,000. Adding the two gives 3,830,709, a figure that is not a share count of anything, and it is the number that has circulated most widely.`,
       },
       {
         type: "p",
-        text: `That is the number the first version of this article published, and it led it to dismiss a circulating claim of "624,387+ shares" as understating the position roughly sixfold. In fact 624,387 is exactly the common-stock line under CUSIP 594972408. The circulating figure was the correct one; ours was the equity and the debt principal added together.`,
+        text: `Read by row type, the equity position rose over the quarter while the convertible principal roughly halved. A summary reporting a single "MSTR position" has to choose one of these to be the number, and whichever it chooses will be wrong for some readers.`,
       },
-      {
-        type: "p",
-        text: `Read properly, the equity position rose over the quarter — 567,804 shares to 630,709 — while the convertible principal roughly halved, from $6,543,000 to $3,200,000. The first version reported the opposite, that the position had halved, because the debt was driving a number labelled as shares.`,
-      },
-      { type: "h2", text: "The crypto-linked names, share rows only" },
+      { type: "h2", text: "The crypto-linked names, ordinary share rows only" },
       {
         type: "table",
         headers: ["Security", "Ordinary shares", "Reported value"],
@@ -275,70 +302,38 @@ curl -H "User-Agent: your-name your@email" \\
       },
       {
         type: "p",
-        text: `IREN is the sharpest illustration in the filing of why that table needs a footnote. Searching the issuer name for "IREN" returns 19 rows across three different companies and three instrument types. The miner's common stock is 12 rows under CUSIP Q4982L109 — 2,699,785 shares, $123,947,214. Its options are two more rows under Q4982L909 and Q4982L959, over 788,100 underlying shares. And three further rows are convertible bonds under two entirely different CUSIPs, 46270CAB5 and 46270CAD1, carrying $4,080,452 of value over $1,294,000 of principal.`,
+        text: `Robinhood is the largest of these by a wide margin. Grayscale's original Bitcoin Trust, the fund whose outflows are written about constantly, is a 448-share line worth $20,952 — a rounding error inside a $1.8 trillion filing.`,
+      },
+      { type: "h2", text: "Why a ticker is not a security identity" },
+      {
+        type: "p",
+        text: `IREN is the sharpest illustration in this filing. Searching the issuer name for "IREN" returns 19 rows across three different companies and three instrument types. The miner's common stock is 12 rows under CUSIP Q4982L109 — 2,699,785 shares, $123,947,214. Its options are two rows under Q4982L909 and Q4982L959, over 788,100 underlying shares. Three further rows are convertible bonds under two entirely different CUSIPs, 46270CAB5 and 46270CAD1, carrying $4,080,452 of value over $1,294,000 of principal. The remaining rows belong to IRENIC ACQUISITION CORP and YIREN DIGITAL LTD, which are unrelated companies.`,
       },
       {
         type: "p",
-        text: `An earlier draft of this article reported IREN at 3,993,785 shares and $128,027,666. That is the common stock plus the bond principal added together as though principal were a share count, and the value of the debt folded into the equity line. The corrected figures are above. The remaining two rows in that name search belong to IRENIC ACQUISITION CORP and YIREN DIGITAL LTD, which are not the same company as IREN Limited and not related to it.`,
+        text: `IREN also marks the limit of the method used here. Grouping by the first six CUSIP characters folds an issuer's options onto its stock, but IREN's shares carry a CINS beginning Q4982L — the identifier range for foreign issuers — while its US-registered notes begin 46270C. Same company, two unrelated prefixes, so this aggregation reports them separately. That is a defensible choice and a visible one; it is not a complete answer to corporate identity, and it is better to say where a method stops than to imply it does not.`,
       },
       {
         type: "p",
-        text: `IREN also marks the limit of the approach we use. Grouping by the first six CUSIP characters folds an issuer's options onto its stock, but IREN's shares carry a CINS beginning Q4982L — the identifier range used for foreign issuers — while its US-registered notes begin 46270C. Same company, two unrelated prefixes, so our aggregation reports them as two entries. That is a defensible choice and a visible one; it is not a complete answer to corporate identity, and we would rather say where the method stops than imply it does not.`,
+        text: `Cipher makes the same point from the other direction. The company usually called Cipher Mining is filed as CIPHER DIGITAL INC. A search for "CIPHER MINING" returns nothing and produces a confident false negative on a $17,583,910 position sitting under CUSIP 17253J106.`,
+      },
+      { type: "h2", text: "Where circulating summaries fail against the filing" },
+      {
+        type: "p",
+        text: `The semiconductor figure. A widely repeated claim is that Taiwan Semiconductor, AMD, Qualcomm and Applied Materials together account for "$240+ billion". Ordinary share rows in the filing: AMD $21,746,429,376, Taiwan Semiconductor $10,844,709,209, Qualcomm $1,560,803,624 — $34,151,942,209 in total. Applied Materials does not appear in the filing at all, under any CUSIP or name variant. Adding every option row for the three that are present raises the total only to about $37.4 billion.`,
       },
       {
         type: "p",
-        text: `Cipher makes the same point from the other direction. The company most summaries call Cipher Mining is filed as CIPHER DIGITAL INC. Our first extraction searched for "CIPHER MINING", found nothing, and reported the position as absent. It is 692,770 shares worth $17,583,910, under CUSIP 17253J106, with call and put rows under 17253J906 and 17253J956.`,
-      },
-      { type: "h2", text: "Where the circulating summary genuinely fails" },
-      {
-        type: "p",
-        text: `Two claims do not survive the filing, and both were confirmed on re-verification.`,
-      },
-      {
-        type: "p",
-        text: `The semiconductor figure. The claim is that Taiwan Semiconductor, AMD, Qualcomm and Applied Materials together account for "$240+ billion". Ordinary share rows in the filing: AMD $21,746,429,376, Taiwan Semiconductor $10,844,709,209, Qualcomm $1,560,803,624. That totals $34,151,942,209. Applied Materials does not appear in the filing at all, under any CUSIP or name variant we could find. This is a roughly sevenfold overstatement plus one named holding that is not held, and adding every option row for the three that are present raises the total only to about $37.4 billion.`,
-      },
-      {
-        type: "p",
-        text: `The Berkshire ranking. Berkshire Hathaway appears at $6.50 billion of ordinary shares, and it is not the largest non-technology line by any reading. Johnson & Johnson at $15.07 billion, Mastercard at $14.39 billion and AbbVie at $12.17 billion are all larger operating companies. Several fund vehicles are larger still, which is a category difference rather than a comparison, and is handled below.`,
-      },
-      { type: "h2", text: "The largest lines, counted two ways" },
-      {
-        type: "p",
-        text: `Our first version published a "ten largest positions" table that was not the ten largest. It silently omitted two fund vehicles that rank fourth and sixth. Ranked properly by ordinary share value, aggregating each issuer by its six-character CUSIP prefix:`,
-      },
-      {
-        type: "table",
-        headers: ["#", "Security", "Ordinary shares", "Reported value", "% of share total"],
-        rows: [
-          ["1", "NVIDIA", "449,404,578", "$87.62B", "5.12%"],
-          ["2", "Alphabet (all classes)", "230,990,188", "$80.93B", "4.73%"],
-          ["3", "Apple", "228,762,008", "$64.45B", "3.76%"],
-          ["4", "JPM Diversified Return US MC Equity", "726,063,576", "$53.35B", "3.12%"],
-          ["5", "Microsoft", "135,173,516", "$49.82B", "2.91%"],
-          ["6", "iShares S&P Small-Cap 600 Growth", "286,317,285", "$48.55B", "2.84%"],
-          ["7", "Amazon", "167,979,147", "$40.34B", "2.36%"],
-          ["8", "Broadcom", "95,016,148", "$35.39B", "2.07%"],
-          ["9", "SPDR S&P 500 ETF", "47,650,227", "$35.31B", "2.06%"],
-          ["10", "Micron Technology", "25,836,011", "$29.59B", "1.73%"],
-        ],
-      },
-      {
-        type: "p",
-        text: `Four of those ten are funds rather than operating companies, and one of them is JPMorgan's own product. Restricting to operating companies gives a different list — NVIDIA, Alphabet, Apple, Microsoft, Amazon, Broadcom, Micron, Meta at $25.85 billion, AMD at $21.75 billion, Lam Research at $18.62 billion. Neither ranking is more correct; they answer different questions. Publishing one while implying the other is how "largest holding" claims go wrong.`,
-      },
-      {
-        type: "p",
-        text: `Alphabet is aggregated across share classes here, which is a choice. Splitting Class A from Class C would move it down the table. We say so rather than leaving the reader to discover it by disagreeing with a different site.`,
+        text: `The Berkshire ranking. Berkshire Hathaway appears at $6.50 billion of ordinary shares and is not the largest non-technology line by any reading. Johnson & Johnson at $15.07 billion, Mastercard at $14.39 billion and AbbVie at $12.17 billion are all larger operating companies, and several fund vehicles are larger still.`,
       },
       { type: "h2", text: "What the $1.807 trillion is, and is not" },
       {
         type: "p",
-        text: `It is not JPMorgan's portfolio in the sense a reader naturally imports. The cover page lists 17 other included managers, which under the SEC's own definitions makes this a combination report — a sum across a structure of affiliated managers, not one desk's book. The filing reports securities over which those managers exercised investment discretion. It does not distinguish proprietary capital from client assets, and it does not say why any position exists.`,
+        text: `It is not JPMorgan's portfolio in the sense a reader naturally imports. The cover page lists 17 other included managers, which under the SEC's definitions makes this a combination report — a sum across a structure of affiliated managers, not one desk's book. The filing reports securities over which those managers exercised investment discretion. It does not distinguish proprietary capital from client assets, and it does not say why any position exists.`,
       },
       {
         type: "p",
-        text: `Nor is it a complete picture of anything. Section 13(f) securities are principally US exchange-traded equities and ETFs, with certain convertible debt, options and warrants; short positions, cash, most debt and non-US listings are outside the report entirely. Written options are excluded by rule. The document describes holdings as of 30 June 2026 and was filed on 12 August, generally within the 45 days managers are given. The SEC does not verify these filings, so the correct phrasing everywhere downstream is "the filing reports", never "the SEC confirms".`,
+        text: `Nor is it a complete picture of anything. Section 13(f) securities are principally US exchange-traded equities and ETFs, with certain convertible debt, options and warrants; short positions, cash, most debt and non-US listings fall outside the report. Written options are excluded by rule. The document describes holdings as of 30 June 2026 and was filed on 12 August, generally within the 45 days managers are given. The SEC does not verify these filings, so the correct phrasing downstream is "the filing reports", never "the SEC confirms".`,
       },
       { type: "h2", text: "JPMorgan's own stock, measured separately" },
       {
@@ -360,84 +355,26 @@ curl -H "User-Agent: your-name your@email" \\
       },
       {
         type: "p",
-        text: `The return figures depend entirely on the start date, which is why the basis is printed beside them. A summary quoting +20.6% and +19.2% is not necessarily lying; it may be measuring from different days. Without the basis, neither number can be checked, which is the point.`,
+        text: `Return figures depend entirely on the start date, which is why the basis is printed beside them. A summary quoting +20.6% and +19.2% is not necessarily wrong; it may be measuring from different days. Without the basis, neither number can be checked.`,
       },
-      { type: "h2", text: "Where our pipeline broke" },
+      { type: "h2", text: "Reported, computed, normalized, inferred" },
       {
         type: "p",
-        text: `Three failures, none of them in the parse itself. The row count and the total reconciled to the dollar on the first run. Everything that went wrong happened in the layer above.`,
-      },
-      {
-        type: "p",
-        text: `A verification script that was not namespace-safe. JPMorgan's information table uses the ns1 prefix on every element. Our main parser tolerates an optional prefix; a throwaway script written to double-check three securities did not, and returned zero rows for all three. A checker that silently finds nothing looks exactly like a checker that finds nothing wrong.`,
-      },
-      {
-        type: "p",
-        text: `Name matching instead of identifier matching. Searching for "CIPHER MINING" against a filing that says "CIPHER DIGITAL INC" produced a confident false negative on a $17.6 million position. The CUSIP was right there.`,
-      },
-      {
-        type: "p",
-        text: `An expectation encoded as a fact. The belief that option rows count contracts was written into a comment, then into a field name, then into an article. Nobody re-derived it from the data, and the data disproves it in one division.`,
-      },
-      {
-        type: "code",
-        lang: "typescript",
-        code: `// The check that would have caught it, and now runs in CI.
-// If an option row were denominated in contracts, its implied price
-// would be ~100x the share row's. Across this filing it is 1.0000.
-const impliedShare = shareValue / shareAmount;
-const impliedCall = callValue / callAmount;
-expect(impliedCall / impliedShare).toBeCloseTo(1, 2);`,
-      },
-      { type: "h2", text: "What we changed" },
-      {
-        type: "p",
-        text: `The corrections above are live in the parser, not just in this article. Option rows are now labelled as underlying shares rather than contracts, and the field names changed with them. Reconciliation against the filer's stated totals is enforced before any figure is served, with a tolerance of half a dollar per entry — the arithmetic bound on the filer's own rounding, which is tight enough to still fail a dropped row.`,
-      },
-      {
-        type: "p",
-        text: `Securities are matched by CUSIP, never by issuer name. The six-character CUSIP prefix is what folds an option line onto the security it is written on; issuer names do not, which is how RIOT matches MARRIOTT and MARA matches MARATHON PETROLEUM. Nothing in our catalog links a 13F row to a tradable symbol, because a CUSIP-to-ticker map is a thing we do not have and will not approximate with string comparison.`,
-      },
-      {
-        type: "p",
-        text: `Eleven securities from this filing were tradable in FurlPay but uncatalogued, so they priced and traded while being invisible to screening. GOOG, MSTR, IREN, RIOT, CIFR, MARA, CLSK, GBTC, BSOL, JEPI and JEPQ now carry a sector and a computed market-cap tier — live price times shares outstanding from each issuer's own filing, using the basic weighted average where a company reports per class. No dollar figure from the 13F is stored anywhere in the codebase. A quarterly snapshot embedded in source is stale within weeks and unverifiable forever.`,
-      },
-      { type: "h2", text: "A ticker is not a security identity" },
-      {
-        type: "p",
-        text: `The engineering consequence that outlasts this filing is a naming problem. BTC is a real, tradable US ticker — the Grayscale Bitcoin Mini Trust, which appears in this filing at 145,717 shares. It is also what people mean when they type three letters into a payments app. XRP is both a token and the Bitwise XRP ETF. SOL is a token and, in a summary written carelessly, a fund that actually trades as BSOL.`,
-      },
-      {
-        type: "p",
-        text: `Our catalog resolves a bare ticker towards the listed security, a rule added after STX resolved to Stacks rather than Seagate. But that map is also what the order endpoint books against, so cataloguing the Grayscale fund under BTC would not have been a display change — it would have quietly redefined what "buy BTC" executes. Both were left out, the reasoning sits beside the entry, and a test fails if anyone adds the row.`,
-      },
-      {
-        type: "code",
-        lang: "typescript",
-        code: `// The tripwire, not the comment, is what protects this.
-it("BTC still resolves to the coin, not an ETF", () => {
-  expect(bySymbol.get("BTC")?.kind).toBe("crypto");
-  expect(byKindSymbol.has("etf:BTC")).toBe(false);
-});`,
-      },
-      { type: "h2", text: "Reported, computed, inferred" },
-      {
-        type: "p",
-        text: `The habit that would have prevented every error in the first version of this article is labelling which kind of statement a number is.`,
+        text: `The discipline that prevents most filing-derived errors is labelling which kind of statement a number is.`,
       },
       {
         type: "ul",
         items: [
-          "REPORTED — present in the filing. JPMorgan's filing reports 1,169,431 ordinary shares of the iShares Ethereum Trust.",
+          "REPORTED — present in the filing. The filing reports 1,169,431 ordinary shares of the iShares Ethereum Trust.",
           "COMPUTED — arithmetic over reported values, with the inputs named. That is 338% above the 266,734 shares in the prior quarter's filing.",
           "NORMALIZED — the result of an aggregation choice. Alphabet at $80.93B combines share classes under one CUSIP prefix; splitting them gives a different table.",
           "INFERRED — an interpretation the filing permits but does not establish. Equal call and put lines are consistent with a hedged structure.",
-          "NOT ESTABLISHED — what the document cannot support. The filing does not show whether any position is proprietary, facilitation, hedging, or a directional view.",
+          "NOT ESTABLISHED — what the document cannot support. The filing does not show whether any position is proprietary, facilitation, hedging or a directional view.",
         ],
       },
       {
         type: "p",
-        text: `Our first version moved a claim from the last category into the first without noticing. That is the whole mechanism by which a correct filing becomes a wrong headline, and it does not require anyone to act in bad faith.`,
+        text: `Almost every wrong headline about a 13F is a claim that moved from the last category into the first without anyone noticing. It does not require bad faith, only an unlabelled number.`,
       },
       { type: "h2", text: "How to audit a 13F yourself" },
       {
@@ -448,16 +385,42 @@ it("BTC still resolves to the coin, not an ETF", () => {
           "Check whether a later 13F-HR/A exists, and read its amendment type. A restatement replaces the filing; an amendment adding new holdings contains only the added rows.",
           "Parse with a namespace-tolerant reader. Filers use ns1, n1 or no prefix, and a parser that assumes one shape returns zero rows for the others.",
           "Reconcile your row count and your sum against the filer's own tableEntryTotal and tableValueTotal before quoting anything.",
-          "Separate share rows from option rows on the putCall field, and state which basis any figure uses.",
-          "Remember that an option row's amount and value describe the underlying security, not the contract, and that written options are not reported at all.",
-          "Aggregate on CUSIP, not on issuer name, and say which aggregation your counts use.",
+          "Classify on sshPrnamtType as well as putCall, so convertible debt reported as a principal amount never reaches a share count.",
+          "Remember that an option row's amount and value describe the underlying security, and that written options are not reported at all.",
+          "Aggregate on CUSIP, not on issuer name, and state which aggregation your counts use.",
           "Compare against the prior quarter before calling a number new, missing or wrong.",
         ],
       },
-      { type: "h2", text: "Corrections" },
+      { type: "h2", text: "What this changed in our own systems" },
       {
         type: "p",
-        text: `This article previously stated that JPMorgan held no shares of the iShares Ethereum Trust and that the circulating figure of about 1.17 million shares was produced by reading contracts as shares. The filing reports 1,169,431 ordinary shares worth $14,313,835. The circulating figure was correct and the correction was ours.`,
+        text: `Our 13F parser now labels option rows as underlying shares rather than contracts, and the field names changed with them. Convertible debt aggregates into its own principal and value fields and is excluded from share totals. Reconciliation against the filer's stated totals runs before any figure is served, with a tolerance of half a dollar per entry — the arithmetic bound on the filer's own rounding, tight enough to still fail a dropped row. A test asserts that the four buckets sum to the reported total, which is the check that catches a row miscounted from one bucket into another.`,
+      },
+      {
+        type: "p",
+        text: `Securities are matched by CUSIP, never by issuer name, because issuer names are how "RIOT" matches MARRIOTT and "MARA" matches MARATHON PETROLEUM. Nothing in our catalog links a 13F row to a tradable symbol: a CUSIP-to-ticker map is something we do not have and will not approximate with string comparison.`,
+      },
+      {
+        type: "p",
+        text: `The naming problem outlasts this filing. BTC is a real, tradable US ticker — the Grayscale Bitcoin Mini Trust, which appears in this filing at 145,717 shares — and it is also what people mean when they type three letters into a payments app. XRP is both a token and an ETF. Our catalog resolves a bare ticker towards the listed security, a rule added after STX resolved to Stacks rather than Seagate. But that map is what the order endpoint books against, so cataloguing the Grayscale fund under BTC would have quietly redefined what "buy BTC" executes. Both were left out, and a test fails if anyone adds the row.`,
+      },
+      {
+        type: "code",
+        lang: "typescript",
+        code: `// The tripwire, not the comment, is what protects this.
+it("BTC still resolves to the coin, not an ETF", () => {
+  expect(bySymbol.get("BTC")?.kind).toBe("crypto");
+  expect(byKindSymbol.has("etf:BTC")).toBe(false);
+});`,
+      },
+      { type: "h2", text: "Editor's note and corrections" },
+      {
+        type: "p",
+        text: `This article was substantially revised on 2 September 2026. An earlier version, published the same day under a different headline, reported several figures incorrectly. None of the errors came from the filing or from extracting it — the row count and total reconciled to the dollar on the first parse. All of them came from how correctly extracted rows were then classified. The corrections are listed here rather than quietly amended.`,
+      },
+      {
+        type: "p",
+        text: `It stated that JPMorgan held no shares of the iShares Ethereum Trust, and that a circulating figure of about 1.17 million shares had been produced by reading option contracts as stock. The filing reports 1,169,431 ordinary shares worth $14,313,835. The circulating figure was correct and the error was ours.`,
       },
       {
         type: "p",
@@ -465,25 +428,21 @@ it("BTC still resolves to the coin, not an ETF", () => {
       },
       {
         type: "p",
-        text: `It described an option row's amount as a count of contracts. Per the SEC's Form 13F guidance and confirmed arithmetically across 869 issuer comparisons in this filing, the amount and value on an option row describe the underlying security.`,
+        text: `It described an option row's amount as a count of contracts. Per the SEC's Form 13F guidance and confirmed across 869 issuer comparisons in this filing, the amount and value on an option row describe the underlying security.`,
       },
       {
         type: "p",
-        text: `It published a "ten largest positions" table that omitted two fund vehicles ranking fourth and sixth, and characterised a distinct-CUSIP count of about 7,720 as an error rather than a different and valid aggregation. It also reported Cipher Mining as absent from the filing; the issuer is filed as CIPHER DIGITAL INC and holds $17,583,910.`,
+        text: `It reported Strategy Inc at 3,830,709 shares and dismissed a circulating claim of "624,387+ shares" as understating the position roughly sixfold. Both were wrong for the same reason: 3,830,709 is 630,709 shares of stock plus $3,200,000 of convertible note principal, and 624,387 is exactly the common-stock line. It also said the position had halved over the quarter; the equity rose, and it was the note principal that fell.`,
       },
       {
         type: "p",
-        text: `A draft of this rewrite reported IREN Limited at 3,993,785 shares and $128,027,666. That added convertible-bond principal to a share count. The common stock is 2,699,785 shares worth $123,947,214, with the debt reported separately. The same draft described $1,712,331,516,547 as the total of ordinary share lines; that figure is the total of all non-option rows, and share rows alone total $1,710,607,343,286.`,
+        text: `A revision reported IREN Limited at 3,993,785 shares and $128,027,666, again adding bond principal to a share count. The common stock is 2,699,785 shares worth $123,947,214, with the debt reported separately. The same revision described $1,712,331,516,547 as the total of ordinary share lines; that is the total of all non-option rows, and share rows alone total $1,710,607,343,286.`,
       },
       {
         type: "p",
-        text: `The published version reported Strategy Inc at 3,830,709 shares and said a circulating claim of "624,387+ shares" understated the position roughly sixfold. Both were wrong, and for the same reason: 3,830,709 is 630,709 shares of stock plus $3,200,000 of convertible note principal. The circulating claim matched the common-stock line exactly. The published version also said the position had halved over the quarter; the equity rose, and it was the note principal that fell.`,
+        text: `It published a "ten largest positions" table that omitted two fund vehicles ranking fourth and sixth, characterised a distinct-CUSIP count of about 7,720 as an error rather than a valid aggregation, and reported Cipher Mining as absent from the filing when the issuer is filed as CIPHER DIGITAL INC and holds $17,583,910.`,
       },
       { type: "h2", text: "The audit, claim by claim" },
-      {
-        type: "p",
-        text: `Every material claim in the first version of this article, checked against the filing. "Reported" means the filing states it; "computed" means we derived it from reported values; "normalized" means it depends on an aggregation choice.`,
-      },
       {
         type: "table",
         headers: ["Claim", "What the filing shows", "Status"],
@@ -497,7 +456,7 @@ it("BTC still resolves to the coin, not an ETF", () => {
           ["Option amounts are contract counts", "Underlying shares; class OPTION, type SH (reported)", "False"],
           ["BSOL ~47,500 shares", "33 shares at 30 Jun; 47,460 at 31 Mar (reported)", "Stale, not invented"],
           ["IBIT 10,407,635 shares / $355,732,983", "Matches (reported); +25.4% on the quarter (computed)", "Confirmed"],
-          ["MSTR 3,830,709 shares / $61,062,310", "630,709 shares / $58,244,442; rest was $3.2m of note principal", "Corrected"],
+          ["MSTR 3,830,709 shares", "630,709 shares / $58,244,442; rest was $3.2m of note principal", "Corrected"],
           ["MSTR share count halved on the quarter", "Equity rose 567,804 → 630,709; the debt halved (computed)", "Corrected"],
           ["Circulating \"624,387+ MSTR shares\" understated", "624,387 is exactly the common-stock line (reported)", "False"],
           ["IREN 3,993,785 shares / $128,027,666", "2,699,785 shares / $123,947,214; rest was bond principal", "Corrected"],
@@ -516,11 +475,15 @@ it("BTC still resolves to the coin, not an ETF", () => {
       },
       {
         type: "p",
-        text: `The information table was parsed twice over all 34,064 rows: once with a namespace-tolerant pattern reader and once with a streaming XML parser, independently written. Both reconcile exactly to the filer's stated entry total and value total, and agree on every derived count. Rows are classified on sshPrnamtType as well as putCall, so convertible debt reported as a principal amount is never counted as shares. Rows were classified by the putCall field; share and option values are never summed into a single exposure figure. Issuer aggregation uses the six-character CUSIP prefix, which folds an issuer's option lines onto its share line and merges nothing else. Percentages are stated against either the share-row total of $1,712,331,516,547 or the full reported total of $1,807,041,234,839, and the base is named each time.`,
+        text: `The information table was parsed twice over all 34,064 rows: once with a namespace-tolerant pattern reader and once with a streaming XML parser, written independently. Both reconcile exactly to the filer's stated entry total and value total and agree on every derived count. Rows are classified on both putCall and sshPrnamtType, so an option row is never read as a share position and convertible debt reported as a principal amount is never counted as shares. Share and option values are never summed into a single exposure figure.`,
       },
       {
         type: "p",
-        text: `Market prices, returns and market capitalisation are not from the 13F. Prices are daily closes from the consolidated tape as of 1 September 2026; the share count is JPMorgan's own cover-page tag from the 10-Q for the quarter ended 30 June 2026. Return windows name their start date because the figure is meaningless without it.`,
+        text: `Issuer aggregation uses the six-character CUSIP prefix, which folds an issuer's option lines onto its share line and merges nothing else; where a company's equity and debt carry unrelated prefixes, as IREN's do, they are reported separately. Percentages are stated against either the ordinary-share total of $1,710,607,343,286 or the full reported total of $1,807,041,234,839, and the base is named each time.`,
+      },
+      {
+        type: "p",
+        text: `Market prices, returns and market capitalisation are not from the 13F. Prices are daily closes from the consolidated tape as of 1 September 2026; the share count is JPMorgan's own cover-page tag from the 10-Q for the quarter ended 30 June 2026. Return windows name their start date.`,
       },
       {
         type: "p",
@@ -529,11 +492,11 @@ it("BTC still resolves to the coin, not an ETF", () => {
       { type: "h2", text: "Bottom line" },
       {
         type: "p",
-        text: `The filing was accurate. The summary circulating about it was right about the Ethereum ETF and the Bitcoin ETF, a quarter out of date about Solana, and badly wrong about semiconductors. Our correction of it was itself wrong in three places, for reasons that had nothing to do with the filing and everything to do with the code between it and the page.`,
+        text: `The filing is internally consistent and reconciles to the dollar. Every difficulty in reading it is a question of what each row represents: whether an amount is shares or principal, whether a row describes a security or an option over it, whether two rows naming similar issuers are the same company, and which of six defensible counts someone means by "positions".`,
       },
       {
         type: "p",
-        text: `That is the durable lesson. Financial data is only as reliable as the identity, provenance and transformation rules applied between the document and the reader — and the failure mode is never a number that looks obviously broken. It is a number that looks entirely reasonable, reconciles against something, and means something other than what its label says.`,
+        text: `That is where filing-derived data actually breaks, and the failure mode is never a number that looks obviously wrong. It is a number that looks entirely reasonable, reconciles against something, and means something other than what its label says.`,
       },
       {
         type: "p",
