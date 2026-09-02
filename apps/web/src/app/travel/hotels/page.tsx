@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BedDouble, ArrowRight, Search } from "lucide-react";
 import { Pill } from "@/components/ui";
 import IndexedPropertyCard from "@/components/travel/IndexedPropertyCard";
+import NearbyStays from "@/components/travel/NearbyStays";
 import { curatedHotels } from "@/lib/travel/discover";
 
 export const metadata = {
@@ -52,6 +53,10 @@ export default function HotelsPage() {
           </div>
         </section>
       ))}
+
+      {/* Below the curated collections: discovery for someone with no city in
+          mind. Renders nothing until they ask for it. */}
+      <NearbyStays nights={3} />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Star, MapPin, Navigation } from "lucide-react";
 import { CITY_PHOTOS } from "@/lib/travel/data";
 import type { IndexedProperty } from "@/lib/travel/propertySource";
 import { directionsUrl } from "@/lib/travel/directions";
+import { distanceMeters, formatDistanceAway, type Coordinate } from "@/lib/geo/coordinates";
 
 // ---------------------------------------------------------------------------
 // A property card for real indexed data.
@@ -24,9 +25,14 @@ import { directionsUrl } from "@/lib/travel/directions";
 export default function IndexedPropertyCard({
   property,
   nights,
+  from,
 }: {
   property: IndexedProperty;
   nights: number;
+  /** The reader's position, when they shared it. Distance is shown only when
+   *  BOTH ends are real — see distanceMeters, which returns null rather than
+   *  zero for an unknown end. */
+  from?: Coordinate | null;
 }) {
   // Google photo names may not be stored, so the dataset carries a COUNT and
   // imagery is resolved per request elsewhere. The city shot is a legitimate
@@ -40,6 +46,13 @@ export default function IndexedPropertyCard({
   // Null when the coordinate is missing or nonsense, in which case no button
   // is rendered at all. A directions link that opens a map pointed at nowhere
   // is worse than none: it looks like it worked.
+  const away = formatDistanceAway(
+    distanceMeters(from ?? null, {
+      latitude: property.coordinates.latitude,
+      longitude: property.coordinates.longitude,
+    })
+  );
+
   const directions = directionsUrl({
     latitude: property.coordinates.latitude,
     longitude: property.coordinates.longitude,
@@ -75,6 +88,11 @@ export default function IndexedPropertyCard({
           <MapPin className="h-3.5 w-3.5 shrink-0" />
           {[property.city, property.country].filter(Boolean).join(", ") || "Location unavailable"}
         </p>
+
+        {/* Distance appears only when the reader shared a position AND this
+            property has a real one. It is a claim about geography, so a guess
+            would be worse here than a blank. */}
+        {away && <p className="mt-1 text-xs font-medium text-neon">{away}</p>}
 
         {/* A rating is shown only when there is one. The review count comes
             with it, because a 4.9 over three reviews and a 4.4 over nine
