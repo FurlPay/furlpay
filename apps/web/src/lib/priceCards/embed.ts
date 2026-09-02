@@ -79,9 +79,13 @@ export function buildPriceCardMessage(
         fields,
         image: { url: `attachment://${filename}` },
         footer: {
-          // The instrument note rides in the footer for gold, where the symbol
-          // and the quoted contract are not the same thing.
-          text: data.note ? `kimchi · ${data.note}` : "kimchi",
+          // Our own branding. The reference screenshot's footer read "kimchi",
+          // which is the other bot's name -- a design reference is a guide to
+          // layout, not an instruction to wear someone else's label.
+          //
+          // The instrument note rides here too, for gold, where the symbol and
+          // the contract actually quoted are not the same thing.
+          text: data.note ? `FurlPay · ${data.note}` : "FurlPay",
         },
         // Discord renders this as the reader's local time and keeps it correct
         // when the message is edited hours later. A baked "6:18 PM" is right in

@@ -153,7 +153,7 @@ describe("the embed", () => {
 
   it("uses a real timestamp field rather than text in the footer", () => {
     expect(embed.timestamp).toBe("2026-09-02T18:18:00.000Z");
-    expect((embed.footer as { text: string }).text).toBe("kimchi");
+    expect((embed.footer as { text: string }).text).toBe("FurlPay");
   });
 
   it("carries the instrument caveat into the footer when there is one", () => {
@@ -163,7 +163,7 @@ describe("the embed", () => {
       "gold.png"
     );
     expect(((gold.embeds[0] as Record<string, unknown>).footer as { text: string }).text)
-      .toBe("kimchi · Front-month futures, not spot");
+      .toBe("FurlPay · Front-month futures, not spot");
   });
 
   it("renders dashes for an asset that genuinely has no rank or market cap", () => {
