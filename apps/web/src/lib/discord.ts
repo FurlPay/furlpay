@@ -7,6 +7,8 @@ import { getQuotes } from "@/lib/markets/quotes";
 import { generateFlights } from "@/lib/travel/data";
 import { searchAirports } from "@/lib/travel/airports";
 import { searchDocs } from "@/lib/docs/search";
+import { handleRolePicker } from "@/lib/discordRoles/handle";
+import { handleVerify } from "@/lib/discordVerify/flow";
 
 // ---------------------------------------------------------------------------
 // Discord HTTP interactions for the Furlpay app (Application ID in env).
@@ -27,6 +29,7 @@ export const PING = 1;
 export const APPLICATION_COMMAND = 2;
 export const MESSAGE_COMPONENT = 3;
 export const APPLICATION_COMMAND_AUTOCOMPLETE = 4;
+export const MODAL_SUBMIT = 5;
 // Callback types
 export const PONG = 1;
 export const CHANNEL_MESSAGE_WITH_SOURCE = 4;
@@ -87,7 +90,21 @@ interface CommandOption {
 export interface Interaction {
   type: number;
   token?: string;
-  data?: { name?: string; options?: CommandOption[] };
+  // `custom_id` and `values` arrive on MESSAGE_COMPONENT interactions (the role
+  // picker); `name`/`options` on slash commands. One shape covers both because
+  // Discord sends them through the same endpoint.
+  data?: {
+    name?: string;
+    options?: CommandOption[];
+    custom_id?: string;
+    values?: string[];
+    /** MODAL_SUBMIT nests its text inputs one action row deep. */
+    components?: { components?: { custom_id?: string; value?: string }[] }[];
+  };
+  /** Present when the interaction happened inside a server rather than a DM. */
+  guild_id?: string;
+  /** The invoking member, including the role ids they currently hold. */
+  member?: { user?: { id?: string }; roles?: string[] };
 }
 
 type Reply = { type: number; data: Record<string, unknown> };
@@ -336,4 +353,58 @@ export function handleAutocomplete(i: Interaction): { type: number; data: { choi
     value: a.iata,
   }));
   return { type: AUTOCOMPLETE_RESULT, data: { choices } };
+}
+
+// --- Message components (the self-serve role picker) -------------------------
+
+/**
+ * Handle a MESSAGE_COMPONENT interaction.
+ *
+ * Only the role picker is wired today. Anything else falls through to a polite
+ * ephemeral note rather than an unhandled interaction, which Discord renders to
+ * the member as a red "interaction failed" with no explanation.
+ *
+ * Discord gives an interaction THREE SECONDS to be acknowledged. The role
+ * changes are a small number of REST calls and comfortably fit, so this
+ * responds directly rather than deferring — deferring would need a second
+ * request after the response, which a serverless function may be frozen before
+ * it can make.
+ */
+export async function handleComponent(i: Interaction): Promise<Reply> {
+  const token = process.env.DISCORD_BOT_TOKEN?.trim();
+  if (!token) {
+    return reply({
+      content: "This feature is not configured on this deployment yet.",
+      flags: EPHEMERAL,
+    });
+  }
+
+  // Verification first: it is the gate, and its custom_ids are disjoint from
+  // the picker's, so order is about intent rather than correctness.
+  const verify = await handleVerify(i, token);
+  if (verify) return verify;
+
+  const result = await handleRolePicker(i, token);
+  if (result) return reply(result.reply);
+
+  return reply({ content: "This interaction isn't supported yet. Try /help.", flags: EPHEMERAL });
+}
+
+/**
+ * Handle a MODAL_SUBMIT interaction.
+ *
+ * Only the captcha modal today. Kept separate from `handleComponent` because
+ * Discord delivers modals as their own interaction type, and conflating the two
+ * makes it easy to answer a modal with a message-only callback shape.
+ */
+export async function handleModalSubmit(i: Interaction): Promise<Reply> {
+  const token = process.env.DISCORD_BOT_TOKEN?.trim();
+  if (!token) {
+    return reply({ content: "This feature is not configured on this deployment yet.", flags: EPHEMERAL });
+  }
+
+  const verify = await handleVerify(i, token);
+  if (verify) return verify;
+
+  return reply({ content: "That form isn't recognised. Try /help.", flags: EPHEMERAL });
 }

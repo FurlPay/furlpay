@@ -275,6 +275,30 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // (/api/cron/market-brief). Unset = the job reports not_configured
       // rather than building a brief nobody receives.
       v("DISCORD_MARKET_WEBHOOK_URL"),
+      // Bot token for the price cards and the new-member welcome. A BOT token
+      // used with the `Bot ` auth scheme, never a user token.
+      v("DISCORD_BOT_TOKEN"),
+      // The server itself. Required by the welcome sweep, which has to ask
+      // Discord who joined; the price cards only sanity-check it.
+      v("DISCORD_GUILD_ID"),
+      // Where the new-member welcome is posted (/api/cron/discord-welcome).
+      // Unset = the feature is off and the job reports that rather than
+      // greeting nobody in silence.
+      v("WELCOME_CHANNEL_ID"),
+      v("WELCOME_START_HERE_CHANNEL_ID"),
+      v("WELCOME_CHANNEL_ENABLED"),
+      // Onboarding DMs. Off unless explicitly enabled — Discord asks apps not
+      // to open DM channels in bulk.
+      v("WELCOME_DM_ENABLED"),
+      v("WELCOME_MAX_AGE_HOURS"),
+      // Leave off. On, the first sweep would greet the whole existing server.
+      v("WELCOME_BACKFILL_ON_FIRST_RUN"),
+      v("WELCOME_INCLUDE_BOTS"),
+      v("WELCOME_SECURITY_NOTE"),
+      // Self-serve role picker and the captcha verification panel
+      // (/api/discord/roles-setup). Unset = that panel is simply not posted.
+      v("ROLE_PICKER_CHANNEL_ID"),
+      v("VERIFY_CHANNEL_ID"),
       // Comma-separated watchlist tickers for the daily brief. Unset =
       // the default mega-cap list. Validated in brief.ts, not trusted.
       v("FURLPAY_BRIEF_TICKERS"),

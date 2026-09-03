@@ -4,10 +4,14 @@ import {
   verifyDiscordSignature,
   handleCommand,
   handleAutocomplete,
+  handleComponent,
+  handleModalSubmit,
   PING,
   PONG,
   APPLICATION_COMMAND,
   APPLICATION_COMMAND_AUTOCOMPLETE,
+  MESSAGE_COMPONENT,
+  MODAL_SUBMIT,
   type Interaction,
 } from "@/lib/discord";
 
@@ -51,7 +55,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(await handleCommand(interaction));
   }
 
-  // Components/modals arrive here once we ship them; acknowledge for now.
+  // Buttons and select menus — currently the self-serve role picker. Like a
+  // command, this must answer within Discord's three-second window.
+  if (interaction.type === MESSAGE_COMPONENT) {
+    return NextResponse.json(await handleComponent(interaction));
+  }
+
+  // The captcha modal.
+  if (interaction.type === MODAL_SUBMIT) {
+    return NextResponse.json(await handleModalSubmit(interaction));
+  }
+
+  // Anything else; acknowledge rather than leaving the member with an
+  // unexplained "interaction failed".
   return NextResponse.json({
     type: 4,
     data: { content: "This interaction isn't supported yet. Try /help.", flags: 64 },

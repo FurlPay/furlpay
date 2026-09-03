@@ -1,12 +1,12 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 294,
+  "_total": 297,
   "_counts": {
     "ADMIN_ONLY": 17,
     "AUTHENTICATED_USER": 124,
     "DEVELOPMENT_ONLY": 1,
-    "INTERNAL_ONLY": 5,
-    "PUBLIC_INTENTIONAL": 133,
+    "INTERNAL_ONLY": 6,
+    "PUBLIC_INTENTIONAL": 135,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -97,6 +97,7 @@
     "cron/reconcile": "INTERNAL_ONLY",
     "deposits": "AUTHENTICATED_USER",
     "discord/interactions": "PUBLIC_INTENTIONAL",
+    "discord/roles-setup": "INTERNAL_ONLY",
     "discord/linked-roles": "PUBLIC_INTENTIONAL",
     "docs/feedback": "PUBLIC_INTENTIONAL",
     "early-access": "PUBLIC_INTENTIONAL",
@@ -160,7 +161,9 @@
     "oauth/token": "PUBLIC_INTENTIONAL",
     "offramp": "AUTHENTICATED_USER",
     "offramp/session": "PUBLIC_INTENTIONAL",
+    "og/captcha/[id]": "PUBLIC_INTENTIONAL",
     "og/price-card/[symbol]": "PUBLIC_INTENTIONAL",
+    "og/role-icon/[key]": "PUBLIC_INTENTIONAL",
     "onramp/quote": "PUBLIC_INTENTIONAL",
     "onramp/session": "PUBLIC_INTENTIONAL",
     "onramp/session/[id]": "PUBLIC_INTENTIONAL",
