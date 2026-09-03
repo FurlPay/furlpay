@@ -86,6 +86,13 @@ const num = (v: unknown): number | null =>
 export async function instrumentQuote(
   inst: MarketInstrument
 ): Promise<InstrumentQuote | null> {
+  // A perpetual cannot be priced from the chart provider below: it has no
+  // symbol there, and its defining fields — mark price, index price, funding —
+  // have no equivalent in that response. Dispatched on the instrument's own
+  // declared source rather than guessed from the asset class, because two of
+  // these perps are commodity-class and the rest are crypto.
+  if (inst.quoteSource === "binance-perp") return perpInstrumentQuote(inst);
+
   const data = await cachedJson<ChartMeta>(
     `inst:v1:${inst.providerSymbol}`,
     TTL.quote,
@@ -141,5 +148,57 @@ export async function instrumentQuote(
         : null,
     providerNote: inst.providerNote ?? null,
     providerSymbol: inst.providerSymbol,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Perpetual futures, from Binance.
+//
+// Kept at the bottom rather than inline so the chart-provider path above reads
+// unchanged. The mapping is deliberately lossy in one direction: an
+// InstrumentQuote has no field for a funding rate or a mark price, and this
+// adapter does NOT invent one. Those live on /api/markets/perps, which serves
+// the full contract shape; this exists so /markets/[symbol] can render a perp
+// with the same header, chart and statistics as every other instrument.
+//
+// `high52w` / `low52w` are null, not the 24h values. A 24-hour high is not a
+// 52-week high, and copying one into the other would put a wrong number under
+// a correct label — the single easiest way to make a market page lie.
+// ---------------------------------------------------------------------------
+
+import { getPerpQuotes } from "@/lib/markets/perps/binance";
+
+async function perpInstrumentQuote(inst: MarketInstrument): Promise<InstrumentQuote | null> {
+  const [q] = await getPerpQuotes([inst.providerSymbol]);
+  // No quote means the contract could not be priced. Null, never a zeroed row.
+  if (!q) return null;
+
+  // The provider gives a percentage; the absolute change is derived from it
+  // rather than from a separate field, so the two can never disagree.
+  const previousClose = q.changePct !== 0 ? q.price / (1 + q.changePct / 100) : q.price;
+  const change = q.price - previousClose;
+
+  return {
+    symbol: inst.symbol,
+    assetClass: inst.assetClass,
+    displayName: inst.displayName,
+    price: q.price,
+    previousClose,
+    change,
+    changePercent: q.changePct,
+    // Quote volume (USDT) rather than base volume: it is the figure the
+    // exchange screen shows and the only one comparable across contracts
+    // priced eight orders of magnitude apart.
+    volume: q.quoteVolume24h,
+    marketCap: null,
+    dayHigh: q.high24h,
+    dayLow: q.low24h,
+    high52w: null,
+    low52w: null,
+    currency: inst.currency,
+    exchange: inst.exchange ?? "Binance Futures",
+    timestamp: new Date().toISOString(),
+    providerNote: inst.providerNote ?? null,
+    providerSymbol: q.symbol,
   };
 }

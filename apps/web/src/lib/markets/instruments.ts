@@ -79,6 +79,16 @@ export interface MarketInstrument {
    *  fuzzy matching — "Gold" means XAUUSD by convention, and that convention is
    *  written down here rather than inferred. */
   aliases: string[];
+  /**
+   * Which provider answers for this instrument.
+   *
+   * Absent means Yahoo, which is what every instrument used before perpetual
+   * futures existed here. A perp cannot come from Yahoo — it has no Yahoo
+   * symbol, and its funding rate and mark price have no Yahoo equivalent — so
+   * the dispatch is explicit rather than inferred from the asset class.
+   */
+  quoteSource?: "yahoo" | "binance-perp";
+
   /** Self-hosted artwork under /logos/instruments/, or absent.
    *
    *  Absent is a real answer, not an oversight: there is no artwork for an
@@ -171,6 +181,59 @@ const FUTURES_NOTE =
  * Every provider symbol here was verified against a live response before being
  * written down, and the supported flags reflect what actually came back.
  */
+/**
+ * A Binance USDⓈ-M perpetual future.
+ *
+ * ── WHY THESE ARE INSTRUMENTS AND NOT CATALOG ASSETS ───────────────────────
+ *
+ * A perp has no market cap, no supply and no CoinGecko id; it has a mark
+ * price, an index price and a funding rate. That is precisely the distinction
+ * this instruments layer already draws for gold and the VIX, so perps belong
+ * here rather than in the securities catalog.
+ *
+ * ── VOLUME IS SUPPORTED, MARKET CAP IS NOT ─────────────────────────────────
+ *
+ * Measured against the live API, not assumed: /fapi/v1/ticker/24hr returns
+ * both base and quote volume for every one of these. Market cap is meaningless
+ * for a derivative and returns null, never zero.
+ */
+const perp = (
+  symbol: string,
+  base: string,
+  name: string,
+  assetClass: MarketAssetClass,
+  aliases: string[],
+  providerNote?: string
+): MarketInstrument => ({
+  symbol,
+  // Binance's spelling happens to equal ours, but the field is kept distinct
+  // so the provider adapter stays the only thing that knows that.
+  providerSymbol: symbol,
+  quoteSource: "binance-perp",
+  assetClass,
+  displayName: name,
+  baseAsset: base,
+  quoteAsset: "USDT",
+  currency: "USDT",
+  exchange: "Binance Futures",
+  priceSupported: true,
+  volumeSupported: true,
+  marketCapSupported: false,
+  aliases,
+  providerNote,
+});
+
+/** Every perp is a derivative, and the reader is told so on the page. */
+const PERP_NOTE =
+  "A perpetual futures contract on Binance, quoted in USDT. It has a funding rate and a mark price, " +
+  "and can trade away from the spot price of the underlying.";
+
+/** BZUSDT tracks Brent crude, which this catalog also carries as BRENTUSD via
+ *  the ICE front-month future. Two different contracts on one underlying, so
+ *  the note says which is which rather than letting a reader assume a bug. */
+const BZ_NOTE =
+  PERP_NOTE + " The underlying is Brent crude oil — see BRENTUSD for the ICE front-month future.";
+
 export const INSTRUMENTS: MarketInstrument[] = [
   // ---- Precious metals. Futures, and labelled as such. ----
   future("XAUUSD", "GC=F", "Gold / US Dollar", "XAU", ["gold", "xau", "gold usd", "gold price"], FUTURES_NOTE, "/logos/instruments/gold.svg"),
@@ -212,6 +275,25 @@ export const INSTRUMENTS: MarketInstrument[] = [
     aliases: ["10 year", "10y", "treasury", "tnx", "us10y"],
     providerNote: "Quoted as a yield in percent, not a price.",
   },
+
+  // ---- Binance USDⓈ-M perpetual futures ----
+  //
+  // Verified present and TRADING against /fapi/v1/exchangeInfo (893 symbols).
+  // Aliases deliberately avoid bare "brent", "btc" and "eth": those already
+  // resolve to the ICE future and to the spot catalog entries, and a perp
+  // silently stealing them would change what an existing link means.
+  perp("BZUSDT", "BZ", "Brent Oil Perpetual", "commodity", ["bzusdt", "bz perp", "brent perp"], BZ_NOTE),
+  perp("BTCUSDT", "BTC", "Bitcoin Perpetual", "crypto", ["btcusdt", "btc perp"], PERP_NOTE),
+  perp("ETHUSDT", "ETH", "Ethereum Perpetual", "crypto", ["ethusdt", "eth perp"], PERP_NOTE),
+  perp("BNBUSDT", "BNB", "BNB Perpetual", "crypto", ["bnbusdt", "bnb perp"], PERP_NOTE),
+  perp("AKEUSDT", "AKE", "AKE Perpetual", "crypto", ["akeusdt", "ake perp"], PERP_NOTE),
+  perp("HEMIUSDT", "HEMI", "Hemi Perpetual", "crypto", ["hemiusdt", "hemi perp"], PERP_NOTE),
+  perp("TUSDT", "T", "Threshold Perpetual", "crypto", ["tusdt", "t perp"], PERP_NOTE),
+  perp("MUBARAKUSDT", "MUBARAK", "Mubarak Perpetual", "crypto", ["mubarakusdt", "mubarak perp"], PERP_NOTE),
+  perp("BULLAUSDT", "BULLA", "Bulla Perpetual", "crypto", ["bullausdt", "bulla perp"], PERP_NOTE),
+  perp("EDGEUSDT", "EDGE", "Edge Perpetual", "crypto", ["edgeusdt", "edge perp"], PERP_NOTE),
+  perp("MAGMAUSDT", "MAGMA", "Magma Perpetual", "crypto", ["magmausdt", "magma perp"], PERP_NOTE),
+  perp("BTRUSDT", "BTR", "Bitlayer Perpetual", "crypto", ["btrusdt", "btr perp"], PERP_NOTE),
 ];
 
 const bySymbol = new Map(INSTRUMENTS.map((i) => [i.symbol.toUpperCase(), i]));
