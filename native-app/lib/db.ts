@@ -113,6 +113,34 @@ const MIGRATIONS: string[] = [
   -- the whole journal on every cold start.
   CREATE INDEX IF NOT EXISTS idx_swaps_status ON swaps(status);
   `,
+  // v5 — the outbox grows up.
+  //
+  // v1's pending_actions could only hold a transfer, retried immediately on
+  // every connectivity flap and deleted on failure. Three consequences, all of
+  // which the competitor teardowns list as open weaknesses in their own apps:
+  //
+  //  - one rail only. A P2P release or a cashback claim made offline had
+  //    nowhere to go, so those screens simply failed.
+  //  - no backoff. A server having a bad minute got hammered by every client
+  //    that had anything queued, on every network change.
+  //  - no in-flight marker. An app killed mid-POST left a row that looked
+  //    un-attempted, and nothing recorded that the request may already have
+  //    landed.
+  //
+  // `endpoint` generalises the rail, `state` + `attempt_started_at` make a
+  // crash mid-send detectable, `next_attempt_at` spaces the retries, and
+  // `correlation_id` is what a customer reads out to support.
+  `
+  ALTER TABLE pending_actions ADD COLUMN endpoint TEXT NOT NULL DEFAULT '/wallets/transfer';
+  ALTER TABLE pending_actions ADD COLUMN label TEXT NOT NULL DEFAULT 'Transfer';
+  ALTER TABLE pending_actions ADD COLUMN state TEXT NOT NULL DEFAULT 'queued';
+  ALTER TABLE pending_actions ADD COLUMN next_attempt_at INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE pending_actions ADD COLUMN attempt_started_at INTEGER;
+  ALTER TABLE pending_actions ADD COLUMN correlation_id TEXT;
+  -- The flush picks up due work by (state, next_attempt_at); without this it
+  -- reads the whole outbox every time connectivity changes.
+  CREATE INDEX IF NOT EXISTS idx_outbox_due ON pending_actions(state, next_attempt_at);
+  `,
 ];
 
 export function getDb(): SQLite.SQLiteDatabase {
@@ -218,61 +246,196 @@ export function getCachedTransaction(id: string): Transaction | null {
 
 // --- pending actions (offline outbox) ---------------------------------------
 
+/**
+ * One queued write, on any rail.
+ *
+ * `state` is the part that matters. "sending" is written BEFORE the request
+ * goes out and cleared once it returns, so an app killed mid-POST leaves a row
+ * that says so — and the flush can tell "never attempted" apart from "may
+ * already have landed". The stable idempotency key is what makes re-attempting
+ * the second case safe.
+ */
 export interface PendingAction {
   id: string;
-  type: "transfer";
+  /** Rail name, for grouping and for what the user is told. */
+  type: string;
+  /** API path the payload is POSTed to. */
+  endpoint: string;
+  /** Human label used in notifications — "Transfer", "P2P release". */
+  label: string;
   payload: string; // JSON
   idempotencyKey: string;
   createdAt: number;
+  state: "queued" | "sending" | "failed";
   retryCount: number;
+  /** Epoch ms before which the flush must not retry this row. */
+  nextAttemptAt: number;
+  /** Set while a request is in flight; a stale value means the app died. */
+  attemptStartedAt: number | null;
   lastError: string | null;
+  /** Server correlation id from the last attempt, for support. */
+  correlationId: string | null;
 }
 
-export function queuePendingAction(type: PendingAction["type"], payload: unknown): PendingAction {
+interface PendingActionRow {
+  id: string;
+  type: string;
+  endpoint: string;
+  label: string;
+  payload: string;
+  idempotency_key: string;
+  created_at: number;
+  state: string;
+  retry_count: number;
+  next_attempt_at: number;
+  attempt_started_at: number | null;
+  last_error: string | null;
+  correlation_id: string | null;
+}
+
+function rowToAction(r: PendingActionRow): PendingAction {
+  return {
+    id: r.id,
+    type: r.type,
+    endpoint: r.endpoint,
+    label: r.label,
+    payload: r.payload,
+    idempotencyKey: r.idempotency_key,
+    createdAt: r.created_at,
+    state: r.state as PendingAction["state"],
+    retryCount: r.retry_count,
+    nextAttemptAt: r.next_attempt_at,
+    attemptStartedAt: r.attempt_started_at,
+    lastError: r.last_error,
+    correlationId: r.correlation_id,
+  };
+}
+
+/**
+ * Queue a write for later.
+ *
+ * The idempotency key is minted HERE, once, and reused for every attempt — that
+ * is what lets the flush retry an action it is not sure landed without risking
+ * a double charge. Minting it per attempt would defeat the whole mechanism.
+ */
+export function queuePendingAction(
+  type: string,
+  payload: unknown,
+  opts: { endpoint?: string; label?: string } = {}
+): PendingAction {
   const action: PendingAction = {
     id: `pa_${crypto.randomUUID()}`,
     type,
+    endpoint: opts.endpoint ?? "/wallets/transfer",
+    label: opts.label ?? "Transfer",
     payload: JSON.stringify(payload),
     idempotencyKey: crypto.randomUUID(),
     createdAt: Date.now(),
+    state: "queued",
     retryCount: 0,
+    nextAttemptAt: 0,
+    attemptStartedAt: null,
     lastError: null,
+    correlationId: null,
   };
   getDb().runSync(
-    `INSERT INTO pending_actions (id, type, payload, idempotency_key, created_at, retry_count, last_error)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    action.id, action.type, action.payload, action.idempotencyKey,
-    action.createdAt, action.retryCount, action.lastError
+    `INSERT INTO pending_actions
+       (id, type, endpoint, label, payload, idempotency_key, created_at,
+        state, retry_count, next_attempt_at, attempt_started_at, last_error, correlation_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    action.id, action.type, action.endpoint, action.label, action.payload,
+    action.idempotencyKey, action.createdAt, action.state, action.retryCount,
+    action.nextAttemptAt, action.attemptStartedAt, action.lastError, action.correlationId
   );
   return action;
 }
 
+/** Everything still in the outbox, oldest first — failed rows included. */
 export function listPendingActions(): PendingAction[] {
   return getDb()
-    .getAllSync<{
-      id: string; type: string; payload: string; idempotency_key: string;
-      created_at: number; retry_count: number; last_error: string | null;
-    }>("SELECT * FROM pending_actions ORDER BY created_at ASC")
-    .map((r) => ({
-      id: r.id,
-      type: r.type as PendingAction["type"],
-      payload: r.payload,
-      idempotencyKey: r.idempotency_key,
-      createdAt: r.created_at,
-      retryCount: r.retry_count,
-      lastError: r.last_error,
-    }));
+    .getAllSync<PendingActionRow>("SELECT * FROM pending_actions ORDER BY created_at ASC")
+    .map(rowToAction);
+}
+
+/** Rows the flush should attempt now: queued, and past their backoff. */
+export function listDueActions(now: number = Date.now()): PendingAction[] {
+  return getDb()
+    .getAllSync<PendingActionRow>(
+      "SELECT * FROM pending_actions WHERE state = 'queued' AND next_attempt_at <= ? ORDER BY created_at ASC",
+      now
+    )
+    .map(rowToAction);
+}
+
+/** Rows a user is still owed an outcome for — queued or in flight. */
+export function listInFlightActions(): PendingAction[] {
+  return getDb()
+    .getAllSync<PendingActionRow>(
+      "SELECT * FROM pending_actions WHERE state IN ('queued','sending') ORDER BY created_at ASC"
+    )
+    .map(rowToAction);
+}
+
+/** Mark an action as being sent right now, before the request leaves. */
+export function markActionSending(id: string, now: number = Date.now()): void {
+  getDb().runSync(
+    "UPDATE pending_actions SET state = 'sending', attempt_started_at = ? WHERE id = ?",
+    now, id
+  );
+}
+
+/**
+ * Put a row back in the queue with a later attempt time. The correlation id is
+ * kept across retries so support can follow the whole chain, not just the last
+ * try.
+ */
+export function rescheduleAction(
+  id: string,
+  nextAttemptAt: number,
+  error: string | null,
+  correlationId: string | null
+): void {
+  getDb().runSync(
+    `UPDATE pending_actions
+       SET state = 'queued', retry_count = retry_count + 1, next_attempt_at = ?,
+           attempt_started_at = NULL, last_error = ?, correlation_id = COALESCE(?, correlation_id)
+     WHERE id = ?`,
+    nextAttemptAt, error, correlationId, id
+  );
+}
+
+/** Terminal failure. The row STAYS, so the user can see what happened to it. */
+export function markActionFailed(id: string, error: string, correlationId: string | null): void {
+  getDb().runSync(
+    `UPDATE pending_actions
+       SET state = 'failed', attempt_started_at = NULL, last_error = ?,
+           correlation_id = COALESCE(?, correlation_id)
+     WHERE id = ?`,
+    error, correlationId, id
+  );
+}
+
+/**
+ * Recover rows abandoned mid-send by a crash or a kill.
+ *
+ * Re-queued rather than failed: the request may or may not have reached the
+ * server, and the stable idempotency key means replaying it either does the
+ * work once or replays the original response. Failing it instead would strand
+ * a payment that actually succeeded.
+ */
+export function recoverStuckActions(staleMs: number, now: number = Date.now()): number {
+  const result = getDb().runSync(
+    `UPDATE pending_actions
+       SET state = 'queued', attempt_started_at = NULL,
+           last_error = 'Interrupted before the result was known — retrying safely'
+     WHERE state = 'sending' AND attempt_started_at IS NOT NULL AND attempt_started_at < ?`,
+    now - staleMs
+  );
+  return result.changes ?? 0;
 }
 
 export function deletePendingAction(id: string): void {
   getDb().runSync("DELETE FROM pending_actions WHERE id = ?", id);
-}
-
-export function markPendingActionError(id: string, error: string): void {
-  getDb().runSync(
-    "UPDATE pending_actions SET retry_count = retry_count + 1, last_error = ? WHERE id = ?",
-    error, id
-  );
 }
 
 // --- notification inbox -------------------------------------------------------
