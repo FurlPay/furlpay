@@ -3,9 +3,11 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Briefcase, LogOut, Settings, Star, User as UserIcon } from "lucide-react";
+import { ArrowLeftRight, Gift, LogOut, Settings, User as UserIcon, UserCog } from "lucide-react";
 import { useSession } from "@/components/auth/SessionProvider";
 import { clearOfflineData } from "@/lib/offline";
+import UserAvatar from "@/components/user/UserAvatar";
+import BalanceVisibilityToggle from "@/components/user/BalanceVisibilityToggle";
 
 // ---------------------------------------------------------------------------
 // The top-right avatar, and the menu behind it.
@@ -126,7 +128,13 @@ export default function ProfileMenu({ className }: { className?: string }) {
         aria-controls={open ? menuId : undefined}
         className="tap flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-white/[0.05] transition-colors hover:bg-white/[0.1] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40"
       >
-        <Avatar loading={loading} name={user?.name} initials={user?.initials} avatarUrl={user?.avatarUrl} />
+        <UserAvatar
+          loading={loading}
+          name={user?.name}
+          initials={user?.initials}
+          avatarUrl={user?.avatarUrl}
+          size="md"
+        />
       </button>
 
       {open && (
@@ -144,9 +152,7 @@ export default function ProfileMenu({ className }: { className?: string }) {
           {authed ? (
             <>
               <div className="flex items-center gap-3 border-b border-white/[0.07] px-3.5 py-3.5">
-                <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04]">
-                  <Avatar name={user.name} initials={user.initials} avatarUrl={user.avatarUrl} size={40} />
-                </span>
+                <UserAvatar name={user.name} initials={user.initials} avatarUrl={user.avatarUrl} size="md" ring />
                 <span className="min-w-0">
                   <span className="block truncate text-[13.5px] font-semibold text-white">{user.name}</span>
                   <span className="block truncate text-[11.5px] text-textSecondary">{user.email}</span>
@@ -155,13 +161,16 @@ export default function ProfileMenu({ className }: { className?: string }) {
 
               <div className="p-1.5">
                 {[
-                  { href: "/profile", label: "Profile", Icon: UserIcon },
-                  { href: "/portfolio", label: "Portfolio", Icon: Briefcase },
-                  { href: "/markets?panel=watchlist", label: "Watchlist", Icon: Star },
+                  // "Your profile" is the public-facing page; "Manage account"
+                  // is the settings surface at /profile. Two different things
+                  // that both used to be called Profile.
+                  { href: "/u", label: "Your profile", Icon: UserIcon },
+                  { href: "/profile", label: "Manage account", Icon: UserCog },
                   // Deep-links to the preferences block rather than repeating
-                  // the Profile entry's destination — the account page carries
-                  // an id per section.
+                  // the account entry's destination — the page carries an id
+                  // per section.
                   { href: "/profile#preferences", label: "Settings", Icon: Settings },
+                  { href: "/banking", label: "Transfers", Icon: ArrowLeftRight },
                 ].map(({ href, label, Icon }) => (
                   <Link
                     key={label}
@@ -174,6 +183,20 @@ export default function ProfileMenu({ className }: { className?: string }) {
                     {label}
                   </Link>
                 ))}
+
+                {/* A setting, not a destination: it deliberately does not close
+                    the menu, so the person can see it take effect. */}
+                <BalanceVisibilityToggle />
+
+                <Link
+                  href="/earn"
+                  role="menuitem"
+                  onClick={() => close(false)}
+                  className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-[13px] font-medium text-textSecondary transition-colors hover:bg-white/[0.06] hover:text-white focus-visible:bg-white/[0.06] focus-visible:text-white focus-visible:outline-none"
+                >
+                  <Gift className="h-4 w-4 shrink-0" />
+                  Earnings
+                </Link>
               </div>
 
               <div className="border-t border-white/[0.07] p-1.5">
@@ -242,68 +265,4 @@ export default function ProfileMenu({ className }: { className?: string }) {
       )}
     </div>
   );
-}
-
-/**
- * The avatar image itself, in priority order: a provider-hosted photo, then
- * initials taken from the real name, then a neutral silhouette.
- *
- * No generated identicon and no placeholder initials. Two letters that stand
- * for nothing look exactly like two letters that stand for someone.
- */
-function Avatar({
-  loading,
-  name,
-  initials,
-  avatarUrl,
-  size = 36,
-}: {
-  loading?: boolean;
-  name?: string | null;
-  initials?: string | null;
-  avatarUrl?: string | null;
-  size?: number;
-}) {
-  const [broken, setBroken] = useState(false);
-
-  if (loading) {
-    return (
-      <span
-        aria-hidden
-        className="animate-pulse rounded-full bg-white/10"
-        style={{ width: size - 4, height: size - 4 }}
-      />
-    );
-  }
-
-  if (avatarUrl && !broken) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element -- a remote provider
-      // URL on an arbitrary host; next/image would need it in remotePatterns,
-      // and the loader adds nothing for a 36px square that is already cached.
-      <img
-        src={avatarUrl}
-        alt=""
-        width={size}
-        height={size}
-        referrerPolicy="no-referrer"
-        onError={() => setBroken(true)}
-        className="h-full w-full rounded-full object-cover"
-      />
-    );
-  }
-
-  if (initials) {
-    return (
-      <span
-        aria-hidden
-        title={name ?? undefined}
-        className="grid h-full w-full place-items-center rounded-full bg-gradient-to-br from-accent/30 to-accent/30 text-[11.5px] font-bold text-white"
-      >
-        {initials}
-      </span>
-    );
-  }
-
-  return <UserIcon className="h-[18px] w-[18px] text-textSecondary" aria-hidden />;
 }

@@ -5,6 +5,7 @@ import "./globals.css";
 import Shell from "@/components/Shell";
 import ConsentManager from "@/components/ConsentManager";
 import SessionProvider from "@/components/auth/SessionProvider";
+import { BalanceVisibilityProvider } from "@/components/user/BalanceVisibility";
 
 // Search-console / analytics ids come from env so they never hardcode secrets
 // and are easy to set per-environment in Vercel. All optional — unset → no-op.
@@ -149,8 +150,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             SessionProvider wraps it so identity is available to any client
             component. It is LAZY — nothing is fetched until something calls
             useSession() — so marketing pages cost no extra request. */}
+        {/* BalanceVisibilityProvider sits inside the session so the account
+            menu's "Blur balances" switch and every masked figure across the app
+            read the same state. It holds a boolean and a localStorage read —
+            no fetch — so a marketing page pays nothing for it. */}
         <SessionProvider>
-          <Shell>{children}</Shell>
+          <BalanceVisibilityProvider>
+            <Shell>{children}</Shell>
+          </BalanceVisibilityProvider>
         </SessionProvider>
         {GA_ID && <ConsentManager />}
       </body>

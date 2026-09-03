@@ -18,6 +18,7 @@ import PriceChart from "@/components/PriceChart";
 import DepositToast from "@/components/DepositToast";
 import BottomNav from "@/components/BottomNav";
 import AppSidebar from "@/components/AppSidebar";
+import { Balance } from "@/components/user/BalanceVisibility";
 
 interface Overview {
   user: { name: string; tier: string; region: string; safeAddress: string };
@@ -119,13 +120,15 @@ export default function HomePage() {
             </span>
           </div>
           <p className="mt-2 text-[44px] font-extrabold leading-none tracking-tighter">
-            {usd(data.netWorth)}
+            <Balance value={usd(data.netWorth)} />
           </p>
 
           <div className="mt-4 flex items-center justify-between rounded-2xl bg-white/[0.08] py-2.5 pl-4 pr-2.5 backdrop-blur-sm">
             <div>
               <p className="text-[11px] text-white/60">Available balance</p>
-              <p className="text-[17px] font-bold tracking-tight">{usd(available)}</p>
+              <p className="text-[17px] font-bold tracking-tight">
+                <Balance value={usd(available)} />
+              </p>
             </div>
             <button
               aria-label="Add money"
@@ -297,7 +300,9 @@ function HeroStat({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-2xl bg-white/[0.06] px-3 py-2.5 backdrop-blur-sm">
       <p className="text-[11px] text-white/60">{label}</p>
-      <p className="mt-0.5 text-[15px] font-bold tracking-tight">{usd(value)}</p>
+      <p className="mt-0.5 text-[15px] font-bold tracking-tight">
+        <Balance value={usd(value)} />
+      </p>
     </div>
   );
 }

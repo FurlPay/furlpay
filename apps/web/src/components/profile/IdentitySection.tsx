@@ -1,15 +1,15 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { User as UserIcon } from "lucide-react";
 import {
   NotWiredError,
   patchProfile,
   setUsername,
-  uploadAvatar,
   type Profile,
 } from "@/lib/accountApi";
 import { ActionButton, Feedback, NotWiredNote, Row, Section, StatusPill } from "./primitives";
+import ProfileImageUploader from "@/components/user/ProfileImageUploader";
 
 // ---------------------------------------------------------------------------
 // Who the account belongs to: picture, display name, handle, email, standing.
@@ -40,7 +40,6 @@ export default function IdentitySection({
   const [draft, setDraft] = useState(profile.name);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
 
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
@@ -65,27 +64,6 @@ export default function IdentitySection({
       });
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function onPickPhoto(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    // Let the same file be chosen again after a failure.
-    e.target.value = "";
-    if (!file) return;
-    setFeedback(null);
-    try {
-      await uploadAvatar(file);
-      onChanged();
-      setFeedback({ tone: "success", text: "Profile photo updated." });
-    } catch (err) {
-      setFeedback({
-        tone: "error",
-        text:
-          err instanceof NotWiredError
-            ? "Uploading a photo is not available on this deployment yet. Your picture comes from the account you signed in with."
-            : "Could not upload that image. Try a JPEG or PNG under 2 MB.",
-      });
     }
   }
 
@@ -193,20 +171,19 @@ export default function IdentitySection({
             >
               Edit profile
             </ActionButton>
-            <ActionButton onClick={() => fileRef.current?.click()}>Change photo</ActionButton>
           </div>
         )}
 
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/png,image/jpeg,image/webp"
-          onChange={onPickPhoto}
-          className="sr-only"
-          aria-label="Upload a profile photo"
-          tabIndex={-1}
-        />
       </div>
+
+      <Row label="Profile picture" hint="Cropped to a square and stored with your account.">
+        <ProfileImageUploader
+          name={profile.name}
+          initials={profile.initials}
+          avatarUrl={profile.avatarUrl}
+          onChange={() => onChanged()}
+        />
+      </Row>
 
       <Row label="Username" hint="Not part of a FurlPay account yet.">
         <span className="font-mono text-[12.5px] text-textMuted">—</span>
@@ -230,8 +207,9 @@ export default function IdentitySection({
       {feedback && <Feedback tone={feedback.tone}>{feedback.text}</Feedback>}
 
       <NotWiredNote>
-        Your picture is the one your identity provider hosts. Uploading a custom photo and choosing
-        a username both need account-side storage that this deployment does not have yet.
+        Choosing a username needs a handle field on the account record, which does not exist yet.
+        Your picture is stored with your account; if you have never set one, it falls back to the
+        photo your identity provider hosts.
       </NotWiredNote>
     </Section>
   );
