@@ -6,7 +6,7 @@ import { render, screen } from "@testing-library/react";
 import UserAvatar, { AVATAR_SIZES, userInitials } from "../UserAvatar";
 import { formatCount, accountAge } from "../ProfileStats";
 import { MASK, maskValue } from "../BalanceVisibility";
-import { deriveHandle, shortAddress } from "@/app/u/page";
+import { deriveHandle, shortAddress } from "../handle";
 
 // ---------------------------------------------------------------------------
 // Two things are load-bearing here and neither is obvious from reading the JSX:

@@ -8,6 +8,7 @@ import { useSession } from "@/components/auth/SessionProvider";
 import { getProfile, type Profile } from "@/lib/accountApi";
 import ProfileHeader from "@/components/user/ProfileHeader";
 import type { ProfileStat } from "@/components/user/ProfileStats";
+import { deriveHandle, shortAddress } from "@/components/user/handle";
 
 // ---------------------------------------------------------------------------
 // /u — the person's own profile, as a profile rather than as a settings form.
@@ -29,33 +30,15 @@ import type { ProfileStat } from "@/components/user/ProfileStats";
 //
 // What IS shown comes from /api/profile: the display name, the provider photo,
 // the tier, the region, the KYC status and the smart-account address. The
-// handle is DERIVED from the email local part, because the account record has
-// no username field yet (lib/accountApi.ts `setUsername` throws NotWiredError
-// and says exactly why) — so it is a display convenience, not a reserved name,
-// and nothing on this page implies it can be claimed.
+// handle is DERIVED from the email local part (see components/user/handle.ts),
+// because the account record has no username field yet — so it is a display
+// convenience, not a reserved name, and nothing on this page implies it can be
+// claimed.
+//
+// Those helpers live in their own module rather than here because a page may
+// only export `default` and the framework's own names; exporting anything else
+// fails the production build, and only the build catches it.
 // ---------------------------------------------------------------------------
-
-/**
- * A display handle from the email local part.
- *
- * Deterministic and derived from real data rather than generated: the same
- * account always shows the same handle. Not a username — see the header.
- */
-export function deriveHandle(email: string | null | undefined): string | null {
-  if (!email) return null;
-  const local = email.split("@")[0] ?? "";
-  const cleaned = local
-    .toLowerCase()
-    .replace(/[^a-z0-9._-]+/g, "")
-    .replace(/^[._-]+|[._-]+$/g, "");
-  return cleaned.length >= 2 ? cleaned.slice(0, 30) : null;
-}
-
-/** Shorten an address the way every wallet UI does. */
-export function shortAddress(addr: string | null | undefined): string | null {
-  if (!addr || addr.length < 12) return addr ?? null;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
 
 export default function OwnProfilePage() {
   const { status, user } = useSession();
