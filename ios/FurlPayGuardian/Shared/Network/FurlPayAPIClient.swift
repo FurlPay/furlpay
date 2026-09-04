@@ -565,6 +565,96 @@ public actor FurlPayAPIClient {
         _ = try await send(request, as: EmptyResponse.self)
     }
 
+    // MARK: - Address book
+    //
+    // Six routes under /api/contacts, read out of
+    // apps/web/src/app/api/contacts/** rather than transcribed. The domain
+    // rules that decide what to DO with these are in Shared/Domain/Contacts.swift
+    // and are deliberately the same rules, in the same words, as the server's
+    // and Android's — see the header there.
+    //
+    // `chain` on the list call is not an optimisation. It filters to contacts
+    // payable on that chain AND strips their other-family addresses, which is
+    // what a send sheet needs: offering a contact whose only address is on a
+    // different network invites the mistake the address book exists to prevent.
+
+    public func fetchContacts(chain: ContactChain? = nil, query: String? = nil) async throws -> [Contact] {
+        var params: [String: String] = [:]
+        if let chain { params["chain"] = chain.rawValue }
+        if let query, !query.trimmingCharacters(in: .whitespaces).isEmpty {
+            params["q"] = query.trimmingCharacters(in: .whitespaces)
+        }
+        let request = try await makeRequest("GET", "contacts", query: params)
+        return try await send(request, as: ContactsResponse.self).contacts
+    }
+
+    public func fetchContact(id: String) async throws -> Contact {
+        let request = try await makeRequest("GET", "contacts/\(Self.segment(id))")
+        return try await send(request, as: ContactResponse.self).contact
+    }
+
+    public func createContact(
+        name: String,
+        avatarColor: String,
+        addresses: [NewContactAddress] = []
+    ) async throws -> Contact {
+        let request = try await makeRequest(
+            "POST", "contacts",
+            body: CreateContactRequest(name: name, avatarColor: avatarColor, addresses: addresses)
+        )
+        return try await send(request, as: ContactResponse.self).contact
+    }
+
+    /// Rename, recolour, favourite.
+    ///
+    /// `addresses` is absent by design and the server refuses it too (AGENTS.md
+    /// rule 4): an address arriving by PATCH would never have passed the
+    /// per-chain payability check, which is the whole point of the book.
+    public func updateContact(
+        id: String,
+        name: String? = nil,
+        avatarColor: String? = nil,
+        isFavorite: Bool? = nil
+    ) async throws -> Contact {
+        let request = try await makeRequest(
+            "PATCH", "contacts/\(Self.segment(id))",
+            body: PatchContactRequest(name: name, avatarColor: avatarColor, isFavorite: isFavorite)
+        )
+        return try await send(request, as: ContactResponse.self).contact
+    }
+
+    public func deleteContact(id: String) async throws {
+        let request = try await makeRequest("DELETE", "contacts/\(Self.segment(id))")
+        _ = try await send(request, as: EmptyResponse.self)
+    }
+
+    /// Returns the WHOLE contact, not just the new address: the first address
+    /// in a chain family becomes that family's default, and the caller needs
+    /// the updated list to render it.
+    public func addContactAddress(id: String, address: NewContactAddress) async throws -> Contact {
+        let request = try await makeRequest(
+            "POST", "contacts/\(Self.segment(id))/addresses",
+            body: address
+        )
+        return try await send(request, as: AddContactAddressResponse.self).contact
+    }
+
+    public func removeContactAddress(id: String, addressId: String) async throws -> Contact {
+        let request = try await makeRequest(
+            "DELETE", "contacts/\(Self.segment(id))/addresses/\(Self.segment(addressId))"
+        )
+        return try await send(request, as: ContactResponse.self).contact
+    }
+
+    /// Make this the preferred address for its chain family.
+    public func setDefaultContactAddress(id: String, addressId: String) async throws -> Contact {
+        let request = try await makeRequest(
+            "PATCH", "contacts/\(Self.segment(id))/addresses/\(Self.segment(addressId))",
+            body: SetDefaultAddressRequest(isDefault: true)
+        )
+        return try await send(request, as: ContactResponse.self).contact
+    }
+
     // MARK: - Account, security and passkeys
 
     public func fetchProfile() async throws -> UserProfile {

@@ -642,3 +642,58 @@ struct ApplePayTopUpRequest: Encodable, Sendable {
     let amountUsd: Decimal
     let idempotencyKey: String
 }
+
+// MARK: - Address book
+
+struct ContactsResponse: Decodable, Sendable {
+    let contacts: [Contact]
+}
+
+struct ContactResponse: Decodable, Sendable {
+    let contact: Contact
+}
+
+/// POST /contacts/:id/addresses answers with BOTH the new address and the whole
+/// contact. Only the contact is read: adding the first address in a family
+/// makes it that family's default, so the list is the authority on what the
+/// screen should now show and the loose address would only be a second copy of
+/// one row of it.
+struct AddContactAddressResponse: Decodable, Sendable {
+    let contact: Contact
+}
+
+/// One address on the way in. `chain` is sent as the raw string the server's
+/// `z.enum(CHAINS)` expects; `ContactChain` is a String enum so this is the
+/// same value either way and cannot drift from the domain type.
+public struct NewContactAddress: Encodable, Sendable {
+    public let address: String
+    public let chain: ContactChain
+    public let label: String?
+
+    public init(address: String, chain: ContactChain, label: String? = nil) {
+        self.address = address
+        self.chain = chain
+        self.label = label
+    }
+}
+
+struct CreateContactRequest: Encodable, Sendable {
+    let name: String
+    let avatarColor: String
+    let addresses: [NewContactAddress]
+}
+
+/// Whitelisted patch — `addresses`, `id` and the timestamps are deliberately
+/// absent, matching the server's own refusal to accept them here.
+struct PatchContactRequest: Encodable, Sendable {
+    let name: String?
+    let avatarColor: String?
+    let isFavorite: Bool?
+}
+
+/// The only mutable field on a stored address. The address and its chain are
+/// immutable by design: "editing" one is removing it and adding the new one, so
+/// the replacement passes the same per-chain payability check.
+struct SetDefaultAddressRequest: Encodable, Sendable {
+    let isDefault: Bool
+}

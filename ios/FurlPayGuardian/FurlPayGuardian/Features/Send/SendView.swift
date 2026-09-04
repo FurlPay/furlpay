@@ -30,6 +30,15 @@ struct SendView: View {
     @State private var selectedWalletId: String?
     @State private var phase: Phase = .editing
     @State private var showScanner = false
+    @State private var showContacts = false
+    /// The address book, loaded once the screen appears so the "To" field can
+    /// name a payee the moment an address is in it. Failure is silent by
+    /// design: naming a contact is an enhancement to the send flow, and a book
+    /// that will not load must not stop somebody paying an address they already
+    /// have. What it must never do is claim an address is unknown when we
+    /// simply could not check — hence `contactsLoaded`.
+    @State private var contacts: [Contact] = []
+    @State private var contactsLoaded = false
 
     enum Phase: Equatable {
         case editing
@@ -53,6 +62,30 @@ struct SendView: View {
 
     private var selectedWallet: Wallet? {
         wallets.first { $0.id == selectedWalletId } ?? wallets.first
+    }
+
+    /// The chain of the wallet being spent from, when it declares one.
+    ///
+    /// Everything contact-related depends on this: which contacts can receive
+    /// the payment, and whether an address in the field belongs to one of them.
+    /// `nil` is a real state — the picker says so rather than showing a book
+    /// filtered to nothing.
+    private var chain: ContactChain? {
+        selectedWallet?.chain.flatMap(ContactChain.init(rawValue:))
+    }
+
+    /// The saved contact that owns whatever is in the "To" field.
+    ///
+    /// Matched on the address AND the chain together, through the shared rule.
+    /// Matching on the address alone would put a trusted name beside an address
+    /// for a network that contact never gave one on — a false confirmation, on
+    /// the one screen where a false confirmation costs money.
+    ///
+    /// Suppressed entirely until the book has actually loaded, so "no name
+    /// shown" never silently means "we could not check".
+    private var knownContact: Contact? {
+        guard contactsLoaded, let chain, !destination.isEmpty else { return nil }
+        return ContactRules.contact(owning: destination, on: chain, in: contacts)
     }
 
     private var check: SendCheck {
@@ -100,8 +133,21 @@ struct SendView: View {
                 showScanner = false
             }
         }
+        .sheet(isPresented: $showContacts) {
+            ContactPickerView(chain: chain) { address in
+                destination = address
+            }
+            .environment(container)
+        }
         .task {
             if selectedWalletId == nil { selectedWalletId = wallets.first?.id }
+            // Best-effort. A failed load leaves `contactsLoaded` false, which
+            // keeps the "Saved contact" line off the screen rather than showing
+            // an absence as if it were a checked negative.
+            if let loaded = try? await container.api.fetchContacts() {
+                contacts = loaded
+                contactsLoaded = true
+            }
         }
     }
 
@@ -127,11 +173,23 @@ struct SendView: View {
 
     private var toSection: some View {
         Section("To") {
-            HStack {
+            HStack(spacing: 14) {
                 TextField("Address", text: $destination)
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .font(.system(.body, design: .monospaced))
+                // Contacts before the scanner: it is the only one of the two
+                // that involves no transcription at all — the address was
+                // checked once, when it was saved, and is not being re-entered.
+                Button {
+                    showContacts = true
+                } label: {
+                    Image(systemName: "person.crop.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(GuardianColors.primaryAccent)
+                .accessibilityLabel("Choose a saved contact")
+
                 Button {
                     showScanner = true
                 } label: {
@@ -140,6 +198,19 @@ struct SendView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(GuardianColors.primaryAccent)
                 .accessibilityLabel("Scan a code")
+            }
+
+            // A name the user chose themselves is stronger confirmation than
+            // any shape check: it turns "are these the right 42 characters"
+            // into "is this the right person".
+            if let known = knownContact {
+                Label {
+                    Text("Saved contact — \(known.name)")
+                } icon: {
+                    Image(systemName: "checkmark.seal.fill")
+                }
+                .font(.caption)
+                .foregroundStyle(GuardianColors.primaryAccent)
             }
         }
         .listRowBackground(GuardianColors.surface)

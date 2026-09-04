@@ -40,7 +40,20 @@ public actor KeychainTokenStore {
     private let account = "auth_token"
 
     /// In-memory copy so a hot path (every API request adds an Authorization
-    /// header) does not hit the keychain each time. Cleared on `clear()`.
+    /// header) does not hit the keychain each time.
+    ///
+    /// THIS CACHE PARTLY DEFEATS `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`,
+    /// AND THAT HAD TO BE SAID OUT LOUD. The accessibility attribute below
+    /// promises that a locked device cannot hand the token to a background
+    /// task. It only promises that about the KEYCHAIN. Once `get()` has run,
+    /// the token is a plain `String` in the actor's memory and stays readable
+    /// for as long as the process lives — including while the device is locked,
+    /// which is exactly the window the attribute was chosen to close.
+    ///
+    /// `evictCache()` is the other half of the guarantee, and the app calls it
+    /// when the protected data class becomes unavailable. Nothing here can
+    /// enforce that on its own, hence the explicit entry point rather than a
+    /// silent assumption that the cache is harmless.
     private var cached: String?
 
     public init(service: String = "com.furlpay.guardian") {
@@ -105,6 +118,22 @@ public actor KeychainTokenStore {
 
     public func clear() {
         SecItemDelete(baseQuery as CFDictionary)
+        cached = nil
+    }
+
+    /// Drop the in-memory copy WITHOUT signing the user out.
+    ///
+    /// Called when the device locks (`UIApplication.protectedDataWillBecome
+    /// Unavailable`), which is the moment the keychain item itself stops being
+    /// readable. Without this the process keeps a usable bearer token in memory
+    /// across the lock, so a background task that fires while the phone is in
+    /// someone else's hands still authenticates — the precise scenario
+    /// `WhenUnlocked` was chosen to prevent.
+    ///
+    /// Distinct from `clear()`: the item stays in the keychain, so the next
+    /// `get()` after unlock reads it back and the session continues. Losing the
+    /// cache costs one keychain round trip, not a sign-in.
+    public func evictCache() {
         cached = nil
     }
 

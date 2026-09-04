@@ -83,6 +83,75 @@
         <string>UIInterfaceOrientationPortrait</string>
     </array>
 
+    <!--
+      Certificate pinning for furlpay.com.
+
+      THE GAP THIS CLOSES. The Android app has pinned furlpay.com since
+      2026-07-18 (native-app/plugins/withNetworkSecurityConfig.js). iOS had
+      nothing: FurlPayAPIClient uses URLSession.shared with no server-trust
+      delegate, so every session JWT, balance and transfer on this platform was
+      protected by ordinary CA validation alone — which a device-local proxy
+      with a user-installed root defeats completely. Two clients talking to one
+      API had two different threat models, and only one of them was written
+      down.
+
+      NSPinnedDomains rather than a URLSessionDelegate: it is enforced by the
+      system for EVERY connection the process makes (URLSession, WebKit, and
+      anything a dependency opens), it cannot be bypassed by a later refactor
+      that forgets to attach the delegate, and it needs no hand-rolled
+      SecTrustEvaluate — the classic place pinning code goes subtly wrong.
+
+      PIN CHOICE — ROOTS, NEVER LEAVES OR INTERMEDIATES, and the same three the
+      Android config pins, computed from the live chain plus the published
+      letsencrypt.org roots. Vercel rotates the leaf every ~90 days and Let's
+      Encrypt rotates intermediates on its own schedule; pinning either would
+      brick networking on rotation.
+        - ISRG Root YR — the anchor furlpay.com currently chains to
+        - ISRG Root X1 — its cross-signer (continuity for classic LE chains)
+        - ISRG Root X2 — LE's EC root (backup if issuance moves)
+
+      NSPinnedDomains has NO expiration field, so it has no dead-man's switch of
+      its own — unlike the Android <pin-set expiration="2027-07-18">. Re-verify
+      these at the same time as the Android pins, and never let the two lists
+      drift:
+        openssl s_client -connect furlpay.com:443 -showcerts
+      then SPKI sha256 of each root.
+
+      IncludesSubdomains is true because the API and the web origin are the same
+      host family; NSRequiresCertificateTransparency is left off deliberately,
+      as enabling it would add a second, independent way for a legitimate
+      certificate rotation to take the app offline.
+    -->
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSPinnedDomains</key>
+        <dict>
+            <key>furlpay.com</key>
+            <dict>
+                <key>NSIncludesSubdomains</key>
+                <true/>
+                <key>NSPinnedCAIdentities</key>
+                <array>
+                    <!-- ISRG Root YR (live anchor) -->
+                    <dict>
+                        <key>SPKI-SHA256-BASE64</key>
+                        <string>fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=</string>
+                    </dict>
+                    <!-- ISRG Root X1 (cross-signer) -->
+                    <dict>
+                        <key>SPKI-SHA256-BASE64</key>
+                        <string>C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</string>
+                    </dict>
+                    <!-- ISRG Root X2 (backup if issuance moves) -->
+                    <dict>
+                        <key>SPKI-SHA256-BASE64</key>
+                        <string>diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=</string>
+                    </dict>
+                </array>
+            </dict>
+        </dict>
+    </dict>
+
     <key>ITSAppUsesNonExemptEncryption</key>
     <false/>
 </dict>
