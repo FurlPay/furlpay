@@ -85,6 +85,7 @@ describe("settlement evidence cannot be fabricated", () => {
     await expect(
       recordSettlement(s, {
         transactionHash: "",
+        amountAtomic: "25000000",
         network: "arbitrum:mainnet",
         confirmations: 3,
         requiredConfirmations: 3,
@@ -103,6 +104,7 @@ describe("settlement evidence cannot be fabricated", () => {
     const s = await newSession();
     const settled = await recordSettlement(s, {
       transactionHash: "0xabc123",
+      amountAtomic: "25000000",
       network: "arbitrum:mainnet",
       confirmations: 5,
       requiredConfirmations: 3,
@@ -117,6 +119,7 @@ describe("settlement evidence cannot be fabricated", () => {
     const s = await newSession();
     const settled = await recordSettlement(s, {
       transactionHash: "0xabc123",
+      amountAtomic: "25000000",
       network: "base:mainnet",
       confirmations: 1,
       requiredConfirmations: 6,
@@ -132,6 +135,7 @@ describe("settlement evidence cannot be fabricated", () => {
     const s = await newSession();
     const settled = await recordSettlement(s, {
       transactionHash: "0xabc123",
+      amountAtomic: "25000000",
       network: "solana:mainnet-beta",
       confirmations: 32,
       requiredConfirmations: 32,
@@ -146,6 +150,7 @@ describe("settlement evidence cannot be fabricated", () => {
     const s = await newSession();
     const first = await recordSettlement(s, {
       transactionHash: "0xaaa",
+      amountAtomic: "25000000",
       network: "base:mainnet",
       confirmations: 6,
       requiredConfirmations: 6,
@@ -154,6 +159,98 @@ describe("settlement evidence cannot be fabricated", () => {
     await expect(
       transition(first, "finalized", { transactionHash: "0xbbb" })
     ).rejects.toThrow(/refusing to overwrite/i);
+  });
+});
+
+describe("the amount received is checked, not assumed", () => {
+  it("does not confirm a payment smaller than the price", async () => {
+    // THE DEFECT THIS CLOSES. recordSettlement previously took a reference and
+    // a confirmation count and never compared the amount — one atomic unit
+    // against a $25 session reached `confirmed`. Evidence that a transaction
+    // exists is not evidence that it paid.
+    const s = await newSession(); // owes 25.000000
+    const settled = await recordSettlement(s, {
+      transactionHash: "0xshort",
+      amountAtomic: "1",
+      network: "base:mainnet",
+      confirmations: 12,
+      requiredConfirmations: 6,
+      finalized: true,
+    });
+
+    expect(settled.status).toBe("underpaid");
+    expect(settled.status).not.toBe("confirmed");
+    expect(settled.failureReason).toMatch(/against 25\.000000 owed/);
+  });
+
+  it("keeps underpaid distinct from failed", async () => {
+    // The money is real and still the payer's. `failed` would imply nothing
+    // arrived and invite a duplicate payment.
+    const s = await newSession();
+    const settled = await recordSettlement(s, {
+      transactionHash: "0xshort",
+      amountAtomic: "24999999",
+      network: "base:mainnet",
+      confirmations: 6,
+      requiredConfirmations: 6,
+      finalized: false,
+    });
+    expect(settled.status).toBe("underpaid");
+    expect(settled.amountReceivedAtomic).toBe("24999999");
+    expect(isTerminal("underpaid")).toBe(false);
+  });
+
+  it("accepts an exact payment", async () => {
+    const s = await newSession();
+    const settled = await recordSettlement(s, {
+      transactionHash: "0xexact",
+      amountAtomic: "25000000",
+      network: "base:mainnet",
+      confirmations: 6,
+      requiredConfirmations: 6,
+      finalized: false,
+    });
+    expect(settled.status).toBe("confirmed");
+  });
+
+  it("accepts an overpayment rather than stranding the order", async () => {
+    // Overpaying is the payer's mistake and the goods are owed. The excess is
+    // recorded so it can be refunded; refusing would hold their money AND
+    // their order.
+    const s = await newSession();
+    const settled = await recordSettlement(s, {
+      transactionHash: "0xover",
+      amountAtomic: "30000000",
+      network: "base:mainnet",
+      confirmations: 6,
+      requiredConfirmations: 6,
+      finalized: false,
+    });
+    expect(settled.status).toBe("confirmed");
+    expect(settled.amountReceivedAtomic).toBe("30000000");
+  });
+
+  it("fails a payment made on the wrong network", async () => {
+    // Quoted on one chain, paid on another: the merchant's funds are somewhere
+    // they did not ask for them, and no confirmation count fixes that.
+    const s = await createSession({
+      merchantKeyId: MERCHANT,
+      amountAtomic: "25000000",
+      decimals: 6,
+      currency: "USD",
+      token: "USDC",
+      network: "base:mainnet",
+    });
+    const settled = await recordSettlement(s, {
+      transactionHash: "0xwrongchain",
+      amountAtomic: "25000000",
+      network: "solana:mainnet-beta",
+      confirmations: 32,
+      requiredConfirmations: 6,
+      finalized: true,
+    });
+    expect(settled.status).toBe("failed");
+    expect(settled.failureReason).toMatch(/solana:mainnet-beta/);
   });
 });
 
@@ -208,6 +305,7 @@ describe("expiry", () => {
     });
     await recordSettlement(s, {
       transactionHash: "0xabc",
+      amountAtomic: "1000000",
       network: "base:mainnet",
       confirmations: 1,
       requiredConfirmations: 6,

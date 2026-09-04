@@ -50,6 +50,14 @@ export type CheckoutStatus =
   /** A rail reported definite failure. Distinct from `unknown`. */
   | "failed"
   /**
+   * Real money arrived, but less than the price.
+   *
+   * Deliberately not `failed`: the funds exist and still belong to the payer,
+   * so this needs a merchant decision (accept, request a top-up, or refund)
+   * rather than an automatic verdict.
+   */
+  | "underpaid"
+  /**
    * A transaction may exist and its outcome cannot be established.
    *
    * NOT a synonym for failed. A timeout is the absence of evidence, and a
@@ -71,15 +79,17 @@ const TERMINAL: readonly CheckoutStatus[] = ["completed", "expired", "cancelled"
  */
 const TRANSITIONS: Readonly<Record<CheckoutStatus, readonly CheckoutStatus[]>> = {
   requires_payment: ["submitted", "expired", "cancelled"],
-  submitted: ["confirming", "confirmed", "failed", "unknown"],
-  confirming: ["confirmed", "failed", "unknown"],
+  submitted: ["confirming", "confirmed", "underpaid", "failed", "unknown"],
+  confirming: ["confirmed", "underpaid", "failed", "unknown"],
   confirmed: ["finalized", "completed", "unknown"],
   finalized: ["completed", "unknown"],
   completed: [],
   expired: [],
   cancelled: [],
   failed: [],
-  unknown: ["submitted", "confirming", "confirmed", "finalized", "failed"],
+  // A top-up or a merchant acceptance resolves it; refunding ends it.
+  underpaid: ["confirmed", "cancelled", "failed"],
+  unknown: ["submitted", "confirming", "confirmed", "finalized", "underpaid", "failed"],
 };
 
 export interface CheckoutSession {
@@ -102,6 +112,8 @@ export interface CheckoutSession {
    * the module.
    */
   transactionHash: string | null;
+  /** Atomic units actually received. Null until a rail reports one. */
+  amountReceivedAtomic: string | null;
   confirmations: number | null;
   requiredConfirmations: number | null;
   createdAt: string;
@@ -119,6 +131,8 @@ export interface CheckoutSessionPublic {
   token: string;
   network: string | null;
   transactionHash: string | null;
+  /** What actually arrived, so a merchant can see a shortfall. */
+  amountReceived: string | null;
   confirmations: number | null;
   requiredConfirmations: number | null;
   expiresAt: string;
@@ -142,6 +156,8 @@ export function toPublic(s: CheckoutSession): CheckoutSessionPublic {
     token: s.token,
     network: s.network,
     transactionHash: s.transactionHash,
+    amountReceived:
+      s.amountReceivedAtomic === null ? null : formatAtomic(s.amountReceivedAtomic, s.decimals),
     confirmations: s.confirmations,
     requiredConfirmations: s.requiredConfirmations,
     expiresAt: s.expiresAt,
@@ -197,6 +213,7 @@ export async function createSession(input: CreateSessionInput): Promise<Checkout
     // ALWAYS this. There is no input that produces a session already paid.
     status: "requires_payment",
     transactionHash: null,
+    amountReceivedAtomic: null,
     confirmations: null,
     requiredConfirmations: null,
     createdAt: new Date(now).toISOString(),
@@ -248,6 +265,7 @@ export function isTerminal(status: CheckoutStatus): boolean {
 
 interface TransitionPatch {
   transactionHash?: string;
+  amountReceivedAtomic?: string;
   confirmations?: number;
   requiredConfirmations?: number;
   network?: string;
@@ -284,6 +302,9 @@ export async function transition(
     status: to,
     updatedAt: new Date().toISOString(),
     ...(patch.transactionHash !== undefined ? { transactionHash: patch.transactionHash } : {}),
+    ...(patch.amountReceivedAtomic !== undefined
+      ? { amountReceivedAtomic: patch.amountReceivedAtomic }
+      : {}),
     ...(patch.confirmations !== undefined ? { confirmations: patch.confirmations } : {}),
     ...(patch.requiredConfirmations !== undefined
       ? { requiredConfirmations: patch.requiredConfirmations }
@@ -315,6 +336,15 @@ export async function recordSettlement(
   observed: {
     transactionHash: string;
     network: string;
+    /**
+     * Integer atomic units ACTUALLY received, as reported by the rail.
+     *
+     * Required. Without it this function verified that *a* payment existed and
+     * never that it was the right size — one atomic unit against a $500
+     * session would have reached `confirmed`. Evidence of a transaction is not
+     * evidence of payment.
+     */
+    amountAtomic: string;
     confirmations: number;
     requiredConfirmations: number;
     /** True only when the chain's own finality rule is satisfied. */
@@ -324,14 +354,58 @@ export async function recordSettlement(
   if (!observed.transactionHash) {
     throw new Error("recordSettlement requires an observed transaction reference");
   }
+
+  // The rail must say which network it saw. A session that was quoted on one
+  // network and paid on another has not been paid — the merchant's funds are
+  // somewhere they did not ask for them.
+  if (session.network && session.network !== observed.network) {
+    return transition(session.status === "requires_payment"
+      ? await transition(session, "submitted", {
+          transactionHash: observed.transactionHash,
+          network: observed.network,
+        })
+      : session,
+      "failed",
+      {
+        failureReason: `Paid on ${observed.network}, but this session was quoted on ${session.network}.`,
+      }
+    );
+  }
+
+  const received = BigInt(observed.amountAtomic);
+  const owed = BigInt(session.amountAtomic);
   const confirmed = observed.confirmations >= observed.requiredConfirmations;
 
   const evidence = {
     transactionHash: observed.transactionHash,
     network: observed.network,
+    amountReceivedAtomic: observed.amountAtomic,
     confirmations: observed.confirmations,
     requiredConfirmations: observed.requiredConfirmations,
   };
+
+  // UNDERPAYMENT IS NOT PAYMENT. It gets its own state rather than `failed`,
+  // because the money is real and still belongs to the payer — the merchant
+  // has to decide whether to accept it, ask for a top-up, or refund. Calling
+  // it `failed` would imply nothing arrived; calling it `confirmed` would ship
+  // the goods for less than the price.
+  //
+  // No tolerance band is applied. Gateways commonly offer one, but a
+  // tolerance is a merchant pricing decision and inventing a default here
+  // would silently discount every order in the system.
+  if (received < owed) {
+    const submitted =
+      session.status === "requires_payment"
+        ? await transition(session, "submitted", {
+            transactionHash: observed.transactionHash,
+            network: observed.network,
+          })
+        : session;
+    return transition(submitted, "underpaid", {
+      ...evidence,
+      failureReason: `Received ${formatAtomic(observed.amountAtomic, session.decimals)} against ${formatAtomic(session.amountAtomic, session.decimals)} owed.`,
+    });
+  }
 
   // Walk the states rather than jumping, so the audit trail shows the path the
   // payment actually took. Finality is reached THROUGH confirmation — a

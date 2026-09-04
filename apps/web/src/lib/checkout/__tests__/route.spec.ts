@@ -139,6 +139,7 @@ describe("status can be polled, and reflects only observed evidence", () => {
     const session = await getSession(created.id);
     await recordSettlement(session!, {
       transactionHash: "0xrealref",
+      amountAtomic: "40000000",
       network: "base:mainnet",
       confirmations: 1,
       requiredConfirmations: 6,
@@ -161,6 +162,7 @@ describe("idempotency of settlement observation", () => {
     const s1 = await getSession(created.id);
     const observation = {
       transactionHash: "0xsame",
+      amountAtomic: "40000000",
       network: "base:mainnet",
       confirmations: 6,
       requiredConfirmations: 6,
@@ -180,6 +182,7 @@ describe("idempotency of settlement observation", () => {
     const s = await getSession(created.id);
     const first = await recordSettlement(s!, {
       transactionHash: "0xfirst",
+      amountAtomic: "40000000",
       network: "base:mainnet",
       confirmations: 6,
       requiredConfirmations: 6,
@@ -188,6 +191,7 @@ describe("idempotency of settlement observation", () => {
     await expect(
       recordSettlement(first, {
         transactionHash: "0xsecond",
+        amountAtomic: "40000000",
         network: "base:mainnet",
         confirmations: 6,
         requiredConfirmations: 6,
@@ -205,6 +209,7 @@ describe("idempotency of settlement observation", () => {
     const sa = await getSession(a.id);
     await recordSettlement(sa!, {
       transactionHash: "0xaaa",
+      amountAtomic: "1000000",
       network: "base:mainnet",
       confirmations: 6,
       requiredConfirmations: 6,
