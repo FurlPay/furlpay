@@ -67,6 +67,15 @@ export type AuditEvent =
   | "agent.key_revoked"
   | "agent.spend_authorized"
   | "agent.spend_denied"
+  // API key lifecycle. Never carries secret material: a key id and a name are
+  // enough to investigate an incident, and a hash in a log is a hash that has
+  // left the key store.
+  | "apikey.created"
+  | "apikey.rotated"
+  | "apikey.revoked"
+  | "apikey.updated"
+  | "apikey.deleted"
+  | "apikey.auth_failed"
   // MPC co-signing. `mpc.signed` records that a spendable signature was minted
   // — the closest thing in this system to "money left", since a signature is
   // irreversible once broadcast. Logged with the digest, which is public the

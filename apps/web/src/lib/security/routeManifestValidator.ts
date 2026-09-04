@@ -48,6 +48,11 @@ export const VALID_CLASSES = [
   "PUBLIC_INTENTIONAL",
   "DEVELOPMENT_ONLY",
   "INTERNAL_ONLY",
+  // A machine caller holding an API key, not a browser session. Distinct from
+  // AUTHENTICATED_USER because the credential, the failure modes and the guard
+  // all differ: there is no cookie, no CSRF surface, and authority comes from
+  // the key's scopes rather than the account's role.
+  "API_KEY_AUTHENTICATED",
 ] as const;
 
 export type Classification = (typeof VALID_CLASSES)[number];
@@ -112,6 +117,18 @@ export const RULES: RouteRule[] = [
       "revocation denylist, enforces MCP connector scopes, and rejects deleted accounts. " +
       "A hand-rolled verifySession() call skips all three.",
     fix: 'add `const auth = await requireUser(req); if (!auth.ok) return auth.res;` (from "@/lib/authz")',
+  },
+  {
+    id: "api-key-routes-verify-the-key",
+    appliesTo: ["API_KEY_AUTHENTICATED"],
+    requiresAnyCall: ["requireApiKey"],
+    severity: "error",
+    reason:
+      "A route classified API_KEY_AUTHENTICATED must go through requireApiKey(), which is the " +
+      "only path that checks the secret in constant time and then enforces revocation, expiry, " +
+      "environment, IP allowlist and scope. Reading the Authorization header directly skips " +
+      "every one of those, and a key that was revoked an hour ago would still work.",
+    fix: 'add `const auth = await requireApiKey(req, { scope: "<resource:action>" }); if (!auth.ok) return auth.res;` (from "@/lib/apiKeyAuth")',
   },
   {
     id: "admin-routes-check-a-role",
