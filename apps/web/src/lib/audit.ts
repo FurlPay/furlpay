@@ -63,6 +63,14 @@ export type AuditEvent =
   // Wallet-handle reservation: which account claimed which pre-launch handle,
   // and the read scopes granted at consent.
   | "wallet.handle_reserved"
+  // Payout destination lifecycle. A wallet change is the single highest-value
+  // action a compromised account can take, so every step of proving control of
+  // one is recorded — including the failures.
+  | "payout.freeze_requested"
+  | "payout.unfreeze_requested"
+  | "payout.challenge_issued"
+  | "payout.ownership_verified"
+  | "payout.ownership_failed"
   | "agent.key_registered"
   | "agent.key_revoked"
   | "agent.spend_authorized"

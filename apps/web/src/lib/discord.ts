@@ -9,6 +9,7 @@ import { searchAirports } from "@/lib/travel/airports";
 import { searchDocs } from "@/lib/docs/search";
 import { handleRolePicker } from "@/lib/discordRoles/handle";
 import { handleVerify } from "@/lib/discordVerify/flow";
+import { handlePaymentsConsole } from "@/lib/payouts/discord/handler";
 
 // ---------------------------------------------------------------------------
 // Discord HTTP interactions for the Furlpay app (Application ID in env).
@@ -139,6 +140,16 @@ export async function handleCommand(i: Interaction): Promise<Reply> {
   const name = i.data?.name ?? "";
 
   switch (name) {
+    // The payments console. Every screen is ephemeral: a payout view holds a
+    // balance and a destination address, and this is a public channel.
+    case "payments": {
+      const console_ = await handlePaymentsConsole(i);
+      // handlePaymentsConsole only returns null for ids it does not own, which
+      // cannot happen for its own command — but the fallback keeps the switch
+      // total rather than relying on that.
+      return (console_ as Reply | null) ?? reply({ content: "The payments console is unavailable.", flags: EPHEMERAL });
+    }
+
     case "help":
       return reply({
         embeds: [
@@ -379,7 +390,12 @@ export async function handleComponent(i: Interaction): Promise<Reply> {
     });
   }
 
-  // Verification first: it is the gate, and its custom_ids are disjoint from
+  // The payments console owns the fp:pay: namespace and returns null for
+  // everything else, so it can safely go first.
+  const payments = await handlePaymentsConsole(i);
+  if (payments) return payments as Reply;
+
+  // Verification next: it is the gate, and its custom_ids are disjoint from
   // the picker's, so order is about intent rather than correctness.
   const verify = await handleVerify(i, token);
   if (verify) return verify;
@@ -402,6 +418,9 @@ export async function handleModalSubmit(i: Interaction): Promise<Reply> {
   if (!token) {
     return reply({ content: "This feature is not configured on this deployment yet.", flags: EPHEMERAL });
   }
+
+  const payments = await handlePaymentsConsole(i);
+  if (payments) return payments as Reply;
 
   const verify = await handleVerify(i, token);
   if (verify) return verify;
