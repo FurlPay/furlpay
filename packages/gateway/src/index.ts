@@ -63,6 +63,8 @@ export {
   Gateway,
   type GatewayOptions,
   type SpendPolicyHook,
+  type SettlementPolicy,
+  type SettlementVerdict,
   type PolicyVerdict,
   type GatewayDecision,
   type AuthorizeInput,

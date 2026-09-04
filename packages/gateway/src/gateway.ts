@@ -116,6 +116,17 @@ export interface GatewayOptions {
    * on any failure — so a failed payment never permanently consumes budget.
    */
   policy?: SpendPolicyHook;
+  /**
+   * Decides how long to wait before releasing the resource, given the amount
+   * and the chain.
+   *
+   * Omit it and the gateway uses `requiredConfirmations`, a chain-blind count
+   * that is correct enough for a single-chain deployment and wrong the moment
+   * the same code serves Solana and an optimistic rollup. Supply
+   * `@furlpay/settlement` here to get per-chain finality, risk tiers and
+   * consensus-upgrade awareness.
+   */
+  settlementPolicy?: SettlementPolicy;
 }
 
 /**
@@ -139,6 +150,57 @@ export interface SpendPolicyHook {
   commit(reservationId: string): Promise<void> | void;
   /** The payment did not settle; give the headroom back. */
   release(reservationId: string): Promise<void> | void;
+}
+
+/**
+ * What a settlement policy says about one payment.
+ *
+ * Richer than a confirmation count on purpose. `requiredConfirmations` below
+ * answers "how many blocks", which is the only question a chain-blind gateway
+ * can ask — but twelve confirmations means something entirely different on
+ * Solana (~400ms slots) than on Base (~2s blocks), and on an optimistic
+ * rollup no amount of waiting produces finality at all. A policy that knows
+ * the chain can say so; this shape lets it.
+ */
+export interface SettlementVerdict {
+  /** Confirmations to require before releasing the resource. */
+  confirmations: number;
+  /**
+   * Expected wait, or null when the chain cannot answer the question this
+   * tier asks. Callers MUST branch on null rather than defaulting it.
+   */
+  expectedWaitMs: number | null;
+  /**
+   * True when waiting will NEVER satisfy the requirement — an optimistic
+   * rollup asked for finality, for instance. The gateway refuses rather than
+   * releasing, because the alternative is calling a payment settled that by
+   * this policy's own definition is not.
+   */
+  unsatisfiable: boolean;
+  /** Tier name, for the receipt and for logs. */
+  tier: string;
+  /** One sentence a human can act on. */
+  explanation: string;
+}
+
+/**
+ * An injectable settlement policy.
+ *
+ * Injected rather than imported so this package keeps its zero-runtime-
+ * dependency contract: `@furlpay/settlement` knows about chains, tiers and
+ * consensus upgrades, and none of that belongs inside an x402 protocol
+ * implementation. Omit it and the gateway falls back to
+ * `requiredConfirmations`, which is the behaviour every existing deployment
+ * already has.
+ */
+export interface SettlementPolicy {
+  forPayment(input: {
+    /** Integer atomic units, as a decimal string. */
+    amountAtomic: string;
+    decimals: number;
+    /** The gateway's canonical `chain:network`. */
+    network: string;
+  }): SettlementVerdict;
 }
 
 export type PolicyVerdict =
@@ -656,7 +718,26 @@ export class Gateway {
       return fail(settled.errorReason ?? "Settlement failed");
     }
 
-    const needed = requiredConfirmations(auth.value);
+    // A settlement policy, when one is configured, knows the chain and can say
+    // things the built-in count cannot: that this tier needs finality rather
+    // than confirmation, and — on an optimistic rollup — that no amount of
+    // waiting will produce it.
+    const verdict = this.opts.settlementPolicy?.forPayment({
+      amountAtomic: auth.value,
+      decimals: this.assetId.decimals,
+      network: this.canonical,
+    });
+
+    if (verdict?.unsatisfiable) {
+      // Releasing here would mean calling a payment settled that the policy
+      // itself says cannot settle by waiting. The money is not lost — the
+      // nonce stays burned and the reservation is returned — but the resource
+      // is not served on a promise the chain cannot keep.
+      await releaseReservation();
+      return fail(`Settlement requirement cannot be met on ${this.canonical}: ${verdict.explanation}`);
+    }
+
+    const needed = verdict?.confirmations ?? requiredConfirmations(auth.value);
     if (typeof settled.confirmations === "number" && settled.confirmations < needed) {
       await releaseReservation();
       return fail(`Insufficient confirmations (${settled.confirmations}/${needed})`);

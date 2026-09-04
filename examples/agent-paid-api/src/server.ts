@@ -4,6 +4,7 @@ import { Gateway, type SpendPolicyHook } from "@furlpay/gateway";
 import { SpendLimiter, authorize as reserveSpend, toMicros } from "@furlpay/agent-trust";
 import { createIntent, recoveryFor, transition, isKeyReuse, matches, type PaymentIntent } from "@furlpay/payment-intent";
 import { Ledger } from "@furlpay/ledger";
+import { settlementPolicy } from "./settlement-policy.js";
 import { AuditLog } from "./audit.js";
 import { TestPaymentRail } from "./test-rail.js";
 import { formatAtomic, loadConfig } from "./config.js";
@@ -106,6 +107,9 @@ const gateway = new Gateway({
   asset: config.asset,
   facilitator: rail,
   policy,
+  // Puts @furlpay/settlement on the running path: per-chain finality and risk
+  // tiers instead of the gateway's chain-blind confirmation count.
+  settlementPolicy: settlementPolicy(),
   description: () => "FurlPay example search API",
   onRejected: (info) => {
     audit.record({ type: "POLICY_DENIED", endpoint: info.resource, agentId: info.payer, detail: info.reason });

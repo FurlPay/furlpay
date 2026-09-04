@@ -8,13 +8,17 @@
     "build": "tsc -p tsconfig.json",
     "dev": "npm run build && node dist/server.js",
     "agent": "npm run build && node dist/agent.js",
-    "test": "npm run build && node --test dist/golden-path.test.js"
+    "test": "npm run build && node --test dist/golden-path.test.js dist/settlement-policy.test.js"
   },
   "dependencies": {
     "@furlpay/agent-trust": "*",
     "@furlpay/gateway": "*",
     "@furlpay/ledger": "*",
-    "@furlpay/payment-intent": "*"
+    "@furlpay/payment-intent": "*",
+    "@furlpay/settlement": "*"
   },
-  "devDependencies": { "@types/node": "^20.14.0", "typescript": "^5.5.0" }
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
 }
