@@ -661,3 +661,26 @@ export function verifyRequest(p: VerifyRequestParams): VerifiedRequest {
   }
   return { keyId, tag: param("tag"), nonce: param("nonce"), created, expires };
 }
+
+// ── Per-request spend policy ───────────────────────────────────────────────
+//
+// Separate from the mandate system above, and deliberately so. A mandate
+// governs BOOKINGS — a signed allowance spent on discrete purchases. An agent
+// paying an API per request is the opposite shape: thousands of sub-cent calls
+// with no per-call human intent, where the operator's question is rate, not
+// authorisation. See ./spend.ts.
+export {
+  MICROS_PER_UNIT,
+  SpendLimiter,
+  authorize,
+  formatMicros,
+  priceFor,
+  toMicros,
+  type DenialReason,
+  type EndpointPrices,
+  type Micros,
+  type Reservation,
+  type SpendDecision,
+  type SpendLimiterOptions,
+  type SpendPolicy,
+} from "./spend.js";
