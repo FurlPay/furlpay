@@ -1,0 +1,20 @@
+{
+  "name": "@furlpay/example-agent-paid-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Runnable golden path: an AI agent pays per request for an API, under an explicit budget, with a durable payment intent, ledger entry and audit trail.",
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "npm run build && node dist/server.js",
+    "agent": "npm run build && node dist/agent.js",
+    "test": "npm run build && node --test dist/golden-path.test.js"
+  },
+  "dependencies": {
+    "@furlpay/agent-trust": "*",
+    "@furlpay/gateway": "*",
+    "@furlpay/ledger": "*",
+    "@furlpay/payment-intent": "*"
+  },
+  "devDependencies": { "@types/node": "^20.14.0", "typescript": "^5.5.0" }
+}

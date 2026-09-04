@@ -62,6 +62,8 @@ export {
 export {
   Gateway,
   type GatewayOptions,
+  type SpendPolicyHook,
+  type PolicyVerdict,
   type GatewayDecision,
   type AuthorizeInput,
   type RequestContext,
