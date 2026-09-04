@@ -288,8 +288,10 @@ export function useSendWarnings(input: {
   balance: TokenBalance | null;
   addressValid: boolean;
   recents: RecentRecipient[];
+  /** Name of the address-book contact that owns this address, if any. */
+  contactName?: string;
 }): MoneyWarning[] {
-  const { amountUsd, destination, balance, addressValid, recents } = input;
+  const { amountUsd, destination, balance, addressValid, recents, contactName } = input;
   return useMemo(() => {
     if (!balance) return [];
     return sendWarnings({
@@ -298,10 +300,11 @@ export function useSendWarnings(input: {
       chain: balance.chain as ChainId,
       token: balance.token,
       known: isKnownRecipient(destination, recents),
+      ...(contactName ? { contactName } : {}),
       lookalike: findLookalike(destination, recents),
       addressValid,
     });
-  }, [amountUsd, destination, balance, addressValid, recents]);
+  }, [amountUsd, destination, balance, addressValid, recents, contactName]);
 }
 
 // ── useSendExecution ───────────────────────────────────────────────────────
@@ -399,17 +402,24 @@ export function useSendExecution(
     setCorrelationId(null);
     setUnavailable(null);
 
-    setStage("authorizing");
-    // Biometric confirmation before any money moves (honors the Settings →
-    // Security → "Biometric approvals" preference).
-    const confirmed = await confirmWithBiometrics(
-      `Send ${usd(check.amountUsd)} to ${shortAddress(destination.trim())}`
-    );
-    if (!confirmed) {
-      setStage("idle");
-      return;
-    }
+    // CLAIMED THE ATTEMPT HERE, NOT AFTER THE PROMPT.
+    //
+    // This flag used to be set immediately before the fetch, which left the
+    // whole biometric window — seconds, and the one moment the app is NOT in
+    // the foreground — outside the guard. A second execute() arriving then
+    // passed `inFlight.current === false`, put up a second prompt, and ran a
+    // second submission. The stable idempotency key means the server dedupes
+    // the pair, so the money is safe; the user still gets two fingerprint
+    // sheets for one payment and a receipt race deciding which reply is shown.
+    //
+    // Every early return below must release it, hence the try/finally that now
+    // spans the authorization step as well as the request.
+    if (inFlight.current) return;
+    inFlight.current = true;
 
+    // Built BEFORE the try, not inside it: the catch below queues this exact
+    // payload to the outbox when the device turns out to be offline, and a
+    // `const` declared inside the try block is not in scope there.
     const payload = {
       destination: destination.trim(),
       // TOKEN units, not the USD the field is denominated in.
@@ -432,9 +442,19 @@ export function useSendExecution(
 
     const fingerprint = `${payload.destination}|${payload.amount}|${payload.token}|${payload.chain}`;
 
-    inFlight.current = true;
-    setStage("submitting");
+    setStage("authorizing");
     try {
+      // Biometric confirmation before any money moves (honors the Settings →
+      // Security → "Biometric approvals" preference).
+      const confirmed = await confirmWithBiometrics(
+        `Send ${usd(check.amountUsd)} to ${shortAddress(destination.trim())}`
+      );
+      if (!confirmed) {
+        setStage("idle");
+        return;
+      }
+
+      setStage("submitting");
       const res = await api<{ transactionHash: string }>("/wallets/transfer", {
         method: "POST",
         body: payload,

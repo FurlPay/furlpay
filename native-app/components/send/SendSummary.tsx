@@ -27,6 +27,15 @@ export interface SendFacts {
   tokenEquivalent?: number;
   /** USD value of the source balance, for the "left after" line. */
   balanceUsd?: number;
+  /**
+   * Name of the address-book contact that owns `destination`, if any.
+   *
+   * Promoted to a headline row rather than buried in Advanced details, because
+   * it is the only line here a human can verify at a glance. "Recipient gets
+   * $250 · to Alice" is checkable; a 42-character string is not, which is why
+   * the string itself stays behind the disclosure.
+   */
+  contactName?: string;
 }
 
 export function SendSummary({ facts }: { facts: SendFacts }) {
@@ -38,6 +47,13 @@ export function SendSummary({ facts }: { facts: SendFacts }) {
   return (
     <View style={styles.card}>
       <Row label="Recipient gets" value={usd(facts.amountUsd)} strong />
+      {facts.contactName ? (
+        <Row
+          label="To"
+          value={facts.contactName}
+          hint="A contact you saved. The address below has not changed since."
+        />
+      ) : null}
       <Row label="Network" value={chain?.name ?? facts.chain} />
       <Row
         label="Network fee"

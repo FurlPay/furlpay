@@ -164,6 +164,20 @@ export default function RootLayout() {
               <Stack.Screen name="receive" options={{ title: "Receive" }} />
               <Stack.Screen name="scan" options={{ title: "Scan to pay" }} />
               <Stack.Screen name="transactions" options={{ title: "All transactions" }} />
+              {/* The address book. /contacts is the list; /contacts/new is a
+                  modal because it is a task the user starts on top of whatever
+                  they were doing (usually mid-send) and returns from. */}
+              <Stack.Screen name="contacts/index" options={{ title: "Address book" }} />
+              <Stack.Screen name="contacts/[id]" options={{ title: "Contact" }} />
+              <Stack.Screen
+                name="contacts/new"
+                options={{ title: "New contact", presentation: "modal" }}
+              />
+              {/* Card lifecycle. The tab keeps the carousel and the everyday
+                  controls; ordering and per-card management are their own
+                  screens because both are tasks with a beginning and an end. */}
+              <Stack.Screen name="cards/order" options={{ title: "Order a card" }} />
+              <Stack.Screen name="cards/[id]" options={{ title: "Manage card" }} />
               <Stack.Screen name="swap" options={{ title: "Swap" }} />
               {/* /swap is the execution flow; /swaps is its history. Kept in
                   separate namespaces so a detail route can never shadow the

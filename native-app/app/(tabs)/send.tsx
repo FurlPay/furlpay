@@ -7,10 +7,14 @@ import { ProgressTimeline, sendSteps } from "@/components/money/ProgressTimeline
 import { SwipeToConfirm } from "@/components/money/SwipeToConfirm";
 import { ValuePanel } from "@/components/money/ValuePanel";
 import { WarningList } from "@/components/money/WarningList";
+import { ContactPickerSheet } from "@/components/contacts/ContactPickerSheet";
+import { NameResolution } from "@/components/send/NameResolution";
 import { RecipientInput } from "@/components/send/RecipientInput";
 import { SendSummary } from "@/components/send/SendSummary";
 import { SourceSelector } from "@/components/send/SourceSelector";
 import { Button, ErrorNote, Field, Screen } from "@/components/ui";
+import { useContactForAddress } from "@/lib/contacts/useContacts";
+import { useNameResolution } from "@/lib/contacts/useResolveName";
 import { shortAddress, usd } from "@/lib/format";
 import {
   AMOUNT_MAX_LENGTH,
@@ -53,8 +57,42 @@ export default function Send() {
   const [source, setSource] = useState<TokenBalance | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [picking, setPicking] = useState(false);
+  const [pickingContact, setPickingContact] = useState(false);
 
   const selected = source ?? balances[0] ?? null;
+
+  /**
+   * The saved contact that owns the address in the field, if any.
+   *
+   * Looked up against the ADDRESS AND THE CHAIN together — the same key the
+   * server uses. A contact matched on the address alone would name someone for
+   * a network they never gave an address on, which is a false confirmation on
+   * the one screen where a false confirmation costs money.
+   */
+  const knownContact = useContactForAddress(destination, selected?.chain);
+
+  /**
+   * An ENS or FurlPay name typed into the To field.
+   *
+   * Idle whenever the field already holds an address, so the ordinary path —
+   * paste, scan, pick a contact — never touches the resolver. The result is
+   * rendered under the field and applied only when the user taps it; a resolver
+   * that silently rewrites the payee is the same failure mode as an address
+   * substitution, which is what the rest of this screen exists to prevent.
+   */
+  const resolution = useNameResolution(destination, selected?.chain);
+
+  /**
+   * While a name is in play, the field's own "that isn't an EVM address" error
+   * is both true and useless — the user knows it isn't an address, they typed a
+   * name. Showing it alongside the resolution card puts two contradictory
+   * verdicts on screen at once, so the resolution card owns the explanation
+   * until it reaches a state that has nothing to say (`idle`).
+   *
+   * The confirm gate is untouched: `validation.canSend` still requires a
+   * genuine address, so suppressing the MESSAGE cannot let a name be sent.
+   */
+  const resolvingName = resolution.kind !== "idle";
 
   /**
    * Address handed over by the scanner.
@@ -79,6 +117,7 @@ export default function Send() {
     balance: selected,
     addressValid: validation.addressValid,
     recents,
+    contactName: knownContact?.name,
   });
 
   const onSent = useCallback(
@@ -246,7 +285,7 @@ export default function Send() {
             setDestination(v);
           }}
           chain={selected?.chain as ChainId | undefined}
-          error={validation.addressError}
+          error={resolvingName ? null : validation.addressError}
           valid={validation.addressValid}
           pasteNotice={clipboard.notice}
           onPaste={() => {
@@ -259,6 +298,30 @@ export default function Send() {
           onPickRecent={(r) => {
             clipboard.clearNotice();
             setDestination(r.address);
+          }}
+          onPickContact={() => setPickingContact(true)}
+          contactName={knownContact?.name}
+          onSaveContact={() =>
+            router.push({
+              pathname: "/contacts/new",
+              // The address only — never the chain. AddressEntryForm re-derives
+              // the network from the string itself, so a wrong chain cannot be
+              // carried into the address book by a query parameter.
+              params: { address: destination.trim() },
+            })
+          }
+        />
+
+        <NameResolution
+          state={resolution}
+          chain={selected?.chain as ChainId | undefined}
+          onUse={(address) => {
+            clipboard.clearNotice();
+            setDestination(address);
+            // Accepting a resolved address is an explicit choice and must
+            // survive the scanner's param effect, exactly as picking a contact
+            // does — otherwise returning from /scan re-applies an older `?to=`.
+            appliedParam.current = address;
           }}
         />
 
@@ -296,6 +359,7 @@ export default function Send() {
               destination: destination.trim(),
               tokenEquivalent: validation.tokenEquivalent,
               balanceUsd: selected.usdValue,
+              ...(knownContact ? { contactName: knownContact.name } : {}),
             }}
           />
         ) : null}
@@ -322,6 +386,30 @@ export default function Send() {
         selected={selected}
         onClose={() => setPicking(false)}
         onSelect={setSource}
+      />
+
+      <ContactPickerSheet
+        open={pickingContact}
+        chain={selected?.chain as ChainId | undefined}
+        onClose={() => setPickingContact(false)}
+        onPick={(pick) => {
+          clipboard.clearNotice();
+          setDestination(pick.address);
+          // A contact chosen here is an explicit act, so it must survive the
+          // scanner's param effect: without this, returning from /scan would
+          // re-apply an older `?to=` and silently replace the payee the user
+          // just picked.
+          appliedParam.current = pick.address;
+        }}
+        onManage={() =>
+          router.push({
+            pathname: "/contacts",
+            // Opens the book already filtered to the network being paid, which
+            // is the question the user has at this moment: who can receive
+            // this, here?
+            ...(selected ? { params: { chain: selected.chain } } : {}),
+          })
+        }
       />
     </Screen>
   );

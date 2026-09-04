@@ -27,6 +27,21 @@ export function sendWarnings(input: {
   token: string;
   /** True when this exact address is already in the user's history. */
   known: boolean;
+  /**
+   * The saved contact that owns this address, if any.
+   *
+   * A named contact counts as "known" just as strongly as a paid one, and for a
+   * better reason: the user checked the address deliberately, at a moment when
+   * no money was moving. Firing "first time sending here" at someone paying a
+   * contact they saved last week is the warning-fatigue failure this module's
+   * header argues against — it trains people to dismiss the banner, including
+   * the day it is the look-alike one.
+   *
+   * It does NOT suppress the look-alike warning. A saved contact can itself be
+   * a poisoned address the user saved by mistake, and that is exactly the case
+   * where the danger-level warning has to survive.
+   */
+  contactName?: string;
   /** A trusted address that renders identically to this one, if any. */
   lookalike?: RecentRecipient;
   /** Whether the address is well-formed; nothing below applies if it is not. */
@@ -45,7 +60,7 @@ export function sendWarnings(input: {
       title: "This looks like an address you've used — but it isn't",
       detail: `You previously sent to ${shortAddress(input.lookalike.address, 6)}, which shortens to the same thing as this address but is a different address. This is exactly how address-poisoning scams work. Compare every character before continuing.`,
     });
-  } else if (!input.known) {
+  } else if (!input.known && !input.contactName) {
     out.push({
       id: "first_time",
       level: "warn",

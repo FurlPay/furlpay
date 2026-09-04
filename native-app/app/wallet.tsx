@@ -23,6 +23,7 @@ import { useSecureScreen } from "@/lib/secureScreen";
 import { isValidDestination, shortAddress, usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, ErrorNote, Field, Screen, SectionHeader, Sheet, Surface } from "@/components/ui";
+import { IntegrityBanner } from "@/components/security/IntegrityBanner";
 
 // Self-custodial wallet: a real secp256k1 key held in the Android Keystore
 // (lib/wallet.ts). The seed phrase is shown only behind the biometric gate and
@@ -158,6 +159,10 @@ export default function Wallet() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        {/* Shown BEFORE the create/import controls, not after: the point is to
+            reach someone about to generate a key on a device that should not
+            hold one, and a warning below the button arrives too late. */}
+        <IntegrityBanner />
         {!exists ? (
           <>
             <Surface style={{ gap: spacing.sm }}>

@@ -306,6 +306,10 @@ export default function Settings() {
 
         <SectionHeader title="Money" />
         <Surface style={{ paddingVertical: 4 }}>
+          {/* First in Money, above the wallet: it is the entry most people
+              open repeatedly, and the one that removes the riskiest step of a
+              payment (retyping an address) rather than adding a capability. */}
+          <NavRow icon="people-outline" label="Address book" onPress={() => router.push("/contacts")} />
           <NavRow icon="wallet-outline" label="Self-custodial wallet" onPress={() => router.push("/wallet")} />
           <NavRow icon="business-outline" label="Banking — local accounts" onPress={() => router.push("/banking")} />
           <NavRow icon="pie-chart-outline" label="Spending analytics" onPress={() => router.push("/analytics")} />

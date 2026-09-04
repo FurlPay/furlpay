@@ -4,6 +4,7 @@ import { useLocalSearchParams } from "expo-router";
 import { getCachedTransaction } from "@/lib/db";
 import { txDate, usd } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
+import { useSecureScreen } from "@/lib/secureScreen";
 import { Button, EmptyState, Screen, StatusBadge, Surface } from "@/components/ui";
 
 const EXPLORERS: Record<string, string> = {
@@ -29,6 +30,8 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
 }
 
 export default function TransactionDetail() {
+  // Amount, counterparty detail and the on-chain reference, on one screen.
+  useSecureScreen("transaction-detail");
   const { id } = useLocalSearchParams<{ id: string }>();
   // Reads the SQLite cache — every list screen upserts rows on fetch, so any
   // transaction the user can tap is present, online or offline.
@@ -66,6 +69,15 @@ export default function TransactionDetail() {
           {tx.token ? <Row label="Token" value={tx.token} /> : null}
           {tx.chain ? <Row label="Chain" value={tx.chain} /> : null}
           <Row label="Detail" value={tx.subtitle} />
+          {/* TODO(backend): name the counterparty from the address book.
+              `Transaction` carries no counterparty address on either side of
+              the wire (see apps/web/src/lib/types.ts), so there is nothing here
+              to match against `findContactByAddress` — the send screen can name
+              a payee only because it still holds the address the user typed.
+              Adding an optional `counterparty: { address, chain }` to the
+              transaction shape is what unlocks "Sent to Alice" here and in the
+              list; deriving a name from `title` or `subtitle` would be guessing
+              at free text and is worse than showing nothing. */}
           <Row label="Reference" value={tx.id} />
         </Surface>
 

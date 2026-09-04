@@ -72,6 +72,22 @@ interface Props {
   pasteNotice?: string | null;
   recents?: RecentRecipient[];
   onPickRecent?: (recipient: RecentRecipient) => void;
+  /**
+   * Opens the address book picker. Omitted, the Contacts pill is not rendered
+   * at all — a control that opens an empty sheet is worse than no control.
+   */
+  onPickContact?: () => void;
+  /**
+   * The saved contact that owns the address currently in the field, if any.
+   *
+   * This is the strongest confirmation this screen can offer: a name the user
+   * chose themselves outranks any resolver, and it turns the verification block
+   * from "is this the right 42 characters" into "is this the right person".
+   * Rendered instead of the first-time-recipient warning, not alongside it.
+   */
+  contactName?: string;
+  /** Offers to save an unrecognised but valid address to the address book. */
+  onSaveContact?: () => void;
 }
 
 /**
@@ -100,6 +116,9 @@ export function RecipientInput({
   pasteNotice,
   recents = [],
   onPickRecent,
+  onPickContact,
+  contactName,
+  onSaveContact,
 }: Props) {
   const input = useRef<TextInput>(null);
   const shake = useRef(new Animated.Value(0)).current;
@@ -154,6 +173,18 @@ export function RecipientInput({
       <View style={PANEL_HEAD_STYLE}>
         <Text style={PANEL_CAPTION_STYLE}>TO</Text>
         <View style={styles.actions}>
+          {/* Contacts sits FIRST because it is the only one of the three that
+              involves no transcription at all — the address was checked once,
+              when it was saved, and is not being re-entered now. Paste and Scan
+              both hand the field a string that still has to be verified. */}
+          {onPickContact ? (
+            <ActionPill
+              icon="people-outline"
+              label="Contacts"
+              onPress={onPickContact}
+              disabled={!editable}
+            />
+          ) : null}
           <ActionPill icon="clipboard-outline" label="Paste" onPress={onPaste} disabled={!editable} />
           <ActionPill icon="qr-code-outline" label="Scan" onPress={onScan} disabled={!editable} />
         </View>
@@ -217,6 +248,18 @@ export function RecipientInput({
           <Ionicons name="alert-circle-outline" size={14} color={colors.warning} />
           <Text style={[styles.statusText, { color: colors.warning }]}>{pasteNotice}</Text>
         </View>
+      ) : valid && chain && contactName ? (
+        /* A saved contact is a stronger statement than "well-formed", so it
+           replaces it rather than stacking on top: the address passed a shape
+           check AND it is one this account has deliberately saved under a name.
+           Naming them here is what lets the user confirm the person instead of
+           the string. */
+        <View style={styles.statusRow}>
+          <Ionicons name="person-circle" size={15} color={colors.neon} />
+          <Text style={[styles.statusText, { color: colors.neon }]} numberOfLines={1}>
+            Saved contact — {contactName} on {CHAINS[chain].name}
+          </Text>
+        </View>
       ) : valid && chain ? (
         <View style={styles.statusRow}>
           <Ionicons name="checkmark-circle" size={14} color={colors.neon} />
@@ -239,8 +282,31 @@ export function RecipientInput({
             {grouped(value.trim())}
           </Text>
           <Text style={styles.verifyNote}>
-            Compare every character — payments cannot be reversed.
+            {contactName
+              ? `You saved this address as ${contactName}. It has not changed since.`
+              : "Compare every character — payments cannot be reversed."}
           </Text>
+          {/* Offered only for an address that is valid and NOT already known.
+              This is the moment the user has just finished checking it, which
+              is the only moment saving it is worth anything: a contact saved
+              from an address that was never verified simply preserves the
+              mistake. */}
+          {!contactName && onSaveContact ? (
+            <Pressable
+              onPress={() => {
+                void Haptics.selectionAsync();
+                onSaveContact();
+              }}
+              disabled={!editable}
+              hitSlop={6}
+              style={({ pressed }) => [styles.savePill, pressed && { borderColor: colors.neon }]}
+              accessibilityRole="button"
+              accessibilityLabel="Save this address to your address book"
+            >
+              <Ionicons name="person-add-outline" size={13} color={colors.textDim} />
+              <Text style={styles.savePillText}>Save to address book</Text>
+            </Pressable>
+          ) : null}
         </View>
       ) : null}
 
@@ -364,6 +430,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   verifyNote: { color: colors.textFaint, fontSize: 11 },
+  savePill: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: 6,
+    marginTop: 2,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.surfaceRaised,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  savePillText: { color: colors.textDim, fontSize: 11, fontWeight: "700" },
   recentsLabel: { color: colors.textFaint, fontSize: 11, fontWeight: "700", letterSpacing: 0.6 },
   recentChip: {
     flexDirection: "row",

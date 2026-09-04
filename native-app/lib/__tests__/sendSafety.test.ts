@@ -301,6 +301,49 @@ describe("sendWarnings", () => {
     expect(big.map((x) => x.id)).toContain("large_send");
     expect(small.map((x) => x.id)).not.toContain("large_send");
   });
+
+  // ── address book ─────────────────────────────────────────────────────────
+  //
+  // A saved contact is a payee the user checked deliberately, with no money in
+  // motion. Treating that as "first time sending here" is the warning-fatigue
+  // failure this module's header argues against: it puts a banner on the screen
+  // every single time someone pays their own landlord, and a banner that is
+  // always there stops being read — including the day it is the look-alike one.
+
+  it("does not call a saved contact a first-time recipient", () => {
+    const w = sendWarnings({ ...base, amountUsd: 10, known: false, contactName: "Alice" });
+    expect(w.map((x) => x.id)).not.toContain("first_time");
+    expect(w).toEqual([]);
+  });
+
+  it("still raises the look-alike warning for a saved contact", () => {
+    // The case that matters: a contact can itself be a poisoned address the
+    // user saved by mistake. Suppressing the danger-level warning because a
+    // name is attached would turn the address book into a way to silence the
+    // one check that catches the attack.
+    const w = sendWarnings({
+      ...base,
+      destination: POISONED,
+      amountUsd: 10,
+      known: false,
+      contactName: "Alice",
+      lookalike: recent(REAL),
+    });
+    expect(w[0].id).toBe("lookalike");
+    expect(w[0].level).toBe("danger");
+  });
+
+  it("still warns on a large payment to a saved contact", () => {
+    // Familiarity says nothing about size. A $50,000 send to someone you know
+    // is exactly as irreversible as one to someone you do not.
+    const w = sendWarnings({
+      ...base,
+      amountUsd: LARGE_SEND_USD,
+      known: true,
+      contactName: "Alice",
+    });
+    expect(w.map((x) => x.id)).toContain("large_send");
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -11,6 +11,7 @@ import {
   startVerification,
   type VerificationSession,
 } from "@/lib/kyc";
+import { useSecureScreen } from "@/lib/secureScreen";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, ErrorNote, Screen, SectionHeader, Surface } from "@/components/ui";
 
@@ -74,6 +75,8 @@ function humanize(code: string): string {
 }
 
 export default function VerifyIdentityScreen() {
+  // Identity documents and personal data pass through this flow.
+  useSecureScreen("verify-identity");
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

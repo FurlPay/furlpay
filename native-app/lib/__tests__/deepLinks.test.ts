@@ -76,6 +76,22 @@ describe("deepLinks — every resolver target is a real native route", () => {
     ["/transaction/tx_123", "/transaction/tx_123"],
     ["/market/AAPL", "/market/AAPL"],
     ["/notifications", "/notifications"],
+    // Address book. The single-segment form is a contact id OR the literal
+    // "new" — both are real route files, so both resolve to themselves.
+    ["/contacts", "/contacts"],
+    ["/contacts/ct_9f2", "/contacts/ct_9f2"],
+    ["/contacts/new", "/contacts/new"],
+    // Anything deeper is not a route the app has, and must fall back rather
+    // than reach Expo Router's unmatched screen.
+    ["/contacts/ct_9f2/addresses/a1", FALLBACK_ROUTE],
+    // Card lifecycle. The 3DS rules claim /cards/approve and /cards/3ds first —
+    // a challenge notification must reach the approvals screen, never a card
+    // management screen — and what is left resolves to the real card routes.
+    ["/cards/approve", "/approvals"],
+    ["/cards/3ds/ch_1", "/approvals"],
+    ["/cards/order", "/cards/order"],
+    ["/cards/card_abc123", "/cards/card_abc123"],
+    ["/cards", "/(tabs)/cards"],
     ["/totally/unknown/thing", FALLBACK_ROUTE],
   ];
 

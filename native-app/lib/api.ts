@@ -1,3 +1,4 @@
+import Constants from "expo-constants";
 import * as SecureStore from "expo-secure-store";
 
 // ---------------------------------------------------------------------------
@@ -10,7 +11,30 @@ export const API_BASE =
   process.env.EXPO_PUBLIC_API_BASE ?? "https://furlpay.com/api";
 
 const TOKEN_KEY = "furlpay.session";
-const CLIENT_HEADER = "mobile-android/2.1.0";
+
+/**
+ * Who we tell the server we are.
+ *
+ * MUST START WITH "mobile". This is not cosmetic: apps/web/src/lib/clientKind.ts
+ * returns the session JWT in the response BODY only for clients whose
+ * X-Furlpay-Client starts with `mobile` — everything else is treated as a
+ * browser and gets an HttpOnly cookie the app cannot read. Change the prefix and
+ * every sign-in path fails at the "no token in the response" step.
+ *
+ * THE VERSION IS READ FROM THE MANIFEST, NOT TYPED HERE. It was hardcoded to
+ * "2.1.0" and stayed there while app.json moved to 2.3.0 — so every request
+ * from the last two releases identified itself as a version that had not
+ * shipped for months. Nothing broke loudly, which is the problem: this string
+ * is what server-side telemetry, minimum-version checks and per-client rollouts
+ * read, and all three were quietly answering questions about the wrong build.
+ * Sourcing it from the same manifest the build stamps means it cannot drift.
+ *
+ * The fallback exists for a test renderer with no Expo manifest; it is a marker,
+ * not a plausible version, so an unknown build is visible in logs rather than
+ * disguised as a real one.
+ */
+const CLIENT_VERSION = Constants.expoConfig?.version ?? "0.0.0-unknown";
+const CLIENT_HEADER = `mobile-android/${CLIENT_VERSION}`;
 
 export async function getToken(): Promise<string | null> {
   return SecureStore.getItemAsync(TOKEN_KEY);

@@ -41,6 +41,7 @@ const KNOWN_ROUTES = new Set<string>([
   "/scan",
   "/chat",
   "/delete-account",
+  "/contacts",
 ]);
 
 /**
@@ -96,6 +97,15 @@ export function resolveDeepLink(rawPath: string | undefined | null): string {
   if (/^\/market\/[^/]+$/.test(p)) return p;
   // Collections.
   if (/^\/collection\/[^/]+$/.test(p)) return p;
+  // Address book: one contact (/contacts/[id]) vs the book. `/contacts/new` is
+  // matched by the same pattern and is a real route, so it needs no special
+  // case — but nothing deeper is, hence the single-segment anchor.
+  if (/^\/contacts\/[^/]+$/.test(p)) return p;
+  // Card lifecycle. Ordered AFTER the 3DS rules above, which claim
+  // /cards/approve and /cards/3ds — those are approvals, not cards, and a
+  // notification about one must never land on a management screen. What is left
+  // is /cards/order and /cards/<id>, both real routes.
+  if (/^\/cards\/[^/]+$/.test(p)) return p;
 
   if (KNOWN_ROUTES.has(p)) return p;
 
