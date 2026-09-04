@@ -1,6 +1,6 @@
 import { audit } from "../../audit";
 import { getState, type VerificationState } from "./onboarding";
-import { listAccounts } from "../../store";
+import { findUserByIdentity, listAccounts } from "../../store";
 import { maskAddress } from "../address";
 
 // ---------------------------------------------------------------------------
@@ -158,7 +158,11 @@ export async function inspectDiscordUser(
     return { ok: false, reason: "not_admin", detail: "You are not a FurlPay administrator." };
   }
 
-  const account = listAccounts().find((a) => a.user.discordUserId === targetDiscordUserId);
+  // INDEX LOOKUP, NOT A SCAN. This was listAccounts().find(...), which pulled
+  // every account into memory to match one field. The store already maintains
+  // a byDiscordUserId index and findUserByIdentity reads it directly, so the
+  // scan was buying nothing — and it sat inside Discord's three-second window.
+  const account = findUserByIdentity({ discordUserId: targetDiscordUserId });
   if (!account) {
     return { ok: false, reason: "not_found", detail: "No FurlPay account for that Discord user." };
   }

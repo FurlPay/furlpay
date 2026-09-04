@@ -79,12 +79,26 @@ const SPECIMEN: ConsoleAccount = {
   payoutsFrozen: false,
 };
 
-let loadAccount: AccountLoader | null = null;
-
-/** Wire the console to a real ledger. Until this is called the console runs in
- *  a read-only, no-balance mode rather than inventing numbers. */
-export function setAccountLoader(loader: AccountLoader): void {
-  loadAccount = loader;
+/**
+ * The configured ledger loader, or null while no ledger is wired.
+ *
+ * RESOLVED PER CALL, NOT REGISTERED IMPERATIVELY. There used to be a
+ * setAccountLoader() that assigned module-level state. Nothing ever called it,
+ * so it was harmless — but it was a trap primed to go off. On Vercel each cold
+ * start gets a fresh module instance, so a loader registered from a module
+ * that the interactions route does not itself import would be present on warm
+ * instances and absent on cold ones. The same member would see their real
+ * balance or the specimen depending on which instance answered. Being
+ * inconsistent about money is worse than being consistently unwired, because
+ * only one of those is visible.
+ *
+ * Reading it here means the answer is derived from the module graph, which is
+ * identical on every instance, warm or cold.
+ */
+function accountLoader(): AccountLoader | null {
+  // No ledger is wired yet. When one is, it is imported at the top of this
+  // file and returned here — never assigned in from the outside.
+  return null;
 }
 
 function actorId(i: ConsoleInteraction): string | null {
@@ -116,8 +130,9 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
   const identity: ResolvedIdentity = resolved.identity;
   const userId = identity.account.user.id;
 
-  const account = (loadAccount ? await loadAccount(identity.discordUserId) : null) ?? SPECIMEN;
-  const unconfigured = loadAccount === null;
+  const loader = accountLoader();
+  const account = (loader ? await loader(identity.discordUserId) : null) ?? SPECIMEN;
+  const unconfigured = loader === null;
 
   // Where did the click come from? The public pinned message must never be
   // edited in place — see replyOrUpdate. Everything below routes through `nav`
