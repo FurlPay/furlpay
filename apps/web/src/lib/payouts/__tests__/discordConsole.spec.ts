@@ -115,11 +115,14 @@ describe("untrusted input", () => {
   });
 
   it("requires an identity before showing an account screen", async () => {
+    // No member and no user on the envelope means there is nobody to resolve
+    // an account for. It now fails in the identity layer rather than in the
+    // router, so the message names the missing thing rather than the server.
     const r = await handlePaymentsConsole({
       type: 3,
       data: { custom_id: id("home") },
     } as never);
-    expect(JSON.stringify(r)).toMatch(/FurlPay server/i);
+    expect(JSON.stringify(r)).toMatch(/carried no Discord user/i);
   });
 });
 

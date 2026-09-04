@@ -97,6 +97,11 @@ export interface User {
   authProvider?: "passkey" | "google" | "apple" | "phone" | "email";
   googleSub?: string; // stable Google account id, when linked
   appleSub?: string; // stable Apple account id (sub), when linked
+  /** Stable Discord user id (snowflake), when linked. NOT the username — a
+   *  username is renameable and reusable, so keying identity on one would move
+   *  an account to whoever claimed the handle next. Guild-independent by
+   *  design: the same person in the server and in a DM is one account. */
+  discordUserId?: string;
   /** DEPRECATED placeholder: `"0x"+sha256("furlpay:safe:"+key).slice(0,40)` —
    *  NOT derived from any private key, controls nothing on-chain. Kept for
    *  back-compat reads only; never used for on-chain ops and NEVER to be
@@ -197,6 +202,7 @@ interface AppState {
   byEmail: Map<string, string>;
   byGoogleSub: Map<string, string>;
   byAppleSub: Map<string, string>;
+  byDiscordUserId: Map<string, string>;
   // Durability bookkeeping (Supabase backend only): userIds already loaded
   // from Postgres this instance, and per-user flush chains so whole-account
   // saves for one user never interleave.
@@ -375,6 +381,7 @@ function newUser(init: {
   authProvider?: User["authProvider"];
   googleSub?: string;
   appleSub?: string;
+  discordUserId?: string;
 }): User {
   const id = newUserId();
   return {
@@ -386,6 +393,7 @@ function newUser(init: {
     authProvider: init.authProvider,
     googleSub: init.googleSub,
     appleSub: init.appleSub,
+    discordUserId: init.discordUserId,
     safeAddress: safeAddressFromKey(id),
     kycStatus: "unverified",
     kycTier: 0,
@@ -437,6 +445,7 @@ function buildState(): AppState {
     byEmail: new Map([[demo.user.email.toLowerCase(), demo.user.id]]),
     byGoogleSub: new Map(),
     byAppleSub: new Map(),
+    byDiscordUserId: new Map(),
     hydrated: new Set(),
     flushes: new Map(),
   };
@@ -507,15 +516,22 @@ export function evictAccount(userId: string): boolean {
     state.hydrated.delete(userId);
     return false;
   }
-  const { email, phone, googleSub, appleSub } = account.user;
+  const { email, phone, googleSub, appleSub, discordUserId } = account.user;
   if (email) state.byEmail.delete(email.toLowerCase());
   if (phone) state.byPhone.delete(phone);
   if (googleSub) state.byGoogleSub.delete(googleSub);
   if (appleSub) state.byAppleSub.delete(appleSub);
+  if (discordUserId) state.byDiscordUserId.delete(discordUserId);
   // Defensive: an index entry that points at this id but was keyed off an
   // identifier since changed on the user record would otherwise survive and
   // resolve a deleted account on the next login.
-  for (const index of [state.byEmail, state.byPhone, state.byGoogleSub, state.byAppleSub]) {
+  for (const index of [
+    state.byEmail,
+    state.byPhone,
+    state.byGoogleSub,
+    state.byAppleSub,
+    state.byDiscordUserId,
+  ]) {
     for (const [key, id] of index) if (id === userId) index.delete(key);
   }
   state.accounts.delete(userId);
@@ -529,10 +545,14 @@ export interface IdentityLookup {
   email?: string;
   googleSub?: string;
   appleSub?: string;
+  /** Stable Discord snowflake. Guild-independent, so the same person resolves
+   *  to one account whether they use the bot in the server or in a DM. */
+  discordUserId?: string;
 }
 
 export function findUserByIdentity(lookup: IdentityLookup): UserAccount | undefined {
   const id =
+    (lookup.discordUserId && state.byDiscordUserId.get(lookup.discordUserId)) ||
     (lookup.googleSub && state.byGoogleSub.get(lookup.googleSub)) ||
     (lookup.appleSub && state.byAppleSub.get(lookup.appleSub)) ||
     (lookup.phone && state.byPhone.get(lookup.phone)) ||
@@ -560,6 +580,7 @@ export function findOrCreateUserByIdentity(
     authProvider: lookup.authProvider,
     googleSub: lookup.googleSub,
     appleSub: lookup.appleSub,
+    discordUserId: lookup.discordUserId,
   });
   const account = emptyAccount(user);
   state.accounts.set(user.id, account);
@@ -725,6 +746,7 @@ function indexUser(user: User): void {
   if (user.email) state.byEmail.set(user.email.toLowerCase(), user.id);
   if (user.googleSub) state.byGoogleSub.set(user.googleSub, user.id);
   if (user.appleSub) state.byAppleSub.set(user.appleSub, user.id);
+  if (user.discordUserId) state.byDiscordUserId.set(user.discordUserId, user.id);
 }
 
 /** Fields updateUser may touch. kycStatus/kycTier/roles/security are updated

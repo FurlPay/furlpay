@@ -57,6 +57,8 @@ export type AuditEvent =
   // Account erasure. Deliberately survives the deletion it records: audit_log
   // has no FK to users precisely so the trail outlives the account (0002).
   | "account.deleted"
+  // First contact from Discord: one snowflake, one FurlPay account.
+  | "account.discord_provisioned"
   | "wallet.link_challenge_issued"
   | "wallet.link_established"
   | "wallet.link_rejected"

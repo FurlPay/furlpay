@@ -101,11 +101,39 @@ export function ephemeral(data: Record<string, unknown>) {
   return { type: 4, data: { ...data, flags: EPHEMERAL } };
 }
 
-/** Replace the message the component is attached to, rather than posting a new
- *  one. Used for in-place navigation so a user does not accumulate a stack of
- *  stale ephemeral screens. */
+/**
+ * Replace the message the component is attached to.
+ *
+ * ONLY SAFE ON AN ALREADY-EPHEMERAL MESSAGE. UPDATE_MESSAGE edits the source
+ * message in place, and `flags: 64` cannot retroactively make a public message
+ * private — Discord ignores it there. Called on the public pinned message,
+ * this rewrites that message FOR EVERY MEMBER of the channel, so one person
+ * opening their balances would publish them to the whole server.
+ *
+ * That is not hypothetical: it happened. Within minutes of the pinned message
+ * going up, someone pressed Account and the pinned "FurlPay Payments Center"
+ * became their "Payment profile" screen for everyone.
+ *
+ * Use `replyOrUpdate`, which picks the correct one. This is exported only for
+ * callers that have already established the source is ephemeral.
+ */
 export function update(data: Record<string, unknown>) {
   return { type: 7, data: { ...data, flags: EPHEMERAL } };
+}
+
+/**
+ * Navigate correctly regardless of where the click came from.
+ *
+ * From an ephemeral screen: edit it in place, so a user does not accumulate a
+ * stack of stale screens. From the public pinned message: open a NEW private
+ * reply and leave the public message untouched.
+ *
+ * `sourceIsEphemeral` comes from the interaction's own `message.flags`, which
+ * Discord sets — it is not inferred from the custom_id, because the same
+ * button id appears on both the pinned message and the private screens.
+ */
+export function replyOrUpdate(data: Record<string, unknown>, sourceIsEphemeral: boolean) {
+  return sourceIsEphemeral ? update(data) : ephemeral(data);
 }
 
 function embed(title: string, description?: string, fields?: { name: string; value: string; inline?: boolean }[], color = BRAND) {

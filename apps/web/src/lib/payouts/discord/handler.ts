@@ -1,6 +1,7 @@
 import {
   accountScreen,
   ephemeral,
+  replyOrUpdate,
   errorScreen,
   freezeConfirmScreen,
   homeScreen,
@@ -16,6 +17,7 @@ import {
 } from "./console";
 import { availableRails, type PayoutRail } from "../rails";
 import { audit } from "../../audit";
+import { resolveDiscordAccount, type ResolvedIdentity } from "./identity";
 
 // ---------------------------------------------------------------------------
 // Payments console router.
@@ -39,6 +41,9 @@ export interface ConsoleInteraction {
   guild_id?: string;
   member?: { user?: { id?: string; username?: string } };
   user?: { id?: string; username?: string };
+  /** The message the component was attached to. Discord sets flags here; bit
+   *  64 means that message is already ephemeral. */
+  message?: { flags?: number };
   data?: {
     name?: string;
     custom_id?: string;
@@ -93,31 +98,60 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
   const parsed = parseId(customId);
   if (!isCommand && !parsed) return null;
 
-  const userId = actorId(i);
-  if (!userId) {
-    // Every screen here is account-scoped. Without an identity there is
-    // nothing correct to show, and a generic screen would imply otherwise.
-    return ephemeral({
-      content: "Open this inside the FurlPay server so it can find your payment account.",
-    });
+  // IDENTITY AND AUTHORIZATION, BEFORE ANY SCREEN IS BUILT.
+  //
+  // This resolves the Discord snowflake from the SIGNED interaction envelope —
+  // never from a custom_id, which the client can edit — and provisions a
+  // FurlPay account on first contact. A guild interaction must come from the
+  // authorized guild; a DM is allowed and resolves to the same account, so one
+  // person does not end up with two.
+  const resolved = await resolveDiscordAccount(i);
+  if (!resolved.ok) {
+    return ephemeral({ content: resolved.detail });
   }
+  const identity: ResolvedIdentity = resolved.identity;
+  const userId = identity.account.user.id;
 
-  const account = (loadAccount ? await loadAccount(userId) : null) ?? SPECIMEN;
+  const account = (loadAccount ? await loadAccount(identity.discordUserId) : null) ?? SPECIMEN;
   const unconfigured = loadAccount === null;
+
+  // Where did the click come from? The public pinned message must never be
+  // edited in place — see replyOrUpdate. Everything below routes through `nav`
+  // rather than calling update() directly.
+  const sourceIsEphemeral = ((i.message?.flags ?? 0) & 64) !== 0;
+  const nav = (data: Record<string, unknown>) => replyOrUpdate(data, sourceIsEphemeral);
 
   // The slash command posts a fresh private console.
   if (isCommand) {
-    return ephemeral(withNotice(homeScreen(account), unconfigured));
+    const screen = withNotice(homeScreen(account), unconfigured);
+    if (identity.created) {
+      // Said once, privately, on first contact. The channel never learns that
+      // an account was created — that is nobody else's business.
+      const embeds = (screen.embeds as Record<string, unknown>[]) ?? [];
+      return ephemeral({
+        ...screen,
+        embeds: [
+          {
+            title: "Your FurlPay account is ready",
+            description:
+              "This console is private to you. Nobody else in the server can see it.",
+            color: 0x2ecc71,
+          },
+          ...embeds,
+        ],
+      });
+    }
+    return ephemeral(screen);
   }
 
   const { step, args } = parsed!;
 
   switch (step) {
     case "home":
-      return update(withNotice(homeScreen(account), unconfigured));
+      return nav(withNotice(homeScreen(account), unconfigured));
 
     case "account":
-      return update(
+      return nav(
         accountScreen({
           status: "Active",
           country: "Not set",
@@ -127,19 +161,19 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
       );
 
     case "wallet_asset":
-      return update(walletAssetScreen());
+      return nav(walletAssetScreen());
 
     case "wallet_rail":
-      return update(walletRailScreen(args[0] ?? ""));
+      return nav(walletRailScreen(args[0] ?? ""));
 
     case "wallet_address":
-      return walletAddressStep(i, args);
+      return walletAddressStep(i, args, sourceIsEphemeral);
 
     case "security":
-      return update(securityScreen(account.payoutsFrozen));
+      return nav(securityScreen(account.payoutsFrozen));
 
     case "freeze_confirm":
-      return update(freezeConfirmScreen());
+      return nav(freezeConfirmScreen());
 
     case "freeze_done": {
       const on = args[0] === "on";
@@ -149,7 +183,7 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
       audit(on ? "payout.freeze_requested" : "payout.unfreeze_requested", userId, {
         source: "discord",
       });
-      return update(
+      return nav(
         on
           ? {
               embeds: [
@@ -168,7 +202,7 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
     }
 
     case "support":
-      return update(supportScreen());
+      return nav(supportScreen());
 
     case "earnings":
     case "payout":
@@ -176,14 +210,14 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
       // Declared but not yet backed by an engine. Saying so is the honest
       // option; a screen of plausible numbers would be indistinguishable from
       // a working one.
-      return update(
+      return nav(
         errorScreen(
           `${step === "payout" ? "Payouts" : step === "earnings" ? "Earnings" : "Crypto networks"} are not connected to the ledger on this deployment yet.`
         )
       );
 
     default:
-      return update(errorScreen("That screen is not available."));
+      return nav(errorScreen("That screen is not available."));
   }
 }
 
@@ -193,12 +227,13 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
  * The rail and network arrive from a select menu the client controls, so both
  * are checked against `availableRails()` before anything is done with them.
  */
-function walletAddressStep(i: ConsoleInteraction, args: string[]): Reply {
+function walletAddressStep(i: ConsoleInteraction, args: string[], sourceIsEphemeral: boolean): Reply {
+  const nav = (data: Record<string, unknown>) => replyOrUpdate(data, sourceIsEphemeral);
   // Path 1: a select menu chose "RAIL|network" — open the modal.
   const selected = i.data?.values?.[0];
   if (selected) {
     const [rail, network] = selected.split("|");
-    if (!isUsableRail(rail)) return update(errorScreen("That network is not available for payouts."));
+    if (!isUsableRail(rail)) return nav(errorScreen("That network is not available for payouts."));
     return walletAddressModal(rail, network ?? "");
   }
 
@@ -206,14 +241,14 @@ function walletAddressStep(i: ConsoleInteraction, args: string[]): Reply {
   const address = i.data?.components?.[0]?.components?.[0]?.value?.trim();
   if (address) {
     const [rail, network] = args;
-    if (!isUsableRail(rail)) return update(errorScreen("That network is not available for payouts."));
-    return update(walletConfirmScreen(rail, network ?? "", address));
+    if (!isUsableRail(rail)) return nav(errorScreen("That network is not available for payouts."));
+    return nav(walletConfirmScreen(rail, network ?? "", address));
   }
 
   // Path 3: the confirm button. The wallet is not stored yet — persistence and
   // the ownership challenge are the next commit, and pretending otherwise
   // would leave someone believing their payout destination was saved.
-  return update(
+  return nav(
     errorScreen(
       "Wallet storage is not enabled on this deployment yet. The address was validated but not saved."
     )
