@@ -1,0 +1,41 @@
+{
+  "name": "@furlpay/payment-intent",
+  "version": "0.1.0",
+  "description": "The durable record of one agent payment attempt: an explicit state machine where UNKNOWN is neither success nor failure, and any state that may have touched the chain reconciles rather than re-paying.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src",
+    "index.ts",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build && node --test dist/tests/intent.test.js"
+  },
+  "keywords": [
+    "payment-intent",
+    "idempotency",
+    "state-machine",
+    "agent-payments",
+    "x402",
+    "furlpay"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0"
+  }
+}
