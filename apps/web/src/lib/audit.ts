@@ -66,6 +66,11 @@ export type AuditEvent =
   // Payout destination lifecycle. A wallet change is the single highest-value
   // action a compromised account can take, so every step of proving control of
   // one is recorded — including the failures.
+  // Checkout sessions. session_created and status_changed together give the
+  // full path a payment took, which is what makes a fabricated status
+  // impossible to hide after the fact.
+  | "checkout.session_created"
+  | "checkout.status_changed"
   | "payout.freeze_requested"
   | "payout.unfreeze_requested"
   | "payout.challenge_issued"

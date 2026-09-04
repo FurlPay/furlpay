@@ -11,8 +11,17 @@ export interface FurlpayCheckoutButtonProps {
   token?: "USDC" | "USDT" | "EURC" | "PYUSD";
   /** Publishable key (pk_...). */
   publishableKey: string;
-  /** Called after a successful signed stablecoin payment. */
-  onSuccess?: (result: { transactionHash: string; amount: number }) => void;
+  /**
+   * Called when a checkout session has been CREATED — not when it has been
+   * paid.
+   *
+   * This callback previously fired with a fabricated `transactionHash` for a
+   * payment that had never happened, so a merchant acting on it would ship
+   * goods for free. It now hands back a session id and the merchant polls
+   * GET /api/checkout/session?id=… , or waits for the webhook, to learn
+   * whether money actually moved.
+   */
+  onSession?: (result: { sessionId: string; status: string; amount: number }) => void;
   onError?: (err: Error) => void;
   baseUrl?: string;
   label?: string;
@@ -36,54 +45,66 @@ const buttonStyle: React.CSSProperties = {
 };
 
 /**
- * A drop-in checkout button that handles wallet connection + stablecoin
- * transaction signing. Merchants render it and listen for `onSuccess`.
+ * A drop-in checkout button that opens a FurlPay checkout session.
+ *
+ * IT DOES NOT REPORT PAYMENT. Wallet connection and transaction signing are
+ * not implemented in this component, and it no longer pretends they are: the
+ * previous version slept 500ms to imitate a wallet prompt, then called
+ * onSuccess with `"0x" + Math.random()...` whenever the backend was
+ * unreachable — meaning it reported a successful payment most confidently
+ * when it had least evidence.
+ *
+ * Payment status comes from the server, which only reports settlement it has
+ * observed on-chain.
  */
 export function FurlpayCheckoutButton({
   amount,
   currency = "USD",
   token = "USDC",
   publishableKey,
-  onSuccess,
+  onSession,
   onError,
   baseUrl = "https://api.furlpay.app",
   label,
 }: FurlpayCheckoutButtonProps) {
-  const [status, setStatus] = React.useState<"idle" | "connecting" | "signing" | "done">("idle");
+  const [status, setStatus] = React.useState<"idle" | "creating" | "created" | "error">("idle");
 
-  async function pay() {
+  async function start() {
+    setStatus("creating");
     try {
-      setStatus("connecting");
-      // In production this opens WalletConnect / injected wallet / passkey flow.
-      await new Promise((r) => setTimeout(r, 500));
-      setStatus("signing");
       const res = await fetch(`${baseUrl}/api/checkout/session`, {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Furlpay-Key": publishableKey },
         body: JSON.stringify({ amount, currency, token }),
-      }).catch(() => null);
+      });
 
-      // Fall back to a simulated hash if no backend is reachable (sandbox).
-      const hash =
-        (res && res.ok && (await res.json()).transactionHash) ||
-        "0x" + Math.random().toString(16).slice(2).padEnd(64, "0").slice(0, 64);
+      // FAIL VISIBLY. An unreachable backend means no session exists; the old
+      // code treated it as the happy path.
+      if (!res.ok) {
+        const detail = await res.json().catch(() => null);
+        throw new Error(detail?.message ?? `FurlPay checkout failed (${res.status})`);
+      }
 
-      setStatus("done");
-      onSuccess?.({ transactionHash: hash, amount });
+      const session = await res.json();
+      setStatus("created");
+      onSession?.({ sessionId: session.id, status: session.status, amount });
     } catch (e) {
-      setStatus("idle");
+      setStatus("error");
       onError?.(e as Error);
     }
   }
 
   const text =
-    status === "connecting" ? "Connecting wallet…" :
-    status === "signing" ? "Confirm in wallet…" :
-    status === "done" ? "Paid ✓" :
-    label || `Pay ${currency} ${amount.toFixed(2)} with ${token}`;
+    status === "creating"
+      ? "Starting checkout"
+      : status === "created"
+        ? "Awaiting payment"
+        : status === "error"
+          ? "Checkout unavailable"
+          : label || `Pay ${currency} ${amount.toFixed(2)} with ${token}`;
 
   return (
-    <button style={buttonStyle} onClick={pay} disabled={status !== "idle"}>
+    <button style={buttonStyle} onClick={start} disabled={status === "creating" || status === "created"}>
       {text}
     </button>
   );
