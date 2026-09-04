@@ -54,6 +54,9 @@ export type Step =
   | "verify_captcha"
   | "verify_email"
   | "verify_phone"
+  // Admin console. Gated on an explicit allowlist, not on Discord roles.
+  | "admin_users"
+  | "admin_user"
   | "freeze_confirm"
   | "freeze_done";
 

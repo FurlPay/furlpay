@@ -60,6 +60,11 @@ export type AuditEvent =
   // First contact from Discord: one snowflake, one FurlPay account.
   // DM verification: captcha, email, phone, wallet. Failures are recorded
   // too — a token used by the wrong holder is a signal, not noise.
+  // Admin reads of another person's financial data. Looking is an event,
+  // not a non-event: who looked, at whom, and at what.
+  | "admin.users_listed"
+  | "admin.user_inspected"
+  | "admin.access_denied"
   | "verify.step_issued"
   | "verify.step_completed"
   | "verify.step_failed"

@@ -21,6 +21,9 @@ import { audit } from "../../audit";
 import { resolveDiscordAccount, type ResolvedIdentity } from "./identity";
 import { completeStep, getState, isVerified, issueStepToken, nextStep, STEP_ORDER } from "./onboarding";
 import { sendDm } from "./dm";
+import { completeWalletStep } from "./onboarding";
+import { issueChallenge, verifyOwnership } from "../ownership";
+import { isDiscordAdmin, inspectDiscordUser, listDiscordUsers } from "./admin";
 
 // ---------------------------------------------------------------------------
 // Payments console router.
@@ -123,6 +126,61 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
   // rather than calling update() directly.
   const sourceIsEphemeral = ((i.message?.flags ?? 0) & 64) !== 0;
   const nav = (data: Record<string, unknown>) => replyOrUpdate(data, sourceIsEphemeral);
+
+  // ── admin console, checked BEFORE the verification gate ─────────────
+  //
+  // Deliberately early. An unverified member probing the admin console must
+  // be refused AS A NON-ADMIN and recorded as such — routing them into the
+  // onboarding DM instead would answer the same for someone who is merely
+  // new and for someone testing whether they can read other people's money,
+  // and only one of those is worth an audit entry.
+  if (parsed && (parsed.step === "admin_users" || parsed.step === "admin_user")) {
+    const isEphemeralSource = ((i.message?.flags ?? 0) & 64) !== 0;
+    const navAdmin = (data: Record<string, unknown>) => replyOrUpdate(data, isEphemeralSource);
+
+    if (parsed.step === "admin_users") {
+      const result = await listDiscordUsers(identity.discordUserId);
+      if (!result.ok) return navAdmin(errorScreen(result.detail));
+      return navAdmin({
+        embeds: [
+          {
+            title: "FurlPay Discord users",
+            description:
+              result.value.length === 0
+                ? "Nobody has onboarded through Discord yet."
+                : result.value
+                    .slice(0, 20)
+                    .map(
+                      (u) =>
+                        `**${u.displayName}** — ${u.verification} (${u.completedSteps}/${u.totalSteps})` +
+                        (u.walletMasked ? ` · ${u.walletMasked}` : " · no wallet")
+                    )
+                    .join("\n"),
+            color: 0x5865f2,
+            footer: { text: "Read-only. Every view is recorded in the audit trail." },
+          },
+        ],
+      });
+    }
+
+    const result = await inspectDiscordUser(identity.discordUserId, parsed.args[0] ?? "");
+    if (!result.ok) return navAdmin(errorScreen(result.detail));
+    const u = result.value;
+    return navAdmin({
+      embeds: [
+        {
+          title: u.displayName,
+          color: 0x5865f2,
+          fields: [
+            { name: "Verification", value: `${u.verification} (${u.completedSteps}/${u.totalSteps})`, inline: true },
+            { name: "Wallet", value: u.walletMasked ?? "Not connected", inline: true },
+            { name: "Email", value: u.emailMasked ?? "Not provided", inline: true },
+          ],
+          footer: { text: "Read-only. This view was recorded in the audit trail." },
+        },
+      ],
+    });
+  }
 
   // ── the verification gate ────────────────────────────────────────────
   //
