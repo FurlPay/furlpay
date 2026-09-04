@@ -19,6 +19,7 @@
     "@furlpay/agent-trust": "*",
     "@furlpay/ap2": "*",
     "@furlpay/compliance": "*",
+    "@furlpay/gateway": "*",
     "@furlpay/ledger": "*",
     "@furlpay/security": "*",
     "@furlpay/types": "*",
