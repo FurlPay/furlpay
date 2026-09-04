@@ -90,12 +90,72 @@ export interface GatewayOptions {
   resource?: (ctx: { method: string; url: URL }) => string;
   onSettled?: (receipt: SettlementReceipt) => void | Promise<void>;
   onRejected?: (info: { reason: string; resource: string; payer?: string }) => void | Promise<void>;
+
+  /**
+   * Spend policy for the paying agent.
+   *
+   * WHY THIS IS A HOOK AND NOT AN IMPORT. The gateway must not depend on
+   * @furlpay/agent-trust: an operator who wants a plain paywall should not be
+   * made to carry a policy engine, and an operator with their own policy
+   * system should be able to use it. The shape below is exactly what
+   * SpendLimiter provides, so wiring the two together is one line — but
+   * nothing here knows that.
+   *
+   * ORDERING IS THE WHOLE POINT. `reserve` is called AFTER the payment is
+   * cryptographically verified (so the payer identity is real, not claimed)
+   * and BEFORE settlement (so an over-budget agent never has money taken).
+   * The reservation is committed only once settlement succeeds, and released
+   * on any failure — so a failed payment never permanently consumes budget.
+   */
+  policy?: SpendPolicyHook;
 }
+
+/**
+ * The contract a spend-policy engine implements. Deliberately minimal: three
+ * methods, no types imported from anywhere.
+ */
+export interface SpendPolicyHook {
+  /**
+   * Take headroom for `amountAtomic` on behalf of `agentId`, or refuse.
+   *
+   * MUST be atomic with respect to concurrent calls. A check-then-act
+   * implementation lets N parallel requests all pass a limit that should have
+   * stopped the Nth, and the money is gone before the counter catches up.
+   */
+  reserve(input: {
+    agentId: string;
+    endpoint: string;
+    amountAtomic: string;
+  }): Promise<PolicyVerdict> | PolicyVerdict;
+  /** The payment settled; make the reservation permanent. */
+  commit(reservationId: string): Promise<void> | void;
+  /** The payment did not settle; give the headroom back. */
+  release(reservationId: string): Promise<void> | void;
+}
+
+export type PolicyVerdict =
+  | { ok: true; reservationId: string }
+  | { ok: false; reason: string; message: string };
 
 export type GatewayDecision =
   | { kind: "allow"; receipt: SettlementReceipt; headers: Record<string, string> }
   | { kind: "challenge"; status: 402; body: PaymentRequiredV1; headers: Record<string, string> }
-  | { kind: "reject"; status: 400; body: { error: string }; headers: Record<string, string> };
+  | { kind: "reject"; status: 400; body: { error: string }; headers: Record<string, string> }
+  /**
+   * Policy refused. 403, NOT 402, and the distinction is load-bearing.
+   *
+   * A 402 means "pay and retry". An agent that has exhausted its daily budget
+   * would read that as an instruction to pay again — burning more money on a
+   * request that can never be authorised, in a loop, because it is a machine
+   * and will not get bored. 403 says the thing that is actually true: you are
+   * not permitted, and paying will not change that.
+   */
+  | {
+      kind: "deny";
+      status: 403;
+      body: { error: string; reason: string; message: string };
+      headers: Record<string, string>;
+    };
 
 export interface AuthorizeInput {
   method: string;
@@ -315,6 +375,24 @@ export class Gateway {
     };
   }
 
+  /**
+   * Policy refusal. 403 and never 402 — see the `deny` variant on
+   * GatewayDecision for why that distinction stops an agent looping.
+   *
+   * `reason` is a stable machine code the agent can branch on;
+   * `message` is the sentence a human reads. Neither discloses the limit
+   * itself: an agent does not need to know an operator's daily cap to
+   * understand that it has been refused, and publishing it invites probing.
+   */
+  private deny(reason: string, message: string): GatewayDecision {
+    return {
+      kind: "deny",
+      status: 403,
+      body: { error: "policy_denied", reason, message },
+      headers: { ...noStoreHeaders, "Content-Type": "application/json" },
+    };
+  }
+
   // ── the gate ────────────────────────────────────────────────────────────
 
   /**
@@ -421,9 +499,83 @@ export class Gateway {
     };
     const fReq = this.facilitatorRequest(q, p, clientVersion);
 
+    // ── spend policy ─────────────────────────────────────────────────────
+    //
+    // HERE, and not earlier or later, for two reasons.
+    //
+    // NOT EARLIER: the agent identity used for budgeting is `auth.from`, and
+    // until the binding MAC and the nonce claim above have passed, that is a
+    // value the client asserted rather than one the payment proves. Budgeting
+    // against an unverified identity lets an agent spend someone else's
+    // allowance by claiming to be them.
+    //
+    // NOT LATER: settlement moves money. An over-budget agent must be refused
+    // BEFORE that, or the policy is a report rather than a control.
+    //
+    // The reservation is committed only when settlement succeeds and released
+    // on every failure path below, so a payment that does not complete never
+    // permanently consumes budget.
+    const payerId = auth.from;
+    let reservationId: string | null = null;
+    if (this.opts.policy) {
+      let verdict: PolicyVerdict;
+      try {
+        verdict = await this.opts.policy.reserve({
+          agentId: payerId,
+          endpoint: ctx.resource,
+          amountAtomic: expectedAmount,
+        });
+      } catch (e) {
+        // A policy engine that throws cannot be trusted to have refused, and
+        // an authorisation layer that cannot evaluate its policy has exactly
+        // one safe answer.
+        await this.opts.onRejected?.({
+          reason: "policy_unavailable",
+          resource: ctx.resource,
+          payer: payerId,
+        });
+        return this.deny(
+          "policy_unavailable",
+          "Spend policy could not be evaluated, so the request was refused."
+        );
+      }
+      if (!verdict.ok) {
+        await this.opts.onRejected?.({
+          reason: verdict.reason,
+          resource: ctx.resource,
+          payer: payerId,
+        });
+        return this.deny(verdict.reason, verdict.message);
+      }
+      reservationId = verdict.reservationId;
+    }
+
+    /** Give budget back on any path that does not settle. */
+    const releaseReservation = async (): Promise<void> => {
+      if (!reservationId || !this.opts.policy) return;
+      try {
+        await this.opts.policy.release(reservationId);
+      } catch {
+        // A failed release costs headroom until the reservation's TTL expires.
+        // It must never turn a payment failure into a thrown request.
+      }
+      reservationId = null;
+    };
+
     if (this.opts.settle === false) {
       const verdict = await this.facilitator.verify(fReq);
-      if (!verdict.isValid) return fail(verdict.invalidReason ?? "Payment verification failed");
+      if (!verdict.isValid) {
+        await releaseReservation();
+        return fail(verdict.invalidReason ?? "Payment verification failed");
+      }
+      // settle:false means the operator collects out of band, so from the
+      // policy's point of view the spend has happened and the reservation
+      // becomes permanent. Releasing here would let an agent verify without
+      // limit against an operator who is still being paid.
+      if (reservationId && this.opts.policy) {
+        await this.opts.policy.commit(reservationId);
+        reservationId = null;
+      }
       return this.allow(clientVersion, {
         payer: verdict.payer ?? auth.from,
         transaction: "",
@@ -435,17 +587,38 @@ export class Gateway {
       });
     }
 
-    const settled = await this.facilitator.settle(fReq);
+    let settled;
+    try {
+      settled = await this.facilitator.settle(fReq);
+    } catch (e) {
+      // The facilitator threw. Unlike the nonce — which stays burned because
+      // the payment may still land — the BUDGET is released: money we cannot
+      // evidence must not count against an agent's allowance. Worst case the
+      // payment does land and the agent got that one call under-charged; the
+      // alternative is charging budget for a payment nobody can prove.
+      await releaseReservation();
+      throw e;
+    }
     if (!settled.success) {
       // The nonce stays burned. A settle that errored may STILL land on-chain,
       // so freeing it would reopen replay against a payment that does confirm.
       // An honest retry signs a fresh nonce, so this never blocks a real payer.
+      await releaseReservation();
       return fail(settled.errorReason ?? "Settlement failed");
     }
 
     const needed = requiredConfirmations(auth.value);
     if (typeof settled.confirmations === "number" && settled.confirmations < needed) {
+      await releaseReservation();
       return fail(`Insufficient confirmations (${settled.confirmations}/${needed})`);
+    }
+
+    // Settled and confirmed — the spend is real, so the reservation becomes
+    // permanent. Committed BEFORE returning: a commit that ran after the
+    // response would be a window in which a crash lost the accounting.
+    if (reservationId && this.opts.policy) {
+      await this.opts.policy.commit(reservationId);
+      reservationId = null;
     }
 
     return this.allow(clientVersion, {

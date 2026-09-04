@@ -139,6 +139,12 @@ const RULES: Rule[] = [
       /insufficient lamports/i,
       /InsufficientFunds/,
       /custom program error: 0x1/,
+      // Solana's real wording for a payer with no balance, observed against
+      // devnet on 2026-09-04. Without it the generic `simulation_failed` rule
+      // matched first and told the user "this payment can't be completed as
+      // built" — true, unhelpful, and hiding the one fact they can act on.
+      /found no record of a prior credit/i,
+      /Attempt to debit an account/i,
     ],
     classification: {
       resendSafe: false,

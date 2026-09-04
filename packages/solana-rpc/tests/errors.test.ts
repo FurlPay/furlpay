@@ -93,6 +93,20 @@ test("insufficient funds is terminal and says so in plain words", () => {
   }
 });
 
+test("Solana's real unfunded-payer wording is read as insufficient funds", () => {
+  // Captured from a live devnet submission on 2026-09-04, not invented. The
+  // full text arrives wrapped in "Transaction simulation failed: …", so this
+  // also pins the rule ordering: the specific diagnosis must beat the generic
+  // simulation_failed rule that would otherwise match first.
+  const real =
+    "Simulation failed. Message: Transaction simulation failed: Attempt to debit an " +
+    "account but found no record of a prior credit.. Logs: [].";
+  const c = classifyFailure(real);
+  assert.equal(c.kind, "insufficient_funds");
+  assert.equal(c.terminal, true);
+  assert.match(c.message, /balance/i);
+});
+
 test("insufficient funds beats the generic program error it technically is", () => {
   // It arrives as `custom program error: 0x1`. "There isn't enough balance" is
   // far more actionable than "rejected on-chain".
