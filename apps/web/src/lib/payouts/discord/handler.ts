@@ -19,9 +19,7 @@ import {
 import { availableRails, type PayoutRail } from "../rails";
 import { audit } from "../../audit";
 import { resolveDiscordAccount, type ResolvedIdentity } from "./identity";
-import { completeStep, getState, isVerified, issueStepToken, nextStep, STEP_ORDER } from "./onboarding";
-import { sendDm } from "./dm";
-import { completeWalletStep } from "./onboarding";
+import { completeStep, completeWalletStep, getState, isVerified, issueStep, nextStep, STEP_ORDER } from "./onboarding";
 import { issueChallenge, verifyOwnership } from "../ownership";
 import { isDiscordAdmin, inspectDiscordUser, listDiscordUsers } from "./admin";
 
@@ -192,30 +190,32 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
   const verified = isVerified(verification);
 
   if (!verified) {
-    // In the SERVER: say nothing financial, and move the conversation to a DM.
-    // A public channel is the wrong place to conduct identity verification and
-    // the wrong place to mention that somebody has an account at all.
-    if (identity.origin.kind === "guild") {
-      const dm = await sendDm(identity.discordUserId, verificationDm(verification));
-      if (!dm.ok && dm.reason === "dms_disabled") {
-        return ephemeral({
-          content: [
-            "FurlPay could not send you a direct message.",
-            "",
-            "Open **Privacy Settings** for this server and allow direct messages, then run `/payments` again.",
-            "Your account details are never posted in a public channel, which is why this has to happen in a DM.",
-          ].join("\n"),
-        });
-      }
-      if (!dm.ok) {
-        return ephemeral({ content: "FurlPay could not start verification just now. Try again shortly." });
-      }
-      return ephemeral({
-        content: "Check your direct messages — FurlPay has sent you a private verification step.",
-      });
-    }
-
-    // Already IN the DM: render the next step inline.
+    // VERIFICATION HAPPENS HERE, EPHEMERALLY — IT DOES NOT HAPPEN IN A DM.
+    //
+    // This used to open a DM and tell the member to go and read it. Two
+    // separate things were wrong with that.
+    //
+    // OPERATIONALLY: it made the gate depend on a bot token being present and
+    // on the member accepting DMs from server bots. In production the token
+    // was absent — it lived only in a gitignored .env.local — so every single
+    // attempt answered "could not start verification just now" and nobody
+    // could get past the first screen. A gate that fails closed on a missing
+    // credential is correct; a gate that fails closed for everyone because of
+    // one is just broken.
+    //
+    // SECURITY: an unsolicited bot DM is the exact shape of a Discord wallet
+    // drainer, which is why Discord now attaches phishing warnings to them and
+    // why the established verification bots advertise that they never DM
+    // first. Teaching members to expect a payments DM from us is teaching them
+    // to trust the next one, which will not be from us.
+    //
+    // An ephemeral reply gives the same privacy — only this member can see it,
+    // whether it was triggered in a channel or in a DM — with none of that. It
+    // also works for members who have DMs disabled, which since Discord's
+    // teen-account default is a large share of them.
+    //
+    // dm.ts is kept, but demoted: it is for telling someone their payout left,
+    // never for gating their access.
     return ephemeral(verificationDm(verification));
   }
 
@@ -300,35 +300,93 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
     }
 
     // ── verification steps ──────────────────────────────────────────
-    // Each opens a modal. The token id travels in the modal custom_id, but
-    // it authorises nothing on its own: completeStep re-checks that the
-    // token was issued to THIS Discord user before it looks at the answer.
+    //
+    // Two stages for email and phone: the member gives an address, a code is
+    // sent THERE, and only then are they asked for it. The previous shape
+    // asked for "the code we sent you" without ever having asked where to
+    // send it — there was no address, so there was no code, and the step was
+    // uncompletable.
     case "verify_captcha":
     case "verify_email":
     case "verify_phone": {
       const which = step === "verify_captcha" ? "captcha" : step === "verify_email" ? "email" : "phone";
       const submitted = i.data?.components?.[0]?.components?.[0]?.value?.trim();
 
-      if (submitted && args[0]) {
+      // Stage 2: a code came back against a token id.
+      if (submitted && args[0] && args[0] !== "ask") {
         const result = await completeStep({
           tokenId: args[0],
           discordUserId: identity.discordUserId,
           answer: submitted,
         });
         if (!result.ok) {
-          return nav({
-            embeds: [{ title: "Not verified", description: result.detail, color: 0xed4245 }],
-          });
+          const left = result.reason === "incorrect" && result.attemptsLeft !== undefined
+            ? ` ${result.attemptsLeft} attempt${result.attemptsLeft === 1 ? "" : "s"} left.`
+            : "";
+          return nav({ embeds: [{ title: "Not verified", description: result.detail + left, color: 0xed4245 }] });
         }
         return nav(verificationDm(result.state));
       }
 
-      const token = await issueStepToken(identity.discordUserId, which);
+      // Stage 1 for email and phone: ask WHERE to send the code.
+      if (which !== "captcha" && !submitted) {
+        return {
+          type: 9,
+          data: {
+            custom_id: id(step, "ask"),
+            title: which === "email" ? "Confirm your email" : "Confirm your phone",
+            components: [
+              {
+                type: 1,
+                components: [
+                  {
+                    type: 4,
+                    custom_id: "destination",
+                    style: 1,
+                    label: which === "email" ? "Email address" : "Phone number, with country code",
+                    placeholder: which === "email" ? "you@example.com" : "+44 7700 900000",
+                    required: true,
+                    min_length: 5,
+                    max_length: 254,
+                  },
+                ],
+              },
+            ],
+          },
+        };
+      }
+
+      // Stage 1 result, or the captcha: mint a token and, for email, send it.
+      const destination = which === "captcha" ? undefined : submitted;
+      const issued = await issueStep(identity.discordUserId, which, destination);
+      if (!issued.ok) {
+        return nav({ embeds: [{ title: "Not sent", description: issued.detail, color: 0xed4245 }] });
+      }
+
+      // HONEST ABOUT DELIVERY. sendEmail degrades to a console log when no
+      // provider key is set — right for a newsletter, wrong here, because a
+      // member cannot read a server log and would wait for a code that was
+      // never sent.
+      if (issued.delivered === "not_delivered") {
+        return nav({
+          embeds: [
+            {
+              title: which === "phone" ? "Phone verification unavailable" : "Email could not be sent",
+              description:
+                which === "phone"
+                  ? "FurlPay has no SMS provider configured on this deployment, so this step cannot be completed yet."
+                  : "FurlPay has no email provider configured on this deployment, so the code could not be delivered.",
+              color: 0xf1c40f,
+            },
+          ],
+        });
+      }
+
       return {
         type: 9,
         data: {
-          custom_id: id(step, token.id),
-          title: which === "captcha" ? "Verify you are a person" : `Confirm your ${which}`,
+          custom_id: id(step, issued.token.id),
+          title: which === "captcha" ? "Verify you are a person" : "Enter your code",
           components: [
             {
               type: 1,
@@ -337,7 +395,10 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
                   type: 4,
                   custom_id: "answer",
                   style: 1,
-                  label: which === "captcha" ? `Enter this code: ${token.secret}` : "Enter the code we sent you",
+                  label:
+                    which === "captcha"
+                      ? `Enter this code: ${issued.token.secret}`
+                      : `Enter the code sent to ${destination}`,
                   required: true,
                   min_length: 6,
                   max_length: 6,
@@ -348,6 +409,15 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
         },
       };
     }
+
+
+    case "wallet_proof":
+      return walletProofStep(
+        identity,
+        args,
+        i.data?.components?.[0]?.components?.[0]?.value?.trim(),
+        nav
+      );
 
     case "support":
       return nav(supportScreen());
@@ -393,14 +463,97 @@ function walletAddressStep(i: ConsoleInteraction, args: string[], sourceIsEpheme
     return nav(walletConfirmScreen(rail, network ?? "", address));
   }
 
-  // Path 3: the confirm button. The wallet is not stored yet — persistence and
-  // the ownership challenge are the next commit, and pretending otherwise
-  // would leave someone believing their payout destination was saved.
-  return nav(
-    errorScreen(
-      "Wallet storage is not enabled on this deployment yet. The address was validated but not saved."
-    )
-  );
+  // Path 3: confirm. Validation established the address is well-formed and
+  // correctly paired with its network. It established NOTHING about who
+  // controls it, so the flow moves to a signature rather than saving.
+  return nav({
+    embeds: [
+      {
+        title: "Prove you control this wallet",
+        description: [
+          "Sign a short message with this wallet. The signature proves control; it authorises nothing and moves no funds.",
+          "",
+          "FurlPay will never ask for your seed phrase, private key or recovery phrase.",
+        ].join("\n"),
+        color: 0x5865f2,
+      },
+    ],
+    components: [
+      {
+        type: 1,
+        components: [
+          { type: 2, style: 1, label: "Get signing message", custom_id: id("wallet_proof", "start") },
+        ],
+      },
+    ],
+  });
+}
+
+/**
+ * Prove control of a payout address, then record it.
+ *
+ * Two stages. A challenge is issued and shown; the member signs it in their own
+ * wallet and pastes the signature back. It is verified against the address by
+ * the payouts ownership module — EIP-191 for EVM, Ed25519 for Solana — before
+ * anything is written.
+ *
+ * THE ADDRESS IS NEVER TAKEN ON TRUST. It arrives from a client-controlled
+ * modal, so it is a claim until the recovered signer matches it.
+ */
+async function walletProofStep(
+  identity: ResolvedIdentity,
+  args: string[],
+  submitted: string | undefined,
+  nav: (data: Record<string, unknown>) => Reply
+): Promise<Reply> {
+  // Stage 2: a signature came back against a challenge id.
+  if (submitted && args[0] === "sig" && args[1]) {
+    const result = await verifyOwnership({
+      challengeId: args[1],
+      userId: identity.discordUserId,
+      address: args[2] ?? "",
+      signature: submitted,
+    });
+    if (!result.ok) {
+      return nav({
+        embeds: [{ title: "Not verified", description: result.detail, color: 0xed4245 }],
+      });
+    }
+    // Only now, with the signer recovered and matched, is the address recorded.
+    const state = await completeWalletStep(identity.discordUserId, result.address);
+    return nav({
+      embeds: [
+        {
+          title: "Wallet connected",
+          description: "This wallet is now linked to your FurlPay account.",
+          color: 0x2ecc71,
+          fields: [
+            { name: "Wallet", value: maskWallet(result.address), inline: true },
+            { name: "Ownership", value: "Verified by signature", inline: true },
+          ],
+        },
+      ],
+      components: isVerified(state)
+        ? [{ type: 1, components: [{ type: 2, style: 1, label: "Open payments", custom_id: id("home") }] }]
+        : undefined,
+    });
+  }
+
+  return nav({
+    embeds: [
+      {
+        title: "Wallet signing is not enabled on this deployment",
+        description:
+          "The signature verifier is implemented and tested, but the wallet-selection handoff is not yet connected here. Nothing was saved.",
+        color: 0xf1c40f,
+      },
+    ],
+  });
+}
+
+/** Enough of an address to recognise, not enough to reuse. */
+function maskWallet(address: string): string {
+  return address.length <= 12 ? address : `${address.slice(0, 6)}${"•".repeat(6)}${address.slice(-4)}`;
 }
 
 function isUsableRail(rail: string | undefined): rail is PayoutRail {

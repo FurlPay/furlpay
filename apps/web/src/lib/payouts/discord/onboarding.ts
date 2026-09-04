@@ -1,6 +1,7 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
-import { kvGet, kvSet, kvDel } from "../../kv";
+import { kvGet, kvSet, kvDel, kvIncr, kvIncrBy } from "../../kv";
 import { audit } from "../../audit";
+import { sendEmail } from "../../email";
 
 // ---------------------------------------------------------------------------
 // DM verification before any money is visible.
@@ -71,6 +72,16 @@ interface StepToken {
   /** What the user must produce. For captcha this is the code; for email and
    *  phone the one-time code sent out of band. Never rendered back to them. */
   secret: string;
+  /**
+   * Where the code was sent, for email and phone.
+   *
+   * SERVER-SIDE ON PURPOSE. It would be simpler to let the client submit the
+   * address alongside the code, but then someone could receive a code at an
+   * address they control and submit a different one — recording an identity
+   * they never proved. The value written into the verification state is the
+   * one the code actually went to.
+   */
+  destination?: string;
   attempts: number;
   issuedAt: number;
   expiresAt: number;
@@ -83,17 +94,32 @@ const CODE_LENGTH = 6;
 
 const stateKey = (discordUserId: string) => `fp:verify:state:${discordUserId}`;
 const tokenKey = (id: string) => `fp:verify:token:${id}`;
+/** Attempts live under their own key so the counter can be incremented
+ *  atomically rather than read, mutated and written back. */
+const attemptKey = (id: string) => `fp:verify:attempts:${id}`;
+/** Per-user issuance budget, so a script cannot mint tokens endlessly
+ *  (and, once delivery is wired, cannot use FurlPay to send mail). */
+const issueKey = (discordUserId: string) => `fp:verify:issue:${discordUserId}`;
 
 function randomCode(): string {
-  const bytes = randomBytes(CODE_LENGTH * 2);
+  // Loops until it HAS the full length rather than padding a short result.
+  //
+  // The previous version drew a fixed 12 bytes, rejection-sampled, then
+  // padEnd'd with the alphabet's first character. If seven or more bytes were
+  // rejected the code ended in predictable "A"s — rare, but it silently
+  // reduced entropy exactly when the sampler was working hardest, and a code
+  // whose tail is guessable is a code with fewer characters than it claims.
   let out = "";
-  for (const b of bytes) {
-    if (out.length === CODE_LENGTH) break;
-    // Rejection-sample so no character is likelier than another.
-    if (b >= 248) continue;
-    out += CODE_ALPHABET[b % CODE_ALPHABET.length];
+  while (out.length < CODE_LENGTH) {
+    for (const b of randomBytes(CODE_LENGTH)) {
+      if (out.length === CODE_LENGTH) break;
+      // 248 = 8 x 31. Bytes at or above it would bias the first eight
+      // characters of the alphabet, so they are discarded rather than folded.
+      if (b >= 248) continue;
+      out += CODE_ALPHABET[b % CODE_ALPHABET.length];
+    }
   }
-  return out.padEnd(CODE_LENGTH, CODE_ALPHABET[0]);
+  return out;
 }
 
 /** Constant-time compare so a wrong code cannot be narrowed by timing. */
@@ -157,9 +183,83 @@ export interface IssuedToken {
   expiresAt: string;
 }
 
+/** How many tokens one member may mint per window. */
+const MAX_ISSUE_PER_WINDOW = 5;
+const ISSUE_WINDOW_SECONDS = 15 * 60;
+
+export type IssueResult =
+  | { ok: true; token: IssuedToken; delivered: "shown" | "email" | "not_delivered" }
+  | { ok: false; reason: "rate_limited" | "delivery_failed"; detail: string };
+
+/**
+ * Mint a step token and, for email, actually send it.
+ *
+ * RATE LIMITED PER MEMBER. Without a budget a script could mint tokens
+ * endlessly, and once delivery is wired that turns FurlPay into an open mail
+ * relay pointed at any address the attacker supplies. The counter is an atomic
+ * INCR, so racing requests cannot each read the same total.
+ */
+export async function issueStep(
+  discordUserId: string,
+  step: VerificationStep,
+  destination?: string
+): Promise<IssueResult> {
+  const used = await kvIncr(issueKey(discordUserId), ISSUE_WINDOW_SECONDS);
+  if (used > MAX_ISSUE_PER_WINDOW) {
+    audit("verify.step_failed", discordUserId, { step, reason: "rate_limited" });
+    return {
+      ok: false,
+      reason: "rate_limited",
+      detail: "Too many verification attempts. Try again in a few minutes.",
+    };
+  }
+
+  const token = await issueStepToken(discordUserId, step, destination);
+
+  // The captcha code is SHOWN in Discord — that step proves a human is
+  // present, not that they hold another channel. Email and phone codes must
+  // travel out of band or they prove nothing at all.
+  if (step === "captcha") return { ok: true, token, delivered: "shown" };
+
+  if (step === "email") {
+    if (!destination) {
+      return { ok: false, reason: "delivery_failed", detail: "No email address was supplied." };
+    }
+    const sent = await sendEmail({
+      to: destination,
+      subject: "Your FurlPay verification code",
+      category: "ops",
+      text: [
+        `Your FurlPay verification code is ${token.secret}`,
+        "",
+        "It expires in 10 minutes and can be used once.",
+        "If you did not request this, ignore this message — nobody can act on it without the code.",
+      ].join("\n"),
+      html: `<p>Your FurlPay verification code is <strong>${token.secret}</strong></p><p>It expires in 10 minutes and can be used once. If you did not request this, ignore this message.</p>`,
+    });
+
+    // sendEmail degrades to a console log when RESEND_API_KEY is unset. That
+    // is right for a newsletter and wrong here: a member cannot read a server
+    // log, so reporting success would leave them waiting for a code that was
+    // never sent. The mocked case is surfaced, not swallowed.
+    if (!sent.ok) {
+      return { ok: false, reason: "delivery_failed", detail: "Could not send the email. Try again shortly." };
+    }
+    if (sent.mocked) {
+      return { ok: true, token, delivered: "not_delivered" };
+    }
+    return { ok: true, token, delivered: "email" };
+  }
+
+  // Phone: no SMS provider is configured on this deployment. Saying so beats
+  // issuing a code nobody can receive.
+  return { ok: true, token, delivered: "not_delivered" };
+}
+
 export async function issueStepToken(
   discordUserId: string,
-  step: VerificationStep
+  step: VerificationStep,
+  destination?: string
 ): Promise<IssuedToken> {
   const now = Date.now();
   const token: StepToken = {
@@ -167,6 +267,7 @@ export async function issueStepToken(
     discordUserId,
     step,
     secret: randomCode(),
+    destination,
     attempts: 0,
     issuedAt: now,
     expiresAt: now + TOKEN_TTL_SECONDS * 1000,
@@ -201,8 +302,6 @@ export async function completeStep(input: {
   tokenId: string;
   discordUserId: string;
   answer: string;
-  /** For email/phone/wallet: the value being proven. */
-  value?: string;
 }): Promise<StepResult> {
   const token = await kvGet<StepToken>(tokenKey(input.tokenId));
   if (!token) {
@@ -225,13 +324,17 @@ export async function completeStep(input: {
   }
 
   if (!codesMatch(token.secret, input.answer)) {
-    const attempts = token.attempts + 1;
+    // ATOMIC. Read-then-write let two simultaneous wrong guesses both observe
+    // the same count and both write back the same increment, so three attempts
+    // could be spent as six. kvIncrBy is a single Redis INCRBY, so N racing
+    // submissions consume N attempts and the cap holds.
+    const attempts = await kvIncrBy(attemptKey(token.id), 1, TOKEN_TTL_SECONDS);
     if (attempts >= MAX_ATTEMPTS) {
       await kvDel(tokenKey(token.id));
+      await kvDel(attemptKey(token.id));
       audit("verify.step_failed", input.discordUserId, { step: token.step, reason: "exhausted" });
       return { ok: false, reason: "exhausted", detail: "Too many incorrect attempts. Start again." };
     }
-    await kvSet(tokenKey(token.id), { ...token, attempts }, TOKEN_TTL_SECONDS);
     return {
       ok: false,
       reason: "incorrect",
@@ -243,6 +346,7 @@ export async function completeStep(input: {
   // Correct. Consume the token FIRST so a replay of this exact submission
   // cannot advance the state a second time.
   await kvDel(tokenKey(token.id));
+  await kvDel(attemptKey(token.id));
 
   const state = await getState(input.discordUserId);
   if (state.completed.includes(token.step)) {
@@ -254,9 +358,9 @@ export async function completeStep(input: {
   const updated = await saveState({
     ...state,
     completed: [...state.completed, token.step],
-    ...(token.step === "email" && input.value ? { email: input.value } : {}),
-    ...(token.step === "phone" && input.value ? { phone: input.value } : {}),
-    ...(token.step === "wallet" && input.value ? { walletAddress: input.value } : {}),
+    // From the TOKEN, never from the submission — see StepToken.destination.
+    ...(token.step === "email" && token.destination ? { email: token.destination } : {}),
+    ...(token.step === "phone" && token.destination ? { phone: token.destination } : {}),
   });
 
   audit("verify.step_completed", input.discordUserId, { step: token.step });

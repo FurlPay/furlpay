@@ -34,6 +34,10 @@ import { maskAddress } from "../address";
  * Read on every call rather than cached, so revoking an admin takes effect on
  * the next interaction instead of at the next deploy.
  */
+/** Users per admin page. Bounded so the response fits Discord's three-second
+ *  window however many members the server has. */
+const PAGE_SIZE = 20;
+
 export function adminSnowflakes(): string[] {
   return (process.env.FURLPAY_DISCORD_ADMINS ?? "")
     .split(",")
@@ -103,12 +107,20 @@ export async function listDiscordUsers(
     return { ok: false, reason: "not_admin", detail: "You are not a FurlPay administrator." };
   }
 
-  const accounts = listAccounts().filter((a) => a.user.discordUserId);
-  const views: AdminUserView[] = [];
-  for (const account of accounts) {
-    const discordUserId = account.user.discordUserId!;
-    const state = await getState(discordUserId);
-    views.push({
+  // PAGED AND PARALLEL. Discord closes the interaction window at three
+  // seconds, and the previous shape awaited one KV read per user inside a
+  // loop — fifty members meant fifty sequential round trips and a guaranteed
+  // timeout. The page cap bounds the work regardless of how large the server
+  // grows; Promise.all makes the reads concurrent rather than serial.
+  const accounts = listAccounts()
+    .filter((a) => a.user.discordUserId)
+    .slice(0, PAGE_SIZE);
+
+  const views: AdminUserView[] = await Promise.all(
+    accounts.map(async (account) => {
+      const discordUserId = account.user.discordUserId!;
+      const state = await getState(discordUserId);
+      return {
       furlpayUserId: account.user.id,
       discordUserId,
       displayName: account.user.name,
@@ -117,9 +129,10 @@ export async function listDiscordUsers(
       totalSteps: 4,
       walletMasked: state.walletAddress ? maskAddress(state.walletAddress) : null,
       emailMasked: maskEmail(state.email),
-      createdAt: state.startedAt,
-    });
-  }
+        createdAt: state.startedAt,
+      };
+    })
+  );
 
   audit("admin.users_listed", actorDiscordUserId, { surface: "discord", count: views.length });
   return { ok: true, value: views };

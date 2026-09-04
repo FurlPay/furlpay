@@ -49,6 +49,7 @@ export type Step =
   | "wallet_asset"
   | "wallet_rail"
   | "wallet_address"
+  | "wallet_proof"
   // DM verification steps. Each opens a modal bound to a single-use,
   // user-bound token — the id here names the step, never the token.
   | "verify_captcha"
