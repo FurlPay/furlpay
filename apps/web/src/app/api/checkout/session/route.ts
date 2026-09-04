@@ -3,7 +3,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { screenWallet } from "@furlpay/compliance";
 import { CheckoutSchema, parse } from "@/lib/schemas";
 import { createSession, getSession, toAtomic, toPublic } from "@/lib/checkout/session";
-import { parseApiKey } from "@/lib/apiKeys";
+import { parseApiKey, verifyApiKey } from "@/lib/apiKeys";
 
 export const dynamic = "force-dynamic";
 
@@ -49,18 +49,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Missing X-Furlpay-Key" }, { status: 401 });
   }
 
-  // Format check, not authentication. The publishable key is public by
-  // definition — it ships in browser bundles — so it identifies the merchant
-  // and cannot authorise anything. Money still moves only when a rail reports
-  // a real transaction, which is why creating a session on a merely
-  // well-formed key is safe. Rejecting a malformed one keeps merchant
-  // attribution meaningful.
+  // The key is RESOLVED, not merely parsed.
+  //
+  // A format check alone would still accept "pk_live_" + 65 arbitrary
+  // characters, which is barely better than the `if (!key)` this replaced: it
+  // would let anyone create sessions attributed to a merchant id they invented.
+  // verifyApiKey performs the constant-time secret comparison and then
+  // enforces revocation and expiry, so a key that was revoked an hour ago
+  // stops working here too.
+  //
+  // "Publishable" describes what the key may DO — it ships in browser bundles
+  // and therefore authorises nothing that moves money — not whether it must be
+  // real. Stripe's pk_ keys are equally public and equally verified.
   const parsedKey = parseApiKey(key);
   if (!parsedKey || parsedKey.prefix !== "pk") {
     return NextResponse.json(
       {
         error: "invalid_publishable_key",
         message: "X-Furlpay-Key must be a publishable key (pk_live_… or pk_test_…).",
+      },
+      { status: 401 }
+    );
+  }
+
+  const auth = await verifyApiKey(key);
+  if (!auth.ok) {
+    // One opaque body for every cause, as elsewhere: distinguishing "no such
+    // key" from "wrong secret" turns this into an oracle for enumerating
+    // merchant key ids.
+    return NextResponse.json(
+      {
+        error: "invalid_publishable_key",
+        message: "That publishable key is not valid.",
       },
       { status: 401 }
     );
@@ -98,7 +118,7 @@ export async function POST(req: NextRequest) {
   }
 
   const session = await createSession({
-    merchantKeyId: parsedKey.keyId,
+    merchantKeyId: auth.record.keyId,
     amountAtomic,
     decimals,
     currency,
