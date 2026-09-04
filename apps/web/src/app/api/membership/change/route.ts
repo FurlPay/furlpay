@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   // An upgrade takes a payment, so a retry after a timeout must not charge
   // twice. Scoped per user like every other money-moving route here.
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `membership.change:${userId}`, async () => {
+  return withIdempotency(idempotencyKey, "membership.change", async () => {
     try {
       const result = changePlan(userId, body.plan, body.period ?? "monthly");
       return NextResponse.json({
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 409 });
     }
-  });
+  }, { principal: userId });
 }
 
 // DELETE /api/membership/change — withdraw a scheduled move. The active plan

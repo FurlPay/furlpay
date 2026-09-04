@@ -50,9 +50,9 @@ export async function POST(req: NextRequest) {
   // Scope the idempotency key per user so one client's key can't replay (or
   // conflict with) another account's request.
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `wallets.transfer:${account.user.id}`, () =>
+  return withIdempotency(idempotencyKey, "wallets.transfer", () =>
     executeTransfer(req, account, parsed.data)
-  );
+  , { principal: account.user.id });
 }
 
 type TransferInput = ReturnType<typeof TransferSchema.parse>;

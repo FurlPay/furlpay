@@ -38,7 +38,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 
   const { id } = await props.params;
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `cards.reissue:${account.user.id}`, async () => {
+  return withIdempotency(idempotencyKey, "cards.reissue", async () => {
     try {
       const result = reissueCard(id, account.user.id, body);
 
@@ -72,5 +72,5 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       const msg = (e as Error).message;
       return NextResponse.json({ ok: false, error: msg }, { status: msg.includes("not found") ? 404 : 409 });
     }
-  });
+  }, { principal: account.user.id });
 }

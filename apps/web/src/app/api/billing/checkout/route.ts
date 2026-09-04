@@ -45,9 +45,9 @@ export async function POST(req: NextRequest) {
   // Scope the key per user so one client's key can't replay (or conflict with)
   // another account's request.
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `billing.checkout:${account.user.id}`, async () =>
+  return withIdempotency(idempotencyKey, "billing.checkout", async () =>
     startCheckout(account, body.plan, tier, req.nextUrl.origin, idempotencyKey)
-  );
+  , { principal: account.user.id });
 }
 
 async function startCheckout(

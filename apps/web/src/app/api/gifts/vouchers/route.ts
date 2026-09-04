@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   if (body instanceof NextResponse) return body;
 
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `gifts.vouchers.create:${userId}`, async () => {
+  return withIdempotency(idempotencyKey, "gifts.vouchers.create", async () => {
     const created = createVoucher(userId, { kind: "gift_card", token: body.token, amount: body.amount });
     if (!created.escrow) return NextResponse.json({ ok: false, error: "unfundable" }, { status: 400 });
 
@@ -79,5 +79,5 @@ export async function POST(req: NextRequest) {
       { ok: true, voucher: voucherView(created.voucher, userId), code: created.voucher.code },
       { status: 201 },
     );
-  });
+  }, { principal: userId });
 }

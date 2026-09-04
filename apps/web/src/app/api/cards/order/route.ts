@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (body instanceof NextResponse) return body;
 
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `cards.order:${account.user.id}`, async () => {
+  return withIdempotency(idempotencyKey, "cards.order", async () => {
     try {
       const result = orderCard(account.user.id, body, {
         tier: getSubscription(account.user.id).planId,
@@ -69,5 +69,5 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 409 });
     }
-  });
+  }, { principal: account.user.id });
 }

@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
   if (body instanceof NextResponse) return body;
 
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `gifts.vouchers.redeem:${userId}`, async () => {
+  return withIdempotency(idempotencyKey, "gifts.vouchers.redeem", async () => {
     let result;
     try {
       result = redeemVoucher(body.code, userId);
@@ -72,5 +72,5 @@ export async function POST(req: NextRequest) {
       token: voucher.token,
       voucher: voucherView(voucher, userId),
     });
-  });
+  }, { principal: userId });
 }

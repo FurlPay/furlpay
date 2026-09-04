@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (limited) return limited;
 
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `membership.cashback.claim:${userId}`, async () => {
+  return withIdempotency(idempotencyKey, "membership.cashback.claim", async () => {
     let result;
     try {
       result = claimCashback(userId);
@@ -63,5 +63,5 @@ export async function POST(req: NextRequest) {
       accrualCount: result.accrualIds.length,
       summary: cashbackSummary(userId),
     });
-  });
+  }, { principal: userId });
 }

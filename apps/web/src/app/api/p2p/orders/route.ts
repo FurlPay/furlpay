@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   if (body instanceof NextResponse) return body;
 
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `p2p.orders.create:${userId}`, async () => {
+  return withIdempotency(idempotencyKey, "p2p.orders.create", async () => {
     let created;
     try {
       created = createOrder(userId, body);
@@ -95,5 +95,5 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ ok: true, order: orderView(order, userId) }, { status: 201 });
-  });
+  }, { principal: userId });
 }

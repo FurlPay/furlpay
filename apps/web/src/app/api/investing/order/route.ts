@@ -67,9 +67,9 @@ export async function POST(req: NextRequest) {
   // that sequence is two orders. Scoped per user, so one client's key cannot
   // replay another account's request.
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `investing.order:${account.user.id}`, () =>
+  return withIdempotency(idempotencyKey, "investing.order", () =>
     executeOrder(account, parsed.data, idempotencyKey)
-  );
+  , { principal: account.user.id });
 }
 
 type OrderInput = ReturnType<typeof OrderSchema.parse>;

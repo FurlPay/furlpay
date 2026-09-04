@@ -143,5 +143,5 @@ export async function POST(req: NextRequest) {
       balanceUsd: credit.balanceUsd,
       ...(capture.provider === "mock" ? { simulated: true } : {}),
     });
-  });
+  }, { principal: userId });
 }

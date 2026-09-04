@@ -101,9 +101,9 @@ export async function POST(req: NextRequest) {
 
   // Scope the key per user so one client's key can't replay (or conflict with)
   // another account's request.
-  return withIdempotency(req.headers.get("Idempotency-Key"), `investing.schedule:${userId}`, async () =>
+  return withIdempotency(req.headers.get("Idempotency-Key"), "investing.schedule", async () =>
     createSchedule(userId, parsed.data)
-  );
+  , { principal: userId });
 }
 
 type ScheduleInput = ReturnType<typeof ScheduleSchema.parse>;

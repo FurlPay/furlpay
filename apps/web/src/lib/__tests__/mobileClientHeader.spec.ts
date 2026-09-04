@@ -42,7 +42,16 @@ const CLIENTS: Client[] = [
   {
     name: "React Native (native-app)",
     file: join(REPO, "native-app", "lib", "api.ts"),
-    pattern: /const CLIENT_HEADER\s*=\s*"([^"]+)"/,
+    // A TEMPLATE literal, not a plain string: the version is read from the Expo
+    // manifest at runtime rather than typed here, because the hardcoded literal
+    // drifted — it still said 2.1.0 while the app shipped 2.3.0, so telemetry,
+    // minimum-version checks and per-client rollouts were all answering about a
+    // build that had not existed for months.
+    //
+    // The capture therefore takes the STATIC PREFIX only. That still enforces
+    // both properties this suite exists for: the header begins with `mobile-`,
+    // and each client's prefix is distinct.
+    pattern: /const CLIENT_HEADER\s*=\s*`([^`$]+)/,
   },
   {
     name: "Android Guardian (Kotlin)",

@@ -37,7 +37,7 @@ export async function POST(req: NextRequest) {
   // wallets/transfer: scoped per user, and a request without the header
   // behaves exactly as before.
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `earn.withdraw:${account.user.id}`, async () => {
+  return withIdempotency(idempotencyKey, "earn.withdraw", async () => {
 
   const vault = await selectVault(typeof body?.vault === "string" ? body.vault : undefined);
 
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
     withdrawnUsd: result.withdrawnUsd,
     remainingUsd: result.remainingUsd,
   });
-  });
+  }, { principal: account.user.id });
 }
 
 function round(n: number): number {

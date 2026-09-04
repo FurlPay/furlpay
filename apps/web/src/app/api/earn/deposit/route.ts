@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   // another account's deposit, and a request without the header behaves
   // exactly as before.
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `earn.deposit:${account.user.id}`, async () => {
+  return withIdempotency(idempotencyKey, "earn.deposit", async () => {
 
   const vault = await selectVault(typeof body?.vault === "string" ? body.vault : undefined);
 
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     position: { principalUsd: pos.principalUsd, apy: pos.apy },
     projectedYearly: round((pos.principalUsd * pos.apy) / 100),
   });
-  });
+  }, { principal: account.user.id });
 }
 
 function round(n: number): number {

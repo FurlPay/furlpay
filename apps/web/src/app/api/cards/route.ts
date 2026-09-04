@@ -42,9 +42,9 @@ export async function POST(req: NextRequest) {
 
   // Scope the key per user so one client's key can't replay (or conflict with)
   // another account's request.
-  return withIdempotency(req.headers.get("Idempotency-Key"), `cards.issue:${account.user.id}`, async () =>
+  return withIdempotency(req.headers.get("Idempotency-Key"), "cards.issue", async () =>
     issueCard(account, body.cardType)
-  );
+  , { principal: account.user.id });
 }
 
 function issueCard(account: UserAccount, cardType: "virtual" | "physical"): NextResponse {

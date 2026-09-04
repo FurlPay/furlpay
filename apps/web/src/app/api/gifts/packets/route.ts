@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
   if (body instanceof NextResponse) return body;
 
   const idempotencyKey = req.headers.get("Idempotency-Key");
-  return withIdempotency(idempotencyKey, `gifts.packets.create:${userId}`, async () => {
+  return withIdempotency(idempotencyKey, "gifts.packets.create", async () => {
     let created;
     try {
       created = createPacket(userId, body);
@@ -85,5 +85,5 @@ export async function POST(req: NextRequest) {
       { ok: true, packet: packetView(created.packet, userId), code: created.packet.code },
       { status: 201 },
     );
-  });
+  }, { principal: userId });
 }

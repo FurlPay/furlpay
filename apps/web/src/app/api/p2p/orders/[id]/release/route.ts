@@ -30,7 +30,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   const { id } = await props.params;
   const idempotencyKey = req.headers.get("Idempotency-Key");
 
-  return withIdempotency(idempotencyKey, `p2p.orders.release:${userId}`, async () => {
+  return withIdempotency(idempotencyKey, "p2p.orders.release", async () => {
     let result;
     try {
       result = releaseOrder(id, userId);
@@ -63,7 +63,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     });
 
     return NextResponse.json({ ok: true, order: orderView(order, userId) });
-  });
+  }, { principal: userId });
 }
 
 function round2(n: number): number {

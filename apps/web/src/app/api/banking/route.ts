@@ -42,9 +42,9 @@ export async function POST(req: NextRequest) {
 
   // Scope the key per user so one client's key can't replay (or conflict with)
   // another account's request.
-  return withIdempotency(req.headers.get("Idempotency-Key"), `banking.provision:${account.user.id}`, async () =>
+  return withIdempotency(req.headers.get("Idempotency-Key"), "banking.provision", async () =>
     provisionAccount(account, currency)
-  );
+  , { principal: account.user.id });
 }
 
 function provisionAccount(account: UserAccount, currency: string): NextResponse {
