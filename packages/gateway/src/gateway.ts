@@ -36,6 +36,14 @@ import {
   type FacilitatorRequest,
 } from "./facilitator.js";
 import { MemoryClaimStore, type ClaimStore } from "./store.js";
+import {
+  canonicalNetwork,
+  legacyNetworkNames,
+  nativeStablecoin,
+  resolveAsset,
+  type AssetId,
+  type AssetNetwork,
+} from "./assets.js";
 
 // ---------------------------------------------------------------------------
 // The gateway.
@@ -194,6 +202,9 @@ export class Gateway {
   private readonly claims: ClaimStore;
   private readonly network: string;
   private readonly asset: string;
+  /** The resolved asset, carrying its own network and decimals. */
+  private readonly assetId: AssetId;
+  private readonly canonical: AssetNetwork;
   private readonly ttl: number;
 
   constructor(private readonly opts: GatewayOptions) {
@@ -206,19 +217,57 @@ export class Gateway {
     if (!opts.payTo) throw new Error("@furlpay/gateway: `payTo` is required.");
 
     this.network = opts.network ?? "base";
-    const asset = opts.asset ?? NETWORK_USDC[this.network];
-    if (!asset) {
+
+    // ASSET IDENTITY IS RESOLVED, NEVER ACCEPTED.
+    //
+    // This previously read `opts.asset ?? NETWORK_USDC[this.network]`, so a
+    // caller-supplied asset bypassed the network map entirely and nothing
+    // checked that the two agreed. `{ network: "solana-devnet", asset:
+    // <mainnet mint> }` constructed happily — and because "solana-devnet" was
+    // missing from that map while both EVM testnets were present, the devnet
+    // rail was FORCED down exactly that unchecked path.
+    //
+    // Now every asset goes through the registry, which knows which network it
+    // belongs to. A mismatch is a construction-time throw rather than a quote
+    // naming an asset that cannot exist on the rail it will settle on.
+    const canonical = canonicalNetwork(this.network);
+    if (!canonical) {
       throw new Error(
-        `@furlpay/gateway: no canonical USDC address known for network "${this.network}" — pass \`asset\` explicitly.`
+        `@furlpay/gateway: unknown network "${this.network}" — one of: ${legacyNetworkNames().join(", ")}`
       );
     }
-    this.asset = asset;
+    this.canonical = canonical;
+    // `resolveAsset` throws AssetNetworkMismatchError when the address is
+    // registered on a DIFFERENT network — the loud case — and UnknownAssetError
+    // when it is registered nowhere.
+    this.assetId = opts.asset
+      ? resolveAsset(canonical, opts.asset)
+      : nativeStablecoin(canonical);
+    this.asset = this.assetId.address;
     this.ttl = opts.quoteTtlSeconds ?? DEFAULT_QUOTE_TTL_SECONDS;
     this.claims = opts.claimStore ?? new MemoryClaimStore();
     this.facilitator =
       typeof opts.facilitator === "string"
         ? httpFacilitator(opts.facilitator)
         : (opts.facilitator ?? httpFacilitator(FURLPAY_FACILITATOR));
+  }
+
+  /** The mint/contract this gateway quotes and settles in. Resolved from the
+   *  registry, never taken on trust from the caller. */
+  get assetAddress(): string {
+    return this.assetId.address;
+  }
+
+  /** This asset's decimals. Read from the asset itself rather than a global
+   *  constant, so a non-6dp asset cannot be silently mispriced. */
+  get assetDecimals(): number {
+    return this.assetId.decimals;
+  }
+
+  /** The canonical `chain:network` form. The wire keeps its legacy short name
+   *  for compatibility; this is the unambiguous one for logs and evidence. */
+  get canonicalNetwork(): AssetNetwork {
+    return this.canonical;
   }
 
   /** True when replay claims are shared across instances. Assert this at boot in

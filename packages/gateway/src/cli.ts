@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import crypto from "node:crypto";
 import { startProxy } from "./adapters/proxy.js";
-import { NETWORK_USDC } from "./protocol.js";
+import { canonicalNetwork, legacyNetworkNames, nativeStablecoin } from "./assets.js";
 
 // ---------------------------------------------------------------------------
 // furlpay-gateway — put a stablecoin paywall in front of anything, in one line.
@@ -50,7 +50,7 @@ OPTIONS (expose)
   --price <usd>          Price per call in USD.            (required)
   --pay-to <address>     Wallet that receives payment.     (required, or PAY_TO)
   --secret <hex>         Quote HMAC secret.                (or QUOTE_SECRET)
-  --network <name>       ${Object.keys(NETWORK_USDC).join(", ")}   (default: base)
+  --network <name>       ${legacyNetworkNames().join(", ")}   (default: base)
   --port <n>             Listen port.                      (default: 4402)
   --facilitator <url>    x402 facilitator.                 (default: FurlPay)
   --free <paths>         Comma-separated free paths, e.g. /health,/docs*
@@ -108,8 +108,12 @@ async function main(): Promise<void> {
   }
 
   const network = (flags.network as string) || "base";
-  if (!NETWORK_USDC[network]) {
-    die(`unknown network "${network}" — one of: ${Object.keys(NETWORK_USDC).join(", ")}`);
+  // Resolve through the registry rather than a bare map lookup. The map was
+  // missing "solana-devnet" while carrying both EVM testnets, so the CLI could
+  // not be pointed at the one rail a developer can actually test against.
+  const canonical = canonicalNetwork(network);
+  if (!canonical) {
+    die(`unknown network "${network}" — one of: ${legacyNetworkNames().join(", ")}`);
   }
 
   const freePaths = typeof flags.free === "string" ? flags.free.split(",").map((s) => s.trim()) : [];
@@ -142,7 +146,7 @@ async function main(): Promise<void> {
     `  listening    http://localhost:${running.port}`,
     `  price        $${price.toFixed(6)} per call`,
     `  pay to       ${payTo}`,
-    `  network      ${network} (USDC ${NETWORK_USDC[network].slice(0, 10)}…)`,
+    `  network      ${network} → ${canonical} (${nativeStablecoin(canonical).symbol} ${nativeStablecoin(canonical).address.slice(0, 10)}…)`,
     `  facilitator  ${facilitator ?? "furlpay.com (default)"}`,
     freePaths.length ? `  free         ${freePaths.join(", ")}` : ``,
     flags["no-settle"] === true ? `  WARNING      --no-settle: payments are verified but NOT collected` : ``,

@@ -452,10 +452,30 @@ test("a missing payTo is refused at construction", () => {
   assert.throws(() => new Gateway({ price: 0.01, payTo: "", quoteSecret: SECRET }), /payTo/);
 });
 
-test("an unknown network without an explicit asset is refused at construction", () => {
+test("an unknown network is refused at construction", () => {
+  // The guarantee is unchanged — an unquotable gateway must not be
+  // constructible. Only the message moved: it now names the network and lists
+  // the supported ones, because "no canonical USDC address known" did not tell
+  // a developer that "solana-devnet" was spelled differently than they thought.
   assert.throws(
     () => new Gateway({ price: 0.01, payTo: PAY_TO, quoteSecret: SECRET, network: "dogecoin" }),
-    /no canonical USDC/
+    /unknown network "dogecoin"/
+  );
+});
+
+test("an unknown network is refused even when an asset is supplied", () => {
+  // Previously a caller-supplied asset skipped the network check entirely, so
+  // this combination constructed successfully.
+  assert.throws(
+    () =>
+      new Gateway({
+        price: 0.01,
+        payTo: PAY_TO,
+        quoteSecret: SECRET,
+        network: "dogecoin",
+        asset: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+      }),
+    /unknown network "dogecoin"/
   );
 });
 

@@ -1,4 +1,8 @@
 // ---------------------------------------------------------------------------
+
+
+import { nativeStablecoin } from "@furlpay/gateway";
+
 // One place that decides which rail this example runs on, and says so loudly.
 //
 // The default is the TEST rail. That is a deliberate inversion of the usual
@@ -28,9 +32,11 @@ export interface ExampleConfig {
   decimals: number;
 }
 
-/** Circle's USDC mint on Solana devnet. Used only when the devnet rail is
- *  explicitly selected; never as a default. */
-export const DEVNET_USDC_MINT = "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+// The devnet USDC mint is NOT hardcoded here any more. It used to be, because
+// "solana-devnet" was missing from the gateway's network map and the rail had
+// no other way to name its asset — which made this file a second source of
+// truth for an address that must have exactly one. It now comes from the
+// registry in @furlpay/gateway, so updating an asset updates every caller.
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): ExampleConfig {
   const rail: RailKind = env.FURLPAY_RAIL === "solana-devnet" ? "solana-devnet" : "test";
@@ -47,24 +53,28 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): ExampleConfig 
     return {
       rail,
       network: "solana-devnet",
-      asset: env.FURLPAY_USDC_MINT ?? DEVNET_USDC_MINT,
+      asset: env.FURLPAY_USDC_MINT ?? nativeStablecoin("solana:devnet").address,
       payTo,
       quoteSecret: requireSecret(env),
       port: Number(env.PORT ?? 4021),
       priceAtomic: env.FURLPAY_PRICE_ATOMIC ?? "1000",
-      decimals: 6,
+      decimals: nativeStablecoin("solana:devnet").decimals,
     };
   }
 
   return {
     rail,
     network: "test-network",
-    asset: "TEST-USDC",
+    // The simulation asset comes from the registry like any other. It used to
+    // be the literal symbol "TEST-USDC", which only worked because the gateway
+    // accepted any string as an asset — the same gap that let a mainnet mint
+    // onto a devnet rail.
+    asset: nativeStablecoin("test:local").address,
     payTo: "TESTRAIL-merchant",
     quoteSecret: env.FURLPAY_QUOTE_SECRET ?? "example-only-quote-secret-not-for-production",
     port: Number(env.PORT ?? 4021),
     priceAtomic: env.FURLPAY_PRICE_ATOMIC ?? "1000", // 0.001 at 6dp
-    decimals: 6,
+    decimals: nativeStablecoin("test:local").decimals,
   };
 }
 

@@ -76,3 +76,23 @@ export {
   type FetchHandler,
   type PaidHandler,
 } from "./adapters/fetch.js";
+
+export {
+  resolveAsset,
+  nativeStablecoin,
+  canonicalNetwork,
+  legacyNetworkNames,
+  allNetworks,
+  networksForChain,
+  listAssets,
+  sameAsset,
+  isAssetNetwork,
+  networkKind,
+  chainOf,
+  UnknownAssetError,
+  AssetNetworkMismatchError,
+  type AssetId,
+  type AssetNetwork,
+  type AssetChain,
+  type NetworkKind,
+} from "./assets.js";
