@@ -58,6 +58,12 @@ export type AuditEvent =
   // has no FK to users precisely so the trail outlives the account (0002).
   | "account.deleted"
   // First contact from Discord: one snowflake, one FurlPay account.
+  // DM verification: captcha, email, phone, wallet. Failures are recorded
+  // too — a token used by the wrong holder is a signal, not noise.
+  | "verify.step_issued"
+  | "verify.step_completed"
+  | "verify.step_failed"
+  | "verify.completed"
   | "account.discord_provisioned"
   | "wallet.link_challenge_issued"
   | "wallet.link_established"

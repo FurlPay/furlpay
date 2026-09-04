@@ -5,7 +5,18 @@ import {
   resolveDiscordAccount,
 } from "../discord/identity";
 import { handlePaymentsConsole } from "../discord/handler";
+import { completeStep, completeWalletStep, issueStepToken } from "../discord/onboarding";
 import { id } from "../discord/console";
+
+/** Complete every verification step for a user, so tests that are about
+ *  something else are not blocked by the DM gate. */
+async function verify(discordUserId: string) {
+  for (const step of ["captcha", "email", "phone"] as const) {
+    const t = await issueStepToken(discordUserId, step);
+    await completeStep({ tokenId: t.id, discordUserId, answer: t.secret });
+  }
+  await completeWalletStep(discordUserId, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
+}
 
 // ---------------------------------------------------------------------------
 // One Discord user, one FurlPay account — wherever they click.
@@ -189,6 +200,7 @@ describe("the console routes per user", () => {
 
   it("welcomes a brand-new member once, then stops", async () => {
     const fresh = "444444444444444444";
+    await verify(fresh);
     const first = await handlePaymentsConsole(inGuild(fresh) as never);
     expect(JSON.stringify(first)).toMatch(/account is ready/i);
 
@@ -218,6 +230,7 @@ describe("the public pinned message is never rewritten", () => {
   });
 
   it("edits in place once the conversation is already private", async () => {
+    await verify(USER_A);
     // Within a user's own ephemeral screen, updating is correct: it avoids a
     // stack of stale screens, and only that user can see it.
     const r = await handlePaymentsConsole(click(USER_A, 1 << 6) as never);

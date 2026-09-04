@@ -1,6 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { handlePaymentsConsole } from "../discord/handler";
+import { completeStep, completeWalletStep, issueStepToken } from "../discord/onboarding";
 import { formatAtomic, homeScreen, parseId, id, walletConfirmScreen } from "../discord/console";
+
+/** Complete every verification step for a user, so tests that are about
+ *  something else are not blocked by the DM gate. */
+async function verify(discordUserId: string) {
+  for (const step of ["captcha", "email", "phone"] as const) {
+    const t = await issueStepToken(discordUserId, step);
+    await completeStep({ tokenId: t.id, discordUserId, answer: t.secret });
+  }
+  await completeWalletStep(discordUserId, "0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045");
+}
 
 // ---------------------------------------------------------------------------
 // The Discord payments console.
@@ -17,6 +28,15 @@ import { formatAtomic, homeScreen, parseId, id, walletConfirmScreen } from "../d
 // ---------------------------------------------------------------------------
 
 const EPHEMERAL = 1 << 6;
+
+beforeEach(async () => {
+  process.env.DISCORD_GUILD_ID = "1522006337070825482";
+  const g = globalThis as unknown as { __furlpayKv?: Map<string, unknown> };
+  g.__furlpayKv?.clear();
+  // These tests are about routing and privacy, not onboarding, so the
+  // member is verified up front — the DM gate is covered in its own spec.
+  await verify("user-123");
+});
 
 const interaction = (over: Record<string, unknown> = {}) => ({
   type: 3,

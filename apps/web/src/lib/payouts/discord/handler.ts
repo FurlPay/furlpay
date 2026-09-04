@@ -5,6 +5,7 @@ import {
   errorScreen,
   freezeConfirmScreen,
   homeScreen,
+  id,
   parseId,
   securityScreen,
   supportScreen,
@@ -18,6 +19,8 @@ import {
 import { availableRails, type PayoutRail } from "../rails";
 import { audit } from "../../audit";
 import { resolveDiscordAccount, type ResolvedIdentity } from "./identity";
+import { completeStep, getState, isVerified, issueStepToken, nextStep, STEP_ORDER } from "./onboarding";
+import { sendDm } from "./dm";
 
 // ---------------------------------------------------------------------------
 // Payments console router.
@@ -121,6 +124,43 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
   const sourceIsEphemeral = ((i.message?.flags ?? 0) & 64) !== 0;
   const nav = (data: Record<string, unknown>) => replyOrUpdate(data, sourceIsEphemeral);
 
+  // ── the verification gate ────────────────────────────────────────────
+  //
+  // Guild membership is not identity. Everything below this line can show
+  // money, so nothing below runs until the member has proven, in their own
+  // DM, that they are a person with a contactable email, a phone and a wallet
+  // they control.
+  const verification = await getState(identity.discordUserId);
+  const verified = isVerified(verification);
+
+  if (!verified) {
+    // In the SERVER: say nothing financial, and move the conversation to a DM.
+    // A public channel is the wrong place to conduct identity verification and
+    // the wrong place to mention that somebody has an account at all.
+    if (identity.origin.kind === "guild") {
+      const dm = await sendDm(identity.discordUserId, verificationDm(verification));
+      if (!dm.ok && dm.reason === "dms_disabled") {
+        return ephemeral({
+          content: [
+            "FurlPay could not send you a direct message.",
+            "",
+            "Open **Privacy Settings** for this server and allow direct messages, then run `/payments` again.",
+            "Your account details are never posted in a public channel, which is why this has to happen in a DM.",
+          ].join("\n"),
+        });
+      }
+      if (!dm.ok) {
+        return ephemeral({ content: "FurlPay could not start verification just now. Try again shortly." });
+      }
+      return ephemeral({
+        content: "Check your direct messages — FurlPay has sent you a private verification step.",
+      });
+    }
+
+    // Already IN the DM: render the next step inline.
+    return ephemeral(verificationDm(verification));
+  }
+
   // The slash command posts a fresh private console.
   if (isCommand) {
     const screen = withNotice(homeScreen(account), unconfigured);
@@ -201,6 +241,56 @@ export async function handlePaymentsConsole(i: ConsoleInteraction): Promise<Repl
       );
     }
 
+    // ── verification steps ──────────────────────────────────────────
+    // Each opens a modal. The token id travels in the modal custom_id, but
+    // it authorises nothing on its own: completeStep re-checks that the
+    // token was issued to THIS Discord user before it looks at the answer.
+    case "verify_captcha":
+    case "verify_email":
+    case "verify_phone": {
+      const which = step === "verify_captcha" ? "captcha" : step === "verify_email" ? "email" : "phone";
+      const submitted = i.data?.components?.[0]?.components?.[0]?.value?.trim();
+
+      if (submitted && args[0]) {
+        const result = await completeStep({
+          tokenId: args[0],
+          discordUserId: identity.discordUserId,
+          answer: submitted,
+        });
+        if (!result.ok) {
+          return nav({
+            embeds: [{ title: "Not verified", description: result.detail, color: 0xed4245 }],
+          });
+        }
+        return nav(verificationDm(result.state));
+      }
+
+      const token = await issueStepToken(identity.discordUserId, which);
+      return {
+        type: 9,
+        data: {
+          custom_id: id(step, token.id),
+          title: which === "captcha" ? "Verify you are a person" : `Confirm your ${which}`,
+          components: [
+            {
+              type: 1,
+              components: [
+                {
+                  type: 4,
+                  custom_id: "answer",
+                  style: 1,
+                  label: which === "captcha" ? `Enter this code: ${token.secret}` : "Enter the code we sent you",
+                  required: true,
+                  min_length: 6,
+                  max_length: 6,
+                },
+              ],
+            },
+          ],
+        },
+      };
+    }
+
     case "support":
       return nav(supportScreen());
 
@@ -274,5 +364,68 @@ function withNotice(screen: Record<string, unknown>, unconfigured: boolean): Rec
         color: 0xf1c40f,
       },
     ],
+  };
+}
+
+/**
+ * The private verification screen.
+ *
+ * Shows only the NEXT step. A checklist of four demands at once reads as a
+ * wall and gets abandoned; one question at a time is finishable.
+ */
+function verificationDm(state: Awaited<ReturnType<typeof getState>>): Record<string, unknown> {
+  const step = nextStep(state);
+  const done = state.completed.length;
+  const total = STEP_ORDER.length;
+
+  const copy: Record<string, { title: string; body: string; label: string; id: string }> = {
+    captcha: {
+      title: "Verify you are a person",
+      body: "Enter the code shown to continue. This keeps automated accounts out of the payout system.",
+      label: "Enter code",
+      id: id("verify_captcha"),
+    },
+    email: {
+      title: "Confirm your email",
+      body: "FurlPay sends receipts and recovery here. We will email you a six-character code.",
+      label: "Add email",
+      id: id("verify_email"),
+    },
+    phone: {
+      title: "Confirm your phone",
+      body: "A second factor for anything that moves money. We will text you a six-character code.",
+      label: "Add phone",
+      id: id("verify_phone"),
+    },
+    wallet: {
+      title: "Connect your payout wallet",
+      body: [
+        "Sign a message with the wallet that will receive your payouts. The signature proves you control it.",
+        "",
+        "FurlPay will never ask for your seed phrase, private key or recovery phrase.",
+      ].join("\n"),
+      label: "Connect wallet",
+      id: id("wallet_asset"),
+    },
+  };
+
+  if (!step) {
+    return {
+      embeds: [{ title: "Verification complete", description: "Run /payments to open your account.", color: 0x2ecc71 }],
+    };
+  }
+
+  const c = copy[step];
+  return {
+    embeds: [
+      {
+        title: c.title,
+        description: c.body,
+        color: 0x5865f2,
+        fields: [{ name: "Progress", value: `Step ${done + 1} of ${total}`, inline: true }],
+        footer: { text: "FurlPay Payments — this conversation is private to you" },
+      },
+    ],
+    components: [{ type: 1, components: [{ type: 2, style: 1, label: c.label, custom_id: c.id }] }],
   };
 }
