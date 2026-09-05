@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { api, API_BASE, ApiError } from "@/lib/api";
 import * as Haptics from "expo-haptics";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { usePortfolio } from "@/lib/queries";
 import { COLLECTIONS } from "@/lib/discover";
 import { usd } from "@/lib/format";
@@ -87,10 +87,16 @@ function DividendActions({ onSettled }: { onSettled: () => void }) {
   const settle = async (drip: boolean) => {
     setError(null);
     setMessage(null);
-    const confirmed = await confirmWithBiometrics(
-      drip ? "Reinvest dividends into more shares" : "Collect dividends as cash"
-    );
-    if (!confirmed) return;
+    // Reinvesting BUYS shares, so it is a money movement, not a preference.
+    const decision = await authorizeMoneyMove({
+      action: "send_funds",
+      amountUsd: 0,
+      reason: drip ? "Reinvest dividends into more shares" : "Collect dividends as cash",
+    });
+    if (!decision.ok) {
+      if (decision.kind !== "declined") setError(decision.message);
+      return;
+    }
     setBusy(drip ? "drip" : "cash");
     try {
       const res = await api<{ settled: number; cashCredited: number; reinvested: number }>(
@@ -170,10 +176,15 @@ function SipSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
     // period, so it is a larger authorisation than a single order, not a
     // smaller one — and it was the only money-moving control in the app that
     // asked for nothing.
-    const confirmed = await confirmWithBiometrics(
-      `Start a ${cadence} ${usd(notional)} investment in ${symbol.toUpperCase()} — the first buy executes now`
-    );
-    if (!confirmed) return;
+    const decision = await authorizeMoneyMove({
+      action: "send_funds",
+      amountUsd: notional,
+      reason: `Start a ${cadence} ${usd(notional)} investment in ${symbol.toUpperCase()} — the first buy executes now`,
+    });
+    if (!decision.ok) {
+      if (decision.kind !== "declined") setError(decision.message);
+      return;
+    }
 
     setBusy(true);
     setError(null);

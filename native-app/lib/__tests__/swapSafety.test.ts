@@ -119,14 +119,61 @@ describe("swap execution is authorized by a server-issued quote", () => {
     expect(hookCode).toMatch(/inFlight\.current\)\s*return/);
   });
 
-  it("requires a biometric confirmation before submitting", () => {
+  it("authorizes through the central boundary before submitting", () => {
+    // STRENGTHENED — see the matching note in sendSafety.test.ts.
     const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
-    const confirmAt = execFn.indexOf("confirmWithBiometrics");
+    const authAt = execFn.indexOf("authorizeMoneyMove(");
     const requestAt = execFn.indexOf("execute: true");
-    expect(confirmAt).toBeGreaterThan(-1);
-    expect(requestAt).toBeGreaterThan(confirmAt);
-    // A declined prompt must abandon, not fall through.
-    expect(execFn.slice(confirmAt, requestAt)).toMatch(/if \(!confirmed\)/);
+    expect(authAt).toBeGreaterThan(-1);
+    expect(requestAt).toBeGreaterThan(authAt);
+    expect(execFn.slice(authAt, requestAt)).toMatch(/if \(!decision\.ok\)/);
+  });
+
+  it("no longer uses the bypassable biometric gate anywhere on the money path", () => {
+    const code = hookCode.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(code).not.toContain("confirmWithBiometrics");
+  });
+
+  it("claims the in-flight guard BEFORE authorization, not after", () => {
+    // The prompt window is seconds long and is the one moment the app is not
+    // in the foreground. With the guard claimed after the prompt, a second
+    // execute() arriving during it raised a second prompt and ran a second
+    // submission for the same quote.
+    const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
+    const claimAt = execFn.indexOf("inFlight.current = true");
+    const authAt = execFn.indexOf("authorizeMoneyMove(");
+    expect(claimAt).toBeGreaterThan(-1);
+    expect(authAt).toBeGreaterThan(claimAt);
+  });
+
+  it("re-checks the quote TTL AFTER authorization", () => {
+    // A prompt can outlive the quote. Checking only before it would let a user
+    // authorize at one price and execute at another.
+    const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
+    const authAt = execFn.indexOf("authorizeMoneyMove(");
+    const requestAt = execFn.indexOf("execute: true");
+    const between = execFn.slice(authAt, requestAt);
+    expect(between).toMatch(/QUOTE_TTL_MS/);
+    expect(between).toMatch(/requote\(/);
+  });
+
+  it("sends an Idempotency-Key on the execute call", () => {
+    // The execute call previously carried none at all.
+    const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
+    expect(execFn).toMatch(/"Idempotency-Key"/);
+    expect(hookCode).toMatch(/idempotencyKeyFor/);
+  });
+
+  it("honours the server's own `executed` flag rather than the fetch resolving", () => {
+    // /api/swaps returns `executed`, and the old code ignored it: a 200 with
+    // executed:false showed the user a completed swap.
+    const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
+    const requestAt = execFn.indexOf("execute: true");
+    const after = execFn.slice(requestAt);
+    const guardAt = after.indexOf("res?.executed");
+    const successAt = after.indexOf("setExecuted(res.quote)");
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(successAt).toBeGreaterThan(guardAt);
   });
 });
 

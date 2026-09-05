@@ -16,6 +16,7 @@ import { Button, ErrorNote, Field, Screen } from "@/components/ui";
 import { useContactForAddress } from "@/lib/contacts/useContacts";
 import { useNameResolution } from "@/lib/contacts/useResolveName";
 import { shortAddress, usd } from "@/lib/format";
+import { canUserRetry, isTerminalState } from "@/lib/money/transactionState";
 import {
   AMOUNT_MAX_LENGTH,
   assetForToken,
@@ -208,12 +209,27 @@ export default function Send() {
   }
 
   // ── in-flight ────────────────────────────────────────────────────────────
-  if (exec.executing || exec.stage === "failed") {
+  //
+  // The heading is derived from the AUTHORITATIVE transaction state, not from
+  // the UI stage. The three cases are genuinely different answers to "did my
+  // money move?", and collapsing them is how a user is told a payment failed
+  // when the outcome is actually unknown:
+  //
+  //   FAILED     -> it did not happen. Retry is safe.
+  //   PROCESSING -> we do not know yet. Retry is NOT safe.
+  //   otherwise  -> still working.
+  if (exec.executing || exec.stage === "failed" || exec.txState === "PROCESSING") {
+    const unresolved = exec.txState === "PROCESSING";
+    const failed = exec.txState === "FAILED";
     return (
       <Screen>
         <ScrollView contentContainerStyle={styles.content}>
           <Text style={type.h2}>
-            {exec.stage === "failed" ? "Payment didn't go through" : "Sending"}
+            {failed
+              ? "Payment didn't go through"
+              : unresolved
+                ? "Still processing"
+                : "Sending"}
           </Text>
           {/* A send cannot be in flight without a source, so the timeline is
               rendered from the real chain or not at all — never from a
@@ -232,7 +248,20 @@ export default function Send() {
           {exec.correlationId ? (
             <Text style={styles.correlation}>Reference {exec.correlationId}</Text>
           ) : null}
-          {exec.stage === "failed" ? <Button title="Back" onPress={exec.dismiss} /> : null}
+          {/* RETRY IS GATED ON THE STATE MACHINE, not on the screen's own idea
+              of failure. canUserRetry() is true only from FAILED — offering it
+              while the outcome is unknown invites a second payment for one
+              intent, which is the exact duplicate this whole spine prevents. */}
+          {canUserRetry(exec.txState) ? (
+            <Button title="Try again" onPress={() => void exec.execute()} />
+          ) : null}
+          {isTerminalState(exec.txState) || failed ? (
+            <Button
+              title="Back"
+              variant={canUserRetry(exec.txState) ? "secondary" : "primary"}
+              onPress={exec.dismiss}
+            />
+          ) : null}
         </ScrollView>
       </Screen>
     );

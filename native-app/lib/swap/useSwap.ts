@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppState } from "react-native";
 import * as Haptics from "expo-haptics";
-import { AbortedError, api, ApiError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { AbortedError, api, ApiError, TimeoutError } from "@/lib/api";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
+import { transition, type TxState } from "@/lib/money/transactionState";
+import {
+  createTransaction,
+  getTransaction,
+  markUnknownOutcome,
+  updateTransactionState,
+} from "@/lib/money/transactionStore";
 import { correlationOf, messageFor, type ExecutionStage } from "@/lib/execution";
 import { parseUsdcAmount, tryParseUsdcAmount } from "@/lib/money";
 import { useInvalidateAfterMoneyMove, useOverview } from "@/lib/queries";
@@ -399,6 +406,12 @@ export type { ExecutionStage } from "@/lib/execution";
 
 export interface UseSwapExecution {
   stage: ExecutionStage;
+  /** Canonical transaction state. `stage` is UI vocabulary; this is money truth. */
+  txState: TxState;
+  /** Set when the risk engine refused. The API was never called. */
+  blocked: string | null;
+  /** Set when the swap needs review. The API was never called. */
+  review: string | null;
   executing: boolean;
   executed: SwapQuote | null;
   error: string | null;
@@ -412,6 +425,9 @@ export interface UseSwapExecution {
 export function useSwapExecution(q: UseSwapQuote): UseSwapExecution {
   const refetchBalances = useInvalidateAfterMoneyMove();
   const [stage, setStage] = useState<ExecutionStage>("idle");
+  const [txState, setTxState] = useState<TxState>("CREATED");
+  const [blocked, setBlocked] = useState<string | null>(null);
+  const [review, setReview] = useState<string | null>(null);
   const [executed, setExecuted] = useState<SwapQuote | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState<string | null>(null);
@@ -422,6 +438,22 @@ export function useSwapExecution(q: UseSwapQuote): UseSwapExecution {
   // a second execution for the same quoteId.
   const inFlight = useRef(false);
 
+  /**
+   * Idempotency key, STABLE for a given quoteId.
+   *
+   * The execute call carried NO Idempotency-Key at all. The server's
+   * single-use quoteId means a replayed request is refused rather than
+   * double-executed, so this was not a double-spend — but a timeout had no
+   * client-side identity to retry under, and the user was left unable to tell
+   * whether their swap had happened. Keyed on quoteId so a retry of the SAME
+   * quote replays the same key, while a re-quote is a new operation.
+   */
+  const idem = useRef<{ quoteId: string; key: string } | null>(null);
+  const idempotencyKeyFor = useCallback((id: string): string => {
+    if (idem.current?.quoteId !== id) idem.current = { quoteId: id, key: crypto.randomUUID() };
+    return idem.current.key;
+  }, []);
+
   const execute = useCallback(async () => {
     const { quote, quoteId, quotedAt, slippageBlocked, requote } = q;
     if (!quote || !quoteId || slippageBlocked || inFlight.current) return;
@@ -429,6 +461,8 @@ export function useSwapExecution(q: UseSwapQuote): UseSwapExecution {
     setError(null);
     setUnavailable(null);
     setCorrelationId(null);
+    setBlocked(null);
+    setReview(null);
 
     // A stale quote is re-priced and handed back for review — never executed at
     // a rate the user never saw.
@@ -437,22 +471,72 @@ export function useSwapExecution(q: UseSwapQuote): UseSwapExecution {
       return;
     }
 
-    setStage("authorizing");
-    const confirmed = await confirmWithBiometrics(
-      `Swap ${quote.amountIn} ${quote.fromToken} → ${quote.toToken}`
-    );
-    if (!confirmed) {
-      setStage("idle");
-      return;
-    }
-
+    // CLAIM THE ATTEMPT BEFORE THE PROMPT, not after.
+    //
+    // The flag used to be set below, after authorization returned, leaving the
+    // entire prompt window — seconds, and the one moment the app is not in the
+    // foreground — outside the guard. A second execute() arriving then saw
+    // `inFlight.current === false`, raised a second prompt and ran a second
+    // submission for the same quote. Send fixed this; swap had not.
+    //
+    // Every early return from here must release it, hence the try/finally now
+    // spanning authorization as well as the request.
     inFlight.current = true;
-    setStage("submitting");
+
+    // Durable identity before risk, before the prompt, before the request.
+    // Keyed on quoteId, so re-attempting the same quote is the same
+    // transaction; a re-quote is a new one.
+    const key = idempotencyKeyFor(quoteId);
+    const tx = createTransaction({
+      operation: "swap",
+      idempotencyKey: key,
+      amountUsd: Number(quote.amountIn) || 0,
+      currency: quote.fromToken,
+      reference: `Swap ${quote.fromToken} to ${quote.toToken}`,
+      quoteId,
+      quoteExpiresAt: quotedAt + QUOTE_TTL_MS,
+    });
+
+    setStage("authorizing");
+    setTxState(tx.state);
     try {
+      // Same authorization boundary as Send. Replaces confirmWithBiometrics,
+      // which passed when biometric approvals were switched off.
+      const decision = await authorizeMoneyMove({
+        action: "swap",
+        amountUsd: Number(quote.amountIn) || 0,
+        reason: `Swap ${quote.amountIn} ${quote.fromToken} → ${quote.toToken}`,
+      });
+      if (!decision.ok) {
+        if (decision.kind === "blocked") setBlocked(decision.message);
+        else if (decision.kind === "review") setReview(decision.message);
+        else if (decision.kind !== "declined") setError(decision.message);
+        setTxState(updateTransactionState(tx.id, "CANCELLED", { lastError: decision.message }).state);
+        setStage("idle");
+        return;
+      }
+
+      // RE-CHECK THE QUOTE AFTER AUTHORIZATION.
+      //
+      // The TTL was checked before the prompt, but a fingerprint sheet can sit
+      // open for longer than the quote lives. Without this a user could
+      // authorize at one price and execute at another.
+      if (Date.now() - quotedAt > QUOTE_TTL_MS) {
+        setStage("idle");
+        setTxState(
+          updateTransactionState(tx.id, "CANCELLED", { lastError: "Quote expired during confirmation." }).state
+        );
+        await requote("That quote expired while you were confirming — this is the current price.");
+        return;
+      }
+
+      setStage("submitting");
+      setTxState(updateTransactionState(tx.id, "SUBMITTED").state);
       // Authorized against the quote the server issued and is holding: the
       // amount and route travel with quoteId, not as re-quotable parameters.
       const res = await api<{ quote: SwapQuote; executed: boolean }>("/swaps", {
         method: "POST",
+        headers: { "Idempotency-Key": key },
         body: {
           execute: true,
           quoteId,
@@ -463,9 +547,29 @@ export function useSwapExecution(q: UseSwapQuote): UseSwapExecution {
           amountIn: quote.amountIn,
         },
       });
+      // THE SERVER'S OWN FLAG DECIDES, not the fact that fetch resolved.
+      //
+      // /api/swaps returns `executed`, and this code ignored it: a 200 with
+      // `executed: false` (the quote branch, a partially-applied route) showed
+      // the user a completed swap. The response shape always carried the
+      // answer; nothing read it.
+      if (!res?.executed) {
+        setTxState(updateTransactionState(tx.id, "PROCESSING", { reconcileRequired: true }).state);
+        setStage("submitting");
+        setError(
+          "Your swap was accepted but hasn't been confirmed yet. It will appear in your activity once it settles — don't submit it again."
+        );
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+
+      updateTransactionState(tx.id, "PROCESSING");
+      setTxState(updateTransactionState(tx.id, "COMPLETED").state);
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setExecuted(res.quote);
       setStage("settled");
+      // This swap is finished; a further swap is a new operation.
+      idem.current = null;
       // A swap changes balances AND writes a transaction — refreshing only
       // ["overview"] left the activity list showing the pre-swap history.
       refetchBalances();
@@ -497,9 +601,32 @@ export function useSwapExecution(q: UseSwapQuote): UseSwapExecution {
         return;
       }
 
-      setError(messageFor(e));
       setCorrelationId(correlationOf(e));
+
+      // A TIMEOUT IS NOT A FAILURE. The swap may have executed and the reply
+      // been lost. Saying "failed" invites the user to swap again at a second
+      // cost, so this becomes an unknown outcome for recovery to resolve.
+      if (e instanceof TimeoutError) {
+        setTxState(markUnknownOutcome(tx.id, "The network did not respond in time.").state);
+        setStage("submitting");
+        setError(
+          "We didn't get a reply in time, so we don't yet know if this swap went through. We're checking — don't submit it again."
+        );
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+
+      setError(messageFor(e));
       setStage("failed");
+      // Decided from the PERSISTED state: only a request that actually left can
+      // be FAILED; anything earlier was abandoned before submission.
+      const persisted = getTransaction(tx.id);
+      setTxState(
+        updateTransactionState(tx.id, persisted && persisted.state !== "CREATED" ? "FAILED" : "CANCELLED", {
+          lastError: messageFor(e),
+          errorClass: e instanceof ApiError ? (e.status >= 500 ? "server" : "client") : "transport",
+        }).state
+      );
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       inFlight.current = false;
@@ -508,6 +635,9 @@ export function useSwapExecution(q: UseSwapQuote): UseSwapExecution {
 
   return {
     stage,
+    txState,
+    blocked,
+    review,
     executing: stage === "authorizing" || stage === "submitting",
     executed,
     error,
@@ -518,7 +648,10 @@ export function useSwapExecution(q: UseSwapQuote): UseSwapExecution {
       setExecuted(null);
       setError(null);
       setUnavailable(null);
+      setBlocked(null);
+      setReview(null);
       setStage("idle");
+      setTxState("CREATED");
     }, []),
   };
 }

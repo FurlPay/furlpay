@@ -6,7 +6,7 @@ import * as Haptics from "expo-haptics";
 import { CardFacePreview, StatusChip } from "@/components/cards/CardFace";
 import { ShippingForm, isShippingComplete, type ShippingDraft } from "@/components/cards/ShippingForm";
 import { Button, EmptyState, ErrorNote, Field, Screen } from "@/components/ui";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { cardErrorMessage, useCardProducts, useOrderCard } from "@/lib/cards/useCardLifecycle";
 import { blockReasonText, type CardProduct, type CardTheme } from "@/lib/cards/lifecycle";
 import { usd } from "@/lib/format";
@@ -116,12 +116,18 @@ export default function OrderCard() {
     setSubmitError(null);
 
     const fee = product.feeUsd;
-    const approved = await confirmWithBiometrics(
-      fee > 0
-        ? `Order the ${product.name} card for ${usd(fee)}`
-        : `Order the ${product.name} card`
-    );
-    if (!approved) return;
+    const decision = await authorizeMoneyMove({
+      action: "create_card",
+      amountUsd: fee,
+      reason:
+        fee > 0
+          ? `Order the ${product.name} card for ${usd(fee)}`
+          : `Order the ${product.name} card`,
+    });
+    if (!decision.ok) {
+      if (decision.kind !== "declined") setSubmitError(decision.message);
+      return;
+    }
 
     const fingerprint = `${product.id}|${themeId}|${label.trim()}|${
       needsShipping ? JSON.stringify(shipping) : ""

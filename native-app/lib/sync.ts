@@ -1,4 +1,4 @@
-import { api, ApiError, NetworkError } from "./api";
+import { api, ApiError, NetworkError, TimeoutError } from "./api";
 import {
   deletePendingAction,
   listDueActions,
@@ -64,6 +64,12 @@ export function backoffMs(attempt: number, random: () => number = Math.random): 
 /** A 4xx will fail identically forever; only 5xx and transport errors retry. */
 export function isRetryable(e: unknown): boolean {
   if (e instanceof NetworkError) return true;
+  // A deadline says nothing about whether the server accepted the request — it
+  // may well have. Retrying is safe precisely BECAUSE the outbox key is stable:
+  // if the first attempt landed, the replay returns the original response
+  // instead of charging twice. Treating a timeout as terminal would strand a
+  // payment that actually succeeded.
+  if (e instanceof TimeoutError) return true;
   if (e instanceof ApiError) return e.status >= 500 || e.status === 429;
   return false;
 }
@@ -165,5 +171,6 @@ function describe(e: unknown): string {
     return detail ?? e.message;
   }
   if (e instanceof NetworkError) return "No connection.";
+  if (e instanceof TimeoutError) return "The network did not respond in time.";
   return (e as Error)?.message ?? "Something went wrong.";
 }

@@ -1,35 +1,63 @@
-// FurlPay mobile theme — mirrors apps/web/tailwind.config.ts (OLED black,
-// neon green primary, red accent). Keep hex values in sync with the web app.
+// FurlPay mobile theme — COMPATIBILITY LAYER.
+//
+// The real design system now lives in lib/design/ (tokens.ts + theme.tsx).
+// This file survives so the ~200 screens that already import { colors, spacing,
+// radius, type } keep compiling and keep rendering exactly as they did, while
+// they migrate one at a time.
+//
+// WHAT THIS FILE CANNOT DO: react to the theme. Every value here is the DARK
+// scheme, frozen. `StyleSheet.create` snapshots whatever it is handed, so a
+// screen built on these constants is a dark-mode screen no matter what the user
+// picked.
+//
+// MIGRATING A SCREEN — replace
+//     import { colors, spacing, type } from "@/lib/theme";
+//     const styles = StyleSheet.create({ card: { backgroundColor: colors.surface } });
+// with
+//     import { makeStyles } from "@/lib/design";
+//     const useStyles = makeStyles((t) => ({ card: { backgroundColor: t.colors.surface } }));
+// and read `const s = useStyles();` inside the component.
+//
+// Colour mapping, old name -> new role:
+//   neon      -> primary       neonDeep -> primaryDeep
+//   neonSoft  -> primarySoft   onNeon   -> onPrimary
+// The old names are mint-specific; the new ones say what the colour is FOR,
+// which is what lets the light scheme use a different mint.
 
+import { schemes, spacing as spacingTokens, radius as radiusTokens } from "./design/tokens";
+
+const dark = schemes.dark;
+
+/** @deprecated Dark scheme only. Use `useTheme().colors` / `makeStyles`. */
 export const colors = {
-  bg: "#000000",
-  surface: "#0D0D0D",
-  surfaceRaised: "#161616",
-  border: "#232323",
-  text: "#FFFFFF",
-  textDim: "#9CA3AF",
-  textFaint: "#6B7280",
-  neon: "#00E599",
-  neonDeep: "#00B87A",
-  neonSoft: "#0A2A22",
-  accent: "#FF3B30",
-  accentDeep: "#E02020",
-  warning: "#F59E0B",
-  onNeon: "#00170F",
+  bg: dark.bg,
+  surface: dark.surface,
+  surfaceRaised: dark.surfaceRaised,
+  border: dark.border,
+  text: dark.text,
+  textDim: dark.textDim,
+  textFaint: dark.textFaint,
+  neon: dark.primary,
+  neonDeep: dark.primaryDeep,
+  neonSoft: dark.primarySoft,
+  accent: dark.accent,
+  accentDeep: dark.accentDeep,
+  warning: dark.warning,
+  onNeon: dark.onPrimary,
 } as const;
 
-export const spacing = { xs: 4, sm: 8, md: 16, lg: 24, xl: 32 } as const;
-
-export const radius = { sm: 8, md: 14, lg: 20, pill: 999 } as const;
+export const spacing = spacingTokens;
+export const radius = radiusTokens;
 
 // Signature "selected" treatment — a soft luminous gradient border used ONLY on
 // active/selected pills (see components/GlowSelectionPill). Warm amber → pale
 // silver → FurlPay mint. Defined centrally so the accent stays consistent.
 export const glow = {
-  gradient: ["#E8B77A", "#D9E2DD", colors.neon] as const,
-  glowColor: colors.neon,
+  gradient: ["#E8B77A", "#D9E2DD", dark.primary] as const,
+  glowColor: dark.primary,
 } as const;
 
+/** @deprecated Dark scheme, unscaled. Use `useTheme().type("body")`. */
 export const type = {
   title: { fontSize: 28, fontWeight: "700" as const, color: colors.text },
   h2: { fontSize: 20, fontWeight: "700" as const, color: colors.text },

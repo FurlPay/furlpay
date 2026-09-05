@@ -13,6 +13,8 @@
 // will actually be sent), never only the server's free-form summary text.
 // ---------------------------------------------------------------------------
 
+import type { RiskAction } from "./security/riskPolicy";
+
 /** Shape the server returns in `requiresConfirmation`. */
 export interface Confirmation {
   action?: string;
@@ -44,6 +46,24 @@ interface FieldSpec {
 export interface ActionSpec {
   id: string;
   title: string;
+  /**
+   * How this action is authenticated, via the central policy in
+   * lib/security/riskPolicy.ts.
+   *
+   * REQUIRED, not optional. Before this field existed the co-pilot path
+   * authenticated with `confirmWithBiometrics`, which RETURNS TRUE when the
+   * user has switched biometric approvals off or has none enrolled. That is a
+   * reasonable default for a low-friction gate on an already-unlocked app, but
+   * this registry permits transfers up to $25,000 — so on a phone with
+   * biometrics disabled, an AI-proposed transfer executed with no
+   * authentication at all.
+   *
+   * Routing through `requireAuthFor` fixes three things at once: the device
+   * PIN/pattern counts as proof (better UX than demanding a fingerprint), a
+   * device with NO lock is refused instead of waved through, and the
+   * always-prompt rules apply to the actions that deserve them.
+   */
+  risk: RiskAction;
   /** Path as passed to lib/api (no /api prefix). */
   endpoint: string;
   method: "POST";
@@ -71,6 +91,7 @@ const MAX_ACTION_USD = 25_000;
 const REGISTRY: Record<string, ActionSpec> = {
   card_control: {
     id: "card_control",
+    risk: "freeze_card",
     title: "Card control",
     endpoint: "/cards/settings",
     method: "POST",
@@ -82,6 +103,7 @@ const REGISTRY: Record<string, ActionSpec> = {
   },
   earn_deposit: {
     id: "earn_deposit",
+    risk: "send_funds",
     title: "Deposit into Earn",
     endpoint: "/earn/deposit",
     method: "POST",
@@ -93,6 +115,7 @@ const REGISTRY: Record<string, ActionSpec> = {
   },
   schedule_dca: {
     id: "schedule_dca",
+    risk: "send_funds",
     title: "Recurring investment",
     endpoint: "/investing/schedule",
     method: "POST",
@@ -109,6 +132,7 @@ const REGISTRY: Record<string, ActionSpec> = {
   },
   place_order: {
     id: "place_order",
+    risk: "send_funds",
     title: "Investment order",
     endpoint: "/investing/order",
     method: "POST",
@@ -121,6 +145,7 @@ const REGISTRY: Record<string, ActionSpec> = {
   },
   execute_swap: {
     id: "execute_swap",
+    risk: "swap",
     title: "Swap",
     endpoint: "/swaps",
     method: "POST",
@@ -149,6 +174,7 @@ const REGISTRY: Record<string, ActionSpec> = {
   },
   send_payment: {
     id: "send_payment",
+    risk: "send_funds",
     title: "Send payment",
     endpoint: "/payments/create",
     method: "POST",
@@ -161,6 +187,7 @@ const REGISTRY: Record<string, ActionSpec> = {
   },
   create_support_ticket: {
     id: "create_support_ticket",
+    risk: "change_profile",
     title: "Open a support ticket",
     endpoint: "/support/tickets",
     method: "POST",
@@ -192,6 +219,13 @@ export type ResolvedConfirmation =
       method: "POST";
       body: Record<string, unknown>;
       details: ConfirmationDetail[];
+      /**
+       * Value at risk, taken from the VALIDATED body's `usd`-marked field —
+       * never from the model's free-form `amountUsd`, which is unvalidated and
+       * could understate the amount to dodge a risk threshold. 0 when the
+       * action moves no money.
+       */
+      amountUsd: number;
     }
   | { ok: false; reason: string };
 
@@ -222,6 +256,8 @@ export function resolveConfirmation(c: Confirmation): ResolvedConfirmation {
 
   const body: Record<string, unknown> = {};
   const details: ConfirmationDetail[] = [];
+  // Captured from the validated body below, not from the payload's own claim.
+  let amountUsd = 0;
   for (const [key, field] of Object.entries(spec.fields)) {
     const value = (raw as Record<string, unknown>)[key];
     if (value === undefined || value === null) {
@@ -245,6 +281,7 @@ export function resolveConfirmation(c: Confirmation): ResolvedConfirmation {
       if (field.pattern && !field.pattern.test(s)) return { ok: false, reason: `Invalid "${key}" value.` };
     }
     body[key] = value;
+    if (field.usd && field.type === "number") amountUsd = value as number;
     if (field.label) {
       details.push({
         label: field.label,
@@ -259,5 +296,5 @@ export function resolveConfirmation(c: Confirmation): ResolvedConfirmation {
   // shadowed one.
   Object.assign(body, spec.constants ?? {});
 
-  return { ok: true, spec, endpoint: spec.endpoint, method: spec.method, body, details };
+  return { ok: true, spec, endpoint: spec.endpoint, method: spec.method, body, details, amountUsd };
 }

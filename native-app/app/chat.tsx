@@ -12,7 +12,7 @@ import {
 import * as Haptics from "expo-haptics";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { resolveConfirmation, type Confirmation } from "@/lib/copilotActions";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, Screen } from "@/components/ui";
@@ -113,10 +113,34 @@ export default function Chat() {
     }
     // The prompt shows the VERIFIED action + fields, not the AI's summary.
     const detailLine = resolved.details.map((d) => `${d.label}: ${d.value}`).join(" · ");
-    const confirmed = await confirmWithBiometrics(
-      `${resolved.spec.title} — ${detailLine}`.slice(0, 120)
-    );
-    if (!confirmed) return;
+
+    // Authenticate through the CENTRAL policy, keyed by the registry's risk
+    // classification — not through confirmWithBiometrics, which passes when
+    // biometrics are disabled or unenrolled. This registry permits transfers up
+    // to $25,000; a money action must not execute unauthenticated because the
+    // user turned a convenience toggle off.
+    // THE SAME BOUNDARY AS MANUAL SEND AND SWAP.
+    //
+    // An AI-proposed money movement gets no privileged path: it runs the same
+    // deterministic risk rules and the same proof-of-presence, keyed off the
+    // REGISTRY's classification and the VALIDATED amount — never off anything
+    // the model wrote. A model that says "risk: allow" or understates the
+    // amount changes nothing here.
+    const auth = await authorizeMoneyMove({
+      action: resolved.spec.risk,
+      amountUsd: resolved.amountUsd,
+      reason: `${resolved.spec.title} — ${detailLine}`.slice(0, 120),
+    });
+    if (!auth.ok) {
+      setMessages((cur) =>
+        cur.concat({
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: auth.message,
+        })
+      );
+      return;
+    }
     try {
       await api(resolved.endpoint, { method: resolved.method, body: resolved.body });
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

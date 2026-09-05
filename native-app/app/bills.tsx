@@ -3,7 +3,7 @@ import { Pressable, RefreshControl, ScrollView, StyleSheet, Switch, Text, View }
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { api, ApiError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Field, Screen, Segmented, SummaryRow, Surface } from "@/components/ui";
@@ -39,8 +39,15 @@ function BillRow({ bill }: { bill: Bill }) {
   const act = async (action: "pay" | "toggleAutopay") => {
     setError(null);
     if (action === "pay") {
-      const confirmed = await confirmWithBiometrics(`Pay ${bill.provider} ${usd(bill.balanceDue)}`);
-      if (!confirmed) return;
+      const decision = await authorizeMoneyMove({
+        action: "send_funds",
+        amountUsd: bill.balanceDue,
+        reason: `Pay ${bill.provider} ${usd(bill.balanceDue)}`,
+      });
+      if (!decision.ok) {
+        if (decision.kind !== "declined") setError(decision.message);
+        return;
+      }
       setPaying(true);
     }
     try {
@@ -138,8 +145,16 @@ function OffRampPanel() {
 
   const execute = async () => {
     setError(null);
-    const confirmed = await confirmWithBiometrics(`Off-ramp ${usd(amt)} USDC to ${to}`);
-    if (!confirmed) return;
+    // An off-ramp moves money OFF the platform to a bank — withdraw, not send.
+    const decision = await authorizeMoneyMove({
+      action: "withdraw",
+      amountUsd: amt,
+      reason: `Off-ramp ${usd(amt)} USDC to ${to}`,
+    });
+    if (!decision.ok) {
+      if (decision.kind !== "declined") setError(decision.message);
+      return;
+    }
     setBusy(true);
     try {
       await api("/offramp", {

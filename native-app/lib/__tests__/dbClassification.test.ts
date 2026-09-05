@@ -61,7 +61,7 @@ describe("SQLite cache — no-secrets invariant", () => {
     expect(found).toEqual([]);
   });
 
-  it("the schema is exactly the five cache tables we classified", () => {
+  it("the schema is exactly the seven tables we classified", () => {
     const tables = [...db.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]).sort();
     // kv_cache      -> JSON snapshots of GET responses (balances, cards, portfolio)
     // transactions  -> financial transaction METADATA (amounts, titles, status)
@@ -72,13 +72,68 @@ describe("SQLite cache — no-secrets invariant", () => {
     //                  already visible to anyone with a block explorer, and it
     //                  holds no key, signature or authorization. Persisting it
     //                  is what lets a bridge survive the app being killed.
+    // device_prefs  -> DEVICE preferences only (theme, locale). The ONE table
+    //                  sign-out does not wipe, which is exactly why it must
+    //                  never hold anything account-scoped. Guarded below.
+    // money_transactions -> durable state of money movements the app attempted:
+    //                  amount, destination, state, idempotency key. Holds NO
+    //                  secret material (guarded below). Account-scoped, so it
+    //                  IS wiped on sign-out; its durability requirement is
+    //                  surviving process death, not sign-out.
     expect(tables).toEqual([
+      "device_prefs",
       "kv_cache",
+      "money_transactions",
       "notifications",
       "pending_actions",
       "swaps",
       "transactions",
     ]);
+  });
+
+  describe("device_prefs — the deliberate exception to the sign-out wipe", () => {
+    const schema = db.match(/CREATE TABLE IF NOT EXISTS device_prefs[\s\S]*?\);/)?.[0] ?? "";
+
+    it("exists", () => {
+      expect(schema).not.toBe("");
+    });
+
+    it("is a bare key/value store with no account scoping", () => {
+      // An account column would be the first step toward this table holding
+      // per-user state — which, since it survives sign-out, would leak the
+      // previous user's settings to the next one.
+      const cols = schema.toLowerCase();
+      expect(cols).toContain("key text primary key");
+      expect(cols).toContain("value text not null");
+      for (const forbidden of ["user", "account", "session", "token", "email", "wallet"]) {
+        expect(cols).not.toContain(forbidden);
+      }
+    });
+
+    it("is deliberately NOT wiped by clearAllCaches", () => {
+      // This is an assertion about intent, not an oversight. A user who chose
+      // Hindi and light mode should not be reset to English dark because they
+      // signed out. The safety of that choice rests entirely on the previous
+      // test: nothing account-scoped may live here.
+      const wipe = db.match(/export function clearAllCaches[\s\S]*?\n}/)?.[0] ?? "";
+      expect(wipe).not.toBe("");
+      expect(wipe).not.toContain("device_prefs");
+    });
+
+    it("is only ever written with ui.* keys", () => {
+      // The table's safety depends on WHAT goes in it, so the call sites are
+      // checked too, not just the schema.
+      const fs2 = require("fs") as typeof import("fs");
+      const pathMod = require("path") as typeof import("path");
+      const roots = ["design/theme.tsx", "i18n/core.ts"];
+      const keys: string[] = [];
+      for (const rel of roots) {
+        const src = fs2.readFileSync(pathMod.join(LIB, rel), "utf8");
+        for (const m of src.matchAll(/const PREF_KEY = "([^"]+)"/g)) keys.push(m[1]);
+      }
+      expect(keys.length).toBeGreaterThan(0);
+      for (const k of keys) expect(k).toMatch(/^ui\./);
+    });
   });
 
   it("the swap journal stores no signed payload", () => {
@@ -98,7 +153,7 @@ describe("SQLite cache — no-secrets invariant", () => {
     expect(wipe).not.toBe("");
     // Every table classified above must be dropped on sign-out, or the next
     // account on this device inherits the previous one's cached data.
-    for (const t of ["kv_cache", "transactions", "pending_actions", "notifications", "swaps"]) {
+    for (const t of ["kv_cache", "transactions", "pending_actions", "notifications", "swaps", "money_transactions"]) {
       expect(wipe).toContain(t);
     }
   });

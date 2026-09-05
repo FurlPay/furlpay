@@ -6,7 +6,8 @@ import * as Haptics from "expo-haptics";
 import { CardFace, StatusChip } from "@/components/cards/CardFace";
 import { EMPTY_SHIPPING, ShippingForm, isShippingComplete, shippingError, type ShippingDraft } from "@/components/cards/ShippingForm";
 import { Button, EmptyState, ErrorNote, Field, Screen, Sheet } from "@/components/ui";
-import { authenticateDeviceOwner, confirmWithBiometrics } from "@/lib/biometrics";
+import { authenticateDeviceOwner } from "@/lib/biometrics";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
 import {
   canManage,
   isTerminal,
@@ -455,7 +456,17 @@ export default function CardDetail() {
             setActionError(OFFLINE_MUTATION_MESSAGE);
             return false;
           }
-          if (!(await confirmWithBiometrics("Order a replacement card"))) return false;
+          // Reissuing mints a card and can charge a fee — same boundary as
+          // ordering one. `create_card` is classified high risk.
+          const decision = await authorizeMoneyMove({
+            action: "create_card",
+            amountUsd: 0,
+            reason: "Order a replacement card",
+          });
+          if (!decision.ok) {
+            if (decision.kind !== "declined") setActionError(decision.message);
+            return false;
+          }
           try {
             const result = await m.reissue.mutateAsync(input);
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);

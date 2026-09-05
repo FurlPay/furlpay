@@ -70,14 +70,56 @@ describe("send screen money-path safety", () => {
     expect(execFn.slice(validateAt, requestAt)).toMatch(/if \(!check\.ok\)/);
   });
 
-  it("requires a biometric confirmation before submitting", () => {
+  it("authorizes through the central boundary before submitting", () => {
+    // STRENGTHENED from "requires a biometric confirmation".
+    //
+    // The old control was confirmWithBiometrics, which RETURNS TRUE when the
+    // user has switched biometric approvals off in Settings or has none
+    // enrolled — so on such a device this path submitted with no
+    // authentication at all. authorizeMoneyMove runs the deterministic risk
+    // rules and then proves device ownership via PIN/pattern/biometric,
+    // refusing a device with no lock instead of waving it through.
     const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
-    const confirmAt = execFn.indexOf("confirmWithBiometrics");
+    const authAt = execFn.indexOf("authorizeMoneyMove(");
     const requestAt = execFn.indexOf('"/wallets/transfer"');
-    expect(confirmAt).toBeGreaterThan(-1);
-    expect(requestAt).toBeGreaterThan(confirmAt);
-    // A declined prompt must abandon, not fall through.
-    expect(execFn.slice(confirmAt, requestAt)).toMatch(/if \(!confirmed\)/);
+    expect(authAt).toBeGreaterThan(-1);
+    expect(requestAt).toBeGreaterThan(authAt);
+    // A refusal must abandon, not fall through.
+    expect(execFn.slice(authAt, requestAt)).toMatch(/if \(!decision\.ok\)/);
+  });
+
+  it("no longer uses the bypassable biometric gate anywhere on the money path", () => {
+    const code = hookCode.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+    expect(code).not.toContain("confirmWithBiometrics");
+  });
+
+  it("never calls the financial API when risk BLOCKED or flagged for REVIEW", () => {
+    const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
+    const authAt = execFn.indexOf("authorizeMoneyMove(");
+    const requestAt = execFn.indexOf('"/wallets/transfer"');
+    const between = execFn.slice(authAt, requestAt);
+    expect(between).toMatch(/blocked/);
+    expect(between).toMatch(/review/);
+    // The refusal branch returns; it does not merely record a flag.
+    expect(between).toMatch(/return;/);
+  });
+
+  it("does not treat a resolved fetch as a completed payment", () => {
+    // The state machine forbids SUBMITTED -> COMPLETED, so a completion has to
+    // be observed from the server's own acknowledgement.
+    const execFn = hookCode.slice(hookCode.indexOf("const execute = useCallback"));
+    expect(execFn).toMatch(/transactionHash/);
+    expect(execFn).toMatch(/"PROCESSING"/);
+    expect(execFn).toMatch(/"COMPLETED"/);
+    // COMPLETED is only reached via PROCESSING, and both are written to the
+    // DURABLE row rather than to React state, so a process death between them
+    // leaves a recoverable record instead of nothing.
+    const processingAt = execFn.indexOf('updateTransactionState(tx.id, "PROCESSING")');
+    const completedAt = execFn.indexOf('updateTransactionState(tx.id, "COMPLETED"');
+    expect(processingAt).toBeGreaterThan(-1);
+    expect(completedAt).toBeGreaterThan(processingAt);
+    // Completion carries the server's hash — the evidence that it completed.
+    expect(execFn).toMatch(/"COMPLETED", \{ transactionHash: res\.transactionHash \}/);
   });
 
   it("guards against a second submission while one is in flight", () => {
@@ -88,7 +130,11 @@ describe("send screen money-path safety", () => {
   it("sends an idempotency key that is stable for a given payload", () => {
     // A fresh key per attempt would let a request that timed out AFTER the
     // server accepted it be retried as a second, separate transfer.
-    expect(hookCode).toMatch(/"Idempotency-Key": idempotencyKeyFor\(fingerprint\)/);
+    // The key is derived once from the payload fingerprint, persisted with the
+    // transaction, and then sent — so the row and the wire always agree.
+    expect(hookCode).toMatch(/const key = idempotencyKeyFor\(fingerprint\)/);
+    expect(hookCode).toMatch(/"Idempotency-Key": key/);
+    expect(hookCode).toMatch(/idempotencyKey: key/);
     expect(hookCode).toMatch(/idem\.current\?\.fingerprint !== fingerprint/);
     // …and that a step-up retry keeps it, because it is the same transfer.
     const stepUp = hookCode.slice(hookCode.indexOf("stepUpRequired"));

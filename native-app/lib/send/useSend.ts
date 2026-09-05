@@ -1,8 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import { api, ApiError, demoSignature, NetworkError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { api, ApiError, demoSignature, NetworkError, TimeoutError } from "@/lib/api";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
+import { transition, type TxState } from "@/lib/money/transactionState";
+import {
+  createTransaction,
+  getTransaction,
+  markUnknownOutcome,
+  updateTransactionState,
+} from "@/lib/money/transactionStore";
 import { queuePendingAction } from "@/lib/db";
 import { correlationOf, messageFor, type ExecutionStage } from "@/lib/execution";
 import { isValidDestination, shortAddress, usd } from "@/lib/format";
@@ -335,6 +342,19 @@ export interface SendDraft {
 
 export interface UseSendExecution {
   stage: ExecutionStage;
+  /**
+   * Canonical transaction state.
+   *
+   * `stage` is the screen's own UI vocabulary and is kept for the existing
+   * markup; `txState` is the money truth. They are not redundant: `stage`
+   * reaching "settled" means the request resolved, `txState` reaching
+   * COMPLETED means the SERVER confirmed it.
+   */
+  txState: TxState;
+  /** Set when the risk engine refused. The API was never called. */
+  blocked: string | null;
+  /** Set when the payment needs review. The API was never called. */
+  review: string | null;
   executing: boolean;
   receipt: SendReceipt | null;
   error: string | null;
@@ -353,6 +373,9 @@ export function useSendExecution(
 ): UseSendExecution {
   const refetchBalances = useInvalidateAfterMoneyMove();
   const [stage, setStage] = useState<ExecutionStage>("idle");
+  const [txState, setTxState] = useState<TxState>("CREATED");
+  const [blocked, setBlocked] = useState<string | null>(null);
+  const [review, setReview] = useState<string | null>(null);
   const [receipt, setReceipt] = useState<SendReceipt | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [correlationId, setCorrelationId] = useState<string | null>(null);
@@ -363,6 +386,8 @@ export function useSendExecution(
   // second confirm arriving while the first request is in flight must not send
   // a second transfer.
   const inFlight = useRef(false);
+  /** The durable row this attempt belongs to, for the failure paths below. */
+  const txIdRef = useRef<string | null>(null);
 
   /**
    * Idempotency key, STABLE for a given payload.
@@ -401,6 +426,8 @@ export function useSendExecution(
     setError(null);
     setCorrelationId(null);
     setUnavailable(null);
+    setBlocked(null);
+    setReview(null);
 
     // CLAIMED THE ATTEMPT HERE, NOT AFTER THE PROMPT.
     //
@@ -442,24 +469,89 @@ export function useSendExecution(
 
     const fingerprint = `${payload.destination}|${payload.amount}|${payload.token}|${payload.chain}`;
 
+    // DURABLE IDENTITY BEFORE ANYTHING ELSE.
+    //
+    // The row is written before risk, before the prompt and before the request,
+    // so a process death at any point after this leaves evidence of the attempt
+    // and the key it belongs to. createTransaction returns the EXISTING row for
+    // a repeated fingerprint, so a re-attempt of the same intent is the same
+    // transaction rather than a second one.
+    const key = idempotencyKeyFor(fingerprint);
+    const tx = createTransaction({
+      operation: "send",
+      idempotencyKey: key,
+      amountUsd: check.amountUsd,
+      currency: balance.token,
+      destination: payload.destination,
+      reference: `Send to ${shortAddress(payload.destination)}`,
+    });
+    txIdRef.current = tx.id;
+
     setStage("authorizing");
+    setTxState(tx.state);
     try {
-      // Biometric confirmation before any money moves (honors the Settings →
-      // Security → "Biometric approvals" preference).
-      const confirmed = await confirmWithBiometrics(
-        `Send ${usd(check.amountUsd)} to ${shortAddress(destination.trim())}`
-      );
-      if (!confirmed) {
+      // THE authorization boundary: deterministic risk rules, then proof of
+      // presence. Replaces confirmWithBiometrics, which returned TRUE when the
+      // user had biometric approvals switched off or none enrolled — meaning
+      // the highest-value path in the app could submit unauthenticated.
+      //
+      // BLOCK and REVIEW return before any request is built, so a refused
+      // payment never reaches the financial API.
+      const decision = await authorizeMoneyMove({
+        action: "send_funds",
+        amountUsd: check.amountUsd,
+        reason: `Send ${usd(check.amountUsd)} to ${shortAddress(destination.trim())}`,
+        signals: {
+          // Only signals this screen genuinely knows. `undefined` means "no
+          // signal" to the engine, never "safe".
+          knownBeneficiary: isKnownRecipient(destination.trim(), listRecentRecipients()),
+        },
+      });
+
+      if (!decision.ok) {
+        if (decision.kind === "blocked") setBlocked(decision.message);
+        else if (decision.kind === "review") setReview(decision.message);
+        else if (decision.kind !== "declined") setError(decision.message);
+        // CANCELLED is the only legal exit from CREATED, and it is honest:
+        // nothing left the device.
+        setTxState(updateTransactionState(tx.id, "CANCELLED", { lastError: decision.message }).state);
         setStage("idle");
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
 
       setStage("submitting");
+      // The request is about to leave. From here the outcome is UNKNOWN, not
+      // successful — a timeout past this point may still have landed. Persisted
+      // BEFORE the await, so a death mid-flight is recoverable.
+      setTxState(updateTransactionState(tx.id, "SUBMITTED").state);
       const res = await api<{ transactionHash: string }>("/wallets/transfer", {
         method: "POST",
         body: payload,
-        headers: { "Idempotency-Key": idempotencyKeyFor(fingerprint) },
+        headers: { "Idempotency-Key": key },
       });
+      // The server answered. A transaction hash is the acknowledgement that it
+      // accepted and broadcast the transfer; without one there is nothing to
+      // call complete, and we say so rather than showing a tick.
+      if (!res?.transactionHash) {
+        setTxState(
+          updateTransactionState(tx.id, "PROCESSING", { reconcileRequired: true }).state
+        );
+        setStage("submitting");
+        setError(
+          "Your payment was accepted but hasn't been confirmed yet. It will appear in your activity once it settles — don't send it again."
+        );
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+
+      // Server-confirmed. PROCESSING then COMPLETED, because the state machine
+      // forbids SUBMITTED -> COMPLETED: a completion must be observed, never
+      // inferred from a resolved promise.
+      updateTransactionState(tx.id, "PROCESSING");
+      setTxState(
+        updateTransactionState(tx.id, "COMPLETED", { transactionHash: res.transactionHash }).state
+      );
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       const done: SendReceipt = {
         kind: "sent",
@@ -491,6 +583,16 @@ export function useSendExecution(
         };
         setReceipt(queued);
         setStage("settled");
+        // Queued is NOT completed. The outbox holds it under the same
+        // idempotency key; the money has not moved and must not read as if it
+        // has. PROCESSING is the honest state: committed, outcome unknown.
+        setTxState(
+          updateTransactionState(tx.id, "PROCESSING", {
+            lastError: "Queued while offline.",
+            errorClass: "transport",
+            reconcileRequired: true,
+          }).state
+        );
         idem.current = null;
         onSent?.(queued);
         return;
@@ -502,6 +604,10 @@ export function useSendExecution(
         setNeedsMfa(true);
         setError("High-value transfer — enter your authenticator code to continue.");
         setStage("idle");
+        // The server refused pending a second factor, so nothing was committed.
+        // The durable row stays CREATED and keeps its key, so the retry with
+        // the code is the SAME transaction rather than a second one.
+        setTxState("CREATED");
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
@@ -517,13 +623,45 @@ export function useSendExecution(
           "Sending isn't enabled in this environment. Nothing left your account.";
         setUnavailable(detail);
         setStage("idle");
+        // Explicitly refused by the server before settlement — nothing moved.
+        setTxState(updateTransactionState(tx.id, "CANCELLED", { lastError: detail }).state);
+        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        return;
+      }
+
+      setCorrelationId(correlationOf(e));
+
+      // A TIMEOUT IS NOT A FAILURE. The request may have been accepted and the
+      // reply lost. Telling the user "failed" here is what makes them pay
+      // twice, so the transaction becomes PROCESSING + reconcileRequired and
+      // recovery asks the server what actually happened.
+      if (e instanceof TimeoutError) {
+        setTxState(markUnknownOutcome(tx.id, "The network did not respond in time.").state);
+        setStage("submitting");
+        setError(
+          "We didn't get a reply in time, so we don't yet know if this went through. We're checking — don't send it again."
+        );
         await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         return;
       }
 
       setError(messageFor(e));
-      setCorrelationId(correlationOf(e));
       setStage("failed");
+
+      // Decide from the PERSISTED state, not from the `tx` snapshot taken
+      // before the request (always CREATED) or from React's `stage` (a render
+      // behind). The durable row is the only thing that knows whether the
+      // request actually left: `transition` refuses CREATED -> FAILED, so an
+      // error raised before submission stays CANCELLED — nothing left the
+      // device — while one raised after submission becomes FAILED.
+      const persisted = getTransaction(tx.id);
+      const failState: TxState = persisted && persisted.state !== "CREATED" ? "FAILED" : "CANCELLED";
+      setTxState(
+        updateTransactionState(tx.id, failState, {
+          lastError: messageFor(e),
+          errorClass: e instanceof ApiError ? (e.status >= 500 ? "server" : "client") : "transport",
+        }).state
+      );
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
     } finally {
       inFlight.current = false;
@@ -532,6 +670,9 @@ export function useSendExecution(
 
   return {
     stage,
+    txState,
+    blocked,
+    review,
     executing: stage === "authorizing" || stage === "submitting",
     receipt,
     error,
@@ -545,7 +686,10 @@ export function useSendExecution(
       setCorrelationId(null);
       setNeedsMfa(false);
       setUnavailable(null);
+      setBlocked(null);
+      setReview(null);
       setStage("idle");
+      setTxState("CREATED");
     }, []),
   };
 }

@@ -1,0 +1,143 @@
+# FurlPay Android baseline profile — STARTUP SEED
+#
+# WHAT THIS IS
+# Rules describing the classes and methods on the cold-start path. ART compiles
+# them ahead of time at install, so the first run of the app does not pay the
+# interpreter for them. AGP picks this file up from app/src/main/baseline-prof.txt
+# (put there by plugins/withAndroidPerformance.js) and compiles it into
+# assets/dexopt/baseline.prof.
+#
+# WHAT THIS IS NOT
+# It is NOT a measured profile. A measured profile is produced by running the
+# real app through real journeys under Macrobenchmark and recording which
+# methods actually executed; it is strictly better than this file, because it
+# captures the exact methods and their hot/startup flags rather than a
+# hand-reasoned superset. See README.md in this directory for the exact
+# commands. THIS FILE IS THE FLOOR, NOT THE CEILING — replace it with generated
+# output when a device is available.
+#
+# SYNTAX (profgen human-readable format)
+#   L<class>;                     include the class
+#   H  hot         — called often
+#   S  startup     — called during startup
+#   P  post-startup— called shortly after startup
+#   `**` matches any characters including `/`; `*` stops at a package boundary.
+#
+# A rule that matches nothing is silently ignored, so an over-broad file costs
+# profile size, not correctness. Rules are ordered by when they run.
+
+# ---------------------------------------------------------------------------
+# 1. Process start: Application + Activity
+# ---------------------------------------------------------------------------
+HSPLcom/furlpay/app/MainApplication;->**(**)**
+HSPLcom/furlpay/app/MainActivity;->**(**)**
+Lcom/furlpay/app/MainApplication;
+Lcom/furlpay/app/MainActivity;
+
+# ---------------------------------------------------------------------------
+# 2. React Native core startup
+#
+# The ReactHost / ReactInstance bring-up is the single largest block of work
+# between process start and first frame on the New Architecture.
+# ---------------------------------------------------------------------------
+HSPLcom/facebook/react/ReactApplication;->**(**)**
+HSPLcom/facebook/react/ReactHost;->**(**)**
+HSPLcom/facebook/react/ReactActivity;->**(**)**
+HSPLcom/facebook/react/ReactActivityDelegate;->**(**)**
+HSPLcom/facebook/react/ReactDelegate;->**(**)**
+HSPLcom/facebook/react/ReactPackage;->**(**)**
+HSPLcom/facebook/react/ReactNativeHost;->**(**)**
+HSPLcom/facebook/react/runtime/**->**(**)**
+HSPLcom/facebook/react/bridge/**->**(**)**
+HSPLcom/facebook/react/turbomodule/**->**(**)**
+HSPLcom/facebook/react/fabric/**->**(**)**
+HSPLcom/facebook/react/uimanager/**->**(**)**
+HSPLcom/facebook/react/views/view/**->**(**)**
+HSPLcom/facebook/react/views/text/**->**(**)**
+HSPLcom/facebook/react/views/image/**->**(**)**
+HSPLcom/facebook/react/views/scroll/**->**(**)**
+HSPLcom/facebook/react/modules/core/**->**(**)**
+HSPLcom/facebook/react/common/**->**(**)**
+HSPLcom/facebook/react/config/**->**(**)**
+HSPLcom/facebook/react/soloader/**->**(**)**
+Lcom/facebook/react/ReactActivity;
+Lcom/facebook/react/ReactActivityDelegate;
+Lcom/facebook/react/ReactDelegate;
+
+# ---------------------------------------------------------------------------
+# 3. Hermes
+#
+# Bytecode load and the first evaluation of the 3.3 MB bundle. This is the
+# hottest single stretch of a FurlPay cold start.
+# ---------------------------------------------------------------------------
+HSPLcom/facebook/hermes/reactexecutor/**->**(**)**
+HSPLcom/facebook/hermes/instrumentation/**->**(**)**
+HSPLcom/facebook/hermes/unicode/**->**(**)**
+HSPLcom/facebook/jni/**->**(**)**
+HSPLcom/facebook/soloader/**->**(**)**
+HSPLcom/facebook/proguard/annotations/**->**(**)**
+
+# ---------------------------------------------------------------------------
+# 4. Yoga — every view laid out on the first screen goes through it
+# ---------------------------------------------------------------------------
+HSPLcom/facebook/yoga/**->**(**)**
+
+# ---------------------------------------------------------------------------
+# 5. Expo module registry
+#
+# expo-modules-core builds the native module registry before the first bundle
+# evaluation; every autolinked module's definition is walked during that pass.
+# ---------------------------------------------------------------------------
+HSPLexpo/modules/core/**->**(**)**
+HSPLexpo/modules/kotlin/**->**(**)**
+HSPLexpo/modules/adapters/**->**(**)**
+HSPLexpo/modules/ReactActivityDelegateWrapper;->**(**)**
+HSPLexpo/modules/ApplicationLifecycleDispatcher;->**(**)**
+Lexpo/modules/ReactActivityDelegateWrapper;
+
+# ---------------------------------------------------------------------------
+# 6. Modules touched BEFORE first paint
+#
+# These four are on the critical path by design and are ordered by when the app
+# reaches them:
+#   splashscreen — held until auth hydration resolves
+#   sqlite       — getDb() runs synchronously for the theme/locale preference
+#                  and the offline cache, before the first screen renders
+#   securestore  — the session token read in useAuth.hydrate()
+#   font         — @expo/vector-icons glyphs on the first screen
+# ---------------------------------------------------------------------------
+HSPLexpo/modules/splashscreen/**->**(**)**
+HSPLexpo/modules/sqlite/**->**(**)**
+HSPLexpo/modules/securestore/**->**(**)**
+HSPLexpo/modules/font/**->**(**)**
+HSPLexpo/modules/constants/**->**(**)**
+HSPLexpo/modules/filesystem/**->**(**)**
+
+# ---------------------------------------------------------------------------
+# 7. Navigation and gesture/screen containers for the first route
+# ---------------------------------------------------------------------------
+HSPLcom/swmansion/rnscreens/**->**(**)**
+HSPLcom/th3rdwave/safeareacontext/**->**(**)**
+
+# ---------------------------------------------------------------------------
+# 8. SVG — the logo, icons and FurlChart on the first screens
+# ---------------------------------------------------------------------------
+HSPLcom/horcrux/svg/**->**(**)**
+
+# ---------------------------------------------------------------------------
+# 9. AndroidX startup path pulled in by the above
+# ---------------------------------------------------------------------------
+HSPLandroidx/startup/**->**(**)**
+HSPLandroidx/lifecycle/**->**(**)**
+HSPLandroidx/core/app/**->**(**)**
+HSPLandroidx/core/view/**->**(**)**
+HSPLandroidx/appcompat/app/AppCompatActivity;->**(**)**
+HSPLandroidx/appcompat/app/AppCompatDelegate**->**(**)**
+HSPLandroidx/fragment/app/**->**(**)**
+HSPLandroidx/sqlite/**->**(**)**
+
+# ---------------------------------------------------------------------------
+# 10. Biometrics — the lock screen prompts immediately on a locked cold start,
+#     so BiometricPrompt is on the startup path for returning users.
+# ---------------------------------------------------------------------------
+HSPLandroidx/biometric/**->**(**)**

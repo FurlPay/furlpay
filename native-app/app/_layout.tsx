@@ -13,7 +13,10 @@ import {
 } from "@/lib/push";
 import { queryClient } from "@/lib/queries";
 import { resumeOpenSwaps } from "@/lib/swap/resumeBridges";
-import { colors, spacing, type } from "@/lib/theme";
+import { recoverPendingTransactions } from "@/lib/money/reconcile";
+import { spacing, ThemeProvider, useTheme } from "@/lib/design";
+import { useI18n } from "@/lib/i18n";
+import { clearStepUp } from "@/lib/security/riskPolicy";
 import { Button, Screen } from "@/components/ui";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
@@ -21,11 +24,26 @@ import { OfflineBanner } from "@/components/OfflineBanner";
 // tree since it's on the root layout). Keeps a render error from taking the
 // app down to a red box — the user can retry in place.
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  // NOT wrapped in ThemeProvider: this renders when the tree below has already
+  // failed, so it must not depend on a provider that may be part of the
+  // failure. useTheme() falls back to a resolved dark theme in that case.
   return (
-    <Screen style={styles.lock}>
-      <Text style={type.title}>Something went wrong</Text>
-      <Text style={[type.dim, { textAlign: "center" }]}>{error.message}</Text>
-      <Button title="Try again" onPress={() => void retry()} style={{ alignSelf: "stretch" }} />
+    <ThemeProvider>
+      <ErrorScreen message={error.message} onRetry={() => void retry()} />
+    </ThemeProvider>
+  );
+}
+
+function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => void }) {
+  const t = useTheme();
+  const { t: tr } = useI18n();
+  return (
+    <Screen style={[styles.lock, { backgroundColor: t.colors.bg }]}>
+      <Text style={t.type("title")} accessibilityRole="header">
+        {tr("state.errorTitle")}
+      </Text>
+      <Text style={[t.type("dim"), { color: t.colors.textDim, textAlign: "center" }]}>{message}</Text>
+      <Button title={tr("state.retry")} onPress={onRetry} style={{ alignSelf: "stretch" }} />
     </Screen>
   );
 }
@@ -39,6 +57,8 @@ function LockScreen() {
   const unlock = useAuth((s) => s.unlock);
   const signOut = useAuth((s) => s.signOut);
   const [failed, setFailed] = useState(false);
+  const t = useTheme();
+  const { t: tr } = useI18n();
 
   useEffect(() => {
     // Prompt immediately on mount; the button below covers retries.
@@ -46,24 +66,40 @@ function LockScreen() {
   }, [unlock]);
 
   return (
-    <Screen style={styles.lock}>
-      <Text style={type.title}>FurlPay</Text>
-      <Text style={[type.dim, { textAlign: "center" }]}>
-        {failed
-          ? "Authentication failed — try again."
-          : "Unlock with your fingerprint, face, or device PIN."}
+    <Screen style={[styles.lock, { backgroundColor: t.colors.bg }]}>
+      <Text style={t.type("title")} accessibilityRole="header">
+        {tr("security.unlockTitle")}
       </Text>
-      <View style={{ gap: spacing.sm, alignSelf: "stretch" }}>
-        <Button title="Unlock" onPress={() => void unlock().then((ok) => setFailed(!ok))} />
-        <Button title="Sign out" variant="secondary" onPress={() => void signOut()} />
+      <Text style={[t.type("dim"), { color: t.colors.textDim, textAlign: "center" }]}>
+        {failed ? tr("security.unlockFailed") : tr("security.unlockPrompt")}
+      </Text>
+      <View style={{ gap: t.spacing.sm, alignSelf: "stretch" }}>
+        <Button title={tr("security.unlock")} onPress={() => void unlock().then((ok) => setFailed(!ok))} />
+        <Button title={tr("security.signOut")} variant="secondary" onPress={() => void signOut()} />
       </View>
     </Screen>
   );
 }
 
 export default function RootLayout() {
+  // ThemeProvider sits ABOVE everything that renders, and inside
+  // SafeAreaProvider because it reads window dimensions for the size class.
+  return (
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <AppShell />
+        </QueryClientProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
+  );
+}
+
+function AppShell() {
   const status = useAuth((s) => s.status);
   const hydrate = useAuth((s) => s.hydrate);
+  const t = useTheme();
+  const { t: tr } = useI18n();
 
   useEffect(() => {
     void hydrate();
@@ -94,10 +130,20 @@ export default function RootLayout() {
     // must not wait on the network.
     void resumeOpenSwaps();
 
+    // RECONCILE MONEY LEFT IN DOUBT.
+    //
+    // Any transaction persisted as SUBMITTED or PROCESSING is one whose reply
+    // we never saw — the app was killed mid-flight, the network dropped, the
+    // request timed out. Recovery asks the server what happened; it NEVER
+    // re-submits. Running it on cold start and on every resume is what turns
+    // "did my money move?" from an unanswerable question into a GET.
+    void recoverPendingTransactions();
+
     const appState = AppState.addEventListener("change", (next) => {
       if (next === "active") {
         void reconcileInbox();
         void resumeOpenSwaps();
+        void recoverPendingTransactions();
       }
     });
 
@@ -132,94 +178,108 @@ export default function RootLayout() {
       if (next !== "active") return;
       const away = leftForegroundAt === null ? 0 : Date.now() - leftForegroundAt;
       leftForegroundAt = null;
-      if (away >= LOCK_AFTER_BACKGROUND_MS) useAuth.getState().lock();
+      if (away >= LOCK_AFTER_BACKGROUND_MS) {
+        // The step-up grace window must not survive a lock: otherwise whoever
+        // unlocks the phone next inherits an authorization the previous holder
+        // earned.
+        clearStepUp();
+        useAuth.getState().lock();
+      }
     });
     return () => sub.remove();
   }, []);
 
   return (
-    <SafeAreaProvider>
-      <QueryClientProvider client={queryClient}>
-        <StatusBar style="light" backgroundColor={colors.bg} />
-        {status === "loading" ? (
-          <Screen style={styles.lock}>
-            <Text style={type.title}>FurlPay</Text>
-          </Screen>
-        ) : status === "locked" ? (
-          <LockScreen />
-        ) : (
-          <View style={{ flex: 1, backgroundColor: colors.bg }}>
+    <>
+      {/* The status bar icons must contrast with the app's ground, so the
+          style is derived from the RESOLVED scheme rather than pinned to
+          "light" — pinned light icons are invisible on a light background. */}
+      <StatusBar style={t.scheme === "dark" ? "light" : "dark"} backgroundColor={t.colors.bg} />
+      {status === "loading" ? (
+        <Screen style={[styles.lock, { backgroundColor: t.colors.bg }]}>
+          <Text style={t.type("title")}>FurlPay</Text>
+        </Screen>
+      ) : status === "locked" ? (
+        <LockScreen />
+      ) : (
+          <View style={{ flex: 1, backgroundColor: t.colors.bg }}>
             <OfflineBanner />
             <Stack
               screenOptions={{
-                headerStyle: { backgroundColor: colors.bg },
-                headerTintColor: colors.text,
-                headerTitleStyle: { fontWeight: "700" },
-                contentStyle: { backgroundColor: colors.bg },
+                headerStyle: { backgroundColor: t.colors.bg },
+                headerTintColor: t.colors.text,
+                headerTitleStyle: { fontWeight: "700", color: t.colors.text },
+                contentStyle: { backgroundColor: t.colors.bg },
               }}
             >
               <Stack.Screen name="(auth)" options={{ headerShown: false }} />
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="transaction/[id]" options={{ title: "Transaction" }} />
-              <Stack.Screen name="receive" options={{ title: "Receive" }} />
-              <Stack.Screen name="scan" options={{ title: "Scan to pay" }} />
-              <Stack.Screen name="transactions" options={{ title: "All transactions" }} />
+              <Stack.Screen name="transaction/[id]" options={{ title: tr("nav.transaction") }} />
+              <Stack.Screen name="receive" options={{ title: tr("nav.receive") }} />
+              <Stack.Screen name="scan" options={{ title: tr("nav.scan") }} />
+              <Stack.Screen name="transactions" options={{ title: tr("nav.transactions") }} />
               {/* The address book. /contacts is the list; /contacts/new is a
                   modal because it is a task the user starts on top of whatever
                   they were doing (usually mid-send) and returns from. */}
-              <Stack.Screen name="contacts/index" options={{ title: "Address book" }} />
-              <Stack.Screen name="contacts/[id]" options={{ title: "Contact" }} />
+              <Stack.Screen name="contacts/index" options={{ title: tr("nav.addressBook") }} />
+              <Stack.Screen name="contacts/[id]" options={{ title: tr("nav.contact") }} />
               <Stack.Screen
                 name="contacts/new"
-                options={{ title: "New contact", presentation: "modal" }}
+                options={{ title: tr("nav.contactNew"), presentation: "modal" }}
               />
               {/* Card lifecycle. The tab keeps the carousel and the everyday
                   controls; ordering and per-card management are their own
                   screens because both are tasks with a beginning and an end. */}
-              <Stack.Screen name="cards/order" options={{ title: "Order a card" }} />
-              <Stack.Screen name="cards/[id]" options={{ title: "Manage card" }} />
-              <Stack.Screen name="swap" options={{ title: "Swap" }} />
+              <Stack.Screen name="cards/order" options={{ title: tr("nav.cardOrder") }} />
+              <Stack.Screen name="cards/[id]" options={{ title: tr("nav.cardManage") }} />
+              <Stack.Screen name="swap" options={{ title: tr("nav.swap") }} />
               {/* /swap is the execution flow; /swaps is its history. Kept in
                   separate namespaces so a detail route can never shadow the
                   screen that starts a swap. */}
-              <Stack.Screen name="swaps" options={{ title: "Swap history" }} />
-              <Stack.Screen name="swaps/[id]" options={{ title: "Swap" }} />
-              <Stack.Screen name="earn" options={{ title: "Earn" }} />
-              <Stack.Screen name="bills" options={{ title: "Bills" }} />
-              <Stack.Screen name="banking" options={{ title: "Banking" }} />
-              <Stack.Screen name="credit" options={{ title: "Credit line" }} />
-              <Stack.Screen name="rewards" options={{ title: "Rewards" }} />
-              <Stack.Screen name="travel/index" options={{ title: "Travel" }} />
-              <Stack.Screen name="travel/hotels" options={{ title: "Hotels" }} />
-              <Stack.Screen name="travel/property/[id]" options={{ title: "Hotel" }} />
-              <Stack.Screen name="travel/checkout" options={{ title: "Checkout" }} />
-              <Stack.Screen name="travel/trip/[id]" options={{ title: "Trip" }} />
-              <Stack.Screen name="analytics" options={{ title: "Spending" }} />
-              <Stack.Screen name="markets" options={{ title: "Markets" }} />
-              <Stack.Screen name="market/[symbol]" options={{ title: "Asset" }} />
-              <Stack.Screen name="chains" options={{ title: "Blockchain networks" }} />
-              <Stack.Screen name="collection/[slug]" options={{ title: "Collection" }} />
-              <Stack.Screen name="insights" options={{ title: "Research" }} />
-              <Stack.Screen name="chat" options={{ title: "Co-pilot" }} />
-              <Stack.Screen name="approvals" options={{ title: "Approvals" }} />
-              <Stack.Screen name="support/index" options={{ title: "Support" }} />
-              <Stack.Screen name="support/[id]" options={{ title: "Support conversation" }} />
-              <Stack.Screen name="passkeys" options={{ title: "Passkeys" }} />
-              <Stack.Screen name="security" options={{ title: "Security" }} />
-              <Stack.Screen name="passport" options={{ title: "Travel documents", headerShown: false }} />
-              <Stack.Screen name="passport-scan" options={{ title: "Add document", presentation: "modal" }} />
-              <Stack.Screen name="wallet" options={{ title: "Self-custodial wallet" }} />
+              <Stack.Screen name="swaps" options={{ title: tr("nav.swapHistory") }} />
+              <Stack.Screen name="swaps/[id]" options={{ title: tr("nav.swapDetail") }} />
+              <Stack.Screen name="earn" options={{ title: tr("nav.earn") }} />
+              <Stack.Screen name="bills" options={{ title: tr("nav.bills") }} />
+              <Stack.Screen name="banking" options={{ title: tr("nav.banking") }} />
+              <Stack.Screen name="credit" options={{ title: tr("nav.credit") }} />
+              <Stack.Screen name="rewards" options={{ title: tr("nav.rewards") }} />
+              <Stack.Screen name="travel/index" options={{ title: tr("nav.travel") }} />
+              <Stack.Screen name="travel/hotels" options={{ title: tr("nav.hotels") }} />
+              <Stack.Screen name="travel/property/[id]" options={{ title: tr("nav.hotel") }} />
+              <Stack.Screen name="travel/checkout" options={{ title: tr("nav.checkout") }} />
+              <Stack.Screen name="travel/trip/[id]" options={{ title: tr("nav.trip") }} />
+              <Stack.Screen name="analytics" options={{ title: tr("nav.spending") }} />
+              <Stack.Screen name="markets" options={{ title: tr("nav.markets") }} />
+              <Stack.Screen name="market/[symbol]" options={{ title: tr("nav.asset") }} />
+              <Stack.Screen name="chains" options={{ title: tr("nav.chains") }} />
+              <Stack.Screen name="collection/[slug]" options={{ title: tr("nav.collection") }} />
+              <Stack.Screen name="insights" options={{ title: tr("nav.research") }} />
+              <Stack.Screen name="chat" options={{ title: tr("nav.copilot") }} />
+              <Stack.Screen name="approvals" options={{ title: tr("nav.approvals") }} />
+              <Stack.Screen name="support/index" options={{ title: tr("nav.support") }} />
+              <Stack.Screen name="support/[id]" options={{ title: tr("nav.supportConversation") }} />
+              <Stack.Screen name="passkeys" options={{ title: tr("nav.passkeys") }} />
+              <Stack.Screen name="security" options={{ title: tr("nav.security") }} />
+              <Stack.Screen name="appearance" options={{ title: tr("nav.appearance") }} />
+              {/* Not linked from the product UI; reached from Appearance or by
+                  deep link. Shipped in release so theming and font-scale bugs
+                  can be checked on a real device. */}
+              <Stack.Screen name="design-system" options={{ title: tr("nav.designSystem") }} />
+              <Stack.Screen name="passport" options={{ title: tr("nav.travelDocs"), headerShown: false }} />
+              <Stack.Screen name="passport-scan" options={{ title: tr("nav.addDocument"), presentation: "modal" }} />
+              <Stack.Screen name="wallet" options={{ title: tr("nav.wallet") }} />
               <Stack.Screen name="watch" options={{ headerShown: false }} />
-              <Stack.Screen name="notifications" options={{ title: "Notifications" }} />
-              <Stack.Screen name="delete-account" options={{ title: "Delete account" }} />
+              <Stack.Screen name="notifications" options={{ title: tr("nav.notifications") }} />
+              <Stack.Screen name="delete-account" options={{ title: tr("nav.deleteAccount") }} />
             </Stack>
           </View>
         )}
-      </QueryClientProvider>
-    </SafeAreaProvider>
+    </>
   );
 }
 
+// Layout only — no colours. Every colour on these screens comes from the theme
+// at render time, so this sheet can stay static without pinning a scheme.
 const styles = StyleSheet.create({
   lock: {
     alignItems: "center",

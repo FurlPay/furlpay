@@ -3,7 +3,7 @@ import { RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { api, ApiError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { usd } from "@/lib/format";
 import { colors, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, Surface } from "@/components/ui";
@@ -53,7 +53,16 @@ export default function Earn() {
   const act = async (kind: "deposit" | "withdraw", body: Record<string, unknown>, prompt: string) => {
     setActionError(null);
     setNotice(null);
-    if (!(await confirmWithBiometrics(prompt))) return;
+    // A withdrawal out of Earn and a deposit into it both move money.
+    const decision = await authorizeMoneyMove({
+      action: kind === "withdraw" ? "withdraw" : "send_funds",
+      amountUsd: typeof body.amountUsd === "number" ? body.amountUsd : 0,
+      reason: prompt,
+    });
+    if (!decision.ok) {
+      if (decision.kind !== "declined") setActionError(decision.message);
+      return;
+    }
     setBusy(true);
     try {
       await api(`/earn/${kind}`, { method: "POST", body });

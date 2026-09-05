@@ -151,6 +151,33 @@ interface RequestOptions {
    *  types (live quoting) MUST pass one: without it a slow earlier response can
    *  land after a newer one and repaint the screen with a stale price. */
   signal?: AbortSignal;
+  /**
+   * Milliseconds before the request is abandoned. Defaults to
+   * `DEFAULT_TIMEOUT_MS`; pass `0` to disable (only for a genuinely long
+   * server operation).
+   *
+   * WHY THIS EXISTS: `fetch` has no default timeout. A socket that opens and
+   * then goes silent — a captive portal, a dropped cellular hand-off, a stalled
+   * load balancer — leaves the promise pending forever. The user sees a spinner
+   * that never resolves and no error, so nothing retries and nothing queues.
+   */
+  timeoutMs?: number;
+}
+
+/**
+ * Default request deadline.
+ *
+ * Chosen above the slowest legitimate call this app makes (a cross-chain quote
+ * round-trip) and well below the point a user decides the app is broken.
+ */
+export const DEFAULT_TIMEOUT_MS = 20_000;
+
+/** Thrown when the request exceeded its deadline. Retryable, unlike an abort. */
+export class TimeoutError extends Error {
+  constructor(ms: number) {
+    super(`Request timed out after ${ms}ms.`);
+    this.name = "TimeoutError";
+  }
 }
 
 /** Thrown when the caller aborted via `opts.signal` — a superseded request, not
@@ -164,6 +191,28 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   // Per-request correlation id — the server echoes it and logs it, so a failure
   // the user reports can be traced to the exact server-side request.
   const correlationId = crypto.randomUUID();
+
+  // Deadline. Composed with the caller's signal rather than replacing it, so a
+  // superseded live quote still aborts immediately AND a hung socket still
+  // dies at the deadline. `timedOut` distinguishes the two afterwards: an abort
+  // is the caller's own doing (swallow it), a timeout is a transport failure
+  // (retry / queue it).
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          timedOut = true;
+          controller.abort();
+        }, timeoutMs)
+      : null;
+  const onCallerAbort = () => controller.abort();
+  if (opts.signal) {
+    if (opts.signal.aborted) controller.abort();
+    else opts.signal.addEventListener("abort", onCallerAbort);
+  }
+
   let res: Response;
   try {
     res = await fetch(`${API_BASE}${path}`, {
@@ -176,13 +225,20 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
         ...opts.headers,
       },
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-      signal: opts.signal,
+      signal: controller.signal,
     });
   } catch (e) {
+    // Order matters. A timeout also aborts the caller-visible signal, so the
+    // timeout check has to come FIRST or every deadline would be misreported as
+    // a supersede and silently swallowed.
+    if (timedOut) throw new TimeoutError(timeoutMs);
     // An abort is the caller superseding itself — distinguish it from a real
     // connectivity failure so it never queues an outbox action or shows an error.
     if (opts.signal?.aborted) throw new AbortedError("Request superseded.");
     throw new NetworkError((e as Error).message);
+  } finally {
+    if (timer) clearTimeout(timer);
+    opts.signal?.removeEventListener("abort", onCallerAbort);
   }
 
   const data = await res.json().catch(() => null);

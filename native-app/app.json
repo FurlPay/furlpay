@@ -57,6 +57,7 @@
     "plugins": [
       "./plugins/withNetworkSecurityConfig",
       "./plugins/withUpiQueries",
+      "./plugins/withAndroidPerformance",
       "expo-router",
       "expo-secure-store",
       "expo-sqlite",

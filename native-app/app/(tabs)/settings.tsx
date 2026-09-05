@@ -347,6 +347,11 @@ export default function Settings() {
         <SectionHeader title="Devices" />
         <Surface style={{ gap: 4 }}>
           <NavRow icon="watch-outline" label="FurlPay Watch" onPress={() => router.push("/watch")} />
+          <NavRow
+            icon="color-palette-outline"
+            label="Appearance & language"
+            onPress={() => router.push("/appearance")}
+          />
           <Text style={[type.dim, { fontSize: 12 }]}>
             Balances, card freeze, Guardian alarms, and voice on your Wear OS watch.
           </Text>

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import * as Haptics from "expo-haptics";
 import { api, ApiError } from "@/lib/api";
-import { confirmWithBiometrics } from "@/lib/biometrics";
+import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, Field, Screen, SectionHeader, Surface } from "@/components/ui";
@@ -51,10 +51,15 @@ export default function MarketDetail() {
     const amt = Number(notional);
     if (!(amt > 0) || !data) return;
     setOrderError(null);
-    const confirmed = await confirmWithBiometrics(
-      `${side === "buy" ? "Buy" : "Sell"} ${usd(amt)} of ${data.asset.symbol} — about ${(amt / data.quote.price).toFixed(4)} shares at ${usd(data.quote.price)}`
-    );
-    if (!confirmed) return;
+    const decision = await authorizeMoneyMove({
+      action: "send_funds",
+      amountUsd: amt,
+      reason: `${side === "buy" ? "Buy" : "Sell"} ${usd(amt)} of ${data.asset.symbol} — about ${(amt / data.quote.price).toFixed(4)} shares at ${usd(data.quote.price)}`,
+    });
+    if (!decision.ok) {
+      if (decision.kind !== "declined") setOrderError(decision.message);
+      return;
+    }
     setBusy(true);
     orderKey.current ??= crypto.randomUUID();
     try {

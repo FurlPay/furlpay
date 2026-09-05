@@ -141,6 +141,62 @@ const MIGRATIONS: string[] = [
   -- reads the whole outbox every time connectivity changes.
   CREATE INDEX IF NOT EXISTS idx_outbox_due ON pending_actions(state, next_attempt_at);
   `,
+  // v6 — device preferences (theme, language, motion).
+  //
+  // DELIBERATELY NOT kv_cache. Everything in kv_cache is account-scoped and is
+  // wiped by clearAllCaches() on sign-out; a device preference is not account
+  // data. Storing the theme there would reset the app to dark — and the
+  // language to English — every time somebody signs out, on a device whose
+  // owner had chosen otherwise. This table is the one store sign-out does not
+  // touch, so it must never hold anything user-identifying.
+  `
+  CREATE TABLE IF NOT EXISTS device_prefs (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+  );
+  `,
+  // v7 — durable money-movement state.
+  //
+  // WHY THIS IS NOT pending_actions. The outbox holds work the app has DECIDED
+  // to do later and will replay itself. This table holds the identity and
+  // outcome of an attempt that has ALREADY been made — including one that
+  // reached the server and whose reply was lost. The two have opposite
+  // recovery rules: the outbox re-sends, this one must NEVER re-send on its
+  // own, only ask what happened. Merging them would make "replay it" the
+  // default for a transaction that may already have moved money.
+  //
+  // NO SECRETS. Deliberately absent: signatures, tokens, PANs, CVV, private
+  // keys, biometric material. `destination` is a public chain address and
+  // `reference` a merchant/provider label — both already visible to the user
+  // and neither sufficient to authorize anything. This file is not encrypted
+  // at rest (see the note at the top), so what is here is what a rooted device
+  // may read.
+  `
+  CREATE TABLE IF NOT EXISTS money_transactions (
+    id TEXT PRIMARY KEY,
+    idempotency_key TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    state TEXT NOT NULL,
+    amount_usd REAL NOT NULL,
+    currency TEXT,
+    destination TEXT,
+    reference TEXT,
+    quote_id TEXT,
+    quote_expires_at INTEGER,
+    transaction_hash TEXT,
+    last_error TEXT,
+    error_class TEXT,
+    reconcile_required INTEGER NOT NULL DEFAULT 0,
+    reconcile_attempts INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  -- Recovery reads by state on every launch and resume; without this it is a
+  -- full scan of the user's entire money history each time.
+  CREATE INDEX IF NOT EXISTS idx_money_tx_state ON money_transactions(state, updated_at DESC);
+  -- Reconciliation looks a transaction up by the key it was submitted under.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_money_tx_idem ON money_transactions(idempotency_key);
+  `,
 ];
 
 export function getDb(): SQLite.SQLiteDatabase {
@@ -187,6 +243,38 @@ export function cacheGet<T>(key: string): { value: T; updatedAt: number } | null
     return { value: JSON.parse(row.json) as T, updatedAt: row.updated_at };
   } catch {
     return null;
+  }
+}
+
+// --- device preferences -----------------------------------------------------
+//
+// Survives sign-out by design (see migration v6). Synchronous because the
+// theme and locale are needed on the very first render — an async read here
+// would flash the wrong theme, and on a light-mode device that flash is a
+// full-screen white-to-black snap.
+
+export function prefGet(key: string): string | null {
+  try {
+    const row = getDb().getFirstSync<{ value: string }>(
+      "SELECT value FROM device_prefs WHERE key = ?",
+      key
+    );
+    return row?.value ?? null;
+  } catch {
+    // A preference read must never be able to stop the app from starting.
+    return null;
+  }
+}
+
+export function prefSet(key: string, value: string): void {
+  try {
+    getDb().runSync(
+      "INSERT OR REPLACE INTO device_prefs (key, value) VALUES (?, ?)",
+      key,
+      value
+    );
+  } catch {
+    // Losing a preference write is survivable; crashing on one is not.
   }
 }
 
@@ -485,8 +573,18 @@ export function clearAllCaches(): void {
   // `swaps` included: the journal holds addresses, amounts and transaction
   // hashes for the previous user. It is account-scoped data like any other
   // cache, and leaving it would show one user another's swap history.
+  //
+  // `money_transactions` included for the SAME reason — it holds amounts and
+  // destinations. Its durability requirement is survival of PROCESS DEATH, not
+  // of sign-out: a crash must never lose an unresolved payment, but a
+  // deliberate sign-out ends the session that could reconcile it, and the next
+  // account on this device must not inherit the previous one's payment
+  // history. The tradeoff is explicit: signing out while a payment is
+  // unresolved abandons the local record of it. The server still holds the
+  // idempotency record, so the money itself is unaffected and the transaction
+  // remains visible in server-side history.
   d.execSync(
-    "DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions; DELETE FROM notifications; DELETE FROM swaps;"
+    "DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions; DELETE FROM notifications; DELETE FROM swaps; DELETE FROM money_transactions;"
   );
   // The DELETEs alone are not a wipe: in WAL mode the rows they removed — and
   // the rows before them — sit in furlpay.db-wal until a checkpoint. Without
