@@ -105,6 +105,38 @@ export interface IdempotencyOptions {
   request?: unknown;
 }
 
+/**
+ * Read-only lookup of an idempotency record, for RECONCILIATION.
+ *
+ * A mobile client whose reply was lost to a timeout knows only the key it
+ * submitted under. This resolves that key to the authoritative outcome the
+ * server already recorded, so the client can settle an unknown state instead
+ * of re-submitting and risking a second payment.
+ *
+ * SECURITY: `principal` is a required argument and is part of the cache key, so
+ * this can only ever read a record the CALLING user created. There is no code
+ * path here that takes a raw cache key from a request. The caller must pass the
+ * authenticated user's id — never a value from the request body.
+ *
+ * Returns `null` when the key is unknown, which is a legitimate answer: the
+ * request may never have reached the server at all.
+ */
+export async function readIdempotencyRecord(
+  key: string,
+  scope: string,
+  principal: string
+): Promise<{ status: "processing" | "completed"; response?: { status: number; body: unknown } } | null> {
+  if (!key || key.length > KEY_MAX) return null;
+  const record = await kvGet<IdempotencyRecord>(cacheKeyFor(scope, principal, key)).catch(() => null);
+  if (!record) return null;
+  // The stored request hash is deliberately NOT returned: it is an internal
+  // conflict-detection detail and echoing it back tells a caller nothing they
+  // need and confirms the shape of a request they may not have made.
+  return record.status === "completed" && record.response
+    ? { status: "completed", response: record.response }
+    : { status: "processing" };
+}
+
 export async function withIdempotency(
   key: string | null | undefined,
   scope: string,
