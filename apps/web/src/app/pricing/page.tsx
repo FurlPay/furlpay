@@ -3,11 +3,22 @@ import Link from "next/link";
 import PricingCards from "@/components/marketing/PricingCards";
 import LandingChrome from "@/components/landing/LandingChrome";
 import FaqSection from "@/components/marketing/FaqSection";
+import SupportBitcoin from "@/components/marketing/SupportBitcoin";
 
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Simple, transparent pricing for Furlpay — stablecoin cards, cashback up to 3%, yield up to 8% APY, fractional investing, and a full developer API.",
+    "Simple, transparent pricing for Furlpay — stablecoin cards, cashback up to 3%, yield up to 8% APY, fractional investing, and a full developer API. Open source and free to start; support the project with an on-chain Bitcoin donation.",
+  keywords: [
+    "Furlpay pricing",
+    "stablecoin card pricing",
+    "USDC payment fees",
+    "0.5% merchant fees",
+    "support open source with Bitcoin",
+    "donate Bitcoin to open source",
+    "Bitcoin donation address",
+    "crypto payment platform pricing",
+  ],
   alternates: {
     canonical: "/pricing",
     languages: { "en-US": "/pricing", "en-GB": "/uk/pricing", "en-AE": "/ae/pricing", "en-JP": "/jp/pricing", "x-default": "/pricing" },
@@ -38,6 +49,14 @@ const FAQ = [
   {
     q: "Is there volume pricing for businesses?",
     a: "Yes. Merchant payments are a flat 0.5% per transaction, and at higher volume the Enterprise plan offers custom rates below 0.5%, a settlement and uptime SLA, a dedicated account manager, and per-transaction audit trails with reconciliation exports. Contact sales for a quote.",
+  },
+  {
+    q: "Can I support FurlPay with Bitcoin?",
+    a: "Yes. FurlPay is open source and free to start, and you can donate on-chain in Bitcoin from the pricing page — scan the QR code or copy the bech32 address. It is a donation rather than a subscription: it does not buy or upgrade a plan.",
+  },
+  {
+    q: "Does FurlPay accept Bitcoin as payment for its plans?",
+    a: "No. FurlPay's own plans and merchant settlement are priced and settled in USDC — Standard is free, and merchant payments are a flat 0.5% per transaction. The Bitcoin address on this page is for voluntary donations to support the project, not a way to pay for a plan.",
   },
   {
     q: "Do you offer an SLA and compliance controls for enterprise?",
@@ -101,6 +120,8 @@ export default function PricingPage() {
             </div>
           </div>
         </section>
+
+        <SupportBitcoin />
 
         <FaqSection items={FAQ} title="Questions" />
 
