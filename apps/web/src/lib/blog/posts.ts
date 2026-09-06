@@ -46,6 +46,379 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
+  // Solana 2026 infrastructure. Written 2026-09-07.
+  //
+  // THE LIVE-VS-SCHEDULED TABLE IS THE POINT OF THIS PIECE. Most coverage of
+  // this roadmap reports shipped and announced upgrades in the same voice.
+  // Alpenglow especially: the codebase shipped in Agave 4.2, which is not the
+  // same as the algorithm being active, and it is NOT active as of writing.
+  //
+  // VERIFIED BEFORE PUBLICATION:
+  //   - SIMD-0286: 60M -> 100M CUs, +66%, mainnet 29 Jul 2026 at epoch 1009,
+  //     authored by Jito Labs. Max WRITABLE ACCOUNT units unchanged at 12M —
+  //     a detail dropped from most summaries and load-bearing for anyone with
+  //     a hot account. Justification: 11.2% of blocks used >=56M CUs.
+  //   - SIMD-0525: 350ms live epoch 1020 (21 Aug 2026), the first slot-time
+  //     reduction since genesis; 300ms live epoch 1024 (~28 Aug 2026).
+  //     250ms/200ms scheduled, gated on skip-rate safety metrics.
+  //   - Alpenglow/Votor: ~150ms finality target vs ~12.8s TowerBFT. 80%
+  //     first-round / 60% fallback. Fault tolerance 33% -> 40%, "20+20".
+  //     Agave 4.2 shipped the code; activation withheld pending hardening and
+  //     a 50,000 SOL bug bounty through August. Agave 4.3 schedule (published
+  //     12 Aug) targets 28 Sep 2026; earlier Foundation guidance said Oct 2026.
+  //     BOTH ARE STATED — sources genuinely disagree.
+  //   - Transaction size 1,232 -> 4,096 bytes via the v1 format.
+  //
+  // CORRECTED FROM THE SOURCE BRIEF: it gave the pre-SIMD-0286 limit as 48M.
+  // It was 60M. The +66% figure only reconciles with 60M, and publishing 48M
+  // would have been an arithmetic error anyone checking would catch.
+  //
+  // DELIBERATELY OMITTED: a specific "votes consume 30-40% of block space"
+  // figure, and a "~81,000 protocol TPS" ceiling. Neither could be sourced;
+  // the qualitative direction is stated instead.
+  {
+    slug: "solana-infrastructure-2026",
+    title: "Solana Is Being Rebuilt Around Latency, Not Throughput",
+    seoTitle:
+      "Solana 2026: 300ms Slots, 100M CU Blocks and Alpenglow Finality Explained",
+    excerpt:
+      "In August 2026 Solana cut its slot time below 400ms for the first time since genesis, and block capacity had already risen 66% to 100M compute units. But finality still takes 12.8 seconds \u2014 the upgrade that changes that is scheduled, not shipped. What is actually live, what is not, and why the roadmap is a latency story rather than a TPS one.",
+    category: "engineering",
+    date: "2026-09-07",
+    readMins: 15,
+    cover: "/blog/solana-2026.svg",
+    author: "Ashutosh Kumar Singh",
+    body: [
+      {
+        type: "p",
+        text: "On 21 August 2026, at epoch 1020, Solana reduced its target slot time below 400 milliseconds for the first time since the network launched. A week later it went lower again. Neither change added a feature, and neither shows up in a throughput chart.",
+      },
+      {
+        type: "p",
+        text: "That is the interesting part. Solana spent most of its public life being measured in transactions per second, and the 2026 work is not primarily about that number. It is about how long the whole round trip takes — submit, propagate, execute, include, finalise — which is the number that decides whether a blockchain can sit underneath a payment or a trade.",
+      },
+      {
+        type: "p",
+        text: "Four things changed or are changing at once: block production got faster, block capacity got larger, transactions got bigger, and the consensus algorithm that decides finality is being replaced outright. This is what each one actually does, what is live today, and what is still scheduled.",
+      },
+      { type: "h2", text: "What is live, and what is not, as of 7 September 2026" },
+      {
+        type: "p",
+        text: "Coverage of this roadmap mixes shipped upgrades with announced ones fairly freely, so it is worth separating them before anything else.",
+      },
+      {
+        type: "table",
+        headers: ["Change", "Status", "When"],
+        rows: [
+          ["100M compute-unit blocks (SIMD-0286)", "LIVE on mainnet", "29 July 2026, epoch 1009"],
+          ["350ms slot time (SIMD-0525 phase 1)", "LIVE on mainnet", "21 August 2026, epoch 1020"],
+          ["300ms slot time (SIMD-0525 phase 2)", "LIVE on mainnet", "~28 August 2026, epoch 1024"],
+          ["4,096-byte transactions (v1 format)", "Shipped in Agave 4.2", "August 2026"],
+          ["250ms and 200ms slot times", "Scheduled, gated on safety metrics", "Not yet activated"],
+          ["Alpenglow consensus (Votor)", "SCHEDULED, not active", "Targeted 28 September 2026 with Agave 4.3"],
+          ["Rotor propagation layer", "Later phase, separate proposal", "Not scheduled"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: "The last three rows are the ones most often reported as though they had already happened. Alpenglow in particular: the complete codebase, Votor included, shipped inside Agave 4.2, but mainnet activation was deliberately withheld pending further hardening and a 50,000 SOL bug bounty that ran through August. The code being merged is not the same as the algorithm being live.",
+      },
+      { type: "h2", text: "SIMD-0525: shorter slots, in deliberate steps" },
+      {
+        type: "p",
+        text: "A slot is the window in which one validator — the leader for that slot — may produce a block. Solana ran a 400ms target from genesis until August 2026. SIMD-0525 walks that down in 50ms steps rather than jumping straight to the destination.",
+      },
+      {
+        type: "table",
+        headers: ["Stage", "Target slot time", "Status"],
+        rows: [
+          ["Baseline", "400ms", "From genesis until August 2026"],
+          ["Phase 1", "350ms", "Live — epoch 1020, 21 August 2026"],
+          ["Phase 2", "300ms", "Live — epoch 1024, ~28 August 2026"],
+          ["Phase 3", "250ms", "Scheduled"],
+          ["Phase 4", "200ms", "Scheduled"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: "The staging is the engineering, not a formality. Shorter slots compress every deadline in the pipeline at once: a leader has less time to build and broadcast a block, and every other validator has less time to receive and replay it. Push too far and validators start missing their slots, which shows up as a rising skip rate. Each phase is gated on those safety metrics rather than on a calendar, and all four stages are targeted at Agave v4.2 with timing described as tentative.",
+      },
+      {
+        type: "p",
+        text: "There is a second effect that has nothing to do with speed. A shorter slot is a shorter period during which a single leader controls what goes into a block, and Solana describes the reduction as carrying a censorship-resistance and fairness benefit for exactly that reason. It narrows the window for reordering.",
+      },
+      {
+        type: "quote",
+        text: "Halving the slot time halves how long any one validator holds the pen.",
+      },
+      { type: "h2", text: "Slot time is not finality, and the gap is enormous" },
+      {
+        type: "p",
+        text: "This distinction does more work than any other in understanding the 2026 roadmap, and it is routinely collapsed.",
+      },
+      {
+        type: "p",
+        text: "A SLOT is how often a block can be produced. FINALITY is when the network will treat that block as irreversible. Under Solana's existing TowerBFT consensus, rooted finality takes roughly 12.8 seconds — a figure unchanged by any slot-time reduction, because they are different mechanisms.",
+      },
+      {
+        type: "p",
+        text: "So a 300ms slot time and a 12.8-second finality are both true statements about Solana today. An application that waits for rooted finality waits nearly thirteen seconds no matter how fast blocks are produced. Most Solana applications do not wait — they act on optimistic confirmation — but the distinction is exactly what a payment processor or an exchange has to reason about.",
+      },
+      {
+        type: "p",
+        text: "Alpenglow is the upgrade that attacks the second number, and it is why it matters more than the slot-time work.",
+      },
+      { type: "h2", text: "Alpenglow: replacing the consensus algorithm" },
+      {
+        type: "p",
+        text: "Alpenglow replaces TowerBFT with a new voting algorithm called Votor, targeting roughly 150ms finality against today's roughly 12.8 seconds. That is not an incremental improvement. It is a reduction of about two orders of magnitude in the time between a block being produced and being irreversible.",
+      },
+      {
+        type: "p",
+        text: "Votor works in two rounds. If at least 80% of active stake votes to notarise a block in the first round, it can finalise there. If that threshold is not met, a second round with a 60% threshold determines whether the block is finalised, notarised or skipped. Fast when the network is healthy and synchronised, with a slower path that still makes progress when it is not.",
+      },
+      {
+        type: "p",
+        text: "Two changes underneath matter as much as the headline number.",
+      },
+      {
+        type: "ul",
+        items: [
+          "Votes move off the transaction pipeline. Validator votes were previously ordinary on-chain transactions competing for the same block space as user activity. Under Alpenglow validators exchange votes directly, so consensus traffic stops consuming capacity that users are also bidding for.",
+          "Fault tolerance rises from 33% to 40%. Votor is designed on a '20+20' basis: tolerating 20% of stake being offline alongside 20% being actively adversarial. That is a stronger safety property than the design it replaces, not merely a faster one.",
+        ],
+      },
+      {
+        type: "p",
+        text: "Rotor, a redesigned block-propagation layer intended to replace Turbine, is part of the wider Alpenglow research but is a later phase with its own proposal process. It should not be described as shipping with the initial consensus change.",
+      },
+      {
+        type: "p",
+        text: "On timing, the sources genuinely disagree and it is worth saying so rather than picking. Anza's Agave 4.3 release schedule, published 12 August, names 28 September 2026 as the start of feature activation on mainnet. Earlier Solana Foundation guidance pointed at October 2026. Either way, as of 7 September the algorithm is not live, and a scheduled activation date is a plan rather than an event.",
+      },
+      { type: "h2", text: "100M compute-unit blocks, and the limit that did not move" },
+      {
+        type: "p",
+        text: "On 29 July 2026, at epoch 1009, SIMD-0286 raised the maximum block compute limit from 60 million compute units to 100 million — a 66% increase. Compute units are Solana's measure of computational work; the block limit caps how much total work a single block may contain.",
+      },
+      {
+        type: "p",
+        text: "The proposal was authored by Jito Labs and justified by observed demand rather than by aspiration: between the previous limit's activation in July 2025 and this upgrade, 11.2% of blocks used at least 56M CUs. Roughly one block in nine was running close to the ceiling, and that demand arrives in spikes during volatile markets — precisely when the people submitting transactions most want them to land.",
+      },
+      {
+        type: "p",
+        text: "One detail is consistently dropped in summaries and matters for anyone designing around it: SIMD-0286 raised exactly one limit. Maximum WRITABLE ACCOUNT units — the most compute that may write to any single account within one block — stayed at 12M. If your program funnels activity through one hot account, the block getting bigger does not raise your ceiling. That per-account limit is what bounds a single popular market or mint, and it is unchanged.",
+      },
+      {
+        type: "quote",
+        text: "The block got 66% bigger. The busiest account in it did not.",
+      },
+      { type: "h2", text: "4,096-byte transactions" },
+      {
+        type: "p",
+        text: "Solana's transaction size limit was approximately 1,232 bytes, a figure inherited from the IPv6 minimum MTU — the largest packet size that can be relied upon to traverse the internet without fragmentation. The v1 transaction format raises it to 4,096 bytes, roughly 3.3 times more room.",
+      },
+      {
+        type: "p",
+        text: "Some applications were never constrained by compute. They were constrained by how much would fit in one transaction: large multisig operations, zero-knowledge proofs, wide account reference lists, batched operations that previously had to be split into several chained transactions and lose atomicity in the process.",
+      },
+      {
+        type: "p",
+        text: "Legacy and v0 transactions continue to work. The larger size requires adopting v1, which means it is a migration for applications rather than something that arrives automatically.",
+      },
+      { type: "h2", text: "Firedancer, and why client diversity is the point" },
+      {
+        type: "p",
+        text: "Firedancer is an independent validator implementation written in C and C++ by Jump Crypto — a ground-up rewrite rather than a fork of the Agave codebase. Its architecture divides validator work into specialised components called tiles, each pinned to dedicated CPU cores: networking, signature verification, execution. It bypasses much of the operating system's networking stack to avoid copying packets more than necessary.",
+      },
+      {
+        type: "p",
+        text: "Firedancer has demonstrated over 1,000,000 TPS in isolated hardware testing. That figure is widely quoted and widely misunderstood, so it is worth being precise: a laboratory benchmark on dedicated hardware is not sustained economic throughput on a live decentralised network. Real mainnet throughput is bounded by consensus, propagation across a globally distributed validator set, and actual demand — not by how fast one machine can verify signatures.",
+      },
+      {
+        type: "p",
+        text: "The significant thing about Firedancer is not its benchmark. It is that Solana stops depending on a single implementation. When one codebase runs the entire network, a bug in it is a network-wide failure with no independent implementation to keep producing blocks. Client diversity converts a correlated failure into an isolated one.",
+      },
+      {
+        type: "p",
+        text: "Frankendancer was the transition: a hybrid pairing Firedancer's networking and ingestion with Agave's runtime and consensus, which let the ecosystem run Firedancer code in production incrementally rather than as a single cutover. Through August 2026, releases were shipping for Agave, Firedancer and Frankendancer in parallel.",
+      },
+      {
+        type: "quote",
+        text: "A benchmark tells you what one machine can do. Client diversity tells you what happens when that machine is wrong.",
+      },
+      { type: "h2", text: "The bottleneck that is not execution" },
+      {
+        type: "p",
+        text: "There is a failure mode that no amount of execution speed addresses: a transaction that never reaches the leader cannot be included, however fast the runtime is.",
+      },
+      {
+        type: "p",
+        text: "Stake-weighted Quality of Service allocates transaction-forwarding bandwidth according to validator stake rather than treating every connection identically. The reasoning is that a validator with meaningful stake has a proportionate role in consensus, so its share of scarce propagation capacity should reflect that. It matters most under exactly the conditions where it is hardest to test — congestion, when propagation itself becomes the scarce resource.",
+      },
+      {
+        type: "p",
+        text: "This is why framing Solana's scaling as an execution problem misses most of it. The real question is end to end: how quickly can a transaction reach the right validator, be verified, executed, propagated to the rest of the network, and finalised. The 2026 roadmap touches every stage of that sequence, which is unusual — most scaling work picks one.",
+      },
+      { type: "h2", text: "What this means for payments" },
+      {
+        type: "p",
+        text: "A stablecoin payment on any chain has to do six things: construct the transaction, propagate it to the leader, execute it, include it in a block, reach sufficient consensus, and report back. Improving one stage produces a partial improvement; the user experiences the sum.",
+      },
+      {
+        type: "p",
+        text: "The combination that matters for payments is 300ms slots plus 100M-CU blocks plus faster finality. Shorter slots reduce the wait for inclusion. Larger blocks reduce the chance of being crowded out during a spike. And if Alpenglow lands as designed, the wait for irreversibility drops from something a merchant cannot build around to something they need not think about.",
+      },
+      {
+        type: "p",
+        text: "That last one is the qualitative change. A payment system that must wait 12.8 seconds for finality either waits, or accepts risk on optimistic confirmation and manages it. At 150ms the question largely stops being a question — which is the point at which settlement stops being a design constraint and becomes an implementation detail.",
+      },
+      { type: "h2", text: "What this means for trading" },
+      {
+        type: "p",
+        text: "Trading is more sensitive to latency than to throughput, and the two are routinely conflated. A venue does not primarily care how many transactions the network can process in aggregate; it cares how long its own order takes to reach a leader, execute, and come back as a known result.",
+      },
+      {
+        type: "p",
+        text: "Shorter slots reduce the wait between block opportunities. Larger blocks provide headroom when everyone submits at once, which is when it counts. Faster finality shortens the interval during which a filled order is not yet certain. And a shorter leader window narrows the period in which a single party can reorder what they are including.",
+      },
+      {
+        type: "p",
+        text: "This is the reason a headline TPS number is a poor summary of a trading venue's requirements. Aggregate capacity and individual latency are different properties, and a chain can improve one while leaving the other untouched.",
+      },
+      { type: "h2", text: "What does not automatically get faster" },
+      {
+        type: "p",
+        text: "Protocol improvements set a floor. They do not determine what an application actually experiences, and several constraints sit outside the protocol entirely.",
+      },
+      {
+        type: "ul",
+        items: [
+          "Geography. Light takes time. A validator set distributed globally has an irreducible round-trip latency that no consensus algorithm removes.",
+          "RPC infrastructure. Most applications reach Solana through an RPC provider. If that layer is slow or rate-limited, protocol latency is not what the user is waiting on.",
+          "The per-account write limit. Still 12M CUs. Applications concentrated on one hot account do not benefit from the larger block.",
+          "Validator hardware. Shorter slots compress every deadline, which raises the specification required to keep up. That has implications for who can afford to validate.",
+          "Application design. A transaction that makes several sequential round trips before it is submitted spends most of its time before it reaches the chain at all.",
+        ],
+      },
+      {
+        type: "p",
+        text: "Alpenglow illustrates the general point. It has to hold safety across a globally distributed validator set under adversarial conditions, which is why it is being staged, bug-bountied and gated rather than shipped as a routine release. The same logic explains SIMD-0525's 50ms increments. The target is not the highest number the protocol can express; it is the highest number the live, decentralised network sustains safely.",
+      },
+      { type: "h2", text: "Solana, before and now" },
+      {
+        type: "table",
+        headers: ["Metric", "Historical", "As of 7 September 2026", "Next"],
+        rows: [
+          ["Slot time", "400ms", "300ms, live", "250ms then 200ms, scheduled"],
+          ["Consensus finality", "~12.8s (TowerBFT)", "Unchanged — Alpenglow not yet active", "~150ms target (Votor)"],
+          ["Block compute limit", "60M CUs", "100M CUs, live", ""],
+          ["Per-account write limit", "12M CUs", "12M CUs, unchanged", ""],
+          ["Transaction size", "1,232 bytes", "4,096 bytes (v1 format)", ""],
+          ["Fault tolerance", "33%", "33%", "40% under Alpenglow"],
+          ["Validator clients", "Agave-dominated", "Agave + Firedancer/Frankendancer", "Further diversity"],
+          ["Consensus votes", "On-chain transactions", "On-chain", "Off-pipeline under Alpenglow"],
+          ["Block propagation", "Turbine", "Turbine", "Rotor, later phase"],
+        ],
+        highlightCol: 2,
+      },
+      {
+        type: "p",
+        text: "Reading down the third column is the honest summary of where the network actually is: capacity and block production have already changed, and the consensus work that produces the headline finality number has not landed yet.",
+      },
+      { type: "h2", text: "The change underneath all of it" },
+      {
+        type: "p",
+        text: "The most consequential thing about Solana's 2026 work may not be any individual proposal. It is that the network is being engineered around latency as a first-class property rather than throughput.",
+      },
+      {
+        type: "p",
+        text: "The older scaling model asked how many transactions per second a chain could process. It produced impressive numbers and, frequently, applications that still felt slow, because aggregate capacity says nothing about how long any particular transaction waits. Propagation, congestion, execution and finality are separate bottlenecks, and a chain can be excellent at one while a user waits on another.",
+      },
+      {
+        type: "p",
+        text: "Solana's current roadmap addresses them individually and concurrently: propagation through stake-weighted networking and eventually Rotor, execution through larger blocks, block production through shorter slots, finality through Alpenglow, and the risk of a single implementation through Firedancer. The objective across all five is the same, and it is not a number — it is that the blockchain stops being something the application has to work around.",
+      },
+      {
+        type: "quote",
+        text: "The end state is not a bigger number. It is submit, execute, settle — with nothing in between that a user has to understand.",
+      },
+      { type: "h2", text: "Frequently asked questions" },
+      { type: "h2", text: "How fast are Solana blocks in 2026?" },
+      {
+        type: "p",
+        text: "Solana's target slot time is 300ms, live on mainnet since around 28 August 2026 at epoch 1024. That followed the first reduction since genesis, to 350ms, at epoch 1020 on 21 August 2026. SIMD-0525 schedules further reductions to 250ms and then 200ms, gated on network safety metrics rather than fixed dates.",
+      },
+      { type: "h2", text: "Is Alpenglow live on Solana mainnet?" },
+      {
+        type: "p",
+        text: "No, not as of 7 September 2026. The complete Alpenglow codebase including Votor shipped in Agave 4.2, but mainnet activation was withheld pending hardening and a 50,000 SOL bug bounty. Anza's Agave 4.3 release schedule targets 28 September 2026 for the start of feature activation; earlier Solana Foundation guidance indicated October 2026. Prerequisites such as BLS key registration are already active, which is not the same as the consensus algorithm being live.",
+      },
+      { type: "h2", text: "How fast will Solana finality be with Alpenglow?" },
+      {
+        type: "p",
+        text: "Approximately 150ms is the stated target, against roughly 12.8 seconds for rooted finality under the current TowerBFT design. Votor finalises in one round if at least 80% of active stake notarises the block, with a second round at a 60% threshold as the fallback.",
+      },
+      { type: "h2", text: "What is the difference between slot time and finality?" },
+      {
+        type: "p",
+        text: "A slot is how often a block can be produced; finality is when the network treats a block as irreversible. They are separate mechanisms. Solana produces blocks every 300ms today while rooted finality still takes roughly 12.8 seconds, because slot-time reductions and consensus changes address different parts of the system.",
+      },
+      { type: "h2", text: "Did Solana raise the block compute limit to 100M?" },
+      {
+        type: "p",
+        text: "Yes. SIMD-0286, authored by Jito Labs, raised the maximum block compute limit from 60M to 100M compute units — a 66% increase — on 29 July 2026 at epoch 1009. The maximum writable account limit was not changed and remains 12M CUs.",
+      },
+      { type: "h2", text: "What is the new Solana transaction size limit?" },
+      {
+        type: "p",
+        text: "The v1 transaction format raises it from approximately 1,232 bytes to 4,096 bytes, roughly 3.3 times more space. The old limit derived from the IPv6 minimum MTU. Legacy and v0 transactions still work; using the larger size requires adopting v1.",
+      },
+      { type: "h2", text: "What is Firedancer?" },
+      {
+        type: "p",
+        text: "An independent Solana validator implementation written in C and C++ by Jump Crypto, built from the ground up rather than forked from Agave. It divides work into specialised tiles pinned to dedicated CPU cores and bypasses much of the OS networking stack. Its significance is client diversity: when one implementation runs an entire network, a bug in it becomes a network-wide failure.",
+      },
+      { type: "h2", text: "Can Solana really do 1 million TPS?" },
+      {
+        type: "p",
+        text: "Firedancer has exceeded 1,000,000 TPS in isolated hardware testing. That is a laboratory benchmark, not sustained throughput on a live decentralised network, where performance is bounded by consensus, propagation across a global validator set and actual demand. The two figures measure different things and should not be used interchangeably.",
+      },
+      { type: "h2", text: "What is Frankendancer?" },
+      {
+        type: "p",
+        text: "A hybrid validator pairing Firedancer's networking and transaction ingestion with Agave's runtime and consensus. It let Firedancer code run in production incrementally instead of requiring a single cutover to a wholly new client.",
+      },
+      { type: "h2", text: "Does a faster Solana make my application faster?" },
+      {
+        type: "p",
+        text: "Not automatically. Protocol latency is a floor, not a guarantee. Geographic distance, RPC provider performance, the unchanged 12M per-account write limit, validator hardware and the application's own round trips before submission all sit outside the protocol and frequently dominate what a user actually experiences.",
+      },
+      { type: "h2", text: "Sources, and what could not be pinned down" },
+      {
+        type: "p",
+        text: "Figures are from Solana's own upgrade documentation and changelogs, the solana-improvement-documents repository, Anza's feature-gate tracker and release schedules, and contemporaneous reporting from late July through August 2026. Status is stated as of 7 September 2026 and will move.",
+      },
+      {
+        type: "p",
+        text: "Three points where sources disagree or where a widely repeated figure did not hold up, stated rather than smoothed over:",
+      },
+      {
+        type: "ul",
+        items: [
+          "The block compute limit before SIMD-0286 was 60M CUs, not 48M. The 48M figure circulates but the proposal and Solana's own announcement both describe 60M to 100M as a 66% increase, which is arithmetically consistent with 60M and not with 48M.",
+          "Alpenglow's activation date is reported as both 28 September 2026 (Anza's Agave 4.3 release schedule, published 12 August) and October 2026 (earlier Solana Foundation guidance). Both are plans, and neither has occurred as of publication.",
+          "Epoch numbering for the 300ms activation is given as epoch 1024 in reporting and appears differently in at least one implementation pull request. The activation date of late August is consistent across sources; the exact epoch is not, so the date is what this article relies on.",
+        ],
+      },
+      {
+        type: "p",
+        text: "One further figure was left out for lack of a source we could verify: a specific percentage of block space consumed by vote transactions under the current design. The direction is well established — votes compete with user transactions, and Alpenglow removes them from that pipeline — but the precise share is quoted inconsistently and is not reproduced here.",
+      },
+    ],
+  },
   // Stablecoin market analysis, September 2026.
   //
   // METRIC DISCIPLINE IS THE POINT OF THIS PIECE. Six different measurements

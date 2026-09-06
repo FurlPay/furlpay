@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Solana 2026 infrastructure changes: slot time, block compute limit and transaction size are live on mainnet; the Alpenglow consensus upgrade targeting 150 millisecond finality is scheduled, not yet active">
+<defs>
+<linearGradient id="sol" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="#9945FF"/><stop offset="1" stop-color="#14F195"/>
+</linearGradient></defs>
+<rect width="1600" height="900" fill="#07080A"/>
+<g transform="translate(92,64) scale(1.55)" fill="url(#sol)">
+<path d="M38.14 20.71c-.2.18-.45.29-.71.29h-23.8c-.52 0-.81-.56-.5-.96l4.65-4.74c.2-.19.45-.3.71-.3h23.88c.52 0 .81.57.5.96l-4.73 4.75Z"/>
+<path d="M38.14 40.72c-.2.18-.45.28-.72.28h-23.8c-.5 0-.8-.56-.5-.96l4.66-4.75c.2-.19.45-.29.71-.29h23.88c.52 0 .81.57.5.96l-4.73 4.76Z"/>
+<path d="M38.14 25.28c-.2-.18-.45-.28-.72-.28h-23.8c-.5 0-.8.56-.5.96l4.66 4.75c.2.18.45.29.71.29h23.88c.52 0 .81-.57.5-.96l-4.73-4.76Z"/>
+</g>
+<text x="200" y="112" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="25" letter-spacing="3.5" fill="url(#sol)">SOLANA · SEPTEMBER 2026</text>
+<text x="92" y="212" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="58" font-weight="700" fill="#F2F3F5">Rebuilt around latency</text>
+<text x="92" y="256" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="23" fill="#8A9099">What shipped, and what has not</text>
+<text x="92" y="310" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="19" font-weight="600" fill="#F2F3F5">Slot time</text>
+<rect x="92" y="320" width="620" height="52" rx="3" fill="#161A20"/>
+<rect x="92" y="320" width="155" height="52" rx="3" fill="#14F195" fill-opacity="0.92"/>
+<text x="110" y="353" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" font-weight="600" fill="#04150F">400ms → 300ms</text>
+<text x="738" y="353" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8A9099">LIVE  epoch 1024, 28 Aug</text>
+<text x="92" y="388" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="19" font-weight="600" fill="#F2F3F5">Block compute limit</text>
+<rect x="92" y="398" width="620" height="52" rx="3" fill="#161A20"/>
+<rect x="92" y="398" width="409" height="52" rx="3" fill="#14F195" fill-opacity="0.92"/>
+<text x="110" y="431" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" font-weight="600" fill="#04150F">60M → 100M CU</text>
+<text x="738" y="431" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8A9099">LIVE  epoch 1009, 29 Jul</text>
+<text x="92" y="466" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="19" font-weight="600" fill="#F2F3F5">Transaction size</text>
+<rect x="92" y="476" width="620" height="52" rx="3" fill="#161A20"/>
+<rect x="92" y="476" width="434" height="52" rx="3" fill="#14F195" fill-opacity="0.92"/>
+<text x="110" y="509" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" font-weight="600" fill="#04150F">1,232 → 4,096 bytes</text>
+<text x="738" y="509" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8A9099">LIVE  Agave 4.2</text>
+<text x="92" y="544" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="19" font-weight="600" fill="#F2F3F5">Consensus finality</text>
+<rect x="92" y="554" width="620" height="52" rx="3" fill="#161A20"/>
+<rect x="92" y="554" width="614" height="52" rx="3" fill="#9945FF" fill-opacity="0.92"/>
+<text x="110" y="587" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" font-weight="600" fill="#04150F">12.8s → ~150ms</text>
+<text x="738" y="587" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="18" fill="#8A9099">SCHEDULED  Agave 4.3</text>
+<text x="92" y="676" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="600" fill="#F2F3F5">Blocks are 25% faster. Finality has not moved yet.</text>
+<text x="92" y="718" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#8A9099">Alpenglow shipped as code in Agave 4.2 and is not active on mainnet. Slot time and</text>
+<text x="92" y="748" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#8A9099">finality are separate mechanisms — today Solana still roots in about 12.8 seconds.</text>
+<text x="92" y="856" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="19" fill="#5A6069">Sources: Solana upgrade docs, solana-improvement-documents, Anza release schedules · furlpay.com</text>
+</svg>
