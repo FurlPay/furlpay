@@ -26,7 +26,14 @@ export const COLLECTIONS: Collection[] = [
   { slug: "clean-energy", title: "Clean Energy", blurb: "Solar, renewables and the grid buildout powering AI datacenters.", kind: "theme", gradient: ["#052E16", "#22C55E"], icon: "Leaf", symbols: ["NEE", "ICLN", "TAN", "LIT", "URA", "GE", "ETN", "EMR"] },
   { slug: "cybersecurity", title: "Cybersecurity", blurb: "Zero-trust, endpoint and network security in the agentic-AI threat era.", kind: "theme", gradient: ["#450A0A", "#EF4444"], icon: "ShieldCheck", symbols: ["PANW", "CRWD", "FTNT", "ZS", "OKTA", "NET", "HACK", "CIBR"] },
   { slug: "electric-vehicles", title: "Electric Vehicles", blurb: "EV makers, legacy autos going electric, and the battery supply chain.", kind: "theme", gradient: ["#172554", "#3B82F6"], icon: "Car", symbols: ["TSLA", "RIVN", "LCID", "F", "GM", "LIT", "DRIV"] },
-  { slug: "fintech-payments", title: "Fintech & Payments", blurb: "Card networks, neobanks, brokers and the crypto-native financial stack.", kind: "theme", gradient: ["#042F2E", "#14B8A6"], icon: "CreditCard", symbols: ["V", "MA", "PYPL", "COIN", "HOOD", "SOFI", "AFRM", "NU", "AXP", "FINX"] },
+  // SCHW belongs here on the same basis as COIN and HOOD: Schwab Crypto began
+  // rolling out to retail clients on 13 May 2026, offering spot BTC and ETH in a
+  // dedicated account custodied by Charles Schwab Premier Bank with Paxos as
+  // execution and sub-custody partner, at a flat 0.75% of trade value. On
+  // 27 Aug 2026 Schwab said SOL, AVAX and LINK would follow "in the coming
+  // months" — announced, not yet live, which is why the blurb says brokers
+  // rather than naming assets that have not shipped.
+  { slug: "fintech-payments", title: "Fintech & Payments", blurb: "Card networks, neobanks, brokers and the crypto-native financial stack.", kind: "theme", gradient: ["#042F2E", "#14B8A6"], icon: "CreditCard", symbols: ["V", "MA", "PYPL", "COIN", "HOOD", "SCHW", "SOFI", "AFRM", "NU", "AXP", "FINX"] },
   { slug: "space-defense", title: "Space & Defense", blurb: "Primes and platforms — defense budgets and the new space economy.", kind: "theme", gradient: ["#1E1B4B", "#6366F1"], icon: "Rocket", symbols: ["RTX", "LMT", "NOC", "GD", "BA", "GE", "ITA"] },
   { slug: "travel-experiences", title: "Travel & Experiences", blurb: "Airlines, hotels, cruises and booking platforms riding the experience economy.", kind: "theme", gradient: ["#431407", "#F97316"], icon: "Plane", symbols: ["BKNG", "ABNB", "MAR", "HLT", "RCL", "DAL", "UAL", "JETS"] },
   // ---- Strategies ----
