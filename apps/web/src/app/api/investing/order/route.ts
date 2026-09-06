@@ -300,7 +300,7 @@ async function executeOrder(
         status: "settled",
       })
     );
-    recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${sym}`, account.user.id);
+    await recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${sym}`, account.user.id);
 
     // Confirm the lot is DURABLE before telling the client it filled. The
     // response says "filled" and the lot behind it is the tax record; measured

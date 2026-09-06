@@ -108,6 +108,29 @@ export type AuditEvent =
   // moment the transaction lands and identifies it uniquely.
   | "mpc.signed"
   | "mpc.sign_denied"
+  // Signing authorization — the ticket a signer demands before it will act.
+  // Granted only when simulation, attestation, confirmation and the payload
+  // about to be signed all committed to the SAME canonical digest; refused
+  // when they did not; replay_blocked when a spent authorization was presented
+  // again. These three are what an incident review reads to answer "what did
+  // we authorise, and what else tried to use it".
+  | "signing.authorization_granted"
+  | "signing.authorization_refused"
+  | "signing.replay_blocked"
+  // Device and app-instance registry. A device identifier the CLIENT chooses is
+  // a suggestion, not an identity; these record what the SERVER concluded and
+  // when, which is what a "was this really their phone?" investigation reads.
+  | "device.registered"
+  | "device.registration_refused"
+  | "device.attestation_verified"
+  | "device.attestation_failed"
+  | "device.key_rotated"
+  | "device.revoked"
+  // Signing challenge — proof that the live, present, correct device is asking
+  // now, which is a different question from whether the transaction is allowed.
+  | "challenge.created"
+  | "challenge.consumed"
+  | "challenge.replay_detected"
   | "webhook.processed"
   | "webhook.failed"
   | "billing.checkout_created"

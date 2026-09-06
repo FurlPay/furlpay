@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { mintRevealGrant, CARD_LIMITS } from "@/lib/services/cardLifecycle";
 import { recordSecurityEvent } from "@/lib/ops/events";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,11 @@ export const dynamic = "force-dynamic";
 // Tight budget: each call is a fresh opportunity to display a card number, so
 // a compromised session should not be able to farm them.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Revealing card details");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;

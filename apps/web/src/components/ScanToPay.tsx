@@ -44,7 +44,7 @@ interface ScanToPayProps {
   mode?: ScanMode;
   onClose: () => void;
   onDone: () => void;
-  user: { name: string; safeAddress: string };
+  user: { name: string; receiveAddress: string | null };
   balances: TokenBalance[];
   /** Open straight into the pay sheet with manual entry (P2P shortcut). */
   manualEntry?: boolean;
@@ -734,12 +734,24 @@ function SaveRecipient({
 // My QR — receive card with save / share.
 // ---------------------------------------------------------------------------
 
-function MyQrView({ user }: { user: { name: string; safeAddress: string } }) {
+// The address encoded here is one a stranger will scan in a shop and send money
+// to, so it must be an address the user actually controls. It used to be
+// `safeAddress` — sha256("furlpay:safe:" + key), with no private key behind it
+// and no contract deployed at it. Everything sent to a QR of that is gone.
+// `receiveAddress` is null until a wallet is linked and its EIP-191 proof
+// verified, and a null renders an empty state rather than a QR of something
+// address-shaped. See lib/receiveAddress.ts.
+function MyQrView({ user }: { user: { name: string; receiveAddress: string | null } }) {
   const [qr, setQr] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const address = user.receiveAddress;
 
   useEffect(() => {
-    QRCode.toDataURL(user.safeAddress, {
+    if (!address) {
+      setQr(null);
+      return;
+    }
+    QRCode.toDataURL(address, {
       width: 640,
       margin: 2,
       errorCorrectionLevel: "M",
@@ -747,9 +759,9 @@ function MyQrView({ user }: { user: { name: string; safeAddress: string } }) {
     })
       .then(setQr)
       .catch(() => setQr(null));
-  }, [user.safeAddress]);
+  }, [address]);
 
-  const shareText = `Pay me on Furlpay — my wallet address: ${user.safeAddress}`;
+  const shareText = address ? `Pay me on Furlpay — my wallet address: ${address}` : "";
 
   async function nativeShare() {
     try {
@@ -776,7 +788,8 @@ function MyQrView({ user }: { user: { name: string; safeAddress: string } }) {
   }
 
   async function copyAddress() {
-    await navigator.clipboard.writeText(user.safeAddress).catch(() => {});
+    if (!address) return;
+    await navigator.clipboard.writeText(address).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   }
@@ -795,7 +808,7 @@ function MyQrView({ user }: { user: { name: string; safeAddress: string } }) {
     },
     {
       label: "Telegram",
-      href: `https://t.me/share/url?url=${encodeURIComponent(user.safeAddress)}&text=${enc}`,
+      href: `https://t.me/share/url?url=${encodeURIComponent(address ?? "")}&text=${enc}`,
       bg: "#229ED9",
       glyph: (
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="#fff" aria-hidden>
@@ -828,13 +841,13 @@ function MyQrView({ user }: { user: { name: string; safeAddress: string } }) {
           <div className="mx-auto mt-4 w-fit rounded-2xl bg-white p-3">
             {qr ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={qr} alt={`QR code for ${user.safeAddress}`} className="h-[208px] w-[208px]" draggable={false} />
+              <img src={qr} alt={`QR code for ${address}`} className="h-[208px] w-[208px]" draggable={false} />
             ) : (
               <div className="h-[208px] w-[208px] animate-pulse rounded-xl bg-black/10" />
             )}
           </div>
           <button onClick={copyAddress} className="tap mx-auto mt-4 flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3 py-1.5 font-mono text-[12px] text-textSecondary">
-            {short(user.safeAddress)}
+            {address ? short(address) : "No wallet linked"}
             {copied ? <Check className="h-3.5 w-3.5 text-gain" /> : <Copy className="h-3.5 w-3.5" />}
           </button>
         </div>

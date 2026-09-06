@@ -317,3 +317,47 @@ export async function ledgerImbalance(): Promise<ImbalanceReport | null> {
 export async function paymentsMissingLedger(limit = 100): Promise<PaymentRow[] | null> {
   return optional(() => sbSelect<PaymentRow>("payments_missing_ledger", `limit=${limit}`));
 }
+
+// ── financial_transactions surfaces (migration 0014) ───────────────────────
+//
+// Read-only views over the transaction envelope. Each one is a question an
+// operator or an auditor actually asks, expressed once in SQL rather than
+// reassembled differently by every caller.
+
+/** Row shape shared by the 0014 reconciliation views. Only what is safe to put
+ *  in an ops console: ids, states and amounts, never counterparty PII. */
+export interface FtxFindingRow {
+  id: string;
+  user_id: string;
+  flow_kind: string;
+  state?: string;
+  provider_id?: string | null;
+  source_asset?: string;
+  source_amount_minor?: string;
+  expires_at?: string | null;
+  overdue_by?: string | null;
+}
+
+/** Transactions the customer's side considers done that our books never
+ *  recorded. The most serious signal available: value moved, unwritten. */
+export async function ftxSettledWithoutLedger(limit = 100): Promise<FtxFindingRow[] | null> {
+  return optional(() => sbSelect<FtxFindingRow>("ftx_settled_without_ledger", `limit=${limit}`));
+}
+
+/** Terminal success with no evidence behind it. Empty by construction —
+ *  lifecycle.ts refuses the transition — so non-empty means a direct write. */
+export async function ftxCompletedWithoutEvidence(limit = 100): Promise<FtxFindingRow[] | null> {
+  return optional(() => sbSelect<FtxFindingRow>("ftx_completed_without_evidence", `limit=${limit}`));
+}
+
+/** In flight past its deadline: a customer waiting on an answer nobody is
+ *  currently producing. */
+export async function ftxStaleInFlight(limit = 100): Promise<FtxFindingRow[] | null> {
+  return optional(() => sbSelect<FtxFindingRow>("ftx_stale_in_flight", `limit=${limit}`));
+}
+
+/** Held for a human. A growing queue is an operational failure even when every
+ *  individual row is correct. */
+export async function ftxAwaitingReview(limit = 200): Promise<FtxFindingRow[] | null> {
+  return optional(() => sbSelect<FtxFindingRow>("ftx_awaiting_review", `limit=${limit}`));
+}

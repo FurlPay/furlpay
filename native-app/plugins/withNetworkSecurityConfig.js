@@ -25,10 +25,20 @@ const path = require("path");
 // date (and re-verify pins: `openssl s_client -connect furlpay.com:443
 // -showcerts`, then SPKI sha256) at least yearly.
 //
-// Cleartext stays enabled ONLY for the dev-server hosts Metro/Expo use; the
-// base config forbids it everywhere else.
+// CLEARTEXT IS NOW BUILD-VARIANT SCOPED (FURL-007). The dev-server exception
+// used to ship in the RELEASE config, justified in a comment as "harmless in
+// release: these hosts only exist on a developer machine". That reasoning does
+// not hold on a phone: `localhost` and `127.0.0.1` are the DEVICE itself, and a
+// malicious co-resident app can bind a port there. Exploiting it also requires
+// influencing the base URL, which is compiled in — so this was hardening rather
+// than a live path, and it is now simply absent from release builds.
+//
+// The exception is written into the `debug` source set, which Android merges
+// only for debug variants. Release inherits the base config, which forbids
+// cleartext everywhere.
 // ---------------------------------------------------------------------------
 
+/** Release: pinning, and no cleartext anywhere. */
 const NETWORK_SECURITY_CONFIG = `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
   <base-config cleartextTrafficPermitted="false" />
@@ -43,9 +53,28 @@ const NETWORK_SECURITY_CONFIG = `<?xml version="1.0" encoding="utf-8"?>
       <pin digest="SHA-256">diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=</pin>
     </pin-set>
   </domain-config>
-  <!-- Metro / Expo dev server + local web backend (dev builds talk to
-       http://10.0.2.2:3000 from the emulator). Harmless in release: these
-       hosts only exist on a developer machine. -->
+</network-security-config>
+`;
+
+/**
+ * Debug only: the Metro / Expo dev-server hosts.
+ *
+ * Written to `app/src/debug/res/xml/`, which Android merges for debug variants
+ * and never for release. Pinning is repeated here because a debug build talking
+ * to the real furlpay.com should still be pinned — the relaxation is scoped to
+ * the dev hosts, not to the production domain.
+ */
+const NETWORK_SECURITY_CONFIG_DEBUG = `<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+  <base-config cleartextTrafficPermitted="false" />
+  <domain-config>
+    <domain includeSubdomains="true">furlpay.com</domain>
+    <pin-set expiration="2027-07-18">
+      <pin digest="SHA-256">fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=</pin>
+      <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
+      <pin digest="SHA-256">diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=</pin>
+    </pin-set>
+  </domain-config>
   <domain-config cleartextTrafficPermitted="true">
     <domain includeSubdomains="false">localhost</domain>
     <domain includeSubdomains="false">10.0.2.2</domain>
@@ -54,14 +83,59 @@ const NETWORK_SECURITY_CONFIG = `<?xml version="1.0" encoding="utf-8"?>
 </network-security-config>
 `;
 
+/**
+ * How long before pin expiry the build should start failing.
+ *
+ * An expired `pin-set` is IGNORED by Android — pinning silently degrades to
+ * normal CA validation rather than bricking the app. That is the safer failure
+ * mode and it is also the dangerous one, because the control disappears with no
+ * symptom. This turns a silent expiry into a loud build failure with warning.
+ */
+const PIN_EXPIRY_WARN_DAYS = 180;
+
+function assertPinsNotNearExpiry(now = Date.now()) {
+  const match = /expiration="(\d{4}-\d{2}-\d{2})"/.exec(NETWORK_SECURITY_CONFIG);
+  if (!match) throw new Error("network_security_config: no pin-set expiration found.");
+  const expiry = Date.parse(match[1]);
+  const daysLeft = Math.floor((expiry - now) / 86400000);
+  if (daysLeft < 0) {
+    throw new Error(
+      `Certificate pins EXPIRED ${-daysLeft} days ago (${match[1]}). Android ignores an expired ` +
+        "pin-set, so pinning is currently inactive. Re-verify the SPKI hashes and bump the date."
+    );
+  }
+  if (daysLeft < PIN_EXPIRY_WARN_DAYS) {
+    console.warn(
+      `[withNetworkSecurityConfig] Certificate pins expire in ${daysLeft} days (${match[1]}). ` +
+        "Re-verify and rotate before they lapse — expiry disables pinning silently."
+    );
+  }
+  return daysLeft;
+}
+
 function withNetworkSecurityConfig(config) {
   // 1. Write res/xml/network_security_config.xml during prebuild.
   config = withDangerousMod(config, [
     "android",
     (cfg) => {
-      const resXmlDir = path.join(cfg.modRequest.platformProjectRoot, "app", "src", "main", "res", "xml");
-      fs.mkdirSync(resXmlDir, { recursive: true });
-      fs.writeFileSync(path.join(resXmlDir, "network_security_config.xml"), NETWORK_SECURITY_CONFIG);
+      // Fails the build outright if the pins have lapsed, rather than letting
+      // pinning silently stop applying.
+      assertPinsNotNearExpiry();
+
+      const appDir = path.join(cfg.modRequest.platformProjectRoot, "app", "src");
+
+      const releaseDir = path.join(appDir, "main", "res", "xml");
+      fs.mkdirSync(releaseDir, { recursive: true });
+      fs.writeFileSync(path.join(releaseDir, "network_security_config.xml"), NETWORK_SECURITY_CONFIG);
+
+      // Debug-only override. Android merges this for debug variants only, so
+      // the dev-host cleartext exception cannot reach a release artifact.
+      const debugDir = path.join(appDir, "debug", "res", "xml");
+      fs.mkdirSync(debugDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(debugDir, "network_security_config.xml"),
+        NETWORK_SECURITY_CONFIG_DEBUG
+      );
       return cfg;
     },
   ]);
@@ -77,3 +151,12 @@ function withNetworkSecurityConfig(config) {
 }
 
 module.exports = withNetworkSecurityConfig;
+
+// Named exports go AFTER the default assignment above, which replaces
+// `module.exports` wholesale — attaching them earlier would silently discard
+// them. Exported so the release-config invariants are testable without running
+// a prebuild.
+module.exports.assertPinsNotNearExpiry = assertPinsNotNearExpiry;
+module.exports.PIN_EXPIRY_WARN_DAYS = PIN_EXPIRY_WARN_DAYS;
+module.exports.NETWORK_SECURITY_CONFIG = NETWORK_SECURITY_CONFIG;
+module.exports.NETWORK_SECURITY_CONFIG_DEBUG = NETWORK_SECURITY_CONFIG_DEBUG;

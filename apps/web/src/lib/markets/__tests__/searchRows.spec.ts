@@ -102,10 +102,26 @@ describe("instrument artwork", () => {
     }
   });
 
-  it("serves real SVG artwork, not an error page saved with an .svg name", () => {
+  it("serves real artwork, not an error page saved with an image name", () => {
+    // Checked by MAGIC BYTES rather than by extension. The failure this guards
+    // against is a fetch that 404'd or rate-limited and got written to disk
+    // under an image name anyway -- an HTML error page is still ~1KB of
+    // plausible-looking bytes, so a size check alone would pass it.
+    //
+    // Raster is allowed here because it has to be: five of the twelve perps are
+    // futures-only listings whose only published mark is a PNG, and refusing
+    // raster would mean shipping a letter badge instead of the real logo.
+    const MAGIC: Record<string, (b: Buffer) => boolean> = {
+      ".svg": (b) => b.toString("utf8", 0, 512).includes("<svg"),
+      ".png": (b) => b.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+      ".jpg": (b) => b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff,
+    };
     for (const i of INSTRUMENTS.filter((x) => x.logo)) {
-      const body = readFileSync(join(PUBLIC, i.logo!), "utf8");
-      expect(body, i.symbol).toContain("<svg");
+      const ext = i.logo!.slice(i.logo!.lastIndexOf("."));
+      const check = MAGIC[ext];
+      expect(check, `${i.symbol}: unsupported logo extension ${ext}`).toBeDefined();
+      const body = readFileSync(join(PUBLIC, i.logo!));
+      expect(check!(body), `${i.symbol} -> ${i.logo} is not a real ${ext.slice(1)}`).toBe(true);
       expect(body.length, i.symbol).toBeGreaterThan(100);
     }
   });

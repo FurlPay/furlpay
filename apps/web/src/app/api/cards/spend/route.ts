@@ -5,6 +5,8 @@ import { evaluateSpend } from "@/lib/services/policyEngine";
 import { requireUser } from "@/lib/authz";
 import { validateBody } from "@/lib/validate";
 import { notifyTransaction } from "@/lib/notify";
+import { rateLimitOr429 } from "@/lib/rateLimit";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 
 // POST /api/cards/spend — simulate a card authorization through the policy
 // engine, against the SESSION user's card.
@@ -23,8 +25,26 @@ const SpendSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Card authorization");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+
+  // AGENTS.md rule 2. This route had NO per-route budget while every other
+  // money-moving route has one: it increments `card.limits.dailySpent` and
+  // writes transaction history, so the middleware baseline (150/min/IP, shared
+  // across every endpoint) was the only thing bounding it. A card authorization
+  // is a rarer act than a page load and gets a much tighter budget.
+  const limited = await rateLimitOr429(
+    req,
+    "cards.spend",
+    { limit: 20, windowMs: 60_000 },
+    auth.account.user.id
+  );
+  if (limited) return limited;
 
   const body = await validateBody(req, SpendSchema);
   if (body instanceof Response) return body as never;

@@ -63,11 +63,15 @@ export default function DepositFlow({
   const [destination, setDestination] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // The FurlPay address funds should be sent TO — the user's own account
-  // address, read from the profile rather than typed anywhere in this file.
+  // The address funds should be sent TO. This read `safeAddress`, which is a
+  // hash with no key behind it (lib/receiveAddress.ts) — a deposit screen
+  // pointing at it destroys whatever is sent. `receiveAddress` is present only
+  // when the user has linked a wallet and its EIP-191 proof verified; a null
+  // means we genuinely do not have somewhere to send their money, and the
+  // screen says so instead of offering something address-shaped.
   useEffect(() => {
-    getJSON<{ safeAddress: string }>("/api/profile")
-      .then((p) => setDestination(p.safeAddress))
+    getJSON<{ receiveAddress: { address: string } | null }>("/api/profile")
+      .then((p) => setDestination(p.receiveAddress?.address ?? null))
       .catch(() => setDestination(null));
   }, []);
 

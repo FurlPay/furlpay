@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (result.cashToCredit > 0) {
-    recordMovement("in", result.cashToCredit, "Dividend payout", userId);
+    await recordMovement("in", result.cashToCredit, "Dividend payout", userId);
     recordTransaction(
       userId,
       newTx({

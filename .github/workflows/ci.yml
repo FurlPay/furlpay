@@ -76,6 +76,32 @@ jobs:
   # Security auditing moved to .github/workflows/security-audit.yml
   # which has proper failure handling + Discord notifications.
 
+  # native-app is deliberately NOT an npm workspace (React 19 / react-native
+  # must not hoist into the Next.js tree), so `npm install` at the root never
+  # touched it and none of its 1000+ tests had ever run in CI. That included the
+  # certificate-pinning and release-network-config invariants, which are exactly
+  # the kind of control that fails silently: Android IGNORES an expired
+  # <pin-set> rather than erroring, so pinning would simply stop applying and
+  # nothing would say so.
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - working-directory: native-app
+        run: npm ci
+      - name: Type-check mobile app
+        working-directory: native-app
+        run: npx tsc --noEmit
+      # Includes plugins/__tests__/networkSecurityConfig.test.ts, which fails
+      # the build once the pins expire and asserts the dev-host cleartext
+      # exception stays out of the release config (FURL-006 / FURL-007).
+      - name: Test mobile app
+        working-directory: native-app
+        run: npx jest --ci
+
   go-sdk:
     runs-on: ubuntu-latest
     steps:

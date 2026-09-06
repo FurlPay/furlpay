@@ -5,6 +5,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { activateCard, lifecycleView } from "@/lib/services/cardLifecycle";
 import { recordSecurityEvent } from "@/lib/ops/events";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +23,11 @@ const Activate = z.object({
 // this route's budget is deliberately tight on top of that, because an 8-digit
 // code with a fast endpoint in front of it is not a possession proof.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Card activation");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;

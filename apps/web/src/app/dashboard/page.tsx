@@ -21,7 +21,13 @@ import AppSidebar from "@/components/AppSidebar";
 import { Balance } from "@/components/user/BalanceVisibility";
 
 interface Overview {
-  user: { name: string; tier: string; region: string; safeAddress: string };
+  user: {
+    name: string;
+    tier: string;
+    region: string;
+    receiveAddress: string | null;
+    receiveAddressUnavailableReason: string | null;
+  };
   netWorth: number;
   breakdown: { crypto: number; fiat: number; equities: number };
   tokenBalances: TokenBalance[];
@@ -279,7 +285,7 @@ export default function HomePage() {
         manualEntry={scanner?.manual}
         onClose={() => setScanner(null)}
         onDone={load}
-        user={{ name: data.user.name, safeAddress: data.user.safeAddress }}
+        user={{ name: data.user.name, receiveAddress: data.user.receiveAddress }}
         balances={data.tokenBalances}
       />
 

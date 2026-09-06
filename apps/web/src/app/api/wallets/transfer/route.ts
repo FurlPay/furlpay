@@ -172,14 +172,43 @@ async function executeTransfer(
     return NextResponse.json({ error: sig.reason }, { status: 401 });
   }
 
-  // AML gate: screen the destination before the Paymaster co-signs.
-  const screen = screenWallet(destination);
-  if (screen.action === "block") {
-    audit("transfer.blocked", account.user.id, { destination, amount, reason: "aml_screen" });
-    return NextResponse.json(
-      { error: "Transfer blocked by AML policy", screen },
-      { status: 403 }
-    );
+  // AML gate: screen BOTH parties before the Paymaster co-signs.
+  //
+  // This screened only the destination. Sanctions are not directional — a
+  // designated person sending money is exactly as prohibited as one receiving
+  // it, and OFAC's own guidance is about dealing with the person at all, not
+  // about which way the arrow points. services/payments.ts already screened
+  // both parties (screenAddress on payer and recipient); this route did not,
+  // so the same platform enforced two different rules depending on which
+  // endpoint a user reached.
+  //
+  // The payer is the address that will actually be debited: the verified
+  // linked wallet when there is one, otherwise the account's own reference.
+  const payerAddress = account.user.linkedWallet?.address ?? safeAddress ?? account.user.safeAddress;
+  const parties: { role: "payer" | "destination"; address: string }[] = [
+    ...(payerAddress ? [{ role: "payer" as const, address: payerAddress }] : []),
+    { role: "destination" as const, address: destination },
+  ];
+
+  let screen = screenWallet(destination);
+  for (const party of parties) {
+    const result = screenWallet(party.address);
+    if (result.action === "block") {
+      audit("transfer.blocked", account.user.id, {
+        destination,
+        amount,
+        reason: "aml_screen",
+        party: party.role,
+      });
+      return NextResponse.json(
+        // The response does not say WHICH side matched. Telling a payer that
+        // they personally are the hit turns this endpoint into a sanctions
+        // oracle; the audit event above records it for the compliance team.
+        { error: "Transfer blocked by AML policy", screen: result },
+        { status: 403 }
+      );
+    }
+    if (party.role === "destination") screen = result;
   }
 
   // Funds check before anything is recorded — a transfer can't overdraw.
@@ -212,7 +241,7 @@ async function executeTransfer(
   src.usdValue = Math.round(src.amount * unitUsd * 100) / 100;
 
   // Double-entry: funds leave user cash.
-  const entry = recordMovement("out", amountUsd, `Transfer ${token} to ${destination.slice(0, 10)}…`, account.user.id);
+  const entry = await recordMovement("out", amountUsd, `Transfer ${token} to ${destination.slice(0, 10)}…`, account.user.id);
 
   void commitVelocity({ userId: account.user.id, amountUsd, country });
 

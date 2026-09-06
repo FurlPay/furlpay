@@ -6,6 +6,7 @@ import { validateBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 import { getAvatarUrl, initialsFor } from "@/lib/profileAvatar";
+import { receiveAddressFor } from "@/lib/receiveAddress";
 
 // GET /api/profile - full profile + security + notification state for the
 // authenticated account. Never use the seeded demo account for this route.
@@ -26,7 +27,23 @@ export async function GET(req: NextRequest) {
     email: u.email,
     avatarUrl,
     initials: initialsFor(u.name),
-    safeAddress: u.safeAddress,
+    // DEPRECATED and deliberately renamed in the payload. store.ts derives it
+    // from sha256("furlpay:safe:" + key): no key exists for it and no contract
+    // is deployed at it, so it is an account REFERENCE and never a destination.
+    // It kept the name `safeAddress` while two screens read it as a deposit
+    // address — see lib/receiveAddress.ts.
+    accountReference: u.safeAddress,
+    // The only address a third party may send funds to. Null when the user has
+    // not linked and verified a wallet; clients must render the empty state
+    // rather than substituting anything address-shaped.
+    receiveAddress: (() => {
+      const r = receiveAddressFor(auth.account);
+      return r.ok ? r.receive : null;
+    })(),
+    receiveAddressUnavailableReason: (() => {
+      const r = receiveAddressFor(auth.account);
+      return r.ok ? null : r.reason;
+    })(),
     kycStatus: u.kycStatus,
     region: u.region,
     tier: u.tier,

@@ -274,8 +274,12 @@ function reviewReasonFor(
   return null;
 }
 
-/** Perform the settlement for a screened, approved payment. */
-function settle(record: PaymentRecord): ExecuteResult {
+/** Perform the settlement for a screened, approved payment.
+ *
+ *  Async because the ledger is now durable: the balanced posting goes to
+ *  Postgres and only lands in the in-memory mirror once Postgres accepts it.
+ *  A settlement that cannot be recorded must not be reported as settled. */
+async function settle(record: PaymentRecord): Promise<ExecuteResult> {
   // Hard stop: the ONLY implementation below is the mock. Until a real relayer
   // lands here, production must never fabricate a settlement hash — even if
   // INTEGRATION_MODE=live was set by mistake.
@@ -289,7 +293,7 @@ function settle(record: PaymentRecord): ExecuteResult {
   // Ledger first: one balanced transaction covering payer debit, recipient
   // share, and platform fee. If the posting fails, nothing settles.
   try {
-    const entry = recordPaymentWithFee(
+    const entry = await recordPaymentWithFee(
       userId,
       record.amountUsdc,
       record.feeUsdc,
@@ -325,12 +329,12 @@ function settle(record: PaymentRecord): ExecuteResult {
 }
 
 /** Verify signature + screen both parties, then settle on Arbitrum One. */
-export function executePayment(
+export async function executePayment(
   id: string,
   payer: string,
   signature: string,
   actingUserId: string = DEMO_USER_ID
-): ExecuteResult {
+): Promise<ExecuteResult> {
   // Fail closed in production while settlement is mocked — a fabricated tx
   // hash must never masquerade as a real settlement.
   if (!mockAllowed()) return { ok: false, status: 503, error: "settlement_unavailable" };
@@ -383,7 +387,7 @@ export function executePayment(
 /** Approve a paused payment and settle it. Caller must be a compliance
  *  officer (enforced by the route via requireRole) and must not be the payer
  *  — separation of duties is the point of the pause. */
-export function approvePayment(id: string, approverUserId: string): ExecuteResult {
+export async function approvePayment(id: string, approverUserId: string): Promise<ExecuteResult> {
   if (!mockAllowed()) return { ok: false, status: 503, error: "settlement_unavailable" };
 
   const record = getPayment(id);
@@ -397,7 +401,7 @@ export function approvePayment(id: string, approverUserId: string): ExecuteResul
 
   record.reviewedAt = new Date().toISOString();
   record.reviewedBy = approverUserId;
-  const result = settle(record);
+  const result = await settle(record);
   if (result.ok) {
     audit("payment.review_approved", approverUserId, { paymentId: record.id });
   }
@@ -454,7 +458,7 @@ function notifyReview(record: PaymentRecord): void {
   log.info("payment paused for review", { paymentId: record.id, reason: record.reviewReason });
 }
 
-export function refundPayment(id: string, actingUserId: string): ExecuteResult {
+export async function refundPayment(id: string, actingUserId: string): Promise<ExecuteResult> {
   // Same hard stop as settle(): the refund path below is the mock — no
   // production refunds until a live relayer exists.
   if (process.env.NODE_ENV === "production") {
@@ -475,7 +479,7 @@ export function refundPayment(id: string, actingUserId: string): ExecuteResult {
   // never an edit) so the refund reconciles with the original posting.
   try {
     if (record.ledgerTxId) {
-      const entry = reverseLedgerTx(record.ledgerTxId, `Refund of ${record.id}`);
+      const entry = await reverseLedgerTx(record.ledgerTxId, `Refund of ${record.id}`);
       // Record the compensating entry ALONGSIDE the settlement, not over it.
       // Overwriting ledgerTxId lost the only link back to the posting that
       // moved the money, and left the field pointing at a reversal — which a

@@ -9,15 +9,23 @@
 // result.
 //
 // WHAT IS IMPLEMENTED HERE: the interface, the provider selection, the
-// production guard, and the local development signer.
+// production guard, the local development signer, and ONE real hardware-backed
+// backend — Turnkey (`FURLPAY_KMS_PROVIDER="turnkey"`).
 //
-// WHAT IS NOT: an actual KMS backend. There is no AWS KMS or Vault integration
-// in this repo, and writing one that "works" against an unconfigured service
-// would be worse than none — it would look complete. `resolveKms()` therefore
-// returns a REFUSAL in production rather than a signer, and
-// ONCHAIN_SETTLEMENT_LIVE stays gated on `FURLPAY_KMS_PROVIDER` naming a
-// backend that exists. Adding one means implementing `KmsProvider` and
-// registering it below; nothing else changes.
+// WHY TURNKEY AND NOT AWS KMS FIRST. The Turnkey client already exists in this
+// repo (lib/services/turnkey.ts), it signs a raw 32-byte digest with
+// HASH_FUNCTION_NO_OP — exactly the shape this interface is built around — and
+// it needs no new dependency. Key material lives in Turnkey's enclave and never
+// enters this process, which is the property that matters. `aws-kms`,
+// `gcp-kms` and `vault` remain declared in KmsBackend and remain unimplemented:
+// resolveKms() refuses them by name rather than silently falling back, because
+// a backend that quietly degrades to an env key defeats the entire boundary.
+//
+// THE REMAINING GAP, stated plainly: Turnkey is a custodial signer. It returns
+// a COMPLETE signature, so whoever holds the organisation credential can move
+// the funds behind any key in the organisation. That is acceptable for a
+// gas-paying fee-payer and it is NOT the same thing as a threshold scheme —
+// see the note on `isHardwareBacked` below.
 //
 // THE PRODUCTION GUARD, stated plainly: an environment variable holding a
 // private key is acceptable for a local devnet and is not acceptable for
@@ -27,6 +35,7 @@
 // ---------------------------------------------------------------------------
 
 import { financialEnvironment } from "@/lib/flags";
+import { signDigest, turnkeyConfigured, TurnkeyError } from "@/lib/services/turnkey";
 
 export type KmsBackend = "env" | "aws-kms" | "gcp-kms" | "vault" | "turnkey";
 
@@ -119,6 +128,95 @@ export class EnvKeySigner implements KmsProvider {
 }
 
 /**
+ * Turnkey: signing inside a remote enclave, key material never in this process.
+ *
+ * WHICH ADDRESS SIGNS. `keyId` here is a logical name (see KEY_PURPOSES); the
+ * concrete wallet address it maps to comes from the environment, so rotating to
+ * a new Turnkey wallet is a config change rather than a deploy. A key with no
+ * configured address is `unknown_key` — never a silent fallback to some other
+ * wallet, which would sign with the wrong account and be discovered on-chain.
+ *
+ * `isHardwareBacked` is TRUE because no private key exists in this process:
+ * that is the property this interface was built to assert, and it is the one
+ * that makes production signing acceptable. It is NOT a claim that the key is
+ * split — Turnkey returns a complete signature and can therefore act alone.
+ * Read it as "the application cannot leak this key", not as "no single party
+ * controls these funds".
+ */
+export class TurnkeyKmsProvider implements KmsProvider {
+  readonly backend = "turnkey" as const;
+  readonly isHardwareBacked = true;
+
+  /** Logical key id -> the Turnkey wallet address that serves it. */
+  private addressFor(keyId: string): string | undefined {
+    const map: Record<string, string | undefined> = {
+      "furlpay-gas-sponsor": process.env.TURNKEY_GAS_SPONSOR_ADDRESS,
+      "furlpay-settlement": process.env.TURNKEY_SETTLEMENT_ADDRESS,
+      "furlpay-attestation": process.env.TURNKEY_ATTESTATION_ADDRESS,
+    };
+    const address = map[keyId]?.trim();
+    return address && /^0x[0-9a-fA-F]{40}$/.test(address) ? address : undefined;
+  }
+
+  async sign(request: SigningRequest): Promise<KmsResult> {
+    // Purpose separation is enforced here, at the boundary, not by the caller.
+    // A key provisioned to pay gas must not be usable to sign a settlement
+    // however the request is shaped.
+    if (!purposeAllowed(request.keyId, request.purpose)) {
+      return {
+        ok: false,
+        refusal: {
+          reason: "purpose_mismatch",
+          detail: `Key "${request.keyId}" may not be used for purpose "${request.purpose}".`,
+        },
+      };
+    }
+
+    const signWith = this.addressFor(request.keyId);
+    if (!signWith) {
+      return {
+        ok: false,
+        refusal: {
+          reason: "unknown_key",
+          detail:
+            `No Turnkey wallet address is configured for key "${request.keyId}". ` +
+            "Set the matching TURNKEY_*_ADDRESS variable.",
+        },
+      };
+    }
+
+    try {
+      const sig = await signDigest({ signWith, digestHex: request.digestHex });
+      const r = sig.r.startsWith("0x") ? sig.r.slice(2) : sig.r;
+      const s = sig.s.startsWith("0x") ? sig.s.slice(2) : sig.s;
+      const v = sig.v.startsWith("0x") ? sig.v.slice(2) : sig.v;
+      return {
+        ok: true,
+        result: {
+          // Concatenated (r ‖ s ‖ v), the form every EVM consumer expects.
+          signatureHex: `0x${r.padStart(64, "0")}${s.padStart(64, "0")}${v.padStart(2, "0")}`,
+          // Turnkey addresses a wallet account, not a versioned key, so the
+          // address IS the version identifier: it is what a verifier needs to
+          // check an old signature after a rotation.
+          keyVersion: signWith,
+          backend: this.backend,
+          signedAt: new Date().toISOString(),
+        },
+      };
+    } catch (e) {
+      const detail =
+        e instanceof TurnkeyError ? `Turnkey ${e.status}: ${e.message}` : (e as Error).message;
+      return { ok: false, refusal: { reason: "backend_error", detail } };
+    }
+  }
+
+  async listKeyVersions(keyId: string): Promise<string[]> {
+    const address = this.addressFor(keyId);
+    return address ? [address] : [];
+  }
+}
+
+/**
  * The configured provider, or a refusal explaining why there is none.
  *
  * Returns a REFUSAL rather than throwing, so a caller can report the reason to
@@ -136,6 +234,24 @@ export function resolveKms(): { ok: true; provider: KmsProvider } | { ok: false;
         detail: "FURLPAY_KMS_PROVIDER is not set. No signing backend is available.",
       },
     };
+  }
+
+  if (configured === "turnkey") {
+    // Credentials are checked HERE rather than at first sign(): "configured but
+    // unauthenticated" is the state that produces a signing failure in the
+    // middle of a settlement, which is the worst possible moment to find out.
+    if (!turnkeyConfigured()) {
+      return {
+        ok: false,
+        refusal: {
+          reason: "not_configured",
+          detail:
+            'FURLPAY_KMS_PROVIDER="turnkey" requires TURNKEY_ORGANIZATION_ID, ' +
+            "TURNKEY_API_PUBLIC_KEY and TURNKEY_API_PRIVATE_KEY.",
+        },
+      };
+    }
+    return { ok: true, provider: new TurnkeyKmsProvider() };
   }
 
   if (configured === "env") {

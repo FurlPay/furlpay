@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
   // The settled authorization value is atomic USDC (6 decimals).
   const atomic = body.paymentPayload.payload.authorization.value;
   const amountUsd = Number(BigInt(atomic)) / 1e6;
-  const credit = creditAccount(
+  const credit = await creditAccount(
     target.user.id,
     amountUsd,
     `Account funded — $${amountUsd.toFixed(2)} USDC`,

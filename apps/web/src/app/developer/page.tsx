@@ -20,7 +20,7 @@ const ENDPOINTS = [
   ["POST", "/api/compliance/credential", "Reusable KYC credential"],
   ["GET", "/api/compliance/jurisdiction", "Per-region policy resolver"],
   ["POST", "/api/compliance/travel-rule", "FATF Travel Rule"],
-  ["POST", "/api/webhooks/marqeta", "Card auth (JIT)"],
+  ["POST", "/api/webhooks/card-auth", "Card auth / 3DS2"],
 ];
 
 const EVENTS = [

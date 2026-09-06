@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
       ? `Apple Pay · ${capture.displayName}`
       : "Apple Pay top-up";
 
-    const credit = creditAccount(userId, capture.amountUsd, "Apple Pay top-up", descriptor);
+    const credit = await creditAccount(userId, capture.amountUsd, "Apple Pay top-up", descriptor);
     if (!credit.ok) {
       // The ledger refused, so the balance did not move. If a real capture
       // already happened this needs a refund, which is why it is an error-level

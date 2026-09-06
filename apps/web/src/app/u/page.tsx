@@ -102,9 +102,13 @@ export default function OwnProfilePage() {
               verified={profile.kycStatus === "verified"}
               memberSince={profile.security?.lastLogin ?? null}
               stats={buildStats(profile)}
+              // Only a VERIFIED wallet is offered for copying. The old code
+              // offered `safeAddress` under the label "Smart account address",
+              // which is a hash with no key behind it — a one-tap way to hand
+              // someone an address that eats whatever is sent to it.
               copyValue={
-                profile.safeAddress
-                  ? { label: "Smart account address", value: profile.safeAddress }
+                profile.receiveAddress
+                  ? { label: "Wallet address", value: profile.receiveAddress.address }
                   : null
               }
               editHref="/profile#profile"
@@ -112,7 +116,15 @@ export default function OwnProfilePage() {
 
             <section className="mt-6 px-4 sm:px-0">
               <div className="grid gap-3 sm:grid-cols-2">
-                <DetailCard label="Smart account" value={shortAddress(profile.safeAddress) ?? "—"} mono />
+                <DetailCard
+                  label="Wallet"
+                  value={
+                    profile.receiveAddress
+                      ? (shortAddress(profile.receiveAddress.address) ?? "—")
+                      : "Not linked"
+                  }
+                  mono={Boolean(profile.receiveAddress)}
+                />
                 <DetailCard label="Region" value={profile.region || "—"} />
                 <DetailCard
                   label="Verification"

@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
       fiat.amount += quote.amountTo;
     }
     // Double-entry: stablecoin leaves user cash to fiat rails.
-    recordMovement("out", amount, `Off-ramp to ${toCurrency} via ${quote.rail}`, account.user.id);
+    await recordMovement("out", amount, `Off-ramp to ${toCurrency} via ${quote.rail}`, account.user.id);
   }
 
   return NextResponse.json({ quote, executed: !!execute });

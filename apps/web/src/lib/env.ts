@@ -69,12 +69,39 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("AI_TRADING_LIVE"),
       v("CROSS_CHAIN_STOCKS_LIVE"),
       v("HARDWARE_WALLET_LIVE"),
+      // Cannot be enabled: no card issuer is integrated (flags.ts
+      // `unimplemented`). Registered so the names exist for the day one is.
+      v("CARD_ISSUING_LIVE"),
+      v("FURLPAY_CARD_ISSUER"),
+      v("FURLPAY_CARD_ISSUER_API_KEY"),
+      // Fiat rails. All three flags carry `unimplemented` reasons: no banking,
+      // on-ramp or off-ramp partner is contracted, and no adapter implements
+      // the ports in lib/providers/types.ts. Registered so the names exist for
+      // the day one does; setting them today changes nothing.
+      v("BANKING_LIVE"),
+      v("FURLPAY_BANKING_PARTNER"),
+      v("FURLPAY_BANKING_PARTNER_API_KEY"),
+      v("ONRAMP_LIVE"),
+      v("FURLPAY_ONRAMP_PROVIDER"),
+      v("FURLPAY_ONRAMP_PROVIDER_API_KEY"),
+      v("OFFRAMP_LIVE"),
+      v("FURLPAY_OFFRAMP_PROVIDER"),
+      v("FURLPAY_OFFRAMP_PROVIDER_API_KEY"),
       // Set only after a person has verified at least one tokenized-equity
       // contract address against its issuer — see lib/onchain/stockTokenRegistry.ts.
       v("FURLPAY_STOCK_TOKEN_REGISTRY_VERIFIED"),
       // Which key-management backend signs on-chain transactions. Absent or
-      // "env" keeps ONCHAIN_SETTLEMENT_LIVE unavailable.
+      // "env" keeps ONCHAIN_SETTLEMENT_LIVE unavailable. "turnkey" is the one
+      // implemented hardware-backed provider (lib/kms.ts).
       v("FURLPAY_KMS_PROVIDER"),
+      // Which Turnkey wallet serves each logical key. Addresses are public, so
+      // these are configuration rather than secrets; a key with no address
+      // configured is refused as `unknown_key` rather than silently signing
+      // with a different wallet.
+      v("TURNKEY_ORGANIZATION_ID"),
+      v("TURNKEY_GAS_SPONSOR_ADDRESS"),
+      v("TURNKEY_SETTLEMENT_ADDRESS"),
+      v("TURNKEY_ATTESTATION_ADDRESS"),
     ],
   },
   {
@@ -117,8 +144,25 @@ export const ENV_REGISTRY: EnvGroup[] = [
     ],
   },
   {
+    // TWO DIRECTIONS, NEVER ONE SECRET.
+    //
+    // INBOUND — one secret per sending provider, because each provider signs
+    // with its OWN scheme and rotates on its own schedule. Sharing one secret
+    // across several inbound endpoints means a single leak forges all of them,
+    // and it hides the fact that a handler is not really verifying that
+    // provider at all. That is exactly how api/webhooks/{marqeta,wise,bridge}
+    // came to verify FurlPay's own envelope while claiming to be those three;
+    // all three were deleted rather than repaired, since no contract exists
+    // with any of them.
+    //
+    // OUTBOUND — FURLPAY_ENDPOINT_SECRET is the key FurlPay signs the events it
+    // SENDS with, and it is what merchants pass to
+    // `Furlpay.webhooks.constructEvent` in the Node / Python / Go SDKs. It must
+    // never appear on an inbound handler: an inbound endpoint verifying against
+    // it would accept anything signed by a merchant integration key.
     group: "Webhook secrets",
     vars: [
+      // Inbound, per provider.
       v("STRIPE_WEBHOOK_SECRET"),
       v("PERSONA_WEBHOOK_SECRET"),
       v("SUMSUB_WEBHOOK_SECRET"),
@@ -128,7 +172,30 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("GITHUB_WEBHOOK_SECRET"),
       v("TELEGRAM_WEBHOOK_SECRET"),
       v("RESEND_WEBHOOK_SECRET"),
+      v("FURLPAY_CARDAUTH_ENDPOINT_SECRET"),
+      // Outbound only — see the note above.
       v("FURLPAY_ENDPOINT_SECRET"),
+    ],
+  },
+  {
+    // ── Platform attestation ───────────────────────────────────────────
+    //
+    // Apple App Attest and Google Play Integrity. Both providers report
+    // `not_configured` — never `passed` — until these are set AND the
+    // signature/decode verification is implemented. See lib/integrity/.
+    //
+    // A verdict is a SIGNAL, not a gate: Apple's guidance is to onboard App
+    // Attest gradually and handle unsupported devices, so a missing verdict
+    // weights the risk engine rather than blocking a customer.
+    group: "Platform attestation",
+    vars: [
+      v("APPLE_TEAM_ID"),
+      v("APPLE_APP_ATTEST_BUNDLE_ID"),
+      // "development" | "production" — App Attest has separate environments
+      // and a token minted in one does not verify in the other.
+      v("APPLE_APP_ATTEST_ENVIRONMENT"),
+      v("ANDROID_PACKAGE_NAME"),
+      v("PLAY_INTEGRITY_SERVICE_ACCOUNT"),
     ],
   },
   {
@@ -229,14 +296,20 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("X402_XSGD_ADDRESS"),
       v("X402_XSGD_USD_RATE"),
       v("X402_QUOTE_SECRET"),
+      // The fee-payer's ADDRESS. Required whenever a KMS signs, because the
+      // KMS returns a signature and not an account — without this we do not
+      // know which address the settler is acting as.
+      v("FACILITATOR_EVM_ADDRESS"),
       // Live on-chain settlement: the facilitator's hot fee-payer signing key.
-      // Required when INTEGRATION_MODE=live — without it settle() fails closed
-      // rather than crediting against a mock settlement.
+      // DEVELOPMENT AND STAGING ONLY — x402Settler refuses it outright when
+      // financialEnvironment() === "production", which is why FACILITATOR_EVM_-
+      // ADDRESS + FURLPAY_KMS_PROVIDER exist above.
       v("FACILITATOR_EVM_PRIVATE_KEY"),
       // Force EIP-3009 signature verification + real settlement independent of
       // INTEGRATION_MODE (e.g. to exercise the live path in a preview env).
       v("X402_ENFORCE_SIGNATURE"),
       v("BASE_SEPOLIA_RPC_URL"),
+      v("BASE_SEPOLIA_RPC_URL_FALLBACK"),
       v("FURLPAY_API_KEY"),
       v("FURLPAY_KEY"),
       v("FURLPAY_SECRET_KEY"),

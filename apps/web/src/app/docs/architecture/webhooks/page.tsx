@@ -19,9 +19,8 @@ export default function WebhooksPage() {
           { method: "POST", path: "/api/webhooks/stripe", desc: "Stripe events — stripe-signature verified via constructEvent" },
           { method: "POST", path: "/api/webhooks/sumsub", desc: "Sumsub KYC outcomes — HMAC digest over the raw body" },
           { method: "POST", path: "/api/webhooks/persona", desc: "Persona inquiry outcomes — persona-signature HMAC" },
-          { method: "POST", path: "/api/webhooks/wise", desc: "Wise transfer state changes — signature verified" },
-          { method: "POST", path: "/api/webhooks/bridge", desc: "Bridge fiat rail events — signature verified" },
-          { method: "POST", path: "/api/webhooks/marqeta", desc: "Card processor callbacks (JIT funding, auth events)" },
+          { method: "POST", path: "/api/webhooks/deposit-detect", desc: "On-chain deposit activity — QuickNode / Alchemy HMAC + timestamp" },
+          { method: "POST", path: "/api/webhooks/complyadvantage", desc: "AML / PEP screening outcomes — provider signature" },
           { method: "POST", path: "/api/webhooks/card-auth", desc: "3DS2 card authentication events — endpoint secret" },
         ]}
       />

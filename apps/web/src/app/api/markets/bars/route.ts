@@ -97,6 +97,34 @@ export async function GET(req: NextRequest) {
   // own provider symbol, skipping the broker path entirely: Alpaca has no
   // GC=F and never will.
   const instrument = asset ? null : resolveInstrument(symbol);
+
+  // A Binance perpetual is served by none of the three providers below —
+  // Alpaca has no HEMIUSDT, CoinGecko prices the coin rather than the contract,
+  // and Yahoo has no symbol for it at all. That is why the chart read "No
+  // source returned bars for HEMIUSDT".
+  //
+  // Handed off rather than inlined, because the Binance egress has to run
+  // outside a US region (it answers 451 there) while this route serves 13,000
+  // symbols that should stay close to their readers. /api/markets/perps/bars is
+  // the pinned one; see apps/web/vercel.json.
+  //
+  // A redirect rather than a server-side proxy on purpose. Proxying would mean
+  // this function guessing its own public origin — and the two candidates are
+  // both wrong somewhere: VERCEL_URL is the per-deployment hostname, which
+  // Deployment Protection answers with 401 to an uncredentialed server fetch,
+  // and a hardcoded FURLPAY_ORIGIN sends every preview's chart to production
+  // data. Redirecting hands the second request to the caller, which already
+  // knows the origin it used, and costs one hop less than proxying did.
+  if (instrument?.quoteSource === "binance-perp") {
+    const to = new URL("/api/markets/perps/bars", req.url);
+    to.searchParams.set("symbol", symbol);
+    to.searchParams.set("tf", tf);
+    // 307, not 302: the method and body must survive, and this route is
+    // reachable through the x402 paywall registry where a GET silently
+    // becoming something else would be a correctness bug rather than a nuisance.
+    return NextResponse.redirect(to, 307);
+  }
+
   if (instrument && ALPACA_TF[tf]) {
     const cacheKey = `${symbol}:${tf}`;
     const hit = cache.get(cacheKey);

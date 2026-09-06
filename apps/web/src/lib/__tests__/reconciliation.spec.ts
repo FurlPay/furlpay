@@ -7,14 +7,34 @@ vi.mock("@/lib/paymentsDb", () => ({
   paymentsDurable: vi.fn(),
   ledgerImbalance: vi.fn(),
   paymentsMissingLedger: vi.fn(),
+  // The migration-0014 transaction-envelope views. Mocked alongside the 0009
+  // ones because an UNMOCKED reader throws, and the module correctly reports a
+  // throwing check as critical — which would make every test here red for the
+  // wrong reason and hide a real regression behind an obvious one.
+  ftxSettledWithoutLedger: vi.fn(),
+  ftxCompletedWithoutEvidence: vi.fn(),
+  ftxStaleInFlight: vi.fn(),
+  ftxAwaitingReview: vi.fn(),
 }));
 
 import { runReconciliation } from "@/lib/reconciliation";
-import { paymentsDurable, ledgerImbalance, paymentsMissingLedger } from "@/lib/paymentsDb";
+import {
+  paymentsDurable,
+  ledgerImbalance,
+  paymentsMissingLedger,
+  ftxSettledWithoutLedger,
+  ftxCompletedWithoutEvidence,
+  ftxStaleInFlight,
+  ftxAwaitingReview,
+} from "@/lib/paymentsDb";
 
 const mockDurable = paymentsDurable as ReturnType<typeof vi.fn>;
 const mockImbalance = ledgerImbalance as ReturnType<typeof vi.fn>;
 const mockOrphans = paymentsMissingLedger as ReturnType<typeof vi.fn>;
+const mockFtxUnledgered = ftxSettledWithoutLedger as ReturnType<typeof vi.fn>;
+const mockFtxNoEvidence = ftxCompletedWithoutEvidence as ReturnType<typeof vi.fn>;
+const mockFtxStale = ftxStaleInFlight as ReturnType<typeof vi.fn>;
+const mockFtxReview = ftxAwaitingReview as ReturnType<typeof vi.fn>;
 
 const check = (r: Awaited<ReturnType<typeof runReconciliation>>, id: string) =>
   r.checks.find((c) => c.id === id);
@@ -24,6 +44,58 @@ beforeEach(() => {
   mockDurable.mockReturnValue(true);
   mockImbalance.mockResolvedValue({ total_debits: 5000, total_credits: 5000, imbalance: 0 });
   mockOrphans.mockResolvedValue([]);
+  mockFtxUnledgered.mockResolvedValue([]);
+  mockFtxNoEvidence.mockResolvedValue([]);
+  mockFtxStale.mockResolvedValue([]);
+  mockFtxReview.mockResolvedValue([]);
+});
+
+describe("reconciliation — the transaction envelope (migration 0014)", () => {
+  it("is CRITICAL when a transaction settled without a ledger entry", async () => {
+    // Value moved and was never written down. The most serious signal the
+    // system can produce, and the reason this view exists at all.
+    mockFtxUnledgered.mockResolvedValue([{ id: "ftx_1" }, { id: "ftx_2" }]);
+    const r = await runReconciliation();
+    expect(r.status).toBe("critical");
+    expect(check(r, "ftx_settled_without_ledger")?.severity).toBe("critical");
+    expect(check(r, "ftx_settled_without_ledger")?.summary).toContain("never recorded");
+  });
+
+  it("is CRITICAL when a transaction completed carrying no evidence", async () => {
+    // lifecycle.ts refuses that transition, so a row here means something
+    // wrote the state directly — the bypass worth paging on.
+    mockFtxNoEvidence.mockResolvedValue([{ id: "ftx_3" }]);
+    const r = await runReconciliation();
+    expect(r.status).toBe("critical");
+    expect(check(r, "ftx_completed_without_evidence")?.severity).toBe("critical");
+  });
+
+  it("only WARNS on stale or under-review transactions", async () => {
+    // A customer waiting is urgent; it is not the same as money being
+    // unaccounted for, and paging at the same level for both trains operators
+    // to ignore the page.
+    mockFtxStale.mockResolvedValue([{ id: "ftx_4" }]);
+    mockFtxReview.mockResolvedValue([{ id: "ftx_5" }]);
+    const r = await runReconciliation();
+    expect(r.status).toBe("warn");
+    expect(check(r, "ftx_stale_in_flight")?.severity).toBe("warn");
+    expect(check(r, "ftx_awaiting_review")?.severity).toBe("warn");
+  });
+
+  it("WARNS rather than passing when migration 0014 is not applied", async () => {
+    // An empty result from a table that does not exist is not "clean".
+    mockFtxUnledgered.mockResolvedValue(null);
+    const r = await runReconciliation();
+    expect(check(r, "ftx_settled_without_ledger")?.severity).toBe("warn");
+    expect(check(r, "ftx_settled_without_ledger")?.summary).toContain("0014");
+  });
+
+  it("carries ids only — no counterparty data reaches the alert", async () => {
+    mockFtxUnledgered.mockResolvedValue([{ id: "ftx_6", user_id: "u1", source_asset: "INR" }]);
+    const r = await runReconciliation();
+    const detail = check(r, "ftx_settled_without_ledger")?.detail ?? {};
+    expect(Object.keys(detail).sort()).toEqual(["count", "transactionIds"]);
+  });
 });
 
 describe("reconciliation — clean", () => {
@@ -110,10 +182,18 @@ describe("reconciliation — report shape", () => {
   it("stamps the run time and returns every check", async () => {
     const r = await runReconciliation();
     expect(Date.parse(r.checkedAt)).not.toBeNaN();
+    // Asserted as an exact ordered list on purpose: a check that stops running
+    // is indistinguishable from a check that passed, so the report must fail
+    // loudly if one is dropped. Order is the order an operator reads them —
+    // is the backend there, do the books balance, then the envelope views.
     expect(r.checks.map((c) => c.id)).toEqual([
       "durability",
       "ledger_balance",
       "settled_without_ledger",
+      "ftx_settled_without_ledger",
+      "ftx_completed_without_evidence",
+      "ftx_stale_in_flight",
+      "ftx_awaiting_review",
     ]);
   });
 });

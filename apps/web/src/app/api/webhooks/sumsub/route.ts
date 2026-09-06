@@ -4,6 +4,7 @@ import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
 import { getAccountDurable, setKycStatus } from "@/lib/store";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
+import { kycTransitionAllowed, type KycState } from "@/lib/webhookOrdering";
 
 // POST /api/webhooks/sumsub — Sumsub applicant review outcomes (KYC/AML).
 // Sumsub signs the raw body with the webhook secret; the digest arrives in
@@ -70,6 +71,32 @@ export async function POST(request: Request) {
           applicantId: event.applicantId,
         });
       } else if (answer === "RED") {
+        // A KYC DEMOTION IS NOT SOMETHING A RETRY MAY DO.
+      //
+      // Providers deliver at-least-once with no ordering guarantee, so a
+      // delayed rejection event can arrive after a later approval — two
+      // different event ids, both new, both claimed by webhookGuard, and the
+      // second one silently walks a verified user back to unverified. By then
+      // they may hold a higher tier cap and have transacted against it.
+      // Genuine revocations exist; they are a compliance decision with an
+      // audit trail, not a redelivery. See lib/webhookOrdering.ts.
+        const current = account.user.kycStatus as KycState;
+        if (!kycTransitionAllowed(current, "unverified")) {
+          log.warn("refusing webhook KYC demotion", {
+            provider: "sumsub",
+            userId: account.user.id,
+            from: current,
+            applicantId: event.applicantId,
+          });
+          audit("webhook.processed", account.user.id, {
+            provider: "sumsub",
+            event: event.type,
+            applicantId: event.applicantId,
+            refused: "kyc_demotion_requires_review",
+          });
+          await markProcessed(eventId);
+          return NextResponse.json({ received: true, refused: "kyc_demotion_requires_review" });
+        }
         setKycStatus(account.user.id, "unverified");
         // rejectLabels map to targeted UI correction prompts client-side
         // (e.g. FORGERY, BAD_SELFIE, ID_INVALID).

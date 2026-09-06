@@ -3,6 +3,7 @@ import {
   createWalletClient,
   parseAbi,
   parseSignature,
+  type Account,
   type Address,
   type Hex,
 } from "viem";
@@ -10,6 +11,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { FacilitatorRequest, Settler, SettleSubmission } from "@/lib/x402Facilitator";
 import { EVM_CHAIN_IDS } from "@/lib/x402Signature";
 import { EVM_CHAINS, rpcTransport } from "@/lib/x402Chains";
+import { createKmsAccount, kmsAccountAvailable } from "@/lib/kmsAccount";
+import { financialEnvironment, flagEnabled, flagState } from "@/lib/flags";
 import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
@@ -20,12 +23,34 @@ import { log } from "@/lib/log";
 // the FACILITATOR (not the payer) pays gas — the gasless meta-transaction that
 // makes agentic micropayments viable.
 //
-// Availability is gated on FACILITATOR_EVM_PRIVATE_KEY. Without it, no real
-// settler is constructed and the facilitator stays on the mock path — so a
-// misconfigured deployment degrades to "cannot settle" (fail closed), never to
-// "credits balance off a fake settlement". The key is a hot signing key: use a
-// dedicated fee-payer account with only gas, funded from cold storage, and
-// ideally a KMS/HSM-backed signer in production (see docs).
+// WHERE THE SIGNING KEY COMES FROM, and the bug this ordering fixes.
+//
+// This module used to do exactly one thing to obtain a signer:
+//   privateKeyToAccount(process.env.FACILITATOR_EVM_PRIVATE_KEY)
+// which walked straight past lib/kms.ts — the module whose entire purpose is
+// that application code asks for a SIGNATURE and never for a KEY. lib/kms.ts
+// refuses env-key signing in production; that refusal was unreachable, because
+// nothing routed through it. Likewise ONCHAIN_SETTLEMENT_LIVE requires
+// FURLPAY_KMS_PROVIDER, and this file never consulted the flag. Two correct
+// controls, neither wired to the thing it guarded.
+//
+// The resolution order is now, in priority:
+//   1. A KMS-backed account (FURLPAY_KMS_PROVIDER + the fee-payer address).
+//      No key material in this process. This is the only acceptable production
+//      configuration.
+//   2. FACILITATOR_EVM_PRIVATE_KEY — DEVELOPMENT AND STAGING ONLY. Refused
+//      outright when financialEnvironment() === "production", in this file as
+//      well as in EnvKeySigner's constructor, because a guard the caller owns
+//      is a guard somebody eventually forgets.
+//
+// And in staging/production the settler additionally requires
+// ONCHAIN_SETTLEMENT_LIVE to be on, so broadcasting real transactions is an
+// explicit, per-capability decision with a kill switch, not a side effect of
+// an env var being present.
+//
+// Either way the fee-payer holds GAS ONLY: EIP-3009 moves payer → payTo
+// directly, so this account never custodies user funds. Fund it from cold
+// storage and keep it separate from the treasury.
 //
 // Confirmation depth: settle() hands us the `minConfirmations` the amount
 // requires (Attack I-A, revert-grant). We wait for exactly that depth before
@@ -56,28 +81,91 @@ const EIP3009_ABI = parseAbi([
   "function transferWithAuthorization(address from, address to, uint256 value, uint256 validAfter, uint256 validBefore, bytes32 nonce, uint8 v, bytes32 r, bytes32 s)",
 ]);
 
-/** Whether a real EVM settler can be constructed in this deployment. */
-export function liveSettlerAvailable(): boolean {
-  return !!process.env.FACILITATOR_EVM_PRIVATE_KEY;
-}
-
 /**
- * Build the real on-chain settler, or return null when no signing key is
- * configured (caller then keeps the mock path / refuses to settle). The
- * returned function matches the `Settler` type injected into settle().
+ * Resolve the fee-payer account, preferring the KMS.
+ *
+ * Returns null (never throws) when nothing usable is configured, so the caller
+ * fails closed with `settler_unavailable` rather than crashing a settlement.
+ * Every refusal is logged with its reason: "we cannot settle" and "we chose not
+ * to settle" look identical from outside, and an operator needs to tell them
+ * apart.
  */
-export function createEvmSettler(): Settler | null {
+function resolveFeePayerAccount(): Account | null {
+  const environment = financialEnvironment();
+
+  // 1. KMS-backed. The address is public configuration, not a secret; without
+  //    it we cannot know WHICH key to ask for, so a KMS with no address set is
+  //    a misconfiguration worth naming rather than silently skipping.
+  const kmsAddress = (process.env.FACILITATOR_EVM_ADDRESS ?? "").trim();
+  if (kmsAccountAvailable()) {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(kmsAddress)) {
+      log.error("a KMS is configured but FACILITATOR_EVM_ADDRESS is missing or malformed", {
+        environment,
+      });
+      return null;
+    }
+    const account = createKmsAccount({
+      keyId: "furlpay-gas-sponsor",
+      purpose: "gas-sponsor",
+      address: kmsAddress as Hex,
+    });
+    if (account) return account;
+    log.error("KMS reported available but produced no account", { environment });
+    return null;
+  }
+
+  // 2. Raw env key — never in production. This is the branch lib/kms.ts exists
+  //    to make unreachable there, enforced here too so the settler cannot be
+  //    the one caller that skips it.
   const rawKey = process.env.FACILITATOR_EVM_PRIVATE_KEY;
   if (!rawKey) return null;
 
+  if (environment === "production") {
+    log.error(
+      "refusing to sign with FACILITATOR_EVM_PRIVATE_KEY in production — configure FURLPAY_KMS_PROVIDER",
+      { environment }
+    );
+    return null;
+  }
+
   const key = (rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`) as Hex;
-  let account;
   try {
-    account = privateKeyToAccount(key);
+    return privateKeyToAccount(key);
   } catch (e) {
     log.error("FACILITATOR_EVM_PRIVATE_KEY is not a valid private key", { error: (e as Error).message });
     return null;
   }
+}
+
+/** Whether a real EVM settler can be constructed in this deployment. */
+export function liveSettlerAvailable(): boolean {
+  return createEvmSettler() !== null;
+}
+
+/**
+ * Build the real on-chain settler, or return null when this deployment must not
+ * broadcast (caller then keeps the mock path in dev, or refuses to settle).
+ * The returned function matches the `Settler` type injected into settle().
+ */
+export function createEvmSettler(): Settler | null {
+  // Broadcasting real transactions is a per-capability decision with its own
+  // kill switch, checked BEFORE any key is resolved. Development is exempt:
+  // ONCHAIN_SETTLEMENT_LIVE may not be enabled there at all (flags.ts), and the
+  // local-chain verification path in docs/GO-LIVE-MONEY.md §3a depends on this
+  // settler working against a hardhat node.
+  const environment = financialEnvironment();
+  if (environment !== "development" && !flagEnabled("ONCHAIN_SETTLEMENT_LIVE")) {
+    const state = flagState("ONCHAIN_SETTLEMENT_LIVE");
+    log.warn("on-chain settlement is not enabled on this deployment", {
+      environment,
+      reason: state.blocker?.reason,
+      detail: state.blocker?.detail,
+    });
+    return null;
+  }
+
+  const account = resolveFeePayerAccount();
+  if (!account) return null;
 
   return async (req: FacilitatorRequest, _payer: string, minConfirmations: number): Promise<SettleSubmission> => {
     const network = req.paymentRequirements.network;
@@ -122,29 +210,56 @@ export function createEvmSettler(): Settler | null {
     // success — never release a resource on a reorg-able settlement. From this
     // point the tx is on the wire: a timeout is NOT a failure (the payer may
     // still be debited), so surface it as pending with the hash attached.
+    // REPLACEMENT IS NOT FAILURE, AND IT IS NOT THE SAME TRANSACTION.
+    //
+    // A fee bump, a speed-up or a cancel from the fee-payer reuses the nonce
+    // and produces a DIFFERENT hash. The original can then never confirm, so
+    // waiting on it is waiting forever — and the previous code did exactly
+    // that: `waitForTransactionReceipt` eventually timed out, the settlement
+    // was logged pending against a hash that was already dead, and the client
+    // polled it indefinitely. viem surfaces the replacement; we follow it, and
+    // everything downstream keys off the hash that actually landed.
+    let replacedBy: Hex | undefined;
     let receipt;
     try {
       receipt = await publicClient.waitForTransactionReceipt({
         hash,
         confirmations: minConfirmations,
+        onReplaced: (replacement) => {
+          replacedBy = replacement.transaction.hash;
+          log.warn("x402 settlement transaction was replaced", {
+            network,
+            original: hash,
+            replacedBy,
+            reason: replacement.reason,
+          });
+        },
       });
     } catch (e) {
-      throw new SettlementPendingError(hash, network, (e as Error).message);
+      throw new SettlementPendingError(replacedBy ?? hash, network, (e as Error).message);
     }
+    // The hash that ACTUALLY landed. Everything after this point — the revert
+    // check, the confirmation count, the settlement record, the hash handed to
+    // the client — must use the replacement, not the one we submitted.
+    const landed = (receipt.transactionHash ?? replacedBy ?? hash) as Hex;
+
     if (receipt.status !== "success") {
-      throw new Error(`settlement reverted on-chain (tx ${hash})`);
+      throw new Error(`settlement reverted on-chain (tx ${landed})`);
     }
 
     const confirmations = Number(
-      await publicClient.getTransactionConfirmations({ hash }).catch(() => BigInt(minConfirmations))
+      await publicClient
+        .getTransactionConfirmations({ hash: landed })
+        .catch(() => BigInt(minConfirmations))
     );
     log.info("x402 on-chain settlement confirmed", {
       network,
-      tx: hash,
+      tx: landed,
+      ...(landed !== hash ? { submittedAs: hash } : {}),
       confirmations,
       value: auth.value,
     });
-    return { transaction: hash, confirmations };
+    return { transaction: landed, confirmations };
   };
 }
 

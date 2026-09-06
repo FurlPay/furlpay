@@ -8,6 +8,7 @@ import { registryAudit } from "@/lib/onchain/stockTokenRegistry";
 import { evmRpcFor, solanaRpc } from "@/lib/onchain/balances";
 import { backerAudit } from "@/lib/markets/backers";
 import { kvBackend } from "@/lib/kv";
+import { ledgerDurable } from "@/lib/ledger";
 import { cronConfigured } from "@/lib/cron/auth";
 import { notifierConfigured } from "@/lib/alerts";
 import { lastRun } from "@/lib/cron/runner";
@@ -49,6 +50,44 @@ export async function GET(req: NextRequest) {
 
   const checks: Check[] = [];
 
+  // ── Settlement RPCs ───────────────────────────────────────────────────
+  //
+  // Every chain in lib/services/chainRegistry.ts falls back to a PUBLIC RPC
+  // (arb1.arbitrum.io, mainnet.base.org, eth.llamarpc.com, polygon-rpc.com) when
+  // no override is set. Those rate-limit, and a rate-limited RPC in the middle
+  // of a settlement is a money-safety event, not a slow page: the settler can
+  // submit and then fail to observe confirmation, which lands the payment in
+  // the pending path with the payer possibly already debited.
+  //
+  // The FALLBACK is reported separately and is NOT blocking. One private RPC is
+  // the requirement; a second is what turns a provider outage into a failover
+  // instead of a settlement freeze (x402Chains.rpcTransport only builds viem's
+  // fallback transport when both are present).
+  const settlementRpcNetworks = ["ARBITRUM", "BASE"] as const;
+  for (const network of settlementRpcNetworks) {
+    const primary = (process.env[`${network}_RPC_URL`] ?? "").trim();
+    const fallback = (process.env[`${network}_RPC_URL_FALLBACK`] ?? "").trim();
+    checks.push({
+      id: `rpc.${network.toLowerCase()}.private`,
+      ok: primary.length > 0,
+      blocking: environment === "production",
+      detail: primary
+        ? `${network} uses a configured RPC endpoint.`
+        : `${network}_RPC_URL is unset, so the public default is in use. Public RPCs rate-limit, ` +
+          "and a rate-limited RPC mid-settlement can leave a payment submitted but unconfirmed.",
+    });
+    checks.push({
+      id: `rpc.${network.toLowerCase()}.failover`,
+      ok: Boolean(primary && fallback),
+      blocking: false,
+      detail:
+        primary && fallback
+          ? `${network} has a secondary RPC; viem fails over automatically.`
+          : `${network}_RPC_URL_FALLBACK is unset. A provider outage would stop settlement on this ` +
+            "chain rather than failing over.",
+    });
+  }
+
   // ── Durable state ─────────────────────────────────────────────────────
   checks.push({
     id: "kv.durable",
@@ -68,6 +107,24 @@ export async function GET(req: NextRequest) {
     detail: process.env.SUPABASE_URL
       ? "Supabase is configured; accounts hydrate from Postgres."
       : "No Supabase credentials. Account state lives only in process memory and is lost on restart.",
+  });
+
+  // Separate from database.configured on purpose. Credentials being present is
+  // not the same statement as "the ledger migration is applied and postings are
+  // landing in Postgres" — and a clean reconciliation run against an empty
+  // in-memory book is the most misleading green light this system can show.
+  // lib/ledger.assertLedgerDurable() refuses to post in production when this is
+  // false, so a red here means money routes are already returning 503, not that
+  // they are quietly writing somewhere unsafe.
+  checks.push({
+    id: "ledger.durable",
+    ok: ledgerDurable(),
+    blocking: environment === "production",
+    detail: ledgerDurable()
+      ? "Ledger postings are written to Postgres (migration 0009)."
+      : "The ledger has no durable backend. In production every money posting refuses " +
+        "(LedgerDurabilityError) rather than landing in a per-instance memory book. Apply " +
+        "supabase/migrations/0009_payments_and_ledger.sql.",
   });
 
   // ── Session integrity ─────────────────────────────────────────────────

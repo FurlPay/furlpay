@@ -9,6 +9,7 @@ import { limit } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 import { depositReceivedEmail } from "@/lib/emailTemplates";
 import { lockLinkFor } from "@/lib/lockLink";
+import { occurredAtMs, recordApplied, staleEvent } from "@/lib/webhookOrdering";
 
 // POST /api/webhooks/deposit-detect — address-activity webhooks from QuickNode
 // Streams (x-qn-signature) or Alchemy Notify (x-alchemy-signature). Both sign
@@ -124,6 +125,22 @@ export async function POST(req: Request) {
     payload.confirmations ?? (tx.blockNumber != null && tx.blockNumber !== null ? 1 : 0)
   );
 
+  // ORDERING, which idempotency does not cover. Providers make no ordering
+  // guarantee, so a delayed low-confirmation event for this transaction can
+  // arrive AFTER a later high-confirmation one — different event ids, both
+  // genuinely new, both claimed successfully — and walk the deposit's state
+  // backwards. Keyed on the TRANSACTION because that is the thing being
+  // changed; the event id is what webhookGuard already dedupes.
+  const ordering = {
+    resource: `deposit:${chain}:${txHash.toLowerCase()}`,
+    occurredAtMs: occurredAtMs(
+      payload.timestamp ?? payload.occurredAt ?? tx.timestamp ?? tx.blockTimestamp
+    ),
+  };
+  if (await staleEvent(ordering)) {
+    return NextResponse.json({ status: "ignored_stale", txHash });
+  }
+
   const event = await recordDepositEvent({ txHash, token, chain, amount, from, to, confirmations });
 
   // Credit the ledger exactly once per transaction, on the success transition.
@@ -155,5 +172,6 @@ export async function POST(req: Request) {
     }
   }
 
+  await recordApplied(ordering);
   return NextResponse.json({ status: "processed", txHash, state: event.status, orderId: event.orderId });
 }

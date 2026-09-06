@@ -68,7 +68,18 @@ export interface Profile {
   email: string;
   avatarUrl: string | null;
   initials: string | null;
-  safeAddress: string;
+  /** Internal account identifier. NOT a wallet and NOT a destination — see
+   *  lib/receiveAddress.ts for why this must never be rendered as one. */
+  accountReference: string;
+  /** The only address funds may be sent to. Null until a wallet is linked and
+   *  its EIP-191 proof verified. */
+  receiveAddress: {
+    address: string;
+    verifiedBy: "eip191";
+    verifiedAt: string;
+    chainFamily: "evm";
+  } | null;
+  receiveAddressUnavailableReason: "no_wallet_linked" | "link_not_verified" | null;
   kycStatus: "verified" | "pending" | "unverified";
   region: string;
   tier: "Standard" | "Pro" | "Ultra";

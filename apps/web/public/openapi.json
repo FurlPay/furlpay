@@ -89,11 +89,8 @@
     "/api/compliance/travel-rule": {
       "post": { "tags": ["Compliance"], "summary": "FATF Travel Rule metadata (Notabene / TRUST)", "responses": { "200": { "description": "Travel Rule payload" } } }
     },
-    "/api/webhooks/marqeta": {
-      "post": { "tags": ["Webhooks"], "summary": "Card authorization request (JIT funding)", "responses": { "200": { "description": "Approve/decline" } } }
-    },
-    "/api/webhooks/bridge": {
-      "post": { "tags": ["Webhooks"], "summary": "Stablecoin deposit / payout state change", "responses": { "200": { "description": "Received" } } }
+    "/api/webhooks/card-auth": {
+      "post": { "tags": ["Webhooks"], "summary": "Card authorization / 3DS2 authentication event", "responses": { "200": { "description": "Approve / decline / challenge" } } }
     }
   },
   "components": {

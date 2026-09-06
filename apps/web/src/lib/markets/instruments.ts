@@ -203,7 +203,8 @@ const perp = (
   name: string,
   assetClass: MarketAssetClass,
   aliases: string[],
-  providerNote?: string
+  providerNote?: string,
+  logo?: string
 ): MarketInstrument => ({
   symbol,
   // Binance's spelling happens to equal ours, but the field is kept distinct
@@ -221,6 +222,22 @@ const perp = (
   marketCapSupported: false,
   aliases,
   providerNote,
+  // The UNDERLYING's real mark. A perpetual has no logo of its own, so this is
+  // the asset the contract tracks -- which is what a reader scanning a list of
+  // twelve rows is actually looking for.
+  //
+  // Provenance, because a wrong logo here is a wrong claim about which company
+  // a price belongs to:
+  //   BTC/ETH/BNB  already in /logos/coins, from the TradingView icon set.
+  //   HEMI/T/MUBARAK  Binance's own asset catalogue, so it is the same mark the
+  //                   exchange shows beside the contract.
+  //   BULLA/EDGE/MAGMA/BTR/AKE  CoinGecko. These five are futures-ONLY listings
+  //                   with no Binance spot market, so Binance publishes no icon
+  //                   for them at all.
+  //   BZ           /logos/instruments/crude-oil.svg. Brent is a commodity with
+  //                no issuer and therefore no brand; the generic oil mark is
+  //                the honest choice rather than a borrowed one.
+  logo,
 });
 
 /** Every perp is a derivative, and the reader is told so on the page. */
@@ -282,18 +299,18 @@ export const INSTRUMENTS: MarketInstrument[] = [
   // Aliases deliberately avoid bare "brent", "btc" and "eth": those already
   // resolve to the ICE future and to the spot catalog entries, and a perp
   // silently stealing them would change what an existing link means.
-  perp("BZUSDT", "BZ", "Brent Oil Perpetual", "commodity", ["bzusdt", "bz perp", "brent perp"], BZ_NOTE),
-  perp("BTCUSDT", "BTC", "Bitcoin Perpetual", "crypto", ["btcusdt", "btc perp"], PERP_NOTE),
-  perp("ETHUSDT", "ETH", "Ethereum Perpetual", "crypto", ["ethusdt", "eth perp"], PERP_NOTE),
-  perp("BNBUSDT", "BNB", "BNB Perpetual", "crypto", ["bnbusdt", "bnb perp"], PERP_NOTE),
-  perp("AKEUSDT", "AKE", "AKE Perpetual", "crypto", ["akeusdt", "ake perp"], PERP_NOTE),
-  perp("HEMIUSDT", "HEMI", "Hemi Perpetual", "crypto", ["hemiusdt", "hemi perp"], PERP_NOTE),
-  perp("TUSDT", "T", "Threshold Perpetual", "crypto", ["tusdt", "t perp"], PERP_NOTE),
-  perp("MUBARAKUSDT", "MUBARAK", "Mubarak Perpetual", "crypto", ["mubarakusdt", "mubarak perp"], PERP_NOTE),
-  perp("BULLAUSDT", "BULLA", "Bulla Perpetual", "crypto", ["bullausdt", "bulla perp"], PERP_NOTE),
-  perp("EDGEUSDT", "EDGE", "Edge Perpetual", "crypto", ["edgeusdt", "edge perp"], PERP_NOTE),
-  perp("MAGMAUSDT", "MAGMA", "Magma Perpetual", "crypto", ["magmausdt", "magma perp"], PERP_NOTE),
-  perp("BTRUSDT", "BTR", "Bitlayer Perpetual", "crypto", ["btrusdt", "btr perp"], PERP_NOTE),
+  perp("BZUSDT", "BZ", "Brent Oil Perpetual", "commodity", ["bzusdt", "bz perp", "brent perp"], BZ_NOTE, "/logos/instruments/crude-oil.svg"),
+  perp("BTCUSDT", "BTC", "Bitcoin Perpetual", "crypto", ["btcusdt", "btc perp"], PERP_NOTE, "/logos/coins/btc.svg"),
+  perp("ETHUSDT", "ETH", "Ethereum Perpetual", "crypto", ["ethusdt", "eth perp"], PERP_NOTE, "/logos/coins/eth.svg"),
+  perp("BNBUSDT", "BNB", "BNB Perpetual", "crypto", ["bnbusdt", "bnb perp"], PERP_NOTE, "/logos/coins/bnb.svg"),
+  perp("AKEUSDT", "AKE", "Akedo Perpetual", "crypto", ["akeusdt", "ake perp", "akedo"], PERP_NOTE, "/logos/instruments/perps/ake.png"),
+  perp("HEMIUSDT", "HEMI", "Hemi Perpetual", "crypto", ["hemiusdt", "hemi perp"], PERP_NOTE, "/logos/instruments/perps/hemi.png"),
+  perp("TUSDT", "T", "Threshold Perpetual", "crypto", ["tusdt", "t perp"], PERP_NOTE, "/logos/instruments/perps/t.png"),
+  perp("MUBARAKUSDT", "MUBARAK", "Mubarak Perpetual", "crypto", ["mubarakusdt", "mubarak perp"], PERP_NOTE, "/logos/instruments/perps/mubarak.png"),
+  perp("BULLAUSDT", "BULLA", "Bulla Perpetual", "crypto", ["bullausdt", "bulla perp"], PERP_NOTE, "/logos/instruments/perps/bulla.png"),
+  perp("EDGEUSDT", "EDGE", "edgeX Perpetual", "crypto", ["edgeusdt", "edge perp", "edgex"], PERP_NOTE, "/logos/instruments/perps/edge.jpg"),
+  perp("MAGMAUSDT", "MAGMA", "Magma Perpetual", "crypto", ["magmausdt", "magma perp"], PERP_NOTE, "/logos/instruments/perps/magma.png"),
+  perp("BTRUSDT", "BTR", "Bitlayer Perpetual", "crypto", ["btrusdt", "btr perp"], PERP_NOTE, "/logos/instruments/perps/btr.png"),
 ];
 
 const bySymbol = new Map(INSTRUMENTS.map((i) => [i.symbol.toUpperCase(), i]));

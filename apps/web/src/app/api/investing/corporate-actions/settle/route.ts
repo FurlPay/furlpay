@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
   account.tradeLots.splice(0, account.tradeLots.length, ...result.lots);
 
   if (result.cashToCredit > 0) {
-    recordMovement("in", result.cashToCredit, "Corporate action payout", userId);
+    await recordMovement("in", result.cashToCredit, "Corporate action payout", userId);
     recordTransaction(
       userId,
       newTx({

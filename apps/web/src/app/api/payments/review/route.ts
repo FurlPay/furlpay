@@ -38,7 +38,9 @@ export async function POST(req: NextRequest) {
   }
 
   const result =
-    decision === "approve" ? approvePayment(paymentId, approver) : rejectPayment(paymentId, approver, reason);
+    decision === "approve"
+      ? await approvePayment(paymentId, approver)
+      : rejectPayment(paymentId, approver, reason);
 
   if (!result.ok) {
     return NextResponse.json({ error: result.error, payment: result.record ?? null }, { status: result.status });

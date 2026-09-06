@@ -186,6 +186,45 @@ export async function getPerpQuotes(
 }
 
 /**
+ * What the provider says when asked directly, with nothing cached in the way.
+ *
+ * Called only when a request produced no quotes at all. Until this existed the
+ * route's single signal for a blocked region was `returned: 0` — which is also
+ * what an unknown symbol returns, and what a healthy exchange with no matching
+ * contracts would return. That ambiguity is precisely what let a 451 sit in
+ * production undiagnosed while the code passed every test and worked on every
+ * developer machine.
+ *
+ * /fapi/v1/ping is the cheapest endpoint Binance publishes and is subject to
+ * the same geo-restriction as the rest of the API, so it answers the actual
+ * question: can this region reach the provider at all?
+ */
+export async function probeUpstream(): Promise<{
+  reachable: boolean;
+  status: number | null;
+  detail: string;
+}> {
+  try {
+    const res = await fetch(`${FAPI}/ping`, {
+      headers: BROWSER_UA,
+      signal: AbortSignal.timeout(5_000),
+      cache: "no-store",
+    });
+    if (res.ok) return { reachable: true, status: res.status, detail: "reachable" };
+    return {
+      reachable: false,
+      status: res.status,
+      detail:
+        res.status === 451
+          ? "Binance refused this region (451 Unavailable For Legal Reasons). This function is not running outside the restricted jurisdiction — check the `functions` region pin in vercel.json."
+          : `Binance returned HTTP ${res.status}.`,
+    };
+  } catch {
+    return { reachable: false, status: null, detail: "Binance was unreachable (network error or timeout)." };
+  }
+}
+
+/**
  * Open interest for one contract.
  *
  * Separate because Binance only serves it per-symbol: twelve contracts is

@@ -60,6 +60,10 @@ export const MONEY_FLAGS = [
   "AI_TRADING_LIVE",
   "CROSS_CHAIN_STOCKS_LIVE",
   "HARDWARE_WALLET_LIVE",
+  "CARD_ISSUING_LIVE",
+  "BANKING_LIVE",
+  "ONRAMP_LIVE",
+  "OFFRAMP_LIVE",
 ] as const;
 
 export type MoneyFlag = (typeof MONEY_FLAGS)[number];
@@ -140,6 +144,47 @@ export const FLAG_SPECS: Record<MoneyFlag, FlagSpec> = {
     description: "Sign transactions with an external hardware wallet.",
     environments: ["development", "staging", "production"],
     requires: [],
+  },
+  BANKING_LIVE: {
+    description: "Move real fiat over a contracted banking / payment-aggregator partner.",
+    environments: ["staging", "production"],
+    requires: ["FURLPAY_BANKING_PARTNER", "FURLPAY_BANKING_PARTNER_API_KEY"],
+    unimplemented:
+      "No banking or payment-aggregator partner is contracted, and no adapter implements " +
+      "IndiaRailAdapter (lib/rails/india/types.ts). FurlPay cannot reach UPI, IMPS, NEFT or RTGS " +
+      "directly — those run through a bank or an RBI-authorised aggregator holding customer funds " +
+      "in escrow at a scheduled commercial bank. A flag cannot supply a licence.",
+  },
+  ONRAMP_LIVE: {
+    description: "Accept real fiat and deliver real crypto through a contracted on-ramp provider.",
+    environments: ["staging", "production"],
+    requires: ["FURLPAY_ONRAMP_PROVIDER", "FURLPAY_ONRAMP_PROVIDER_API_KEY"],
+    unimplemented:
+      "No on-ramp provider capability row has contractStatus 'live' " +
+      "(lib/providers/capability.ts — the matrix is empty) and no OnrampProviderAdapter is " +
+      "registered. Selection would find nothing, so enabling this could only produce a failure " +
+      "that looks like an outage instead of the honest 'this corridor does not exist'.",
+  },
+  OFFRAMP_LIVE: {
+    description: "Convert real crypto to real fiat and pay it to a customer's bank account.",
+    environments: ["staging", "production"],
+    requires: ["FURLPAY_OFFRAMP_PROVIDER", "FURLPAY_OFFRAMP_PROVIDER_API_KEY"],
+    unimplemented:
+      "No off-ramp provider is contracted and no OfframpProviderAdapter is registered. The " +
+      "off-ramp lifecycle also requires a verified-beneficiary path (penny drop or name match); " +
+      "paying an unverified account is how a substituted beneficiary gets paid.",
+  },
+  CARD_ISSUING_LIVE: {
+    description: "Issue, provision and authorise real payment cards through a contracted issuer.",
+    environments: ["staging", "production"],
+    // Named for the day an issuer exists. Until then `unimplemented` below wins
+    // over any env value, so setting these cannot turn the capability on.
+    requires: ["FURLPAY_CARD_ISSUER", "FURLPAY_CARD_ISSUER_API_KEY"],
+    unimplemented:
+      "No card issuer is integrated. api/cards mints a local object with a random last-4 and the label " +
+      '"Visa"; api/cards/spend runs the policy engine against nothing. A real card needs an issuer ' +
+      "processor, a BIN sponsor and a network licence — none of which a flag can supply, and all of " +
+      "which a fabricated card object misrepresents to the cardholder.",
   },
 };
 

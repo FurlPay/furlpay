@@ -34,7 +34,12 @@ export async function POST(req: NextRequest) {
     transfer: "Transfer · Arbitrum One",
   };
 
-  const result = debitAccount(auth.account.user.id, amountUsd, memo, purpose ? subtitleByPurpose[purpose] : undefined);
+  const result = await debitAccount(
+    auth.account.user.id,
+    amountUsd,
+    memo,
+    purpose ? subtitleByPurpose[purpose] : undefined
+  );
   if (!result.ok) {
     return NextResponse.json(
       { spent: false, error: result.error, balanceUsd: result.balanceUsd.toFixed(2) },

@@ -6,6 +6,7 @@ import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 import { sendEmail } from "@/lib/email";
 import { kycStatusEmail } from "@/lib/emailTemplates";
+import { kycTransitionAllowed, type KycState } from "@/lib/webhookOrdering";
 
 // POST /api/webhooks/persona — Persona KYC inquiry outcomes (async liveness).
 // Verifies the persona-signature header (constant-time, rotation-aware) before
@@ -60,6 +61,32 @@ export async function POST(request: Request) {
           });
         }
       } else if (eventType === "inquiry.failed" || status === "failed") {
+        // A KYC DEMOTION IS NOT SOMETHING A RETRY MAY DO.
+      //
+      // Providers deliver at-least-once with no ordering guarantee, so a
+      // delayed rejection event can arrive after a later approval — two
+      // different event ids, both new, both claimed by webhookGuard, and the
+      // second one silently walks a verified user back to unverified. By then
+      // they may hold a higher tier cap and have transacted against it.
+      // Genuine revocations exist; they are a compliance decision with an
+      // audit trail, not a redelivery. See lib/webhookOrdering.ts.
+        const current = account.user.kycStatus as KycState;
+        if (!kycTransitionAllowed(current, "unverified")) {
+          log.warn("refusing webhook KYC demotion", {
+            provider: "persona",
+            userId: account.user.id,
+            from: current,
+            inquiryId,
+          });
+          audit("webhook.processed", account.user.id, {
+            provider: "persona",
+            event: "inquiry.failed",
+            inquiryId,
+            refused: "kyc_demotion_requires_review",
+          });
+          await markProcessed(String(eventId));
+          return NextResponse.json({ received: true, refused: "kyc_demotion_requires_review" });
+        }
         setKycStatus(account.user.id, "unverified");
         audit("webhook.processed", account.user.id, { provider: "persona", event: "inquiry.failed", inquiryId });
         if (account.user.email) {

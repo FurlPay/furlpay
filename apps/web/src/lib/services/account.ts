@@ -38,13 +38,16 @@ export interface CreditResult {
   error?: string;
 }
 
-/** Credit the FurlPay account (e.g. after an x402 funding settles). */
-export function creditAccount(
+/** Credit the FurlPay account (e.g. after an x402 funding settles).
+ *
+ *  Async because the ledger posting is durable: the balance must not move
+ *  until Postgres has accepted the balanced entry. */
+export async function creditAccount(
   userId: string,
   amountUsd: number,
   memo: string,
   subtitle?: string
-): CreditResult {
+): Promise<CreditResult> {
   const entry = accountEntry(userId);
   if (!entry) return { ok: false, balanceUsd: 0, error: "account_not_found" };
 
@@ -58,7 +61,7 @@ export function creditAccount(
 
   // Ledger first: if the balanced posting fails, the balance must not move.
   try {
-    recordMovement("in", centsToUsd(cents), memo, userId);
+    await recordMovement("in", centsToUsd(cents), memo, userId);
   } catch (e) {
     log.error("creditAccount ledger posting failed", { userId, amountUsd, error: (e as Error).message });
     return { ok: false, balanceUsd: centsToUsd(usdToCents(entry.amount)), error: "ledger_error" };
@@ -90,12 +93,12 @@ export interface DebitResult {
 }
 
 /** Spend from the FurlPay account balance (booking, payout, card top-up). */
-export function debitAccount(
+export async function debitAccount(
   userId: string,
   amountUsd: number,
   memo: string,
   subtitle?: string
-): DebitResult {
+): Promise<DebitResult> {
   const entry = accountEntry(userId);
   if (!entry) return { ok: false, balanceUsd: 0, error: "account_not_found" };
 
@@ -112,7 +115,7 @@ export function debitAccount(
   }
 
   try {
-    recordMovement("out", centsToUsd(cents), memo, userId);
+    await recordMovement("out", centsToUsd(cents), memo, userId);
   } catch (e) {
     log.error("debitAccount ledger posting failed", { userId, amountUsd, error: (e as Error).message });
     return { ok: false, balanceUsd: centsToUsd(balanceCents), error: "ledger_error" };

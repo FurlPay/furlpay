@@ -1,6 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
-import { getSettlement, recordSettlement } from "@/lib/x402SettlementStore";
+import {
+  getSettlement,
+  pendingExpired,
+  recordSettlement,
+  PENDING_TIMEOUT_MS,
+} from "@/lib/x402SettlementStore";
+import { log } from "@/lib/log";
 import { checkSettlementOnChain } from "@/lib/x402Settler";
 import { requiredConfirmations } from "@/lib/x402";
 
@@ -29,11 +35,53 @@ export async function GET(req: NextRequest, props: { params: Promise<{ tx: strin
       await recordSettlement(confirmed);
       return NextResponse.json({ settled: true, settlement: confirmed });
     }
-    // Still pending (or RPC unavailable): report honestly; the client keeps
-    // polling instead of re-signing a duplicate payment.
+
+    // A PENDING SETTLEMENT NEEDS AN END STATE.
+    //
+    // Previously this branch had exactly two outcomes: confirmed, or keep
+    // polling. There was no third, so a transaction that was dropped from the
+    // mempool or replaced by a fee bump stayed "pending" forever — the client
+    // polled indefinitely, nothing was paged, and the payer may already have
+    // been debited. The nonce is burned either way, so the client cannot fix
+    // this by re-signing; only a human can. Past PENDING_TIMEOUT_MS this
+    // becomes terminal and loud.
+    if (pendingExpired(settlement)) {
+      const abandoned = {
+        ...settlement,
+        status: "abandoned" as const,
+        abandonedReason:
+          "Submitted on-chain but never reached the required confirmation depth within " +
+          `${Math.round(PENDING_TIMEOUT_MS / 60_000)} minutes. The transaction was most likely ` +
+          "dropped or replaced. The EIP-3009 nonce is burned, so this cannot be retried by " +
+          "re-signing the same authorization — it needs manual reconciliation against the chain.",
+      };
+      await recordSettlement(abandoned);
+      log.error("x402 settlement abandoned", {
+        tx: abandoned.transaction,
+        network: abandoned.network,
+        payer: abandoned.payer,
+        amountAtomic: abandoned.amountAtomic,
+      });
+      return NextResponse.json(
+        { settled: false, pending: false, abandoned: true, settlement: abandoned },
+        { status: 409 }
+      );
+    }
+
+    // Still genuinely pending (or the RPC is unavailable): report honestly; the
+    // client keeps polling instead of re-signing a duplicate payment.
     return NextResponse.json(
       { settled: false, pending: true, settlement, confirmations: onChain?.confirmations ?? 0 },
       { status: 202 }
+    );
+  }
+
+  // Terminal non-success states are not "settled". Saying so is the whole
+  // point: a client that reads `settled: true` ships goods.
+  if (settlement.status === "abandoned" || settlement.status === "replaced") {
+    return NextResponse.json(
+      { settled: false, pending: false, abandoned: settlement.status === "abandoned", settlement },
+      { status: 409 }
     );
   }
 

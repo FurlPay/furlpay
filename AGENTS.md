@@ -1,9 +1,16 @@
 # FurlPay — Agent Rules
 
-Turborepo monorepo. Web app + API: `apps/web` (Next.js 15 App Router). Deploys
-manually to Vercel prod (`npx vercel deploy --prod --yes` from repo root);
-pushing to GitHub does NOT deploy. Typecheck before committing:
-`cd apps/web && npx tsc --noEmit`.
+Turborepo monorepo. Web app + API: `apps/web` (Next.js 15 App Router). Typecheck
+before committing: `cd apps/web && npx tsc --noEmit`.
+
+**Deploying to production: `npm run deploy:prod` from the repo root.** Never
+`npx vercel deploy --prod` on its own. Pushing to GitHub does not deploy, so CI
+is advisory to the thing that actually ships — and ci.yml's own header records
+what that cost: two production deployments broken by a lint error on commits
+that had never run CI. `npm run deploy:prod` runs `predeploy` first, which
+refuses unless the tree is clean, HEAD is pushed, and the CI workflow reports
+success for that exact SHA (`apps/web/scripts/check-deploy-gate.mjs`).
+`FURLPAY_DEPLOY_FORCE=1` skips it, loudly, for an incident hotfix.
 
 ## Security rules (mandatory for all API routes)
 

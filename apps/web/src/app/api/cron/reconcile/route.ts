@@ -8,6 +8,7 @@ export const maxDuration = 60;
 import { requireCron } from "@/lib/cron/auth";
 import { runJob } from "@/lib/cron/runner";
 import { raiseAlert } from "@/lib/alerts";
+import { runReconciliation } from "@/lib/reconciliation";
 import { getBrokerageOrNull } from "@/lib/brokerage";
 import { reconcileUser, needsAttention } from "@/lib/brokerage/reconcile";
 import { syncOpenOrders, syncNeedsAttention } from "@/lib/brokerage/sync";
@@ -40,9 +41,71 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const outcome = await runJob("brokerage.reconcile", async (ctx) => {
+    // ---- 0. THE LEDGER ITSELF ------------------------------------------
+    //
+    // migration 0009 shipped two views for exactly this — `ledger_imbalance`
+    // and `payments_missing_ledger` — and its comment says they are "meant to
+    // be alerted on, not just queried by hand". Nothing alerted on them. A
+    // detection control nobody is paged by is a detection control that does not
+    // exist, and the second view is the most serious signal this system can
+    // produce: a payment marked settled with no ledger entry means money moved
+    // on-chain and was never recorded.
+    //
+    // Run FIRST, and independently of the brokerage: the books must be checked
+    // even on a deployment with no broker configured, which is every deployment
+    // today. That ordering is why the brokerage early-return moved below it.
+    try {
+      const books = await runReconciliation();
+      ctx.metric("ledger_checks", books.checks.length);
+      ctx.note(`Ledger reconciliation: ${books.status} (durable=${books.durable}).`);
+
+      for (const check of books.checks) {
+        if (check.severity === "ok") continue;
+        ctx.metric(check.severity === "critical" ? "ledger_critical" : "ledger_warnings", 1);
+        await raiseAlert({
+          kind: `ledger.${check.id}`,
+          severity: check.severity === "critical" ? "critical" : "high",
+          title:
+            check.id === "settled_without_ledger"
+              ? "A settled payment has no ledger entry"
+              : check.id === "ledger_balance"
+                ? "The ledger does not balance"
+                : "Ledger reconciliation is incomplete",
+          detail: check.summary,
+          // Fingerprinted per check so a standing break is one alert with a
+          // rising count, not a page every run.
+          dimensions: { check: check.id },
+          // The alert context is a flat scalar map by contract, and a check's
+          // `detail` is free-form. Coerce rather than cast: an object arriving
+          // in a Discord payload renders as "[object Object]", which is how a
+          // page ends up carrying no usable information.
+          context: Object.fromEntries(
+            Object.entries(check.detail ?? {}).map(([k, v]) => [
+              k,
+              typeof v === "string" || typeof v === "number" || typeof v === "boolean" || v === null
+                ? v
+                : JSON.stringify(v),
+            ])
+          ),
+        });
+      }
+    } catch (e) {
+      // runReconciliation() is documented never to throw; if it somehow does,
+      // that is itself the finding — a silent reconciliation is the failure
+      // mode this whole job exists to prevent.
+      ctx.metric("ledger_errors", 1);
+      await raiseAlert({
+        kind: "ledger.reconciliation_failed",
+        severity: "critical",
+        title: "Ledger reconciliation could not run",
+        detail: e instanceof Error ? e.message : "unknown error",
+        dimensions: { check: "runner" },
+      });
+    }
+
     const brokerage = getBrokerageOrNull();
     if (!brokerage) {
-      ctx.note("Brokerage is not available on this deployment; nothing to reconcile.");
+      ctx.note("Brokerage is not available on this deployment; nothing further to reconcile.");
       ctx.metric("skipped", 1);
       return;
     }

@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { setProvisioning, lifecycleView } from "@/lib/services/cardLifecycle";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,11 @@ const Provision = z.object({
 // sees the card in their wallet and has no idea why the terminal says no.
 // Removing is always allowed, so a customer can always clean up.
 export async function PATCH(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Device-wallet provisioning");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;

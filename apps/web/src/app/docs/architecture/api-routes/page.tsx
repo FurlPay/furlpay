@@ -156,9 +156,8 @@ curl -X POST https://furlpay.com/api/payments/review \\
       <H2 id="webhooks">Webhooks &amp; signature verification</H2>
       <EndpointTable
         rows={[
-          { method: "POST", path: "/api/webhooks/marqeta", desc: "Card processor events" },
-          { method: "POST", path: "/api/webhooks/bridge", desc: "On/off-ramp settlement events" },
-          { method: "POST", path: "/api/webhooks/wise", desc: "Local bank account events" },
+          { method: "POST", path: "/api/webhooks/card-auth", desc: "Card authorization / 3DS2 events" },
+          { method: "POST", path: "/api/webhooks/deposit-detect", desc: "On-chain deposit activity" },
         ]}
       />
       <P>

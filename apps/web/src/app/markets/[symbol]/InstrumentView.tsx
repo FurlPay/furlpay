@@ -61,6 +61,21 @@ const fmt = (n: number | null, currency: string): string => {
 const pct = (n: number | null): string =>
   n === null ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
 
+/**
+ * Who actually answered for this price.
+ *
+ * This used to be the literal string "Yahoo Finance (delayed)" on every
+ * instrument, which became false the moment a Binance perpetual rendered here:
+ * the page attributed a live Binance quote to a provider that has never heard
+ * of the symbol. Attribution is the one thing on a market page that must not be
+ * decorative, so it is derived from the instrument rather than typed.
+ */
+function priceSourceLabel(inst: MarketInstrument): string {
+  return inst.quoteSource === "binance-perp"
+    ? "Binance Futures (live)"
+    : "Yahoo Finance (delayed)";
+}
+
 export default function InstrumentView({
   instrument,
   quote,
@@ -200,7 +215,7 @@ export default function InstrumentView({
               <section className="surface-card p-5">
                 <h2 className="text-[14px] font-bold">Where these numbers come from</h2>
                 <dl className="mt-4 space-y-2.5 text-[12px]">
-                  <Line label="Price" value={`${quote?.providerSymbol ?? instrument.providerSymbol} · Yahoo Finance (delayed)`} />
+                  <Line label="Price" value={`${quote?.providerSymbol ?? instrument.providerSymbol} · ${priceSourceLabel(instrument)}`} />
                   <Line label="Instrument" value={`${assetClassLabel(instrument.assetClass)} · quoted in ${ccy}`} />
                   {instrument.baseAsset && instrument.quoteAsset && (
                     <Line label="Pair" value={`${instrument.baseAsset} / ${instrument.quoteAsset}`} />
@@ -358,7 +373,7 @@ export default function InstrumentView({
         <div className="surface-card p-4">
           <h2 className="text-[13px] font-bold">Where these numbers come from</h2>
           <dl className="mt-3 space-y-2 text-[12px]">
-            <Line label="Price" value={`${quote?.providerSymbol ?? instrument.providerSymbol} · Yahoo Finance (delayed)`} />
+            <Line label="Price" value={`${quote?.providerSymbol ?? instrument.providerSymbol} · ${priceSourceLabel(instrument)}`} />
             <Line label="Instrument" value={`${assetClassLabel(instrument.assetClass)} · quoted in ${ccy}`} />
             {instrument.baseAsset && instrument.quoteAsset && (
               <Line label="Pair" value={`${instrument.baseAsset} / ${instrument.quoteAsset}`} />

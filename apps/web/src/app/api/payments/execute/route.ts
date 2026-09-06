@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   if (!parsed.ok) return parsed.res;
   const { paymentId, payer, signature } = parsed.data;
 
-  const result = executePayment(paymentId, payer, signature, auth.account.user.id);
+  const result = await executePayment(paymentId, payer, signature, auth.account.user.id);
 
   // Paused for human compliance review (HITL): 202 Accepted, not an error —
   // the client should poll GET /api/payments/:id until it settles or blocks.

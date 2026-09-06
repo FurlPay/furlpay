@@ -166,10 +166,43 @@ export async function instrumentQuote(
 // a correct label — the single easiest way to make a market page lie.
 // ---------------------------------------------------------------------------
 
-import { getPerpQuotes } from "@/lib/markets/perps/binance";
+import { getPerpQuotes, type PerpQuote } from "@/lib/markets/perps/binance";
+
+/**
+ * Where the perps API lives, absolutely.
+ *
+ * This page renders on the server in the project's default region, which is
+ * exactly the region Binance refuses. The one hop through our own API is what
+ * moves the egress to Frankfurt — see the note on /api/markets/perps.
+ *
+ * FURLPAY_ORIGIN is read as a LIST. It is set that way elsewhere in the app
+ * (lib/webauthn.ts splits it on commas to allow several relying-party origins),
+ * so treating it as a single URL here would build
+ * "https://furlpay.com,https://www.furlpay.com/api/..." on any deployment that
+ * used the plural form — a request that cannot succeed and would look exactly
+ * like the provider being down.
+ *
+ * VERCEL_PROJECT_PRODUCTION_URL is preferred over VERCEL_URL because the latter
+ * is the per-deployment hostname, which Deployment Protection answers with 401
+ * to a server fetch carrying no credentials.
+ */
+function perpsEndpoint(symbol: string): string | null {
+  const origin =
+    process.env.FURLPAY_ORIGIN?.split(",")[0]?.trim() ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "");
+  if (!/^https?:\/\//.test(origin)) return null;
+  return `${origin.replace(/\/$/, "")}/api/markets/perps?symbols=${encodeURIComponent(symbol)}`;
+}
 
 async function perpInstrumentQuote(inst: MarketInstrument): Promise<InstrumentQuote | null> {
-  const [q] = await getPerpQuotes([inst.providerSymbol]);
+  const url = perpsEndpoint(inst.providerSymbol);
+  // No configured origin means local development, where there is no restricted
+  // region to route around and the provider can be called directly.
+  const q = url ? await viaApi(url) : (await getPerpQuotes([inst.providerSymbol]))[0];
   // No quote means the contract could not be priced. Null, never a zeroed row.
   if (!q) return null;
 
@@ -201,4 +234,21 @@ async function perpInstrumentQuote(inst: MarketInstrument): Promise<InstrumentQu
     providerNote: inst.providerNote ?? null,
     providerSymbol: q.symbol,
   };
+}
+
+/** One perp quote from our own region-pinned route. */
+async function viaApi(url: string): Promise<PerpQuote | undefined> {
+  try {
+    const res = await fetch(url, {
+      signal: AbortSignal.timeout(8_000),
+      // The route already caches upstream for 10s; this hop must not add a
+      // second, longer cache on top of it.
+      cache: "no-store",
+    });
+    if (!res.ok) return undefined;
+    const j = (await res.json()) as { quotes?: PerpQuote[] };
+    return j.quotes?.[0];
+  } catch {
+    return undefined;
+  }
 }

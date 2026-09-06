@@ -7,6 +7,7 @@ import { PaymentCard } from "@/lib/types";
 import type { UserAccount } from "@/lib/store";
 import { validateBody } from "@/lib/validate";
 import { withIdempotency } from "@/lib/idempotency";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 
 const IssueCardBody = z.object({
   cardType: z.enum(["virtual", "physical"]),
@@ -25,6 +26,11 @@ export async function GET(req: NextRequest) {
 // Retries are safe: send an Idempotency-Key header (UUID) — a duplicate key
 // replays the original response instead of issuing a second card.
 export async function POST(req: NextRequest) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Card issuing");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;

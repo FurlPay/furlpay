@@ -8,6 +8,7 @@ import { recordSecurityEvent } from "@/lib/ops/events";
 import { orderCard, lifecycleView } from "@/lib/services/cardLifecycle";
 import { getSubscription } from "@/lib/services/membership";
 import { ShippingAddressSchema, CardLabelSchema } from "@/lib/cardSchemas";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +29,11 @@ const Order = z.object({
 // Idempotent per user: ordering charges an issuance fee, so a retry after a
 // timeout must not produce two cards.
 export async function POST(req: NextRequest) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Card ordering");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;

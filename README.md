@@ -43,10 +43,26 @@ The Stripe + Coinbase of stablecoins and fractional investing. Furlpay is a
 stablecoin-first financial super-app plus a full developer ecosystem and a
 programmatic compliance stack, built as a Turborepo monorepo.
 
-Every third-party integration (Safe/MPC, Circle CCTP, Bridge, Wise, Li.Fi,
-Alpaca, Marqeta, Chainalysis, Persona, Notabene) runs in mock/sandbox mode by
-default, so the entire repository runs end to end with zero API keys and zero
-cost.
+Most third-party integrations run in mock/sandbox mode by default, so the
+repository runs end to end with zero API keys and zero cost. Be precise about
+what that means per integration, because "an adapter exists" and "the
+integration exists" are different claims:
+
+- **Real when credentialed:** Turnkey (remote signing), Coinbase CDP (hosted
+  fiat on-ramp), LI.FI (swap routing), Circle CCTP (calldata), Stripe, Persona,
+  Sumsub, QuickNode/Alchemy deposit webhooks.
+- **Real, credential-free:** the x402 / EIP-3009 settlement path — the one rail
+  that moves money end to end today.
+- **Interface only, no provider:** Travel Rule (`travelRule.ts` transmits
+  nothing), KMS backends other than Turnkey, card issuing.
+- **Not present at all:** Rain, and every Indian fiat rail (UPI / IMPS / NEFT /
+  RTGS). There is no INR collection or payout anywhere in this repository. The
+  only UPI code is `native-app/lib/upi.ts`, a deep-link handoff to the user's
+  own PSP app in which FurlPay never touches the money.
+- **Deleted 6 Sep 2026:** the Bridge, Wise and Marqeta webhook endpoints. They
+  verified FurlPay's own outbound HMAC envelope rather than each provider's
+  scheme, so they could never have accepted a real event from any of the three,
+  and they shared one secret.
 
 This is an architecture reference and prototype, not a licensed financial
 product. Production deployment requires custody/EMI partners, security audits,
@@ -130,7 +146,7 @@ graph TD
     end
 
     subgraph Services["Service seams (mock now, live later)"]
-        MPC["MPC / HSM: Turnkey, Fireblocks"]
+        MPC["Remote signer (custodial): Turnkey"]
         SAFE["Safe / ERC-4337 + Paymaster"]
         CCTP["Circle CCTP V2"]
         LIFI["Li.Fi / 1inch"]
@@ -174,7 +190,7 @@ sequenceDiagram
     participant R as Risk engine
     participant S as Step-up MFA
     participant P as Policy + AML
-    participant M as MPC (share A + B)
+    participant M as Remote signer (Turnkey, custodial)
     participant C as Chain
 
     U->>W: Authorize transfer
@@ -185,8 +201,8 @@ sequenceDiagram
     S-->>API: verify TOTP / WebAuthn
     API->>P: velocity + limits + AML screen
     P-->>API: approved
-    API->>M: client share A + server share B co-sign
-    Note over M: server share refuses if policy failed
+    API->>M: digest + spend context (policy checked client-side first)
+    Note over M: route refuses out-of-policy; enclave refuses again
     M-->>API: signature
     API->>C: gas-sponsored transfer (Paymaster)
     C-->>U: settled
@@ -326,7 +342,7 @@ furlpay-monorepo/
     ui/            Design tokens and primitives
     types/         Shared domain primitives (chains, stablecoins, regions)
     compliance/    KYC, AML, MiCA, GENIUS, FCA, Travel Rule, webhook signatures
-    security/      2-of-2 MPC, RFC 6238 TOTP, step-up MFA, device/behavioral risk
+    security/      signing policy gates, RFC 6238 TOTP, step-up MFA, device risk
     elements/      Embeddable checkout button and secure card input
     account-kit/   Safe deployment, paymaster config, escrow bindings
     cli/           Command-line interface
@@ -402,11 +418,21 @@ Security and compliance:
 - `GET /api/compliance/jurisdiction` per-region regime, routing, and rail
 - `POST /api/compliance/travel-rule` FATF Travel Rule payload
 
-Webhooks (signature-verified, idempotent):
+Inbound webhooks (signature-verified against the SENDING provider's own
+scheme, idempotent, fail closed when the secret is unset):
 
-- `POST /api/webhooks/bridge`
-- `POST /api/webhooks/wise`
-- `POST /api/webhooks/marqeta`
+- `POST /api/webhooks/stripe` — `stripe-signature`
+- `POST /api/webhooks/persona` — `persona-signature`
+- `POST /api/webhooks/sumsub` — `x-payload-digest` + `x-payload-digest-alg`
+- `POST /api/webhooks/deposit-detect` — QuickNode / Alchemy HMAC + timestamp
+- `POST /api/webhooks/complyadvantage` — provider signature
+- `POST /api/webhooks/card-auth` — `FURLPAY_CARDAUTH_ENDPOINT_SECRET`
+
+Endpoints named for Bridge, Wise and Marqeta were **deleted**. They verified
+FurlPay's *own* outbound HMAC envelope rather than each provider's scheme, so
+they could never have accepted a real event from any of those three — and they
+shared one secret, which meant a single leak forged all of them. There is no
+contract with any of the three; the honest route count is zero.
 
 The complete OpenAPI 3.1 specification is served at `/openapi.json`.
 
@@ -465,9 +491,25 @@ Defense in depth. Full details in [SECURITY.md](./SECURITY.md).
 - Passkey (WebAuthn) authentication mints an HttpOnly session cookie; Next.js
   middleware gates pages and protected APIs (public allowlist: auth, webhooks,
   checkout, signup KYC).
-- 2-of-2 MPC signing model (`@furlpay/security`): client share bound to the
-  passkey, server share in an HSM; the server share refuses to co-sign unless
-  the off-chain policy gate approves (anti-Gnosis-Pay design).
+- **Two signers, and they are not equivalent — read this before trusting the
+  word "MPC" anywhere else in this file.**
+  - **On-device key** (`native-app/lib/signing/deviceKeySigner.ts`): a BIP-39
+    seed in biometric-gated SecureStore, never transmitted. Genuinely
+    self-custodial. The phone both holds the key and draws the confirmation, so
+    `trustedDisplay` is `false` — that is what a hardware signer would fix.
+  - **Remote signer** (Turnkey, via `/api/mpc/sign`): **CUSTODIAL.** Turnkey
+    signs a digest inside an enclave and returns a COMPLETE signature. The
+    device contributes no share; it verifies that the returned signature
+    recovers to the expected address, which is a correct check and is not
+    participation in a threshold scheme. Anything holding the Turnkey
+    organisation credential can move the funds behind any wallet in that
+    organisation. Calling this "2-of-2" overstates it, and the overstatement is
+    not cosmetic: custodial VDA custody changes FIU-IND scope, insurance and
+    balance-sheet treatment.
+  - What IS 2-of-2 is the POLICY path: the client refuses to request an
+    out-of-policy signature, `/api/mpc/sign` refuses to forward one, and
+    Turnkey's own enclave policy refuses to produce one. Three independent
+    gates, each of which can fail without opening the others.
 - Step-up MFA for high-value or sensitive actions: transfers >= USD 5,000 and
   card/settlement/payee changes require a second factor. FIDO2 hardware keys
   preferred; RFC 6238 TOTP as backup (`/api/security/mfa`, secret never
@@ -587,7 +629,8 @@ Done (Phase 1):
   credentials (`/api/compliance/tier`, `/api/compliance/credential`).
 - Jurisdiction resolver for per-region stablecoin, promotion, and rail routing
   (`/api/compliance/jurisdiction`).
-- Defense-in-depth security: 2-of-2 MPC, step-up MFA (TOTP), device risk engine.
+- Defense-in-depth security: three independent policy gates on remote signing,
+  step-up MFA (TOTP), device risk engine.
 
 Done (Phase 2 so far):
 

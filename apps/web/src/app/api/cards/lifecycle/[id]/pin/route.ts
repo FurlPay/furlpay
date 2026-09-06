@@ -6,6 +6,7 @@ import { validateBody } from "@/lib/validate";
 import { setPin, verifyPin, lifecycleView, getLifecycle } from "@/lib/services/cardLifecycle";
 import { PinSchema } from "@/lib/cardSchemas";
 import { recordSecurityEvent } from "@/lib/ops/events";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +19,11 @@ const VerifyPin = z.object({ pin: PinSchema });
 // PIN can show it to whoever takes over your session; the PIN is stored salted
 // and scrypt-hashed and is never recoverable, only replaceable.
 export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Card PIN management");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;
@@ -51,6 +57,11 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
 // is the cheapest oracle to script against, and the body carries what the
 // customer actually needs — how many tries are left, and when the lock lifts.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Card PIN management");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;

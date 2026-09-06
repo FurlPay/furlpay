@@ -64,7 +64,7 @@ export async function POST(request: Request) {
       const amountUsd = (pi.amount_received ?? pi.amount) / 100;
 
       if (target) {
-        recordMovement("in", amountUsd, `Stripe payment ${pi.id}`, target.user.id);
+        await recordMovement("in", amountUsd, `Stripe payment ${pi.id}`, target.user.id);
         recordTransaction(
           target.user.id,
           newTx({

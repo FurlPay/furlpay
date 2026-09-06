@@ -100,7 +100,7 @@ ${c.bold("Examples")}
 
 async function main() {
   const cfg = loadConfig();
-  const secret = flags.secret || cfg.secret || cfg.key || "whsec_sandbox_bridge";
+  const secret = flags.secret || cfg.secret || cfg.key || "whsec_sandbox_local";
 
   switch (command) {
     // ---- auth & config ----------------------------------------------------
@@ -209,7 +209,7 @@ async function main() {
       console.log(c.dim("Streaming live logs (Ctrl+C to stop)…\n"));
       const lines = [
         "200 POST /api/wallets/transfer  gasSponsored=true",
-        "202 POST /api/webhooks/marqeta  jit_funding.approved=true",
+        "202 POST /api/webhooks/card-auth  decision=approve",
         "403 POST /api/wallets/transfer  blocked_by_aml",
         "200 GET  /api/investing/portfolio",
         "200 POST /api/swaps  route=USDT->USDC base",

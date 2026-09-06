@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   const parsed = parse(RefundSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
-  const result = refundPayment(parsed.data.paymentId, auth.account.user.id);
+  const result = await refundPayment(parsed.data.paymentId, auth.account.user.id);
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.status });
 
   const r = result.record!;

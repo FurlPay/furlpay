@@ -1,4 +1,13 @@
-import { ledgerImbalance, paymentsMissingLedger, paymentsDurable } from "@/lib/paymentsDb";
+import {
+  ledgerImbalance,
+  paymentsMissingLedger,
+  paymentsDurable,
+  ftxSettledWithoutLedger,
+  ftxCompletedWithoutEvidence,
+  ftxStaleInFlight,
+  ftxAwaitingReview,
+  type FtxFindingRow,
+} from "@/lib/paymentsDb";
 import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
@@ -59,6 +68,64 @@ function worst(checks: ReconciliationCheck[]): ReconciliationSeverity {
     (acc, c) => (RANK[c.severity] > RANK[acc] ? c.severity : acc),
     "ok"
   );
+}
+
+/**
+ * Run one view-backed check and append its result.
+ *
+ * Factored out because the four 0014 checks differ only in which view they read
+ * and what a non-empty result means. Three outcomes, and the middle one is the
+ * one that gets forgotten when this is written inline four times:
+ *
+ *   view unavailable -> WARN. The migration is not applied. An empty result
+ *                       from a table that does not exist is not "clean", and
+ *                       reporting it as ok is the exact false green this module
+ *                       exists to avoid.
+ *   rows found       -> the check's own severity.
+ *   no rows          -> ok.
+ *
+ * Never throws: a reconciliation run that dies tells an operator nothing, and a
+ * monitor that errors is usually muted.
+ */
+async function runFtxCheck(
+  checks: ReconciliationCheck[],
+  spec: {
+    id: string;
+    severity: Exclude<ReconciliationSeverity, "ok">;
+    read: () => Promise<FtxFindingRow[] | null>;
+    bad: (count: number) => string;
+    good: string;
+  }
+): Promise<void> {
+  try {
+    const rows = await spec.read();
+    if (!rows) {
+      checks.push({
+        id: spec.id,
+        severity: "warn",
+        summary: `${spec.id}: view unavailable — migration 0014 may not be applied.`,
+      });
+      return;
+    }
+    if (rows.length > 0) {
+      checks.push({
+        id: spec.id,
+        severity: spec.severity,
+        summary: spec.bad(rows.length),
+        // Ids only. This reaches an ops console and a chat webhook, so it
+        // carries no counterparty, address or PII.
+        detail: { count: rows.length, transactionIds: rows.slice(0, 20).map((r) => r.id) },
+      });
+      return;
+    }
+    checks.push({ id: spec.id, severity: "ok", summary: spec.good });
+  } catch (e) {
+    checks.push({
+      id: spec.id,
+      severity: "critical",
+      summary: `${spec.id} check failed: ${(e as Error).message}`,
+    });
+  }
 }
 
 /**
@@ -159,6 +226,48 @@ export async function runReconciliation(): Promise<ReconciliationReport> {
       summary: `Orphan-payment check failed: ${(e as Error).message}`,
     });
   }
+
+  // 3-6. The transaction envelope (migration 0014).
+  //
+  // Each of these is a distinct failure that the two ledger checks above cannot
+  // see, because they only compare the books against themselves. A transaction
+  // can be internally consistent and still be wrong about the outside world.
+  await runFtxCheck(checks, {
+    id: "ftx_settled_without_ledger",
+    severity: "critical",
+    read: () => ftxSettledWithoutLedger(100),
+    bad: (n) =>
+      `${n} transaction(s) are SETTLED or COMPLETED with no ledger entry — value moved and was never recorded.`,
+    good: "Every settled transaction has a ledger entry.",
+  });
+
+  await runFtxCheck(checks, {
+    id: "ftx_completed_without_evidence",
+    severity: "critical",
+    read: () => ftxCompletedWithoutEvidence(100),
+    bad: (n) =>
+      `${n} transaction(s) are COMPLETED carrying no provider, bank or chain reference. ` +
+      "lifecycle.ts refuses that transition, so something wrote the state directly.",
+    good: "Every completed transaction carries evidence.",
+  });
+
+  await runFtxCheck(checks, {
+    id: "ftx_stale_in_flight",
+    // Warn, not critical: a stale transaction is a customer waiting, which is
+    // urgent but is not the same as money being unaccounted for.
+    severity: "warn",
+    read: () => ftxStaleInFlight(100),
+    bad: (n) => `${n} transaction(s) are past their deadline and still in flight.`,
+    good: "No transaction is overdue.",
+  });
+
+  await runFtxCheck(checks, {
+    id: "ftx_awaiting_review",
+    severity: "warn",
+    read: () => ftxAwaitingReview(200),
+    bad: (n) => `${n} transaction(s) are held for compliance or manual review.`,
+    good: "No transaction is awaiting review.",
+  });
 
   const report: ReconciliationReport = { checkedAt, durable, status: worst(checks), checks };
 

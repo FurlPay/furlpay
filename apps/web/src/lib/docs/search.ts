@@ -176,11 +176,11 @@ export const SEARCH_INDEX: SearchDoc[] = [
     keywords: ["POST /api/investing/order", "investing", "order", "stocks", "etf", "fractional", "alpaca"],
   },
   {
-    title: "webhooks/marqeta",
+    title: "webhooks/card-auth",
     section: "API Routes",
     href: "/docs/architecture/api-routes#webhooks",
-    snippet: "Card processor callbacks (marqeta), plus bridge and wise webhooks.",
-    keywords: ["webhooks/marqeta", "webhooks", "marqeta", "bridge", "wise", "callback", "signature verification"],
+    snippet: "Inbound webhooks: card authorization, on-chain deposit detection, Stripe, Persona, Sumsub.",
+    keywords: ["webhooks/card-auth", "webhooks", "card-auth", "deposit-detect", "callback", "signature verification"],
   },
 
   // ---- Payments --------------------------------------------------------

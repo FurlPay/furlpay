@@ -274,25 +274,16 @@ function seedDemoAccount(): UserAccount {
       { token: "XSGD", chain: "arbitrum", amount: 2500.0, usdValue: 1950.0 },
       { token: "XUSD", chain: "ethereum", amount: 750.0, usdValue: 750.0 },
     ],
+    // Demo fiat balances carry NO localDetails. They used to carry a routing
+    // number attributed to a real US bank, a Wise IBAN/SWIFT pair, and a
+    // personal UPI handle — fabricated payable destinations for institutions
+    // FurlPay has no relationship with. A balance is a number we owe the demo
+    // user; an account number is a claim about a bank. Only the first is ours
+    // to seed. Same reasoning as api/banking/route.ts.
     fiatBalances: [
-      {
-        currency: "USD",
-        amount: 3200.0,
-        usdValue: 3200.0,
-        localDetails: { routingNumber: "026073150", accountNumber: "8942100133" },
-      },
-      {
-        currency: "EUR",
-        amount: 1500.0,
-        usdValue: 1635.0,
-        localDetails: { iban: "BE71 0961 2345 6769", swift: "TRWIBEB1XXX" },
-      },
-      {
-        currency: "INR",
-        amount: 42000.0,
-        usdValue: 503.4,
-        localDetails: { accountNumber: "UPI: ashutosh@superapp" },
-      },
+      { currency: "USD", amount: 3200.0, usdValue: 3200.0 },
+      { currency: "EUR", amount: 1500.0, usdValue: 1635.0 },
+      { currency: "INR", amount: 42000.0, usdValue: 503.4 },
     ],
     holdings: [
       // costBasis = what the user actually paid; live prices re-mark marketValue.

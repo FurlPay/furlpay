@@ -131,7 +131,7 @@ export default function WalletSection({ profile }: { profile: Profile }) {
           hint="An internal identifier for this account — not a wallet, and not an address to send funds to."
         >
           <span className="break-all font-mono text-[11.5px] text-textMuted">
-            {profile.safeAddress}
+            {profile.accountReference}
           </span>
         </Row>
 

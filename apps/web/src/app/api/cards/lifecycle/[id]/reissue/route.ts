@@ -7,6 +7,7 @@ import { withIdempotency } from "@/lib/idempotency";
 import { reissueCard, lifecycleView } from "@/lib/services/cardLifecycle";
 import { ShippingAddressSchema, CardLabelSchema } from "@/lib/cardSchemas";
 import { recordSecurityEvent } from "@/lib/ops/events";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,11 @@ const Reissue = z.object({
 //
 // Idempotent per user: reissuing charges a fee and mints a card.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  // No issuer is contracted: this route cannot produce a real card
+  // credential or authorization. See lib/cardIssuer.ts.
+  const unavailable = cardIssuerOr503("Card reissue");
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;
