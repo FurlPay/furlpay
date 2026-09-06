@@ -120,9 +120,40 @@ export interface RealStats {
  * Rights (`.RT`, 16 symbols) are deliberately not mapped. They are short-lived
  * instruments and no Yahoo spelling was found that resolves them, so they fall
  * through to the generic rewrite and miss honestly. */
+/**
+ * Coins whose bare `SYMBOL-USD` pair on Yahoo is a DIFFERENT asset.
+ *
+ * Yahoo lists thousands of tokens and hands the unsuffixed pair to whichever
+ * one claimed the ticker first, which is frequently not the one anybody means.
+ * Left uncorrected this does not fail — it returns a confident, wrong price,
+ * which is the single worst failure mode a money surface has. Measured against
+ * the live API rather than assumed:
+ *
+ *   HYPE-USD -> "Supreme Finance"   $0.0000054   (Hyperliquid is ~$88)
+ *   TON-USD  -> "TON Token"         $0.0052      (Toncoin is ~$1.44)
+ *   SUI-USD  -> "Salmonation"       $0.0003      (Sui is ~$0.81)
+ *   APT-USD  -> "Apricot Finance"   $0.00013     (Aptos is ~$0.63)
+ *
+ * Yahoo disambiguates with a numeric suffix, so the real listing is reachable;
+ * each id below was confirmed to return the right name, a plausible price and
+ * a full 52-week range before being added.
+ *
+ * This is a deny-list of KNOWN collisions, not a proof that the rest are
+ * clean. A ticker that is unambiguous today can be claimed tomorrow by a new
+ * listing, and the only way to catch that is to re-run the check. When adding
+ * a coin to the catalog, verify its `-USD` pair resolves to the right asset
+ * before trusting the Yahoo-derived statistics on its page.
+ */
+const YAHOO_CRYPTO_OVERRIDES: Readonly<Record<string, string>> = {
+  HYPE: "HYPE32196-USD",
+  TON: "TON11419-USD",
+  SUI: "SUI20947-USD",
+  APT: "APT21794-USD",
+};
+
 export function yahooSymbolFor(symbol: string, kind: string): string {
   const upper = symbol.toUpperCase();
-  if (kind === "crypto") return `${upper}-USD`;
+  if (kind === "crypto") return YAHOO_CRYPTO_OVERRIDES[upper] ?? `${upper}-USD`;
 
   // Preferred series: ABR.PRD -> ABR-PD. The series letter is optional, since
   // a single-series issuer tags it plain `.PR`.
