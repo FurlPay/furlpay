@@ -360,16 +360,20 @@ export default function OurFoundersPage() {
             <h1 id="founders-heading">Building the financial rails for the agentic internet.</h1>
           </div>
 
-          {/* The photograph, as supplied. 500×500 source, served square. */}
+          {/* The photograph, as supplied — no filter, no retouching. The circle
+              is a compositional crop applied in CSS rather than a second file,
+              so the full 500×500 source stays available for the social card. */}
           <figure className="founder-portrait">
-            <Image
-              src={PORTRAIT}
-              alt="Ashutosh Kumar Singh, founder of FurlPay"
-              width={500}
-              height={500}
-              priority
-              sizes="(max-width: 900px) 380px, 42vw"
-            />
+            <div className="portrait-circle">
+              <Image
+                src={PORTRAIT}
+                alt="Ashutosh Kumar Singh, founder of FurlPay"
+                width={500}
+                height={500}
+                priority
+                sizes="300px"
+              />
+            </div>
             <figcaption>Ashutosh Kumar Singh · Founder &amp; CEO</figcaption>
             <ul className="founder-socials">
               {SOCIALS.map((s) => (

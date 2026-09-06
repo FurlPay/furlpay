@@ -270,22 +270,68 @@
 /* ── Portrait ──────────────────────────────────────────────────────────── */
 
 .founder-portrait {
-  position: relative;
   margin: 0;
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  background: var(--panel);
-  padding: 10px;
-  box-shadow: 0 30px 60px -30px #000000a0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.founder-portrait img {
+/* The circle.
+ *
+ * Capped at 300px rather than sized to the grid column. At 42vw the portrait
+ * was ~500px on a desktop viewport, which made it the loudest element on a page
+ * about a company; a headshot does its job at a fraction of that.
+ */
+.portrait-circle {
+  position: relative;
+  width: min(300px, 74vw);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: 0 24px 48px -24px #000000c0;
+}
+
+/*
+ * The crop, derived by measurement rather than by eye.
+ *
+ * Face detection on the 500x500 source puts the face centre at 49.7% across
+ * and 36.5% down, with the face box spanning y 63-302. Shown uncropped in a
+ * circle, that composition rides high: the face sits well above centre and the
+ * lower third fills with shirt and tie.
+ *
+ * So the circle shows source region x 48-448, y 10-410 - a 400px window that
+ * places the face centre 43% down the frame, which is where portrait
+ * convention puts it (dead-centre reads as a mugshot), with 108px below the
+ * chin for neck and upper shoulders.
+ *
+ * ON HEADROOM, which this deliberately does not have: the supplied photograph
+ * is itself cropped at the top of the head - the hair reaches row 0 of the
+ * source - so there is no space above it to crop toward. Extending the canvas
+ * with synthesized background was tried and rejected: the fitted background
+ * carried a visible warm cast at the join, and adding space above a flat-cut
+ * hairline only advertises the cut. The circle's curvature handles the
+ * hairline far better than a straight edge would. A version with real
+ * headroom needs a source shot with room above the head.
+ *
+ * Done in CSS rather than by cropping the file, so the full-resolution
+ * original remains available for the Open Graph card, where a tight circular
+ * crop would be the wrong shape.
+ *
+ * Geometry: 500/400 = 1.25, so the image renders at 125% of the circle;
+ * offsets are the crop origin scaled the same way (48/500 x 125% = 12%,
+ * 10/500 x 125% = 2.5%).
+ */
+.portrait-circle img {
+  position: absolute;
+  width: 125%;
+  height: 125%;
+  max-width: none;
+  left: -12%;
+  top: -2.5%;
+  object-fit: cover;
   display: block;
-  width: 100%;
-  height: auto;
-  border-radius: 12px;
-  /* The photograph is shown as supplied — no filter, no overlay, no gradient
-     across the face. The only treatment is the frame around it. */
 }
 
 .founder-portrait figcaption {
@@ -293,7 +339,8 @@
   font: 500 10px/1.4 "JetBrains Mono", monospace;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  margin: 12px 4px 4px;
+  text-align: center;
+  margin: 16px 0 0;
 }
 
 /* Social profiles, sitting under the portrait inside its frame.
@@ -302,9 +349,10 @@
 .founder-socials {
   list-style: none;
   display: flex;
+  justify-content: center;
   gap: 8px;
   padding: 0;
-  margin: 10px 2px 2px;
+  margin: 14px 0 0;
 }
 
 .founder-socials a {
@@ -657,7 +705,6 @@
   }
   .founder-portrait {
     order: 2;
-    max-width: 380px;
   }
   .founder-identity {
     order: 3;
@@ -684,8 +731,8 @@
     padding: 18px 0;
     text-align: center;
   }
-  .founder-portrait {
-    max-width: none;
+  .portrait-circle {
+    width: min(240px, 62vw);
   }
   .founder-experience li {
     flex-direction: column;
