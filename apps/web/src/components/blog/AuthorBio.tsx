@@ -34,6 +34,21 @@ export default function AuthorBio({ author }: { author: string }) {
           {a.credentials ? ` · ${a.credentials}` : ""}
         </p>
         <p className="mt-2 text-[13px] leading-relaxed text-textSecondary">{a.bio}</p>
+        {/* An internal link to the entity home, on every article that carries
+            this byline. Google forms a person entity from the pages that point
+            at it with a consistent name; a byline that links only to a
+            per-author archive gives it nothing to point AT. External profile
+            links below are `rel="author"` but leave the site. */}
+        {a.isPerson && a.url?.startsWith("https://furlpay.com/") && (
+          <p className="mt-2 text-[13px]">
+            <Link
+              href={a.url.replace("https://furlpay.com", "")}
+              className="text-neon transition-colors hover:text-white"
+            >
+              More about {a.name.split(" ")[0]} →
+            </Link>
+          </p>
+        )}
         {a.sameAs.length > 0 && (
           <div className="mt-3 flex flex-wrap gap-3 text-[12px]">
             {a.sameAs.map((href) => (

@@ -23,7 +23,9 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "", priority: 1.0, changeFrequency: "weekly" as const },
     { path: "/pricing", priority: 0.9, changeFrequency: "monthly" as const },
     { path: "/about", priority: 0.7, changeFrequency: "monthly" as const },
-    { path: "/our-founders", priority: 0.6, changeFrequency: "monthly" as const },
+    // The entity home for the founder — the page every Person node on the
+    // site points at. Ranked with /about rather than below it.
+    { path: "/our-founders", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/talk-to-us", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/newsletter", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/changelog", priority: 0.7, changeFrequency: "weekly" as const },

@@ -85,6 +85,11 @@ const JSON_LD = {
       url: SITE,
       logo: `${SITE}/icon.png`,
       email: "hello@furlpay.com",
+      // Points the company at ONE Person node, the same `@id` /our-founders
+      // emits. Without this the site has an Organization and a Person that
+      // Google has no stated reason to connect, and "who founded FurlPay" has
+      // no machine-readable answer anywhere on the domain.
+      founder: { "@id": `${SITE}/#founder` },
       sameAs: [
         "https://github.com/Ashutosh0x/furlpay",
         "https://x.com/furlpayglobal",
@@ -93,6 +98,22 @@ const JSON_LD = {
         "https://linkedin.com/company/furlpay",
         "https://discord.gg/PUExXrMt3z",
         "https://t.me/FurlpayBot",
+      ],
+    },
+    {
+      // The founder, defined once at site level. /our-founders enriches this
+      // same `@id` with the portrait, credentials and full biography; every
+      // other page still resolves the reference rather than dangling.
+      "@type": "Person",
+      "@id": `${SITE}/#founder`,
+      name: "Ashutosh Kumar Singh",
+      jobTitle: "Founder & CEO, FurlPay",
+      url: `${SITE}/our-founders`,
+      sameAs: [
+        "https://www.linkedin.com/in/ashutosh-kumar-singh951/",
+        "https://x.com/0xAshutosh",
+        "https://github.com/Ashutosh0x",
+        "https://instagram.com/ashutosh0x",
       ],
     },
     {

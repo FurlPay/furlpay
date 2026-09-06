@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import JsonLd from "@/components/JsonLd";
 import { seoMetadata } from "@/lib/seo/meta";
-import { breadcrumb, ORG_ID, SITE } from "@/lib/seo/schema";
+import { breadcrumb, faqPage, ORG_ID, SITE } from "@/lib/seo/schema";
 import "./founders.css";
 
 // ---------------------------------------------------------------------------
@@ -48,6 +48,16 @@ export const metadata: Metadata = {
     // generic site image loses the one thing that makes it worth opening.
     image: PORTRAIT,
   }),
+  // One English page, offered to every English-speaking market rather than
+  // split into per-country copies. Google's guidance is that a single page
+  // cannot rank well in several countries at once — but the honest alternative
+  // here is not eight near-identical founder pages, which is a doorway pattern
+  // and would be treated as one. `x-default` says "this is the version for
+  // everyone else", which is exactly true of a founder page.
+  alternates: {
+    canonical: PATH,
+    languages: { "x-default": URL, en: URL },
+  },
   // `absolute` opts out of the root layout's "%s — Furlpay" template, which
   // would otherwise render "… | FurlPay — Furlpay". Google truncates titles
   // around 60 characters, so a duplicated brand costs real SERP width.
@@ -145,6 +155,63 @@ const CERTIFICATIONS = [
   { name: "Professional Cloud Security Engineer", issuer: "Google Cloud" },
 ];
 
+/**
+ * The questions people actually type.
+ *
+ * FAQPage is the highest-yield schema for AI Overview citations, and these are
+ * phrased as the queries themselves — "who is the founder of FurlPay", not
+ * "About the founder" — because the match Google is making is between a
+ * question and an answer, not between two headings.
+ *
+ * Every answer is drawn from what is stated on this page. An FAQ that asserts
+ * something the page does not is a rich result built on a claim nobody can
+ * check against the visible content.
+ */
+const FAQ = [
+  {
+    q: "Who is the founder of FurlPay?",
+    a: "FurlPay was founded by Ashutosh Kumar Singh, who serves as Founder and CEO. He is also a Software Engineer at Skyhigh Security, and has previously worked at Google and as a Cybersecurity Engineer at Quantiphi.",
+  },
+  {
+    q: "Who is the CEO of FurlPay?",
+    a: "Ashutosh Kumar Singh is the Founder and CEO of FurlPay. He leads the company's work on stablecoin settlement, agentic payments over the x402 standard, and the transaction-security boundary that governs how payments are authorized.",
+  },
+  {
+    q: "How do I contact the founder of FurlPay?",
+    a: "Ashutosh Kumar Singh can be reached directly at founder@furlpay.com. General enquiries go to hello@furlpay.com. He is also on LinkedIn at linkedin.com/in/ashutosh-kumar-singh951 and on X as @0xAshutosh.",
+  },
+  {
+    q: "Can founders and companies outside India contact FurlPay directly?",
+    a: "Yes. FurlPay works with founders, engineering teams and payment companies internationally, including in the United States, the United Kingdom, the United Arab Emirates, Hong Kong and across Asia. Email founder@furlpay.com in English; there is no regional gatekeeping and no contact form in between.",
+  },
+  {
+    q: "What certifications does Ashutosh Kumar Singh hold?",
+    a: "He holds the Google Cloud Professional Cloud Architect and Google Cloud Professional Cloud Security Engineer certifications. Both are credentials issued by Google Cloud to individuals who pass its examinations.",
+  },
+  {
+    q: "What does FurlPay build?",
+    a: "FurlPay builds payment infrastructure for a web where software, not only people, moves money: USDC settlement across Arbitrum, Base, Ethereum and Solana, per-request agent payments over the open x402 standard, and a single authorization boundary in which simulation, device attestation, user confirmation and the signature must all commit to the same canonical transaction.",
+  },
+];
+
+/**
+ * Where FurlPay's work already reaches.
+ *
+ * These are markets the product itself addresses — the repository carries
+ * dedicated UK, UAE and Japan surfaces, and settlement is in USDC, which has no
+ * country. Listing them is a statement about REACH, not about offices: FurlPay
+ * has no premises in any of them and this page does not imply otherwise.
+ */
+const MARKETS = [
+  "United States",
+  "United Kingdom",
+  "United Arab Emirates",
+  "Hong Kong",
+  "Singapore",
+  "Japan",
+  "India",
+];
+
 /** What he actually builds, described from this repository rather than invented. */
 const WORK = [
   {
@@ -205,6 +272,7 @@ export default function OurFoundersPage() {
               ],
             },
           },
+          faqPage(FAQ),
           breadcrumb([
             { name: "Home", path: "/" },
             { name: "Our Founders", path: PATH },
@@ -342,6 +410,59 @@ export default function OurFoundersPage() {
             <Link className="nav-link" href="/about">
               About FurlPay <span aria-hidden="true">↗</span>
             </Link>
+          </div>
+        </section>
+
+        {/* The reason this page exists: to be a door, not a brochure. Google's
+            FAQ rich results require the answer to be VISIBLE on the page, so
+            these are rendered, not only marked up. */}
+        <section className="founders-section" aria-labelledby="contact-heading">
+          <p className="section-eyebrow">Get in touch</p>
+          <h2 className="section-title" id="contact-heading">
+            Email him directly.
+          </h2>
+          <p className="section-sub">
+            No contact form, no routing queue. FurlPay works with founders,
+            engineering teams and payment companies internationally — write in English from
+            wherever you are.
+          </p>
+          <ul className="credential-list" aria-label="Email addresses">
+            {EMAILS.map((address) => (
+              <li key={address}>
+                <span aria-hidden="true" className="credential-mark">
+                  @
+                </span>
+                <a className="contact-address" href={`mailto:${address}`}>
+                  {address}
+                </a>
+                <span className="credential-issuer">
+                  {address.startsWith("founder") ? "Founder" : "General"}
+                </span>
+              </li>
+            ))}
+          </ul>
+          {/* Markets the PRODUCT reaches. Stated as reach, never as offices —
+              FurlPay has premises in none of them. */}
+          <p className="markets-label">FurlPay&apos;s work reaches</p>
+          <ul className="markets-list">
+            {MARKETS.map((m) => (
+              <li key={m}>{m}</li>
+            ))}
+          </ul>
+        </section>
+
+        <section className="founders-section" aria-labelledby="faq-heading">
+          <p className="section-eyebrow">Questions</p>
+          <h2 className="section-title" id="faq-heading">
+            Frequently asked
+          </h2>
+          <div className="faq-list">
+            {FAQ.map((item) => (
+              <details className="faq-item" key={item.q}>
+                <summary>{item.q}</summary>
+                <p>{item.a}</p>
+              </details>
+            ))}
           </div>
         </section>
 

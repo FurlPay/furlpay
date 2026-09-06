@@ -17,16 +17,40 @@ export type Author = {
   isPerson: boolean; // true → schema.org/Person, false → Organization byline
 };
 
+// ---------------------------------------------------------------------------
+// ONE PERSON ENTITY, EVERYWHERE.
+//
+// This record is the byline on every article, so it is also where Google forms
+// its idea of who "Ashutosh Kumar Singh" is. Three things here were quietly
+// working against that, and all three are the "data friction" that stops an
+// entity resolving:
+//
+//   1. `url` pointed at GitHub. That made GITHUB the entity home for the
+//      person — every article's Person node sent Google somewhere we do not
+//      control and cannot mark up. It is now /our-founders, which exists to be
+//      exactly that page.
+//   2. `sameAs` listed the COMPANY accounts (x.com/furlpayglobal,
+//      linkedin.com/company/furlpay) on a PERSON node — an explicit assertion
+//      that the man and the company are the same entity. They are now his
+//      personal profiles, which is what `sameAs` is for.
+//   3. `role` said "Software Engineer at Skyhigh Security · Building Furlpay"
+//      while /our-founders says "Founder & CEO, FurlPay". A site that gives two
+//      job titles for one person is a site Google waits on.
+// ---------------------------------------------------------------------------
+
 const FOUNDER: Author = {
   name: "Ashutosh Kumar Singh",
-  role: "Software Engineer at Skyhigh Security · Building Furlpay",
+  role: "Founder & CEO, FurlPay · Software Engineer at Skyhigh Security",
   credentials: "NeurIPS 2026 author · Google DeepMind contributor · ex-Quantiphi",
   bio: "Ashutosh is a Software Engineer at Skyhigh Security (previously Quantiphi), working across ML systems and cloud infrastructure. He is a contributor to Google DeepMind and a NeurIPS 2026 author. He is building Furlpay: stablecoin payments, travel booking, and investing in one client — settled on Arbitrum. Pay in USDC, book 2.2M+ stays and flights, and let AI agents pay per-request via x402. Phishing-resistant. Compliance-aware. Zero gas.",
-  url: "https://github.com/Ashutosh0x",
+  // The entity home: the one page on this site that answers "who is this?".
+  url: "https://furlpay.com/our-founders",
+  avatar: "/team/ashutosh-kumar-singh.jpg",
   sameAs: [
+    "https://www.linkedin.com/in/ashutosh-kumar-singh951/",
+    "https://x.com/0xAshutosh",
     "https://github.com/Ashutosh0x",
-    "https://x.com/furlpayglobal",
-    "https://linkedin.com/company/furlpay",
+    "https://instagram.com/ashutosh0x",
   ],
   isPerson: true,
 };
