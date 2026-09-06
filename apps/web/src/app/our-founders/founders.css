@@ -490,65 +490,141 @@
   margin-right: 10px;
 }
 
-/* ── FAQ ───────────────────────────────────────────────────────────────── */
+/* ── Products ──────────────────────────────────────────────────────────── */
 
-.faq-list {
+/* Twelve columns so a card can span 6 (featured) or 4 (standard) without a
+   second grid. Wallet and Travel are the consumer-facing products and take the
+   wider span; the rest sit three-up beneath them. */
+.product-grid {
+  margin: 28px 0 0;
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+}
+
+.product-card {
+  grid-column: span 4;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 22px;
+  text-decoration: none;
+  transition: border-color 0.18s, background 0.18s, transform 0.18s;
+}
+
+.product-card.is-featured {
+  grid-column: span 6;
+  /* A slightly lifted surface rather than a different hue — the emphasis has
+     to read at a glance without introducing a colour the site does not use. */
+  background: linear-gradient(180deg, #16211b 0%, var(--panel) 100%);
+}
+
+.product-card:hover {
+  border-color: #00e59966;
+  background: #00e5990a;
+  transform: translateY(-2px);
+}
+
+.product-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.product-card h3 {
+  color: var(--foreground);
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.product-card > p {
+  color: var(--muted);
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.product-card ul {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.product-card li {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--foreground);
+  font: 500 11px/1.4 "JetBrains Mono", monospace;
+  letter-spacing: 0.02em;
+}
+
+.product-more {
+  color: var(--accent);
+  /* Pushed to the bottom so the affordance lines up across cards of unequal
+     copy length. */
+  margin: 18px 0 0;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── Devices ───────────────────────────────────────────────────────────── */
+
+.device-list {
+  list-style: none;
+  padding: 0;
   margin: 26px 0 0;
   border-top: 1px solid var(--border);
 }
 
-.faq-item {
+.device-list li {
+  display: grid;
+  grid-template-columns: 8.5rem 8rem 1fr;
+  align-items: baseline;
+  gap: 14px;
+  padding: 14px 0;
   border-bottom: 1px solid var(--border);
 }
 
-.faq-item summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 16px 32px 16px 0;
-  position: relative;
+.device-name {
   color: var(--foreground);
   font-size: 15px;
-  font-weight: 500;
-  letter-spacing: -0.01em;
-  transition: color 0.18s;
+  font-weight: 600;
 }
 
-/* Safari draws its own disclosure triangle unless this is cleared too. */
-.faq-item summary::-webkit-details-marker {
-  display: none;
+/* The status is a word, not a colour alone — WCAG 1.4.1: colour must never be
+   the only carrier of meaning. */
+.device-state {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font: 600 10px/1.6 "JetBrains Mono", monospace;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
-.faq-item summary::after {
-  content: "+";
-  position: absolute;
-  right: 4px;
-  top: 50%;
-  transform: translateY(-50%);
+.device-state--live {
   color: var(--accent);
-  font: 400 18px/1 "JetBrains Mono", monospace;
+  background: #00e5990f;
+  border: 1px solid #00e59955;
 }
 
-.faq-item[open] summary::after {
-  content: "−";
-}
-
-.faq-item summary:hover {
-  color: var(--accent);
-}
-
-.faq-item summary:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-  border-radius: 4px;
-}
-
-.faq-item p {
+.device-state--building {
   color: var(--muted);
-  max-width: 72ch;
-  margin: 0;
-  padding: 0 32px 18px 0;
+  background: #ffffff08;
+  border: 1px solid var(--border);
+}
+
+.device-note {
+  color: var(--muted);
   font-size: 14px;
-  line-height: 1.65;
+  line-height: 1.5;
 }
 
 .founders-links {
@@ -582,6 +658,12 @@
   .work-grid {
     grid-template-columns: 1fr;
   }
+  /* Two-up on tablet: a 4-column span in a 12-column grid becomes unreadably
+     narrow well before the phone breakpoint. */
+  .product-card,
+  .product-card.is-featured {
+    grid-column: span 6;
+  }
 }
 
 @media (max-width: 560px) {
@@ -604,13 +686,27 @@
   .experience-company {
     min-width: 0;
   }
+  .product-card,
+  .product-card.is-featured {
+    grid-column: span 12;
+  }
+  /* Stack the device row: three columns at 8.5rem + 8rem + note cannot fit a
+     360px viewport without the note wrapping to one word per line. */
+  .device-list li {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .founders-page .nav-link,
   .founder-socials a,
-  .founder-contact a {
+  .founder-contact a,
+  .product-card {
     transition: none;
+  }
+  .product-card:hover {
+    transform: none;
   }
   .founders-page .nav-link:active,
   .founder-socials a:active {

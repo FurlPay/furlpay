@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import JsonLd from "@/components/JsonLd";
 import { seoMetadata } from "@/lib/seo/meta";
-import { breadcrumb, faqPage, ORG_ID, SITE } from "@/lib/seo/schema";
+import { breadcrumb, ORG_ID, SITE } from "@/lib/seo/schema";
 import "./founders.css";
 
 // ---------------------------------------------------------------------------
@@ -156,41 +156,97 @@ const CERTIFICATIONS = [
 ];
 
 /**
- * The questions people actually type.
+ * What FurlPay actually does.
  *
- * FAQPage is the highest-yield schema for AI Overview citations, and these are
- * phrased as the queries themselves — "who is the founder of FurlPay", not
- * "About the founder" — because the match Google is making is between a
- * question and an answer, not between two headings.
+ * Every line here is the SITE'S OWN wording, lifted from /products, the
+ * landing sections and the product pages — not new copy written for this
+ * section. That is deliberate: a founder page that describes the product in
+ * different words from the product pages creates two versions of what FurlPay
+ * is, and a reader who notices the difference trusts neither.
  *
- * Every answer is drawn from what is stated on this page. An FAQ that asserts
- * something the page does not is a rich result built on a claim nobody can
- * check against the visible content.
+ * Sources, so a future editor can check rather than guess:
+ *   payments / merchant / travel / wallet / x402  -> src/app/products/page.tsx
+ *   travel one-liner                              -> components/landing/BuildSection.tsx
+ *   agent wallet + human approval                 -> components/landing/BuildSection.tsx
+ *   2-of-2 MPC custody                            -> src/app/products/wallet/page.tsx
+ *   card kinds and limits                         -> lib/types.ts, src/app/cards/page.tsx
+ *
+ * `emphasis` marks the two consumer-facing products that get a wider card.
  */
-const FAQ = [
+const PRODUCTS = [
   {
-    q: "Who is the founder of FurlPay?",
-    a: "FurlPay was founded by Ashutosh Kumar Singh, who serves as Founder and CEO. He is also a Software Engineer at Skyhigh Security, and has previously worked at Google and as a Cybersecurity Engineer at Quantiphi.",
+    name: "Stablecoins & payments",
+    href: "/products/payments",
+    emphasis: false,
+    body: "Accept and send USDC on Arbitrum with sub-second settlement and a live fee API. Merchants take stablecoin payments online with hosted checkout, receipts and refunds.",
+    points: ["USDC payments", "Hosted checkout", "On-chain settlement", "Programmable payouts"],
   },
   {
-    q: "Who is the CEO of FurlPay?",
-    a: "Ashutosh Kumar Singh is the Founder and CEO of FurlPay. He leads the company's work on stablecoin settlement, agentic payments over the x402 standard, and the transaction-security boundary that governs how payments are authorized.",
+    name: "Travel",
+    href: "/products/travel",
+    emphasis: true,
+    body: "Book hotels and flights and pay in USDC, with on-chain receipts and rewards. Stays and flights paid in stablecoins, settled on-chain.",
+    points: ["Hotels and stays", "Flights", "Paid in stablecoins", "On-chain receipts"],
   },
   {
-    q: "How do I contact the founder of FurlPay?",
-    a: "Ashutosh Kumar Singh can be reached directly at founder@furlpay.com. General enquiries go to hello@furlpay.com. He is also on LinkedIn at linkedin.com/in/ashutosh-kumar-singh951 and on X as @0xAshutosh.",
+    name: "Wallet",
+    href: "/products/wallet",
+    emphasis: true,
+    body: "A passkey-secured MPC wallet — phishing-resistant, with no seed phrase to lose. The signing key is split 2-of-2, so neither FurlPay nor a single device can move funds alone.",
+    points: ["No seed phrase", "2-of-2 MPC custody", "Multi-asset balances", "Wallet handles"],
   },
   {
-    q: "Can founders and companies outside India contact FurlPay directly?",
-    a: "Yes. FurlPay works with founders, engineering teams and payment companies internationally, including in the United States, the United Kingdom, the United Arab Emirates, Hong Kong and across Asia. Email founder@furlpay.com in English; there is no regional gatekeeping and no contact form in between.",
+    name: "Cards",
+    href: "/cards",
+    emphasis: false,
+    body: "Virtual and physical cards that spend from the same balance, with a daily limit, a per-purchase limit and a freeze you control.",
+    points: ["Virtual cards", "Physical cards", "Daily limits", "Freeze on demand"],
   },
   {
-    q: "What certifications does Ashutosh Kumar Singh hold?",
-    a: "He holds the Google Cloud Professional Cloud Architect and Google Cloud Professional Cloud Security Engineer certifications. Both are credentials issued by Google Cloud to individuals who pass its examinations.",
+    name: "x402 for AI agents",
+    href: "/products/x402",
+    emphasis: false,
+    body: "Give an autonomous agent its own wallet, a spending policy it cannot exceed, and the ability to pay per API call over x402 — with human approval required before money moves.",
+    points: ["Agent wallets", "Spending policies", "Pay per API call", "Human approval"],
+  },
+];
+
+/**
+ * Device availability, stated as it actually is.
+ *
+ * `state` is copied from /downloads, which is the site's own source of truth:
+ * the Android build has no published Play listing, and the iOS client has not
+ * been submitted. The Wear OS status comes from the launch post in
+ * lib/blog/posts.ts, which says physical-device testing and a Play listing are
+ * still ahead.
+ *
+ * If any of these ship, update /downloads FIRST and copy it here — one place
+ * to be wrong is better than two places that disagree.
+ */
+const DEVICES = [
+  {
+    name: "Web",
+    state: "Live",
+    tone: "live",
+    note: "Use FurlPay in any modern browser today.",
   },
   {
-    q: "What does FurlPay build?",
-    a: "FurlPay builds payment infrastructure for a web where software, not only people, moves money: USDC settlement across Arbitrum, Base, Ethereum and Solana, per-request agent payments over the open x402 standard, and a single authorization boundary in which simulation, device attestation, user confirmation and the signature must all commit to the same canonical transaction.",
+    name: "Android",
+    state: "In build",
+    tone: "building",
+    note: "A signed release build exists; the Play listing is not published yet.",
+  },
+  {
+    name: "iOS",
+    state: "In build",
+    tone: "building",
+    note: "The client builds on macOS CI and has not been submitted to the App Store.",
+  },
+  {
+    name: "Wear OS",
+    state: "In development",
+    tone: "building",
+    note: "A Kotlin companion app, validated on the Wear OS 5 emulator. Physical-device testing and a store listing are still ahead.",
   },
 ];
 
@@ -272,7 +328,6 @@ export default function OurFoundersPage() {
               ],
             },
           },
-          faqPage(FAQ),
           breadcrumb([
             { name: "Home", path: "/" },
             { name: "Our Founders", path: PATH },
@@ -413,9 +468,7 @@ export default function OurFoundersPage() {
           </div>
         </section>
 
-        {/* The reason this page exists: to be a door, not a brochure. Google's
-            FAQ rich results require the answer to be VISIBLE on the page, so
-            these are rendered, not only marked up. */}
+        {/* The reason this page exists: to be a door, not a brochure. */}
         <section className="founders-section" aria-labelledby="contact-heading">
           <p className="section-eyebrow">Get in touch</p>
           <h2 className="section-title" id="contact-heading">
@@ -451,18 +504,74 @@ export default function OurFoundersPage() {
           </ul>
         </section>
 
-        <section className="founders-section" aria-labelledby="faq-heading">
-          <p className="section-eyebrow">Questions</p>
-          <h2 className="section-title" id="faq-heading">
-            Frequently asked
+        {/* What FurlPay does — the product, not the founder.
+            Replaces an FAQ that answered "who is the CEO"; a visitor who lands
+            here should understand the product within a few seconds, and the
+            founder is already the whole hero above. */}
+        <section className="founders-section" aria-labelledby="product-heading">
+          <p className="section-eyebrow">What FurlPay does</p>
+          <h2 className="section-title" id="product-heading">
+            One financial platform for payments, stablecoins, travel and your everyday wallet.
           </h2>
-          <div className="faq-list">
-            {FAQ.map((item) => (
-              <details className="faq-item" key={item.q}>
-                <summary>{item.q}</summary>
-                <p>{item.a}</p>
-              </details>
+          <p className="section-sub">
+            FurlPay brings payments, stablecoins, cards, travel and digital wallets into one
+            financial platform — a simpler way for people and businesses to move, hold and spend
+            money across the modern internet.
+          </p>
+
+          <div className="product-grid">
+            {PRODUCTS.map((p) => (
+              <Link
+                className={`product-card${p.emphasis ? " is-featured" : ""}`}
+                href={p.href}
+                key={p.name}
+              >
+                <h3>{p.name}</h3>
+                <p>{p.body}</p>
+                <ul>
+                  {p.points.map((point) => (
+                    <li key={point}>{point}</li>
+                  ))}
+                </ul>
+                <span aria-hidden="true" className="product-more">
+                  Learn more →
+                </span>
+              </Link>
             ))}
+          </div>
+        </section>
+
+        {/* Devices. Deliberately NOT written as "available on Android, iOS and
+            Wear OS" — /downloads says the Android build has no Play listing and
+            the iOS client has not been submitted, and the Wear OS post says a
+            store listing is still ahead. Claiming otherwise here would make the
+            site contradict itself on the one page a sceptical reader checks. */}
+        <section className="founders-section" aria-labelledby="devices-heading">
+          <p className="section-eyebrow">Across your devices</p>
+          <h2 className="section-title" id="devices-heading">
+            Your wallet in your pocket — and on your wrist.
+          </h2>
+          <p className="section-sub">
+            One account, one balance and the same spending controls wherever you open FurlPay. The
+            web app is live today; the native clients are built and not yet in the app stores, and
+            we would rather say so than show you a store badge that goes nowhere.
+          </p>
+          <ul className="device-list">
+            {DEVICES.map((d) => (
+              <li key={d.name}>
+                <span className="device-name">{d.name}</span>
+                <span className={`device-state device-state--${d.tone}`}>{d.state}</span>
+                <span className="device-note">{d.note}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="founders-links">
+            <Link className="nav-link" href="/downloads">
+              Get FurlPay <span aria-hidden="true">↗</span>
+            </Link>
+            <Link className="nav-link" href="/products">
+              All products <span aria-hidden="true">↗</span>
+            </Link>
           </div>
         </section>
 
