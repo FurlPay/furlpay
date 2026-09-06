@@ -83,11 +83,15 @@ export const POSTS: Post[] = [
       "Prediction markets give the CLARITY Act a 15% chance of becoming law in 2026 — and 50% by January 2028. The bill is late, not dead. Meanwhile JPMorgan settles more than $7bn a day in tokenized deposits without waiting for it. What the 15 September Senate vote actually decides, what atomic settlement does and does not fix, and why the strongest objections come from the people who understand market structure best.",
     category: "compliance",
     date: "2026-09-07",
-    readMins: 18,
+    readMins: 23,
     author: "Ashutosh Kumar Singh",
     featured: true,
     cover: "/blog/clarity-act-odds.svg",
     body: [
+      {
+        type: "quote",
+        text: "STATUS — last checked 7 September 2026. The cloture vote on the motion to proceed is scheduled for 2:15 p.m. ET on Tuesday 15 September 2026 and has not yet taken place. This page is updated in place after the vote rather than replaced, so the analysis below is what we published beforehand.",
+      },
       {
         type: "p",
         text: "On Tuesday 15 September 2026 at 2:15 p.m. Eastern, the United States Senate votes on a motion to proceed on H.R. 3633, the Digital Asset Market Clarity Act. It is not a vote on the bill. It is a vote on whether the Senate may begin debating it, and it needs 60 of 100 votes. Republicans hold 53 seats, so at least seven Democrats have to cross.",
@@ -99,6 +103,128 @@ export const POSTS: Post[] = [
       {
         type: "p",
         text: "That distinction is the whole argument of this piece. A bill that dies for want of votes and a bill that dies for want of floor time look identical on a probability chart and imply opposite strategies for anyone building financial infrastructure. This article is about which one this is, and what follows from the answer.",
+      },
+      { type: "h2", text: "The CLARITY Act in 60 seconds" },
+      {
+        type: "p",
+        text: "WHAT IT IS. A bill (H.R. 3633) that would write into law which digital assets are securities, which are commodities, and which are payment stablecoins — and which federal agency regulates each. Right now that question has no statutory answer, which is the problem it exists to solve.",
+      },
+      {
+        type: "p",
+        text: "WHAT HAPPENS ON 15 SEPTEMBER 2026. The Senate votes at 2:15 p.m. Eastern on whether to START DEBATING the bill. It needs 60 of 100 votes.",
+      },
+      {
+        type: "p",
+        text: "DOES IT BECOME LAW THAT DAY? No. This is the first of at least five more steps. A successful vote opens debate; it does not pass anything.",
+      },
+      {
+        type: "p",
+        text: "WHY ANYONE SHOULD CARE. The same rules would govern how exchanges operate, who is allowed to hold digital assets on your behalf, whether banks can custody them, and whether shares in a company can legally be issued and settled as digital records. That last one is why this is a financial-markets story, not only a crypto story.",
+      },
+      {
+        type: "p",
+        text: "WILL IT PASS? Probably not this year. As of 6 September 2026, prediction markets priced roughly 15% for enactment in 2026 and roughly 50% for a market-structure law by January 2028. The obstacle is the congressional calendar, not the votes.",
+      },
+      { type: "h2", text: "Two ways to read this" },
+      {
+        type: "p",
+        text: "This article is written for two different readers and you should skip accordingly. If you want the answer: read the 60 seconds above, then 'What happens on 15 September', then the FAQ at the end. That is about four minutes and you will understand the situation better than most coverage of it.",
+      },
+      {
+        type: "p",
+        text: "If you want the analysis: the sections from 'Why this is a market-infrastructure bill' onward assume you know what a settlement cycle is, and go into netting, atomic settlement, the SEC/CFTC perimeter and what institutions are already building. That is the part written for people who do this professionally.",
+      },
+      { type: "h2", text: "Why this matters even if you never buy crypto" },
+      {
+        type: "p",
+        text: "The word 'crypto' does most of the damage in coverage of this bill, because it makes the whole subject sound optional. Here is the version that is not about crypto at all.",
+      },
+      {
+        type: "p",
+        text: "Every time you buy a share, the trade and the actual exchange of money for ownership happen on different days. Since May 2024 that gap in the US is one business day — T+1. A large amount of financial machinery exists purely to carry the risk across that gap: collateral posted, margin held, procedures for when delivery fails. It works. It is also expensive, and the expense is ultimately paid by whoever is investing.",
+      },
+      {
+        type: "p",
+        text: "Technology now exists to make the trade and the settlement the same event, so that ownership and payment change hands simultaneously or not at all. That is a genuine improvement to how markets work, and it is not a cryptocurrency — it is a settlement method. But in the United States, no one can legally issue a mainstream share that settles this way at scale, because the law does not clearly say who regulates such an instrument or who may hold it for you.",
+      },
+      {
+        type: "quote",
+        text: "The CLARITY Act is not really a bill about crypto. It is a bill about whether American financial infrastructure is allowed to be upgraded, and by whom.",
+      },
+      {
+        type: "p",
+        text: "That is why banks care, why exchanges care, and why this is being fought over by people with no interest in digital assets as an investment.",
+      },
+      { type: "h2", text: "What actually happens on 15 September" },
+      {
+        type: "p",
+        text: "The single most common error in coverage of this vote is treating it as a vote on the bill. It is not. Here is the full path from Tuesday to law.",
+      },
+      {
+        type: "diagram",
+        text: "15 SEP 2026, 2:15 p.m. ET\n        |\n        v\n  CLOTURE VOTE on the motion to proceed\n  Needs 60 of 100. GOP holds 53 seats,\n  so >= 7 Democrats must vote yes.\n        |\n        +---- FAILS --> bill stalls. Not dead;\n        |                out of floor time this year.\n        v\n  SUCCEEDS --> formal Senate DEBATE opens\n        |\n        v\n  AMENDMENTS  (the stablecoin perimeter\n               fight happens here)\n        |\n        v\n  SENATE PASSAGE VOTE   <-- a separate vote\n        |\n        v\n  RECONCILE with the House text (H.R. 3633\n  passed the House in July 2025)\n        |\n        v\n  PRESIDENT signs\n        |\n        v\n      LAW",
+      },
+      {
+        type: "quote",
+        text: "15 September is not the day the CLARITY Act becomes law. It is the day the Senate decides whether it is allowed to talk about it.",
+      },
+      {
+        type: "p",
+        text: "The Senate is expected to leave Washington around 17 September and not return until after the midterm elections. That is why a vote to open debate matters so much: without floor time immediately afterwards, even a successful cloture vote produces no further progress this year.",
+      },
+      { type: "h2", text: "SEC or CFTC: who regulates what" },
+      {
+        type: "p",
+        text: "THE FIFTEEN-SECOND VERSION. The SEC regulates securities — investments in an enterprise, where you are relying on other people's efforts to make you money. The CFTC regulates commodities and their derivatives. The fight is that digital assets do not obviously sit in either box, and until a statute says which, the same asset can be argued into either agency's remit depending on who is arguing.",
+      },
+      {
+        type: "p",
+        text: "WHAT THE BILL WOULD DO. It creates a category called 'digital commodities' — assets whose value derives from the use of a decentralised blockchain protocol rather than from a company's managerial efforts — and gives the CFTC exclusive jurisdiction over their spot markets. The SEC keeps digital securities and primary-market fundraising for tokens that begin life as securities.",
+      },
+      {
+        type: "p",
+        text: "WHY THAT IS A BIGGER DEAL THAN IT SOUNDS. The CFTC's remit has historically been derivatives, not spot markets. Supervising cash markets in digital commodities would be a genuinely new function: registering and examining trading venues, running surveillance across venues that trade continuously, and setting customer-protection standards. That is a resourcing question as much as a legal one.",
+      },
+      {
+        type: "p",
+        text: "One correction worth making, because it appears constantly: the CFTC cannot pass the CLARITY Act, cannot amend it, and does not choose its own jurisdiction. Congress writes statutes; agencies implement them. Any argument that a regulator 'should pass' this bill is describing a system that does not exist.",
+      },
+      { type: "h2", text: "What tokenized equities actually are" },
+      {
+        type: "p",
+        text: "A tokenized equity is a share in a company whose ownership is recorded as a transferable digital record rather than solely in the books of a central depository. The company, the claim on its earnings, the voting rights and the disclosure obligations are all unchanged. What changes is the plumbing.",
+      },
+      {
+        type: "table",
+        headers: ["", "A share today", "A tokenized share"],
+        rows: [
+          ["What you own", "A claim on the company", "The same claim on the same company"],
+          ["Where ownership sits", "Broker's books, netted through a central depository", "A transferable record, held directly or by a custodian"],
+          ["When settlement happens", "One business day after the trade (T+1)", "Potentially at the moment of the trade"],
+          ["When you can trade", "Roughly 32.5 hours a week", "Potentially continuously"],
+          ["Who regulates it", "The SEC. Settled law", "The SEC — but custody and transfer rules are the open question"],
+        ],
+        highlightCol: 2,
+      },
+      {
+        type: "quote",
+        text: "Tokenizing a share does not make the economic claim disappear. It changes how ownership is recorded and how transfer settles — which is precisely why the legal question is about custody and transfer, not about the share.",
+      },
+      {
+        type: "p",
+        text: "This is why the bill matters to equities at all. A tokenized share is still a security and the SEC still regulates it. The unresolved part is whether a regulated broker-dealer may custody it, and under what rules it may be transferred. That is the gap that keeps institutions out.",
+      },
+      { type: "h2", text: "What this means for you" },
+      {
+        type: "ul",
+        items: [
+          "If you hold crypto: the direct effect is on the exchanges and custodians you use, not on your coins. A statutory perimeter would tell venues which regulator examines them and under what customer-protection rules, which mostly shows up as clearer disclosures and more institutions willing to serve you.",
+          "If you invest in shares: nothing changes immediately, and nothing about your existing holdings is affected. Over years, a clearer perimeter is what would allow settlement to shorten below T+1 for some instruments.",
+          "If you run a bank: the live question is whether dollar flows move over tokenized deposits, which are your liability, or stablecoins, which are not. That perimeter is drawn by the GENIUS Act and by whatever CLARITY does to its edges.",
+          "If you are building a fintech: the binding constraint today is not technical, it is that your compliance counsel cannot tell you which regulator governs an instrument. That is what a statute fixes, and why the calendar matters more than the technology.",
+          "If you are a developer: nothing in this bill stops you writing settlement code, and the properties that code needs are the same either way. Build it now; the perimeter arrives later.",
+          "If you are just curious: watch whether seven Democrats vote yes on Tuesday. That is the whole story for this year.",
+        ],
       },
       { type: "h2", text: "The probability gap, and why most people read it wrong" },
       {
@@ -192,7 +318,11 @@ export const POSTS: Post[] = [
       { type: "h2", text: "What atomic settlement actually changes, and what it does not" },
       {
         type: "p",
-        text: "The case for tokenized equities is usually made as a technology argument. It is really a settlement argument, and it is worth being precise about the mechanism.",
+        text: "THE SIMPLE VERSION. Atomic settlement means both sides of a trade complete together or neither does. You cannot end up having paid without receiving, or having delivered without being paid, because there is no moment in between for anything to go wrong.",
+      },
+      {
+        type: "p",
+        text: "THE INSTITUTIONAL VERSION follows, and it is less one-sided than advocates usually admit. The case for tokenized equities is generally made as a technology argument. It is really a settlement argument, and it is worth being precise about the mechanism.",
       },
       {
         type: "p",
@@ -369,7 +499,7 @@ export const POSTS: Post[] = [
       { type: "h2", text: "If regulation is the legal layer, settlement is the engineering layer" },
       {
         type: "p",
-        text: "This is where we have to declare an interest: FurlPay builds settlement infrastructure, so we are not a neutral observer of the third layer. What follows is our engineering position rather than a product claim, and it is testable against our code.",
+        text: "This is where we have to declare an interest: FurlPay builds settlement infrastructure, so we are not a neutral observer of the third layer. What follows is our engineering position rather than a product claim, and it is testable against our code — the [stablecoin settlement](/products/payments) and [agent payment](/products/x402) rails are documented, and the [wallet custody model](/products/wallet) is described in full.",
       },
       {
         type: "p",
@@ -405,7 +535,7 @@ export const POSTS: Post[] = [
       },
       {
         type: "p",
-        text: "We will update this article with the outcome rather than write a second one, so that the record of what we expected sits beside what happened.",
+        text: "We will update this article in place with the outcome rather than write a second one, so the record of what we expected sits beside what happened. Related reading: our [analysis of JPMorgan's Q2 2026 13F](/blog/what-jpmorgans-13f-actually-says), parsed from the original SEC filing, and [FurlPay Markets](/markets) for live pricing on the listed names in this piece.",
       },
       { type: "h2", text: "Timeline" },
       {
