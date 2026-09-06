@@ -22,8 +22,16 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
   const post = getPost(params.slug);
   if (!post) return {};
   const url = `https://furlpay.com/blog/${post.slug}`;
+  // The post's own cover, not the site default. A shared link whose card shows
+  // a generic logo loses the one thing that makes it worth opening, and the
+  // cover is usually the article's single strongest asset.
+  const image = post.cover
+    ? post.cover.startsWith("http")
+      ? post.cover
+      : `https://furlpay.com${post.cover}`
+    : "https://furlpay.com/og.png";
   return {
-    title: `${post.title} — Furlpay Blog`,
+    title: `${post.seoTitle ?? post.title} — Furlpay Blog`,
     description: post.excerpt,
     alternates: { canonical: url },
     openGraph: {
@@ -32,9 +40,18 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
       title: post.title,
       description: post.excerpt,
       publishedTime: post.date,
+      // Absent unless the article was materially revised, so an unmodified post
+      // does not advertise a revision it never had.
+      ...(post.updated ? { modifiedTime: post.updated } : {}),
       authors: [post.author],
+      images: [{ url: image }],
     },
-    twitter: { card: "summary_large_image", title: post.title, description: post.excerpt },
+    twitter: {
+      card: "summary_large_image",
+      title: post.title,
+      description: post.excerpt,
+      images: [image],
+    },
   };
 }
 
@@ -52,9 +69,23 @@ export default async function ArticlePage(props: { params: Promise<{ slug: strin
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "BlogPosting",
+    // `headline` must match the visible H1, not the SEO title — Google treats a
+    // mismatch between schema and rendered content as a quality signal against
+    // the page.
     headline: post.title,
     description: post.excerpt,
     datePublished: post.date,
+    // dateModified is what a news-adjacent article lives or dies on in search.
+    // Falls back to the publication date so the field is never absent, which
+    // is what Google's own guidance prefers.
+    dateModified: post.updated ?? post.date,
+    ...(post.cover
+      ? {
+          image: post.cover.startsWith("http")
+            ? post.cover
+            : `https://furlpay.com${post.cover}`,
+        }
+      : {}),
     author: a.isPerson
       ? { "@type": "Person", name: a.name, url: a.url, jobTitle: a.role, sameAs: a.sameAs }
       : { "@type": "Organization", name: a.name, url: "https://furlpay.com", sameAs: a.sameAs },

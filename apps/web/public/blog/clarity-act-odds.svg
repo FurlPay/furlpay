@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Prediction market and analyst probabilities for the CLARITY Act becoming law, as of 6 September 2026">
+<rect width="1600" height="900" fill="#07080A"/>
+<text x="92" y="108" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="25" letter-spacing="3.5" fill="#0A84FF">H.R. 3633 &#183; SENATE CLOTURE 15 SEP 2026</text>
+<text x="92" y="178" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="60" font-weight="700" fill="#F2F3F5">The CLARITY Act, priced</text>
+<text x="92" y="222" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="23" fill="#8A9099">What forecasters actually give it &#183; as of 6 September 2026</text>
+<rect x="92" y="300" width="940" height="46" rx="3" fill="#161A20"/>
+<rect x="92" y="300" width="141" height="46" rx="3" fill="#FF453A" fill-opacity="0.95"/>
+<text x="108" y="330" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="600" fill="#FFFFFF">Polymarket - signed into law in 2026</text>
+<text x="1056" y="330" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="24" fill="#F2F3F5">15%</text>
+<rect x="92" y="368" width="940" height="46" rx="3" fill="#161A20"/>
+<rect x="92" y="368" width="282" height="46" rx="3" fill="#FF9F0A" fill-opacity="0.95"/>
+<text x="108" y="398" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="600" fill="#FFFFFF">Galaxy Research - enacted in 2026</text>
+<text x="1056" y="398" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="24" fill="#F2F3F5">30%</text>
+<rect x="92" y="436" width="940" height="46" rx="3" fill="#161A20"/>
+<rect x="92" y="436" width="282" height="46" rx="3" fill="#FF9F0A" fill-opacity="0.95"/>
+<text x="108" y="466" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="600" fill="#FFFFFF">Kalshi - law before 1 Jul 2027</text>
+<text x="1056" y="466" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="24" fill="#F2F3F5">30%</text>
+<rect x="92" y="504" width="940" height="46" rx="3" fill="#161A20"/>
+<rect x="92" y="504" width="470" height="46" rx="3" fill="#30D158" fill-opacity="0.95"/>
+<text x="108" y="534" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="600" fill="#FFFFFF">Kalshi - law before 1 Jan 2028</text>
+<text x="1056" y="534" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="24" fill="#F2F3F5">50%</text>
+<text x="92" y="618" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="600" fill="#F2F3F5">Polymarket had this at 82% in February.</text>
+<text x="92" y="660" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#8A9099">Odds collapse toward the deadline, not toward the outcome. The bill is not</text>
+<text x="92" y="690" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#8A9099">priced to fail - it is priced to run out of calendar.</text>
+<text x="92" y="852" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="19" fill="#5A6069">Sources: Polymarket, Kalshi, Galaxy Research &#183; furlpay.com</text>
+</svg>

@@ -25,11 +25,508 @@ export type Post = {
   readMins: number;
   author: string;
   featured?: boolean;
+  /**
+   * SEO <title>, when the human headline is the wrong length or shape for a
+   * search result. A headline can afford a rhetorical structure that a SERP
+   * entry cannot: Google truncates near 60 characters and rewards the primary
+   * term appearing early. Falls back to `title` when absent, so existing posts
+   * are unaffected.
+   */
+  seoTitle?: string;
+  /**
+   * ISO date of the last MATERIAL revision, emitted as schema.org dateModified.
+   *
+   * Set it only when facts changed. Bumping it for a typo teaches Google that
+   * the signal is noise, and re-dating an old article to look fresh is the
+   * behaviour the freshness signal exists to catch.
+   */
+  updated?: string;
   cover?: string; // real photo URL (hotlinked Unsplash CDN); CSS art fallback when absent
   body: Block[];
 };
 
 export const POSTS: Post[] = [
+  // CLARITY Act / tokenized equities — flagship policy piece, written
+  // 2026-09-07, eight days before the Senate cloture vote. Aimed at readers who
+  // will check every number: committee staff, bank policy teams,
+  // market-structure lawyers. Every figure carries its source and date IN THE
+  // SENTENCE for that reason.
+  //
+  // THREE CLAIMS WERE DELIBERATELY EXCLUDED. Keep them out.
+  //   1. BCG's $16.1T-by-2030 figure as CURRENT. BCG revised to $9.4T (April
+  //      2025, with Ripple). The stale number appears in most decks and citing
+  //      it is the fastest way to be dismissed by this audience. It appears in
+  //      the table ONLY, explicitly flagged as superseded.
+  //   2. "Kalshi prices 91% that the cloture vote occurs on schedule." Could
+  //      not be sourced. Kalshi's published CLARITY markets price ENACTMENT
+  //      (~30% before 1 Jul 2027, ~50% before 1 Jan 2028) — a different
+  //      question. The article says so explicitly.
+  //   3. Any position attributed to JPMorgan, the CFTC or the SEC on the bill.
+  //      None is verifiable. The JPMorgan section analyses PUBLISHED Kinexys
+  //      activity instead, which is stronger than a position statement.
+  //
+  // The Kinexys cumulative-volume conflict ($1.5T vs $4T across sources) is
+  // surfaced in the text rather than resolved, because we do not know which is
+  // right.
+  //
+  // Do not update a probability here without dating it. An undated probability
+  // in a piece about a moving legislative calendar is wrong within a week.
+  {
+    slug: "clarity-act-tokenized-equities-september-2026",
+    // Human headline and SEO title are deliberately different. The headline
+    // earns the click on X and LinkedIn, where a full sentence reads as
+    // conviction; the SEO title front-loads "CLARITY Act 2026" because the
+    // search query is navigational and Google truncates near 60 characters.
+    title: "The CLARITY Act Is Not Dead. It Is Running Out of Calendar.",
+    seoTitle: "CLARITY Act 2026: What the September 15 Senate Vote Means for Tokenized Equities",
+    excerpt:
+      "Prediction markets give the CLARITY Act a 15% chance of becoming law in 2026 — and 50% by January 2028. The bill is late, not dead. Meanwhile JPMorgan settles more than $7bn a day in tokenized deposits without waiting for it. What the 15 September Senate vote actually decides, what atomic settlement does and does not fix, and why the strongest objections come from the people who understand market structure best.",
+    category: "compliance",
+    date: "2026-09-07",
+    readMins: 18,
+    author: "Ashutosh Kumar Singh",
+    featured: true,
+    cover: "/blog/clarity-act-odds.svg",
+    body: [
+      {
+        type: "p",
+        text: "On Tuesday 15 September 2026 at 2:15 p.m. Eastern, the United States Senate votes on a motion to proceed on H.R. 3633, the Digital Asset Market Clarity Act. It is not a vote on the bill. It is a vote on whether the Senate may begin debating it, and it needs 60 of 100 votes. Republicans hold 53 seats, so at least seven Democrats have to cross.",
+      },
+      {
+        type: "p",
+        text: "Prediction markets give the bill roughly a 15% chance of being signed into law in 2026 and roughly a 50% chance of a market-structure law by January 2028. Those numbers answer different questions, and read together they say something precise: the market does not expect the CLARITY Act to fail. It expects the CLARITY Act to run out of days.",
+      },
+      {
+        type: "p",
+        text: "That distinction is the whole argument of this piece. A bill that dies for want of votes and a bill that dies for want of floor time look identical on a probability chart and imply opposite strategies for anyone building financial infrastructure. This article is about which one this is, and what follows from the answer.",
+      },
+      { type: "h2", text: "The probability gap, and why most people read it wrong" },
+      {
+        type: "p",
+        text: "Four numbers are circulating and are frequently quoted against each other as though they disagree. They do not: they answer different questions on different horizons. Three are PREDICTION-MARKET PRICES, which move continuously and are not forecasts; one is a published analyst ESTIMATE. All are stated with the date they were observed, and all will have moved by the time you read this.",
+      },
+      {
+        type: "table",
+        headers: ["Forecaster", "Question being priced", "Probability", "As of"],
+        rows: [
+          ["Polymarket", "CLARITY Act signed into law during calendar 2026", "~15%", "6 Sep 2026, >$14M volume"],
+          ["Galaxy Research", "Enacted in 2026", "30%", "Aug 2026, cut from 50%"],
+          ["Kalshi", "A qualifying market-structure law before 1 Jul 2027", "~30%", "Sep 2026"],
+          ["Kalshi", "A qualifying market-structure law before 1 Jan 2028", "~50%", "Sep 2026"],
+        ],
+        highlightCol: 2,
+      },
+      {
+        type: "p",
+        text: "Polymarket's 2026 contract traded at about 82% in February. The probability fell to roughly 15% by September even though the legislative process had not formally collapsed: the bill was not voted down, and the committee process did not fail. The most obvious change over that period was the shrinking Senate calendar.",
+      },
+      {
+        type: "quote",
+        text: "A bill priced at 15% this year and 50% by early 2028 is not a bill the market thinks is wrong. It is a bill the market thinks is late.",
+      },
+      {
+        type: "p",
+        text: "Be careful with these numbers in either direction. A prediction market is a price, not a forecast with a confidence interval, and thin markets on procedural questions are easy to move. But the SHAPE across four independent forecasters — low near-term, materially higher over three years — is consistent, and that shape is the signal.",
+      },
+      { type: "h2", text: "What the CLARITY Act actually does, without the politics" },
+      {
+        type: "p",
+        text: "Strip the framing and the bill does three structural things.",
+      },
+      {
+        type: "ul",
+        items: [
+          "It allocates jurisdiction. The CFTC gets exclusive authority over spot markets in 'digital commodities' — assets whose value is tied to use of a decentralised protocol. The SEC keeps digital securities and primary-market fundraising for tokens that begin life as securities.",
+          "It addresses broker-dealer custody of digital assets, which is the specific gap that keeps regulated intermediaries on the sidelines.",
+          "It lets tokenized instruments, digital commodities and payment stablecoins sit under one coherent framework rather than three overlapping ones.",
+        ],
+      },
+      {
+        type: "p",
+        text: "Note what is already settled and what is not. Payment stablecoins are no longer an open question at the federal level: the GENIUS Act was signed into law on 18 July 2025, requires full reserve backing, and bans issuers from paying any return to holders. That ban already exists. The stablecoin fight inside CLARITY is not about whether issuers may pay yield — federal law says they may not. It is about whether affiliates, exchanges and intermediaries can achieve the same economics by another route.",
+      },
+      {
+        type: "p",
+        text: "This matters because the fight is routinely described as 'banks versus stablecoin yield', which implies the yield is currently legal. It is not, at the issuer level. The dispute is over the perimeter of an existing prohibition, which is a narrower and more tractable disagreement than the headline suggests.",
+      },
+      { type: "h2", text: "Why this is a market-infrastructure bill, not a crypto bill" },
+      {
+        type: "p",
+        text: "The most consequential thing about the CLARITY Act has little to do with whether Washington 'supports crypto'. It is whether the United States builds a legal framework capable of carrying tokenized securities, institutional custody and continuous settlement at scale — or whether that infrastructure matures somewhere else and America imports it later.",
+      },
+      {
+        type: "p",
+        text: "The evidence that this is an infrastructure question rather than a crypto question is that the infrastructure is already being built by institutions with no ideological interest in crypto at all. JPMorgan's Kinexys platform settles tokenized deposits at a reported average of more than $7 billion a day, has extended its deposit-token network to the Australian dollar, Hong Kong dollar, yen, renminbi and Singapore dollar, and launched a deposit token for institutional clients in November 2025 after testing with B2C2, Coinbase and Mastercard. JPMorgan and DBS have been exploring interoperability between their respective tokenized-deposit systems.",
+      },
+      {
+        type: "p",
+        text: "Reported cumulative volume figures for Kinexys vary widely across sources — we have seen both roughly $1.5 trillion and roughly $4 trillion cited in 2026 coverage, which is too wide a gap to treat as settled. The daily figure is more consistently reported. Either way the direction is unambiguous: the largest bank in the United States is running production tokenized settlement while the statute that would govern tokenized securities has not passed.",
+      },
+      {
+        type: "quote",
+        text: "Tokenization is not waiting for permission. It is waiting for a perimeter.",
+      },
+      { type: "h2", text: "Three layers of institutional tokenization" },
+      {
+        type: "p",
+        text: "Most writing on this subject collapses three separate problems into one word. Separating them explains why progress looks stalled in one place and rapid in another.",
+      },
+      {
+        type: "table",
+        headers: ["Layer", "The question it answers", "Who decides", "Status, Sep 2026"],
+        rows: [
+          ["Legal", "Is this instrument a security, a commodity, or a payment stablecoin — and who regulates it?", "Congress, SEC, CFTC", "Unresolved for securities; settled for payment stablecoins under GENIUS"],
+          ["Market structure", "Who may custody it, clear it, list it, and make markets in it?", "Regulators, exchanges, DTCC, broker-dealers", "Blocked on the legal layer"],
+          ["Settlement engineering", "Can delivery and payment be made one atomic event that either happens or does not?", "Engineers", "Being built now, ahead of the other two"],
+        ],
+        highlightCol: 3,
+      },
+      {
+        type: "p",
+        text: "The layers are related by dependency, but they do not develop sequentially. Legal certainty is what unlocks the market-structure layer: a compliance committee cannot approve custody of an instrument whose regulator is undetermined. Engineering, by contrast, advances in parallel and is doing so now, because the properties it needs are the same whichever way the jurisdictional question is settled.",
+      },
+      {
+        type: "p",
+        text: "This is why 'the CLARITY Act is stalled' and 'tokenization is accelerating' are both true statements about September 2026. They describe different layers.",
+      },
+      { type: "h2", text: "What atomic settlement actually changes, and what it does not" },
+      {
+        type: "p",
+        text: "The case for tokenized equities is usually made as a technology argument. It is really a settlement argument, and it is worth being precise about the mechanism.",
+      },
+      {
+        type: "p",
+        text: "US equity markets run roughly 32.5 hours a week of regular session. Settlement moved to T+1 in May 2024 — a genuine improvement, and still a model where a trade and its settlement occur on different days. Everything in that gap exists to carry risk across it: margin, clearing-fund contributions, buy-in procedures, and the operational tail of a failed delivery.",
+      },
+      {
+        type: "p",
+        text: "Atomic settlement collapses the gap to zero. Delivery and payment become one state transition that either commits or does not. There is no interval in which one leg has moved and the other has not. What that eliminates is precisely the settlement exposure created by the gap between delivery and payment, and the fails that follow from it. It does not eliminate margin requirements arising from market, counterparty, clearing or liquidity risk, which exist for reasons that have nothing to do with settlement timing. The gain is real and it is narrower than it is usually described.",
+      },
+      {
+        type: "p",
+        text: "Now the part most advocacy leaves out. Netting is not overhead — it is the reason a day of gross trading compresses into a small fraction of that gross in actual movements. A market that settles every trade atomically must fund every trade gross. The liquidity requirement rises, and it rises most exactly when markets are most stressed and funding is least available.",
+      },
+      {
+        type: "ul",
+        items: [
+          "Atomic settlement removes settlement risk. It does not remove counterparty risk before the trade, market risk after it, or the need for someone to make prices.",
+          "It removes fails. It does not remove the need for pre-funding, and pre-funding at gross is a real and recurring cost.",
+          "It removes reconciliation between two ledgers. It does not remove the need for one ledger to be correct.",
+          "It shortens the credit window. It does not eliminate credit — it relocates it to intraday liquidity provision.",
+          "It enables continuous markets. It does not make continuous markets liquid; overnight and weekend liquidity is thin, and thin markets price worse.",
+        ],
+      },
+      {
+        type: "quote",
+        text: "Anyone who tells you 24/7 atomic settlement is strictly better has not priced the liquidity.",
+      },
+      {
+        type: "p",
+        text: "The honest position is that atomic settlement trades a well-understood risk (settlement exposure across a day) for a less-understood one (gross intraday funding, continuously). That trade is probably worth making for many instruments and probably not for all of them, and the serious objections from market-structure professionals are versions of this point rather than hostility to the technology.",
+      },
+      { type: "h2", text: "The size of the prize, stated honestly" },
+      {
+        type: "p",
+        text: "These forecasts are quoted loosely and often wrongly. Here is who said what, and when.",
+      },
+      {
+        type: "table",
+        headers: ["Source", "Forecast", "Published", "Note"],
+        rows: [
+          ["Citi Institute", "$5.5T by 2030", "June 2026", "Range $2.7T–$8.2T by adoption speed; baseline cited ~$17B"],
+          ["BCG with Ripple", "$9.4T by 2030", "April 2025", "A downward revision of BCG's earlier estimate"],
+          ["BCG, original", "$16.1T by 2030", "2022", "SUPERSEDED. Still widely quoted as current"],
+          ["Observed RWA market", "~$27.7B", "April 2026", "Crossed $30B in 2026, roughly 300% year on year"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: "The third row is the useful one. BCG's $16.1 trillion figure appears in most decks on this subject, and BCG themselves revised it to $9.4 trillion. Quoting the larger number in 2026 is a reliable indicator that a deck was assembled from other decks. For an audience that prices this professionally, the revision is a more informative fact than either forecast.",
+      },
+      {
+        type: "p",
+        text: "The defensible read: tokenized real-world assets are a real market of roughly $30 billion growing quickly, and every 2030 projection is a range spanning an order of magnitude. Point estimates to three significant figures are marketing.",
+      },
+      { type: "h2", text: "Why a bill with bipartisan support still struggles" },
+      {
+        type: "p",
+        text: "'They just need to pass it' is not analysis. The mechanics are specific.",
+      },
+      {
+        type: "ul",
+        items: [
+          "Cloture on the motion to proceed needs 60 votes. With 53 Republican seats, seven Democrats must cross before debate can even begin.",
+          "That vote is the first of several. Success on 15 September opens floor debate and an amendment process, not passage.",
+          "Amendments are where the stablecoin perimeter question gets fought explicitly. Every concession changes the coalition.",
+          "A Senate text then has to be reconciled with the House's. Four to eight months of further work from here is a reasonable estimate.",
+          "The chamber is expected to leave Washington around 17 September and not return until after the midterms. Floor time, not support, is the binding constraint.",
+          "Committee dynamics have already done their work: the House passed the bill in July 2025 and Senate Banking reported it out with amendments on 1 June 2026. Neither happens to a bill without a constituency.",
+        ],
+      },
+      {
+        type: "p",
+        text: "This is how a measure with majority support, committee approval and passage in one chamber ends up priced at 15% for the current year. Nothing about that number implies the underlying policy is unpopular.",
+      },
+      { type: "h2", text: "Why smart people oppose this" },
+      {
+        type: "p",
+        text: "The strongest objections do not come from people who misunderstand the technology. They come from people who understand market structure well and have specific concerns.",
+      },
+      {
+        type: "ul",
+        items: [
+          "Deposit competition. A stablecoin that behaves like a checking account but does not fund a loan book is a first-order threat to net interest margin and, at scale, to credit availability. Banks are fighting this as an existential question because for their business model it is one.",
+          "Liquidity fragmentation. Tokenized equities trading alongside the same equities on existing venues can split the book. Two thin markets price worse than one deep one, and retail wears the spread.",
+          "Loss of netting. Covered above; the most technically serious objection, and the least addressed by advocates.",
+          "Operational resilience. A 24/7 market has no maintenance window. Every upgrade, migration and incident response happens in a live market, and no one has run one of these at national scale through a genuine crisis.",
+          "Irreversibility. Atomic finality is the feature. It is also the reason an erroneous trade, a compromised key or a sanctioned counterparty cannot be unwound the way today's system permits.",
+          "Investor protection. Continuous access to leveraged markets by retail investors at three in the morning is not obviously a consumer benefit.",
+          "Regulatory arbitrage. A statute that draws a jurisdictional line also creates an incentive to structure instruments so they land on the preferred side of it.",
+        ],
+      },
+      {
+        type: "p",
+        text: "These are good arguments. The response to most of them is not that they are wrong but that they are arguments about sequencing and scope — which instruments, which venues, which hours — rather than arguments against a legal perimeter existing at all. The status quo is not neutral: it is a choice to keep the perimeter undefined, which has its own costs and distributes them to whoever cannot afford the legal ambiguity.",
+      },
+      { type: "h2", text: "What this would mean for a bank like JPMorgan" },
+      {
+        type: "p",
+        text: "We have no information about JPMorgan's position on the CLARITY Act and make no claim about it. What is verifiable is what the firm is already building, and that is more informative than a position statement would be.",
+      },
+      {
+        type: "p",
+        text: "Kinexys settles tokenized deposits in production at reported volumes above $7 billion daily, across an expanding set of currencies, with a deposit token launched for institutional clients in November 2025. Whatever JPMorgan's broader view of digital assets, that activity demonstrates programmable settlement being deployed at institutional scale today. Our own reading of why is straightforward, and is inference rather than reporting: moving value between ledgers on a shared programmable rail is cheaper and faster than correspondent banking, and that is an operating-cost argument rather than a view on any asset.",
+      },
+      {
+        type: "p",
+        text: "Which frames the strategic question for any large bank, independent of whether it likes crypto:",
+      },
+      {
+        type: "ul",
+        items: [
+          "Custody. If tokenized securities become a regulated asset class, custody of them is a natural extension of an existing franchise — but only if the legal layer permits a broker-dealer to hold them.",
+          "Tokenized deposits versus stablecoins. Both are dollar-denominated claims that move on programmable rails. One is a bank liability; the other is not. The perimeter drawn by GENIUS and CLARITY decides how much of that flow is intermediated by banks.",
+          "Collateral mobility. Collateral that can move atomically between venues intraday is worth more than the same collateral trapped by settlement windows. This is a direct funding-cost argument.",
+          "Treasury and repo. The largest near-term tokenization use case is not equities; it is short-dated government paper and repo, where settlement friction is most expensive relative to yield.",
+          "Cross-border. Correspondent banking is the process the entire industry would replace if it could. Tokenized deposits are the incumbent-friendly version of that replacement.",
+        ],
+      },
+      {
+        type: "quote",
+        text: "A bank does not have to be pro-crypto for tokenization to be strategically unavoidable. It only has to care where settlement infrastructure is heading — and it can read its own volume numbers.",
+      },
+      { type: "h2", text: "Why the CFTC has a direct institutional interest" },
+      {
+        type: "p",
+        text: "A point of precision first, because getting this wrong is how a piece loses a regulatory reader in one sentence: the CFTC cannot pass the CLARITY Act, cannot amend it, and does not choose its own jurisdiction. Congress writes the statute; the agencies implement it. Any framing in which a regulator 'should pass' legislation is describing a system that does not exist.",
+      },
+      {
+        type: "p",
+        text: "What the bill would do is give the CFTC exclusive jurisdiction over spot markets in digital commodities — a class of authority the agency does not currently hold, since its remit is historically derivatives rather than spot. That is a material expansion, and it comes with obligations the agency would have to resource: registration and supervision of spot venues, market-surveillance capability across venues that trade continuously, and customer-protection standards in a cash market.",
+      },
+      {
+        type: "p",
+        text: "The institutional interest is therefore not ideological. It is that the current arrangement leaves the same asset arguable into either agency's remit depending on who is arguing, which is bad for the agency that ends up supervising it without a statutory mandate to do so, and worse for the one that does not know whether it should be. A clear perimeter is administratively easier to run than an ambiguous one, whichever side of it a given instrument lands on.",
+      },
+      { type: "h2", text: "What changes if the legal layer resolves" },
+      {
+        type: "p",
+        text: "Separating the horizons matters, because most of the excitement attaches to effects that would take years and most of the actual near-term change is unglamorous.",
+      },
+      {
+        type: "table",
+        headers: ["Horizon", "What plausibly changes", "What does not"],
+        rows: [
+          ["Immediate", "Compliance committees can evaluate custody of digital assets against a statute rather than a guess. Registration paths become knowable.", "No new liquidity appears. No product launches on day one."],
+          ["6–12 months", "Broker-dealer custody arrangements, first registered spot venues, institutional pilots move from sandbox to limited production.", "Retail-facing tokenized equities at scale. Settlement volumes remain small."],
+          ["2–5 years", "Tokenized Treasuries and repo at meaningful scale; collateral mobility; selected equity venues with continuous settlement.", "Replacement of DTCC. The existing system is not going away, and the realistic outcome is parallel rails, not migration."],
+        ],
+      },
+      {
+        type: "p",
+        text: "The most likely shape is not a transition but a coexistence: tokenized rails handling instruments where settlement friction is most expensive, alongside a netted, T+1 system that continues to handle the bulk of equity volume because netting remains cheaper for it.",
+      },
+      { type: "h2", text: "What happens if it does not pass" },
+      {
+        type: "p",
+        text: "The failure case is not that tokenization stops. It is that it continues without the United States setting the terms. Some of this is evidenced, some is inference, and we mark which.",
+      },
+      {
+        type: "ul",
+        items: [
+          "Evidenced: institutions are already building on tokenized rails under the current ambiguity — Kinexys is in production today. Absence of a statute has slowed the regulated-securities case, not the payments case.",
+          "Evidenced: the EU has an operative framework in MiCA and several Asian jurisdictions have supervised tokenization regimes. Firms can and do route activity to where the perimeter is defined.",
+          "Inference: a continued federal gap invites state-level frameworks, and a patchwork is more expensive to comply with than a single federal standard, which favours the largest incumbents.",
+          "Inference: the cost of ambiguity falls hardest on firms that cannot afford to be wrong — which means it is a barrier to entry that protects incumbents, whatever its intent.",
+          "Unknowable: whether capital 'flees'. That claim is made constantly, rarely with evidence, and we are not going to add to it.",
+        ],
+      },
+      {
+        type: "quote",
+        text: "Regulatory uncertainty is not the absence of a rule. It is a rule that says: whoever can afford the lawyers gets to build.",
+      },
+      { type: "h2", text: "If regulation is the legal layer, settlement is the engineering layer" },
+      {
+        type: "p",
+        text: "This is where we have to declare an interest: FurlPay builds settlement infrastructure, so we are not a neutral observer of the third layer. What follows is our engineering position rather than a product claim, and it is testable against our code.",
+      },
+      {
+        type: "p",
+        text: "The bet is straightforward. The legal layer will resolve on a timeline nobody controls. The engineering layer can be built now, and the properties it needs are the same whichever way the jurisdictional question is settled. Four of them do the work:",
+      },
+      {
+        type: "ul",
+        items: [
+          "Atomicity by construction. If delivery and payment can fail independently, the system must carry machinery to reconcile those states, and that machinery is where errors accumulate. Atomicity makes the intermediate state impossible by construction rather than recoverable after the fact.",
+          "Asset identity that carries its settlement domain. USDC on one chain and USDC on another are different claims with different failure modes. A ledger that collapses them into one balance is a ledger that will one day report money it cannot deliver.",
+          "Authorization bound to exact bytes. Simulation, device attestation, user confirmation and the signature must all commit to the same canonical transaction. If they can commit to different ones, every individual control can pass while the wrong transaction is signed — and that is not a hypothetical failure mode, it is the ordinary one.",
+          "Provider state is evidence, never truth. A counterparty saying a payment settled is a claim to be reconciled against your own ledger. Systems that treat an HTTP 200 as proof that money moved are the systems that discover the discrepancy from a customer.",
+        ],
+      },
+      {
+        type: "p",
+        text: "None of those four require the CLARITY Act. All of them are presupposed by it. A statute that permits a broker-dealer to custody tokenized securities does not tell you how to make delivery-versus-payment atomic, how to keep two chains' balances distinct, or how to prove that what was authorised is what was signed. Those are engineering problems, and they are solvable today.",
+      },
+      {
+        type: "quote",
+        text: "The legal layer decides whether you are allowed to build. It never decides whether what you built is correct.",
+      },
+      { type: "h2", text: "15 September: what to actually watch" },
+      {
+        type: "ul",
+        items: [
+          "Whether cloture on the motion to proceed reaches 60. Seven Democratic votes is the number.",
+          "If it fails, the margin. A 55-vote failure and a 45-vote failure are different bills in the next Congress.",
+          "If it succeeds, whether floor time is actually allocated before the chamber leaves around 17 September. Cloture without floor time is a symbolic win.",
+          "The amendment set on the stablecoin perimeter — specifically whether affiliate and exchange rewards are brought inside the GENIUS prohibition. That is where the banking objection gets fought on the record.",
+          "Whether any Democratic co-sponsor language emerges before the vote. Public positions in the 72 hours prior are the best available signal on the seven.",
+        ],
+      },
+      {
+        type: "p",
+        text: "We will update this article with the outcome rather than write a second one, so that the record of what we expected sits beside what happened.",
+      },
+      { type: "h2", text: "Timeline" },
+      {
+        type: "table",
+        headers: ["Date", "Event"],
+        rows: [
+          ["18 Jul 2025", "GENIUS Act signed into law: federal stablecoin framework, full reserve backing, issuers barred from paying holders a return"],
+          ["Jul 2025", "H.R. 3633 passes the House with bipartisan support"],
+          ["May 2024", "US equities move to T+1 settlement"],
+          ["1 Jun 2026", "Senate Banking Committee reports the bill out with amendments; placed on the Legislative Calendar"],
+          ["Jun 2026", "Citi Institute publishes its Tokenization 2030 forecast"],
+          ["8 Aug 2026", "Majority Leader files cloture, setting the September vote"],
+          ["Aug 2026", "Galaxy Research cuts its 2026 enactment estimate from 50% to 30%"],
+          ["15 Sep 2026", "Cloture vote on the motion to proceed, 2:15 p.m. ET"],
+          ["~17 Sep 2026", "Senate expected to adjourn until after the midterms"],
+          ["2027–28", "Kalshi prices ~30% by 1 Jul 2027 and ~50% by 1 Jan 2028 for a market-structure law"],
+        ],
+      },
+      { type: "h2", text: "Conclusion" },
+      {
+        type: "p",
+        text: "The CLARITY Act is not primarily a crypto bill and 15 September is not primarily a crypto vote. The question on the floor is whether the United States defines a perimeter for tokenized financial infrastructure, or leaves it undefined while that infrastructure gets built anyway — by banks, offshore, and in jurisdictions that have already answered the question.",
+      },
+      {
+        type: "p",
+        text: "The prediction markets are probably right that it does not happen this year. They are also, on a three-year horizon, close to a coin flip — a strange thing to say about a bill that has passed a chamber and cleared a committee. That gap between political timing and technical direction is the most useful fact in this debate, and it points somewhere unglamorous: the binding constraint is a legislative calendar, and calendars resolve.",
+      },
+      {
+        type: "quote",
+        text: "The CLARITY Act may run out of calendar in 2026. Tokenization will not. The political question is when Washington draws the perimeter; the engineering question is whether the infrastructure inside it is ready when they do. That is the part worth building now.",
+      },
+      { type: "h2", text: "Sources, and what we could not verify" },
+      {
+        type: "p",
+        text: "Probabilities are as of 6 September 2026 and will move. Polymarket's 2026-enactment contract (~15%, >$14M volume); Kalshi's market-structure contracts (~30% before 1 July 2027, ~50% before 1 January 2028); Galaxy Research's published estimate (30%, revised down from 50% in August 2026).",
+      },
+      {
+        type: "p",
+        text: "Legislative status: House passage July 2025; Senate Banking Committee report 1 June 2026; cloture filed 8 August 2026; cloture motion ripening 2:15 p.m. ET 15 September 2026; 60-vote threshold against 53 Republican seats. GENIUS Act signed 18 July 2025. Market-size figures are attributed and dated in the tables above. Kinexys figures are from 2026 reporting on JPMorgan's platform.",
+      },
+      {
+        type: "p",
+        text: "Three things we deliberately did not publish. First, a widely circulated claim that Kalshi prices a 91% probability that the 15 September cloture vote occurs on schedule: Kalshi's published CLARITY markets price enactment, not whether a scheduled procedural vote takes place, and we could not locate that market. Second, BCG's $16.1 trillion figure as a current forecast, since BCG revised it to $9.4 trillion. Third, any characterisation of JPMorgan's position on the bill — we found no primary source stating one, and its production tokenization work is a matter of record regardless.",
+      },
+      {
+        type: "p",
+        text: "Where sources conflict we have said so rather than choosing: reported cumulative Kinexys settlement volume varies between roughly $1.5 trillion and roughly $4 trillion across 2026 coverage, and we do not know which is right.",
+      },
+      { type: "h2", text: "Frequently asked questions" },
+      { type: "h2", text: "What is the CLARITY Act?" },
+      {
+        type: "p",
+        text: "The Digital Asset Market Clarity Act (H.R. 3633) is US legislation that would define which digital assets are securities, which are commodities, and which are payment stablecoins, and allocate regulatory authority between the SEC and the CFTC accordingly. It passed the House of Representatives in July 2025 and was reported out of the Senate Banking Committee on 1 June 2026.",
+      },
+      { type: "h2", text: "What does the 15 September 2026 Senate vote decide?" },
+      {
+        type: "p",
+        text: "It is a cloture vote on the motion to proceed, scheduled for 2:15 p.m. Eastern. It decides only whether the Senate may begin formal debate on the bill. It requires 60 of 100 votes. Republicans hold 53 seats, so at least seven Democrats must vote in favour for debate to open.",
+      },
+      { type: "h2", text: "Does the 15 September vote mean the CLARITY Act becomes law?" },
+      {
+        type: "p",
+        text: "No. Cloture on the motion to proceed opens debate; it is not passage. After it would come floor debate, an amendment process, a Senate passage vote, reconciliation with the House text, and a presidential signature. Each is a separate step with its own failure mode.",
+      },
+      { type: "h2", text: "What authority would the CLARITY Act give the CFTC?" },
+      {
+        type: "p",
+        text: "Exclusive jurisdiction over spot markets in digital commodities — assets whose value is tied to the use of a decentralised blockchain protocol. This is a material expansion, because the CFTC's existing remit is historically derivatives rather than spot markets. The CFTC cannot pass or amend the bill; Congress writes the statute and agencies implement it.",
+      },
+      { type: "h2", text: "What would the SEC keep under the CLARITY Act?" },
+      {
+        type: "p",
+        text: "Authority over digital securities, and over primary-market fundraising for tokens that begin life as securities. The bill draws a perimeter between the two agencies rather than moving all digital assets to one of them.",
+      },
+      { type: "h2", text: "Does the CLARITY Act regulate stablecoins?" },
+      {
+        type: "p",
+        text: "Payment stablecoins are already governed by separate federal law. The GENIUS Act was signed on 18 July 2025 and requires full reserve backing while barring issuers from paying any return to holders. The stablecoin dispute inside CLARITY is about whether affiliates, exchanges and intermediaries can deliver equivalent economics outside that prohibition — not about whether issuers may pay yield, which federal law already answers.",
+      },
+      { type: "h2", text: "What are digital commodities?" },
+      {
+        type: "p",
+        text: "Under the CLARITY Act framework, digital commodities are assets whose value derives from the use of a decentralised blockchain protocol rather than from an enterprise's managerial efforts. Bitcoin and Ether are the standard examples. The classification matters because it determines which agency supervises the spot market.",
+      },
+      { type: "h2", text: "What are tokenized equities?" },
+      {
+        type: "p",
+        text: "Tokenized equities are shares in a company represented as transferable records on a blockchain rather than solely in a central securities depository's books. The instrument is the same equity claim; what changes is how ownership is recorded and how transfer settles.",
+      },
+      { type: "h2", text: "What is atomic settlement?" },
+      {
+        type: "p",
+        text: "Atomic settlement means delivery of an asset and payment for it occur as a single state transition that either commits entirely or does not occur at all. There is no interval in which one side has moved and the other has not, which removes the settlement exposure that exists between trade and settlement in a T+1 system.",
+      },
+      { type: "h2", text: "Does atomic settlement eliminate settlement risk?" },
+      {
+        type: "p",
+        text: "It eliminates the settlement exposure created by the gap between delivery and payment, and the fails that follow from it. It does not eliminate market risk, counterparty risk before the trade, clearing risk, or margin requirements arising from those. It also removes netting, so every trade must be funded gross — a real and recurring liquidity cost that rises precisely when funding is least available.",
+      },
+      { type: "h2", text: "Does atomic settlement replace T+1?" },
+      {
+        type: "p",
+        text: "Not automatically, and probably not entirely. US equities moved to T+1 in May 2024. Netting is why a day of gross trading compresses into a small fraction of that gross in actual movements, and netting remains cheaper for high-volume equity flow. The realistic outcome is parallel rails, with tokenized settlement used where settlement friction is most expensive relative to yield — short-dated government paper and repo before equities.",
+      },
+      { type: "h2", text: "When could the CLARITY Act become law?" },
+      {
+        type: "p",
+        text: "This is uncertain and should not be stated as a forecast. As of 6 September 2026, Polymarket priced roughly 15% for enactment during calendar 2026; Kalshi priced roughly 30% for a qualifying market-structure law before 1 July 2027 and roughly 50% before 1 January 2028; Galaxy Research published a 30% estimate for 2026, revised down from 50% in August 2026. These are market prices and analyst estimates, not facts, and they move.",
+      },
+      { type: "h2", text: "What is JPMorgan Kinexys and why does it matter here?" },
+      {
+        type: "p",
+        text: "Kinexys is JPMorgan's blockchain settlement platform, reported in 2026 to settle tokenized deposits at an average of more than $7 billion a day across an expanding set of currencies, with a deposit token launched for institutional clients in November 2025. It matters because it shows institutional tokenized settlement operating in production while the statute that would govern tokenized securities has not passed. Reported cumulative volume figures vary widely across sources and should be treated with caution.",
+      },
+      { type: "h2", text: "How large is the tokenized real-world asset market?" },
+      {
+        type: "p",
+        text: "Roughly $27.7 billion as of April 2026, having crossed $30 billion during 2026 on approximately 300% year-on-year growth. Forecasts for 2030 span an order of magnitude: Citi published $5.5 trillion in June 2026 with a range of $2.7–$8.2 trillion. BCG's widely quoted $16.1 trillion figure is superseded — BCG revised it to $9.4 trillion in April 2025.",
+      },
+    ],
+  },
   // Markets research — the JPMorgan Q2 2026 13F reference piece. Restructured
   // 2026-09-02 to lead with the filing rather than with our own corrections,
   // which now sit in a dated editor's note and a Corrections section at the end
