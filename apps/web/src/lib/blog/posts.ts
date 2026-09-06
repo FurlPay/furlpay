@@ -46,143 +46,207 @@ export type Post = {
 };
 
 export const POSTS: Post[] = [
-  // Stablecoin leadership / Visa "70%" fact-check. The central correction:
-  // Visa's card-tokenization statistic and USDC's adjusted-volume share are two
-  // unrelated facts that get merged into "70% of Visa transactions are
-  // stablecoins", which is false.
+  // Stablecoin market analysis, September 2026.
   //
-  // VERIFIED BEFORE PUBLICATION, not taken from the supplied brief:
-  //   - June 2026 adjusted volume $1.79tn, USDC ~67% ($1.21tn), USDT ~32%
-  //     ($576bn), PYUSD third (~$2.42bn). H1 2026 total $8.82tn vs $10.8tn for
-  //     all of 2025. Base ~$565bn edging Ethereum ~$562bn, Tron ~$320bn.
-  //   - Mastercard/BVNK $1.8bn: announced 17 Mar 2026, CLOSED 3 Aug 2026. The
-  //     brief said only "August 2026"; both dates are now stated.
-  //   - Stripe/Bridge $1.1bn.
+  // METRIC DISCIPLINE IS THE POINT OF THIS PIECE. Six different measurements
+  // appear in coverage of this market and are routinely used interchangeably:
+  // market capitalisation, circulating supply, raw transaction count, adjusted
+  // transaction volume, company-reported on-chain volume, and card settlement
+  // volume. They have different leaders. Do not merge them when editing.
   //
-  // ONE BRIEF FIGURE WAS CORRECTED. The brief implied Visa reports a 70%
-  // tokenization rate. Industry reporting puts it at ~35% of all transactions
-  // and ~50% of Visa e-commerce volume. Publishing 70% would have reproduced
-  // the exact error the article exists to correct.
+  // VERIFIED BEFORE PUBLICATION:
+  //   - June 2026 adjusted volume $1.79tn, +63% MoM, +125% YoY. USDC ~67%
+  //     ($1.21tn), USDT ~32% ($576bn), PYUSD ~$2.42bn. H1 2026 $8.82tn vs
+  //     $10.8tn for all of 2025. (Visa Onchain Analytics / Allium)
+  //   - Circle Q2 2026, company-reported 5 Aug 2026: $14.8tn on-chain volume
+  //     +151% YoY, $163bn/day average, $73.3bn circulation at quarter end
+  //     +19% YoY, $76.5bn average circulation, $701m revenue, $143m adj EBITDA.
+  //     Arc mainnet announced for 16 Sep 2026.
+  //   - Visa: US USDC settlement on Solana announced Dec 2025, Cross River and
+  //     Lead Bank initial partners, $3.5bn annualised run rate as of 30 Nov.
+  //     A LATER report describes nine chains at ~$7bn annualised. DIFFERENT
+  //     SCOPE AND DATE — both are stated, never combined.
+  //   - Mastercard/BVNK: announced 17 Mar 2026, closed 3 Aug 2026, up to
+  //     $1.8bn, ~$30bn annual volume reported at closing.
+  //   - Stripe/Bridge $1.1bn, Feb 2025.
+  //   - Networks: Base ~$565bn (31.5%), Ethereum ~$562bn (31.4%), Tron ~$320bn,
+  //     Solana ~$225bn. Base/Ethereum margin is ~$3bn on $1.79tn — the piece
+  //     says explicitly that the ordering is period-specific.
+  //   - Visa card tokenization ~35% of transactions, ~50% of Visa e-commerce,
+  //     ~4.6% CNP authorisation uplift.
   //
-  // Ranges from the source material are preserved as ranges. Market cap and
-  // adjusted volume are never presented as interchangeable.
+  // Ranges from source material are preserved as ranges. Company-reported
+  // figures are labelled as such throughout.
   {
-    slug: "stablecoin-transaction-leaders-2026-circle-tether-visa",
-    title: "No, Visa Didn't Say 70% of Its Transactions Are Stablecoins",
+    slug: "stablecoin-transaction-volume-2026-circle-usdc-tether-usdt",
+    title: "Stablecoin Transaction Volume in 2026: Circle, Tether and the Race to Build the Payment Rail",
     seoTitle:
-      "Stablecoin Transaction Volume 2026: Circle vs Tether, and What Visa's 70% Figure Really Means",
+      "Stablecoin Transaction Volume 2026: Circle USDC vs Tether USDT Market Analysis",
     excerpt:
-      "Two different facts get merged into one false claim. Visa's tokenization statistic is about card security and involves no cryptocurrency; the ~70% figure belongs to USDC's share of adjusted stablecoin volume. Tether leads on market capitalisation and raw activity, Circle leads on adjusted economic volume, and both are true at once. A guide to the four scoreboards people confuse.",
+      "Stablecoins settled $1.79 trillion in adjusted transaction volume in June 2026, up 125% year on year. USDC accounted for approximately 67% of that volume; USDT remains the largest stablecoin by market capitalisation at more than $185 billion. An analysis of what each metric measures, where Circle and Tether actually stand, and what Visa, Mastercard, Stripe, PayPal and Coinbase are building around them.",
     category: "compliance",
     date: "2026-09-07",
-    readMins: 14,
+    readMins: 15,
     cover: "/blog/stablecoin-leaders-2026.svg",
     author: "Ashutosh Kumar Singh",
     body: [
       {
         type: "p",
-        text: "A number has been circulating that says 70% of Visa's transactions are stablecoin transactions. It is not true, and the confusion is understandable, because there are two completely different '70%'-shaped facts in this story and they are constantly merged into one.",
-      },
-      {
-        type: "quote",
-        text: "Visa has never reported that 70% of its transactions are stablecoin transactions. The ~70% figure belongs to USDC's share of adjusted stablecoin volume, which is a measurement of the blockchain economy, not of Visa's card network.",
+        text: "Stablecoins settled $1.79 trillion in adjusted transaction volume in June 2026 — a monthly record, up 63% from May and 125% from a year earlier. For context, the first half of 2026 produced $8.82 trillion in adjusted volume, already approaching the $10.8 trillion recorded across all of 2025.",
       },
       {
         type: "p",
-        text: "Both underlying facts are real and both are interesting. They are simply about different things, and this piece separates them properly, then answers the question people are actually asking: which company is leading stablecoin transactions in 2026?",
+        text: "Numbers at that scale invite a simple question: who is leading? The answer depends entirely on which measurement you use, and the two most commonly cited measurements currently have different leaders.",
       },
       {
         type: "p",
-        text: "The short answer is that two companies lead on two different measures, and neither is losing. Tether is the largest stablecoin by circulating supply and raw activity. Circle leads by adjusted economic volume. Those statements are not in tension.",
-      },
-      { type: "h2", text: "Did Visa say 70% of its transactions are stablecoins?" },
-      {
-        type: "p",
-        text: "No.",
+        text: "Circle's USDC leads adjusted transaction volume, accounting for approximately 67% of the June total. Tether's USDT remains the largest stablecoin by market capitalisation, with more than $185 billion in circulation. Both are accurate descriptions of the same market, measuring different things.",
       },
       {
         type: "p",
-        text: "What Visa does report is progress on TOKENIZATION, which in the card industry means something very specific and has nothing to do with blockchains. When you add a card to Apple Pay or Google Pay, your 16-digit card number — the primary account number, or PAN — is replaced with a substitute number called a network token. The token works only for that device or that merchant. If it leaks, it is useless elsewhere, and the real card number never has to be stored by the merchant.",
+        text: "This article sets out what each metric captures, where the two issuers actually stand, and what Visa, Mastercard, Stripe, PayPal and Coinbase have been building around them.",
       },
+      { type: "h2", text: "The market has reached a new scale" },
       {
         type: "p",
-        text: "That is card tokenization. It is a security measure for ordinary card payments, in dollars, over Visa's existing network. No cryptocurrency is involved at any point.",
-      },
-      {
-        type: "p",
-        text: "Visa's published tokenization figures are meaningful but they are not 70% overall: industry reporting in 2026 puts roughly 35% of all transactions as tokenized, with around half of Visa's e-commerce volume using network tokens. The benefit Visa emphasises is a measurable lift in authorisation rates — roughly 4.6% globally on card-not-present transactions compared with a raw PAN, because a token fails less often.",
-      },
-      {
-        type: "quote",
-        text: "Card tokenization replaces your card number with a safer stand-in. Blockchain tokenization represents an asset as a transferable digital record. Same word, unrelated technologies.",
-      },
-      { type: "h2", text: "So where does the 70% actually come from?" },
-      {
-        type: "p",
-        text: "From the Visa Onchain Analytics dashboard, built with the data firm Allium Labs — and it describes stablecoins, not Visa's own transactions. Visa's role here is publisher of the data, which is precisely why the confusion happens: Visa's name is on a stablecoin statistic that is not about Visa.",
-      },
-      {
-        type: "p",
-        text: "The figure is USDC's share of ADJUSTED stablecoin transaction volume, and that word 'adjusted' is doing the heavy lifting.",
-      },
-      {
-        type: "p",
-        text: "Raw on-chain volume counts every movement of a stablecoin on a blockchain. A great deal of that is not economic activity in any ordinary sense: arbitrage bots moving value between exchanges, automated market-maker rebalancing, MEV extraction, flash loans that borrow and repay within a single transaction, and smart-contract loops where the same dollars pass through several addresses on the way to one destination. Counting all of it is like measuring an economy by counting every internal transfer between a company's own bank accounts.",
-      },
-      {
-        type: "p",
-        text: "Adjusted volume strips that out and attempts to count payments, settlements and transfers that represent real economic intent. It is an estimate, and reasonable people can argue about the filters. But it is far closer to the question most people mean when they ask how much a stablecoin is used.",
-      },
-      {
-        type: "p",
-        text: "On that measure, for June 2026: total adjusted stablecoin volume reached a monthly record of $1.79 trillion, up 63% month on month. USDC accounted for about 67% of it, roughly $1.21 trillion. USDT was about 32%, roughly $576 billion. PYUSD was third at roughly $2.42 billion — which shows how concentrated the top of this market is.",
-      },
-      {
-        type: "p",
-        text: "Across the first half of 2026, adjusted volume totalled $8.82 trillion, already approaching the $10.8 trillion recorded for all of 2025.",
-      },
-      { type: "h2", text: "Circle versus Tether: who actually leads?" },
-      {
-        type: "p",
-        text: "Both, on different measures. This is the part that gets flattened into a false headline in either direction.",
+        text: "The June 2026 figures come from Visa Onchain Analytics, a public dashboard Visa built with the blockchain data firm Allium Labs. It reports adjusted stablecoin transaction volume — a filtered measure described in detail below.",
       },
       {
         type: "table",
-        headers: ["", "Tether (USDT)", "Circle (USDC)"],
+        headers: ["Measure", "June 2026", "Change"],
         rows: [
-          ["Issuer", "Tether Holdings / iFinex", "Circle Internet Financial"],
-          ["Market capitalisation, Q3 2026", "~$183–186bn (about 59% of the market)", "~$72–75bn (about 24%)"],
-          ["Adjusted volume share, H1 2026", "~25–32%", "~67–70%  ← the '70%' figure"],
-          ["Raw on-chain activity", "Leader, driven by retail and P2P transfers", "Lower count, higher average value"],
-          ["Main chains", "Tron, Ethereum, TON, Solana", "Base, Ethereum, Solana, Polygon"],
-          ["Where it is used", "Global OTC, emerging markets, offshore exchange liquidity, retail savings", "Institutional settlement, B2B cross-border, fintech payouts"],
+          ["Total adjusted stablecoin volume", "$1.79tn", "+63% month on month, +125% year on year"],
+          ["USDC share", "~$1.21tn", "~67% of the monthly total"],
+          ["USDT share", "~$576bn", "~32% of the monthly total"],
+          ["PYUSD", "~$2.42bn", "Third by adjusted volume"],
+          ["H1 2026 cumulative", "$8.82tn", "Against $10.8tn for all of 2025"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: "Two features of that table are worth noting. The growth rate is steep by any standard, and the distribution is highly concentrated: the top two stablecoins account for approximately 99% of adjusted volume, with the third-largest roughly two orders of magnitude behind the second.",
+      },
+      { type: "h2", text: "What adjusted transaction volume measures" },
+      {
+        type: "p",
+        text: "Raw on-chain volume counts every stablecoin transfer recorded on a blockchain. A significant share of that activity is automated rather than economic: arbitrage between trading venues, automated market-maker rebalancing, maximal extractable value (MEV) strategies, flash loans that borrow and repay within a single transaction, and smart-contract routing where the same value passes through several addresses en route to one destination.",
+      },
+      {
+        type: "p",
+        text: "Adjusted volume applies filters intended to remove that activity and approximate transfers with genuine economic intent — payments, settlements, treasury movements. It is an estimate produced by a defined methodology, not a directly observed quantity, and the choice of filters is a legitimate subject of technical debate.",
+      },
+      {
+        type: "p",
+        text: "The distinction matters for interpretation. Raw volume answers 'how much moved on-chain'. Adjusted volume attempts to answer 'how much moved for a commercial reason'. Most people asking which stablecoin is used more are asking the second question.",
+      },
+      { type: "h2", text: "Circle and USDC" },
+      {
+        type: "p",
+        text: "Circle reported its Q2 2026 results on 5 August 2026. The company-reported figures:",
+      },
+      {
+        type: "ul",
+        items: [
+          "USDC on-chain transaction volume of $14.8 trillion in Q2 2026, growing 151% year on year",
+          "Daily on-chain transaction volume averaging $163 billion across the quarter, also up 151% year on year",
+          "USDC in circulation of $73.3 billion at quarter end, up 19% year on year",
+          "Average USDC circulation of $76.5 billion during the quarter, an all-time high",
+          "Total revenue and reserve income of $701 million, up 7% year on year, with adjusted EBITDA of $143 million",
+        ],
+      },
+      {
+        type: "p",
+        text: "The gap between those two growth rates — circulation up 19%, transaction volume up 151% — describes how USDC is used. The same supply is turning over considerably faster than it is growing, which is the signature of a payment instrument rather than a store of value.",
+      },
+      {
+        type: "p",
+        text: "Circle's position is concentrated in institutional and business flows: settlement between financial institutions, business-to-business cross-border payments, fintech and marketplace payouts, corporate treasury movement, and payment-processor settlement legs. These transactions are large, occur repeatedly between the same counterparties, and are unambiguously commercial — exactly the activity adjusted volume is designed to capture.",
+      },
+      {
+        type: "p",
+        text: "Circle's Cross-Chain Transfer Protocol supports this by moving USDC between blockchains through a burn-and-mint mechanism rather than a third-party bridge, which removes the bridge-custody risk that institutional counterparties typically will not accept. Circle has also announced a public mainnet launch for its Arc blockchain on 16 September 2026.",
+      },
+      { type: "h2", text: "Tether and USDT" },
+      {
+        type: "p",
+        text: "USDT remains the largest stablecoin by circulating supply, with more than $185 billion outstanding — roughly 59% of total stablecoin market capitalisation. Tether reportedly generates over $1 billion per quarter in net profit, primarily from yield on the US Treasury holdings backing that supply.",
+      },
+      {
+        type: "p",
+        text: "USDT also leads raw transaction count. Its activity is concentrated in different use cases from USDC's: over-the-counter trading, exchange liquidity and trading pairs, peer-to-peer transfers, and dollar access in economies where obtaining and holding dollars through the banking system is difficult or expensive.",
+      },
+      {
+        type: "p",
+        text: "That last category is significant in reach if not in dollar volume. Much of it runs on Tron, which handles roughly $320 billion of monthly adjusted volume — about 18% of the global total — largely through retail corridors in Latin America and Asia where low transaction fees make small transfers economically viable.",
+      },
+      {
+        type: "quote",
+        text: "Small transfers move fewer dollars per transaction than institutional settlement does. A metric denominated in dollars will therefore always understate a use case denominated in people.",
+      },
+      { type: "h2", text: "Why the two rankings differ" },
+      {
+        type: "table",
+        headers: ["", "Circle / USDC", "Tether / USDT"],
+        rows: [
+          ["Market capitalisation", "~$73.3bn at Q2 2026 quarter end (company-reported)", "More than $185bn, ~59% of the market"],
+          ["Adjusted transaction volume, June 2026", "~$1.21tn, ~67% share", "~$576bn, ~32% share"],
+          ["On-chain transaction volume", "$14.8tn in Q2 2026, +151% YoY (company-reported)", "Leads on raw transaction count"],
+          ["Principal networks", "Base, Ethereum, Solana, Polygon", "Tron, Ethereum, TON, Solana"],
+          ["Principal use cases", "Institutional settlement, B2B cross-border, fintech payouts, treasury", "OTC, exchange liquidity, P2P transfers, dollar access"],
+          ["Infrastructure", "Cross-Chain Transfer Protocol; Arc mainnet announced for 16 Sep 2026", "Hadron tokenization platform; trade-finance expansion"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: "The divergence is structural. A stablecoin held as a dollar substitute contributes to circulating supply for as long as it is held and generates no settlement volume while held. A stablecoin used as a payment rail can settle the same dollar many times within a month, contributing repeatedly to transaction volume without changing supply at all.",
+      },
+      {
+        type: "p",
+        text: "Velocity, in other words, is the variable. USDC circulation grew 19% year on year while its transaction volume grew 151%. Neither behaviour is a deficiency; they are different products serving different demand.",
+      },
+      {
+        type: "quote",
+        text: "Market capitalisation measures how much of a stablecoin exists. Adjusted transaction volume measures how hard it is working. A complete picture requires both.",
+      },
+      { type: "h2", text: "Where the volume settles" },
+      {
+        type: "p",
+        text: "Adjusted volume by network for June 2026, from the same Visa Onchain Analytics dataset:",
+      },
+      {
+        type: "table",
+        headers: ["Network", "Monthly adjusted volume", "Share", "Principal stablecoins", "Dominant activity"],
+        rows: [
+          ["Base", "~$565bn", "~31.5%", "USDC", "Sub-cent fees; direct Stripe and Coinbase wallet integration"],
+          ["Ethereum", "~$562bn", "~31.4%", "USDC, USDT", "High-value institutional settlement, treasury movement"],
+          ["Tron", "~$320bn", "~17.9%", "USDT", "Retail payments, P2P corridors in Latin America and Asia"],
+          ["Solana", "~$225bn", "~12.5%", "USDC, PYUSD", "High-throughput merchant checkout, DeFi liquidity"],
+          ["Others", "~$118bn", "~6.7%", "USDC, USDS", "Rollup liquidity, regional fintech deployments"],
         ],
         highlightCol: 2,
       },
       {
-        type: "quote",
-        text: "Tether is the bigger asset. Circle moves the bigger economy. Market capitalisation measures how much exists; adjusted volume measures how much is being used for payments.",
+        type: "p",
+        text: "Base and Ethereum are separated by roughly $3 billion in a $1.79 trillion month — a margin narrow enough that the ordering should be treated as a snapshot rather than a standing rank. Their profiles differ regardless: Base's share comes substantially from high-frequency, low-fee flows, Ethereum's from fewer transactions of higher individual value, where settlement finality outweighs transaction cost.",
       },
       {
         type: "p",
-        text: "The reason the two diverge is structural rather than competitive. USDT functions heavily as a dollar SUBSTITUTE in economies with unreliable currency access — people hold it, and hold it for a long time, in wallets and on offshore venues. Held balances add to market capitalisation and not to settlement volume. USDC functions heavily as a payment RAIL for regulated businesses, where the same dollar can settle many times in a month.",
+        text: "One methodological note: this table ranks by transaction VALUE, not transaction COUNT. A network can lead one and not the other, and the two are frequently reported interchangeably.",
       },
+      { type: "h2", text: "The stablecoin leaderboard" },
       {
         type: "p",
-        text: "A currency that sits still and a currency that circulates will always look different on these two measures, and neither behaviour is a failure.",
-      },
-      { type: "h2", text: "The stablecoin leaderboard, with both measures side by side" },
-      {
-        type: "p",
-        text: "Market-cap figures are Q3 2026 estimates; adjusted-volume shares are H1 2026 estimates from the Visa/Allium dataset. They measure different things and are shown together deliberately, because seeing them in one table is what makes the distinction obvious.",
+        text: "Market capitalisations are Q3 2026 estimates and move continuously; adjusted-volume shares are H1 2026 estimates from the Visa/Allium dataset. The two columns measure different things and are shown together to make the distinction visible.",
       },
       {
         type: "table",
-        headers: ["#", "Stablecoin", "Issuer", "Market cap (est.)", "Adj. volume share (est.)", "Primary use"],
+        headers: ["#", "Stablecoin", "Issuer", "Market cap (est.)", "Adj. volume share (est.)", "Principal use"],
         rows: [
-          ["1", "USDT", "Tether Holdings / iFinex", "~$183–186bn", "~25–32%", "OTC, emerging markets, offshore liquidity"],
+          ["1", "USDT", "Tether", "~$183–186bn", "~25–32%", "OTC, exchange liquidity, emerging-market dollar access"],
           ["2", "USDC", "Circle", "~$72–75bn", "~67–70%", "Institutional settlement, B2B, fintech payouts"],
-          ["3", "USDS / DAI", "Sky (formerly MakerDAO)", "~$4.8–5.4bn", "~1.5%", "DeFi collateral and lending"],
+          ["3", "USDS / DAI", "Sky", "~$4.8–5.4bn", "~1.5%", "DeFi collateral and lending"],
           ["4", "USD1", "World Liberty Financial", "~$4.0–4.7bn", "<1%", "DeFi liquidity, institutional yield"],
           ["5", "USDe", "Ethena Labs", "~$3.9–5.2bn", "~1.2%", "Synthetic delta-neutral basis trading"],
           ["6", "USDG", "Paxos / Global Dollar Network", "~$3.2–3.5bn", "<1%", "Enterprise rewards-sharing network"],
@@ -195,205 +259,217 @@ export const POSTS: Post[] = [
       },
       {
         type: "p",
-        text: "Two things stand out. The market is extraordinarily concentrated — the top two account for roughly 83% of capitalisation and about 99% of adjusted volume. And rank order changes depending on which column you sort by, which is the entire point of this article.",
+        text: "Sorting by either column produces a different top two. Below the top two, both measures fall away sharply — the third-ranked asset holds under 2% on either.",
       },
-      { type: "h2", text: "The companies building the rails" },
+      { type: "h2", text: "Visa and stablecoin settlement" },
       {
         type: "p",
-        text: "The more consequential 2026 story is not which token is winning. It is that the payments industry stopped experimenting and started buying.",
+        text: "A distinction is useful before the detail. In card payments, AUTHORISATION is the real-time approval of a transaction at the point of purchase. SETTLEMENT is the movement of funds between financial institutions afterwards, typically on a delayed cycle. Visa's stablecoin work sits almost entirely on the settlement side.",
       },
       {
+        type: "p",
+        text: "Visa announced US stablecoin settlement in December 2025, enabling issuer and acquirer partners to settle with Visa in USDC on Solana — initially with Cross River Bank and Lead Bank, and a broader rollout expected through 2026. Because blockchains operate continuously, participating institutions can settle on weekends and holidays, when traditional settlement systems are closed.",
+      },
+      {
+        type: "p",
+        text: "On disclosed volume, two figures with different scopes and dates are in circulation and should not be combined. Visa reported that monthly stablecoin settlement volume passed a $3.5 billion annualised run rate as of 30 November, in the announcement of the US launch. Later 2026 reporting describes a settlement pilot spanning nine blockchains at approximately a $7 billion annualised rate, growing around 50% quarter on quarter. The first is a US-launch figure; the second is broader in scope and later in date.",
+      },
+      {
+        type: "p",
+        text: "Either figure is a small share of Visa's overall payments volume and a meaningful absolute sum. Visa also operates the Visa Tokenized Asset Platform, which allows banks to pilot tokenized deposits, and the Visa Stablecoin Platform, alongside support for 60-plus crypto-linked card programmes where a cardholder spends a stablecoin balance at ordinary merchants.",
+      },
+      { type: "h2", text: "Two different meanings of tokenization" },
+      {
+        type: "p",
+        text: "The word tokenization is used for two unrelated technologies in payments, and it is worth defining both because Visa is active in each.",
+      },
+      {
+        type: "p",
+        text: "CARD-NETWORK TOKENIZATION replaces a card's primary account number — the 16-digit number on the front — with a substitute value called a network token, typically restricted to one device or merchant. It is a security measure for conventional card payments and involves no blockchain. Industry reporting in 2026 places roughly 35% of transactions overall as tokenized, with around half of Visa's e-commerce volume using network tokens; Visa attributes an approximately 4.6% global uplift in card-not-present authorisation rates to token use, because tokens do not expire when a physical card is reissued.",
+      },
+      {
+        type: "p",
+        text: "BLOCKCHAIN TOKENIZATION represents an asset — a deposit, a security, a fund share — as a transferable record on a distributed ledger. This is what the Visa Tokenized Asset Platform addresses.",
+      },
+      {
+        type: "p",
+        text: "Both are called tokenization. They share the concept of substituting a representation for an underlying value, and nothing else.",
+      },
+      { type: "h2", text: "Mastercard's acquisition of BVNK" },
+      {
+        type: "p",
+        text: "Mastercard announced an agreement to acquire the stablecoin infrastructure company BVNK on 17 March 2026, in a deal valued at up to $1.8 billion including contingent payments, and completed the acquisition on 3 August 2026. It is the largest stablecoin acquisition recorded to date.",
+      },
+      {
+        type: "p",
+        text: "BVNK provides the conversion layer between fiat currency and stablecoins — the on-ramp and off-ramp infrastructure that lets a business accept a payment in one form and settle in another. Reporting at the time of closing indicated BVNK brought approximately $30 billion in annual stablecoin volume.",
+      },
+      {
+        type: "p",
+        text: "The strategic logic is about position rather than product. Cross-border B2B payments, payouts and treasury movement all require a controlled boundary between traditional currency and on-chain settlement, and owning that boundary means owning the economics of every transaction crossing it.",
+      },
+      {
+        type: "p",
+        text: "The two card networks have taken visibly different routes to the same objective. Mastercard acquired its conversion layer outright; Visa has largely partnered, including work with Stripe-owned Bridge on stablecoin-linked card programmes.",
+      },
+      { type: "h2", text: "Stripe and Bridge" },
+      {
+        type: "p",
+        text: "Stripe acquired the stablecoin orchestration platform Bridge for $1.1 billion in February 2025, at the time the largest acquisition in the sector. Bridge provides the infrastructure for issuing, converting and moving stablecoins, which Stripe has integrated into its merchant products.",
+      },
+      {
+        type: "p",
+        text: "Stripe now supports stablecoin checkout for merchants across more than 150 countries and stablecoin payouts for platforms with distributed contractor and seller bases — a use case where conventional cross-border payout rails are slow and costly relative to transaction size. Its stablecoin support spans USDC, USDP and USDG across Solana, Ethereum and Base.",
+      },
+      { type: "h2", text: "PayPal and PYUSD" },
+      {
+        type: "p",
+        text: "PayPal issues PYUSD in partnership with Paxos, on Ethereum and Solana. It has been expanded to more than 70 global markets and integrated into PayPal's merchant checkout, with zero-fee cross-border transfers available through Xoom, PayPal's remittance service.",
+      },
+      {
+        type: "p",
+        text: "PYUSD's approximately $2.5–2.7 billion market capitalisation and roughly $2.42 billion in June adjusted volume place it third among stablecoins by volume, at a scale roughly two orders of magnitude below the top two. Its distinguishing characteristic is distribution rather than size: PYUSD reaches an existing consumer base that does not otherwise interact with blockchain infrastructure.",
+      },
+      { type: "h2", text: "Coinbase and Base" },
+      {
+        type: "p",
+        text: "Coinbase co-governs USDC with Circle and operates Base, the Ethereum layer-2 network that led adjusted stablecoin volume in June 2026 at approximately $565 billion, or 31.5% of the monthly total.",
+      },
+      {
+        type: "p",
+        text: "Base's position derives from cost and integration together. Transaction fees below one cent make high-frequency settlement viable, and direct integration with Coinbase wallets and Stripe's infrastructure means the network sits inside the products that businesses already use to move USDC. Coinbase also offers zero-fee USDC transactions on Base.",
+      },
+      {
+        type: "p",
+        text: "As noted above, Base's lead over Ethereum in this dataset is narrow and period-specific.",
+      },
+      { type: "h2", text: "The infrastructure race" },
+      {
         type: "table",
-        headers: ["Company", "Role", "What they did in 2026"],
+        headers: ["Company", "Role", "Principal 2026 development"],
         rows: [
-          ["Circle", "Issuer and infrastructure", "$14.8tn total USDC on-chain volume in Q2 2026, up 151% year on year; Cross-Chain Transfer Protocol standardised across 10+ chains"],
-          ["Stripe", "Merchant acquirer", "Acquired stablecoin platform Bridge for $1.1bn (Feb 2025); crypto checkout across 150+ countries"],
-          ["Mastercard", "Card network", "Acquired BVNK for $1.8bn — announced 17 March 2026, closed 3 August 2026 — the largest stablecoin acquisition to date"],
-          ["Visa", "Card network", "Direct USDC settlement at a reported $4.5–7.0bn annualised run rate; VTAP and Visa Stablecoin Platform; 60+ crypto-linked card programmes"],
+          ["Circle", "Issuer and infrastructure", "$14.8tn USDC on-chain volume in Q2 2026, +151% YoY; Arc mainnet announced for 16 Sep 2026"],
+          ["Tether", "Issuer", "More than $185bn circulating supply; Hadron tokenization platform; trade-finance expansion"],
+          ["Mastercard", "Card network", "Completed $1.8bn BVNK acquisition on 3 Aug 2026, announced 17 Mar 2026"],
+          ["Visa", "Card network", "US USDC settlement on Solana with issuer and acquirer partners; VTAP and Visa Stablecoin Platform"],
+          ["Stripe", "Merchant acquirer", "Bridge acquisition ($1.1bn, Feb 2025) integrated into checkout and payouts across 150+ countries"],
           ["PayPal", "Consumer payments", "PYUSD expanded to 70+ markets; zero-fee cross-border transfers via Xoom"],
-          ["Coinbase", "Exchange and L2", "Base became the #1 network by adjusted stablecoin volume at roughly $565bn a month"],
-          ["Tether", "Issuer", "Surpassed $185bn circulating supply; expanded into trade finance and launched the Hadron tokenization platform"],
+          ["Coinbase", "Exchange and L2", "Base led adjusted stablecoin volume at ~$565bn in June 2026"],
         ],
       },
       {
         type: "p",
-        text: "Note the difference in strategy between the two card networks. Mastercard bought its way in with BVNK, choosing to own the fiat-to-stablecoin conversion layer outright. Visa has largely partnered instead — including work with Stripe-owned Bridge on stablecoin-linked cards. Both are the same bet placed differently: that stablecoins become settlement plumbing, and that whoever owns the on-ramp owns the margin.",
+        text: "The pattern across these entries is that established payment companies have moved from pilots to permanent infrastructure, and in two cases to nine- and ten-figure acquisitions. Neither card network launched a stablecoin of its own; both invested in the connective layer between existing stablecoins and existing payment rails.",
       },
-      {
-        type: "quote",
-        text: "Two $1bn-plus acquisitions in eighteen months is not an industry running a pilot. It is an industry buying infrastructure it expects to depend on.",
-      },
-      { type: "h2", text: "Why USDC leads on adjusted volume" },
+      { type: "h2", text: "What the activity actually consists of" },
       {
         type: "p",
-        text: "The explanation is regulatory and commercial rather than technical. USDC is the stablecoin that regulated Western businesses can most readily put through a compliance process, which makes it the default for the flows that adjusted volume is designed to capture: corporate treasury movements, B2B cross-border settlement, marketplace and gig-platform payouts, and payment-processor settlement legs.",
+        text: "The composition of stablecoin volume in 2026 differs from earlier periods. The categories driving adjusted volume are recognisably conventional payment activities:",
       },
-      {
-        type: "p",
-        text: "Those transactions are large, infrequent per counterparty, and unambiguously economic. A single treasury rebalancing can register more adjusted volume than thousands of retail transfers. That is why USDC can lead adjusted volume by better than two to one while holding well under half of Tether's market capitalisation.",
-      },
-      {
-        type: "p",
-        text: "Circle's cross-chain infrastructure matters here too. Its Cross-Chain Transfer Protocol lets USDC move between chains by burning on one and minting on another rather than routing through a third-party bridge — which removes a category of risk that institutional counterparties are specifically unwilling to accept.",
-      },
-      { type: "h2", text: "Why Tether is not losing" },
-      {
-        type: "p",
-        text: "It would be easy to read the adjusted-volume figures as Tether being displaced. That reading does not survive contact with the numbers.",
-      },
-      {
-        type: "p",
-        text: "USDT has more than $185bn in circulating supply, roughly 59% of the entire stablecoin market, and reportedly generates over $1bn a quarter in net profit from the yield on its Treasury holdings. It leads raw transaction count. And its dominant use case — dollar access in economies where dollars are hard to obtain — is arguably the most socially significant thing any stablecoin currently does.",
-      },
-      {
-        type: "p",
-        text: "That usage is concentrated on Tron, which handles roughly $320bn a month of adjusted volume, about 18% of the global total, largely through retail and peer-to-peer corridors in Latin America and Asia. Low fees make small transfers viable; small transfers do not accumulate large adjusted volume; the metric therefore under-represents exactly the activity USDT is best at.",
-      },
-      {
-        type: "quote",
-        text: "Adjusted volume measures the size of payments. It does not measure how many people a stablecoin serves, and on that question USDT almost certainly leads.",
-      },
-      { type: "h2", text: "Where stablecoin activity actually settles" },
-      {
-        type: "table",
-        headers: ["Network", "Share of monthly adjusted volume", "Monthly volume", "Dominant stablecoin", "Why"],
-        rows: [
-          ["Base (Coinbase L2)", "~31.5%", "~$565bn", "USDC", "Sub-cent fees plus direct Stripe and Coinbase wallet integration"],
-          ["Ethereum", "~31.4%", "~$562bn", "USDC / USDT", "High-value institutional settlement and treasury movement"],
-          ["Tron", "~17.9%", "~$320bn", "USDT", "Retail payments and P2P corridors in Latin America and Asia"],
-          ["Solana", "~12.5%", "~$225bn", "USDC / PYUSD", "High-throughput merchant checkout"],
-          ["Others", "~6.7%", "~$118bn", "USDC / USDS", "Rollup liquidity and regional fintech pilots"],
-        ],
-        highlightCol: 1,
-      },
-      {
-        type: "p",
-        text: "The notable result is Base overtaking Ethereum, though the two are close enough that the ordering may not be stable. It reflects where the payment companies actually built: Coinbase's L2 combined near-zero fees with direct integration into the wallets and processors that move institutional USDC.",
-      },
-      {
-        type: "p",
-        text: "Ethereum's position is different in character. Its share comes from fewer, larger transactions — settlement finality still matters more than fees when the amount is large enough.",
-      },
-      { type: "h2", text: "What Visa actually does with stablecoins" },
-      {
-        type: "p",
-        text: "Visa's real stablecoin work is worth understanding precisely, because it is more limited and more interesting than the viral claim suggests.",
-      },
-      {
-        type: "p",
-        text: "Visa settles some transactions with its partners in USDC over Ethereum and Solana. When a Visa card is used, the authorisation — the instant check of whether the payment is approved — runs over Visa's normal network in ordinary currency. Settlement, the movement of money between Visa and its partner institutions afterwards, is what can happen in USDC. Reporting puts this at a $4.5–7.0bn annualised run rate.",
-      },
-      {
-        type: "p",
-        text: "That is a meaningful sum and a small fraction of Visa's total volume. Visa also runs the Visa Tokenized Asset Platform and the Visa Stablecoin Platform for banks piloting tokenized deposits, and supports 60+ crypto-linked card programmes where a user spends a stablecoin balance at any ordinary Visa merchant.",
-      },
-      {
-        type: "quote",
-        text: "Authorisation is the moment your payment is approved. Settlement is the money moving afterwards. Visa's stablecoin work is almost entirely on the settlement side — which is precisely why '70% of Visa transactions' was never a coherent claim.",
-      },
-      { type: "h2", text: "What Visa's SEC filings do and do not say" },
-      {
-        type: "p",
-        text: "Visa does not report stablecoin settlement as a standalone revenue or transaction-volume line. Its disclosures are organised around payments volume, processed transactions, and revenue by category — with stablecoin work described qualitatively where it is described at all.",
-      },
-      {
-        type: "p",
-        text: "This matters for anyone trying to verify a claim about Visa and stablecoins. A 10-K is the annual report, a 10-Q the quarterly, an 8-K a disclosure of a material event, and a Form 4 an insider transaction — none of which currently contains a 'stablecoin transaction volume' figure you could cite. Where numbers exist, they come from company statements, executive commentary or the Visa Onchain Analytics dashboard, and should be attributed to those rather than to a filing.",
-      },
-      { type: "h2", text: "So who is winning?" },
-      {
-        type: "p",
-        text: "The question assumes a single scoreboard. There are at least four, and different companies lead each.",
-      },
-      {
-        type: "table",
-        headers: ["Measure", "Leader", "Figure"],
-        rows: [
-          ["Market capitalisation", "Tether (USDT)", "~$183–186bn, about 59% of the market"],
-          ["Adjusted economic volume", "Circle (USDC)", "~67–70% of adjusted volume; $14.8tn total USDC on-chain volume in Q2 2026"],
-          ["Raw transaction count", "Tether (USDT)", "Driven by retail and P2P transfers, largely on Tron"],
-          ["Settlement network", "Base, narrowly over Ethereum", "~$565bn vs ~$562bn a month"],
-        ],
-        highlightCol: 1,
-      },
-      {
-        type: "p",
-        text: "The infrastructure layer — Visa, Mastercard, Stripe, PayPal, Coinbase — is not really competing on these measures at all. It is competing to be the layer through which everyone else's stablecoins reach ordinary commerce, which is why the notable 2026 events were acquisitions rather than token launches.",
-      },
-      {
-        type: "quote",
-        text: "Stablecoins in 2026 stopped being an asset class people argue about and became infrastructure people buy. The $1.8bn Mastercard paid for BVNK is a clearer signal than any market-cap chart.",
-      },
-      { type: "h2", text: "Key takeaways" },
       {
         type: "ul",
         items: [
-          "Visa has never said 70% of its transactions are stablecoins. Visa's tokenization figures concern card security — roughly 35% of transactions overall and about half of its e-commerce volume — and involve no cryptocurrency.",
-          "The ~70% figure is USDC's share of adjusted stablecoin transaction volume, from the Visa Onchain Analytics dashboard built with Allium Labs. It describes the stablecoin market, not Visa's network.",
-          "Adjusted volume filters out bot, arbitrage and internal smart-contract activity to approximate genuine economic transfers. It is an estimate, not a measured fact.",
-          "June 2026 set a record: $1.79tn adjusted volume, USDC at ~67% ($1.21tn), USDT at ~32% ($576bn). H1 2026 totalled $8.82tn.",
-          "Tether leads market capitalisation (~$183–186bn) and raw activity. Circle leads adjusted volume. Both statements are true and neither contradicts the other.",
-          "Base narrowly leads networks by adjusted volume (~$565bn/month) over Ethereum (~$562bn), with Tron third (~$320bn) and dominant for USDT retail flows.",
+          "Cross-border B2B payments, where correspondent banking is slow and the fee is large relative to the transfer",
+          "Marketplace and platform payouts to contractors and sellers across multiple jurisdictions",
+          "Corporate treasury movement between entities and accounts",
+          "Payment-processor settlement legs between institutions",
+          "Merchant checkout, principally on Solana and Base",
+          "Remittances, including through consumer-facing services such as Xoom",
         ],
       },
+      {
+        type: "p",
+        text: "These are the flows that card networks, acquirers and processors already serve. The relevant comparison for stablecoin settlement is therefore not other crypto assets but the existing correspondent banking and payout infrastructure it runs alongside.",
+      },
+      { type: "h2", text: "Who leads, by measure" },
+      {
+        type: "table",
+        headers: ["Measure", "Leader", "Figure", "Period"],
+        rows: [
+          ["Market capitalisation", "Tether (USDT)", "More than $185bn, ~59% share", "Q3 2026 estimate"],
+          ["Adjusted transaction volume", "Circle (USDC)", "~$1.21tn, ~67% share", "June 2026"],
+          ["Company-reported on-chain volume", "Circle (USDC)", "$14.8tn in the quarter, +151% YoY", "Q2 2026"],
+          ["Raw transaction count", "Tether (USDT)", "Driven by retail and P2P transfers", "2026"],
+          ["Network by adjusted volume", "Base, narrowly", "~$565bn vs Ethereum ~$562bn", "June 2026"],
+          ["Card-network settlement infrastructure", "Contested", "Mastercard via acquisition; Visa via partnership and direct settlement", "2026"],
+        ],
+        highlightCol: 1,
+      },
+      {
+        type: "p",
+        text: "There is no single figure that resolves the question, because the metrics measure different properties of the same system. Supply, velocity, transaction count, settlement value and infrastructure position are separate variables, and the current leaders differ across them.",
+      },
+      {
+        type: "quote",
+        text: "The most durable observation is not which issuer leads a given metric. It is that stablecoins in 2026 are being measured with the vocabulary of payments infrastructure rather than that of crypto assets — settlement volume, payout corridors, conversion layers, run rates.",
+      },
       { type: "h2", text: "Frequently asked questions" },
-      { type: "h2", text: "Did Visa say 70% of its transactions are stablecoins?" },
+      { type: "h2", text: "Which company leads stablecoin transaction volume in 2026?" },
       {
         type: "p",
-        text: "No. Visa reports on card tokenization — replacing card numbers with secure substitutes for services like Apple Pay — which involves no cryptocurrency. Industry reporting puts tokenization at roughly 35% of transactions overall and about half of Visa's e-commerce volume. The ~70% figure is separate: it is USDC's share of adjusted stablecoin transaction volume, published on the Visa Onchain Analytics dashboard, and it describes the stablecoin market rather than Visa's own transactions.",
+        text: "Circle, measured by adjusted transaction volume. USDC accounted for approximately 67% of adjusted stablecoin volume in June 2026 — roughly $1.21 trillion of a $1.79 trillion monthly total, according to Visa Onchain Analytics data produced with Allium Labs. Circle separately reported $14.8 trillion in USDC on-chain transaction volume for Q2 2026, up 151% year on year.",
       },
-      { type: "h2", text: "Which company leads stablecoin transaction volume?" },
+      { type: "h2", text: "Which stablecoin has the largest market capitalisation?" },
       {
         type: "p",
-        text: "Circle, on adjusted volume. USDC accounted for roughly 67% of adjusted stablecoin volume in June 2026 (about $1.21 trillion of a $1.79 trillion total), and Circle reported $14.8 trillion in total USDC on-chain volume in Q2 2026, up 151% year on year.",
+        text: "USDT. Tether has more than $185 billion in circulating supply, approximately 59% of total stablecoin market capitalisation. USDC is second; Circle reported $73.3 billion in circulation at the end of Q2 2026, up 19% year on year.",
       },
-      { type: "h2", text: "Is Circle bigger than Tether?" },
+      { type: "h2", text: "Is USDC bigger than USDT?" },
       {
         type: "p",
-        text: "It depends on the measure. Tether is larger by market capitalisation — roughly $183–186 billion against Circle's $72–75 billion — and leads raw transaction count. Circle leads adjusted economic transaction volume by more than two to one. Neither is a complete answer on its own.",
+        text: "By adjusted transaction volume, yes — USDC held roughly a two-to-one lead in June 2026. By market capitalisation, no; USDT is approximately 2.5 times larger. The two metrics measure different properties: how much of a stablecoin exists, versus how much transaction activity it carries.",
       },
-      { type: "h2", text: "Which stablecoin has the highest market capitalisation?" },
+      { type: "h2", text: "How much stablecoin volume occurred in June 2026?" },
       {
         type: "p",
-        text: "USDT, at roughly $183–186 billion as of Q3 2026, about 59% of the total stablecoin market. USDC is second at roughly $72–75 billion, about 24%.",
+        text: "$1.79 trillion in adjusted transaction volume, a monthly record, up 63% from May 2026 and 125% year on year. Cumulative adjusted volume for the first half of 2026 was $8.82 trillion, against $10.8 trillion for the whole of 2025.",
       },
       { type: "h2", text: "What is adjusted stablecoin transaction volume?" },
       {
         type: "p",
-        text: "An estimate of stablecoin transfers that represent genuine economic activity, produced by filtering raw on-chain volume to remove arbitrage bots, automated market-maker rebalancing, MEV, flash loans and internal smart-contract loops. Raw volume counts every movement; adjusted volume attempts to count payments. It is an estimate and the filtering methodology is a legitimate subject of debate.",
+        text: "An estimate of stablecoin transfers representing genuine economic activity, produced by filtering raw on-chain volume to remove automated activity such as arbitrage, market-maker rebalancing, MEV strategies, flash loans and internal smart-contract routing. It is a methodology-dependent estimate rather than a directly observed figure.",
       },
-      { type: "h2", text: "Why does USDC lead adjusted volume when Tether is larger?" },
+      { type: "h2", text: "What role does Visa play in stablecoins?" },
       {
         type: "p",
-        text: "Because the two are used differently. USDT functions substantially as a dollar substitute that people hold, particularly in emerging markets — held balances raise market capitalisation without generating settlement volume. USDC functions substantially as a payment rail for regulated businesses, where corporate treasury movements, B2B settlement and processor payouts are large, unambiguously economic, and repeated.",
+        text: "Visa enables issuer and acquirer partners to settle with it in USDC, launched in the United States on Solana in December 2025 with Cross River Bank and Lead Bank as initial partners. Visa reported settlement volume passing a $3.5 billion annualised run rate as of 30 November; later 2026 reporting describes a broader nine-blockchain pilot at approximately a $7 billion annualised rate. Visa also operates the Visa Tokenized Asset Platform and Visa Stablecoin Platform and supports 60-plus crypto-linked card programmes. This work concerns settlement between institutions rather than card authorisation.",
       },
-      { type: "h2", text: "What role does Visa actually play in stablecoins?" },
+      { type: "h2", text: "What did Mastercard's BVNK acquisition accomplish?" },
       {
         type: "p",
-        text: "Visa settles some partner transactions in USDC over Ethereum and Solana, at a reported $4.5–7.0 billion annualised run rate; runs the Visa Tokenized Asset Platform and Visa Stablecoin Platform for banks piloting tokenized deposits; and supports 60+ crypto-linked card programmes. This is settlement work — money moving between institutions after a payment — rather than card authorisation.",
+        text: "It gave Mastercard ownership of fiat-to-stablecoin conversion infrastructure — the on-ramp and off-ramp layer connecting traditional payment rails to on-chain settlement. Mastercard announced the deal on 17 March 2026 at up to $1.8 billion and completed it on 3 August 2026. Reporting at closing indicated BVNK brought approximately $30 billion in annual stablecoin volume.",
       },
-      { type: "h2", text: "Which blockchain processes the most stablecoin activity?" },
+      { type: "h2", text: "Which blockchain has the highest stablecoin volume?" },
       {
         type: "p",
-        text: "By adjusted volume in June 2026, Base led narrowly at roughly $565 billion a month (~31.5%), just ahead of Ethereum at roughly $562 billion (~31.4%). Tron was third at roughly $320 billion (~17.9%) and remains the dominant network for USDT retail and P2P transfers. Base and Ethereum are close enough that the ordering may not persist.",
+        text: "By adjusted volume in June 2026, Base led at approximately $565 billion (31.5%), narrowly ahead of Ethereum at approximately $562 billion (31.4%). Tron was third at approximately $320 billion (17.9%) and remains the principal network for USDT retail and P2P transfers. The Base/Ethereum margin is narrow enough that the ordering should be treated as period-specific.",
       },
-      { type: "h2", text: "Are these figures verified?" },
+      { type: "h2", text: "What is Circle's USDC transaction volume?" },
       {
         type: "p",
-        text: "The adjusted-volume figures come from the Visa Onchain Analytics dashboard built with Allium Labs and are estimates produced by a filtering methodology. Market capitalisations are point-in-time estimates that move daily. The Mastercard/BVNK acquisition ($1.8 billion, announced 17 March 2026, closed 3 August 2026) and Stripe/Bridge acquisition ($1.1 billion) are confirmed corporate transactions. Treat ranges as ranges.",
+        text: "Circle reported $14.8 trillion in USDC on-chain transaction volume for Q2 2026, growing 151% year on year, with daily volume averaging $163 billion across the quarter. These are company-reported figures from Circle's Q2 2026 results, published 5 August 2026.",
       },
-      { type: "h2", text: "Sources and method" },
+      { type: "h2", text: "What is Tether's market share?" },
       {
         type: "p",
-        text: "Adjusted stablecoin volume, network shares and issuer shares are from the Visa Onchain Analytics dashboard, built with Allium Labs, as reported for June 2026 and H1 2026. Circle's $14.8 trillion Q2 2026 on-chain volume is a company-reported figure. Visa's tokenization percentages are from 2026 industry reporting on network tokenization. The Mastercard acquisition of BVNK was announced 17 March 2026 and closed 3 August 2026 at $1.8 billion; Stripe acquired Bridge for $1.1 billion.",
+        text: "Approximately 59% of stablecoin market capitalisation, with more than $185 billion in circulating supply. By adjusted transaction volume, USDT's share was approximately 32% in June 2026 — a different metric measuring transaction activity rather than supply.",
+      },
+      { type: "h2", text: "Sources and methodology" },
+      {
+        type: "p",
+        text: "Adjusted stablecoin transaction volume, issuer shares and network shares are from Visa Onchain Analytics, produced with Allium Labs, for June 2026 and H1 2026. Adjusted volume is a filtered estimate, not a directly observed quantity.",
       },
       {
         type: "p",
-        text: "Market capitalisations are Q3 2026 estimates and move continuously. Where the source material gave a range we have preserved the range rather than picking a midpoint, because a single number implies a precision these figures do not have.",
+        text: "Circle's transaction volume, circulation and financial figures are company-reported from its Q2 2026 results, published 5 August 2026. Visa's stablecoin settlement figures are from its December 2025 US launch announcement ($3.5 billion annualised run rate as of 30 November) and from later 2026 reporting describing a nine-blockchain pilot at approximately $7 billion annualised; these have different scopes and dates and are not combined here.",
       },
       {
         type: "p",
-        text: "One distinction we have kept throughout: market capitalisation and adjusted transaction volume measure different things and are never presented as interchangeable. Most of the confusion this article addresses comes from treating them as the same scoreboard.",
+        text: "The Mastercard acquisition of BVNK was announced 17 March 2026 at up to $1.8 billion and completed 3 August 2026. Stripe acquired Bridge for $1.1 billion in February 2025. Visa card-network tokenization percentages are from 2026 industry reporting.",
+      },
+      {
+        type: "p",
+        text: "Market capitalisations are estimates that move continuously; where source material provided a range, the range is preserved rather than reduced to a midpoint. Market capitalisation, circulating supply, raw transaction count, adjusted transaction volume, company-reported on-chain volume and card settlement volume are distinct measurements and are not treated as interchangeable at any point in this analysis.",
       },
     ],
   },

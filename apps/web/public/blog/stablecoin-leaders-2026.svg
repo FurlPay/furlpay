@@ -1,40 +1,38 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Stablecoin market share by two measures: Tether leads market capitalisation at about 59 percent, Circle leads adjusted transaction volume at about 67 percent">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-label="Stablecoin market share by two measures in 2026: Tether leads market capitalisation at about 59 percent, Circle leads adjusted transaction volume at about 67 percent">
 <rect width="1600" height="900" fill="#07080A"/>
-<text x="92" y="104" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="25" letter-spacing="3.5" fill="#0A84FF">STABLECOINS &#183; 2026</text>
-<text x="92" y="176" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="58" font-weight="700" fill="#F2F3F5">Two scoreboards, two winners</text>
-<text x="92" y="220" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="23" fill="#8A9099">Market capitalisation and transaction volume do not measure the same thing</text>
-<text x="92" y="308" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="600" fill="#F2F3F5">MARKET CAPITALISATION</text>
-<text x="92" y="336" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="17" fill="#5A6069">Q3 2026, estimated</text>
-<rect x="92" y="372" width="560" height="44" rx="3" fill="#161A20"/>
-<rect x="92" y="372" width="330" height="44" rx="3" fill="#26A17B" fill-opacity="0.95"/>
-<text x="108" y="401" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Tether  USDT</text>
-<text x="672" y="401" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~59%</text>
-<rect x="92" y="434" width="560" height="44" rx="3" fill="#161A20"/>
-<rect x="92" y="434" width="134" height="44" rx="3" fill="#2775CA" fill-opacity="0.95"/>
-<text x="108" y="463" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Circle  USDC</text>
-<text x="672" y="463" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~24%</text>
-<rect x="92" y="496" width="560" height="44" rx="3" fill="#161A20"/>
-<rect x="92" y="496" width="95" height="44" rx="3" fill="#3A424C" fill-opacity="0.95"/>
-<text x="108" y="525" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Everyone else</text>
-<text x="672" y="525" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~17%</text>
-<text x="92" y="580" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="19" fill="#8A9099">Leader: <tspan font-weight="600" fill="#F2F3F5">Tether</tspan></text>
-<text x="820" y="308" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="600" fill="#F2F3F5">ADJUSTED TRANSACTION VOLUME</text>
-<text x="820" y="336" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="17" fill="#5A6069">June 2026, Visa Onchain Analytics</text>
-<rect x="820" y="372" width="560" height="44" rx="3" fill="#161A20"/>
-<rect x="820" y="372" width="375" height="44" rx="3" fill="#2775CA" fill-opacity="0.95"/>
-<text x="836" y="401" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Circle  USDC</text>
-<text x="1400" y="401" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~67%</text>
-<rect x="820" y="434" width="560" height="44" rx="3" fill="#161A20"/>
-<rect x="820" y="434" width="179" height="44" rx="3" fill="#26A17B" fill-opacity="0.95"/>
-<text x="836" y="463" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Tether  USDT</text>
-<text x="1400" y="463" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~32%</text>
-<rect x="820" y="496" width="560" height="44" rx="3" fill="#161A20"/>
-<rect x="820" y="496" width="6" height="44" rx="3" fill="#3A424C" fill-opacity="0.95"/>
-<text x="836" y="525" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Everyone else</text>
-<text x="1400" y="525" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~1%</text>
-<text x="820" y="580" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="19" fill="#8A9099">Leader: <tspan font-weight="600" fill="#F2F3F5">Circle</tspan></text>
-<text x="92" y="716" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="600" fill="#F2F3F5">Visa never said 70% of its transactions are stablecoins.</text>
-<text x="92" y="758" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#8A9099">The ~70% is USDC's share of adjusted stablecoin volume. Visa's own tokenization</text>
-<text x="92" y="788" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#8A9099">figure is about card security, and involves no cryptocurrency at all.</text>
-<text x="92" y="856" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="19" fill="#5A6069">Sources: Visa Onchain Analytics with Allium Labs &#183; issuer disclosures &#183; furlpay.com</text>
+<text x="92" y="104" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="25" letter-spacing="3.5" fill="#0A84FF">STABLECOINS &#183; JUNE 2026</text>
+<text x="92" y="176" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="58" font-weight="700" fill="#F2F3F5">$1.79 trillion, two leaders</text>
+<text x="92" y="220" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="23" fill="#8A9099">Adjusted stablecoin transaction volume, up 125% year on year</text>
+<text x="92" y="312" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="600" fill="#F2F3F5">MARKET CAPITALISATION</text>
+<text x="92" y="340" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="17" fill="#5A6069">Q3 2026 estimate</text>
+<rect x="92" y="378" width="560" height="46" rx="3" fill="#161A20"/>
+<rect x="92" y="378" width="330" height="46" rx="3" fill="#26A17B" fill-opacity="0.95"/>
+<text x="108" y="408" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Tether  USDT</text>
+<text x="672" y="408" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~59%</text>
+<rect x="92" y="444" width="560" height="46" rx="3" fill="#161A20"/>
+<rect x="92" y="444" width="134" height="46" rx="3" fill="#2775CA" fill-opacity="0.95"/>
+<text x="108" y="474" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Circle  USDC</text>
+<text x="672" y="474" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~24%</text>
+<rect x="92" y="510" width="560" height="46" rx="3" fill="#161A20"/>
+<rect x="92" y="510" width="95" height="46" rx="3" fill="#3A424C" fill-opacity="0.95"/>
+<text x="108" y="540" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">All others</text>
+<text x="672" y="540" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~17%</text>
+<text x="820" y="312" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="21" font-weight="600" fill="#F2F3F5">ADJUSTED TRANSACTION VOLUME</text>
+<text x="820" y="340" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="17" fill="#5A6069">June 2026 · Visa Onchain Analytics</text>
+<rect x="820" y="378" width="560" height="46" rx="3" fill="#161A20"/>
+<rect x="820" y="378" width="375" height="46" rx="3" fill="#2775CA" fill-opacity="0.95"/>
+<text x="836" y="408" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Circle  USDC</text>
+<text x="1400" y="408" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~67%</text>
+<rect x="820" y="444" width="560" height="46" rx="3" fill="#161A20"/>
+<rect x="820" y="444" width="179" height="46" rx="3" fill="#26A17B" fill-opacity="0.95"/>
+<text x="836" y="474" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">Tether  USDT</text>
+<text x="1400" y="474" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~32%</text>
+<rect x="820" y="510" width="560" height="46" rx="3" fill="#161A20"/>
+<rect x="820" y="510" width="6" height="46" rx="3" fill="#3A424C" fill-opacity="0.95"/>
+<text x="836" y="540" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="20" font-weight="600" fill="#FFFFFF">All others</text>
+<text x="1400" y="540" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#F2F3F5">~1%</text>
+<text x="92" y="716" font-family="-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif" font-size="30" font-weight="600" fill="#F2F3F5">Supply and velocity are different measurements.</text>
+<text x="92" y="758" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#8A9099">USDC circulation grew 19% year on year while its transaction volume grew 151%.</text>
+<text x="92" y="788" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="21" fill="#8A9099">USDT holds more than $185bn in circulating supply and leads raw transaction count.</text>
+<text x="92" y="856" font-family="ui-monospace,SFMono-Regular,Menlo,Consolas,monospace" font-size="19" fill="#5A6069">Sources: Visa Onchain Analytics with Allium Labs &#183; Circle Q2 2026 results &#183; furlpay.com</text>
 </svg>
