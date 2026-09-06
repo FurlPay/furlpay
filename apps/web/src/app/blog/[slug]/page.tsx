@@ -31,7 +31,11 @@ export async function generateMetadata(props: { params: Promise<{ slug: string }
       : `https://furlpay.com${post.cover}`
     : "https://furlpay.com/og.png";
   return {
-    title: `${post.seoTitle ?? post.title} — Furlpay Blog`,
+    // `absolute` opts out of the root layout's "%s — Furlpay" template, which
+    // was appending a second brand: "… — Furlpay Blog — Furlpay". Google
+    // truncates near 60 characters, so a duplicated brand spends SERP width
+    // saying nothing.
+    title: { absolute: `${post.seoTitle ?? post.title} — Furlpay` },
     description: post.excerpt,
     alternates: { canonical: url },
     openGraph: {
