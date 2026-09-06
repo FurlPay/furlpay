@@ -48,6 +48,10 @@ export const metadata: Metadata = {
     // generic site image loses the one thing that makes it worth opening.
     image: PORTRAIT,
   }),
+  // `absolute` opts out of the root layout's "%s — Furlpay" template, which
+  // would otherwise render "… | FurlPay — Furlpay". Google truncates titles
+  // around 60 characters, so a duplicated brand costs real SERP width.
+  title: { absolute: "Our Founder — Ashutosh Kumar Singh | FurlPay" },
   keywords: [
     "Ashutosh Kumar Singh",
     "FurlPay founder",
