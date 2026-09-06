@@ -114,6 +114,16 @@ export const INSTITUTIONS: Institution[] = [
   { slug: "state-street", cik: "0000093751", name: "STATE STREET CORP", label: "State Street Corporation", kind: "bank" },
   { slug: "northern-trust", cik: "0000073124", name: "NORTHERN TRUST CORP", label: "Northern Trust Corporation", kind: "bank" },
 
+  // Filers that surfaced in the Q2 2026 13F cohort for the spot HYPE ETFs
+  // (THYP, BHYP, HYPG). Registered by CIK only: holdings are parsed from the
+  // filing at request time, never stored here, so these rows stay correct as
+  // positions change quarter to quarter.
+  { slug: "brevan-howard", cik: "0001512857", name: "Brevan Howard Capital Management LP", label: "Brevan Howard Capital Management LP", kind: "hedge-fund" },
+  { slug: "discovery-capital", cik: "0001389507", name: "DISCOVERY CAPITAL MANAGEMENT, LLC / CT", label: "Discovery Capital Management, LLC", kind: "hedge-fund" },
+  { slug: "boothbay-fund", cik: "0001549230", name: "BOOTHBAY FUND MANAGEMENT, LLC", label: "Boothbay Fund Management, LLC", kind: "hedge-fund" },
+  { slug: "tower-research", cik: "0001533421", name: "Tower Research Capital LLC (TRC)", label: "Tower Research Capital LLC", kind: "hedge-fund" },
+  { slug: "van-eck", cik: "0000869178", name: "VAN ECK ASSOCIATES CORP", label: "Van Eck Associates Corporation", kind: "asset-manager" },
+
   // ---- Asset managers ----
   // Vanguard appears as its advisory subsidiary: the parent files notices now.
   { slug: "vanguard-advisers", cik: "0000947529", name: "VANGUARD ADVISERS INC", label: "Vanguard Advisers, Inc.", kind: "asset-manager" },

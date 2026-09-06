@@ -467,6 +467,13 @@ export const CATALOG: MarketAsset[] = [
   c("BTC", "Bitcoin", "bitcoin", "L1", "own", "mega"),
   c("ETH", "Ethereum", "ethereum", "L1", "own", "mega"),
   c("SOL", "Solana", "solana", "L1", "own", "mega"),
+  // Hyperliquid. A standalone Rust L1 running HyperBFT, not an L2 or an EVM
+  // fork, so it is classified "L1" on architecture rather than on the fact
+  // that its flagship product is a perpetuals exchange. CoinGecko rank 10 by
+  // market capitalisation at the time of adding, which is why it is "mega" and
+  // why its absence from a catalog claiming the top assets was a real gap.
+  // No artwork in logo-manifest.json, so it renders the letter badge.
+  c("HYPE", "Hyperliquid", "hyperliquid", "L1", "own", "mega"),
   c("BNB", "BNB", "binancecoin", "Exchange", "own", "mega"),
   c("XRP", "XRP", "ripple", "L1", "own", "mega"),
   c("ADA", "Cardano", "cardano", "L1"),

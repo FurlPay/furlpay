@@ -1526,5 +1526,9 @@
   "BNY": {
     "price": 137.16,
     "changePct": -5.69
+  },
+  "HYPE": {
+    "price": 88.15,
+    "changePct": 3.11
   }
 }
