@@ -588,8 +588,20 @@ export const POSTS: Post[] = [
         text: "The single most common error in coverage of this vote is treating it as a vote on the bill. It is not. Here is the full path from Tuesday to law.",
       },
       {
-        type: "diagram",
-        text: "15 SEP 2026, 2:15 p.m. ET\n        |\n        v\n  CLOTURE VOTE on the motion to proceed\n  Needs 60 of 100. GOP holds 53 seats,\n  so >= 7 Democrats must vote yes.\n        |\n        +---- FAILS --> bill stalls. Not dead;\n        |                out of floor time this year.\n        v\n  SUCCEEDS --> formal Senate DEBATE opens\n        |\n        v\n  AMENDMENTS  (the stablecoin perimeter\n               fight happens here)\n        |\n        v\n  SENATE PASSAGE VOTE   <-- a separate vote\n        |\n        v\n  RECONCILE with the House text (H.R. 3633\n  passed the House in July 2025)\n        |\n        v\n  PRESIDENT signs\n        |\n        v\n      LAW",
+        type: "p",
+        text: "The sequence runs like this. At 2:15 p.m. Eastern the Senate votes on cloture on the motion to proceed. Sixty of the hundred senators must vote yes. Republicans hold 53 seats, so at least seven Democrats have to join them.",
+      },
+      {
+        type: "p",
+        text: "If that vote fails, the bill stalls. It does not die — the text stays on the Legislative Calendar and can be taken up again — but it runs out of floor time for this year, and the Senate is expected to leave Washington around 17 September and not return until after the midterms.",
+      },
+      {
+        type: "p",
+        text: "If it succeeds, formal Senate debate opens. That is the beginning of the process rather than the end of it. Debate is followed by an amendment stage, which is where the stablecoin perimeter question gets fought explicitly and where each concession reshapes the coalition. Only after that does the Senate hold a passage vote — a separate vote from the one on 15 September, and the first one that actually passes anything.",
+      },
+      {
+        type: "p",
+        text: "A Senate text then has to be reconciled with the House version, H.R. 3633, which passed in July 2025. The reconciled bill goes to the President, and only a signature makes it law. Five further steps, each with its own failure mode, sit between Tuesday's vote and a statute.",
       },
       {
         type: "quote",
