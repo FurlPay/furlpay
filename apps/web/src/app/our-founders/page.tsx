@@ -197,7 +197,12 @@ const PRODUCTS = [
   },
   {
     name: "Cards",
-    href: "/cards",
+    // No link. `/cards` is the signed-in app screen and sits behind the auth
+    // gate, so an anonymous reader clicking this card would land on a login
+    // form — and there is no public cards page to send them to instead. A
+    // marketing card that promises a destination it cannot deliver is worse
+    // than one that simply describes the product.
+    href: null,
     emphasis: false,
     body: "Virtual and physical cards that spend from the same balance, with a daily limit, a per-purchase limit and a freeze you control.",
     points: ["Virtual cards", "Physical cards", "Daily limits", "Freeze on demand"],
@@ -520,24 +525,39 @@ export default function OurFoundersPage() {
           </p>
 
           <div className="product-grid">
-            {PRODUCTS.map((p) => (
-              <Link
-                className={`product-card${p.emphasis ? " is-featured" : ""}`}
-                href={p.href}
-                key={p.name}
-              >
-                <h3>{p.name}</h3>
-                <p>{p.body}</p>
-                <ul>
-                  {p.points.map((point) => (
-                    <li key={point}>{point}</li>
-                  ))}
-                </ul>
-                <span aria-hidden="true" className="product-more">
-                  Learn more →
-                </span>
-              </Link>
-            ))}
+            {PRODUCTS.map((p) => {
+              const body = (
+                <>
+                  <h3>{p.name}</h3>
+                  <p>{p.body}</p>
+                  <ul>
+                    {p.points.map((point) => (
+                      <li key={point}>{point}</li>
+                    ))}
+                  </ul>
+                  {p.href ? (
+                    <span aria-hidden="true" className="product-more">
+                      Learn more →
+                    </span>
+                  ) : null}
+                </>
+              );
+              const className = `product-card${p.emphasis ? " is-featured" : ""}${
+                p.href ? "" : " is-static"
+              }`;
+              // A card with nowhere public to go renders as a plain element, not
+              // a dead link: it stays out of the tab order and offers no
+              // affordance it cannot honour.
+              return p.href ? (
+                <Link className={className} href={p.href} key={p.name}>
+                  {body}
+                </Link>
+              ) : (
+                <div className={className} key={p.name}>
+                  {body}
+                </div>
+              );
+            })}
           </div>
         </section>
 
