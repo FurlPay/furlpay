@@ -294,42 +294,24 @@
 }
 
 /*
- * The crop, derived by measurement rather than by eye.
+ * The photograph is pre-composed for this circle (see
+ * public/team/ashutosh-kumar-singh-portrait.jpg), so nothing is repositioned
+ * here. The crop was derived by measurement: face detection on the source put
+ * the face centre at 49.7% across and 36.5% down, which rides high in a circle
+ * and fills the lower third with shirt and tie. The composed square shows
+ * source region x 48-448, y 10-410, placing the face centre 43% down, where
+ * portrait convention puts it.
  *
- * Face detection on the 500x500 source puts the face centre at 49.7% across
- * and 36.5% down, with the face box spanning y 63-302. Shown uncropped in a
- * circle, that composition rides high: the face sits well above centre and the
- * lower third fills with shirt and tie.
- *
- * So the circle shows source region x 48-448, y 10-410 - a 400px window that
- * places the face centre 43% down the frame, which is where portrait
- * convention puts it (dead-centre reads as a mugshot), with 108px below the
- * chin for neck and upper shoulders.
- *
- * ON HEADROOM, which this deliberately does not have: the supplied photograph
- * is itself cropped at the top of the head - the hair reaches row 0 of the
- * source - so there is no space above it to crop toward. Extending the canvas
- * with synthesized background was tried and rejected: the fitted background
- * carried a visible warm cast at the join, and adding space above a flat-cut
- * hairline only advertises the cut. The circle's curvature handles the
- * hairline far better than a straight edge would. A version with real
- * headroom needs a source shot with room above the head.
- *
- * Done in CSS rather than by cropping the file, so the full-resolution
- * original remains available for the Open Graph card, where a tight circular
- * crop would be the wrong shape.
- *
- * Geometry: 500/400 = 1.25, so the image renders at 125% of the circle;
- * offsets are the crop origin scaled the same way (48/500 x 125% = 12%,
- * 10/500 x 125% = 2.5%).
+ * ON HEADROOM, which the source does not allow: the supplied photograph is
+ * itself cropped at the top of the head - the hair reaches row 0 - so there is
+ * no space above it to crop toward. Extending the canvas with synthesized
+ * background was tried and rejected: it carried a visible warm cast at the
+ * join, and space above a flat-cut hairline only advertises the cut. The
+ * circle's curvature carries the hairline better than a straight edge would.
  */
 .portrait-circle img {
-  position: absolute;
-  width: 125%;
-  height: 125%;
-  max-width: none;
-  left: -12%;
-  top: -2.5%;
+  width: 100%;
+  height: 100%;
   object-fit: cover;
   display: block;
 }

@@ -14,8 +14,22 @@ export default function AuthorBio({ author }: { author: string }) {
   return (
     <div className="mt-12 flex gap-4 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
       {a.avatar ? (
+        // The size classes here were h-13/w-13, which do not exist in
+        // Tailwind's scale (it runs 12, 14) and so were never generated. With
+        // no CSS height, the image took its height from the flex row's default
+        // align-items: stretch and grew to the full height of the bio text,
+        // rendering as a tall ellipse showing a vertical sliver of the
+        // photograph. h-14/w-14 are real, and an explicit height also stops
+        // the stretch regardless.
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={a.avatar} alt={a.name} width={52} height={52} className="h-13 w-13 shrink-0 rounded-full object-cover" />
+        <img
+          src={a.avatar}
+          alt={a.name}
+          width={56}
+          height={56}
+          loading="lazy"
+          className="h-14 w-14 shrink-0 self-start rounded-full border border-white/10 object-cover"
+        />
       ) : (
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-neon/30 bg-neon/10 text-[15px] font-bold text-neon">
           {monogram}

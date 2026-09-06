@@ -118,9 +118,11 @@ export default async function AuthorPage(props: { params: Promise<{ slug: string
           <img
             src={a.avatar}
             alt=""
-            width={72}
-            height={72}
-            className="h-18 w-18 shrink-0 rounded-full object-cover"
+            width={64}
+            height={64}
+            // h-18/w-18 are not in Tailwind's scale either (16, 20) and were
+            // never generated, so this stretched the same way AuthorBio did.
+            className="h-16 w-16 shrink-0 self-start rounded-full border border-white/10 object-cover"
           />
         ) : (
           <div

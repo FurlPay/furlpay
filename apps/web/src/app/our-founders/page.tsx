@@ -31,7 +31,11 @@ import "./founders.css";
 
 const PATH = "/our-founders";
 const URL = `${SITE}${PATH}`;
+// Full-resolution original. Used for the Open Graph card and the Person
+// graph, where a tight circular crop would be the wrong shape.
 const PORTRAIT = "/team/ashutosh-kumar-singh.jpg";
+// The same photograph composed for a circle. See founders.css.
+const PORTRAIT_CIRCLE = "/team/ashutosh-kumar-singh-portrait.jpg";
 
 export const viewport: Viewport = {
   themeColor: "#00E599",
@@ -366,10 +370,10 @@ export default function OurFoundersPage() {
           <figure className="founder-portrait">
             <div className="portrait-circle">
               <Image
-                src={PORTRAIT}
+                src={PORTRAIT_CIRCLE}
                 alt="Ashutosh Kumar Singh, founder of FurlPay"
-                width={500}
-                height={500}
+                width={400}
+                height={400}
                 priority
                 sizes="300px"
               />

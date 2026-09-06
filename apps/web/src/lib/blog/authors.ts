@@ -45,7 +45,9 @@ const FOUNDER: Author = {
   bio: "Ashutosh is a Software Engineer at Skyhigh Security (previously Quantiphi), working across ML systems and cloud infrastructure. He is a contributor to Google DeepMind and a NeurIPS 2026 author. He is building Furlpay: stablecoin payments, travel booking, and investing in one client — settled on Arbitrum. Pay in USDC, book 2.2M+ stays and flights, and let AI agents pay per-request via x402. Phishing-resistant. Compliance-aware. Zero gas.",
   // The entity home: the one page on this site that answers "who is this?".
   url: "https://furlpay.com/our-founders",
-  avatar: "/team/ashutosh-kumar-singh.jpg",
+  // The composed square, not the raw source: shown in a circle, the
+  // original puts the face high with the lower third full of tie.
+  avatar: "/team/ashutosh-kumar-singh-portrait.jpg",
   sameAs: [
     "https://www.linkedin.com/in/ashutosh-kumar-singh951/",
     "https://x.com/0xAshutosh",
