@@ -28,6 +28,10 @@ const PUBLIC_PAGES = new Set([
   "/",
   "/pricing",
   "/about",
+  // Marketing page. It is also the one page whose whole purpose is to be read
+  // by people deciding whether to trust us — behind /login it is unreachable
+  // by them AND uncrawlable, which silently voids its metadata and JSON-LD.
+  "/our-founders",
   "/talk-to-us",
   "/changelog",
   "/community",
