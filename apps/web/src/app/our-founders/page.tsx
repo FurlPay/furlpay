@@ -40,9 +40,9 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   ...seoMetadata({
     title: "Our Founder — Ashutosh Kumar Singh | FurlPay",
-    ogTitle: "Ashutosh Kumar Singh — Founder, FurlPay",
+    ogTitle: "Ashutosh Kumar Singh — Founder & CEO, FurlPay",
     description:
-      "Ashutosh Kumar Singh is the founder of FurlPay and a Software Engineer at Skyhigh Security. He builds payment infrastructure — stablecoin settlement, agentic payments and the security boundary around them.",
+      "Ashutosh Kumar Singh is the founder and CEO of FurlPay, and a Software Engineer at Skyhigh Security. He builds payment infrastructure — stablecoin settlement, agentic payments and the security boundary around them.",
     path: PATH,
     // The portrait is the card. A founder page shared to LinkedIn or X with the
     // generic site image loses the one thing that makes it worth opening.
@@ -98,11 +98,40 @@ const SOCIALS = [
     path: "M18.9 1.15h3.68l-8.04 9.19L24 22.85h-7.41l-5.8-7.58-6.64 7.58H.46l8.6-9.83L0 1.15h7.59l5.24 6.93zm-1.29 19.5h2.04L6.49 3.24H4.3z",
   },
   {
+    label: "email",
+    href: "mailto:founder@furlpay.com",
+    path: "M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.273H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-.607.229-1.088.632-1.408A1.62 1.62 0 0 1 1.636 3.68c.343 0 .662.1.938.28L12 10.907l9.426-6.947c.276-.18.595-.28.938-.28.36 0 .717.124 1.004.369.403.32.632.801.632 1.408",
+  },
+  {
     label: "Instagram",
     href: "https://instagram.com/ashutosh0x",
     path: "M12 0C8.74 0 8.33.02 7.05.07 5.78.13 4.9.33 4.14.63a5.9 5.9 0 0 0-2.13 1.38A5.9 5.9 0 0 0 .63 4.14C.33 4.9.13 5.78.07 7.05.02 8.33 0 8.74 0 12s.02 3.67.07 4.95c.06 1.27.26 2.15.56 2.91.31.79.72 1.46 1.38 2.13a5.9 5.9 0 0 0 2.13 1.38c.76.3 1.64.5 2.91.56C8.33 23.98 8.74 24 12 24s3.67-.02 4.95-.07c1.27-.06 2.15-.26 2.91-.56a5.9 5.9 0 0 0 2.13-1.38 5.9 5.9 0 0 0 1.38-2.13c.3-.76.5-1.64.56-2.91.05-1.28.07-1.69.07-4.95s-.02-3.67-.07-4.95c-.06-1.27-.26-2.15-.56-2.91a5.9 5.9 0 0 0-1.38-2.13A5.9 5.9 0 0 0 19.86.63c-.76-.3-1.64-.5-2.91-.56C15.67.02 15.26 0 12 0m0 2.16c3.2 0 3.58.01 4.85.07 1.17.05 1.8.25 2.23.41.56.22.96.48 1.38.9.42.42.68.82.9 1.38.16.42.36 1.06.41 2.23.06 1.27.07 1.65.07 4.85s-.01 3.58-.07 4.85c-.05 1.17-.25 1.8-.41 2.23-.22.56-.48.96-.9 1.38-.42.42-.82.68-1.38.9-.42.16-1.06.36-2.23.41-1.27.06-1.65.07-4.85.07s-3.58-.01-4.85-.07c-1.17-.05-1.8-.25-2.23-.41a3.7 3.7 0 0 1-1.38-.9 3.7 3.7 0 0 1-.9-1.38c-.16-.42-.36-1.06-.41-2.23-.06-1.27-.07-1.65-.07-4.85s.01-3.58.07-4.85c.05-1.17.25-1.8.41-2.23.22-.56.48-.96.9-1.38.42-.42.82-.68 1.38-.9.42-.16 1.06-.36 2.23-.41 1.27-.06 1.65-.07 4.85-.07m0 3.68a6.16 6.16 0 1 0 0 12.32 6.16 6.16 0 0 0 0-12.32M12 16a4 4 0 1 1 0-8 4 4 0 0 1 0 8m7.85-10.4a1.44 1.44 0 1 1-2.88 0 1.44 1.44 0 0 1 2.88 0",
   },
 ];
+
+/**
+ * Where he has worked.
+ *
+ * Stated by the account owner, who is the subject and therefore the primary
+ * source on his own employment history. Deliberately carries NO dates: a
+ * tenure I was not given is a tenure I would be inventing, and on this page an
+ * invented date is the detail a reader would check first.
+ */
+const EXPERIENCE = [
+  { company: "Google", title: "" },
+  { company: "Skyhigh Security", title: "Software Engineer" },
+  { company: "Quantiphi", title: "Cybersecurity Engineer" },
+];
+
+/**
+ * Contact.
+ *
+ * `founder@` reaches him; `hello@` is the company inbox already published in
+ * the root layout's Organization node. Both are shown as text as well as an
+ * icon — an envelope glyph alone makes a reader click to discover an address
+ * they may only have wanted to read or copy.
+ */
+const EMAILS = ["founder@furlpay.com", "hello@furlpay.com"];
 
 /**
  * Google Cloud certifications.
@@ -142,18 +171,19 @@ export default function OurFoundersPage() {
             "@type": "ProfilePage",
             "@id": `${URL}#profile`,
             url: URL,
-            name: "Ashutosh Kumar Singh — Founder, FurlPay",
+            name: "Ashutosh Kumar Singh — Founder & CEO, FurlPay",
             mainEntity: {
               "@type": "Person",
               "@id": `${SITE}/#founder`,
               name: "Ashutosh Kumar Singh",
-              jobTitle: "Founder, FurlPay",
+              jobTitle: "Founder & CEO, FurlPay",
               image: `${SITE}${PORTRAIT}`,
               url: URL,
               // Founder of FurlPay, employed by Skyhigh Security. Two separate
               // relationships, stated separately — collapsing them would make
               // one of the two claims false.
-              worksFor: { "@type": "Organization", name: "Skyhigh Security" },
+              worksFor: EXPERIENCE.map((e) => ({ "@type": "Organization", name: e.company })),
+              email: `mailto:${EMAILS[0]}`,
               founderOf: { "@id": ORG_ID },
               knowsAbout: [
                 "Payment infrastructure",
@@ -212,7 +242,7 @@ export default function OurFoundersPage() {
               priority
               sizes="(max-width: 900px) 380px, 42vw"
             />
-            <figcaption>Ashutosh Kumar Singh · Founder</figcaption>
+            <figcaption>Ashutosh Kumar Singh · Founder &amp; CEO</figcaption>
             <ul className="founder-socials">
               {SOCIALS.map((s) => (
                 <li key={s.label}>
@@ -237,7 +267,23 @@ export default function OurFoundersPage() {
           <div className="founder-identity">
             <h2 className="founder-name">Ashutosh Kumar Singh</h2>
             <p className="founder-roles">
-              <b>Founder, FurlPay</b> · Software Engineer at Skyhigh Security
+              <b>Founder &amp; CEO, FurlPay</b> · Software Engineer at Skyhigh Security
+            </p>
+            <ul className="founder-experience">
+              {EXPERIENCE.map((e) => (
+                <li key={e.company}>
+                  <span className="experience-company">{e.company}</span>
+                  {e.title ? <span className="experience-title">{e.title}</span> : null}
+                </li>
+              ))}
+            </ul>
+            <p className="founder-contact">
+              {EMAILS.map((address, i) => (
+                <span key={address}>
+                  {i > 0 ? <span aria-hidden="true"> · </span> : null}
+                  <a href={`mailto:${address}`}>{address}</a>
+                </span>
+              ))}
             </p>
             <p className="founder-bio">
               Ashutosh is a software engineer working across cloud infrastructure and security. He

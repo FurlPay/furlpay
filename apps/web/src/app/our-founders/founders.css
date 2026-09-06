@@ -187,6 +187,73 @@
   font-weight: 600;
 }
 
+/* Employment history. A plain list rather than a card grid — three rows of
+   company + title is not enough content to justify three panels, and padding it
+   out would be the "meet the team" filler this page is meant to avoid. */
+.founder-experience {
+  list-style: none;
+  padding: 0;
+  margin: 18px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.founder-experience li {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 7px 0;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.founder-experience li:last-child {
+  border-bottom: 1px solid var(--border);
+}
+
+.experience-company {
+  color: var(--foreground);
+  font-weight: 600;
+  /* A fixed column so three companies of different name lengths still line
+     their titles up, which is what makes the list read as a record. */
+  min-width: 10.5rem;
+}
+
+.experience-title {
+  color: var(--muted);
+  font: 500 12px/1.4 "JetBrains Mono", monospace;
+  letter-spacing: 0.03em;
+}
+
+.founder-contact {
+  margin: 18px 0 0;
+  font: 500 13px/1.5 "JetBrains Mono", monospace;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+  /* Long addresses on a narrow phone must wrap rather than push the grid. */
+  overflow-wrap: anywhere;
+}
+
+.founder-contact a {
+  color: var(--foreground);
+  text-decoration: none;
+  border-bottom: 1px solid var(--border);
+  transition: color 0.18s, border-color 0.18s;
+}
+
+.founder-contact a:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.founder-contact a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 .founder-bio {
   color: var(--muted);
   letter-spacing: -0.01em;
@@ -431,11 +498,19 @@
   .founder-portrait {
     max-width: none;
   }
+  .founder-experience li {
+    flex-direction: column;
+    gap: 3px;
+  }
+  .experience-company {
+    min-width: 0;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .founders-page .nav-link,
-  .founder-socials a {
+  .founder-socials a,
+  .founder-contact a {
     transition: none;
   }
   .founders-page .nav-link:active,
