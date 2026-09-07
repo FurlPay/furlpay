@@ -100,7 +100,7 @@ export async function GET(req: NextRequest) {
       return fresh;
     };
 
-    const SAME_CHANNEL_GAP_MS = 1_100;
+    const SAME_CHANNEL_GAP_MS = 1_600;
     const lastWriteAt = new Map<string, number>();
     const paceChannel = async (channelId: string) => {
       const previous = lastWriteAt.get(channelId);

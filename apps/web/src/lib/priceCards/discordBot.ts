@@ -233,16 +233,35 @@ export async function upsertCardMessage(opts: {
    * daily job open past its budget. Only 429 is retried — a 403 will still be
    * a 403 in two seconds, and retrying it just spends the budget slower.
    */
+  /** What Discord last asked us to wait, so a 429 that survives every retry can
+   *  say how long it wanted rather than only that it happened. Three separate
+   *  production runs reported a bare "Rate limited (429)", which is not enough
+   *  to choose a gap between writes — it could equally mean 200ms or a minute,
+   *  and those need different fixes. */
+  let lastRetryAfter: number | null = null;
+
   const send = async (url: string, method: "POST" | "PATCH"): Promise<Response | null> => {
     let res = await once(url, method);
-    for (let attempt = 0; attempt < 3 && res && res.status === 429; attempt++) {
+    for (let attempt = 0; attempt < 4 && res && res.status === 429; attempt++) {
       const retryAfter = Number(res.headers.get("retry-after") ?? "1");
       const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1000;
-      await new Promise((r) => setTimeout(r, Math.min(waitMs, 8_000)));
+      lastRetryAfter = waitMs / 1000;
+      // Capped, but generously: Discord's own number is the only reliable one,
+      // and refusing to wait it out is what turns a slow write into a lost card.
+      await new Promise((r) => setTimeout(r, Math.min(waitMs, 15_000)));
       res = await once(url, method);
     }
     return res;
   };
+
+  const failure = (status: number) => ({
+    ok: false as const,
+    error:
+      status === 429 && lastRetryAfter !== null
+        ? `Rate limited by Discord (429); it asked for ${lastRetryAfter}s and still refused after 4 attempts.`
+        : describeFailure(status),
+    status,
+  });
 
   const edit = async (id: string): Promise<DiscordResult | null> => {
     const res = await send(`${API}/channels/${channelId}/messages/${id}`, "PATCH");
@@ -254,7 +273,7 @@ export async function upsertCardMessage(opts: {
     }
     // 404 means the card was deleted; fall through so a new one can be posted.
     if (res && res.status !== 404) {
-      return { ok: false, error: describeFailure(res.status), status: res.status };
+      return failure(res.status);
     }
     return null;
   };
@@ -278,7 +297,7 @@ export async function upsertCardMessage(opts: {
   // 3. Genuinely nothing to update.
   const res = await send(`${API}/channels/${channelId}/messages`, "POST");
   if (!res) return { ok: false, error: "Could not reach Discord." };
-  if (!res.ok) return { ok: false, error: describeFailure(res.status), status: res.status };
+  if (!res.ok) return failure(res.status);
 
   const j = (await res.json()) as { id?: string };
   if (j.id) await remember(j.id);
