@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { CATALOG, bySymbol } from "../catalog";
+import { CATALOG, bySymbol, byKindSymbol } from "../catalog";
 import { UNIVERSE, resolveMergedAsset } from "../universe";
-import { yahooSymbolFor } from "../providers";
+import { yahooSymbolFor, __test } from "../providers";
 
 // ---------------------------------------------------------------------------
 // Which symbols have a page at /markets/<symbol>.
@@ -93,6 +93,51 @@ describe("/markets/<symbol> coverage", () => {
 describe("yahooSymbolFor", () => {
   it("quotes crypto as a USD pair", () => {
     expect(yahooSymbolFor("BTC", "crypto")).toBe("BTC-USD");
+  });
+
+  it("routes a colliding crypto ticker to the disambiguated listing", () => {
+    // Each of these bare pairs is claimed on Yahoo by an unrelated token, and
+    // returns that token's price without any error. Measured 2026-09-07.
+    expect(yahooSymbolFor("TON", "crypto")).toBe("GRAM-USD");
+    expect(yahooSymbolFor("UNI", "crypto")).toBe("UNI7083-USD");
+    expect(yahooSymbolFor("TAO", "crypto")).toBe("TAO22974-USD");
+    expect(yahooSymbolFor("GRT", "crypto")).toBe("GRT6719-USD");
+    // Lower-case reaches the map too — callers pass catalog spellings.
+    expect(yahooSymbolFor("comp", "crypto")).toBe("COMP5692-USD");
+  });
+
+  it("leaves an uncollided coin on its bare pair", () => {
+    expect(yahooSymbolFor("ETH", "crypto")).toBe("ETH-USD");
+    expect(yahooSymbolFor("SOL", "crypto")).toBe("SOL-USD");
+  });
+
+  it("does not apply a crypto override to a stock of the same ticker", () => {
+    // STX is Stacks and Seagate; COMP is Compound and an equity. The override
+    // is keyed on the pair, so it must not follow the ticker across kinds.
+    expect(yahooSymbolFor("STX", "stock")).toBe("STX");
+    expect(yahooSymbolFor("COMP", "stock")).toBe("COMP");
+  });
+
+  it("overrides only symbols the catalog still carries as crypto", () => {
+    // A coin removed or reclassified leaves a stale override behind, which is
+    // invisible until someone lists that ticker as an equity. The lookup is
+    // kind-scoped for the same reason the override is: bySymbol resolves STX
+    // to Seagate and COMP to the equity, so a bare-ticker check would report
+    // both coins as missing from the catalog when both are in it.
+    const stale = Object.keys(__test.YAHOO_CRYPTO_OVERRIDES).filter(
+      (s) => !byKindSymbol.has(`crypto:${s}`)
+    );
+    expect(stale).toEqual([]);
+  });
+
+  it("names a distinct Yahoo listing for every override", () => {
+    const targets = Object.values(__test.YAHOO_CRYPTO_OVERRIDES);
+    expect(new Set(targets).size).toBe(targets.length);
+    // An override that reproduces the bare pair is not an override.
+    const noop = Object.entries(__test.YAHOO_CRYPTO_OVERRIDES).filter(
+      ([sym, target]) => target === `${sym}-USD`
+    );
+    expect(noop).toEqual([]);
   });
 
   it("dashes a share class", () => {

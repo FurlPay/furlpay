@@ -102,6 +102,75 @@ export interface RealStats {
   provenance: Provenance;
 }
 
+/**
+ * Coins whose bare `SYMBOL-USD` pair on Yahoo is a DIFFERENT asset.
+ *
+ * Yahoo lists thousands of tokens and hands the unsuffixed pair to whichever
+ * one claimed the ticker first, which is frequently not the one anybody means.
+ * Left uncorrected this does not fail — it returns a confident, wrong price,
+ * which is the single worst failure mode a money surface has.
+ *
+ * All 95 catalog coins were swept sequentially against the live chart endpoint
+ * on 2026-09-07 and scored against CoinGecko, which is keyed on the `cg` id and
+ * so cannot inherit the collision. Sixteen disagreed. What the bare pair was
+ * actually returning:
+ *
+ *   TON   Toncoin       -> "TON Token"             $0.0052    (real ~$1.42)
+ *   ARB   Arbitrum      -> "ARbit"                 $0.00063   (real ~$0.176)
+ *   POL   Polygon       -> "Proof Of Liquidity"    $0.0082    (real ~$0.097)
+ *   IMX   Immutable     -> "Impermax"              $0.0041    (real ~$0.133)
+ *   MNT   Mantle        -> "microNFT"              $0.071     (real ~$0.628)
+ *   STX   Stacks        -> "Stox"                  $0.0028    (real ~$0.261)
+ *   UNI   Uniswap       -> "UNICORN Token"         $0.00016   (real ~$7.02)
+ *   COMP  Compound      -> "Compound Coin"         $4.8e-8    (real ~$21.17)
+ *   GMX   GMX           -> "GameX"                 $0.00017   (real ~$7.84)
+ *   JUP   Jupiter       -> a different "Jupiter"   $0.00033   (real ~$0.256)
+ *   TAO   Bittensor     -> "Together As One"       $1.3e-7    (real ~$271)
+ *   GRT   The Graph     -> "Golden Ratio Token"    $0.454     (real ~$0.019)
+ *   HYPE  Hyperliquid   -> "Supreme Finance"       $0.0000054 (real ~$86)
+ *   SUI   Sui           -> "Salmonation"           $0.0003    (real ~$0.795)
+ *   APT   Aptos         -> "Apricot Finance"       $0.00013   (real ~$0.615)
+ *
+ * The sixteenth, FTM, has no correct Yahoo listing at all and is not a mapping
+ * problem — see the catalog entry.
+ *
+ * Yahoo disambiguates with a numeric suffix, which is the CoinMarketCap id, so
+ * the real listing is reachable. Every id below was fetched individually and
+ * accepted only when the name matched, the price agreed with CoinGecko to
+ * within 5%, and a full year of daily bars came back — the page reads all
+ * three. Two near misses the name search ranked first and this rejected:
+ * `AMAPT-USD` (Amnis Aptos, a liquid-staking derivative that tracks APT
+ * closely enough to pass a price check) and `WMNT-USD` (Wrapped Mantle).
+ *
+ * TON is mapped to `GRAM-USD`, not to the `TON11419-USD` that the ticker
+ * suggests. Yahoo carries the asset twice after its rename and quotes both
+ * correctly, but the TON-suffixed listing returns two daily bars, so the chart
+ * and the 52-week range on /markets/TON were empty. `GRAM-USD` has 330.
+ *
+ * This is a deny-list of KNOWN collisions, not a proof that the rest are
+ * clean. A ticker that is unambiguous today can be claimed tomorrow by a new
+ * listing, and the only way to catch that is to re-run the sweep. When adding
+ * a coin to the catalog, verify its `-USD` pair resolves to the right asset
+ * before trusting the Yahoo-derived statistics on its page.
+ */
+const YAHOO_CRYPTO_OVERRIDES: Readonly<Record<string, string>> = {
+  APT: "APT21794-USD",
+  ARB: "ARB11841-USD",
+  COMP: "COMP5692-USD",
+  GMX: "GMX11857-USD",
+  GRT: "GRT6719-USD",
+  HYPE: "HYPE32196-USD",
+  IMX: "IMX10603-USD",
+  JUP: "JUP29210-USD",
+  MNT: "MNT27075-USD",
+  POL: "POL28321-USD",
+  STX: "STX4847-USD",
+  SUI: "SUI20947-USD",
+  TAO: "TAO22974-USD",
+  TON: "GRAM-USD",
+  UNI: "UNI7083-USD",
+};
+
 /** How this symbol is spelled on Yahoo.
  *
  * Alpaca and Yahoo disagree about punctuation, and every disagreement is a
@@ -109,7 +178,8 @@ export interface RealStats {
  * price should be, which looks like an asset that does not trade.
  *
  * - Crypto is quoted as a pair. A bare BTC resolves to an unrelated equity or
- *   to nothing at all; BTC-USD is the coin.
+ *   to nothing at all; BTC-USD is the coin. Where the pair itself is claimed by
+ *   another token, YAHOO_CRYPTO_OVERRIDES above names the real listing.
  * - Share classes use a dash: BRK.B is not a symbol Yahoo knows, BRK-B is.
  * - Preferred series, warrants and units each have their own spelling, and the
  *   plain dot-to-dash rewrite gets all three wrong. `ALL.PRB` becomes
@@ -120,37 +190,6 @@ export interface RealStats {
  * Rights (`.RT`, 16 symbols) are deliberately not mapped. They are short-lived
  * instruments and no Yahoo spelling was found that resolves them, so they fall
  * through to the generic rewrite and miss honestly. */
-/**
- * Coins whose bare `SYMBOL-USD` pair on Yahoo is a DIFFERENT asset.
- *
- * Yahoo lists thousands of tokens and hands the unsuffixed pair to whichever
- * one claimed the ticker first, which is frequently not the one anybody means.
- * Left uncorrected this does not fail — it returns a confident, wrong price,
- * which is the single worst failure mode a money surface has. Measured against
- * the live API rather than assumed:
- *
- *   HYPE-USD -> "Supreme Finance"   $0.0000054   (Hyperliquid is ~$88)
- *   TON-USD  -> "TON Token"         $0.0052      (Toncoin is ~$1.44)
- *   SUI-USD  -> "Salmonation"       $0.0003      (Sui is ~$0.81)
- *   APT-USD  -> "Apricot Finance"   $0.00013     (Aptos is ~$0.63)
- *
- * Yahoo disambiguates with a numeric suffix, so the real listing is reachable;
- * each id below was confirmed to return the right name, a plausible price and
- * a full 52-week range before being added.
- *
- * This is a deny-list of KNOWN collisions, not a proof that the rest are
- * clean. A ticker that is unambiguous today can be claimed tomorrow by a new
- * listing, and the only way to catch that is to re-run the check. When adding
- * a coin to the catalog, verify its `-USD` pair resolves to the right asset
- * before trusting the Yahoo-derived statistics on its page.
- */
-const YAHOO_CRYPTO_OVERRIDES: Readonly<Record<string, string>> = {
-  HYPE: "HYPE32196-USD",
-  TON: "TON11419-USD",
-  SUI: "SUI20947-USD",
-  APT: "APT21794-USD",
-};
-
 export function yahooSymbolFor(symbol: string, kind: string): string {
   const upper = symbol.toUpperCase();
   if (kind === "crypto") return YAHOO_CRYPTO_OVERRIDES[upper] ?? `${upper}-USD`;
@@ -407,4 +446,4 @@ function combine(
 }
 
 /** Exposed for tests: the pure half, with no network. */
-export const __test = { combine, ratio, pct, marginPct };
+export const __test = { combine, ratio, pct, marginPct, YAHOO_CRYPTO_OVERRIDES };
