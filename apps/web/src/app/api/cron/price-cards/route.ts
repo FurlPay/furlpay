@@ -61,7 +61,10 @@ export async function GET(req: NextRequest) {
     }
     ctx.metric("channels_ready", ready.length);
 
-    const symbols = ready.map((c) => c.symbol) as CardSymbol[];
+    // Deduplicated: an asset with its own channel AND a shared feed appears in
+    // `ready` twice, and it is the same card drawn from the same numbers. One
+    // fetch, rendered once per home.
+    const symbols = [...new Set(ready.map((c) => c.symbol))] as CardSymbol[];
     const data = await getPriceCardData(symbols);
 
     const results: Record<string, unknown>[] = [];
@@ -71,7 +74,10 @@ export async function GET(req: NextRequest) {
       const d = data.get(chan.symbol);
       if (!d) {
         // No price means no card. Posting one anyway would show $0.00.
-        results.push({ symbol: chan.symbol, ok: false, error: "no market data" });
+        results.push({
+          symbol: chan.symbol, channelId: chan.channelId, envVar: chan.envVar,
+          ok: false, error: "no market data",
+        });
         continue;
       }
 
@@ -79,7 +85,10 @@ export async function GET(req: NextRequest) {
       // cannot post in, and so the operator gets a specific permission error.
       const access = await checkChannel(token, chan.channelId);
       if (!access.ok) {
-        results.push({ symbol: chan.symbol, ok: false, error: access.error, envVar: chan.envVar });
+        results.push({
+          symbol: chan.symbol, channelId: chan.channelId, envVar: chan.envVar,
+          ok: false, error: access.error,
+        });
         continue;
       }
 

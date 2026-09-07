@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import {
   DASH, changeColor, COLORS, discordTimestamp,
   formatCompactUsd, formatPct, formatRank, formatUsd, sparklinePath,
@@ -193,8 +193,72 @@ describe("configuration", () => {
     const { ready, skipped } = configuredChannels();
     // In a test environment nothing is configured, and every asset should say
     // which variable it wanted rather than vanishing silently.
-    expect(ready.length + skipped.length).toBe(Object.keys(CARD_ASSETS).length);
+    expect(ready).toEqual([]);
+    expect(skipped.length).toBe(Object.keys(CARD_ASSETS).length);
     for (const s of skipped) expect(s.reason).toMatch(/CHANNEL_ID/);
+  });
+
+  // -------------------------------------------------------------------------
+  // A per-asset channel is an ADDITIONAL home, not an override.
+  //
+  // Under the old rule a per-asset setting won outright, so moving the cards to
+  // a shared feed silently abandoned the four that already existed in their own
+  // channels: they kept showing 2 September prices for five days under headings
+  // that promise a live number. A card is a message that exists somewhere, not
+  // a broadcast that can be redirected.
+  // -------------------------------------------------------------------------
+  describe("homes", () => {
+    const SHARED = "1542628383752720434";
+    const BTC_OWN = "1544711989090197608";
+
+    afterEach(() => {
+      delete process.env.MARKET_CARDS_CHANNEL_ID;
+      delete process.env.BTC_PRICE_CHANNEL_ID;
+    });
+
+    it("writes an asset to its own channel AND the shared feed", () => {
+      process.env.MARKET_CARDS_CHANNEL_ID = SHARED;
+      process.env.BTC_PRICE_CHANNEL_ID = BTC_OWN;
+
+      const { ready, skipped } = configuredChannels();
+      expect(skipped).toEqual([]);
+
+      const btc = ready.filter((r) => r.symbol === "BTC").map((r) => r.channelId).sort();
+      expect(btc).toEqual([BTC_OWN, SHARED].sort());
+
+      // An asset with no channel of its own still has exactly one home.
+      expect(ready.filter((r) => r.symbol === "SPX").map((r) => r.channelId)).toEqual([SHARED]);
+    });
+
+    it("does not post the same card into one channel twice", () => {
+      // Pointing a per-asset variable at the shared channel is a reasonable
+      // thing to type, and it must not double-post.
+      process.env.MARKET_CARDS_CHANNEL_ID = SHARED;
+      process.env.BTC_PRICE_CHANNEL_ID = SHARED;
+
+      const { ready } = configuredChannels();
+      expect(ready.filter((r) => r.symbol === "BTC").map((r) => r.channelId)).toEqual([SHARED]);
+    });
+
+    it("still serves an asset that has only its own channel", () => {
+      process.env.BTC_PRICE_CHANNEL_ID = BTC_OWN;
+
+      const { ready, skipped } = configuredChannels();
+      expect(ready.map((r) => r.channelId)).toEqual([BTC_OWN]);
+      // The other six have nowhere to go, and each says so.
+      expect(skipped.length).toBe(Object.keys(CARD_ASSETS).length - 1);
+    });
+
+    it("names the variable that supplied each home", () => {
+      // The report has to be able to say WHICH setting sent a card to a channel
+      // the bot cannot post in; "BTC failed" is not actionable when BTC has two.
+      process.env.MARKET_CARDS_CHANNEL_ID = SHARED;
+      process.env.BTC_PRICE_CHANNEL_ID = BTC_OWN;
+
+      const btc = configuredChannels().ready.filter((r) => r.symbol === "BTC");
+      expect(btc.find((r) => r.channelId === BTC_OWN)?.envVar).toBe("BTC_PRICE_CHANNEL_ID");
+      expect(btc.find((r) => r.channelId === SHARED)?.envVar).toBe("MARKET_CARDS_CHANNEL_ID");
+    });
   });
 
   it("knows a channel for every asset it can draw", () => {

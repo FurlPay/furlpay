@@ -1,20 +1,30 @@
 // ---------------------------------------------------------------------------
 // Where each price card is posted.
 //
-// TWO WAYS TO ARRANGE THE SAME CARDS, and both are legitimate:
+// TWO WAYS TO ARRANGE THE SAME CARDS, and they COMBINE rather than compete:
 //
 //   ONE CHANNEL, MANY CARDS. `MARKET_CARDS_CHANNEL_ID` puts every asset into a
 //   single channel as a vertical feed of independent messages — one per asset,
 //   each with its own chart and its own message id, each edited on its own.
 //   This is the layout a reader scans top to bottom.
 //
-//   ONE CHANNEL PER ASSET. A per-asset variable overrides the shared channel
-//   for that asset, which suits a dedicated #btc-price channel someone follows
-//   on its own.
+//   ONE CHANNEL PER ASSET. A per-asset variable gives that asset a home of its
+//   own, which suits a dedicated #btc-price channel someone follows on its own.
 //
-// A per-asset setting always wins, so adding the shared channel does not move
-// cards that already have a home. What NEVER happens is a card in two places:
-// each asset resolves to exactly one channel.
+// A PER-ASSET CHANNEL IS AN ADDITIONAL HOME, NOT AN OVERRIDE. This reverses the
+// earlier rule, and the reversal was forced by what the old one did in
+// practice. On 2 September 2026 the cards were set up per-asset and then moved
+// to a shared feed the same afternoon. Because a per-asset setting won
+// outright, "moving" them only meant the shared channel started updating —
+// the four cards already sitting in #🪙-btc-price, #🪙-eth-price,
+// #🪙-sol-price and #🪙-gold-price were resolved away from and never written
+// again. They showed 2 September prices for five days, under headings that
+// promise a live number.
+//
+// A card is not a broadcast that can be redirected; it is a message that
+// EXISTS in a channel, and a channel holding a card nobody updates is worse
+// than a channel holding none. So every configured home for an asset is
+// written on every run, and the same channel named twice is written once.
 // ---------------------------------------------------------------------------
 
 import { CARD_ORDER, type CardSymbol } from "./data";
@@ -26,7 +36,7 @@ export interface CardChannel {
   envVar: string;
 }
 
-/** Per-asset overrides. Absent entries fall back to the shared channel. */
+/** Per-asset homes. An asset with no entry set lives only in the shared feed. */
 const CHANNEL_ENV: Record<CardSymbol, string> = {
   SPX: "SPX_PRICE_CHANNEL_ID",
   NDX: "NDX_PRICE_CHANNEL_ID",
@@ -78,18 +88,24 @@ export function configuredChannels(): {
       });
       continue;
     }
-    if (isSnowflake(own)) {
-      ready.push({ symbol, channelId: own.trim(), envVar });
+
+    // Both homes, deduplicated by channel id. Pointing a per-asset variable at
+    // the shared channel is a reasonable thing to type, and it must not post
+    // the same card into the same channel twice.
+    const homes: CardChannel[] = [];
+    if (isSnowflake(own)) homes.push({ symbol, channelId: own.trim(), envVar });
+    if (sharedOk && !homes.some((h) => h.channelId === shared.trim())) {
+      homes.push({ symbol, channelId: shared.trim(), envVar: "MARKET_CARDS_CHANNEL_ID" });
+    }
+
+    if (homes.length === 0) {
+      skipped.push({
+        symbol,
+        reason: `neither ${envVar} nor MARKET_CARDS_CHANNEL_ID is set`,
+      });
       continue;
     }
-    if (sharedOk) {
-      ready.push({ symbol, channelId: shared.trim(), envVar: "MARKET_CARDS_CHANNEL_ID" });
-      continue;
-    }
-    skipped.push({
-      symbol,
-      reason: `neither ${envVar} nor MARKET_CARDS_CHANNEL_ID is set`,
-    });
+    ready.push(...homes);
   }
   return { ready, skipped };
 }
