@@ -38,19 +38,28 @@ export async function GET(req: NextRequest) {
   // is collected here and returned alongside the outcome.
   let report: Record<string, unknown> = { skipped: true, reason: "job did not run" };
 
-  const outcome = await runJob("price-cards", async () => {
+  const outcome = await runJob("price-cards", async (ctx) => {
     const token = botToken();
     if (!token) {
-      // Not an error worth alerting on: the job is simply not configured.
+      // Not configured is not a code failure, but it IS the job doing nothing,
+      // and the run record is the only place anyone would see that.
       report = { skipped: true, reason: "DISCORD_BOT_TOKEN is not set" };
+      ctx.note("DISCORD_BOT_TOKEN is not set; no card was posted.");
+      ctx.metric("skipped", 1);
       return;
     }
 
     const { ready, skipped } = configuredChannels();
     if (ready.length === 0) {
       report = { skipped: true, reason: "no price-card channels configured", detail: skipped };
+      ctx.note(
+        "No price-card channel is configured; no card was posted. " +
+          skipped.map((s) => s.symbol + ": " + s.reason).join("; ")
+      );
+      ctx.metric("skipped", 1);
       return;
     }
+    ctx.metric("channels_ready", ready.length);
 
     const symbols = ready.map((c) => c.symbol) as CardSymbol[];
     const data = await getPriceCardData(symbols);
@@ -126,9 +135,28 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    const posted = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+
+    // WHAT THIS JOB DID, in the run record and not only in the response body.
+    // The response is read by whoever invoked the endpoint; the record is the
+    // only thing an operator can consult tomorrow. Without these counters a job
+    // that posted nothing recorded exactly what a job that posted seven cards
+    // recorded -- `ok: true`, no metrics, no notes -- which is how these cards
+    // stood five days stale with a green execution history above them.
+    ctx.metric("posted", posted.length);
+    ctx.metric("failed", failed.length);
+    for (const r of results) {
+      if (typeof r.action === "string") ctx.metric("action_" + r.action, 1);
+    }
+    // "edited" is the healthy daily state, so a run that edits nothing is worth
+    // a note even when nothing threw.
+    if (posted.length === 0) ctx.note("No card was posted or edited.");
+    for (const r of failed) ctx.note(String(r.symbol) + ": " + String(r.error ?? "failed"));
+
     report = {
-      posted: results.filter((r) => r.ok).length,
-      failed: results.filter((r) => !r.ok).length,
+      posted: posted.length,
+      failed: failed.length,
       notConfigured: skipped,
       results,
     };

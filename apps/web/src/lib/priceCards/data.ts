@@ -168,12 +168,36 @@ async function fetchInstrumentHistory(providerSymbol: string): Promise<{
     closes: number[]; price: number | null; high24h: number | null;
     low24h: number | null; prevClose: number | null;
   }>(key, TTL_HISTORY, async () => {
+    // RETRIED, because this job runs ONCE A DAY. Every coin on a card comes
+    // from one batched CoinGecko call, but each instrument is its own request
+    // to Yahoo, and a single refused connection is the difference between a
+    // card that updates and a card that silently keeps yesterday's number for
+    // twenty-four hours. Observed on 2026-09-07: all four instrument fetches
+    // failed together for a few seconds while CoinGecko answered normally, and
+    // the run reported "no market data" for every index and for gold.
+    //
+    // Only transport failures and Yahoo's own 429/5xx are retried. A 404 means
+    // the symbol is wrong, and repeating it just spends the budget slower.
+    const chartOnce = async (): Promise<Response | null> => {
+      try {
+        return await fetch(
+          `${YAHOO_CHART}/${encodeURIComponent(providerSymbol)}?range=1mo&interval=1d`,
+          { headers: BROWSER_UA, signal: AbortSignal.timeout(12_000), cache: "no-store" }
+        );
+      } catch {
+        return null;
+      }
+    };
+
     try {
-      const res = await fetch(
-        `${YAHOO_CHART}/${encodeURIComponent(providerSymbol)}?range=1mo&interval=1d`,
-        { headers: BROWSER_UA, signal: AbortSignal.timeout(12_000), cache: "no-store" }
-      );
-      if (!res.ok) return null;
+      let res: Response | null = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, 400 * attempt));
+        res = await chartOnce();
+        if (res && res.ok) break;
+        if (res && res.status !== 429 && res.status < 500) break;
+      }
+      if (!res || !res.ok) return null;
       const j = (await res.json()) as {
         chart?: { result?: { meta?: Record<string, number>; indicators?: { quote?: { close?: (number | null)[] }[] } }[] };
       };

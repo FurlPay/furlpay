@@ -205,7 +205,7 @@ export async function upsertCardMessage(opts: {
     await kvSet(stateKey, id, ID_TTL_SECONDS).catch(() => {});
   };
 
-  const send = async (url: string, method: "POST" | "PATCH"): Promise<Response | null> => {
+  const once = async (url: string, method: "POST" | "PATCH"): Promise<Response | null> => {
     try {
       return await fetch(url, {
         method,
@@ -219,6 +219,31 @@ export async function upsertCardMessage(opts: {
     }
   };
 
+  /**
+   * One write, waiting out Discord's rate limit rather than giving up on it.
+   *
+   * Every card carries a PNG, and Discord meters attachment writes per channel,
+   * so a job that refreshes seven cards in a row will be told to slow down at
+   * least once — SOL was the card that lost on 2026-09-07 and kept a five-day
+   * old price while the six around it updated. A single retry was not enough
+   * because the limit applies across the whole batch, not to one message.
+   *
+   * `retry-after` is Discord's own number, in seconds, so it is honoured rather
+   * than guessed at; the cap is there so a pathological value cannot hold the
+   * daily job open past its budget. Only 429 is retried — a 403 will still be
+   * a 403 in two seconds, and retrying it just spends the budget slower.
+   */
+  const send = async (url: string, method: "POST" | "PATCH"): Promise<Response | null> => {
+    let res = await once(url, method);
+    for (let attempt = 0; attempt < 3 && res && res.status === 429; attempt++) {
+      const retryAfter = Number(res.headers.get("retry-after") ?? "1");
+      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1000;
+      await new Promise((r) => setTimeout(r, Math.min(waitMs, 8_000)));
+      res = await once(url, method);
+    }
+    return res;
+  };
+
   const edit = async (id: string): Promise<DiscordResult | null> => {
     const res = await send(`${API}/channels/${channelId}/messages/${id}`, "PATCH");
     if (res?.ok) {
@@ -229,17 +254,6 @@ export async function upsertCardMessage(opts: {
     }
     // 404 means the card was deleted; fall through so a new one can be posted.
     if (res && res.status !== 404) {
-      if (res.status === 429) {
-        const retry = Number(res.headers.get("retry-after") ?? "1");
-        await new Promise((r) => setTimeout(r, Math.min(retry * 1000, 8_000)));
-        const again = await send(`${API}/channels/${channelId}/messages/${id}`, "PATCH");
-        if (again?.ok) {
-          const j = (await again.json()) as { id?: string };
-          const finalId = j.id ?? id;
-          await remember(finalId);
-          return { ok: true, messageId: finalId, action: "edited" };
-        }
-      }
       return { ok: false, error: describeFailure(res.status), status: res.status };
     }
     return null;
