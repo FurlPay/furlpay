@@ -234,7 +234,20 @@ export async function GET(req: NextRequest) {
       notConfigured: skipped,
       results,
     };
-  });
+  },
+  // ELEVEN CARDS DO NOT FIT IN THE DEFAULT 45s. Measured across four
+  // production runs: 40.7s to 41.3s, of which roughly ten is the deliberate
+  // 1.6s spacing between writes to the seven-card shared feed. That left under
+  // four seconds of slack, so a single rate-limit backoff would have tripped
+  // `ctx.expired()` and cut the batch off mid-feed — turning a slow run into a
+  // partial one for no reason other than an arbitrary default.
+  //
+  // 55s against this route's `maxDuration = 60` keeps the job's own deadline
+  // INSIDE the platform's, which is the point of having one: a job that stops
+  // itself writes down what it completed, and a job the platform kills does
+  // not. Adding cards or channels eats this margin, and the run record's
+  // duration is where that shows up first.
+  { budgetMs: 55_000 });
 
   return NextResponse.json({ job: "price-cards", status: outcome.status, dryRun: dry, ...report });
 }
