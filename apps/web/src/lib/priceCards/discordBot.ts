@@ -240,15 +240,27 @@ export async function upsertCardMessage(opts: {
    *  and those need different fixes. */
   let lastRetryAfter: number | null = null;
 
+  /**
+   * DISCORD'S `retry-after` IS A FLOOR HERE, NOT THE ANSWER.
+   *
+   * Measured on production 2026-09-07: a card was refused four times in a row
+   * on a header that said `retry-after: 1` each time. Sleeping exactly what it
+   * asked for and trying again simply spent four attempts inside a window that
+   * had not reopened — the run recorded "it asked for 1s and still refused
+   * after 4 attempts", which is the whole reason that message exists.
+   *
+   * So the wait is the LONGER of what Discord asked and an exponential backoff.
+   * A limit that really does clear in a second is unaffected; one that does not
+   * gets 1s, 2s, 4s, 8s instead of 1s four times.
+   */
   const send = async (url: string, method: "POST" | "PATCH"): Promise<Response | null> => {
     let res = await once(url, method);
     for (let attempt = 0; attempt < 4 && res && res.status === 429; attempt++) {
       const retryAfter = Number(res.headers.get("retry-after") ?? "1");
-      const waitMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1000;
-      lastRetryAfter = waitMs / 1000;
-      // Capped, but generously: Discord's own number is the only reliable one,
-      // and refusing to wait it out is what turns a slow write into a lost card.
-      await new Promise((r) => setTimeout(r, Math.min(waitMs, 15_000)));
+      const askedMs = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter * 1000 : 1000;
+      lastRetryAfter = askedMs / 1000;
+      const waitMs = Math.min(Math.max(askedMs, 1000 * 2 ** attempt), 15_000);
+      await new Promise((r) => setTimeout(r, waitMs));
       res = await once(url, method);
     }
     return res;

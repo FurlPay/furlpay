@@ -100,6 +100,24 @@ export async function GET(req: NextRequest) {
       return fresh;
     };
 
+    const pngCache = new Map<string, Uint8Array>();
+    const renderCard = async (symbol: string): Promise<Uint8Array | null> => {
+      const hit = pngCache.get(symbol);
+      if (hit) return hit;
+      try {
+        const res = await fetch(`${origin}/api/og/price-card/${symbol}`, {
+          signal: AbortSignal.timeout(25_000),
+          cache: "no-store",
+        });
+        if (!res.ok) return null;
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        pngCache.set(symbol, bytes);
+        return bytes;
+      } catch {
+        return null;
+      }
+    };
+
     const SAME_CHANNEL_GAP_MS = 1_600;
     const lastWriteAt = new Map<string, number>();
     const paceChannel = async (channelId: string) => {
@@ -139,19 +157,18 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
-      let png: Uint8Array;
-      try {
-        const res = await fetch(`${origin}/api/og/price-card/${chan.symbol}`, {
-          signal: AbortSignal.timeout(25_000),
-          cache: "no-store",
+      // RENDERED ONCE PER SYMBOL, not once per home. An asset with its own
+      // channel and a place in the shared feed was rendering the same image
+      // twice from the same numbers — four wasted renders of eleven, each its
+      // own HTTP round trip, on a job that was measured at 41s of a 45s budget.
+      // Buying that headroom back is what lets the rate-limit retry wait as long
+      // as Discord actually needs.
+      const png = await renderCard(chan.symbol);
+      if (!png) {
+        results.push({
+          symbol: chan.symbol, channelId: chan.channelId, envVar: chan.envVar,
+          ok: false, error: "card render failed",
         });
-        if (!res.ok) {
-          results.push({ symbol: chan.symbol, ok: false, error: `card render returned ${res.status}` });
-          continue;
-        }
-        png = new Uint8Array(await res.arrayBuffer());
-      } catch {
-        results.push({ symbol: chan.symbol, ok: false, error: "card render failed" });
         continue;
       }
 
