@@ -70,7 +70,38 @@ export async function GET(req: NextRequest) {
     const results: Record<string, unknown>[] = [];
     const origin = new URL(req.url).origin;
 
+    // PACED PER CHANNEL, so the retry is a safety net rather than the plan.
+    //
+    // Discord meters attachment writes per CHANNEL, and every card carries a
+    // PNG. The shared feed takes one write per asset — seven in a row — while a
+    // dedicated channel takes exactly one, so the pressure is entirely on the
+    // shared one and spacing every write equally would just make the job slower
+    // for no benefit. Measured on production 2026-09-07: eleven writes
+    // unpaced, two came back 429 even after the bounded retry, and the run
+    // recorded "ETH: Rate limited" and "XAUUSD: Rate limited".
+    //
+    // 1.1s between consecutive writes to the SAME channel keeps the shared feed
+    // under the limit and costs nothing on a channel with one card. That run
+    // took 18.6s of a 45s budget, so the seven-card feed can afford the ~8s
+    // this adds; `ctx.expired()` is still the authority if it cannot.
+    const SAME_CHANNEL_GAP_MS = 1_100;
+    const lastWriteAt = new Map<string, number>();
+    const paceChannel = async (channelId: string) => {
+      const previous = lastWriteAt.get(channelId);
+      if (previous !== undefined) {
+        const wait = SAME_CHANNEL_GAP_MS - (Date.now() - previous);
+        if (wait > 0) await new Promise((r) => setTimeout(r, wait));
+      }
+      lastWriteAt.set(channelId, Date.now());
+    };
+
     for (const chan of ready) {
+      // A job killed mid-batch records nothing, so stop cleanly and report the
+      // cards that did get written rather than losing the whole run.
+      if (ctx.expired()) {
+        ctx.note("Budget expired before every card was written.");
+        break;
+      }
       const d = data.get(chan.symbol);
       if (!d) {
         // No price means no card. Posting one anyway would show $0.00.
@@ -120,6 +151,7 @@ export async function GET(req: NextRequest) {
         continue;
       }
 
+      await paceChannel(chan.channelId);
       const posted = await upsertCardMessage({
         token,
         channelId: chan.channelId,
