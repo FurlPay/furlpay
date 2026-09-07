@@ -84,6 +84,22 @@ export async function GET(req: NextRequest) {
     // under the limit and costs nothing on a channel with one card. That run
     // took 18.6s of a 45s budget, so the seven-card feed can afford the ~8s
     // this adds; `ctx.expired()` is still the authority if it cannot.
+    // CHECKED ONCE PER CHANNEL, not once per card. The shared feed holds seven
+    // cards, and asking Discord seven times in one run whether the bot can post
+    // in the same channel cannot return seven different answers — but it does
+    // spend seven requests against that channel's rate limit, on top of the
+    // seven writes. That is what kept exhausting the budget: the last card in
+    // the feed came back 429 across three separate production runs while every
+    // card in a single-card channel succeeded.
+    const accessCache = new Map<string, Awaited<ReturnType<typeof checkChannel>>>();
+    const accessTo = async (channelId: string) => {
+      const hit = accessCache.get(channelId);
+      if (hit) return hit;
+      const fresh = await checkChannel(token, channelId);
+      accessCache.set(channelId, fresh);
+      return fresh;
+    };
+
     const SAME_CHANNEL_GAP_MS = 1_100;
     const lastWriteAt = new Map<string, number>();
     const paceChannel = async (channelId: string) => {
@@ -114,7 +130,7 @@ export async function GET(req: NextRequest) {
 
       // Confirm access before uploading a megabyte of PNG to a channel the bot
       // cannot post in, and so the operator gets a specific permission error.
-      const access = await checkChannel(token, chan.channelId);
+      const access = await accessTo(chan.channelId);
       if (!access.ok) {
         results.push({
           symbol: chan.symbol, channelId: chan.channelId, envVar: chan.envVar,
