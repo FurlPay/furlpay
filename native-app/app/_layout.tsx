@@ -293,6 +293,14 @@ function AppShell() {
               <Stack.Screen name="walletconnect/index" options={{ title: tr("nav.connectedSites") }} />
               <Stack.Screen name="walletconnect/[topic]" options={{ title: tr("nav.connectedSite") }} />
               <Stack.Screen name="tokens" options={{ title: tr("nav.tokens") }} />
+              {/* P2P. The book, one offer, the user's orders, and one live
+                  trade. /p2p/order/[id] is the screen a user returns to
+                  repeatedly during a trade, so it is a pushed screen with a
+                  stable URL rather than a modal. */}
+              <Stack.Screen name="p2p/index" options={{ title: tr("nav.p2p") }} />
+              <Stack.Screen name="p2p/orders" options={{ title: tr("p2p.myOrders") }} />
+              <Stack.Screen name="p2p/ad/[id]" options={{ title: tr("nav.p2p") }} />
+              <Stack.Screen name="p2p/order/[id]" options={{ title: tr("nav.p2pOrder") }} />
               <Stack.Screen name="watch" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ title: tr("nav.notifications") }} />
               <Stack.Screen name="delete-account" options={{ title: tr("nav.deleteAccount") }} />
