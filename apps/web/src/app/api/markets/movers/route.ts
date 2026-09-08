@@ -9,6 +9,13 @@ import { rank, type MoverBoard } from "@/lib/marketdata/movers";
 import { credentialsFromEnv, detectEntitlement } from "@/lib/marketdata/providers/alpaca";
 import { DEFAULT_ELIGIBILITY } from "@/lib/marketdata/types";
 
+/** Public market data, identical for every reader — see the note in
+ *  api/markets/table/route.ts. Matched to the 60s quote cache TTL. */
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+} as const;
+
+
 // GET /api/markets/movers?board=gainers|losers|most_active_dollar|biggest_change&limit=20
 //
 // Rankings through the market-data engine rather than an ad-hoc sort.
@@ -173,5 +180,5 @@ export async function GET(req: NextRequest) {
       boards: BOARDS,
     },
     asOf: new Date(asOf).toISOString(),
-  });
+  }, { headers: CACHE_HEADERS });
 }

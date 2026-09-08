@@ -38,6 +38,35 @@ import {
 // cap to report and an unpriced asset has no volume — both arrive null and the
 // client renders an em-dash. No field on this route is ever defaulted to zero.
 
+/**
+ * Let the CDN answer this.
+ *
+ * MEASURED PROBLEM. The route is `force-dynamic` and returned no cache
+ * headers, so `X-Vercel-Cache` was MISS on every request. The only cache was
+ * the 60s in-memory one in lib/markets/quotes.ts, which on serverless is
+ * per-instance and dies with the instance.
+ *
+ * That interacts badly with how the page loads. The catalog is 435 rows and
+ * MAX_PAGE_SIZE is 100, so the client fires five CONCURRENT page requests —
+ * and `getQuotes()` takes no arguments, fetching the whole catalog whichever
+ * page was asked for. Five requests landing on five cold instances meant up to
+ * five full Yahoo + CoinGecko fetches to render one screen. Measured at
+ * 1.1-1.5s per request.
+ *
+ * `s-maxage` collapses every reader onto one origin fetch per minute, matched
+ * to the quote cache's own TTL so the CDN never serves something the origin
+ * would have recomputed anyway. `stale-while-revalidate` means a reader at the
+ * moment of expiry gets the slightly-old copy immediately while the refresh
+ * happens behind them, rather than waiting on the providers.
+ *
+ * PUBLIC IS CORRECT HERE: this endpoint is market data. It takes no
+ * credentials, varies only by query string, and returns the same bytes to
+ * everyone. The watchlist route is the user-specific one and is not cached.
+ */
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+} as const;
+
 const MAX_PAGE_SIZE = 100;
 const KINDS: AssetKindFilter[] = ["stock", "etf", "crypto", "instrument"];
 
@@ -146,5 +175,5 @@ export async function GET(req: NextRequest) {
       ? { slug: collection.slug, title: collection.title, blurb: collection.blurb }
       : null,
     asOf: new Date().toISOString(),
-  });
+  }, { headers: CACHE_HEADERS });
 }

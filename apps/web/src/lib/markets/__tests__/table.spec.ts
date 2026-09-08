@@ -117,8 +117,25 @@ describe("sortRows", () => {
     expect(sortRows(tied, "change", "desc").map((r) => r.symbol)).toEqual(["A", "B"]);
   });
 
-  it("sorts by symbol alphabetically for the name key", () => {
-    expect(sortRows(rows, "name", "asc").map((r) => r.symbol)).toEqual(["HIGH", "LOW", "MID", "NONE"]);
+  it("sorts by NAME for the name key, not by ticker", () => {
+    // The distinction the old test could not make: its helper set
+    // name = `${symbol} Inc.`, so name order and ticker order were identical
+    // and sorting by either passed. Real names diverge from their tickers.
+    const named = [
+      row({ symbol: "AAPL", name: "Apple Inc." }),
+      row({ symbol: "GOOGL", name: "Alphabet Inc." }),
+      row({ symbol: "MSFT", name: "Microsoft Corp." }),
+    ];
+    expect(sortRows(named, "name", "asc").map((r) => r.symbol)).toEqual(["GOOGL", "AAPL", "MSFT"]);
+    expect(sortRows(named, "name", "desc").map((r) => r.symbol)).toEqual(["MSFT", "AAPL", "GOOGL"]);
+  });
+
+  it("breaks a name tie on ticker, so the order is stable", () => {
+    const tied = [
+      row({ symbol: "ZZZ", name: "Same Name" }),
+      row({ symbol: "AAA", name: "Same Name" }),
+    ];
+    expect(sortRows(tied, "name", "asc").map((r) => r.symbol)).toEqual(["AAA", "ZZZ"]);
   });
 
   it("does not mutate the input array", () => {

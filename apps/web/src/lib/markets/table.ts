@@ -173,7 +173,17 @@ function valueFor(r: TableRow, key: SortKey): number | null {
 export function sortRows(rows: TableRow[], key: SortKey, dir: SortDir): TableRow[] {
   const sign = dir === "asc" ? 1 : -1;
   return [...rows].sort((a, b) => {
-    if (key === "name") return sign * a.symbol.localeCompare(b.symbol);
+    // Sort by the NAME, because that is what the control is labelled and what
+    // the cell shows. It used to sort by ticker, so choosing "Name" and
+    // ascending put "Apple Inc." above "Alphabet Inc." — correct for AAPL
+    // before GOOGL, and visibly wrong beside a column of company names.
+    //
+    // Ticker breaks the tie so the order is stable between renders when two
+    // issuers share a name.
+    if (key === "name") {
+      const byName = a.name.localeCompare(b.name, "en", { sensitivity: "base" });
+      return sign * (byName !== 0 ? byName : a.symbol.localeCompare(b.symbol));
+    }
     const va = valueFor(a, key);
     const vb = valueFor(b, key);
     if (va == null && vb == null) return a.rank - b.rank;

@@ -4,6 +4,13 @@ export const dynamic = "force-dynamic";
 import { getQuotes } from "@/lib/markets/quotes";
 import { getExtras, resolveExtras } from "@/lib/markets/extras";
 
+/** Public market data, identical for every reader — see the note in
+ *  api/markets/table/route.ts. Matched to the 60s quote cache TTL. */
+const CACHE_HEADERS = {
+  "Cache-Control": "public, s-maxage=60, stale-while-revalidate=300",
+} as const;
+
+
 // GET /api/markets/indices — major index proxies for the Market Pulse strip.
 // ETF proxies keep everything on the same keyless quote pipeline.
 const INDICES = [
@@ -55,5 +62,8 @@ export async function GET(req: NextRequest) {
         )
       : null;
 
-  return NextResponse.json({ items, sentiment, asOf: new Date().toISOString() });
+  return NextResponse.json(
+    { items, sentiment, asOf: new Date().toISOString() },
+    { headers: CACHE_HEADERS }
+  );
 }

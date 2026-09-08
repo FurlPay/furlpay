@@ -101,6 +101,49 @@ interface TableResponse {
   asOf: string;
 }
 
+/**
+ * setInterval that stops while the tab is hidden, and catches up on return.
+ *
+ * The plain interval kept polling forever: a pinned tab nobody was looking at
+ * refreshed the whole catalog every 60 seconds all day — five requests a
+ * minute per tab against rate-limited providers, plus wakeups on a laptop
+ * battery.
+ *
+ * Firing once on becoming visible is the part that matters for correctness. A
+ * reader returning to the tab should not wait out the remainder of an interval
+ * before the prices stop being stale. LiveStatus keeps counting the whole
+ * time, so the age of what is on screen stays honest while the timer is parked.
+ */
+function useVisibleInterval(fn: () => void, ms: number) {
+  const saved = useRef(fn);
+  saved.current = fn;
+
+  useEffect(() => {
+    let id: ReturnType<typeof setInterval> | null = null;
+    const stop = () => {
+      if (id !== null) clearInterval(id);
+      id = null;
+    };
+    const start = () => {
+      if (id === null) id = setInterval(() => saved.current(), ms);
+    };
+    const onVisibility = () => {
+      if (document.hidden) {
+        stop();
+      } else {
+        saved.current();
+        start();
+      }
+    };
+    if (!document.hidden) start();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [ms]);
+}
+
 export default function MarketsWorkspace() {
   const router = useRouter();
   const params = useSearchParams();
@@ -130,6 +173,10 @@ export default function MarketsWorkspace() {
   const [filters, setFilters] = useState<FilterValues>(EMPTY_FILTERS);
   const [loading, setLoading] = useState(true);
   const tableTop = useRef<HTMLDivElement>(null);
+  /** Refresh closures, driven by one visibility-aware timer below rather than
+   *  by an interval owned by each effect. */
+  const cycleRef = useRef<(() => void) | null>(null);
+  const indicesRef = useRef<(() => void) | null>(null);
 
   /** Rewrite the query string, preserving everything not being changed. */
   const setParams = useCallback(
@@ -213,10 +260,10 @@ export default function MarketsWorkspace() {
     };
 
     void cycle();
-    const id = setInterval(() => void cycle(), REFRESH_MS);
+    cycleRef.current = () => void cycle();
     return () => {
       controller.abort();
-      clearInterval(id);
+      cycleRef.current = null;
     };
   }, [load]);
 
@@ -230,12 +277,18 @@ export default function MarketsWorkspace() {
         })
         .catch(() => {});
     void run();
-    const id = setInterval(run, REFRESH_MS);
+    indicesRef.current = run;
     return () => {
       controller.abort();
-      clearInterval(id);
+      indicesRef.current = null;
     };
   }, []);
+
+  // One timer for both refreshes, parked while the tab is hidden.
+  useVisibleInterval(() => {
+    cycleRef.current?.();
+    indicesRef.current?.();
+  }, REFRESH_MS);
 
   // The real tradable-universe size, for the search placeholder. One request,
   // never a hardcoded number.
