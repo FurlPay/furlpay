@@ -4,6 +4,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { timeAgo, usd } from "@/lib/format";
 import { colors, radius, spacing } from "@/lib/theme";
+import { useBalancesHidden } from "@/lib/privacy/balanceVisibility";
+import { useI18n } from "@/lib/i18n";
 import type { Overview } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -37,7 +39,25 @@ interface Props {
   onAddMoney: () => void;
 }
 
+/**
+ * The mask.
+ *
+ * Deliberately a FIXED width that is not the width of the real figure. A
+ * mask sized to the value ("$12,345.67" -> "••••••••••") leaks the magnitude
+ * of the balance to exactly the person standing behind the user that the
+ * toggle exists to defeat.
+ */
+const MASK = "••••••";
+
 export function BalanceHero({ overview, loading, cachedAt, onAddMoney }: Props) {
+  const [hidden, toggleHidden] = useBalancesHidden();
+  const { t: tr } = useI18n();
+
+  /** Every money figure on this card goes through here, so none can be
+   *  forgotten when the toggle flips. */
+  const money = (value: number | undefined): string =>
+    hidden ? MASK : value === undefined ? "—" : usd(value);
+
   // Matches the web dashboard's own definition: what is actually spendable is
   // the on-chain plus fiat side, not the invested side.
   const available = overview ? overview.breakdown.crypto + overview.breakdown.fiat : 0;
@@ -75,19 +95,39 @@ export function BalanceHero({ overview, loading, cachedAt, onAddMoney }: Props) 
         minimumFontScale={0.6}
         allowFontScaling={false}
         accessibilityLabel={
-          overview ? `Total value ${usd(overview.netWorth)}` : "Total value not loaded"
+          hidden
+            ? tr("a11y.balanceHidden")
+            : overview
+              ? `Total value ${usd(overview.netWorth)}`
+              : "Total value not loaded"
         }
       >
-        {overview ? usd(overview.netWorth) : loading ? "· · ·" : "—"}
+        {hidden ? MASK : overview ? usd(overview.netWorth) : loading ? "· · ·" : "—"}
       </Text>
 
       <View style={styles.frostRow}>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.frostLabel}>Available balance</Text>
           <Text style={styles.frostValue} numberOfLines={1}>
-            {overview ? usd(available) : "—"}
+            {money(overview ? available : undefined)}
           </Text>
         </View>
+        {/* The toggle lives on the hero because that is where the number the
+            user wants gone actually is. Generous hitSlop: it is reached in a
+            hurry, often one-handed, usually because somebody just walked up. */}
+        <Pressable
+          onPress={toggleHidden}
+          hitSlop={16}
+          style={({ pressed }) => [styles.eyeBtn, pressed && { opacity: 0.7 }]}
+          accessibilityRole="button"
+          accessibilityLabel={hidden ? tr("money.showBalance") : tr("money.hideBalance")}
+        >
+          <Ionicons
+            name={hidden ? "eye-off-outline" : "eye-outline"}
+            size={20}
+            color="rgba(255,255,255,0.75)"
+          />
+        </Pressable>
         <Pressable
           onPress={onAddMoney}
           style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
@@ -98,29 +138,45 @@ export function BalanceHero({ overview, loading, cachedAt, onAddMoney }: Props) 
         </Pressable>
       </View>
 
+      {/* Masked with the headline, not separately: three figures that sum to
+          the hidden total are the hidden total. */}
       <View style={styles.statRow}>
-        <Stat label="On-chain" value={overview?.breakdown.crypto} />
-        <Stat label="Fiat" value={overview?.breakdown.fiat} />
-        <Stat label="Invest" value={overview?.breakdown.equities} />
+        <Stat label="On-chain" value={overview?.breakdown.crypto} hidden={hidden} />
+        <Stat label="Fiat" value={overview?.breakdown.fiat} hidden={hidden} />
+        <Stat label="Invest" value={overview?.breakdown.equities} hidden={hidden} />
       </View>
     </LinearGradient>
   );
 }
 
-function Stat({ label, value }: { label: string; value?: number }) {
+function Stat({ label, value, hidden }: { label: string; value?: number; hidden?: boolean }) {
+  const shown = hidden ? MASK : value === undefined ? "—" : usd(value);
   return (
-    <View style={styles.stat} accessible accessibilityLabel={`${label}: ${value === undefined ? "unavailable" : usd(value)}`}>
+    <View
+      style={styles.stat}
+      accessible
+      // The screen reader gets the mask too. Announcing the real figure while
+      // the screen shows dots defeats the toggle for anyone using VoiceOver
+      // with audio out loud.
+      accessibilityLabel={`${label}: ${hidden ? "hidden" : value === undefined ? "unavailable" : usd(value)}`}
+    >
       <Text style={styles.statLabel} numberOfLines={1}>
         {label}
       </Text>
       <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-        {value === undefined ? "—" : usd(value)}
+        {shown}
       </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  eyeBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   hero: {
     borderRadius: 26,
     padding: spacing.md + 4,
