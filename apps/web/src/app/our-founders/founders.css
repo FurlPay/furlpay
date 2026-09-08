@@ -276,17 +276,20 @@
   align-items: center;
 }
 
-/* The circle.
+/* The frame.
  *
- * Capped at 300px rather than sized to the grid column. At 42vw the portrait
- * was ~500px on a desktop viewport, which made it the loudest element on a page
- * about a company; a headshot does its job at a fraction of that.
+ * A rounded square, which is how this portrait was presented before a spell as
+ * a circle. Capped at 300px rather than sized to the grid column: at 42vw it
+ * came out around 500px on a desktop viewport, which made a headshot the
+ * loudest element on a page about a company.
+ *
+ * The 20px radius is the page's own portrait radius, not a new value.
  */
-.portrait-circle {
+.portrait-frame {
   position: relative;
   width: min(300px, 74vw);
   aspect-ratio: 1;
-  border-radius: 50%;
+  border-radius: 20px;
   overflow: hidden;
   border: 1px solid var(--border);
   background: var(--panel);
@@ -294,22 +297,24 @@
 }
 
 /*
- * The photograph is pre-composed for this circle (see
+ * The photograph is pre-composed for this frame (see
  * public/team/ashutosh-kumar-singh-portrait.jpg), so nothing is repositioned
  * here. The crop was derived by measurement: face detection on the source put
- * the face centre at 49.7% across and 36.5% down, which rides high in a circle
- * and fills the lower third with shirt and tie. The composed square shows
- * source region x 48-448, y 10-410, placing the face centre 43% down, where
- * portrait convention puts it.
+ * the face centre at 49.7% across and 36.5% down, which rides high and fills
+ * the lower third with shirt and tie. The composed square shows source region
+ * x 48-448, y 10-410, placing the face centre 43% down, where portrait
+ * convention puts it. That framing is right for a square as it was for a
+ * circle, so the asset is unchanged and only the corners differ.
  *
- * ON HEADROOM, which the source does not allow: the supplied photograph is
- * itself cropped at the top of the head - the hair reaches row 0 - so there is
- * no space above it to crop toward. Extending the canvas with synthesized
- * background was tried and rejected: it carried a visible warm cast at the
- * join, and space above a flat-cut hairline only advertises the cut. The
- * circle's curvature carries the hairline better than a straight edge would.
+ * ONE KNOWN TRADE-OFF, worth stating because it was the original argument for
+ * the circle: the supplied photograph is itself cropped at the top of the head
+ * - the hair reaches row 0 of the source - and a straight top edge shows that
+ * flat-cut hairline where a curve carried it more softly. There is no headroom
+ * in the source to crop toward, and synthesizing some was tried before and
+ * rejected for a visible warm cast at the join. Fixing it properly needs a
+ * source shot with room above the head.
  */
-.portrait-circle img {
+.portrait-frame img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -713,7 +718,7 @@
     padding: 18px 0;
     text-align: center;
   }
-  .portrait-circle {
+  .portrait-frame {
     width: min(240px, 62vw);
   }
   .founder-experience li {

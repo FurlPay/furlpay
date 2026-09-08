@@ -364,11 +364,11 @@ export default function OurFoundersPage() {
             <h1 id="founders-heading">Building the financial rails for the agentic internet.</h1>
           </div>
 
-          {/* The photograph, as supplied — no filter, no retouching. The circle
-              is a compositional crop applied in CSS rather than a second file,
-              so the full 500×500 source stays available for the social card. */}
+          {/* The photograph, as supplied — no filter, no retouching. Shown in
+              a rounded square; the 400×400 asset is a compositional crop of the
+              500×500 original, which stays available for the social card. */}
           <figure className="founder-portrait">
-            <div className="portrait-circle">
+            <div className="portrait-frame">
               <Image
                 src={PORTRAIT_CIRCLE}
                 alt="Ashutosh Kumar Singh, founder of FurlPay"
