@@ -292,6 +292,7 @@ function AppShell() {
                   to, not a task with an end. */}
               <Stack.Screen name="walletconnect/index" options={{ title: tr("nav.connectedSites") }} />
               <Stack.Screen name="walletconnect/[topic]" options={{ title: tr("nav.connectedSite") }} />
+              <Stack.Screen name="tokens" options={{ title: tr("nav.tokens") }} />
               <Stack.Screen name="watch" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ title: tr("nav.notifications") }} />
               <Stack.Screen name="delete-account" options={{ title: tr("nav.deleteAccount") }} />

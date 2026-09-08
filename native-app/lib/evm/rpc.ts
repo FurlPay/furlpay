@@ -55,6 +55,19 @@ export async function call(chain: ChainSlug, to: string, data: string): Promise<
   return rpc<string>(chain, "eth_call", [{ to, data }, "latest"]);
 }
 
+/**
+ * The deployed bytecode at an address — `"0x"` for an ordinary wallet.
+ *
+ * The one reliable way to tell a contract from an EOA before treating an
+ * address as either. Adding a token is where it matters most: pasting a WALLET
+ * address into "add token" otherwise succeeds, reads a zero balance forever,
+ * and looks like the app is broken rather than like the user pasted the wrong
+ * thing.
+ */
+export async function getCode(chain: ChainSlug, address: string): Promise<string> {
+  return rpc<string>(chain, "eth_getCode", [address, "latest"]);
+}
+
 export interface FeeCaps {
   maxFeePerGas: bigint;
   maxPriorityFeePerGas: bigint;
