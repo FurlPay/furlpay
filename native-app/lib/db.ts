@@ -197,6 +197,78 @@ const MIGRATIONS: string[] = [
   -- Reconciliation looks a transaction up by the key it was submitted under.
   CREATE UNIQUE INDEX IF NOT EXISTS idx_money_tx_idem ON money_transactions(idempotency_key);
   `,
+  // v8 — WalletConnect sessions, custom tokens, discovered assets, address
+  // labels for NFT/token contracts.
+  //
+  // WHY WALLETCONNECT SESSIONS ARE HERE AND NOT IN SecureStore. What this table
+  // holds is a PERMISSION GRANT — which dApp, which chains, which methods — and
+  // the user has to be able to audit and revoke it. That means listing,
+  // sorting and joining, which SecureStore (a flat key/value keychain) cannot
+  // do without deserialising every entry on every render.
+  //
+  // THE SESSION *KEY MATERIAL* IS NOT HERE. The symKey that decrypts relay
+  // traffic stays inside the WalletConnect SDK's own encrypted keychain; this
+  // table holds only the metadata needed to render and revoke. That split is
+  // deliberate: this file is not encrypted at rest (see the note at the top of
+  // this module), so a rooted device may read it, and reading "site X may call
+  // eth_sendTransaction on Arbitrum" is not the same as being able to decrypt
+  // or forge that traffic.
+  `
+  CREATE TABLE IF NOT EXISTS wc_sessions (
+    topic TEXT PRIMARY KEY,
+    pairing_topic TEXT NOT NULL,
+    dapp_name TEXT NOT NULL,
+    dapp_url TEXT NOT NULL,
+    dapp_icon TEXT,
+    verified_origin TEXT,
+    verified_validation TEXT,
+    accounts TEXT NOT NULL,
+    chains TEXT NOT NULL,
+    methods TEXT NOT NULL,
+    events TEXT NOT NULL,
+    expires_at INTEGER NOT NULL,
+    connected_at INTEGER NOT NULL,
+    last_activity_at INTEGER NOT NULL
+  );
+  -- The sessions screen sorts by most-recently-used, and expiry sweeps on
+  -- launch read the whole table by deadline.
+  CREATE INDEX IF NOT EXISTS idx_wc_activity ON wc_sessions(last_activity_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_wc_expiry ON wc_sessions(expires_at);
+
+  -- Tokens the user added by hand. Kept apart from the built-in catalogue in
+  -- lib/swap/assets.ts so an app update can change the catalogue without
+  -- touching a user's own list, and so a user-added token can never be
+  -- mistaken for one FurlPay vouches for -- the verified column is what the
+  -- UI reads, and it is 0 for everything a user adds by hand.
+  CREATE TABLE IF NOT EXISTS custom_tokens (
+    id TEXT PRIMARY KEY,
+    chain TEXT NOT NULL,
+    address TEXT NOT NULL,
+    symbol TEXT NOT NULL,
+    name TEXT NOT NULL,
+    decimals INTEGER NOT NULL,
+    verified INTEGER NOT NULL DEFAULT 0,
+    added_at INTEGER NOT NULL
+  );
+  -- One row per (chain, contract): the same USDC address on Base and Arbitrum
+  -- are different tokens, and the same address twice on one chain is a bug.
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_custom_token_chain_addr ON custom_tokens(chain, address);
+
+  -- Cached output of an asset-discovery sweep. A cache, not a ledger: balances
+  -- here are display hints that a screen may show before the live read lands,
+  -- and nothing may spend from them.
+  CREATE TABLE IF NOT EXISTS discovered_assets (
+    id TEXT PRIMARY KEY,
+    chain TEXT NOT NULL,
+    address TEXT,
+    symbol TEXT NOT NULL,
+    decimals INTEGER NOT NULL,
+    raw_balance TEXT NOT NULL,
+    usd_value REAL,
+    discovered_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_discovered_chain ON discovered_assets(chain);
+  `,
 ];
 
 export function getDb(): SQLite.SQLiteDatabase {
@@ -583,8 +655,16 @@ export function clearAllCaches(): void {
   // unresolved abandons the local record of it. The server still holds the
   // idempotency record, so the money itself is unaffected and the transaction
   // remains visible in server-side history.
+  //
+  // `wc_sessions`, `custom_tokens` and `discovered_assets` included: all three
+  // are account-scoped. A WalletConnect session in particular is a live
+  // permission grant tied to the signed-out user's ADDRESS — leaving the row
+  // would show the next account a connected dApp it has no relationship with,
+  // and offer them a revoke button for someone else's session. The relay side
+  // is torn down separately by the engine's sign-out hook; this only clears
+  // what the device remembers.
   d.execSync(
-    "DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions; DELETE FROM notifications; DELETE FROM swaps; DELETE FROM money_transactions;"
+    "DELETE FROM kv_cache; DELETE FROM transactions; DELETE FROM pending_actions; DELETE FROM notifications; DELETE FROM swaps; DELETE FROM money_transactions; DELETE FROM wc_sessions; DELETE FROM custom_tokens; DELETE FROM discovered_assets;"
   );
   // The DELETEs alone are not a wipe: in WAL mode the rows they removed — and
   // the rows before them — sit in furlpay.db-wal until a checkpoint. Without

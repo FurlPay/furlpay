@@ -61,7 +61,7 @@ describe("SQLite cache — no-secrets invariant", () => {
     expect(found).toEqual([]);
   });
 
-  it("the schema is exactly the seven tables we classified", () => {
+  it("the schema is exactly the ten tables we classified", () => {
     const tables = [...db.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]).sort();
     // kv_cache      -> JSON snapshots of GET responses (balances, cards, portfolio)
     // transactions  -> financial transaction METADATA (amounts, titles, status)
@@ -80,15 +80,70 @@ describe("SQLite cache — no-secrets invariant", () => {
     //                  secret material (guarded below). Account-scoped, so it
     //                  IS wiped on sign-out; its durability requirement is
     //                  surviving process death, not sign-out.
+    // wc_sessions   -> WalletConnect PERMISSION GRANTS: which dApp, which
+    //                  chains, which methods. The session's symKey — the value
+    //                  that actually decrypts relay traffic — is NOT here; it
+    //                  stays inside the WalletConnect SDK's own encrypted
+    //                  keychain. So a rooted device can read "site X may call
+    //                  eth_sendTransaction on Arbitrum" and still cannot
+    //                  decrypt or forge a single message. Account-scoped
+    //                  (a grant belongs to one address), so it IS wiped.
+    // custom_tokens -> contract addresses and metadata a user added by hand.
+    //                  Public chain data; holds no secret. Account-scoped.
+    // discovered_assets -> cached balances from a chain scan. Display hints
+    //                  only — nothing spends from this table. Public chain
+    //                  data, account-scoped, wiped on sign-out.
     expect(tables).toEqual([
+      "custom_tokens",
       "device_prefs",
+      "discovered_assets",
       "kv_cache",
       "money_transactions",
       "notifications",
       "pending_actions",
       "swaps",
       "transactions",
+      "wc_sessions",
     ]);
+  });
+
+  // The three tables added with WalletConnect / token management. Each is a
+  // place a future change could quietly start persisting something that voids
+  // the unencrypted-cache decision, so each gets its own guard rather than
+  // relying on the global SECRET_SHAPED sweep.
+  describe("wc_sessions — a permission record, never key material", () => {
+    const schema = db.match(/CREATE TABLE IF NOT EXISTS wc_sessions[\s\S]*?\);/)?.[0] ?? "";
+
+    it("exists", () => {
+      expect(schema).not.toBe("");
+    });
+
+    it("holds no relay key material", () => {
+      // "PRIMARY KEY" is a legitimate occurrence of "key", so the bare word
+      // cannot be the test — matching it would fail on every table that has a
+      // primary key and teach the next person to delete the check.
+      const cols = schema.toLowerCase().replace(/primary key/g, "");
+      // symKey decrypts everything on the pairing topic. If it ever lands here,
+      // a rooted device goes from reading grants to impersonating the wallet.
+      for (const forbidden of ["symkey", "sym_key", "secret", "privatekey", "private_key", "keypair"]) {
+        expect(cols).not.toContain(forbidden);
+      }
+    });
+
+    it("is wiped on sign-out", () => {
+      const wipe = db.match(/export function clearAllCaches[\s\S]*?\n}/)?.[0] ?? "";
+      // A live grant belongs to ONE address. Leaving the row would offer the
+      // next account a revoke button for a session it has no relationship with.
+      expect(wipe).toContain("wc_sessions");
+    });
+  });
+
+  describe("custom_tokens and discovered_assets are wiped on sign-out", () => {
+    it("both appear in clearAllCaches", () => {
+      const wipe = db.match(/export function clearAllCaches[\s\S]*?\n}/)?.[0] ?? "";
+      expect(wipe).toContain("custom_tokens");
+      expect(wipe).toContain("discovered_assets");
+    });
   });
 
   describe("device_prefs — the deliberate exception to the sign-out wipe", () => {
