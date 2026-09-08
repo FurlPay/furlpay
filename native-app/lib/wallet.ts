@@ -12,6 +12,12 @@ import {
   transactionHash,
   type Eip1559Transaction,
 } from "./evm/transaction";
+import {
+  hashTypedData,
+  validateTypedData,
+  type TypedDataDomain,
+  type TypedDataTypes,
+} from "./evm/eip712";
 
 // ---------------------------------------------------------------------------
 // On-device self-custodial wallet (secp256k1 / EIP-3009).
@@ -331,6 +337,56 @@ export async function signTransaction(
       hash: transactionHash(tx, signature),
       from: address,
     };
+  } finally {
+    priv.fill(0); // see signTransferAuthorization
+  }
+}
+
+/**
+ * Sign arbitrary EIP-712 typed data (eth_signTypedData_v4).
+ *
+ * ONLY for payloads that arrived from a connected dApp over WalletConnect. The
+ * app's OWN typed-data signing goes through signTransferAuthorization, which
+ * knows its struct at build time and cannot be steered.
+ *
+ * TAKES THE STRUCTURED PAYLOAD, NOT A DIGEST — the same rule signTransaction
+ * follows, and for the same reason. A `signDigest(bytes)` helper would be a
+ * blind-signing oracle: any 32 bytes the caller produced, signed by the user's
+ * key on a biometric prompt they were told meant something else. Because this
+ * takes domain + types + message, the thing being signed is inspectable, and
+ * lib/walletconnect/requests.ts renders it for confirmation from the same
+ * fields that are hashed here.
+ *
+ * The payload is validated before hashing so a malformed or self-referential
+ * type graph from a remote party becomes an error, not a stack overflow.
+ */
+export async function signTypedData(payload: {
+  domain: TypedDataDomain;
+  types: TypedDataTypes;
+  primaryType: string;
+  message: Record<string, unknown>;
+}): Promise<string> {
+  const check = validateTypedData(payload);
+  if (!check.ok) throw new Error(check.reason);
+
+  // Hashed BEFORE the key is read. If the payload is malformed the user is
+  // never prompted for a biometric — a prompt that can only end in an error is
+  // a prompt that teaches people to approve without reading.
+  const digestHex = hashTypedData(payload);
+
+  const mnemonic = await SecureStore.getItemAsync(MNEMONIC_KEY, SECURE_OPTS);
+  if (!mnemonic) throw new Error("No wallet on this device.");
+  const { priv } = deriveKey(mnemonic);
+
+  try {
+    const sig = secp256k1.sign(hexToBytes(strip0x(digestHex)), priv);
+    const r = sig.r.toString(16).padStart(64, "0");
+    const s = sig.s.toString(16).padStart(64, "0");
+    // 27/28, not yParity: eth_signTypedData returns a 65-byte signature in the
+    // legacy v encoding, which is what every verifying contract's ecrecover
+    // expects. EIP-1559 transaction signatures are the ones that use yParity.
+    const v = (sig.recovery + 27).toString(16).padStart(2, "0");
+    return `0x${r}${s}${v}`;
   } finally {
     priv.fill(0); // see signTransferAuthorization
   }

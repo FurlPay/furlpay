@@ -268,8 +268,10 @@ describe("request resolution", () => {
   });
 
   it("passes the scan verdict to the signer, so it can refuse on risk", async () => {
-    const signAndSend = jest.fn(async () => "0xok");
-    const { engine } = await withPending(signAndSend);
+    // Typed with its parameters so `mock.calls[0][1]` is the context argument
+    // rather than an index into an empty tuple.
+    const signAndSend = jest.fn(async (_intent: unknown, _context: unknown) => "0xok");
+    const { engine } = await withPending(signAndSend as unknown as jest.Mock);
     await engine.approveRequest(100);
     // `origin` is derived from the STORED session's dapp url (what the
     // transport returned at approval), not from the proposal — the stored

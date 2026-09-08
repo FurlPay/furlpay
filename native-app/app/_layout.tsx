@@ -17,6 +17,8 @@ import { recoverPendingTransactions } from "@/lib/money/reconcile";
 import { spacing, ThemeProvider, useTheme } from "@/lib/design";
 import { useI18n } from "@/lib/i18n";
 import { clearStepUp } from "@/lib/security/riskPolicy";
+import { loadFlags } from "@/lib/flags";
+import { track } from "@/lib/analytics";
 import { Button, Screen } from "@/components/ui";
 import { OfflineBanner } from "@/components/OfflineBanner";
 
@@ -104,6 +106,21 @@ function AppShell() {
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
+
+  // CLIENT FEATURE FLAGS, loaded once at launch and NOT gated on sign-in.
+  //
+  // The login screen is itself flag-sensitive, and a flag fetch that waited for
+  // a session would leave the first screen a user ever sees rendering compiled
+  // defaults. The endpoint accepts anonymous callers for exactly this reason
+  // (apps/web/src/app/api/flags/client/route.ts).
+  //
+  // Never awaited and never fatal: loadFlags applies the cached layer
+  // synchronously and swallows its own network failure, so app start does not
+  // depend on the payload arriving.
+  useEffect(() => {
+    void loadFlags();
+    track("app_opened", { source: "cold" });
+  }, []);
 
   // Push: register the device once signed in (idempotent), keep the
   // registration current as FCM rotates the token, and route notification taps
@@ -268,6 +285,13 @@ function AppShell() {
               <Stack.Screen name="passport" options={{ title: tr("nav.travelDocs"), headerShown: false }} />
               <Stack.Screen name="passport-scan" options={{ title: tr("nav.addDocument"), presentation: "modal" }} />
               <Stack.Screen name="wallet" options={{ title: tr("nav.wallet") }} />
+              {/* Connected sites. /walletconnect lists the standing grants;
+                  /walletconnect/[topic] is one grant, and the place it is
+                  revoked. Both are ordinary pushed screens rather than
+                  modals — a permission list is somewhere users navigate back
+                  to, not a task with an end. */}
+              <Stack.Screen name="walletconnect/index" options={{ title: tr("nav.connectedSites") }} />
+              <Stack.Screen name="walletconnect/[topic]" options={{ title: tr("nav.connectedSite") }} />
               <Stack.Screen name="watch" options={{ headerShown: false }} />
               <Stack.Screen name="notifications" options={{ title: tr("nav.notifications") }} />
               <Stack.Screen name="delete-account" options={{ title: tr("nav.deleteAccount") }} />

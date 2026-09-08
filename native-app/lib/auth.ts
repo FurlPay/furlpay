@@ -5,6 +5,7 @@ import { authenticateWithPasskey, registerPasskey } from "./passkey";
 import { unregisterFromPush } from "./push";
 import { clearAllCaches } from "./db";
 import { queryClient } from "./queries";
+import { shutdownWalletConnect } from "./walletconnect/runtime";
 
 /** Wipe everything scoped to a session — the SQLite caches AND the in-memory
  *  react-query cache. Runs on BOTH edges of a session (sign-out and sign-in),
@@ -12,6 +13,21 @@ import { queryClient } from "./queries";
  *  account's balances or transaction history, whichever path the previous
  *  session ended through. */
 function clearSessionState(): void {
+  // WalletConnect FIRST, and awaited nowhere — see below.
+  //
+  // A live WalletConnect session is a standing permission over the address this
+  // account controls. Wiping the local rows without telling the relay would
+  // leave the grant ALIVE and invisible: the dApp could still prompt, and
+  // nothing in the UI would list the session to revoke it. So the relay
+  // teardown is started here, before the rows go.
+  //
+  // Deliberately not awaited: `clearSessionState` is synchronous and called
+  // from three teardown paths including the 401 handler, and sign-out must not
+  // block on a socket to a relay that may be exactly what is unreachable.
+  // `shutdownWalletConnect` swallows its own errors and clears the singleton
+  // either way; the sessions expire on their own deadline in the worst case.
+  void shutdownWalletConnect();
+
   try {
     clearAllCaches();
   } catch {
