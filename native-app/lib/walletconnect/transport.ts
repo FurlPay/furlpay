@@ -81,24 +81,33 @@ export interface WalletConnectTransport {
 }
 
 /**
- * Resolve the real SDK-backed transport, or null when it is not installed.
+ * Resolve the real SDK-backed transport, or null when it cannot run.
  *
- * The import specifier is built at runtime so Metro does not try to resolve
- * `./walletkit` statically and fail the bundle in a build that has not
- * installed the SDK. This is the same trick lib/observability uses for Sentry,
- * for the same reason.
+ * A STATIC specifier, deliberately. The earlier version built the string at
+ * runtime to keep Metro from resolving a file that did not exist yet; now that
+ * ./walletkit is a real module, a computed specifier would defeat Metro's
+ * static analysis and the adapter would be missing from the release bundle
+ * while working perfectly in dev. It is still `await import()` so the ~700KB
+ * relay client stays out of the startup path for the majority of sessions that
+ * never open a dApp.
+ *
+ * NULL HAS TWO CAUSES AND BOTH ARE EXPECTED: the adapter returns null when
+ * EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID is unset (no relay to talk to), and the
+ * catch fires if the SDK is absent from this build. Neither is an error worth
+ * reporting — `runtime.ts` turns both into an honest "not available in this
+ * build" on screen.
  */
 export async function loadWalletKitTransport(): Promise<WalletConnectTransport | null> {
   try {
-    const specifier = "./walletkit";
-    const mod = (await import(/* @vite-ignore */ specifier)) as {
-      createWalletKitTransport?: () => WalletConnectTransport;
-    };
+    const mod = await import("./walletkit");
     return mod.createWalletKitTransport?.() ?? null;
-  } catch {
-    // Absent adapter or absent SDK. Both mean the same thing to the caller —
-    // this build cannot do WalletConnect — and neither is an error worth
-    // reporting, because it is the expected state of a build that did not opt in.
+  } catch (e) {
+    // A genuine load FAILURE (a broken native dependency, a bad polyfill order)
+    // is different from an absent one and would otherwise be invisible: the
+    // screen would say "not available in this build" for a build that shipped
+    // the SDK. Reported, then degraded.
+    const { captureException } = await import("@/lib/observability");
+    captureException(e, { scope: "wc.loadTransport" });
     return null;
   }
 }

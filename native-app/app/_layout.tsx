@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { AppState, StyleSheet, Text, View } from "react-native";
-import { Stack, type ErrorBoundaryProps } from "expo-router";
+import { AppState, Linking, StyleSheet, Text, View } from "react-native";
+import { Stack, useRouter, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -18,6 +18,8 @@ import { spacing, ThemeProvider, useTheme } from "@/lib/design";
 import { useI18n } from "@/lib/i18n";
 import { clearStepUp } from "@/lib/security/riskPolicy";
 import { loadFlags } from "@/lib/flags";
+import { isPairingDeepLink } from "@/lib/deepLinks";
+import { pairWithUri } from "@/lib/walletconnect/useWalletConnect";
 import { track } from "@/lib/analytics";
 import { Button, Screen } from "@/components/ui";
 import { OfflineBanner } from "@/components/OfflineBanner";
@@ -100,6 +102,7 @@ export default function RootLayout() {
 function AppShell() {
   const status = useAuth((s) => s.status);
   const hydrate = useAuth((s) => s.hydrate);
+  const router = useRouter();
   const t = useTheme();
   const { t: tr } = useI18n();
 
@@ -121,6 +124,35 @@ function AppShell() {
     void loadFlags();
     track("app_opened", { source: "cold" });
   }, []);
+
+  // WALLETCONNECT PAIRING LINKS.
+  //
+  // A dApp on the same device hands the wallet a `wc:` URI through the OS
+  // rather than a QR code — the mobile-browser flow, and the majority of
+  // pairings on a phone. It arrives two ways and BOTH are needed: getInitialURL
+  // for a cold start (FurlPay was not running when the user tapped "connect"),
+  // and the `url` event for a warm one.
+  //
+  // Scoped to signedIn: pairing grants a dApp access to an ADDRESS, and there
+  // is no address to grant before sign-in. A link that arrives on the login
+  // screen is dropped rather than queued — the dApp's pairing has its own
+  // expiry, and silently pairing later against whichever account signs in next
+  // would grant a session the user never connected.
+  useEffect(() => {
+    if (status !== "signedIn") return;
+
+    const handle = (url: string | null) => {
+      if (!isPairingDeepLink(url)) return;
+      // Navigate first so the approval sheet is mounted when the proposal
+      // lands — same ordering as the scanner.
+      router.push("/walletconnect");
+      void pairWithUri(url!, "deeplink");
+    };
+
+    void Linking.getInitialURL().then(handle);
+    const sub = Linking.addEventListener("url", ({ url }) => handle(url));
+    return () => sub.remove();
+  }, [status, router]);
 
   // Push: register the device once signed in (idempotent), keep the
   // registration current as FCM rotates the token, and route notification taps

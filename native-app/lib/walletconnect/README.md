@@ -43,74 +43,76 @@ for itself once:
 With the seam, `MemoryTransport` drives the entire pair → propose → approve →
 request → sign → disconnect sequence in Jest. See `__tests__/engine.test.ts`.
 
-## Current state
+## Current state: WIRED
 
-`loadWalletKitTransport()` resolves `./walletkit` dynamically and returns `null`
-when the module or the SDK is absent. **That file does not exist yet**, so a
-build today reports `walletConnectUnavailableReason() === "no_sdk"` and the
-WalletConnect screens say the feature is not available in this build. That is
-true, and it is the honest state — no screen pretends to connect.
+The SDK is installed and `walletkit.ts` implements `WalletConnectTransport`
+against it. Pairing, proposals, requests, chain switching and disconnection all
+run against the real relay.
 
-## Turning it on
+`loadWalletKitTransport()` still returns `null` in one case — when
+`EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID` is unset. There is no relay to reach
+without it, so the screens report "not available in this build" rather than
+opening a socket that can only fail. **Set the project id and the feature works.**
 
-### 1. Install the SDK
+| File | Responsibility |
+| --- | --- |
+| `walletkit.ts` | The only file importing the SDK. The transport class. |
+| `codec.ts` | Pure SDK↔domain translation. Imports the SDK `type`-only, so it is testable without native modules. |
 
-```
-cd native-app
-npx expo install @reown/walletkit @walletconnect/core @walletconnect/react-native-compat \
-  @react-native-async-storage/async-storage react-native-get-random-values
-```
+The split exists because `walletkit.ts` imports `Core` and `WalletKit` as
+**values**, which drags the relay client and its native chain into anything that
+imports it — it cannot load under jest-expo at all. `codec.ts` has no runtime
+SDK dependency, and `__tests__/codec.test.ts` covers every translation branch.
 
-`@walletconnect/react-native-compat` **must be imported first, before any other
-import**, in `index.js`. It installs the global polyfills the relay client
-assumes; importing it late means the crypto shims are missing when the client
-initialises and pairing fails with an error that does not name the cause.
+## Configuration
 
-Per AGENTS.md rule 11, confirm each package on npm before installing and commit
-`package-lock.json` with the change.
+### 1. Relay project id
 
-### 2. Get a relay project id
-
-Create a project at <https://dashboard.reown.com>. The project id is not a
-secret — it is a public routing identifier that appears in the relay URL — but
-it is required, and pairing fails without it.
-
-### 3. Environment
+Create a project at <https://dashboard.reown.com>. The id is not a secret — it
+is a public routing identifier in the relay URL — but it is required.
 
 | Variable | Where | Purpose |
 | --- | --- | --- |
-| `EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID` | `native-app/.env` | Relay project id, read at build time into the app |
-| `FURLPAY_WALLETCONNECT_PROJECT_ID` | Vercel (web) | Same value; gates the `wallet_connect` client flag server-side so the app does not reveal a screen that cannot connect |
+| `EXPO_PUBLIC_WALLETCONNECT_PROJECT_ID` | `native-app/.env` | Read into the app at build time; the relay connection itself |
+| `FURLPAY_WALLETCONNECT_PROJECT_ID` | Vercel (web) | Gates the `wallet_connect` client flag server-side |
 
-Both are needed. The client one makes the connection possible; the server one is
-what `apps/web/src/lib/clientFlags/registry.ts` checks before reporting the flag
-`on`, which is what stops the feature appearing in a deployment that has not
-been configured.
+Both are needed and they do different jobs. The client one makes the connection
+possible; the server one is what `apps/web/src/lib/clientFlags/registry.ts`
+checks before reporting the flag `on` — which is what stops the feature
+appearing in a deployment nobody configured.
 
-### 4. Write `walletkit.ts`
+### 2. Flip the flag
 
-Create `lib/walletconnect/walletkit.ts` exporting
-`createWalletKitTransport(): WalletConnectTransport`. It must:
-
-- `Core` + `WalletKit.init` with the project id and FurlPay's metadata
-- Map `session_proposal` → `TransportEvents.onProposal`, translating the SDK's
-  `requiredNamespaces` / `optionalNamespaces` into flat `requiredChains`,
-  `optionalChains`, `requiredMethods`, `optionalMethods`
-- Map `session_request` → `onRequest`, `session_delete` → `onSessionDeleted`
-- Carry `verifyContext` into `DappMetadata.verified` — **this is the
-  anti-phishing signal**. `metadata.url` is what the dApp claims about itself; a
-  clone puts the real dApp's URL there. `verified.origin` is what the relay
-  observed. When they disagree the UI must say so.
-- Return sessions from `getActiveSessions()` out of `init()`, so session restore
-  needs no network round trip
-
-Nothing else in this directory changes.
-
-### 5. Flip the flag
-
-`FURLPAY_FLAG_WALLET_CONNECT=true` in the deployment, once the project id is
-set. `FURLPAY_KILL_WALLET_CONNECT=1` is the ten-second stop lever and outranks
+`FURLPAY_FLAG_WALLET_CONNECT=true` once the project id is set.
+`FURLPAY_KILL_WALLET_CONNECT=1` is the ten-second stop lever and outranks
 everything, including the override.
+
+## Entry points
+
+A pairing URI reaches the engine three ways, and all three are wired:
+
+- **QR** — `app/scan.tsx` checks `looksLikePairingUri` *before* the address
+  parser. Placed last, every dApp QR would fall through and be reported as "not
+  payable", which is true and useless.
+- **Paste** — the same screen's manual-entry sheet, and the "paste connection
+  link" button on `/walletconnect`. Desktop dApps offer "copy link" beside the QR.
+- **Deep link** — `app/_layout.tsx` handles both `getInitialURL` (cold start,
+  FurlPay was not running) and the `url` event (warm). Scoped to `signedIn`:
+  pairing grants a dApp access to an ADDRESS, and there is none before sign-in.
+
+All three navigate to `/walletconnect` **before** pairing, because the proposal
+arrives asynchronously and the approval sheet has to be mounted to receive it.
+
+## Import order in `index.js` is load-bearing
+
+`@walletconnect/react-native-compat` must be the **first import in the
+process**. It installs globals the relay client assumes at module scope —
+TextEncoder/TextDecoder, Buffer, URL. Imported later, `WalletKit.init()` fails
+with errors naming none of that, and pairing dies inside a minified bundle.
+
+Our own `lib/cryptoPolyfill` runs after it deliberately: every assignment there
+is guarded by a `typeof` check, so it fills what the compat layer left rather
+than fighting it.
 
 ## The security properties worth not breaking
 

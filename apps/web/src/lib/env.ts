@@ -87,6 +87,14 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("OFFRAMP_LIVE"),
       v("FURLPAY_OFFRAMP_PROVIDER"),
       v("FURLPAY_OFFRAMP_PROVIDER_API_KEY"),
+      // WalletConnect relay project id. Public (it appears in the relay URL),
+      // registered because clientFlags/registry.ts gates the wallet_connect
+      // flag on it — no relay, no screen.
+      v("FURLPAY_WALLETCONNECT_PROJECT_ID"),
+      // Transaction-simulation vendor for /api/security/scan. Absent, the
+      // route returns its local decode and says the deep check did not run.
+      v("FURLPAY_TX_SIMULATION_PROVIDER"),
+      v("FURLPAY_TX_SIMULATION_API_KEY"),
       // Set only after a person has verified at least one tokenized-equity
       // contract address against its issuer — see lib/onchain/stockTokenRegistry.ts.
       v("FURLPAY_STOCK_TOKEN_REGISTRY_VERIFIED"),

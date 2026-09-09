@@ -362,6 +362,29 @@ export class WalletConnectEngine {
     try {
       const result = await this.deps.signAndSend(pending.intent, { origin: host, scan: pending.scan });
       await this.deps.transport.respondRequest({ topic: pending.request.topic, id: requestId, result });
+
+      // A chain switch is only half-done when the RPC result is returned.
+      //
+      // EIP-1193 says the wallet announces the change with a `chainChanged`
+      // event; a dApp that receives `null` and no event has been told the call
+      // succeeded while its own view of the active chain never moves. It then
+      // sends the next transaction on the OLD chain — which is the failure this
+      // emit exists to prevent, and it is silent on both sides.
+      //
+      // Emitted AFTER the response, because the order is observable: a dApp
+      // that receives the event before the result may still be awaiting the
+      // promise that resolves its own switch.
+      if (pending.intent.kind === "switch_chain") {
+        try {
+          await this.announceChain(pending.request.topic, pending.intent.chainId);
+        } catch (e) {
+          // The switch itself succeeded and the dApp has its result. A failed
+          // event is a degraded session, not a failed request, so it must not
+          // turn an approved switch into a reported error.
+          captureException(e, { scope: "wc.announceChain" });
+        }
+      }
+
       track("wc_request_decided", {
         dappHost: host,
         method: pending.request.method,

@@ -42,6 +42,9 @@ const KNOWN_ROUTES = new Set<string>([
   "/chat",
   "/delete-account",
   "/contacts",
+  "/walletconnect",
+  "/tokens",
+  "/p2p",
 ]);
 
 /**
@@ -51,6 +54,17 @@ const KNOWN_ROUTES = new Set<string>([
  */
 export function resolveDeepLink(rawPath: string | undefined | null): string {
   if (!rawPath || typeof rawPath !== "string") return HOME_ROUTE;
+
+  // A WalletConnect pairing URI is not a path and must never be normalised
+  // like one. `wc:<topic>@2?...` has no leading slash and no host: the
+  // normaliser below would strip "wc:" and route to a garbage path built from
+  // the topic hex.
+  //
+  // Returning the connected-sites screen (rather than the URI) is deliberate —
+  // this function's contract is "a route", and the CALLER is responsible for
+  // handing the URI itself to the pairing engine. `isPairingDeepLink` below is
+  // how a caller tells the two apart before calling this.
+  if (rawPath.trim().toLowerCase().startsWith("wc:")) return "/walletconnect";
 
   // Normalize any full URL to a leading-slash path.
   //  - http(s)://furlpay.com/auth/handoff → drop the real host → /auth/handoff
@@ -117,4 +131,17 @@ export function resolveDeepLink(rawPath: string | undefined | null): string {
 
   // Known-shaped but unmappable → the inbox, never an unmatched route.
   return FALLBACK_ROUTE;
+}
+
+/**
+ * Is this incoming link a WalletConnect pairing URI rather than a route?
+ *
+ * Callers must check this BEFORE resolveDeepLink, because the two need
+ * different handling: a pairing URI has to reach `pairWithUri` to open a
+ * session, and merely navigating to /walletconnect would show an empty
+ * connected-sites list while the dApp waits forever for a pairing that was
+ * never attempted.
+ */
+export function isPairingDeepLink(rawPath: string | undefined | null): boolean {
+  return typeof rawPath === "string" && rawPath.trim().toLowerCase().startsWith("wc:");
 }

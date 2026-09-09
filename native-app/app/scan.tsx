@@ -6,6 +6,8 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { parseScannedAddress } from "@/lib/qr";
 import { looksLikeUpiUri, parseUpiUri } from "@/lib/upi";
+import { looksLikePairingUri, parsePairingUri } from "@/lib/walletconnect/uri";
+import { pairWithUri } from "@/lib/walletconnect/useWalletConnect";
 import { ScannerFrame } from "@/components/ScannerFrame";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, Field, Screen, Sheet } from "@/components/ui";
@@ -14,6 +16,10 @@ export default function Scan() {
   const router = useRouter();
   const [permission, requestPermission] = useCameraPermissions();
   const [invalid, setInvalid] = useState<null | "not_payable" | "bad_upi">(null);
+  // A WalletConnect pairing failure carries its OWN message (expired, v1,
+  // malformed key), and each sends the user somewhere different — so it gets a
+  // string rather than joining the two-value `invalid` enum above.
+  const [wcError, setWcError] = useState<string | null>(null);
   const [requesting, setRequesting] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manual, setManual] = useState("");
@@ -26,6 +32,23 @@ export default function Scan() {
   // surfacing as a failed send later.
   const submitManual = () => {
     const entry = manual.trim();
+
+    // A pairing URI is regularly COPIED rather than scanned — desktop dApps
+    // offer "copy link" beside the QR — so manual entry accepts it too.
+    if (looksLikePairingUri(entry)) {
+      const parsed = parsePairingUri(entry);
+      if (!parsed.ok) {
+        setManualError(parsed.error.message);
+        return;
+      }
+      setManualOpen(false);
+      setManual("");
+      setManualError(null);
+      void Haptics.selectionAsync();
+      router.replace("/walletconnect");
+      void pairWithUri(entry, "paste");
+      return;
+    }
 
     // A UPI URI can be pasted as text (shared over WhatsApp is common), so the
     // manual path accepts the same inputs the camera does.
@@ -108,7 +131,28 @@ export default function Scan() {
         onBarcodeScanned={({ data }) => {
           if (handled.current) return;
 
-          // UPI first: India's merchant QRs are upi:// URIs, and they can never
+          // WalletConnect first. A `wc:` URI cannot be confused with a UPI URI
+          // or an address, and putting it last would mean every dApp QR fell
+          // through to parseScannedAddress and was reported as "not payable" —
+          // which is true and useless.
+          if (looksLikePairingUri(data)) {
+            const parsed = parsePairingUri(data);
+            if (!parsed.ok) {
+              setWcError(parsed.error.message);
+              return;
+            }
+            handled.current = true;
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            // Navigate FIRST, pair second. The proposal arrives asynchronously
+            // and the approval sheet lives on /walletconnect; pairing from a
+            // screen that is about to unmount would land the proposal with
+            // nothing mounted to show it.
+            router.replace("/walletconnect");
+            void pairWithUri(data, "qr");
+            return;
+          }
+
+          // UPI next: India's merchant QRs are upi:// URIs, and they can never
           // be mistaken for a crypto address, so the order costs nothing.
           const upi = parseUpiUri(data);
           if (upi) {
@@ -139,11 +183,16 @@ export default function Scan() {
 
       <View style={styles.overlay}>
         <Text style={[type.dim, styles.hint]}>
-          {invalid === "bad_upi"
-            ? "That UPI QR is damaged or incomplete — ask for a fresh one."
-            : invalid === "not_payable"
-              ? "That QR doesn't contain a payable address — try another."
-              : "Point at a UPI QR, wallet address, or FurlPay payment QR."}
+          {/* The WalletConnect message wins when present: it is the specific
+              one ("this link expired", "this site uses WalletConnect v1"), and
+              the generic hints below cannot tell the user any of that. */}
+          {wcError
+            ? wcError
+            : invalid === "bad_upi"
+              ? "That UPI QR is damaged or incomplete — ask for a fresh one."
+              : invalid === "not_payable"
+                ? "That QR doesn't contain a payable address — try another."
+                : "Point at a UPI QR, wallet address, dApp connection QR, or FurlPay payment QR."}
         </Text>
         <Pressable
           onPress={() => {
