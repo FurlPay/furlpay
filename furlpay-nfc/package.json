@@ -1,0 +1,19 @@
+{
+  "name": "@furlpay/nfc",
+  "version": "1.0.0",
+  "description": "FurlPay NFC tap-to-pay module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@furlpay/js": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "license": "MIT"
+}

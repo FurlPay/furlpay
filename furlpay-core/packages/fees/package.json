@@ -1,0 +1,21 @@
+{
+  "name": "@furlpay/fees",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@furlpay/shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "@solana/web3.js": "^1.90.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  }
+}

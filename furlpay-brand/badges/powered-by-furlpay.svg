@@ -1,0 +1,4 @@
+<svg width="150" height="40" xmlns="http://www.w3.org/2000/svg">
+  <rect width="150" height="40" rx="8" fill="#10B981" />
+  <text x="75" y="25" fill="white" font-family="Inter, sans-serif" font-size="14" font-weight="bold" text-anchor="middle">Powered by FurlPay</text>
+</svg>

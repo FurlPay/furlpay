@@ -1,0 +1,16 @@
+{
+  "name": "express-checkout-example",
+  "version": "1.0.0",
+  "scripts": {
+    "start": "ts-node server.ts"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "@furlpay/js": "latest"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3",
+    "@types/express": "^4.17.21"
+  }
+}

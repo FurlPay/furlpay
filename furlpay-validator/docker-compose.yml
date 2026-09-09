@@ -1,0 +1,6 @@
+version: '3.8'
+services:
+  validator:
+    build: .
+    ports:
+      - "8899:8899"

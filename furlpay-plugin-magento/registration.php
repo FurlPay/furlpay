@@ -1,0 +1,8 @@
+<?php
+use Magento\Framework\Component\ComponentRegistrar;
+
+ComponentRegistrar::register(
+    ComponentRegistrar::MODULE,
+    'FurlPay_Payment',
+    __DIR__
+);

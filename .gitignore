@@ -92,3 +92,24 @@ reference/
 # this repo has outside collaborators.
 /fintech_founder_opportunities_2026.csv
 /stablecoin_funding_investors_2026.csv
+
+# Python virtualenvs. mempool-sentinel/.venv alone is 32MB across 1,868 files;
+# a venv is machine-specific and rebuilt from requirements.txt, so committing
+# one adds permanent history for something nobody can use.
+.venv/
+venv/
+
+# Python bytecode. Regenerated on every run and platform-specific.
+# NOTE: sdks/python/furlpay/__pycache__/*.pyc are ALREADY tracked and stay
+# tracked — .gitignore does not untrack. Removing them is a separate change.
+__pycache__/
+*.pyc
+
+# Rust build output. furlpay-validator/target is 27MB of compiled artefacts
+# rebuilt by `cargo build`. Same reasoning as the media rules above: permanent
+# once committed, and worthless to anyone who checks the repo out.
+target/
+
+# Product screenshot, same reasoning as the other root PNGs above — the
+# existing rules did not cover this filename.
+/map.png

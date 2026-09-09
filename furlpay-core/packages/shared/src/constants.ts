@@ -1,0 +1,14 @@
+import { PublicKey } from '@solana/web3.js';
+export const USDC_MINT = new PublicKey('EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v');
+export const USDT_MINT = new PublicKey('Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB');
+export const PYUSD_MINT = new PublicKey('2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZofJZWsVK54');
+export const EURC_MINT = new PublicKey('HzwqbKZw8HxMN6bF2yFZNrht3c2iXXzpZCESt2QB9z54');
+export const SOL_DECIMALS = 9;
+export const USDC_DECIMALS = 6;
+export const SLOT_TIME_MS = 315;
+export const TOWER_BFT_FINALITY_MS = 12800;
+export const ALPENGLOW_FINALITY_MS = 150;
+export const MAX_RETRIES = 4;
+export const DEFAULT_PRIORITY_FEE_LAMPORTS = 10000;
+export const SOL_PRICE_LOWER_BOUND = 1;
+export const SOL_PRICE_UPPER_BOUND = 2000;

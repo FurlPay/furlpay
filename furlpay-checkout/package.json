@@ -1,0 +1,28 @@
+{
+  "name": "furlpay-checkout",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "15.0.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "@furlpay/js": "0.1.0",
+    "@solana/web3.js": "^1.95.0",
+    "@solana/wallet-adapter-react": "^0.15.35",
+    "@solana/wallet-adapter-wallets": "^0.19.32"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1"
+  }
+}

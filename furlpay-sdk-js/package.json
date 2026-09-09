@@ -1,0 +1,18 @@
+{
+  "name": "@furlpay/js",
+  "version": "0.1.0",
+  "description": "Stripe SDK for Solana payments",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0"
+  }
+}

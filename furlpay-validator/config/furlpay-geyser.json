@@ -1,0 +1,4 @@
+{
+    "libpath": "/path/to/libfurlpay_geyser_plugin.so",
+    "enable_metrics": true
+}

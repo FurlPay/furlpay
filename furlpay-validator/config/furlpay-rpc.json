@@ -1,0 +1,4 @@
+{
+    "port": 8899,
+    "enable_metrics": true
+}

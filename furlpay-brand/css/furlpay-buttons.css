@@ -1,0 +1,14 @@
+.furlpay-btn {
+  background-color: var(--furlpay-primary);
+  color: white;
+  font-family: var(--furlpay-font-sans);
+  border-radius: var(--furlpay-radius);
+  padding: 12px 24px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+.furlpay-btn:hover {
+  background-color: var(--furlpay-primary-hover);
+}

@@ -1,0 +1,22 @@
+{
+    "name": "furlpay/magento2-plugin",
+    "description": "FurlPay payment gateway for Magento 2",
+    "require": {
+        "php": "~8.1.0||~8.2.0||~8.3.0",
+        "magento/framework": "*",
+        "magento/module-payment": "*",
+        "magento/module-sales": "*",
+        "magento/module-checkout": "*"
+    },
+    "type": "magento2-module",
+    "version": "1.0.0",
+    "license": "MIT",
+    "autoload": {
+        "files": [
+            "registration.php"
+        ],
+        "psr-4": {
+            "FurlPay\\Payment\\": ""
+        }
+    }
+}

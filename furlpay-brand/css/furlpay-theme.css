@@ -1,0 +1,11 @@
+:root {
+  --furlpay-primary: #10B981;
+  --furlpay-primary-hover: #059669;
+  --furlpay-dark: #064E3B;
+  --furlpay-accent: #34D399;
+  --furlpay-bg: #0F172A;
+  --furlpay-surface: #1E293B;
+  --furlpay-font-sans: 'Inter', sans-serif;
+  --furlpay-font-mono: 'JetBrains Mono', monospace;
+  --furlpay-radius: 8px;
+}
