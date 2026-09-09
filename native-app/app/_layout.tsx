@@ -327,6 +327,9 @@ function AppShell() {
               <Stack.Screen name="tokens" options={{ title: tr("nav.tokens") }} />
               <Stack.Screen name="nft/index" options={{ title: tr("nav.nft") }} />
               <Stack.Screen name="nft/[id]" options={{ title: tr("nav.nftDetail") }} />
+              {/* Liquid staking. Deliberately a separate screen from /earn:
+                  different yield source, different risk, different exit. */}
+              <Stack.Screen name="staking" options={{ title: tr("nav.staking") }} />
               {/* P2P. The book, one offer, the user's orders, and one live
                   trade. /p2p/order/[id] is the screen a user returns to
                   repeatedly during a trade, so it is a pushed screen with a
