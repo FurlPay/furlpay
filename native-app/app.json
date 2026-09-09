@@ -59,6 +59,7 @@
       "./plugins/withNetworkSecurityConfig",
       "./plugins/withUpiQueries",
       "./plugins/withAndroidPerformance",
+      "./plugins/withWindowsPathFix",
       "expo-router",
       "expo-secure-store",
       "expo-sqlite",
@@ -92,7 +93,7 @@
         {
           "cameraPermission": "FurlPay uses the camera to scan payment QR codes.",
           "recordAudioAndroid": false,
-          "microphonePermission": false
+          "microphonePermission": "FurlPay uses the microphone so you can search markets by voice."
         }
       ],
       [
