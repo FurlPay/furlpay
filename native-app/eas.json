@@ -7,17 +7,24 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "android": { "gradleCommand": ":app:assembleDebug" }
+      "android": { "gradleCommand": ":app:assembleDebug" },
+      "ios": { "simulator": true }
     },
     "preview": {
       "distribution": "internal",
       "credentialsSource": "local",
-      "android": { "buildType": "apk" }
+      "android": { "buildType": "apk" },
+      "//ios": "Ad-hoc distribution needs registered device UDIDs. Until an Apple Developer account exists, build the simulator target instead — it needs no signing and still proves the native project compiles.",
+      "ios": { "simulator": true }
     },
     "production": {
       "autoIncrement": false,
       "credentialsSource": "local",
-      "android": { "buildType": "app-bundle" }
+      "android": { "buildType": "app-bundle" },
+      "//ios": "Apple requires apps be built with the iOS 18 SDK (Xcode 16+) since 2025-04-24; EAS defaults to Xcode 16 for SDK 52+, so no image pin is needed. A store build needs a paid Apple Developer account, a distribution certificate and a provisioning profile — none of which exist yet.",
+      "ios": {
+        "buildConfiguration": "Release"
+      }
     }
   },
   "submit": {
@@ -26,6 +33,11 @@
         "//": "The CANONICAL Play artifact is this React Native app. The TWA in apps/android shares the package name com.furlpay.app and must never be submitted — see apps/android/DEPRECATED.md.",
         "track": "internal",
         "releaseStatus": "draft"
+      },
+      "ios": {
+        "//": "BLOCKED ON AN APPLE DEVELOPER ACCOUNT. ascAppId, appleTeamId and either an App Store Connect API key or an Apple ID must be supplied before `eas submit -p ios` can run. They are deliberately absent rather than filled with placeholders: a wrong ascAppId submits this binary to somebody else's app record.",
+        "//credentials": "eas credentials -p ios   — then set ascAppId and appleTeamId here.",
+        "language": "en-US"
       }
     }
   }

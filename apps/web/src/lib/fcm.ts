@@ -76,20 +76,48 @@ async function accessToken(sa: ServiceAccount): Promise<string> {
 
 const tokensKey = (userId: string) => `push:fcm:${userId}`;
 
+/**
+ * Which push transport a token belongs to.
+ *
+ * NOT COSMETIC. `getDevicePushTokenAsync()` returns an FCM registration token
+ * on Android and a raw APNs device token on iOS — different formats, different
+ * transports, and FCM v1 will reject an APNs token rather than deliver it. A
+ * registry that does not record which is which sends every iOS token into the
+ * FCM endpoint and counts the failures as ordinary delivery errors, which is
+ * push being silently dead for a whole platform.
+ */
+export type PushTransport = "fcm" | "apns";
+
 export interface FcmDevice {
   token: string;
   /** Client-supplied label so users can recognize the device. */
   device?: string;
   addedAt: string;
+  /**
+   * Absent on rows written before iOS support existed. Those are Android by
+   * definition — it was the only platform that could register — so `undefined`
+   * is read as "fcm" rather than being backfilled or dropped.
+   */
+  transport?: PushTransport;
+}
+
+/** A stored row's transport, defaulting legacy rows to FCM. See the field. */
+export function transportOf(device: FcmDevice): PushTransport {
+  return device.transport ?? "fcm";
 }
 
 export async function listFcmDevices(userId: string): Promise<FcmDevice[]> {
   return (await kvGet<FcmDevice[]>(tokensKey(userId))) ?? [];
 }
 
-export async function saveFcmDevice(userId: string, token: string, device?: string): Promise<void> {
+export async function saveFcmDevice(
+  userId: string,
+  token: string,
+  device?: string,
+  transport: PushTransport = "fcm",
+): Promise<void> {
   const others = (await listFcmDevices(userId)).filter((d) => d.token !== token);
-  others.push({ token, device, addedAt: new Date().toISOString() });
+  others.push({ token, device, addedAt: new Date().toISOString(), transport });
   // A user has a handful of phones, not hundreds — cap defends the kv row.
   await kvSet(tokensKey(userId), others.slice(-10));
 }
@@ -118,7 +146,29 @@ export interface FcmPayload {
 export async function sendFcmToUser(userId: string, payload: FcmPayload): Promise<number> {
   const sa = serviceAccount();
   if (!sa) return 0; // native push simply not configured — web-push leg still runs
-  const devices = await listFcmDevices(userId);
+  const all = await listFcmDevices(userId);
+  if (!all.length) return 0;
+
+  // APNs tokens cannot go through the FCM v1 endpoint — it rejects them, and
+  // counting those rejections as ordinary delivery failures is how push stays
+  // silently broken for an entire platform. They are separated here and
+  // reported ONCE, loudly, rather than failing per-device on every send.
+  //
+  // Delivering them needs one of two things, neither of which is code in this
+  // file: an APNs auth key uploaded to the Firebase project AND the Firebase
+  // iOS SDK in the app (so the token becomes an FCM registration token), or a
+  // direct APNs sender here. Until then iOS tokens are STORED — so nothing is
+  // lost and a later configuration makes them live — and never pretended
+  // delivered.
+  const devices = all.filter((d) => transportOf(d) === "fcm");
+  const apns = all.length - devices.length;
+  if (apns > 0) {
+    log.warn("push: APNs tokens skipped — no iOS transport configured", {
+      userId,
+      apnsDevices: apns,
+      fcmDevices: devices.length,
+    });
+  }
   if (!devices.length) return 0;
 
   let token: string;

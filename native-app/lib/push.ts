@@ -1,3 +1,4 @@
+import { Platform } from "react-native";
 import * as Notifications from "expo-notifications";
 import { router } from "expo-router";
 import { api, getToken } from "./api";
@@ -73,7 +74,12 @@ async function registerToken(token: string): Promise<boolean> {
     try {
       await api("/push/devices", {
         method: "POST",
-        body: { token, platform: "android" },
+        // The REAL platform, not a hardcoded "android". getDevicePushTokenAsync
+        // returns an FCM registration token on Android and a raw APNs device
+        // token on iOS; the server derives the transport from this and keeps
+        // the two apart, because FCM v1 rejects an APNs token rather than
+        // delivering it.
+        body: { token, platform: Platform.OS === "ios" ? "ios" : "android" },
       });
       registeredToken = token;
       return true;
@@ -104,11 +110,17 @@ export async function registerForPush(): Promise<boolean> {
     const perm = await Notifications.requestPermissionsAsync();
     if (!perm.granted) return false;
 
-    await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
-      name: "Transaction approvals",
-      importance: Notifications.AndroidImportance.MAX,
-      vibrationPattern: [0, 250, 250, 250],
-    });
+    // Notification channels are an ANDROID concept. The call is a no-op on
+    // iOS, but skipping it makes the platform split explicit rather than
+    // relying on a vendor no-op that could change — and iOS gets its
+    // importance from the payload's interruption level instead.
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
+        name: "Transaction approvals",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+      });
+    }
 
     // Native FCM token — throws when google-services.json wasn't in the build.
     const { data: token } = await Notifications.getDevicePushTokenAsync();

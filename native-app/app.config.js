@@ -31,6 +31,21 @@ const path = require("path");
 // Nothing secret is ever printed: we report WHICH key is missing, never a value.
 // ---------------------------------------------------------------------------
 
+/**
+ * Which platform this build is for.
+ *
+ * EAS sets EAS_BUILD_PLATFORM on its workers; a local `expo prebuild -p ios`
+ * sets neither, so the fallback is "any" and the checks below stay permissive.
+ * This matters because the requirements genuinely DIFFER by platform, and a
+ * gate that ignores that either blocks a valid iOS build over an Android file
+ * or waves through an Android build with no push config.
+ */
+function buildPlatform() {
+  const p = (process.env.EAS_BUILD_PLATFORM || "").toLowerCase();
+  if (p === "ios" || p === "android") return p;
+  return "any";
+}
+
 /** A release build is one whose artifact could reach a real user. */
 function isReleaseBuild() {
   // EAS sets these on its workers.
@@ -43,8 +58,15 @@ function isReleaseBuild() {
 /** Client ids the federated sign-in buttons need. Absent => the button hides
  *  itself (lib/oauth.ts googleConfigured), which on a release build means we
  *  would ship an app whose Google/Apple sign-in silently does not exist. */
-const REQUIRED_AUTH_ENV = [
+const REQUIRED_AUTH_ENV_ANDROID = [
   "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID",
+  "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID",
+];
+
+/** iOS uses its own OAuth client id — an Android client id is rejected by
+ *  Google with a redirect_uri_mismatch, which surfaces as a blank browser. */
+const REQUIRED_AUTH_ENV_IOS = [
+  "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID",
   "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID",
 ];
 
@@ -71,10 +93,20 @@ module.exports = ({ config }) => {
   const allowNoGoogle = process.env.FURLPAY_ALLOW_NO_GOOGLE === "1";
 
   // fatal: never waivable (push). waivable: federated sign-in, opt-out-able.
+  const platform = buildPlatform();
+
   const fatal = [];
   const waivable = [];
-  if (!googleServices) fatal.push("GOOGLE_SERVICES_JSON (EAS file secret) or ./google-services.json");
-  for (const key of REQUIRED_AUTH_ENV) {
+  // google-services.json configures FCM, which is the ANDROID push transport.
+  // An iOS build does not read it and must not be blocked by its absence —
+  // iOS push runs over APNs (see apps/web/src/lib/fcm.ts, which keeps the two
+  // transports apart rather than posting APNs tokens to FCM).
+  if (!googleServices && platform !== "ios") {
+    fatal.push("GOOGLE_SERVICES_JSON (EAS file secret) or ./google-services.json");
+  }
+  const requiredAuth =
+    platform === "ios" ? REQUIRED_AUTH_ENV_IOS : REQUIRED_AUTH_ENV_ANDROID;
+  for (const key of requiredAuth) {
     const value = process.env[key];
     if (!value) {
       waivable.push(key);

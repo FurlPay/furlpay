@@ -10,11 +10,26 @@ import { fcmConfigured, listFcmDevices, removeFcmDevice, saveFcmDevice } from "@
 // launch without churn.
 
 const RegisterSchema = z.object({
-  // FCM tokens are opaque; bound only to defend the kv row.
+  // Push tokens are opaque; bounded only to defend the kv row.
   token: z.string().min(20).max(4096),
-  platform: z.literal("android"),
+  // "android" was a LITERAL here, so an iOS build's registration was rejected
+  // 400 — which push.ts treats as a permanent verdict and stops retrying.
+  // Push was therefore silently dead on iOS the moment the app shipped there.
+  platform: z.enum(["android", "ios"]),
   device: z.string().max(80).optional(),
 });
+
+/**
+ * Which transport a platform's token belongs to.
+ *
+ * Derived on the SERVER from the declared platform rather than accepted as a
+ * client-supplied field: a client that could name its own transport could put
+ * an APNs token into the FCM queue, where every send fails as an ordinary
+ * delivery error and nobody notices.
+ */
+function transportFor(platform: "android" | "ios"): "fcm" | "apns" {
+  return platform === "ios" ? "apns" : "fcm";
+}
 
 const RemoveSchema = z.object({
   token: z.string().min(20).max(4096),
@@ -27,14 +42,20 @@ export async function POST(req: NextRequest) {
   const body = await validateBody(req, RegisterSchema);
   if (body instanceof NextResponse) return body;
 
-  await saveFcmDevice(auth.account.user.id, body.token, body.device);
+  const transport = transportFor(body.platform);
+  await saveFcmDevice(auth.account.user.id, body.token, body.device, transport);
   const devices = await listFcmDevices(auth.account.user.id);
   return NextResponse.json({
     registered: true,
     devices: devices.length,
     // Lets the app tell "registered but undeliverable" from "working":
     // tokens are stored either way so a later server config makes them live.
-    deliveryConfigured: fcmConfigured(),
+    //
+    // For iOS this is HONESTLY false until an APNs transport exists: the token
+    // is kept, nothing is lost, and the app is told delivery is not wired
+    // rather than being led to believe a push will arrive.
+    deliveryConfigured: transport === "fcm" ? fcmConfigured() : false,
+    transport,
   });
 }
 

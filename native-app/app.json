@@ -9,7 +9,8 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "platforms": [
-      "android"
+      "android",
+      "ios"
     ],
     "android": {
       "package": "com.furlpay.app",
@@ -72,7 +73,10 @@
             "buildToolsVersion": "36.0.0",
             "enableProguardInReleaseBuilds": true,
             "enableShrinkResourcesInReleaseBuilds": true,
-            "extraProguardRules": "-keep class com.reactnativepasskey.** { *; }\n-keep class expo.modules.** { *; }\n-keepclassmembers class * { @com.facebook.proguard.annotations.DoNotStrip *; }\n-keep,includedescriptorclasses class com.facebook.react.turbomodule.** { *; }"
+            "extraProguardRules": "# ---------------------------------------------------------------------------\n# FurlPay release hardening. Applied on top of proguard-android.txt.\n#\n# Shrinking and obfuscation are enabled (enableProguardInReleaseBuilds), so the\n# job here is (a) keep what is reached only by reflection or JNI, and (b) remove\n# what must not ship. Every keep names a dependency that is actually installed.\n# ---------------------------------------------------------------------------\n\n# --- crash symbolication ---------------------------------------------------\n# Obfuscation renames everything, which makes a production stack trace useless\n# unless the line table survives and the mapping file is kept. LineNumberTable\n# gives frames their line numbers back; renamesourcefileattribute collapses the\n# original filenames to a single token so the source layout is NOT disclosed\n# while traces stay symbolicatable against mapping.txt.\n# EAS retains mapping.txt per build; upload it to the crash reporter on release.\n-keepattributes SourceFile,LineNumberTable\n-renamesourcefileattribute SourceFile\n\n# Reflection, generics and Kotlin metadata all read these at runtime. Without\n# them Gson-style reflective access and Kotlin's own reflection break in ways\n# that only appear in a release build.\n-keepattributes *Annotation*,Signature,InnerClasses,EnclosingMethod\n\n# --- STRIP DEBUG LOGGING FROM RELEASE --------------------------------------\n# The headline gap this file previously had. A wallet logs addresses, amounts,\n# request ids and occasionally response bodies during development; every one of\n# those reaches logcat, which any app with READ_LOGS — and anyone with adb —\n# can read off the device.\n#\n# v/d/i are removed. w/e are DELIBERATELY KEPT: they are what a crash reporter\n# and a support engineer read, and stripping them would trade a real diagnostic\n# for no additional secrecy, since the app does not log secrets at those levels.\n-assumenosideeffects class android.util.Log {\n    public static int v(...);\n    public static int d(...);\n    public static int i(...);\n    public static boolean isLoggable(...);\n}\n\n# React Native's own JS console bridge on the native side. Same reasoning.\n-assumenosideeffects class com.facebook.common.logging.FLog {\n    public static void v(...);\n    public static void d(...);\n    public static void i(...);\n}\n\n# --- React Native core -----------------------------------------------------\n# The bridge resolves native modules and view managers BY NAME at runtime, so\n# R8 cannot see the references. DoNotStrip is RN's own marker for exactly this.\n-keep,includedescriptorclasses class com.facebook.react.turbomodule.** { *; }\n-keepclassmembers class * { @com.facebook.proguard.annotations.DoNotStrip *; }\n-keepclassmembers class * { @com.facebook.react.uimanager.annotations.ReactProp <methods>; }\n-keepclassmembers class * { @com.facebook.react.bridge.ReactMethod <methods>; }\n# JNI entry points: a renamed method is a method the native side cannot find.\n-keepclasseswithmembernames class * { native <methods>; }\n\n# --- Hermes ----------------------------------------------------------------\n# The engine is loaded through JNI; its facade classes are never referenced\n# from Java code R8 can see.\n-keep class com.facebook.hermes.unicode.** { *; }\n-keep class com.facebook.jni.** { *; }\n\n# --- Expo modules ----------------------------------------------------------\n# expo-modules-core discovers modules reflectively from the generated package\n# list. Renaming them breaks every Expo native module at once.\n-keep class expo.modules.** { *; }\n-keep class * extends expo.modules.kotlin.modules.Module { *; }\n\n# --- react-native-passkey (^3.5.0) ------------------------------------------\n# Bridges to AndroidX Credential Manager, which resolves request/response types\n# reflectively across a process boundary.\n-keep class com.reactnativepasskey.** { *; }\n-keep class androidx.credentials.** { *; }\n-keep class com.google.android.gms.fido.** { *; }\n\n# --- @maplibre/maplibre-react-native (^10.4.2) ------------------------------\n# The renderer is native (C++/JNI) and calls back into these classes by name.\n-keep class org.maplibre.** { *; }\n-keep class com.maplibre.** { *; }\n-dontwarn org.maplibre.**\n\n# --- expo-sqlite (~15.2.14) -------------------------------------------------\n# JNI bindings into the bundled SQLite.\n-keep class expo.modules.sqlite.** { *; }\n\n# --- @react-native-async-storage/async-storage (2.1.2) ----------------------\n# Required by @walletconnect/react-native-compat for relay session storage.\n-keep class com.reactnativecommunity.asyncstorage.** { *; }\n\n# --- @react-native-community/netinfo (11.4.1) -------------------------------\n-keep class com.reactnativecommunity.netinfo.** { *; }\n\n# --- react-native-svg (15.11.2) ---------------------------------------------\n# View managers are resolved by name from JS.\n-keep public class com.horcrux.svg.** { *; }\n\n# --- react-native-screens (~4.11.1) -----------------------------------------\n-keep class com.swmansion.rnscreens.** { *; }\n\n# --- OkHttp / Okio ----------------------------------------------------------\n# RN's networking stack. These -dontwarn entries suppress warnings about\n# optional compile-time-only references (Conscrypt, Animal Sniffer, BouncyCastle)\n# that are genuinely absent at runtime; without them R8 fails the build on\n# classes nothing actually calls.\n-dontwarn okhttp3.**\n-dontwarn okio.**\n-dontwarn org.conscrypt.**\n-dontwarn org.bouncycastle.**\n-dontwarn org.openjsse.**\n-dontwarn javax.annotation.**\n-dontwarn org.codehaus.mojo.animal_sniffer.*\n\n# --- Kotlin coroutines ------------------------------------------------------\n# Used by every Expo Kotlin module. The service loader entry is read by name.\n-keepclassmembers class kotlinx.coroutines.** { volatile <fields>; }\n-dontwarn kotlinx.coroutines.**"
+          },
+          "ios": {
+            "deploymentTarget": "15.1"
           }
         }
       ],
@@ -87,7 +91,8 @@
         "expo-camera",
         {
           "cameraPermission": "FurlPay uses the camera to scan payment QR codes.",
-          "recordAudioAndroid": false
+          "recordAudioAndroid": false,
+          "microphonePermission": false
         }
       ],
       [
@@ -111,6 +116,36 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "ios": {
+      "bundleIdentifier": "com.furlpay.app",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "associatedDomains": [
+        "applinks:furlpay.com",
+        "applinks:www.furlpay.com"
+      ],
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "metamask",
+          "trust",
+          "rainbow",
+          "ledgerlive",
+          "safe",
+          "wc"
+        ],
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      },
+      "entitlements": {
+        "keychain-access-groups": [
+          "$(AppIdentifierPrefix)com.furlpay.app"
+        ]
+      }
     }
   }
 }
