@@ -421,3 +421,95 @@ describe("reconcileEps", () => {
     expect(reconcileEps(eps, period(5000), { value: 0 })).toBe(eps);
   });
 });
+
+describe("equity concept migration", () => {
+  // Qualcomm last tagged StockholdersEquity in 2019 and has reported the
+  // NCI-inclusive concept every quarter since. Reading one concept returned
+  // nothing inside the staleness window, so price/book, ROE and debt/equity all
+  // rendered as em-dashes for a company that publishes equity four times a year.
+  const instant = (end: string, val: number, filed: string) => ({ end, val, filed });
+
+  const migrated = factsOf({
+    StockholdersEquity: [instant("2019-09-29", 4_909_000_000, "2019-11-06")],
+    StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest: [
+      instant("2026-06-28", 27_658_000_000, "2026-07-29"),
+    ],
+  });
+
+  it("rejects the abandoned concept rather than reporting a seven-year-old equity", () => {
+    const stale = latestInstant(mergeConcept(migrated, ["StockholdersEquity"], "USD"), NOW);
+
+    expect(stale).toBeNull();
+  });
+
+  it("finds current equity under the concept the filer actually uses", () => {
+    const current = latestInstant(
+      mergeConcept(
+        migrated,
+        ["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+        "USD"
+      ),
+      NOW
+    );
+
+    expect(current?.val).toBe(27_658_000_000);
+  });
+
+  it("prefers parent-only equity when the filer still tags it", () => {
+    // Both current: the source order has to decide, not whichever was filed
+    // later. Net income is attributable to the parent, so ROE needs the parent
+    // denominator to match it.
+    const both = factsOf({
+      StockholdersEquity: [instant("2026-06-28", 20_000_000_000, "2026-07-29")],
+      StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest: [
+        instant("2026-06-28", 27_658_000_000, "2026-07-30"),
+      ],
+    });
+
+    const preferred = latestInstant(mergeConcept(both, ["StockholdersEquity"], "USD"), NOW);
+    expect(preferred?.val).toBe(20_000_000_000);
+  });
+});
+
+describe("gross profit derived from cost of revenue", () => {
+  // GrossProfit is optional in US-GAAP and Qualcomm never tags it, while
+  // CostOfRevenue sits directly under revenue on the income statement.
+  const revenueRows = [
+    // Q4 of the prior fiscal year: no 10-Q carries it, so it comes off the 10-K.
+    q("2025-06-30", "2025-09-28", 11_271_000_000, "2025-11-05"),
+    q("2025-09-29", "2025-12-28", 12_252_000_000, "2026-02-04"),
+    q("2025-12-29", "2026-03-29", 10_599_000_000, "2026-04-29"),
+    q("2026-03-30", "2026-06-28", 9_947_000_000, "2026-07-29"),
+  ];
+  const costRows = [
+    q("2025-06-30", "2025-09-28", 5_002_000_000, "2025-11-05"),
+    q("2025-09-29", "2025-12-28", 5_568_000_000, "2026-02-04"),
+    q("2025-12-29", "2026-03-29", 4_900_000_000, "2026-04-29"),
+    q("2026-03-30", "2026-06-28", 4_670_000_000, "2026-07-29"),
+  ];
+
+  it("lines both trailing windows up on the same period end", () => {
+    const rev = trailingTwelveMonths(mergeConcept(factsOf({ Revenues: revenueRows }), ["Revenues"], "USD"), NOW);
+    const cost = trailingTwelveMonths(
+      mergeConcept(factsOf({ CostOfRevenue: costRows }), ["CostOfRevenue"], "USD"),
+      NOW
+    );
+
+    // The subtraction is only valid when both describe the same span; the
+    // provider refuses to derive a margin when they do not.
+    expect(rev?.asOf).toBe(cost?.asOf);
+    expect(rev?.basis).toBe(cost?.basis);
+  });
+
+  it("produces a margin in the range the filing states", () => {
+    const rev = trailingTwelveMonths(mergeConcept(factsOf({ Revenues: revenueRows }), ["Revenues"], "USD"), NOW);
+    const cost = trailingTwelveMonths(
+      mergeConcept(factsOf({ CostOfRevenue: costRows }), ["CostOfRevenue"], "USD"),
+      NOW
+    );
+    const margin = marginPct(rev!.value - cost!.value, rev!.value);
+
+    expect(margin).toBeGreaterThan(50);
+    expect(margin).toBeLessThan(60);
+  });
+});

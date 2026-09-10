@@ -389,6 +389,17 @@ const REVENUE = [
   "SalesRevenueGoodsNet",
 ] as const;
 const NET_INCOME = ["NetIncomeLoss", "ProfitLoss"] as const;
+/** Cost of revenue, for issuers that report it but never tag `GrossProfit`.
+ *
+ * `GrossProfit` is optional in US-GAAP. Plenty of registrants skip it and tag
+ * only the cost line sitting directly under revenue on the income statement —
+ * Qualcomm among them — so the margin has to be derived from the two. */
+const COST_OF_REVENUE = [
+  "CostOfRevenue",
+  "CostOfGoodsAndServicesSold",
+  "CostOfGoodsSold",
+  "CostOfServices",
+] as const;
 const EPS = [
   "EarningsPerShareDiluted",
   "EarningsPerShareBasicAndDiluted",
@@ -408,6 +419,23 @@ const SHARE_SOURCES = [
   ["EntityCommonStockSharesOutstanding"],
   ["CommonStockSharesOutstanding"],
   ["WeightedAverageNumberOfDilutedSharesOutstanding"],
+] as const;
+
+/** Equity sources, best first — tried in order rather than merged.
+ *
+ * Registrants migrate between these two and do not look back. Qualcomm last
+ * tagged `StockholdersEquity` in 2019 and has reported the NCI-inclusive
+ * concept every quarter since, so a single-concept lookup finds nothing inside
+ * the staleness window and price/book, ROE and debt/equity all render as
+ * em-dashes for a company that publishes its equity four times a year.
+ *
+ * Order matters and is deliberate. Parent-only equity is the right denominator
+ * because the net income paired with it is attributable to the parent, so the
+ * NCI-inclusive figure is a fallback rather than a merge — a merge would hand
+ * back whichever concept happened to be filed later for a given period. */
+const EQUITY_SOURCES = [
+  ["StockholdersEquity"],
+  ["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
 ] as const;
 
 /** Exposed for tests: the pure period arithmetic, with no network.
@@ -488,6 +516,24 @@ export async function fundamentalsFor(symbol: string): Promise<Fundamentals | nu
 
   const eps = reconcileEps(epsRaw, netIncome, shares);
 
+  let equity: { value: number; asOf: string } | null = null;
+  for (const source of EQUITY_SOURCES) {
+    equity = instant(source);
+    if (equity) break;
+  }
+
+  // Gross profit, derived when the registrant never tags it. Subtracting cost
+  // of revenue from revenue is the definition, but only when both trailing
+  // windows describe the same span: an annual cost taken off a TTM revenue, or
+  // a cost lagging a quarter behind, produces a margin that looks plausible and
+  // is wrong. Mismatched windows stay null and render as an em-dash.
+  const grossTagged = flow(["GrossProfit"]);
+  const costOfRevenue = grossTagged ? null : flow(COST_OF_REVENUE);
+  const grossDerived =
+    revenue && costOfRevenue && revenue.asOf === costOfRevenue.asOf && revenue.basis === costOfRevenue.basis
+      ? revenue.value - costOfRevenue.value
+      : null;
+
   const assets = instant(["Assets"]);
 
   return {
@@ -498,13 +544,13 @@ export async function fundamentalsFor(symbol: string): Promise<Fundamentals | nu
     revenueTtm: revenue?.value ?? null,
     netIncomeTtm: netIncome?.value ?? null,
     incomeBasis: revenue?.basis ?? netIncome?.basis ?? null,
-    grossProfitTtm: flow(["GrossProfit"])?.value ?? null,
+    grossProfitTtm: grossTagged?.value ?? grossDerived,
     operatingIncomeTtm: flow(["OperatingIncomeLoss"])?.value ?? null,
     operatingCashFlowTtm: flow(["NetCashProvidedByUsedInOperatingActivities"])?.value ?? null,
     sharesOutstanding: shares?.value ?? null,
     assets: assets?.value ?? null,
     liabilities: instant(["Liabilities"])?.value ?? null,
-    equity: instant(["StockholdersEquity"])?.value ?? null,
+    equity: equity?.value ?? null,
     assetsCurrent: instant(["AssetsCurrent"])?.value ?? null,
     liabilitiesCurrent: instant(["LiabilitiesCurrent"])?.value ?? null,
     cash: instant(["CashAndCashEquivalentsAtCarryingValue"])?.value ?? null,
