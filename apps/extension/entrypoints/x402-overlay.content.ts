@@ -8,9 +8,9 @@ import { sanitizeDetection } from "@/lib/x402Trust";
 // furlpay.com — this overlay is a launcher, it never handles keys or signs.
 
 export default defineContentScript({
-  // Web pages only — http(s), never file:///ftp://. Narrowest scope per
-  // CWS Limited Use (Aug 2026).
-  matches: ["https://*/*", "http://*/*"],
+  // The paired MAIN-world interceptor is HTTPS-only. A cleartext page has no
+  // trustworthy payment context and must not get a FurlPay checkout launcher.
+  matches: ["https://*/*"],
   runAt: "document_start",
   main() {
     let shown = false;

@@ -6,9 +6,10 @@
 // page-accessible by definition, so it only OBSERVES and forwards.
 
 export default defineContentScript({
-  // HTTP 402 traffic is a web thing — http(s) only, never file:///ftp://.
-  // Narrowest scope per CWS Limited Use (Aug 2026).
-  matches: ["https://*/*", "http://*/*"],
+  // Payment hand-offs need a transport the network cannot rewrite. The
+  // checkout path accepts HTTPS resources only, so do not inject an observer
+  // into cleartext HTTP pages that can never produce a payable detection.
+  matches: ["https://*/*"],
   world: "MAIN",
   runAt: "document_start",
   main() {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { checkoutParams, httpResourceOrNull, sanitizeDetection } from "../x402Trust";
+import { checkoutParams, httpsResourceOrNull, sanitizeDetection } from "../x402Trust";
 
 // The exact payload from the report: a page script posting a detection that
 // looks identical to one from our MAIN-world interceptor, naming its own payTo.
@@ -52,28 +52,28 @@ describe("checkoutParams — the payment target is never taken from the page", (
   });
 });
 
-describe("httpResourceOrNull", () => {
-  it("accepts http and https", () => {
-    expect(httpResourceOrNull("https://api.example/thing")).toBe("https://api.example/thing");
-    expect(httpResourceOrNull("http://api.example/thing")).toBe("http://api.example/thing");
+describe("httpsResourceOrNull", () => {
+  it("accepts HTTPS only", () => {
+    expect(httpsResourceOrNull("https://api.example/thing")).toBe("https://api.example/thing");
+    expect(httpsResourceOrNull("http://api.example/thing")).toBeNull();
   });
 
   it("rejects schemes that would execute or embed rather than fetch", () => {
-    expect(httpResourceOrNull("javascript:alert(1)")).toBeNull();
-    expect(httpResourceOrNull("data:text/html,<script>alert(1)</script>")).toBeNull();
-    expect(httpResourceOrNull("file:///etc/passwd")).toBeNull();
+    expect(httpsResourceOrNull("javascript:alert(1)")).toBeNull();
+    expect(httpsResourceOrNull("data:text/html,<script>alert(1)</script>")).toBeNull();
+    expect(httpsResourceOrNull("file:///etc/passwd")).toBeNull();
   });
 
   it("rejects non-strings, empties and anything unparseable", () => {
-    expect(httpResourceOrNull(undefined)).toBeNull();
-    expect(httpResourceOrNull(42)).toBeNull();
-    expect(httpResourceOrNull({ toString: () => "https://x.example" })).toBeNull();
-    expect(httpResourceOrNull("")).toBeNull();
-    expect(httpResourceOrNull("not a url")).toBeNull();
+    expect(httpsResourceOrNull(undefined)).toBeNull();
+    expect(httpsResourceOrNull(42)).toBeNull();
+    expect(httpsResourceOrNull({ toString: () => "https://x.example" })).toBeNull();
+    expect(httpsResourceOrNull("")).toBeNull();
+    expect(httpsResourceOrNull("not a url")).toBeNull();
   });
 
   it("bounds the length so a page cannot push an unbounded string into a tab URL", () => {
-    expect(httpResourceOrNull(`https://x.example/${"a".repeat(4000)}`)).toBeNull();
+    expect(httpsResourceOrNull(`https://x.example/${"a".repeat(4000)}`)).toBeNull();
   });
 });
 
@@ -105,14 +105,23 @@ describe("sanitizeDetection", () => {
     expect(flood!.requirements).toHaveLength(8);
   });
 
-  it("bounds method and detectedAt rather than trusting their length", () => {
+  it("keeps only bounded, display-safe requirement fields from the page", () => {
+    const detection = sanitizeDetection({
+      ...FORGED,
+      requirements: [{ maxAmountRequired: "9".repeat(500), nested: { unbounded: true }, description: "x".repeat(500) }],
+    });
+
+    expect(detection!.requirements).toEqual([{}]);
+  });
+
+  it("allows only known request methods and bounds detectedAt", () => {
     const long = sanitizeDetection({
       ...FORGED,
       method: "M".repeat(500),
       detectedAt: "D".repeat(500),
     });
 
-    expect(long!.method).toHaveLength(16);
+    expect(long!.method).toBe("GET");
     expect(long!.detectedAt).toHaveLength(64);
   });
 

@@ -1,4 +1,4 @@
-import type { X402Detection } from "./types";
+import type { X402Detection, X402Requirement } from "./types";
 
 // The trust boundary for x402 detections.
 //
@@ -22,22 +22,57 @@ const MAX_URL_LENGTH = 2048;
 const MAX_REQUIREMENTS = 8;
 
 /**
- * Narrows an untrusted value to an http(s) URL string.
+ * Narrows an untrusted value to an HTTPS URL string.
  *
- * The page supplies this, so `javascript:`, `data:` and `file:` are rejected
- * rather than handed to `tabs.create` or rendered.
+ * A payment journey must not begin over cleartext HTTP: an active network
+ * attacker could rewrite the 402 before FurlPay's server gets a chance to
+ * re-fetch and verify it. `javascript:`, `data:`, `file:` and HTTP are all
+ * rejected rather than handed to `tabs.create` or rendered.
  *
  * @param raw Value claimed by the page to be a resource URL.
  * @returns The normalised URL, or `null` when it is not usable.
  */
-export function httpResourceOrNull(raw: unknown): string | null {
+export function httpsResourceOrNull(raw: unknown): string | null {
   if (typeof raw !== "string" || raw.length === 0 || raw.length > MAX_URL_LENGTH) return null;
   try {
     const url = new URL(raw);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null;
+    return url.protocol === "https:" ? url.toString() : null;
   } catch {
     return null;
   }
+}
+
+const MAX_REQUIREMENT_TEXT_LENGTH = 256;
+const MAX_ATOMIC_AMOUNT_LENGTH = 40;
+
+function boundedText(value: unknown, max = MAX_REQUIREMENT_TEXT_LENGTH): string | undefined {
+  return typeof value === "string" && value.length > 0 && value.length <= max ? value : undefined;
+}
+
+/** Keep only bounded primitive fields the extension can safely display. The
+ * MAIN-world relay is writable by the page, so retaining raw nested objects in
+ * extension storage would make a 402 detection a page-controlled data sink. */
+function sanitizeRequirements(raw: unknown): X402Requirement[] {
+  if (!Array.isArray(raw)) return [];
+
+  return raw.slice(0, MAX_REQUIREMENTS).flatMap((candidate) => {
+    if (!candidate || typeof candidate !== "object") return [];
+    const input = candidate as Record<string, unknown>;
+    const maxAmountRequired = boundedText(input.maxAmountRequired, MAX_ATOMIC_AMOUNT_LENGTH);
+    const amountUsd = input.amountUsd;
+    const requirement: X402Requirement = {
+      ...(boundedText(input.scheme) ? { scheme: boundedText(input.scheme) } : {}),
+      ...(boundedText(input.network) ? { network: boundedText(input.network) } : {}),
+      ...(boundedText(input.asset) ? { asset: boundedText(input.asset) } : {}),
+      ...(boundedText(input.payTo) ? { payTo: boundedText(input.payTo) } : {}),
+      ...(maxAmountRequired && /^\d+$/.test(maxAmountRequired) ? { maxAmountRequired } : {}),
+      ...(typeof amountUsd === "number" && Number.isFinite(amountUsd) && amountUsd >= 0 && amountUsd <= 1_000_000_000
+        ? { amountUsd }
+        : {}),
+      ...(boundedText(input.description) ? { description: boundedText(input.description) } : {}),
+    };
+    return [requirement];
+  });
 }
 
 /**
@@ -54,13 +89,16 @@ export function sanitizeDetection(raw: unknown): X402Detection | null {
   if (!raw || typeof raw !== "object") return null;
   const d = raw as Record<string, unknown>;
 
-  const url = httpResourceOrNull(d.url);
+  const url = httpsResourceOrNull(d.url);
   if (!url) return null;
 
   return {
     url,
-    method: typeof d.method === "string" ? d.method.slice(0, 16) : "GET",
-    requirements: Array.isArray(d.requirements) ? d.requirements.slice(0, MAX_REQUIREMENTS) : [],
+    method:
+      typeof d.method === "string" && /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/i.test(d.method)
+        ? d.method.toUpperCase()
+        : "GET",
+    requirements: sanitizeRequirements(d.requirements),
     detectedAt:
       typeof d.detectedAt === "string" ? d.detectedAt.slice(0, 64) : new Date().toISOString(),
   } as X402Detection;
