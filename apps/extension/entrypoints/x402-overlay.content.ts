@@ -1,4 +1,5 @@
 import type { X402Detection } from "@/lib/types";
+import { sanitizeDetection } from "@/lib/x402Trust";
 
 // Isolated-world companion to x402-main: receives 402 detections from the
 // page, logs them to the background (DevTools inspector feed), and slides up
@@ -19,7 +20,15 @@ export default defineContentScript({
       const data = event.data;
       if (!data || data.source !== "furlpay-x402-detected" || !data.detection) return;
 
-      const detection = data.detection as X402Detection;
+      // `event.source === window` does NOT prove this came from x402-main: the
+      // MAIN world shares the page's window, so a page script can post the same
+      // message. Nothing here is authenticated — the detection is a claim made
+      // by this site, and is rendered and forwarded as such. The recipient and
+      // amount are established by furlpay.com re-fetching the resource, never
+      // by these values. See openX402Checkout in background.ts.
+      const detection = sanitizeDetection(data.detection);
+      if (!detection) return;
+
       // Swallow "extension context invalidated" (page outliving a reload).
       browser.runtime.sendMessage({ type: "X402_DETECTED", detection }).catch(() => {});
       if (!shown) {
@@ -33,9 +42,9 @@ export default defineContentScript({
 function renderSheet(detection: X402Detection, onClose: () => void) {
   const req = detection.requirements[0] as Record<string, unknown> | undefined;
   const amountRaw = req?.maxAmountRequired ? Number(req.maxAmountRequired) : NaN;
-  // x402 amounts are in the asset's atomic units; USDC has 6 decimals.
-  const amountUsd = Number.isFinite(amountRaw) ? amountRaw / 1e6 : null;
-  const network = typeof req?.network === "string" ? req.network : "arbitrum";
+  // x402 amounts are in the asset's atomic units; USDC has 6 decimals. Claimed
+  // by the page, so it is labelled as such below and never sent to checkout.
+  const amountUsd = Number.isFinite(amountRaw) && amountRaw >= 0 ? amountRaw / 1e6 : null;
 
   const host = document.createElement("div");
   host.style.cssText = "all: initial; position: fixed; z-index: 2147483647; inset: auto 0 0 0;";
@@ -79,9 +88,12 @@ function renderSheet(detection: X402Detection, onClose: () => void) {
   sheet.appendChild(row);
 
   // --- Muted context line ---
+  // The site being shown is THIS page, read from location \u2014 not the hostname of
+  // the detection's URL. A page can claim any resource URL, so rendering that
+  // would let evil.com display a trusted-looking name above the amount.
   const muted = document.createElement("div");
   muted.className = "muted";
-  muted.textContent = `${hostnameOf(detection.url)} \u00B7 ${network} \u00B7 USDC`;
+  muted.textContent = `Requested by ${location.hostname}`;
   sheet.appendChild(muted);
 
   // --- Amount ---
@@ -90,11 +102,20 @@ function renderSheet(detection: X402Detection, onClose: () => void) {
   amountEl.textContent = amountUsd !== null ? `$${amountUsd.toFixed(2)}` : "x402";
   sheet.appendChild(amountEl);
 
+  // --- Unverified-amount qualifier ---
+  // The amount above is whatever the page put in the 402 body. FurlPay confirms
+  // the real recipient and amount by re-fetching the resource, so the sheet must
+  // not present these numbers as settled.
+  const claimed = document.createElement("div");
+  claimed.className = "muted";
+  claimed.textContent = "Amount claimed by this site \u00B7 verified on FurlPay before you pay";
+  sheet.appendChild(claimed);
+
   // --- Pay button ---
   const payBtn = document.createElement("button");
   payBtn.className = "pay";
   payBtn.type = "button";
-  payBtn.textContent = "Pay with FurlPay passkey";
+  payBtn.textContent = "Review on FurlPay";
   sheet.appendChild(payBtn);
 
   const close = () => {
@@ -111,14 +132,6 @@ function renderSheet(detection: X402Detection, onClose: () => void) {
   shadow.append(style, sheet);
   (document.body ?? document.documentElement).appendChild(host);
   requestAnimationFrame(() => sheet.classList.add("open"));
-}
-
-function hostnameOf(url: string): string {
-  try {
-    return new URL(url).hostname;
-  } catch {
-    return url;
-  }
 }
 
 function escapeHtml(s: string): string {

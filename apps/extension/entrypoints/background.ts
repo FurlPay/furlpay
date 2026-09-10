@@ -19,6 +19,7 @@ import type {
   Transaction,
   X402Detection,
 } from "@/lib/types";
+import { checkoutParams, sanitizeDetection } from "@/lib/x402Trust";
 
 // ---------------------------------------------------------------------------
 // FurlPay service worker (MV3).
@@ -293,7 +294,9 @@ export default defineBackground(() => {
         sendResponse({ ok: true, data: null });
         return false;
       case "OPEN_X402_CHECKOUT":
-        void openX402Checkout(message.detection);
+        // `sender` carries the real page origin — the only part of this flow the
+        // page cannot forge. See openX402Checkout.
+        void openX402Checkout(message.detection, sender);
         sendResponse({ ok: true, data: null });
         return false;
     }
@@ -543,15 +546,34 @@ async function onX402Detected(detection: X402Detection): Promise<void> {
   await browser.storage.local.set({ x402Log: deduped.slice(0, 50) });
 }
 
-async function openX402Checkout(detection: X402Detection): Promise<void> {
+/** Opens the furlpay.com checkout for a detected 402.
+ *
+ *  Nothing inside `detection` is authenticated. It reaches the isolated world
+ *  through window.postMessage from the MAIN world, which shares the page's
+ *  window — a page script can post a byte-identical message, and
+ *  `event.source === window` cannot tell the two apart. Treat every field as a
+ *  claim by the site.
+ *
+ *  So `payTo` and `maxAmountRequired` are deliberately NOT forwarded. Carrying
+ *  them meant any site could pop a FurlPay prompt naming an attacker's
+ *  recipient. Only the resource URL goes through, and furlpay.com re-fetches
+ *  the 402 itself to learn the real recipient, amount and network.
+ *
+ *  `sender.origin` is the one value the page cannot forge — the browser sets it
+ *  on the relaying content script — so it is passed alongside, letting the
+ *  checkout show which site actually asked and cross-check the resource. */
+async function openX402Checkout(
+  detection: X402Detection,
+  sender: { origin?: string; url?: string }
+): Promise<void> {
+  const safe = sanitizeDetection(detection);
+  // Not a web resource we could re-fetch and verify — there is nothing to check out.
+  if (!safe) return;
+
   const base = await getBaseUrl();
-  const req = detection.requirements[0] ?? {};
-  const params = new URLSearchParams({
-    resource: detection.url,
-    ...(req.payTo ? { payTo: String(req.payTo) } : {}),
-    ...(req.maxAmountRequired ? { amount: String(req.maxAmountRequired) } : {}),
-    ...(req.network ? { network: String(req.network) } : {}),
-  });
-  // Settlement + passkey signing happen on furlpay.com (the rpID origin).
+  const params = checkoutParams(safe, senderOrigin(sender));
+
+  // Settlement + passkey signing happen on furlpay.com (the rpID origin), which
+  // verifies the 402 against `resource` before it displays a recipient or amount.
   await browser.tabs.create({ url: `${base}/developer?x402=${encodeURIComponent(params.toString())}` });
 }
