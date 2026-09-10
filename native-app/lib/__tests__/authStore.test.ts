@@ -25,12 +25,16 @@ jest.mock("../passkey", () => ({
   authenticateWithPasskey: jest.fn(async () => "passkey-token"),
   registerPasskey: jest.fn(async () => "enroll-token"),
 }));
+jest.mock("../biometrics", () => ({
+  authenticateDeviceOwner: jest.fn(async () => ({ ok: true })),
+}));
 
 import { useAuth } from "../auth";
 import { api, setToken } from "../api";
 import { clearAllCaches } from "../db";
 import { unregisterFromPush } from "../push";
 import { queryClient } from "../queries";
+import { authenticateDeviceOwner } from "../biometrics";
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -52,6 +56,24 @@ describe("signInWithToken (Google/Apple federated result)", () => {
     // so Bob can never observe Alice's SQLite or react-query cache.
     expect(clearAllCaches).toHaveBeenCalled();
     expect(queryClient.clear).toHaveBeenCalled();
+  });
+});
+
+describe("app lock", () => {
+  it("keeps a stored session locked when the device has no screen lock", async () => {
+    (authenticateDeviceOwner as jest.Mock).mockResolvedValueOnce({ ok: false, reason: "no_device_lock" });
+    useAuth.setState({ status: "locked" });
+
+    await expect(useAuth.getState().unlock()).resolves.toBe("no_device_lock");
+    expect(useAuth.getState().status).toBe("locked");
+  });
+
+  it("only opens the session after device-owner authentication", async () => {
+    (authenticateDeviceOwner as jest.Mock).mockResolvedValueOnce({ ok: true });
+    useAuth.setState({ status: "locked" });
+
+    await expect(useAuth.getState().unlock()).resolves.toBe("unlocked");
+    expect(useAuth.getState().status).toBe("signedIn");
   });
 });
 

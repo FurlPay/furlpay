@@ -4,7 +4,7 @@ import { Stack, useRouter, type ErrorBoundaryProps } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { useAuth } from "@/lib/auth";
+import { type UnlockResult, useAuth } from "@/lib/auth";
 import {
   installNotificationRouting,
   installTokenRotation,
@@ -60,13 +60,17 @@ const LOCK_AFTER_BACKGROUND_MS = 30_000;
 function LockScreen() {
   const unlock = useAuth((s) => s.unlock);
   const signOut = useAuth((s) => s.signOut);
-  const [failed, setFailed] = useState(false);
+  const [result, setResult] = useState<UnlockResult | null>(null);
   const t = useTheme();
   const { t: tr } = useI18n();
 
+  const attemptUnlock = () => {
+    void unlock().then(setResult);
+  };
+
   useEffect(() => {
     // Prompt immediately on mount; the button below covers retries.
-    void unlock().then((ok) => setFailed(!ok));
+    attemptUnlock();
   }, [unlock]);
 
   return (
@@ -75,10 +79,14 @@ function LockScreen() {
         {tr("security.unlockTitle")}
       </Text>
       <Text style={[t.type("dim"), { color: t.colors.textDim, textAlign: "center" }]}>
-        {failed ? tr("security.unlockFailed") : tr("security.unlockPrompt")}
+        {result === "no_device_lock"
+          ? tr("security.unlockNoDeviceLock")
+          : result === "rejected"
+            ? tr("security.unlockFailed")
+            : tr("security.unlockPrompt")}
       </Text>
       <View style={{ gap: t.spacing.sm, alignSelf: "stretch" }}>
-        <Button title={tr("security.unlock")} onPress={() => void unlock().then((ok) => setFailed(!ok))} />
+        <Button title={tr("security.unlock")} onPress={attemptUnlock} />
         <Button title={tr("security.signOut")} variant="secondary" onPress={() => void signOut()} />
       </View>
     </Screen>

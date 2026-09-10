@@ -41,17 +41,16 @@ export function biometricApprovalsEnabled(): boolean {
  *
  * Resolves true when the action may proceed:
  *   - the user disabled "Biometric approvals" in Settings (their choice), or
- *   - the device has no enrolled biometrics (nothing to prompt with), or
- *   - the biometric prompt succeeded.
- * Resolves false only when the prompt was shown and failed/dismissed.
+ *   - the device owner completed a biometric or device-credential prompt.
+ *
+ * A missing biometric enrollment is NOT an approval. On that device the
+ * system PIN/pattern/passcode is the appropriate fallback; on a device with
+ * no lock at all this returns false. Skipping confirmation in either case
+ * would make a money-moving action one tap away on an unprotected handset.
  */
 export async function confirmWithBiometrics(promptMessage: string): Promise<boolean> {
   if (!biometricApprovalsEnabled()) return true;
-  const enrolled =
-    (await LocalAuthentication.hasHardwareAsync()) && (await LocalAuthentication.isEnrolledAsync());
-  if (!enrolled) return true;
-  const res = await LocalAuthentication.authenticateAsync({ promptMessage });
-  return res.success;
+  return (await authenticateDeviceOwner(promptMessage)).ok;
 }
 
 // ---------------------------------------------------------------------------

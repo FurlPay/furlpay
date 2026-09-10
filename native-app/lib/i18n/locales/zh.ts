@@ -51,6 +51,7 @@ export const zh: Translation = {
     unlock: "解锁", unlockTitle: "FurlPay",
     unlockPrompt: "使用指纹、面容或设备 PIN 解锁。",
     unlockFailed: "验证失败，请重试。",
+    unlockNoDeviceLock: "请先在设置中配置设备密码、图案或生物识别锁，然后重试。",
     signOut: "退出登录",
     sessionExpired: "登录状态已过期。请重新登录后继续。",
     confirmHighRisk: "确认是你本人",

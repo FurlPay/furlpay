@@ -51,6 +51,7 @@ export const de: Translation = {
     unlock: "Entsperren", unlockTitle: "FurlPay",
     unlockPrompt: "Mit Fingerabdruck, Gesicht oder Geräte-PIN entsperren.",
     unlockFailed: "Authentifizierung fehlgeschlagen — erneut versuchen.",
+    unlockNoDeviceLock: "Richten Sie in den Einstellungen eine Geräte-PIN, ein Muster oder eine biometrische Sperre ein und versuchen Sie es dann erneut.",
     signOut: "Abmelden",
     sessionExpired: "Ihre Sitzung ist abgelaufen. Melden Sie sich erneut an.",
     confirmHighRisk: "Bestätigen Sie, dass Sie es sind",

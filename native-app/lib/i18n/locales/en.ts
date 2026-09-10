@@ -107,6 +107,7 @@ export const en = {
     unlockTitle: "FurlPay",
     unlockPrompt: "Unlock with your fingerprint, face, or device PIN.",
     unlockFailed: "Authentication failed — try again.",
+    unlockNoDeviceLock: "Set a device passcode, pattern, or biometric lock in Settings, then try again.",
     signOut: "Sign out",
     sessionExpired: "Your session expired. Sign in again to continue.",
     confirmHighRisk: "Confirm it is you",

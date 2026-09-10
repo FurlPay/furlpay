@@ -51,6 +51,7 @@ export const hi: Translation = {
     unlock: "अनलॉक करें", unlockTitle: "FurlPay",
     unlockPrompt: "अपनी फ़िंगरप्रिंट, चेहरे या डिवाइस पिन से अनलॉक करें।",
     unlockFailed: "प्रमाणीकरण विफल — फिर कोशिश करें।",
+    unlockNoDeviceLock: "सेटिंग्स में डिवाइस पासकोड, पैटर्न या बायोमेट्रिक लॉक सेट करें, फिर दोबारा कोशिश करें।",
     signOut: "साइन आउट", sessionExpired: "आपका सत्र समाप्त हो गया। जारी रखने के लिए फिर साइन इन करें।",
     confirmHighRisk: "पुष्टि करें कि यह आप हैं",
     confirmHighRiskBody: "इससे पैसा जाता है, इसलिए हमें जाँचना होगा कि यह आप हैं।",

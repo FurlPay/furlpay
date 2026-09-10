@@ -53,6 +53,7 @@ export const ja: Translation = {
     unlock: "ロック解除", unlockTitle: "FurlPay",
     unlockPrompt: "指紋、顔認証、または端末の PIN でロックを解除してください。",
     unlockFailed: "認証に失敗しました。もう一度お試しください。",
+    unlockNoDeviceLock: "設定で端末のパスコード、パターン、または生体認証ロックを設定してから、もう一度お試しください。",
     signOut: "サインアウト",
     sessionExpired: "セッションの有効期限が切れました。もう一度サインインしてください。",
     confirmHighRisk: "ご本人確認",

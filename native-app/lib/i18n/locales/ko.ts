@@ -51,6 +51,7 @@ export const ko: Translation = {
     unlock: "잠금 해제", unlockTitle: "FurlPay",
     unlockPrompt: "지문, 얼굴 또는 기기 PIN으로 잠금을 해제하세요.",
     unlockFailed: "인증에 실패했습니다. 다시 시도해 주세요.",
+    unlockNoDeviceLock: "설정에서 기기 비밀번호, 패턴 또는 생체 인증 잠금을 설정한 후 다시 시도하세요.",
     signOut: "로그아웃",
     sessionExpired: "세션이 만료되었습니다. 계속하려면 다시 로그인하세요.",
     confirmHighRisk: "본인 확인",

@@ -77,6 +77,12 @@ public final class ServiceContainer {
     /// sign-in and sign-out.
     public var isSignedIn: Bool = false
 
+    /// A token in the keychain proves a session exists; it does not prove the
+    /// person currently holding the phone is its owner. The root view keeps
+    /// account data behind this gate whenever an existing session is restored
+    /// or the app has been away long enough to be handed to someone else.
+    public var isSessionLocked: Bool = false
+
     public init(
         api: FurlPayAPIClient = .shared,
         tokenStore: KeychainTokenStore = .shared,
@@ -211,17 +217,26 @@ public final class ServiceContainer {
 
     public func bootstrap() async {
         isSignedIn = await tokenStore.get() != nil
+        // A restored bearer session must never bypass Face ID just because the
+        // Keychain could read it after the device was unlocked.
+        isSessionLocked = isSignedIn
         sync.activate(container: self)
         push.attach(container: self)
         // Keeps in-app state in step with an alarm acknowledged on the Lock
         // Screen, where the app never runs.
         alarmKitObserver.observe(self)
-        if isSignedIn { await refreshAll() }
+        // Do not fetch a restored account until the holder proves local
+        // presence. Otherwise a background launch can refresh balances and
+        // card state while the session-lock screen is still protecting it.
     }
 
     /// Loads every snapshot in parallel. Sequential awaits here would make a
     /// cold dashboard cost the sum of six round trips instead of the slowest one.
     public func refreshAll() async {
+        // Push/background tasks may wake the process while a restored session
+        // is intentionally locked. Account refresh is not an authorization
+        // bypass: defer it until unlockSession() establishes local presence.
+        guard isSignedIn, !isSessionLocked else { return }
         async let w: Void = wallets.refresh()
         async let c: Void = cards.refresh()
         async let t: Void = transactions.refresh()
@@ -236,6 +251,8 @@ public final class ServiceContainer {
     public func signIn(token: String) async throws {
         try await tokenStore.save(token)
         isSignedIn = true
+        // Completing the OTP/passkey ceremony is fresh account authentication.
+        isSessionLocked = false
         await sync.pushToken(token)
         await refreshAll()
     }
@@ -243,6 +260,7 @@ public final class ServiceContainer {
     public func signOut() async {
         await tokenStore.clear()
         isSignedIn = false
+        isSessionLocked = false
         wallets.clear(); cards.clear(); transactions.clear()
         portfolio.clear(); markets.clear(); travel.clear()
         passport.clear()
@@ -252,6 +270,26 @@ public final class ServiceContainer {
         // repositories but leaving it would mean the next user could ask the
         // assistant what the last one's balance was.
         assistant.reset()
+    }
+
+    /// Re-arm the privacy gate without destroying the session. This is safe to
+    /// call repeatedly from lifecycle callbacks and intentionally does nothing
+    /// for a signed-out app.
+    public func lockSession() {
+        if isSignedIn { isSessionLocked = true }
+    }
+
+    /// Unlocks an existing session with a fresh local user-presence check.
+    /// `.unavailable` and `.denied` both leave the session locked: a missing
+    /// biometric factor must never become the easier path into financial data.
+    public func unlockSession() async -> BiometricResult {
+        guard isSignedIn else { return .denied(reason: "No active session.") }
+        let result = await biometrics.authenticate(reason: "Unlock FurlPay")
+        if result.isAuthenticated {
+            isSessionLocked = false
+            await refreshAll()
+        }
+        return result
     }
 
     /// Current snapshot for the watch and the complication.

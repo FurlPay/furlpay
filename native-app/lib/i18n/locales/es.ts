@@ -51,6 +51,7 @@ export const es: Translation = {
     unlock: "Desbloquear", unlockTitle: "FurlPay",
     unlockPrompt: "Desbloquea con tu huella, tu cara o el PIN del dispositivo.",
     unlockFailed: "Error de autenticación: inténtalo de nuevo.",
+    unlockNoDeviceLock: "Configura un PIN, patrón o bloqueo biométrico del dispositivo en Ajustes y vuelve a intentarlo.",
     signOut: "Cerrar sesión",
     sessionExpired: "Tu sesión caducó. Inicia sesión de nuevo para continuar.",
     confirmHighRisk: "Confirma que eres tú",

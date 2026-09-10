@@ -50,6 +50,7 @@ export const fr: Translation = {
     unlock: "Déverrouiller", unlockTitle: "FurlPay",
     unlockPrompt: "Déverrouillez avec votre empreinte, votre visage ou le code de l’appareil.",
     unlockFailed: "Échec de l’authentification — réessayez.",
+    unlockNoDeviceLock: "Configurez un code, un schéma ou un verrou biométrique dans Réglages, puis réessayez.",
     signOut: "Se déconnecter",
     sessionExpired: "Votre session a expiré. Reconnectez-vous pour continuer.",
     confirmHighRisk: "Confirmez que c’est bien vous",

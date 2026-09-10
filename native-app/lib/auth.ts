@@ -49,6 +49,11 @@ function clearSessionState(): void {
 
 export type AuthStatus = "loading" | "signedOut" | "locked" | "signedIn";
 
+/** Outcome of the app-lock gate. `no_device_lock` must be distinguished from
+ * an ordinary cancellation so the UI can tell a user how to recover without
+ * ever treating an unprotected device as authenticated. */
+export type UnlockResult = "unlocked" | "rejected" | "no_device_lock";
+
 /** Which channel an OTP was sent over — the same code path serves both. */
 export type OtpChannel = "email" | "sms";
 
@@ -57,8 +62,8 @@ interface AuthState {
   email: string | null;
   hydrate: () => Promise<void>;
   /** Device-owner gate: biometrics, or the device PIN/passcode when no
-   *  biometric is enrolled. Only a device with NO screen lock falls through. */
-  unlock: () => Promise<boolean>;
+   *  biometric is enrolled. A device with no screen lock remains locked. */
+  unlock: () => Promise<UnlockResult>;
   /** Re-arm the lock screen over a live session (backgrounding, idle timeout).
    *  A no-op unless the session is currently unlocked. */
   lock: () => void;
@@ -97,17 +102,17 @@ export const useAuth = create<AuthState>((set, get) => ({
     const result = await authenticateDeviceOwner("Unlock FurlPay");
     if (result.ok) {
       set({ status: "signedIn" });
-      return true;
+      return "unlocked";
     }
-    // A device with no screen lock at all has nothing to prompt with. Refusing
-    // to open would strand the user in an unopenable app, so the session
-    // proceeds — but the app-lock control is honestly not a control there, and
-    // LockScreen says so rather than pretending it passed.
+    // There is no proof of device ownership when the phone has no PIN, pattern
+    // or biometric lock. Letting this case through turned the app lock into a
+    // visual-only barrier: anyone holding an unlocked, unprotected device got
+    // the stored payment session. Keep the session locked and give LockScreen
+    // a specific recovery state instead.
     if (result.reason === "no_device_lock") {
-      set({ status: "signedIn" });
-      return true;
+      return "no_device_lock";
     }
-    return false;
+    return "rejected";
   },
 
   lock: () => {
