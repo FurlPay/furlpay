@@ -438,6 +438,41 @@ const EQUITY_SOURCES = [
   ["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
 ] as const;
 
+/** Total equity, for the balance-sheet identity rather than for ratios.
+ *
+ * Deliberately the reverse preference of EQUITY_SOURCES. Assets = liabilities +
+ * total equity, so deriving liabilities needs the figure that includes
+ * non-controlling interests; using parent-only equity leaves NCI sitting inside
+ * "liabilities". Coca-Cola carries $2.1B of NCI and Walmart $6.3B, so the two
+ * concepts are not interchangeable here even though they are close. */
+const EQUITY_TOTAL_SOURCES = [
+  ["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+  ["StockholdersEquity"],
+] as const;
+
+/** Cash sources, best first.
+ *
+ * ASU 2016-18 moved the cash-flow statement onto a total that includes
+ * restricted cash, and many registrants now tag only that: JPMorgan, Bank of
+ * America, Starbucks and GE have no plain `CashAndCashEquivalentsAtCarryingValue`
+ * inside the staleness window at all. The inclusive figure is a superset — it
+ * carries restricted balances the plain one excludes — so it is a fallback
+ * rather than an equal, taken only when the narrower concept is absent. */
+const CASH_SOURCES = [
+  ["CashAndCashEquivalentsAtCarryingValue"],
+  ["CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"],
+] as const;
+
+/** Dividend-per-share sources, best first.
+ *
+ * Declared is the better figure — it is the rate the board has committed to —
+ * but Coca-Cola, IBM, Exxon and Home Depot tag only what was actually paid.
+ * Over a trailing year the two differ by at most a timing shift. */
+const DIVIDEND_SOURCES = [
+  ["CommonStockDividendsPerShareDeclared"],
+  ["CommonStockDividendsPerShareCashPaid"],
+] as const;
+
 /** Exposed for tests: the pure period arithmetic, with no network.
  *
  * This is the part worth pinning. Both bugs found while building it — the
@@ -505,9 +540,11 @@ export async function fundamentalsFor(symbol: string): Promise<Fundamentals | nu
   const revenue = flow(REVENUE, "broadest");
   const netIncome = flow(NET_INCOME);
   const epsRaw = trailingTwelveMonths(mergeConcept(facts, EPS, "USD/shares"));
-  const dividendTtm = trailingTwelveMonths(
-    mergeConcept(facts, ["CommonStockDividendsPerShareDeclared"], "USD/shares")
-  );
+  let dividendTtm: ReturnType<typeof trailingTwelveMonths> = null;
+  for (const source of DIVIDEND_SOURCES) {
+    dividendTtm = trailingTwelveMonths(mergeConcept(facts, source, "USD/shares"));
+    if (dividendTtm) break;
+  }
   let shares: { value: number; asOf: string } | null = null;
   for (const source of SHARE_SOURCES) {
     shares = instant(source, "shares");
@@ -520,6 +557,22 @@ export async function fundamentalsFor(symbol: string): Promise<Fundamentals | nu
   for (const source of EQUITY_SOURCES) {
     equity = instant(source);
     if (equity) break;
+  }
+
+  // Total liabilities, derived when the registrant never tags it. Thirty-one
+  // percent of a large-cap sample does not: Amazon, Walmart, Coca-Cola, Oracle,
+  // AT&T and others report only the balance-sheet total.
+  //
+  // That total, `LiabilitiesAndStockholdersEquity`, is NOT a stand-in for
+  // liabilities however much the name suggests it — it equals `Assets` to the
+  // dollar for every filer checked, so substituting it reports Amazon owing
+  // $1,095,689M instead of $544,069M and doubles debt/equity. The identity has
+  // to be closed properly: liabilities = assets - total equity, on the same
+  // balance-sheet date.
+  let totalEquity: { value: number; asOf: string } | null = null;
+  for (const source of EQUITY_TOTAL_SOURCES) {
+    totalEquity = instant(source);
+    if (totalEquity) break;
   }
 
   // Gross profit, derived when the registrant never tags it. Subtracting cost
@@ -536,6 +589,21 @@ export async function fundamentalsFor(symbol: string): Promise<Fundamentals | nu
 
   const assets = instant(["Assets"]);
 
+  let cash: { value: number; asOf: string } | null = null;
+  for (const source of CASH_SOURCES) {
+    cash = instant(source);
+    if (cash) break;
+  }
+
+  const liabilities = instant(["Liabilities"]);
+  // Only closed when both sides describe the same balance sheet. Subtracting a
+  // quarter-old equity from a fresher assets figure yields a number that looks
+  // like a liability total and is not one.
+  const derivedLiabilities =
+    !liabilities && assets && totalEquity && assets.asOf === totalEquity.asOf
+      ? assets.value - totalEquity.value
+      : null;
+
   return {
     entityName: facts.entityName,
     cik,
@@ -549,11 +617,11 @@ export async function fundamentalsFor(symbol: string): Promise<Fundamentals | nu
     operatingCashFlowTtm: flow(["NetCashProvidedByUsedInOperatingActivities"])?.value ?? null,
     sharesOutstanding: shares?.value ?? null,
     assets: assets?.value ?? null,
-    liabilities: instant(["Liabilities"])?.value ?? null,
+    liabilities: liabilities?.value ?? derivedLiabilities,
     equity: equity?.value ?? null,
     assetsCurrent: instant(["AssetsCurrent"])?.value ?? null,
     liabilitiesCurrent: instant(["LiabilitiesCurrent"])?.value ?? null,
-    cash: instant(["CashAndCashEquivalentsAtCarryingValue"])?.value ?? null,
+    cash: cash?.value ?? null,
     dividendPerShareTtm: dividendTtm?.value ?? null,
     asOf: revenue?.asOf ?? netIncome?.asOf ?? null,
     balanceAsOf: assets?.asOf ?? null,

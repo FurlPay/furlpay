@@ -513,3 +513,109 @@ describe("gross profit derived from cost of revenue", () => {
     expect(margin).toBeLessThan(60);
   });
 });
+
+describe("liabilities closed from the balance-sheet identity", () => {
+  const instant = (end: string, val: number, filed: string) => ({ end, val, filed });
+
+  // Amazon's real balance sheet at 2026-06-30. It tags no `Liabilities` at all —
+  // 31% of a large-cap sample does not — but it does tag the statement total.
+  const amazon = factsOf({
+    Assets: [instant("2026-06-30", 1_095_689_000_000, "2026-07-31")],
+    LiabilitiesAndStockholdersEquity: [instant("2026-06-30", 1_095_689_000_000, "2026-07-31")],
+    StockholdersEquity: [instant("2026-06-30", 551_620_000_000, "2026-07-31")],
+  });
+
+  it("does not mistake the statement total for liabilities", () => {
+    // The trap: the name reads like liabilities plus equity, and it is — which
+    // makes it exactly assets. Substituting it reports Amazon owing every dollar
+    // it owns and doubles debt/equity.
+    const total = latestInstant(
+      mergeConcept(amazon, ["LiabilitiesAndStockholdersEquity"], "USD"),
+      NOW
+    );
+    const assets = latestInstant(mergeConcept(amazon, ["Assets"], "USD"), NOW);
+
+    expect(total?.val).toBe(assets?.val);
+  });
+
+  it("recovers the real figure by subtracting total equity from assets", () => {
+    const assets = latestInstant(mergeConcept(amazon, ["Assets"], "USD"), NOW);
+    const equity = latestInstant(mergeConcept(amazon, ["StockholdersEquity"], "USD"), NOW);
+
+    expect(assets!.val - equity!.val).toBe(544_069_000_000);
+  });
+
+  it("uses equity including NCI, because parent-only leaves NCI inside liabilities", () => {
+    // Coca-Cola carries $2.1B of non-controlling interests. Closing the identity
+    // with parent-only equity overstates liabilities by exactly that.
+    const coke = factsOf({
+      Assets: [instant("2026-04-03", 104_217_000_000, "2026-04-29")],
+      StockholdersEquity: [instant("2026-04-03", 33_633_000_000, "2026-04-29")],
+      StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest: [
+        instant("2026-04-03", 35_734_000_000, "2026-04-29"),
+      ],
+    });
+
+    const assets = latestInstant(mergeConcept(coke, ["Assets"], "USD"), NOW)!.val;
+    const parent = latestInstant(mergeConcept(coke, ["StockholdersEquity"], "USD"), NOW)!.val;
+    const total = latestInstant(
+      mergeConcept(
+        coke,
+        ["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest"],
+        "USD"
+      ),
+      NOW
+    )!.val;
+
+    expect(assets - parent - (assets - total)).toBe(2_101_000_000);
+    expect(assets - total).toBeLessThan(assets - parent);
+  });
+});
+
+describe("cash and dividend concept fallbacks", () => {
+  const instant = (end: string, val: number, filed: string) => ({ end, val, filed });
+
+  it("finds cash under the restricted-inclusive concept when the plain one is absent", () => {
+    // ASU 2016-18. JPMorgan, Bank of America, Starbucks and GE tag only this one.
+    const bank = factsOf({
+      CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents: [
+        instant("2026-06-30", 309_811_000_000, "2026-08-04"),
+      ],
+    });
+
+    expect(latestInstant(mergeConcept(bank, ["CashAndCashEquivalentsAtCarryingValue"], "USD"), NOW)).toBeNull();
+    expect(
+      latestInstant(
+        mergeConcept(bank, ["CashCashEquivalentsRestrictedCashAndRestrictedCashEquivalents"], "USD"),
+        NOW
+      )?.val
+    ).toBe(309_811_000_000);
+  });
+
+  it("falls back from declared to cash-paid dividends per share", () => {
+    // Coca-Cola, IBM, Exxon and Home Depot tag only what was paid.
+    const payer = factsOf(
+      {
+        CommonStockDividendsPerShareCashPaid: [
+          q("2025-06-30", "2025-09-30", 0.51, "2025-10-28"),
+          q("2025-10-01", "2025-12-31", 0.51, "2026-02-10"),
+          q("2026-01-01", "2026-04-03", 0.53, "2026-04-29"),
+          q("2026-04-04", "2026-07-03", 0.53, "2026-07-29"),
+        ],
+      },
+      "USD/shares"
+    );
+
+    expect(
+      trailingTwelveMonths(
+        mergeConcept(payer, ["CommonStockDividendsPerShareDeclared"], "USD/shares"),
+        NOW
+      )
+    ).toBeNull();
+    const paid = trailingTwelveMonths(
+      mergeConcept(payer, ["CommonStockDividendsPerShareCashPaid"], "USD/shares"),
+      NOW
+    );
+    expect(paid?.value).toBeCloseTo(2.08, 2);
+  });
+});
