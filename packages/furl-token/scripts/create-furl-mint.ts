@@ -29,9 +29,12 @@ import {
   ExtensionType, TOKEN_2022_PROGRAM_ID, getMintLen, LENGTH_SIZE, TYPE_SIZE,
   createInitializeMetadataPointerInstruction, createInitializeMintInstruction,
 } from '@solana/spl-token'
-import { pack, createInitializeInstruction, type TokenMetadata } from '@solana/spl-token-metadata'
+import { pack, createInitializeInstruction, createUpdateFieldInstruction, type TokenMetadata } from '@solana/spl-token-metadata'
 import { readFileSync } from 'node:fs'
-import { FURL, TOKEN_2022_PROGRAM_ID as CONFIG_PROGRAM_ID, assertConfigLaunchable, type Cluster } from '../src/config'
+import {
+  FURL, TOKEN_2022_PROGRAM_ID as CONFIG_PROGRAM_ID, assertConfigLaunchable,
+  METADATA_URI, ON_CHAIN_ADDITIONAL_METADATA, type Cluster,
+} from '../src/config'
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`)
@@ -41,7 +44,7 @@ const flag = (name: string) => process.argv.includes(`--${name}`)
 
 const cluster = (arg('cluster') || 'devnet') as Cluster
 const execute = flag('execute')
-const metadataUri = arg('metadata-uri') || 'https://furlpay.com/furl/metadata.json'
+const metadataUri = arg('metadata-uri') || METADATA_URI
 
 function loadKeypair(): Keypair {
   const path = process.env.FURL_KEYPAIR
@@ -69,7 +72,7 @@ async function main() {
     name: FURL.name,
     symbol: FURL.symbol,
     uri: metadataUri,
-    additionalMetadata: [['project', 'FurlPay'], ['type', 'utility']],
+    additionalMetadata: ON_CHAIN_ADDITIONAL_METADATA.map((kv) => [kv[0], kv[1]] as [string, string]),
   }
 
   // Rent must cover the FINAL account size: base mint + metadata-pointer
@@ -126,6 +129,17 @@ async function main() {
       mintAuthority: payer.publicKey,
       updateAuthority: payer.publicKey,
     }),
+    // Write the factual additional fields (chain/role/external_url) on-chain so
+    // it agrees with the off-chain JSON. Rent above is sized to include these.
+    ...ON_CHAIN_ADDITIONAL_METADATA.map(([field, value]) =>
+      createUpdateFieldInstruction({
+        programId: TOKEN_2022_PROGRAM_ID,
+        metadata: mint.publicKey,
+        updateAuthority: payer.publicKey,
+        field,
+        value,
+      }),
+    ),
   )
 
   const sig = await sendAndConfirmTransaction(connection, tx, [payer, mint])

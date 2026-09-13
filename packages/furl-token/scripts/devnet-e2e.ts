@@ -22,9 +22,9 @@ import {
   createInitializeMetadataPointerInstruction, createInitializeMintInstruction,
   getAssociatedTokenAddressSync, createAssociatedTokenAccountIdempotentInstruction, createMintToInstruction,
 } from '@solana/spl-token'
-import { pack, createInitializeInstruction, type TokenMetadata } from '@solana/spl-token-metadata'
+import { pack, createInitializeInstruction, createUpdateFieldInstruction, type TokenMetadata } from '@solana/spl-token-metadata'
 import { readFileSync } from 'node:fs'
-import { FURL, assertConfigLaunchable, toBaseUnits } from '../src/config.ts'
+import { FURL, assertConfigLaunchable, toBaseUnits, METADATA_URI, ON_CHAIN_ADDITIONAL_METADATA } from '../src/config.ts'
 
 function loadKeypair(): Keypair {
   const path = process.env.FURL_KEYPAIR
@@ -61,8 +61,8 @@ async function main() {
   const mint = Keypair.generate()
   const metadata: TokenMetadata = {
     mint: mint.publicKey, name: FURL.name, symbol: FURL.symbol,
-    uri: 'https://furlpay.com/furl/metadata.json',
-    additionalMetadata: [['project', 'FurlPay'], ['type', 'utility']],
+    uri: METADATA_URI,
+    additionalMetadata: ON_CHAIN_ADDITIONAL_METADATA.map((kv) => [kv[0], kv[1]] as [string, string]),
   }
   const mintLen = getMintLen([ExtensionType.MetadataPointer])
   const metadataLen = TYPE_SIZE + LENGTH_SIZE + pack(metadata).length
@@ -81,6 +81,12 @@ async function main() {
       name: metadata.name, symbol: metadata.symbol, uri: metadata.uri,
       mintAuthority: payer.publicKey, updateAuthority: payer.publicKey,
     }),
+    ...ON_CHAIN_ADDITIONAL_METADATA.map(([field, value]) =>
+      createUpdateFieldInstruction({
+        programId: TOKEN_2022_PROGRAM_ID, metadata: mint.publicKey,
+        updateAuthority: payer.publicKey, field, value,
+      }),
+    ),
   )
   const createSig = await sendAndConfirmTransaction(connection, createTx, [payer, mint])
   console.log(`  mint created: ${mint.publicKey.toBase58()}  (${createSig})`)

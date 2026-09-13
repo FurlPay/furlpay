@@ -15,14 +15,23 @@
  *
  * WHAT FURL IS, IN CODE
  * ---------------------
- * FURL is an ecosystem/utility token. It is deliberately NOT:
- *   - a stablecoin (USDC is the unit of account for every payment path),
- *   - a claim on customer funds, deposits, or FurlPay revenue,
- *   - redeemable by FurlPay for fiat or for anything of value.
- * The payment rails move USDC. FURL never sits between a customer and their
- * money. Keep it that way: the moment FURL represents customer funds or a
- * promise of return, this is a regulated instrument and this package's
- * assumptions no longer hold.
+ * FURL is POSITIONED as the FurlPay ecosystem's stablecoin / payment currency
+ * for travel purchases, everyday payments and rewards across the network.
+ *
+ * HONEST STATE OF THE IMPLEMENTATION (read before calling FURL a "stablecoin"
+ * anywhere public): the mint created by this package is a plain fixed-supply
+ * SPL/Token-2022 token. It does NOT itself implement:
+ *   - a fiat peg,
+ *   - reserves backing the supply,
+ *   - an issuance / 1:1 redemption mechanism,
+ *   - the compliance posture a USD stablecoin requires (MiCA e-money-token
+ *     rules in the EU, US stablecoin legislation).
+ * Choosing 6 decimals makes amounts behave like a USD payment unit; it does
+ * NOT make FURL stable. Until the peg + reserves + redemption + compliance
+ * exist and are attested, describe FURL as "intended to operate as" the
+ * ecosystem stablecoin, never as a live USD-redeemable one. A stablecoin is
+ * MORE regulated than a utility token, not less. USDC remains the external,
+ * reserve-backed settlement asset for every payment path today.
  */
 
 /** Mint-time decisions. Changing any of these after launch means a NEW mint. */
@@ -31,10 +40,16 @@ export const FURL = {
   symbol: 'FURL',
 
   /**
-   * 9 decimals matches SOL and is the Solana default for non-stable assets.
-   * (USDC uses 6 — do not copy that here; FURL is not a stablecoin.)
+   * 6 decimals — the USD-stablecoin convention, matching USDC on Solana, so
+   * amounts read like money (1 FURL = 1,000,000 base units). This is a
+   * precision choice only; it does not itself create a peg (see header).
+   * Irreversible once the mint exists.
    */
-  decimals: 9,
+  decimals: 6,
+
+  /** Public one-line description (mirrors the off-chain metadata JSON). */
+  description:
+    'FurlPay is a travel and payments ecosystem for Android and iOS, built on Solana. FURL is the ecosystem’s USD-denominated payment currency, intended to operate as its stablecoin for travel purchases, everyday payments and rewards; FurlPay also supports USDC for settlement, and eligible tokenized stocks and investment products.',
 
   /**
    * Fixed maximum supply, in whole FURL. The mint authority is revoked
@@ -64,10 +79,12 @@ export const FURL = {
   extensions: ['metadataPointer', 'tokenMetadata'] as const,
 
   /**
-   * Freeze authority. `null` means NO ONE can ever freeze a FURL account.
-   * This is the honest default for a utility token: holders cannot be
-   * censored by us. If a compliance obligation later requires freezing, that
-   * requires a new mint and a public migration — not a quiet switch.
+   * Freeze authority. `null` means NO ONE can ever freeze a FURL account —
+   * holders cannot be censored. NOTE: a production USD stablecoin usually
+   * needs a freeze/compliance authority (sanctions, law-enforcement holds).
+   * That is a deliberate future decision: enabling it requires a NEW mint and
+   * a public migration, never a quiet switch. Kept `null` today because the
+   * peg/reserve/compliance stack does not yet exist.
    */
   freezeAuthority: null as string | null,
 
@@ -113,6 +130,29 @@ export const ALLOCATIONS: readonly Allocation[] = [
     vesting: 'Held for audits, bug bounties, incident response. Multisig.' },
 ] as const
 
+/**
+ * Canonical off-chain metadata URI. Its content lives at
+ * apps/web/public/furl/metadata.json and is served here once the web app is
+ * deployed. The on-chain token-metadata `uri` points at this exact URL.
+ */
+export const METADATA_URI = 'https://furlpay.com/furl/metadata.json'
+export const EXTERNAL_URL = 'https://furlpay.com'
+export const IMAGE_URL = 'https://furlpay.com/furl/icon.png'
+
+/**
+ * Extra key/value pairs written to the mint's Token-2022 token-metadata via
+ * UpdateField, AFTER InitializeTokenMetadata. Kept factual and consistent with
+ * the off-chain JSON: chain, role, and a link back to the canonical metadata /
+ * site. No unbacked-peg claim appears here. These are actually written on-chain
+ * (rent is sized to include them), so on-chain and off-chain agree.
+ */
+export const ON_CHAIN_ADDITIONAL_METADATA: readonly (readonly [string, string])[] = [
+  ['project', 'FurlPay'],
+  ['chain', 'solana'],
+  ['role', 'ecosystem-payment-currency'],
+  ['external_url', EXTERNAL_URL],
+] as const
+
 /** Canonical USDC. Verified against Circle's contract-address page. */
 export const USDC = {
   arbitrumOne: '0xaf88d065e77c8cC2239327C5EDb3A432268e5831',
@@ -133,7 +173,10 @@ export function assertConfigLaunchable(cluster: Cluster): void {
   const total = ALLOCATIONS.reduce((a, b) => a + b.percent, 0)
   if (total !== 100) errors.push(`allocations total ${total}%, must be 100%`)
 
-  if (FURL.decimals < 0 || FURL.decimals > 9) errors.push('decimals must be 0-9')
+  // 6 is the final product decision (USD-payment convention, matches USDC).
+  // The SPL legal range is 0-9; we pin 6 so a stray edit can't ship a mint
+  // with the wrong precision.
+  if (FURL.decimals !== 6) errors.push('decimals must be 6 (USD-payment convention, final)')
   if (FURL.maxSupply <= 0n) errors.push('maxSupply must be positive')
 
   const banned = ['transferFeeConfig', 'permanentDelegate', 'transferHook', 'defaultAccountState']

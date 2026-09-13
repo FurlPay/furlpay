@@ -1,0 +1,13 @@
+{
+  "name": "FurlPay",
+  "symbol": "FURL",
+  "description": "FurlPay is a travel and payments ecosystem for Android and iOS, built on Solana for fast, low-cost digital payments. FURL is the ecosystem's USD-denominated payment currency, intended to operate as its stablecoin for travel purchases, everyday payments, rewards, and transactions across the FurlPay network. FurlPay also supports USDC for payment settlement, and eligible tokenized stocks and investment products for on-chain access to supported assets.",
+  "image": "https://furlpay.com/furl/icon.png",
+  "external_url": "https://furlpay.com",
+  "properties": {
+    "category": "image",
+    "files": [
+      { "uri": "https://furlpay.com/furl/icon.png", "type": "image/png" }
+    ]
+  }
+}

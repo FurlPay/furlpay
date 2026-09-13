@@ -2,7 +2,7 @@
   "name": "@furlpay/furl-token",
   "version": "0.1.0",
   "private": true,
-  "description": "FURL utility token: Token-2022 mint config, devnet-first launch scripts, and the deterministic supply/allocation logic. Builds the token; never touches customer funds.",
+  "description": "FURL — the FurlPay ecosystem's USD-denominated payment currency (intended to operate as its stablecoin) on Solana. Token-2022 mint config, devnet-first launch scripts, and deterministic supply/allocation logic. Builds the on-chain token; the peg/reserves/redemption of a production stablecoin are separate infrastructure.",
   "license": "MIT",
   "type": "module",
   "scripts": {

@@ -1,47 +1,45 @@
 # @furlpay/furl-token
 
-Tooling to launch and operate **FURL**, the FurlPay ecosystem/utility token, on
-Solana (Token-2022). Devnet-first. Mainnet is gated behind explicit flags, a
-fully-populated allocation config, an external audit, and your legal review.
+Tooling to launch and operate **FURL**, the FurlPay ecosystem's USD-denominated
+payment currency on Solana (Token-2022). Devnet-first. Mainnet is gated behind
+explicit flags, a fully-populated allocation config, an external audit, and your
+legal review.
 
-## What FURL is — and is not
+## What FURL is — implementation vs. intent
 
-FURL is a **utility/ecosystem token**. In this codebase it is deliberately:
+**Current on-chain implementation** — exactly what the mint provides today:
 
-- **not** a stablecoin — every payment path settles in **USDC**; FURL is not a unit of account.
-- **not** a claim on customer funds, deposits, or FurlPay revenue.
-- **not** redeemable by FurlPay for fiat or anything of value.
+- a plain Solana **SPL / Token-2022** token,
+- **6 decimals** (USD-payment convention, matches USDC on Solana),
+- **fixed supply** per the configured mint parameters,
+- **no** built-in USD peg, **no** reserves, **no** issuance/redemption mechanism.
 
-If FURL ever comes to represent customer funds or a promise of return, it is a
-regulated instrument and the assumptions in `src/config.ts` no longer hold —
-stop and get legal advice first.
+**Product intent** — what FURL is meant to become:
+
+- the FurlPay ecosystem's **USD-denominated stablecoin / payment currency** for
+  travel purchases, everyday payments, merchant payments and rewards.
+
+These are kept separate on purpose. Choosing 6 decimals makes amounts read like
+money; it does **not** create a peg. Until the peg, reserves, redemption and the
+matching compliance posture (MiCA e-money-token rules, US stablecoin
+legislation) exist and are attested, describe FURL as **"intended to operate as"**
+the ecosystem stablecoin — never as a live, reserve-backed, 1:1-redeemable one.
+**USDC** remains the external, reserve-backed asset supported for payment and
+settlement today.
 
 > Code cannot make a token "pump." What this package does is make FURL
-> **credible, fixed-supply, transparent, and hard to exploit.** Sustainable
-> demand comes from real FurlPay usage, not from mechanics in the mint.
-
-## The five questions (answer before mainnet)
-
-1. **What is FURL?** A utility token for the FurlPay ecosystem.
-2. **Why does it need to exist?** Ecosystem rewards / developer & merchant
-   incentives / governance / feature access — pick the real ones; don't invent
-   utility to manufacture buy pressure.
-3. **How many can ever exist?** `maxSupply` in `src/config.ts`, enforced by
-   **revoking the mint authority** right after the initial mint.
-4. **Who controls supply & treasury?** Mint authority → revoked. Freeze
-   authority → `null` (no one can freeze). Treasury/team/liquidity → separate,
-   published, multisig wallets.
-5. **What creates demand?** More FurlPay usage → more genuine ecosystem demand.
+> **fixed-supply, transparent, and hard to exploit.** Sustainable demand comes
+> from real FurlPay usage, not from mechanics in the mint.
 
 ## Design decisions (locked at mint time)
 
 | Property | Value | Why |
 |---|---|---|
 | Standard | Token-2022 | on-chain metadata without Metaplex; minimal extensions |
-| Decimals | 9 | Solana default for non-stables (USDC is 6 — FURL is not USDC) |
+| Decimals | **6** | USD-payment convention; matches USDC on Solana. Irreversible. |
 | Max supply | fixed (`config.ts`) | hard cap via revoked mint authority |
 | Extensions | `metadataPointer`, `tokenMetadata` only | no transfer tax, no permanent delegate, no transfer hook, no default-freeze |
-| Freeze authority | `null` | holders cannot be censored |
+| Freeze authority | `null` today | holders can't be frozen now; a production stablecoin may need one → new mint |
 | Mint authority | revoked after initial mint | supply cannot be inflated |
 
 Banned extensions and the reasons are documented in `src/config.ts`. Several of
