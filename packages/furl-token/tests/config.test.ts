@@ -37,8 +37,16 @@ test('devnet is launchable with placeholder wallets', () => {
   assert.doesNotThrow(() => assertConfigLaunchable('devnet'))
 })
 
-test('mainnet is REFUSED while allocation wallets are unset', () => {
-  assert.throws(() => assertConfigLaunchable('mainnet-beta'), /requires wallets for/)
+test('mainnet is launchable now that all six allocations have addresses', () => {
+  assert.doesNotThrow(() => assertConfigLaunchable('mainnet-beta'))
+})
+
+test('every allocation has a wallet + is only ever a public address (never a secret)', () => {
+  for (const a of ALLOCATIONS) {
+    assert.ok(a.wallet, `${a.key} has a wallet`)
+    // base58 public key shape; a 64-byte secret array or base58 seed would not match
+    assert.match(a.wallet!, /^[1-9A-HJ-NP-Za-km-z]{32,44}$/, `${a.key} is a base58 pubkey`)
+  }
 })
 
 test('mint authority is set to be revoked (hard cap enforced by runtime)', () => {
@@ -90,7 +98,7 @@ test('metadata JSON is valid and complete', () => {
   assert.equal(offchain.symbol, 'FURL')
   assert.equal(typeof offchain.description, 'string')
   assert.ok(offchain.description.length > 40)
-  assert.match(offchain.image, /^https:\/\/furlpay\.com\/furl\/icon\.png$/)
+  assert.match(offchain.image, /^https:\/\/gateway\.irys\.xyz\/[A-Za-z0-9_-]{40,}$/)
   assert.equal(offchain.external_url, EXTERNAL_URL)
 })
 
@@ -99,13 +107,17 @@ test('metadata JSON has no duplicate description (single key)', () => {
   assert.equal((raw.match(/"description"\s*:/g) || []).length, 1)
 })
 
-test('on-chain name/symbol/uri agree with the off-chain JSON', () => {
-  // On-chain token-metadata carries name/symbol/uri; the uri resolves to the
-  // JSON that carries description/image/etc. Name+symbol must match exactly.
+test('on-chain name/symbol agree with the off-chain JSON', () => {
   assert.equal(FURL.name, offchain.name)
   assert.equal(FURL.symbol, offchain.symbol)
-  assert.equal(METADATA_URI, 'https://furlpay.com/furl/metadata.json')
-  assert.equal(IMAGE_URL, offchain.image)
+})
+
+test('metadata URI + image are permanent Arweave (Irys) URLs, not the 404 furlpay.com', () => {
+  assert.match(METADATA_URI, /^https:\/\/gateway\.irys\.xyz\/[A-Za-z0-9_-]{40,}$/)
+  assert.match(IMAGE_URL, /^https:\/\/gateway\.irys\.xyz\/[A-Za-z0-9_-]{40,}$/)
+  assert.doesNotMatch(METADATA_URI, /furlpay\.com/)
+  // the off-chain mirror image must also point at the permanent Arweave icon
+  assert.equal(offchain.image, IMAGE_URL)
 })
 
 test('metadata positions FURL as the ecosystem stablecoin/payment currency', () => {

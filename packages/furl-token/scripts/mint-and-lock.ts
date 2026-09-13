@@ -66,17 +66,27 @@ async function main() {
   const endpoint = cluster === 'devnet' ? clusterApiUrl('devnet') : (process.env.SOLANA_RPC_URL || clusterApiUrl('mainnet-beta'))
   const connection = new Connection(endpoint, 'confirmed')
 
-  for (const a of ALLOCATIONS) {
-    if (!a.wallet) { console.log(`  skip ${a.key}: no wallet (devnet)`); continue }
-    const owner = new PublicKey(a.wallet)
-    const amount = rows.find((r) => r.key === a.key)!.amount
-    const ata = getAssociatedTokenAddressSync(mint, owner, true, TOKEN_2022_PROGRAM_ID)
-    const tx = new Transaction().add(
-      createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, owner, mint, TOKEN_2022_PROGRAM_ID),
-      createMintToInstruction(mint, ata, payer.publicKey, amount, [], TOKEN_2022_PROGRAM_ID),
-    )
-    const sig = await sendAndConfirmTransaction(connection, tx, [payer])
-    console.log(`  minted ${a.key}: ${amount} → ${a.wallet}  (${sig})`)
+  // Idempotency: if the supply is already the full cap (a prior run minted it),
+  // skip minting so this script is safe to re-run to ONLY revoke. Never
+  // double-mint.
+  const pre = await getMint(connection, mint, 'confirmed', TOKEN_2022_PROGRAM_ID)
+  if (pre.supply === total) {
+    console.log(`  supply already == ${total}; skipping mint (idempotent re-run).`)
+  } else if (pre.supply !== 0n) {
+    throw new Error(`refusing to mint: existing supply ${pre.supply} is neither 0 nor the full cap ${total}`)
+  } else {
+    for (const a of ALLOCATIONS) {
+      if (!a.wallet) { console.log(`  skip ${a.key}: no wallet (devnet)`); continue }
+      const owner = new PublicKey(a.wallet)
+      const amount = rows.find((r) => r.key === a.key)!.amount
+      const ata = getAssociatedTokenAddressSync(mint, owner, true, TOKEN_2022_PROGRAM_ID)
+      const tx = new Transaction().add(
+        createAssociatedTokenAccountIdempotentInstruction(payer.publicKey, ata, owner, mint, TOKEN_2022_PROGRAM_ID),
+        createMintToInstruction(mint, ata, payer.publicKey, amount, [], TOKEN_2022_PROGRAM_ID),
+      )
+      const sig = await sendAndConfirmTransaction(connection, tx, [payer])
+      console.log(`  minted ${a.key}: ${amount} → ${a.wallet}  (${sig})`)
+    }
   }
 
   // Verify on-chain supply equals the cap BEFORE considering revocation.

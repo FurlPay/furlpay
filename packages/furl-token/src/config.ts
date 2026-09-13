@@ -115,29 +115,48 @@ export interface Allocation {
   readonly vesting: string
 }
 
+/**
+ * LAUNCH DECISION (2026-09-13, explicitly authorized): all six allocations
+ * resolve to the DEPLOYER public address below.
+ *
+ * RISK — recorded, not hidden: this concentrates 100% of supply under ONE key.
+ * It is NOT the recommended long-term treasury architecture. Dedicated,
+ * separated, multisig (e.g. Squads) treasury/allocation wallets should be
+ * created and the supply migrated to them before any meaningful production
+ * distribution. Until then, a single key compromise = total loss, and public
+ * "who controls the supply" answers are "one address".
+ *
+ * Only a PUBLIC address appears here. No private key / seed ever goes in source.
+ */
+export const DEPLOYER_PUBKEY = 'FgeSXvrWcqE93byDoF3Vhwou7XTUhY42cYhs7vXkJPUL'
+
 export const ALLOCATIONS: readonly Allocation[] = [
-  { key: 'community', label: 'Community & ecosystem', percent: 40, wallet: null,
-    vesting: 'Released against published ecosystem programs; no cliff, usage-driven.' },
-  { key: 'liquidity', label: 'Liquidity', percent: 20, wallet: null,
-    vesting: 'Unlocked at TGE to seed FURL/USDC. LP position published.' },
-  { key: 'treasury', label: 'Treasury', percent: 15, wallet: null,
-    vesting: '4-year linear, monthly unlock, multisig-controlled.' },
-  { key: 'team', label: 'Team & founders', percent: 15, wallet: null,
-    vesting: '12-month cliff, then 36-month linear. Nothing at TGE.' },
-  { key: 'partnerships', label: 'Partnerships', percent: 5, wallet: null,
-    vesting: 'Locked until a named partnership goes live; disclosed per unlock.' },
-  { key: 'reserve', label: 'Security & launch reserve', percent: 5, wallet: null,
-    vesting: 'Held for audits, bug bounties, incident response. Multisig.' },
+  { key: 'community', label: 'Community & ecosystem', percent: 40, wallet: DEPLOYER_PUBKEY,
+    vesting: 'Deployer address at launch (see risk note); to migrate to a dedicated wallet.' },
+  { key: 'liquidity', label: 'Liquidity', percent: 20, wallet: DEPLOYER_PUBKEY,
+    vesting: 'Deployer address at launch; seeds FURL/USDC pool, then LP position published.' },
+  { key: 'treasury', label: 'Treasury', percent: 15, wallet: DEPLOYER_PUBKEY,
+    vesting: 'Deployer address at launch; migrate to multisig treasury before distribution.' },
+  { key: 'team', label: 'Team & founders', percent: 15, wallet: DEPLOYER_PUBKEY,
+    vesting: 'Deployer address at launch; migrate to a vested multisig.' },
+  { key: 'partnerships', label: 'Partnerships', percent: 5, wallet: DEPLOYER_PUBKEY,
+    vesting: 'Deployer address at launch; migrate to a dedicated wallet.' },
+  { key: 'reserve', label: 'Security & launch reserve', percent: 5, wallet: DEPLOYER_PUBKEY,
+    vesting: 'Deployer address at launch; migrate to a multisig reserve.' },
 ] as const
 
 /**
- * Canonical off-chain metadata URI. Its content lives at
- * apps/web/public/furl/metadata.json and is served here once the web app is
- * deployed. The on-chain token-metadata `uri` points at this exact URL.
+ * Canonical token metadata + image, hosted PERMANENTLY on Arweave via Irys
+ * (uploaded 2026-09-13; see scripts/upload-arweave.ts and arweave-uris.json).
+ * The on-chain token-metadata `uri` points at METADATA_URI. These are
+ * immutable — Arweave data cannot be changed or taken down, which is the point
+ * for a token whose holders must always be able to resolve its identity.
+ * `apps/web/public/furl/metadata.json` is a mirror for the website only; the
+ * chain uses Arweave.
  */
-export const METADATA_URI = 'https://furlpay.com/furl/metadata.json'
+export const METADATA_URI = 'https://gateway.irys.xyz/4WYcrbavrRd4BA7Ls61czF8z1cjNg6M3xPdzw24HQgFH'
+export const IMAGE_URL = 'https://gateway.irys.xyz/FZZrqRxi2qg8ZN1ER8oh9n7QFGJocchTstNFojkREAkH'
 export const EXTERNAL_URL = 'https://furlpay.com'
-export const IMAGE_URL = 'https://furlpay.com/furl/icon.png'
 
 /**
  * Extra key/value pairs written to the mint's Token-2022 token-metadata via

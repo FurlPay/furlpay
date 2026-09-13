@@ -6,3 +6,4 @@ deploy-*.local.json
 .env
 .env.*
 node_modules/
+arweave-uris.json
