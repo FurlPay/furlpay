@@ -20,7 +20,7 @@ const FAQ = [
   { q: "Is Furlpay authorised or registered by the FCA?", a: "No. The FCA cryptoasset authorisation gateway opens on 30 September 2026, firms may apply until 28 February 2027, and the new regime becomes mandatory on 25 October 2027. Furlpay is preparing for the regime and is not currently FCA authorised." },
   { q: "Are my cryptoassets protected?", a: "No. Cryptoassets are high risk. They are not regulated deposits, are not covered by the Financial Services Compensation Scheme (FSCS), and their value can fall as well as rise. You may lose all the money you put in." },
   { q: "What does the risk warning mean?", a: "UK rules require a standard warning for cryptoasset promotions: don't invest unless you're prepared to lose all the money you invest, this is a high-risk investment, and you're unlikely to be protected if something goes wrong. First-time investors also get a 24-hour cooling-off period." },
-  { q: "How does Furlpay keep funds secure?", a: "Furlpay uses passkey (WebAuthn) authentication and 2-of-2 MPC custody, so there is no seed phrase and no single device can move funds alone. Payments are screened against sanctions lists, and core code is open-source and auditable." },
+  { q: "How does Furlpay keep funds secure?", a: "Furlpay uses passkey (WebAuthn) authentication and a three-layer signing policy. Custody depends on the client, and we say which is which: the mobile app holds your key on your device (self-custodial), while web signing runs through a policy-gated secure enclave operated by our provider (custodial). Payments are screened against sanctions lists, and core code is open-source and auditable." },
 ];
 
 export default function UkTrustPage() {
@@ -85,7 +85,7 @@ export default function UkTrustPage() {
         <Section title="How we protect you">
           <div className="grid gap-4 sm:grid-cols-2">
             {[
-              { t: "Passkey + MPC custody", b: "WebAuthn passkeys and 2-of-2 MPC — no seed phrase, phishing-resistant, no single point of key compromise." },
+              { t: "Passkey auth + policy-gated signing", b: "WebAuthn passkeys, phishing-resistant by origin binding, and three independent policy gates before anything is signed." },
               { t: "Sanctions screening", b: "Both sides of every payment are screened before settlement." },
               { t: "Open source", b: "Core SDKs, CLI and the x402 facilitator are MIT-licensed and independently auditable." },
               { t: "Responsible disclosure", b: "A published safe-harbour policy for reporting security issues." },

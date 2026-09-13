@@ -25,8 +25,9 @@ export default function RefundPage() {
         fundamental property of blockchain technology, not a Furlpay policy choice.
       </Callout>
       <P>
-        Furlpay operates self-custodial MPC wallets. When you sign a transaction using your passkey,
-        the combined 2-of-2 key shares produce a valid on-chain signature. Once the transaction
+        When you authorise a transaction, a valid on-chain signature is produced — on mobile by the
+        key held on your device, and on the web by our provider&rsquo;s policy-gated secure enclave.
+        Once the transaction
         reaches finality on the relevant network (Base, Solana, Arbitrum, or Ethereum), no party —
         including Furlpay — can reverse it.
       </P>

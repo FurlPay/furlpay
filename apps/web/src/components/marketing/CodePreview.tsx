@@ -16,7 +16,7 @@ const RESPONSE = `{
     "daily": 5000
   },
   "safe": "0x7A9f…c31E",
-  "mpc": "2-of-2",
+  "signing_policy": "client+server+enclave",
   "createdAt": "2026-07-01T10:04:22Z"
 }`;
 
@@ -67,7 +67,7 @@ export default function CodePreview() {
           <pre className="min-h-[220px] overflow-x-auto p-5 text-[12.5px] leading-relaxed text-neon/90">
             <code>
               {state === "idle" && <span className="text-textMuted">{"// press Run ▷ to issue a card"}</span>}
-              {state === "running" && <span className="text-textMuted">{"// authorizing 2-of-2 MPC co-sign…"}</span>}
+              {state === "running" && <span className="text-textMuted">{"// clearing signing policy gates…"}</span>}
               {state === "done" && RESPONSE}
             </code>
           </pre>

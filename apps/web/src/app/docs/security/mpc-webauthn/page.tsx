@@ -6,28 +6,62 @@ export const metadata = docMeta("/docs/security/mpc-webauthn");
 export default function SecurityPage() {
   return (
     <article>
-      <DocTitle eyebrow="Security &amp; Crypto">MPC &amp; WebAuthn</DocTitle>
+      <DocTitle eyebrow="Security &amp; Crypto">Signing &amp; WebAuthn</DocTitle>
       <Lead>
-        Custody-grade security with consumer-grade UX. Keys are split, signing is policy-gated, logins are
-        phishing-resistant, and every transfer passes a real-time risk check.
+        Two signing paths with two different custody models, a signing policy enforced independently in
+        three places, and phishing-resistant passkey authentication. This page states which path is
+        custodial, because the answer decides how much you should be willing to hold with us.
       </Lead>
 
-      <H2 id="mpc">2-of-2 MPC signing</H2>
+      <Callout title="Correction: this page previously described 2-of-2 MPC">
+        It said wallet keys were split between a device share and a server share, and that neither party
+        could move funds alone. That was <b>not</b> what the code did. The web signing path returns a
+        <b> complete</b> signature from a remote enclave; the device holds no key share. The description
+        below is the accurate one, and{" "}
+        <Code>docs/CUSTODY-DISCLOSURE.md</Code> in the repository records the correction in full.
+      </Callout>
+
+      <H2 id="paths">Two signing paths</H2>
       <P>
-        Wallet keys never exist as a single secret. Each signature requires a{" "}
-        <b>2-of-2 multi-party computation</b> between the user&apos;s device share and Furlpay&apos;s
-        server share. Neither party can move funds alone, and there is no full private key to leak.
+        <b>Mobile app — self-custodial.</b> A BIP-39 seed is generated on the device and stored in
+        biometric-gated secure storage (Android Keystore / iOS Keychain). It is never transmitted, and
+        Furlpay cannot reconstruct it. Lose the device and every backup, and the funds are gone — that is
+        the real cost of self-custody, and we do not soften it.
+      </P>
+      <P>
+        <b>Web app — custodial.</b> Signing runs through <Code>/api/mpc/sign</Code> to a secure enclave
+        operated by <Code>Turnkey</Code>, which signs the digest and returns a complete signature. The
+        client verifies that the signature recovers to the expected address, which is a correct check —
+        but it is verification, not participation in a threshold scheme. Anything holding the Turnkey
+        organisation credential can, subject to enclave policy, produce signatures for wallets in that
+        organisation. That makes this path custodial.
+      </P>
+      <P>
+        Furlpay deliberately calls <Code>signRawPayload</Code> rather than letting Turnkey build and sign
+        the whole transaction: the client serialises the transaction and computes the digest itself, so
+        the address-recovery check is not Turnkey checking Turnkey.
+      </P>
+
+      <H2 id="policy">What actually is 2-of-2: the policy path</H2>
+      <P>
+        The property with genuine independence is <b>authorisation</b>, not key material. A signature
+        request must survive three gates, each able to refuse without opening the others:
       </P>
       <UL>
-        <LI>Device share — bound to the user&apos;s hardware, unlocked by a passkey.</LI>
-        <LI>Server share — held under HSM policy, released only when policy passes.</LI>
+        <LI>The <b>client</b> refuses to request an out-of-policy signature.</LI>
+        <LI><Code>/api/mpc/sign</Code> refuses to forward one (<Code>lib/services/policyEngine.ts</Code>).</LI>
+        <LI>Turnkey&apos;s <b>enclave policy</b> refuses to produce one.</LI>
       </UL>
-
-      <H2 id="hsm">Turnkey HSM policy</H2>
       <P>
-        The server share lives behind a <Code>Turnkey</Code> HSM. A declarative policy engine enforces
-        who can sign what, under which limits — evaluated inside the secure enclave before any co-signature
-        is produced.
+        That is real defence in depth. It is just not key-share splitting, and the old copy conflated the
+        two.
+      </P>
+
+      <H2 id="threshold">What would make true threshold signing real</H2>
+      <P>
+        A device-held share that is <i>required</i> to produce a signature — each side computing a partial
+        signature, neither sufficient alone. That is on the roadmap and is <b>not built</b>. Until it ships
+        and is verified end to end, this page describes the web path as custodial.
       </P>
 
       <H2 id="webauthn">WebAuthn passkeys</H2>

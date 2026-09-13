@@ -172,7 +172,7 @@ const CERTIFICATIONS = [
  *   payments / merchant / travel / wallet / x402  -> src/app/products/page.tsx
  *   travel one-liner                              -> components/landing/BuildSection.tsx
  *   agent wallet + human approval                 -> components/landing/BuildSection.tsx
- *   2-of-2 MPC custody                            -> src/app/products/wallet/page.tsx
+ *   passkey wallet + policy-gated signing         -> src/app/products/wallet/page.tsx
  *   card kinds and limits                         -> lib/types.ts, src/app/cards/page.tsx
  *
  * `emphasis` marks the two consumer-facing products that get a wider card.
@@ -196,8 +196,8 @@ const PRODUCTS = [
     name: "Wallet",
     href: "/products/wallet",
     emphasis: true,
-    body: "A passkey-secured MPC wallet — phishing-resistant, with no seed phrase to lose. The signing key is split 2-of-2, so neither FurlPay nor a single device can move funds alone.",
-    points: ["No seed phrase", "2-of-2 MPC custody", "Multi-asset balances", "Wallet handles"],
+    body: "A passkey-secured wallet — phishing-resistant, with no seed phrase to lose on the web. Signing clears three independent policy gates, and the custody model is published per client rather than blurred.",
+    points: ["No seed phrase on web", "Policy-gated signing", "Multi-asset balances", "Wallet handles"],
   },
   {
     name: "Cards",

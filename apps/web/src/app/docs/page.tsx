@@ -88,7 +88,7 @@ const card = await client.cards.issue({
       <H2 id="what">What you can build</H2>
       <UL>
         <LI>Accept stablecoin checkouts with the <Code>FurlpayCheckoutButton</Code> React Element.</LI>
-        <LI>Issue 2-of-2 MPC virtual cards and control them via <Code>POST /api/cards/settings</Code>.</LI>
+        <LI>Issue virtual cards and control them via <Code>POST /api/cards/settings</Code>.</LI>
         <LI>Open local IBAN / routing accounts and move money across rails.</LI>
         <LI>Place fractional stock &amp; ETF orders via <Code>POST /api/investing/order</Code>.</LI>
         <LI>

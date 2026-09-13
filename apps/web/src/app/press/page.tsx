@@ -11,7 +11,7 @@ const FACTS = [
   ["What", "The open-source, AI-native financial operating system — stablecoin cards, global accounts, fractional investing, and agentic payments in one client."],
   ["Wedge", "The first Solana-native x402 facilitator + MCP server — payments infrastructure for AI agents."],
   ["Open source", "10 MIT-licensed repos at github.com/FurlPay (SDKs in 4 languages, CLI, Elements, Account Kit, MCP server, x402)."],
-  ["Custody", "2-of-2 MPC with passkey-bound device shares (Turnkey HSM). Self-custody, phishing-resistant."],
+  ["Custody", "Self-custodial on mobile (key held on device). Web signing is custodial via a policy-gated Turnkey enclave. Passkey auth throughout."],
   ["Compliance", "MiCA / GENIUS routing, tiered KYC, and the FATF Travel Rule wired into the product."],
   ["Stage", "Pre-seed, solo founder, shipping in public. Live at furlpay.com."],
 ];
@@ -33,7 +33,7 @@ export default function PressPage() {
           Furlpay is the open-source, AI-native financial operating system, fusing stablecoin payments,
           global local accounts, and fractional stock investing into one web, desktop, and browser-extension
           client — with the first Solana-native x402 facilitator and an MCP server underneath, so AI agents
-          can transact safely. Phishing-resistant, self-custodial (2-of-2 MPC), and compliance-aware.
+          can transact safely. Phishing-resistant, self-custodial on mobile, and compliance-aware.
         </p>
 
         <h2 className="mt-12 text-[22px] font-bold tracking-tighter">Fast facts</h2>

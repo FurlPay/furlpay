@@ -19,7 +19,7 @@ export const metadata: Metadata = {
 const FAQ = [
   { q: "Is Furlpay licensed or registered by VARA?", a: "No. Dubai's Virtual Assets Regulatory Authority (VARA) requires any entity offering virtual asset services in or from Dubai to hold a licence. Furlpay is not currently VARA-licensed and is evaluating licensing; it is not soliciting regulated virtual asset activity from UAE residents ahead of authorisation." },
   { q: "Are my virtual assets protected?", a: "Virtual assets are high risk. They are not legal tender, their value can fall as well as rise, and you could lose the money you put in. Stablecoins such as USDC carry issuer and peg risk." },
-  { q: "How does Furlpay keep funds secure?", a: "Furlpay uses passkey (WebAuthn) authentication and 2-of-2 MPC custody, so there is no seed phrase and no single device can move funds alone. Payments are screened against sanctions lists, and core code is open-source and auditable." },
+  { q: "How does Furlpay keep funds secure?", a: "Furlpay uses passkey (WebAuthn) authentication and a three-layer signing policy. Custody depends on the client, and we say which is which: the mobile app holds your key on your device (self-custodial), while web signing runs through a policy-gated secure enclave operated by our provider (custodial). Payments are screened against sanctions lists, and core code is open-source and auditable." },
   { q: "What is the DDSC dirham stablecoin?", a: "DDSC is a UAE dirham-backed stablecoin approved by the Central Bank of the UAE and available on VARA-regulated platforms. It reflects the UAE's move toward regulated digital money; Furlpay settles USDC on Arbitrum and monitors UAE stablecoin developments." },
 ];
 
@@ -83,7 +83,7 @@ export default function AeTrustPage() {
         <Section title="How we protect you">
           <div className="grid gap-4 sm:grid-cols-2">
             {[
-              { t: "Passkey + MPC custody", b: "WebAuthn passkeys and 2-of-2 MPC — no seed phrase, phishing-resistant, no single point of key compromise." },
+              { t: "Passkey auth + policy-gated signing", b: "WebAuthn passkeys, phishing-resistant by origin binding, and three independent policy gates before anything is signed." },
               { t: "Sanctions screening", b: "Both sides of every payment are screened before settlement." },
               { t: "Open source", b: "Core SDKs, CLI and the x402 facilitator are MIT-licensed and independently auditable." },
               { t: "Responsible disclosure", b: "A published safe-harbour policy for reporting security issues." },

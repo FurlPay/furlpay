@@ -23,7 +23,7 @@ const STACK = [
 const PRINCIPLES = [
   { title: "Open by default", body: "SDKs, CLI, MCP server, and the x402 facilitator are MIT-licensed on GitHub. Trust is earned by letting people read the code." },
   { title: "AI-native, not bolted-on", body: "Agentic payments (x402) and an MCP server are core architecture — built for a world where software, not just people, moves money." },
-  { title: "Self-custody leaning", body: "2-of-2 MPC with a passkey-bound device share and an HSM policy gate — no single key, no single point of failure." },
+  { title: "Honest about custody", body: "Your key is on your device in the mobile app. Web signing runs through a policy-gated enclave and is custodial — we publish that rather than call everything self-custody." },
   { title: "Compliance as a feature", body: "MiCA/GENIUS routing, tiered KYC, and the FATF Travel Rule are wired into the product, not treated as an afterthought." },
 ];
 

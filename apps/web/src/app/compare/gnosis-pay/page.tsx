@@ -26,7 +26,7 @@ export const metadata: Metadata = {
 };
 
 const ROWS: { feature: string; furlpay: string; gnosispay: string; furlpayWins: boolean }[] = [
-  { feature: "Custody Model", furlpay: "Safe + 2-of-2 MPC", gnosispay: "Safe smart account", furlpayWins: false },
+  { feature: "Custody Model", furlpay: "On-device key (mobile); custodial enclave (web)", gnosispay: "Safe smart account", furlpayWins: false },
   { feature: "Chains", furlpay: "Arbitrum, Base, Solana, Polygon, Ethereum", gnosispay: "Gnosis Chain", furlpayWins: true },
   { feature: "Checkout Fee", furlpay: "0.5% flat", gnosispay: "0% on EURe (FX applies off-peg)", furlpayWins: false },
   { feature: "Stablecoin Coverage", furlpay: "USDC, USDT, EURC, PYUSD, DAI", gnosispay: "EURe, GBPe", furlpayWins: true },

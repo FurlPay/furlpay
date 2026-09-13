@@ -21,7 +21,7 @@ const FAQ = [
   { q: "Is Furlpay registered with Japan's FSA?", a: "No. Furlpay is not registered with the Financial Services Agency (JFSA) as a Crypto-Asset Exchange Service Provider or an Electronic Payment Instrument Exchange Service Provider (EPIESP). Both registrations require a local presence and are how stablecoins are distributed and intermediated in Japan. Furlpay is evaluating a licensed-intermediary pathway and states its status honestly." },
   { q: "Is USDC legal in Japan?", a: "Yes. Since 1 June 2026 USDC is recognised under Japanese law as an Electronic Payment Instrument, distributed by JFSA-registered providers such as SBI VC Trade. That gives businesses legal clarity to accept it — through a compliant intermediary pathway rather than a grey area." },
   { q: "Are my crypto assets protected?", a: "Crypto assets are high risk. They are not legal tender, not bank deposits, and not covered by deposit-insurance schemes. Their value can fall as well as rise, and you may lose all the money you put in." },
-  { q: "How does Furlpay keep funds secure?", a: "Furlpay uses passkey (WebAuthn) authentication and 2-of-2 MPC custody, so there is no seed phrase and no single device can move funds alone. Payments are screened against sanctions lists, and core code is open-source and auditable." },
+  { q: "How does Furlpay keep funds secure?", a: "Furlpay uses passkey (WebAuthn) authentication and a three-layer signing policy. Custody depends on the client, and we say which is which: the mobile app holds your key on your device (self-custodial), while web signing runs through a policy-gated secure enclave operated by our provider (custodial). Payments are screened against sanctions lists, and core code is open-source and auditable." },
 ];
 
 export default function JpTrustPage() {
@@ -87,7 +87,7 @@ export default function JpTrustPage() {
         <Section title="How we protect you">
           <div className="grid gap-4 sm:grid-cols-2">
             {[
-              { t: "Passkey + MPC custody", b: "WebAuthn passkeys and 2-of-2 MPC — no seed phrase, phishing-resistant, no single point of key compromise." },
+              { t: "Passkey auth + policy-gated signing", b: "WebAuthn passkeys, phishing-resistant by origin binding, and three independent policy gates before anything is signed." },
               { t: "Sanctions screening", b: "Both sides of every payment are screened before settlement." },
               { t: "95% principle & segregation", b: "Custody is designed around cold-storage-first and asset segregation, the controls Japanese regulation expects." },
               { t: "Open source", b: "Core SDKs, CLI and the x402 facilitator are MIT-licensed and independently auditable." },

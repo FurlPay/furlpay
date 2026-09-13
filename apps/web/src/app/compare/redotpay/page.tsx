@@ -5,20 +5,20 @@ import LandingChrome from "@/components/landing/LandingChrome";
 export const metadata: Metadata = {
   title: "Furlpay vs RedotPay — Feature Comparison",
   description:
-    "How does Furlpay compare to RedotPay? Open-source, AI-native, MPC custody, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
+    "How does Furlpay compare to RedotPay? Open-source, AI-native, on-device mobile keys, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
   alternates: { canonical: "/compare/redotpay" },
   openGraph: {
     type: "website",
     url: "https://furlpay.com/compare/redotpay",
     siteName: "Furlpay",
     title: "Furlpay vs RedotPay — Feature Comparison",
-    description: "How does Furlpay compare to RedotPay? Open-source, AI-native, MPC custody, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
+    description: "How does Furlpay compare to RedotPay? Open-source, AI-native, on-device mobile keys, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
     images: [{ url: "/og.png" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Furlpay vs RedotPay — Feature Comparison",
-    description: "How does Furlpay compare to RedotPay? Open-source, AI-native, MPC custody, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
+    description: "How does Furlpay compare to RedotPay? Open-source, AI-native, on-device mobile keys, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
     images: ["/og.png"],
   },
 };
@@ -27,7 +27,7 @@ const ROWS: { feature: string; furlpay: string; redotpay: string; furlpayWins: b
   { feature: "Platform", furlpay: "Web, Desktop, Extension", redotpay: "Mobile-only", furlpayWins: true },
   { feature: "Source Code", furlpay: "Open (MIT)", redotpay: "Closed", furlpayWins: true },
   { feature: "AI Integration", furlpay: "Native (MCP, x402)", redotpay: "None", furlpayWins: true },
-  { feature: "Custody Model", furlpay: "MPC (2-of-2)", redotpay: "Centralized", furlpayWins: true },
+  { feature: "Custody Model", furlpay: "On-device key (mobile); custodial enclave (web)", redotpay: "Centralized", furlpayWins: false },
   { feature: "Fractional Stocks", furlpay: "Yes (Alpaca)", redotpay: "No", furlpayWins: true },
   { feature: "Multi-currency Banking", furlpay: "40+ currencies (Wise)", redotpay: "No", furlpayWins: true },
   { feature: "Developer SDK", furlpay: "Yes (TypeScript)", redotpay: "No", furlpayWins: true },
@@ -49,7 +49,7 @@ export default function CompareRedotPayPage() {
         </h1>
         <p className="mt-5 max-w-2xl text-[17px] leading-relaxed text-textSecondary">
           Both let you spend crypto. But Furlpay is open-source, AI-native, and ships with
-          fractional investing, multi-currency banking, an MPC wallet, and a full developer platform.
+          fractional investing, multi-currency banking, a passkey wallet, and a full developer platform.
           Here&apos;s the side-by-side.
         </p>
 

@@ -48,7 +48,7 @@ const PARTNERS: Partner[] = [
     slug: "turnkey",
     role: "MPC key custody",
     description:
-      "Hardware-secured key shards with programmable policy gates. Powers Furlpay's 2-of-2 MPC custody model with passkey binding.",
+      "Enclave-based signing with programmable policy gates. Powers Furlpay's web signing path — which is custodial; see the custody disclosure.",
     category: "Infrastructure",
   },
   {

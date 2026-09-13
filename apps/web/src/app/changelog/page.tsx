@@ -61,9 +61,9 @@ const ENTRIES = [
   },
   {
     date: "June 25, 2026",
-    title: "WebAuthn passkey auth & MPC custody",
+    title: "WebAuthn passkey auth & policy-gated signing",
     description:
-      "Phishing-resistant login with device-bound passkeys. 2-of-2 MPC custody splits keys between your device and an HSM policy gate — no single point of failure.",
+      "Phishing-resistant login with device-bound passkeys, and a signing policy enforced independently by the client, the server and the enclave.",
     tags: ["Security", "Auth"],
   },
   {

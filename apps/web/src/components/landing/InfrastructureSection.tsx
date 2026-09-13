@@ -45,7 +45,7 @@ const CATEGORIES = [
     title: "Balances your users actually own",
     items: [
       { name: "Global accounts", note: "One handle, many chains" },
-      { name: "Wallets", note: "Non-custodial, 2-of-2 MPC" },
+      { name: "Wallets", note: "On-device keys (mobile), enclave signing (web)" },
       { name: "Balances", note: "Multi-asset, multi-chain" },
       { name: "Lot ledger", note: "Cost basis and corporate actions" },
     ],

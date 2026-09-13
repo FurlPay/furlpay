@@ -34,7 +34,7 @@ const CONTROLS = [
   {
     Icon: Cpu,
     title: "Key custody",
-    body: "2-of-2 MPC with an HSM policy co-signer: no single key that can move funds ever exists in one place.",
+    body: "Three independent policy gates — client, server, and enclave — must each approve before anything is signed.",
     path: "lib/custody.ts",
   },
   {

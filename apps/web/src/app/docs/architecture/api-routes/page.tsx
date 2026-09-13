@@ -46,7 +46,7 @@ export default function ApiRoutesPage() {
       <H2 id="cards">Cards</H2>
       <EndpointTable
         rows={[
-          { method: "POST", path: "/api/cards", desc: "Issue a 2-of-2 MPC virtual card" },
+          { method: "POST", path: "/api/cards", desc: "Issue a virtual card" },
           { method: "POST", path: "/api/cards/settings", desc: "Freeze, set limits, update controls" },
         ]}
       />

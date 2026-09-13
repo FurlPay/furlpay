@@ -74,7 +74,7 @@ const payment = await furlpay.payments.create({
   "currency": "USD",
   "status": "active",
   "controls": { "perPurchase": 2500, "daily": 5000 },
-  "mpc": "2-of-2"
+  "signing_policy": "client+server+enclave"
 }`,
   },
   {

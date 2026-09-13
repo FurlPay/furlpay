@@ -30,10 +30,27 @@ export default function TermsPage() {
         self-directed. Nothing in the app constitutes a recommendation to buy, sell or hold any asset.
       </P>
 
-      <H2 id="self-custody">3. Self-custody responsibility</H2>
+      <H2 id="self-custody">3. Custody and signing</H2>
       <P>
-        You control Share A of your 2-of-2 MPC key, held on your device and unlocked by your passkey.
-        Furlpay never holds both shares and cannot unilaterally move your funds.
+        Furlpay operates two signing paths with <b>different custody models</b>, and which applies
+        depends on the client you use.
+      </P>
+      <P>
+        <b>Mobile app — self-custodial.</b> Your key is generated on your device and held in
+        biometric-gated secure storage. It is never transmitted to Furlpay, and Furlpay cannot
+        reconstruct it or move those funds.
+      </P>
+      <P>
+        <b>Web app — custodial.</b> Signing is performed by a policy-gated secure enclave operated by
+        our signing provider, which returns a complete signature; your device does not hold a key
+        share. Parties holding the provider credential can, subject to enclave policy, produce
+        signatures for wallets in that organisation. Authorisation is independently gated in three
+        places (client, Furlpay server, enclave policy), but that is a control on <i>what</i> may be
+        signed, not a split of the key itself.
+      </P>
+      <P>
+        Full detail, including what would be required for true threshold signing, is published in our
+        custody disclosure.
       </P>
       <Callout title="Loss of access">
         Loss of access to your biometric credentials and all configured recovery methods may result in the

@@ -49,10 +49,15 @@ export default function RiskDisclosurePage() {
         loan, potentially at an unfavorable time and price.
       </P>
 
-      <H2 id="custody">6. Self-custody & access risk</H2>
+      <H2 id="custody">6. Custody & access risk</H2>
       <P>
-        You hold one share of your 2-of-2 MPC key. Loss of your device and all recovery methods can result
-        in permanent loss of on-chain funds.
+        On the <b>mobile app</b> your key is held on your device: loss of the device and all recovery
+        methods can result in permanent, unrecoverable loss of on-chain funds.
+      </P>
+      <P>
+        On the <b>web app</b>, signing is custodial — performed by a policy-gated secure enclave
+        operated by our signing provider. You do not hold a key share there, which means you carry
+        counterparty risk to that provider and to Furlpay, in addition to the risks above.
       </P>
 
       <H2 id="agent">7. Agentic payment risk</H2>

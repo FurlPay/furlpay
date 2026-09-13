@@ -26,7 +26,7 @@ const VALUES = [
 const BUILD = [
   "The first Solana-native x402 facilitator — verify + settle for agent payments at scale.",
   "Agent spend policies: per-agent budgets, approval thresholds, merchant allowlists.",
-  "2-of-2 MPC custody with passkey-bound device shares and an HSM policy gate.",
+  "Passkey-bound authentication with a three-layer signing policy across client, server and enclave.",
   "A double-entry ledger, cross-chain routing (CCTP/Li.Fi), and gas-sponsored transfers.",
   "Open-source SDKs in 4 languages + a CLI + React checkout Elements.",
 ];

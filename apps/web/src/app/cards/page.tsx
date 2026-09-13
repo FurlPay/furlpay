@@ -13,8 +13,36 @@ export default function CardsPage() {
   const [cards, setCards] = useState<PaymentCard[]>([]);
   const [active, setActive] = useState(0);
   const [txs, setTxs] = useState<Transaction[]>([]);
-  const [modal, setModal] = useState<null | "view" | "limits" | "settings" | "escrow">(null);
+  const [modal, setModal] = useState<null | "view" | "limits" | "settings" | "escrow" | "issue">(null);
   const trackRef = useRef<HTMLDivElement>(null);
+
+  // Device-wallet provisioning state. Kept at page level because the button
+  // lives outside the modals.
+  const [provisioning, setProvisioning] = useState(false);
+  const [provisionError, setProvisionError] = useState<string | null>(null);
+
+  // Promo dismissal persists per browser. Read lazily inside an effect rather
+  // than in the initial state: this component also renders on the server, where
+  // `localStorage` does not exist, and touching it during render would throw
+  // (and, in some browsers with site data blocked, throws even on the client).
+  const [promoDismissed, setPromoDismissed] = useState(false);
+  useEffect(() => {
+    try {
+      if (localStorage.getItem(PROMO_DISMISSED_KEY) === "1") setPromoDismissed(true);
+    } catch {
+      // Storage unavailable — show the banner. A dismissal we cannot remember
+      // is a smaller failure than a crash on load.
+    }
+  }, []);
+
+  const dismissPromo = useCallback(() => {
+    setPromoDismissed(true);
+    try {
+      localStorage.setItem(PROMO_DISMISSED_KEY, "1");
+    } catch {
+      // Dismissed for this session only.
+    }
+  }, []);
 
   const loadCards = useCallback(async () => {
     const r = await getJSON<{ cards: PaymentCard[] }>("/api/cards");
@@ -39,6 +67,45 @@ export default function CardsPage() {
     if (idx !== active) setActive(idx);
   }
 
+  /** Ask the issuer for a device-wallet provisioning payload. */
+  const provision = useCallback(async (cardId: string) => {
+    setProvisioning(true);
+    setProvisionError(null);
+    try {
+      const res = await fetch(`/api/cards/lifecycle/${cardId}/provisioning`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ wallet: "apple" }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        detail?: string;
+        deepLink?: string;
+      };
+      if (!res.ok) {
+        setProvisionError(
+          json.detail ?? json.message ?? json.error ?? `Provisioning unavailable (${res.status}).`,
+        );
+        return;
+      }
+      // A real issuer returns a push-provisioning payload the OS wallet
+      // consumes. Until one is contracted there is nothing to hand off, so we
+      // say so rather than pretending the card was added.
+      if (json.deepLink) {
+        window.location.href = json.deepLink;
+        return;
+      }
+      setProvisionError(
+        "The issuer returned no provisioning payload, so nothing was added to your device wallet.",
+      );
+    } catch (e) {
+      setProvisionError(e instanceof Error ? e.message : "Network request failed");
+    } finally {
+      setProvisioning(false);
+    }
+  }, []);
+
   async function patchCard(patch: Partial<PaymentCard> & { id: string }) {
     // Canonical Marqeta-style controls endpoint (id→cardId, frozen→freeze).
     const { id, frozen, ...rest } = patch;
@@ -62,7 +129,11 @@ export default function CardsPage() {
             >
               Approvals
             </a>
-            <button className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.08]">
+            <button
+              onClick={() => setModal("issue")}
+              aria-label="Order a new card"
+              className="tap flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.08]"
+            >
               <PlusIcon className="h-5 w-5" />
             </button>
           </div>
@@ -103,24 +174,44 @@ export default function CardsPage() {
         <CircleAction label="Settings" onClick={() => setModal("settings")}><GearIcon /></CircleAction>
       </div>
 
-      {/* Push provisioning */}
+      {/* Push provisioning. Calls the real endpoint; when no issuer is
+          contracted it answers 503 and that is what the user is told, rather
+          than a spinner that resolves into nothing. */}
       <div className="mt-6 px-5">
-        <button className="flex w-full items-center justify-center gap-2 rounded-pill border border-surfaceMuted bg-surface py-3.5 font-medium">
-           Add to Apple / Google Wallet
+        <button
+          onClick={() => provision(card.id)}
+          disabled={provisioning}
+          className="tap flex w-full items-center justify-center gap-2 rounded-pill border border-surfaceMuted bg-surface py-3.5 font-medium disabled:opacity-50"
+        >
+          {provisioning ? "Preparing…" : " Add to Apple / Google Wallet"}
         </button>
+        {provisionError && (
+          <p className="mt-2 rounded-xl border border-white/10 bg-loss/[0.08] px-3 py-2 text-[12.5px] leading-relaxed text-loss">
+            {provisionError}
+          </p>
+        )}
       </div>
 
-      {/* Tier promo banner */}
-      <div className="mt-4 px-5">
-        <div className="flex items-center justify-between rounded-xl p-4"
-          style={{ background: "linear-gradient(135deg,#1C0F35 0%,#0F0922 100%)" }}>
-          <div className="flex items-center gap-3">
-            <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-black">PRO</span>
-            <p className="text-[13px] font-medium">3% cashback with Apple Pay & Google Pay</p>
+      {/* Tier promo banner — dismissible, and the dismissal sticks. A close
+          button that does nothing trains people to ignore the control. */}
+      {!promoDismissed && (
+        <div className="mt-4 px-5">
+          <div className="flex items-center justify-between rounded-xl p-4"
+            style={{ background: "linear-gradient(135deg,#1C0F35 0%,#0F0922 100%)" }}>
+            <div className="flex items-center gap-3">
+              <span className="rounded-md bg-white px-2 py-0.5 text-[11px] font-bold text-black">PRO</span>
+              <p className="text-[13px] font-medium">3% cashback with Apple Pay & Google Pay</p>
+            </div>
+            <button
+              onClick={dismissPromo}
+              aria-label="Dismiss"
+              className="tap text-textSecondary"
+            >
+              <CloseIcon className="h-4 w-4" />
+            </button>
           </div>
-          <button className="text-textSecondary"><CloseIcon className="h-4 w-4" /></button>
         </div>
-      </div>
+      )}
 
       {/* Daily limit usage + escrow trigger */}
       <div className="mt-6 grid grid-cols-2 gap-3 px-5">
@@ -148,9 +239,13 @@ export default function CardsPage() {
       {modal === "limits" && <LimitsModal card={card} onSave={patchCard} onClose={() => setModal(null)} />}
       {modal === "settings" && <SettingsModal card={card} onSave={patchCard} onClose={() => setModal(null)} />}
       {modal === "escrow" && <EscrowModal cardId={card.id} onClose={() => setModal(null)} onDone={() => loadTxs(card.id)} />}
+      {modal === "issue" && <IssueCardModal onClose={() => setModal(null)} onOrdered={loadCards} />}
     </>
   );
 }
+
+/** Per-browser key for the dismissed tier promo. */
+const PROMO_DISMISSED_KEY = "furlpay.cards.promoDismissed";
 
 function CircleAction({ label, children, onClick, active }: { label: string; children: React.ReactNode; onClick: () => void; active?: boolean }) {
   return (
@@ -163,39 +258,247 @@ function CircleAction({ label, children, onClick, active }: { label: string; chi
   );
 }
 
-function ViewModal({ card, onClose }: { card: PaymentCard; onClose: () => void }) {
-  // Biometric re-auth gate for a high-risk action (2026 fintech UX best practice).
-  const [authed, setAuthed] = useState(false);
-  const [authing, setAuthing] = useState(false);
+// ---------------------------------------------------------------------------
+// Card details.
+//
+// WHAT THIS USED TO DO: a 700ms setTimeout, then it rendered
+// `4111 5522 8834 {last4}`, expiry `09 / 29`, CVV `284` — a hardcoded test PAN
+// presented to the user as THEIR card number, behind a "biometric" gate that
+// authenticated nothing. Someone could copy those digits down believing they
+// had their card.
+//
+// WHAT IT DOES NOW: asks the real endpoint. `/api/cards/lifecycle/:id/reveal`
+// mints a single-use, 60-second grant that the client exchanges directly with
+// the issuer's PCI vault — FurlPay never holds the PAN, so there is nothing
+// here to leak. That endpoint is gated by `cardIssuerOr503()`, and no issuer is
+// contracted, so today it answers 503. That answer is rendered as
+// "unavailable", which is the truth. An honest empty state beats a convincing
+// fake number.
+// ---------------------------------------------------------------------------
+type RevealState =
+  | { kind: "locked" }
+  | { kind: "requesting" }
+  | { kind: "granted"; expiresAt: string }
+  | { kind: "unavailable"; detail: string };
 
-  function authenticate() {
-    setAuthing(true);
-    // Simulates a WebAuthn/passkey user-verification ceremony.
-    setTimeout(() => { setAuthed(true); setAuthing(false); }, 700);
+function ViewModal({ card, onClose }: { card: PaymentCard; onClose: () => void }) {
+  const [state, setState] = useState<RevealState>({ kind: "locked" });
+
+  async function reveal() {
+    setState({ kind: "requesting" });
+    try {
+      const res = await fetch(`/api/cards/lifecycle/${card.id}/reveal`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        grant?: { expiresAt?: string };
+        expiresAt?: string;
+        error?: string;
+        message?: string;
+        detail?: string;
+      };
+      if (!res.ok) {
+        setState({
+          kind: "unavailable",
+          detail:
+            json.detail ?? json.message ?? json.error ?? `Reveal is unavailable (${res.status}).`,
+        });
+        return;
+      }
+      setState({
+        kind: "granted",
+        expiresAt: json.grant?.expiresAt ?? json.expiresAt ?? new Date(Date.now() + 60_000).toISOString(),
+      });
+    } catch (e) {
+      setState({
+        kind: "unavailable",
+        detail: e instanceof Error ? e.message : "Network request failed",
+      });
+    }
   }
 
   return (
     <Modal open title="Card details" onClose={onClose}>
-      {!authed ? (
+      {state.kind === "locked" || state.kind === "requesting" ? (
         <div className="py-4 text-center">
           <LockIcon className="mx-auto mb-3 h-10 w-10 text-accent" />
           <p className="mb-5 text-[13px] text-textSecondary">
-            Revealing full card details requires Face ID / Touch ID.
+            Revealing full card details requires re-authentication.
           </p>
-          <button onClick={authenticate} disabled={authing} className="w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50">
-            {authing ? "Authenticating…" : "Authenticate to reveal"}
+          <button
+            onClick={reveal}
+            disabled={state.kind === "requesting"}
+            className="tap w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50"
+          >
+            {state.kind === "requesting" ? "Authenticating…" : "Authenticate to reveal"}
           </button>
+        </div>
+      ) : state.kind === "unavailable" ? (
+        <div className="space-y-3">
+          <div className="rounded-xl border border-white/10 bg-loss/[0.08] p-4">
+            <p className="text-[13px] font-semibold text-loss">Card details unavailable</p>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-textSecondary">{state.detail}</p>
+          </div>
+          <p className="text-[12px] leading-relaxed text-textMuted">
+            FurlPay never stores your card number — it lives in the issuer&apos;s PCI vault and is
+            fetched with a single-use grant. Until an issuer is contracted there is no vault to
+            fetch from, so nothing is shown here rather than a placeholder.
+          </p>
+          <Field label="Last 4" value={`•••• ${card.last4}`} mono />
+          <Field label="Network" value={card.network} />
         </div>
       ) : (
         <div className="space-y-3">
-          <Field label="Card number" value={`4111 5522 8834 ${card.last4}`} mono />
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Expiry" value="09 / 29" mono />
-            <Field label="CVV" value="284" mono />
+          {/* A grant exists. The digits come from the PCI vault exchange, never
+              from this app's state — so there is nothing to render here until
+              that exchange runs against a real issuer. */}
+          <div className="rounded-xl border border-white/10 bg-white/[0.04] p-4">
+            <p className="text-[13px] font-semibold">Reveal grant issued</p>
+            <p className="mt-2 text-[12.5px] leading-relaxed text-textSecondary">
+              Single-use, expires {new Date(state.expiresAt).toLocaleTimeString()}. The card number
+              is fetched straight from the issuer&apos;s PCI vault with this grant.
+            </p>
           </div>
+          <Field label="Last 4" value={`•••• ${card.last4}`} mono />
           <Field label="Network" value={card.network} />
         </div>
       )}
+    </Modal>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Order a card. Reads the real product list — which carries per-product refusal
+// reasons, so "Metal — requires Pro" is shown up front rather than discovered
+// at submit time — and posts to the real order endpoint.
+// ---------------------------------------------------------------------------
+interface CardProductRow {
+  id: string;
+  name: string;
+  feeUsd: number;
+  description: string;
+  available?: boolean;
+  reason?: string;
+}
+
+function IssueCardModal({ onClose, onOrdered }: { onClose: () => void; onOrdered: () => void }) {
+  const [products, setProducts] = useState<CardProductRow[] | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [label, setLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getJSON<{ products: CardProductRow[] }>("/api/cards/products")
+      .then((r) => {
+        if (cancelled) return;
+        setProducts(r.products);
+        setSelected(r.products.find((p) => p.available !== false)?.id ?? null);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) setError(e instanceof Error ? e.message : "Could not load card products");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function submit() {
+    if (!selected) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/cards/order", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          // Ordering charges an issuance fee, so a retry after a timeout must
+          // not produce two cards. The route is idempotent per key.
+          "Idempotency-Key": crypto.randomUUID(),
+        },
+        body: JSON.stringify({ productId: selected, label: label.trim() || "My card" }),
+      });
+      const json = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        message?: string;
+        detail?: string;
+      };
+      if (!res.ok) {
+        setError(json.detail ?? json.message ?? json.error ?? `Order failed (${res.status}).`);
+        return;
+      }
+      onOrdered();
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network request failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal open title="Order a card" onClose={onClose}>
+      {!products && !error && (
+        <p className="py-6 text-center text-[13px] text-textSecondary">Loading…</p>
+      )}
+
+      {products && (
+        <div className="space-y-2">
+          {products.map((p) => {
+            const disabled = p.available === false;
+            const active = selected === p.id;
+            return (
+              <button
+                key={p.id}
+                disabled={disabled}
+                onClick={() => setSelected(p.id)}
+                className={`tap w-full rounded-xl border p-4 text-left transition-colors ${
+                  active ? "border-accent bg-accent/[0.08]" : "border-surfaceMuted bg-surface"
+                } ${disabled ? "cursor-not-allowed opacity-45" : ""}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-[15px] font-semibold">{p.name}</span>
+                  <span className="font-mono text-[13px]">
+                    {p.feeUsd === 0 ? "Free" : `$${p.feeUsd.toFixed(2)}`}
+                  </span>
+                </div>
+                <p className="mt-1 text-[12.5px] leading-relaxed text-textSecondary">
+                  {p.description}
+                </p>
+                {disabled && p.reason && <p className="mt-1.5 text-[11.5px] text-accent">{p.reason}</p>}
+              </button>
+            );
+          })}
+
+          <label className="block pt-2">
+            <span className="text-[12px] text-textSecondary">Card label</span>
+            <input
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+              placeholder="My card"
+              maxLength={32}
+              className="mt-1 w-full rounded-xl border border-surfaceMuted bg-surface px-3 py-2.5 text-[14px] outline-none focus:border-accent"
+            />
+          </label>
+        </div>
+      )}
+
+      {error && (
+        <div className="mt-3 rounded-xl border border-white/10 bg-loss/[0.08] p-3">
+          <p className="text-[12.5px] leading-relaxed text-loss">{error}</p>
+        </div>
+      )}
+
+      <button
+        onClick={submit}
+        disabled={busy || !selected}
+        className="tap mt-4 w-full rounded-pill bg-accent py-3.5 font-semibold disabled:opacity-50"
+      >
+        {busy ? "Ordering…" : "Order card"}
+      </button>
     </Modal>
   );
 }

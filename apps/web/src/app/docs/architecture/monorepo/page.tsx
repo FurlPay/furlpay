@@ -112,7 +112,7 @@ export default function MonorepoPage() {
 ├── packages/
 │   ├── types       # shared zod schemas & TS types (source of truth)
 │   ├── ledger      # immutable double-entry ledger
-│   ├── security    # 2-of-2 MPC, TOTP MFA, device/behavioural risk
+│   ├── security    # signing policy, TOTP MFA, device/behavioural risk
 │   ├── compliance  # KYC tiers, jurisdiction resolver, FATF Travel Rule
 │   ├── account-kit # Safe / ERC-4337 accounts, paymaster, escrow bindings
 │   ├── elements    # embeddable React checkout components
@@ -160,7 +160,7 @@ export default function MonorepoPage() {
           },
           {
             name: "@furlpay/security",
-            desc: "The cryptographic layer — 2-of-2 MPC key shares, RFC 6238 TOTP MFA, step-up gating, and device/biometric risk scoring.",
+            desc: "The cryptographic layer — signing policy enforcement, RFC 6238 TOTP MFA, step-up gating, and device/biometric risk scoring.",
           },
           {
             name: "@furlpay/compliance",

@@ -102,7 +102,7 @@ export default function DocsSearch() {
               )}
               {!query && (
                 <p className="px-3 py-6 text-center text-[13px] text-textSecondary">
-                  Try <span className="text-neon">MiCA</span>, <span className="text-neon">2-of-2 MPC</span>,{" "}
+                  Try <span className="text-neon">MiCA</span>, <span className="text-neon">passkeys</span>,{" "}
                   <span className="text-neon">/api/investing/order</span> or <span className="text-neon">furlpay listen</span>.
                 </p>
               )}

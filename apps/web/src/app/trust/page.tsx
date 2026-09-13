@@ -14,7 +14,7 @@ import { breadcrumb } from "@/lib/seo/schema";
 export const metadata: Metadata = {
   title: "Trust & Security Center — How Furlpay Protects You",
   description:
-    "Furlpay's approach to security and compliance: passkey (WebAuthn) auth, 2-of-2 MPC custody, sanctions screening, Travel Rule support, MiCA-aware design, and open-source code.",
+    "Furlpay's approach to security and compliance: passkey (WebAuthn) auth, policy-gated signing, sanctions screening, Travel Rule support, MiCA-aware design, and open-source code.",
   alternates: {
     canonical: "/trust",
     languages: { "en-US": "/trust", "en-GB": "/uk/trust", "en-AE": "/ae/trust", "en-JP": "/jp/trust", "x-default": "/trust" },
@@ -23,7 +23,7 @@ export const metadata: Metadata = {
 
 const PILLARS = [
   { title: "Passkey authentication", body: "Sign-in and signing use WebAuthn passkeys bound to the site origin — phishing-resistant by design, with no password to steal.", href: "/docs/security/mpc-webauthn" },
-  { title: "2-of-2 MPC custody", body: "The signing key is split via multi-party computation, so no single device or party can move funds alone. No seed phrase exists to leak.", href: "/docs/security/mpc-webauthn" },
+  { title: "Policy-gated signing", body: "Every signature must clear three independent gates — the client, our server, and the enclave's own policy. On mobile your key is held on your device; on the web, signing is custodial. We publish exactly which is which.", href: "/docs/security/mpc-webauthn" },
   { title: "Sanctions screening", body: "Both sides of every payment are screened against sanctions lists before settlement.", href: "/legal/aml-kyc" },
   { title: "Travel Rule support", body: "Originator/beneficiary data is supported for transfers that require it under FATF guidance.", href: "/legal/travel-rule" },
   { title: "MiCA-aware design", body: "EURC auto-swap and jurisdiction handling are built for EU compliance under MiCA.", href: "/docs/compliance/mica" },
@@ -33,7 +33,7 @@ const PILLARS = [
 const FAQ = [
   {
     q: "How does Furlpay keep my funds secure?",
-    a: "Furlpay uses passkey (WebAuthn) authentication and 2-of-2 MPC custody, so signing is phishing-resistant and no single device or party can move funds alone. There is no seed phrase to lose or leak, and account recovery works through your passkey providers.",
+    a: "Furlpay uses passkey (WebAuthn) authentication and a three-layer signing policy. Custody differs by client, and we state it plainly: on the mobile app your key is generated and held on your device, so it is self-custodial. On the web, signing is performed by a policy-gated secure enclave operated by our signing provider — that path is custodial. See our custody disclosure for the full detail.",
   },
   {
     q: "Is Furlpay open source?",
@@ -69,7 +69,7 @@ export default function TrustPage() {
         <Hero
           eyebrow="Trust & security"
           title="Security you can audit."
-          subtitle="Fintech is Your-Money-Your-Life territory, so we build for it: passkey auth, MPC custody, sanctions screening, and open-source code you can read yourself."
+          subtitle="Fintech is Your-Money-Your-Life territory, so we build for it: passkey auth, policy-gated signing, sanctions screening, and open-source code you can read yourself — including where our custody model is weaker than the marketing usually admits."
           primary={{ href: "/legal/responsible-disclosure", label: "Report a vulnerability" }}
           secondary={{ href: "/docs/security/mpc-webauthn", label: "Security docs" }}
         />
@@ -96,7 +96,7 @@ export default function TrustPage() {
               { item: "Sanctions screening on every payment", status: "Live" },
               { item: "Travel Rule information support", status: "Live" },
               { item: "MiCA-aligned design (EURC auto-swap, jurisdiction handling)", status: "Live" },
-              { item: "Passkey (WebAuthn) auth + 2-of-2 MPC custody", status: "Live" },
+              { item: "Passkey (WebAuthn) auth + three-layer signing policy", status: "Live" },
               { item: "GDPR alignment (privacy policy, DPA, subprocessors)", status: "Live" },
               { item: "Responsible disclosure & safe harbor", status: "Live" },
               { item: "SOC 2 Type II", status: "In progress" },
