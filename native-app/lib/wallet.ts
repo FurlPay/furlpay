@@ -50,6 +50,24 @@ const ADDRESS_KEY = "furlpay.wallet.address";
 const SOL_ADDRESS_KEY = "furlpay.wallet.solanaAddress";
 const ETH_PATH = "m/44'/60'/0'/0/0"; // BIP-44 Ethereum account 0, address 0
 
+/**
+ * BIP-44 path for account `index`: m/44'/60'/{index}'/0/0.
+ *
+ * Varying the ACCOUNT level (index 2) rather than the address level is what
+ * MetaMask, Phantom and Ledger all do for "Account 1, Account 2, ...", so the
+ * same phrase restored in any of them resolves to the same list of addresses.
+ * Deviating here would strand a user's funds behind this app.
+ *
+ * `ethPath(0)` is byte-identical to ETH_PATH, which is what keeps every wallet
+ * created before multi-account existed on exactly the same address.
+ */
+export function ethPath(index = 0): string {
+  if (!Number.isInteger(index) || index < 0 || index > 0x7fffffff) {
+    throw new Error(`Invalid account index: ${index}`);
+  }
+  return `m/44'/60'/${index}'/0/0`;
+}
+
 /** How long a signed EIP-3009 authorization stays valid. Long enough to cover
  *  the biometric prompt, the relay round trip and clock skew between the device
  *  and the chain — deliberately not longer. */
@@ -483,16 +501,31 @@ export function computeAuthorizationDigest(
 
 // --- key derivation & address -----------------------------------------------
 
-function deriveKey(mnemonic: string): { priv: Uint8Array; address: string } {
+function deriveKey(
+  mnemonic: string,
+  accountIndex = 0,
+): { priv: Uint8Array; address: string } {
   const seed = mnemonicToSeedSync(mnemonic);
-  const node = HDKey.fromMasterSeed(seed).derive(ETH_PATH);
-  if (!node.privateKey) throw new Error("Key derivation failed.");
-  return { priv: node.privateKey, address: addressFromPriv(node.privateKey) };
+  try {
+    const node = HDKey.fromMasterSeed(seed).derive(ethPath(accountIndex));
+    if (!node.privateKey) throw new Error("Key derivation failed.");
+    return { priv: node.privateKey, address: addressFromPriv(node.privateKey) };
+  } finally {
+    // The BIP-39 seed reconstructs every account key, so it is as sensitive as
+    // any one of them and does not stay in the heap after derivation.
+    seed.fill(0);
+  }
 }
 
-/** The Ethereum address for a mnemonic (BIP-44 m/44'/60'/0'/0/0, EIP-55). */
-export function deriveAddress(mnemonic: string): string {
-  return deriveKey(mnemonic).address;
+/** The Ethereum address for a mnemonic (BIP-44 m/44'/60'/{index}'/0/0, EIP-55).
+ *  Defaults to account 0, so existing callers are unaffected. */
+export function deriveAddress(mnemonic: string, accountIndex = 0): string {
+  const key = deriveKey(mnemonic, accountIndex);
+  try {
+    return key.address;
+  } finally {
+    key.priv.fill(0);
+  }
 }
 const addressFromMnemonic = deriveAddress;
 
