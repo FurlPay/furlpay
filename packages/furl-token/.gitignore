@@ -1,0 +1,8 @@
+# NEVER commit keys or deploy artifacts that contain secrets.
+*.key
+*keypair*.json
+*-deployer.json
+deploy-*.local.json
+.env
+.env.*
+node_modules/

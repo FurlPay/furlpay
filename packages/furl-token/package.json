@@ -1,0 +1,27 @@
+{
+  "name": "@furlpay/furl-token",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FURL utility token: Token-2022 mint config, devnet-first launch scripts, and the deterministic supply/allocation logic. Builds the token; never touches customer funds.",
+  "license": "MIT",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "tsx --test tests/*.test.ts",
+    "plan:mint": "tsx scripts/create-furl-mint.ts",
+    "plan:supply": "tsx scripts/mint-and-lock.ts",
+    "devnet:mint": "tsx scripts/create-furl-mint.ts --cluster devnet --execute",
+    "devnet:supply": "tsx scripts/mint-and-lock.ts --cluster devnet --execute"
+  },
+  "dependencies": {
+    "@solana/spl-token": "^0.4.14",
+    "@solana/spl-token-metadata": "^0.1.6",
+    "@solana/web3.js": "^1.98.4"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  },
+  "engines": { "node": ">=20" }
+}
