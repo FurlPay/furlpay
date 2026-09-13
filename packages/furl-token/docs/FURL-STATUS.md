@@ -126,8 +126,16 @@ These are CI tests, so the claims cannot silently drift back:
 
 Engineering is complete for each; the missing input is capital.
 
+**Correction (2026-09-13, measured):** the treasury migration is **NOT**
+funding-blocked. It needs ~0.032266 SOL — six ATA rents at 2,039,280 lamports
+each, six signature fees, plus 0.02 SOL priority headroom — and the deployer
+holds 0.048203 SOL, a surplus of ~0.0159 SOL. The only thing stopping the
+migration is that the six Squads multisigs do not exist yet, which costs nothing
+but a decision. This is asserted by a test, not estimated.
+
 | Item | Needs | Current |
 | --- | --- | --- |
+| Treasury migration | ~0.0323 SOL | **0.0482 SOL — SUFFICIENT** |
 | FURL/USDC liquidity pool | ~0.15–0.35 SOL to create + the deposit | 0.048 SOL, $0 USDC |
 | Initial liquidity | A decided, defensible USDC amount | none |
 | Jupiter routing | A pool with real liquidity | `TOKEN_NOT_TRADABLE` |

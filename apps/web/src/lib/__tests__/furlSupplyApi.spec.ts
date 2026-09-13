@@ -27,6 +27,13 @@ const ROUTE = join(
 );
 const source = readFileSync(ROUTE, "utf8");
 
+// The attribution logic moved out of the route into a dedicated module when
+// exclusion became identity-based. Both files are scanned, so the invariants
+// below keep holding regardless of which side of that boundary the code sits on.
+const CIRCULATING = join(__dirname, "..", "token", "furlCirculating.ts");
+const circulatingSource = readFileSync(CIRCULATING, "utf8");
+const combined = [source, circulatingSource].join("\n");
+
 describe("circulating supply is computed, not hard-coded", () => {
   it("never returns the total supply as the circulating figure", () => {
     // The literal that would fake a market cap.
@@ -35,13 +42,26 @@ describe("circulating supply is computed, not hard-coded", () => {
   });
 
   it("derives circulating by subtracting issuer-held balances", () => {
-    expect(source).toMatch(/totalRaw\s*-\s*excludedRaw/);
-    expect(source).toMatch(/excludedRaw\s*\+=/);
+    expect(combined).toMatch(/totalRaw\s*-\s*excludedRaw/);
+    expect(combined).toMatch(/excludedRaw\s*\+=/);
   });
 
   it("reads the exclusion from a chain call rather than a constant", () => {
     expect(source).toMatch(/readFurlConcentration/);
-    expect(source).toMatch(/holder\.amountRaw/);
+    expect(combined).toMatch(/holder\.amountRaw/);
+  });
+
+  it("attributes issuers by IDENTITY, never by percentage or holder count", () => {
+    // The superseded heuristic excluded whoever held 100% or was the only
+    // holder — which would exclude NOTHING once six multisigs exist.
+    expect(source).not.toMatch(/sharePercent === "100\.00"/);
+    expect(source).not.toMatch(/holders\.length === 1/);
+    expect(circulatingSource).toMatch(/getAssociatedTokenAddressSync/);
+    expect(circulatingSource).toMatch(/byTokenAccount\.get/);
+  });
+
+  it("refuses to publish a supply figure when no holders were attributed", () => {
+    expect(source).toMatch(/no_holders_attributed/);
   });
 
   it("refuses to answer when the chain is unreadable, instead of returning 0", () => {
@@ -68,13 +88,25 @@ describe("circulating supply is computed, not hard-coded", () => {
   it("uses integer-safe conversion for supply strings", () => {
     // Base units for the full supply are 1e15; float math loses value above
     // ~9.007e15, and the raw string must stay exact regardless.
-    expect(source).toMatch(/baseUnitsToFurl/);
-    expect(source).toMatch(/BigInt\(/);
+    expect(combined).toMatch(/baseUnitsToFurl/);
+    expect(combined).toMatch(/BigInt\(/);
   });
 
   it("excludes the deployer by default", () => {
-    expect(source).toContain("FURL_DEPLOYER");
+    expect(circulatingSource).toContain("FURL_DEPLOYER");
     expect(FURL_DEPLOYER).toBe("FgeSXvrWcqE93byDoF3Vhwou7XTUhY42cYhs7vXkJPUL");
+  });
+
+  it("does NOT hard-code simulated multisig addresses into production config", () => {
+    // The scenario tests use placeholder owners. They must never leak into the
+    // real issuer registry as though they were deployed Squads accounts.
+    for (const placeholder of [
+      "HAgk14JpMQLgt6rVgv7cBQFJWFto5Dqxi472uT3DKpqk",
+      "Hh8QwFUA6MtVu1qAoq12ucvFHNwCcVTV7hpWjeY1Hztb",
+      "Gso2TParHRFzzzPphM9SyZE1bb6oea7T7Nzfw9MqG2MX",
+    ]) {
+      expect(circulatingSource).not.toContain(placeholder);
+    }
   });
 });
 

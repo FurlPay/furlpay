@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { readFurlMintState, readFurlConcentration } from "@/lib/token/furlChain";
-import { FURL_DECIMALS, FURL_DEPLOYER, baseUnitsToFurl } from "@/lib/token/furl";
+import { FURL_DECIMALS, baseUnitsToFurl } from "@/lib/token/furl";
+import { computeCirculating, ISSUER_OWNERS } from "@/lib/token/furlCirculating";
 
 export const dynamic = "force-dynamic";
 
@@ -32,20 +33,6 @@ export const dynamic = "force-dynamic";
 // constant.
 // ---------------------------------------------------------------------------
 
-/**
- * Addresses whose holdings are NOT circulating: issuer-controlled treasury,
- * team, and unreleased allocations.
- *
- * Publishing this list is the point — anyone can verify each exclusion on-chain
- * instead of trusting the number. Add the six Squads multisigs here when the
- * migration lands; do NOT remove the deployer until it genuinely holds nothing.
- */
-const EXCLUDED_FROM_CIRCULATING: { address: string; reason: string }[] = [
-  {
-    address: FURL_DEPLOYER,
-    reason: "Deployer / treasury — holds all undistributed supply and the mint authority",
-  },
-];
 
 export async function GET(req: NextRequest) {
   // 60/min is far above the once-per-30-minutes aggregators need, and low
@@ -78,30 +65,64 @@ export async function GET(req: NextRequest) {
 
   const totalRaw = BigInt(mintState.data.supplyRaw);
 
-  // Sum the excluded balances from the largest-accounts read. Token accounts are
-  // keyed by account address, not owner, so this matches on the known treasury
-  // token account; the deployer's ATA is the only non-zero account today.
-  let excludedRaw = 0n;
-  const excludedDetail: { address: string; reason: string; amount: string }[] = [];
+  // Attribute holders by IDENTITY, not by shape. Each issuer owner is resolved
+  // to its Token-2022 associated token account and matched on that address, so
+  // the arithmetic keeps working after the treasury migrates to six multisigs.
+  // (The previous heuristic — "exclude the holder at 100%" — would have excluded
+  // NOTHING once six holders existed, reporting the whole supply as circulating
+  // on the day custody improved.)
+  const split = concentration.ok
+    ? computeCirculating(totalRaw, concentration.data.holders)
+    : null;
 
-  if (concentration.ok) {
-    // With one holder at 100%, every non-zero account is issuer-controlled.
-    // Rather than assume that stays true, attribute explicitly: any account
-    // whose share is the deployer's is excluded.
-    for (const holder of concentration.data.holders) {
-      const isExcluded = holder.sharePercent === "100.00" || concentration.data.holders.length === 1;
-      if (isExcluded) {
-        excludedRaw += BigInt(holder.amountRaw);
-        excludedDetail.push({
-          address: holder.tokenAccount,
-          reason: EXCLUDED_FROM_CIRCULATING[0].reason,
-          amount: baseUnitsToFurl(holder.amountRaw),
-        });
-      }
-    }
+  // Fail loudly on an incoherent split rather than publishing a clamped number.
+  if (split && split.excludedRaw > totalRaw) {
+    return NextResponse.json(
+      {
+        error: "supply_mismatch",
+        detail:
+          `Excluded balances (${split.excludedRaw}) exceed total supply (${totalRaw}). ` +
+          `Refusing to publish a supply figure derived from inconsistent reads.`,
+      },
+      { status: 503 },
+    );
+  }
+  if (split?.unresolvedIssuer) {
+    return NextResponse.json(
+      {
+        error: "issuer_unresolved",
+        detail:
+          "An issuer-controlled owner could not be resolved to a token account, so the " +
+          "exclusion set is incomplete. Refusing to overstate circulating supply.",
+      },
+      { status: 503 },
+    );
   }
 
-  const circulatingRaw = totalRaw > excludedRaw ? totalRaw - excludedRaw : 0n;
+  // A supply that exists but has NO attributed holders is incoherent, and it is
+  // the most dangerous shape this endpoint can be handed: with nothing to
+  // exclude, the arithmetic reports the ENTIRE supply as circulating. A flaky
+  // RPC returning `ok` with an empty account list would therefore publish
+  // "1,000,000,000 circulating" — precisely the fabricated market cap this route
+  // exists to prevent, and aggregators would cache it.
+  //
+  // Tokens must be somewhere. If supply is non-zero and no holder came back,
+  // the read is wrong, not the chain.
+  if (split && totalRaw > 0n && split.excluded.length === 0 && split.publicHolders.length === 0) {
+    return NextResponse.json(
+      {
+        error: "no_holders_attributed",
+        detail:
+          `Total supply is ${totalRaw} base units but no token accounts were returned. ` +
+          `Refusing to report the full supply as circulating on an incomplete read.`,
+      },
+      { status: 503 },
+    );
+  }
+
+  const excludedRaw = split?.excludedRaw ?? 0n;
+  const excludedDetail = split?.excluded ?? [];
+  const circulatingRaw = split?.circulatingRaw ?? 0n;
 
   const total = baseUnitsToFurl(totalRaw);
   const circulating = baseUnitsToFurl(circulatingRaw);
@@ -136,7 +157,10 @@ export async function GET(req: NextRequest) {
 
     circulating_supply_methodology:
       "Total supply minus issuer-controlled holdings, computed from on-chain balances at request time. " +
-      "Tokens held by the deployer/treasury are excluded because they are not in public float.",
+      "Issuer owners are resolved to their Token-2022 associated token accounts and matched by address. " +
+      "Treasury, team, unvested and undistributed allocations are excluded because they are not in public float.",
+    issuer_controlled_owners: ISSUER_OWNERS.map((o) => ({ owner: o.owner, label: o.label })),
+    public_holders: split?.publicHolders ?? null,
     excluded_from_circulating: concentration.ok ? excludedDetail : null,
 
     // The facts an aggregator should carry with the numbers.

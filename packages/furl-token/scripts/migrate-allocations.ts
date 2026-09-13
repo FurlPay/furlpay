@@ -49,6 +49,14 @@ import {
 import { readFileSync } from 'node:fs'
 import { FURL, MINT_ADDRESS, DEPLOYER_PUBKEY, toBaseUnits, type Cluster } from '../src/config.ts'
 import { DESTINATIONS, migrationLegs, assertMigrationReady } from '../src/treasury.ts'
+import {
+  pureGates,
+  chainGates,
+  allPassed,
+  failures,
+  requiredLamports,
+  type Finding,
+} from '../src/migrationGates.ts'
 
 const flag = (n: string) => process.argv.includes(`--${n}`)
 const arg = (n: string) => {
@@ -131,6 +139,9 @@ async function main() {
   console.log('')
 
   // ---- live state, if an RPC is available --------------------------------
+  // Empty when the chain could not be read: the gate report then shows only the
+  // pure checks, and execution is refused because the chain gates never ran.
+  let chainFindings: Finding[] = []
   try {
     const connection = new Connection(endpoint(), 'confirmed')
     const mintInfo = await getMint(connection, mint, 'confirmed', TOKEN_2022_PROGRAM_ID)
@@ -146,9 +157,19 @@ async function main() {
         `  WARNING: source holds ${acct.amount} but the plan moves ${sum}. The migration would fail part-way.`,
       )
     }
-    if (mintInfo.decimals !== FURL.decimals) {
-      throw new Error(`on-chain decimals ${mintInfo.decimals} != config ${FURL.decimals}`)
-    }
+    const payerLamports = BigInt(await connection.getBalance(source, 'confirmed'))
+    console.log(`  payer SOL         ${(Number(payerLamports) / 1e9).toFixed(6)} SOL`)
+    console.log(`  migration needs   ${(Number(requiredLamports(legs.length)) / 1e9).toFixed(6)} SOL (6 ATA rents + fees + headroom)`)
+
+    chainFindings = chainGates({
+      mintOwnerProgram: (await connection.getAccountInfo(mint, 'confirmed'))?.owner.toBase58() ?? '',
+      decimals: mintInfo.decimals,
+      supplyBaseUnits: mintInfo.supply,
+      sourceOwner: DEPLOYER_PUBKEY,
+      sourceBalanceBaseUnits: acct.amount,
+      payerLamports,
+      destinationsAlreadyFunded: [],
+    })
     console.log('')
   } catch (e) {
     // An unreachable RPC must not be mistaken for verified state.
@@ -156,6 +177,20 @@ async function main() {
     console.log('The plan above is derived from config only — it has NOT been checked against chain.')
     console.log('')
   }
+
+  // ---- the twenty safety gates -------------------------------------------
+  // The SAME function runs here and on the execute path. A dry run that checks
+  // something different from what execution checks manufactures confidence.
+  const gateFindings: Finding[] = [...pureGates(), ...chainFindings]
+  console.log('SAFETY GATES')
+  for (const f of gateFindings.sort((a, b) => a.id - b.id)) {
+    console.log(`  [${f.severity === 'PASS' ? ' ok ' : 'FAIL'}] ${String(f.id).padStart(2)}. ${f.check}: ${f.detail}`)
+  }
+  const blocked = failures(gateFindings)
+  console.log('')
+  console.log(`  ${gateFindings.length - blocked.length}/${gateFindings.length} gates pass` +
+    (blocked.length ? ` — ${blocked.length} BLOCKING` : ' — all clear'))
+  console.log('')
 
   // ---- unsigned transaction previews ------------------------------------
   console.log('Unsigned transaction preview (base64, one per leg):')
@@ -206,6 +241,18 @@ async function main() {
     throw new Error('--execute requires --i-understand-this-moves-real-funds')
   }
   if (sum !== total) throw new Error('refusing to execute: legs do not sum to total supply')
+
+  // Gate 17: the dry run must have succeeded. Every one of the twenty checks
+  // has to pass, and the chain checks must actually have RUN — an unreachable
+  // RPC leaves chainFindings empty, which is not the same as "nothing wrong".
+  if (chainFindings.length === 0) {
+    throw new Error('refusing to execute: chain state could not be read, so the chain gates never ran')
+  }
+  if (!allPassed(gateFindings)) {
+    throw new Error(
+      'refusing to execute: ' + failures(gateFindings).map((f) => `#${f.id} ${f.check}`).join(', '),
+    )
+  }
 
   const payer = loadKeypair()
   if (!payer.publicKey.equals(source)) {
