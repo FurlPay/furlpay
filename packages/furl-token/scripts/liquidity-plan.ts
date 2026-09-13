@@ -48,10 +48,31 @@ function buyImpactPct(usdcReserve: number, furlReserve: number, usdcIn: number, 
   return { furlOut, effective, impactPct: ((effective - spot) / spot) * 100 }
 }
 
+/**
+ * ILLUSTRATIVE DEFAULTS — NOT AN APPROVED PRICE.
+ *
+ * These exist so the script runs with no arguments and shows the SHAPE of the
+ * output. They are not a recommendation, not a target, and not a decision
+ * anyone has made. No initial price for FURL has been approved.
+ *
+ * Two different planning documents have already quoted incompatible prices for
+ * FURL ($0.20 in one code block, $0.0025 in the liquidity table of the same
+ * document — an 80x spread, and a $200M vs $2.5M FDV). That is precisely why
+ * this script takes the price as an argument and prints the price impact: the
+ * number has to be chosen deliberately and defended, not inherited from a
+ * default someone forgot to change.
+ */
+const ILLUSTRATIVE_USDC = 25_000
+const ILLUSTRATIVE_FURL = 5_000_000
+
 function main() {
-  const usdc = num('usdc', 25_000)!
+  const usdcArg = num('usdc')
+  const furlArg = num('furl')
   const priceArg = num('price')
-  const furl = priceArg ? usdc / priceArg : num('furl', 5_000_000)!
+  const usingDefaults = usdcArg === undefined && furlArg === undefined && priceArg === undefined
+
+  const usdc = usdcArg ?? ILLUSTRATIVE_USDC
+  const furl = priceArg ? usdc / priceArg : (furlArg ?? ILLUSTRATIVE_FURL)
   const feeBps = num('fee-bps', 25)! // Raydium CPMM / Orca standard tier
 
   const price = usdc / furl
@@ -61,6 +82,12 @@ function main() {
 
   console.log('FURL/USDC initial liquidity — PROPOSAL ONLY (nothing is created)')
   console.log('═'.repeat(74))
+  if (usingDefaults) {
+    console.log('')
+    console.log('!! Running on ILLUSTRATIVE DEFAULTS. No FURL price has been approved.')
+    console.log('!! These numbers show the shape of the output, nothing more.')
+    console.log('!! Pass --usdc/--furl or --price to model a real proposal.')
+  }
   console.log('')
   console.log('Pair')
   console.log(`  FURL mint          ${MINT_ADDRESS}  (Token-2022, ${FURL.decimals}dp)`)
