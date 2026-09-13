@@ -18,6 +18,23 @@ apps/desktop/src-tauri/target
 *.pem
 *.key
 
+# Key material. A Solana keypair is a plain .json array of 64 bytes, so the
+# *.key / *.pem patterns above do NOT catch it — which left the one file that
+# controls 1,000,000,000 FURL and the active mint authority a `git add -A` away
+# from being committed. Once pushed, a leaked key is public forever; deleting it
+# in the next commit changes nothing. These patterns are the backstop.
+#
+# Keys belong OUTSIDE this repo entirely: this tree is inside OneDrive, so
+# anything here is also uploaded to a third party. See C:\Users\ashut\keys.
+keys/
+**/keys/
+*keypair*.json
+*-keypair.json
+id.json
+wallet.json
+*.mnemonic
+*.seed
+
 # Misc
 *.log
 .DS_Store
