@@ -1,0 +1,163 @@
+# Wormhole NTT deployment configuration for FURL.
+#
+# NOTHING HERE IS DEPLOYED. This file records the intended configuration so the
+# decisions are reviewable before any of them costs money or becomes permanent.
+#
+# ── FACTS VERIFIED ON MAINNET 2026-09-13 ────────────────────────────────────
+# The multi-chain plan this came from opened with "FURL's mint authority is
+# permanently revoked on Solana" and derived its whole architecture from it.
+# That is FALSE. Re-read from chain:
+#
+#   mint            FYatJq71zqvaQNLLtbBy4hQcsV25dMATYfCSVBzV3gY1
+#   mint authority  ACTIVE  -> FgeSXvrWcqE93byDoF3Vhwou7XTUhY42cYhs7vXkJPUL
+#   freeze auth     null
+#   supply          1,000,000,000 FURL (1e15 base units)
+#   decimals        6
+#
+# The revocation script exists and has never been run. This matters for the
+# mode choice below: burn-and-mint on Solana is NOT impossible — it is
+# available precisely because the authority still exists. Wormhole NTT supports
+# both, and burning mode would require transferring mint authority to an
+# NTT-controlled PDA.
+#
+# ── WHY LOCKING ANYWAY ──────────────────────────────────────────────────────
+# Hub-and-spoke is chosen on its merits, not by elimination:
+#   * Solana holds the canonical supply and the published tokenomics. Keeping
+#     the accounting there means /token and the supply API stay the source of
+#     truth rather than becoming one of several.
+#   * Burning mode hands mint authority to bridge infrastructure. Today that
+#     authority is the subject of an open, irreversible decision (revoke or
+#     keep) — giving it away to a bridge would settle that decision by accident.
+#   * A lockbox failure is bounded by what is locked. A compromised mint
+#     authority is not bounded by anything.
+#
+# Per Wormhole's own warning: if the hub is LOCKING, every spoke MUST be
+# BURNING. Two locking chains would mint against the same locked balance twice.
+
+network: mainnet
+
+token:
+  name: FurlPay
+  symbol: FURL
+  decimals: 6 # MUST match every spoke. An 18-decimal spoke mis-scales by 10^12.
+  maxSupply: 1000000000000000 # 1e9 FURL * 10^6
+
+chains:
+  # ── HUB ────────────────────────────────────────────────────────────────────
+  solana:
+    mode: locking
+    mint: FYatJq71zqvaQNLLtbBy4hQcsV25dMATYfCSVBzV3gY1
+    tokenProgram: TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb # Token-2022
+    # NOT REQUIRED in locking mode, and that is the point: no mint authority is
+    # transferred to the NTT program. Recorded explicitly so nobody "fixes" this
+    # by handing the authority over.
+    transfersMintAuthority: false
+    rateLimits:
+      outbound: 5000000 # 5M FURL / 24h = 0.5% of supply
+      inbound: 5000000
+      duration: 86400
+
+  # ── SPOKES ─────────────────────────────────────────────────────────────────
+  arbitrum:
+    mode: burning
+    chainId: 42161
+    rpc: ${ARBITRUM_RPC_URL}
+    token: null # CanonicalFURL address, filled after deployment
+    nttManager: null
+    transceiver: null
+    rateLimits:
+      outbound: 5000000
+      inbound: 5000000
+      duration: 86400
+
+  base:
+    mode: burning
+    chainId: 8453
+    rpc: ${BASE_RPC_URL}
+    token: null
+    nttManager: null
+    transceiver: null
+    rateLimits:
+      outbound: 5000000
+      inbound: 5000000
+      duration: 86400
+
+# ── SECURITY POSTURE ─────────────────────────────────────────────────────────
+security:
+  # M-of-N transceiver threshold. 1-of-1 means a single verifier compromise is a
+  # total compromise; it is the default and it is not acceptable for a token
+  # whose entire supply is bridgeable.
+  transceiverThreshold: NEEDS_DECISION # 2-of-2 | 2-of-3 | 3-of-5
+
+  # Rate limits queue transfers past the cap rather than rejecting them, so the
+  # ceiling bounds how much can leave in a day during an incident without
+  # breaking normal use. 5M/24h caps a full drain at 200 days.
+  rateLimitRationale: "0.5% of supply per day, per direction, per chain"
+
+  # Who can pause, and who owns the managers. MUST be the treasury multisig, not
+  # an EOA, and MUST be decided before deployment — a bridge whose pause
+  # authority is a single hot key has no pause authority.
+  owner: NEEDS_DECISION
+  pauser: NEEDS_DECISION
+
+# ── BLOCKERS ─────────────────────────────────────────────────────────────────
+# Measured, not estimated. Nothing below proceeds until these are resolved.
+blockers:
+  - id: custody
+    detail: >-
+      100% of the 1B supply sits in one deployer-controlled token account.
+      Bridging before the treasury migration multiplies that single-key exposure
+      across every spoke chain instead of reducing it.
+    blocks: everything
+  - id: solana-sol
+    detail: "NTT program accounts need ~1.5-2.5 SOL; deployer holds 0.048 SOL."
+  - id: evm-deployer
+    detail: "No funded EVM deployer key is configured for Arbitrum or Base."
+  - id: liquidity
+    detail: >-
+      ~$150,000 USDC for FURL/USDC pools. Separate from deployment cost — a
+      bridge can be deployed for a few hundred dollars and still leave FURL
+      untradeable on every chain it reaches.
+  - id: threshold
+    detail: "transceiverThreshold, owner and pauser are undecided."
+
+# ── SEQUENCE ─────────────────────────────────────────────────────────────────
+# Custody first. Everything else is downstream of it.
+sequence:
+  - phase: 1
+    name: Secure canonical Solana custody
+    steps:
+      - Create Squads multisig(s); verify members and threshold in the UI
+      - Migrate the 1B supply; verify every balance on chain
+      - Confirm circulating supply still reports 0 with the new issuer registry
+  - phase: 2
+    name: Finalise bridge architecture
+    steps:
+      - Decide transceiver threshold, manager owner, pause authority
+      - Confirm locking vs burning with the mint-authority decision still open
+  - phase: 3
+    name: Testnet
+    steps:
+      - Solana devnet + Arbitrum Sepolia + Base Sepolia
+      - Verify decimals, lock/unlock, mint/burn, replay protection
+      - Verify rate limiting, pause, recovery, and failed-transfer handling
+  - phase: 4
+    name: Mainnet bridge deployment
+  - phase: 5
+    name: Liquidity
+  - phase: 6
+    name: Public multichain launch
+
+# ── TOOLING ──────────────────────────────────────────────────────────────────
+# The NTT CLI install is a CURL SCRIPT. It is not npm and not cargo:
+#
+#   curl -fsSL https://raw.githubusercontent.com/wormhole-foundation/native-token-transfers/main/cli/install.sh | bash
+#
+# The source plan said `cargo install --git`. A later correction said
+# `npm install -g @wormhole-foundation/ntt-cli`. Both are wrong — that npm
+# package returns 404 (verified against the registry). What does exist on npm:
+#   @wormhole-foundation/sdk-solana-ntt      8.0.1
+#   @wormhole-foundation/wormhole-connect    6.0.0
+#
+# Mainnet Solana deployment additionally requires a custom RPC endpoint; the
+# public endpoint rate-limits the CLI's account creation.
