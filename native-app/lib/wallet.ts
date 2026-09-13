@@ -18,6 +18,7 @@ import {
   type TypedDataDomain,
   type TypedDataTypes,
 } from "./evm/eip712";
+import { deriveSolanaAddress } from "./solana/wallet";
 
 // ---------------------------------------------------------------------------
 // On-device self-custodial wallet (secp256k1 / EIP-3009).
@@ -42,6 +43,11 @@ const EXISTS_KEY = "furlpay.wallet.exists"; // plain marker so presence checks d
 // on-chain the moment it's used), so screens like Receive can show it without
 // a biometric prompt. The KEY stays behind the gate.
 const ADDRESS_KEY = "furlpay.wallet.address";
+// Solana address cache, same un-gated rationale as ADDRESS_KEY: an address is
+// public the moment it is used on-chain, so Receive can show it without a
+// prompt. Derived from the SAME mnemonic (SLIP-0010, m/44'/501'/0'/0') — there
+// is no second secret and nothing extra for the user to back up.
+const SOL_ADDRESS_KEY = "furlpay.wallet.solanaAddress";
 const ETH_PATH = "m/44'/60'/0'/0/0"; // BIP-44 Ethereum account 0, address 0
 
 /** How long a signed EIP-3009 authorization stays valid. Long enough to cover
@@ -162,9 +168,15 @@ export async function importWallet(mnemonic: string): Promise<{ address: string 
  * which re-derives from the mnemonic — the source of truth.
  */
 async function persistWallet(mnemonic: string, address: string): Promise<void> {
+  // Both address caches are cleared FIRST, for the reason in the doc comment
+  // above: a stale Solana address surviving a re-import would be rendered as a
+  // deposit target for a key this device no longer holds, and SOL/FURL sent
+  // there would be unspendable. Same failure, same fix, second chain.
   await SecureStore.deleteItemAsync(ADDRESS_KEY).catch(() => {});
+  await SecureStore.deleteItemAsync(SOL_ADDRESS_KEY).catch(() => {});
   await SecureStore.setItemAsync(MNEMONIC_KEY, mnemonic, SECURE_OPTS);
   await SecureStore.setItemAsync(ADDRESS_KEY, address);
+  await SecureStore.setItemAsync(SOL_ADDRESS_KEY, deriveSolanaAddress(mnemonic));
   await SecureStore.setItemAsync(EXISTS_KEY, "1"); // last: the readiness marker
 }
 
@@ -180,6 +192,7 @@ export async function deleteWallet(): Promise<void> {
   await SecureStore.deleteItemAsync(MNEMONIC_KEY, SECURE_OPTS).catch(() => {});
   await SecureStore.deleteItemAsync(EXISTS_KEY).catch(() => {});
   await SecureStore.deleteItemAsync(ADDRESS_KEY).catch(() => {});
+  await SecureStore.deleteItemAsync(SOL_ADDRESS_KEY).catch(() => {});
 }
 
 /** The wallet's address, read behind the biometric gate. */
@@ -202,6 +215,35 @@ export async function getAddress(): Promise<string> {
 export async function getKnownAddress(): Promise<string | null> {
   if (!(await hasWallet())) return null;
   return SecureStore.getItemAsync(ADDRESS_KEY).catch(() => null);
+}
+
+/**
+ * The wallet's SOLANA address, read behind the biometric gate.
+ *
+ * Same mnemonic, different curve: SLIP-0010 ed25519 at m/44'/501'/0'/0' — the
+ * path Phantom, Solflare and Backpack use, so the user's existing phrase
+ * restores to the SAME address in any of them. This is what lets the app hold
+ * FURL, which is a Token-2022 mint on Solana.
+ */
+export async function getSolanaAddress(): Promise<string> {
+  const m = await SecureStore.getItemAsync(MNEMONIC_KEY, SECURE_OPTS);
+  if (!m) throw new Error("No wallet on this device.");
+  const address = deriveSolanaAddress(m);
+  // Backfill for wallets created before Solana support existed.
+  await SecureStore.setItemAsync(SOL_ADDRESS_KEY, address).catch(() => {});
+  return address;
+}
+
+/**
+ * The Solana address WITHOUT a biometric prompt, from the un-gated cache.
+ *
+ * Null on a wallet created before Solana support shipped, until one gated
+ * `getSolanaAddress()` backfills it — the same upgrade path the EVM cache has.
+ * Callers must treat null as "unlock to view", never as "no Solana account".
+ */
+export async function getKnownSolanaAddress(): Promise<string | null> {
+  if (!(await hasWallet())) return null;
+  return SecureStore.getItemAsync(SOL_ADDRESS_KEY).catch(() => null);
 }
 
 // --- signing ----------------------------------------------------------------
