@@ -1,13 +1,13 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 312,
+  "_total": 313,
   "_counts": {
     "ADMIN_ONLY": 17,
     "API_KEY_AUTHENTICATED": 1,
     "AUTHENTICATED_USER": 134,
     "DEVELOPMENT_ONLY": 1,
     "INTERNAL_ONLY": 6,
-    "PUBLIC_INTENTIONAL": 142,
+    "PUBLIC_INTENTIONAL": 143,
     "WEBHOOK_VERIFIED": 11
   },
   "routes": {
@@ -254,6 +254,7 @@
     "token/furl": "PUBLIC_INTENTIONAL",
     "token/furl/balance": "PUBLIC_INTENTIONAL",
     "token/furl/supply": "PUBLIC_INTENTIONAL",
+    "token/furl/supply/cross-chain": "PUBLIC_INTENTIONAL",
     "topup/apple-pay": "AUTHENTICATED_USER",
     "transactions": "AUTHENTICATED_USER",
     "transactions/authorize": "AUTHENTICATED_USER",

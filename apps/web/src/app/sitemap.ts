@@ -26,6 +26,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // reach for when checking a mint address against a scam lookalike, and it
     // should outrank any third-party copy of that address in search.
     { path: "/token", priority: 0.9, changeFrequency: "weekly" as const },
+    { path: "/bridge", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/about", priority: 0.7, changeFrequency: "monthly" as const },
     // The entity home for the founder — the page every Person node on the
     // site points at. Ranked with /about rather than below it.

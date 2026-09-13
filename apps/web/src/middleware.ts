@@ -50,6 +50,10 @@ const PUBLIC_PAGES = new Set([
   // behind /login it is unreachable by them AND uncrawlable, which would leave a
   // scam lookalike outranking the real address.
   "/token",
+  // The bridge page states that no bridge exists. Public for the same reason
+  // /token is: someone checking whether a cross-chain FURL offer is real must be
+  // able to read it without an account.
+  "/bridge",
   "/grants",
   "/marketplace",
   "/login",
