@@ -126,16 +126,28 @@ These are CI tests, so the claims cannot silently drift back:
 
 Engineering is complete for each; the missing input is capital.
 
-**Correction (2026-09-13, measured):** the treasury migration is **NOT**
-funding-blocked. It needs ~0.032266 SOL — six ATA rents at 2,039,280 lamports
-each, six signature fees, plus 0.02 SOL priority headroom — and the deployer
-holds 0.048203 SOL, a surplus of ~0.0159 SOL. The only thing stopping the
-migration is that the six Squads multisigs do not exist yet, which costs nothing
-but a decision. This is asserted by a test, not estimated.
+**Correction, superseded — see below.** An earlier revision of this file said the
+treasury migration was NOT funding-blocked, on the basis that the transfers cost
+~0.032266 SOL against a 0.048203 SOL balance. That costed the six transfers and
+their ATA rents but **not the creation of the multisigs they send to**.
+
+**Squads V4 charges a 0.1 SOL deployment fee per multisig** (plus ~0.0018 rent
+and 0.001 funding), which exceeds the entire current balance on its own. The
+custody transition is therefore funding-blocked in every architecture:
+
+| Architecture | Deploy | + migration | + reserve | Shortfall |
+| --- | ---: | ---: | ---: | ---: |
+| Six Squads | 0.6168 | 0.6491 | 0.6991 | **0.6509** |
+| Three domains (recommended) | 0.3084 | 0.3407 | 0.3907 | **0.3425** |
+| One Squad, six vaults | 0.1028 | 0.1351 | 0.1851 | **0.1369** |
+
+Full analysis in `FURL-CUSTODY-ARCHITECTURE.md`. The transfers alone remain
+affordable; the infrastructure they require is not.
 
 | Item | Needs | Current |
 | --- | --- | --- |
-| Treasury migration | ~0.0323 SOL | **0.0482 SOL — SUFFICIENT** |
+| Treasury migration — transfers only | ~0.0323 SOL | 0.0482 SOL — sufficient |
+| Treasury migration — incl. Squads deployment | **0.185–0.699 SOL** | **0.0482 SOL — SHORT** |
 | FURL/USDC liquidity pool | ~0.15–0.35 SOL to create + the deposit | 0.048 SOL, $0 USDC |
 | Initial liquidity | A decided, defensible USDC amount | none |
 | Jupiter routing | A pool with real liquidity | `TOKEN_NOT_TRADABLE` |
