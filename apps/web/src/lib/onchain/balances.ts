@@ -266,7 +266,10 @@ interface SolanaTokenAccount {
   };
 }
 
-async function solanaRpcCall<T>(url: string, method: string, params: unknown[]): Promise<T> {
+/** One Solana JSON-RPC call with the module's shared timeout + no-store policy.
+ *  Exported so FURL-specific reads (lib/token/furlChain.ts) use the SAME
+ *  transport rather than a second fetch wrapper with its own timeout bugs. */
+export async function solanaRpcCall<T>(url: string, method: string, params: unknown[]): Promise<T> {
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -311,11 +314,16 @@ export async function readSolanaBalances(owner: string, mints: string[] = []): P
         { programId: SPL_TOKEN_PROGRAM },
         { encoding: "jsonParsed" },
       ]),
+      // NOT swallowed. This used to be `.catch(() => ({ value: [] }))`, which
+      // turned "we could not read the Token-2022 program" into "this owner holds
+      // no Token-2022 tokens" — and since xStocks and FURL are Token-2022, that
+      // rendered a real position as an empty one. A failure on either program is
+      // a failure of the read, which is the rule stated in this module's header.
       solanaRpcCall<{ value: SolanaTokenAccount[]; context?: { slot?: number } }>(url, "getTokenAccountsByOwner", [
         owner,
         { programId: SPL_TOKEN_2022_PROGRAM },
         { encoding: "jsonParsed" },
-      ]).catch(() => ({ value: [] as SolanaTokenAccount[] })),
+      ]),
       solanaRpcCall<number>(url, "getSlot", []).catch(() => null),
     ]);
 

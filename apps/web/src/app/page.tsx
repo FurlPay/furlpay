@@ -276,6 +276,7 @@ function Footer() {
             links={[
               ["About", "/about"],
               ["Trust & security", "/trust"],
+              ["FURL token", "/token"],
               ["Use cases", "/use-cases"],
               ["Partners", "/partners"],
               ["Careers", "/careers"],

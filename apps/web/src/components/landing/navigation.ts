@@ -70,6 +70,7 @@ export const NAV_GROUPS: NavGroup[] = [
     links: [
       { label: "About", href: "/about", desc: "Who is building this" },
       { label: "Trust & security", href: "/trust", desc: "How money is protected" },
+      { label: "FURL token", href: "/token", desc: "Mint address, tokenomics and risks" },
       { label: "Partners", href: "/partners", desc: "Integrated rails and providers" },
       { label: "Careers", href: "/careers", desc: "Open roles" },
       { label: "Press", href: "/press", desc: "Brand and media" },
@@ -94,6 +95,7 @@ export const PALETTE_LINKS: NavLink[] = [
   { label: "Webhooks", href: "/docs/architecture/webhooks", desc: "Signed event delivery" },
   { label: "Pricing", href: "/pricing", desc: "Plans and settlement rates" },
   { label: "Status", href: "/status", desc: "System status board" },
+  { label: "FURL token", href: "/token", desc: "Mint address, tokenomics and risks" },
   { label: "Changelog", href: "/changelog", desc: "What shipped, when" },
   { label: "Blog", href: "/blog", desc: "Engineering writing" },
   { label: "Talk to us", href: "/talk-to-us", desc: "Book a technical call" },

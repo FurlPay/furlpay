@@ -29,7 +29,7 @@ export default function SolanaActionsPage() {
         rows={[
           { method: "GET", path: "/actions.json", desc: "Discovery rules mapping /pay/* → the Action API" },
           { method: "GET", path: "/api/actions/pay/[orderId]", desc: "Blink metadata: icon, title, pay buttons" },
-          { method: "POST", path: "/api/actions/pay/[orderId]?asset=USDC|SOL", desc: "Base64 transfer transaction to sign" },
+          { method: "POST", path: "/api/actions/pay/[orderId]?asset=USDC|SOL|FURL", desc: "Base64 transfer transaction to sign (FURL only when FURL pricing is configured)" },
           { method: "OPTIONS", path: "/api/actions/*", desc: "CORS preflight for Blink clients" },
         ]}
       />

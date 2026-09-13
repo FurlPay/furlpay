@@ -22,6 +22,10 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // — Marketing —
     { path: "", priority: 1.0, changeFrequency: "weekly" as const },
     { path: "/pricing", priority: 0.9, changeFrequency: "monthly" as const },
+    // The FURL reference page. High priority because it is the page people
+    // reach for when checking a mint address against a scam lookalike, and it
+    // should outrank any third-party copy of that address in search.
+    { path: "/token", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/about", priority: 0.7, changeFrequency: "monthly" as const },
     // The entity home for the founder — the page every Person node on the
     // site points at. Ranked with /about rather than below it.
@@ -183,6 +187,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/docs/integrations/persona-kyc", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/docs/payments/agentic-x402", priority: 0.8, changeFrequency: "monthly" as const },
     { path: "/docs/payments/solana-actions", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/docs/tokens/furl", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/docs/compliance/mica", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/docs/security/mpc-webauthn", priority: 0.7, changeFrequency: "monthly" as const },
     { path: "/docs/security/posture", priority: 0.7, changeFrequency: "monthly" as const },

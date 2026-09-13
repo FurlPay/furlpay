@@ -11,7 +11,10 @@
     "plan:mint": "tsx scripts/create-furl-mint.ts",
     "plan:supply": "tsx scripts/mint-and-lock.ts",
     "devnet:mint": "tsx scripts/create-furl-mint.ts --cluster devnet --execute",
-    "devnet:supply": "tsx scripts/mint-and-lock.ts --cluster devnet --execute"
+    "devnet:supply": "tsx scripts/mint-and-lock.ts --cluster devnet --execute",
+    "plan:migrate": "tsx scripts/migrate-allocations.ts --cluster mainnet-beta",
+    "plan:revoke": "tsx scripts/revoke-mint-authority.ts --cluster mainnet-beta",
+    "plan:liquidity": "tsx scripts/liquidity-plan.ts"
   },
   "dependencies": {
     "@solana/spl-token": "^0.4.14",

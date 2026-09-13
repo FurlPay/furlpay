@@ -130,6 +130,20 @@ export interface Allocation {
  */
 export const DEPLOYER_PUBKEY = 'FgeSXvrWcqE93byDoF3Vhwou7XTUhY42cYhs7vXkJPUL'
 
+/**
+ * THE LIVE MAINNET MINT, created 2026-09-13 (see ../MAINNET-LAUNCH.md for the
+ * creation signature and the six distribution signatures).
+ *
+ * Recorded here so every consumer — scripts, tests, the web app — resolves the
+ * mint from one string instead of pasting it. A second spelling of this address
+ * in the tree is a path to sending real value to the wrong token, and that
+ * error cannot be undone. The web app's copy lives in
+ * `apps/web/src/lib/token/furl.ts` and a test asserts the two are identical.
+ *
+ * `null` would mean "not launched yet". It is launched.
+ */
+export const MINT_ADDRESS = 'FYatJq71zqvaQNLLtbBy4hQcsV25dMATYfCSVBzV3gY1'
+
 export const ALLOCATIONS: readonly Allocation[] = [
   { key: 'community', label: 'Community & ecosystem', percent: 40, wallet: DEPLOYER_PUBKEY,
     vesting: 'Deployer address at launch (see risk note); to migrate to a dedicated wallet.' },

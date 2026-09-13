@@ -45,6 +45,11 @@ const PUBLIC_PAGES = new Set([
   "/press",
   "/waitlist",
   "/downloads", // where every store + desktop badge on the landing page points
+  // The FURL token reference page. Its whole purpose is to be readable by people
+  // deciding whether to trust the token and by anyone verifying a mint address —
+  // behind /login it is unreachable by them AND uncrawlable, which would leave a
+  // scam lookalike outranking the real address.
+  "/token",
   "/grants",
   "/marketplace",
   "/login",
@@ -154,6 +159,14 @@ const PUBLIC_API_PREFIXES = [
   "/api/insights", // public research metadata
   "/api/travel", // FurlPay Travels — public search/deals/booking demo surface
   "/api/chain", // public chain registry — status, gas, contracts, USDC directory
+  // FURL token reference data. Publishes only what is already public on Solana
+  // (mint identity, supply, authorities, concentration) plus our own published
+  // tokenomics and disclosures. Behind the cookie gate it would answer
+  // "Unauthorized" to exactly the people it exists for: someone checking a mint
+  // address against a scam lookalike, and aggregators reading the disclosures.
+  // The mint is fixed in code and both routes rate-limit, so this cannot be used
+  // as an open RPC proxy.
+  "/api/token",
   "/api/rails", // public payment-rail map — protocol, chains, fees, live status
   "/api/docs/feedback", // anonymous docs page feedback counters (IP rate-limited)
   "/api/transfers/gasless", // Smart Gas: GET quote is public; POST enforces its own session via requireUser

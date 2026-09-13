@@ -289,6 +289,10 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("PLATFORM_FEE_SOLANA_WALLET"),
       v("SOLANA_USDC_MINT"),
       v("SOLANA_SOL_USD_PRICE"),
+      // FURL/USD for the FURL payment path. No oracle exists for FURL, so this
+      // is the ONLY source of a FURL price and it fails closed: unset means FURL
+      // checkout is not offered at all, rather than a rate being assumed.
+      v("FURL_USD_PRICE"),
       v("SOLANA_PAYER_SECRET"),
       v("HELIUS_API_KEY"),
       v("CNFT_MERKLE_TREE"),

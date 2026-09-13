@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { FURL_DECIMALS } from "@/lib/token/furl";
 import { screenWallet } from "@furlpay/compliance";
 import { CheckoutSchema, parse } from "@/lib/schemas";
 import { createSession, getSession, toAtomic, toPublic } from "@/lib/checkout/session";
@@ -38,6 +39,21 @@ const TOKEN_DECIMALS: Readonly<Record<string, number>> = {
   USDT: 6,
   EURC: 6,
   PYUSD: 6,
+  /**
+   * FURL, the FurlPay ecosystem token (Token-2022, 6dp — see lib/token/furl.ts,
+   * which is where the decimals come from rather than being retyped here).
+   *
+   * No oracle is needed for this route and none is consulted: a checkout session
+   * is denominated in the TOKEN (`amount` is token units, `currency` is only a
+   * label), so "12.5 FURL" is fully defined without a FURL/USD rate. The
+   * USD-priced path — Solana Actions, where an order in dollars has to be
+   * converted — is separately gated on FURL_USD_PRICE and fails closed without
+   * it. Do not "helpfully" add a default rate to either.
+   *
+   * A merchant invoicing in FURL is accepting an unpegged token with no market
+   * price. That is their decision to make knowingly; see /token.
+   */
+  FURL: FURL_DECIMALS,
 };
 
 export async function POST(req: NextRequest) {

@@ -6,7 +6,7 @@ import {
   createPostResponse,
 } from "@solana/actions";
 import { PublicKey } from "@solana/web3.js";
-import { buildPaymentTransaction, getOrder, type PayAsset } from "@/lib/actions/solana";
+import { buildPaymentTransaction, getOrder, furlPaymentsEnabled, type PayAsset } from "@/lib/actions/solana";
 
 // Solana Actions require CORS + version/chain compatibility headers (sRFC 31).
 // createActionHeaders bundles ACTIONS_CORS_HEADERS with X-Action-Version and
@@ -27,7 +27,13 @@ export const GET = async (req: Request, props: { params: Promise<{ orderId: stri
     type: "action",
     icon: `${base}/icon.png`,
     title: "Furlpay Secure Checkout",
-    description: `Pay for order #${order.orderId} instantly on Solana with USDC or SOL — sub-second finality, sub-cent fees.`,
+    // The asset list tracks what the buttons below actually offer. Saying "USDC
+    // or SOL" while rendering a FURL button (or vice versa) is a small lie on a
+    // payment screen, which is the worst place to have one.
+    description:
+      `Pay for order #${order.orderId} instantly on Solana with ` +
+      `${furlPaymentsEnabled() ? "USDC, SOL or FURL" : "USDC or SOL"}` +
+      ` — sub-second finality, sub-cent fees.`,
     label: `Pay $${price}`,
     links: {
       actions: [
@@ -41,6 +47,17 @@ export const GET = async (req: Request, props: { params: Promise<{ orderId: stri
           label: `Pay $${price} in SOL`,
           href: `/api/actions/pay/${order.orderId}?asset=SOL`,
         },
+        // FURL is only offered when a real FURL price is configured — it has no
+        // oracle yet, so we never advertise a checkout we cannot price honestly.
+        ...(furlPaymentsEnabled()
+          ? [
+              {
+                type: "transaction" as const,
+                label: `Pay $${price} in FURL`,
+                href: `/api/actions/pay/${order.orderId}?asset=FURL`,
+              },
+            ]
+          : []),
       ],
     },
   };
@@ -67,9 +84,15 @@ export const POST = async (req: Request, props: { params: Promise<{ orderId: str
     const asset = (
       new URL(req.url).searchParams.get("asset") || "USDC"
     ).toUpperCase();
-    if (asset !== "SOL" && asset !== "USDC") {
+    if (asset !== "SOL" && asset !== "USDC" && asset !== "FURL") {
       return Response.json(
-        { message: `Unsupported asset "${asset}". Use SOL or USDC.` },
+        { message: `Unsupported asset "${asset}". Use SOL, USDC or FURL.` },
+        { status: 400, headers }
+      );
+    }
+    if (asset === "FURL" && !furlPaymentsEnabled()) {
+      return Response.json(
+        { message: "FURL payments are not enabled on this deployment." },
         { status: 400, headers }
       );
     }

@@ -1,4 +1,4 @@
-import { Banknote, Layers, LifeBuoy, Puzzle, Rocket, Scale, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Banknote, Coins, Layers, LifeBuoy, Puzzle, Rocket, Scale, ShieldCheck, type LucideIcon } from "lucide-react";
 
 // Sidebar structure for the developer documentation portal (furlpay.app/docs).
 // `desc` feeds /llms.txt (public/llms.txt) and per-page SEO; `badge` renders in
@@ -41,6 +41,13 @@ export const DOCS_NAV: DocSection[] = [
       { title: "LI.FI Swaps", href: "/docs/payments/lifi-swaps", desc: "Cross-chain token swaps via LI.FI routing — client-signed, with the integrator fee model.", badge: "new" },
       { title: "FurlPay Travels (Travel MCP)", href: "/docs/payments/travels-mcp", desc: "Flight search, reprice, and booking for agents via the Travel MCP server." },
       { title: "Solana Actions & Blinks", href: "/docs/payments/solana-actions", desc: "Spec-correct Solana Actions endpoints and shareable payment Blinks." },
+    ],
+  },
+  {
+    label: "Tokens",
+    icon: Coins,
+    items: [
+      { title: "FURL Token", href: "/docs/tokens/furl", desc: "FURL's mint address, Token-2022 handling, payment integration, allocation model, and the disclosures — no peg, no reserves, no redemption.", badge: "new" },
     ],
   },
   {
