@@ -2,73 +2,73 @@ import type {
   CardAuthorizationDecision,
   CardAuthorizationRequest,
   CardIssuerProviderAdapter,
+  CardSecrets,
+  CardSpendControls,
   CardStatus,
   IssueCardRequest,
   IssuedCard,
 } from "@/lib/providers/types";
 
 // ---------------------------------------------------------------------------
-// Rain (Signify Holdings, Inc.) card-issuing adapter — SKELETON, FAIL-CLOSED.
+// Rain (Signify Holdings, Inc.) card-issuing adapter.
 //
-// WHAT IS VERIFIED, and where it came from.
+// Rain is a Visa/Mastercard issuing platform that settles card transactions
+// onchain in stablecoins. This adapter is split by what could be VERIFIED,
+// because https://docs.rain.xyz redirects to a partner login and the API
+// reference is not public.
 //
-// Rain is real: a Visa/Mastercard issuing platform that settles card
-// transactions onchain in stablecoins ($250M Series C, Jan 2026). The following
-// were read out of the public `rain-rust-sdk`, which documents itself as
-// tracking Rain's OpenAPI specification, and cross-checked by probing hosts:
+// Everything below came out of Rain's public `rain-rust-sdk`, which documents
+// itself as tracking their OpenAPI specification, cross-checked by probing
+// hosts. Where the SDK is silent, this file refuses rather than guessing.
 //
-//   base URL (prod)   https://api.raincards.xyz/v1/issuing
-//   base URL (dev)    https://api-dev.raincards.xyz/v1/issuing
-//   auth header       Api-Key: <key>            (NOT "Authorization: Bearer")
-//   card paths        GET    /cards
-//                     GET    /cards/{cardId}
-//                     PATCH  /cards/{cardId}
-//                     GET    /cards/{cardId}/secrets
-//                     GET    /cards/{cardId}/processorDetails
-//                     GET|PUT /cards/{cardId}/pin
-//                     GET    /users/{userId}/cards
-//   webhook paths     /webhooks, /webhooks/{webhookId}
+//   base URL (prod)  https://api.raincards.xyz/v1/issuing
+//   base URL (dev)   https://api-dev.raincards.xyz/v1/issuing
+//   auth header      Api-Key: <key>              NOT "Authorization: Bearer"
+//   wire casing      camelCase                   NOT snake_case
 //
-// WHAT IS NOT VERIFIED, and why nothing below guesses it.
+// WHAT THE CIRCULATING INTEGRATION GUIDES GET WRONG. They are worth naming
+// because they look authoritative and every one of these would fail in
+// production, several of them silently:
 //
-// https://docs.rain.xyz redirects to a login page — Rain's API reference is
-// behind partner credentials. So the REQUEST AND RESPONSE FIELD SHAPES, and
-// critically the WEBHOOK SIGNATURE SCHEME, are not knowable from outside. Every
-// method here therefore throws `RainNotConfiguredError` rather than sending a
-// request built from a plausible-looking body.
+//   claimed                        actual
+//   api.rain.xyz/v1                api.raincards.xyz/v1/issuing  (the former 404s)
+//   Authorization: Bearer <key>    Api-Key: <key>
+//   POST /cardholders              cardholders are /users
+//   POST /cards/{id}/freeze        PATCH /cards/{id} with status
+//   POST /cards/{id}/reveal-token  GET /cards/{id}/secrets
+//   spending_controls.spend_limit  limit: { amount, frequency }
+//   spend_limit_duration           frequency: per24HourPeriod | perAuthorization | ...
+//   allowed_mcc_categories         not a field on card creation at all
+//   status "frozen"                "locked"
 //
-// That is the whole point of this file. A card adapter that guesses a field
-// name fails at the counter, in front of a customer, with the network holding
-// the line. A card adapter that guesses a signature scheme is worse: AGENTS.md
-// rule 3 requires HMAC verification over the raw body, and an adapter that
-// "verified" a signature it invented would accept anything, letting anyone who
-// can reach the endpoint approve spend against a customer's balance.
+// WHAT IS STILL UNVERIFIED, and therefore still refuses:
 //
-// HOW TO FINISH THIS. When the mNDA is executed and sandbox credentials arrive:
-//   1. Read the real schema for card creation, the secrets handle, and the
-//      authorisation webhook — including the signature header and the exact
-//      bytes it covers.
-//   2. Replace each `notConfigured()` with the real call. Keep the Money type
-//      at the boundary; the issuer speaks integer minor units and so do we.
-//   3. Write the signature test FIRST, with a known-good vector from Rain, and
-//      a negative case with a tampered body.
-//   4. Only then delete the `unimplemented` reason on CARD_ISSUING_LIVE in
-//      lib/flags.ts. Until that day the flag cannot be switched on, which is
-//      deliberate: lib/cardIssuer.ts checks `unimplemented` BEFORE `enabled`,
-//      so adding RAIN_API_KEY to the environment does not and must not make
-//      card issuing live.
+//   The JIT AUTHORIZATION WEBHOOK signature scheme. Rain's /webhooks endpoint
+//   is a delivery LOG (list past deliveries), not a verification helper, and
+//   the receiving-side signature format is only in the gated docs. AGENTS.md
+//   rule 3 requires HMAC verification over the raw body; an adapter that
+//   "verified" an invented scheme would accept any caller who can reach the
+//   endpoint and approve spend against a customer's balance. So
+//   parseAuthorizationRequest throws until the real scheme is known.
+//
+//   MCC allowlists. `CreateCardRequest` has no MCC field, so per-card merchant
+//   restriction is either elsewhere in Rain's API or is our job at JIT time.
+//   issueCard refuses a request that asks for MCC limits rather than silently
+//   dropping them — a card that does not enforce the restriction its caller
+//   asked for is worse than an error.
+//
+// AND THE THING THIS FILE MUST NOT DO. Nothing here can switch card issuing
+// on. lib/cardIssuer.ts gates every card route on CARD_ISSUING_LIVE, whose
+// `unimplemented` reason flagState() checks BEFORE `enabled`. Provisioning
+// RAIN_API_KEY does not and must not flip that gate; it opens the day someone
+// deletes the reason, and on that day they must actually have an issuer
+// contract, a settlement account, and a verified webhook scheme.
 // ---------------------------------------------------------------------------
 
-/** Rain's production issuing API. Verified against the public SDK. */
 export const RAIN_API_URL_PRODUCTION = "https://api.raincards.xyz/v1/issuing";
-
-/** Rain's development/sandbox issuing API. */
 export const RAIN_API_URL_DEVELOPMENT = "https://api-dev.raincards.xyz/v1/issuing";
-
-/** The header Rain authenticates with. Not a bearer token. */
 export const RAIN_AUTH_HEADER = "Api-Key";
 
-/** Endpoint paths confirmed present on the issuing API. */
 export const RAIN_PATHS = {
   listCards: "/cards",
   card: (cardId: string) => `/cards/${encodeURIComponent(cardId)}`,
@@ -79,106 +79,260 @@ export const RAIN_PATHS = {
   webhooks: "/webhooks",
 } as const;
 
-/**
- * Thrown by every method until the integration is real.
- *
- * Carries what is missing so an operator reading a log sees the actual blocker
- * — a contract and a schema — rather than a bare "unavailable".
- */
+/** Rain's card states. Ours are in providers/types.ts; this is the mapping. */
+export type RainCardStatus = "notActivated" | "active" | "locked" | "canceled";
+
+/** Rain's limit windows. Note "perAuthorization" is the single-use analogue. */
+export type RainLimitFrequency =
+  | "per24HourPeriod"
+  | "per7DayPeriod"
+  | "per30DayPeriod"
+  | "perYearPeriod"
+  | "allTime"
+  | "perAuthorization";
+
 export class RainNotConfiguredError extends Error {
   readonly operation: string;
   readonly blocker: string;
   constructor(operation: string, blocker: string) {
-    super(
-      `Rain card issuing is not configured: cannot ${operation}. ${blocker} ` +
-        `See lib/cards/rainAdapter.ts — the adapter refuses rather than sending a guessed payload.`
-    );
+    super(`Rain card issuing cannot ${operation}. ${blocker}`);
     this.name = "RainNotConfiguredError";
     this.operation = operation;
     this.blocker = blocker;
   }
 }
 
-const SCHEMA_BLOCKER =
-  "Rain's API reference (docs.rain.xyz) requires partner credentials, so the request/response " +
-  "schema is unknown. Obtain sandbox access before implementing.";
-
-const SIGNATURE_BLOCKER =
-  "Rain's webhook signature scheme is not public. Verifying an inbound authorisation against an " +
-  "invented scheme would accept any caller (AGENTS.md rule 3), so this refuses instead.";
-
-function notConfigured(operation: string, blocker: string = SCHEMA_BLOCKER): never {
-  throw new RainNotConfiguredError(operation, blocker);
+export class RainApiError extends Error {
+  readonly status: number;
+  constructor(status: number, path: string, detail: string) {
+    // The body is NOT interpolated: an issuer error can echo card data back.
+    super(`Rain API ${status} on ${path}: ${detail}`);
+    this.name = "RainApiError";
+    this.status = status;
+  }
 }
 
-/** Resolve the base URL for the current environment. */
+const SIGNATURE_BLOCKER =
+  "Rain's inbound webhook signature scheme is not public — /webhooks is a delivery log, not a " +
+  "verification helper. Verifying against an invented scheme would accept any caller " +
+  "(AGENTS.md rule 3), so this refuses.";
+
+/** Our status vocabulary -> Rain's. `pending` maps to their pre-activation state. */
+export function toRainStatus(status: CardStatus): RainCardStatus {
+  switch (status) {
+    case "active":
+      return "active";
+    case "frozen":
+      return "locked";
+    case "closed":
+      return "canceled";
+    case "pending":
+      return "notActivated";
+  }
+}
+
+/** Rain's status vocabulary -> ours. */
+export function fromRainStatus(status: string): CardStatus {
+  switch (status) {
+    case "active":
+      return "active";
+    case "locked":
+      return "frozen";
+    case "canceled":
+      return "closed";
+    case "notActivated":
+      return "pending";
+    default:
+      // An unknown state is not "active". Treat it as frozen — the safe reading
+      // — rather than assuming a card we do not understand is spendable.
+      return "frozen";
+  }
+}
+
+/** Our spend-control window -> Rain's frequency. */
+export function toRainFrequency(
+  window: NonNullable<CardSpendControls["limitWindow"]>,
+  singleUse: boolean
+): RainLimitFrequency {
+  if (singleUse || window === "transaction") return "perAuthorization";
+  switch (window) {
+    case "daily":
+      return "per24HourPeriod";
+    case "weekly":
+      return "per7DayPeriod";
+    case "monthly":
+      return "per30DayPeriod";
+  }
+}
+
 export function rainBaseUrl(): string {
   const override = process.env.RAIN_API_URL?.trim();
   if (override) return override.replace(/\/$/, "");
   return process.env.FURLPAY_ENV === "production" ? RAIN_API_URL_PRODUCTION : RAIN_API_URL_DEVELOPMENT;
 }
 
-/** True only when BOTH the API key and the webhook secret are present. */
 export function rainCredentialsPresent(): boolean {
   return Boolean(process.env.RAIN_API_KEY?.trim() && process.env.RAIN_WEBHOOK_SECRET?.trim());
 }
 
-/**
- * The Rain adapter.
- *
- * Constructing it is safe and cheap — it performs no I/O and reads no secrets
- * until a method is called. Every method currently refuses. See the header for
- * what finishing it requires.
- */
+interface RainEncrypted {
+  iv: string;
+  data: string;
+}
+
+interface RainCard {
+  id: string;
+  userId: string;
+  companyId?: string;
+  status: string;
+  limit?: { amount: number; frequency: string };
+  expirationMonth: string;
+  expirationYear: string;
+  last4?: string;
+  type?: string;
+  tokenWallets?: string[];
+}
+
+/** Rain's card -> ours. Missing required fields throw rather than defaulting. */
+export function mapRainCard(card: RainCard): IssuedCard {
+  const expMonth = Number(card.expirationMonth);
+  const expYear = Number(card.expirationYear);
+  if (!Number.isInteger(expMonth) || expMonth < 1 || expMonth > 12) {
+    throw new RainApiError(200, "card", "expirationMonth was not a month");
+  }
+  if (!Number.isInteger(expYear)) {
+    throw new RainApiError(200, "card", "expirationYear was not a year");
+  }
+  return {
+    providerCardRef: card.id,
+    status: fromRainStatus(card.status),
+    // Never fabricate a last4. An absent one is reported as empty, not invented
+    // — a plausible-looking wrong last4 makes a support call unresolvable.
+    last4: typeof card.last4 === "string" ? card.last4 : "",
+    expMonth,
+    expYear,
+    network: "Visa",
+    formFactor: card.type === "physical" ? "physical" : "virtual",
+  };
+}
+
+async function rainRequest<T>(
+  method: "GET" | "POST" | "PATCH" | "PUT",
+  path: string,
+  body?: unknown
+): Promise<T> {
+  const apiKey = process.env.RAIN_API_KEY?.trim();
+  if (!apiKey) {
+    throw new RainNotConfiguredError("reach the API", "RAIN_API_KEY is not set.");
+  }
+
+  const res = await fetch(`${rainBaseUrl()}${path}`, {
+    method,
+    headers: {
+      [RAIN_AUTH_HEADER]: apiKey,
+      accept: "application/json",
+      ...(body === undefined ? {} : { "content-type": "application/json" }),
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    // Read the body for the status line only; never log it (issuer errors can
+    // echo card data), and never let it decide success.
+    const detail = res.status >= 500 ? "issuer error" : "request rejected";
+    throw new RainApiError(res.status, path, detail);
+  }
+
+  const parsed = (await res.json()) as unknown;
+  if (parsed === null || typeof parsed !== "object") {
+    throw new RainApiError(res.status, path, "response was not a JSON object");
+  }
+  return parsed as T;
+}
+
 export function createRainAdapter(): CardIssuerProviderAdapter {
   return {
     id: "rain",
     kind: "issuing",
 
-    async issueCard(_request: IssueCardRequest): Promise<IssuedCard> {
-      return notConfigured("issue a card");
+    async issueCard(request: IssueCardRequest): Promise<IssuedCard> {
+      // Rain's CreateCardRequest carries no MCC field. Dropping a caller's MCC
+      // restriction silently would issue a card that spends anywhere — refuse.
+      if (request.controls.allowedMccs !== undefined) {
+        throw new RainNotConfiguredError(
+          "issue a card with MCC restrictions",
+          "Rain's card-creation schema has no MCC allowlist field. Enforce the restriction at " +
+            "JIT authorization time instead, or confirm the real field before relying on it."
+        );
+      }
+
+      const limit = request.controls.limit;
+      const body: Record<string, unknown> = {
+        userId: request.holderRef,
+        ...(limit
+          ? {
+              limit: {
+                // Integer minor units both sides. No float ever enters this.
+                amount: Number(limit.minor),
+                frequency: toRainFrequency(request.controls.limitWindow ?? "monthly", request.singleUse),
+              },
+            }
+          : {}),
+      };
+
+      const card = await rainRequest<RainCard>("POST", RAIN_PATHS.listCards, body);
+      return mapRainCard(card);
     },
 
-    async getCard(_providerCardRef: string): Promise<IssuedCard> {
-      return notConfigured("read a card");
+    async getCard(providerCardRef: string): Promise<IssuedCard> {
+      const card = await rainRequest<RainCard>("GET", RAIN_PATHS.card(providerCardRef));
+      return mapRainCard(card);
     },
 
-    async setCardStatus(_providerCardRef: string, _status: CardStatus): Promise<IssuedCard> {
-      // Note for the implementer: there is no /freeze endpoint. Status changes
-      // go through PATCH /cards/{cardId}.
-      return notConfigured("change card status");
+    async setCardStatus(providerCardRef: string, status: CardStatus): Promise<IssuedCard> {
+      // There is no /freeze endpoint; status is a PATCH on the card.
+      const card = await rainRequest<RainCard>("PATCH", RAIN_PATHS.card(providerCardRef), {
+        status: toRainStatus(status),
+      });
+      return mapRainCard(card);
     },
 
-    async getCardSecretsHandle(_providerCardRef: string) {
-      // Note for the implementer: the path is GET /cards/{cardId}/secrets.
-      // Whatever it returns must reach the CLIENT, not our server — card
-      // credentials transiting our process would put us in PCI scope.
-      return notConfigured("obtain a card secrets handle");
+    async getCardSecrets(providerCardRef: string): Promise<CardSecrets> {
+      const secrets = await rainRequest<{
+        encryptedPan: RainEncrypted;
+        encryptedCvc: RainEncrypted;
+      }>("GET", RAIN_PATHS.cardSecrets(providerCardRef));
+
+      if (!secrets.encryptedPan?.data || !secrets.encryptedCvc?.data) {
+        throw new RainApiError(200, "secrets", "response was missing encrypted card data");
+      }
+      // Returned as ciphertext, deliberately. The plaintext never exists here.
+      return {
+        encryptedPan: { iv: secrets.encryptedPan.iv, data: secrets.encryptedPan.data },
+        encryptedCvc: { iv: secrets.encryptedCvc.iv, data: secrets.encryptedCvc.data },
+      };
     },
 
     async parseAuthorizationRequest(
       _rawBody: string,
       _headers: Readonly<Record<string, string>>
     ): Promise<CardAuthorizationRequest> {
-      return notConfigured("verify an authorization request", SIGNATURE_BLOCKER);
+      throw new RainNotConfiguredError("verify an authorization request", SIGNATURE_BLOCKER);
     },
 
     encodeAuthorizationDecision(
       _request: CardAuthorizationRequest,
       _decision: CardAuthorizationDecision
     ): unknown {
-      return notConfigured("encode an authorization decision");
+      throw new RainNotConfiguredError(
+        "encode an authorization decision",
+        "The JIT response schema is only in Rain's gated documentation."
+      );
     },
   };
 }
 
-/**
- * The adapter, or null when Rain is not configured.
- *
- * Mirrors `x402Settler.defaultSettler()`: returning null lets the caller fail
- * closed with a 503 that names the gap, instead of constructing something that
- * throws deep inside a request.
- */
 export function rainAdapter(): CardIssuerProviderAdapter | null {
   if (!rainCredentialsPresent()) return null;
   return createRainAdapter();

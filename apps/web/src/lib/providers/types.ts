@@ -403,6 +403,18 @@ export interface CardAuthorizationRequest {
   };
 }
 
+/** An issuer-encrypted value. The key is not ours; the plaintext is not ours. */
+export interface EncryptedValue {
+  readonly iv: string;
+  readonly data: string;
+}
+
+/** Card credentials, as ciphertext. */
+export interface CardSecrets {
+  readonly encryptedPan: EncryptedValue;
+  readonly encryptedCvc: EncryptedValue;
+}
+
 export type CardAuthorizationDecision =
   | { readonly approve: true }
   | { readonly approve: false; readonly reason: string };
@@ -421,16 +433,18 @@ export interface CardIssuerProviderAdapter {
   setCardStatus(providerCardRef: string, status: CardStatus): Promise<IssuedCard>;
 
   /**
-   * Obtain the PAN/CVV for display.
+   * Obtain the card credentials for display.
    *
-   * Returns a short-lived handle the CLIENT redeems directly against the
-   * issuer, never the number itself. Card credentials must not transit our
-   * server — that is the difference between being in PCI scope and not.
+   * Returns them ENCRYPTED. The plaintext PAN and CVC must never exist in our
+   * process — that is the difference between being in PCI scope and not — so an
+   * adapter returns the issuer's ciphertext and the client decrypts it with a
+   * key our server never holds.
+   *
+   * An adapter that decrypted here, logged the result, or widened this return
+   * type to a bare string has changed the compliance posture of the whole
+   * platform, whatever else it did correctly.
    */
-  getCardSecretsHandle(providerCardRef: string): Promise<{
-    readonly handle: string;
-    readonly expiresAt: string;
-  }>;
+  getCardSecrets(providerCardRef: string): Promise<CardSecrets>;
 
   /**
    * Parse and cryptographically verify an inbound authorisation request.

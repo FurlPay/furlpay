@@ -6,6 +6,10 @@ import {
   RAIN_PATHS,
   RainNotConfiguredError,
   createRainAdapter,
+  fromRainStatus,
+  mapRainCard,
+  toRainFrequency,
+  toRainStatus,
   rainAdapter,
   rainBaseUrl,
   rainCredentialsPresent,
@@ -118,7 +122,70 @@ describe("credential gating", () => {
   });
 });
 
-describe("every operation refuses rather than guessing a schema", () => {
+describe("vocabulary mapping matches Rain's real enums", () => {
+  it("maps our status to Rain's — frozen is 'locked', not 'frozen'", () => {
+    expect(toRainStatus("frozen")).toBe("locked");
+    expect(toRainStatus("closed")).toBe("canceled");
+    expect(toRainStatus("pending")).toBe("notActivated");
+    expect(toRainStatus("active")).toBe("active");
+  });
+
+  it("maps Rain's status back to ours", () => {
+    expect(fromRainStatus("locked")).toBe("frozen");
+    expect(fromRainStatus("canceled")).toBe("closed");
+    expect(fromRainStatus("notActivated")).toBe("pending");
+  });
+
+  it("treats an unknown issuer status as frozen, never active", () => {
+    // A card whose state we do not understand must not read as spendable.
+    expect(fromRainStatus("someFutureState")).toBe("frozen");
+  });
+
+  it("maps limit windows to Rain's frequencies", () => {
+    expect(toRainFrequency("daily", false)).toBe("per24HourPeriod");
+    expect(toRainFrequency("weekly", false)).toBe("per7DayPeriod");
+    expect(toRainFrequency("monthly", false)).toBe("per30DayPeriod");
+    expect(toRainFrequency("transaction", false)).toBe("perAuthorization");
+  });
+
+  it("single-use forces perAuthorization whatever the window says", () => {
+    // The travel VCN case: a single-use card must not inherit a monthly window.
+    expect(toRainFrequency("monthly", true)).toBe("perAuthorization");
+  });
+});
+
+describe("mapRainCard", () => {
+  const base = {
+    id: "card_1",
+    userId: "u1",
+    status: "active",
+    expirationMonth: "07",
+    expirationYear: "2029",
+    last4: "4242",
+  };
+
+  it("maps a well-formed card", () => {
+    const c = mapRainCard({ ...base });
+    expect(c.providerCardRef).toBe("card_1");
+    expect(c.status).toBe("active");
+    expect(c.expMonth).toBe(7);
+    expect(c.expYear).toBe(2029);
+    expect(c.last4).toBe("4242");
+  });
+
+  it("never fabricates a last4", () => {
+    // A plausible-looking wrong last4 makes a support call unresolvable.
+    const c = mapRainCard({ ...base, last4: undefined });
+    expect(c.last4).toBe("");
+  });
+
+  it("rejects an impossible expiry rather than defaulting", () => {
+    expect(() => mapRainCard({ ...base, expirationMonth: "13" })).toThrow();
+    expect(() => mapRainCard({ ...base, expirationMonth: "abc" })).toThrow();
+  });
+});
+
+describe("what still refuses, and why", () => {
   const adapter = createRainAdapter();
   const authRequest = {
     providerAuthRef: "auth_1",
@@ -126,30 +193,6 @@ describe("every operation refuses rather than guessing a schema", () => {
     amount: { minor: 2500n } as never,
     merchant: { name: "Hotel", mcc: "7011" },
   };
-
-  it("issueCard refuses", async () => {
-    await expect(
-      adapter.issueCard({
-        holderRef: "u1",
-        formFactor: "virtual",
-        currency: "USD",
-        controls: {},
-        singleUse: true,
-      })
-    ).rejects.toBeInstanceOf(RainNotConfiguredError);
-  });
-
-  it("getCard refuses", async () => {
-    await expect(adapter.getCard("card_1")).rejects.toBeInstanceOf(RainNotConfiguredError);
-  });
-
-  it("setCardStatus refuses", async () => {
-    await expect(adapter.setCardStatus("card_1", "frozen")).rejects.toBeInstanceOf(RainNotConfiguredError);
-  });
-
-  it("getCardSecretsHandle refuses", async () => {
-    await expect(adapter.getCardSecretsHandle("card_1")).rejects.toBeInstanceOf(RainNotConfiguredError);
-  });
 
   it("parseAuthorizationRequest refuses, naming the signature gap", async () => {
     // The most important refusal in the file. An adapter that "verified" an
@@ -164,8 +207,22 @@ describe("every operation refuses rather than guessing a schema", () => {
     );
   });
 
-  it("refusals name the operation so a log says what was attempted", async () => {
-    await expect(adapter.getCard("card_1")).rejects.toThrow(/cannot read a card/i);
+  it("refuses to issue a card carrying MCC limits it cannot enforce", async () => {
+    // Rain's card-creation schema has no MCC field. Dropping the restriction
+    // silently would issue a card that spends anywhere.
+    await expect(
+      adapter.issueCard({
+        holderRef: "u1",
+        formFactor: "virtual",
+        currency: "USD",
+        controls: { allowedMccs: ["7011"] },
+        singleUse: true,
+      })
+    ).rejects.toThrow(/MCC allowlist/i);
+  });
+
+  it("refuses to reach the API with no key rather than sending an anonymous request", async () => {
+    await expect(adapter.getCard("card_1")).rejects.toThrow(/RAIN_API_KEY is not set/i);
   });
 });
 
