@@ -395,6 +395,11 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("VERIFY_CHANNEL_ID"),
       // Comma-separated watchlist tickers for the daily brief. Unset =
       // the default mega-cap list. Validated in brief.ts, not trusted.
+      // Minimum supported client version per platform, as JSON, e.g.
+      // {"ios":"1.4.2","android":"1.4.2"}. UNSET blocks nothing — the feature
+      // is inert until configured. This is how a build with a known
+      // client-side bug gets retired; see lib/clientVersion.ts.
+      v("FURLPAY_MIN_CLIENT_VERSIONS"),
       v("FURLPAY_BRIEF_TICKERS"),
       // Telegram chat the daily brief posts to. Falls back to
       // TELEGRAM_CHANNEL_ID so the existing channel works with no new
