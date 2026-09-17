@@ -8,6 +8,7 @@ import type {
   IssueCardRequest,
   IssuedCard,
 } from "@/lib/providers/types";
+import { unusableMccs } from "./rainRestrictions";
 
 // ---------------------------------------------------------------------------
 // Rain (Signify Holdings, Inc.) card-issuing adapter.
@@ -327,6 +328,21 @@ export function createRainAdapter(): CardIssuerProviderAdapter {
     async issueCard(request: IssueCardRequest): Promise<IssuedCard> {
       // Rain's CreateCardRequest carries no MCC field. Dropping a caller's MCC
       // restriction silently would issue a card that spends anywhere — refuse.
+      // Before anything else: a lock consisting only of categories the ISSUER
+      // declines produces a card that cannot transact anywhere, which reads to
+      // everyone as a broken card rather than a misconfiguration.
+      if (request.controls.allowedMccs) {
+        const unusable = unusableMccs(request.controls.allowedMccs);
+        if (unusable.length === request.controls.allowedMccs.length && unusable.length > 0) {
+          throw new RainNotConfiguredError(
+            "issue a card locked to categories the issuer blocks",
+            `Every requested MCC (${unusable.join(", ")}) is declined by the issuer by default, so ` +
+              `this card could not be used anywhere. Note 5962 "Direct Marketing — Travel Related ` +
+              `Arrangement Services" is blocked, which is what many booking platforms bill as.`
+          );
+        }
+      }
+
       if (request.controls.allowedMccs !== undefined) {
         throw new RainNotConfiguredError(
           "issue a card with MCC restrictions",
