@@ -49,10 +49,14 @@ what that means per integration, because "an adapter exists" and "the
 integration exists" are different claims:
 
 - **Real when credentialed:** Turnkey (remote signing), Coinbase CDP (hosted
-  fiat on-ramp), LI.FI (swap routing), Circle CCTP (calldata), Stripe, Persona,
-  Sumsub, QuickNode/Alchemy deposit webhooks.
+  fiat on-ramp), LI.FI (swap routing), Stripe, Persona, Sumsub,
+  QuickNode/Alchemy deposit webhooks.
 - **Real, credential-free:** the x402 / EIP-3009 settlement path — the one rail
-  that moves money end to end today.
+  that moves money end to end today — and Circle CCTP V2, whose burn/mint
+  calldata and per-corridor fees both come from public Circle endpoints. Note
+  the consequence for offline work: CCTP quoting reaches
+  `iris-api.circle.com` for the real fee and **refuses to quote** if it cannot,
+  rather than falling back to an assumed rate. No key, but not airgapped.
 - **Interface only, no provider:** Travel Rule (`travelRule.ts` transmits
   nothing), KMS backends other than Turnkey, card issuing.
 - **Not present at all:** Rain, and every Indian fiat rail (UPI / IMPS / NEFT /
@@ -63,6 +67,19 @@ integration exists" are different claims:
   verified FurlPay's own outbound HMAC envelope rather than each provider's
   scheme, so they could never have accepted a real event from any of the three,
   and they shared one secret.
+
+**Circle Arc** (mainnet 2026-09-16) is typed and verified but deliberately not
+advertised. Arc is an EVM L1 whose native gas asset is USDC, which removes the
+ETH float from the settlement path — but it also carries the one decimal hazard
+in this codebase: Arc exposes a single balance through two interfaces, native at
+18 decimals and ERC-20 at 6. Measured on mainnet, an account reading
+`57628035984085784575` natively reads `57628035` through ERC-20 — the same
+money, with the sub-cent remainder invisible to the second view. `USDC.arc` is
+therefore ONE asset at 18 decimals, and `lib/chains/arc.ts` owns the conversion.
+The chain ids, USDC contract and EIP-712 domain separator were each read from
+the live RPCs rather than copied from documentation. Arc stays out of the
+facilitator's advertised `NETWORKS` until a settlement has actually been driven
+on it; a test pins that gate shut.
 
 This is an architecture reference and prototype, not a licensed financial
 product. Production deployment requires custody/EMI partners, security audits,
@@ -267,6 +284,7 @@ Desktop, extension and AI
 
 Web3 and rails
 ![Circle CCTP](https://img.shields.io/badge/Circle-CCTP_V2-00D395?logo=circle&logoColor=white)
+![Arc](https://img.shields.io/badge/Circle-Arc_L1-1E3A8A)
 ![Safe](https://img.shields.io/badge/Safe-ERC--4337-12FF80)
 ![WebAuthn](https://img.shields.io/badge/Auth-WebAuthn_Passkeys-FF6F00)
 
