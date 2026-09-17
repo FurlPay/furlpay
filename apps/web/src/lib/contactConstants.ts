@@ -30,6 +30,7 @@ export const CHAINS = [
   "polygon",
   "base",
   "arbitrum",
+  "arc",
   "solana",
   "gnosis",
   "robinhood",

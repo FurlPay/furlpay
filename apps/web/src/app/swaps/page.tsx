@@ -28,6 +28,7 @@ const CHAIN_LABEL: Record<Chain, string> = {
   polygon: "Polygon",
   base: "Base",
   arbitrum: "Arbitrum",
+  arc: "Arc",
   solana: "Solana",
   gnosis: "Gnosis",
   robinhood: "Robinhood Chain",

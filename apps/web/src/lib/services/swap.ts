@@ -105,6 +105,10 @@ const LIFI_CHAIN: Record<Chain, number | string> = {
   polygon: 137,
   base: 8453,
   arbitrum: 42161,
+  // Arc. Verified against GET https://li.quest/v1/chains on 2026-09-17:
+  // { id: 5042, key: "arc", name: "Arc", chainType: "EVM" } — Li.Fi added
+  // routing on Arc's mainnet launch day. Testnet is 5042002 ("arct").
+  arc: 5042,
   solana: "SOL",
   gnosis: 100,
   robinhood: 4663,

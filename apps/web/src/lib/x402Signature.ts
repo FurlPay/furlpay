@@ -40,6 +40,17 @@ export const EVM_CHAIN_IDS: Record<string, number> = {
   "base-sepolia": 84532,
   polygon: 137,
   ethereum: 1,
+  // Circle Arc. Verified 2026-09-17: eth_chainId returned 0x13b2 (mainnet) and
+  // 0x4cef52 (testnet).
+  //
+  // No verifier change is needed for Arc. Its USDC is FiatTokenV2 with the
+  // standard EIP-712 domain, confirmed by recomputing the domain separator
+  // from (name "USDC", version "2", chainId 5042, verifyingContract
+  // 0x3600…0000) and matching the contract's own DOMAIN_SEPARATOR() exactly:
+  //   0x940506929bba468048a19b567f4f0d534714bc06604b5c3017e5d16785ccdf84
+  // So the ecrecover path below works on Arc the moment this entry exists.
+  arc: 5042,
+  "arc-testnet": 5042002,
 };
 
 export interface AuthorizationFields {

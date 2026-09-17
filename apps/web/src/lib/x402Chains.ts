@@ -1,5 +1,31 @@
-import { fallback, http, type Chain, type Transport } from "viem";
+import { defineChain, fallback, http, type Chain, type Transport } from "viem";
 import { arbitrum, arbitrumSepolia, base, baseSepolia, polygon, mainnet } from "viem/chains";
+
+// Circle Arc. Defined here rather than imported from viem/chains because Arc
+// mainnet launched 2026-09-16 and is not in this viem version's chain list.
+// Values verified against the live RPCs on 2026-09-17 (eth_chainId -> 0x13b2
+// and 0x4cef52).
+//
+// `nativeCurrency` is USDC at 18 decimals, and that is not a mistake: on Arc
+// the gas asset IS USDC, exposed natively at 18 decimals and through ERC-20 at
+// 6. viem's fee estimation works in native units, so this must stay 18 —
+// lib/chains/arc.ts converts at the ERC-20 boundary.
+const arc = defineChain({
+  id: 5042,
+  name: "Arc",
+  nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.mainnet.arc.io"] } },
+  blockExplorers: { default: { name: "Arc Explorer", url: "https://explorer.arc.io" } },
+});
+
+const arcTestnet = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: { name: "USD Coin", symbol: "USDC", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.testnet.arc.io"] } },
+  blockExplorers: { default: { name: "Arc Testnet Explorer", url: "https://explorer.testnet.arc.io" } },
+  testnet: true,
+});
 
 // ---------------------------------------------------------------------------
 // Shared EVM chain + RPC transport config for the x402 stack. Split out of
@@ -22,6 +48,8 @@ export const EVM_CHAINS: Record<string, Chain> = {
   "base-sepolia": baseSepolia,
   polygon,
   ethereum: mainnet,
+  arc,
+  "arc-testnet": arcTestnet,
 };
 
 const RPC_ENV_PREFIX: Record<string, string> = {
@@ -31,6 +59,8 @@ const RPC_ENV_PREFIX: Record<string, string> = {
   "base-sepolia": "BASE_SEPOLIA",
   polygon: "POLYGON",
   ethereum: "ETHEREUM",
+  arc: "ARC",
+  "arc-testnet": "ARC_TESTNET",
 };
 
 /** Primary per-network RPC override, else undefined (caller uses the chain's

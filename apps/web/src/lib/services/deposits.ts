@@ -41,6 +41,7 @@ export const EXPLORER_TX: Record<Chain, string> = {
   polygon: "https://polygonscan.com/tx/",
   base: "https://basescan.org/tx/",
   arbitrum: "https://arbiscan.io/tx/",
+  arc: "https://explorer.arc.io/tx/",
   solana: "https://solscan.io/tx/",
   gnosis: "https://gnosisscan.io/tx/",
   robinhood: "https://robinhoodchain.blockscout.com/tx/",
@@ -53,6 +54,9 @@ const CONFIRM_TARGET: Record<Chain, number> = {
   polygon: 30,
   base: 1,
   arbitrum: 1,
+  // Arc finality is deterministic, not probabilistic: a block is final when it
+  // is produced, so there is no reorg depth to wait out.
+  arc: 1,
   solana: 1,
   gnosis: 1,
   robinhood: 1,

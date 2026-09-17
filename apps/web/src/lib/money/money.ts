@@ -240,6 +240,23 @@ export const ASSETS = {
   "USDC.base": { id: "USDC.base", kind: "stablecoin", symbol: "USDC", decimals: 6, chain: "base" },
   "USDC.polygon": { id: "USDC.polygon", kind: "stablecoin", symbol: "USDC", decimals: 6, chain: "polygon" },
 
+  // Circle Arc. 18 decimals, and NOT a typo.
+  //
+  // On Arc, USDC is the native gas asset. One balance is exposed through two
+  // interfaces: native at 18 decimals (canonical) and ERC-20 at 6 decimals (a
+  // truncating view of the same money). Verified on mainnet 2026-09-17: an
+  // account's eth_getBalance was 57628035984085784575 while balanceOf returned
+  // 57628035 — the same holding, with 984085784575 of dust invisible to the
+  // ERC-20 side.
+  //
+  // So there is exactly ONE asset here, carried at the canonical precision.
+  // Registering a second "USDC.arc.erc20" would double-count every Arc balance
+  // and is what Circle's docs mean by "do not model native USDC and ERC-20
+  // USDC as separate holdings". Convert at the interface boundary instead —
+  // lib/chains/arc.ts owns that conversion and nothing else should do it
+  // inline.
+  "USDC.arc": { id: "USDC.arc", kind: "stablecoin", symbol: "USDC", decimals: 18, chain: "arc" },
+
   "ETH.ethereum": { id: "ETH.ethereum", kind: "crypto", symbol: "ETH", decimals: 18, chain: "ethereum" },
   "ETH.arbitrum": { id: "ETH.arbitrum", kind: "crypto", symbol: "ETH", decimals: 18, chain: "arbitrum" },
   "ETH.base": { id: "ETH.base", kind: "crypto", symbol: "ETH", decimals: 18, chain: "base" },

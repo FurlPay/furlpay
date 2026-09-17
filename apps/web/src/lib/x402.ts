@@ -60,6 +60,18 @@ export const NETWORK_USDC: Record<string, string> = {
   // Polygon PoS native USDC (Circle-issued, not bridged USDC.e) — high
   // stablecoin volume + CCTP V2 support, so it settles the same as Arbitrum.
   polygon: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+  // Circle Arc. This is the ERC-20 INTERFACE onto Arc's native USDC — a
+  // precompile-shaped address, same on mainnet and testnet, verified on both
+  // 2026-09-17 (decimals() == 6, symbol() == "USDC", version() == "2").
+  //
+  // READ THIS BEFORE TOUCHING AMOUNTS ON ARC. Arc's native gas balance is 18
+  // decimals, but `transferWithAuthorization` is an ERC-20 function on the
+  // contract below, so every x402 amount on Arc is SIX decimals exactly like
+  // every other network here — `atomicAmount()` needs no special case. The
+  // 18-decimal side only appears when reading a native balance or estimating
+  // gas; lib/chains/arc.ts owns that conversion.
+  arc: "0x3600000000000000000000000000000000000000",
+  "arc-testnet": "0x3600000000000000000000000000000000000000",
   solana: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
 };
 export const USDC_ASSET =
