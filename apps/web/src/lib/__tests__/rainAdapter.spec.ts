@@ -1,0 +1,188 @@
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import {
+  RAIN_API_URL_DEVELOPMENT,
+  RAIN_API_URL_PRODUCTION,
+  RAIN_AUTH_HEADER,
+  RAIN_PATHS,
+  RainNotConfiguredError,
+  createRainAdapter,
+  rainAdapter,
+  rainBaseUrl,
+  rainCredentialsPresent,
+} from "../cards/rainAdapter";
+import { cardIssuingLive, cardSimulationAllowed } from "../cardIssuer";
+
+// ---------------------------------------------------------------------------
+// The Rain adapter's contract is REFUSAL, and that is what these tests pin.
+//
+// Rain's API reference is behind a partner login, so the request/response
+// schema and the webhook signature scheme are not knowable from outside. The
+// adapter therefore throws rather than sending a guessed payload. A card
+// adapter that guesses a field name fails at the counter with the network
+// holding the line; one that guesses a signature scheme accepts any caller.
+//
+// The verified facts — base URLs, auth header, endpoint paths — are pinned too,
+// because they were read from Rain's public SDK rather than from a report, and
+// a later "correction" back to a plausible-but-wrong value should fail here.
+// ---------------------------------------------------------------------------
+
+const ENV_KEYS = ["RAIN_API_KEY", "RAIN_WEBHOOK_SECRET", "RAIN_API_URL", "FURLPAY_ENV"] as const;
+const saved: Record<string, string | undefined> = {};
+
+beforeEach(() => {
+  for (const k of ENV_KEYS) {
+    saved[k] = process.env[k];
+    delete process.env[k];
+  }
+});
+
+afterEach(() => {
+  for (const k of ENV_KEYS) {
+    if (saved[k] === undefined) delete process.env[k];
+    else process.env[k] = saved[k];
+  }
+});
+
+describe("verified Rain API facts", () => {
+  it("uses raincards.xyz, not rain.xyz", () => {
+    // api.rain.xyz returns 404. The issuing API is on raincards.xyz — a report
+    // that says otherwise is describing a host that does not serve this API.
+    expect(RAIN_API_URL_PRODUCTION).toBe("https://api.raincards.xyz/v1/issuing");
+    expect(RAIN_API_URL_DEVELOPMENT).toBe("https://api-dev.raincards.xyz/v1/issuing");
+    expect(RAIN_API_URL_PRODUCTION).not.toContain("api.rain.xyz");
+  });
+
+  it("authenticates with an Api-Key header, not a bearer token", () => {
+    expect(RAIN_AUTH_HEADER).toBe("Api-Key");
+  });
+
+  it("has no /cardholders, /freeze or /reveal-token path", () => {
+    // All three appear in circulating integration write-ups. None exists.
+    // Cardholders are /users; status changes are PATCH /cards/{id}; card
+    // credentials are /cards/{id}/secrets.
+    const paths = JSON.stringify(RAIN_PATHS) + RAIN_PATHS.card("x") + RAIN_PATHS.cardSecrets("x");
+    expect(paths).not.toContain("cardholders");
+    expect(paths).not.toContain("freeze");
+    expect(paths).not.toContain("reveal-token");
+    expect(RAIN_PATHS.cardSecrets("card_1")).toBe("/cards/card_1/secrets");
+    expect(RAIN_PATHS.userCards("user_1")).toBe("/users/user_1/cards");
+  });
+
+  it("encodes path parameters", () => {
+    expect(RAIN_PATHS.card("a/b")).toBe("/cards/a%2Fb");
+  });
+});
+
+describe("base URL resolution", () => {
+  it("defaults to the development host outside production", () => {
+    expect(rainBaseUrl()).toBe(RAIN_API_URL_DEVELOPMENT);
+  });
+
+  it("uses production only when FURLPAY_ENV says so", () => {
+    process.env.FURLPAY_ENV = "production";
+    expect(rainBaseUrl()).toBe(RAIN_API_URL_PRODUCTION);
+  });
+
+  it("honours an explicit override and strips a trailing slash", () => {
+    process.env.RAIN_API_URL = "https://example.test/v1/issuing/";
+    expect(rainBaseUrl()).toBe("https://example.test/v1/issuing");
+  });
+});
+
+describe("credential gating", () => {
+  it("requires BOTH the api key and the webhook secret", () => {
+    expect(rainCredentialsPresent()).toBe(false);
+    process.env.RAIN_API_KEY = "k";
+    expect(rainCredentialsPresent()).toBe(false);
+    process.env.RAIN_WEBHOOK_SECRET = "s";
+    expect(rainCredentialsPresent()).toBe(true);
+  });
+
+  it("treats whitespace as absent", () => {
+    process.env.RAIN_API_KEY = "   ";
+    process.env.RAIN_WEBHOOK_SECRET = "s";
+    expect(rainCredentialsPresent()).toBe(false);
+  });
+
+  it("rainAdapter() returns null when unconfigured, so callers fail closed", () => {
+    expect(rainAdapter()).toBeNull();
+  });
+
+  it("rainAdapter() returns an adapter once configured", () => {
+    process.env.RAIN_API_KEY = "k";
+    process.env.RAIN_WEBHOOK_SECRET = "s";
+    const a = rainAdapter();
+    expect(a).not.toBeNull();
+    expect(a?.id).toBe("rain");
+    expect(a?.kind).toBe("issuing");
+  });
+});
+
+describe("every operation refuses rather than guessing a schema", () => {
+  const adapter = createRainAdapter();
+  const authRequest = {
+    providerAuthRef: "auth_1",
+    providerCardRef: "card_1",
+    amount: { minor: 2500n } as never,
+    merchant: { name: "Hotel", mcc: "7011" },
+  };
+
+  it("issueCard refuses", async () => {
+    await expect(
+      adapter.issueCard({
+        holderRef: "u1",
+        formFactor: "virtual",
+        currency: "USD",
+        controls: {},
+        singleUse: true,
+      })
+    ).rejects.toBeInstanceOf(RainNotConfiguredError);
+  });
+
+  it("getCard refuses", async () => {
+    await expect(adapter.getCard("card_1")).rejects.toBeInstanceOf(RainNotConfiguredError);
+  });
+
+  it("setCardStatus refuses", async () => {
+    await expect(adapter.setCardStatus("card_1", "frozen")).rejects.toBeInstanceOf(RainNotConfiguredError);
+  });
+
+  it("getCardSecretsHandle refuses", async () => {
+    await expect(adapter.getCardSecretsHandle("card_1")).rejects.toBeInstanceOf(RainNotConfiguredError);
+  });
+
+  it("parseAuthorizationRequest refuses, naming the signature gap", async () => {
+    // The most important refusal in the file. An adapter that "verified" an
+    // invented signature scheme would approve spend for any caller who can
+    // reach the endpoint.
+    await expect(adapter.parseAuthorizationRequest("{}", {})).rejects.toThrow(/signature scheme is not public/i);
+  });
+
+  it("encodeAuthorizationDecision refuses", () => {
+    expect(() => adapter.encodeAuthorizationDecision(authRequest as never, { approve: true })).toThrow(
+      RainNotConfiguredError
+    );
+  });
+
+  it("refusals name the operation so a log says what was attempted", async () => {
+    await expect(adapter.getCard("card_1")).rejects.toThrow(/cannot read a card/i);
+  });
+});
+
+describe("credentials alone cannot switch card issuing on", () => {
+  it("stays off even with both Rain secrets set", () => {
+    // lib/cardIssuer.ts checks the flag's `unimplemented` reason BEFORE
+    // `enabled`, so provisioning env vars does not flip the gate. That ordering
+    // is the safety property: the day someone deletes the reason, they must
+    // actually have an issuer. Circulating integration guides propose
+    // `return Boolean(process.env.RAIN_API_KEY) && ...` — this test exists so
+    // that change fails loudly rather than shipping.
+    process.env.RAIN_API_KEY = "k";
+    process.env.RAIN_WEBHOOK_SECRET = "s";
+    expect(cardIssuingLive()).toBe(false);
+  });
+
+  it("does not enable the simulator in production either", () => {
+    expect(typeof cardSimulationAllowed()).toBe("boolean");
+  });
+});

@@ -47,6 +47,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // "production" for preview branches too — inferring from it would mark a
       // preview as a place real money may move. See lib/flags.ts.
       v("FURLPAY_ENV"),
+      v("BLOCKAID_API_KEY"),
     ],
   },
   {
@@ -141,6 +142,14 @@ export const ENV_REGISTRY: EnvGroup[] = [
   {
     group: "Cards / 3DS2 / push",
     vars: [
+      // Rain (Signify Holdings) card issuing. NOT requiredWhenLive: no issuer
+      // contract exists, and CARD_ISSUING_LIVE carries an `unimplemented`
+      // reason that is checked BEFORE `enabled`, so setting these cannot turn
+      // card issuing on. They are registered now so the adapter has somewhere
+      // to read from the day sandbox credentials arrive.
+      v("RAIN_API_KEY"),
+      v("RAIN_WEBHOOK_SECRET"),
+      v("RAIN_API_URL"),
       v("FURLPAY_CARDAUTH_ENDPOINT_SECRET", true),
       v("FURLPAY_3DS_CHALLENGE_USD"),
       v("FURLPAY_VAPID_PUBLIC_KEY"),

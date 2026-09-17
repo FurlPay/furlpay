@@ -36,7 +36,7 @@ import type { TxReferences, TxState } from "@/lib/money/lifecycle";
 
 export type ProviderId = string;
 
-export type ProviderKind = "onramp" | "offramp" | "banking" | "custody" | "screening";
+export type ProviderKind = "onramp" | "offramp" | "banking" | "custody" | "screening" | "issuing";
 
 /** What an adapter reports back after any call that touches a provider. */
 export interface ProviderOutcome {
@@ -313,4 +313,140 @@ export class WebhookVerificationError extends Error {
 export type ProviderAdapter =
   | OnrampProviderAdapter
   | OfframpProviderAdapter
-  | BankingProviderAdapter;
+  | BankingProviderAdapter
+  | CardIssuerProviderAdapter;
+
+// ---------------------------------------------------------------------------
+// Card issuing.
+//
+// docs/MAINNET_READINESS.md §11 records this as the gap: "Card abstraction for
+// a future issuer | PARTIAL | Lifecycle service exists; not yet expressed as a
+// provider port." This is the port.
+//
+// The same three rules above apply, and one more that is specific to cards:
+//
+//   4. THE ISSUER IS NEVER ASKED WHETHER THE CUSTOMER CAN AFFORD IT. A
+//      just-in-time authorisation asks US, and we answer from our own ledger
+//      and policy engine. An adapter that let the issuer's opinion of the
+//      balance stand in for ours would put the customer's spendable funds
+//      outside the system that reconciles them.
+//
+// Amounts are `Money` — integer minor units — for the reason lib/money/money.ts
+// exists. A card authorisation arrives as an integer number of cents and must
+// stay one.
+// ---------------------------------------------------------------------------
+
+export type CardFormFactor = "virtual" | "physical";
+
+export type CardStatus = "active" | "frozen" | "closed" | "pending";
+
+/** Spend controls attached to a card at issuance. */
+export interface CardSpendControls {
+  /** Hard ceiling per authorisation. */
+  readonly perTransaction?: Money;
+  /** Rolling limit over `limitWindow`. */
+  readonly limit?: Money;
+  readonly limitWindow?: "transaction" | "daily" | "weekly" | "monthly";
+  /**
+   * Merchant category codes this card may be used at. An EMPTY array means
+   * "no merchant is allowed" and `undefined` means "unrestricted" — they are
+   * different, and an adapter must not collapse them.
+   */
+  readonly allowedMccs?: readonly string[];
+}
+
+export interface IssueCardRequest {
+  /** OUR id for the person or agent the card belongs to. */
+  readonly holderRef: string;
+  readonly formFactor: CardFormFactor;
+  readonly currency: string;
+  readonly controls: CardSpendControls;
+  /** True for a single-use card — the travel VCN case. */
+  readonly singleUse: boolean;
+  /** Our own correlation data. Never PII. */
+  readonly metadata?: Readonly<Record<string, string>>;
+}
+
+export interface IssuedCard {
+  /** The ISSUER's id for the card. */
+  readonly providerCardRef: string;
+  readonly status: CardStatus;
+  readonly last4: string;
+  readonly expMonth: number;
+  readonly expYear: number;
+  readonly network: string;
+  readonly formFactor: CardFormFactor;
+}
+
+/**
+ * A just-in-time authorisation, as the issuer presents it to us.
+ *
+ * This is a QUESTION, not a notification: the network is holding the line and
+ * we have a strict deadline to answer. The adapter's only job is to translate
+ * the issuer's payload into this shape — the decision is made above it.
+ */
+export interface CardAuthorizationRequest {
+  readonly providerAuthRef: string;
+  readonly providerCardRef: string;
+  readonly amount: Money;
+  readonly merchant: {
+    readonly name: string;
+    readonly mcc: string;
+    readonly city?: string;
+    readonly country?: string;
+  };
+  /** Network verification results, verbatim. Absent means "not supplied". */
+  readonly verification?: {
+    readonly cvc?: "pass" | "fail" | "unchecked";
+    readonly expiry?: "pass" | "fail" | "unchecked";
+    readonly postalCode?: "pass" | "fail" | "unchecked";
+  };
+}
+
+export type CardAuthorizationDecision =
+  | { readonly approve: true }
+  | { readonly approve: false; readonly reason: string };
+
+export interface CardIssuerProviderAdapter {
+  readonly id: ProviderId;
+  readonly kind: "issuing";
+
+  /** Issue a card. Throws rather than returning a card that was not created. */
+  issueCard(request: IssueCardRequest): Promise<IssuedCard>;
+
+  /** Pull current state. Mandatory for the same reason `getStatus` is. */
+  getCard(providerCardRef: string): Promise<IssuedCard>;
+
+  /** Freeze / unfreeze / close. Returns the card as the issuer now reports it. */
+  setCardStatus(providerCardRef: string, status: CardStatus): Promise<IssuedCard>;
+
+  /**
+   * Obtain the PAN/CVV for display.
+   *
+   * Returns a short-lived handle the CLIENT redeems directly against the
+   * issuer, never the number itself. Card credentials must not transit our
+   * server — that is the difference between being in PCI scope and not.
+   */
+  getCardSecretsHandle(providerCardRef: string): Promise<{
+    readonly handle: string;
+    readonly expiresAt: string;
+  }>;
+
+  /**
+   * Parse and cryptographically verify an inbound authorisation request.
+   *
+   * Throws `WebhookVerificationError` when the signature does not check out.
+   * Returning an unverified authorisation would let anyone who can reach the
+   * endpoint spend a customer's balance (AGENTS.md rule 3).
+   */
+  parseAuthorizationRequest(
+    rawBody: string,
+    headers: Readonly<Record<string, string>>
+  ): Promise<CardAuthorizationRequest>;
+
+  /** Render our decision in the shape this issuer expects on the wire. */
+  encodeAuthorizationDecision(
+    request: CardAuthorizationRequest,
+    decision: CardAuthorizationDecision
+  ): unknown;
+}
