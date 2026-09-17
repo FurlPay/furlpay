@@ -48,12 +48,21 @@ afterEach(() => {
 });
 
 describe("verified Rain API facts", () => {
-  it("uses raincards.xyz, not rain.xyz", () => {
-    // api.rain.xyz returns 404. The issuing API is on raincards.xyz — a report
-    // that says otherwise is describing a host that does not serve this API.
-    expect(RAIN_API_URL_PRODUCTION).toBe("https://api.raincards.xyz/v1/issuing");
-    expect(RAIN_API_URL_DEVELOPMENT).toBe("https://api-dev.raincards.xyz/v1/issuing");
+  it("matches the servers block of Rain's OpenAPI document", () => {
+    // Issuing API v1.3.0 declares exactly these two servers. api.rain.xyz
+    // returns 404 — a guide that says otherwise describes a host that does not
+    // serve this API.
+    expect(RAIN_API_URL_PRODUCTION).toBe("https://api.raincards.xyz/v1");
+    expect(RAIN_API_URL_DEVELOPMENT).toBe("https://api-dev.raincards.xyz/v1");
     expect(RAIN_API_URL_PRODUCTION).not.toContain("api.rain.xyz");
+  });
+
+  it("keeps /issuing in the PATH, not the base URL", () => {
+    // Rain exposes payments, transfers, quotes and rewards directly under /v1.
+    // Folding /issuing into the base would misroute every one of them.
+    expect(RAIN_API_URL_PRODUCTION).not.toContain("/issuing");
+    expect(RAIN_PATHS.listCards).toBe("/issuing/cards");
+    expect(RAIN_PATHS.card("card_1")).toBe("/issuing/cards/card_1");
   });
 
   it("authenticates with an Api-Key header, not a bearer token", () => {
@@ -68,12 +77,12 @@ describe("verified Rain API facts", () => {
     expect(paths).not.toContain("cardholders");
     expect(paths).not.toContain("freeze");
     expect(paths).not.toContain("reveal-token");
-    expect(RAIN_PATHS.cardSecrets("card_1")).toBe("/cards/card_1/secrets");
-    expect(RAIN_PATHS.userCards("user_1")).toBe("/users/user_1/cards");
+    expect(RAIN_PATHS.cardSecrets("card_1")).toBe("/issuing/cards/card_1/secrets");
+    expect(RAIN_PATHS.userCards("user_1")).toBe("/issuing/users/user_1/cards");
   });
 
   it("encodes path parameters", () => {
-    expect(RAIN_PATHS.card("a/b")).toBe("/cards/a%2Fb");
+    expect(RAIN_PATHS.card("a/b")).toBe("/issuing/cards/a%2Fb");
   });
 });
 

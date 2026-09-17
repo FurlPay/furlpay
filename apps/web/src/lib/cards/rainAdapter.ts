@@ -68,19 +68,60 @@ import type {
 // contract, a settlement account, and a verified webhook scheme.
 // ---------------------------------------------------------------------------
 
-export const RAIN_API_URL_PRODUCTION = "https://api.raincards.xyz/v1/issuing";
-export const RAIN_API_URL_DEVELOPMENT = "https://api-dev.raincards.xyz/v1/issuing";
+// The `servers` block of Rain's Issuing API OpenAPI document (v1.3.0). The
+// server is /v1 and the issuing group is a PATH prefix — not part of the base.
+// That distinction is not cosmetic: Rain's API also exposes payments,
+// transfers, quotes and rewards groups directly under /v1, so folding
+// "/issuing" into the base URL would silently misroute every one of them the
+// day somebody adds a non-card call.
+export const RAIN_API_URL_PRODUCTION = "https://api.raincards.xyz/v1";
+export const RAIN_API_URL_DEVELOPMENT = "https://api-dev.raincards.xyz/v1";
 export const RAIN_AUTH_HEADER = "Api-Key";
 
 export const RAIN_PATHS = {
-  listCards: "/cards",
-  card: (cardId: string) => `/cards/${encodeURIComponent(cardId)}`,
-  cardSecrets: (cardId: string) => `/cards/${encodeURIComponent(cardId)}/secrets`,
-  cardPin: (cardId: string) => `/cards/${encodeURIComponent(cardId)}/pin`,
-  cardProcessorDetails: (cardId: string) => `/cards/${encodeURIComponent(cardId)}/processorDetails`,
-  userCards: (userId: string) => `/users/${encodeURIComponent(userId)}/cards`,
-  webhooks: "/webhooks",
+  listCards: "/issuing/cards",
+  card: (cardId: string) => `/issuing/cards/${encodeURIComponent(cardId)}`,
+  cardSecrets: (cardId: string) => `/issuing/cards/${encodeURIComponent(cardId)}/secrets`,
+  cardPin: (cardId: string) => `/issuing/cards/${encodeURIComponent(cardId)}/pin`,
+  cardProcessorDetails: (cardId: string) => `/issuing/cards/${encodeURIComponent(cardId)}/processorDetails`,
+  userCards: (userId: string) => `/issuing/users/${encodeURIComponent(userId)}/cards`,
+  balances: "/issuing/balances",
+  webhooks: "/issuing/webhooks",
 } as const;
+
+/**
+ * Documented rate limits, recorded so a caller can pace itself rather than
+ * discover them as 429s in production. Tenant-level limits are shared across an
+ * organisation AND its subtenants; these per-endpoint ones are keyed by IP and
+ * apply on top.
+ */
+export const RAIN_RATE_LIMITS = {
+  /** Unauthenticated, per IP, per minute. */
+  unauthenticatedPerMinute: 1000,
+  /** POST card creation, per IP, per hour. */
+  createCardPerHour: 3000,
+  /** Scoped (agent) card creation, per IP, per minute. */
+  createScopedCardPerMinute: 60,
+  /** Signature endpoints, per IP, per second. */
+  signaturesPerSecond: 1,
+  /** Blank-card creation, per TENANT, per second. */
+  blankCardsPerSecondPerTenant: 2,
+} as const;
+
+/** Thrown on 429 so a caller can back off on Rain's own schedule. */
+export class RainRateLimitedError extends Error {
+  /** Seconds to wait, from `Retry-After` or `X-RateLimit-Reset`. Undefined when
+   *  Rain sent neither — back off exponentially in that case. */
+  readonly retryAfterSeconds: number | undefined;
+  constructor(path: string, retryAfterSeconds: number | undefined) {
+    super(
+      `Rain rate limit hit on ${path}` +
+        (retryAfterSeconds === undefined ? "" : ` — retry in ${retryAfterSeconds}s`)
+    );
+    this.name = "RainRateLimitedError";
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
 
 /** Rain's card states. Ours are in providers/types.ts; this is the mapping. */
 export type RainCardStatus = "notActivated" | "active" | "locked" | "canceled";
@@ -240,11 +281,35 @@ async function rainRequest<T>(
     cache: "no-store",
   });
 
+  // 429 is not a generic failure: Rain tells you when to come back, and a
+  // caller that retries immediately just burns the same bucket. Card creation
+  // is capped at 3,000/hour and scoped (agent) cards at 60/minute, both keyed
+  // by IP, so an agent workload will meet this in normal operation.
+  if (res.status === 429) {
+    // Retry-After (seconds) on blank-cards; X-RateLimit-Reset (unix seconds)
+    // elsewhere. Neither is guaranteed, so undefined means "back off yourself".
+    const retryAfter = Number(res.headers.get("retry-after"));
+    const resetAt = Number(res.headers.get("x-ratelimit-reset"));
+    const seconds = Number.isFinite(retryAfter) && retryAfter > 0
+      ? retryAfter
+      : Number.isFinite(resetAt) && resetAt > 0
+        ? Math.max(0, Math.ceil(resetAt - Date.now() / 1000))
+        : undefined;
+    throw new RainRateLimitedError(path, seconds);
+  }
+
   if (!res.ok) {
-    // Read the body for the status line only; never log it (issuer errors can
-    // echo card data), and never let it decide success.
-    const detail = res.status >= 500 ? "issuer error" : "request rejected";
-    throw new RainApiError(res.status, path, detail);
+    // Rain's documented error shape is { statusCode, error, message }. The
+    // `error` type name is safe to surface; `message` is NOT interpolated,
+    // because an issuer error can echo card data back into it.
+    let errorType = res.status >= 500 ? "issuer error" : "request rejected";
+    try {
+      const body = (await res.json()) as { error?: unknown };
+      if (typeof body?.error === "string" && body.error.length <= 64) errorType = body.error;
+    } catch {
+      // Non-JSON body. The status line is enough.
+    }
+    throw new RainApiError(res.status, path, errorType);
   }
 
   const parsed = (await res.json()) as unknown;
