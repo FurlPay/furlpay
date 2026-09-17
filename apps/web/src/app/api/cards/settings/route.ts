@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { validateBody } from "@/lib/validate";
 import { recordSecurityEvent } from "@/lib/ops/events";
+import { cardIssuingLive, cardSimulationAllowed, getCardIssuer } from "@/lib/cardIssuer";
 
 // POST /api/cards/settings — real-time card controls (Marqeta-style).
 // body: { cardId, freeze?, limits?: { daily?, perPurchase? }, channels?, priority?, settlementCurrency? }
@@ -46,6 +47,37 @@ export async function POST(req: NextRequest) {
 
   const changes: string[] = [];
   if (typeof body.freeze === "boolean" && body.freeze !== card.frozen) {
+    // Tell the ISSUER first, then record it locally.
+    //
+    // The order is the whole point. This route used to flip `card.frozen` and
+    // return 200, which showed the customer a frozen card while the issuer went
+    // on authorising it — the single worst outcome for a control whose entire
+    // purpose is to stop spend. If the issuer refuses, this request fails and
+    // the local state is left alone, so the UI and the network never disagree.
+    if (card.providerCardRef && (cardIssuingLive() || cardSimulationAllowed())) {
+      try {
+        await getCardIssuer().setCardStatus(card.providerCardRef, body.freeze ? "frozen" : "active");
+      } catch {
+        await recordSecurityEvent({
+          // No "cards" rail exists in ops/controls.ts; this file already files its
+          // other card event under "transfers". Matching that rather than
+          // widening the Rail union, which would add a pausable rail that
+          // nothing actually pauses.
+          rail: "transfers",
+          kind: "card_status_sync_failed",
+          severity: "high",
+          detail: `issuer refused ${body.freeze ? "freeze" : "unfreeze"} for ${card.id}`,
+          actor: account.user.id,
+        });
+        return NextResponse.json(
+          {
+            error: "issuer_unavailable",
+            detail: `The card could not be ${body.freeze ? "frozen" : "unfrozen"} at the issuer, so nothing was changed. Try again.`,
+          },
+          { status: 502 }
+        );
+      }
+    }
     card.frozen = body.freeze;
     changes.push(body.freeze ? "frozen" : "unfrozen");
   }

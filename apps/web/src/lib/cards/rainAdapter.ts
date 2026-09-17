@@ -51,11 +51,14 @@ import type {
 //   endpoint and approve spend against a customer's balance. So
 //   parseAuthorizationRequest throws until the real scheme is known.
 //
-//   MCC allowlists. `CreateCardRequest` has no MCC field, so per-card merchant
-//   restriction is either elsewhere in Rain's API or is our job at JIT time.
-//   issueCard refuses a request that asks for MCC limits rather than silently
-//   dropping them — a card that does not enforce the restriction its caller
-//   asked for is worse than an error.
+//   MCC allowlists. Rain DOES support them — their Agent Control Layer
+//   documents controls over "acceptable merchant category codes, approved
+//   merchants or payment recipients", transaction amounts and frequency,
+//   enforced at issuance rather than retroactively. But the field is not in the
+//   `CreateCardRequest` shape the public SDK exposes, so the wire name is
+//   unknown. issueCard therefore refuses a request carrying MCC limits rather
+//   than silently dropping them: a card that does not enforce the restriction
+//   its caller asked for spends anywhere, which is worse than an error.
 //
 // AND THE THING THIS FILE MUST NOT DO. Nothing here can switch card issuing
 // on. lib/cardIssuer.ts gates every card route on CARD_ISSUING_LIVE, whose
@@ -262,8 +265,9 @@ export function createRainAdapter(): CardIssuerProviderAdapter {
       if (request.controls.allowedMccs !== undefined) {
         throw new RainNotConfiguredError(
           "issue a card with MCC restrictions",
-          "Rain's card-creation schema has no MCC allowlist field. Enforce the restriction at " +
-            "JIT authorization time instead, or confirm the real field before relying on it."
+          "Rain supports MCC controls (Agent Control Layer), but the field is absent from the " +
+            "card-creation schema in their public SDK, so its wire name is unknown. Enforce the " +
+            "restriction at JIT authorization time, or confirm the real field before relying on it."
         );
       }
 

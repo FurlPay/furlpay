@@ -218,7 +218,7 @@ describe("what still refuses, and why", () => {
         controls: { allowedMccs: ["7011"] },
         singleUse: true,
       })
-    ).rejects.toThrow(/MCC allowlist/i);
+    ).rejects.toThrow(/MCC/i);
   });
 
   it("refuses to reach the API with no key rather than sending an anonymous request", async () => {

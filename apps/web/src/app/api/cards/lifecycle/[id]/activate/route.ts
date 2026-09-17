@@ -5,7 +5,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { activateCard, lifecycleView } from "@/lib/services/cardLifecycle";
 import { recordSecurityEvent } from "@/lib/ops/events";
-import { cardIssuerOr503 } from "@/lib/cardIssuer";
+import { cardIssuerOr503, getCardIssuer } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -43,6 +43,24 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const lc = activateCard(id, account.user.id, body.code);
     // Activation is what lifts the freeze an un-activated card ships with.
     const card = account.cards.find((c) => c.id === id);
+
+    // The issuer has to agree before we tell the customer the card works. The
+    // failure direction matters here: reporting an inactive card as active
+    // sends someone to a checkout with a card that will decline.
+    if (card?.providerCardRef) {
+      try {
+        await getCardIssuer().setCardStatus(card.providerCardRef, "active");
+      } catch {
+        return NextResponse.json(
+          {
+            ok: false,
+            error: "issuer_unavailable",
+            detail: "The card could not be activated at the issuer. Nothing was changed; try again.",
+          },
+          { status: 502 }
+        );
+      }
+    }
     if (card) card.frozen = false;
 
     await recordSecurityEvent({

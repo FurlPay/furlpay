@@ -38,6 +38,16 @@ export type CardKind = "virtual" | "physical";
 
 export interface PaymentCard {
   id: string;
+  /**
+   * The ISSUER's id for this card, when one issued it.
+   *
+   * Our `id` is ours and is what every FurlPay surface shows; this is the
+   * handle every later lifecycle call needs (freeze, reveal, close). Absent on
+   * cards created before the issuer seam existed, and absent on simulator
+   * cards from an older run — so callers must treat `undefined` as "this card
+   * is not addressable at an issuer" rather than assuming it is present.
+   */
+  providerCardRef?: string;
   kind: CardKind;
   label: string;
   last4: string;

@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { reportLost, lifecycleView } from "@/lib/services/cardLifecycle";
 import { recordSecurityEvent } from "@/lib/ops/events";
+import { cardIssuingLive, cardSimulationAllowed, getCardIssuer } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,30 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       card.channels = { online: false, offline: false, atm: false };
     }
 
+    // Tell the issuer. Local state is already protective, so this is attempted
+    // AFTER it rather than before — a failure here must not leave a lost card
+    // looking usable in the app.
+    //
+    // But it must also not be swallowed. A lost card the issuer never froze is
+    // still live in someone else's hands, so when this fails the response says
+    // so instead of a bare ok:true. Claiming a stopped card that is not stopped
+    // is the worst thing this endpoint could do.
+    let stoppedAtIssuer = false;
+    if (card?.providerCardRef && (cardIssuingLive() || cardSimulationAllowed())) {
+      try {
+        await getCardIssuer().setCardStatus(card.providerCardRef, "closed");
+        stoppedAtIssuer = true;
+      } catch {
+        await recordSecurityEvent({
+          kind: "card_stop_failed_at_issuer",
+          rail: "transfers",
+          severity: "critical",
+          detail: `Card …${card.last4} reported lost but the issuer did not confirm the stop`,
+          actor: account.user.id,
+        }).catch(() => {});
+      }
+    }
+
     await recordSecurityEvent({
       kind: "card_reported_lost",
       rail: "transfers",
@@ -42,7 +67,17 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       actor: account.user.id,
     }).catch(() => {});
 
-    return NextResponse.json({ ok: true, lifecycle: lifecycleView(lc) });
+    return NextResponse.json({
+      ok: true,
+      stoppedAtIssuer,
+      ...(card?.providerCardRef && !stoppedAtIssuer
+        ? {
+            warning:
+              "The card is blocked in FurlPay, but the issuer did not confirm it was stopped. Contact support so it can be stopped on the network.",
+          }
+        : {}),
+      lifecycle: lifecycleView(lc),
+    });
   } catch (e) {
     const msg = (e as Error).message;
     return NextResponse.json({ ok: false, error: msg }, { status: msg.includes("not found") ? 404 : 409 });

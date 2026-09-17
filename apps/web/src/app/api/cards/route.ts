@@ -7,7 +7,7 @@ import { PaymentCard } from "@/lib/types";
 import type { UserAccount } from "@/lib/store";
 import { validateBody } from "@/lib/validate";
 import { withIdempotency } from "@/lib/idempotency";
-import { cardIssuerOr503 } from "@/lib/cardIssuer";
+import { cardIssuerOr503, getCardIssuer } from "@/lib/cardIssuer";
 
 const IssueCardBody = z.object({
   cardType: z.enum(["virtual", "physical"]),

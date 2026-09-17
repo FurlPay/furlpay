@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { getLifecycle, adoptExistingCard, lifecycleView, closeCard } from "@/lib/services/cardLifecycle";
 import { recordSecurityEvent } from "@/lib/ops/events";
+import { cardIssuingLive, cardSimulationAllowed, getCardIssuer } from "@/lib/cardIssuer";
 
 export const dynamic = "force-dynamic";
 
@@ -43,9 +44,26 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
   const { id } = await props.params;
   try {
     const lc = closeCard(id, account.user.id);
-    // A closed card must stop authorizing, not merely report as closed.
+    // A closed card must stop authorizing, not merely report as closed — which
+    // is exactly what this did before the issuer seam existed.
     const card = account.cards.find((c) => c.id === id);
     if (card) card.frozen = true;
+
+    let closedAtIssuer = false;
+    if (card?.providerCardRef && (cardIssuingLive() || cardSimulationAllowed())) {
+      try {
+        await getCardIssuer().setCardStatus(card.providerCardRef, "closed");
+        closedAtIssuer = true;
+      } catch {
+        await recordSecurityEvent({
+          kind: "card_close_failed_at_issuer",
+          rail: "transfers",
+          severity: "high",
+          detail: `Card …${card.last4} closed locally but the issuer did not confirm`,
+          actor: account.user.id,
+        }).catch(() => {});
+      }
+    }
 
     await recordSecurityEvent({
       kind: "card_closed",
@@ -55,7 +73,14 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
       actor: account.user.id,
     }).catch(() => {});
 
-    return NextResponse.json({ ok: true, lifecycle: lifecycleView(lc) });
+    return NextResponse.json({
+      ok: true,
+      closedAtIssuer,
+      ...(card?.providerCardRef && !closedAtIssuer
+        ? { warning: "The card is closed in FurlPay, but the issuer did not confirm. Support has been notified." }
+        : {}),
+      lifecycle: lifecycleView(lc),
+    });
   } catch (e) {
     const msg = (e as Error).message;
     return NextResponse.json({ ok: false, error: msg }, { status: msg.includes("not found") ? 404 : 409 });
