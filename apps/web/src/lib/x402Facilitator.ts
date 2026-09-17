@@ -44,7 +44,18 @@ function liveMode(): boolean {
 // and settle() is written once and cannot drift between versions.
 export const X402_VERSION_V2 = 2;
 
-const NETWORKS = ["arbitrum", "arbitrum-sepolia", "solana", "base"] as const;
+// The networks this facilitator will actually verify AND settle — not the
+// networks we would like to serve. `/supported` is the document an agent reads
+// to CHOOSE a facilitator, so a network listed here is a promise.
+//
+// Solana is deliberately absent. The x402 exact scheme on SVM needs a
+// different signature scheme (EVM_CHAIN_IDS has no entry, so
+// verifyAuthorizationSignature returns `svm_verification_unavailable`) and a
+// different settler (defaultSettler builds an EVM settler only). Listing it
+// cost nothing to us and guaranteed a rejection for every agent that picked us
+// for Solana on the strength of this list. Re-add it in the same commit that
+// lands an SVM verifier and settler, never before.
+const NETWORKS = ["arbitrum", "arbitrum-sepolia", "base"] as const;
 
 export const SUPPORTED_KINDS = [
   ...NETWORKS.map((network) => ({ x402Version: X402_VERSION, scheme: "exact", network })),

@@ -1,7 +1,15 @@
 import { Chain } from "@furlpay/types";
 
 // ---------------------------------------------------------------------------
-// Circle CCTP V2 adapter (canonical since 2025; V1 phased out July 31 2026).
+// Circle CCTP V2 adapter (canonical since 2025).
+//
+// V1 (Legacy) deprecation — verified against Circle's own migration notice,
+// NOT the "July 31 2026" date this comment used to carry, which was wrong:
+//   2026-10-31  burn limits reduced, V1 performance degrades over ~1 month
+//   2026-12-01  V1 contracts PAUSED — any V1 integration stops transferring
+// Nothing here points at V1, so the deadline is informational for us; it is
+// recorded because a wrong date in a comment is how a migration gets deferred
+// past the day the contracts stop.
 // Native 1:1 burn-and-mint for USDC — no liquidity pools or fillers. Supports:
 //   - Fast Transfer: sub-30s settlement (attest before hard finality) for a
 //     small USDC fee, vs standard (~13-19 min, no fee).
@@ -11,8 +19,19 @@ import { Chain } from "@furlpay/types";
 // MOCK: returns a plausible quote for supported chains.
 // ---------------------------------------------------------------------------
 
-// CCTP V2 mainnet chains (subset overlapping Furlpay's Chain union).
-const CCTP_CHAINS: Chain[] = ["ethereum", "base", "arbitrum", "polygon", "solana"];
+// CCTP V2 chains we can QUOTE — which must stay equal to the chains we can
+// EXECUTE (`CCTP_DOMAINS` in cctpExecution.ts). These two lists drifting apart
+// is not a cosmetic bug: `intentRouter.planIntent()` picks a rail off
+// `isCctpSupported()`, so a chain quoted here but missing there gets planned,
+// priced and promised at a 20s ETA, then refused by /api/intents/cctp — and it
+// never falls back to Li.Fi the way a genuinely unsupported pair would.
+//
+// Solana is the case that was wrong: Circle does support it (CCTP domain 5,
+// live on V2), but our burn leg is `encodeFunctionData` against an EVM
+// TokenMessengerV2, and Solana needs a program call instead. Quoting it was
+// therefore a promise we could not keep. Add it back to BOTH lists in the same
+// commit that lands the SVM burn/mint path.
+const CCTP_CHAINS: Chain[] = ["ethereum", "base", "arbitrum", "polygon"];
 
 export function isCctpSupported(chain: Chain): boolean {
   return CCTP_CHAINS.includes(chain);
