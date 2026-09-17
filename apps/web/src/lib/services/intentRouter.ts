@@ -32,7 +32,7 @@ export interface RoutePlan {
   fallbackUsed: boolean;
 }
 
-export function planIntent(intent: Intent): RoutePlan {
+export async function planIntent(intent: Intent): Promise<RoutePlan> {
   const { fromToken, toToken, fromChain, toChain, amount, settleWithinSec } = intent;
 
   // Native USDC path: same-token USDC across CCTP chains → CCTP V2.
@@ -44,7 +44,7 @@ export function planIntent(intent: Intent): RoutePlan {
 
   if (cctpEligible) {
     const fast = settleWithinSec === undefined || settleWithinSec <= 60;
-    const q = quoteCctp({ fromChain, toChain, amount, fast });
+    const q = await quoteCctp({ fromChain, toChain, amount, fast });
     return {
       rail: "cctp-v2",
       reason: `Native USDC via CCTP V2 (${q.mode}) — 1:1 burn-and-mint, no liquidity pools`,

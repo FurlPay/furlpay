@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { SUPPORTED_KINDS } from "../x402Facilitator";
 import { isCctpSupported, quoteCctp } from "../services/cctp";
 import { CCTP_DOMAINS } from "../services/cctpExecution";
 import { planIntent } from "../services/intentRouter";
 import { EVM_CHAIN_IDS } from "../x402Signature";
+import { clearCctpFeeCache } from "../services/cctpFees";
 import type { Chain } from "@furlpay/types";
 
 // ---------------------------------------------------------------------------
@@ -82,8 +83,26 @@ describe("CCTP quoting and execution cover the same chains", () => {
 });
 
 describe("intentRouter never plans a rail it cannot execute", () => {
-  it("routes USDC arbitrum -> base over CCTP", () => {
-    const plan = planIntent({
+  // planIntent now prices CCTP from Circle's published fee. Stub the endpoint
+  // with its real response shape so these stay invariant tests about ROUTING,
+  // not network tests — cctpFees.spec.ts covers the fetching itself.
+  beforeEach(() => {
+    clearCctpFeeCache();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(
+      JSON.stringify([
+        { finalityThreshold: 1000, minimumFee: 1.4 },
+        { finalityThreshold: 2000, minimumFee: 0 },
+      ]),
+      { status: 200, headers: { "content-type": "application/json" } }
+    )));
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    clearCctpFeeCache();
+  });
+
+  it("routes USDC arbitrum -> base over CCTP", async () => {
+    const plan = await planIntent({
       fromToken: "USDC",
       toToken: "USDC",
       fromChain: "arbitrum",
@@ -95,11 +114,11 @@ describe("intentRouter never plans a rail it cannot execute", () => {
     expect(CCTP_DOMAINS.base).toBeTypeOf("number");
   });
 
-  it("does NOT route a Solana leg over CCTP (regression)", () => {
+  it("does NOT route a Solana leg over CCTP (regression)", async () => {
     // The planner's own docstring used "arbitrum -> solana" as its worked
     // example, and returned rail "cctp-v2" with a 20s ETA for it. Execution
     // has no Solana domain, so that plan was unfulfillable.
-    const plan = planIntent({
+    const plan = await planIntent({
       fromToken: "USDC",
       toToken: "USDC",
       fromChain: "arbitrum",
@@ -109,12 +128,12 @@ describe("intentRouter never plans a rail it cannot execute", () => {
     expect(plan.rail).not.toBe("cctp-v2");
   });
 
-  it("a planned CCTP route is always executable", () => {
+  it("a planned CCTP route is always executable", async () => {
     const chains: Chain[] = ["ethereum", "base", "arbitrum", "polygon"];
     for (const from of chains) {
       for (const to of chains) {
         if (from === to) continue;
-        const plan = planIntent({
+        const plan = await planIntent({
           fromToken: "USDC",
           toToken: "USDC",
           fromChain: from,
@@ -130,9 +149,9 @@ describe("intentRouter never plans a rail it cannot execute", () => {
 });
 
 describe("quoteCctp refuses what it cannot route", () => {
-  it("throws rather than pricing an unsupported chain", () => {
-    expect(() =>
+  it("rejects rather than pricing an unsupported chain", async () => {
+    await expect(
       quoteCctp({ fromChain: "arbitrum", toChain: "solana" as Chain, amount: 100 })
-    ).toThrow(/not supported/i);
+    ).rejects.toThrow(/not supported/i);
   });
 });

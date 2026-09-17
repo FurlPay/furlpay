@@ -60,7 +60,7 @@ export async function POST(req: NextRequest) {
         await recordSecurityEvent({ rail: "cctp", kind: "amount_over_limit", severity: "low", detail: `cctp $${body.amount} > $${cap.capUsd}`, actor: auth.account.user.id });
         return NextResponse.json({ error: "amount_over_limit", detail: cap.error }, { status: 403 });
       }
-      const bundle = buildBurnBundle({
+      const bundle = await buildBurnBundle({
         sourceChain: body.sourceChain,
         destinationChain: body.destinationChain,
         amount: body.amount,

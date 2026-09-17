@@ -182,7 +182,7 @@ function toolKycStatus() {
 export async function runCopilot(messages: ChatMessage[]): Promise<CopilotResult> {
   const last = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
   const t = last.toLowerCase();
-  const result = route(last, t);
+  const result = await route(last, t);
 
   // Optional LLM phrasing over grounded facts. Never invents data or actions.
   if (process.env.ANTHROPIC_API_KEY) {
@@ -195,7 +195,7 @@ export async function runCopilot(messages: ChatMessage[]): Promise<CopilotResult
   return result;
 }
 
-function route(raw: string, t: string): CopilotResult {
+async function route(raw: string, t: string): Promise<CopilotResult> {
   // --- card freeze / unfreeze (support action, HITL like all mutations) ---
   if (/\b(freeze|unfreeze|lock|unlock)\b.*\bcard\b|\bcard\b.*\b(freeze|frozen|unfreeze|lock|unlock)\b/.test(t)) {
     const unfreeze = /\b(unfreeze|unlock)\b/.test(t);
@@ -360,7 +360,7 @@ function route(raw: string, t: string): CopilotResult {
     const toToken = tokens[1] ?? (fromToken === "USDC" ? "EURC" : "USDC");
     let plan;
     try {
-      plan = planIntent({ fromToken, toToken, fromChain: chain, toChain: chain, amount });
+      plan = await planIntent({ fromToken, toToken, fromChain: chain, toChain: chain, amount });
     } catch {
       plan = null;
     }

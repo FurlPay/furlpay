@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
 
   let plan;
   try {
-    plan = planIntent(body);
+    plan = await planIntent(body);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 400 });
   }

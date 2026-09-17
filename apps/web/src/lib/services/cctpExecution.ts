@@ -1,5 +1,11 @@
 import { encodeFunctionData, getAddress, pad, type Address, type Hex } from "viem";
 import { Chain } from "@furlpay/types";
+import {
+  FAST_FINALITY_THRESHOLD,
+  STANDARD_FINALITY_THRESHOLD,
+  bpsToAtomic,
+  fetchCctpFee,
+} from "./cctpFees";
 
 // ---------------------------------------------------------------------------
 // CCTP V2 execution — real burn-and-mint calldata + Iris attestation polling.
@@ -44,6 +50,12 @@ export const CCTP_USDC: Partial<Record<Chain, Address>> = {
 };
 
 const USDC_DECIMALS = 6;
+
+/** Headroom authorised above the corridor's published fee, as a percentage.
+ *  20% absorbs a rate move between quote and submission without materially
+ *  over-authorising: on a $1,000 fast transfer at 1.4bps this is 2.8 cents of
+ *  expected fee and a 3.4 cent ceiling. */
+const FEE_CEILING_BUFFER_PCT = 20n;
 const testnet = () => process.env.CCTP_TESTNET === "1";
 export const tokenMessenger = (): Address => (testnet() ? TESTNET_TOKEN_MESSENGER : MAINNET_TOKEN_MESSENGER);
 export const messageTransmitter = (): Address => (testnet() ? TESTNET_MESSAGE_TRANSMITTER : MAINNET_MESSAGE_TRANSMITTER);
@@ -82,6 +94,12 @@ export interface CctpBurnBundle {
   destinationChain: Chain;
   destinationDomain: number;
   amountAtomic: string;
+  /** What Circle is expected to take, at the corridor's published rate. */
+  feeAtomic: string;
+  /** The rate that produced it, in basis points, as published by Circle. */
+  feeBps: number;
+  /** The ceiling authorised on-chain: expected fee plus buffer. Circle takes
+   *  the real fee, never more than this. */
   maxFeeAtomic: string;
   /** Sign + send in order: [0] approve USDC, [1] depositForBurn. */
   transactions: { to: Address; data: Hex; value: "0"; description: string }[];
@@ -89,17 +107,37 @@ export interface CctpBurnBundle {
   attestationPath: string;
 }
 
-/** Build the unsigned burn leg: approve + TokenMessengerV2.depositForBurn.
- *  Fast mode sets maxFee (1bp ceiling, matches quoteCctp) + threshold 1000;
- *  standard is free with threshold 2000 (hard finality, ~13-19 min). */
-export function buildBurnBundle(params: {
+/**
+ * Build the unsigned burn leg: approve + TokenMessengerV2.depositForBurn.
+ * Fast mode sets threshold 1000 and a `maxFee` ceiling taken from Circle's
+ * PUBLISHED fee for this corridor; standard is free with threshold 2000 (hard
+ * finality, ~13-19 min).
+ *
+ * THE BUG THIS FIXES. `maxFee` used to be a hardcoded `amountAtomic / 10_000n`
+ * — 1 basis point — to match what quoteCctp was guessing. `maxFee` is the
+ * ceiling the payer authorises, and Circle grants Fast Transfer only when that
+ * ceiling covers the real fee. On arbitrum->base the real fee is 1.4bps, so a
+ * 1bp ceiling did not fail loudly: the burn fell through to the standard path
+ * and took ~13-19 minutes after the user had been quoted 20 seconds.
+ *
+ * The ceiling is now the corridor's real fee plus an explicit buffer, because a
+ * fee that ticks up between quote and submission must not strand the transfer.
+ * The buffer is authorised headroom, not an expected charge — Circle takes the
+ * actual fee, never more than the ceiling — and callers surface `feeAtomic`
+ * (expected) separately from `maxFeeAtomic` (worst case).
+ *
+ * Async and able to throw: with no readable fee there is no honest ceiling to
+ * set, so it refuses rather than reinstating a guess.
+ */
+export async function buildBurnBundle(params: {
   sourceChain: Chain;
   destinationChain: Chain;
   amount: number; // human USDC
   recipient: Address; // mint recipient on the destination chain
   fast?: boolean;
-}): CctpBurnBundle {
-  const { sourceChain, destinationChain, amount, recipient, fast = true } = params;
+  signal?: AbortSignal;
+}): Promise<CctpBurnBundle> {
+  const { sourceChain, destinationChain, amount, recipient, fast = true, signal } = params;
   const srcDomain = CCTP_DOMAINS[sourceChain];
   const dstDomain = CCTP_DOMAINS[destinationChain];
   const burnToken = CCTP_USDC[sourceChain];
@@ -109,10 +147,16 @@ export function buildBurnBundle(params: {
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid amount");
 
   const amountAtomic = BigInt(Math.round(amount * 10 ** USDC_DECIMALS));
-  // Fast Transfer fee ceiling: 1bp of amount (Iris charges the actual fee up
-  // to this). Standard transfers must pass 0.
-  const maxFee = fast ? amountAtomic / 10_000n : 0n;
-  const minFinalityThreshold = fast ? 1000 : 2000;
+
+  // Circle's published fee for THIS corridor — never an assumed rate. Standard
+  // transfers must pass maxFee 0, so only the fast path needs a ceiling.
+  const fee = await fetchCctpFee(srcDomain, dstDomain, { signal });
+  const feeAtomic = fast ? bpsToAtomic(amountAtomic, fee.fastBps) : 0n;
+  // Authorised headroom over the expected fee, so a rate that moves between
+  // quoting and submitting does not strand the transfer on the slow path.
+  // Circle charges the real fee and never more than this ceiling.
+  const maxFee = fast ? feeAtomic + (feeAtomic * FEE_CEILING_BUFFER_PCT) / 100n : 0n;
+  const minFinalityThreshold = fast ? FAST_FINALITY_THRESHOLD : STANDARD_FINALITY_THRESHOLD;
   const messenger = tokenMessenger();
 
   const approve = encodeFunctionData({
@@ -140,6 +184,8 @@ export function buildBurnBundle(params: {
     destinationChain,
     destinationDomain: dstDomain,
     amountAtomic: amountAtomic.toString(),
+    feeAtomic: feeAtomic.toString(),
+    feeBps: fast ? fee.fastBps : fee.standardBps,
     maxFeeAtomic: maxFee.toString(),
     transactions: [
       { to: burnToken, data: approve, value: "0", description: `Approve ${amount} USDC to TokenMessengerV2` },
