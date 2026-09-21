@@ -1,33 +1,44 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generateAuthenticationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
-import { db } from "@/lib/store";
+import { getAccountDurable } from "@/lib/store";
 import {
   EXPECTED_ORIGINS,
   EXPECTED_RPIDS,
   RP_ID,
+  consumeCeremonyChallenge,
+  getCredentialOwner,
   getCredentials,
-  setChallenge,
-  takeChallenge,
+  putCeremonyChallenge,
   updateCounter,
 } from "@/lib/webauthn";
 import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
 import { recordStepUp } from "@/lib/stepup";
 import { isMobileClient } from "@/lib/clientKind";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { validateBody } from "@/lib/validate";
+import { PasskeyAuthenticationSchema } from "@/lib/schemas/webauthn";
 
 // GET /api/auth/passkey/authenticate — real WebAuthn authentication options.
 export async function GET(req: NextRequest) {
   const limited = await rateLimitOr429(req, "auth.passkey.authenticate.options", { limit: 30, windowMs: 60_000 });
   if (limited) return limited;
 
-  const user = db.user;
-  const creds = await getCredentials(user.id);
+  // No user, and no allowCredentials.
+  //
+  // The options endpoint is called before anyone has identified themselves, so
+  // it CANNOT know whose credentials to list -- that is what the assertion is
+  // about to tell us. The old code answered by listing `db.user`'s
+  // credentials, which is where the shared-demo-account bug started.
+  //
+  // Omitting allowCredentials is the discoverable-credential ("usernameless")
+  // flow: the authenticator offers the passkeys it holds for this RP ID and
+  // the assertion carries the credential id, which POST resolves to an owner.
   const options = await generateAuthenticationOptions({
     rpID: RP_ID,
-    allowCredentials: creds.map((c) => ({ id: c.id, transports: c.transports as any })),
     userVerification: "required",
   });
-  await setChallenge(user.id, options.challenge);
+  // Keyed by the challenge itself, not by a user we do not have yet.
+  await putCeremonyChallenge(options.challenge);
   return NextResponse.json(options);
 }
 
@@ -40,23 +51,41 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "auth.passkey.authenticate", { limit: 20, windowMs: 60_000 });
   if (limited) return limited;
 
-  const user = db.user;
-  const body = await req.json();
-  const expectedChallenge = await takeChallenge(user.id);
-  if (!expectedChallenge) {
-    return NextResponse.json({ error: "No pending challenge" }, { status: 400 });
+  const body = await validateBody(req, PasskeyAuthenticationSchema);
+  if (body instanceof NextResponse) return body;
+
+  // THE FIX: resolve the owner FROM THE CREDENTIAL, before verifying anything.
+  //
+  // A WebAuthn assertion identifies a credential, not a person. Turning one
+  // into the other is the relying party's job, and it was not being done: the
+  // route read `db.user` -- the shared seeded demo account -- so whichever
+  // passkey was presented, the session issued was the demo account's.
+  //
+  // Looking the owner up first also means the public key used for
+  // verification belongs to that owner by construction, which is what makes
+  // cross-account confusion impossible rather than merely unlikely.
+  const ownerId = await getCredentialOwner(body.id);
+  const account = ownerId ? await getAccountDurable(ownerId) : undefined;
+  const cred = ownerId ? (await getCredentials(ownerId)).find((c) => c.id === body.id) : undefined;
+
+  // One generic answer for "no such credential", "no such owner" and "owner
+  // has no such credential". Distinguishing them would let a caller probe
+  // which credential ids exist (OWASP: no enumeration via auth responses).
+  if (!ownerId || !account || !cred) {
+    return NextResponse.json({ error: "Unknown credential" }, { status: 401 });
   }
 
-  const cred = (await getCredentials(user.id)).find((c) => c.id === body.id);
-  if (!cred) {
-    return NextResponse.json({ error: "Unknown credential" }, { status: 400 });
-  }
+  const user = account.user;
 
   let verification;
   try {
     verification = await verifyAuthenticationResponse({
       response: body,
-      expectedChallenge,
+      // Consumed on read, so a challenge verifies at most one assertion.
+      // Passing a predicate lets SimpleWebAuthn hand us the challenge the
+      // authenticator actually signed over, which is the only way to look it
+      // up when the ceremony was not user-scoped.
+      expectedChallenge: (challenge) => consumeCeremonyChallenge(challenge),
       // Includes the Android app's `android:apk-key-hash:` origin — see
       // lib/webauthn.ts. Without it every native assertion fails on origin.
       expectedOrigin: EXPECTED_ORIGINS,
@@ -76,7 +105,11 @@ export async function POST(req: NextRequest) {
 
   // Bind the step-up to THIS session's jti (see stepup.ts).
   const jti = crypto.randomUUID();
-  const token = await signSession({ sub: user.id, safe: user.safeAddress, jti });
+  // `roles` carried like every other sign-in path (google/apple/otp). The old
+  // code omitted it because the session it minted was always the demo
+  // account's; a session for a REAL resolved user must carry that user's own
+  // authorization claims and nobody else's.
+  const token = await signSession({ sub: user.id, safe: user.safeAddress, roles: user.roles, jti });
   // A passkey assertion is a strong step-up — satisfies the wallet-link gate.
   void recordStepUp(user.id, jti, "passkey").catch(() => {});
   // Native clients get the JWT in the body (Bearer flow); browsers get the

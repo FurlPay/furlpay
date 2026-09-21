@@ -11,7 +11,7 @@
 // without a shared store.
 // ---------------------------------------------------------------------------
 
-import { kvGet, kvSet, kvDel } from "./kv";
+import { kvGet, kvSet, kvDel, kvSetNx } from "./kv";
 
 export interface StoredCredential {
   id: string; // base64url credential ID
@@ -42,7 +42,7 @@ const fromRow = (r: CredentialRow): StoredCredential => {
   return { ...rest, publicKey: new Uint8Array(Buffer.from(publicKeyB64, "base64")) };
 };
 
-export const RP_NAME = "Furlpay";
+export const RP_NAME = "FurlPay";
 
 // ---------------------------------------------------------------------------
 // Relying Party configuration.
@@ -200,6 +200,83 @@ export async function removeCredential(userId: string, credId: string): Promise<
   const next = list.filter((x) => x.id !== credId);
   if (next.length === list.length) return false;
   await kvSet(CREDS_KEY(userId), next.map(toRow));
+  // Drop the ownership claim too, or the id stays reserved forever and the
+  // same authenticator could never be re-registered.
+  await clearCredentialOwner(credId);
+  return true;
+}
+
+/* -------------------------- credential ownership --------------------------- */
+//
+// WHY THIS INDEX EXISTS
+// =====================
+// Credentials were stored ONLY as `webauthn:creds:<userId>` — a per-user list
+// with no way back. So an assertion arriving with a credential id could not be
+// mapped to its owner, and every passkey route resolved the user as
+// `db.user`: the shared seeded demo account. Registration filed every
+// credential under that one account and authentication issued a session for
+// it, regardless of which passkey was presented.
+//
+// A WebAuthn assertion identifies the CREDENTIAL, not the user. The relying
+// party is what turns one into the other, so that mapping has to exist as
+// data. This is it: one key per credential, global, pointing at its owner.
+
+const OWNER_KEY = (credId: string) => `webauthn:owner:${credId}`;
+
+/**
+ * Claim a credential id for a user. Returns false if it is already claimed.
+ *
+ * SETNX, deliberately: the index doubles as the uniqueness constraint. A
+ * credential id is globally unique by construction in WebAuthn, so a second
+ * claim means either a replayed registration or an id collision — and either
+ * way the safe answer is to refuse rather than silently repoint an existing
+ * credential at a different account.
+ */
+export async function claimCredentialOwner(credId: string, userId: string): Promise<boolean> {
+  // No TTL: ownership outlives any ceremony. It is cleared explicitly by
+  // removeCredential and by account deletion.
+  return kvSetNx(OWNER_KEY(credId), userId, OWNERSHIP_TTL_S);
+}
+
+export async function getCredentialOwner(credId: string): Promise<string | undefined> {
+  return (await kvGet<string>(OWNER_KEY(credId))) ?? undefined;
+}
+
+export async function clearCredentialOwner(credId: string): Promise<void> {
+  await kvDel(OWNER_KEY(credId));
+}
+
+/**
+ * Ten years. Upstash requires a TTL on SETNX, and "never" is not expressible;
+ * this is long enough to mean never in practice while still letting an
+ * abandoned index entry age out rather than leak forever.
+ */
+const OWNERSHIP_TTL_S = 10 * 365 * 24 * 60 * 60;
+
+/* --------------------------- ceremony challenges --------------------------- */
+//
+// Keyed by the CHALLENGE, not by the user.
+//
+// The old scheme stored one challenge per user id, which only works if the
+// server already knows who is signing in. It does not: that is the whole point
+// of a discoverable-credential ("usernameless") flow, where the user is
+// revealed by the assertion. Keying on the challenge lets the options endpoint
+// mint one without naming a user, and lets verification look up exactly the
+// challenge the authenticator signed over.
+//
+// Still single-use and still 300s, so the replay property is unchanged.
+
+const CEREMONY_KEY = (challenge: string) => `webauthn:chal:c:${challenge}`;
+
+export async function putCeremonyChallenge(challenge: string): Promise<void> {
+  await kvSet(CEREMONY_KEY(challenge), 1, CHALLENGE_TTL_S);
+}
+
+/** Consumed on read — a challenge verifies at most one assertion. */
+export async function consumeCeremonyChallenge(challenge: string): Promise<boolean> {
+  const hit = await kvGet<number>(CEREMONY_KEY(challenge));
+  if (hit === null || hit === undefined) return false;
+  await kvDel(CEREMONY_KEY(challenge));
   return true;
 }
 

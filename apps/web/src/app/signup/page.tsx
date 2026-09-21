@@ -87,10 +87,18 @@ export default function SignupPage() {
   async function verifyPhone() {
     setBusy(true);
     setError(null);
-    // login:false — just confirm the number; the fingerprint step issues the session.
+    // login:true — the verified phone IS an authentication factor, so it
+    // issues the session here.
+    //
+    // It used to be false, on the reasoning that "the fingerprint step issues
+    // the session". That left passkey enrolment unauthenticated, and an
+    // unauthenticated enrolment has no account to attach the credential to --
+    // which is why the route fell back to the shared demo account. Signing in
+    // first is what makes ownership unambiguous: /api/auth/passkey/register
+    // now enrols onto the session's user and 401s without one.
     const { ok, data } = await postJSON<{ verified: boolean; error?: string }>(
       "/api/auth/otp/check",
-      { to: phone, code, channel: "sms", login: false }
+      { to: phone, code, channel: "sms", login: true }
     );
     setBusy(false);
     if (ok && data.verified) setStep("passkey");

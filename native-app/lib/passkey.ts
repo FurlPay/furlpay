@@ -54,12 +54,18 @@ export async function authenticateWithPasskey(): Promise<string> {
  * registering proves possession, so it signs you in too (same as web).
  */
 export async function registerPasskey(): Promise<string> {
-  const options = await api<OptionsJSON>("/auth/passkey/register", { anonymous: true });
+  // NOT anonymous. Enrolment attaches the credential to the CALLER'S account,
+  // so the server has to know who that is -- it now 401s without a session
+  // rather than falling back to a shared identity.
+  //
+  // The token already exists at this point in both flows: lib/auth.ts verifies
+  // its OTP with `login: true` before calling this, and the settings screen
+  // (app/passkeys.tsx) is behind the authenticated stack.
+  const options = await api<OptionsJSON>("/auth/passkey/register");
   const attestation = await Passkey.create(options as never);
   const res = await api<{ verified: boolean; token?: string }>("/auth/passkey/register", {
     method: "POST",
     body: attestation,
-    anonymous: true,
   });
   if (!res.verified || !res.token) throw new Error("Passkey could not be registered.");
   return res.token;
