@@ -8,6 +8,22 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 import { welcomeEmail } from "@/lib/emailTemplates";
 import { setAvatarUrl } from "@/lib/profileAvatar";
+import { validateBody } from "@/lib/validate";
+import { z } from "zod";
+
+// A GIS credential is a compact JWS: three base64url segments separated by
+// dots. Shape-checking it here is not a substitute for verifying the
+// signature (verifyGoogleCredential does that against Google's JWKS) -- it
+// just means a malformed blob is rejected at the edge with a 400 instead of
+// reaching the verifier, and the 100KB cap in validateBody stops an oversized
+// body from being parsed at all.
+const GoogleAuthSchema = z.object({
+  credential: z
+    .string()
+    .min(1, "Missing credential")
+    .max(8192, "Credential is implausibly large for an ID token")
+    .regex(/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/, "Malformed credential"),
+});
 
 // POST /api/auth/google — body: { credential } (the GIS ID token JWT).
 // Verifies the token server-side, resolves (or creates) the account for that
@@ -17,11 +33,9 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "auth.google", { limit: 10, windowMs: 60_000 });
   if (limited) return limited;
 
-  const body = await req.json().catch(() => null);
-  const credential = body?.credential;
-  if (!credential || typeof credential !== "string") {
-    return NextResponse.json({ error: "Missing credential" }, { status: 400 });
-  }
+  const body = await validateBody(req, GoogleAuthSchema);
+  if (body instanceof NextResponse) return body;
+  const { credential } = body;
 
   let identity;
   try {
