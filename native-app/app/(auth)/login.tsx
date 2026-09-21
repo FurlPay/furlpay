@@ -9,13 +9,15 @@ import {
   Text,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
 import { useAuth, type OtpChannel } from "@/lib/auth";
 import { isPasskeySupported, passkeyErrorMessage } from "@/lib/passkey";
 import { appleConfigured, googleConfigured, signInWithApple, useGoogleSignIn } from "@/lib/oauth";
 import { ApiError, NetworkError } from "@/lib/api";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, ErrorNote, Field, Screen } from "@/components/ui";
+// Identity-provider marks. Google and Apple both forbid redrawn or monochrome
+// substitutes for their logos -- see components/BrandMarks.tsx.
+import { AppleMark, BiometricMark, GoogleG } from "@/components/BrandMarks";
 
 // ---------------------------------------------------------------------------
 // Sign-in — the native counterpart of apps/web/src/app/login/page.tsx, offering
@@ -179,7 +181,9 @@ export default function Login() {
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={{ gap: spacing.xs, alignItems: "center" }}>
             <Text style={type.title}>
-              Furl<Text style={{ color: colors.accent }}>pay</Text>
+              {/* "FurlPay" -- capital P, per furlpay-brand/guidelines. The
+                  two-tone split must not change the spelling. */}
+              Furl<Text style={{ color: colors.accent }}>Pay</Text>
             </Text>
             <Text style={type.dim}>The stablecoin super-app.</Text>
           </View>
@@ -190,6 +194,7 @@ export default function Login() {
                 <Button
                   title="Sign in with Fingerprint"
                   variant="accent"
+                  icon={<BiometricMark size={18} color={colors.text} />}
                   loading={busy === "passkey"}
                   disabled={anyBusy}
                   style={styles.pill}
@@ -201,7 +206,7 @@ export default function Login() {
                 <Button
                   title="Continue with Google"
                   variant="light"
-                  icon={<Ionicons name="logo-google" size={18} color="#000000" />}
+                  icon={<GoogleG size={18} />}
                   loading={busy === "google"}
                   disabled={anyBusy || !google.ready}
                   style={styles.pill}
@@ -213,7 +218,7 @@ export default function Login() {
                 <Button
                   title="Continue with Apple"
                   variant="light"
-                  icon={<Ionicons name="logo-apple" size={20} color="#000000" />}
+                  icon={<AppleMark size={18} color="#000000" />}
                   loading={busy === "apple"}
                   disabled={anyBusy}
                   style={styles.pill}

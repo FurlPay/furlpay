@@ -13,6 +13,7 @@ import { useOnline } from "@/lib/offline";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import AppleSignInButton from "@/components/AppleSignInButton";
 import PhoneInput from "@/components/PhoneInput";
+import { BiometricMark, PhoneMark } from "@/components/BrandMarks";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -117,7 +118,11 @@ export default function LoginPage() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-8 text-center">
       <div className="mb-2 text-4xl font-extrabold tracking-tighter">
-        Furl<span className="text-accent">pay</span>
+        {/* Brand is "FurlPay" -- capital P. furlpay-brand/guidelines/voice-and-tone.md
+            is the authority, and 1,463 of the 2,606 brand strings in the app
+            already use it. The split is a two-tone treatment, not a different
+            spelling, so the capital has to survive the split. */}
+        Furl<span className="text-accent">Pay</span>
       </div>
       <p className="mb-8 text-textSecondary">The stablecoin super-app.</p>
 
@@ -126,9 +131,10 @@ export default function LoginPage() {
         <button
           onClick={passkeyLogin}
           disabled={locked}
-          className="w-full rounded-pill bg-accent py-4 text-lg font-semibold disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-pill bg-accent py-4 text-lg font-semibold disabled:opacity-60"
         >
-          {busy ? "Verifying…" : fingerprint ? " Sign in with Fingerprint" : " Sign in with Passkey"}
+          {busy ? null : <BiometricMark size={20} />}
+          {busy ? "Verifying…" : fingerprint ? "Sign in with Fingerprint" : "Sign in with Passkey"}
         </button>
 
         {/* Google */}
@@ -148,9 +154,10 @@ export default function LoginPage() {
           <button
             onClick={() => setShowPhone(true)}
             disabled={locked}
-            className="w-full rounded-pill border border-white/15 py-3.5 font-semibold disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-pill border border-white/15 py-3.5 font-semibold disabled:opacity-60"
           >
-             Sign in with phone number
+            <PhoneMark size={18} />
+            Sign in with phone number
           </button>
         ) : (
           <div className="w-full space-y-3 rounded-2xl border border-white/10 p-3 text-left">
