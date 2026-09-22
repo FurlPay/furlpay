@@ -143,15 +143,48 @@ export const CHAIN_REGISTRY: ChainConfig[] = [
   {
     id: "tempo",
     name: "Tempo",
-    // TODO: Confirm Tempo mainnet chain ID from Stripe docs when publicly available.
-    chainId: 0, // Placeholder — Stripe has not published the chain ID yet
+    chainId: 4217,
     vm: "evm",
-    rpcUrl: process.env.TEMPO_RPC_URL || "",
-    explorer: "https://explorer.tempo.xyz", // Placeholder
-    nativeToken: "ETH",
-    // Stripe's payment-purpose L1: sub-second settlement, dedicated payment lanes.
+    rpcUrl: process.env.TEMPO_RPC_URL || "https://rpc.tempo.xyz",
+    explorer: "https://explore.mainnet.tempo.xyz",
+    // Stripe's payment-purpose L1: 100K+ TPS, sub-second (~600ms) deterministic
+    // finality, stablecoin-native gas (TIP-20). Built on Paradigm's Reth SDK.
+    nativeToken: "USDC" as const, // Gas paid in USD-denominated TIP-20 stablecoins
     role: "settlement",
-    usdc: { native: "" }, // TODO: USDC deployment address on Tempo
+    usdc: { native: "0x20C000000000000000000000b9537d11c60E8b50" }, // USDC.e via LayerZero/Stargate
+  },
+  // ── Testnets for e2e and integration testing ──────────────────────────
+  {
+    id: "ethereum-sepolia",
+    name: "Ethereum Sepolia",
+    chainId: 11155111,
+    vm: "evm",
+    rpcUrl: process.env.ETHEREUM_SEPOLIA_RPC_URL || "https://rpc.sepolia.org",
+    explorer: "https://sepolia.etherscan.io",
+    nativeToken: "ETH",
+    role: "testnet",
+    usdc: { native: "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238" },
+  },
+  {
+    id: "base-sepolia",
+    name: "Base Sepolia",
+    chainId: 84532,
+    vm: "evm",
+    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org",
+    explorer: "https://sepolia.basescan.org",
+    nativeToken: "ETH",
+    role: "testnet",
+    usdc: { native: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" },
+  },
+  {
+    id: "tempo-testnet",
+    name: "Tempo Moderato",
+    chainId: 42431,
+    vm: "evm",
+    rpcUrl: process.env.TEMPO_TESTNET_RPC_URL || "https://rpc.testnet.tempo.xyz",
+    explorer: "https://explore.testnet.tempo.xyz",
+    nativeToken: "USDC" as const,
+    role: "testnet",
   },
 ];
 
@@ -243,6 +276,9 @@ const MOCK_BASE_BLOCKS: Record<string, { height: number; msPerBlock: number }> =
   arc: { height: 500_000, msPerBlock: 800 },
   "arc-testnet": { height: 200_000, msPerBlock: 800 },
   tempo: { height: 1_000_000, msPerBlock: 500 },
+  "ethereum-sepolia": { height: 8_000_000, msPerBlock: 12000 },
+  "base-sepolia": { height: 20_000_000, msPerBlock: 2000 },
+  "tempo-testnet": { height: 500_000, msPerBlock: 500 },
 };
 const EPOCH = Date.UTC(2026, 6, 1); // Jul 1 2026
 
