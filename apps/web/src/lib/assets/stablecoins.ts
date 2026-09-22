@@ -161,6 +161,14 @@ export const STABLECOINS: readonly Stablecoin[] = [
         addressSource: "https://developers.circle.com/stablecoins/usdc-contract-addresses",
         verifiedAt: "2026-09-06",
       },
+      {
+        assetId: "USDC.solana",
+        chain: "solana",
+        contractAddress: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        representation: "canonical",
+        addressSource: "https://solscan.io",
+        verifiedAt: "2026-09-22",
+      },
     ],
   },
 ];

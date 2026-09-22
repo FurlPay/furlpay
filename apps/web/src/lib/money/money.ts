@@ -260,6 +260,10 @@ export const ASSETS = {
   "ETH.ethereum": { id: "ETH.ethereum", kind: "crypto", symbol: "ETH", decimals: 18, chain: "ethereum" },
   "ETH.arbitrum": { id: "ETH.arbitrum", kind: "crypto", symbol: "ETH", decimals: 18, chain: "arbitrum" },
   "ETH.base": { id: "ETH.base", kind: "crypto", symbol: "ETH", decimals: 18, chain: "base" },
+
+  "USDC.solana": { id: "USDC.solana", kind: "stablecoin", symbol: "USDC", decimals: 6, chain: "solana" },
+  "SOL.solana": { id: "SOL.solana", kind: "crypto", symbol: "SOL", decimals: 9, chain: "solana" },
+  "USDC.tempo": { id: "USDC.tempo", kind: "stablecoin", symbol: "USDC", decimals: 6, chain: "tempo" },
 } as const satisfies Record<string, Asset>;
 
 export type AssetId = keyof typeof ASSETS;

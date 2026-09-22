@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { screenWallet } from "@furlpay/compliance";
-import { assessRisk, requiresStepUp, verifyTotp } from "@furlpay/security";
+import { requiresStepUp, verifyTotp } from "@furlpay/security";
+import { evaluateTransferRisk } from "@/lib/trust/trustBridge";
 import { newTx, recordTransaction, type UserAccount } from "@/lib/store";
 import { verifyTransferSignature } from "@/lib/signature";
 import { recordMovement } from "@/lib/ledger";
@@ -95,55 +96,58 @@ async function executeTransfer(
     );
   }
 
-  // Device / behavioral risk gate. When the client posts a full device
-  // fingerprint (with a visitorId), use analyzeDevice — it adds the FP-Agent
-  // behavioral layer (AI-browsing-agent detection: mouse-teleport, paste-fill,
-  // machine-speed typing) on top of the browser-fingerprint checks. Otherwise
-  // fall back to the lightweight assessRisk over whatever signals were sent.
+  // Device intelligence: collect the device signals (fingerprint & behavioral)
+  // before running the trust evaluation.
   const country = req.headers.get("x-vercel-ip-country");
+  const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip");
   const hasFingerprint = deviceSignals && typeof deviceSignals === "object" && "visitorId" in deviceSignals;
-  let deviceChallenge = false;
+  
+  let deviceIntelResult;
   if (hasFingerprint) {
-    const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip");
-    const intel = await analyzeDevice(deviceSignals as Record<string, unknown>, ip, country);
-    if (intel.action === "block") {
+    deviceIntelResult = await analyzeDevice(deviceSignals as Record<string, unknown>, ip, country);
+    if (deviceIntelResult.action === "block") {
       audit("transfer.blocked", account.user.id, {
-        destination, amount, reason: intel.isLikelyAgent ? "ai_agent" : "device_intel", signals: intel.signals,
+        destination, amount, reason: deviceIntelResult.isLikelyAgent ? "ai_agent" : "device_intel", signals: deviceIntelResult.signals,
       });
-      return NextResponse.json({ error: "Blocked by device intelligence", intel }, { status: 403 });
-    }
-    // A "challenge" verdict (incl. a lone agent-behavior flag) escalates to
-    // step-up MFA below rather than blocking outright.
-    if (intel.action === "challenge") deviceChallenge = true;
-  } else {
-    const risk = assessRisk(deviceSignals || {});
-    if (risk.action === "block") {
-      audit("transfer.blocked", account.user.id, { destination, amount, reason: "risk_engine" });
-      return NextResponse.json({ error: "Blocked by risk engine", risk }, { status: 403 });
+      return NextResponse.json({ error: "Blocked by device intelligence", intel: deviceIntelResult }, { status: 403 });
     }
   }
 
-  // Cross-instance velocity (Redis): burst caps, daily USD volume, and
-  // impossible travel via the CDN's IP-country header. Burst → hard block;
-  // volume/geo anomalies escalate to step-up MFA below.
+  // Cross-instance velocity (Redis)
   const velocity = await checkVelocity({ userId: account.user.id, amountUsd, country });
-  if (velocity.action === "block") {
-    audit("transfer.blocked", account.user.id, { destination, amount, reason: "velocity", flags: velocity.flags });
-    return NextResponse.json({ error: "Transfer blocked by velocity policy", velocity }, { status: 429 });
+
+  // Evaluate risk using the new Trust Layer
+  const trustResult = evaluateTransferRisk({
+    deviceSignals: deviceSignals as Record<string, unknown> | undefined,
+    deviceIntelResult,
+    velocityResult: velocity,
+    ip,
+    country,
+    amountUsd,
+    userId: account.user.id,
+  });
+
+  if (trustResult.action === "decline") {
+    audit("transfer.blocked", account.user.id, { destination, amount, reason: "trust_layer", decision: trustResult.decision });
+    return NextResponse.json({ error: "Transfer blocked by risk policy" }, { status: 403 });
   }
 
-  // Step-up MFA for high-value transfers (>= $5000), velocity anomalies, or a
-  // device-intelligence challenge (e.g. suspected AI browsing agent).
+  if (trustResult.action === "hold") {
+    audit("transfer.held", account.user.id, { destination, amount, reason: "trust_hold", decision: trustResult.decision });
+    return NextResponse.json({ error: "Transfer held for review", held: true }, { status: 202 });
+  }
+
+  // Step-up MFA logic
   const stepUp = requiresStepUp({ action: "transfer", amountUsd });
-  if (stepUp.required || velocity.action === "review" || deviceChallenge) {
+  const needsStepUp = stepUp.required || trustResult.stepUpRequired || trustResult.action === "step_up" || trustResult.action === "manual_review";
+
+  if (needsStepUp) {
     if (!mfaCode) {
       return NextResponse.json(
         {
           error: stepUp.required
             ? stepUp.reason
-            : deviceChallenge
-              ? "Additional verification required for this device"
-              : `Additional verification required: ${velocity.reasons.join("; ")}`,
+            : "Additional verification required by trust policy",
           stepUpRequired: true,
           methods: stepUp.methods,
         },

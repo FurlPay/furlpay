@@ -16,9 +16,10 @@ export interface ChainConfig {
   id: string; // Furlpay network slug (matches x402 + intent router slugs)
   name: string;
   chainId: number;
+  vm: "evm" | "solana";
   rpcUrl: string;
   explorer: string;
-  nativeToken: "ETH" | "SOL" | "POL";
+  nativeToken: "ETH" | "SOL" | "POL" | "USDC";
   role: "settlement" | "testnet" | "data" | "bridge-source";
   usdc?: { native: string; bridged?: string };
 }
@@ -28,6 +29,7 @@ export const CHAIN_REGISTRY: ChainConfig[] = [
     id: "arbitrum",
     name: "Arbitrum One",
     chainId: 42161,
+    vm: "evm",
     rpcUrl: process.env.ARBITRUM_RPC_URL || "https://arb1.arbitrum.io/rpc",
     explorer: "https://arbiscan.io",
     nativeToken: "ETH",
@@ -41,6 +43,7 @@ export const CHAIN_REGISTRY: ChainConfig[] = [
     id: "arbitrum-sepolia",
     name: "Arbitrum Sepolia",
     chainId: 421614,
+    vm: "evm",
     rpcUrl: process.env.ARBITRUM_SEPOLIA_RPC_URL || "https://sepolia-rollup.arbitrum.io/rpc",
     explorer: "https://sepolia.arbiscan.io",
     nativeToken: "ETH",
@@ -51,6 +54,7 @@ export const CHAIN_REGISTRY: ChainConfig[] = [
     id: "robinhood",
     name: "Robinhood Chain",
     chainId: 4663,
+    vm: "evm",
     rpcUrl: process.env.ROBINHOOD_RPC_URL || "https://rpc.mainnet.chain.robinhood.com",
     explorer: "https://robinhoodchain.blockscout.com",
     nativeToken: "ETH",
@@ -60,6 +64,7 @@ export const CHAIN_REGISTRY: ChainConfig[] = [
     id: "base",
     name: "Base",
     chainId: 8453,
+    vm: "evm",
     rpcUrl: process.env.BASE_RPC_URL || "https://mainnet.base.org",
     explorer: "https://basescan.org",
     nativeToken: "ETH",
@@ -70,6 +75,7 @@ export const CHAIN_REGISTRY: ChainConfig[] = [
     id: "ethereum",
     name: "Ethereum",
     chainId: 1,
+    vm: "evm",
     rpcUrl: process.env.ETHEREUM_RPC_URL || "https://eth.llamarpc.com",
     explorer: "https://etherscan.io",
     nativeToken: "ETH",
@@ -80,12 +86,72 @@ export const CHAIN_REGISTRY: ChainConfig[] = [
     id: "polygon",
     name: "Polygon PoS",
     chainId: 137,
+    vm: "evm",
     rpcUrl: process.env.POLYGON_RPC_URL || "https://polygon-rpc.com",
     explorer: "https://polygonscan.com",
     nativeToken: "POL",
     // Second settlement rail: native USDC + CCTP V2, deep liquidity, sub-cent gas.
     role: "settlement",
     usdc: { native: "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359" },
+  },
+  {
+    id: "solana",
+    name: "Solana",
+    chainId: 0, // Solana does not use EVM chain IDs
+    vm: "solana",
+    rpcUrl: process.env.SOLANA_RPC_URL || "",
+    explorer: "https://explorer.solana.com",
+    nativeToken: "SOL",
+    role: "settlement",
+    usdc: { native: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v" },
+  },
+  {
+    id: "solana-devnet",
+    name: "Solana Devnet",
+    chainId: 0,
+    vm: "solana",
+    rpcUrl: process.env.SOLANA_DEVNET_RPC_URL || "https://api.devnet.solana.com",
+    explorer: "https://explorer.solana.com?cluster=devnet",
+    nativeToken: "SOL",
+    role: "testnet",
+    usdc: { native: "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU" },
+  },
+  {
+    id: "arc",
+    name: "Circle Arc",
+    chainId: 5042,
+    vm: "evm",
+    rpcUrl: process.env.ARC_RPC_URL || "https://rpc.mainnet.arc.io",
+    explorer: "https://explorer.arc.io",
+    nativeToken: "USDC" as const,
+    // Arc is the chain where USDC IS the gas. Sub-second deterministic finality.
+    // USDC-native gas removes the ETH float and fee-payer complexity.
+    role: "settlement",
+    usdc: { native: "0x3600000000000000000000000000000000000000" },
+  },
+  {
+    id: "arc-testnet",
+    name: "Circle Arc Testnet",
+    chainId: 5042002,
+    vm: "evm",
+    rpcUrl: process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io",
+    explorer: "https://explorer.testnet.arc.io",
+    nativeToken: "USDC" as const,
+    role: "testnet",
+    usdc: { native: "0x3600000000000000000000000000000000000000" },
+  },
+  {
+    id: "tempo",
+    name: "Tempo",
+    // TODO: Confirm Tempo mainnet chain ID from Stripe docs when publicly available.
+    chainId: 0, // Placeholder — Stripe has not published the chain ID yet
+    vm: "evm",
+    rpcUrl: process.env.TEMPO_RPC_URL || "",
+    explorer: "https://explorer.tempo.xyz", // Placeholder
+    nativeToken: "ETH",
+    // Stripe's payment-purpose L1: sub-second settlement, dedicated payment lanes.
+    role: "settlement",
+    usdc: { native: "" }, // TODO: USDC deployment address on Tempo
   },
 ];
 
@@ -172,6 +238,11 @@ const MOCK_BASE_BLOCKS: Record<string, { height: number; msPerBlock: number }> =
   base: { height: 32_000_000, msPerBlock: 2000 },
   ethereum: { height: 23_000_000, msPerBlock: 12000 },
   polygon: { height: 62_000_000, msPerBlock: 2100 },
+  solana: { height: 310_000_000, msPerBlock: 400 },
+  "solana-devnet": { height: 350_000_000, msPerBlock: 400 },
+  arc: { height: 500_000, msPerBlock: 800 },
+  "arc-testnet": { height: 200_000, msPerBlock: 800 },
+  tempo: { height: 1_000_000, msPerBlock: 500 },
 };
 const EPOCH = Date.UTC(2026, 6, 1); // Jul 1 2026
 
