@@ -11,13 +11,13 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.110.0",
+    "@anthropic-ai/sdk": "^0.127.0",
     "dotenv": "^16.4.5",
     "ethers": "^6.17.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "tsx": "^4.19.0",
+    "tsx": "^4.23.13",
     "typescript": "5.5.3"
   }
 }
