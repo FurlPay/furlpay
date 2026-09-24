@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { isPlatformBase64 } from "@/lib/cards/provisioning";
 
 // ---------------------------------------------------------------------------
@@ -67,5 +69,57 @@ describe("isPlatformBase64", () => {
     expect(isPlatformBase64(fixture)).toBe(true);
     // Documented here so nobody removes the flag check believing this guard
     // covers it. It does not.
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Neither wallet path may report success it has not observed.
+//
+// Both native calls resolve when the UI is LAUNCHED, not when a card is added:
+// `startPushProvisioning` resolves once PKAddPaymentPassViewController is
+// presented, and `pushTokenize` resolves once the tokenize activity has been
+// started (its real outcome arrives on onActivityResult, unhandled). Returning
+// either value as `success` tells the user a card is in their wallet while the
+// system sheet is still on screen — and says the same if they cancel it.
+//
+// Asserted on the source, because the property is that a particular value is
+// NOT forwarded. Comments are stripped first so "absent" means "unused".
+// ---------------------------------------------------------------------------
+
+describe("provisioning never claims unobserved success", () => {
+  const source = readFileSync(join(__dirname, "..", "cards", "provisioning.ts"), "utf8");
+  const code = source
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^\s*\/\/.*$/gm, "")
+    .replace(/\s\/\/.*$/gm, "");
+
+  it("does not forward the native return value as success", () => {
+    // `const ok = await …; return { success: ok };` is the shape that was wrong
+    // on both paths.
+    expect(code).not.toMatch(/success:\s*ok\b/);
+    expect(code).not.toMatch(/const ok = await/);
+  });
+
+  it("still awaits the native call — the sheet must actually open", () => {
+    // The fix is to stop MISREPORTING the result, not to stop invoking it.
+    expect(code).toContain("await applePay.startPushProvisioning(");
+    expect(code).toContain("await googlePay.pushTokenize(");
+  });
+
+  it("keeps the simulated short-circuit ahead of both native calls", () => {
+    // The guard that stops placeholder artefacts reaching a secure element.
+    expect((code.match(/if \(res\.simulated\)/g) ?? []).length).toBe(2);
+    expect(code.indexOf("if (res.simulated)")).toBeLessThan(
+      code.indexOf("applePay.startPushProvisioning(")
+    );
+  });
+
+  it("explains the Apple handshake inversion where the code lives", () => {
+    // PassKit produces certs/nonce/nonceSignature in the Secure Element and
+    // delivers them through the delegate; this client asks the SERVER for them,
+    // which cannot know them, and ignores the onCertificatesReceived event.
+    // Without this note the next reader sees a working-looking request.
+    expect(source).toContain("PRESENTING THE SHEET IS NOT ADDING A CARD");
+    expect(source).toContain("onCertificatesReceived");
   });
 });

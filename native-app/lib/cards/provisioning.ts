@@ -122,8 +122,40 @@ export async function startApplePayProvisioning(cardId: string): Promise<Provisi
       };
     }
 
-    const ok = await applePay.startPushProvisioning(res.cardholderName || "Cardholder", res.lastFour || "0000");
-    return { success: ok };
+    // PRESENTING THE SHEET IS NOT ADDING A CARD, and this used to report it as
+    // one: `startPushProvisioning` resolves `true` the moment
+    // PKAddPaymentPassViewController is presented, and that value was returned
+    // as `success`. The user would be told the card was added to Apple Wallet
+    // while nothing had been added — the single worst thing this function can
+    // say, because the next thing the user does is try to pay with it.
+    //
+    // It cannot report real success yet, because the handshake is incomplete in
+    // BOTH directions:
+    //
+    //   * The certs/nonce/nonceSignature above are requested FROM THE SERVER,
+    //     but PassKit is what produces them — inside the Secure Element, after
+    //     the sheet opens, delivered through the delegate's
+    //     `generateRequestWithCertificateChain`. A server cannot know them. The
+    //     native module already emits them as an `onCertificatesReceived`
+    //     event; nothing here listens.
+    //
+    //   * The native module captures PassKit's `completionHandler` and exports
+    //     no way to invoke it, so even with a correct payload the sheet can
+    //     never be completed.
+    //
+    // The correct order is: open the sheet -> receive certs from the delegate
+    // -> POST them to the server -> receive encryptedPassData/activationData/
+    // ephemeralPublicKey -> invoke the completion handler. Building that needs
+    // Rain's real processorDetails contract, which is not public.
+    //
+    // Until then this opens the sheet and says plainly that it cannot finish,
+    // rather than claiming a card was added.
+    await applePay.startPushProvisioning(res.cardholderName || "Cardholder", res.lastFour || "0000");
+    return {
+      success: false,
+      message:
+        "Apple Wallet setup can't be completed yet — the card issuer handshake isn't connected.",
+    };
   } catch (e: any) {
     return { success: false, message: e.message || "Failed to provision card" };
   }
@@ -166,8 +198,25 @@ export async function startGooglePayProvisioning(cardId: string): Promise<Provis
       };
     }
 
-    const ok = await googlePay.pushTokenize(res.opcBase64, res.lastFour, res.displayName);
-    return { success: ok };
+    // LAUNCHING THE TOKENIZE ACTIVITY IS NOT ADDING A CARD. The native
+    // `pushTokenize` resolves `true` as soon as
+    // `TapAndPayClient.pushTokenize(activity, request, REQUEST_CODE)` has been
+    // CALLED; the real outcome arrives later on `onActivityResult` for that
+    // request code, which nothing currently handles. Returning that value as
+    // `success` told the user a card was added while Google's own confirmation
+    // sheet was still on screen — and reported success just the same if they
+    // then cancelled it.
+    //
+    // Unlike the Apple path, the ORDER here is right: wallet info, then OPC,
+    // then tokenize. The only missing piece is observing the result, which
+    // needs an activity-result listener in the native module.
+    await googlePay.pushTokenize(res.opcBase64, res.lastFour, res.displayName);
+    return {
+      success: false,
+      message:
+        "Google Wallet setup was started, but its result can't be confirmed yet. " +
+        "Check the Google Wallet app.",
+    };
   } catch (e: any) {
     return { success: false, message: e.message || "Failed to provision card" };
   }
