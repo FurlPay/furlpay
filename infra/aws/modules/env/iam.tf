@@ -39,6 +39,7 @@ data "aws_iam_policy_document" "task_execution_secrets" {
         aws_secretsmanager_secret.database_url.arn,
         aws_secretsmanager_secret.redis_url.arn,
         aws_secretsmanager_secret.origin_verify.arn,
+        aws_secretsmanager_secret.cron_secret.arn,
       ],
       [for s in aws_secretsmanager_secret.app : s.arn],
     )

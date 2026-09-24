@@ -359,8 +359,8 @@ data "aws_elb_service_account" "main" {}
 
 data "aws_iam_policy_document" "logs" {
   statement {
-    sid     = "ALBAccessLogs"
-    actions = ["s3:PutObject"]
+    sid       = "ALBAccessLogs"
+    actions   = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.logs.arn}/alb/*"]
 
     principals {

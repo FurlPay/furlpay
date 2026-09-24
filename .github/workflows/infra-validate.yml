@@ -1,0 +1,92 @@
+# ---------------------------------------------------------------------------
+# Terraform static validation.
+#
+# NO AWS CREDENTIALS, and that is the point of the job. `init -backend=false`
+# plus `validate` catches the errors that would otherwise be found by a human
+# running apply against a real account: undeclared variables, type mismatches,
+# a resource attribute that does not exist in the provider version, a broken
+# reference between modules.
+#
+# What it CANNOT catch is anything requiring an API call — whether an ACM
+# certificate exists, whether a hosted zone id is real, whether a name is
+# already taken. `terraform plan` is where those surface, and plan needs
+# credentials and the S3 backend, so it stays a human step. This job exists so
+# that by the time someone runs plan, the configuration is known to be
+# internally consistent.
+# ---------------------------------------------------------------------------
+
+name: Infra validate
+
+on:
+  pull_request:
+    paths:
+      - "infra/**"
+      - ".github/workflows/infra-validate.yml"
+  push:
+    branches: [main, extension-redesign]
+    paths:
+      - "infra/**"
+
+permissions:
+  contents: read
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/aws
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          # Pinned. A Terraform minor release can change validation behaviour,
+          # and "CI started failing and nobody changed anything" is an expensive
+          # morning. Bump this deliberately.
+          terraform_version: 1.9.8
+          terraform_wrapper: false
+
+      - name: Format
+        # -recursive because the module and the three env stacks are separate
+        # directories; -check so CI reports rather than rewrites.
+        run: terraform fmt -check -recursive
+
+      - name: Validate each environment
+        run: |
+          set -euo pipefail
+          for env in dev staging prod; do
+            echo "::group::$env"
+            cd "envs/$env"
+            # -backend=false: no S3, no credentials, no state. Providers are
+            # still downloaded, which is what makes validate meaningful —
+            # it type-checks every resource against the real provider schema.
+            terraform init -backend=false -input=false -no-color
+            terraform validate -no-color
+            cd ../..
+            echo "::endgroup::"
+          done
+
+      - name: Production must pin images by digest
+        # The rule lives in envs/prod/main.tf. This asserts it actually FIRES,
+        # because a validation block with a wrong regex passes `validate`
+        # silently and then accepts `:latest` on the day it matters.
+        run: |
+          set -euo pipefail
+          work="$(mktemp -d)"
+          # Copy the rule verbatim rather than restating it, so the test cannot
+          # drift from the thing it is testing.
+          sed -n '/variable "container_image"/,/^}/p' envs/prod/main.tf > "$work/main.tf"
+          cd "$work"
+          terraform init -input=false -no-color > /dev/null
+
+          if terraform plan -input=false -no-color -var container_image="repo/web:latest" > /dev/null 2>&1; then
+            echo "::error::envs/prod accepted a TAG-pinned image. A tag can be moved after deploy, so the task definition would no longer record what actually ran."
+            exit 1
+          fi
+          echo "tag correctly refused"
+
+          digest="repo/web@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+          terraform plan -input=false -no-color -var container_image="$digest" > /dev/null
+          echo "digest correctly accepted"

@@ -1,0 +1,26 @@
+# Provider binaries and module caches — re-downloaded by `terraform init`.
+.terraform/
+
+# State. This configuration keeps state in S3 (see each env's backend block);
+# these patterns exist so a local `terraform apply` run without the backend
+# cannot leave real infrastructure state in the repository. State files contain
+# every attribute of every resource, including generated passwords.
+*.tfstate
+*.tfstate.*
+.terraform.tfstate.lock.info
+
+# Variable files. The inputs are account ids, hosted zone ids and certificate
+# ARNs — pass them on the command line or through TF_VAR_*, not a committed file.
+*.tfvars
+*.tfvars.json
+!example.tfvars
+
+# Plan output is a binary containing resolved variable VALUES, secrets included.
+*.tfplan
+
+# NOT ignored, deliberately: .terraform.lock.hcl
+#
+# The dependency lock file pins provider versions and records their checksums —
+# the Terraform equivalent of package-lock.json. Committing it is what makes an
+# apply reproducible and stops a provider release silently changing what the
+# next plan does. `terraform init` in CI verifies against it.

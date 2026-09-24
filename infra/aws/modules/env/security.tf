@@ -149,8 +149,8 @@ resource "aws_cloudwatch_event_target" "ecs_deployment_failure_sns" {
 # inherited from anything.
 data "aws_iam_policy_document" "alarms_topic" {
   statement {
-    sid     = "AllowEventBridgePublish"
-    actions = ["SNS:Publish"]
+    sid       = "AllowEventBridgePublish"
+    actions   = ["SNS:Publish"]
     resources = [aws_sns_topic.alarms.arn]
 
     principals {
@@ -160,8 +160,8 @@ data "aws_iam_policy_document" "alarms_topic" {
   }
 
   statement {
-    sid     = "AllowCloudWatchAlarmsPublish"
-    actions = ["SNS:Publish"]
+    sid       = "AllowCloudWatchAlarmsPublish"
+    actions   = ["SNS:Publish"]
     resources = [aws_sns_topic.alarms.arn]
 
     principals {

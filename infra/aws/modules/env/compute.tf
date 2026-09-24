@@ -204,6 +204,10 @@ resource "aws_ecs_task_definition" "app" {
         [
           { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
           { name = "REDIS_URL", valueFrom = aws_secretsmanager_secret.redis_url.arn },
+          # The other half of the scheduler. EventBridge sends this value as
+          # `x-furlpay-cron-key`; without it in the task, lib/cron/auth.ts
+          # correctly refuses every scheduled job — including reconciliation.
+          { name = "FURLPAY_CRON_SECRET", valueFrom = aws_secretsmanager_secret.cron_secret.arn },
         ],
         [for k, s in aws_secretsmanager_secret.app : { name = k, valueFrom = s.arn }],
       )
