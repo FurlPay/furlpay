@@ -100,10 +100,28 @@ describe("provisioning never claims unobserved success", () => {
     expect(code).not.toMatch(/const ok = await/);
   });
 
-  it("still awaits the native call — the sheet must actually open", () => {
+  it("still invokes the native call — the sheet must actually open", () => {
     // The fix is to stop MISREPORTING the result, not to stop invoking it.
-    expect(code).toContain("await applePay.startPushProvisioning(");
-    expect(code).toContain("await googlePay.pushTokenize(");
+    // Both calls now run INSIDE awaitPlatformOutcome, which subscribes to the
+    // platform verdict before starting and resolves only from that event.
+    expect(code).toContain("applePay.startPushProvisioning(");
+    expect(code).toContain("googlePay.pushTokenize(");
+  });
+
+  it("routes both platforms through the outcome gate", () => {
+    // The structural guarantee: the only producer of `success: true` is
+    // fromOutcome(), and its only input is a platform verdict event.
+    expect((code.match(/awaitPlatformOutcome\(/g) ?? []).length).toBe(3); // 1 definition + 2 uses
+    expect((code.match(/return fromOutcome\(/g) ?? []).length).toBe(2);
+    expect(code).toContain('target.addListener("onProvisioningResult"');
+  });
+
+  it("has exactly one place that can return success", () => {
+    // Any other `success: true` in this file would be a second, ungated path.
+    const successTrue = code.match(/success:\s*true/g) ?? [];
+    // Two simulated short-circuits (explicitly flagged) plus fromOutcome's.
+    expect(successTrue.length).toBe(3);
+    expect((code.match(/simulated:\s*true/g) ?? []).length).toBe(2);
   });
 
   it("keeps the simulated short-circuit ahead of both native calls", () => {
