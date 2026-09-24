@@ -32,6 +32,19 @@ export const CCTP_DOMAINS: Partial<Record<Chain, number>> = {
   arbitrum: 3,
   base: 6,
   polygon: 7,
+  // Circle Arc. VERIFIED ON-CHAIN 2026-09-25, not read from a table:
+  //   MessageTransmitterV2(0x81D4…4B64).localDomain()  -> 0x1a == 26
+  //   TokenMessengerV2(0x28b5…cf5d).localMinter()      -> 0xfd78…D002
+  //     (the TokenMinter address below, so the two contracts cross-confirm)
+  //   TokenMinterV2(0xfd78…D002)
+  //     .burnLimitsPerMessage(0x3600…0000)             -> 10_000_000e6
+  //     non-zero => Arc USDC is a REGISTERED BURNABLE local token, which is
+  //     the difference between "CCTP is configured" and "CCTP works"
+  //
+  // A GitHub issue claimed domain 26 was testnet-only. It is not: Circle's own
+  // supported-chains table lists Arc under MAINNET domains, and the live
+  // mainnet contracts above answer. Primary source over secondary.
+  arc: 26,
 };
 
 const MAINNET_TOKEN_MESSENGER: Address = getAddress("0x28b5a0e9C621a5BadaA536219b3a228C8168cf5d");
@@ -47,8 +60,35 @@ export const CCTP_USDC: Partial<Record<Chain, Address>> = {
   arbitrum: getAddress("0xaf88d065e77c8cC2239327C5EDb3A432268e5831"),
   base: getAddress("0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"),
   polygon: getAddress("0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359"),
+  // Arc's USDC is not a deployed token contract — it is the ERC-20 INTERFACE
+  // onto the chain's native gas balance, at a precompile-shaped address behind
+  // an EIP-1967 proxy (eth_getCode shows the 5c60da1b implementation() selector).
+  // Verified on mainnet 2026-09-25: decimals() -> 6, symbol() -> "USDC".
+  arc: getAddress("0x3600000000000000000000000000000000000000"),
 };
 
+/**
+ * Atomic units per USDC on the CCTP path.
+ *
+ * 6 EVERYWHERE, INCLUDING ARC — and Arc is the reason this constant now has a
+ * comment. Arc exposes one balance through two interfaces at different
+ * precision: 18 decimals natively (gas, msg.value, eth_getBalance) and 6
+ * through ERC-20 (balanceOf/transfer/approve). Reproduced on mainnet:
+ *
+ *   eth_getBalance(0x8b13…0f98) -> 467048820775384575   (18dp)
+ *   balanceOf     (0x8b13…0f98) ->            467048    ( 6dp)
+ *   467048820775384575 // 10**12 ==           467048    ✓
+ *
+ * CCTP burns through the ERC-20 interface — TokenMessenger pulls with
+ * transferFrom after approve — so 6 is correct here and 18 would over-burn by
+ * 10^12. The 18-decimal native view matters only for GAS on Arc, which is
+ * lib/chains/arc.ts's job, not this module's.
+ *
+ * Note what that division discards: 820775384575 base-18 units of sub-6dp
+ * dust that the ERC-20 interface cannot move at all. Never round UP when
+ * converting a native Arc balance into a burn amount — it invents money the
+ * token interface will refuse, and the burn reverts after the approve.
+ */
 const USDC_DECIMALS = 6;
 
 /** Headroom authorised above the corridor's published fee, as a percentage.

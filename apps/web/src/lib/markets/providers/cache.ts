@@ -29,17 +29,51 @@ export const TTL = {
   /** Symbol search results. Long-tailed traffic, and a listing does not appear
    * or vanish within an hour. */
   search: 3_600,
-  /** "Does this symbol exist at all" — including the negative answer, which is
-   * what stops a crawler walking /markets/AAAA..ZZZZ into the upstream. */
+  /** "Does this symbol exist at all", for a symbol that DOES. */
   symbolExists: 21_600,
+  /**
+   * The same question, for a symbol that does not.
+   *
+   * SHORT ON PURPOSE. This key is minted from a URL path segment gated only by
+   * a format regex that admits ~10^12 strings, so its cardinality is set by
+   * whoever is sending requests rather than by how many tickers exist. At the
+   * 6-hour TTL the positive answers use, a crawler walking /markets/<random>
+   * fills a 256MB store in about a million requests — all of them recording
+   * that something does not exist.
+   *
+   * Two minutes still absorbs the burst this cache was added for (a crawler
+   * re-requesting the same miss, and the retry storm behind one page load),
+   * which is the part that actually protected the IP-rate-limited upstream.
+   * What it no longer does is retain a million distinct negatives for a
+   * quarter of a day.
+   */
+  symbolMissing: 120,
 } as const;
 
 /** Read-through cache. A miss, a cache error, or a failed fetch all end up in
  * the same place: `fetcher` runs and its result is returned. The cache is never
- * allowed to be the reason a page fails to render. */
+ * allowed to be the reason a page fails to render.
+ *
+ * `ttlSeconds` may be a FUNCTION of the fetched value, and that exists for one
+ * specific hazard: a cache keyed on something the caller does not control the
+ * cardinality of.
+ *
+ * `resolve:{SYMBOL}` is the case. Its key comes from a URL path segment, and
+ * the only gate is a format check — `^[A-Z0-9]{1,8}(?:[.-][A-Z0-9]{1,4})?$`,
+ * which admits on the order of 10^12 distinct strings. That regex bounds the
+ * SHAPE of a key, not how many of them exist, so a crawler walking
+ * /markets/<random> mints a new 6-hour key on every request. Roughly a million
+ * requests is enough to fill a 256MB store, and every one of those keys is a
+ * negative answer — a record that something does not exist.
+ *
+ * Caching that negative is still worth doing (it is what stops the same
+ * crawler becoming one upstream request per miss, against an IP-rate-limited
+ * endpoint shared with real users). It is just not worth doing for six hours.
+ * A per-result TTL lets a real symbol stay cached while an unknown one expires
+ * quickly. */
 export async function cachedJson<T>(
   key: string,
-  ttlSeconds: number,
+  ttlSeconds: number | ((value: T) => number),
   fetcher: () => Promise<T | null>
 ): Promise<T | null> {
   const cacheKey = `mkt:${key}`;
@@ -54,7 +88,7 @@ export async function cachedJson<T>(
   if (fresh === null || fresh === undefined) return null;
 
   try {
-    await kvSet(cacheKey, fresh, ttlSeconds);
+    await kvSet(cacheKey, fresh, typeof ttlSeconds === "function" ? ttlSeconds(fresh) : ttlSeconds);
   } catch {
     // Losing the write only costs us the next request's latency.
   }

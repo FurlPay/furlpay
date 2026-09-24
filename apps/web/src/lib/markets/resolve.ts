@@ -82,7 +82,11 @@ async function lookupOnline(symbol: string): Promise<MergedAsset | null> {
 
   const cached = await cachedJson<{ hit: MergedAsset | null }>(
     `resolve:${upper}`,
-    TTL.symbolExists,
+    // A real symbol is worth remembering for hours; a symbol that does not
+    // exist is worth remembering for two minutes. `upper` comes from the URL
+    // and its only gate is a format regex, so the number of DISTINCT negative
+    // keys is chosen by the caller — see TTL.symbolMissing.
+    (v) => (v.hit ? TTL.symbolExists : TTL.symbolMissing),
     async () => {
       const q = await yahooQuote(yahooSymbolFor(upper, "stock")).catch(() => null);
       if (!q || typeof q.price !== "number") return { hit: null };

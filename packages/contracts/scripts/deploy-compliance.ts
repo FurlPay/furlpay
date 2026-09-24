@@ -10,9 +10,18 @@ import * as path from "path";
 // custody funds until the owner unpauses after post-deploy verification.
 
 // Canonical native USDC per chain.
+//
+// The Arc entries are the ERC-20 INTERFACE onto that chain's native gas
+// balance, not a deployed token — a precompile-shaped address behind an
+// EIP-1967 proxy, the same on mainnet and testnet. Verified on Arc mainnet
+// 2026-09-25: decimals() -> 6, symbol() -> "USDC". Contracts must use the
+// 6-decimal ERC-20 view; Arc's native view of the SAME balance is 18 decimals
+// and mixing them over-scales by 10^12.
 const USDC_BY_CHAIN: Record<number, string> = {
   42161: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // Arbitrum One
   421614: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // Arbitrum Sepolia
+  5042: "0x3600000000000000000000000000000000000000", // Circle Arc mainnet
+  5042002: "0x3600000000000000000000000000000000000000", // Circle Arc testnet
 };
 
 // Chainalysis on-chain Sanctions Oracle. Same address on the chains where it is
@@ -21,6 +30,21 @@ const CHAINALYSIS_ORACLE = "0x40C57923924B5c5c5455c48D93317139ADDaC8fb";
 const ORACLE_BY_CHAIN: Record<number, string> = {
   42161: CHAINALYSIS_ORACLE,
   // 421614 (Sepolia): none deployed → address(0), registry-only screening.
+  //
+  // ARC (5042 / 5042002): DELIBERATELY ABSENT, and this is a compliance fact
+  // rather than an oversight. Checked on Arc mainnet 2026-09-25:
+  //
+  //   eth_getCode(0x40C5…c8fb) on Arc          -> "0x"     (no contract)
+  //   eth_getCode(0x40C5…c8fb) on Arbitrum One -> 7116 hex chars (deployed)
+  //
+  // Chainalysis has not deployed its Sanctions Oracle to Arc. SanctionsCheck
+  // tolerates a zero oracle and falls back to REGISTRY-ONLY screening, so a
+  // deploy here succeeds and screens LESS than the same contract on Arbitrum —
+  // silently, because nothing in the deploy output would say so.
+  //
+  // Naming Arc here with no oracle makes that explicit. Before enabling Arc
+  // settlement for regulated flows, either confirm Chainalysis has deployed to
+  // Arc and add the address, or accept registry-only screening in writing.
 };
 
 const USDC = (n: string) => ethers.parseUnits(n, 6);

@@ -40,11 +40,44 @@ const config: HardhatUserConfig = {
       chainId: 42161,
       accounts,
     },
+
+    // --- Circle Arc ---------------------------------------------------------
+    // Values verified against the LIVE RPC on 2026-09-25, not copied from docs:
+    //   mainnet  eth_chainId -> 0x13b2   (5042)
+    //   testnet  chain id      5042002   (docs.arc.io/arc/references/rpc-endpoints)
+    //
+    // GAS IS USDC HERE. Hardhat/ethers model gas in the chain's native unit and
+    // Arc's native unit IS USDC at 18 decimals, so no plugin change is needed —
+    // but a deployment's cost is denominated in dollars, and the deployer must
+    // hold USDC on Arc rather than ETH. A deployer funded with ETH has nothing
+    // to pay gas with and every transaction fails at estimation.
+    //
+    // Deploy TESTNET FIRST. Faucet: https://faucet.circle.com
+    arcTestnet: {
+      url: process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io",
+      chainId: 5042002,
+      accounts,
+    },
+    arcMainnet: {
+      url: process.env.ARC_RPC_URL || "https://rpc.mainnet.arc.io",
+      chainId: 5042,
+      // A SEPARATE key from every other network, deliberately. The same
+      // `accounts` array on mainnet and testnet is how a testnet deploy script
+      // run with the wrong --network signs with a production key.
+      accounts: process.env.ARC_MAINNET_DEPLOYER_PRIVATE_KEY
+        ? [process.env.ARC_MAINNET_DEPLOYER_PRIVATE_KEY]
+        : [],
+    },
   },
   etherscan: {
     apiKey: {
       arbitrumSepolia: process.env.ARBISCAN_API_KEY || "",
       arbitrumOne: process.env.ARBISCAN_API_KEY || "",
+      // Arc's explorer is documented as requiring permissioned access, so
+      // automated source verification may not be available through the
+      // Etherscan plugin. Left unset rather than pointed at a guessed URL:
+      // a wrong customChains entry fails verification confusingly, and
+      // verification is the one deployment step worth doing by hand.
     },
   },
 };

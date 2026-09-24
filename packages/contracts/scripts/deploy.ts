@@ -3,9 +3,20 @@ import * as fs from "fs";
 import * as path from "path";
 
 // Canonical USDC per network (native Circle issuance).
+//
+// Arc entries are the ERC-20 INTERFACE onto the chain's native gas balance,
+// not a deployed token contract — a precompile-shaped address behind an
+// EIP-1967 proxy, identical on mainnet and testnet. Verified on Arc mainnet
+// 2026-09-25: decimals() -> 6, symbol() -> "USDC".
+//
+// Any contract taking this address must use the 6-decimal ERC-20 view. Arc's
+// NATIVE view of the same balance is 18 decimals; mixing them mis-scales by
+// 10^12, and in this direction that means over-transferring by a trillion.
 const USDC_BY_CHAIN: Record<number, string> = {
   42161: "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", // Arbitrum One
   421614: "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d", // Arbitrum Sepolia
+  5042: "0x3600000000000000000000000000000000000000", // Circle Arc mainnet
+  5042002: "0x3600000000000000000000000000000000000000", // Circle Arc testnet
 };
 
 async function main() {

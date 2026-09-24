@@ -38,7 +38,13 @@ import { CCTP_DOMAINS } from "./cctpExecution";
 // TokenMessengerV2, and Solana needs a program call instead. Quoting it was
 // therefore a promise we could not keep. Add it back to BOTH lists in the same
 // commit that lands the SVM burn/mint path.
-const CCTP_CHAINS: Chain[] = ["ethereum", "base", "arbitrum", "polygon"];
+// Arc qualifies on exactly the test Solana fails: the burn leg is
+// `encodeFunctionData` against an EVM TokenMessengerV2, and Arc IS an EVM
+// chain running the standard V2 contracts — verified on mainnet rather than
+// assumed (MessageTransmitterV2.localDomain() -> 26, and TokenMinterV2
+// reports a non-zero burn limit for Arc USDC, so the burn leg resolves).
+// Added to BOTH lists in this same change, per the rule above.
+const CCTP_CHAINS: Chain[] = ["ethereum", "base", "arbitrum", "polygon", "arc"];
 
 export function isCctpSupported(chain: Chain): boolean {
   return CCTP_CHAINS.includes(chain);
