@@ -9,10 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Link, useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
-import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
-import { api } from "@/lib/api";
 import { useOverview } from "@/lib/queries";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
@@ -22,109 +19,8 @@ import { Avatar } from "@/components/Avatar";
 import { AccountDrawer } from "@/components/AccountDrawer";
 import { BalanceHero } from "@/components/BalanceHero";
 import { NotificationBell } from "@/components/NotificationBell";
+import { AddMoneySheet } from "@/components/AddMoneySheet";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
-
-// Add money — native counterpart of the web dashboard's DepositModal:
-// crypto QR, bank transfer details, or card on-ramp.
-interface FiatAccount {
-  currency: string;
-  amount: number;
-  usdValue: number;
-  localDetails?: Record<string, string>;
-}
-
-function DepositRow({
-  icon,
-  title,
-  sub,
-  onPress,
-}: {
-  icon: keyof typeof Ionicons.glyphMap;
-  title: string;
-  sub: string;
-  onPress: () => void;
-}) {
-  return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.depositRow, pressed && { opacity: 0.7 }]}>
-      <View style={styles.depositIcon}>
-        <Ionicons name={icon} size={20} color={colors.text} />
-      </View>
-      <View style={{ flex: 1 }}>
-        <Text style={[type.body, { fontWeight: "700" }]}>{title}</Text>
-        <Text style={[type.dim, { fontSize: 12 }]}>{sub}</Text>
-      </View>
-      <Ionicons name="chevron-forward" size={16} color={colors.textFaint} />
-    </Pressable>
-  );
-}
-
-function AddMoneySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const router = useRouter();
-  const [bankOpen, setBankOpen] = useState(false);
-  const { data } = useQuery({
-    queryKey: ["banking"],
-    queryFn: () => api<{ accounts: FiatAccount[] }>("/banking"),
-    enabled: open,
-  });
-  const withDetails = (data?.accounts ?? []).filter((a) => a.localDetails);
-
-  const go = (path: "/receive" | "/banking") => {
-    onClose();
-    router.push(path);
-  };
-
-  return (
-    <Sheet open={open} title="Add money" onClose={onClose}>
-      <DepositRow
-        icon="qr-code-outline"
-        title="Deposit crypto"
-        sub="Your self-custodial USDC address (Arbitrum)"
-        onPress={() => go("/receive")}
-      />
-      <DepositRow
-        icon="business-outline"
-        title="Bank transfer"
-        sub="Free · arrives in minutes"
-        onPress={() => setBankOpen((b) => !b)}
-      />
-      {bankOpen ? (
-        withDetails.length ? (
-          withDetails.map((a) => (
-            <Surface key={a.currency} style={{ gap: 2 }}>
-              <Text style={[type.dim, { fontSize: 11, fontWeight: "700" }]}>{a.currency}</Text>
-              {Object.entries(a.localDetails!).map(([k, v]) => (
-                <Pressable
-                  key={k}
-                  onPress={() =>
-                    void Clipboard.setStringAsync(v).then(() =>
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light)
-                    )
-                  }
-                  style={({ pressed }) => [styles.bankRow, pressed && { opacity: 0.6 }]}
-                >
-                  <Text style={[type.dim, { fontSize: 12, textTransform: "capitalize" }]}>
-                    {k.replace(/([A-Z])/g, " $1")}
-                  </Text>
-                  <Text style={[type.mono, { fontSize: 12, color: colors.text }]}>{v}</Text>
-                </Pressable>
-              ))}
-            </Surface>
-          ))
-        ) : (
-          <Text style={[type.dim, { paddingHorizontal: 4 }]}>
-            No bank details yet — open a local account under Banking first.
-          </Text>
-        )
-      ) : null}
-      <DepositRow
-        icon="add-outline"
-        title="Buy with card"
-        sub="Visa / Mastercard on-ramp"
-        onPress={() => go("/banking")}
-      />
-    </Sheet>
-  );
-}
 
 /** Route accepted by the typed router (app.json sets experiments.typedRoutes). */
 type Route = Parameters<ReturnType<typeof useRouter>["push"]>[0];
@@ -355,27 +251,4 @@ const styles = StyleSheet.create({
   },
   actionLabel: { color: colors.textDim, fontSize: 11, fontWeight: "600" },
   balanceCard: { width: 170, gap: 4 },
-  depositRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    backgroundColor: colors.surfaceRaised,
-    borderRadius: radius.md,
-    padding: spacing.md,
-  },
-  depositIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.pill,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  bankRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: spacing.md,
-    paddingVertical: 6,
-  },
 });

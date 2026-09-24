@@ -1,5 +1,7 @@
-import React, { useRef, useState } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
 import {
+  Animated,
+  PanResponder,
   Dimensions,
   FlatList,
   Modal,
@@ -24,18 +26,123 @@ import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, EmptyState, ErrorNote, PreviewBanner, Screen, Surface } from "@/components/ui";
 import { useSecureScreen } from "@/lib/secureScreen";
+import { useTheme } from "@/lib/design/theme";
+import { AddMoneySheet } from "@/components/AddMoneySheet";
 import type { PaymentCard } from "@/lib/types";
 
+/** Maximum tilt, in degrees, at the far edge of the card. Small on purpose:
+ *  past about 8deg the text starts to read as skewed rather than as a card
+ *  catching the light, and a payment card that looks distorted looks broken. */
+const MAX_TILT_DEG = 6;
+
+/**
+ * The card face, with a touch-driven parallax tilt.
+ *
+ * DRIVEN BY TOUCH, NOT THE GYROSCOPE. Device-motion tilt needs `expo-sensors`,
+ * which is not a dependency of this project, and a motion-driven card inside a
+ * horizontally-paging FlatList fights the carousel: every swipe rotates the
+ * neighbour you are swiping toward. Touch keeps the effect intentional — it
+ * happens because the user put a finger on the card — and costs no new
+ * dependency, no motion permission, and nothing on a device without sensors.
+ *
+ * Built on the core Animated API rather than Reanimated (also absent).
+ * `useNativeDriver` is on for every transform, so the tilt runs on the UI
+ * thread and does not compete with the carousel for the JS thread.
+ *
+ * REDUCED MOTION IS HONOURED, and not by animating to zero: with it on the pan
+ * responder is never attached at all, so the card is a plain static face and
+ * the FlatList keeps every touch for paging.
+ */
 function CardVisual({ card }: { card: PaymentCard }) {
   const [c1, c2] = card.gradient ?? [colors.surfaceRaised, colors.surface];
+  const { reduceMotion } = useTheme();
+
+  // -1..1 per axis, derived from where the finger is within the card.
+  const tiltX = useRef(new Animated.Value(0)).current;
+  const tiltY = useRef(new Animated.Value(0)).current;
+  const [size, setSize] = useState({ w: 0, h: 0 });
+
+  const settle = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(tiltX, { toValue: 0, useNativeDriver: true, friction: 6, tension: 60 }),
+      Animated.spring(tiltY, { toValue: 0, useNativeDriver: true, friction: 6, tension: 60 }),
+    ]).start();
+  }, [tiltX, tiltY]);
+
+  const responder = useMemo(
+    () =>
+      PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        // Vertical intent only. A mostly-horizontal drag is the carousel
+        // paging, and claiming it here would break swiping between cards.
+        onMoveShouldSetPanResponder: (_e, g) => Math.abs(g.dy) > Math.abs(g.dx),
+        onPanResponderMove: (e) => {
+          if (!size.w || !size.h) return;
+          const { locationX, locationY } = e.nativeEvent;
+          // Centre-relative and clamped: a finger sliding off the edge is
+          // still tracked, and must not tilt the card past the maximum.
+          tiltX.setValue(Math.max(-1, Math.min(1, (locationY / size.h) * 2 - 1)));
+          tiltY.setValue(Math.max(-1, Math.min(1, (locationX / size.w) * 2 - 1)));
+        },
+        onPanResponderRelease: settle,
+        onPanResponderTerminate: settle,
+      }),
+    [size.w, size.h, tiltX, tiltY, settle]
+  );
+
+  const deg = (v: Animated.Value, invert = false) =>
+    v.interpolate({
+      inputRange: [-1, 1],
+      outputRange: invert
+        ? [`${MAX_TILT_DEG}deg`, `-${MAX_TILT_DEG}deg`]
+        : [`-${MAX_TILT_DEG}deg`, `${MAX_TILT_DEG}deg`],
+    });
+
+  const animatedStyle = reduceMotion
+    ? null
+    : {
+        transform: [
+          { perspective: 900 },
+          // Touching the TOP tips the top away from the viewer, so rotateX is
+          // inverted relative to the raw Y position.
+          { rotateX: deg(tiltX, true) },
+          { rotateY: deg(tiltY) },
+        ],
+      };
+
+  // The highlight travels OPPOSITE to the tilt, which is how a reflection
+  // behaves — it stays where the light is, not where the card is. Opacity
+  // rises with tilt, so a card at rest carries no glare at all.
+  const specularStyle = reduceMotion
+    ? null
+    : {
+        opacity: tiltY.interpolate({ inputRange: [-1, 0, 1], outputRange: [0.45, 0, 0.45] }),
+        transform: [
+          {
+            translateX: tiltY.interpolate({
+              inputRange: [-1, 1],
+              outputRange: [size.w || 0, -(size.w || 0)],
+            }),
+          },
+          { rotate: "18deg" },
+        ],
+      };
+
   return (
-    <View style={styles.cardShadow}>
+    <Animated.View
+      style={[styles.cardShadow, animatedStyle]}
+      onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+      {...(reduceMotion ? {} : responder.panHandlers)}
+    >
       <LinearGradient
         colors={[c1, c2]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.card}
       >
+        {reduceMotion ? null : (
+          <Animated.View pointerEvents="none" style={[styles.specular, specularStyle]} />
+        )}
         <View style={styles.cardTop}>
           <View>
             <Text style={[type.body, { fontWeight: "700" }]}>{card.label}</Text>
@@ -60,7 +167,7 @@ function CardVisual({ card }: { card: PaymentCard }) {
           </View>
         ) : null}
       </LinearGradient>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -281,6 +388,7 @@ function CardControls({ card }: { card: PaymentCard }) {
   const { save, error } = useCardSettings();
   const [pendingFrozen, setPendingFrozen] = useState<boolean | null>(null);
   const [modal, setModal] = useState<"details" | "limits" | null>(null);
+  const [addMoneyOpen, setAddMoneyOpen] = useState(false);
   // Card controls are server-authoritative and must not be queued (see
   // useCardSettings) — so offline they're disabled rather than silently no-op.
   const offline = useIsOffline();
@@ -299,6 +407,29 @@ function CardControls({ card }: { card: PaymentCard }) {
 
   return (
     <Surface style={{ gap: spacing.sm }}>
+      {/* Funding leads, and is the only PRIMARY button here.
+
+          A card in this app has no balance of its own — PaymentCard carries
+          `settlementCurrency`, not an amount — so topping up a card is
+          funding the account it settles from. That is exactly what the home
+          screen's "Add money" does, so this opens the SAME shared sheet
+          (components/AddMoneySheet) rather than a card-specific flow. A
+          second funding surface would be a second place to add a rail to,
+          and the one we forgot would be found by a user first.
+
+          It is deliberately NOT disabled while offline. Every other control
+          on this screen mutates server state and is correctly disabled, but
+          this one only opens a sheet showing a deposit address and bank
+          details — useful precisely when the connection is poor, and the
+          sheet reports its own loading and error states. */}
+      <Button
+        title="Add money"
+        onPress={() => {
+          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          setAddMoneyOpen(true);
+        }}
+        style={{ paddingVertical: 12 }}
+      />
       <View style={{ flexDirection: "row", gap: spacing.sm }}>
         <Button
           title="View details"
@@ -357,6 +488,7 @@ function CardControls({ card }: { card: PaymentCard }) {
       <ErrorNote message={error} />
       {modal === "details" ? <DetailsModal card={card} onClose={() => setModal(null)} /> : null}
       {modal === "limits" ? <LimitsModal card={card} onClose={() => setModal(null)} /> : null}
+      <AddMoneySheet open={addMoneyOpen} onClose={() => setAddMoneyOpen(false)} />
     </Surface>
   );
 }
@@ -482,14 +614,34 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: "rgba(255,255,255,0.25)",
   },
+  // The moving highlight. Tall and narrow, rotated, and translated across the
+  // face — a band of light rather than a glow, which is what reads as a
+  // reflection on a physical card.
+  specular: {
+    position: "absolute",
+    top: -80,
+    bottom: -80,
+    width: 70,
+    left: "50%",
+    backgroundColor: "rgba(255,255,255,0.18)",
+  },
+  // Frozen: frosted rather than merely dimmed.
+  //
+  // expo-blur is NOT a dependency here, so a true backdrop blur is not
+  // available without adding one. A white scrim at low alpha over the
+  // gradient gives the same read — the colour desaturates and lifts toward
+  // white, the way frosted glass behaves — where the old flat black scrim
+  // just made the card look switched off.
   frozenOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: "rgba(226,240,255,0.42)",
     alignItems: "center",
     justifyContent: "center",
   },
   frozenPill: {
-    backgroundColor: "rgba(255,255,255,0.15)",
+    // Dark on the light frosted scrim — the old translucent white pill is
+    // invisible against it.
+    backgroundColor: "rgba(0,0,0,0.55)",
     borderRadius: radius.pill,
     paddingHorizontal: 16,
     paddingVertical: 6,

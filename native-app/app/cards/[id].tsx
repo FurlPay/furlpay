@@ -271,12 +271,35 @@ export default function CardDetail() {
                 void run(() => m.setProvisioning.mutateAsync({ wallet: "applePay", enabled }))
               }
             />
-            {/* Stated rather than implied. The route records the intent; the
-                actual push into the wallet is an issuer/Play Services handshake
-                that this app does not perform, and pretending otherwise would
-                leave someone waiting for a card that never appears.
-                TODO(backend): wire a real provisioning handshake (Google Pay
-                push-provisioning / PassKit) and replace this note. */}
+            {/* Stated rather than implied. This toggle records the intent; the
+                push into the wallet does not happen, and pretending otherwise
+                would leave someone waiting for a card that never appears.
+
+                NOT A MISSING IMPLEMENTATION. The provisioning path is built and
+                complete, end to end:
+
+                  native-app/modules/apple-wallet-provisioning (PassKit, Swift)
+                  native-app/modules/google-pay-provisioning   (TapAndPay, Kotlin)
+                  native-app/lib/cards/provisioning.ts         (client helper)
+                  apps/web/.../cards/lifecycle/[id]/provisioning (server route)
+
+                What is absent is a CONTRACTED CARD ISSUER. Without one the server
+                has no issuer-signed artefacts to return, so it answers
+                `simulated: true` with placeholder OPC / certs / nonceSignature, and
+                lib/cards/provisioning.ts branches on that flag and stops.
+
+                THAT GUARD IS LOAD-BEARING — DO NOT REMOVE IT. An OPC and a
+                nonceSignature are verified against the issuer's signature chain by
+                the secure element. Handing the simulated values to
+                PKAddPaymentPassViewController or TapAndPayClient.pushTokenize
+                cannot succeed; it can only fail somewhere far less legible than
+                this sentence.
+
+                So there is nothing to wire here. This note becomes a real button
+                when CARD_ISSUING_LIVE can report `on`, which needs an issuer
+                contract, live credentials, and Rain's (currently non-public)
+                webhook signature scheme — see apps/web/src/lib/flags.ts,
+                CARD_ISSUING_LIVE.unimplemented. */}
             <Text style={styles.note}>
               This records your preference on your FurlPay account. Completing the
               hand-off to Google Pay or Apple Pay isn&rsquo;t available yet.
