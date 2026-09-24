@@ -91,10 +91,32 @@ public actor KeychainTokenStore {
         // Delete-then-add rather than update: SecItemUpdate cannot change
         // accessibility attributes, so an item written by an older build would
         // silently keep its old policy.
+        //
+        // The gap between the two calls is real: if the add fails, the previous
+        // token is already gone and the user is signed out by a save that was
+        // meant to be a no-op refresh. It cannot be closed with a transaction —
+        // the keychain has none — so it is closed by RESTORING on failure.
+        var previous: AnyObject?
+        var readQuery = baseQuery
+        readQuery[kSecReturnData as String] = true
+        readQuery[kSecMatchLimit as String] = kSecMatchLimitOne
+        let hadPrevious = SecItemCopyMatching(readQuery as CFDictionary, &previous) == errSecSuccess
+
         SecItemDelete(baseQuery as CFDictionary)
 
         let status = SecItemAdd(query as CFDictionary, nil)
-        guard status == errSecSuccess else { throw KeychainError.saveFailed(status) }
+        guard status == errSecSuccess else {
+            // Put the old token back so a failed refresh costs nothing. Best
+            // effort: if this also fails there is genuinely nothing left to do,
+            // and the thrown error still tells the caller the save did not take.
+            if hadPrevious, let data = previous as? Data {
+                var restore = baseQuery
+                restore[kSecValueData as String] = data
+                restore[kSecAttrAccessible as String] = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+                SecItemAdd(restore as CFDictionary, nil)
+            }
+            throw KeychainError.saveFailed(status)
+        }
         cached = token
     }
 

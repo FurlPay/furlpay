@@ -8,8 +8,26 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
 
+    <!-- allowBackup / dataExtractionRules
+
+         Both DEFAULT TO ON. Leaving them unset put a finance app's local state
+         — the Keystore-sealed session token's ciphertext, and the Room snapshot
+         cache holding balances, spending and trips — into Android Auto Backup
+         and into device-to-device transfer.
+
+         The sealed token is useless off-device (its AndroidKeyStore key is
+         non-exportable and does not travel), so restoring it elsewhere yields
+         an undecryptable blob and a forced re-login — which the store already
+         handles. The SNAPSHOT CACHE is the real exposure: it is plaintext
+         financial history, and it would ride a backup to any restored device.
+
+         The React Native app has shipped allowBackup="false" since it was
+         written; this brings the Kotlin apps in line. -->
     <application
         android:name=".GuardianWearApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
         android:label="FurlPay"
         android:theme="@android:style/Theme.DeviceDefault">
 
@@ -32,10 +50,24 @@
             </intent-filter>
         </activity>
 
-        <!-- Data Layer inbox: auth token, snapshots, and alarm signals. -->
+        <!-- Data Layer inbox: auth token, snapshots, and alarm signals.
+
+             exported="true" is REQUIRED — Play Services delivers these
+             broadcasts from its own process, and an unexported service simply
+             never receives them. It is not, however, a reason to leave the
+             service open to every app on the watch.
+
+             android:permission restricts binding to callers holding
+             BIND_LISTENER, which is a Play Services signature permission: only
+             GMS can start this service. Every tile and complication service
+             below already carries its equivalent guard
+             (BIND_TILE_PROVIDER / BIND_COMPLICATION_PROVIDER); this one was the
+             single exported component in the file without one, and it is the
+             one that handles the session token. -->
         <service
             android:name=".service.WearListenerService"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.google.android.gms.permission.BIND_LISTENER">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.DATA_CHANGED" />
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />

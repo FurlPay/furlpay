@@ -1,4 +1,5 @@
 import * as SecureStore from "expo-secure-store";
+import { DEVICE_ONLY, DEVICE_ONLY_BIOMETRIC } from "./storageOptions";
 import * as Crypto from "expo-crypto";
 import { secp256k1 } from "@noble/curves/secp256k1";
 import { keccak_256 } from "@noble/hashes/sha3";
@@ -121,12 +122,18 @@ export class UntrustedQuoteError extends Error {
   }
 }
 
-// SecureStore options: Keystore-backed, and the mnemonic can only be read after
-// a device biometric/credential check.
-const SECURE_OPTS: SecureStore.SecureStoreOptions = {
-  requireAuthentication: true,
-  keychainAccessible: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
-};
+// The mnemonic can only be read after a device biometric/credential check.
+const SECURE_OPTS = DEVICE_ONLY_BIOMETRIC;
+
+// Addresses and the readiness marker are NOT secrets — an address is public by
+// construction, and "a wallet exists" is not a fact worth protecting. They are
+// still written with DEVICE_ONLY rather than no options at all, because the
+// default admits them to an iCloud Keychain backup, and a restored device
+// showing the previous owner's receive address is a correctness problem even
+// when it is not a confidentiality one. No `requireAuthentication`: these are
+// read to render the wallet screen, and a biometric prompt to draw an address
+// would be absurd.
+const PUBLIC_OPTS = DEVICE_ONLY;
 
 export interface Authorization {
   from: string;
@@ -142,7 +149,7 @@ export interface Authorization {
 /** Does this device already hold a wallet? Reads a plain marker so it never
  *  triggers the biometric prompt (the mnemonic read for signing still does). */
 export async function hasWallet(): Promise<boolean> {
-  const marker = await SecureStore.getItemAsync(EXISTS_KEY).catch(() => null);
+  const marker = await SecureStore.getItemAsync(EXISTS_KEY, PUBLIC_OPTS).catch(() => null);
   return marker === "1";
 }
 
@@ -190,12 +197,12 @@ async function persistWallet(mnemonic: string, address: string): Promise<void> {
   // above: a stale Solana address surviving a re-import would be rendered as a
   // deposit target for a key this device no longer holds, and SOL/FURL sent
   // there would be unspendable. Same failure, same fix, second chain.
-  await SecureStore.deleteItemAsync(ADDRESS_KEY).catch(() => {});
-  await SecureStore.deleteItemAsync(SOL_ADDRESS_KEY).catch(() => {});
+  await SecureStore.deleteItemAsync(ADDRESS_KEY, PUBLIC_OPTS).catch(() => {});
+  await SecureStore.deleteItemAsync(SOL_ADDRESS_KEY, PUBLIC_OPTS).catch(() => {});
   await SecureStore.setItemAsync(MNEMONIC_KEY, mnemonic, SECURE_OPTS);
-  await SecureStore.setItemAsync(ADDRESS_KEY, address);
-  await SecureStore.setItemAsync(SOL_ADDRESS_KEY, deriveSolanaAddress(mnemonic));
-  await SecureStore.setItemAsync(EXISTS_KEY, "1"); // last: the readiness marker
+  await SecureStore.setItemAsync(ADDRESS_KEY, address, PUBLIC_OPTS);
+  await SecureStore.setItemAsync(SOL_ADDRESS_KEY, deriveSolanaAddress(mnemonic), PUBLIC_OPTS);
+  await SecureStore.setItemAsync(EXISTS_KEY, "1", PUBLIC_OPTS); // last: the readiness marker
 }
 
 /** Reveal the mnemonic for backup — triggers the biometric gate. */
@@ -208,9 +215,9 @@ export async function revealMnemonic(): Promise<string> {
 /** Remove the wallet from this device (does NOT touch on-chain funds). */
 export async function deleteWallet(): Promise<void> {
   await SecureStore.deleteItemAsync(MNEMONIC_KEY, SECURE_OPTS).catch(() => {});
-  await SecureStore.deleteItemAsync(EXISTS_KEY).catch(() => {});
-  await SecureStore.deleteItemAsync(ADDRESS_KEY).catch(() => {});
-  await SecureStore.deleteItemAsync(SOL_ADDRESS_KEY).catch(() => {});
+  await SecureStore.deleteItemAsync(EXISTS_KEY, PUBLIC_OPTS).catch(() => {});
+  await SecureStore.deleteItemAsync(ADDRESS_KEY, PUBLIC_OPTS).catch(() => {});
+  await SecureStore.deleteItemAsync(SOL_ADDRESS_KEY, PUBLIC_OPTS).catch(() => {});
 }
 
 /** The wallet's address, read behind the biometric gate. */
@@ -220,7 +227,7 @@ export async function getAddress(): Promise<string> {
   const address = addressFromMnemonic(m);
   // Backfill the un-gated cache for installs that created their wallet before
   // the cache existed.
-  await SecureStore.setItemAsync(ADDRESS_KEY, address).catch(() => {});
+  await SecureStore.setItemAsync(ADDRESS_KEY, address, PUBLIC_OPTS).catch(() => {});
   return address;
 }
 
@@ -232,7 +239,7 @@ export async function getAddress(): Promise<string> {
  */
 export async function getKnownAddress(): Promise<string | null> {
   if (!(await hasWallet())) return null;
-  return SecureStore.getItemAsync(ADDRESS_KEY).catch(() => null);
+  return SecureStore.getItemAsync(ADDRESS_KEY, PUBLIC_OPTS).catch(() => null);
 }
 
 /**
@@ -248,7 +255,7 @@ export async function getSolanaAddress(): Promise<string> {
   if (!m) throw new Error("No wallet on this device.");
   const address = deriveSolanaAddress(m);
   // Backfill for wallets created before Solana support existed.
-  await SecureStore.setItemAsync(SOL_ADDRESS_KEY, address).catch(() => {});
+  await SecureStore.setItemAsync(SOL_ADDRESS_KEY, address, PUBLIC_OPTS).catch(() => {});
   return address;
 }
 
@@ -261,7 +268,7 @@ export async function getSolanaAddress(): Promise<string> {
  */
 export async function getKnownSolanaAddress(): Promise<string | null> {
   if (!(await hasWallet())) return null;
-  return SecureStore.getItemAsync(SOL_ADDRESS_KEY).catch(() => null);
+  return SecureStore.getItemAsync(SOL_ADDRESS_KEY, PUBLIC_OPTS).catch(() => null);
 }
 
 // --- signing ----------------------------------------------------------------

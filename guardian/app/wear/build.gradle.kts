@@ -73,6 +73,44 @@ android {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Environment flavors — MUST MIRROR app/mobile/build.gradle.kts EXACTLY.
+    //
+    // The Wearable Data Layer pairs the watch and phone apps by IDENTICAL
+    // applicationId. These three suffixes are therefore not a local choice:
+    // if `staging` here said ".stg" while the phone said ".staging", the two
+    // apps would never see each other and the only symptom would be a watch
+    // that shows no data and reports no error — the exact failure the debug
+    // build type has always been careful to avoid.
+    //
+    // A dev watch build pairs with a dev phone build, staging with staging,
+    // prod with prod. That is the point: a tester can carry a staging pair on
+    // the same wrist and phone as their production pair.
+    // -----------------------------------------------------------------------
+    flavorDimensions += "environment"
+
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            buildConfigField("String", "API_BASE_URL", "\"https://api-dev.furlpay.com/api/\"")
+            buildConfigField("String", "FURLPAY_ENV", "\"dev\"")
+        }
+        create("staging") {
+            dimension = "environment"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            buildConfigField("String", "API_BASE_URL", "\"https://api-staging.furlpay.com/api/\"")
+            buildConfigField("String", "FURLPAY_ENV", "\"staging\"")
+        }
+        create("prod") {
+            dimension = "environment"
+            buildConfigField("String", "API_BASE_URL", "\"https://api.furlpay.com/api/\"")
+            buildConfigField("String", "FURLPAY_ENV", "\"prod\"")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = true
@@ -82,13 +120,15 @@ android {
         }
         debug {
             // No applicationIdSuffix — the watch app must keep the same id as
-            // the phone app for the Data Layer to pair. See app/mobile.
+            // the phone app for the Data Layer to pair. See app/mobile. The
+            // environment suffix is on the flavor, which both modules share.
             versionNameSuffix = "-debug"
         }
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {

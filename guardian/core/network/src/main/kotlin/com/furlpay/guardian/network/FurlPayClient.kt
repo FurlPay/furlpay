@@ -39,10 +39,27 @@ class FurlPayClient(
 ) {
     private val base: HttpUrl = baseUrl.toHttpUrl()
 
-    /** Bare client for the refresh call itself — no interceptors, no recursion. */
+    /**
+     * Pin unless we are talking to a test server.
+     *
+     * Derived from the base URL rather than from BuildConfig.DEBUG: the thing
+     * that makes pinning impossible is MockWebServer's self-signed certificate
+     * on localhost, not the build type. Keying off DEBUG would disable pinning
+     * for every debug build against the REAL backend — which is where a broken
+     * pin would otherwise first be noticed, and the whole point is to notice.
+     */
+    private val pinningEnabled: Boolean = base.host.endsWith("furlpay.com")
+
+    /**
+     * Bare client for the refresh call itself — no interceptors, no recursion.
+     * PINNED TOO: the refresh endpoint exchanges one session token for the
+     * next, so leaving it unpinned would leave the credential rotation as the
+     * one unprotected request in the app.
+     */
     private val refreshHttp = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.SECONDS)
+        .certificatePinner(FurlPayPinning.pinner(pinningEnabled))
         .build()
 
     private val refreshLock = Any()
@@ -51,6 +68,7 @@ class FurlPayClient(
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .addInterceptor(SessionInterceptor())
+        .certificatePinner(FurlPayPinning.pinner(pinningEnabled))
         .build()
 
     val api: FurlPayApi = Retrofit.Builder()

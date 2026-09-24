@@ -83,6 +83,13 @@ public final class ServiceContainer {
     /// or the app has been away long enough to be handed to someone else.
     public var isSessionLocked: Bool = false
 
+    /// Why the session ended, when it ended on its own rather than by request.
+    ///
+    /// Set by `sessionExpired()` and cleared on the next sign-in. Without it a
+    /// forced sign-out drops the user on the sign-in screen with no explanation,
+    /// which reads as the app having lost their account.
+    public var sessionEndedReason: String?
+
     public init(
         api: FurlPayAPIClient = .shared,
         tokenStore: KeychainTokenStore = .shared,
@@ -118,6 +125,19 @@ public final class ServiceContainer {
         push = PushNotificationService()
         alarmPresenter = AlarmPresenter()
         preferences = GuardianPreferences.shared
+
+        // Any 401 anywhere tears the session down through ONE path. Registered
+        // after every stored property is initialised — the closure captures
+        // `self`, which is not available until `init` completes its stores.
+        //
+        // `[weak self]` because the client is a long-lived singleton by default
+        // (`FurlPayAPIClient.shared`): a strong capture would keep a replaced
+        // container alive for the process lifetime.
+        Task { [weak self] in
+            await api.setUnauthorizedHandler { [weak self] in
+                await self?.sessionExpired()
+            }
+        }
     }
 
     /// The full security order for an AI-proposed action, in one place so no
@@ -253,6 +273,8 @@ public final class ServiceContainer {
         isSignedIn = true
         // Completing the OTP/passkey ceremony is fresh account authentication.
         isSessionLocked = false
+        // The expiry notice belongs to the session that ended, not this one.
+        sessionEndedReason = nil
         await sync.pushToken(token)
         await refreshAll()
     }
@@ -270,6 +292,35 @@ public final class ServiceContainer {
         // repositories but leaving it would mean the next user could ask the
         // assistant what the last one's balance was.
         assistant.reset()
+
+        // The paired watch holds the SAME session token — `signIn` pushes it —
+        // and calls the API directly when the phone is unreachable. Without
+        // this the watch kept a valid bearer token until the JWT's own expiry,
+        // so signing out here revoked nothing on the wrist.
+        await sync.clearToken()
+
+        // The App Group snapshot feeds the phone's own widgets, which never
+        // make a network call. Left behind, the previous account's balance
+        // stays on the home screen after sign-out.
+        SnapshotCache.clear()
+    }
+
+    /// Forced sign-out after the server rejected the session (401).
+    ///
+    /// The API client used to handle a 401 by clearing the keychain and nothing
+    /// else — `isSignedIn` stayed true, every repository kept its data, the
+    /// assistant kept its transcript, and the watch kept its token. The UI went
+    /// on showing the previous session's balances until the user happened to
+    /// sign out by hand or relaunch.
+    ///
+    /// Both the React Native and Android clients route a 401 through their full
+    /// teardown; this is the iOS half of that contract. Separate from
+    /// `signOut()` only so the reason can be surfaced — the teardown is
+    /// deliberately identical, because a session the server has rejected is as
+    /// over as one the user ended.
+    public func sessionExpired() async {
+        await signOut()
+        sessionEndedReason = "Your session expired. Sign in to continue."
     }
 
     /// Re-arm the privacy gate without destroying the session. This is safe to

@@ -48,8 +48,15 @@
         </intent>
     </queries>
 
+    <!-- See app/wear's manifest for the full reasoning. Short version: both
+         attributes default to ON, and the Room snapshot cache is plaintext
+         financial history that would otherwise ride Auto Backup and D2D
+         transfer onto another device. -->
     <application
         android:name=".GuardianApp"
+        android:allowBackup="false"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="false"
         android:label="FurlPay Guardian"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
@@ -62,10 +69,15 @@
             </intent-filter>
         </activity>
 
-        <!-- Watch → phone voice relay (Data Layer messages). -->
+        <!-- Watch → phone voice relay (Data Layer messages).
+
+             exported="true" is required for Play Services to deliver; the
+             permission restricts WHO can deliver to GMS itself. Without it any
+             app on the phone could invoke the relay directly. -->
         <service
             android:name=".service.VoiceRelayService"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.google.android.gms.permission.BIND_LISTENER">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
                 <data

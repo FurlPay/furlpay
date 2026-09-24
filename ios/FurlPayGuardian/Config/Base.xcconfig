@@ -1,0 +1,28 @@
+// ---------------------------------------------------------------------------
+// Shared by every configuration. Environment-specific values live in
+// Dev.xcconfig / Staging.xcconfig / Prod.xcconfig, which each #include this.
+//
+// WHY THESE EXIST
+//
+// FurlPayAPIClient defaulted its baseURL to https://furlpay.com/api/ and there
+// was no other way to set it, so a Debug build on a developer's Mac, a
+// TestFlight build in a tester's hands and an App Store build all talked to the
+// PRODUCTION backend. The same was true of the Android app (a Kotlin `const`)
+// and the React Native app (an unset env var falling back to prod).
+//
+// Build settings rather than a Swift enum on purpose: the bundle identifier and
+// the App Group have to vary with the environment too, and those are only
+// settable from the build system. Keeping the API base next to them means the
+// three cannot disagree — an app signed as `.staging` cannot be pointed at the
+// production API without editing the file that also names it staging.
+// ---------------------------------------------------------------------------
+
+FURLPAY_BUNDLE_ID_BASE = com.furlpay.guardian
+
+// Xcode strips `//` from xcconfig values as a comment, so a URL cannot be
+// written literally. The scheme is reassembled in AppEnvironment.swift.
+// This is the standard workaround, not a quirk of this project.
+FURLPAY_URL_SCHEME = https:/$()/
+
+MARKETING_VERSION = 1.0.0
+CURRENT_PROJECT_VERSION = 1

@@ -32,7 +32,17 @@ export default defineContentScript({
             detectedAt: new Date().toISOString(),
           },
         },
-        "*"
+        // Scoped to this document's origin, NOT "*" — matching
+        // wallet-announce and wallet-bridge, which both say the same thing and
+        // were already doing it. The isolated-world listener lives in this same
+        // window, so nothing legitimate needs a wildcard.
+        //
+        // What the wildcard leaked: every cross-origin iframe on the page — an
+        // ad frame, an embedded widget, anything — received the URL of each
+        // resource the user hit a 402 on, along with the advertised recipient
+        // and amount. That is a running log of what the user is about to pay
+        // for, handed to third parties that have no part in the payment.
+        window.location.origin
       );
     }
 
@@ -53,18 +63,44 @@ export default defineContentScript({
     };
 
     // --- XMLHttpRequest --------------------------------------------------------
+    //
+    // ONE listener per XHR object, not one per open() call.
+    //
+    // XMLHttpRequest objects are reusable: a page may call open() repeatedly on
+    // the same instance, and the old code attached a fresh `load` listener each
+    // time. A polling loop on a single XHR therefore accumulated listeners
+    // without bound and reported the same 402 once per open() it had ever made.
+    //
+    // The listener reads `this.status` and `this.responseText` at fire time, so
+    // a single registration stays correct across every later request the object
+    // makes — the only thing that has to be re-read per call is the method and
+    // URL, which is what `lastCall` carries.
+    const ATTACHED = Symbol("furlpay-x402-listener");
     const origOpen = XMLHttpRequest.prototype.open;
-    XMLHttpRequest.prototype.open = function (this: XMLHttpRequest, method: string, url: string | URL, ...rest: any[]) {
-      this.addEventListener("load", () => {
-        if (this.status !== 402) return;
-        let body: unknown = null;
-        try {
-          body = JSON.parse(this.responseText);
-        } catch {
-          /* non-JSON 402 */
-        }
-        report(String(url), method.toUpperCase(), body);
-      });
+    XMLHttpRequest.prototype.open = function (
+      this: XMLHttpRequest & { [ATTACHED]?: { method: string; url: string } },
+      method: string,
+      url: string | URL,
+      ...rest: any[]
+    ) {
+      const lastCall = { method: method.toUpperCase(), url: String(url) };
+      const alreadyAttached = this[ATTACHED] !== undefined;
+      this[ATTACHED] = lastCall;
+
+      if (!alreadyAttached) {
+        this.addEventListener("load", () => {
+          if (this.status !== 402) return;
+          const call = this[ATTACHED];
+          if (!call) return;
+          let body: unknown = null;
+          try {
+            body = JSON.parse(this.responseText);
+          } catch {
+            /* non-JSON 402 */
+          }
+          report(call.url, call.method, body);
+        });
+      }
       return (origOpen as any).call(this, method, url, ...rest);
     };
   },

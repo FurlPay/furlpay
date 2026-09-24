@@ -54,6 +54,21 @@ final class WatchStore {
                 self.hasToken = true
             }
         }
+        // The phone signed out. Everything derived from that session goes with
+        // it: the keychain token (the watch calls the API directly, so this is
+        // a live credential, not a cache), the in-memory snapshot, and the App
+        // Group copy the complications read. Dropping only the token would
+        // leave the previous account's balance rendering on the watch face
+        // indefinitely — a complication makes no network call, so nothing
+        // would ever refresh it away.
+        connectivity.onSignOut = { [weak self] in
+            guard let self else { return }
+            self.snapshot = GuardianSnapshot()
+            self.path = []
+            self.hasToken = false
+            SnapshotCache.clear()
+            Task { await KeychainTokenStore.shared.clear() }
+        }
         connectivity.onReachabilityChange = { [weak self] reachable in
             self?.isReachable = reachable
         }

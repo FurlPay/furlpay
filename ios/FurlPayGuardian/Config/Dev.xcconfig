@@ -1,0 +1,14 @@
+#include "Base.xcconfig"
+
+// Local / cloud dev backend. Matches infra/aws/envs/dev `api_base_url`.
+FURLPAY_ENV = dev
+FURLPAY_API_HOST = api-dev.furlpay.com
+
+// Suffixed so a developer build installs ALONGSIDE the tester's production app
+// rather than replacing it. Replacing it would also wipe the keychain items
+// scoped to that bundle id, silently signing them out of the real account.
+FURLPAY_BUNDLE_SUFFIX = .dev
+FURLPAY_DISPLAY_NAME = Guardian Dev
+
+// Sandbox APNs — a dev build registering for production push receives nothing.
+APS_ENVIRONMENT = development

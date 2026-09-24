@@ -91,6 +91,51 @@ android {
         }
     }
 
+    // -----------------------------------------------------------------------
+    // Environment flavors (dev | staging | prod)
+    //
+    // Before these existed, core/network/FurlPayClient.kt's
+    // DEFAULT_BASE_URL = "https://furlpay.com/api/" was the ONLY backend this
+    // app could talk to, in every build type. A debug build on a developer's
+    // desk moved production money.
+    //
+    // THE PAIRING INVARIANT, which these flavors must not break:
+    // the Wearable Data Layer pairs the phone and watch apps by IDENTICAL
+    // applicationId. The suffixes below are therefore duplicated EXACTLY in
+    // app/wear/build.gradle.kts — `dev` here must pair with `dev` there, and a
+    // change to one is a change to both. That is also why the suffix lives on
+    // the FLAVOR and not on the build type: a debug and a release build of the
+    // same flavor must still pair with each other, which is what lets a
+    // developer run a debug phone build against a release watch build.
+    // -----------------------------------------------------------------------
+    flavorDimensions += "environment"
+
+    productFlavors {
+        create("dev") {
+            dimension = "environment"
+            applicationIdSuffix = ".dev"
+            versionNameSuffix = "-dev"
+            resValue("string", "app_name", "Guardian Dev")
+            buildConfigField("String", "API_BASE_URL", "\"https://api-dev.furlpay.com/api/\"")
+            buildConfigField("String", "FURLPAY_ENV", "\"dev\"")
+        }
+        create("staging") {
+            dimension = "environment"
+            applicationIdSuffix = ".staging"
+            versionNameSuffix = "-staging"
+            resValue("string", "app_name", "Guardian Staging")
+            buildConfigField("String", "API_BASE_URL", "\"https://api-staging.furlpay.com/api/\"")
+            buildConfigField("String", "FURLPAY_ENV", "\"staging\"")
+        }
+        create("prod") {
+            dimension = "environment"
+            // No suffix — this is the id the Play listing owns.
+            resValue("string", "app_name", "FurlPay Guardian")
+            buildConfigField("String", "API_BASE_URL", "\"https://api.furlpay.com/api/\"")
+            buildConfigField("String", "FURLPAY_ENV", "\"prod\"")
+        }
+    }
+
     buildTypes {
         release {
             // R8 full mode: shrink code AND resources. A Wear/phone pair ships
@@ -103,16 +148,25 @@ android {
             signingConfig = signingConfigs.findByName("release")
         }
         debug {
-            // NO applicationIdSuffix. The Wearable Data Layer pairs a phone and
-            // watch app by IDENTICAL applicationId; suffixing the phone's debug
-            // build silently breaks pairing, and the symptom (watch shows no
-            // data) looks like a sync bug rather than a build-config one.
+            // NO applicationIdSuffix HERE. The Wearable Data Layer pairs a phone
+            // and watch app by IDENTICAL applicationId; suffixing the phone's
+            // debug build silently breaks pairing, and the symptom (watch shows
+            // no data) looks like a sync bug rather than a build-config one.
+            // The environment suffix belongs on the flavor above, which applies
+            // it to debug and release alike.
             versionNameSuffix = "-debug"
+
+            // Never let a debug build reach production. A developer running
+            // `installDebug` is one Gradle task away from a real transfer, and
+            // the flavor they picked is not visible in that command.
+            isDebuggable = true
         }
     }
 
     buildFeatures {
         compose = true
+        // AGP 8 defaults this to false; the flavors above are useless without it.
+        buildConfig = true
     }
 
     compileOptions {

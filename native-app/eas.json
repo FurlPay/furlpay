@@ -4,22 +4,36 @@
     "appVersionSource": "local"
   },
   "build": {
+    "//env": "FURLPAY_ENV is read by app.config.js, which resolves the API base, the applicationId/bundleIdentifier suffix and the display name from it. Nothing else in the app hardcodes a backend. Profiles that omit it fall back to a profile-name heuristic in the same file, but SETTING IT EXPLICITLY is the contract — a renamed profile must not silently repoint a build at production.",
+
     "development": {
       "developmentClient": true,
       "distribution": "internal",
+      "env": { "FURLPAY_ENV": "dev" },
       "android": { "gradleCommand": ":app:assembleDebug" },
       "ios": { "simulator": true }
     },
+
+    "//preview": "Renamed in spirit, not in key: `preview` is the STAGING lane. The key stays because `eas build --profile preview` is in muscle memory and in the READMEs; the env var is what decides the backend.",
     "preview": {
       "distribution": "internal",
       "credentialsSource": "local",
+      "env": { "FURLPAY_ENV": "staging" },
       "android": { "buildType": "apk" },
       "//ios": "Ad-hoc distribution needs registered device UDIDs. Until an Apple Developer account exists, build the simulator target instead — it needs no signing and still proves the native project compiles.",
       "ios": { "simulator": true }
     },
+
+    "//staging": "Explicit alias for `preview`, so CI and humans can name the environment rather than a legacy profile name. Same output.",
+    "staging": {
+      "extends": "preview",
+      "env": { "FURLPAY_ENV": "staging" }
+    },
+
     "production": {
       "autoIncrement": false,
       "credentialsSource": "local",
+      "env": { "FURLPAY_ENV": "prod" },
       "android": { "buildType": "app-bundle" },
       "//ios": "Apple requires apps be built with the iOS 18 SDK (Xcode 16+) since 2025-04-24; EAS defaults to Xcode 16 for SDK 52+, so no image pin is needed. A store build needs a paid Apple Developer account, a distribution certificate and a provisioning profile — none of which exist yet.",
       "ios": {
@@ -28,6 +42,8 @@
     }
   },
   "submit": {
+    "//": "There is no staging/dev submit lane on purpose. Non-production builds carry a suffixed applicationId (com.furlpay.app.staging), which has no Play listing and no App Store record — `eas submit` on one would either fail or, worse, need a second listing to be created that testers could mistake for the real app. Non-prod builds are distributed as APK / internal-distribution links.",
+
     "production": {
       "android": {
         "//": "The CANONICAL Play artifact is this React Native app. The TWA in apps/android shares the package name com.furlpay.app and must never be submitted — see apps/android/DEPRECATED.md.",

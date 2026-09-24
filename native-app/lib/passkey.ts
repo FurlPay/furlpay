@@ -1,5 +1,6 @@
 import { Passkey } from "react-native-passkey";
 import { api } from "./api";
+import { biometricLabel } from "./biometrics";
 
 // ---------------------------------------------------------------------------
 // Native passkey (WebAuthn) — the mobile twin of apps/web/src/lib/passkey.ts.
@@ -102,11 +103,15 @@ export async function approveCardChallenge(challengeId: string): Promise<void> {
 export function passkeyErrorMessage(e: unknown): string {
   const err = e as { error?: string; name?: string; message?: string };
   const code = err?.error ?? err?.name ?? "";
-  if (/cancel/i.test(code)) return "Fingerprint prompt was cancelled.";
+  // Named from what this device actually enrols. These strings said
+  // "Fingerprint" unconditionally, so on every Face ID iPhone the app reported
+  // a failure of hardware the phone does not have.
+  const bio = biometricLabel();
+  if (/cancel/i.test(code)) return `${bio} prompt was cancelled.`;
   if (/NotSupported/i.test(code)) return "This device doesn't support passkeys.";
   if (/InvalidState/i.test(code)) return "This device is already enrolled.";
   if (/NoCredential|NotAllowed/i.test(code)) {
     return "No passkey found on this device. Create one first, or sign in another way.";
   }
-  return err?.message || "Fingerprint sign-in failed.";
+  return err?.message || `${bio} sign-in failed.`;
 }

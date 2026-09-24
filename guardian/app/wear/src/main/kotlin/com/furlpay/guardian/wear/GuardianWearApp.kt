@@ -23,7 +23,28 @@ import com.furlpay.guardian.sync.MessageRouter
  */
 class WearServices(context: Context) {
     val tokenStore = KeystoreTokenStore(context)
-    val client = FurlPayClient(tokenStore = tokenStore)
+
+    // baseUrl from the build flavor — must be the SAME environment as the
+    // paired phone build, which the matched applicationIdSuffix in
+    // build.gradle.kts enforces (a dev watch can only pair with a dev phone).
+    //
+    // onUnauthorized was previously UNSET here, so the watch was the only
+    // surface in the product where a 401 did nothing at all: the token stayed
+    // in the Keystore, every subsequent call kept failing, and the tiles just
+    // showed stale data forever with no way for the user to tell the session
+    // had expired. The phone app has wired this since it was written.
+    val client = FurlPayClient(
+        baseUrl = BuildConfig.API_BASE_URL,
+        tokenStore = tokenStore,
+        onUnauthorized = {
+            // Clear the local copy. The watch has no sign-in UI of its own —
+            // recovery is the phone re-pushing a token over the Data Layer —
+            // so dropping the dead token is the whole remedy available here,
+            // and it is what makes the "signed out" state visible on the tiles
+            // instead of an indefinite stale render.
+            kotlinx.coroutines.runBlocking { tokenStore.update(null) }
+        },
+    )
 
     val walletRepo = FurlPayWalletRepository(client.api)
     val cardRepo = FurlPayCardRepository(client.api)
@@ -38,6 +59,9 @@ class WearServices(context: Context) {
 
     val dataLayer = DataLayerManager(context)
     val messages = MessageRouter(context)
+
+    /** Verifies that a Data Layer credential came from a connected node. */
+    val pairedNodes = com.furlpay.guardian.sync.PairedNodeGate(context)
 
     /**
      * Local (phone-unreachable) voice fallback. confirmMutating stays at the

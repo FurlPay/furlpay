@@ -1,6 +1,7 @@
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { Linking } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { DEVICE_ONLY } from "./storageOptions";
 
 // ---------------------------------------------------------------------------
 // Watch connectivity for the /watch screen, over the local WearBridge module
@@ -67,10 +68,10 @@ export async function openGuardianOrStore(): Promise<"opened" | "store"> {
 
 /** Persisted "the user completed the connect flow" marker + watch name. */
 export async function getPairedWatchName(): Promise<string | null> {
-  return SecureStore.getItemAsync(PAIRED_KEY);
+  return SecureStore.getItemAsync(PAIRED_KEY, DEVICE_ONLY);
 }
 
 export async function setPairedWatchName(name: string | null): Promise<void> {
-  if (name) await SecureStore.setItemAsync(PAIRED_KEY, name);
-  else await SecureStore.deleteItemAsync(PAIRED_KEY);
+  if (name) await SecureStore.setItemAsync(PAIRED_KEY, name, DEVICE_ONLY);
+  else await SecureStore.deleteItemAsync(PAIRED_KEY, DEVICE_ONLY);
 }

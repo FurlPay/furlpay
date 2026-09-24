@@ -61,6 +61,17 @@ interface SnapshotDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun put(entity: SnapshotEntity)
+
+    /**
+     * Drop every cached snapshot. Called on sign-out.
+     *
+     * The tiles and complications render exclusively from these rows and never
+     * make a network call, so without this a signed-out watch keeps showing the
+     * previous account's balance and spending on the watch face — with nothing
+     * that would ever refresh it away.
+     */
+    @Query("DELETE FROM snapshot_cache")
+    suspend fun clear()
 }
 
 @Database(

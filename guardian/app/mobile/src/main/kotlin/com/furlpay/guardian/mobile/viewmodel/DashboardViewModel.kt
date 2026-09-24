@@ -66,15 +66,9 @@ class DashboardViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun signOut() {
-        viewModelScope.launch {
-            services.authManager.signOut()
-            // Wipe the watch's copy too — an empty token clears its store.
-            runCatching {
-                services.dataLayer.putJson(
-                    com.furlpay.guardian.sync.SyncProtocol.DATA_AUTH_TOKEN,
-                    "",
-                )
-            }
-        }
+        // The watch clear used to live HERE, which is why it only happened on
+        // this one path — a 401 and an account deletion both signed out without
+        // it. It now runs inside AuthManager.signOut(), so every caller gets it.
+        viewModelScope.launch { services.authManager.signOut() }
     }
 }

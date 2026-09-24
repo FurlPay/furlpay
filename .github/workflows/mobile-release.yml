@@ -1,0 +1,201 @@
+# ---------------------------------------------------------------------------
+# Per-platform, per-environment build lanes.
+#
+# Nine combinations exist (android | ios | wear) x (dev | staging | prod), but
+# they are NOT nine jobs: the environment is an input, and the platform picks
+# the job. That keeps the matrix honest — a new environment is one more allowed
+# value, not three more copy-pasted jobs that drift.
+#
+# THE GATE THAT MATTERS: `environment: ${{ inputs.environment }}` binds this run
+# to a GitHub Environment. The AWS trust policy in infra/aws/modules/env/iam.tf
+# pins each deploy role to `repo:FurlPay/Payment-App:environment:<env>`, so a
+# run that has not passed that environment's protection rules cannot assume the
+# role at all. Protecting the branch is not enough on its own; protecting the
+# environment is what the cloud actually checks.
+# ---------------------------------------------------------------------------
+
+name: Mobile release
+
+on:
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: Which client to build
+        required: true
+        type: choice
+        options: [android, ios, wear, all]
+      environment:
+        description: Which backend the build will talk to
+        required: true
+        type: choice
+        options: [dev, staging, prod]
+
+permissions:
+  contents: read
+  id-token: write # OIDC — no long-lived AWS keys in repo secrets
+
+concurrency:
+  # One build per platform+environment at a time. Two concurrent prod builds
+  # would race on the version code and produce two artifacts claiming to be the
+  # same release.
+  group: mobile-${{ inputs.platform }}-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  # ─────────────────────────────────────────────── React Native (Android + iOS)
+  expo:
+    if: inputs.platform == 'android' || inputs.platform == 'ios' || inputs.platform == 'all'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: native-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: native-app/package-lock.json
+
+      - run: npm ci
+
+      # Runs BEFORE the build: app.config.js throws on a release build that is
+      # missing push/federated-auth config or is pointed at a non-production
+      # backend. Failing here costs seconds; failing inside EAS costs a build.
+      - name: Verify build configuration
+        env:
+          FURLPAY_ENV: ${{ inputs.environment }}
+          EAS_BUILD_PROFILE: ${{ inputs.environment == 'prod' && 'production' || 'preview' }}
+        run: node -e "require('./app.config.js')({config: require('./app.json').expo})"
+
+      - run: npm test -- --ci
+
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build
+        env:
+          FURLPAY_ENV: ${{ inputs.environment }}
+        run: |
+          PROFILE=$([ "${{ inputs.environment }}" = "prod" ] && echo production \
+                   || [ "${{ inputs.environment }}" = "staging" ] && echo staging \
+                   || echo development)
+          PLATFORM=$([ "${{ inputs.platform }}" = "all" ] && echo all || echo "${{ inputs.platform }}")
+          eas build --non-interactive --no-wait \
+            --profile "$PROFILE" --platform "$PLATFORM"
+
+  # ─────────────────────────────────────────────── Guardian Android + Wear OS
+  #
+  # ONE JOB, both modules. The phone and watch apps must ship as a matched pair:
+  # the Wearable Data Layer pairs them by identical applicationId, and the
+  # environment suffix is part of that id. Building them in separate jobs
+  # invites a staging watch APK being distributed against a prod phone build,
+  # which fails silently — the watch simply shows no data.
+  guardian:
+    if: inputs.platform == 'android' || inputs.platform == 'wear' || inputs.platform == 'all'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: guardian
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests
+        run: ./gradlew test --stacktrace
+
+      # The flavor name IS the environment. `devDebug`, `stagingRelease`,
+      # `prodRelease` — Gradle composes flavor + build type, so there is no
+      # separate place for the environment to be set wrongly.
+      - name: Assemble phone + watch
+        env:
+          FURLPAY_KEYSTORE_B64: ${{ secrets.GUARDIAN_KEYSTORE_B64 }}
+          FURLPAY_KEYSTORE_PASSWORD: ${{ secrets.GUARDIAN_KEYSTORE_PASSWORD }}
+          FURLPAY_KEY_ALIAS: ${{ secrets.GUARDIAN_KEY_ALIAS }}
+          FURLPAY_KEY_PASSWORD: ${{ secrets.GUARDIAN_KEY_PASSWORD }}
+        run: |
+          FLAVOR="${{ inputs.environment }}"
+          # Capitalise for the Gradle task name (devRelease, stagingRelease…).
+          TASK_FLAVOR="$(echo "${FLAVOR:0:1}" | tr '[:lower:]' '[:upper:]')${FLAVOR:1}"
+          BUILD_TYPE=$([ "$FLAVOR" = "prod" ] && echo Release || echo Debug)
+          ./gradlew \
+            ":app:mobile:assemble${TASK_FLAVOR}${BUILD_TYPE}" \
+            ":app:wear:assemble${TASK_FLAVOR}${BUILD_TYPE}"
+
+      - name: Assert the pair shares an applicationId
+        # The invariant is enforced by convention in two build files. This
+        # checks it in CI, because the failure mode in the field — a watch that
+        # shows nothing and logs nothing — is one of the most expensive bugs in
+        # this product to diagnose from a user report.
+        run: |
+          set -euo pipefail
+          phone=$(find app/mobile/build/outputs/apk -name '*.apk' | head -1)
+          watch=$(find app/wear/build/outputs/apk -name '*.apk' | head -1)
+          AAPT=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort | tail -1)
+          pid=$("$AAPT" dump packagename "$phone")
+          wid=$("$AAPT" dump packagename "$watch")
+          echo "phone=$pid watch=$wid"
+          [ "$pid" = "$wid" ] || { echo "::error::applicationId mismatch — the watch will never pair"; exit 1; }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guardian-${{ inputs.environment }}
+          path: guardian/app/*/build/outputs/apk/**/*.apk
+          retention-days: 14
+
+  # ─────────────────────────────────────────────── iOS Guardian (+ watchOS)
+  ios-guardian:
+    if: inputs.platform == 'ios' || inputs.platform == 'wear' || inputs.platform == 'all'
+    runs-on: macos-15
+    environment: ${{ inputs.environment }}
+    defaults:
+      run:
+        working-directory: ios/FurlPayGuardian
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # App Store Connect rejects anything not built with the Xcode 26 SDK
+      # since 28 April 2026 — see project.yml's header.
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app
+
+      - run: brew install xcodegen
+
+      - run: xcodegen generate
+
+      # Configuration name maps to the xcconfig, which sets the API host, the
+      # bundle suffix and the APNs environment together.
+      - name: Build
+        run: |
+          CONFIG=$(case "${{ inputs.environment }}" in
+            prod) echo Release ;;
+            staging) echo Staging ;;
+            *) echo Debug ;;
+          esac)
+          xcodebuild build \
+            -project FurlPayGuardian.xcodeproj \
+            -scheme FurlPayGuardian \
+            -configuration "$CONFIG" \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Test
+        run: |
+          xcodebuild test \
+            -project FurlPayGuardian.xcodeproj \
+            -scheme FurlPayGuardian \
+            -destination 'platform=iOS Simulator,name=iPhone 16'

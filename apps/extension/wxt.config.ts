@@ -45,12 +45,28 @@ export default defineConfig({
     description:
       "x402 stablecoin payments, biometric card approvals, travel booking and fee savings — directly from your browser.",
     permissions: ["storage", "notifications", "sidePanel", "alarms", "activeTab"],
+    // MUST STAY IN STEP WITH `ALLOWED_ORIGINS` in lib/api.ts. That list decides
+    // which backend the user may configure; this one decides which the browser
+    // will actually let us reach. A host in one and not the other produces a
+    // setting that appears to save and then fails every request on CORS, with
+    // no error surfaced anywhere.
     host_permissions: [
       // Session-cookie API calls to the FurlPay backend only.
       "https://furlpay.com/*",
       "https://www.furlpay.com/*",
-      // Backend dev server — never in a published listing.
-      ...(isProduction ? [] : ["http://localhost:3000/*"]),
+      // The AWS environments. Production ships only the production host: dev
+      // and staging are unjustifiable permissions in a public listing, and
+      // over-permissioning is the single most common CWS rejection reason.
+      "https://api.furlpay.com/*",
+      ...(isProduction
+        ? []
+        : [
+            "https://api-staging.furlpay.com/*",
+            "https://api-dev.furlpay.com/*",
+            // Backend dev server — never in a published listing.
+            "http://localhost:3000/*",
+            "http://127.0.0.1:3000/*",
+          ]),
     ],
     icons: { "16": "icon16.png", "48": "icon48.png", "128": "icon128.png" },
     action: {

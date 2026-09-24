@@ -57,6 +57,7 @@
     },
     "plugins": [
       "./plugins/withNetworkSecurityConfig",
+      "./plugins/withIosCertificatePinning",
       "./plugins/withUpiQueries",
       "./plugins/withAndroidPerformance",
       "./plugins/withWindowsPathFix",

@@ -29,8 +29,36 @@ class MobileServices(context: Context) {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     val tokenStore = KeystoreTokenStore(context)
-    val authManager = AuthManager(tokenStore, appScope)
+
+    // DataLayerManager is constructed BEFORE AuthManager because AuthManager's
+    // watch-revocation lambda closes over it. Declaring it further down (where
+    // the other sync objects live) would read better and not compile — Kotlin
+    // initialises properties in declaration order, so the lambda would capture
+    // an uninitialised field.
+    val dataLayer = DataLayerManager(context)
+
+    val authManager = AuthManager(
+        tokenStore,
+        appScope,
+        // An EMPTY token, not a deleted data item. WearListenerService reacts to
+        // DataEvent.TYPE_CHANGED only, so deleting the item fires TYPE_DELETED
+        // and the watch would never hear about it — the session would look
+        // revoked on the phone and stay live on the wrist. Writing "" is a
+        // change, so it propagates, and the watch's own
+        // `json.takeIf { it.isNotBlank() }` turns it into a token clear.
+        //
+        // Leaving the emptied item in place is deliberate: a watch paired AFTER
+        // sign-out reads the latest value for this path and gets "", so it
+        // starts signed out rather than inheriting the old session.
+        revokeWatchSession = {
+            dataLayer.putJson(com.furlpay.guardian.sync.SyncProtocol.DATA_AUTH_TOKEN, "")
+        },
+    )
+    // baseUrl comes from the build flavor (dev/staging/prod), not from
+    // FurlPayClient.DEFAULT_BASE_URL. The default is production, so omitting it
+    // here is not a neutral choice — it is a silent "talk to prod".
     val client = FurlPayClient(
+        baseUrl = BuildConfig.API_BASE_URL,
         tokenStore = tokenStore,
         onUnauthorized = { authManager.onUnauthorized() },
     )
@@ -45,7 +73,6 @@ class MobileServices(context: Context) {
     val eventRepo = RoomEventRepository(db.events())
     val snapshots = SnapshotStore(db.snapshots())
 
-    val dataLayer = DataLayerManager(context)
     val messages = MessageRouter(context)
     val alarmScheduler = GuardianAlarmScheduler(context)
     val sync = SyncCoordinator(this)

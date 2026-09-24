@@ -1,0 +1,19 @@
+#include "Base.xcconfig"
+
+// Matches infra/aws/envs/staging `api_base_url`.
+FURLPAY_ENV = staging
+FURLPAY_API_HOST = api-staging.furlpay.com
+
+FURLPAY_BUNDLE_SUFFIX = .staging
+FURLPAY_DISPLAY_NAME = Guardian Staging
+
+// Staging is distributed through TestFlight, which uses PRODUCTION APNs even
+// for internal testers. `development` here is the classic mistake that makes
+// every staging push silently vanish.
+APS_ENVIRONMENT = production
+
+// Optimised like a release build so staging exercises the same compiler output
+// the store build will ship — a bug that only appears under -O is a bug found
+// in production if staging runs -Onone.
+SWIFT_COMPILATION_MODE = wholemodule
+SWIFT_OPTIMIZATION_LEVEL = -O

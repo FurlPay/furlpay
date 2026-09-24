@@ -21,6 +21,21 @@ public enum SyncKey {
     public static let cards = "cards"
     public static let updatedAt = "updatedAt"
 
+    /// Phone → watch: the session has ended, drop everything.
+    ///
+    /// A DISTINCT KEY, not an empty `token`. Two reasons, and both were live
+    /// bugs rather than hypotheticals:
+    ///
+    ///   1. The watch's receive path guards on `!token.isEmpty`, so an empty
+    ///      string is silently discarded — the technique the Android app uses
+    ///      to clear its watch would have been a no-op here.
+    ///   2. An empty string is indistinguishable from a truncated or failed
+    ///      payload. "Sign out" and "the token did not arrive" must not be the
+    ///      same wire value when one of them wipes the session.
+    ///
+    /// Carried as a Bool so the intent is explicit on the wire.
+    public static let signOut = "sign_out"
+
     /// Watch → phone.
     public static let voiceCommand = "voice_command"
     public static let voiceResponse = "response"
@@ -106,7 +121,25 @@ public enum SyncCodec {
 /// can read it. Complications must never make a network call — WidgetKit budgets
 /// their refreshes and a request would frequently not finish.
 public enum SnapshotCache {
-    public static let appGroup = "group.com.furlpay.guardian"
+    /// App Group backing the cache.
+    ///
+    /// ENVIRONMENT-SCOPED. This was a bare `group.com.furlpay.guardian`, which
+    /// was correct while one build existed. With dev/staging/prod installable
+    /// side by side it would mean three apps sharing one container: the staging
+    /// app would overwrite the production snapshot, and the production widget
+    /// would render staging balances on the user's watch face with no way to
+    /// tell. The suffix comes from the same xcconfig that sets the bundle id,
+    /// so the container follows the app it belongs to.
+    ///
+    /// The matching group MUST exist in each target's .entitlements and be
+    /// provisioned in the developer portal — an unprovisioned group makes
+    /// `UserDefaults(suiteName:)` return nil, and every accessor below already
+    /// degrades to "no cached snapshot" rather than crashing.
+    public static let appGroup: String = {
+        let suffix = Bundle.main.object(forInfoDictionaryKey: "FurlPayBundleSuffix") as? String ?? ""
+        return "group.com.furlpay.guardian\(suffix)"
+    }()
+
     private static let key = "guardian.snapshot"
 
     public static func save(_ snapshot: GuardianSnapshot) {
@@ -121,5 +154,15 @@ public enum SnapshotCache {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         return try? decoder.decode(GuardianSnapshot.self, from: data)
+    }
+
+    /// Drop the cached snapshot on sign-out.
+    ///
+    /// Clearing the token without clearing this would leave the previous
+    /// account's balances and card digits rendering on the watch face and in
+    /// the Smart Stack — surfaces that never make a network call, so nothing
+    /// would ever refresh them away.
+    public static func clear() {
+        UserDefaults(suiteName: appGroup)?.removeObject(forKey: key)
     }
 }

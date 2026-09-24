@@ -56,6 +56,36 @@ public final class WatchSyncCoordinator: NSObject {
         }
     }
 
+    /// Revoke the watch's copy of the session.
+    ///
+    /// The mirror of `pushToken`, and its absence was a real defect: `signOut()`
+    /// cleared the phone's keychain, repositories and assistant transcript while
+    /// the paired watch kept a valid bearer token until the JWT's own expiry.
+    /// The watch calls the API directly when the phone is unreachable, so that
+    /// token authenticated real requests — selling or returning the phone did
+    /// not revoke it.
+    ///
+    /// BOTH TRANSPORTS, ALWAYS — unlike `pushToken`, which prefers the live
+    /// path and falls back. A sign-out that is only attempted while the watch
+    /// happens to be reachable is a sign-out that silently does not happen when
+    /// the watch is in another room, which is exactly when it matters.
+    /// `transferUserInfo` is queued and guaranteed: it survives the watch being
+    /// out of range, powered off, or the app being killed, and lands on next
+    /// contact. Sending both means a reachable watch clears immediately AND an
+    /// unreachable one clears eventually. Duplicate delivery is harmless —
+    /// clearing an already-cleared store is a no-op.
+    public func clearToken() async {
+        guard WCSession.isSupported() else { return }
+        let session = WCSession.default
+        guard session.activationState == .activated else { return }
+
+        let payload: [String: Any] = [SyncKey.signOut: true]
+        if session.isReachable {
+            session.sendMessage(payload, replyHandler: nil, errorHandler: nil)
+        }
+        session.transferUserInfo(payload)
+    }
+
     /// The whole snapshot in one transfer. Split per-key it would be possible
     /// for the watch to hold wallets from one minute and a portfolio from
     /// another, and render a Home screen that never existed.

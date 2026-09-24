@@ -28,4 +28,17 @@ class SnapshotStore(private val dao: SnapshotDao) {
             // Losing a cache write degrades to a network fetch later — fine.
         }
     }
+
+    /**
+     * Wipe every cached snapshot — sign-out only.
+     *
+     * Unlike [read] and [write], a failure here is NOT benign: it means the
+     * previous account's balances stay renderable on a watch face that makes no
+     * network call. The exception is still swallowed so teardown completes, but
+     * it is swallowed at the CALL SITE with a `runCatching`, where the decision
+     * is visible, rather than silently here.
+     */
+    suspend fun clear() {
+        dao.clear()
+    }
 }

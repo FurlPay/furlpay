@@ -1,5 +1,7 @@
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
+import { DEVICE_ONLY } from "./storageOptions";
 
 // ---------------------------------------------------------------------------
 // API client → the same furlpay.com/api the web app uses. The session JWT is
@@ -34,15 +36,50 @@ const TOKEN_KEY = "furlpay.session";
  * disguised as a real one.
  */
 const CLIENT_VERSION = Constants.expoConfig?.version ?? "0.0.0-unknown";
-const CLIENT_HEADER = `mobile-android/${CLIENT_VERSION}`;
+
+/**
+ * THE PLATFORM IS READ, NOT TYPED, for the same reason as the version above.
+ *
+ * This was hardcoded to `mobile-android` in an app that ships on both
+ * platforms, so every iOS request identified itself as Android. The three
+ * consumers named above — telemetry, minimum-version checks, per-client
+ * rollouts — were each answering questions about the wrong platform, and
+ * nothing broke loudly enough to notice.
+ *
+ * `Platform.OS` is "ios" | "android"; the `mobile` prefix is the part the
+ * server contract actually depends on (apps/web/src/lib/clientKind.ts) and is
+ * preserved.
+ */
+const CLIENT_HEADER = `mobile-${Platform.OS}/${CLIENT_VERSION}`;
+
+/**
+ * Storage policy for the session token.
+ *
+ * WHEN_UNLOCKED_THIS_DEVICE_ONLY, matching the wallet mnemonic in lib/wallet.ts.
+ * The token was previously written with NO options at all, taking the platform
+ * default — which on iOS admits the item to an encrypted iCloud Keychain backup,
+ * so a bearer token that can move money could reappear on a restored device the
+ * user no longer holds. That is precisely the property `ThisDeviceOnly` was
+ * chosen to prevent for the seed phrase, and the token needs it just as much:
+ * spending through the API never touches the mnemonic.
+ *
+ * NO `requireAuthentication`, deliberately — and this is the one place this
+ * policy differs from the mnemonic's. The token is read on every API call,
+ * including background refreshes; a biometric prompt there would either fail
+ * (no UI in the background) or train the user to approve Face ID reflexively.
+ * The iOS Guardian app documents and resolves the identical tradeoff the same
+ * way. The app-lock gate in lib/auth.ts is what binds the session to the device
+ * owner.
+ */
+const TOKEN_OPTS = DEVICE_ONLY;
 
 export async function getToken(): Promise<string | null> {
-  return SecureStore.getItemAsync(TOKEN_KEY);
+  return SecureStore.getItemAsync(TOKEN_KEY, TOKEN_OPTS);
 }
 
 export async function setToken(token: string | null): Promise<void> {
-  if (token) await SecureStore.setItemAsync(TOKEN_KEY, token);
-  else await SecureStore.deleteItemAsync(TOKEN_KEY);
+  if (token) await SecureStore.setItemAsync(TOKEN_KEY, token, TOKEN_OPTS);
+  else await SecureStore.deleteItemAsync(TOKEN_KEY, TOKEN_OPTS);
 }
 
 // ---------------------------------------------------------------------------

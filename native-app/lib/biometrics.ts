@@ -1,4 +1,5 @@
 import * as LocalAuthentication from "expo-local-authentication";
+import { Platform } from "react-native";
 import { queryClient } from "./queries";
 
 // ---------------------------------------------------------------------------
@@ -27,6 +28,63 @@ import { queryClient } from "./queries";
 
 interface ProfileShape {
   security?: { biometricEnabled?: boolean };
+}
+
+// --- naming ----------------------------------------------------------------
+//
+// The login screen said "Sign in with Fingerprint", and all three passkey error
+// strings said "Fingerprint" too, in an app that ships on iPhones where the only
+// biometric is Face ID. Naming hardware the device does not have reads as a bug
+// in the app — and SignerPicker.tsx already got this right with "Face ID or
+// fingerprint", so the app contradicted itself screen to screen.
+//
+// Resolved from what the device ACTUALLY enrols rather than from Platform.OS:
+// plenty of Android phones are face-only, plenty of iPads are Touch ID, and
+// both facts are readable.
+
+let cachedLabel: string | null = null;
+
+/**
+ * What to call the biometric on THIS device — "Face ID", "Fingerprint",
+ * "Touch ID", or a neutral fallback.
+ *
+ * Synchronous by necessity: it renders inside a button label. The first call
+ * returns the neutral fallback and warms the cache via
+ * `primeBiometricLabel()`, which the login screen awaits on mount.
+ */
+export function biometricLabel(): string {
+  return cachedLabel ?? "Biometrics";
+}
+
+/**
+ * Resolve and cache the device's biometric name. Call once at startup or on
+ * mount of any screen that renders {@link biometricLabel}.
+ *
+ * Falls back to the neutral term on ANY failure. A wrong-but-confident label is
+ * worse than a generic one: the user is being asked to authenticate, and the
+ * prompt they are about to see names the real hardware regardless.
+ */
+export async function primeBiometricLabel(): Promise<string> {
+  if (cachedLabel) return cachedLabel;
+  try {
+    const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+    const { FACIAL_RECOGNITION, FINGERPRINT, IRIS } = LocalAuthentication.AuthenticationType;
+
+    if (types.includes(FACIAL_RECOGNITION)) {
+      // Apple's is a trademark with an exact spelling; Android has no single
+      // brand name for face unlock, so it gets the plain description.
+      cachedLabel = Platform.OS === "ios" ? "Face ID" : "Face Unlock";
+    } else if (types.includes(FINGERPRINT)) {
+      cachedLabel = Platform.OS === "ios" ? "Touch ID" : "Fingerprint";
+    } else if (types.includes(IRIS)) {
+      cachedLabel = "Iris";
+    } else {
+      cachedLabel = "Biometrics";
+    }
+  } catch {
+    cachedLabel = "Biometrics";
+  }
+  return cachedLabel;
 }
 
 /** The user's stated preference, read from the cached profile. Defaults to ON

@@ -14,16 +14,50 @@ const path = require("path");
 // PIN CHOICE — roots, never leaves or intermediates: Vercel rotates the leaf
 // every ~90 days and Let's Encrypt rotates intermediates on its own schedule;
 // pinning either would brick networking on rotation. The pins below are the
-// SPKI sha256 of the trust anchors, computed from the live chain + the
-// letsencrypt.org published roots (verified 2026-07-18):
-//   - ISRG Root YR — the anchor furlpay.com currently chains to
-//   - ISRG Root X1 — its cross-signer (continuity for classic LE chains)
-//   - ISRG Root X2 — LE's EC root (backup if issuance moves)
+// SPKI sha256 of the trust anchors.
+//
+// EVERY VALUE WAS RECOMPUTED FROM THE PUBLISHED ROOT CERTIFICATE on 2026-09-25,
+// not transcribed. The reproduction command is:
+//
+//   openssl x509 -in <root>.pem -pubkey -noout \
+//     | openssl pkey -pubin -outform der \
+//     | openssl dgst -sha256 -binary | openssl enc -base64
+//
+// TWO CA HIERARCHIES ARE PINNED, AND BOTH ARE LOAD-BEARING DURING THE AWS
+// MIGRATION.
+//
+// Let's Encrypt (Vercel-served hosts — furlpay.com today):
+//   - ISRG Root YR — RSA anchor, LE's gen-Y hierarchy (GA 2026-01-15)
+//   - ISRG Root YE — EC anchor of the same generation. WAS MISSING. LE's own
+//                    published default ECDSA chain is
+//                    EE <- YE1 <- Root YE <- ISRG Root X2 <- ISRG Root X1, so
+//                    X1 in the chain covers it TODAY. The moment LE serves the
+//                    shorter chain terminating at Root YE — which is what
+//                    happens once YE lands in trust stores — an unpinned YE
+//                    breaks every handshake. It is a backup pin that costs
+//                    nothing and removes a scheduled outage.
+//   - ISRG Root X1 — the long-lived RSA root the default chain still ends at
+//   - ISRG Root X2 — LE's established EC root
+//
+// Amazon Trust Services (the AWS environments — api*.furlpay.com):
+//   THIS IS THE MIGRATION BLOCKER. The <domain-config> below matches
+//   furlpay.com with includeSubdomains="true", so it ALREADY COVERS
+//   api.furlpay.com, api-staging.furlpay.com and api-dev.furlpay.com. AWS
+//   Certificate Manager issues certificates chaining to Amazon Trust Services,
+//   NOT to ISRG — so without these five pins the first build pointed at an AWS
+//   endpoint fails every TLS handshake and looks to the user like the phone
+//   has no connectivity. The expiry gate below does NOT catch this: the ISRG
+//   pins are perfectly valid, they simply do not appear in the new chain.
+//
+//   All five Amazon roots are pinned because ACM does not commit to which one
+//   a given certificate chains to, and AWS's own guidance is to pin all of the
+//   published roots rather than guess. The five SPKI hashes computed here also
+//   match the hex values AWS publishes, which is a second independent source.
+//
 // The <pin-set> expiration is a deliberate dead-man's switch: if this app
 // stops being maintained, pinning degrades to normal CA validation instead of
-// bricking users when Let's Encrypt eventually rolls its hierarchy. Bump the
-// date (and re-verify pins: `openssl s_client -connect furlpay.com:443
-// -showcerts`, then SPKI sha256) at least yearly.
+// bricking users when either CA eventually rolls its hierarchy. Bump the date
+// (and re-verify every pin with the command above) at least yearly.
 //
 // CLEARTEXT IS NOW BUILD-VARIANT SCOPED (FURL-007). The dev-server exception
 // used to ship in the RELEASE config, justified in a comment as "harmless in
@@ -38,19 +72,47 @@ const path = require("path");
 // cleartext everywhere.
 // ---------------------------------------------------------------------------
 
+/**
+ * The pin set, as a single source shared by the release and debug configs.
+ *
+ * Duplicating it in two template literals is how one of them silently falls
+ * behind the other — and a debug build whose pins differ from release is a
+ * build that cannot reproduce a release-only TLS failure.
+ */
+const PIN_SET = `      <!-- Let's Encrypt — Vercel-served hosts -->
+      <!-- ISRG Root YR (RSA, gen-Y) -->
+      <pin digest="SHA-256">fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=</pin>
+      <!-- ISRG Root YE (EC, gen-Y) — backup for the shorter YE-terminated chain -->
+      <pin digest="SHA-256">sCkq5UWXjg+7mKu9lMhhYF5bGLsy7VI/UNW3tccdR7w=</pin>
+      <!-- ISRG Root X1 (RSA, current default chain terminus) -->
+      <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
+      <!-- ISRG Root X2 (EC) -->
+      <pin digest="SHA-256">diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=</pin>
+
+      <!-- Amazon Trust Services — the AWS environments (api*.furlpay.com).
+           Required BEFORE any client is repointed at AWS; see the header. -->
+      <!-- Amazon Root CA 1 (RSA 2048) -->
+      <pin digest="SHA-256">++MBgDH5WGvL9Bcn5Be30cRcL0f5O+NyoXuWtQdX1aI=</pin>
+      <!-- Amazon Root CA 2 (RSA 4096) -->
+      <pin digest="SHA-256">f0KW/FtqTjs108NpYj42SrGvOB2PpxIVM8nWxjPqJGE=</pin>
+      <!-- Amazon Root CA 3 (EC P-256) -->
+      <pin digest="SHA-256">NqvDJlas/GRcYbcWE8S/IceH9cq77kg0jVhZeAPXq8k=</pin>
+      <!-- Amazon Root CA 4 (EC P-384) -->
+      <pin digest="SHA-256">9+ze1cZgR9KO1kZrVDxA4HQ6voHRCSVNz4RdTCx4U8U=</pin>
+      <!-- Starfield Services Root CA G2 (legacy cross-sign anchor) -->
+      <pin digest="SHA-256">KwccWaCgrnaw6tsrrSO61FgLacNgG2MMLq8GE6+oP5I=</pin>`;
+
+/** Bump when a pin is added, removed or re-verified. Asserted by the tests. */
+const PIN_SET_EXPIRY = "2027-07-18";
+
 /** Release: pinning, and no cleartext anywhere. */
 const NETWORK_SECURITY_CONFIG = `<?xml version="1.0" encoding="utf-8"?>
 <network-security-config>
   <base-config cleartextTrafficPermitted="false" />
   <domain-config>
     <domain includeSubdomains="true">furlpay.com</domain>
-    <pin-set expiration="2027-07-18">
-      <!-- ISRG Root YR (live anchor) -->
-      <pin digest="SHA-256">fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=</pin>
-      <!-- ISRG Root X1 (cross-signer) -->
-      <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
-      <!-- ISRG Root X2 (backup) -->
-      <pin digest="SHA-256">diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=</pin>
+    <pin-set expiration="${PIN_SET_EXPIRY}">
+${PIN_SET}
     </pin-set>
   </domain-config>
 </network-security-config>
@@ -69,10 +131,8 @@ const NETWORK_SECURITY_CONFIG_DEBUG = `<?xml version="1.0" encoding="utf-8"?>
   <base-config cleartextTrafficPermitted="false" />
   <domain-config>
     <domain includeSubdomains="true">furlpay.com</domain>
-    <pin-set expiration="2027-07-18">
-      <pin digest="SHA-256">fk6IOKit1ild5647BH06ujSIq5XbCgqlbYl6ANhhi88=</pin>
-      <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
-      <pin digest="SHA-256">diGVwiVYbubAI3RW4hB9xU8e/CH2GnkuvVFZE8zmgzI=</pin>
+    <pin-set expiration="${PIN_SET_EXPIRY}">
+${PIN_SET}
     </pin-set>
   </domain-config>
   <domain-config cleartextTrafficPermitted="true">
@@ -113,6 +173,44 @@ function assertPinsNotNearExpiry(now = Date.now()) {
   return daysLeft;
 }
 
+/**
+ * SPKI pins that must be present for the app to reach an AWS-hosted backend.
+ *
+ * Kept as an explicit list rather than a count so that removing one is a
+ * deliberate edit to this array, not an invisible side effect of reformatting
+ * the XML.
+ */
+const REQUIRED_AMAZON_PINS = [
+  "++MBgDH5WGvL9Bcn5Be30cRcL0f5O+NyoXuWtQdX1aI=", // Amazon Root CA 1
+  "f0KW/FtqTjs108NpYj42SrGvOB2PpxIVM8nWxjPqJGE=", // Amazon Root CA 2
+  "NqvDJlas/GRcYbcWE8S/IceH9cq77kg0jVhZeAPXq8k=", // Amazon Root CA 3
+  "9+ze1cZgR9KO1kZrVDxA4HQ6voHRCSVNz4RdTCx4U8U=", // Amazon Root CA 4
+  "KwccWaCgrnaw6tsrrSO61FgLacNgG2MMLq8GE6+oP5I=", // Starfield Services Root CA G2
+];
+
+/**
+ * Refuse to build a config that cannot reach the AWS environments.
+ *
+ * The <domain-config> matches furlpay.com with includeSubdomains, so it covers
+ * api.furlpay.com. Dropping the Amazon anchors would not produce a build error,
+ * a lint warning or a failing unit test — it would produce an app that fails
+ * every handshake against the production API and reports it as "no internet".
+ * That failure is worth one assertion.
+ */
+function assertAmazonRootsPinned(xml = NETWORK_SECURITY_CONFIG) {
+  const missing = REQUIRED_AMAZON_PINS.filter((pin) => !xml.includes(pin));
+  if (missing.length) {
+    throw new Error(
+      `network_security_config is missing ${missing.length} Amazon Trust Services root pin(s).\n` +
+        "The pin-set covers *.furlpay.com, which includes the AWS API hosts, and ACM\n" +
+        "certificates chain to Amazon Trust Services rather than ISRG. Without these the\n" +
+        "app cannot complete a TLS handshake against api.furlpay.com.\n" +
+        `Missing: ${missing.join(", ")}`
+    );
+  }
+  return true;
+}
+
 function withNetworkSecurityConfig(config) {
   // 1. Write res/xml/network_security_config.xml during prebuild.
   config = withDangerousMod(config, [
@@ -121,6 +219,8 @@ function withNetworkSecurityConfig(config) {
       // Fails the build outright if the pins have lapsed, rather than letting
       // pinning silently stop applying.
       assertPinsNotNearExpiry();
+      // ...and if the AWS anchors have been dropped, which lapsing does not cover.
+      assertAmazonRootsPinned();
 
       const appDir = path.join(cfg.modRequest.platformProjectRoot, "app", "src");
 
@@ -157,6 +257,9 @@ module.exports = withNetworkSecurityConfig;
 // them. Exported so the release-config invariants are testable without running
 // a prebuild.
 module.exports.assertPinsNotNearExpiry = assertPinsNotNearExpiry;
+module.exports.assertAmazonRootsPinned = assertAmazonRootsPinned;
+module.exports.REQUIRED_AMAZON_PINS = REQUIRED_AMAZON_PINS;
 module.exports.PIN_EXPIRY_WARN_DAYS = PIN_EXPIRY_WARN_DAYS;
+module.exports.PIN_SET_EXPIRY = PIN_SET_EXPIRY;
 module.exports.NETWORK_SECURITY_CONFIG = NETWORK_SECURITY_CONFIG;
 module.exports.NETWORK_SECURITY_CONFIG_DEBUG = NETWORK_SECURITY_CONFIG_DEBUG;

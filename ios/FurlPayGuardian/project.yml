@@ -22,6 +22,17 @@
 # installing on an iPhone running 18.
 
 name: FurlPayGuardian
+
+# Three configurations, one per AWS environment. XcodeGen's default pair
+# (Debug/Release) cannot express "a release-optimised build pointed at
+# staging", which is exactly what TestFlight needs — so the mapping below gives
+# Staging the `release` type while Config/Staging.xcconfig points it at the
+# staging backend.
+configs:
+  Debug: debug
+  Staging: release
+  Release: release
+
 options:
   bundleIdPrefix: com.furlpay
   createIntermediateGroups: true
@@ -64,20 +75,20 @@ settings:
 
     ENABLE_USER_SCRIPT_SANDBOXING: YES
     DEAD_CODE_STRIPPING: YES
-  configs:
-    debug:
-      # Substituted into FurlPayGuardian.entitlements. Hardcoding `development`
-      # there meant release builds registered for SANDBOX APNs and every
-      # production push was delivered to an endpoint nothing was listening on —
-      # a silent, total loss of notifications with no error to trace.
-      APS_ENVIRONMENT: development
-    release:
-      APS_ENVIRONMENT: production
-      SWIFT_COMPILATION_MODE: wholemodule
-      # Strips Swift symbol names from the shipped binary — the practical
-      # equivalent of the R8/ProGuard step in the Android build.
-      STRIP_SWIFT_SYMBOLS: YES
-      SWIFT_OPTIMIZATION_LEVEL: "-O"
+
+# APS_ENVIRONMENT (substituted into the entitlements), the optimisation level
+# and the symbol strip now live in Config/*.xcconfig alongside the API host and
+# the bundle suffix, because they have to agree: a build that talks to staging
+# must also register for the APNs environment staging's push tokens came from.
+# Hardcoding `development` in the entitlements once meant release builds
+# registered for SANDBOX APNs and every production push was delivered to an
+# endpoint nothing was listening on — a silent, total loss of notifications
+# with no error to trace. Keeping the two settings in one file per environment
+# is what stops that pairing from drifting apart again.
+configFiles:
+  Debug: Config/Dev.xcconfig
+  Staging: Config/Staging.xcconfig
+  Release: Config/Prod.xcconfig
 
 targets:
 
@@ -90,11 +101,20 @@ targets:
       - path: Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian
+        # $(FURLPAY_BUNDLE_SUFFIX) is empty in Prod.xcconfig and .dev/.staging
+        # elsewhere, so all three can be installed on one device.
+        PRODUCT_BUNDLE_IDENTIFIER: $(FURLPAY_BUNDLE_ID_BASE)$(FURLPAY_BUNDLE_SUFFIX)
+        PRODUCT_NAME: $(FURLPAY_DISPLAY_NAME)
         INFOPLIST_FILE: FurlPayGuardian/Resources/Info.plist
+        # Read back at runtime by AppEnvironment.swift. Info.plist substitution
+        # is the only way a build setting reaches Swift without a generated
+        # source file, and a generated file would need a build phase that
+        # ENABLE_USER_SCRIPT_SANDBOXING makes awkward.
+        INFOPLIST_KEY_FurlPayAPIHost: $(FURLPAY_API_HOST)
+        INFOPLIST_KEY_FurlPayEnvironment: $(FURLPAY_ENV)
+        # Read by SnapshotCache to scope its App Group per environment.
+        INFOPLIST_KEY_FurlPayBundleSuffix: $(FURLPAY_BUNDLE_SUFFIX)
         CODE_SIGN_ENTITLEMENTS: FurlPayGuardian/Resources/FurlPayGuardian.entitlements
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
         TARGETED_DEVICE_FAMILY: "1"   # iPhone only; the watch app is its own target
     dependencies:
       - target: FurlPayGuardianWatch
@@ -138,11 +158,11 @@ targets:
       - path: Shared/UI
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian.activities
+        # An app extension's bundle id MUST be prefixed by its host app's, so
+        # this one follows the suffix too or the Staging/Dev app will not embed.
+        PRODUCT_BUNDLE_IDENTIFIER: $(FURLPAY_BUNDLE_ID_BASE)$(FURLPAY_BUNDLE_SUFFIX).activities
         INFOPLIST_FILE: FurlPayGuardianActivities/Info.plist
         CODE_SIGN_ENTITLEMENTS: FurlPayGuardianActivities/FurlPayGuardianActivities.entitlements
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
     dependencies:
       - sdk: WidgetKit.framework
       - sdk: SwiftUI.framework
@@ -161,14 +181,23 @@ targets:
       - path: Shared
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian.watchkitapp
+        PRODUCT_BUNDLE_IDENTIFIER: $(FURLPAY_BUNDLE_ID_BASE)$(FURLPAY_BUNDLE_SUFFIX).watchkitapp
         INFOPLIST_FILE: FurlPayGuardianWatch/Info.plist
+        INFOPLIST_KEY_FurlPayAPIHost: $(FURLPAY_API_HOST)
+        INFOPLIST_KEY_FurlPayEnvironment: $(FURLPAY_ENV)
+        # Read by SnapshotCache to scope its App Group per environment.
+        INFOPLIST_KEY_FurlPayBundleSuffix: $(FURLPAY_BUNDLE_SUFFIX)
         CODE_SIGN_ENTITLEMENTS: FurlPayGuardianWatch/FurlPayGuardianWatch.entitlements
-        MARKETING_VERSION: "1.0.0"
-        CURRENT_PROJECT_VERSION: "1"
         # Ties the watch app to its phone app. Without it the watch app installs
         # as a standalone and WCSession never pairs.
-        WKCompanionAppBundleIdentifier: com.furlpay.guardian
+        #
+        # THE SUFFIX MUST BE CARRIED HERE TOO. A staging watch app naming
+        # `com.furlpay.guardian` as its companion would pair with the tester's
+        # PRODUCTION phone app — the watch would then be fed production tokens
+        # and production balances while its own API host said staging. This is
+        # the iOS equivalent of the matched applicationIdSuffix in the two
+        # guardian/app/*/build.gradle.kts files.
+        WKCompanionAppBundleIdentifier: $(FURLPAY_BUNDLE_ID_BASE)$(FURLPAY_BUNDLE_SUFFIX)
     dependencies:
       - target: FurlPayGuardianWidgets
         embed: true
@@ -187,8 +216,12 @@ targets:
       # so this target has no path to the token, the API, or the tool catalog.
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.furlpay.guardian.watchkitapp.widgets
+        PRODUCT_BUNDLE_IDENTIFIER: $(FURLPAY_BUNDLE_ID_BASE)$(FURLPAY_BUNDLE_SUFFIX).watchkitapp.widgets
         INFOPLIST_FILE: FurlPayGuardianWidgets/Info.plist
+        # The complications read SnapshotCache, so this extension must resolve
+        # the SAME App Group as its host app — otherwise it renders an empty
+        # face against a populated container.
+        INFOPLIST_KEY_FurlPayBundleSuffix: $(FURLPAY_BUNDLE_SUFFIX)
         CODE_SIGN_ENTITLEMENTS: FurlPayGuardianWidgets/FurlPayGuardianWidgets.entitlements
     dependencies:
       - sdk: WidgetKit.framework

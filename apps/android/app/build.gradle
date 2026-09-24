@@ -20,6 +20,52 @@ plugins {
     id 'com.android.application'
 }
 
+// ---------------------------------------------------------------------------
+// THIS PROJECT MUST NOT PRODUCE A RELEASE ARTIFACT. See DEPRECATED.md.
+//
+// The Play listing for `com.furlpay.app` belongs to the React Native app in
+// native-app/. This TWA declares the SAME applicationId and is signed with the
+// SAME upload key, so a bundle built here passes every check that exists — the
+// signature is right, the package is right, Play accepts it — and replaces the
+// real app with a browser frame that has no FCM (3DS2 approvals stop arriving),
+// no native passkeys, and no in-app account deletion.
+//
+// DEPRECATED.md has said so since the deprecation, and the stale artifacts in
+// this directory are named `twa-DEPRECATED-DO-NOT-UPLOAD.aab`. Neither is a
+// control: a README does not stop `./gradlew bundleRelease`, and the next
+// artifact it produces gets whatever name Gradle chooses.
+//
+// The override exists because "unbuildable" and "deprecated" are different
+// claims, and archaeology on this project is occasionally legitimate. It is
+// deliberately awkward to type and impossible to pass by accident.
+def twaReleaseAllowed = project.hasProperty('furlpayAllowDeprecatedTwaRelease')
+gradle.taskGraph.whenReady { graph ->
+    def releaseTasks = graph.allTasks.findAll { task ->
+        task.project == project && task.name =~ /(?i)(assemble|bundle|publish|install).*Release/
+    }
+    if (releaseTasks && !twaReleaseAllowed) {
+        throw new GradleException("""
+            |
+            |  REFUSING to build a release artifact from apps/android (deprecated TWA).
+            |
+            |  Requested: ${releaseTasks*.name.join(', ')}
+            |
+            |  This project shares applicationId 'com.furlpay.app' AND the upload key with
+            |  the canonical React Native app in native-app/. An artifact from here would
+            |  be accepted by Play and would replace the real app with a browser frame:
+            |  no FCM (3DS2 approvals stop arriving), no native passkeys, no in-app
+            |  account deletion.
+            |
+            |  To ship the Android app:   cd native-app && eas build --profile production --platform android
+            |  Background:                apps/android/DEPRECATED.md
+            |
+            |  If you genuinely need a release build of this project for archaeology:
+            |    ./gradlew bundleRelease -PfurlpayAllowDeprecatedTwaRelease
+            |  Do not upload the result.
+            |""".stripMargin())
+    }
+}
+
 def twaManifest = [
     applicationId: 'com.furlpay.app',
     hostName: 'furlpay.com', // The domain being opened in the TWA.

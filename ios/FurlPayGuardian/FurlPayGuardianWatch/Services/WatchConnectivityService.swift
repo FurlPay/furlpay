@@ -19,6 +19,8 @@ final class WatchConnectivityService: NSObject, WCSessionDelegate {
     // @MainActor and therefore implicitly Sendable.
     var onSnapshot: (@MainActor @Sendable (GuardianSnapshot) -> Void)?
     var onToken: (@MainActor @Sendable (String) -> Void)?
+    /// The phone signed out. Drop the token and every cached snapshot.
+    var onSignOut: (@MainActor @Sendable () -> Void)?
     var onReachabilityChange: (@MainActor @Sendable (Bool) -> Void)?
 
     func activate() {
@@ -94,6 +96,16 @@ final class WatchConnectivityService: NSObject, WCSessionDelegate {
     }
 
     private func handle(_ payload: [String: Any]) {
+        // SIGN-OUT IS CHECKED FIRST AND RETURNS. Both transports deliver into
+        // this one function and `transferUserInfo` makes no ordering promise
+        // across separate transfers, so a queued snapshot from before sign-out
+        // can arrive after it. Handling the revocation and returning means a
+        // late snapshot cannot repopulate a session that was just ended.
+        if payload[SyncKey.signOut] as? Bool == true {
+            let deliver = onSignOut
+            Task { @MainActor in deliver?() }
+            return
+        }
         if let token = payload[SyncKey.token] as? String, !token.isEmpty {
             let deliver = onToken
             Task { @MainActor in deliver?(token) }

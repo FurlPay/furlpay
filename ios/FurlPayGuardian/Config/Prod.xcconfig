@@ -1,0 +1,16 @@
+#include "Base.xcconfig"
+
+// Matches infra/aws/envs/prod `api_base_url`.
+FURLPAY_ENV = prod
+FURLPAY_API_HOST = api.furlpay.com
+
+// NO SUFFIX. This is the identifier the App Store record owns; changing it
+// orphans every existing install and every keychain item they hold.
+FURLPAY_BUNDLE_SUFFIX =
+FURLPAY_DISPLAY_NAME = FurlPay Guardian
+
+APS_ENVIRONMENT = production
+
+SWIFT_COMPILATION_MODE = wholemodule
+SWIFT_OPTIMIZATION_LEVEL = -O
+STRIP_SWIFT_SYMBOLS = YES

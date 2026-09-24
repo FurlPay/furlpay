@@ -35,12 +35,39 @@ class WearListenerService : WearableListenerService() {
             val json = DataMapItem.fromDataItem(event.dataItem)
                 .dataMap.getString(SyncProtocol.KEY_JSON) ?: continue
 
+            // The publishing node. `wear://<nodeId><path>` — the authority IS
+            // the source node id, and it is set by Play Services rather than by
+            // the sender, so unlike anything inside the payload it cannot be
+            // forged by whatever wrote the item.
+            val sourceNodeId = event.dataItem.uri.host
+
             // WearableListenerService callbacks run on a background thread;
             // blocking briefly here is the documented pattern.
             runBlocking {
                 when (path) {
                     SyncProtocol.DATA_AUTH_TOKEN -> {
-                        services.tokenStore.update(json.takeIf { it.isNotBlank() })
+                        // GATED. This is the only payload that is a CREDENTIAL
+                        // rather than display data: the watch calls the API
+                        // directly with it when the phone is unreachable.
+                        //
+                        // The revocation case is deliberately NOT gated. A
+                        // blank token means "the session ended", and refusing
+                        // to act on it because the source could not be verified
+                        // would keep a live token on the wrist for exactly the
+                        // reason that should have removed it. Granting a
+                        // session needs proof; ending one does not.
+                        val token = json.takeIf { it.isNotBlank() }
+                        if (token == null) {
+                            services.tokenStore.update(null)
+                            // Everything derived from that session goes too —
+                            // the tiles and complications render from these
+                            // rows and never make a network call, so a stale
+                            // balance would otherwise sit on the watch face
+                            // indefinitely after sign-out.
+                            runCatching { services.snapshots.clear() }
+                        } else if (services.pairedNodes.isConnectedNode(sourceNodeId)) {
+                            services.tokenStore.update(token)
+                        }
                     }
 
                     SyncProtocol.DATA_WALLET -> {

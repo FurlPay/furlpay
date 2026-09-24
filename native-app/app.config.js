@@ -46,6 +46,56 @@ function buildPlatform() {
   return "any";
 }
 
+// ---------------------------------------------------------------------------
+// Environment (dev | staging | prod)
+//
+// Before this existed there WAS no environment concept in the app: lib/api.ts
+// read EXPO_PUBLIC_API_BASE and fell back to https://furlpay.com/api, eas.json
+// declared no `env` block on any profile, and so a `development` build, a
+// `preview` build handed to a tester and a store build all talked to the
+// PRODUCTION backend. Every QA tap moved real money.
+//
+// The environment is resolved here, in the one file every build path goes
+// through, and is the single source of three things that must agree or the
+// build is broken in a way nothing catches at runtime:
+//
+//   apiBase        — which backend. Written into `extra` AND exported as
+//                    EXPO_PUBLIC_API_BASE so lib/api.ts needs no change.
+//   applicationId  — dev/staging get a suffix so all three can be installed on
+//                    one device. Without it, installing a staging build
+//                    UNINSTALLS the tester's production app and its Keystore
+//                    entries, silently signing them out of the real account.
+//   display name   — the tester has to be able to tell them apart on the home
+//                    screen. An icon badge is not enough; the names differ.
+//
+// Deep links are deliberately NOT suffixed for non-prod: App Links / Universal
+// Links verify against furlpay.com's assetlinks.json, which lists the
+// production signing fingerprint only. A staging build claiming those links
+// would either fail verification (Android) or hijack them (iOS, same team).
+// ---------------------------------------------------------------------------
+
+/** AWS environment this build targets. */
+function buildEnv() {
+  const raw = (process.env.FURLPAY_ENV || "").toLowerCase();
+  if (raw === "dev" || raw === "staging" || raw === "prod") return raw;
+  // An EAS profile name is the next-best signal when FURLPAY_ENV is unset.
+  const profile = (process.env.EAS_BUILD_PROFILE || "").toLowerCase();
+  if (profile === "production") return "prod";
+  if (profile === "preview") return "staging";
+  return "dev";
+}
+
+/** Backend for an environment. These hostnames are the `api_base_url` outputs
+ *  of infra/aws/envs/<env> — if one changes there, it changes here. */
+const API_BASE_BY_ENV = {
+  dev: "https://api-dev.furlpay.com/api",
+  staging: "https://api-staging.furlpay.com/api",
+  prod: "https://api.furlpay.com/api",
+};
+
+const ENV_SUFFIX = { dev: ".dev", staging: ".staging", prod: "" };
+const ENV_LABEL = { dev: "FurlPay Dev", staging: "FurlPay Staging", prod: "FurlPay" };
+
 /** A release build is one whose artifact could reach a real user. */
 function isReleaseBuild() {
   // EAS sets these on its workers.
@@ -164,5 +214,58 @@ module.exports = ({ config }) => {
   if (googleServices) {
     config.android = { ...config.android, googleServicesFile: googleServices };
   }
+
+  // --- Environment wiring ---------------------------------------------------
+  const env = buildEnv();
+  const suffix = ENV_SUFFIX[env];
+
+  // An explicit EXPO_PUBLIC_API_BASE still wins — a developer pointing a build
+  // at a laptop (`http://192.168.1.5:3000/api`) is a real workflow. But a
+  // RELEASE may not do that: shipping a store build aimed at anything other
+  // than the production backend is the failure this whole block exists for.
+  const override = process.env.EXPO_PUBLIC_API_BASE;
+  if (release && override && override !== API_BASE_BY_ENV.prod) {
+    throw new Error(
+      `\n  Release build has EXPO_PUBLIC_API_BASE=${override}, which is not the ` +
+        `production backend (${API_BASE_BY_ENV.prod}).\n  Unset it, or build a ` +
+        `preview/development profile instead.\n`
+    );
+  }
+  const apiBase = override || API_BASE_BY_ENV[env];
+
+  // lib/api.ts reads process.env.EXPO_PUBLIC_API_BASE, which Expo inlines at
+  // bundle time from whatever is set when the bundler runs. Setting it here
+  // means the resolution above is authoritative for every build path without
+  // touching the API client.
+  process.env.EXPO_PUBLIC_API_BASE = apiBase;
+
+  config.name = ENV_LABEL[env];
+  config.extra = {
+    ...config.extra,
+    furlpayEnv: env,
+    apiBase,
+  };
+
+  config.android = {
+    ...config.android,
+    package: `${config.android?.package ?? "com.furlpay.app"}${suffix}`,
+  };
+  config.ios = {
+    ...config.ios,
+    bundleIdentifier: `${config.ios?.bundleIdentifier ?? "com.furlpay.app"}${suffix}`,
+  };
+
+  if (env !== "prod") {
+    // App Links / Universal Links belong to production alone — see the header.
+    // Leaving them on a non-prod build means Android silently fails
+    // verification and iOS (same team id) can steal the association.
+    delete config.android.intentFilters;
+    delete config.ios.associatedDomains;
+  }
+
+  console.log(
+    `[app.config] env=${env} api=${apiBase} android=${config.android.package} ios=${config.ios.bundleIdentifier}`
+  );
+
   return config;
 };

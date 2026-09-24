@@ -243,6 +243,7 @@ function PlanPanel() {
 function DeveloperPanel() {
   const [baseUrl, setBase] = useState("");
   const [saved, setSaved] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
   const [x402Count, setX402Count] = useState(0);
 
   useEffect(() => {
@@ -258,13 +259,43 @@ function DeveloperPanel() {
         {x402Count} x402 payment-required responses captured. Open DevTools → FurlPay x402 for the inspector.
       </div>
       <label style={{ fontSize: "0.68rem", color: "var(--fp-text-secondary)", display: "block", marginBottom: 4 }}>Backend URL</label>
-      <input className="input" value={baseUrl} onChange={(e) => setBase(e.target.value)} spellCheck={false} aria-label="Backend URL" />
+      <input
+        className="input"
+        value={baseUrl}
+        onChange={(e) => {
+          setBase(e.target.value);
+          setUrlError(null);
+        }}
+        spellCheck={false}
+        aria-label="Backend URL"
+        aria-invalid={urlError !== null}
+        aria-describedby={urlError ? "backend-url-error" : undefined}
+      />
+      {/* The rejection reason is shown rather than swallowed. setBaseUrl now
+          refuses any origin outside the allowlist, and a Save button that
+          silently does nothing is worse than the unvalidated field it
+          replaced — the user would go on believing the backend had changed. */}
+      {urlError ? (
+        <div
+          id="backend-url-error"
+          role="alert"
+          style={{ fontSize: "0.65rem", color: "var(--fp-danger, #ff6b6b)", marginTop: 4 }}
+        >
+          {urlError}
+        </div>
+      ) : null}
       <button
         className="btn-ghost"
         style={{ marginTop: 8, width: "100%", padding: "8px" }}
         onClick={async () => {
           const { setBaseUrl } = await import("@/lib/api");
-          await setBaseUrl(baseUrl);
+          try {
+            await setBaseUrl(baseUrl);
+          } catch (e) {
+            setUrlError(e instanceof Error ? e.message : "That backend URL was rejected.");
+            return;
+          }
+          setUrlError(null);
           setSaved(true);
           setTimeout(() => setSaved(false), 1500);
         }}

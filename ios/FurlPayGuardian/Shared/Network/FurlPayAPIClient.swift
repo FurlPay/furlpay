@@ -78,6 +78,28 @@ public actor FurlPayAPIClient {
     private let tokenStore: KeychainTokenStore
     private let clientHeader: String
 
+    /// Called once when the server rejects the session.
+    ///
+    /// The 401 path used to clear the keychain and stop there, which left
+    /// `isSignedIn` true and every repository holding the previous session's
+    /// data. Both sibling clients route a 401 into their full teardown
+    /// (FurlPayClient.kt `onUnauthorized`, native-app/lib/api.ts
+    /// `setUnauthorizedHandler`); this is the same seam, so all three now agree
+    /// on what a rejected session means.
+    ///
+    /// Assigned after construction rather than injected, because the handler is
+    /// `ServiceContainer` and the container owns the client — passing it in
+    /// would be a reference cycle through the initialiser.
+    private var onUnauthorized: (@Sendable () async -> Void)?
+
+    public func setUnauthorizedHandler(_ handler: @escaping @Sendable () async -> Void) {
+        onUnauthorized = handler
+    }
+
+    /// Guards against a burst of parallel 401s each firing a separate teardown.
+    /// Reset on the next successful authenticated request.
+    private var unauthorizedFired = false
+
     private let decoder: JSONDecoder = {
         let d = JSONDecoder()
         d.keyDecodingStrategy = .useDefaultKeys   // DTOs spell their own keys
@@ -121,8 +143,16 @@ public actor FurlPayAPIClient {
     private static let refreshMargin: TimeInterval = 10 * 60
 
     public init(
-        baseURL: URL = URL(string: "https://furlpay.com/api/")!,
-        session: URLSession = .shared,
+        // Was a hardcoded https://furlpay.com/api/. That default was the app's
+        // ONLY backend in every build configuration, so a Debug run and a
+        // TestFlight build both talked to production. It now comes from the
+        // build configuration via Config/*.xcconfig — see AppEnvironment.
+        baseURL: URL = AppEnvironment.apiBaseURL,
+        // `.pinned` rather than `.shared`. URLSession.shared cannot take a
+        // delegate, so every request the app made was validated against the
+        // full system trust store — including any root an MDM profile or the
+        // user installed. See CertificatePinner.
+        session: URLSession = .pinned,
         tokenStore: KeychainTokenStore = .shared,
         clientHeader: String = FurlPayAPIClient.defaultClientHeader
     ) {
@@ -260,14 +290,31 @@ public actor FurlPayAPIClient {
             throw APIError.transport("Malformed response.")
         }
         guard (200..<300).contains(http.statusCode) else {
-            // 401 clears the token: the session is gone and every later request
-            // would fail the same way until the user signs in again.
-            if http.statusCode == 401 { await tokenStore.clear() }
+            if http.statusCode == 401 {
+                // Clearing the token is necessary but was never sufficient: the
+                // UI stayed signed in, the repositories kept the previous
+                // session's balances, the assistant kept a transcript holding
+                // card digits, and the paired watch kept its own copy of the
+                // token. The handler performs the same teardown as an explicit
+                // sign-out — a session the server has rejected is as over as
+                // one the user ended.
+                await tokenStore.clear()
+                // Single-flight: a screen that fires six parallel requests gets
+                // six 401s, and six concurrent teardowns would race on the same
+                // observable state.
+                if !unauthorizedFired {
+                    unauthorizedFired = true
+                    await onUnauthorized?()
+                }
+            }
             throw APIError.http(
                 status: http.statusCode,
                 body: String(data: data.prefix(512), encoding: .utf8)
             )
         }
+        // A successful response means a live session again — re-arm the guard
+        // so a LATER expiry still triggers a teardown.
+        unauthorizedFired = false
 
         // A 204, or a 200 with no body, is a success. Handing empty Data to
         // JSONDecoder throws "unexpected end of file", which would turn every

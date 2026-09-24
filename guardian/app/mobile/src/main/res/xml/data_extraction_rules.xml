@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ (API 31) replaced `fullBackupContent` with this file, and splits
+  the two cases that used to share one setting:
+
+    <cloud-backup>    Auto Backup to the user's Google Drive
+    <device-transfer> direct device-to-device migration on setup
+
+  `android:allowBackup="false"` already disables cloud backup, but it does NOT
+  disable device transfer — a finance app's local state would still migrate to a
+  new phone during setup. Excluding everything here covers both.
+
+  This is deliberately a blanket exclusion rather than a curated list. What is
+  on disk is the Keystore-sealed session token and a Room cache of balances,
+  spending and trips; none of it is worth migrating, and all of it is
+  re-derivable from the server after one sign-in. An allowlist would be a
+  standing invitation to add "just this one" later.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

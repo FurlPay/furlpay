@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useAuth, type OtpChannel } from "@/lib/auth";
 import { isPasskeySupported, passkeyErrorMessage } from "@/lib/passkey";
+import { biometricLabel, primeBiometricLabel } from "@/lib/biometrics";
 import { appleConfigured, googleConfigured, signInWithApple, useGoogleSignIn } from "@/lib/oauth";
 import { ApiError, NetworkError } from "@/lib/api";
 import { colors, radius, spacing, type } from "@/lib/theme";
@@ -55,6 +56,9 @@ export default function Login() {
   const [step, setStep] = useState<"dest" | "code">("dest");
   const [dest, setDest] = useState("");
   const [code, setCode] = useState("");
+  // Rendered into the primary CTA, so it has to be resolved before first
+  // paint rather than awaited inside the label.
+  const [bioLabel, setBioLabel] = useState(biometricLabel);
   const [devCode, setDevCode] = useState<string | undefined>();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -67,6 +71,16 @@ export default function Login() {
 
   useEffect(() => {
     setPasskeyReady(isPasskeySupported());
+    // Resolve what this device's biometric is actually called. Until it
+    // returns, the CTA reads "Sign in with Biometrics" — correct on every
+    // device, just less specific — rather than guessing and being wrong.
+    let alive = true;
+    void primeBiometricLabel().then((label) => {
+      if (alive) setBioLabel(label);
+    });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -192,7 +206,7 @@ export default function Login() {
             <View style={{ gap: spacing.sm }}>
               {passkeyReady ? (
                 <Button
-                  title="Sign in with Fingerprint"
+                  title={`Sign in with ${bioLabel}`}
                   variant="accent"
                   icon={<BiometricMark size={18} color={colors.text} />}
                   loading={busy === "passkey"}
@@ -336,7 +350,15 @@ export default function Login() {
                 </Pressable>
               ) : null}
 
-              {devCode ? <Text style={type.dim}>Dev mode — your code is {devCode}</Text> : null}
+              {/* __DEV__ as well as the server's own gate. `devCode` is whatever
+                  the server chose to return, and the ONLY thing stopping a
+                  production build from printing a live one-time code on screen
+                  was that the server currently declines to send it. Two
+                  independent conditions, so a server-side regression cannot
+                  leak an OTP into a shipped app on its own. */}
+              {__DEV__ && devCode ? (
+                <Text style={type.dim}>Dev mode — your code is {devCode}</Text>
+              ) : null}
               <ErrorNote message={error} />
 
               <Button

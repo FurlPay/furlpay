@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import * as Crypto from "expo-crypto";
 import * as SecureStore from "expo-secure-store";
+import { DEVICE_ONLY } from "../storageOptions";
 import { api, NetworkError } from "@/lib/api";
 import { cacheGet, cacheSet } from "@/lib/db";
 
@@ -53,6 +54,7 @@ export const CLIENT_FLAGS = [
   "prediction_markets",
   "qr_from_gallery",
   "wallet_provisioning",
+  "self_custody_send",
 ] as const;
 
 export type ClientFlag = (typeof CLIENT_FLAGS)[number];
@@ -82,6 +84,10 @@ export const LOCAL_DEFAULTS: Record<ClientFlag, boolean> = {
   prediction_markets: false,
   qr_from_gallery: false,
   wallet_provisioning: false,
+  // OFF is the safe answer twice over: an offline launch must not switch the
+  // Send tab onto a rail whose relayer it cannot confirm is live, and the demo
+  // rail it falls back to already refuses honestly in production.
+  self_custody_send: false,
 };
 
 const CACHE_KEY = "client_flags";
@@ -132,10 +138,10 @@ export function normalizeFlagPayload(raw: unknown): Record<ClientFlag, boolean> 
  * randomUUID, never Math.random — AGENTS.md rule 6.
  */
 export async function installId(): Promise<string> {
-  const existing = await SecureStore.getItemAsync(INSTALL_ID_KEY);
+  const existing = await SecureStore.getItemAsync(INSTALL_ID_KEY, DEVICE_ONLY);
   if (existing) return existing;
   const fresh = Crypto.randomUUID();
-  await SecureStore.setItemAsync(INSTALL_ID_KEY, fresh);
+  await SecureStore.setItemAsync(INSTALL_ID_KEY, fresh, DEVICE_ONLY);
   return fresh;
 }
 
