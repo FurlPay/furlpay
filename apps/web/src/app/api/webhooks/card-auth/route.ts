@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { constructEvent } from "@furlpay/compliance";
 import { findAccountByCard, newTx, recordTransaction } from "@/lib/store";
 import { evaluateSpend } from "@/lib/services/policyEngine";
-import { getUsdcBalanceWithBudget } from "@/lib/services/chainBalance";
 import { createChallenge } from "@/lib/services/cardAuthChallenges";
 import { sendPushToUser } from "@/lib/push";
 import { kvDel, kvSet, kvSetNx } from "@/lib/kv";
@@ -180,13 +179,48 @@ export async function POST(req: NextRequest) {
     // internal ledger is only the fallback when the RPC is down/slow) plus
     // their fiat balances. Declining HERE (before the card network settles
     // anything) is what makes the zero-decline-fee guarantee affordable.
-    const stableLedgerUsd = account.tokenBalances.reduce((sum, b) => sum + b.usdValue, 0);
     const fiatUsd = account.fiatBalances.reduce((sum, b) => sum + b.usdValue, 0);
-    const chainBalance = await getUsdcBalanceWithBudget(user.safeAddress, stableLedgerUsd, 1200);
-    // The live chain number is authoritative for the stablecoin leg — a demo
-    // ledger can claim $4k, but if the Safe holds $0 the card can only lean
-    // on fiat. (Demo accounts have undeployed Safes, so fiat carries them.)
-    const spendableUsd = chainBalance.balanceUsd + fiatUsd;
+
+    // THE STABLECOIN LEG CONTRIBUTES NOTHING, ON PURPOSE. Only fiat funds a
+    // card authorisation today.
+    //
+    // This replaced a live `getUsdcBalanceWithBudget(user.safeAddress, …)` read
+    // whose result was described as authoritative. Three things were wrong with
+    // it, and they compound:
+    //
+    //   1. THE ADDRESS IS DEAD. `safeAddress` is
+    //      "0x" + sha256("furlpay:safe:" + key).slice(0,40) (store.ts) — a
+    //      truncated hash, not derived from any private key. Nobody can sign for
+    //      it and nothing can be sent to it usefully. See
+    //      docs/BALANCE-CUSTODY-MAP.md, which already called this out: "even the
+    //      one real read is against a dead address."
+    //
+    //   2. A SUCCESSFUL ZERO SUPPRESSED THE FALLBACK. The helper falls back to
+    //      the ledger only when the read FAILS. Reading a dead address succeeds
+    //      and returns 0, so the ledger figure was silently discarded — the
+    //      stablecoin leg was already always zero, just expensively.
+    //
+    //   3. RPC HEALTH DECIDED SPENDING POWER. Because the fallback fired on
+    //      timeout, a slow or down Arbitrum RPC made the card MORE permissive:
+    //      the user's full ledger stablecoin balance became spendable. An
+    //      unrelated service's availability must never widen spending authority,
+    //      and anyone able to slow that RPC gained the difference.
+    //
+    // WHY NOT SIMPLY POINT IT AT `user.linkedWallet` — the signature-proven
+    // address — which is the obvious fix and is wrong. A linked wallet is
+    // SELF-CUSTODIAL: the user holds the key. FurlPay has no mechanism to pull
+    // from it at settlement — there is no EIP-3009 authorisation, allowance or
+    // pre-auth anywhere on the card path (grep: the only EIP-3009 in this repo
+    // is x402 prose in lib/blog). Authorising against a balance we cannot
+    // capture means Visa pays the merchant and FurlPay holds no claim: an
+    // unfunded authorisation, which converts today's conservative
+    // false-decline into real loss.
+    //
+    // So the stablecoin leg stays at zero until a capture mechanism exists.
+    // When one does, set it here AND make sure the amount authorised is the
+    // amount that mechanism can actually collect.
+    const stablecoinSpendableUsd = 0;
+    const spendableUsd = stablecoinSpendableUsd + fiatUsd;
     if (spendableUsd < auth.amountUsd) {
       await kvSet(evtKey, "processed", EVENT_TTL_SECONDS);
       return decline(auth, "insufficient_funds_on_chain");
@@ -256,7 +290,8 @@ export async function POST(req: NextRequest) {
     log.info("card authorization approved", {
       authorizationId: auth.id,
       amountUsd: auth.amountUsd,
-      balanceSource: chainBalance.source,
+      // Recorded so an approval in the logs states what actually funded it.
+      fundingSource: "fiat",
       elapsedMs: Date.now() - started,
     });
     return NextResponse.json({
