@@ -169,6 +169,36 @@ export const STABLECOINS: readonly Stablecoin[] = [
         addressSource: "https://solscan.io",
         verifiedAt: "2026-09-22",
       },
+      {
+        // Circle Arc, where USDC IS the native gas asset.
+        //
+        // THIS ADDRESS IS AN INTERFACE, NOT A TOKEN CONTRACT. It is the ERC-20
+        // view onto the chain's own native balance — a precompile-shaped address
+        // behind an EIP-1967 proxy — and it is identical on mainnet and testnet.
+        // There is nothing wrapped and nothing bridged, which is why this is
+        // `canonical` in the strongest sense available: it is the chain's money.
+        //
+        // Verified against https://rpc.mainnet.arc.io 2026-09-25, measured rather
+        // than copied: decimals() -> 6, symbol() -> "USDC", and the FiatTokenV2
+        // surface answers (DOMAIN_SEPARATOR, nonces, blacklister, masterMinter,
+        // paused, authorizationState).
+        //
+        // THE DECIMALS FIELD OF THIS REGISTRY DOES NOT APPLY CLEANLY HERE, and
+        // that is the one thing to understand before using this entry. Arc
+        // exposes ONE balance through two interfaces at different precision: 18
+        // decimals natively (gas, msg.value, eth_getBalance) and 6 through this
+        // ERC-20 address. `USDC.arc` is registered once in lib/money/money.ts at
+        // the canonical 18 — so an amount reaching THIS contract must be
+        // converted with toErc20Units() first (lib/chains/arc.ts), and an amount
+        // read back from it is a truncating view that can report zero for a
+        // non-empty account.
+        assetId: "USDC.arc",
+        chain: "arc",
+        contractAddress: "0x3600000000000000000000000000000000000000",
+        representation: "canonical",
+        addressSource: "https://docs.arc.io/arc/references/contract-addresses",
+        verifiedAt: "2026-09-25",
+      },
     ],
   },
 ];

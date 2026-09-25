@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { chainPayloadDigest, verifyPayloadMatchesIntent, type EvmChainPayload } from "../evmPayload";
 import type { CanonicalIntent } from "../canonical";
 import { ARC_USDC_ERC20, toErc20Units } from "@/lib/chains/arc";
+import { deploymentForAsset } from "@/lib/assets/stablecoins";
 
 // ---------------------------------------------------------------------------
 // Arc through the payload verifier — the load-bearing check behind
@@ -205,6 +206,36 @@ describe("Arc ERC-20 transfers — same asset, 6 decimals", () => {
     const p = arcErc20Payload({ data: transferCalldata(ALICE, toErc20Units(dusty)) });
     const intent = arcIntent(p, { amountMinor: dusty.toString() });
     expect(verifyPayloadMatchesIntent(intent, p).refusals).toContain("payload_amount_mismatch");
+  });
+});
+
+describe("the registry entry must not change Arc's behaviour", () => {
+  it("accepts a native Arc transfer even though USDC.arc now HAS a deployment", () => {
+    // THE REGRESSION THIS EXISTS TO PREVENT, and it is not hypothetical.
+    //
+    // The generic native-transfer rule is "the asset must be the chain's native
+    // coin, which has no token deployment". Before `USDC.arc` was added to
+    // lib/assets/stablecoins.ts, native Arc transfers passed that rule only
+    // because the lookup returned nothing — an accident, not a decision.
+    //
+    // Adding the registry entry is correct and was always going to happen. On the
+    // old code it would have started refusing every native Arc payment with
+    // payload_token_mismatch, on a chain where a plain native send is the
+    // ordinary way to pay. Arc's own branch is what makes the entry safe.
+    const deployment = deploymentForAsset("USDC.arc");
+    expect(deployment, "USDC.arc must be registered").toBeDefined();
+    expect(deployment!.contractAddress.toLowerCase()).toBe(ARC_USDC_ERC20.toLowerCase());
+
+    const p = arcNativePayload();
+    expect(verifyPayloadMatchesIntent(arcIntent(p), p).refusals).toEqual([]);
+  });
+
+  it("agrees with lib/chains/arc.ts about the interface address", () => {
+    // Two sources naming the same contract. If they ever diverge, one of them is
+    // pointing at something that is not Arc's USDC.
+    expect(deploymentForAsset("USDC.arc")!.contractAddress.toLowerCase()).toBe(
+      ARC_USDC_ERC20.toLowerCase()
+    );
   });
 });
 
