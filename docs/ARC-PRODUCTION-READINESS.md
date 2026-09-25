@@ -42,8 +42,10 @@ needs a decision, a signature, or money.
       `verifyingContract`; OZ recomputes on `block.chainid` change).
 - [ ] **Third-party audit — BLOCKER.** OpenZeppelin / Spearbit / Trail of Bits /
       CertiK. Not started, not scheduled, not scoped.
-- [ ] Bytecode size and deployment gas measured on Arc. Needs a testnet deploy;
-      on Arc "gas cost" is denominated in dollars.
+- [x] Deployment cost measured on Arc — **≈ 0.034 USDC** at 45 Gwei
+      (`33,888,248,437,500,000` wei), obtained by running the deploy script
+      against live Arc testnet up to the broadcast. Gas is USDC, so that figure
+      is already dollars. Bytecode size still unrecorded.
 
 ## B. Off-chain settlement path
 
@@ -110,10 +112,18 @@ needs a decision, a signature, or money.
       production key.
 - [x] Deploy script refuses: wrong chain; mainnet without explicit
       confirmation; owner equal to deployer; missing owner/treasury; USDC whose
-      `decimals()` ≠ 6 or `symbol()` ≠ USDC; any blocklisted participant; zero
-      balance; a fee below the 20 Gwei floor. It re-reads `usdc`/`owner`/
-      `feeTreasury` from the chain afterwards and records the deployment to
-      `deployments/arc-<chainId>.json` with `audited: false`.
+      `decimals()` ≠ 6 or `symbol()` ≠ USDC; any blocklisted participant; a
+      balance that cannot cover the estimated cost; a fee below the 20 Gwei
+      floor. It re-reads `usdc`/`owner`/`feeTreasury` from the chain afterwards
+      and records the deployment to `deployments/arc-<chainId>.json` with
+      `audited: false`.
+- [x] **Gates verified against live Arc testnet**, not just reasoned about. Each
+      was made to fire: wrong chain (31337); mainnet without confirmation;
+      missing signer; missing owner/treasury; and — the important one — the
+      blocklist screen **refused Arc's real published blocklisted address after
+      querying Circle's live USDC contract**. A dusty key was also correctly
+      refused for insufficient funds before broadcast rather than failing with a
+      raw node error. USDC read back live as `decimals=6 symbol=USDC`.
 - [ ] Owner address chosen, custodied, and **not** the deployer EOA. A multisig
       (Safe) is the right answer for mainnet; the script enforces only that the
       two differ.

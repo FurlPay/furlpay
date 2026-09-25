@@ -205,12 +205,49 @@ async function main() {
     );
   }
 
+  // SUFFICIENT, not merely non-zero — the check a dusty key would otherwise
+  // sail past. Measured on Arc testnet 2026-09-25: deploying this contract cost
+  // 33_888_248_437_500_000 wei, about 0.034 USDC. A key holding 0.0004 USDC
+  // passed a `> 0` check and then failed at broadcast with a raw
+  // ProviderError — the deployment's own estimate is the honest threshold.
+  //
+  // Estimated rather than hardcoded, because gas is USDC here and the cost moves
+  // with the fee market. If estimation itself fails, that is reported as the
+  // funding problem it almost always is rather than as an opaque RPC error.
+  let estimatedCost: bigint;
+  try {
+    const factory = await ethers.getContractFactory("FurlPayRouter");
+    const deployTx = await factory.getDeployTransaction(usdc, treasuryAddr, ownerAddr);
+    const gas = await ethers.provider.estimateGas({ ...deployTx, from: deployer.address });
+    estimatedCost = gas * maxFee;
+  } catch (e) {
+    fail(
+      `Could not estimate the deployment's gas: ${(e as Error).message}\n\n` +
+        `  On Arc this is usually a funding problem rather than a code problem —\n` +
+        `  gas is USDC, and estimation fails when the account cannot cover it.\n` +
+        `  Deployer balance: ${ethers.formatUnits(balance, 18)} USDC.`
+    );
+  }
+
+  if (balance < estimatedCost) {
+    fail(
+      `Deployer ${deployer.address} cannot cover this deployment.\n\n` +
+        `    balance   ${ethers.formatUnits(balance, 18)} USDC\n` +
+        `    needs   ~ ${ethers.formatUnits(estimatedCost, 18)} USDC  (gas x maxFeePerGas)\n\n` +
+        `  GAS IS USDC ON ARC, so this figure is dollars and not a token amount to\n` +
+        `  convert. Refusing here rather than letting the broadcast fail with a raw\n` +
+        `  "insufficient funds for gas * price + value" from the node.\n` +
+        `  ${isMainnet ? "Fund it with USDC on Arc mainnet." : "Testnet faucet: https://faucet.circle.com"}`
+    );
+  }
+
   // Denominated in dollars, because the gas asset is USDC at 18 decimals.
   const balanceUsd = ethers.formatUnits(balance, 18);
 
   console.log(`  deployer:  ${deployer.address}`);
   console.log(`  balance:   ${balanceUsd} USDC  (gas is USDC on Arc)`);
   console.log(`  maxFee:    ${ethers.formatUnits(maxFee, 9)} Gwei  (floor 20)`);
+  console.log(`  est. cost: ${ethers.formatUnits(estimatedCost, 18)} USDC`);
   console.log(`  usdc:      ${usdc}  decimals=${decimals} symbol=${symbol}`);
   console.log(`  owner:     ${ownerAddr}`);
   console.log(`  treasury:  ${treasuryAddr}`);
