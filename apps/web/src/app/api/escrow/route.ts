@@ -4,14 +4,36 @@ import { captureHold, createHold, listHolds, releaseHold } from "@/lib/services/
 import { getAccountDurable, newTx, recordTransaction, getDevelopmentDemoAccount } from "@/lib/store";
 import { verifyAgentSignature } from "@/lib/agentTrustGate";
 import { authorizeAgentSpend, getAgentKey } from "@/lib/agentPolicy";
-import { SESSION_COOKIE, verifySession } from "@/lib/session";
+import { optionalUser } from "@/lib/authz";
 
 // GET /api/escrow — list the CALLER's pre-auth holds. Session-attributed;
 // dev-only demo fallback mirrors POST (never in production, so one user can
 // never see another account's holds).
+//
+// WHY optionalUser AND NOT verifySession. This route used to resolve the caller
+// with a bare `verifySession(req.cookies.get(SESSION_COOKIE)?.value)`, which is
+// the pattern lib/authz.ts documents as silently skipping every protection
+// requireUser applies. Four things were missing, and they are not cosmetic:
+//
+//   * the DURABLE revocation denylist — a logged-out token kept working on any
+//     instance that had not processed the logout itself;
+//   * the deleted-account tombstone — a deleted user's live token still acted;
+//   * the account LOCK — the sharpest one, because locking is a fraud control
+//     and escrow capture moves money. A locked account could still capture;
+//   * `tokenFromRequest`, so the native app's `Authorization: Bearer` was not
+//     read at all — a mobile caller was treated as anonymous and, outside
+//     production, silently attributed to the shared demo account.
+//
+// optionalUser is the right primitive rather than requireUser because this route
+// has a legitimate anonymous path (an agent-signed POST, and the dev demo
+// fallback). It draws the distinction that matters: NO credential is anonymous,
+// but a credential that is present and revoked/expired/locked/deleted is
+// REJECTED rather than quietly downgraded to anonymous.
 export async function GET(req: NextRequest) {
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const account = (await getAccountDurable(claims?.sub)) ?? getDevelopmentDemoAccount();
+  const caller = await optionalUser(req);
+  if (caller.kind === "rejected") return caller.res;
+  const account =
+    caller.kind === "user" ? caller.account : getDevelopmentDemoAccount();
   if (!account) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
@@ -59,11 +81,18 @@ export async function POST(req: NextRequest) {
   // silently attributed to the shared demo account in prod. In production a
   // request that resolves to neither an owned key nor a session is rejected.
   const ownedKey = agentKeyId ? await getAgentKey(agentKeyId) : null;
-  const claims = await verifySession(req.cookies.get(SESSION_COOKIE)?.value);
-  const account =
-    (await getAccountDurable(ownedKey?.userId)) ??
-    (await getAccountDurable(claims?.sub)) ??
-    getDevelopmentDemoAccount();
+  const agentAccount = await getAccountDurable(ownedKey?.userId);
+
+  // The agent key still takes precedence — it identifies the account that
+  // registered it. The SESSION path now goes through optionalUser, so a
+  // presented-but-dead credential is refused instead of falling through to the
+  // demo account. See the note on GET for the four checks this restores.
+  let account = agentAccount;
+  if (!account) {
+    const caller = await optionalUser(req);
+    if (caller.kind === "rejected") return caller.res;
+    account = caller.kind === "user" ? caller.account : getDevelopmentDemoAccount();
+  }
   if (!account) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
