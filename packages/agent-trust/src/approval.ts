@@ -36,6 +36,38 @@ import { keyIdOf } from "./index.js";
 // them here would create a second copy that can disagree with the first.
 // ---------------------------------------------------------------------------
 
+/**
+ * Domain separator. Signed bytes are `DOMAIN + "|" + payload`, never the
+ * payload alone.
+ *
+ * WHY, CONCRETELY. The user's key in this package signs more than one kind of
+ * object, and every one of them signs `Buffer.from(base64urlJSON)`:
+ *
+ *   issueMandate   signs b64url(JSON(mandate))    with the USER key
+ *   issueApproval  signs b64url(JSON(claims))     with the USER key
+ *
+ * Without a domain, a signature is a signature over "some base64url JSON", and
+ * nothing structural stops one object type's signature being presented as
+ * another's. Today that is caught only because a mandate's field names
+ * (`mandateId`, `constraints`) are not an approval's (`m`, `h`, `k`, `t`), so
+ * the claim checks fail — which is an accident of naming, not a property anyone
+ * designed or could rely on. A future field rename could silently remove it.
+ *
+ * Prefixing makes the verifier's question "is this a signature over an
+ * x402-approval/v1?" rather than "is this a signature over some bytes?". The
+ * version lives inside the domain so v2 signatures cannot verify as v1 even if
+ * every claim happens to line up.
+ *
+ * The separator is `|`, which cannot appear in base64url, so DOMAIN + payload
+ * has exactly one parse and no length-extension ambiguity between the two.
+ */
+export const APPROVAL_SIGNING_DOMAIN = "x402-approval/v1";
+
+/** The exact bytes signed and verified. One definition, used by both sides. */
+function signingInput(payload: string): Buffer {
+  return Buffer.from(`${APPROVAL_SIGNING_DOMAIN}|${payload}`);
+}
+
 /** Claim names are single letters because this rides on the wire per payment. */
 interface ApprovalClaims {
   v: 1;
@@ -84,11 +116,15 @@ export function issueApproval(p: IssueApprovalParams): SignedApproval {
     n: crypto.randomBytes(9).toString("base64url"),
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
-  const signature = crypto.sign(null, Buffer.from(payload), p.userPrivateKeyPem).toString("base64url");
+  const signature = crypto.sign(null, signingInput(payload), p.userPrivateKeyPem).toString("base64url");
   return { payload, signature };
 }
 
 export type ApprovalRejection =
+  /** Nothing was presented. Distinct from a malformed one: "the payer sent no
+   *  approval" and "the payer sent something broken" lead a caller to different
+   *  next steps — go and get one, versus fix the one you have. */
+  | "missing"
   | "malformed"
   | "unsupported_version"
   | "signature_invalid"
@@ -127,7 +163,8 @@ export function verifyApproval(
   approval: SignedApproval | undefined | null,
   p: VerifyApprovalParams
 ): ApprovalVerification {
-  if (!approval || typeof approval.payload !== "string" || typeof approval.signature !== "string") {
+  if (!approval) return { ok: false, reason: "missing" };
+  if (typeof approval.payload !== "string" || typeof approval.signature !== "string") {
     return { ok: false, reason: "malformed" };
   }
 
@@ -135,7 +172,7 @@ export function verifyApproval(
   try {
     ok = crypto.verify(
       null,
-      Buffer.from(approval.payload),
+      signingInput(approval.payload),
       crypto.createPublicKey(p.userPublicKeyPem),
       Buffer.from(approval.signature, "base64url")
     );

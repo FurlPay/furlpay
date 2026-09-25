@@ -7,6 +7,7 @@ import {
   verifyApproval,
   approvalFromExtra,
   X402_APPROVAL_EXTRA_KEY,
+  APPROVAL_SIGNING_DOMAIN,
 } from "../dist/src/approval.js";
 
 // ---------------------------------------------------------------------------
@@ -88,7 +89,12 @@ test("an approval whose claimed key id is not the verifying key is refused", () 
     t: Math.floor(Date.now() / 1000), n: "abc",
   };
   const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
-  const signature = crypto.sign(null, Buffer.from(payload), user.privateKeyPem).toString("base64url");
+  // Signed over the DOMAIN-separated input, so this reaches the key check
+  // rather than stopping at the signature — the point is that a structurally
+  // valid approval still fails on the key id inside it.
+  const signature = crypto
+    .sign(null, Buffer.from(`x402-approval/v1|${payload}`), user.privateKeyPem)
+    .toString("base64url");
   assert.strictEqual(check({ approval: { payload, signature } }).reason, "key_mismatch");
 });
 
@@ -122,7 +128,8 @@ test("a little clock skew is tolerated", () => {
 });
 
 test("malformed input is refused rather than throwing", () => {
-  assert.strictEqual(verifyApproval(null, { userPublicKeyPem: user.publicKeyPem, paymentHash: HASH, mandateId: MANDATE, maxAgeSeconds: 300 }).reason, "malformed");
+  // `null` is now "missing" — see the MISSING-vs-MALFORMED test below.
+  assert.strictEqual(verifyApproval(null, { userPublicKeyPem: user.publicKeyPem, paymentHash: HASH, mandateId: MANDATE, maxAgeSeconds: 300 }).reason, "missing");
   assert.strictEqual(check({ approval: { payload: "!!!", signature: "!!!" } }).reason, "signature_invalid");
   assert.strictEqual(check({ approval: { payload: 5, signature: "x" } }).reason, "malformed");
 });
@@ -156,4 +163,97 @@ test("the wire form is two base64url strings and nothing else", () => {
   assert.deepStrictEqual(Object.keys(approval).sort(), ["payload", "signature"]);
   assert.match(approval.payload, /^[A-Za-z0-9_-]+$/);
   assert.match(approval.signature, /^[A-Za-z0-9_-]+$/);
+});
+
+// ── domain separation ──────────────────────────────────────────────────────
+
+test("THE DOMAIN ACTUALLY BITES: a bare-payload signature no longer verifies", () => {
+  // This is the previous format, byte for byte: sign the payload alone. If the
+  // domain were cosmetic — appended to the wire form but not to the signed
+  // bytes — this would still verify and the test would pass vacuously.
+  const approval = issueApproval(base);
+  const bareSignature = crypto
+    .sign(null, Buffer.from(approval.payload), user.privateKeyPem)
+    .toString("base64url");
+
+  assert.strictEqual(
+    check({ approval: { payload: approval.payload, signature: bareSignature } }).reason,
+    "signature_invalid"
+  );
+  // ...while the domain-separated one verifies, so the key and payload are fine
+  // and the ONLY difference is the prefix.
+  assert.strictEqual(check({ approval }).ok, true);
+});
+
+test("a signature over a DIFFERENT domain does not verify as an approval", () => {
+  // The cross-protocol case, made concrete. The same user key signs mandates in
+  // this package over the same `b64url(JSON)` shape; a domain is what makes one
+  // object type's signature structurally unusable as another's, rather than
+  // relying on their field names happening to differ.
+  const approval = issueApproval(base);
+  const otherDomain = crypto
+    .sign(null, Buffer.from(`x402-mandate/v1|${approval.payload}`), user.privateKeyPem)
+    .toString("base64url");
+
+  assert.strictEqual(
+    check({ approval: { payload: approval.payload, signature: otherDomain } }).reason,
+    "signature_invalid"
+  );
+});
+
+test("a future domain version cannot verify as v1", () => {
+  const approval = issueApproval(base);
+  const v2 = crypto
+    .sign(null, Buffer.from(`x402-approval/v2|${approval.payload}`), user.privateKeyPem)
+    .toString("base64url");
+  assert.strictEqual(
+    check({ approval: { payload: approval.payload, signature: v2 } }).reason,
+    "signature_invalid"
+  );
+});
+
+test("the domain is a stable, published constant", () => {
+  // Two implementations have to agree on this string exactly or neither can
+  // verify the other's approvals, so it is exported rather than inlined.
+  assert.strictEqual(APPROVAL_SIGNING_DOMAIN, "x402-approval/v1");
+});
+
+test("the separator cannot occur in the payload it separates", () => {
+  // `|` is outside the base64url alphabet, so DOMAIN + "|" + payload has
+  // exactly one parse — no payload can smuggle a separator and shift the
+  // boundary between the two.
+  const approval = issueApproval(base);
+  assert.ok(!approval.payload.includes("|"));
+  assert.match(approval.payload, /^[A-Za-z0-9_-]+$/);
+});
+
+test("MISSING is distinct from MALFORMED", () => {
+  // Different next steps for the caller: fetch an approval, versus fix the one
+  // you have.
+  const params = {
+    userPublicKeyPem: user.publicKeyPem,
+    paymentHash: HASH,
+    mandateId: MANDATE,
+    maxAgeSeconds: 300,
+  };
+  assert.strictEqual(verifyApproval(null, params).reason, "missing");
+  assert.strictEqual(verifyApproval(undefined, params).reason, "missing");
+  assert.strictEqual(verifyApproval({ payload: 5, signature: "x" }, params).reason, "malformed");
+});
+
+test("every failure mode has its own reason code", () => {
+  // The full set Radeonares32 asked to keep separable, asserted as a set rather
+  // than one-by-one so a future collapse into a generic failure is caught here.
+  const reasons = new Set([
+    verifyApproval(null, { userPublicKeyPem: user.publicKeyPem, paymentHash: HASH, mandateId: MANDATE, maxAgeSeconds: 300 }).reason,
+    check({ approval: { payload: "x", signature: "y" } }).reason,
+    check({ approval: issueApproval({ ...base, paymentHash: "0xother" }) }).reason,
+    check({ approval: issueApproval({ ...base, mandateId: "mnd_other" }) }).reason,
+    check({ approval: issueApproval({ ...base, nowSeconds: Math.floor(Date.now() / 1000) - 9999 }) }).reason,
+    check({ approval: issueApproval({ ...base, nowSeconds: Math.floor(Date.now() / 1000) + 9999 }) }).reason,
+  ]);
+  assert.deepStrictEqual(
+    [...reasons].sort(),
+    ["expired", "future_dated", "mandate_mismatch", "missing", "payment_mismatch", "signature_invalid"]
+  );
 });
