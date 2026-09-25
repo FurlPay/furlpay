@@ -19,7 +19,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "prepare": "npm run build",
-    "test": "npm run build && node --test dist/tests/spend.test.js"
+    "test": "npm run build && node --test dist/tests/spend.test.js test/agent-trust.test.js test/approval.test.js"
   },
   "keywords": [
     "trusted-agent-protocol",

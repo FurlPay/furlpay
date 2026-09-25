@@ -10,7 +10,7 @@ import {
   signRequest,
   verifyMandate,
   verifyRequest,
-} from "../dist/index.js";
+} from "../dist/src/index.js";
 
 const HOUR = 3600 * 1000;
 const inOneHour = () => new Date(Date.now() + HOUR).toISOString();
