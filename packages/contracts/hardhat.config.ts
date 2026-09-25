@@ -57,6 +57,23 @@ const config: HardhatUserConfig = {
       url: process.env.ARC_TESTNET_RPC_URL || "https://rpc.testnet.arc.io",
       chainId: 5042002,
       accounts,
+      // ARC ENFORCES A 20 GWEI MINIMUM BASE FEE, and a transaction below it does
+      // not bounce — it may sit pending indefinitely or fail outright, which
+      // presents as a deploy that hangs with no receipt and no error. Hardhat's
+      // estimator has no way to know that floor, so it is set explicitly.
+      //
+      // Denominated in USDC, not ether: Arc's native gas token IS USDC, exposed
+      // through an 18-decimal native interface alongside the 6-decimal ERC-20.
+      // `gwei` here is 1e9 of that 18-decimal unit, so the arithmetic is the
+      // usual EVM arithmetic and only the asset differs.
+      //
+      // Source: docs.arc.io/arc/references/gas-and-fees — EIP-1559 with EWMA
+      // smoothing, base fee targeting ~$0.01 and capped at 20,000 gwei. The
+      // maxFee below leaves headroom above the floor without approaching that
+      // cap; the priority fee is small because Arc's validators are permissioned
+      // and there is no auction to win.
+      maxFeePerGas: 30_000_000_000, // 30 gwei — 1.5x the 20 gwei floor
+      maxPriorityFeePerGas: 1_000_000_000, // 1 gwei
     },
     arcMainnet: {
       url: process.env.ARC_RPC_URL || "https://rpc.mainnet.arc.io",
@@ -67,6 +84,9 @@ const config: HardhatUserConfig = {
       accounts: process.env.ARC_MAINNET_DEPLOYER_PRIVATE_KEY
         ? [process.env.ARC_MAINNET_DEPLOYER_PRIVATE_KEY]
         : [],
+      // Same 20 gwei floor as testnet. See the note on arcTestnet.
+      maxFeePerGas: 30_000_000_000,
+      maxPriorityFeePerGas: 1_000_000_000,
     },
   },
   etherscan: {
