@@ -12,6 +12,11 @@ import AssetRow from "@/components/AssetRow";
 import SignalBadge from "@/components/insights/SignalBadge";
 import Modal from "@/components/Modal";
 import StockHeader from "@/components/markets/StockHeader";
+import {
+  describeOrderOutcome,
+  ORDER_TICKET_TYPES,
+  type OrderTicketType,
+} from "@/lib/markets/orderTicket";
 import StockDesktop from "@/components/markets/StockDesktop";
 import BottomNav from "@/components/BottomNav";
 import { useMediaQuery, DESKTOP_QUERY } from "@/lib/useMediaQuery";
@@ -329,21 +334,65 @@ function TradeSheet({
   const [amount, setAmount] = useState("100");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [placed, setPlaced] = useState(false);
+  /**
+   * What the SERVER said happened — not merely that the request succeeded.
+   *
+   * This used to be `placed: boolean`, set from a 200, and the sheet then said
+   * "Order filled". A 200 does not mean filled: /api/investing/order returns
+   * `status` from the provider, and a limit order comes back `accepted` or `new`,
+   * an indeterminate submission returns 202 with `status: "unknown"`, and a market
+   * order can be `partially_filled`. Announcing "filled" for any of those tells
+   * the user their money moved when it may not have.
+   */
+  const [outcome, setOutcome] = useState<{ status: string; orderId?: string } | null>(null);
+
+  // Order type. The backend has accepted limit/stop/stop_limit/trailing_stop all
+  // along (OrderSchema -> route -> PlaceOrderInput -> Alpaca body); this sheet was
+  // the only thing pinning every order to `market`/`day`.
+  const [orderType, setOrderType] = useState<OrderTicketType>("market");
+  const [limitPrice, setLimitPrice] = useState("");
+  const [stopPrice, setStopPrice] = useState("");
+  const [trailPercent, setTrailPercent] = useState("");
+
+  const needsLimit = orderType === "limit" || orderType === "stop_limit";
+  const needsStop = orderType === "stop" || orderType === "stop_limit";
+  const needsTrail = orderType === "trailing_stop";
+
+  // A resting order that expires at the close is usually not what someone wants
+  // when they set a price — and for a trailing stop the adapter refuses `day`
+  // outright, because it would silently remove the protection overnight.
+  const timeInForce = orderType === "market" ? "day" : "gtc";
+
+  const ready =
+    Number(amount) > 0 &&
+    (!needsLimit || Number(limitPrice) > 0) &&
+    (!needsStop || Number(stopPrice) > 0) &&
+    (!needsTrail || Number(trailPercent) > 0);
 
   async function submit() {
     setBusy(true);
     setError(null);
     try {
-      const res = await postJSON<{ error?: string }>("/api/investing/order", {
-        symbol,
-        side,
-        notional: Number(amount),
-        type: "market",
-        time_in_force: "day",
-      });
-      if (!res.ok) throw new Error(res.data.error || `Order rejected (${res.status})`);
-      setPlaced(true);
+      const res = await postJSON<{ error?: string; status?: string; orderId?: string; detail?: string }>(
+        "/api/investing/order",
+        {
+          symbol,
+          side,
+          notional: Number(amount),
+          type: orderType,
+          time_in_force: timeInForce,
+          ...(needsLimit ? { limit_price: Number(limitPrice) } : {}),
+          ...(needsStop ? { stop_price: Number(stopPrice) } : {}),
+          ...(needsTrail ? { trail_percent: Number(trailPercent) } : {}),
+        }
+      );
+      if (!res.ok && res.status !== 202) {
+        throw new Error(res.data.error || res.data.detail || `Order rejected (${res.status})`);
+      }
+      // Report the provider's own status. 202 is the indeterminate case and is
+      // deliberately NOT an error — the order may exist, and the right advice is
+      // to check rather than retry.
+      setOutcome({ status: res.data.status ?? "submitted", orderId: res.data.orderId });
       onDone();
     } catch (e) {
       setError((e as Error).message);
@@ -354,16 +403,40 @@ function TradeSheet({
 
   return (
     <Modal open title={`${side === "buy" ? "Buy" : "Sell"} ${symbol} · ${usd(price)}`} onClose={onClose}>
-      {placed ? (
-        <div className="rounded-2xl bg-gain/10 p-4 text-center">
-          <p className="font-semibold text-gain">Order filled</p>
-          <p className="mt-1 text-[13px] text-textSecondary">
-            {side === "buy" ? "Bought" : "Sold"} {usd(Number(amount))} of {symbol}
-          </p>
-          <button onClick={onClose} className="tap mt-4 w-full rounded-pill bg-accent py-3 font-semibold">Done</button>
-        </div>
+      {outcome ? (
+        (() => {
+          const o = describeOrderOutcome(outcome.status);
+          return (
+            <div className={`rounded-2xl p-4 text-center ${o.tone === "filled" ? "bg-gain/10" : o.tone === "unknown" ? "bg-amber-500/10" : "bg-surface"}`}>
+              <p className={`font-semibold ${o.tone === "filled" ? "text-gain" : o.tone === "unknown" ? "text-amber-400" : "text-textPrimary"}`}>
+                {o.title}
+              </p>
+              <p className="mt-1 text-[13px] text-textSecondary">{o.detail(side, usd(Number(amount)), symbol)}</p>
+              {outcome.orderId && (
+                <p className="mt-2 font-mono text-[11px] text-textSecondary">{outcome.orderId}</p>
+              )}
+              <button onClick={onClose} className="tap mt-4 w-full rounded-pill bg-accent py-3 font-semibold">Done</button>
+            </div>
+          );
+        })()
       ) : (
         <>
+          {/* Order type. `market` stays the default — the common case should not
+              require a decision — but the others are no longer unreachable. */}
+          <div className="mb-3 flex gap-1 rounded-pill bg-surface p-1 text-[12px]">
+            {ORDER_TICKET_TYPES.map((t) => (
+              <button
+                key={t.value}
+                onClick={() => setOrderType(t.value)}
+                className={`tap flex-1 rounded-pill py-1.5 font-medium transition ${
+                  orderType === t.value ? "bg-accent text-black" : "text-textSecondary"
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
           <label className="mb-1 block text-[12px] text-textSecondary">Amount (USD)</label>
           <input
             type="number"
@@ -372,12 +445,67 @@ function TradeSheet({
             autoFocus
             className="mb-2 w-full rounded-2xl bg-surface px-4 py-3 text-lg font-semibold outline-none"
           />
+
+          {needsLimit && (
+            <>
+              <label className="mb-1 block text-[12px] text-textSecondary">
+                Limit price — fills at this price or better
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={limitPrice}
+                onChange={(e) => setLimitPrice(e.target.value)}
+                placeholder={price.toFixed(2)}
+                className="mb-2 w-full rounded-2xl bg-surface px-4 py-3 font-semibold outline-none"
+              />
+            </>
+          )}
+
+          {needsStop && (
+            <>
+              <label className="mb-1 block text-[12px] text-textSecondary">
+                Stop price — becomes a {orderType === "stop_limit" ? "limit" : "market"} order when touched
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={stopPrice}
+                onChange={(e) => setStopPrice(e.target.value)}
+                placeholder={price.toFixed(2)}
+                className="mb-2 w-full rounded-2xl bg-surface px-4 py-3 font-semibold outline-none"
+              />
+            </>
+          )}
+
+          {needsTrail && (
+            <>
+              <label className="mb-1 block text-[12px] text-textSecondary">Trail (% from the high-water mark)</label>
+              <input
+                type="number"
+                step="0.1"
+                value={trailPercent}
+                onChange={(e) => setTrailPercent(e.target.value)}
+                placeholder="5"
+                className="mb-1 w-full rounded-2xl bg-surface px-4 py-3 font-semibold outline-none"
+              />
+              {/* Said plainly, because the name suggests a guarantee it does not
+                  give: the trail moves the TRIGGER, and the fill is a market
+                  order once triggered. */}
+              <p className="mb-2 text-[12px] text-textSecondary">
+                The trail moves the trigger, not the fill price — a gap can fill below it.
+              </p>
+            </>
+          )}
+
           <p className="mb-4 text-[13px] text-textSecondary">
-            ≈ {(Number(amount) / price).toFixed(4)} shares
+            ≈ {(Number(amount) / (needsLimit && Number(limitPrice) > 0 ? Number(limitPrice) : price)).toFixed(4)} shares
             {side === "sell" && maxShares > 0 && ` · you hold ${maxShares.toFixed(4)}`}
+            {orderType !== "market" && ` · ${timeInForce.toUpperCase()}`}
           </p>
+
           {error && <div className="mb-3 rounded-2xl bg-loss/15 p-3 text-[13px] text-loss">{error}</div>}
-          <button onClick={submit} disabled={busy || !(Number(amount) > 0)} className="tap w-full rounded-pill bg-accent py-3.5 font-semibold capitalize disabled:opacity-50">
+          <button onClick={submit} disabled={busy || !ready} className="tap w-full rounded-pill bg-accent py-3.5 font-semibold capitalize disabled:opacity-50">
             {busy ? "Placing…" : `${side} ${symbol}`}
           </button>
         </>

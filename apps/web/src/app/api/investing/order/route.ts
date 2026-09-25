@@ -79,7 +79,7 @@ async function executeOrder(
   input: OrderInput,
   idempotencyKey: string | null
 ): Promise<NextResponse> {
-  const { symbol, side, notional, qty, limit_price, stop_price } = input;
+  const { symbol, side, notional, qty, limit_price, stop_price, trail_percent, trail_price } = input;
   const type = (input.type ?? "market") as OrderType;
   const timeInForce = (input.time_in_force ?? "day") as TimeInForce;
 
@@ -97,6 +97,29 @@ async function executeOrder(
   }
   if ((type === "stop" || type === "stop_limit") && stop_price === undefined) {
     return NextResponse.json({ error: "stop_price required for stop/stop_limit orders" }, { status: 400 });
+  }
+  // Symmetric with the two checks above. The adapter re-checks the arithmetic and
+  // the time-in-force interaction (lib/brokerage/alpaca.ts) because that is the
+  // layer that knows the provider's constraints; this is the early refusal, so a
+  // malformed trailing stop never reaches `createOrderRecord` and leaves an order
+  // row that was never submittable.
+  if (type === "trailing_stop" && trail_percent === undefined && trail_price === undefined) {
+    return NextResponse.json(
+      { error: "trail_percent or trail_price required for trailing_stop orders" },
+      { status: 400 }
+    );
+  }
+  if (type === "trailing_stop" && trail_percent !== undefined && trail_price !== undefined) {
+    return NextResponse.json(
+      { error: "trailing_stop takes exactly one of trail_percent or trail_price" },
+      { status: 400 }
+    );
+  }
+  if (type !== "trailing_stop" && (trail_percent !== undefined || trail_price !== undefined)) {
+    return NextResponse.json(
+      { error: `trail_percent/trail_price apply only to trailing_stop, not ${type}` },
+      { status: 400 }
+    );
   }
 
   const sym = String(symbol).toUpperCase();
@@ -174,6 +197,8 @@ async function executeOrder(
       notional: hasNotional ? Number(notional) : null,
       limitPrice: limit_price ?? null,
       stopPrice: stop_price ?? null,
+      trailPercent: trail_percent ?? null,
+      trailPrice: trail_price ?? null,
     });
   } catch (e) {
     if (e instanceof BrokerageIndeterminateError) {

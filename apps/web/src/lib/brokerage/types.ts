@@ -23,7 +23,7 @@
 // ---------------------------------------------------------------------------
 
 export type OrderSide = "buy" | "sell";
-export type OrderType = "market" | "limit" | "stop" | "stop_limit";
+export type OrderType = "market" | "limit" | "stop" | "stop_limit" | "trailing_stop";
 export type TimeInForce = "day" | "gtc" | "ioc" | "fok" | "opg" | "cls";
 
 /**
@@ -153,6 +153,24 @@ export interface PlaceOrderInput {
   notional?: number | null;
   limitPrice?: number | null;
   stopPrice?: number | null;
+  /**
+   * Trailing-stop distance, for `type: "trailing_stop"`. EXACTLY ONE of the two.
+   *
+   * `trailPercent` trails by a percentage of the high-water mark; `trailPrice`
+   * trails by an absolute amount in the quote currency. Alpaca rejects an order
+   * carrying both, so the caller has to choose — expressing that as two optional
+   * fields rather than a discriminated union keeps this interface flat like the
+   * rest of it, and the check lives in the adapter where the rejection would
+   * otherwise come back from the provider as an opaque 422.
+   *
+   * WHAT A TRAILING STOP IS NOT: it is not a guaranteed exit price. The trail
+   * moves the TRIGGER; once triggered the order becomes a market order and fills
+   * at whatever is available, so a gap can fill far below the trail. Callers that
+   * need a price floor want stop_limit, and should understand it may not fill at
+   * all.
+   */
+  trailPercent?: number | null;
+  trailPrice?: number | null;
   extendedHours?: boolean;
 }
 

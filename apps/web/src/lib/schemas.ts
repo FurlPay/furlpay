@@ -20,10 +20,15 @@ export const OrderSchema = z.object({
   side: z.enum(["buy", "sell"]),
   notional: z.number().positive().optional(),
   qty: z.number().positive().optional(),
-  type: z.enum(["market", "limit", "stop", "stop_limit"]).optional(),
+  type: z.enum(["market", "limit", "stop", "stop_limit", "trailing_stop"]).optional(),
   time_in_force: z.enum(["day", "gtc", "ioc", "fok", "opg", "cls"]).optional(),
   limit_price: z.number().positive().optional(),
   stop_price: z.number().positive().optional(),
+  // Trailing stop: exactly one of these, enforced in lib/brokerage/alpaca.ts
+  // where the arithmetic and the time-in-force interaction are also checked.
+  // Bounded here so an absurd value is rejected before it reaches the provider.
+  trail_percent: z.number().positive().max(99.99).optional(),
+  trail_price: z.number().positive().optional(),
 });
 
 export const IntentSchema = z.object({

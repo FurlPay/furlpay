@@ -324,6 +324,44 @@ export class AlpacaBrokerageProvider implements BrokerageProvider {
       throw new BrokerageRejectedError("Provide exactly one of qty or notional", 400);
     }
 
+    // Trailing-stop arithmetic is validated HERE rather than left to the provider.
+    // Alpaca rejects both-or-neither with a 422 whose body says little, and a
+    // rejected order still costs a round trip and an order record in a terminal
+    // state that a user has to interpret. Refusing locally turns that into a 400
+    // with a sentence.
+    if (input.type === "trailing_stop") {
+      const hasPercent = input.trailPercent != null;
+      const hasPrice = input.trailPrice != null;
+      if (hasPercent === hasPrice) {
+        throw new BrokerageRejectedError(
+          "A trailing stop needs exactly one of trailPercent or trailPrice.",
+          400
+        );
+      }
+      if (hasPercent && !(input.trailPercent! > 0 && input.trailPercent! < 100)) {
+        // 0 would trigger immediately; >=100 can never trigger on a long.
+        throw new BrokerageRejectedError("trailPercent must be between 0 and 100.", 400);
+      }
+      if (hasPrice && !(input.trailPrice! > 0)) {
+        throw new BrokerageRejectedError("trailPrice must be positive.", 400);
+      }
+      // A trailing stop is a resting order: it only makes sense if it can outlive
+      // the session it was placed in. `day` would silently expire the protection
+      // at the close, which is the opposite of what someone attaching a trailing
+      // stop is asking for.
+      if (input.timeInForce === "day") {
+        throw new BrokerageRejectedError(
+          "A trailing stop expires with a `day` time-in-force, which removes the protection it exists to provide. Use `gtc`.",
+          400
+        );
+      }
+    } else if (input.trailPercent != null || input.trailPrice != null) {
+      throw new BrokerageRejectedError(
+        `trailPercent/trailPrice apply only to a trailing_stop order, not ${input.type}.`,
+        400
+      );
+    }
+
     const payload: Record<string, unknown> = {
       symbol: input.symbol.toUpperCase(),
       side: input.side,
@@ -335,6 +373,8 @@ export class AlpacaBrokerageProvider implements BrokerageProvider {
     if (input.notional != null) payload.notional = String(input.notional);
     if (input.limitPrice != null) payload.limit_price = String(input.limitPrice);
     if (input.stopPrice != null) payload.stop_price = String(input.stopPrice);
+    if (input.trailPercent != null) payload.trail_percent = String(input.trailPercent);
+    if (input.trailPrice != null) payload.trail_price = String(input.trailPrice);
     if (input.extendedHours) payload.extended_hours = true;
 
     const { status, body, text } = await this.request<AlpacaOrderPayload & { message?: string }>("/v2/orders", {
