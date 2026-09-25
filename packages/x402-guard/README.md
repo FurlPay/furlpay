@@ -116,6 +116,53 @@ const vmax = pricer.quoteMax(estimatedTokens);          // demand this in the 40
 pricer.observe(estimatedTokens, actualTokens);          // feed every settlement back
 ```
 
+### F6: enforce a signed spend mandate at settlement
+
+A mandate is a user-signed grant: this agent, up to this much per payment, up to this much per window, at these sellers, until this date. The facilitator sees every settlement, so it is the place where exceeding one can be made impossible rather than discouraged.
+
+**`reserveSpend()` takes the nonce and the window budget in one Lua script, or neither.**
+
+```ts
+import { RedisMandateSpendStore } from "@furlpay/x402-guard/redis";
+
+const spend = new RedisMandateSpendStore(redis);
+await spend.openWindow("mnd_1", "2026-09", 50_000_000n);   // $50, atomic
+
+const r = await spend.reserveSpend({
+  mandateId: "mnd_1", window: "2026-09", nonce, paymentHash,
+  resource: "/v1/summarize", amount: 25_000_000n,
+});
+if (!r.ok) return refuse(r.reason);   // nonce_taken | budget_exhausted | ...
+
+// settle, then:
+await spend.commit(r.reservationId);
+```
+
+Two independent calls would leak: `budget reserved -> nonce acquire fails -> budget held forever` throws nothing anywhere, and the user's cap is simply smaller next month. `resource` is part of the reservation identity, so two endpoints at the same seller and price cannot share a slot.
+
+`releaseProvenUnsettled()` has **no timer**. It returns the budget and reopens the nonce only while that nonce is still `pending`, so a late SUCCESS can never hand a window slot back after settlement committed. A frozen budget slot is an availability problem; a wrongly-released one is a double-spend.
+
+### Window semantics are part of the signed mandate
+
+`"$50 per 30d"` is ambiguous, and the ambiguity is not cosmetic: a payer measuring a rolling 30 days and a facilitator measuring a calendar month both enforce $50 and disagree about every payment near a boundary. `WindowSpec` is a tagged union and `windowKeyFor()` is pure, so both sides derive the same bucket from the same mandate.
+
+**The type selects a storage model, not a label.** A decrementing counter cannot express a rolling window — nothing re-credits it as spend ages out of the trailing period — so `rolling` uses a timestamped ledger summed per reservation (`reserveSpendRolling`), while `calendar` and `fixed_period` use a counter.
+
+### The policy evaluator is pure
+
+`evaluateMandate()` has no Redis, no clock and no side effects; window spend is passed in. That makes every denial path testable without a network, and lets the payer-side gate run the identical function so the two layers cannot drift.
+
+All money is integer atomic units compared as `bigint`. Float USD on this boundary fails in both directions — `0.1 + 0.2 > 0.3` is `true`, which refuses a user $0.20 of a $0.30 cap they hold.
+
+```ts
+import { evaluateMandate } from "@furlpay/x402-guard/policy";
+
+const verdict = evaluateMandate({ policy, authorization, windowSpentAtomic, approval, nowMs });
+// { allowed, reason?, requiresApproval, policyVersion, evaluated }
+```
+
+Step-up approval evidence (the signature half) lives in [`@furlpay/agent-trust`](https://github.com/FurlPay/agent-trust), which holds the keys; this package takes `verified` as an input and stays pure.
+
 ## Redis at scale
 
 Every atomicity guarantee the in-memory stores make rests on Node being single-threaded — `MemoryNonceStore.acquire` is safe only because no `await` sits between its read and its write. That is real, and it is worth nothing across two workers, two lambdas or two regions, which is how facilitators actually run. **The F2 race the paper reproduces is a race between machines.**

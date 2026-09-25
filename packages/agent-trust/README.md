@@ -86,6 +86,41 @@ const headers = signRequest({ method: "POST", url, body, keyId: agent.keyId, pri
 const { keyId } = verifyRequest({ method: "POST", url, body, headers, resolvePublicKey });
 ```
 
+## Step-up approval evidence
+
+A mandate can say "above $5, a human must approve". A facilitator cannot act on that by asking anyone — by settlement time the approval either happened or it did not, and its only moves are settle and refuse. So the threshold is enforceable only if the payment **arrives carrying proof**.
+
+AP2 expresses this structurally (a closed mandate signed on a Trusted Surface vs. an open one closed by the agent), but that presumes AP2 envelopes on both ends. Most x402 traffic has none. The minimum that works without them is two base64url strings in the `extra` field x402 already carries:
+
+```ts
+import { issueApproval, verifyApproval } from "@furlpay/agent-trust/approval";
+
+// the human approves ONE payment
+const approval = issueApproval({ userPrivateKeyPem, userPublicKeyPem, mandateId, paymentHash });
+// → { payload, signature }   rides as extra.approval on the X-PAYMENT
+
+const v = verifyApproval(approval, { userPublicKeyPem, paymentHash, mandateId, maxAgeSeconds: 300 });
+// → { ok: true, approvedAtSeconds, userKeyId } | { ok: false, reason }
+```
+
+The signature covers `paymentHash`, `mandateId`, `keyId` and `approvedAt`, under the domain `x402-approval/v1`. Each earns its place by what breaks without it:
+
+| Field | Without it |
+|---|---|
+| `paymentHash` | proves only that the user approved *something*, once — a replay proves that equally well, forever |
+| `mandateId` | evidence minted under a $50 mandate works under a $5000 one |
+| `keyId` | a valid signature from an unrelated user's key passes |
+| `approvedAt` | one approval authorizes above-threshold payments indefinitely |
+| domain | a signature over the same bytes can be reinterpreted as another signed object type |
+
+Amount, resource, seller and asset are deliberately **absent** — they are already committed by `paymentHash`, and a second copy is one that can disagree.
+
+Signed by the **user** key, never the agent's: an agent that can mint its own step-up evidence is approving its own above-threshold spending. `maxAgeSeconds` is required with no default, because a default is a security parameter chosen by whoever forgot to set it. Future-dated evidence is refused rather than treated as unusually fresh (60s skew allowed).
+
+Failure reasons stay distinguishable rather than collapsing into one authorization failure: `missing`, `malformed`, `unsupported_version`, `signature_invalid`, `key_mismatch`, `payment_mismatch`, `mandate_mismatch`, `expired`, `future_dated`.
+
+The enforcement half — window budgets, atomic reservation, the policy evaluator — lives in [`@furlpay/x402-guard`](https://github.com/FurlPay/x402-guard).
+
 ## API
 
 | Export | Purpose |
