@@ -149,7 +149,32 @@ describe("asset registry", () => {
   });
 
   it("throws on an unknown asset rather than inventing one", () => {
+    // Bare "USDC" must always throw: there is no chain-agnostic USDC in this
+    // system. An amount is only meaningful once its settlement domain is known,
+    // which is the whole reason asset ids carry a chain.
     expect(() => requireAsset("USDC")).toThrow(/Unknown asset/);
-    expect(() => requireAsset("USDC.solana")).toThrow(/Unknown asset/);
+
+    // A REAL chain FurlPay does not support, rather than a nonsense string.
+    // That is the mistake this guard actually catches — code referencing a
+    // plausible network the registry has no deployment for.
+    //
+    // This assertion used to name "USDC.solana", which was correct until
+    // 38ce9bd added Solana USDC to the registry. The test then failed for the
+    // right reason (the asset exists now) but read as a safety regression.
+    // Asserting against an unsupported chain keeps the property while leaving
+    // the registry free to grow.
+    expect(() => requireAsset("USDC.avalanche")).toThrow(/Unknown asset/);
+  });
+
+  it("knows every chain domain the registry actually carries", () => {
+    // The counterpart to the guard above: adding a deployment must not require
+    // editing a hardcoded list somewhere else to keep it usable. If a domain is
+    // in ASSETS it resolves, with the decimals and chain it was registered with.
+    for (const id of ["USDC.arbitrum", "USDC.base", "USDC.ethereum", "USDC.polygon", "USDC.solana", "USDC.arc"]) {
+      const asset = requireAsset(id);
+      expect(asset.id).toBe(id);
+      expect(asset.symbol).toBe("USDC");
+      expect(asset.chain).toBe(id.split(".")[1]);
+    }
   });
 });

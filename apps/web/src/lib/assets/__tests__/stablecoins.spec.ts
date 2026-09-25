@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { getAddress } from "viem";
 
 import {
   assertSettleable,
@@ -122,8 +123,13 @@ describe("settlement eligibility", () => {
   });
 
   it("REFUSES an asset id that does not exist at all", () => {
+    // Bare "USDC" carries no settlement domain, so it can never be settled in.
     expect(canSettleIn("USDC", quote("1.00")).reasons).toContain("unknown_asset");
-    expect(canSettleIn("USDC.solana", quote("1.00")).reasons).toContain("unknown_asset");
+
+    // A real chain with no registry deployment — the realistic mistake. This
+    // named "USDC.solana" until 38ce9bd registered it; see money.spec.ts for
+    // the same correction.
+    expect(canSettleIn("USDC.avalanche", quote("1.00")).reasons).toContain("unknown_asset");
   });
 
   it("reports every refusal, not just the first", () => {
@@ -152,9 +158,39 @@ describe("registry integrity", () => {
   });
 
   it("uses checksummed 20-byte addresses on EVM chains", () => {
+    // CHAIN-AWARE. This asserted the EVM shape for EVERY deployment, which was
+    // true until 38ce9bd registered Solana USDC — a base58 SPL mint, not an
+    // 0x address. The old test then failed on a correct registry entry.
+    //
+    // It also only checked the SHAPE despite its name. `getAddress` throws on a
+    // bad EIP-55 checksum, so a transposed character in an address is now caught
+    // rather than merely looking plausible — which is the failure mode that
+    // matters, since a mistyped token address silently reads a different token.
     for (const coin of STABLECOINS) {
       for (const d of coin.deployments) {
-        expect(d.contractAddress, d.assetId).toMatch(/^0x[0-9a-fA-F]{40}$/);
+        if (d.chain === "solana") {
+          // Base58, 32-44 chars, excluding 0/O/I/l.
+          expect(d.contractAddress, d.assetId).toMatch(/^[1-9A-HJ-NP-Za-km-z]{32,44}$/);
+        } else {
+          expect(d.contractAddress, d.assetId).toMatch(/^0x[0-9a-fA-F]{40}$/);
+          expect(() => getAddress(d.contractAddress), `${d.assetId} EIP-55`).not.toThrow();
+          // Stored in its checksummed form, so a string compare against a
+          // checksummed address from a provider does not spuriously differ.
+          expect(getAddress(d.contractAddress), `${d.assetId} canonical`).toBe(d.contractAddress);
+        }
+      }
+    }
+  });
+
+  it("every deployment records where its address came from and when", () => {
+    // A token address is the one constant in this file that cannot be derived,
+    // checked by a type, or caught by a unit test if it is simply wrong. The
+    // provenance fields are the only thing standing between the registry and a
+    // plausible-looking address nobody can trace.
+    for (const coin of STABLECOINS) {
+      for (const d of coin.deployments) {
+        expect(d.addressSource, `${d.assetId} addressSource`).toMatch(/^https:\/\//);
+        expect(d.verifiedAt, `${d.assetId} verifiedAt`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       }
     }
   });
