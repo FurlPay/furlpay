@@ -77,6 +77,18 @@ export const SCRIPTS = Object.freeze({
   get reserveCapacity() {
     return RESERVE_CAPACITY;
   },
+  get reserveSpend() {
+    return RESERVE_SPEND;
+  },
+  get releaseSpend() {
+    return RELEASE_SPEND;
+  },
+  get reserveSpendRolling() {
+    return RESERVE_SPEND_ROLLING;
+  },
+  get releaseSpendRolling() {
+    return RELEASE_SPEND_ROLLING;
+  },
 });
 
 /**
@@ -327,6 +339,385 @@ export class RedisSettlementCapacityLimiter implements CapacityLimiter {
     return Number(await this.client.command(["ZCARD", this.key]));
   }
 }
+
+// ── F6: mandate spend — nonce and budget in ONE reservation ────────────────
+
+/**
+ * Take the nonce and the mandate budget together, or take neither.
+ *
+ * WHY THIS IS NOT TWO CALLS. `RedisNonceStore.acquire` and
+ * `RedisAllowanceStore.reserve` are each individually atomic, and composing
+ * them sequentially is still wrong: between the two round trips the process can
+ * die, the network can drop, or the second can simply fail. Whichever side
+ * succeeded is then held with nothing to release it —
+ *
+ *   budget reserved -> nonce acquire fails -> budget stays reserved forever
+ *   nonce acquired  -> budget reserve fails -> authorization burned, no payment
+ *
+ * The first leaks the user's monthly cap a slot at a time, and it leaks
+ * SILENTLY: the cap simply appears smaller next month. Redis runs a script to
+ * completion without interleaving, so doing both here makes the pair a single
+ * linearization point.
+ *
+ * ORDER MATTERS, and it is nonce first on purpose. Replay is the more dangerous
+ * of the two failures, so the cheapest rejection runs first; and the rollback
+ * below is only sound because the nonce was created inside THIS script, where
+ * no other caller can have observed it.
+ *
+ * KEYS[1] nonce  KEYS[2] window budget  KEYS[3] reservation record
+ * ARGV[1] amount  ARGV[2] nonce ttl  ARGV[3] reservation ttl
+ * ARGV[4] paymentHash  ARGV[5] mandateId  ARGV[6] resource
+ */
+const RESERVE_SPEND = `
+if redis.call('SET', KEYS[1], 'pending', 'NX', 'EX', tonumber(ARGV[2])) == false then
+  return {0, 'nonce_taken'}
+end
+local bal = redis.call('GET', KEYS[2])
+if not bal then
+  redis.call('DEL', KEYS[1])
+  return {0, 'no_mandate_budget'}
+end
+local remaining = tonumber(bal)
+local amount = tonumber(ARGV[1])
+if amount <= 0 then
+  redis.call('DEL', KEYS[1])
+  return {0, 'invalid_amount'}
+end
+if remaining < amount then
+  redis.call('DEL', KEYS[1])
+  return {0, 'budget_exhausted'}
+end
+redis.call('SET', KEYS[2], tostring(remaining - amount))
+redis.call('HSET', KEYS[3],
+  'budget', KEYS[2],
+  'amount', ARGV[1],
+  'nonce', KEYS[1],
+  'paymentHash', ARGV[4],
+  'mandateId', ARGV[5],
+  'resource', ARGV[6])
+redis.call('EXPIRE', KEYS[3], tonumber(ARGV[3]))
+return {1, 'ok'}`;
+
+/** Why a spend reservation was refused. Each maps to a different user story. */
+export type SpendRejection =
+  /** This nonce is PENDING or SETTLED — a replay, not a budget problem. */
+  | "nonce_taken"
+  /** No window budget registered for this mandate. Fails closed. */
+  | "no_mandate_budget"
+  /** Within the mandate, but the window is spent. */
+  | "budget_exhausted"
+  | "invalid_amount";
+
+export type ReserveSpendResult =
+  | { ok: true; reservationId: string }
+  | { ok: false; reason: SpendRejection };
+
+export interface ReserveSpendParams {
+  mandateId: string;
+  /** Window bucket, e.g. "2026-09" or a rolling-window id. */
+  window: string;
+  nonce: string;
+  /** Binds the reservation to the exact payment being settled. */
+  paymentHash: string;
+  /**
+   * The paid endpoint. PART OF THE RESERVATION IDENTITY, not decoration: two
+   * different resources at the same seller and amount must not be able to share
+   * one reservation slot, or a partial failure lets a single budget slot be
+   * applied twice across endpoints.
+   */
+  resource: string;
+  amount: bigint;
+}
+
+/**
+ * Mandate spend control on Redis: window budget and nonce, one primitive.
+ *
+ * Deliberately a SEPARATE store rather than a method bolted onto the nonce or
+ * allowance store. Those two model different things — one authorization replay,
+ * one per-payment escrow — and a mandate window is a third: a human-signed cap
+ * that spans many payments over time. Folding it into either would make the
+ * store answer two questions with one key space.
+ */
+export class RedisMandateSpendStore {
+  private readonly prefix: string;
+  private readonly nonceTtlSeconds: number;
+  private readonly reservationTtlSeconds: number;
+
+  constructor(
+    private readonly client: RedisCommandClient,
+    opts: { prefix?: string; nonceTtlSeconds?: number; reservationTtlSeconds?: number } = {}
+  ) {
+    this.prefix = opts.prefix ?? "x402g:";
+    // Matches RedisNonceStore's default. A PENDING nonce that expires while its
+    // transaction is still in flight re-opens the replay window, so this is
+    // deliberately generous rather than tuned down.
+    this.nonceTtlSeconds = opts.nonceTtlSeconds ?? 86_400;
+    this.reservationTtlSeconds = opts.reservationTtlSeconds ?? 3_600;
+  }
+
+  private nonceKey(nonce: string): string {
+    return `${this.prefix}nonce:${nonce}`;
+  }
+
+  /**
+   * Hash-tagged on the mandate so the budget and its reservations land in the
+   * same slot, which is what lets one script touch them on a cluster.
+   */
+  private budgetKey(mandateId: string, window: string): string {
+    return `${this.prefix}mbudget:{${mandateId}}:${window}`;
+  }
+
+  private reservationKey(mandateId: string, token: string): string {
+    return `${this.prefix}mres:{${mandateId}}:${token}`;
+  }
+
+  private parseReservation(id: string): { mandateId: string; token: string } | null {
+    const at = id.lastIndexOf("::");
+    if (at <= 0) return null;
+    return { mandateId: id.slice(0, at), token: id.slice(at + 2) };
+  }
+
+  /** Register a window budget. Idempotent per window by design of the caller. */
+  async openWindow(mandateId: string, window: string, total: bigint): Promise<void> {
+    if (total < 0n) throw new RangeError("window budget must be non-negative");
+    assertSafeAmount(total, "window budget");
+    await this.client.command(["SET", this.budgetKey(mandateId, window), total.toString()]);
+  }
+
+  async remaining(mandateId: string, window: string): Promise<bigint | null> {
+    const v = await this.client.command(["GET", this.budgetKey(mandateId, window)]);
+    return v === null || v === undefined ? null : BigInt(String(v));
+  }
+
+  /** The whole point: both locks, or neither. */
+  async reserveSpend(p: ReserveSpendParams): Promise<ReserveSpendResult> {
+    assertSafeAmount(p.amount, "spend amount");
+    const token = crypto.randomUUID().replace(/-/g, "");
+    const reply = (await this.client.command([
+      "EVAL",
+      RESERVE_SPEND,
+      3,
+      this.nonceKey(p.nonce),
+      this.budgetKey(p.mandateId, p.window),
+      this.reservationKey(p.mandateId, token),
+      p.amount.toString(),
+      this.nonceTtlSeconds,
+      this.reservationTtlSeconds,
+      p.paymentHash,
+      p.mandateId,
+      p.resource,
+    ])) as [number | string, string];
+
+    const okFlag = Array.isArray(reply) ? Number(reply[0]) : 0;
+    const reason = (Array.isArray(reply) ? String(reply[1]) : "invalid_amount") as SpendRejection;
+    if (okFlag === 1) return { ok: true, reservationId: `${p.mandateId}::${token}` };
+    return { ok: false, reason };
+  }
+
+  private ledgerKey(mandateId: string, window: string): string {
+    return `${this.prefix}mledger:{${mandateId}}:${window}`;
+  }
+
+  /**
+   * Rolling-window spend. Same contract as `reserveSpend`, different accounting.
+   *
+   * Takes the cap per call rather than from stored state: a rolling window has
+   * no "remaining balance" to open, only a ledger and a ceiling. The ceiling
+   * lives in the signed mandate, so passing it here keeps the store from
+   * holding a second, forgeable copy of a number the user signed.
+   */
+  async reserveSpendRolling(
+    p: ReserveSpendParams & { capAtomic: bigint; windowMs: number; nowMs?: number }
+  ): Promise<ReserveSpendResult> {
+    assertSafeAmount(p.amount, "spend amount");
+    assertSafeAmount(p.capAtomic, "window cap");
+    const now = p.nowMs ?? Date.now();
+    const token = crypto.randomUUID().replace(/-/g, "");
+    const reply = (await this.client.command([
+      "EVAL",
+      RESERVE_SPEND_ROLLING,
+      3,
+      this.nonceKey(p.nonce),
+      this.ledgerKey(p.mandateId, p.window),
+      this.reservationKey(p.mandateId, token),
+      p.amount.toString(),
+      this.nonceTtlSeconds,
+      this.reservationTtlSeconds,
+      p.paymentHash,
+      p.mandateId,
+      p.resource,
+      String(now),
+      String(p.windowMs),
+      p.capAtomic.toString(),
+      token,
+    ])) as [number | string, string];
+
+    const okFlag = Array.isArray(reply) ? Number(reply[0]) : 0;
+    const reason = (Array.isArray(reply) ? String(reply[1]) : "invalid_amount") as SpendRejection;
+    if (okFlag === 1) return { ok: true, reservationId: `${p.mandateId}::${token}` };
+    return { ok: false, reason };
+  }
+
+  /** Trailing spend inside the window, for display and reconciliation. */
+  async rollingSpend(
+    mandateId: string,
+    window: string,
+    windowMs: number,
+    nowMs = Date.now()
+  ): Promise<bigint> {
+    const key = this.ledgerKey(mandateId, window);
+    await this.client.command(["ZREMRANGEBYSCORE", key, "-inf", String(nowMs - windowMs)]);
+    const members = (await this.client.command(["ZRANGE", key, 0, -1])) as string[] | null;
+    if (!members || !members.length) return 0n;
+    return members.reduce((sum, m) => {
+      const at = m.indexOf(":");
+      return at < 0 ? sum : sum + BigInt(m.slice(at + 1));
+    }, 0n);
+  }
+
+  /**
+   * Settlement succeeded: promote the nonce to SETTLED and drop the
+   * reservation. The budget stays decremented — that is the spend.
+   *
+   * Works for both accounting models: a committed rolling entry simply stays in
+   * the ledger and ages out on its own.
+   */
+  async commit(reservationId: string): Promise<boolean> {
+    const parsed = this.parseReservation(reservationId);
+    if (!parsed) return false;
+    const key = this.reservationKey(parsed.mandateId, parsed.token);
+    const nonceKey = await this.client.command(["HGET", key, "nonce"]);
+    if (!nonceKey) return false;
+    await this.client.command(["SET", String(nonceKey), "settled", "EX", this.nonceTtlSeconds]);
+    await this.client.command(["DEL", key]);
+    return true;
+  }
+
+  /**
+   * Release BOTH holds — and only on positive proof that nothing settled.
+   *
+   * There is no timer here on purpose. A reservation that cannot be proven
+   * unsettled stays held: a frozen budget slot is an availability problem, a
+   * wrongly-released one is a double-spend. The caller supplies the proof; this
+   * method is the mechanism, never the policy.
+   */
+  async releaseProvenUnsettled(reservationId: string): Promise<boolean> {
+    const parsed = this.parseReservation(reservationId);
+    if (!parsed) return false;
+    const key = this.reservationKey(parsed.mandateId, parsed.token);
+    // `budget` is set by the bucket path, `ledger`/`member` by the rolling one.
+    // Reading both and branching on which is present means a caller releases a
+    // reservation without having to remember how it was taken.
+    const fields = (await this.client.command([
+      "HMGET",
+      key,
+      "budget",
+      "amount",
+      "nonce",
+      "ledger",
+      "member",
+    ])) as (string | null)[] | null;
+    if (!fields || !fields[2]) return false;
+    const [budget, amount, nonce, ledger, member] = fields;
+
+    if (ledger && member) {
+      await this.client.command(["EVAL", RELEASE_SPEND_ROLLING, 3, nonce!, ledger, key, member]);
+      return true;
+    }
+    if (!budget || !amount) return false;
+    await this.client.command(["EVAL", RELEASE_SPEND, 3, nonce!, budget, key, amount]);
+    return true;
+  }
+}
+
+/**
+ * Rolling-window reservation: nonce plus a TRAILING SUM, together or neither.
+ *
+ * WHY A SECOND SCRIPT. `RESERVE_SPEND` above decrements a counter, which is
+ * exactly right for a bucket and structurally wrong for a rolling window: a
+ * counter has nothing that re-credits it as spend ages out of the trailing
+ * period, so a rolling budget implemented on one would only ever fall. The
+ * spend has to be stored per payment, with its timestamp, and summed over the
+ * window each time.
+ *
+ * The sorted set is scored by timestamp. Entries older than the window are
+ * removed before summing, so the trailing total is computed from what is
+ * actually inside the period rather than from a running figure that has to be
+ * corrected. Members are `token:amount`, which keeps the amount recoverable for
+ * release without a second key.
+ *
+ * KEYS[1] nonce  KEYS[2] spend ledger (ZSET)  KEYS[3] reservation record
+ * ARGV[1] amount  ARGV[2] nonce ttl  ARGV[3] reservation ttl  ARGV[4] paymentHash
+ * ARGV[5] mandateId  ARGV[6] resource  ARGV[7] nowMs  ARGV[8] windowMs
+ * ARGV[9] cap  ARGV[10] token
+ */
+const RESERVE_SPEND_ROLLING = `
+if redis.call('SET', KEYS[1], 'pending', 'NX', 'EX', tonumber(ARGV[2])) == false then
+  return {0, 'nonce_taken'}
+end
+local amount = tonumber(ARGV[1])
+if amount <= 0 then
+  redis.call('DEL', KEYS[1])
+  return {0, 'invalid_amount'}
+end
+local now = tonumber(ARGV[7])
+local windowMs = tonumber(ARGV[8])
+redis.call('ZREMRANGEBYSCORE', KEYS[2], '-inf', now - windowMs)
+local members = redis.call('ZRANGE', KEYS[2], 0, -1)
+local spent = 0
+for i = 1, #members do
+  local sep = string.find(members[i], ':')
+  if sep then spent = spent + tonumber(string.sub(members[i], sep + 1)) end
+end
+if spent + amount > tonumber(ARGV[9]) then
+  redis.call('DEL', KEYS[1])
+  return {0, 'budget_exhausted'}
+end
+redis.call('ZADD', KEYS[2], now, ARGV[10] .. ':' .. ARGV[1])
+redis.call('PEXPIRE', KEYS[2], windowMs * 2)
+redis.call('HSET', KEYS[3],
+  'ledger', KEYS[2],
+  'amount', ARGV[1],
+  'nonce', KEYS[1],
+  'member', ARGV[10] .. ':' .. ARGV[1],
+  'paymentHash', ARGV[4],
+  'mandateId', ARGV[5],
+  'resource', ARGV[6])
+redis.call('EXPIRE', KEYS[3], tonumber(ARGV[3]))
+return {1, 'ok'}`;
+
+/**
+ * Release a rolling reservation: drop the ledger entry and reopen the nonce.
+ *
+ * Same rule as the bucket version — refuses once the nonce has settled, so a
+ * late SUCCESS can never un-spend a payment that actually moved money.
+ *
+ * KEYS[1] nonce  KEYS[2] ledger  KEYS[3] reservation  ARGV[1] member
+ */
+const RELEASE_SPEND_ROLLING = `
+if redis.call('GET', KEYS[1]) ~= 'pending' then return 0 end
+redis.call('ZREM', KEYS[2], ARGV[1])
+redis.call('DEL', KEYS[1])
+redis.call('DEL', KEYS[3])
+return 1`;
+
+/**
+ * Give back the budget and reopen the nonce, in one step.
+ *
+ * Refuses if the nonce has reached 'settled'. A late SUCCESS landing after a
+ * release decision must never reopen a spent authorization — the budget is
+ * returned only alongside a nonce that is still PENDING, so the two can never
+ * disagree about whether the payment happened.
+ */
+const RELEASE_SPEND = `
+if redis.call('GET', KEYS[1]) ~= 'pending' then return 0 end
+local bal = redis.call('GET', KEYS[2])
+if bal then
+  redis.call('SET', KEYS[2], tostring(tonumber(bal) + tonumber(ARGV[1])))
+end
+redis.call('DEL', KEYS[1])
+redis.call('DEL', KEYS[3])
+return 1`;
 
 // ── Client adapters ────────────────────────────────────────────────────────
 

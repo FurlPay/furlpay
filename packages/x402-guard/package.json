@@ -15,6 +15,10 @@
     "./redis": {
       "types": "./dist/redis.d.ts",
       "import": "./dist/redis.js"
+    },
+    "./mandate": {
+      "types": "./dist/mandate.d.ts",
+      "import": "./dist/mandate.js"
     }
   },
   "scripts": {

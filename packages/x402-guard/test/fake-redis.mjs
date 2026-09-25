@@ -87,6 +87,12 @@ export class FakeRedis {
         const e = this.#live(args[1]);
         return e ? (e.value.get(args[2]) ?? null) : null;
       }
+      case "HMGET": {
+        // Redis returns an array positionally, with null for absent fields and
+        // for a missing key — never a short array. Callers index by position.
+        const e = this.#live(args[1]);
+        return args.slice(2).map((f) => (e ? (e.value.get(f) ?? null) : null));
+      }
       case "EXPIRE": {
         const e = this.#live(args[1]);
         if (e) e.expiresAt = Date.now() + Number(args[2]) * 1000;
@@ -117,6 +123,18 @@ export class FakeRedis {
         const before = e.value.length;
         e.value = e.value.filter((m) => m.member !== args[2]);
         return before - e.value.length;
+      }
+      case "ZRANGE": {
+        // Members in score order, which is what the rolling sum iterates. Only
+        // the index form the scripts use is supported; anything else would be a
+        // stand-in for a command the real Lua never issues.
+        const e = this.#live(args[1]);
+        if (!e) return [];
+        const sorted = [...e.value].sort((a, b) => a.score - b.score);
+        const start = Number(args[2]);
+        const stop = Number(args[3]);
+        const end = stop < 0 ? sorted.length + stop + 1 : stop + 1;
+        return sorted.slice(start, end).map((m) => m.member);
       }
       case "ZREMRANGEBYSCORE": {
         const e = this.#live(args[1]);
@@ -183,6 +201,99 @@ const TWINS = {
       r._exec(["SET", keys[0], String(bal + refund)]);
     }
     return String(actual);
+  },
+
+  // F6: nonce + mandate budget, together or not at all. The rollback branches
+  // are the point — each one must leave BOTH keys as it found them.
+  [sha(SCRIPTS.reserveSpend)]: (r, keys, argv) => {
+    if (r._exec(["SET", keys[0], "pending", "NX", "EX", argv[1]]) === null) {
+      return [0, "nonce_taken"];
+    }
+    const bal = r._exec(["GET", keys[1]]);
+    if (bal === null) {
+      r._exec(["DEL", keys[0]]);
+      return [0, "no_mandate_budget"];
+    }
+    const remaining = Number(bal);
+    const amount = Number(argv[0]);
+    if (amount <= 0) {
+      r._exec(["DEL", keys[0]]);
+      return [0, "invalid_amount"];
+    }
+    if (remaining < amount) {
+      r._exec(["DEL", keys[0]]);
+      return [0, "budget_exhausted"];
+    }
+    r._exec(["SET", keys[1], String(remaining - amount)]);
+    r._exec([
+      "HSET", keys[2],
+      "budget", keys[1],
+      "amount", argv[0],
+      "nonce", keys[0],
+      "paymentHash", argv[3],
+      "mandateId", argv[4],
+      "resource", argv[5],
+    ]);
+    r._exec(["EXPIRE", keys[2], argv[2]]);
+    return [1, "ok"];
+  },
+
+  // Rolling: the trailing sum is recomputed from the ledger every time, which
+  // is the whole difference from the counter above.
+  [sha(SCRIPTS.reserveSpendRolling)]: (r, keys, argv) => {
+    if (r._exec(["SET", keys[0], "pending", "NX", "EX", argv[1]]) === null) {
+      return [0, "nonce_taken"];
+    }
+    const amount = Number(argv[0]);
+    if (amount <= 0) {
+      r._exec(["DEL", keys[0]]);
+      return [0, "invalid_amount"];
+    }
+    const now = Number(argv[6]);
+    const windowMs = Number(argv[7]);
+    r._exec(["ZREMRANGEBYSCORE", keys[1], "-inf", String(now - windowMs)]);
+    const members = r._exec(["ZRANGE", keys[1], "0", "-1"]) ?? [];
+    let spent = 0;
+    for (const m of members) {
+      const sep = m.indexOf(":");
+      if (sep >= 0) spent += Number(m.slice(sep + 1));
+    }
+    if (spent + amount > Number(argv[8])) {
+      r._exec(["DEL", keys[0]]);
+      return [0, "budget_exhausted"];
+    }
+    const member = `${argv[9]}:${argv[0]}`;
+    r._exec(["ZADD", keys[1], String(now), member]);
+    r._exec(["PEXPIRE", keys[1], String(windowMs * 2)]);
+    r._exec([
+      "HSET", keys[2],
+      "ledger", keys[1],
+      "amount", argv[0],
+      "nonce", keys[0],
+      "member", member,
+      "paymentHash", argv[3],
+      "mandateId", argv[4],
+      "resource", argv[5],
+    ]);
+    r._exec(["EXPIRE", keys[2], argv[2]]);
+    return [1, "ok"];
+  },
+
+  [sha(SCRIPTS.releaseSpendRolling)]: (r, keys, argv) => {
+    if (r._exec(["GET", keys[0]]) !== "pending") return 0;
+    r._exec(["ZREM", keys[1], argv[0]]);
+    r._exec(["DEL", keys[0]]);
+    r._exec(["DEL", keys[2]]);
+    return 1;
+  },
+
+  [sha(SCRIPTS.releaseSpend)]: (r, keys, argv) => {
+    if (r._exec(["GET", keys[0]]) !== "pending") return 0;
+    const bal = r._exec(["GET", keys[1]]);
+    if (bal !== null) r._exec(["SET", keys[1], String(Number(bal) + Number(argv[0]))]);
+    r._exec(["DEL", keys[0]]);
+    r._exec(["DEL", keys[2]]);
+    return 1;
   },
 
   [sha(SCRIPTS.reserveCapacity)]: (r, keys, argv) => {
