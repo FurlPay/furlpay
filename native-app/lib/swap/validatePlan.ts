@@ -15,7 +15,24 @@ import type { Eip1559Transaction } from "@/lib/evm/transaction";
 // about to authorise with their face.
 // ---------------------------------------------------------------------------
 
-/** chainId per slug, matching CHAIN_REGISTRY server-side. */
+/**
+ * chainId per slug, matching CHAIN_REGISTRY server-side.
+ *
+ * DELIBERATELY NARROWER than lib/evm/rpc.ts's `ChainSlug`. This table is the
+ * allow-list of chains a SWAP may be signed for, and it is not the same question
+ * as which chains the RPC proxy serves.
+ *
+ * Circle Arc (5042 / 5042002) is absent on purpose. A swap needs a route from a
+ * liquidity provider and none is configured for Arc, so a swap there cannot be
+ * quoted — and listing the chain here would let a malformed or hostile response
+ * get as far as a signature request for a route that does not exist. Adding a
+ * chain to this table is a claim that swaps work on it; adding one to the RPC
+ * slug list is only a claim that the proxy will forward a call.
+ *
+ * The type split is what keeps that honest: TypeScript refuses to pass an Arc
+ * slug into `assertPlanSignable`, so the omission is enforced at compile time
+ * rather than relying on a runtime check nobody re-reads.
+ */
 export const CHAIN_IDS = {
   ethereum: 1,
   arbitrum: 42161,
@@ -24,6 +41,7 @@ export const CHAIN_IDS = {
   robinhood: 4663,
 } as const;
 
+/** Chains a swap may be signed for. See the note above on why Arc is not one. */
 export type ChainSlug = keyof typeof CHAIN_IDS;
 
 /**

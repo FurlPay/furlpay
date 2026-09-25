@@ -11,8 +11,27 @@ import { toBigInt } from "./rlp";
 // swap is a deploy, not an app-store release.
 // ---------------------------------------------------------------------------
 
-/** Chain slugs the proxy accepts — must match CHAIN_REGISTRY ids server-side. */
-export type ChainSlug = "ethereum" | "arbitrum" | "base" | "polygon" | "robinhood";
+/**
+ * Chain slugs the proxy accepts — must match CHAIN_REGISTRY ids server-side.
+ *
+ * `arc` / `arc-testnet` are Circle Arc, where USDC is the NATIVE gas asset. Two
+ * consequences for anything in this app that reads a balance or a fee:
+ *
+ *   * `getBalance` returns USDC at 18 DECIMALS, not ETH. It is the canonical
+ *     balance — the ERC-20 `balanceOf` view of the same money is 6 decimals and
+ *     truncates, so a zero `balanceOf` does NOT mean the account is empty.
+ *   * a fee is already denominated in dollars. `gasLimit × maxFeePerGas` is USDC
+ *     at 18dp, so it must be shown directly and NOT multiplied by an ETH price —
+ *     doing that would overstate an Arc fee by roughly the ETH price.
+ */
+export type ChainSlug =
+  | "ethereum"
+  | "arbitrum"
+  | "base"
+  | "polygon"
+  | "robinhood"
+  | "arc"
+  | "arc-testnet";
 
 export class RpcError extends Error {
   readonly code: string;

@@ -15,7 +15,19 @@ import {
 import { fromTransactionRequest, maximumCostWei, type Eip1559Transaction } from "@/lib/evm/transaction";
 import { defaultSigner } from "@/lib/signing/registry";
 import { supportsChain, type AccountSigner } from "@/lib/signing/types";
-import { assertFeesSane, assertFresh, assertPlanSignable, CONFIRMATIONS, parseAtomic } from "./validatePlan";
+// `SwappableChain` is deliberately NARROWER than rpc.ts's `ChainSlug`: it is the
+// set of chains a swap can actually be routed and signed for. Circle Arc is an
+// RPC-served chain but not a swappable one — no liquidity provider is configured
+// for it — so this import is what makes the compiler refuse an Arc swap rather
+// than leaving it to a runtime check. See the note on CHAIN_IDS in validatePlan.
+import {
+  assertFeesSane,
+  assertFresh,
+  assertPlanSignable,
+  CONFIRMATIONS,
+  parseAtomic,
+  type ChainSlug as SwappableChain,
+} from "./validatePlan";
 import { recordSwapEvent, startSwapTimer } from "./telemetry";
 import { openSwap, updateSwap } from "./swapJournal";
 
@@ -49,13 +61,13 @@ import { openSwap, updateSwap } from "./swapJournal";
 export type SwapToken = "USDC" | "USDT" | "DAI" | "XSGD" | "XUSD" | "ETH";
 
 /** Re-exported so callers don't reach into lib/evm for a chain slug. */
-export type ChainSlugOf = ChainSlug;
+export type ChainSlugOf = SwappableChain;
 
 export interface SwapQuote {
   fromToken: SwapToken;
   toToken: SwapToken;
-  fromChain: ChainSlug;
-  toChain: ChainSlug;
+  fromChain: SwappableChain;
+  toChain: SwappableChain;
   amountIn: number;
   amountOut: number;
   slippagePct: number;
@@ -137,8 +149,8 @@ export class SwapFailed extends Error {
 export interface ExecuteParams {
   fromToken: SwapToken;
   toToken: SwapToken;
-  fromChain: ChainSlug;
-  toChain?: ChainSlug;
+  fromChain: SwappableChain;
+  toChain?: SwappableChain;
   amountIn: number;
   /**
    * Who signs. Defaults to the on-device key.
@@ -519,7 +531,9 @@ function bridgeMessage(outcome: BridgeStatus): string {
 }
 
 async function sendApproval(args: {
-  chain: ChainSlug;
+  // Narrow: an approval only ever exists to enable a swap, so it is reachable
+  // only for a chain a swap can be routed on.
+  chain: SwappableChain;
   from: string;
   token: string;
   spender: string;
@@ -595,12 +609,17 @@ async function sendApproval(args: {
  * chainId comes from the route. Kept adjacent to the one place that needs it
  * rather than becoming a general chain table.
  */
-const CHAIN_IDS: Record<ChainSlug, number> = {
+const CHAIN_IDS: Record<SwappableChain, number> = {
   ethereum: 1,
   arbitrum: 42161,
   base: 8453,
   polygon: 137,
   robinhood: 4663,
+  // Circle Arc is deliberately ABSENT, matching validatePlan's CHAIN_IDS. Arc is
+  // an RPC-served chain but not a swappable one — no liquidity provider is
+  // configured for it — and the narrow `SwappableChain` key type is what makes
+  // that a compile-time fact rather than a comment. Adding Arc here would claim
+  // a swap route that does not exist.
 };
 
 function describeRpc(e: unknown): string {

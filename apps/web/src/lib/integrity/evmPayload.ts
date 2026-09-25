@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { keccak256, serializeTransaction } from "viem";
 import { EVM_CHAIN_IDS } from "@/lib/x402Signature";
 import { deploymentForAsset } from "@/lib/assets/stablecoins";
+import { ARC_USDC_ERC20, isExactInErc20, toErc20Units } from "@/lib/chains/arc";
 import type { CanonicalIntent } from "./canonical";
 
 // ---------------------------------------------------------------------------
@@ -268,6 +269,96 @@ export function decodeErc20Call(data: string): Erc20Call | null {
 
 // ── The check that makes the intent mean something ─────────────────────────
 
+/** True for Arc mainnet or testnet, the only chains where native value IS a token. */
+function isArcIntent(chain: string): boolean {
+  return chain === "arc" || chain === "arc-testnet";
+}
+
+/**
+ * Verify a transfer on Arc, where one asset moves through two interfaces at two
+ * precisions.
+ *
+ * `USDC.arc` is registered ONCE, at the canonical 18 decimals, because native
+ * USDC and ERC-20 USDC are one balance and modelling them as two assets would
+ * double-count every Arc holding. So `intent.amountMinor` is ALWAYS an 18-decimal
+ * figure here, and the ERC-20 path is the one that has to convert.
+ *
+ * The conversion is the entire risk. Comparing an 18dp intent against 6dp
+ * calldata without it is wrong by 10^12 in whichever direction it was forgotten,
+ * and both directions are bad:
+ *
+ *   * calldata carrying the raw 18dp figure through a 6-decimal interface asks
+ *     for 100 TRILLION USDC instead of 100 — debiting the payer to the limit of
+ *     their balance and allowance;
+ *   * an intent compared against an unconverted 6dp amount authorises a
+ *     trillionth of what the user agreed to and reports success.
+ *
+ * Refuses by default, like every other branch: nothing here returns agreement
+ * without having established it.
+ */
+function verifyArcTransfer(
+  intent: CanonicalIntent,
+  p: EvmChainPayload,
+  decoded: Erc20Call | null,
+  refusals: PayloadRefusal[]
+): void {
+  let intentNative: bigint;
+  try {
+    intentNative = BigInt(intent.amountMinor);
+  } catch {
+    refusals.push("payload_amount_mismatch");
+    return;
+  }
+
+  // --- the native interface: 18 decimals, amount in `value` ----------------
+  if (p.data === "0x") {
+    if (p.to !== intent.destination.toLowerCase()) refusals.push("payload_recipient_mismatch");
+    // Like-for-like: both sides are 18dp, so no conversion and no rounding.
+    if (p.value !== intentNative.toString()) refusals.push("payload_amount_mismatch");
+    return;
+  }
+
+  // --- the ERC-20 interface: 6 decimals, amount in calldata ----------------
+
+  // The interface address is fixed and identical on both Arc networks. Anything
+  // else is a different contract, however well-formed the transfer looks — the
+  // lookalike-token substitution this function exists to catch.
+  if (p.to !== ARC_USDC_ERC20.toLowerCase()) {
+    refusals.push("payload_token_mismatch");
+  }
+
+  if (!decoded || decoded.kind !== "transfer") {
+    // Calldata we cannot read is calldata we cannot confirm.
+    refusals.push("payload_not_verifiable");
+    return;
+  }
+
+  if (p.value !== "0") {
+    // On Arc this is not a curiosity but a double-spend of the same asset:
+    // native value IS USDC, so a token transfer carrying value moves USDC twice
+    // while the intent describes one movement.
+    refusals.push("payload_native_value_unexpected");
+  }
+
+  if (decoded.counterparty !== intent.destination.toLowerCase()) {
+    refusals.push("payload_recipient_mismatch");
+  }
+
+  // EXACTNESS IS REQUIRED, not convenience. An 18dp intent carrying sub-1e-6
+  // dust cannot be moved exactly through a 6-decimal interface, and truncating
+  // would transfer LESS than the user authorised while reporting success. The
+  // amount is refused rather than rounded — the caller must quote an amount the
+  // chosen interface can actually express.
+  if (!isExactInErc20(intentNative)) {
+    refusals.push("payload_amount_mismatch");
+    return;
+  }
+
+  if (decoded.amountMinor !== toErc20Units(intentNative).toString()) {
+    refusals.push("payload_amount_mismatch");
+  }
+}
+
 export type PayloadRefusal =
   | "payload_chain_mismatch"
   | "payload_digest_mismatch"
@@ -323,10 +414,33 @@ export function verifyPayloadMatchesIntent(
 
   switch (intent.action) {
     case "transfer": {
+      // ARC IS THE EXCEPTION TO THIS WHOLE FUNCTION'S CENTRAL ASSUMPTION, so it
+      // is handled before the generic paths rather than patched into them.
+      //
+      // Everywhere else, "the native coin" and "a token" are disjoint: ETH and
+      // POL have no ERC-20 deployment, so `deployment` being absent is a sound
+      // proxy for "this intent means the native coin". On Arc, USDC IS the
+      // native coin AND has an ERC-20 interface at a fixed address, so ONE asset
+      // moves two ways at two precisions — and neither the presence nor the
+      // absence of a deployment distinguishes them.
+      //
+      // Getting here by the generic route produced two wrong answers. Native Arc
+      // transfers passed only because `USDC.arc` happens to be missing from
+      // lib/assets/stablecoins.ts — so adding that entry, an obviously correct
+      // thing for someone to do later, would have started refusing them. And
+      // every Arc ERC-20 transfer was refused outright as `payload_token_mismatch`
+      // for the same reason. Both were verified before this branch existed.
+      if (isArcIntent(intent.chain)) {
+        verifyArcTransfer(intent, p, decoded, refusals);
+        break;
+      }
+
       if (isNative) {
         // A native transfer: the asset must BE the chain's native coin, which
         // has no token deployment. If the intent names a token, an empty
         // calldata cannot possibly move it.
+        //
+        // Sound on every chain EXCEPT Arc, which is why Arc returns above.
         if (deployment) {
           refusals.push("payload_token_mismatch");
           break;
