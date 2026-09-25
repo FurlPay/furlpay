@@ -1,5 +1,16 @@
 import { apiFetch, getBaseUrl, toResponse } from "@/lib/api";
 import { BADGE_BALANCE_KEY, badgeTextFor } from "@/lib/badge";
+// The consent gate — the logic deciding whether a web page learns the user's
+// Safe address — lives in lib/originGrants.ts so it can be tested. The key, the
+// 30-day TTL and the 100-origin cap are owned there too, so there is one
+// definition of each rather than a copy that can drift.
+import {
+  allowedOrigins as allowedOriginsOf,
+  originGranted as originGrantedIn,
+  rememberOrigin as rememberOriginIn,
+  senderOrigin,
+  type OriginStore,
+} from "@/lib/originGrants";
 import type {
   BarsResponse,
   BgRequest,
@@ -49,13 +60,10 @@ const DEPOSITS_KEY = "notifiedDeposits";
 // before WALLET_CONNECT resolves — without it, any open website could silently
 // learn the user's Safe address (a wallet-fingerprinting / deanonymization
 // vector), which is why every real wallet gates connect behind a click.
-const ALLOWED_ORIGINS_KEY = "walletAllowedOrigins";
-const MAX_ALLOWED_ORIGINS = 100;
 /** How long a granted origin stays remembered. A site the user connected to
  *  once is not a site they trust forever: domains change hands and dapps get
  *  compromised, and a grant with no expiry means yesterday's approval still
  *  hands out the Safe address today. Re-consent is one click. */
-const ORIGIN_GRANT_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 /** Pending consent prompts, keyed by request id. MV3 workers are ephemeral,
  *  but the open sendResponse channel (`return true`) keeps this worker alive
@@ -305,47 +313,22 @@ export default defineBackground(() => {
 
 // --- wallet connect consent ----------------------------------------------
 
-/** Page origin of a relayed connect request. Chrome sets sender.origin for
- *  content-script messages; Firefox exposes only sender.url — parse it. */
-function senderOrigin(sender: { origin?: string; url?: string }): string | null {
-  if (sender.origin && sender.origin !== "null") return sender.origin;
-  try {
-    return sender.url ? new URL(sender.url).origin : null;
-  } catch {
-    return null;
-  }
-}
+// The consent gate itself lives in lib/originGrants.ts so it can be tested:
+// these are the functions that decide whether an arbitrary web page learns the
+// user's Safe address, and as private functions here they had no coverage. The
+// thin wrappers below bind them to browser.storage.local.
+//
+// `store` is the injected slice of extension storage. browser.storage.local's
+// get/set already match the OriginStore shape, so this is a direct pass-through
+// rather than an adapter.
+const store: OriginStore = {
+  get: (key) => browser.storage.local.get(key) as Promise<Record<string, unknown>>,
+  set: (items) => browser.storage.local.set(items),
+};
 
-async function allowedOrigins(): Promise<Record<string, number>> {
-  const stored = await browser.storage.local.get(ALLOWED_ORIGINS_KEY);
-  const val = stored[ALLOWED_ORIGINS_KEY];
-  return val && typeof val === "object" ? (val as Record<string, number>) : {};
-}
-
-/** Is this origin currently granted? Expired grants are treated as absent and
- *  swept from storage, so the next connect goes through the consent prompt. */
-async function originGranted(origin: string): Promise<boolean> {
-  const allowed = await allowedOrigins();
-  const grantedAt = allowed[origin];
-  if (typeof grantedAt !== "number") return false;
-  if (Date.now() - grantedAt <= ORIGIN_GRANT_TTL_MS) return true;
-
-  const fresh = Object.fromEntries(
-    Object.entries(allowed).filter(([, at]) => Date.now() - at <= ORIGIN_GRANT_TTL_MS)
-  );
-  await browser.storage.local.set({ [ALLOWED_ORIGINS_KEY]: fresh });
-  return false;
-}
-
-async function rememberOrigin(origin: string): Promise<void> {
-  const allowed = await allowedOrigins();
-  allowed[origin] = Date.now();
-  // Bound storage: keep the most recently granted origins.
-  const entries = Object.entries(allowed)
-    .sort((a, b) => a[1] - b[1])
-    .slice(-MAX_ALLOWED_ORIGINS);
-  await browser.storage.local.set({ [ALLOWED_ORIGINS_KEY]: Object.fromEntries(entries) });
-}
+const allowedOrigins = () => allowedOriginsOf(store);
+const originGranted = (origin: string) => originGrantedIn(store, origin);
+const rememberOrigin = (origin: string) => rememberOriginIn(store, origin);
 
 /** Resolve the Safe address for an approved connect. Signed out → open login
  *  so the user can authenticate, and let the dapp's request fail cleanly. */
