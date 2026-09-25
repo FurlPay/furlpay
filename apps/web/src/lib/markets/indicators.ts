@@ -250,14 +250,64 @@ export function bollinger(
 }
 
 /**
- * How many bars to REQUEST so an indicator has a valid value across the whole
- * visible window — the lookback buffer.
+ * Bars needed for an EMA's SEED to stop mattering.
  *
- * This is the arithmetic behind showing a real EMA-200 on a 1-day chart. The
- * viewport shows `visibleBars`; the indicator needs `required` bars of history
- * BEFORE the first visible one, so the fetch must cover both. Without it a 1D
- * chart can only ever show indicators shorter than the day.
+ * THIS IS THE CORRECTION TO A REAL ACCURACY BUG, so it is worth the arithmetic.
+ *
+ * An EMA is an infinite impulse response filter: the seed never fully leaves the
+ * output, it only decays. After `t` bars past the seed, the seed still
+ * contributes a fraction of the value:
+ *
+ *   residual(t) = (1 − α)^t,   α = 2 / (N + 1)
+ *
+ * For EMA-200 that decays slowly, and the numbers are not intuitive:
+ *
+ *     bars      seed residual
+ *      200         13.53%     <- one full period is NOT enough
+ *      277          6.27%     <- what `visibleBars + required − 1` gave
+ *      400          1.83%
+ *      600          0.25%
+ *     1000          0.0045%
+ *
+ * So the first version of `lookbackFor` — which only guaranteed enough bars for
+ * the SMA seed to exist — produced an EMA-200 still carrying ~6% of its seed.
+ * That is not a rounding difference: it is a visibly different line from the one
+ * TradingView draws, on a chart a user may be comparing side by side. Computing
+ * a number that is 6% seed and calling it an EMA-200 is the same class of problem
+ * as drawing a truncated one.
+ *
+ * `tolerance` is the residual we accept. 0.0025 (0.25%) is the default because it
+ * is the point where the seed is below the rounding of a displayed price, and it
+ * lands at 600 bars for EMA-200 — a request size that is still reasonable.
  */
-export function lookbackFor(visibleBars: number, required: number): number {
-  return Math.max(visibleBars + required - 1, required);
+export function emaConvergenceBars(period: number, tolerance = 0.0025): number {
+  const alpha = 2 / (period + 1);
+  if (alpha >= 1) return period; // period 1: the EMA IS the price, no seed to decay
+  // t > ln(tolerance) / ln(1 − α)
+  return Math.ceil(Math.log(tolerance) / Math.log(1 - alpha));
+}
+
+/**
+ * How many bars to REQUEST so an indicator is VALID AND CONVERGED across the
+ * whole visible window — the lookback buffer.
+ *
+ * This is the arithmetic behind showing a real EMA-200 on a 1-day chart: the
+ * viewport shows `visibleBars`, and the indicator needs history BEFORE the first
+ * visible bar. Two separate requirements have to be met by that history:
+ *
+ *   1. the SEED must exist            — `required` bars
+ *   2. the seed must have DECAYED      — `emaConvergenceBars(period)` bars
+ *
+ * (2) is the one the first version missed. Pass `convergencePeriod` for any
+ * EMA-derived indicator (EMA, MACD) to include it; omit it for a windowed
+ * indicator like Bollinger or an SMA, where the value depends on exactly `period`
+ * bars and nothing before them, so there is no seed to decay.
+ */
+export function lookbackFor(
+  visibleBars: number,
+  required: number,
+  convergencePeriod?: number
+): number {
+  const converge = convergencePeriod ? emaConvergenceBars(convergencePeriod) : 0;
+  return Math.max(visibleBars + required - 1, required, visibleBars + converge - 1, converge);
 }

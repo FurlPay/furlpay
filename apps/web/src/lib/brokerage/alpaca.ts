@@ -393,11 +393,32 @@ export class AlpacaBrokerageProvider implements BrokerageProvider {
     // — surfacing an error here would make a protected retry look like a
     // failure and invite yet another attempt.
     if (status === 422 && /client_order_id|already exists|duplicate/i.test(text)) {
-      const existing = await this.getOrder({ clientOrderId: input.clientOrderId });
+      // The read-back is wrapped because getOrder THROWS on an unreadable
+      // provider — correctly, since returning null there would mean "no such
+      // order" and invite a duplicate. But that throw is a
+      // BrokerageRejectedError, and letting it escape from HERE inverts the
+      // meaning of this whole branch.
+      //
+      // A duplicate-client_order_id complaint is PROOF the first submission
+      // succeeded. If the read-back then fails, the order's status is unknown —
+      // it is emphatically NOT rejected. Reporting "rejected" tells the caller no
+      // order exists while one is live at the venue, and their rational next move
+      // is to submit again: the double position this key exists to prevent.
+      //
+      // So every failure in here collapses to INDETERMINATE, which is the one
+      // answer that leads a caller to check rather than retry. Found by the
+      // benchmark's "cannot be read back" case, which previously saw a rejection.
+      let existing: BrokerageOrder | null = null;
+      try {
+        existing = await this.getOrder({ clientOrderId: input.clientOrderId });
+      } catch {
+        existing = null;
+      }
       if (existing) return existing;
       throw new BrokerageIndeterminateError(
         input.clientOrderId,
-        "Alpaca reported a duplicate client_order_id but the order could not be read back."
+        "Alpaca reported a duplicate client_order_id, which means the order exists, " +
+          "but it could not be read back. Check its status before submitting again."
       );
     }
 

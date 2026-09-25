@@ -1,10 +1,18 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { impliedStop, rewardRisk, sizePosition, PositionSizingError } from "@/lib/markets/positionSizing";
-import { bollinger, ema, lookbackFor, macd, REQUIRED_BARS, rsi } from "@/lib/markets/indicators";
+import {
+  bollinger,
+  ema,
+  emaConvergenceBars,
+  lookbackFor,
+  macd,
+  REQUIRED_BARS,
+  rsi,
+} from "@/lib/markets/indicators";
 import { describeOrderOutcome, ORDER_TICKET_TYPES } from "@/lib/markets/orderTicket";
 import { OrderSchema } from "@/lib/schemas";
 import { AlpacaBrokerageProvider } from "@/lib/brokerage/alpaca";
-import { BrokerageRejectedError } from "@/lib/brokerage/types";
+import { BrokerageIndeterminateError, BrokerageRejectedError } from "@/lib/brokerage/types";
 import { withIdempotency } from "@/lib/idempotency";
 import { NextResponse } from "next/server";
 
@@ -485,6 +493,119 @@ describe("4. state machine & indeterminate status", () => {
       expect(describeOrderOutcome(s).tone, s).not.toBe("filled");
     }
   });
+
+  it("treats Alpaca's 422 duplicate as PROOF THE ORDER EXISTS, not a rejection", async () => {
+    // The sharpest case in the whole file, and the one where getting it wrong is
+    // most expensive.
+    //
+    // Alpaca answers a duplicate client_order_id with HTTP 422, code 40010001.
+    // The naive reading is "rejected" — but a duplicate complaint is PROOF the
+    // FIRST submission succeeded. Reporting it as a rejection tells the user no
+    // order exists while one is live at the venue, and the user's rational next
+    // move is to submit again: the double-position this key exists to prevent.
+    //
+    // So the adapter reads the real order back and returns it. Only if it cannot
+    // be read does this become indeterminate — never a rejection.
+    const provider = new AlpacaBrokerageProvider({
+      keyId: "k",
+      secretKey: "s",
+      baseUrl: "https://paper-api.alpaca.markets",
+      isLive: false,
+    });
+
+    let call = 0;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        call++;
+        if (call === 1) {
+          // The POST: 422 duplicate, exactly as Alpaca phrases it.
+          return new Response(
+            JSON.stringify({ code: 40010001, message: "client_order_id must be unique" }),
+            { status: 422, headers: { "content-type": "application/json" } }
+          );
+        }
+        // The read-back: the order is real and resting.
+        expect(String(url)).toContain("orders");
+        return new Response(
+          JSON.stringify({
+            id: "alp_dup",
+            client_order_id: "cli_dup",
+            symbol: "AAPL",
+            side: "buy",
+            order_type: "limit",
+            time_in_force: "gtc",
+            status: "new",
+            qty: "10",
+            filled_qty: "0",
+            limit_price: "210",
+          }),
+          { status: 200, headers: { "content-type": "application/json" } }
+        );
+      })
+    );
+
+    const t0 = performance.now();
+    const order = await provider.placeOrder({
+      clientOrderId: "cli_dup",
+      symbol: "AAPL",
+      side: "buy",
+      type: "limit",
+      timeInForce: "gtc",
+      qty: 10,
+      limitPrice: 210,
+    });
+    const ms = performance.now() - t0;
+
+    // Resolved to the LIVE order, not thrown as a rejection.
+    expect(order.clientOrderId).toBe("cli_dup");
+    expect(order.status).not.toBe("rejected");
+    expect(call, "it must read the order back rather than guess").toBe(2);
+
+    rows.push({
+      scenario: "Alpaca 422 duplicate",
+      input: "POST -> 422 code 40010001",
+      invariant: "resolves to live order, NOT rejected",
+      ms,
+      status: "PASS",
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("falls to INDETERMINATE, not rejected, when the duplicate cannot be read back", async () => {
+    // The residual case. If Alpaca says duplicate but the read-back fails, the
+    // order's fate is genuinely unknown — and "unknown" must not collapse into
+    // "rejected", because the two demand opposite actions from the caller.
+    const provider = new AlpacaBrokerageProvider({
+      keyId: "k",
+      secretKey: "s",
+      baseUrl: "https://paper-api.alpaca.markets",
+      isLive: false,
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string) =>
+        new Response(JSON.stringify({ code: 40010001, message: "client_order_id must be unique" }), {
+          status: 422,
+          headers: { "content-type": "application/json" },
+        })
+      )
+    );
+
+    await expect(
+      provider.placeOrder({
+        clientOrderId: "cli_dup_unreadable",
+        symbol: "AAPL",
+        side: "buy",
+        type: "limit",
+        timeInForce: "gtc",
+        qty: 10,
+        limitPrice: 210,
+      })
+    ).rejects.toThrow(BrokerageIndeterminateError);
+    vi.unstubAllGlobals();
+  });
 });
 
 // ===========================================================================
@@ -639,12 +760,29 @@ describe("5b. insufficient bars degrade honestly", () => {
     expect(REQUIRED_BARS.bollinger(20)).toBe(20);
   });
 
-  it("sizes the lookback buffer so a 1D window can show a real EMA-200", () => {
-    // Option (b): the viewport stays 1D, the FETCH covers the indicator's history.
-    // 78 five-minute bars in a session + 199 bars of prior history.
-    expect(lookbackFor(78, 200)).toBe(277);
-    // Never less than the requirement, even for a tiny viewport.
-    expect(lookbackFor(1, 200)).toBe(200);
+  it("sizes the lookback for SEED CONVERGENCE, not merely seed existence", () => {
+    // THE CORRECTED INVARIANT. The first version returned 277 for a 1D EMA-200
+    // window — enough bars for the seed to EXIST, but the seed still contributed
+    // 6.27% of the value, which is a visibly different line from TradingView's.
+    //
+    // An EMA is an IIR filter: residual(t) = (1 − α)^t, and for EMA-200 that
+    // decays slowly. 600 bars is where it falls under 0.25%.
+    expect(emaConvergenceBars(200)).toBe(600);
+    expect(lookbackFor(78, 200, 200)).toBeGreaterThanOrEqual(600);
+
+    // The residual at the OLD figure vs the NEW one, asserted so the fix cannot
+    // silently regress to "the seed exists" thinking.
+    const residual = (n: number, bars: number) => Math.pow(1 - 2 / (n + 1), bars);
+    expect(residual(200, 277)).toBeGreaterThan(0.06); // ~6.27% — the bug
+    expect(residual(200, 600)).toBeLessThan(0.0025); // ~0.248% — acceptable
+
+    // Shorter EMAs converge far sooner, so the buffer is not a flat multiplier.
+    expect(emaConvergenceBars(20)).toBeLessThan(emaConvergenceBars(50));
+    expect(emaConvergenceBars(50)).toBeLessThan(emaConvergenceBars(200));
+
+    // A WINDOWED indicator has no seed to decay — Bollinger(20) depends on
+    // exactly 20 bars and nothing before them — so no convergence term applies.
+    expect(lookbackFor(78, 20)).toBe(97);
   });
 });
 
