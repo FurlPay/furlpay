@@ -42,8 +42,25 @@ const YAHOO_TF: Record<Tf, YahooTf> = {
 };
 interface Candle { time: number; open: number; high: number; low: number; close: number }
 
+// `days` is the LOOKBACK window, which is deliberately larger than the window the
+// user sees. See the note on `visibleFrom` below for why.
+//
+// 1D moved from 5 days to 14, and the number is bounded on BOTH sides:
+//
+//   FLOOR — a converged EMA-200 needs ~600 bars (its seed is still 13.5% of the
+//     value at 200 bars). A US session is ~78 five-minute bars, so 600 bars is
+//     ~7.7 trading days ≈ 11 calendar days. 14 gives ~780 bars.
+//
+//   CEILING — `alpacaBars` below does NOT follow `next_page_token`, and Alpaca
+//     returns bars ASCENDING from `start`. So a window holding more than
+//     `limit=1000` bars comes back as the OLDEST 1000 and silently omits today —
+//     the chart would render a week-old session as "1D". 14 days ≈ 780 bars keeps
+//     the whole window inside one page.
+//
+// A larger window is therefore not safer here; it is how the most recent bars get
+// dropped. Raising it means teaching alpacaBars to paginate first.
 const ALPACA_TF: Record<Tf, { timeframe: string; days: number }> = {
-  "1D": { timeframe: "5Min", days: 5 },
+  "1D": { timeframe: "5Min", days: 14 },
   "1W": { timeframe: "1Hour", days: 9 },
   "1M": { timeframe: "1Day", days: 36 },
   "3M": { timeframe: "1Day", days: 100 },
@@ -144,7 +161,19 @@ export async function GET(req: NextRequest) {
   const cacheKey = `${symbol}:${tf}`;
   const hit = cache.get(cacheKey);
   if (hit && Date.now() - hit.at < TTL_MS) {
-    return NextResponse.json({ candles: hit.candles, source: hit.source, cached: true });
+    // The window is recomputed rather than cached alongside the candles: the
+    // series is identical, so the framing must be too, and a cached response that
+    // omitted these fields would make the chart fall back to fitContent() and
+    // render 21 days squeezed into a 1D viewport — visibly different from the
+    // same request a moment earlier.
+    const w = visibleWindow(tf, hit.candles);
+    return NextResponse.json({
+      candles: hit.candles,
+      source: hit.source,
+      cached: true,
+      visibleFrom: w.visibleFrom,
+      visibleTo: w.visibleTo,
+    });
   }
 
   const key = process.env.ALPACA_API_KEY_ID;
@@ -164,11 +193,19 @@ export async function GET(req: NextRequest) {
         "bars"
       );
       candles = bars.map((b) => ({ time: Math.floor(new Date(b.t).getTime() / 1000), open: b.o, high: b.h, low: b.l, close: b.c }));
-      // Intraday view: keep only the most recent trading day's bars.
-      if (tf === "1D" && candles.length) {
-        const lastDay = new Date(candles[candles.length - 1].time * 1000).toISOString().slice(0, 10);
-        candles = candles.filter((c) => new Date(c.time * 1000).toISOString().slice(0, 10) === lastDay);
-      }
+      // NO LONGER TRUNCATED. This used to filter the 1D series down to the most
+      // recent trading day, which is what the chart DISPLAYS — and that starved
+      // every indicator of the history it needs.
+      //
+      // The numbers: a US session is ~78 five-minute bars, and a converged
+      // EMA-200 needs ~600 (its seed still contributes 13.5% at 200 bars and
+      // 6.3% at 277 — see emaConvergenceBars in lib/markets/indicators.ts). So
+      // truncating to 78 made an EMA-200 impossible, and an EMA-50 on 78 bars
+      // still carries ~35% of its seed.
+      //
+      // The full series is returned and `visibleFrom` below marks where the
+      // displayed window starts, so the client can hold all 600 bars in the
+      // series while showing only today. Panning left reveals the rest.
       source = "alpaca";
     } else if (asset.kind === "crypto" && headers) {
       const pair = `${symbol}/USD`;
@@ -228,5 +265,50 @@ export async function GET(req: NextRequest) {
   if (candles.length < 2) return NextResponse.json({ error: "No history available" }, { status: 404 });
 
   cache.set(cacheKey, { at: Date.now(), candles, source });
-  return NextResponse.json({ candles, source });
+  const { visibleFrom, visibleTo } = visibleWindow(tf, candles);
+  return NextResponse.json({ candles, source, visibleFrom, visibleTo });
+}
+
+/**
+ * Where the DISPLAYED window starts and ends within the returned series.
+ *
+ * The series carries more history than the chart shows, because indicators need
+ * bars the user is not looking at. This tells the client which slice to frame,
+ * so the two concerns stay separate: the API decides how much history the MATH
+ * needs, the client decides what the EYE sees.
+ *
+ * Only 1D differs from the full series today. The other timeframes fetch a
+ * window whose display range already matches what they request, so their visible
+ * window IS the series and returning its bounds keeps the response shape uniform
+ * rather than making the client branch on whether the fields are present.
+ *
+ * Returns nulls rather than guessing when there is nothing to frame, so a client
+ * falls back to fitContent() instead of setting an empty range.
+ */
+function visibleWindow(
+  tf: Tf,
+  candles: Candle[]
+): { visibleFrom: number | null; visibleTo: number | null } {
+  if (candles.length === 0) return { visibleFrom: null, visibleTo: null };
+  const last = candles[candles.length - 1];
+
+  if (tf !== "1D") {
+    return { visibleFrom: candles[0].time, visibleTo: last.time };
+  }
+
+  // The most recent trading day, in UTC. This is the slice the old code used to
+  // return as the ENTIRE response; now it only frames the viewport.
+  //
+  // UTC rather than exchange-local on purpose: the bar timestamps are UTC, and
+  // converting to America/New_York here would need a timezone database to be
+  // right across DST. Grouping by UTC day can split a session for a market whose
+  // close crosses midnight UTC — US equities close at 20:00/21:00 UTC, so they
+  // are unaffected — and the cost of being wrong is a viewport that frames a
+  // partial session, not incorrect math. The full series is present either way.
+  const lastDay = new Date(last.time * 1000).toISOString().slice(0, 10);
+  const sameDay = candles.filter(
+    (c) => new Date(c.time * 1000).toISOString().slice(0, 10) === lastDay
+  );
+  if (sameDay.length === 0) return { visibleFrom: candles[0].time, visibleTo: last.time };
+  return { visibleFrom: sameDay[0].time, visibleTo: sameDay[sameDay.length - 1].time };
 }
