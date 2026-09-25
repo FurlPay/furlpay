@@ -126,7 +126,22 @@ export async function POST(req: NextRequest) {
         );
       }
     }
-    const hold = createHold(userId, body.cardId, body.merchant, body.amount);
+    let hold;
+    try {
+      hold = createHold(userId, body.cardId, body.merchant, body.amount);
+    } catch (e) {
+      // 503, not 500: the hold store has no durable backend on this deployment,
+      // which is a configuration state rather than a bug in the request. Reported
+      // explicitly so a caller sees "not available here" instead of a hold id
+      // that would silently stop existing. See EscrowDurabilityError.
+      if ((e as Error).name === "EscrowDurabilityError") {
+        return NextResponse.json(
+          { error: "service_unavailable", detail: (e as Error).message },
+          { status: 503 }
+        );
+      }
+      throw e;
+    }
     recordTransaction(
       userId,
       newTx({

@@ -3,6 +3,7 @@ import { quoteFx } from "@/lib/services/fx";
 import { newTx, recordTransaction } from "@/lib/store";
 import { recordMovement } from "@/lib/ledger";
 import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 import { OfframpSchema, parse } from "@/lib/schemas";
 
 // POST /api/offramp — quote / execute a stablecoin→fiat off-ramp via Wise
@@ -11,6 +12,19 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const account = auth.account;
+
+  // Per-route limit, matched to wallets.transfer (30/min). AGENTS.md rule 2 asks
+  // for a tighter budget than the 150/min middleware baseline on anything
+  // money-moving, and this route had none.
+  //
+  // It matters even where `execute` is refused in production: every call reaches
+  // quoteFx, which is an OUTBOUND request to an FX provider. Without a per-route
+  // budget an authenticated caller could drive that upstream at the middleware
+  // ceiling — a cost and quota amplifier against a third party, on a route whose
+  // quote path stays live in production. Keyed per-user by rateLimitOr429, so one
+  // account cannot spend everyone else's budget.
+  const limited = await rateLimitOr429(req, "offramp", { limit: 30, windowMs: 60_000 });
+  if (limited) return limited;
 
   const parsed = parse(OfframpSchema, await req.json().catch(() => ({})));
   if (!parsed.ok) return parsed.res;
@@ -30,6 +44,13 @@ export async function POST(req: NextRequest) {
   }
 
   if (execute) {
+    // LEDGER FIRST — see the same note in app/api/wallets/transfer/route.ts.
+    // recordMovement can throw (LedgerDurabilityError / LedgerError); running it
+    // after the fiat credit meant a ledger refusal left the user credited, the
+    // transaction marked "settled", and the books with no record of either.
+    // Double-entry: stablecoin leaves user cash to fiat rails.
+    await recordMovement("out", amount, `Off-ramp to ${toCurrency} via ${quote.rail}`, account.user.id);
+
     recordTransaction(
       account.user.id,
       newTx({
@@ -45,8 +66,6 @@ export async function POST(req: NextRequest) {
     if (fiat) {
       fiat.amount += quote.amountTo;
     }
-    // Double-entry: stablecoin leaves user cash to fiat rails.
-    await recordMovement("out", amount, `Off-ramp to ${toCurrency} via ${quote.rail}`, account.user.id);
   }
 
   return NextResponse.json({ quote, executed: !!execute });

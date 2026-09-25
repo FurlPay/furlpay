@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { financialEnvironment } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------
 // On-chain escrow / pre-authorization holds (Playbook Gap 3).
@@ -27,6 +28,46 @@ const globalForEscrow = globalThis as unknown as { __escrow?: Map<string, Escrow
 const holds: Map<string, EscrowHold> =
   globalForEscrow.__escrow ?? (globalForEscrow.__escrow = new Map());
 
+/**
+ * Thrown when production asks for a hold this module cannot durably keep.
+ *
+ * The store above is a per-instance `globalThis` Map. On a serverless platform
+ * that has three consequences, and all of them are money-adjacent:
+ *
+ *   * a hold created on one instance is INVISIBLE to every other, so a capture
+ *     routed elsewhere fails "Escrow hold not found" against a hold the user was
+ *     told exists;
+ *   * an instance recycle silently drops every live hold, and the TTL
+ *     auto-refund that is meant to protect the user cannot fire for a hold that
+ *     no longer exists;
+ *   * /api/escrow writes a transaction record with `status: "escrow"` through the
+ *     durable store, so the user's history can outlive the hold it refers to.
+ *
+ * The same reasoning as lib/ledger.ts assertLedgerDurable: an in-memory record of
+ * money held is not a record. Development and staging may run on the map alone.
+ */
+export class EscrowDurabilityError extends Error {
+  constructor() {
+    super(
+      "Escrow holds have no durable backend. A pre-authorization recorded only in memory is " +
+        "invisible to other instances and lost on recycle, so creating one is refused rather " +
+        "than promising the user a hold that can vanish."
+    );
+    this.name = "EscrowDurabilityError";
+  }
+}
+
+/**
+ * Refuse to create a hold in production while the store is in-memory.
+ *
+ * Deliberately guards CREATE only. Capture and release of an existing hold are
+ * safe to attempt — they already fail closed via `ownedHold` when the hold is
+ * absent — and blocking them would strand any hold that does exist.
+ */
+export function assertEscrowDurable(): void {
+  if (financialEnvironment() === "production") throw new EscrowDurabilityError();
+}
+
 /** Ownership gate: a hold that isn't yours is indistinguishable from one that
  *  doesn't exist — never confirm a foreign hold id. */
 function ownedHold(id: string, userId: string): EscrowHold {
@@ -36,6 +77,9 @@ function ownedHold(id: string, userId: string): EscrowHold {
 }
 
 export function createHold(userId: string, cardId: string, merchant: string, amount: number): EscrowHold {
+  // Refuse before allocating an id the caller would otherwise be handed as a
+  // capability for a hold that cannot survive.
+  assertEscrowDurable();
   const now = Date.now();
   const hold: EscrowHold = {
     id: "esc_" + randomUUID(), // unguessable — the id is the capture/release capability

@@ -283,6 +283,16 @@ async function executeOrder(
       () => ({ price: fillPrice, changePct: holding.changePct, name: holding.name })
     );
     const next = projected.find((p) => p.symbol === sym);
+
+    // LEDGER FIRST — see the note in app/api/wallets/transfer/route.ts.
+    // recordMovement can throw (LedgerDurabilityError when production has no
+    // durable ledger backend). It used to run after the holdings had already been
+    // rewritten and after a transaction had been recorded as "settled", so a
+    // ledger refusal left the user looking at a filled trade the books had never
+    // heard of — and `persistAccount` below was skipped too, so whether the
+    // position survived depended on which instance served the next read.
+    await recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${sym}`, account.user.id);
+
     holding.shares = next?.shares ?? 0;
     holding.costBasis = next?.costBasis ?? 0;
     holding.marketValue = round2(holding.shares * fillPrice);
@@ -300,7 +310,6 @@ async function executeOrder(
         status: "settled",
       })
     );
-    await recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${sym}`, account.user.id);
 
     // Confirm the lot is DURABLE before telling the client it filled. The
     // response says "filled" and the lot behind it is the tax record; measured

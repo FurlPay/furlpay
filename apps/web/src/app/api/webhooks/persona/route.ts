@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { createHash } from "crypto";
 import { verifyPersonaSignature } from "@/lib/kyc/persona";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
 import { getAccountDurable, setKycStatus } from "@/lib/store";
@@ -34,7 +35,20 @@ export async function POST(request: Request) {
   const eventData = event.payload?.data ?? event.payload ?? event.data?.attributes?.payload?.data ?? {};
   const attrs = eventData.attributes ?? eventData;
 
-  const eventId = event.id ?? eventData.id ?? signature ?? String(Date.now());
+  // The dedup key must be STABLE for a given delivery, or the guard below does
+  // nothing. `String(Date.now())` was the last fallback, and it is a different
+  // value on every request — so an id-less payload got a fresh key each time and
+  // replayed freely past the guard. A content hash is stable by construction and
+  // needs nothing from the payload's shape, so it cannot fall through.
+  //
+  // The signature is kept ahead of it only because it is shorter; it is equally
+  // stable for a fixed body. Both are derived from the delivery, never from the
+  // clock.
+  const eventId =
+    event.id ??
+    eventData.id ??
+    signature ??
+    `sha256:${createHash("sha256").update(payload).digest("hex")}`;
   if (!(await tryBegin(String(eventId)))) {
     return NextResponse.json({ received: true, deduped: true });
   }

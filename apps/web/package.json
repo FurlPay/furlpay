@@ -6,15 +6,17 @@
   "scripts": {
     "predev": "node scripts/sync-maplibre-worker.mjs",
     "dev": "next dev",
-    "prebuild": "node scripts/sync-maplibre-worker.mjs",
+    "prebuild": "node scripts/sync-maplibre-worker.mjs && node scripts/check-claims.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
     "sync:maplibre-worker": "node scripts/sync-maplibre-worker.mjs",
-    "check:travel-data": "node scripts/check-no-synthetic-travel.mjs"
+    "check:travel-data": "node scripts/check-no-synthetic-travel.mjs",
+    "check:claims": "node scripts/check-claims.mjs"
   },
   "dependencies": {
+    "@blockaid/client": "^1.8.0",
     "@furlpay/account-kit": "*",
     "@furlpay/agent-trust": "*",
     "@furlpay/ap2": "*",
@@ -24,6 +26,8 @@
     "@furlpay/security": "*",
     "@furlpay/types": "*",
     "@furlpay/ui": "*",
+    "@googlemaps/js-api-loader": "^2.1.1",
+    "@googlemaps/markerclusterer": "^2.6.2",
     "@metaplex-foundation/mpl-bubblegum": "^5.0.2",
     "@metaplex-foundation/umi": "^1.5.1",
     "@metaplex-foundation/umi-bundle-defaults": "^1.5.1",
@@ -44,7 +48,7 @@
     "lucide-react": "^0.427.0",
     "maplibre-gl": "^6.6.0",
     "mermaid": "^11.16.0",
-    "next": "^15.5.22",
+    "next": "^15.5.24",
     "qrcode": "^1.5.4",
     "react": "18.3.1",
     "react-dom": "18.3.1",

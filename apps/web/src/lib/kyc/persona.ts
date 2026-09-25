@@ -1,14 +1,30 @@
 import crypto from "crypto";
 
 // Verify Persona's `Persona-Signature` header. Persona sends a hex-encoded
-// HMAC-SHA256 over the RAW request body. During secret rotation the header
-// contains multiple space-separated `t=<ts>,v1=<sig>` sets — we accept a match
-// against any of them, using a constant-time comparison. A bare-hex header
-// (no `t=`/`v1=`) is also supported for compatibility.
+// HMAC-SHA256 over `${t}.${rawBody}`. During secret rotation the header contains
+// multiple SPACE-separated `t=<ts>,v1=<sig>` sets — we accept a match against any
+// of them, using a constant-time comparison. A bare-hex header (no `t=`/`v1=`) is
+// also supported for compatibility.
+//
+// REPLAY WINDOW. Persona's documentation specifies no tolerance: as far as the
+// provider is concerned, a valid signature is valid forever. That makes a
+// captured delivery replayable indefinitely, so the window below is ours rather
+// than theirs.
+//
+// It is enforced ONLY against the `${t}.${body}` form, and that restriction is
+// the whole point. In that form the timestamp is inside the HMAC, so it is
+// authenticated and cannot be moved forward by an attacker. In the bare-body
+// form `t` is not covered by the signature — an attacker replaying such a
+// delivery could rewrite `t` freely, so checking it there would be security
+// theatre that also risks rejecting legitimate traffic. Bare-body deliveries stay
+// protected by the route's idempotency guard instead.
+export const PERSONA_TIMESTAMP_TOLERANCE_SECONDS = 300; // 5 min, the industry norm
+
 export function verifyPersonaSignature(
   rawBody: string,
   header: string | null,
-  secret: string
+  secret: string,
+  nowMs: number = Date.now()
 ): boolean {
   if (!header || !secret) return false;
 
@@ -19,12 +35,22 @@ export function verifyPersonaSignature(
     const provided = fields.v1 ?? (segment.includes("=") ? undefined : segment);
     if (!provided) continue;
 
-    const accepted = [digestBody];
-    // Some Persona configurations sign `${t}.${body}`; accept it when a
-    // timestamp is present in the segment.
-    if (fields.t) accepted.push(hmac(secret, `${fields.t}.${rawBody}`));
+    // The bare-body form: `t` is unauthenticated, so no window is applied.
+    if (timingSafeEqualHex(provided, digestBody)) return true;
 
-    if (accepted.some((expected) => timingSafeEqualHex(provided, expected))) return true;
+    if (!fields.t) continue;
+
+    // The documented form. Match the signature FIRST, then apply the window —
+    // that order means the window is only ever applied to a timestamp we have
+    // just proven the sender authenticated.
+    if (!timingSafeEqualHex(provided, hmac(secret, `${fields.t}.${rawBody}`))) continue;
+
+    const t = Number(fields.t);
+    if (!Number.isFinite(t)) continue; // an unparseable timestamp is not a pass
+    const ageSeconds = Math.abs(nowMs / 1000 - t);
+    if (ageSeconds > PERSONA_TIMESTAMP_TOLERANCE_SECONDS) return false;
+
+    return true;
   }
   return false;
 }

@@ -415,7 +415,7 @@ function PaySheet({
     if (!canPay) return;
     setBusy(true);
     setError(null);
-    const res = await postJSON<{ transactionHash?: string; error?: string; stepUpRequired?: boolean }>("/api/wallets/transfer", {
+    const res = await postJSON<{ reference?: string; onChain?: boolean; error?: string; stepUpRequired?: boolean }>("/api/wallets/transfer", {
       destination: address,
       amount: amt,
       token: src.token,
@@ -425,9 +425,13 @@ function PaySheet({
       ...(note ? { deviceSignals: { note } } : {}),
     });
     setBusy(false);
-    if (res.ok && res.data.transactionHash) {
+    // `reference`, not `transactionHash`. The route no longer mints a
+    // chain-shaped value for a transfer that touches no chain, so there is
+    // nothing here that could be mistaken for an on-chain hash or rendered as an
+    // explorer link.
+    if (res.ok && res.data.reference) {
       if (navigator.vibrate) navigator.vibrate([40, 60, 40]);
-      setPaidTx(res.data.transactionHash);
+      setPaidTx(res.data.reference);
       return;
     }
     if (res.data.stepUpRequired) {

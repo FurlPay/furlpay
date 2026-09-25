@@ -224,7 +224,50 @@ async function executeTransfer(
     );
   }
 
-  const transactionHash = "0x" + crypto.randomBytes(32).toString("hex");
+  // A REFERENCE, NOT A CHAIN HASH — and the `ftr_` prefix is the point.
+  //
+  // This used to be `"0x" + crypto.randomBytes(32)`, returned to the client as
+  // `transactionHash`. No chain interaction happens on this path, so that value
+  // was a 32-byte random number wearing the shape of a transaction hash: a user
+  // could paste it into a block explorer and find nothing, and
+  // /api/payments/[id]/receipt turns such a value into a clickable
+  // `${chain.explorer}/tx/${hash}` link that 404s. The audit entry below recorded
+  // it too, so an incident investigation would follow a hash that never existed.
+  //
+  // This is not a new judgement. /api/checkout/session carries a comment
+  // recording that the identical pattern was removed from it for the identical
+  // reason; this route was simply the surviving instance.
+  //
+  // The prefix makes the value self-describing, so no caller has to know the
+  // difference — `ftr_…` cannot be mistaken for `0x…`, and nothing downstream can
+  // accidentally build an explorer URL out of it.
+  const reference = "ftr_" + crypto.randomBytes(16).toString("hex");
+
+  // LEDGER FIRST. This ordering is the fix for a real inconsistency, not a style
+  // preference, so it is worth stating why.
+  //
+  // recordMovement THROWS: LedgerDurabilityError when the deployment is
+  // production without a durable ledger backend (lib/ledger.ts assertLedgerDurable),
+  // and LedgerError on an unpostable amount. Previously it ran LAST — after the
+  // balance had been debited (`src.amount -= amount`) and after a transaction had
+  // been written to the user's history with `status: "settled"`.
+  //
+  // So a ledger outage produced the worst possible combination: the user's
+  // balance was gone, their history said the transfer had settled, and the
+  // double-entry books had no record of it at all. `credited != ledgered`, with
+  // no compensating entry and nothing to reconcile against.
+  //
+  // Inverted, the failure mode becomes benign. If the ledger refuses, it refuses
+  // BEFORE any balance moves and before anything claims to have settled — the
+  // request fails and the user's money is untouched. The residual risk runs the
+  // other way (a ledger entry whose presentational record is missing), and that
+  // is strictly preferable: the books are correct and the view can be rebuilt
+  // from them, whereas wrong books cannot be rebuilt from a correct view.
+  //
+  // The already-correct paths do it this way: webhooks/stripe, the two investing
+  // settle routes, lib/services/account.ts and lib/services/payments.ts.
+  const entry = await recordMovement("out", amountUsd, `Transfer ${token} to ${destination.slice(0, 10)}…`, account.user.id);
+
   recordTransaction(
     account.user.id,
     newTx({
@@ -244,12 +287,9 @@ async function executeTransfer(
   src.amount -= amount;
   src.usdValue = Math.round(src.amount * unitUsd * 100) / 100;
 
-  // Double-entry: funds leave user cash.
-  const entry = await recordMovement("out", amountUsd, `Transfer ${token} to ${destination.slice(0, 10)}…`, account.user.id);
-
   void commitVelocity({ userId: account.user.id, amountUsd, country });
 
-  audit("transfer.executed", account.user.id, { destination, amount, amountUsd, token, chain, transactionHash });
+  audit("transfer.executed", account.user.id, { destination, amount, amountUsd, token, chain, reference });
 
   // Fire-and-forget: the transfer is recorded and the ledger has moved; a
   // notification failure must neither slow nor fail it. Truncated address on
@@ -261,5 +301,15 @@ async function executeTransfer(
     dateIso: new Date().toISOString(),
   });
 
-  return NextResponse.json({ transactionHash, gasSponsored: true, screen, ledgerTxId: entry.id });
+  // `onChain: false` is explicit rather than implied by the absent
+  // transactionHash. A caller that wants to show an explorer link needs a
+  // positive signal that there is nothing to link to, not the absence of a
+  // field it may not know to look for.
+  return NextResponse.json({
+    reference,
+    onChain: false,
+    gasSponsored: true,
+    screen,
+    ledgerTxId: entry.id,
+  });
 }
