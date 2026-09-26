@@ -6,6 +6,30 @@
 // response. The CSP allow-lists the app's known integrations (Google Fonts /
 // Identity, Stripe, Persona) and nothing else.
 // ---------------------------------------------------------------------------
+// `form-action` must name every origin a form on our pages may POST to.
+//
+// /api/support/sso works by rendering a self-submitting form that POSTs a JWT to
+// https://<subdomain>.zendesk.com/access/jwt — Zendesk's endpoint accepts only a
+// form POST, and CORS blocks XHR. With a bare `form-action 'self'` the browser
+// BLOCKS that submission: the page renders, the inline script calls submit(),
+// and nothing happens. The visitor waits on "Opening FurlPay Support…" forever.
+//
+// Nothing catches that today because the route 404s until it is configured and
+// no UI links to it, so the failure would have appeared on the first day the
+// integration was switched on, in production, with no local repro.
+//
+// So the origin is added ONLY when the integration is actually configured. While
+// ZENDESK_SUBDOMAIN is unset — the state of every environment today — the policy
+// is byte-for-byte what it was, and no wildcard is introduced for a dormant
+// feature. The value is validated to the same charset the route enforces before
+// it is interpolated: an env var reaches a security header here, and a stray
+// space or semicolon would rewrite the policy rather than extend it.
+const zendeskSubdomain = process.env.ZENDESK_SUBDOMAIN;
+const zendeskFormAction =
+  zendeskSubdomain && /^[a-z0-9-]+$/.test(zendeskSubdomain)
+    ? ` https://${zendeskSubdomain}.zendesk.com`
+    : "";
+
 const csp = [
   "default-src 'self'",
   // Next.js streams inline bootstrap scripts; integrations load their own SDKs.
@@ -20,7 +44,7 @@ const csp = [
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  `form-action 'self'${zendeskFormAction}`,
   "frame-ancestors 'none'",
   "upgrade-insecure-requests",
 ].join("; ");

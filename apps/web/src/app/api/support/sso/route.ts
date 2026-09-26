@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authz";
+import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // GET /api/support/sso[?return_to=/hc/...] — Zendesk JWT SSO handoff.
 //
@@ -44,6 +45,15 @@ export async function GET(req: NextRequest) {
   if (!subdomain || !secret || !/^[a-z0-9-]+$/.test(subdomain)) {
     return NextResponse.json({ error: "Support SSO is not configured" }, { status: 404 });
   }
+
+  // This endpoint MINTS A CREDENTIAL, and two things that normally bound a
+  // route do not reach it: the middleware baseline covers MUTATING_METHODS
+  // only, and check-route-security.mjs audits only mutating handlers — so a GET
+  // is invisible to both. Nothing was limiting how fast sessions could be
+  // minted. 20/min is far above a browser flow that runs once per visit to the
+  // help centre, and far below anything worth automating.
+  const limited = await rateLimitOr429(req, "support.sso", { limit: 20, windowMs: 60_000 });
+  if (limited) return limited;
 
   const auth = await requireUser(req);
   if (!auth.ok) {
