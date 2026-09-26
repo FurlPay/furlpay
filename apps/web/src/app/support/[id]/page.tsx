@@ -164,7 +164,13 @@ export default function TicketThreadPage(props: { params: Promise<{ id: string }
               </p>
             )}
 
-            <div className="rounded-2xl border border-white/[0.07] bg-[#101512]">
+            {/* No empty bordered card when the alert above is the whole message:
+                a card containing nothing reads as a broken panel. */}
+            <div
+              className={
+                error && !ticket ? "" : "rounded-2xl border border-white/[0.07] bg-[#101512]"
+              }
+            >
               {loading ? (
                 <p className="px-6 py-10 text-[13.5px] text-textSecondary">Loading ticket…</p>
               ) : needsAuth ? (
@@ -215,9 +221,18 @@ export default function TicketThreadPage(props: { params: Promise<{ id: string }
                   )}
                   <ReplyComposer onSend={send} sending={sending} />
                 </>
-              ) : (
+              ) : error ? null : (
+                // The generic message, shown ONLY when the alert above is not
+                // already saying something.
+                //
+                // This used to be `{error ?? "That ticket could not be found."}`,
+                // which printed the SAME SENTENCE TWICE on a 404: `error` is set,
+                // so the role="alert" paragraph above rendered it, and `ticket` is
+                // null, so this branch rendered it again. Found by a browser test
+                // — a strict-mode locator matched two elements where a reader
+                // just sees the app stammer.
                 <p className="px-6 py-10 text-[13.5px] text-textSecondary">
-                  {error ?? "That ticket could not be found."}
+                  That ticket could not be found.
                 </p>
               )}
             </div>

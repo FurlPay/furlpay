@@ -110,6 +110,8 @@ export const patchProfile = (body: Record<string, unknown>) =>
 export interface MfaState {
   totpEnabled: boolean;
   hardwareKeys: { name: string; addedAt: string }[];
+  /** How many single-use recovery codes are left. Never the codes themselves. */
+  recoveryCodesRemaining: number;
 }
 
 export const getMfa = () => getJSON<MfaState>("/api/security/mfa");
@@ -124,41 +126,64 @@ export const enrollMfa = () =>
     "POST"
   );
 
+/**
+ * Switches TOTP on after the user proves they can generate a code.
+ *
+ * Returns the recovery codes, ONCE. The server stores only their hashes, so
+ * this response is the single opportunity to show them — the caller must render
+ * them and tell the user to save them, not log or discard them.
+ */
 export const verifyMfa = (code: string) =>
+  sendJSON<{
+    success: boolean;
+    totpEnabled: boolean;
+    recoveryCodes: string[];
+    recoveryCodesRemaining: number;
+  }>("/api/security/mfa", { action: "verify", code }, "POST");
+
+/**
+ * Turns TOTP off. REQUIRES a current authenticator code or a recovery code.
+ *
+ * It did not used to. The route disabled on the authenticated session alone,
+ * which meant the second factor could be removed with only the first — a stolen
+ * session was enough to strip MFA and keep long-term access. This client even
+ * documented that it "deliberately sends NO code". Both sides are fixed: the
+ * server verifies, and the caller must collect the code.
+ */
+export const disableMfa = (code: string) =>
   sendJSON<{ success: boolean; totpEnabled: boolean }>(
     "/api/security/mfa",
-    { action: "verify", code },
+    { action: "disable", code },
     "POST"
   );
 
 /**
- * Turns TOTP off.
+ * Replaces the recovery-code set, invalidating the old one.
  *
- * Deliberately sends NO code: the route disables on the authenticated session
- * alone and never checks one. Collecting a code here and discarding it would be
- * security theatre — the UI asks for an explicit confirmation instead, which is
- * a guard this client can actually honour.
+ * Behind the same proof as disabling, because it is a credential change.
  */
-export const disableMfa = () =>
-  sendJSON<{ success: boolean; totpEnabled: boolean }>(
+export const regenerateRecoveryCodes = (code: string) =>
+  sendJSON<{ success: boolean; recoveryCodes: string[]; recoveryCodesRemaining: number }>(
     "/api/security/mfa",
-    { action: "disable" },
+    { action: "regenerate-recovery", code },
     "POST"
   );
 
 /**
- * TODO(integration): recovery codes.
+ * How many single-use recovery codes remain.
  *
- * Needs a server-side store of single-use, hashed codes with a "remaining"
- * count, generated at enrollment and regenerable behind step-up. Returning
- * codes the server does not know would give the user a printout that unlocks
- * nothing on the day they actually need it.
+ * This used to throw `NotWiredError` — correctly, because the server had no
+ * store and handing the user a printout that unlocks nothing is worse than
+ * admitting the gap. The store now exists (`lib/mfaRecovery.ts`: SHA-256 hashes,
+ * single use, constant-time compare), so the count is real.
+ *
+ * Only a COUNT is available by design. The codes are returned exactly once, by
+ * `verifyMfa` or `regenerateRecoveryCodes`; the server keeps hashes and cannot
+ * reproduce them afterwards.
  */
-export async function getBackupCodes(): Promise<{ remaining: number; generatedAt: string }> {
-  throw new NotWiredError(
-    "backup-codes",
-    "Recovery codes need a server-side store; /api/security/mfa implements enroll, verify and disable only."
-  );
+export async function getBackupCodes(): Promise<{ remaining: number }> {
+  const state = await getJSON<MfaState>("/api/security/mfa");
+  return { remaining: state.recoveryCodesRemaining ?? 0 };
 }
 
 // ── Sign-in methods (passkeys) ─────────────────────────────────────────────

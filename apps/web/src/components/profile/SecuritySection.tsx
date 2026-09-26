@@ -64,6 +64,11 @@ export default function SecuritySection({
   const [dialogError, setDialogError] = useState<string | null>(null);
 
   const [confirmDisable, setConfirmDisable] = useState(false);
+  // Proof required to turn MFA off — a TOTP code or a recovery code.
+  const [disableCode, setDisableCode] = useState("");
+  // Recovery codes, held only long enough for the user to save them. Never
+  // persisted client-side: the server has hashes and cannot reissue these.
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [revoking, setRevoking] = useState<PasskeyCredential | null>(null);
 
   const loadPasskeys = useCallback(() => {
@@ -101,11 +106,14 @@ export default function SecuritySection({
     setBusy(true);
     setDialogError(null);
     try {
-      await verifyMfa(code.trim());
+      const res = await verifyMfa(code.trim());
       setEnrolling(false);
       setCode("");
       setOtpauth(null);
       onChanged();
+      // Shown ONCE — the server keeps only hashes and cannot reproduce them.
+      // Held in state so the user can copy them before dismissing.
+      setRecoveryCodes(res.recoveryCodes ?? []);
       setFeedback({ tone: "success", text: "Two-factor authentication is on." });
     } catch {
       // The route answers 401 for a wrong code; anything else is a transport
@@ -117,15 +125,26 @@ export default function SecuritySection({
   }
 
   async function confirmDisable2fa() {
+    // The server now requires proof of the second factor, so the UI has to
+    // collect it. Turning MFA off on a confirmation click alone meant a stolen
+    // session could strip it.
+    const proof = disableCode.trim();
+    if (!proof) {
+      setDialogError("Enter a code from your authenticator app, or one of your recovery codes.");
+      return;
+    }
     setBusy(true);
     setDialogError(null);
     try {
-      await disableMfa();
+      await disableMfa(proof);
       setConfirmDisable(false);
+      setDisableCode("");
       onChanged();
       setFeedback({ tone: "success", text: "Two-factor authentication is off." });
     } catch {
-      setDialogError("Could not turn two-factor off. Please try again.");
+      // 401 for a bad code, 400 for a missing one. Both are recoverable in place,
+      // and the message must not say which factor failed.
+      setDialogError("That code was not accepted. Try your authenticator app or a recovery code.");
     } finally {
       setBusy(false);
     }
@@ -151,15 +170,18 @@ export default function SecuritySection({
   async function onRecoveryCodes() {
     setFeedback(null);
     try {
-      await getBackupCodes();
-    } catch (err) {
+      const { remaining } = await getBackupCodes();
+      // Only a count is retrievable: the codes were shown once at enrolment and
+      // the server holds hashes. Saying so is more useful than a dead end.
       setFeedback({
-        tone: "error",
+        tone: remaining > 0 ? "success" : "error",
         text:
-          err instanceof NotWiredError
-            ? "Recovery codes are not available yet. Keep access to your authenticator app — there is no backup route into the account today."
-            : "Could not load your recovery codes.",
+          remaining > 0
+            ? `${remaining} recovery code${remaining === 1 ? "" : "s"} left. They were shown once when you turned two-factor on — we keep only hashes, so we cannot show them again. Generate a new set if you have lost them.`
+            : "You have no recovery codes left. Generate a new set so you are not locked out if you lose your authenticator app.",
       });
+    } catch {
+      setFeedback({ tone: "error", text: "Could not check your recovery codes. Try again." });
     }
   }
 
@@ -341,14 +363,61 @@ export default function SecuritySection({
       <ConfirmDialog
         open={confirmDisable}
         title="Turn off two-factor authentication?"
-        description="Your account will be protected by your sign-in method alone. You can turn it back on at any time."
+        description="Your account will be protected by your sign-in method alone. Enter a code to confirm it's you — this stops someone with access to your signed-in device from removing it."
         confirmLabel="Turn off"
         destructive
+        confirmDisabled={disableCode.trim().length < 6}
         busy={busy}
         error={dialogError}
         onConfirm={confirmDisable2fa}
-        onCancel={() => setConfirmDisable(false)}
-      />
+        onCancel={() => {
+          setConfirmDisable(false);
+          setDisableCode("");
+        }}
+      >
+        <label htmlFor="disable-totp-code" className="block text-[12px] font-medium text-textSecondary">
+          Authenticator or recovery code
+        </label>
+        <input
+          id="disable-totp-code"
+          value={disableCode}
+          // Accepts both shapes, so no digits-only filter: a recovery code is
+          // letters and a dash.
+          onChange={(e) => setDisableCode(e.target.value.slice(0, 16))}
+          autoComplete="one-time-code"
+          placeholder="000000"
+          className="mt-1.5 w-full rounded-lg border border-white/[0.12] bg-black/40 px-3 py-2.5 text-center font-mono text-[16px] tracking-[0.2em] text-white outline-none focus-visible:border-accent/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        />
+      </ConfirmDialog>
+
+      {/* Recovery codes, shown once. Not a ConfirmDialog with a cancel path:
+          dismissing is the only action, and the copy has to make clear these
+          cannot be retrieved later. */}
+      <ConfirmDialog
+        open={recoveryCodes.length > 0}
+        title="Save your recovery codes"
+        description="Each code works once, if you lose your authenticator app. We store only hashes, so this is the only time we can show them — save them somewhere safe now."
+        confirmLabel="I've saved them"
+        busy={false}
+        error={null}
+        onConfirm={() => setRecoveryCodes([])}
+        onCancel={() => setRecoveryCodes([])}
+      >
+        <ul className="grid grid-cols-2 gap-1.5 rounded-lg bg-black/40 p-3 font-mono text-[13px] text-white">
+          {recoveryCodes.map((rc) => (
+            <li key={rc} className="tracking-wider">
+              {rc}
+            </li>
+          ))}
+        </ul>
+        <button
+          type="button"
+          onClick={() => void navigator.clipboard?.writeText(recoveryCodes.join("\n")).catch(() => {})}
+          className="mt-2.5 w-full rounded-lg border border-white/[0.12] px-3 py-2 text-[12.5px] text-white transition-colors hover:bg-white/[0.06]"
+        >
+          Copy all codes
+        </button>
+      </ConfirmDialog>
 
       <ConfirmDialog
         open={revoking !== null}

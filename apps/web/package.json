@@ -65,6 +65,7 @@
   "devDependencies": {
     "@furlpay/typescript-config": "*",
     "@next/bundle-analyzer": "^15.5.22",
+    "@playwright/test": "^1.63.0",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.3",
     "@types/node": "20.14.10",

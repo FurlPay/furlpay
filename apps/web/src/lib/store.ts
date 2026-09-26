@@ -141,6 +141,18 @@ export interface User {
     loginAlerts: boolean;
     totpEnabled: boolean;
     totpSecret: string; // base32 (never returned to the client)
+    /**
+     * Single-use MFA recovery codes, stored as SHA-256 HASHES.
+     *
+     * Never the codes themselves: this record is persisted and a plaintext
+     * recovery code is a second factor. The user sees each code exactly once, at
+     * generation. Consuming one deletes its hash, so a code cannot be replayed.
+     *
+     * Without these, a lost authenticator app means a permanently locked
+     * account — the failure mode MFA is supposed to prevent turns into the one
+     * it causes.
+     */
+    totpRecoveryCodes?: string[];
     hardwareKeys: { name: string; addedAt: string }[];
     devices: { name: string; location: string; lastActive: string; current: boolean }[];
   };

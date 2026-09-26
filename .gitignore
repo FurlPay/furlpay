@@ -139,3 +139,10 @@ target/
 /*.jpeg
 /*.jfif
 /*.webp
+
+# Playwright browser-QA artifacts. Screenshots and traces can contain session
+# cookies and whatever was on screen, so they never belong in the repo.
+test-results/
+playwright-report/
+blob-report/
+.playwright/
