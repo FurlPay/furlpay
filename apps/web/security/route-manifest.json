@@ -1,10 +1,10 @@
 {
-  "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification \u2014 an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 321,
+  "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
+  "_total": 323,
   "_counts": {
     "ADMIN_ONLY": 18,
     "API_KEY_AUTHENTICATED": 1,
-    "AUTHENTICATED_USER": 137,
+    "AUTHENTICATED_USER": 139,
     "DEVELOPMENT_ONLY": 1,
     "INTERNAL_ONLY": 7,
     "PUBLIC_INTENTIONAL": 146,
@@ -20,6 +20,7 @@
     "agents": "PUBLIC_INTENTIONAL",
     "agents/ap2": "PUBLIC_INTENTIONAL",
     "agents/keys": "PUBLIC_INTENTIONAL",
+    "alerts": "AUTHENTICATED_USER",
     "ambassadors": "PUBLIC_INTENTIONAL",
     "ambassadors/follow": "PUBLIC_INTENTIONAL",
     "ambassadors/instagram": "PUBLIC_INTENTIONAL",
@@ -94,6 +95,7 @@
     "cron/discord-welcome": "INTERNAL_ONLY",
     "cron/health": "INTERNAL_ONLY",
     "cron/market-brief": "INTERNAL_ONLY",
+    "cron/price-alerts": "INTERNAL_ONLY",
     "cron/price-cards": "INTERNAL_ONLY",
     "cron/reconcile": "INTERNAL_ONLY",
     "deposits": "AUTHENTICATED_USER",
@@ -221,8 +223,10 @@
     "payments/stripe/intent": "PUBLIC_INTENTIONAL",
     "payouts/payroll": "AUTHENTICATED_USER",
     "payouts/validate-destination": "PUBLIC_INTENTIONAL",
+    "places/discover": "PUBLIC_INTENTIONAL",
     "profile": "AUTHENTICATED_USER",
     "profile/avatar": "AUTHENTICATED_USER",
+    "properties/capabilities": "PUBLIC_INTENTIONAL",
     "push/devices": "AUTHENTICATED_USER",
     "push/subscribe": "AUTHENTICATED_USER",
     "rails": "PUBLIC_INTENTIONAL",
@@ -308,6 +312,8 @@
     "wallet/link/challenge": "AUTHENTICATED_USER",
     "wallet/link/verify": "AUTHENTICATED_USER",
     "wallets": "AUTHENTICATED_USER",
+    "wallets/biometric-pay/challenge": "AUTHENTICATED_USER",
+    "wallets/biometric-pay/verify": "AUTHENTICATED_USER",
     "wallets/transfer": "AUTHENTICATED_USER",
     "webhooks/card-auth": "WEBHOOK_VERIFIED",
     "webhooks/complyadvantage": "WEBHOOK_VERIFIED",
@@ -327,10 +333,6 @@
     "x402/price": "PUBLIC_INTENTIONAL",
     "x402/register": "PUBLIC_INTENTIONAL",
     "x402/resources": "PUBLIC_INTENTIONAL",
-    "x402/settlement/[tx]": "PUBLIC_INTENTIONAL",
-    "places/discover": "PUBLIC_INTENTIONAL",
-    "properties/capabilities": "PUBLIC_INTENTIONAL",
-    "alerts": "AUTHENTICATED_USER",
-    "cron/price-alerts": "INTERNAL_ONLY"
+    "x402/settlement/[tx]": "PUBLIC_INTENTIONAL"
   }
 }

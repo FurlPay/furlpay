@@ -1,3 +1,4 @@
+import { currentEpoch } from "@/lib/sessionEpoch";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/store";
 import { signSession, setSessionCookie } from "@/lib/session";
@@ -39,6 +40,7 @@ export async function POST(req: NextRequest) {
     safe: db.user.safeAddress,
     roles: db.user.roles,
     guest: true,
+    sepoch: await currentEpoch(db.user.id),
   });
   // Mobile clients get the token in the body (Bearer flow) — same pattern as
   // /api/auth/otp/check. Web keeps the HttpOnly cookie only.

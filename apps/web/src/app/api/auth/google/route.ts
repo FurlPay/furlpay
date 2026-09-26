@@ -1,3 +1,4 @@
+import { currentEpoch } from "@/lib/sessionEpoch";
 import { NextRequest, NextResponse } from "next/server";
 import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { verifyGoogleCredential } from "@/lib/auth/google";
@@ -83,6 +84,7 @@ export async function POST(req: NextRequest) {
     sub: account.user.id,
     safe: account.user.safeAddress,
     roles: account.user.roles,
+    sepoch: await currentEpoch(account.user.id),
   });
   // Native clients hold the JWT in the Android Keystore and send it as
   // `Authorization: Bearer` — they have no cookie jar. See lib/clientKind.ts.

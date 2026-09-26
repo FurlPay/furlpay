@@ -153,6 +153,13 @@ export interface User {
      * it causes.
      */
     totpRecoveryCodes?: string[];
+    /**
+     * Session epoch — bumped to invalidate every session for this user at once.
+     *
+     * Absent means "never bumped" and is treated as 1, so existing tokens stay
+     * valid across the rollout. See lib/sessionEpoch.ts.
+     */
+    sessionEpoch?: number;
     hardwareKeys: { name: string; addedAt: string }[];
     devices: { name: string; location: string; lastActive: string; current: boolean }[];
   };

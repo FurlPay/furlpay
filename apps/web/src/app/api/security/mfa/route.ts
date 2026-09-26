@@ -7,6 +7,8 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 import { validateBody } from "@/lib/validate";
 import { consumeRecoveryCode, generateRecoveryCodes } from "@/lib/mfaRecovery";
+import { bumpSessionEpoch } from "@/lib/sessionEpoch";
+import { setSessionCookie, signSession, type Role } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +30,36 @@ const MfaBody = z.object({
 // exactly once — to the authenticated owner — for QR enrollment.
 
 type Security = { totpSecret: string; totpEnabled: boolean; totpRecoveryCodes?: string[] };
+
+/**
+ * End every session for this user, then keep THIS device signed in.
+ *
+ * Bumping the epoch alone would log the acting tab out too. That is not a
+ * security gain — the caller just proved possession of the second factor — and it
+ * reads as a crash, so the user re-authenticates for nothing. A fresh cookie
+ * carrying the new epoch keeps them where they are; every other device is dead on
+ * its next request.
+ *
+ * `auth_time` is carried over deliberately rather than reset: this was a factor
+ * check, not a fresh identity proof, so it must not extend how long the session
+ * may keep sliding via /api/auth/refresh.
+ */
+async function bumpAndReissue(
+  res: NextResponse,
+  claims: { jti?: string; auth_time?: number },
+  user: { id: string; safeAddress: string; roles: Role[] }
+): Promise<void> {
+  const epoch = await bumpSessionEpoch(user.id);
+  const token = await signSession({
+    sub: user.id,
+    safe: user.safeAddress,
+    roles: user.roles,
+    jti: claims.jti,
+    auth_time: claims.auth_time,
+    sepoch: epoch,
+  });
+  setSessionCookie(res, token);
+}
 
 /**
  * Prove possession of the second factor: a live TOTP code, or a single-use
@@ -170,8 +202,16 @@ export async function POST(req: NextRequest) {
     sec.totpSecret = "";
     sec.totpRecoveryCodes = [];
     await persistAccount(user.id);
-    audit("auth.mfa_disabled", user.id, { via: proof.via });
-    return NextResponse.json({ success: true, totpEnabled: false });
+
+    // Removing a factor is exactly the event that should end sessions elsewhere.
+    // If this was an attacker's doing, every other device they had is now dead;
+    // if it was the owner, the tab they are using continues because we re-issue
+    // its cookie below.
+    const res = NextResponse.json({ success: true, totpEnabled: false, sessionsEnded: true });
+    await bumpAndReissue(res, auth.claims, user);
+
+    audit("auth.mfa_disabled", user.id, { via: proof.via, sessionsRevoked: true });
+    return res;
   }
 
   return NextResponse.json({ error: "Unknown action" }, { status: 400 });

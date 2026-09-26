@@ -35,6 +35,9 @@ export async function POST(req: NextRequest) {
     ...(claims.roles ? { roles: claims.roles } : {}),
     ...(claims.guest ? { guest: true } : {}),
     auth_time: claims.auth_time ?? claims.iat, // the original login, unchanged
+    // Carried, NOT re-read from the account: requireUser already checked this
+    // token's epoch, and re-stamping would launder a stale token into a fresh one.
+    ...(claims.sepoch ? { sepoch: claims.sepoch } : {}),
   });
 
   // Same convention as otp/check: mobile (X-Furlpay-Client: mobile-*) gets the

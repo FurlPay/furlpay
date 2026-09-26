@@ -46,6 +46,14 @@ export interface SessionClaims extends JWTPayload {
    *  social). Refresh slides `exp` but carries auth_time unchanged, so a
    *  session can only be extended for so long before a real re-login. */
   auth_time?: number;
+  /**
+   * Session epoch this token was minted under (lib/sessionEpoch.ts).
+   *
+   * Compared against the account's epoch on every authenticated request; a
+   * mismatch is a 401. Absent means "minted before epochs existed" and is
+   * treated as 1, so the rollout does not sign anyone out.
+   */
+  sepoch?: number;
 }
 
 /** How long a session may keep sliding via /api/auth/refresh before the user

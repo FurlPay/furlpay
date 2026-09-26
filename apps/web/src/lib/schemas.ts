@@ -9,9 +9,10 @@ export const TransferSchema = z.object({
   destination: z.string().min(4),
   amount: z.number().positive(),
   token: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"]),
-  chain: z.enum(["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis"]),
+  chain: z.enum(["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis", "arc", "tempo"]),
   signature: z.string().min(1),
   mfaCode: z.string().optional(),
+  biometricProof: z.string().optional(),
   deviceSignals: z.record(z.any()).optional(),
 });
 

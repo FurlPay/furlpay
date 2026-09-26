@@ -1,3 +1,4 @@
+import { currentEpoch } from "@/lib/sessionEpoch";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkOtp } from "@/lib/auth/otp";
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
       safe: account.user.safeAddress,
       roles: account.user.roles,
       jti,
+      sepoch: await currentEpoch(account.user.id),
     });
     if (isMobileClient) body = { ...body, token };
     audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: `otp:${channel}` });

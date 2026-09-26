@@ -1,3 +1,4 @@
+import { currentEpoch } from "@/lib/sessionEpoch";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { z } from "zod";
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
     sub: payload.sub,
     safe: payload.safe,
     roles: payload.roles ?? ["user"],
+    sepoch: await currentEpoch(payload.sub),
   });
   audit("auth.handoff_redeemed", payload.sub, { direction: "web_to_native", provider: payload.provider });
   return NextResponse.json({ token });

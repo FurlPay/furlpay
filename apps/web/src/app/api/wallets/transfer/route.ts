@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { screenWallet } from "@furlpay/compliance";
 import { requiresStepUp, verifyTotp } from "@furlpay/security";
 import { evaluateTransferRisk } from "@/lib/trust/trustBridge";
+import { validateAndConsumeBiometricProof } from "@/lib/biometrics/biometricPay";
 import { newTx, recordTransaction, type UserAccount } from "@/lib/store";
 import { verifyTransferSignature } from "@/lib/signature";
 import { recordMovement } from "@/lib/ledger";
@@ -15,6 +16,19 @@ import { analyzeDevice } from "@/lib/services/deviceIntel";
 import { withIdempotency } from "@/lib/idempotency";
 import { checkTransferAmount } from "@/lib/kycTiers";
 import { notifyTransaction } from "@/lib/notify";
+
+/** Chains that can be stored on a Transaction — the `Chain` union in @furlpay/types. */
+const TX_CHAINS = [
+  "ethereum",
+  "polygon",
+  "base",
+  "arbitrum",
+  "arc",
+  "solana",
+  "gnosis",
+  "robinhood",
+  "bsc",
+] as const;
 
 // POST /api/wallets/transfer — gas-sponsored L2 stablecoin transfer via
 // Paymaster, from the SESSION user's balances.
@@ -63,7 +77,7 @@ async function executeTransfer(
   account: UserAccount,
   data: TransferInput
 ): Promise<NextResponse> {
-  const { safeAddress, destination, amount, token, chain, signature, mfaCode, deviceSignals } = data;
+  const { safeAddress, destination, amount, token, chain, signature, mfaCode, biometricProof, deviceSignals } = data;
 
   // `amount` is TOKEN units — it is what gets debited from the token balance
   // below, and it is what every client sends (web ScanToPay, native-app
@@ -142,19 +156,34 @@ async function executeTransfer(
   const needsStepUp = stepUp.required || trustResult.stepUpRequired || trustResult.action === "step_up" || trustResult.action === "manual_review";
 
   if (needsStepUp) {
-    if (!mfaCode) {
+    let stepUpPassed = false;
+    if (biometricProof) {
+      const bioCheck = await validateAndConsumeBiometricProof(account.user.id, biometricProof, {
+        amount,
+        asset: token,
+        recipient: destination,
+        chain,
+      });
+      if (bioCheck.valid) {
+        stepUpPassed = true;
+      } else {
+        audit("auth.mfa_failed", account.user.id, { action: "transfer.biometric_failed", reason: bioCheck.reason });
+        return NextResponse.json({ error: bioCheck.reason || "Invalid biometric proof", stepUpRequired: true }, { status: 401 });
+      }
+    }
+    if (!stepUpPassed && !mfaCode) {
       return NextResponse.json(
         {
           error: stepUp.required
             ? stepUp.reason
             : "Additional verification required by trust policy",
           stepUpRequired: true,
-          methods: stepUp.methods,
+          methods: ["biometric", ...stepUp.methods],
         },
         { status: 401 }
       );
     }
-    if (!account.user.security.totpEnabled || !verifyTotp(account.user.security.totpSecret, mfaCode)) {
+    if (!stepUpPassed && (!account.user.security.totpEnabled || !verifyTotp(account.user.security.totpSecret, mfaCode!))) {
       audit("auth.mfa_failed", account.user.id, { action: "transfer", amount });
       return NextResponse.json({ error: "Invalid or missing MFA code", stepUpRequired: true }, { status: 401 });
     }
@@ -277,7 +306,15 @@ async function executeTransfer(
       subtitle: `${destination.slice(0, 10)}… · gas sponsored · ${chain}`,
       amountUsd,
       token,
-      chain,
+      // TransferSchema accepts "tempo", but the shared `Chain` domain type
+      // (@furlpay/types) does not list it, so it cannot be stored on a
+      // Transaction. Narrowed here rather than widening `Chain`: that union is
+      // used by the SDKs and the compliance package, and adding a member there
+      // would assert tempo is supported everywhere those types reach. The
+      // subtitle above still records the chain in text either way.
+      ...(TX_CHAINS.includes(chain as (typeof TX_CHAINS)[number])
+        ? { chain: chain as (typeof TX_CHAINS)[number] }
+        : {}),
       status: "settled",
     })
   );

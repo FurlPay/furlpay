@@ -1,3 +1,4 @@
+import { currentEpoch } from "@/lib/sessionEpoch";
 import { NextRequest, NextResponse } from "next/server";
 import { generateRegistrationOptions, verifyRegistrationResponse } from "@simplewebauthn/server";
 import { requireUser } from "@/lib/authz";
@@ -132,7 +133,12 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
   });
 
-  const token = await signSession({ sub: user.id, safe: user.safeAddress, roles: user.roles });
+  const token = await signSession({
+    sub: user.id,
+    safe: user.safeAddress,
+    roles: user.roles,
+    sepoch: await currentEpoch(user.id),
+  });
   // Native clients have no cookie jar — they hold the JWT in the Android
   // Keystore and send it as `Authorization: Bearer`. Same contract as
   // /api/auth/otp/check and /api/auth/guest.

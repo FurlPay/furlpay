@@ -1,3 +1,4 @@
+import { currentEpoch } from "@/lib/sessionEpoch";
 import { NextRequest, NextResponse } from "next/server";
 import { generateAuthenticationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { getAccountDurable } from "@/lib/store";
@@ -109,7 +110,13 @@ export async function POST(req: NextRequest) {
   // code omitted it because the session it minted was always the demo
   // account's; a session for a REAL resolved user must carry that user's own
   // authorization claims and nobody else's.
-  const token = await signSession({ sub: user.id, safe: user.safeAddress, roles: user.roles, jti });
+  const token = await signSession({
+    sub: user.id,
+    safe: user.safeAddress,
+    roles: user.roles,
+    jti,
+    sepoch: await currentEpoch(user.id),
+  });
   // A passkey assertion is a strong step-up — satisfies the wallet-link gate.
   void recordStepUp(user.id, jti, "passkey").catch(() => {});
   // Native clients get the JWT in the body (Bearer flow); browsers get the

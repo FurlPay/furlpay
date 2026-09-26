@@ -5,6 +5,7 @@ import { isAccountDeleted } from "@/lib/accountDeletion";
 import type { McpClaims } from "@/lib/mcp/oauth";
 import { mcpDenialFor } from "@/lib/mcp/routeScopes";
 import { audit } from "@/lib/audit";
+import { EPOCH_OUTDATED, REVOCATION_HEADER, epochMatches } from "@/lib/sessionEpoch";
 
 // ---------------------------------------------------------------------------
 // Route-level authentication + authorization helpers.
@@ -77,6 +78,23 @@ export async function requireUser(req: NextRequest): Promise<AuthResult> {
   }
   if (account.user.security.accountLocked) {
     return { ok: false, res: NextResponse.json({ error: "Account locked" }, { status: 423 }) };
+  }
+  // Session epoch: a credential change bumps the account's epoch, which kills
+  // every token minted under the old one — on every device, at once. Checked
+  // here rather than in verifySession() because it needs the ACCOUNT, and this
+  // is the single place every authenticated route already resolves it.
+  //
+  // The header tells a client this is a revocation and not a transient failure,
+  // so it can clear its token and re-authenticate instead of retrying a request
+  // that will never succeed.
+  if (!epochMatches(claims.sepoch, account)) {
+    return {
+      ok: false,
+      res: NextResponse.json(
+        { error: "Session ended — sign in again" },
+        { status: 401, headers: { [REVOCATION_HEADER]: EPOCH_OUTDATED } }
+      ),
+    };
   }
   return { ok: true, claims, account };
 }
