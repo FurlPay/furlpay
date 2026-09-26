@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { retrieveKb, type KbEntry } from "./kb";
+import { safeSources } from "./sources";
 import { trackCost } from "@/lib/costTracker";
 import type { TicketCategory } from "@/lib/support";
 
@@ -48,7 +49,11 @@ const SYSTEM =
   "Do not claim you performed any account action — you can only explain and, if needed, open a support ticket.";
 
 function sourcesFrom(hits: KbEntry[]): SupportSource[] {
-  return hits.map((h) => ({ title: h.title, href: h.href }));
+  // Filtered even though every href comes from `kb.ts`: the client renders each
+  // source as a `next/link`, so this list is a navigation primitive. Validating
+  // at the boundary means a bad href can only ever be a missing citation, never
+  // an off-site link wearing a help-centre label. See lib/support/sources.ts.
+  return safeSources(hits.map((h) => ({ title: h.title, href: h.href })));
 }
 
 /** The extractive answer used with no model key (or on model failure). */

@@ -61,7 +61,7 @@ export interface SupportTicket {
   updatedAt: string;
 }
 
-export type MessageAuthor = "user" | "agent" | "system";
+export type MessageAuthor = "user" | "agent" | "system" | "assistant";
 
 export interface SupportMessage {
   id: string;

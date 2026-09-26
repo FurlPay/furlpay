@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
@@ -9,10 +9,13 @@ import {
   Mail,
   MessageCircle,
   MessagesSquare,
+  Sparkles,
   Wallet,
   X,
 } from "lucide-react";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
+import { safeSources } from "@/lib/support/sources";
+import { AIThinkingBubble } from "./AIThinkingBubble";
 
 const CARD = "rounded-2xl border border-white/[0.07] bg-[#101512]";
 const LABEL = "text-[12px] text-textSecondary";
@@ -211,14 +214,24 @@ export function AIAssistant({
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
   const [open, setOpen] = useState(true);
+  // Holds the in-flight request so Stop can actually abort it. A Stop button
+  // that only hid the spinner would leave the request running and then append
+  // its answer after the user asked for it to stop.
+  const abortRef = useRef<AbortController | null>(null);
 
   if (!open) return null;
+
+  function stop() {
+    abortRef.current?.abort();
+  }
 
   async function ask(question: string) {
     if (!question.trim() || thinking) return;
     setTurns((t) => [...t, { role: "user", text: question }]);
     setInput("");
     setThinking(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
       // CONTRACT, verified against the live route rather than assumed: the
       // schema is `{ message, history }` and it is `.strip()`, so the
@@ -241,6 +254,7 @@ ${question}` : question,
             content: t.text.slice(0, 2000),
           })),
         }),
+        signal: controller.signal,
       });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as {
@@ -258,7 +272,12 @@ ${question}` : question,
           articles: data.sources,
         },
       ]);
-    } catch {
+    } catch (err) {
+      // A user-initiated abort is not a failure and must not be reported as
+      // one. Saying "I could not reach the help service" after someone pressed
+      // Stop blames our infrastructure for their decision, and would push them
+      // toward a support ticket they never needed.
+      if ((err as Error)?.name === "AbortError") return;
       setTurns((t) => [
         ...t,
         {
@@ -269,21 +288,27 @@ ${question}` : question,
       ]);
     } finally {
       setThinking(false);
+      abortRef.current = null;
     }
   }
 
   return (
     <section className={`${CARD} p-5`}>
       <div className="flex items-start gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neon/15">
-          <FurlPayMark className="h-5 w-5" />
+        {/* Deliberately NOT the FurlPay mark — that mark identifies a human
+            support specialist in the thread beside this panel, and the two must
+            not share a badge. */}
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-dashed border-white/25 bg-white/[0.04]">
+          <Sparkles className="h-4 w-4 text-textSecondary" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-2 text-[15px] font-semibold text-white">
             FurlPay AI Assistant
             <span className="rounded bg-neon/[0.14] px-1.5 py-0.5 text-[10.5px] font-medium text-neon">Beta</span>
           </h3>
-          <p className="mt-0.5 text-[12.5px] text-textSecondary">Get instant help with your questions.</p>
+          <p className="mt-0.5 text-[12.5px] text-textSecondary">
+            Automated answers from our help articles — not a human agent.
+          </p>
         </div>
         <button
           type="button"
@@ -306,9 +331,21 @@ ${question}` : question,
               >
                 {t.text}
               </p>
-              {t.articles?.length ? (
+              {/* Article 50(2) disclosure travels with each AI turn. The panel
+                  heading says "AI Assistant", but a heading scrolls out of view
+                  and the obligation is to be perceivable in the interaction. */}
+              {t.role !== "user" && (
+                <p className="mt-1 flex items-center gap-1 text-[11px] text-textSecondary">
+                  <Sparkles className="h-3 w-3 shrink-0" aria-hidden />
+                  AI-generated · can be wrong · cannot act on your account
+                </p>
+              )}
+              {/* Re-validated here even though the server already filtered: this
+                  is the render that turns a citation into a navigation, and a
+                  `//host` href looks root-relative at a glance. */}
+              {safeSources(t.articles).length ? (
                 <ul className="mt-1.5 space-y-1">
-                  {t.articles.map((a) => (
+                  {safeSources(t.articles).map((a) => (
                     <li key={a.href}>
                       <Link href={a.href} className="text-[12.5px] text-neon hover:underline">
                         {a.title}
@@ -327,7 +364,7 @@ ${question}` : question,
               )}
             </div>
           ))}
-          {thinking && <p className="text-[12.5px] italic text-textSecondary">AI is thinking…</p>}
+          {thinking && <AIThinkingBubble onStop={stop} />}
         </div>
       )}
 

@@ -16,6 +16,8 @@ import {
   X,
 } from "lucide-react";
 import type { KbIndexEntry } from "@/app/api/support/kb/route";
+import { safeSources } from "@/lib/support/sources";
+import { AIThinkingBubble } from "@/components/support/AIThinkingBubble";
 import {
   clearChat,
   readChat,
@@ -63,7 +65,7 @@ const TEAM = [
 ];
 
 const GREETING_TEXT =
-  "Hi — I'm the FurlPay assistant. I can answer from our help centre on deposits, cards, KYC, travel and the developer APIs, and cite where the answer came from. What do you need?";
+  "Hi — I'm FurlPay's AI assistant, not a human. I answer from our help centre on deposits, cards, KYC, travel and the developer APIs, and I cite where each answer came from. I can't act on your account, and you can ask for a human any time. What do you need?";
 
 /**
  * Openers the help centre can actually answer.
@@ -251,7 +253,17 @@ export default function SupportChatBubble() {
           },
         ]);
       } finally {
-        if (!ac.signal.aborted) setThinking(false);
+        // Clear only if this request is still the current one.
+        //
+        // Two different aborts reach here and they need opposite handling. A
+        // SUPERSEDE (a newer send aborted us) must NOT clear: the newer request
+        // already set `thinking` true and owns it, so clearing would flicker the
+        // indicator off and on. A user pressing STOP has no successor, so this
+        // controller is still `inflight.current` and we must clear — the old
+        // `!ac.signal.aborted` test skipped both cases, which left the dots
+        // spinning forever and the composer disabled, with no way back but a
+        // remount.
+        if (inflight.current === ac) setThinking(false);
       }
     },
     [messages, thinking]
@@ -317,12 +329,12 @@ export default function SupportChatBubble() {
                     <Sparkles className="h-5 w-5" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[14px] font-semibold">Ask the assistant</p>
+                    <p className="text-[14px] font-semibold">Ask the AI assistant</p>
                     {/* What it does, not a delivery promise. There is no agent
                         presence system behind this widget, so "we typically
                         reply in a few minutes" was a claim nothing measured. */}
                     <p className="text-[12px] text-textSecondary">
-                      Answers from our help centre, with sources
+                      Automated answers from our help centre, with sources
                     </p>
                   </div>
                   <ArrowRight className="h-4 w-4 text-textSecondary" />
@@ -369,13 +381,18 @@ export default function SupportChatBubble() {
                   <Sparkles className="h-4 w-4" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="text-[14px] font-semibold leading-tight">FurlPay assistant</p>
+                  <p className="text-[14px] font-semibold leading-tight">FurlPay AI assistant</p>
                   {/* Says what it IS. The old header showed a green dot and the
                       word "Online" unconditionally — there is no presence
                       signal behind this widget, so that dot was decoration
-                      claiming to be a status. */}
+                      claiming to be a status.
+                      "AI" is now explicit in both lines. EU AI Act Art. 50(2)
+                      has applied since 2 Aug 2026 and the guidance is direct
+                      that a vague reference to an "assistant" does not
+                      discharge the duty — it has to be perceivable in the
+                      interaction. This widget is reachable from the EU. */}
                   <p className="text-[11px] text-textSecondary">
-                    Grounded in our help centre · human handoff any time
+                    Automated · grounded in our help centre · human handoff any time
                   </p>
                 </div>
                 {messages.length > 1 && (
@@ -423,9 +440,15 @@ export default function SupportChatBubble() {
                       {/* Citations. The point of a grounded answer is that it
                           can be checked, which needs the article to be one
                           click away rather than named in passing. */}
-                      {m.sources && m.sources.length > 0 && (
+                      {/* Validated at the render, not trusted from the payload.
+                          This is a RAW anchor, so a protocol-relative `//host`
+                          href navigates straight off-site with nothing in the
+                          way — React only ever guarded `javascript:`, and even
+                          that is not a boundary to lean on. See
+                          lib/support/sources.ts. */}
+                      {safeSources(m.sources).length > 0 && (
                         <div className="mt-2 space-y-1 border-t border-white/10 pt-2">
-                          {m.sources.map((s) => (
+                          {safeSources(m.sources).map((s) => (
                             <a
                               key={s.href}
                               href={s.href}
@@ -441,25 +464,12 @@ export default function SupportChatBubble() {
                   </div>
                 ))}
 
-                {thinking && (
-                  <div className="flex items-end gap-2">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-neon/30 bg-neonSoft text-neon">
-                      <Sparkles className="h-3 w-3" />
-                    </span>
-                    {/* A real pending state now: it starts when the request
-                        goes out and ends when it lands, rather than running a
-                        900ms timer to imitate thought. */}
-                    <div className="flex items-center gap-1 rounded-2xl rounded-bl-md border border-white/10 bg-white/[0.04] px-4 py-3">
-                      {[0, 150, 300].map((d) => (
-                        <span
-                          key={d}
-                          className="h-1.5 w-1.5 animate-bounce rounded-full bg-textSecondary"
-                          style={{ animationDelay: `${d}ms` }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
+                {/* A real pending state: it starts when the request goes out
+                    and ends when it lands, rather than running a 900ms timer to
+                    imitate thought. The shared bubble adds a status line saying
+                    what is actually happening, and a Stop that aborts the
+                    in-flight request rather than only hiding the dots. */}
+                {thinking && <AIThinkingBubble onStop={() => inflight.current?.abort()} />}
 
                 {messages.length === 1 && !thinking && (
                   <div className="flex flex-wrap gap-2 pt-1">

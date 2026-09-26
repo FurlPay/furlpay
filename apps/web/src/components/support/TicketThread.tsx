@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CheckCircle2, Copy, Image as ImageIcon, MoreVertical, Paperclip, Smile, X } from "lucide-react";
+import { CheckCircle2, Copy, Image as ImageIcon, MoreVertical, Paperclip, Smile, Sparkles, X } from "lucide-react";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 
 // ---------------------------------------------------------------------------
@@ -12,7 +12,16 @@ import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 
 export interface ThreadMessage {
   id: string;
-  author: "user" | "agent" | "system";
+  /**
+   * Mirrors `MessageAuthor` in lib/support.ts — all FOUR values, not three.
+   *
+   * This used to narrow to `user | agent | system` while the stored type already
+   * included `assistant`. The narrowing bought nothing: the page reads messages
+   * from `res.json()`, which is `any`, so nothing checked the value at runtime.
+   * An `assistant` message therefore fell past both branches below and rendered
+   * under the CUSTOMER's name, avatar and badge.
+   */
+  author: "user" | "agent" | "system" | "assistant";
   body: string;
   createdAt: string;
   authorName?: string;
@@ -197,25 +206,45 @@ export function TicketMessage({
   customerName: string;
   actions?: React.ReactNode;
 }) {
-  // Three authors, not two. The API emits a `system` note on ticket creation
-  // ("Ticket received. A human follows up here and by email"), and branching
-  // only on `agent` rendered that as the CUSTOMER — putting words in the user's
-  // mouth, under their own name and avatar. Seen in the real API response, not
-  // guessed from the type.
+  // FOUR authors, not two — and the count has been wrong twice now. First
+  // `system` was missing (the API emits a note on ticket creation) and rendered
+  // as the CUSTOMER. Now `assistant`, which had the same fall-through: present
+  // in the stored `MessageAuthor` union but in neither branch here.
+  //
+  // For an AI message that misattribution is not just cosmetic. EU AI Act
+  // Article 50(2) has applied since 2 August 2026 and requires a person to be
+  // informed they are interacting with AI, "perceivable in the interaction
+  // itself" — a label in a panel heading elsewhere on the page does not carry a
+  // message rendered under the customer's own name.
+  //
+  // So the AI gets its own identity, deliberately NOT the human agent's: a
+  // different icon (Sparkles, not the FurlPay mark), a badge that says AI in
+  // words, and a muted surface rather than the agent's neon. A customer must
+  // never have to guess whether a reply came from a person.
   const isAgent = message.author === "agent";
   const isSystem = message.author === "system";
+  const isAssistant = message.author === "assistant";
+  const isFurlPay = isAgent || isSystem || isAssistant;
   const name = isSystem
     ? "FurlPay"
     : isAgent
       ? "FurlPay Support"
-      : (message.authorName ?? customerName);
-  const badge = isSystem ? "System" : isAgent ? "Support" : "Customer";
+      : isAssistant
+        ? "FurlPay AI Assistant"
+        : (message.authorName ?? customerName);
+  const badge = isSystem ? "System" : isAgent ? "Support" : isAssistant ? "AI — not a human" : "Customer";
 
   return (
     <article className="border-b border-white/[0.06] px-6 py-5 last:border-b-0">
       <div className="flex items-start gap-3">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-neon/15">
-          {isAgent || isSystem ? (
+        <span
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+            isAssistant ? "border border-dashed border-white/25 bg-white/[0.04]" : "bg-neon/15"
+          }`}
+        >
+          {isAssistant ? (
+            <Sparkles className="h-4 w-4 text-textSecondary" aria-hidden />
+          ) : isFurlPay ? (
             <FurlPayMark className="h-5 w-5" />
           ) : (
             <span className="text-[13px] font-semibold text-neon">{name.charAt(0).toUpperCase()}</span>
@@ -226,7 +255,13 @@ export function TicketMessage({
           <div className="flex flex-wrap items-center gap-2.5">
             <span className="text-[14px] font-semibold text-white">{name}</span>
             <span className="text-[12px] text-textSecondary">{relativeTime(message.createdAt)}</span>
-            <span className="rounded bg-neon/[0.12] px-2 py-0.5 text-[11px] font-medium text-neon">
+            <span
+              className={`rounded px-2 py-0.5 text-[11px] font-medium ${
+                isAssistant
+                  ? "border border-white/15 bg-white/[0.05] text-[#C9CDCB]"
+                  : "bg-neon/[0.12] text-neon"
+              }`}
+            >
               {badge}
             </span>
             {actions && <div className="ml-auto">{actions}</div>}
@@ -234,6 +269,15 @@ export function TicketMessage({
           <div className="mt-2 space-y-0">
             <BodyWithCopyableHashes body={message.body} />
           </div>
+          {isAssistant && (
+            // Sits under the message, not only in the header: on a long thread
+            // the header scrolls away and the disclosure has to travel with the
+            // text it qualifies.
+            <p className="mt-2 text-[11.5px] text-textSecondary">
+              Generated by AI from FurlPay help articles. It can be wrong and cannot act on your
+              account — ask for a human if anything here affects your money.
+            </p>
+          )}
         </div>
       </div>
     </article>

@@ -17,7 +17,7 @@ message ─▶ rate limit ─▶ Zod ─▶ redactSecrets ─▶ retrieveKb ─�
 
 - **Model**: `claude-haiku-4-5-20251001` (override with `COPILOT_MODEL`),
   12s timeout, 400 max tokens.
-- **Corpus**: `lib/support/kb.ts` — 15 articles that ship in the repo. It
+- **Corpus**: `lib/support/kb.ts` — 14 articles that ship in the repo. It
   changes by commit and code review, never at runtime, so there is no
   RAG-poisoning surface: no user-submitted documents, no vector store, no
   crawler, no admin-editable KB.
@@ -149,6 +149,123 @@ Two corrections to earlier claims, recorded so they are not repeated:
 2. `redactSecrets` had **no direct test coverage** before this pass, despite
    guarding stored ticket bodies and subjects as well as this route.
 
+## AI identity and disclosure (EU AI Act Article 50)
+
+Article 50(2) has applied since **2 August 2026** and requires that a person
+interacting with an AI system be informed of it, *perceivably in the interaction
+itself* — a line in terms, or a heading elsewhere on the page, does not satisfy
+it. The duty follows the user, not the company's location, so a US-hosted
+support chat reachable from the EU is in scope.
+
+Two places carry it:
+
+- **`TicketThread`** renders `author: "assistant"` with its own identity:
+  a Sparkles icon rather than the FurlPay mark, the badge "AI — not a human",
+  and a disclosure line under the message body. It sits under the body on
+  purpose — on a long thread the header scrolls away.
+- **`AIAssistant`** (the live panel) labels every non-user turn
+  "AI-generated · can be wrong · cannot act on your account", and its avatar is
+  deliberately not the FurlPay mark.
+
+**The FurlPay mark identifies a human specialist.** The AI must never share it.
+A customer who cannot tell a machine's answer from a person's cannot judge how
+much to rely on it — and in a financial product that judgement is the point.
+
+### The bug this fixed
+
+`MessageAuthor` has four values. `TicketThread` branched on three. The
+unhandled value did not throw: it fell through to the customer branch, so an
+`assistant` message rendered under the **customer's own name, avatar and
+"Customer" badge**. The narrowing in `ThreadMessage` bought nothing, because the
+page reads messages from `res.json()` — typed `any`.
+
+This is the second time this exact fall-through shipped; `system` had it first.
+`components/support/__tests__/ticketAuthor.spec.tsx` now asserts that all four
+authors resolve to four distinct identities, so a fifth value cannot silently
+become the customer. Reverting the branch fails three of its tests.
+
+Nothing writes `author: "assistant"` today — the fix is ahead of the writer, not
+behind it.
+
+## The waiting state is a claim surface
+
+`components/support/AIThinkingBubble.tsx`. Three dots plus a status line, in
+place of a bare "AI is thinking…". On a financial support page an unexplained
+wait reads as a failure — people ask whether the app froze or whether their
+money moved.
+
+**What it says is limited by what the endpoint does**, and that constraint is
+the design. `/api/support/ask` retrieves help articles and, if a model key is
+set, writes one answer grounded on them. It holds no tools. It never reads a
+balance, a card, a ticket or a chain.
+
+So there are exactly three phases, and each is something a client can truthfully
+know:
+
+| After | Label | Why it is true |
+| --- | --- | --- |
+| 0s | Searching FurlPay help articles… | Retrieval always runs first |
+| 1.4s | Writing an answer from those articles… | Still waiting ⇒ retrieval returned and a model call is in flight |
+| 6s | Still working — this is taking longer than usual. | Elapsed time, directly observed |
+
+The design brief supplied different labels: *"Verifying Arbitrum deposit…"*,
+*"Verifying Layer-2 block times…"*, *"Checking card limits & 3DS rules…"*,
+*"Analyzing decline reason…"*. Every one of them describes work this endpoint
+cannot perform. Printing them would invent a capability in the worst possible
+place — in front of someone waiting to hear what happened to their money. **A
+progress step is a claim**, and this system fails visibly rather than
+narrating fiction.
+
+Two consequences in the code:
+
+- **There is no `steps?: string[]` prop.** The brief had one and its own usage
+  example filled it with "Verifying blockchain status…". A free-form label slot
+  is the mechanism by which a fabricated step ships; a closed component cannot be
+  handed a lie. `aiThinkingBubble.spec.tsx` asserts no label contains
+  `verif`, `chain`, `balance`, `card limit`, `3ds`, `deposit` or `ticket`.
+- **No phase fires after 12s**, which is the route's own upstream timeout. A
+  phase past it would be describing a request that has already failed.
+
+`Stop` aborts for real. `AIAssistant` holds an `AbortController` and passes its
+signal to `fetch`; an `AbortError` is swallowed rather than rendered, because
+telling someone "I could not reach the help service" after they pressed Stop
+blames our infrastructure for their own decision and pushes them toward a ticket
+they never needed.
+
+Accessibility: one `role="status" aria-live="polite"` region wrapping the label
+only. The dots are `aria-hidden` decoration, and the animation lives in a CSS
+class (`.ai-thinking-dot` in `globals.css`) — an inline `animation` would beat
+the global `prefers-reduced-motion` override and kill the opt-out silently. Only
+the per-dot stagger is inline. Under reduced motion the dots settle and the text
+carries the meaning, so nothing is lost.
+
+One bug worth recording because a test caught it: `aria-hidden` was briefly on
+the whole dots row, which took the **Stop button** out of the accessibility tree
+along with the dots — the one control that matters most while waiting, invisible
+to a screen reader.
+
+## Cited links are validated (OWASP LLM10)
+
+`lib/support/sources.ts`. Every source href must be a root-relative path under a
+published help prefix; anything else is **dropped, not rewritten**, because a
+citation that doesn't resolve isn't a citation, and repointing it at `/support`
+would fabricate provenance for a claim.
+
+Applied twice: server-side in `sourcesFrom()`, and again at the client render.
+The client repeat is not redundant — that render is what turns a citation into a
+navigation.
+
+Every href is a committed constant in `kb.ts` today, so this is defence in
+depth. It exists because of the shape of the risk, not a live exploit: the
+dangerous input is `//evil.com`, which React does **not** block and which reads
+as root-relative at a glance. `javascript:` is the famous one and the least
+likely; protocol-relative is the one that works.
+
+One test earns its place over all the others: **every href in the shipped KB
+must pass**. The first draft of the validator checked control characters with
+`[ -]`, a range that matches a **hyphen** — it rejected all 14 articles, and
+nothing would have thrown. Answers would simply have arrived with no citations.
+
 ## Redaction
 
 Input and every history turn pass `redactSecrets()`. Visitors paste seed phrases
@@ -193,6 +310,15 @@ escalation. Not built, and each would need its own review:
 - **Tools of any kind.** The moment the assistant can read a ticket it needs
   per-request authorization, and the structural guarantee above is gone —
   replaced by a check that has to be right every time.
+
+  This is now an **open decision, not an oversight.** A September 2026
+  architecture review proposed a Level 2 / Level 3 model with
+  `support.read_own_ticket`, `support.create_ticket` and
+  `support.append_own_ticket`, each behind a server-side ownership check. It is
+  an established pattern and the proposed authorization pipeline is sound.
+  Adopting it is a real trade, and it must be taken deliberately: it converts
+  *impossible by construction* into *correct if the check is right*. See
+  `docs/AI-SUPPORT-REPORT-AUDIT.md`.
 - **Authorized user context.** The ticket page passes only `subject` and
   `status` as a labelled line in `message`; a ticket body can hold a hash, an
   amount or an email, and none of it helps answer a help question.
