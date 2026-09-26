@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   ChevronLeft,
@@ -653,10 +654,23 @@ function HumanHandoff({
   if (state === "sent") {
     return (
       <div className="rounded-2xl border border-neon/30 bg-neonSoft px-4 py-3 text-[12.5px] text-neon">
-        Sent to our support team.{" "}
-        {email
-          ? "They'll reply to that address."
-          : "Add an email next time if you'd like a reply."}
+        <p>
+          Sent to our support team.{" "}
+          {email
+            ? "They'll reply to that address."
+            : "Add an email next time if you'd like a reply."}
+        </p>
+        {/* The widget used to end here. It posts to /api/support/message, which
+            is a mailbox rather than a ticket store — so this deliberately links
+            to the portal, NOT to a ticket id, because no ticket was created and
+            linking to one would 404. The portal is where a signed-in user can
+            open a real ticket and track it. */}
+        <Link
+          href="/support"
+          className="mt-2 inline-flex items-center gap-1 font-semibold underline underline-offset-2 hover:text-white"
+        >
+          Open the support portal →
+        </Link>
       </div>
     );
   }
