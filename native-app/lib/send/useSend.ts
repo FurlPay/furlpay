@@ -503,6 +503,21 @@ export function useSendExecution(
         action: "send_funds",
         amountUsd: check.amountUsd,
         reason: `Send ${usd(check.amountUsd)} to ${shortAddress(destination.trim())}`,
+        // Upgrades this prompt from a LOCAL device check to a server-verified,
+        // transaction-bound assertion when the device has a passkey registered.
+        //
+        // Read STRAIGHT OFF `payload` — never recomputed from form state. The
+        // server re-derives the digest from the transfer it is about to execute,
+        // so any divergence here (a rounded amount, a re-cased address, the USD
+        // figure instead of token units) breaks the binding and silently drops
+        // the payment back to TOTP. Sharing the object keeps the two identical
+        // by construction rather than by care.
+        payment: {
+          amount: payload.amount,
+          asset: payload.token,
+          recipient: payload.destination,
+          chain: payload.chain,
+        },
         signals: {
           // Only signals this screen genuinely knows. `undefined` means "no
           // signal" to the engine, never "safe".
@@ -580,7 +595,14 @@ export function useSendExecution(
       } else {
         const demo = await api<{ transactionHash: string }>("/wallets/transfer", {
           method: "POST",
-          body: payload,
+          // The biometric proof travels with the transfer it was minted for. The
+          // server matches it against the digest of THESE parameters, so it
+          // satisfies the step-up gate without a TOTP round trip — and cannot be
+          // reused for any other payment. Absent when the device has no passkey,
+          // in which case the server asks for TOTP as before.
+          body: decision.biometricProof
+            ? { ...payload, biometricProof: decision.biometricProof }
+            : payload,
           headers: { "Idempotency-Key": key },
         });
         res = { transactionHash: demo?.transactionHash, confirmed: Boolean(demo?.transactionHash) };

@@ -1,6 +1,11 @@
 import { assessRisk, type RiskAssessment, type RiskSignals } from "@/lib/security/riskEngine";
 import { requireAuthFor, type RiskAction } from "@/lib/security/riskPolicy";
 import { isDeviceCompromised } from "@/lib/security/tamperDetection";
+import {
+  authorizePaymentWithFingerprint,
+  isFingerprintPaySupported,
+  type FingerprintPayIntent,
+} from "@/lib/biometricPay";
 
 // ---------------------------------------------------------------------------
 // The single authorization boundary for money movement.
@@ -31,7 +36,21 @@ import { isDeviceCompromised } from "@/lib/security/tamperDetection";
 
 export type AuthorizeOutcome =
   /** Proceed to submission. */
-  | { ok: true; assessment: RiskAssessment }
+  | {
+      ok: true;
+      assessment: RiskAssessment;
+      /**
+       * A single-use, server-minted proof that the device biometric authorised
+       * THIS EXACT payment — present only when the caller supplied a `payment`
+       * intent and the hardware ceremony succeeded.
+       *
+       * The caller must forward it to the transfer as `biometricProof`. When it
+       * is absent the transfer falls back to the server's own step-up (TOTP),
+       * which is the correct behaviour on a device with no passkey — not a
+       * degraded one to paper over.
+       */
+      biometricProof?: string;
+    }
   /** Do not submit. `message` is written for the user. */
   | {
       ok: false;
@@ -56,6 +75,23 @@ export interface AuthorizeInput {
   signals?: Omit<RiskSignals, "action" | "amountUsd">;
   /** Force a fresh prompt, bypassing the step-up grace window. */
   forceAuth?: boolean;
+  /**
+   * The exact payment being authorised, when there is one.
+   *
+   * Supplying it upgrades authentication from a LOCAL device check to a
+   * server-verified, transaction-bound WebAuthn assertion. The difference
+   * matters: `requireAuthFor` ultimately resolves to a boolean in this app's own
+   * JavaScript, which a patched build can fake and which the server never sees.
+   * A proof, by contrast, is signed in the secure element over
+   * H(userId|amount|asset|recipient|chain|nonce) and re-derived server-side from
+   * the transfer actually being executed — so it cannot be moved to a different
+   * payment.
+   *
+   * These values MUST be byte-identical to what the transfer will carry. A
+   * rounded amount or a re-cased address changes the digest, the server rejects
+   * the binding, and the payment silently falls back to TOTP.
+   */
+  payment?: FingerprintPayIntent;
 }
 
 /**
@@ -95,6 +131,45 @@ export async function authorizeMoneyMove(input: AuthorizeInput): Promise<Authori
       message: explain(assessment, "This payment needs to be reviewed before it can be sent."),
       assessment,
     };
+  }
+
+  // --- Preferred: server-verified, transaction-bound biometric -------------
+  //
+  // Tried BEFORE the local prompt, and only when the caller named the payment.
+  // One prompt either way — this replaces the local one rather than adding a
+  // second, because asking twice for the same approval teaches people to tap
+  // through prompts.
+  //
+  // Each failure mode is handled on its own terms, and the distinction is the
+  // whole point of not collapsing them:
+  //
+  //   unsupported -> no passkey on this device. Fall through to the local gate,
+  //                  so a user without one can still send. The server then
+  //                  applies its own step-up.
+  //   cancelled   -> the user dismissed the sheet. That is a DECISION, not a
+  //                  failure: return immediately and do not fall through to a
+  //                  local prompt, which would re-ask something just refused.
+  //   rejected    -> the server would not accept the assertion. Do not fall
+  //                  through: a local boolean must not rescue an approval the
+  //                  server already declined.
+  if (input.payment && isFingerprintPaySupported()) {
+    const bio = await authorizePaymentWithFingerprint(input.payment);
+
+    if (bio.ok) return { ok: true, assessment, biometricProof: bio.proofId };
+
+    if (bio.reason === "cancelled") {
+      return {
+        ok: false,
+        kind: "declined",
+        message: "Approval cancelled. Nothing was sent.",
+        assessment,
+      };
+    }
+
+    if (bio.reason === "rejected") {
+      return { ok: false, kind: "auth_failed", message: bio.message, assessment };
+    }
+    // "unsupported" falls through deliberately.
   }
 
   // --- STEP_UP or ALLOW: authenticate ------------------------------------
