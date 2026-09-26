@@ -6,6 +6,7 @@ import type { McpClaims } from "@/lib/mcp/oauth";
 import { mcpDenialFor } from "@/lib/mcp/routeScopes";
 import { audit } from "@/lib/audit";
 import { EPOCH_OUTDATED, REVOCATION_HEADER, epochMatches } from "@/lib/sessionEpoch";
+import { effectiveRoles } from "@/lib/compliance/roleGrants";
 
 // ---------------------------------------------------------------------------
 // Route-level authentication + authorization helpers.
@@ -131,15 +132,24 @@ export async function optionalUser(req: NextRequest): Promise<OptionalAuth> {
     : { kind: "rejected", res: auth.res };
 }
 
-/** requireUser + role check. Roles come from the user record (source of
- *  truth), not just the token, so a role change takes effect immediately. */
+/**
+ * requireUser + role check.
+ *
+ * Roles come from `effectiveRoles`, NOT from `user.roles` directly. The account
+ * field is a seed; a privileged role survives only while a live grant backs it
+ * (lib/compliance/roleGrants.ts). That is what makes revocation real: one write
+ * to the grant, effective on the next request everywhere, with no account row to
+ * rewrite and no replica to wait for. Reading the seed here would mean a revoked
+ * officer kept their access until every copy of their account record caught up.
+ */
 export async function requireRole(req: NextRequest, role: Role): Promise<AuthResult> {
   const auth = await requireUser(req);
   if (!auth.ok) return auth;
   if (role === "admin" && auth.claims.guest && isProductionDeployment()) {
     return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  if (!auth.account.user.roles.includes(role)) {
+  const roles = await effectiveRoles(auth.account);
+  if (!roles.includes(role)) {
     return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   if (role === "admin" && normalizedEmail(auth.account.user.email) !== FOUNDER_ADMIN_EMAIL) {
@@ -152,7 +162,7 @@ export async function requireRole(req: NextRequest, role: Role): Promise<AuthRes
 export async function requireAnyRole(req: NextRequest, roles: Role[]): Promise<AuthResult> {
   const auth = await requireUser(req);
   if (!auth.ok) return auth;
-  const userRoles = auth.account.user.roles;
+  const userRoles = await effectiveRoles(auth.account);
   const matchingRole = roles.find((r) => userRoles.includes(r));
   if (!matchingRole) {
     return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };

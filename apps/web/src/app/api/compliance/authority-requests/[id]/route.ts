@@ -6,6 +6,7 @@ import { requireAnyRole } from "@/lib/authz";
 import { getAccountDurable, findUserByIdentity, findUserByLinkedWallet, type UserAccount } from "@/lib/store";
 import {
   getAuthorityRequest,
+  redactAuthorityRequest,
   recordAgencyVerification,
   stageDisclosureBundle,
   approveAuthorityDisclosure,
@@ -55,7 +56,10 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     return NextResponse.json({ ok: false, error: "Not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ ok: true, request });
+  // REDACTED. This route returned the raw record, and a staged record carries
+  // the fully-populated disclosure package — so the dossier was readable here
+  // with no approval and no token. See redactAuthorityRequest.
+  return NextResponse.json({ ok: true, request: redactAuthorityRequest(request) });
 }
 
 // PATCH /api/compliance/authority-requests/[id]
@@ -93,7 +97,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         officialReference: body.officialReference,
         notes: body.notes,
       });
-      return NextResponse.json({ ok: true, request: updated });
+      return NextResponse.json({ ok: true, request: redactAuthorityRequest(updated) });
     }
 
     if (body.action === "stage_bundle") {
@@ -122,7 +126,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
         },
         targetAccount
       );
-      return NextResponse.json({ ok: true, request: updated });
+      return NextResponse.json({ ok: true, request: redactAuthorityRequest(updated) });
     }
 
     if (body.action === "approve") {
@@ -131,7 +135,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
       const { request: updated, rawDisclosureToken } = await approveAuthorityDisclosure(id, actor);
       return NextResponse.json({
         ok: true,
-        request: updated,
+        request: redactAuthorityRequest(updated),
         disclosureToken: rawDisclosureToken,
         instructions:
           "Provide this single-use token to the authenticated authority for one-time retrieval. The token expires in 1 hour.",
@@ -140,7 +144,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
     if (body.action === "reject") {
       const updated = await rejectAuthorityRequest(id, actor, body.reason);
-      return NextResponse.json({ ok: true, request: updated });
+      return NextResponse.json({ ok: true, request: redactAuthorityRequest(updated) });
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : "State transition failed.";

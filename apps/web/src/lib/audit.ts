@@ -21,6 +21,14 @@ export type AuditEvent =
   // "this $20,000 order was biometrically approved, here is the record" is
   // exactly the question a dispute asks.
   | "auth.mfa_passed"
+  // Privileged-role provisioning (lib/compliance/roleGrants.ts). A role that
+  // reaches customer dossiers is granted by two people and removable by one;
+  // these four are the record of who did which, and they are what an
+  // investigation reads to answer "who could see this, and since when".
+  | "rbac.grant_requested"
+  | "rbac.grant_approved"
+  | "rbac.grant_rejected"
+  | "rbac.grant_revoked"
   | "auth.mfa_enrolled"
   | "auth.mfa_enabled"
   | "auth.mfa_disabled"
