@@ -6,7 +6,7 @@ import { PaymentCard, Transaction } from "@/lib/types";
 import { PageHeader, Pill, Spinner, usd } from "@/components/ui";
 import { EyeIcon, GearIcon, PlusIcon, SlidersIcon, SnowflakeIcon, LockIcon, CloseIcon } from "@/components/icons";
 import Realistic3DCard from "@/components/Realistic3DCard";
-import { authenticateFingerprint, isFingerprintAvailable } from "@/lib/passkey";
+import { authenticateFingerprintBounded, isFingerprintAvailable } from "@/lib/passkey";
 import TransactionList from "@/components/TransactionList";
 import Modal from "@/components/Modal";
 
@@ -79,7 +79,7 @@ export default function CardsPage() {
    * are not making, and putting a card id in the recipient field. Viewing a card
    * is sensitive-data ACCESS, a different question from authorising a transfer.
    *
-   * `authenticateFingerprint()` runs the WebAuthn assertion and the server
+   * `authenticateFingerprintBounded()` runs the WebAuthn assertion and the server
    * records a step-up against this session's jti (lib/stepup.ts), so the
    * re-authentication is server-observed rather than a client boolean.
    *
@@ -90,62 +90,55 @@ export default function CardsPage() {
     try {
       if (!(await isFingerprintAvailable())) return false;
 
-      // BOUNDED. `navigator.credentials.get()` is not guaranteed to settle: if
-      // the platform reports an authenticator but no prompt ever appears — the
-      // exact behaviour observed in headless Chromium, and reachable on real
-      // devices with a wedged biometric service — the promise hangs forever and
-      // the card sits in "confirming your identity" with no way out.
+      // BOUNDED, AND GENUINELY CANCELLED.
       //
-      // A timeout that resolves FALSE, never true: a ceremony that did not
-      // finish has not proven anything, so the card stays closed. 60s is long
-      // enough for a real person to find their finger and short enough that the
-      // UI is never permanently stuck.
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      let abandoned = false;
+      // `navigator.credentials.get()` is not guaranteed to settle: if the platform
+      // reports an authenticator but no prompt ever appears — observed in headless
+      // Chromium, and reachable on a real device with a wedged biometric service —
+      // it hangs and the card sits in "confirming your identity" with no way out.
+      //
+      // A bare Promise.race is NOT a fix, and an earlier version of this code was
+      // wrong to imply otherwise. Racing changes which promise THIS function
+      // reads; it does nothing to the ceremony, which keeps running and still
+      // POSTs its assertion to /api/auth/passkey/authenticate — a route that
+      // issues a session AND calls recordStepUp(). So a ceremony finishing after
+      // the bound would silently grant a server-side step-up, satisfying the
+      // wallet-link and account gates minutes after the user was told their
+      // reveal had failed.
+      //
+      // `abandon()` closes that: it deletes the ceremony's challenge server-side,
+      // so a late assertion fails verification before any credential lookup,
+      // before a session is signed, and before recordStepUp is reached.
+      const { result, abandon } = authenticateFingerprintBounded();
 
-      // The ceremony is given its own rejection handler BEFORE the race. Once the
-      // timeout wins, nothing is awaiting this promise any more — and a WebAuthn
-      // call that rejects later (the user finally dismissing a stuck prompt) would
-      // otherwise surface as an unhandled rejection, which Next.js reports as an
-      // error overlay in dev and logs as a crash in production.
-      //
-      // It resolves FALSE rather than propagating: a ceremony whose result
-      // arrives after we stopped waiting has not authorised anything.
-      //
-      // ABANDONMENT IS EXPLICIT, and this is the part that matters beyond the UI.
-      // authenticateFingerprint() is not a local check — it POSTs the assertion to
-      // /api/auth/passkey/authenticate, which calls recordStepUp(). So a ceremony
-      // that completes after the timeout still grants a SERVER-SIDE step-up,
-      // silently satisfying the wallet-link and account gates seconds after the
-      // user was told their reveal had failed. The client cannot un-ring that
-      // bell, but it can refuse to treat the result as its own answer and say
-      // plainly that a stale approval happened.
-      const ceremony = authenticateFingerprint()
-        .then((ok) => {
-          if (abandoned && ok && process.env.NODE_ENV !== "production") {
-            // eslint-disable-next-line no-console
-            console.warn(
-              "Card reveal: passkey assertion completed after the 60s bound. " +
-                "The card stays closed, but the server recorded a step-up for this session."
-            );
-          }
-          return ok;
-        })
-        .catch(() => false);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      // The rejection handler is attached BEFORE the race. Once the timeout wins
+      // nothing awaits this promise, and a later rejection would otherwise surface
+      // as an unhandled rejection — a dev error overlay and a logged crash in
+      // production.
+      const ceremony = result.catch(() => false);
 
       try {
-        return await Promise.race([
+        const outcome = await Promise.race([
           ceremony,
           new Promise<boolean>((resolve) => {
-            timer = setTimeout(() => {
-              abandoned = true;
-              resolve(false);
-            }, 60_000);
+            timer = setTimeout(() => resolve(false), 60_000);
           }),
         ]);
+
+        // Abandon on ANY false. abandon() self-guards — it no-ops once the
+        // assertion has already been accepted — so this does not need to
+        // distinguish "timed out" from "genuinely refused", and asking the
+        // promise which it was would need a second race that could itself be
+        // raced. Deleting an already-consumed challenge is a no-op server-side.
+        //
+        // Not awaited: the caller has its answer and must not wait on cleanup.
+        // abandon() swallows its own failures.
+        if (!outcome) void abandon();
+        return outcome;
       } finally {
-        // Cleared on BOTH paths. Without this every successful reveal left a
-        // 60-second timer pinned for no reason.
+        // Cleared on BOTH paths, so a success does not pin a 60-second timer.
         if (timer) clearTimeout(timer);
       }
     } catch {

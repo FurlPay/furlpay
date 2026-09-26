@@ -6,6 +6,7 @@ import {
   EXPECTED_ORIGINS,
   EXPECTED_RPIDS,
   RP_ID,
+  abandonCeremonyChallenge,
   consumeCeremonyChallenge,
   getCredentialOwner,
   getCredentials,
@@ -17,7 +18,7 @@ import { recordStepUp } from "@/lib/stepup";
 import { isMobileClient } from "@/lib/clientKind";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
-import { PasskeyAuthenticationSchema } from "@/lib/schemas/webauthn";
+import { PasskeyAbandonSchema, PasskeyAuthenticationSchema } from "@/lib/schemas/webauthn";
 
 // GET /api/auth/passkey/authenticate — real WebAuthn authentication options.
 export async function GET(req: NextRequest) {
@@ -127,4 +128,42 @@ export async function POST(req: NextRequest) {
   });
   res.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: SESSION_MAX_AGE });
   return res;
+}
+
+// DELETE /api/auth/passkey/authenticate — abandon a ceremony the client stopped
+// waiting for. Body: { challenge }.
+//
+// THE RACE THIS CLOSES. A caller that bounds the ceremony with a timeout (the
+// card reveal gate does, at 60s) can stop waiting, but it cannot recall an
+// assertion already in flight. POST above grants a session AND calls
+// recordStepUp(), so a ceremony completing after the client gave up would
+// silently establish authorization the user was told had failed — satisfying the
+// wallet-link and account step-up gates minutes later.
+//
+// Cancelling the browser prompt does not fix that: a prompt already answered is
+// already travelling. Only the server can refuse the result, and the challenge is
+// how it refuses — deleting it makes verification fail at consumeCeremonyChallenge,
+// before any credential lookup, before a session is signed, and before
+// recordStepUp is reached.
+//
+// UNAUTHENTICATED BY NECESSITY, and safe: the caller has no session yet (this is
+// the login path too). Knowing a challenge is the only capability required, and a
+// challenge is a 32-byte random value the server itself just issued to this
+// client. An attacker who could guess one could only DELETE a pending ceremony —
+// a denial of service against a single login attempt that resolves by retrying,
+// never an escalation. The same rate limit as the options endpoint applies.
+export async function DELETE(req: NextRequest) {
+  const limited = await rateLimitOr429(req, "auth.passkey.authenticate.abandon", {
+    limit: 30,
+    windowMs: 60_000,
+  });
+  if (limited) return limited;
+
+  const body = await validateBody(req, PasskeyAbandonSchema);
+  if (body instanceof NextResponse) return body;
+
+  await abandonCeremonyChallenge(body.challenge);
+  // Always 200. Whether a challenge was there is not the caller's business, and
+  // reporting it would turn this into a probe for live ceremonies.
+  return NextResponse.json({ abandoned: true });
 }

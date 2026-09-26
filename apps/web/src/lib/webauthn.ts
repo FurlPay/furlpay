@@ -280,6 +280,30 @@ export async function consumeCeremonyChallenge(challenge: string): Promise<boole
   return true;
 }
 
+/**
+ * Abandon a ceremony the client has stopped waiting for.
+ *
+ * WHY THIS EXISTS. A client that bounds a ceremony with a timeout can stop
+ * waiting, but it cannot cancel the assertion already travelling to this server —
+ * and `POST /authenticate` grants a session AND records a step-up. So a ceremony
+ * finishing after the client gave up would silently establish authorization the
+ * user was told had failed. Cancelling the browser prompt does not fix that: a
+ * prompt already answered is already in flight.
+ *
+ * Deleting the challenge is what actually closes it. The challenge is the
+ * server's record that THIS ceremony is live; without it, verification fails at
+ * `consumeCeremonyChallenge` before any credential is looked up, before a session
+ * is signed, and before `recordStepUp` is reached.
+ *
+ * Idempotent and safe to lose: if the delete races the assertion and arrives
+ * second, the assertion simply succeeded — which is the honest outcome, because
+ * the ceremony genuinely completed in time. Abandonment is best-effort by nature;
+ * what matters is that it cannot leave a HALF-authorized state.
+ */
+export async function abandonCeremonyChallenge(challenge: string): Promise<void> {
+  await kvDel(CEREMONY_KEY(challenge));
+}
+
 /** Coarse device label from the registering request's User-Agent — for display only. */
 export function deviceLabelFromUA(ua: string | null): string {
   const s = ua ?? "";

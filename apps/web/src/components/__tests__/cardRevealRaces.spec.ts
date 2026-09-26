@@ -149,7 +149,7 @@ describe("the source matches the model above", () => {
   );
 
   it("attaches the rejection handler BEFORE racing", () => {
-    const attach = gate.indexOf("authenticateFingerprint()");
+    const attach = gate.indexOf("authenticateFingerprintBounded()");
     const race = gate.indexOf("Promise.race");
     expect(attach).toBeGreaterThan(-1);
     expect(race).toBeGreaterThan(attach);
@@ -160,13 +160,13 @@ describe("the source matches the model above", () => {
   });
 
   it("the timeout resolves false, never true", () => {
-    expect(gate).toMatch(/resolve\(false\);\s*\}, 60_000\)/);
+    expect(gate).toMatch(/resolve\(false\), 60_000\)/);
     expect(gate).not.toMatch(/resolve\(true\)/);
   });
 
   it("checks authenticator availability first", () => {
     const avail = gate.indexOf("isFingerprintAvailable()");
-    const auth = gate.indexOf("authenticateFingerprint()");
+    const auth = gate.indexOf("authenticateFingerprintBounded()");
     expect(avail).toBeGreaterThan(-1);
     expect(auth).toBeGreaterThan(avail);
   });
@@ -259,49 +259,36 @@ describe("credentials without a gate are refused, not silently shown", () => {
   });
 });
 
-describe("a late ceremony still hits the server", () => {
-  // AUDIT FINDING, and the one with a consequence beyond the UI.
+describe("a late ceremony is genuinely cancelled, not just ignored", () => {
+  // This block used to assert a dev-only WARNING about stale step-ups — i.e. it
+  // documented the defect instead of fixing it. The fix is real now: the gate
+  // asks the server to refuse the ceremony by deleting its challenge, so a late
+  // assertion cannot reach recordStepUp at all.
   //
-  // authenticateFingerprint() is not a local check: it POSTs the assertion to
-  // /api/auth/passkey/authenticate, which calls recordStepUp(). So a ceremony
-  // completing after the 60s bound grants a SERVER-SIDE step-up — satisfying the
-  // wallet-link and account gates — seconds after the user was told the reveal
-  // failed. The client cannot revoke that, but it must not treat the result as
-  // its own answer, and it should say plainly that it happened.
+  // The security property itself is proved against the real challenge store in
+  // lib/__tests__/passkeyAbandon.spec.ts. These assertions only pin the wiring.
   const gate = code(PAGE).slice(
     code(PAGE).indexOf("const requestCardStepUp"),
     code(PAGE).indexOf("const loadTxs")
   );
 
-  it("marks the ceremony abandoned when the timeout wins", () => {
-    expect(gate).toContain("abandoned = true");
-    // Set inside the timeout callback, before it resolves.
-    expect(gate).toMatch(/setTimeout\(\(\) => \{\s*abandoned = true;\s*resolve\(false\);/);
+  it("uses the abandonable ceremony", () => {
+    expect(gate).toContain("authenticateFingerprintBounded()");
+    expect(gate).toContain("const { result, abandon }");
   });
 
-  it("warns when a stale approval lands", () => {
-    expect(gate).toMatch(/if \(abandoned && ok/);
-    expect(gate).toMatch(/recorded a step-up/);
+  it("abandons whenever the outcome is false", () => {
+    expect(gate).toContain("if (!outcome) void abandon();");
   });
 
-  it("still resolves false for the caller regardless", () => {
-    // The warning is diagnostics. The ANSWER must not change.
-    expect(gate).toMatch(/\.then\(\(ok\) => \{[\s\S]{0,400}return ok;/);
-    expect(gate).toMatch(/resolve\(false\);\s*\}, 60_000\)/);
+  it("does not await the abandonment", () => {
+    // The caller already has its answer; cleanup must not delay it.
+    expect(gate).not.toContain("await abandon()");
   });
 
-  it("keeps the rejection handler after the then", () => {
-    // Order matters: .then().catch() covers a rejection from either.
-    const thenAt = gate.indexOf(".then((ok)");
-    const catchAt = gate.indexOf(".catch(() => false)");
-    expect(thenAt).toBeGreaterThan(-1);
-    expect(catchAt).toBeGreaterThan(thenAt);
-  });
-
-  it("logs only under a non-production guard", () => {
-    // Console noise in production is its own defect, and this text names an auth
-    // event.
-    expect(gate).toMatch(/process\.env\.NODE_ENV !== "production"/);
+  it("no longer merely warns about the stale step-up", () => {
+    // A console.warn describing a security hole is not a fix.
+    expect(gate).not.toMatch(/console\.warn/);
   });
 });
 

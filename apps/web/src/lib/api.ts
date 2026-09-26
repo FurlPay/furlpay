@@ -51,7 +51,9 @@ export async function getJSON<T>(url: string, opts: { signal?: AbortSignal } = {
 export async function sendJSON<T>(
   url: string,
   body: unknown,
-  method: "POST" | "PATCH" = "POST"
+  // DELETE carries a body here: abandoning a WebAuthn ceremony identifies it by
+  // challenge, and a challenge is not a path segment.
+  method: "POST" | "PATCH" | "DELETE" = "POST"
 ): Promise<T> {
   if (isOffline()) throw new Error(OFFLINE_WRITE_MESSAGE);
   const res = await fetch(url, {

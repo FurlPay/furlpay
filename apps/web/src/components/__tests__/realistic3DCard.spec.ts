@@ -70,7 +70,7 @@ describe("the reveal gate is a step-up, not a payment", () => {
   });
 
   it("uses the passkey assertion, which the server records as a step-up", () => {
-    expect(code(PAGE)).toContain("authenticateFingerprint()");
+    expect(code(PAGE)).toContain("authenticateFingerprintBounded()");
     expect(code(PAGE)).toContain("isFingerprintAvailable()");
   });
 

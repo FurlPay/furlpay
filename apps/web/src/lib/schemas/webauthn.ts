@@ -116,3 +116,24 @@ export const PasskeyAuthenticationSchema = CredentialEnvelope.extend({
 
 export type PasskeyRegistrationBody = z.infer<typeof PasskeyRegistrationSchema>;
 export type PasskeyAuthenticationBody = z.infer<typeof PasskeyAuthenticationSchema>;
+
+/**
+ * Body for DELETE /api/auth/passkey/authenticate — abandoning a ceremony the
+ * client stopped waiting for.
+ *
+ * Bounded to the shape a base64url challenge actually has. The endpoint is
+ * unauthenticated by necessity (the login path has no session yet), so the input
+ * is the only thing standing between it and an arbitrary key delete: a loose
+ * `z.string()` would let a caller pass a crafted value that, if the key format
+ * ever changed, could address something other than a ceremony challenge.
+ */
+export const PasskeyAbandonSchema = z.object({
+  challenge: z
+    .string()
+    .trim()
+    .min(16)
+    .max(512)
+    .regex(/^[A-Za-z0-9_-]+$/, "challenge must be base64url"),
+});
+
+export type PasskeyAbandonBody = z.infer<typeof PasskeyAbandonSchema>;
