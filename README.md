@@ -39,9 +39,11 @@
 
 </div>
 
-The Stripe + Coinbase of stablecoins and fractional investing. Furlpay is a
-stablecoin-first financial super-app plus a full developer ecosystem and a
-programmatic compliance stack, built as a Turborepo monorepo.
+On-chain financial infrastructure for stablecoin payments: a web client, a
+developer ecosystem and a programmatic compliance stack, built as a Turborepo
+monorepo. Fractional investing, card issuing and local accounts are in
+development — see the per-integration breakdown below, which is the honest
+version of what "built" means here.
 
 Most third-party integrations run in mock/sandbox mode by default, so the
 repository runs end to end with zero API keys and zero cost. Be precise about
@@ -51,12 +53,21 @@ integration exists" are different claims:
 - **Real when credentialed:** Turnkey (remote signing), Coinbase CDP (hosted
   fiat on-ramp), LI.FI (swap routing), Stripe, Persona, Sumsub,
   QuickNode/Alchemy deposit webhooks.
-- **Real, credential-free:** the x402 / EIP-3009 settlement path — the one rail
-  that moves money end to end today — and Circle CCTP V2, whose burn/mint
-  calldata and per-corridor fees both come from public Circle endpoints. Note
-  the consequence for offline work: CCTP quoting reaches
+- **Real, credential-free:** the x402 / EIP-3009 path — the one rail proven to
+  move money end to end in a local environment — and Circle CCTP V2, whose
+  burn/mint calldata and per-corridor fees both come from public Circle
+  endpoints. Note the consequence for offline work: CCTP quoting reaches
   `iris-api.circle.com` for the real fee and **refuses to quote** if it cannot,
   rather than falling back to an assumed rate. No key, but not airgapped.
+
+  Read "credential-free" as a property of the CODE, not of the deployment.
+  `furlpay.com` serves a real 402 challenge, but it has no production
+  facilitator signer, fee payer or Arbitrum RPC endpoint configured, so
+  `/api/rails` reports x402, MPP and gasless transfers as `NOT_CONFIGURED` and
+  nothing settles there. `apps/web/src/lib/productionStatus.ts` is the
+  registry the public site derives its status wording from, and
+  `apps/web/scripts/check-claims.mjs` fails the build if a page claims more
+  than that registry does.
 - **Interface only, no provider:** Travel Rule (`travelRule.ts` transmits
   nothing), KMS backends other than Turnkey, card issuing.
 - **Not present at all:** Rain, and every Indian fiat rail (UPI / IMPS / NEFT /

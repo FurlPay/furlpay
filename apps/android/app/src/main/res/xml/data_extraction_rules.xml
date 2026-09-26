@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Mirrors guardian/app/*/res/xml/data_extraction_rules.xml.
+
+  This app is the DEPRECATED TWA wrapper (see app/build.gradle, which refuses
+  every *Release task). It holds no credential storage of its own — the session
+  lives in Chrome's own storage, outside this app's backup set — so the practical
+  exposure here is far smaller than in the Guardian apps.
+
+  It is set anyway, for one reason: `allowBackup` was the last manifest in the
+  repo still defaulting to backup-on, and "the deprecated one doesn't matter" is
+  how a setting survives a revival. The wrapper shares the package name
+  com.furlpay.app with the canonical React Native app; anything installed under
+  that id should behave the same way.
+
+  As in Guardian, `allowBackup="false"` alone does not cover <device-transfer>,
+  so both cases are excluded explicitly.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </cloud-backup>
+    <device-transfer>
+        <exclude domain="root" />
+        <exclude domain="database" />
+        <exclude domain="sharedpref" />
+        <exclude domain="file" />
+        <exclude domain="external" />
+    </device-transfer>
+</data-extraction-rules>

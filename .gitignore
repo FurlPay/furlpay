@@ -130,3 +130,12 @@ target/
 # Product screenshot, same reasoning as the other root PNGs above — the
 # existing rules did not cover this filename.
 /map.png
+
+# Reference screenshots and scratch images dropped in while working. They are
+# inputs to a task, not source: a 1.75MB PNG committed once stays in history
+# forever, and none of these are referenced by any code.
+/*.png
+/*.jpg
+/*.jpeg
+/*.jfif
+/*.webp

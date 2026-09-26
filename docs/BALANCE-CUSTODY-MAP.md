@@ -1,6 +1,69 @@
 # FurlPay — Balance Source-of-Truth & Custody Map
 
-> Canonical answer to: for every balance the app shows, where does it come from, what backs it, who has custody, and which key can move it. Evidence-based (file:line), current as of 2026-07-14. **Read this before wiring the device wallet to any FurlPay balance — the current financial model is not what the UI implies.**
+> Canonical answer to: for every balance the app shows, where does it come from, what backs it, who has custody, and which key can move it.
+>
+> **Revised 2026-09-17.** The original 2026-07-14 revision is preserved below under "Historical finding (July 2026)" because its conclusion is still the reason this document exists — but two of its central claims are now out of date, and repeating them would misdirect the next audit.
+
+---
+
+## What changed since July 2026
+
+| July 2026 claim | Status now |
+| --- | --- |
+| "`user.safeAddress` is the account's on-chain identity" | **Superseded.** `safeAddress` is now explicitly DEPRECATED in `store.ts` — a truncated sha256 that controls nothing. A real, signature-proven `User.linkedWallet` replaced it. |
+| "The device wallet is unlinked to the account" | **Superseded.** `/api/wallet/link/challenge` + `/api/wallet/link/verify` exist: the server mints a single-use challenge, the device signs EIP-191, the server recovers the signer and requires it to equal the claimed address. Consumption is atomic (`kvSetNx`). |
+| "Every balance is an internal ledger number" | **Still true for displayed balances**, and still the single most important fact on this page. Phase 2 reads exist in code but are stage-gated off. |
+
+---
+
+## The self-custody rollout ladder
+
+Gated by `FURLPAY_SELF_CUSTODY_STAGE` (`lib/walletLink.ts::selfCustodyStage`). Stages are additive; each assumes the one below it is live.
+
+| Stage | Name | State | What it changes |
+| :-- | --- | --- | --- |
+| **0** | Off | — | Balances are the ledger cache. No behaviour change. |
+| **1** | Link device key | **Built** | `/api/wallet/link/{challenge,verify}` record `User.linkedWallet`, signature-proven server-side. **Changes no displayed money.** |
+| **2** | On-chain reads | **Built, gated off** | `lib/services/usdcBalances.ts` reads live USDC on Base / Arbitrum / Solana for the linked address, tagged `asOf.source="chain"`, degrading per chain to a tagged cache when an RPC is unreachable. |
+| **3** | Per-user deposits | **NOT built** | `webhooks/deposit-detect` still credits the shared demo singleton, not a per-user address. |
+| **4** | Real gasless send | **Code complete, unconfigured** | Send tab spends from the linked address via device-signed EIP-3009. Gated additionally by the `self_custody_send` client flag. **Requires a funded fee-payer** — see below. |
+| **5** | Separation guarantees | **NOT built** | Custody types kept as distinct rows; net worth an explicit aggregation. |
+
+### What actually blocks a real USDC send today
+
+Not cryptography. The signing path is real and complete:
+`native-app/lib/wallet.ts` holds a secp256k1 key in Keystore/Keychain with a BIP-39 backup, `signTransferAuthorization` produces a genuine EIP-3009 authorization behind a biometric gate, and `x402Settler.ts::createEvmSettler` broadcasts `transferWithAuthorization` with confirmation-depth waiting and replacement-transaction tracking.
+
+It is blocked on **configuration and funding**:
+
+- `FURLPAY_KMS_PROVIDER` + `FACILITATOR_EVM_ADDRESS` — unset
+- `ONCHAIN_SETTLEMENT_LIVE` flag — off (requires the two above)
+- A **funded fee-payer wallet** to pay gas
+- `FURLPAY_SELF_CUSTODY_STAGE >= 4` and the `self_custody_send` client flag
+
+Until those exist, `/api/transfers/gasless` returns a clean 503 (`no on-chain relayer configured`) and the app surfaces it honestly. That is the correct behaviour, not a bug.
+
+### Verified on-chain constants (2026-09-17)
+
+Checked against live RPCs, not copied from a document:
+
+| Chain | USDC | decimals |
+| --- | --- | :--: |
+| Base | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | 6 |
+| Arbitrum | `0xaf88d065e77c8cC2239327C5EDb3A432268e5831` | 6 |
+| Solana | `EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v` | 6 |
+
+The Solana reader **sums every token account** for the mint rather than reading `[0]` — an owner may hold several, and taking the first under-reports the balance.
+
+### Mobile surfaces
+
+`native-app/` (Expo, builds both iOS and Android) is the **only** mobile client. Two Kotlin/Swift prototypes that fabricated settlement (`"mock_signature_123"`, and a `submitPayment()` that slept and returned `true`) were archived out of the workspace on 2026-09-17 — see `../furlpay-prototypes-archive-2026-09-17/README.md`.
+
+---
+
+## Historical finding (July 2026)
+
+*Preserved for context. Read the sections above first — where they disagree, they are newer.*
 
 ---
 
