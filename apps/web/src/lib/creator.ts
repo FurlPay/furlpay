@@ -91,6 +91,34 @@ export interface CreatorView {
   isFollowing?: boolean;
 }
 
+/**
+ * Public, privacy-preserving view of a creator profile.
+ *
+ * Enforces strict data minimization:
+ * - NO private email address (prevents spear-phishing & enumeration)
+ * - NO payout wallet address (prevents crypto-whale tracking & deanonymization)
+ * - NO financial earnings, revenue, or pending balances
+ * - NO payout transaction history / hashes
+ * - NO follower email rosters (prevents harvesting / follower scraping)
+ */
+export interface PublicCreatorView {
+  name: string;
+  handle?: string;
+  platform?: string;
+  bio?: string;
+  avatarUrl?: string;
+  country?: string;
+  website?: string;
+  handleVerified: boolean;
+  kycVerified: boolean;
+  tier: { name: Tier["name"] };
+  referralCode: string;
+  travelShopUrl: string;
+  followersCount: number;
+  followingCount: number;
+  isFollowing?: boolean;
+}
+
 
 const TIERS: Record<Tier["name"], Tier> = {
   Explorer: { name: "Explorer", commission: 6, cashback: 2 },
@@ -384,6 +412,32 @@ export function buildCreatorView(app: CreatorApplication, viewerEmail?: string):
     isFollowing: isCurrentlyFollowing,
   };
 }
+
+/**
+ * Build a sanitized public view of a creator profile, stripping financial
+ * earnings, payout history, private emails, and crypto wallet addresses.
+ */
+export function buildPublicCreatorView(app: CreatorApplication, viewerEmail?: string): PublicCreatorView {
+  const full = buildCreatorView(app, viewerEmail);
+  return {
+    name: full.name,
+    handle: full.handle,
+    platform: full.platform,
+    bio: full.bio,
+    avatarUrl: full.avatarUrl,
+    country: full.country,
+    website: full.website,
+    handleVerified: full.handleVerified,
+    kycVerified: full.kycVerified,
+    tier: { name: full.tier.name },
+    referralCode: full.referralCode,
+    travelShopUrl: full.travelShopUrl,
+    followersCount: full.followers.length,
+    followingCount: full.following.length,
+    isFollowing: full.isFollowing,
+  };
+}
+
 
 
 // Derive a minimal application from just an email, for when the emailed

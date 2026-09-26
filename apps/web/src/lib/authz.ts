@@ -147,3 +147,24 @@ export async function requireRole(req: NextRequest, role: Role): Promise<AuthRes
   }
   return auth;
 }
+
+/** requireUser + check that the user holds AT LEAST ONE of the specified roles. */
+export async function requireAnyRole(req: NextRequest, roles: Role[]): Promise<AuthResult> {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth;
+  const userRoles = auth.account.user.roles;
+  const matchingRole = roles.find((r) => userRoles.includes(r));
+  if (!matchingRole) {
+    return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  if (matchingRole === "admin" && !userRoles.includes("compliance_officer")) {
+    if (auth.claims.guest && isProductionDeployment()) {
+      return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    }
+    if (normalizedEmail(auth.account.user.email) !== FOUNDER_ADMIN_EMAIL) {
+      return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    }
+  }
+  return auth;
+}
+

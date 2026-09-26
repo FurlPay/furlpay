@@ -16,6 +16,11 @@ export type AuditEvent =
   | "auth.signup"
   | "auth.guest_login"
   | "auth.mfa_failed"
+  // The positive counterpart. Only failures were recorded, so the log could show
+  // that a step-up was never *rejected* but never that one actually *ran* — and
+  // "this $20,000 order was biometrically approved, here is the record" is
+  // exactly the question a dispute asks.
+  | "auth.mfa_passed"
   | "auth.mfa_enrolled"
   | "auth.mfa_enabled"
   | "auth.mfa_disabled"
@@ -138,7 +143,18 @@ export type AuditEvent =
   | "webhook.failed"
   | "billing.checkout_created"
   | "billing.sandbox_upgrade"
+  | "ambassadors.followed"
+  | "ambassadors.unfollowed"
+  | "ambassadors.unauthorized_patch_attempt"
+  | "ambassadors.profile_updated"
+  | "authority.request_created"
+  | "authority.request_verified"
+  | "authority.request_staged"
+  | "authority.request_approved"
+  | "authority.request_disclosed"
+  | "authority.request_rejected"
   | "billing.subscription_started"
+
   | "billing.subscription_ended"
   // Ops console — privileged control-plane actions (append-only).
   | "ops.control_changed"

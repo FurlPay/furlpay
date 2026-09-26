@@ -1,14 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail, creatorWelcome } from "@/lib/email";
+import { optionalUser, requireUser } from "@/lib/authz";
+import { audit } from "@/lib/audit";
 import {
   buildCreatorView,
+  buildPublicCreatorView,
   tierFor,
   referralCode,
   travelShopUrl,
   applicationFromEmail,
   type CreatorApplication,
 } from "@/lib/creator";
+
 
 // /api/ambassadors — FurlPay Creator Program.
 //   POST  → submit an application (public). Records it, emails the team, and
@@ -87,8 +91,6 @@ export async function POST(req: NextRequest) {
     }),
   });
 
-  console.log(`[ambassadors] application: ${name} <${email}> · ${platform} @${handle} · ${tier.name}`);
-
   return NextResponse.json({ ok: true, tier: tier.name, referralCode: code });
 }
 
@@ -99,13 +101,30 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "A valid ?email= is required." }, { status: 400 });
   }
 
+  // Check whether caller is authenticated as the owner of this creator profile.
+  const auth = await optionalUser(req);
+  const isOwner = auth.kind === "user" && auth.account.user.email.toLowerCase() === email.toLowerCase();
+
   // Prefer the stored application; fall back to an email-derived one so the
   // emailed dashboard link never dead-ends after a serverless cold start.
   const stored = applicants.find((a) => a.email.toLowerCase() === email.toLowerCase());
   const app = stored ?? applicationFromEmail(email);
 
-  return NextResponse.json({ ok: true, found: !!stored, creator: buildCreatorView(app, viewerEmail) });
+  if (isOwner) {
+    // Authenticated owner gets the full private dashboard view with earnings and payouts.
+    return NextResponse.json({ ok: true, found: !!stored, creator: buildCreatorView(app, email) });
+  }
+
+  // Non-owner / unauthenticated visitor gets the data-minimized public DTO
+  // with zero wallet, zero financial earnings, zero payout history, and zero follower emails.
+  const effectiveViewer = auth.kind === "user" ? auth.account.user.email : viewerEmail || undefined;
+  return NextResponse.json({
+    ok: true,
+    found: !!stored,
+    creator: buildPublicCreatorView(app, effectiveViewer),
+  });
 }
+
 
 
 // Max size for an inline avatar data URL (~300 KB encoded — a 256px WebP is far
@@ -113,10 +132,27 @@ export async function GET(req: NextRequest) {
 const MAX_AVATAR_LEN = 400_000;
 
 export async function PATCH(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
   const email = str(req.nextUrl.searchParams.get("email")) || str((await req.clone().json().catch(() => ({}))).email);
   if (!email || !EMAIL_RE.test(email)) {
     return NextResponse.json({ ok: false, error: "A valid ?email= is required." }, { status: 400 });
   }
+
+  // IDOR / BOLA defense: only the owner of the creator profile may modify it.
+  if (auth.account.user.email.toLowerCase() !== email.toLowerCase()) {
+    audit("ambassadors.unauthorized_patch_attempt", auth.account.user.id, {
+      targetEmail: email.toLowerCase(),
+    });
+    return NextResponse.json(
+      { ok: false, error: "Forbidden: You may only modify your own creator profile." },
+      { status: 403 }
+    );
+  }
+
+  const limited = await rateLimitOr429(req, "ambassadors.patch", { limit: 15, windowMs: 60_000 }, auth.account.user.id);
+  if (limited) return limited;
 
   const body = await req.json().catch(() => ({}));
 
@@ -166,6 +202,10 @@ export async function PATCH(req: NextRequest) {
   }
   Object.assign(record, patch, { updatedAt: new Date().toISOString() });
 
-  console.log(`[ambassadors] profile updated: <${email}> · ${Object.keys(patch).join(", ") || "no-op"}`);
-  return NextResponse.json({ ok: true, creator: buildCreatorView(record) });
+  audit("ambassadors.profile_updated", auth.account.user.id, {
+    fields: Object.keys(patch),
+  });
+
+  return NextResponse.json({ ok: true, creator: buildCreatorView(record, email) });
 }
+

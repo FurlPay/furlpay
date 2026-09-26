@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     html: `<p>${name} (${email}) is interested in <b>${role}</b>.${links ? `<br/>Links: ${links}` : ""}</p>`,
     text: `${name} <${email}> · ${role}\n${links}`,
   });
-  console.log(`[careers] interest: ${name} <${email}> · ${role}`);
-
+  // Log metadata only — do not dump candidate email/name to server stdout
   return NextResponse.json({ ok: true });
 }
+

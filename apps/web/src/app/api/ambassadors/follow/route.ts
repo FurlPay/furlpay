@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { requireUser } from "@/lib/authz";
+import { audit } from "@/lib/audit";
 import { isFollowing } from "@/lib/creator";
 
 export const dynamic = "force-dynamic";
@@ -13,21 +15,24 @@ const g = globalThis as unknown as {
 const follows = g.__follows ?? (g.__follows = {});
 
 // POST /api/ambassadors/follow — Follow a creator.
-// Body: { followerEmail: string, followeeEmail: string }
+// Authenticated: caller's session defines follower identity.
 export async function POST(req: NextRequest) {
-  const limited = await rateLimitOr429(req, "ambassadors.follow", { limit: 20, windowMs: 600_000 });
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
+  const limited = await rateLimitOr429(req, "ambassadors.follow", { limit: 20, windowMs: 600_000 }, auth.account.user.id);
   if (limited) return limited;
 
   const body = await req.json().catch(() => ({}));
-  const followerEmail = str(body.followerEmail).toLowerCase();
+  const followerEmail = auth.account.user.email.toLowerCase();
   const followeeEmail = str(body.followeeEmail).toLowerCase();
 
-  if (!followerEmail || !followeeEmail) {
-    return NextResponse.json({ ok: false, error: "Both followerEmail and followeeEmail are required." }, { status: 400 });
+  if (!followeeEmail) {
+    return NextResponse.json({ ok: false, error: "followeeEmail is required." }, { status: 400 });
   }
 
-  if (!EMAIL_RE.test(followerEmail) || !EMAIL_RE.test(followeeEmail)) {
-    return NextResponse.json({ ok: false, error: "Invalid emails provided." }, { status: 400 });
+  if (!EMAIL_RE.test(followeeEmail)) {
+    return NextResponse.json({ ok: false, error: "Invalid email provided." }, { status: 400 });
   }
 
   if (followerEmail === followeeEmail) {
@@ -40,18 +45,20 @@ export async function POST(req: NextRequest) {
     follows[followerEmail] = list;
   }
 
-  console.log(`[ambassadors] follow: <${followerEmail}> followed <${followeeEmail}>`);
+  audit("ambassadors.followed", auth.account.user.id, { followee: followeeEmail });
   return NextResponse.json({ ok: true, isFollowing: true });
 }
 
 // DELETE /api/ambassadors/follow — Unfollow a creator.
-// Query: ?followerEmail=...&followeeEmail=...
 export async function DELETE(req: NextRequest) {
-  const followerEmail = str(req.nextUrl.searchParams.get("followerEmail")).toLowerCase();
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
+  const followerEmail = auth.account.user.email.toLowerCase();
   const followeeEmail = str(req.nextUrl.searchParams.get("followeeEmail")).toLowerCase();
 
-  if (!followerEmail || !followeeEmail) {
-    return NextResponse.json({ ok: false, error: "Both followerEmail and followeeEmail parameters are required." }, { status: 400 });
+  if (!followeeEmail) {
+    return NextResponse.json({ ok: false, error: "followeeEmail parameter is required." }, { status: 400 });
   }
 
   const list = follows[followerEmail] || [];
@@ -61,6 +68,7 @@ export async function DELETE(req: NextRequest) {
     follows[followerEmail] = list;
   }
 
-  console.log(`[ambassadors] unfollow: <${followerEmail}> unfollowed <${followeeEmail}>`);
+  audit("ambassadors.unfollowed", auth.account.user.id, { followee: followeeEmail });
   return NextResponse.json({ ok: true, isFollowing: false });
 }
+

@@ -109,7 +109,7 @@ export const RULES: RouteRule[] = [
   {
     id: "authenticated-routes-resolve-a-principal",
     appliesTo: ["AUTHENTICATED_USER"],
-    requiresAnyCall: ["requireUser", "requireRole", "requireOpsAdmin"],
+    requiresAnyCall: ["requireUser", "requireRole", "requireOpsAdmin", "requireAnyRole"],
     severity: "error",
     reason:
       "A route classified AUTHENTICATED_USER must resolve its principal through the shared " +
@@ -133,7 +133,7 @@ export const RULES: RouteRule[] = [
   {
     id: "admin-routes-check-a-role",
     appliesTo: ["ADMIN_ONLY"],
-    requiresAnyCall: ["requireRole", "requireOpsAdmin"],
+    requiresAnyCall: ["requireRole", "requireOpsAdmin", "requireAnyRole"],
     severity: "error",
     reason:
       "ADMIN_ONLY routes reach privileged operations — refunds, env inspection, rail pause. " +

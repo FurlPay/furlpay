@@ -1,4 +1,4 @@
-import { db } from "@/lib/store";
+import { db, type UserAccount } from "@/lib/store";
 import type { Transaction } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -43,9 +43,9 @@ export interface DisposalEvent {
   gain: number;
 }
 
-function disposals(): DisposalEvent[] {
+function disposals(transactions: Transaction[] = db.transactions): DisposalEvent[] {
   const events: DisposalEvent[] = [];
-  for (const t of db.transactions) {
+  for (const t of transactions) {
     if (t.status === "declined") continue;
     // Crypto disposals: a swap or a card/transfer OUT denominated in a token.
     if (t.category === "swap" && t.token) {
@@ -87,8 +87,11 @@ function isCashback(t: Transaction): boolean {
   return t.direction === "in" && /cashback|reward|rebate/i.test(`${t.title} ${t.subtitle}`);
 }
 
-export function buildPnl(): PnlReport {
-  const positions = db.holdings.map((h) => ({
+export function buildPnl(account?: UserAccount): PnlReport {
+  const holdings = account ? account.holdings : db.holdings;
+  const transactions = account ? account.transactions : db.transactions;
+
+  const positions = holdings.map((h) => ({
     symbol: h.symbol,
     marketValue: round(h.marketValue),
     costBasis: round(h.costBasis ?? 0),
@@ -97,7 +100,7 @@ export function buildPnl(): PnlReport {
   const marketValue = round(positions.reduce((s, p) => s + p.marketValue, 0));
   const costBasis = round(positions.reduce((s, p) => s + p.costBasis, 0));
 
-  const evs = disposals();
+  const evs = disposals(transactions);
   const cryptoEvents = evs.filter((e) => e.type === "crypto-swap" || e.type === "crypto-spend");
   const cashbackEvents = evs.filter((e) => e.type === "cashback");
 
@@ -115,8 +118,20 @@ export function buildPnl(): PnlReport {
 }
 
 /** IRS Form-8949-style CSV of realized disposal events. */
-export function buildTaxCsv(year?: number): string {
-  const rows = disposals()
+export function buildTaxCsv(target?: UserAccount | number, maybeYear?: number): string {
+  let txs: Transaction[] = db.transactions;
+  let year: number | undefined;
+
+  if (typeof target === "number") {
+    year = target;
+  } else if (target) {
+    txs = target.transactions;
+    year = maybeYear;
+  } else {
+    year = maybeYear;
+  }
+
+  const rows = disposals(txs)
     .filter((e) => (year ? new Date(e.date).getUTCFullYear() === year : true))
     .sort((a, b) => a.date.localeCompare(b.date));
 
@@ -135,3 +150,4 @@ export function buildTaxCsv(year?: number): string {
   lines.push(["", "", "TOTAL", "", "", totalGain.toFixed(2)].join(","));
   return [header.join(","), ...lines].join("\n");
 }
+

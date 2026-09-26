@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
   // Notify the team (mock-logs without RESEND_API_KEY). Live: also CRM/Slack.
   const note = contactNotification(lead);
   void sendEmail({ to: process.env.CONTACT_INBOX || "hello@furlpay.com", replyTo: email, ...note });
-  console.log(`[contact] new lead: ${firstName} ${lastName} <${email}> · ${company}`);
-
+  // Log metadata only — do not dump visitor email/name to server stdout
   return NextResponse.json({ ok: true });
 }
+

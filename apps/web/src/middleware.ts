@@ -151,6 +151,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/agents", // public Agent Console demo data
   "/api/payments/stripe/intent", // merchant checkout — creates a PaymentIntent
   "/api/compliance/kyc", // needed during signup, before a session exists
+  "/api/compliance/authority-requests", // Sovereign Authority Gate intake portal and token disclosure
   // Scheduled jobs. NOT public: every /api/cron route calls requireCron(),
   // which demands a constant-time match against CRON_SECRET or
   // FURLPAY_CRON_SECRET and returns 503 when neither is configured. The

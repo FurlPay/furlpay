@@ -69,20 +69,33 @@ function capitalize(s: string): string {
 }
 
 /** Build the rolling 7-day spending summary ending now. */
-export function buildSpendingSummary(now = new Date()): SpendingSummary {
+export function buildSpendingSummary(
+  txsOrNow?: Transaction[] | Date,
+  maybeNow = new Date()
+): SpendingSummary {
+  let allTxs: Transaction[] = db.transactions;
+  let now = maybeNow;
+
+  if (Array.isArray(txsOrNow)) {
+    allTxs = txsOrNow;
+  } else if (txsOrNow instanceof Date) {
+    now = txsOrNow;
+  }
+
   const weekMs = 7 * 86_400_000;
   const start = new Date(now.getTime() - weekMs);
   const prevStart = new Date(now.getTime() - 2 * weekMs);
 
-  const thisWeek = db.transactions.filter((t) => within(t, start, now));
+  const thisWeek = allTxs.filter((t) => within(t, start, now));
   const spent = outflow(thisWeek);
-  const lastWeekSpent = outflow(db.transactions.filter((t) => within(t, prevStart, start)));
+  const lastWeekSpent = outflow(allTxs.filter((t) => within(t, prevStart, start)));
 
   const totalSpent = round(spent.reduce((s, t) => s + t.amountUsd, 0));
   const totalReceived = round(
     thisWeek
       .filter((t) => t.direction === "in" && t.status !== "declined")
       .reduce((s, t) => s + t.amountUsd, 0)
+
   );
   const lastWeekTotal = round(lastWeekSpent.reduce((s, t) => s + t.amountUsd, 0));
 
