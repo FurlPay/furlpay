@@ -1,0 +1,36 @@
+{
+  "name": "chaintracker-pro",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Real-time multi-chain intelligence terminal for Discord",
+  "type": "module",
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/index.js",
+    "worker": "node dist/worker.js",
+    "dev": "node --experimental-strip-types --no-warnings src/index.ts",
+    "dev:worker": "node --experimental-strip-types --no-warnings src/worker.ts",
+    "register": "node dist/scripts/register-commands.js",
+    "setup:server": "node dist/scripts/setup-server.js",
+    "setup:emojis": "node dist/scripts/setup-emojis.js",
+    "icons": "node dist/scripts/build-icons.js",
+    "doctor": "node dist/scripts/doctor.js",
+    "test": "tsc -p tsconfig.test.json && node copy-fixtures.mjs && node --test \"dist-test/**/*.test.js\"",
+    "mempool": "node dist/mempool.js",
+    "mempool:watch": "node dist/mempool.js watch",
+    "mempool:daily": "node dist/mempool.js daily",
+    "mempool:doctor": "node dist/mempool.js doctor"
+  },
+  "dependencies": {
+    "discord.js": "^14.16.3",
+    "sharp": "^0.35.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

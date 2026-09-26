@@ -1,0 +1,16 @@
+{
+  // Tests need a build of their own.
+  //
+  // The main tsconfig excludes *.test.ts, and Node's type stripping does not
+  // rewrite a ".js" import specifier back to the ".ts" file next to it — so
+  // running a test straight from src/ fails to resolve every import in it.
+  // Compiling tests alongside their sources into a separate output sidesteps
+  // both problems and keeps dist/ free of test code.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist-test",
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "dist-test"]
+}
