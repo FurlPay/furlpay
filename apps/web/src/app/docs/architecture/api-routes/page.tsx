@@ -46,7 +46,7 @@ export default function ApiRoutesPage() {
       <H2 id="cards">Cards</H2>
       <EndpointTable
         rows={[
-          { method: "POST", path: "/api/cards", desc: "Issue a virtual card" },
+          { method: "POST", path: "/api/cards", desc: "Issue a virtual card — in development, no card program is live" },
           { method: "POST", path: "/api/cards/settings", desc: "Freeze, set limits, update controls" },
         ]}
       />
@@ -178,7 +178,8 @@ export async function POST(req: Request) {
 
       <Callout title="Idempotency">
         Send an <Code>Idempotency-Key</Code> header on POSTs so retries never double-issue a card or
-        double-place an order.
+        duplicate an order. (Card issuing and order routing are in development; the header is
+        honoured by every POST route regardless.)
       </Callout>
 
       <DocPager pathname="/docs/architecture/api-routes" />

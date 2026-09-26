@@ -51,7 +51,7 @@ export default function Page() {
         { title: "Dollar-stable, on-chain receipts", body: "Travala accepts many coins including its AVA token. Furlpay settles in USDC — dollar-stable — and returns an Arbiscan-verifiable receipt on every booking, which is useful for expenses and reimbursements." },
         { title: "No loyalty token to hold", body: "Travala's best rewards route through its AVA token via the Smart Program. Furlpay pays cashback in USDC, so you don't need to buy, hold, or manage a volatile loyalty token to benefit." },
         { title: "Agentic trip planning", body: "Furlpay lets an AI agent assemble and book an itinerary, paying per resource over x402. It's an early, working example of agentic commerce applied to travel." },
-        { title: "One account for everything", body: "Furlpay is travel plus payments, a passkey wallet, and fractional investing in a single client. Travala is a dedicated crypto travel marketplace." },
+        { title: "One account for everything", body: "Furlpay is payments and a passkey wallet in a single client, with travel booking and investing in development. Travala is a dedicated crypto travel marketplace that books today." },
       ]}
       faq={[
         { q: "What is the best Travala alternative for crypto travel?", a: "Furlpay is a strong Travala alternative if you prefer paying in dollar-stable USDC with on-chain receipts, a passkey wallet with no seed phrase, and AI trip planning — plus payments and investing in the same account." },

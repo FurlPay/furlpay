@@ -92,6 +92,10 @@ export interface GooglePlace {
   /** 1.0-5.0. */
   rating?: number;
   userRatingCount?: number;
+  /** Google's price band enum, e.g. "PRICE_LEVEL_MODERATE". Kept as the raw
+   *  enum rather than a symbol count so that PRICE_LEVEL_UNSPECIFIED — which
+   *  Google does return — stays separable from the field being absent. */
+  priceLevel?: string;
   editorialSummary?: string;
   types: string[];
   primaryType?: string;

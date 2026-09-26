@@ -25,6 +25,7 @@ export const metadata: Metadata = {
 export default function EnterpriseSolutionPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Solutions · Enterprise"
       title="Enterprise stablecoin settlement."
       subtitle="Move money 24/7 in USDC on Arbitrum — the same Layer 2 Mastercard uses for stablecoin settlement. Sanctions screening, Travel Rule support, signed receipts, and SLAs, exposed as a clean API."

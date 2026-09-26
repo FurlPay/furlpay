@@ -18,6 +18,18 @@ export type CompareProps = {
   analysis: { title: string; body: string }[];
   faq: { q: string; a: string }[];
   disclaimer?: string;
+  /**
+   * Rendered directly under the hero, above the table.
+   *
+   * WHY IT IS ON THE TEMPLATE. The five travel comparisons each described
+   * booking a stay in USDC, a single-use Visa card and a weekly creator
+   * payout as things Furlpay does, opposite a competitor that genuinely does
+   * book travel today. None of the three is in production. A page that
+   * compares a shipped product against a roadmap has to say so where the
+   * reader is looking, not in a footnote — and putting the prop here means
+   * the next comparison page has to decide about it rather than forget.
+   */
+  developmentNotice?: ReactNode;
 };
 
 export default function ComparePage(p: CompareProps) {
@@ -38,6 +50,12 @@ export default function ComparePage(p: CompareProps) {
           subtitle={p.subtitle}
           secondary={{ href: "/resources/tools/fee-calculator", label: "Calculate savings" }}
         />
+
+        {p.developmentNotice && (
+          <p className="mt-8 rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-5 text-[15px] leading-relaxed text-textSecondary">
+            {p.developmentNotice}
+          </p>
+        )}
 
         <p className="mt-8 rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
           {p.atomicAnswer}

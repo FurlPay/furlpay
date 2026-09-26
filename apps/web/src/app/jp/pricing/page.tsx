@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import LandingChrome from "@/components/landing/LandingChrome";
+import PlansInDevelopmentNotice from "@/components/marketing/PlansInDevelopmentNotice";
 import FaqSection from "@/components/marketing/FaqSection";
 import { JfsaRiskNote, JfsaStatusNote } from "@/components/marketing/JpCompliance";
 import { altLanguages } from "@/lib/seo/hreflang";
@@ -48,7 +49,9 @@ export default function JpPricingPage() {
           <JfsaRiskNote />
         </div>
 
-        <div className="mt-12 grid grid-cols-1 gap-4 md:grid-cols-3">
+        <PlansInDevelopmentNotice className="mx-auto mt-10 max-w-3xl" />
+
+        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
           {TIERS.map((t) => (
             <div key={t.name} className={`glass-card p-7 ${t.highlight ? "border-neon/30 shadow-glow" : ""}`}>
               <div className="flex items-center justify-between">

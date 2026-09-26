@@ -41,6 +41,18 @@ const GASLESS_FEE_USD = 0;
 // GET /api/transfers/gasless — Smart Gas quote. Everything the client needs
 // to render a send screen with no native-token mention.
 export async function GET() {
+  // `live` answers "will a POST to this route actually move USDC?", and it has
+  // to answer it the way the POST path does. It used to read
+  // INTEGRATION_MODE === "live", which is set in production — so the quote
+  // advertised `live: true` while /api/rails reported this same rail
+  // NOT_CONFIGURED and the POST below returned 503 "no on-chain relayer
+  // configured". Two public endpoints contradicting each other about the same
+  // rail is worse than either answer alone: an integrator reads the optimistic
+  // one and ships against it.
+  //
+  // INTEGRATION_MODE only says mocks are forbidden. The relayer is what
+  // actually submits, so ask for the relayer.
+  const relayerReady = defaultSettler() !== null;
   return NextResponse.json(
     {
       network: NETWORK,
@@ -48,7 +60,14 @@ export async function GET() {
       fee: { usd: GASLESS_FEE_USD, sponsored: true, detail: "Gas is paid by Furlpay's relayer. You only sign — no ETH needed." },
       maxPerTransferUsd: maxTransferUsd(),
       scheme: "eip3009-transfer-with-authorization",
-      live: process.env.INTEGRATION_MODE === "live",
+      live: relayerReady,
+      ...(relayerReady
+        ? {}
+        : {
+            status: "not_configured",
+            detail:
+              "The relayer is not configured in this environment, so signed authorizations cannot be submitted. The quote shape above is stable and safe to integrate against.",
+          }),
     },
     { headers: { "cache-control": "no-store" } }
   );

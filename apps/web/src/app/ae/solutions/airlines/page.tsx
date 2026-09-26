@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 export default function AeAirlinesPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="UAE · Airlines"
       title="Settle airline tickets in USDC — instant, 0.5%, no FX loss."
       subtitle="Emirates and Dubai Duty Free are already enabling crypto payments via Crypto.com. UAE airlines and booking platforms can accept USDC on Arbitrum for a flat 0.5%, confirm in about a second, and remove chargebacks on high-value, cross-border fares."

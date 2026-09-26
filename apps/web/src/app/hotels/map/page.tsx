@@ -19,7 +19,23 @@ export const metadata: Metadata = {
 // The route opts out of the 440px phone column in lib/shellRoutes.ts for the
 // same reason the ticker pages do: a world map in a phone-width column is not
 // a map.
-export default function HotelMapPage() {
+/**
+ * `?all=1` turns on the global lodging registry overlay.
+ *
+ * A URL parameter rather than a stored preference, deliberately: it is
+ * shareable and debuggable ("open this link and you'll see what I see"), and
+ * it cannot strand someone in a mode they don't remember enabling. The
+ * registry is empty until scripts/ingest-hotel-seeds.mts has run, so the
+ * default stays off — an empty overlay looks like a broken map.
+ */
+export default async function HotelMapPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const params = await searchParams;
+  const showRegistryTiles = params.all === "1";
+
   return (
     <div className="h-[100dvh] w-full">
       {/* The map is WebGL and client-rendered, so a crawler that does not run
@@ -39,7 +55,7 @@ export default function HotelMapPage() {
           </Link>
         </div>
       </noscript>
-      <HotelMap />
+      <HotelMap showRegistryTiles={showRegistryTiles} />
     </div>
   );
 }

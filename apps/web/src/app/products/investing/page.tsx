@@ -8,30 +8,37 @@ import { financialProduct, breadcrumb, SITE } from "@/lib/seo/schema";
 const URL = `${SITE}/products/investing`;
 
 export const metadata: Metadata = {
-  title: "Invest in US Stocks, ETFs & Crypto — Fractional Investing",
+  // Titled and described as what a visitor can actually do here today: read
+  // live markets. The previous copy sold fractional share dealing in the
+  // present tense, and there is no live brokerage behind it — BROKERAGE_LIVE
+  // is off in production, so an order would reach an internal simulator.
+  title: "Investing — Live Markets Today, Stock & ETF Orders In Development",
   description:
-    "Hold fractional US stocks, ETFs, and crypto next to your spending balance. Fractional shares, real-time markets, and portfolio-backed credit — all in one Furlpay account.",
+    "Follow live US stock, ETF and crypto markets in your Furlpay account. Fractional share dealing and portfolio-backed credit are in development and not yet available.",
   alternates: { canonical: "/products/investing" },
-  openGraph: { type: "website", url: URL, title: "Fractional Investing — Stocks, ETFs & Crypto" },
+  openGraph: { type: "website", url: URL, title: "Investing — Live Markets on Furlpay" },
 };
 
+// Live-today features first, in-development features named as such. Mixing
+// them in one uniform grid is what let "fractional shares" read as a shipped
+// product sitting beside live charts that genuinely work.
 const FEATURES = [
-  { title: "Fractional shares", body: "Buy a slice of any US stock or ETF from a few dollars — no need to afford a whole share." },
-  { title: "Real-time markets", body: "Live quotes, movers, indices, and charts, with research insights published alongside the product." },
-  { title: "One balance", body: "Your investing sits next to spending and USDC — move between them without leaving the app." },
-  { title: "Portfolio-backed credit", body: "Borrow against your stocks and crypto without selling, so you keep your upside and avoid a taxable event." },
-  { title: "Passkey-secured", body: "The same phishing-resistant, seed-phrase-free account that powers payments protects your portfolio." },
-  { title: "Research insights", body: "In-house market insights and explainers, indexed and citable, to inform decisions — not financial advice." },
+  { title: "Real-time markets", body: "Live quotes, movers, indices, and charts, with research insights published alongside the product. Available now." },
+  { title: "Research insights", body: "In-house market insights and explainers, indexed and citable, to inform decisions — not financial advice. Available now." },
+  { title: "Passkey-secured", body: "The same phishing-resistant, seed-phrase-free account that powers payments will protect your portfolio. Available now for your account." },
+  { title: "Fractional shares — in development", body: "Buying a slice of a US stock or ETF from a few dollars. Not yet available: order routing to a live brokerage is pending." },
+  { title: "One balance — in development", body: "Investing sitting next to spending and USDC, with transfers between them inside the app." },
+  { title: "Portfolio-backed credit — in development", body: "Borrowing against stocks and crypto without selling. The collateral risk engine is not built, so this cannot be offered yet." },
 ];
 
 const FAQ = [
   {
     q: "Can I invest in US stocks and ETFs with Furlpay?",
-    a: "Yes. Furlpay offers fractional investing in US stocks and ETFs alongside crypto, so you can build a portfolio from a few dollars and manage it in the same account as your spending and USDC balance.",
+    a: "Not yet. Live market data, charts and research are available in your account today, but placing a stock or ETF order is still in development — order routing to a live brokerage is not enabled in production. We will announce it when it opens rather than accept orders that do not reach a market.",
   },
   {
     q: "What is a portfolio-backed credit line?",
-    a: "It lets you borrow against your stocks and crypto without selling them. You pay interest only on what you draw, keep your market upside, and avoid triggering a taxable sale.",
+    a: "A planned feature that would let you borrow against stocks and crypto without selling them — paying interest only on what you draw and avoiding a taxable sale. It is not available: the risk engine that prices liquidation is not built, and offering collateral lending without one would be unsafe.",
   },
   {
     q: "Is investing with Furlpay financial advice?",
@@ -47,7 +54,7 @@ export default function InvestingPage() {
         data={[
           financialProduct({
             name: "Furlpay Investing",
-            description: "Fractional investing in US stocks, ETFs, and crypto with portfolio-backed credit.",
+            description: "Live US stock, ETF and crypto market data and research. Fractional share dealing is in development.",
             url: URL,
             serviceUrl: `${SITE}/investing/insights`,
             category: "Investment platform",
@@ -62,16 +69,18 @@ export default function InvestingPage() {
       <main className="section pb-24 pt-14">
         <Hero
           eyebrow="Investing"
-          title="Invest in US stocks, ETFs, and crypto."
-          subtitle="Fractional shares from a few dollars, live markets, and portfolio-backed credit — held in the same passkey-secured account as your payments and USDC."
+          title="Follow the markets in your Furlpay account."
+          subtitle="Live US stock, ETF and crypto quotes, charts and research — available today. Fractional share dealing and portfolio-backed credit are in development."
           primary={{ href: "/investing/insights", label: "Read market insights" }}
           secondary={{ href: "/signup", label: "Get started" }}
         />
 
-        <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
-          Furlpay lets you hold <strong className="text-white">fractional US stocks, ETFs, and
-          crypto</strong> next to your spending balance, and borrow against that portfolio without
-          selling — one account, secured by passkeys.
+        <p className="mt-8 max-w-2xl rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-5 text-[15px] leading-relaxed text-textSecondary">
+          <strong className="text-amber-300">In development.</strong> You can follow live markets and
+          read research in Furlpay today. Holding{" "}
+          <strong className="text-white">fractional US stocks and ETFs</strong>, and borrowing against
+          that portfolio, are being built — neither is available to open yet, and no order placed here
+          would reach a market.
         </p>
 
         <Section title="Built for one balance">
@@ -81,8 +90,8 @@ export default function InvestingPage() {
         <FaqSection items={FAQ} />
 
         <CtaBand
-          title="Put idle balances to work"
-          subtitle="Fractional investing, live markets, and research insights."
+          title="Follow the markets"
+          subtitle="Live markets and research insights, available today."
           primary={{ href: "/investing/insights", label: "Market insights" }}
         />
 

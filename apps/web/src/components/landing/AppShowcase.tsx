@@ -23,9 +23,16 @@ export default function AppShowcase() {
           <h2 className="section-title mt-3" id="app-showcase-title">
             The same rails, in your pocket.
           </h2>
+          {/* Future tense, because the present tense was a shipping claim.
+              "Mobile, desktop and web share one account" describes a state
+              that does not exist for a user today: only the web app is
+              released. The architecture is real and the clients are built —
+              that is worth saying — but "will" is the honest auxiliary until
+              a listing goes live. */}
           <p className="section-lede mt-4">
-            Mobile, desktop and web share one account, one balance and one set of spending
-            controls — the same API surface your integration talks to.
+            The web app is live today. Mobile and desktop clients are built and in final
+            testing — when they ship they will share one account, one balance and one set of
+            spending controls, on the same API surface your integration talks to.
           </p>
 
           {/* No justify-* here on purpose: StoreBadges centres itself

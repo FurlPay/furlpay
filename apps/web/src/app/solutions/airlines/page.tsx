@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 export default function AirlinesPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Solutions · Airlines"
       title="Settle airline tickets in USDC — instant, 0.5%, no FX loss."
       subtitle="High-value, cross-border fares are where card fees and FX losses hurt most. Accept USDC on Arbitrum for a flat 0.5%, confirm in about a second, and remove chargebacks on the tickets that matter."

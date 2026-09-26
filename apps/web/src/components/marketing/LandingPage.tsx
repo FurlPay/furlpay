@@ -2,6 +2,7 @@ import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, FeatureGrid, Section, CtaBand } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
 import JsonLd from "@/components/JsonLd";
+import MerchantSettlementNotice from "@/components/marketing/MerchantSettlementNotice";
 import { breadcrumb } from "@/lib/seo/schema";
 import type { ReactNode } from "react";
 
@@ -22,6 +23,18 @@ export type LandingProps = {
   cta: { title: string; subtitle?: string; primary?: { href: string; label: string }; secondary?: { href: string; label: string } };
   disclaimer?: string;
   banner?: ReactNode; // rendered prominently right under the hero (e.g. FCA risk warning)
+  /**
+   * Render the merchant-settlement notice under the hero.
+   *
+   * A separate prop from `banner` because the two coexist: the UK, UAE and
+   * Japan variants already use `banner` for their regulator risk note, and a
+   * page must be able to carry both without one displacing the other.
+   *
+   * Opt-in rather than default-on: this template also renders utility pages
+   * (calculators, guides) that make no merchant offer, and a settlement notice
+   * there would be noise that teaches readers to skip amber boxes.
+   */
+  merchantOffer?: boolean;
   children?: ReactNode; // optional extra sections between features and FAQ
 };
 
@@ -45,6 +58,7 @@ export default function LandingPage(p: LandingProps) {
         />
 
         {p.banner}
+        {p.merchantOffer && <MerchantSettlementNotice />}
 
         <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
           {p.atomicAnswer}

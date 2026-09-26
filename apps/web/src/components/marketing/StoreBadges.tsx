@@ -54,9 +54,18 @@ function Badge({
 export default function StoreBadges() {
   return (
     <div className="flex flex-col items-center gap-3">
+      {/* "Coming soon", not "Get it on".
+          The badges already linked to /downloads rather than to store URLs
+          that do not exist, which was honest about the DESTINATION. It was
+          not honest about the OFFER: a reviewer reads an official store badge
+          and concludes the app shipped, without ever clicking. Neither
+          listing is published — the Play build awaits App Signing
+          fingerprints and the iOS build has no Apple Developer account — so
+          the badge has to say so on its face. */}
+      <p className="text-[12px] font-medium text-amber-300/90">Mobile apps — coming soon</p>
       <div className="flex w-full flex-wrap items-stretch justify-center gap-3">
-        <Badge glyph={<GooglePlayGlyph />} small="Get it on" large="Google Play" />
-        <Badge glyph={<AppleGlyph />} small="Download on the" large="App Store" />
+        <Badge glyph={<GooglePlayGlyph />} small="Coming soon to" large="Google Play" />
+        <Badge glyph={<AppleGlyph />} small="Coming soon to" large="App Store" />
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-2 text-[12px] text-textSecondary">

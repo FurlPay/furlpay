@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 export default function UkHotelsPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="UK · Hotels"
       title="Crypto payments for UK hotels — 0.5%, no chargebacks."
       subtitle="London and UK hotels take a large share of international guests, and those bookings carry the highest card and FX costs. Let guests pay in dollar-stable USDC on Arbitrum, settle for a flat 0.5%, and remove FX and chargebacks — via an API that runs beside your PMS."

@@ -4,11 +4,12 @@ import PricingCards from "@/components/marketing/PricingCards";
 import LandingChrome from "@/components/landing/LandingChrome";
 import FaqSection from "@/components/marketing/FaqSection";
 import SupportBitcoin from "@/components/marketing/SupportBitcoin";
+import PlansInDevelopmentNotice from "@/components/marketing/PlansInDevelopmentNotice";
 
 export const metadata: Metadata = {
   title: "Pricing",
   description:
-    "Simple, transparent pricing for Furlpay — stablecoin cards, cashback up to 3%, yield up to 8% APY, fractional investing, and a full developer API. Open source and free to start; support the project with an on-chain Bitcoin donation.",
+    "Furlpay pricing: the developer platform is free and open source, and merchant payments are priced at a flat 0.5%. Consumer plans with cards, cashback, yield and investing are in development.",
   keywords: [
     "Furlpay pricing",
     "stablecoin card pricing",
@@ -28,27 +29,27 @@ export const metadata: Metadata = {
 const FAQ = [
   {
     q: "Is there really a free tier?",
-    a: "Yes. Standard is $0/mo with a virtual stablecoin card, 1% cashback, up to 4% APY on idle balances, a local USD/EUR account, and fractional investing.",
+    a: "Yes — and today it is the only tier. The web app, passkey wallet, SDKs, CLI, MCP server and x402 middleware are free with no card required. The Standard consumer plan adds a virtual stablecoin card, 1% cashback, yield on idle balances, a local USD/EUR account and stock investing; all five are in development and none can be opened yet.",
   },
   {
     q: "How does cashback work?",
-    a: "Cashback is paid in USDC on eligible card spend — 1% on Standard, 2% on Pro (up to $10k/mo), and 3% on Ultra. It settles to your balance, withdrawable to fiat or crypto.",
+    a: "It will be paid in USDC on eligible card spend — 1% on Standard, 2% on Pro (up to $10k/mo) and 3% on Ultra, settling to your balance. Cashback depends on the card program, which has not launched, so no cashback is being earned today.",
   },
   {
     q: "Where does the yield come from?",
-    a: "We route reserves into low-risk tokenized T-bills and audited lending vaults and pass the yield through to you. No lock-up — withdraw anytime.",
+    a: "The design routes reserves into low-risk tokenized T-bills and audited lending vaults and passes the yield through, with no lock-up. Yield on idle balances is in development and is not being paid today.",
   },
   {
     q: "What's the portfolio-backed credit line?",
-    a: "On Ultra, borrow against your stocks and crypto without selling — interest only on what you draw. Keep your upside and avoid a taxable event.",
+    a: "A planned Ultra feature: borrowing against stocks and crypto without selling, paying interest only on what you draw. It is not available — the risk engine that prices liquidation is not built, and lending against collateral without one would be unsafe.",
   },
   {
     q: "Do developers pay for the API?",
-    a: "The SDKs, CLI, MCP server, and x402 middleware are open-source and free. The hosted API is metered — a free sandbox, then usage-based pricing on Ultra.",
+    a: "No. The SDKs, CLI, MCP server and x402 middleware are open source and free, and the hosted API is free to integrate against today. Usage-based metering is planned for when settlement volume goes live.",
   },
   {
     q: "Is there volume pricing for businesses?",
-    a: "Yes. Merchant payments are a flat 0.5% per transaction, and at higher volume the Enterprise plan offers custom rates below 0.5%, a settlement and uptime SLA, a dedicated account manager, and per-transaction audit trails with reconciliation exports. Contact sales for a quote.",
+    a: "Merchant payments are priced at a flat 0.5% per transaction, and at higher volume the Enterprise plan offers custom rates below 0.5%, a settlement and uptime SLA, a dedicated account manager, and per-transaction audit trails with reconciliation exports. Merchant settlement is in development, so contact sales to plan an integration rather than to start taking volume today.",
   },
   {
     q: "Can I support FurlPay with Bitcoin?",
@@ -75,12 +76,14 @@ export default function PricingPage() {
             Earn more than you pay.
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-[16px] leading-relaxed text-textSecondary">
-            No hidden FX games, no locked cashback. Cards, yield, investing, and a full developer
-            platform — priced so the free tier is genuinely useful.
+            No hidden FX games, no locked cashback. The developer platform is free and open
+            source today; the consumer tiers below are what we are building toward.
           </p>
         </div>
 
-        <div className="mt-12">
+        <PlansInDevelopmentNotice className="mx-auto mt-10 max-w-3xl" />
+
+        <div className="mt-8">
           <PricingCards />
         </div>
 

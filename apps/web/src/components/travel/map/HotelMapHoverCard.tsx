@@ -599,9 +599,16 @@ function PropertyPreview({
               ? "OpenStreetMap"
               : point.source === "google"
                 ? "Powered by Google"
-                : point.precision === "exact"
-                ? "Position confirmed"
-                : "Approximate position"}
+                : // A registry pin can come from Overture, OSM, a tourism
+                  // registry or a direct booking engine, and the row records
+                  // which. Naming one of them here would be a guess, so the
+                  // label states what is actually known: it is in the global
+                  // registry and FurlPay has not curated it.
+                  point.source === "registry"
+                  ? "Global registry"
+                  : point.precision === "exact"
+                  ? "Position confirmed"
+                  : "Approximate position"}
           </span>
           <button
             type="button"

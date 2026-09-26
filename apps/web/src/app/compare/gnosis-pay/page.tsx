@@ -28,15 +28,15 @@ export const metadata: Metadata = {
 const ROWS: { feature: string; furlpay: string; gnosispay: string; furlpayWins: boolean }[] = [
   { feature: "Custody Model", furlpay: "On-device key (mobile); custodial enclave (web)", gnosispay: "Safe smart account", furlpayWins: false },
   { feature: "Chains", furlpay: "Arbitrum, Base, Solana, Polygon, Ethereum", gnosispay: "Gnosis Chain", furlpayWins: true },
-  { feature: "Checkout Fee", furlpay: "0.5% flat", gnosispay: "0% on EURe (FX applies off-peg)", furlpayWins: false },
+  { feature: "Checkout Fee", furlpay: "0.5% flat (merchant settlement in development)", gnosispay: "0% on EURe (FX applies off-peg)", furlpayWins: false },
   { feature: "Stablecoin Coverage", furlpay: "USDC, USDT, EURC, PYUSD, DAI", gnosispay: "EURe, GBPe", furlpayWins: true },
-  { feature: "Travel Booking Escrows", furlpay: "Yes (Duffel + cNFT tickets)", gnosispay: "No", furlpayWins: true },
-  { feature: "AI Agent Payments (x402)", furlpay: "Yes — native HTTP 402", gnosispay: "No", furlpayWins: true },
+  { feature: "Travel Booking Escrows", furlpay: "In development", gnosispay: "No", furlpayWins: false },
+  { feature: "AI Agent Payments (x402)", furlpay: "Native HTTP 402 live; settlement in development", gnosispay: "No", furlpayWins: true },
   { feature: "Multi-Wallet Discovery", furlpay: "EIP-6963 + CAIP-294", gnosispay: "No", furlpayWins: true },
   { feature: "Cross-Chain Swaps", furlpay: "Li.Fi routing incl. Solana", gnosispay: "No", furlpayWins: true },
-  { feature: "Fractional Stocks", furlpay: "Yes (Alpaca)", gnosispay: "No", furlpayWins: true },
-  { feature: "Gas Model", furlpay: "Sponsored paymaster (USDC)", gnosispay: "User pays Gnosis gas", furlpayWins: true },
-  { feature: "Physical Card", furlpay: "Virtual Visa", gnosispay: "Virtual + Physical Visa", furlpayWins: false },
+  { feature: "Fractional Stocks", furlpay: "In development", gnosispay: "No", furlpayWins: false },
+  { feature: "Gas Model", furlpay: "Sponsored paymaster (USDC) — in development", gnosispay: "User pays Gnosis gas", furlpayWins: false },
+  { feature: "Physical Card", furlpay: "In development", gnosispay: "Virtual + Physical Visa", furlpayWins: false },
 ];
 
 export default function CompareGnosisPayPage() {

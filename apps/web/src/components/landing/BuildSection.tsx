@@ -18,14 +18,14 @@ const USE_CASES = [
   {
     Icon: Landmark,
     title: "Global fintech",
-    body: "Accounts, balances, cards and FX behind one API.",
+    body: "Balances and payment APIs today; accounts, cards and FX in development.",
     href: "/solutions/enterprise",
     cta: "Fintech stack",
   },
   {
     Icon: Plane,
     title: "Travel",
-    body: "Stays and flights paid in stablecoins, settled on-chain.",
+    body: "Live hotel discovery today; stablecoin booking in development.",
     href: "/products/travel",
     cta: "Travel payments",
   },
@@ -54,8 +54,8 @@ export default function BuildSection() {
           Build the financial layer of your product.
         </h2>
         <p className="section-lede mt-4">
-          One integration covers payment acceptance, account balances, card issuing and
-          settlement. What you assemble from those is up to you.
+          One integration covers payment construction, balances and agent access today, with
+          acceptance, card issuing and settlement in development. What you assemble is up to you.
         </p>
       </Reveal>
 

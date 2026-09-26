@@ -61,7 +61,7 @@ const USE_CASES: UseCase[] = [
       "Embed a checkout widget, issue employee stablecoin cards with spend controls, and manage treasury — all through a single dashboard with full audit history and compliance built in.",
     features: [
       { name: "Checkout Widget", detail: "Drop-in payment form — USDC, cards, and local payment methods." },
-      { name: "Employee Cards", detail: "Issue virtual Visa cards with per-card spend limits and merchant locks." },
+      { name: "Employee Cards", detail: "Issue virtual Visa cards with per-card spend limits and merchant locks — in development." },
       { name: "Treasury", detail: "Hold idle funds in yield-bearing stablecoin vaults — withdraw anytime." },
       { name: "Compliance", detail: "Tiered KYC, FATF Travel Rule, MiCA routing — handled automatically." },
     ],

@@ -51,7 +51,7 @@ export default function Page() {
         { title: "Stablecoin-first, not coin-agnostic", body: "BitPay grew up around Bitcoin and supports many volatile coins. Furlpay is built around USDC — a dollar-pegged stablecoin — so pricing, accounting, and settlement are predictable, and merchants aren't exposed to intraday crypto swings between quote and payout." },
         { title: "Lower, simpler fees", body: "Furlpay is a flat 0.5% on Arbitrum, where gas is a fraction of a cent. BitPay's merchant settlement is typically around 1%. On steady volume, the difference compounds." },
         { title: "Built for AI agents", body: "Furlpay ships an x402 facilitator and MCP server so autonomous agents can pay per request. BitPay has no agentic payment protocol." },
-        { title: "More than a payment button", body: "Beyond acceptance, Furlpay includes a passkey wallet, USDC travel booking, and fractional investing in one account — BitPay is focused on crypto payment processing." },
+        { title: "More than a payment button", body: "Beyond acceptance, Furlpay includes a passkey wallet and an open developer platform in one account, with USDC travel booking and investing in development — BitPay is focused on crypto payment processing." },
       ]}
       faq={[
         { q: "What is the best BitPay alternative for stablecoin payments?", a: "Furlpay is a strong BitPay alternative if you want USDC specifically: it settles USDC on Arbitrum for a flat 0.5% (versus BitPay's ~1%), is open-source, and adds AI-agent payments via x402, a passkey wallet, travel, and investing." },

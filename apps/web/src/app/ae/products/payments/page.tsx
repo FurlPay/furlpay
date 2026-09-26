@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 export default function AePaymentsPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="UAE · Payments"
       title="A crypto payment gateway for Dubai business — 0.5%."
       subtitle="Let customers pay in dollar-stable USDC on Arbitrum and settle for a flat 0.5%. An alternative to card interchange, with sub-second settlement, no chargebacks, and no FX on international customers — aligned with Dubai's cashless 2026 vision."

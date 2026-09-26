@@ -8,15 +8,31 @@ export default function IntroductionPage() {
     <article>
       <DocTitle eyebrow="Getting Started">Furlpay Developer Quickstart</DocTitle>
       <Lead>
-        Welcome to the Furlpay API. Integrate global stablecoin checkouts and fractional stock
-        investments with a few lines of code — on a compliance-aware, phishing-resistant, zero-gas rail.
+        Welcome to the Furlpay API. Integrate stablecoin payments, passkey authentication and AI
+        agent tooling with a few lines of code — on a compliance-aware, phishing-resistant rail.
       </Lead>
 
       <P>
-        Furlpay is an on-chain financial operating system: stablecoin payments, local bank accounts,
-        card issuance and fractional investing behind one API and a set of typed SDKs. Everything you can
-        do in the app, you can do programmatically.
+        Furlpay is on-chain financial infrastructure: stablecoin payment construction, balances,
+        passkey security and an x402 endpoint for agents, behind one API and a set of typed SDKs.
+        Everything you can do in the app, you can do programmatically.
       </P>
+
+      {/* Developer docs are read by people about to spend a day integrating,
+          so the availability boundary belongs at the top rather than
+          discovered at the first 503. The endpoints below all exist and
+          respond; what differs is whether money can complete a round trip. */}
+      <Callout type="warning" title="What is live today">
+        <P>
+          Payment construction, fee quotes, the x402 402-challenge endpoint, balances, passkey
+          auth and the MCP server run in production. Settlement — Furlpay broadcasting a
+          transaction on your behalf — is not yet enabled: the production signer, fee payer and
+          RPC endpoint are unconfigured, so <Code>/api/rails</Code> reports those rails as{" "}
+          <Code>NOT_CONFIGURED</Code>. Card issuing, local bank accounts, stock orders and travel
+          booking are in development; their routes exist and fail closed rather than simulating
+          success. Build against the request shapes now — they are stable.
+        </P>
+      </Callout>
 
       <CodeBlock lang="typescript">{`import { Furlpay } from '@furlpay/node';
 
@@ -88,9 +104,18 @@ const card = await client.cards.issue({
       <H2 id="what">What you can build</H2>
       <UL>
         <LI>Accept stablecoin checkouts with the <Code>FurlpayCheckoutButton</Code> React Element.</LI>
-        <LI>Issue virtual cards and control them via <Code>POST /api/cards/settings</Code>.</LI>
-        <LI>Open local IBAN / routing accounts and move money across rails.</LI>
-        <LI>Place fractional stock &amp; ETF orders via <Code>POST /api/investing/order</Code>.</LI>
+        <LI>
+          Issue virtual cards and control them via <Code>POST /api/cards/settings</Code> —{" "}
+          <em>in development, no card program is live</em>.
+        </LI>
+        <LI>
+          Open local IBAN / routing accounts and move money across rails —{" "}
+          <em>in development</em>.
+        </LI>
+        <LI>
+          Place fractional stock &amp; ETF orders via <Code>POST /api/investing/order</Code> —{" "}
+          <em>in development; orders do not reach a market</em>.
+        </LI>
         <LI>
           Give an AI agent a wallet — MCP server, LangChain tools, x402 pay-per-call and TAP-style spend
           mandates. Start at{" "}

@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 export default function JpAirlinesPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Japan · Airlines"
       title="Settle airline tickets in USDC — instant, 0.5%, no FX loss."
       subtitle="High-value, cross-border fares are where card fees and FX losses hurt most. Japanese airlines and booking platforms can accept USDC on Arbitrum for a flat 0.5%, confirm in about a second, and remove chargebacks on the tickets that matter."

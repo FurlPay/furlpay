@@ -6,7 +6,7 @@ import EarlyAccessSignup from "@/components/marketing/EarlyAccessSignup";
 export const metadata: Metadata = {
   title: "Early Access — The next chapter of finance is programmable",
   description:
-    "Get early access to FurlPay — the on-chain financial operating system for stablecoin payments, global travel, cards, and AI agent commerce powered by x402.",
+    "Join the FurlPay early-access list. Stablecoin payment APIs, a passkey wallet and an x402 endpoint for AI agents are live today; cards, travel booking and agent settlement open to early members first.",
   alternates: { canonical: "/early-access" },
   openGraph: {
     title: "FurlPay Early Access",
@@ -15,13 +15,19 @@ export const metadata: Metadata = {
   },
 };
 
+// Perks are a promise about the FUTURE, which is the one place forward-looking
+// language is honest — an early-access list exists precisely because the
+// products are not all open yet. What was wrong here was mixing tenses: "AI
+// agent payments through x402 — live today" asserted a present capability in a
+// list of future ones, and it is not live. Everything below is now framed as
+// what membership gets you when each product opens.
 const PERKS = [
   "Priority product access as we open the doors",
   "First availability for FurlPay Cards, where eligible",
-  "Stablecoin wallet and cross-chain payments from day one",
-  "Global travel booking with stablecoins and crypto",
-  "AI agent payments through x402 — live today",
-  "Developer APIs, SDKs and MCP tooling",
+  "Passkey wallet and developer platform access today",
+  "First access to travel booking when the inventory provider goes live",
+  "First access to x402 agent settlement when the facilitator is configured",
+  "Developer APIs, SDKs and MCP tooling — available now, no waitlist",
   "Invitations to FurlPay Global events and roundtables",
 ];
 
@@ -29,22 +35,22 @@ const FEATURES = [
   {
     Icon: Globe2,
     title: "Pay globally with stablecoins",
-    body: "Send, receive and settle in USDC, XSGD and more across Solana, Arbitrum, Base, Ethereum and other supported networks.",
+    body: "Non-custodial USDC payment APIs across Solana, Arbitrum, Base and Ethereum — you sign, we quote, price and construct. Furlpay-operated settlement is in development.",
   },
   {
     Icon: Plane,
     title: "Travel the world",
-    body: "Search and book stays and flights across 230+ countries and territories — pay with stablecoins, crypto or card.",
+    body: "Explore hotels worldwide on a live map today. Booking stays and flights, paid in stablecoins, is in development.",
   },
   {
     Icon: CreditCard,
     title: "Spend everywhere",
-    body: "Modern card infrastructure that brings digital assets to everyday spending on traditional payment networks.",
+    body: "Card infrastructure to bring digital assets to everyday spending on traditional networks. In development — no card program has launched.",
   },
   {
     Icon: Repeat,
     title: "Swap across chains",
-    body: "Move value between assets and networks with live cross-chain routing — one balance, many rails.",
+    body: "Cross-chain routing that builds the transaction for your own wallet to sign — one balance, many rails.",
   },
   {
     Icon: Code2,
@@ -54,7 +60,7 @@ const FEATURES = [
   {
     Icon: Bot,
     title: "Power AI agents",
-    body: "Autonomous agents discover prices, pay per call in stablecoins via x402, and receive machine-readable receipts.",
+    body: "Agents discover prices over real x402 challenges and our MCP server today. Paying per call and receiving machine-readable receipts is in development.",
   },
 ];
 
@@ -77,11 +83,17 @@ const FAQ = [
   },
   {
     q: "Can I book travel with crypto?",
-    a: "Yes — the travel platform is live, with stays and flights payable in stablecoins and crypto alongside traditional methods.",
+    a: "Not yet. Hotel discovery is live — the map shows real properties worldwide — but booking is in development. The production inventory provider is on a test credential and Furlpay refuses to present sandbox offers as real availability, so no booking flow is open.",
   },
   {
     q: "Can developers use FurlPay today?",
-    a: "Yes. The x402 pay-per-call APIs, SDKs and developer docs are live now at furlpay.com/developers — no waitlist required.",
+    // Split, because the two halves have different answers. The SDKs, docs
+    // and the 402 challenge endpoint genuinely respond in production — try
+    // /api/x402/fx and a real payment challenge comes back. COMPLETING that
+    // payment does not work: /api/rails reports the x402 facilitator as not
+    // configured. "The APIs are live now" collapsed those into one claim and
+    // the half that is false is the half a developer would act on.
+    a: "The SDKs, developer docs and the x402 challenge endpoint are live at furlpay.com/developer — no waitlist. Settling an x402 payment is not yet enabled in production: the facilitator is pending configuration, so treat the pay-per-call flow as integrate-now, settle-soon.",
   },
 ];
 
@@ -100,8 +112,8 @@ export default function EarlyAccessPage() {
               The next chapter of finance is programmable.
             </h1>
             <p className="mt-5 max-w-lg text-[16px] leading-relaxed text-textSecondary">
-              Get early access to FurlPay — the on-chain financial operating system for
-              stablecoin payments, global travel, cards, and AI agent commerce powered by x402.
+              The developer platform, passkey wallet and x402 challenge endpoint are live now.
+              Cards, travel booking and end-to-end agent settlement open to early members first.
             </p>
             <div className="mt-8 max-w-lg">
               <EarlyAccessSignup />
@@ -186,9 +198,9 @@ export default function EarlyAccessPage() {
           <h2 className="text-[22px] font-bold tracking-tight">Built in the open</h2>
           <div className="mt-4 grid gap-6 text-[14px] leading-relaxed text-textSecondary sm:grid-cols-3">
             <p>
-              <span className="font-semibold text-white">Live today.</span> The x402 pay-per-call
-              APIs, travel booking, multi-chain wallet and developer platform run in production at
-              furlpay.com.
+              <span className="font-semibold text-white">Live today.</span> The passkey wallet, the
+              developer platform, live hotel discovery and a real x402 challenge endpoint run in
+              production at furlpay.com. Travel booking and x402 settlement are in development.
             </p>
             <p>
               <span className="font-semibold text-white">Open source.</span> SDKs, the browser

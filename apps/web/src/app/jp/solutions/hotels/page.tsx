@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 export default function JpHotelsPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Japan · Hotels & ryokans"
       title="Crypto payments for Japanese hotels — 0.5%, no chargebacks."
       subtitle="Japan's 40M+ inbound visitors bring high-value, cross-border bookings — exactly where card and FX costs bite hardest, and where premium ryokans and city hotels charge ¥50,000–¥200,000 a night. Let guests pay in dollar-stable USDC on Arbitrum, settle for a flat 0.5%, and remove FX and chargebacks — via an API that runs beside your PMS."

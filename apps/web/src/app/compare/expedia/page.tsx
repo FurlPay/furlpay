@@ -4,20 +4,20 @@ import ComparePage from "@/components/marketing/ComparePage";
 export const metadata: Metadata = {
   title: "Furlpay vs Expedia — Book Travel with USDC (2026)",
   description:
-    "Furlpay vs Expedia: Expedia bills in fiat, Furlpay lets you book stays and flights and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking, and a creator program paying up to 10% weekly.",
+    "Furlpay vs Expedia: Expedia bills in fiat. Furlpay is building USDC booking on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking and a creator program paying up to 10% weekly — all in development; live hotel discovery is available today.",
   alternates: { canonical: "/compare/expedia" },
   openGraph: {
     type: "website",
     url: "https://furlpay.com/compare/expedia",
     siteName: "Furlpay",
     title: "Furlpay vs Expedia — Book Travel with USDC (2026)",
-    description: "Furlpay vs Expedia: Expedia bills in fiat, Furlpay lets you book stays and flights and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking, and a creator program paying up to 10% weekly.",
+    description: "Furlpay vs Expedia: Expedia bills in fiat. Furlpay is building USDC booking on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking and a creator program paying up to 10% weekly — all in development; live hotel discovery is available today.",
     images: [{ url: "/og.png" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Furlpay vs Expedia — Book Travel with USDC (2026)",
-    description: "Furlpay vs Expedia: Expedia bills in fiat, Furlpay lets you book stays and flights and pay in USDC on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking, and a creator program paying up to 10% weekly.",
+    description: "Furlpay vs Expedia: Expedia bills in fiat. Furlpay is building USDC booking on Arbitrum with on-chain receipts, a single-use Visa card for any merchant, agentic x402 booking and a creator program paying up to 10% weekly — all in development; live hotel discovery is available today.",
     images: ["/og.png"],
   },
 };
@@ -29,6 +29,15 @@ export default function Page() {
       slug="expedia"
       title="Furlpay vs Expedia"
       subtitle="Expedia is a fiat OTA with deep inventory and a rewards program. Furlpay lets you book stays and flights and pay in USDC on Arbitrum — with on-chain receipts, a single-use Visa card for card-only merchants, AI-agent booking over x402, and a creator program paying up to 10% in USDC weekly."
+      developmentNotice={
+        <>
+          <strong className="text-amber-300">Travel booking on Furlpay is in development.</strong>{" "}
+          Hotel discovery is live — the map shows real properties worldwide — but you cannot book or
+          pay for a stay through Furlpay today, and the card program and creator payouts have not
+          launched. The rows below marked &quot;in development&quot; describe what we are building,
+          against a competitor that books today.
+        </>
+      }
       atomicAnswer={
         <>
           <strong className="text-white">Expedia</strong> is a fiat online travel agency and does not settle
@@ -39,13 +48,13 @@ export default function Page() {
         </>
       }
       rows={[
-        { feature: "Pay in stablecoins", furlpay: "USDC on Arbitrum", other: "Fiat only (card/bank)", furlpayWins: true },
-        { feature: "On-chain receipt", furlpay: "Yes (Arbiscan)", other: "No", furlpayWins: true },
-        { feature: "Inventory", furlpay: "stays + flights", other: "Hotels, flights, packages, cars", furlpayWins: false },
-        { feature: "Pay any card-only merchant", furlpay: "Single-use Visa VCN", other: "Card / bank", furlpayWins: true },
-        { feature: "AI-agent booking", furlpay: "Yes (x402 / MCP)", other: "No", furlpayWins: true },
-        { feature: "Creator / affiliate", furlpay: "Up to 10% USDC, weekly", other: "Affiliate in fiat, delayed", furlpayWins: true },
-        { feature: "Beyond travel", furlpay: "Payments + investing", other: "Travel only", furlpayWins: true },
+        { feature: "Pay in stablecoins", furlpay: "USDC on Arbitrum — in development", other: "Fiat only (card/bank)", furlpayWins: false },
+        { feature: "On-chain receipt", furlpay: "Arbiscan receipt — in development", other: "No", furlpayWins: false },
+        { feature: "Inventory", furlpay: "Live hotel discovery map; bookable inventory in development", other: "Hotels, flights, packages, cars", furlpayWins: false },
+        { feature: "Pay any card-only merchant", furlpay: "Single-use Visa VCN — in development", other: "Card / bank", furlpayWins: false },
+        { feature: "AI-agent booking", furlpay: "MCP live; x402 settlement in development", other: "No", furlpayWins: false },
+        { feature: "Creator / affiliate", furlpay: "Up to 10% USDC weekly — in development", other: "Affiliate in fiat, delayed", furlpayWins: false },
+        { feature: "Beyond travel", furlpay: "Payment APIs and a passkey wallet; investing in development", other: "Travel only", furlpayWins: true },
       ]}
       analysis={[
         { title: "Stablecoins across all inventory", body: "Expedia bills in fiat. Furlpay settles in USDC, and for anything outside crypto-native inventory it issues a single-use, MCC-locked Visa virtual card funded by your USDC — so your stablecoins reach hotels, airlines and packages that have no crypto integration." },

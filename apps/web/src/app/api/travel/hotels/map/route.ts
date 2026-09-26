@@ -56,7 +56,26 @@ export const dynamic = "force-dynamic";
 // map costs no supplier requests.
 
 export type MapPointKind = "property" | "cluster";
-export type MapPointSource = "curated" | "osm" | "google";
+/**
+ * Where a pin's facts came from.
+ *
+ * `registry` is the universal_hotels table (migration 0015), delivered as
+ * vector tiles rather than through this route — so it never appears in the
+ * balancing below, and its quota is zero by construction. It exists in the
+ * union because the hover card shows provenance, and a registry pin must not
+ * be labelled as OSM or Google when it may have come from Overture.
+ */
+/**
+ * `google-live` is discovered per-viewport at request time through
+ * /api/places/discover, as opposed to `google`, which is the harvested
+ * snapshot in data/google-places.json.
+ *
+ * They are separate values on purpose. When live discovery is unavailable the
+ * map still shows snapshot points, and nothing may relabel those as live —
+ * a freshness claim the data does not support is worse than an outage the UI
+ * admits to. The hover card reads this field to say where a pin came from.
+ */
+export type MapPointSource = "curated" | "osm" | "google" | "google-live" | "registry";
 
 export interface MapPoint {
   id: string;
@@ -497,7 +516,11 @@ export async function GET(req: NextRequest) {
   // Rank before capping, so what survives a cap is the most significant rather
   // than whatever the sources happened to list first. Curated properties outrank
   // OSM dots: they carry a verified position and the metadata the map is for.
-  const RANK: Record<MapPointSource, number> = { curated: 0, google: 1, osm: 2 };
+  // `google-live` ranks last and is never produced by this route: live points
+  // are merged in the browser after this response paints, by
+  // lib/places/liveAugment.ts. It appears in these two maps only because the
+  // union demands exhaustiveness.
+  const RANK: Record<MapPointSource, number> = { curated: 0, google: 1, osm: 2, registry: 3, "google-live": 4 };
   const all = [...curatedPoints, ...googlePoints, ...osmPoints].sort((a, b) => {
     if (a.source !== b.source) return RANK[a.source] - RANK[b.source];
     // Within a source, the most significant first, so a cap keeps the
@@ -517,11 +540,20 @@ export async function GET(req: NextRequest) {
   // Curated is uncapped because it is never large — 507 worldwide, and a
   // viewport holds a handful — and it is the layer FurlPay actually curates.
   const OSM_QUOTA = 60;
-  const taken = { curated: 0, google: 0, osm: 0 } as Record<MapPointSource, number>;
+  const taken = { curated: 0, google: 0, osm: 0, registry: 0, "google-live": 0 } as Record<MapPointSource, number>;
   const quota: Record<MapPointSource, number> = {
     curated: Number.POSITIVE_INFINITY,
     google: GOOGLE_QUOTA,
     osm: OSM_QUOTA,
+    // Zero, and not an oversight: registry pins reach the client as vector
+    // tiles from /api/travel/hotels/tiles, never through this route. A
+    // non-zero quota here would silently create a second delivery path for
+    // the same data and draw every registry hotel twice.
+    registry: 0,
+    // Zero for the same reason: live points are discovered by the browser and
+    // merged client-side, so this route must never emit one. A non-zero quota
+    // would duplicate every live result the moment it also appeared here.
+    "google-live": 0,
   };
 
   const points: MapPoint[] = [];

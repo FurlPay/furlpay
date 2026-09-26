@@ -50,6 +50,7 @@ export const CLIENT_FLAGS = [
   "prediction_markets",
   "qr_from_gallery",
   "wallet_provisioning",
+  "self_custody_send",
 ] as const;
 
 export type ClientFlag = (typeof CLIENT_FLAGS)[number];
@@ -234,6 +235,23 @@ export const CLIENT_FLAG_SPECS: Record<ClientFlag, ClientFlagSpec> = {
     // The provisioning handshake is issuer-signed. Without an issuer there is
     // nothing to hand the wallet, so the button would always dead-end.
     requiresServerEnv: ["FURLPAY_CARD_ISSUER", "FURLPAY_CARD_ISSUER_API_KEY"],
+  },
+  self_custody_send: {
+    description:
+      "Send tab spends from the linked device wallet via a device-signed EIP-3009 authorization, instead of the demo ledger rail.",
+    // Defaults OFF, and this one must stay off until a relayer is funded. With
+    // it on and no relayer the user signs a real authorization that then 503s
+    // — harmless (nothing is broadcast) but it teaches people that signing
+    // does nothing, which is exactly the wrong reflex to build in a wallet.
+    defaultValue: false,
+    environments: ["development", "staging", "production"],
+    rollout: 100,
+    killSwitch: "FURLPAY_KILL_SELF_CUSTODY_SEND",
+    // The fee-payer is what makes the signed authorization land on-chain.
+    // FURLPAY_SELF_CUSTODY_STAGE must also be >= 4; the stage ladder is a
+    // rollout order, this list is a configuration requirement, and the ops
+    // console needs both to explain an "off" correctly.
+    requiresServerEnv: ["FURLPAY_KMS_PROVIDER", "FACILITATOR_EVM_ADDRESS"],
   },
 };
 

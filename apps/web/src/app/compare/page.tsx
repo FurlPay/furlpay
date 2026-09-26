@@ -31,7 +31,7 @@ const GROUPS: { label: string; items: { slug: string; name: string; blurb: strin
       { slug: "stripe", name: "Stripe", blurb: "Accept USDC at 0.5% with on-chain settlement and no chargebacks." },
       { slug: "coinbase-commerce", name: "Coinbase Commerce", blurb: "Lower fees, agentic x402 APIs, and payments plus travel in one platform." },
       { slug: "bitpay", name: "BitPay", blurb: "Stablecoin-native settlement without invoice expiry friction." },
-      { slug: "redotpay", name: "RedotPay", blurb: "Open-source, AI-native, on-device mobile keys and fractional investing." },
+      { slug: "redotpay", name: "RedotPay", blurb: "Open source, AI-native, on-device mobile keys — with investing still in development." },
       { slug: "gnosis-pay", name: "Gnosis Pay", blurb: "Same self-custody, multi-chain liquidity plus travel escrows and AI payments." },
     ],
   },

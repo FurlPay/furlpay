@@ -9,8 +9,11 @@ const URL = `${SITE}/products/x402`;
 
 export const metadata: Metadata = {
   title: "x402 Payments for AI Agents — Pay-Per-Request over HTTP",
+  // "Verifies and settles" was one verb too many. The 402 challenge and the
+  // verify step serve in production; settlement does not — /api/rails reports
+  // the x402 rail NOT_CONFIGURED for want of a production facilitator signer.
   description:
-    "Let AI agents discover, negotiate, and pay for HTTP resources with x402. Furlpay's facilitator verifies and settles USDC micropayments on Arbitrum for the agentic economy.",
+    "Let AI agents discover and negotiate payment for HTTP resources with x402 on Furlpay. The 402 challenge endpoint is live; USDC settlement on Arbitrum is in development.",
   alternates: { canonical: "/products/x402" },
   openGraph: { type: "website", url: URL, title: "x402 Payments for AI Agents" },
 };
@@ -18,7 +21,7 @@ export const metadata: Metadata = {
 const FEATURES = [
   { title: "HTTP 402, revived", body: "x402 uses the long-reserved 402 Payment Required status so any API can quote a price and get paid inline." },
   { title: "Agent-native", body: "An agent hits a resource, receives a price, pays in USDC, and retries — no API keys or human checkout in the loop." },
-  { title: "Facilitator API", body: "Furlpay's facilitator verifies and settles payments so resource servers don't touch chain logic themselves." },
+  { title: "Facilitator API", body: "A facilitator that verifies payment payloads so resource servers never touch chain logic. Settling them on-chain is in development — production signing is not yet configured." },
   { title: "Micropayments", body: "Sub-cent Arbitrum gas makes per-request pricing viable — charge fractions of a cent per call." },
   { title: "MCP-ready", body: "Pairs with our MCP server so tools exposed to models can be metered and paid for automatically." },
   { title: "Open-source", body: "The facilitator and middleware are MIT-licensed — self-host or use the hosted endpoint." },
@@ -31,7 +34,7 @@ const FAQ = [
   },
   {
     q: "How do AI agents pay with x402?",
-    a: "An agent requests a resource, receives a 402 response with payment details, submits a signed USDC payment, and retries the request. Furlpay's facilitator verifies and settles the payment on Arbitrum, so the resource server gets paid without handling chain logic.",
+    a: "An agent requests a resource, receives a 402 response with payment details, submits a signed USDC payment, and retries the request. On Furlpay the challenge and verification steps run in production today — you can call /api/x402/fx and get a real 402 back. The final settlement step on Arbitrum is in development: the production facilitator signer is not configured, so an agent cannot yet complete a payment through us.",
   },
   {
     q: "Why USDC on Arbitrum for agent payments?",
@@ -67,7 +70,7 @@ export default function X402Page() {
         <Hero
           eyebrow="x402"
           title="Payments for AI agents, over plain HTTP."
-          subtitle="x402 revives the HTTP 402 status so any API can quote a price and get paid in USDC. Furlpay's facilitator verifies and settles on Arbitrum — built for the agentic economy."
+          subtitle="x402 revives the HTTP 402 status so any API can quote a price in USDC. Furlpay serves real 402 challenges and verifies payment payloads today; on-chain settlement is in development."
           primary={{ href: "/docs/payments/agentic-x402", label: "Read the docs" }}
           secondary={{ href: "/solutions/ai-agents", label: "For AI builders" }}
         />
@@ -75,8 +78,17 @@ export default function X402Page() {
         <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
           <strong className="text-white">x402</strong> lets an AI agent request a resource, receive a{" "}
           <strong className="text-white">402 Payment Required</strong> response, pay in USDC, and
-          retry — no API keys, no human checkout. Furlpay&apos;s facilitator handles verification and
-          settlement on Arbitrum.
+          retry — no API keys, no human checkout.
+        </p>
+        <p className="mt-4 max-w-2xl rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-5 text-[15px] leading-relaxed text-textSecondary">
+          <strong className="text-amber-300">Where this stands today.</strong> The challenge and
+          verification halves are live — a GET to{" "}
+          <code className="font-mono text-[13px] text-white">/api/x402/fx</code> returns a real 402
+          with an EIP-3009 <code className="font-mono text-[13px] text-white">accepts</code> block
+          you can integrate against right now. Settlement is in development: Furlpay&apos;s
+          production facilitator signer is not configured, so{" "}
+          <a href="/api/rails" className="text-neon hover:underline">/api/rails</a> reports this rail
+          as not configured and an agent cannot complete a payment through us yet.
         </p>
 
         <Section title="Infrastructure for agentic commerce">
@@ -87,7 +99,7 @@ export default function X402Page() {
 
         <CtaBand
           title="Meter your API for agents"
-          subtitle="Open-source middleware and a hosted facilitator."
+          subtitle="Open-source middleware and a facilitator you can self-host today."
           primary={{ href: "/docs/payments/agentic-x402", label: "x402 docs" }}
           secondary={{ href: "/developer/agents", label: "Agent tools" }}
         />

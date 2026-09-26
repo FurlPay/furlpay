@@ -30,6 +30,7 @@ export const metadata: Metadata = {
 export default function HotelsPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Solutions · Hotels"
       title="Accept USDC at your hotel — 0.5% fees, no chargebacks."
       subtitle="International guests pay in dollar-stable USDC on Arbitrum. You settle in about a second for a flat 0.5%, skip FX conversion on foreign cards, and eliminate no-show chargebacks — via an API that runs alongside your existing PMS."

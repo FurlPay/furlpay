@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 export default function AeHotelsPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="UAE · Hotels"
       title="Crypto payments for Dubai hotels — 0.5%, no chargebacks."
       subtitle="Dubai hotels have the highest international-guest share and average room rates in the world — exactly where card and FX costs bite. Let guests pay in dollar-stable USDC on Arbitrum, settle for a flat 0.5%, and remove FX and chargebacks, via an API beside your PMS."

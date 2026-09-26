@@ -10,8 +10,12 @@ const URL = `${SITE}/products/payments`;
 
 export const metadata: Metadata = {
   title: "Crypto Payment Gateway — Accept USDC on Arbitrum (0.5%)",
+  // The fee API, the quote and the EIP-3009 authorization flow are live and
+  // documented. What is NOT live is Furlpay broadcasting settlement on a
+  // merchant's behalf — no production signer or Arbitrum RPC is configured —
+  // so the description stops at what a merchant can integrate today.
   description:
-    "Furlpay is a crypto payment gateway for accepting USDC stablecoin payments on Arbitrum at 0.5% per transaction. Sub-second settlement, a live fee API, and passkey-secured wallets.",
+    "Furlpay is a crypto payment gateway for USDC on Arbitrum at 0.5% per transaction, with a live fee API, passkey-secured wallets and built-in sanctions screening. Merchant settlement is in development.",
   alternates: {
     canonical: "/products/payments",
     languages: { "en-US": "/products/payments", "en-GB": "/uk/products/payments", "en-AE": "/ae/products/payments", "en-JP": "/jp/products/payments", "x-default": "/products/payments" },
@@ -39,11 +43,11 @@ const FAQ = [
   },
   {
     q: "How do I integrate it?",
-    a: "Create a payment via the REST API or SDK, hand the payer an EIP-712 authorization to sign, and Furlpay settles USDC on Arbitrum and returns a signed receipt. Most integrations take an afternoon — see the quickstart.",
+    a: "Create a payment via the REST API or SDK and hand the payer an EIP-712 authorization to sign — that much works today and most integrations take an afternoon. Furlpay settling the authorization on Arbitrum and returning a signed receipt is in development; see the quickstart for the request shape, which is stable.",
   },
   {
     q: "How fast do I get paid?",
-    a: "Immediately. Payments finalize on-chain in about a second and the USDC is in your account with no multi-day settlement hold or rolling reserve.",
+    a: "By design, immediately — an Arbitrum payment finalizes in about a second with no multi-day settlement hold or rolling reserve, unlike card processing. Furlpay is not settling live merchant volume yet; merchant settlement is in development pending production signer configuration.",
   },
 ];
 
@@ -73,17 +77,25 @@ export default function PaymentsPage() {
         <Hero
           eyebrow="Payments"
           title="The crypto payment gateway that costs 0.5%."
-          subtitle="Accept USDC on Arbitrum with sub-second settlement, a live fee API, and built-in sanctions screening. No interchange, no rolling reserve, no multi-day hold."
+          subtitle="A live fee API, EIP-3009 authorizations and built-in sanctions screening for USDC on Arbitrum. Integrate today; merchant settlement is in development."
           secondary={{ href: "/docs/quickstart", label: "Read the quickstart" }}
         />
 
         {/* Atomic answer for AI Overviews. */}
         <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
-          Furlpay processes USDC payments on Arbitrum One (Chain ID 42161) for a flat{" "}
-          <strong className="text-white">0.5%</strong> per transaction with sub-second settlement —
-          about <strong className="text-white">85% cheaper</strong> than the 3.5% average card
-          interchange. A merchant doing $1M a year saves roughly{" "}
+          Furlpay prices USDC payments on Arbitrum One (Chain ID 42161) at a flat{" "}
+          <strong className="text-white">0.5%</strong> per transaction — about{" "}
+          <strong className="text-white">85% cheaper</strong> than the 3.5% average card
+          interchange. A merchant doing $1M a year would save roughly{" "}
           <strong className="text-neon">$30,000</strong>.
+        </p>
+        <p className="mt-4 max-w-2xl rounded-xl border border-amber-400/25 bg-amber-400/[0.05] p-5 text-[15px] leading-relaxed text-textSecondary">
+          <strong className="text-amber-300">Where this stands today.</strong> The fee API, the
+          quote, the EIP-3009 authorization and the SDKs are live — you can integrate and test the
+          full request shape now. Furlpay broadcasting settlement on your behalf is in development:
+          the production signer and RPC endpoint are not configured, so{" "}
+          <a href="/api/rails" className="text-neon hover:underline">/api/rails</a> reports these
+          rails as not configured. We are not taking live merchant volume yet.
         </p>
 
         <Section title="Why merchants switch">
@@ -97,7 +109,7 @@ export default function PaymentsPage() {
         <FaqSection items={FAQ} />
 
         <CtaBand
-          title="Accept your first USDC payment today"
+          title="Build your integration today"
           subtitle="Free sandbox, open-source SDKs, and a 5-minute quickstart."
           secondary={{ href: "/docs/quickstart", label: "Quickstart" }}
         />

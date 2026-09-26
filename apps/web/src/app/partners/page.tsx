@@ -88,7 +88,7 @@ const PARTNERS: Partner[] = [
     slug: "marqeta",
     role: "Card issuance",
     description:
-      "Modern card issuing platform. Powers Furlpay's virtual Visa cards with real-time authorization, cashback, and spend controls.",
+      "Modern card issuing platform, selected to power Furlpay's virtual Visa cards with real-time authorization, cashback and spend controls. In development — no card program has launched.",
     category: "Financial Services",
   },
   {

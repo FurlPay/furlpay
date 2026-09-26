@@ -5,7 +5,7 @@ import LandingChrome from "@/components/landing/LandingChrome";
 export const metadata: Metadata = {
   title: "Furlpay vs RedotPay — Feature Comparison",
   description:
-    "How does Furlpay compare to RedotPay? Open-source, AI-native, on-device mobile keys, fractional investing, multi-currency banking, x402 agentic payments — see the full breakdown.",
+    "How does Furlpay compare to RedotPay? Open source, AI-native, on-device mobile keys and a live x402 endpoint — with investing, banking and cards still in development. See the full breakdown.",
   alternates: { canonical: "/compare/redotpay" },
   openGraph: {
     type: "website",
@@ -23,17 +23,23 @@ export const metadata: Metadata = {
   },
 };
 
+// A comparison table is the sharpest claim surface on the site: a bare "Yes"
+// in our column against a "No" in theirs is read as a shipped feature, and
+// unlike prose it gives a reader no room to notice a hedge. Rows for
+// capabilities that are not in production now say "In development" in our own
+// column rather than "Yes" — a competitor's genuine shipped feature should not
+// lose a row to our roadmap.
 const ROWS: { feature: string; furlpay: string; redotpay: string; furlpayWins: boolean }[] = [
-  { feature: "Platform", furlpay: "Web, Desktop, Extension", redotpay: "Mobile-only", furlpayWins: true },
+  { feature: "Platform", furlpay: "Web + Extension (mobile and desktop in development)", redotpay: "Mobile-only", furlpayWins: false },
   { feature: "Source Code", furlpay: "Open (MIT)", redotpay: "Closed", furlpayWins: true },
   { feature: "AI Integration", furlpay: "Native (MCP, x402)", redotpay: "None", furlpayWins: true },
   { feature: "Custody Model", furlpay: "On-device key (mobile); custodial enclave (web)", redotpay: "Centralized", furlpayWins: false },
-  { feature: "Fractional Stocks", furlpay: "Yes (Alpaca)", redotpay: "No", furlpayWins: true },
-  { feature: "Multi-currency Banking", furlpay: "40+ currencies (Wise)", redotpay: "No", furlpayWins: true },
+  { feature: "Fractional Stocks", furlpay: "In development", redotpay: "No", furlpayWins: false },
+  { feature: "Multi-currency Banking", furlpay: "In development", redotpay: "No", furlpayWins: false },
   { feature: "Developer SDK", furlpay: "Yes (TypeScript)", redotpay: "No", furlpayWins: true },
-  { feature: "x402 Agentic Payments", furlpay: "Yes", redotpay: "No", furlpayWins: true },
+  { feature: "x402 Agentic Payments", furlpay: "402 challenge live; settlement in development", redotpay: "No", furlpayWins: true },
   { feature: "MiCA Compliance", furlpay: "Yes (EURC auto-swap)", redotpay: "No", furlpayWins: true },
-  { feature: "Stablecoin Card", furlpay: "Virtual Visa", redotpay: "Virtual + Physical", furlpayWins: false },
+  { feature: "Stablecoin Card", furlpay: "In development", redotpay: "Virtual + Physical", furlpayWins: false },
 ];
 
 export default function CompareRedotPayPage() {
@@ -48,9 +54,10 @@ export default function CompareRedotPayPage() {
           Furlpay vs RedotPay
         </h1>
         <p className="mt-5 max-w-2xl text-[17px] leading-relaxed text-textSecondary">
-          Both let you spend crypto. But Furlpay is open-source, AI-native, and ships with
-          fractional investing, multi-currency banking, a passkey wallet, and a full developer platform.
-          Here&apos;s the side-by-side.
+          Both aim at spending crypto, from different starting points. RedotPay ships a card
+          today; Furlpay ships an open-source developer platform, a passkey wallet and a real
+          x402 endpoint today, with the card, banking and investing still in development.
+          Here&apos;s the side-by-side, with our unfinished rows marked as such.
         </p>
 
         {/* Comparison table */}
@@ -101,10 +108,11 @@ export default function CompareRedotPayPage() {
           <div className="glass-card p-6">
             <h2 className="text-[18px] font-bold">More than a card</h2>
             <p className="mt-2 text-[14px] leading-relaxed text-textSecondary">
-              Beyond card spend, Furlpay offers fractional stock investing via Alpaca,
-              multi-currency local accounts via Wise, portfolio-backed credit lines, yield on idle
-              balances, and a Cmd+K command palette for power users. RedotPay focuses on card
-              issuance and basic crypto-to-fiat conversion.
+              Beyond card spend, Furlpay ships a Cmd+K command palette and an open developer
+              platform today, and has fractional stock investing via Alpaca, multi-currency local
+              accounts via Wise, portfolio-backed credit lines and yield on idle balances in
+              development — none of those four is available yet. RedotPay focuses on card issuance
+              and basic crypto-to-fiat conversion, which it does today.
             </p>
           </div>
         </div>

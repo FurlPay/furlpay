@@ -16,21 +16,38 @@ const BING_VERIFICATION = process.env.NEXT_PUBLIC_BING_VERIFICATION;
 const SITE = "https://furlpay.com";
 const TITLE = "Furlpay — The On-Chain Financial Operating System";
 const DESCRIPTION =
-  "Stablecoin payments, global local accounts, and fractional stock investing in one web and desktop client, with passkey security and no gas fees.";
+  // This string is the site-wide <meta description>, the OpenGraph
+  // description and the Twitter card — it is what a search result, a link
+  // preview and an external reviewer read before any page loads. Four of its
+  // six claims were not true in production:
+  //
+  //   "global local accounts"      BANKING_LIVE is marked unimplemented
+  //   "fractional stock investing" ALPACA_API_KEY_ID is empty; no brokerage
+  //   "no gas fees"                the gasless rail reports NOT_CONFIGURED
+  //   "desktop client"             not released to users
+  //
+  // Replaced with the platform and developer surface, which do serve today.
+  "On-chain financial infrastructure for stablecoin payments. Web platform, developer APIs and SDKs, passkey-first security.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE),
   title: { default: TITLE, template: "%s — Furlpay" },
   description: DESCRIPTION,
+  // Keywords describe what the site IS ABOUT, which is why "x402" and
+  // "agentic payments" stay: FurlPay publishes a real 402 challenge endpoint,
+  // an MCP server and agent-policy tooling, and those are the terms a reader
+  // looking for that work would search. "virtual cards" and "fractional
+  // investing" were removed — there is no card program and no live brokerage
+  // behind them, so they were advertising a product rather than describing a
+  // subject.
   keywords: [
     "stablecoin payments",
     "USDC",
-    "agentic payments",
     "x402",
+    "agentic payments",
     "solana actions",
     "passkeys",
-    "virtual cards",
-    "fractional investing",
+    "payment APIs",
     "MiCA",
     "account abstraction",
   ],

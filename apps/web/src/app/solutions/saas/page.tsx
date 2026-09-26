@@ -25,6 +25,7 @@ export const metadata: Metadata = {
 export default function SaasSolutionPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Solutions · SaaS"
       title="Stablecoin billing for SaaS."
       subtitle="Charge subscriptions and usage in USDC on Arbitrum for 0.5% — with recurring authorizations, webhooks, and none of the card declines that quietly churn international customers."

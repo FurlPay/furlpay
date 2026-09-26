@@ -17,6 +17,7 @@ export const metadata: Metadata = {
 export default function UkPaymentsPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="UK · Payments"
       title="A crypto payment gateway for UK business — 0.5%."
       subtitle="Let customers pay in dollar-stable USDC on Arbitrum and settle for a flat 0.5%. An alternative to UK card interchange, with sub-second settlement, no chargebacks, and no foreign-exchange cost on international customers."

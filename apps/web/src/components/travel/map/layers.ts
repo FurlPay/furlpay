@@ -49,6 +49,112 @@ export const LYR_PROPERTY_NAME = "hm-property-name";
 export const LYR_OSM = "hm-osm";
 export const LYR_LEADERS = "hm-leaders-line";
 
+// ---------------------------------------------------------------------------
+// Universal registry vector tiles (migration 0015 + /api/travel/hotels/tiles).
+//
+// A SECOND, OPTIONAL source that sits alongside the GeoJSON one above rather
+// than replacing it. The GeoJSON pipeline carries curated properties with
+// photographs, live prices and hover cards — everything the product is built
+// on. The vector tiles carry the long tail: every lodging in the registry,
+// drawn as plain pins at a density GeoJSON cannot reach.
+//
+// OFF BY DEFAULT, and that is not timidity. `universal_hotels` is empty until
+// someone runs scripts/ingest-hotel-seeds.mts against a real database, so
+// switching this on before ingest would replace a working map with an empty
+// one. It is enabled per-deployment once the registry has rows in it.
+// ---------------------------------------------------------------------------
+
+export const SRC_VECTOR = "hm-universal";
+/** The layer name inside the tile — must match ST_AsMVT(..., 'hotels', ...). */
+export const VECTOR_SOURCE_LAYER = "hotels";
+export const LYR_VECTOR = "hm-universal-point";
+export const LYR_VECTOR_NAME = "hm-universal-name";
+
+export const VECTOR_TILE_URL = "/api/travel/hotels/tiles/{z}/{x}/{y}";
+
+/**
+ * Source definition for the registry tiles.
+ *
+ * minzoom 6: below that a tile covers most of a continent, and 2,500 pins per
+ * tile would draw a grey smear that means nothing. maxzoom 14 with
+ * overzooming — MapLibre reuses z14 tiles past that instead of asking the
+ * server for tiles whose contents cannot differ, which keeps the cache hot.
+ */
+export function vectorSourceSpec() {
+  return {
+    type: "vector" as const,
+    tiles: [VECTOR_TILE_URL],
+    minzoom: 6,
+    maxzoom: 14,
+    attribution: "Lodging data © OpenStreetMap contributors, Overture Maps Foundation",
+  };
+}
+
+/**
+ * Layers for the registry tiles.
+ *
+ * Deliberately QUIETER than the curated markers: smaller radius, lower
+ * opacity, no photograph, no star. The curated set is the product and must
+ * stay visually dominant — if the long tail looked identical, a user could not
+ * tell a property FurlPay has verified and priced from one it merely knows
+ * exists.
+ */
+export function vectorLayerSpecs(): Array<Record<string, unknown>> {
+  return [
+    {
+      id: LYR_VECTOR,
+      type: "circle",
+      source: SRC_VECTOR,
+      "source-layer": VECTOR_SOURCE_LAYER,
+      minzoom: 6,
+      paint: {
+        // Grows with zoom rather than sitting at one size: at z6 these are
+        // texture, at z16 they are individual buildings.
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 6, 2, 11, 3.5, 16, 6],
+        // A property with a verified direct-settlement path is worth
+        // distinguishing, since that is the one FurlPay can actually book.
+        "circle-color": [
+          "case",
+          ["==", ["get", "x402_supported"], true],
+          "rgba(120, 220, 170, 0.92)",
+          "rgba(226, 219, 205, 0.70)",
+        ],
+        "circle-stroke-width": 1,
+        "circle-stroke-color": "rgba(0,0,0,0.35)",
+        // Fades in rather than popping: tiles arrive asynchronously and a hard
+        // appearance reads as flicker while panning.
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 6, 0.45, 10, 0.8],
+      },
+    },
+    {
+      id: LYR_VECTOR_NAME,
+      type: "symbol",
+      source: SRC_VECTOR,
+      "source-layer": VECTOR_SOURCE_LAYER,
+      // Names only once the view is street-level. Earlier than this and
+      // MapLibre's collision detection drops most of them anyway, having spent
+      // the layout cost first.
+      minzoom: 14,
+      layout: {
+        "text-field": ["get", "name"],
+        "text-size": 10,
+        "text-offset": [0, 0.9],
+        "text-anchor": "top",
+        "text-max-width": 9,
+        // The curated labels win every collision — declared by drawing this
+        // layer beneath them and letting it yield.
+        "text-optional": true,
+        "text-allow-overlap": false,
+      },
+      paint: {
+        "text-color": "rgba(232, 226, 214, 0.85)",
+        "text-halo-color": "rgba(0,0,0,0.65)",
+        "text-halo-width": 1.1,
+      },
+    },
+  ];
+}
+
 /** Layers that answer a hover, topmost first. */
 export const INTERACTIVE_LAYERS = [
   LYR_CLUSTER,
@@ -504,9 +610,28 @@ export function layerSpecs(): LayerSpecification[] {
       filter: ["all", ["==", ["get", "kind"], "property"], ["!=", ["get", "thumb"], ""]],
       layout: {
         "icon-image": ["get", "thumb"],
-        // Grows on hover, matching what the circle layer does so the two
-        // treatments feel like one interaction.
-        "icon-size": ["case", ["boolean", ["feature-state", "hover"], false], 1.12, 1],
+        // CONSTANT, and it has to be.
+        //
+        // This read `["case", ["boolean", ["feature-state", "hover"], false],
+        // 1.12, 1]` to grow the photo on hover, matching the circle layer. That
+        // is invalid: MapLibre supports `feature-state` in PAINT properties
+        // only, and `icon-size` is a LAYOUT property.
+        //
+        // The failure was silent and total. `Style.addLayer` validates, fires an
+        // error event and returns WITHOUT adding — it does not throw — so the
+        // loop that adds the layers carried on and every later layer was added
+        // normally. The photo layer simply was never in the style: no photo
+        // markers drew, none answered a hover, and the only visible symptom was
+        // `queryRenderedFeatures` reporting "The layer 'hm-photo' does not
+        // exist" once per pointer move.
+        //
+        // There is no paint-property route back to the hover growth either: the
+        // symbol paint properties that accept feature-state cannot scale a
+        // BITMAP icon (`icon-color` applies to SDF icons only), and splitting
+        // into a normal and a hovered layer needs a filter on feature-state,
+        // which `filter` cannot read — the same limitation noted on LYR_PULSE.
+        // That halo is what carries the active-marker emphasis here.
+        "icon-size": 1,
         // A marker must stay on its building. Letting the collision detector
         // move or drop it would put the photograph on a different hotel.
         "icon-allow-overlap": true,

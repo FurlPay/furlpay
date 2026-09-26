@@ -29,6 +29,15 @@ export default function Page() {
       slug="airbnb"
       title="Furlpay vs Airbnb"
       subtitle="Airbnb bills in fiat and does not take crypto. Furlpay lets you fund a single-use, MCC-locked Visa virtual card with USDC — so you can pay for an Airbnb (or any card-only stay) with stablecoins, with an on-chain record of the spend."
+      developmentNotice={
+        <>
+          <strong className="text-amber-300">Travel booking on Furlpay is in development.</strong>{" "}
+          Hotel discovery is live — the map shows real properties worldwide — but you cannot book or
+          pay for a stay through Furlpay today, and the card program and creator payouts have not
+          launched. The rows below marked &quot;in development&quot; describe what we are building,
+          against a competitor that books today.
+        </>
+      }
       atomicAnswer={
         <>
           <strong className="text-white">Airbnb</strong> charges in fiat and does not accept cryptocurrency.
@@ -39,12 +48,12 @@ export default function Page() {
         </>
       }
       rows={[
-        { feature: "Pay with stablecoins", furlpay: "USDC via single-use Visa VCN", other: "Not supported", furlpayWins: true },
-        { feature: "Direct crypto acceptance", furlpay: "USDC-native for hotels/flights", other: "Fiat only", furlpayWins: true },
-        { feature: "On-chain record", furlpay: "Yes (Arbiscan)", other: "No", furlpayWins: true },
-        { feature: "Card controls", furlpay: "Single-use, MCC-locked, capped", other: "Standard card on file", furlpayWins: true },
-        { feature: "Stay inventory", furlpay: "hotels + short-stays", other: "Homes & apartments", furlpayWins: false },
-        { feature: "Creator / host earnings", furlpay: "Up to 10% USDC, weekly", other: "Host payouts in fiat", furlpayWins: true },
+        { feature: "Pay with stablecoins", furlpay: "USDC via single-use Visa VCN — in development", other: "Not supported", furlpayWins: false },
+        { feature: "Direct crypto acceptance", furlpay: "USDC-native for hotels/flights — in development", other: "Fiat only", furlpayWins: false },
+        { feature: "On-chain record", furlpay: "Arbiscan receipt — in development", other: "No", furlpayWins: false },
+        { feature: "Card controls", furlpay: "Single-use, MCC-locked, capped — in development", other: "Standard card on file", furlpayWins: false },
+        { feature: "Stay inventory", furlpay: "Live hotel discovery map; bookable inventory in development", other: "Homes & apartments", furlpayWins: false },
+        { feature: "Creator / host earnings", furlpay: "Up to 10% USDC weekly — in development", other: "Host payouts in fiat", furlpayWins: false },
       ]}
       analysis={[
         { title: "How to pay for Airbnb with USDC", body: "Airbnb has no crypto checkout. Furlpay bridges it: you fund a single-use Visa virtual card with USDC, locked to the lodging merchant category and capped at the booking amount. Airbnb charges the card in fiat like any other, and the card cannot be reused or over-charged." },

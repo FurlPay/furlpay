@@ -42,11 +42,11 @@ export default function Page() {
       }
       rows={[
         { feature: "Headline fee", furlpay: "0.5% flat", other: "2.9% + 30¢ (cards)", furlpayWins: true },
-        { feature: "Settlement speed", furlpay: "~1 second", other: "2–3 business days", furlpayWins: true },
+        { feature: "Settlement speed", furlpay: "~1 second on Arbitrum (merchant settlement in development)", other: "2–3 business days", furlpayWins: true },
         { feature: "Chargebacks", furlpay: "None (on-chain final)", other: "Yes + dispute fees", furlpayWins: true },
         { feature: "Payment method", furlpay: "USDC stablecoin", other: "Cards, wallets, ACH, more", furlpayWins: false },
         { feature: "Global reach", furlpay: "Borderless USDC", other: "Extensive fiat coverage", furlpayWins: false },
-        { feature: "AI / x402 payments", furlpay: "Yes", other: "No", furlpayWins: true },
+        { feature: "AI / x402 payments", furlpay: "402 challenge live; settlement in development", other: "No", furlpayWins: true },
         { feature: "Rolling reserve", furlpay: "None", other: "Sometimes", furlpayWins: true },
         { feature: "Open source", furlpay: "Yes (MIT)", other: "SDKs only", furlpayWins: true },
       ]}

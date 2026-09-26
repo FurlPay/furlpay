@@ -7,12 +7,17 @@ export const metadata: Metadata = {
   alternates: { canonical: "/press" },
 };
 
+// A press kit is the one page that gets copied verbatim, so an overclaim here
+// propagates into other people's articles and outlives the correction. Every
+// row below is either observable at furlpay.com today or explicitly labelled
+// as in development — no row describes a product a journalist could not try.
 const FACTS = [
-  ["What", "The open-source, AI-native financial operating system — stablecoin cards, global accounts, fractional investing, and agentic payments in one client."],
-  ["Wedge", "The first Solana-native x402 facilitator + MCP server — payments infrastructure for AI agents."],
+  ["What", "An open-source, on-chain financial platform for stablecoin payments: a web client, developer APIs and SDKs, an MCP server for AI agents, and an x402 payment-challenge endpoint."],
+  ["Wedge", "A Solana-native x402 facilitator and MCP server — payments infrastructure for AI agents. The 402 challenge serves today; settlement is in development pending production facilitator configuration."],
   ["Open source", "10 MIT-licensed repos at github.com/FurlPay (SDKs in 4 languages, CLI, Elements, Account Kit, MCP server, x402)."],
-  ["Custody", "Self-custodial on mobile (key held on device). Web signing is custodial via a policy-gated Turnkey enclave. Passkey auth throughout."],
-  ["Compliance", "MiCA / GENIUS routing, tiered KYC, and the FATF Travel Rule wired into the product."],
+  ["Custody", "Self-custodial on mobile (key held on device). Web signing is custodial via a policy-gated enclave. Passkey auth throughout."],
+  ["Compliance", "MiCA / GENIUS routing and tiered KYC are built in. FATF Travel Rule messaging is implemented and awaiting a provisioned VASP account."],
+  ["In development", "Card issuing, global local accounts, stock and ETF investing, travel booking, end-to-end x402 settlement, gasless transfers, and the mobile and desktop clients. None are available to the public yet."],
   ["Stage", "Pre-seed, solo founder, shipping in public. Live at furlpay.com."],
 ];
 
@@ -30,10 +35,11 @@ export default function PressPage() {
 
         <h2 className="mt-12 text-[22px] font-bold tracking-tighter">Boilerplate</h2>
         <p className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-5 text-[14px] leading-relaxed text-textMuted">
-          Furlpay is the open-source, AI-native financial operating system, fusing stablecoin payments,
-          global local accounts, and fractional stock investing into one web, desktop, and browser-extension
-          client — with the first Solana-native x402 facilitator and an MCP server underneath, so AI agents
-          can transact safely. Phishing-resistant, self-custodial on mobile, and compliance-aware.
+          Furlpay is an open-source, on-chain financial platform for stablecoin payments. It gives
+          developers typed SDKs and payment APIs, gives AI agents an MCP server and a Solana-native
+          x402 payment-challenge endpoint, and gives people a passkey-secured web client — with
+          phishing-resistant authentication and compliance-aware design throughout. Card issuing,
+          global local accounts, investing and end-to-end agent settlement are in development.
         </p>
 
         <h2 className="mt-12 text-[22px] font-bold tracking-tighter">Fast facts</h2>

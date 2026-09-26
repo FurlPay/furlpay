@@ -162,6 +162,18 @@ const PUBLIC_API_PREFIXES = [
   "/api/markets", // public market data — powers the research portal's pulse strip
   "/api/insights", // public research metadata
   "/api/travel", // FurlPay Travels — public search/deals/booking demo surface
+  // Viewport place discovery for the hotel map. `/hotels` is a public page
+  // prefix (see PUBLIC_PAGE_PREFIXES), and the destination card's nearby-dining
+  // section calls this — behind the cookie gate it answered "Unauthorized" to
+  // the anonymous visitor the public map exists for.
+  //
+  // This is a BILLED Google Places call, so the exposure is deliberate rather
+  // than incidental: the route rate-limits to 60/min per IP (tighter than the
+  // middleware baseline, per AGENTS.md rule 2), refuses a viewport wider than
+  // MAX_DISCOVERY_SPAN, and caps maxResults. The same billed vendor is already
+  // reachable anonymously on this page through /api/travel/hotels/preview and
+  // /photo, so this adds a call site rather than a new class of exposure.
+  "/api/places/discover",
   "/api/chain", // public chain registry — status, gas, contracts, USDC directory
   // FURL token reference data. Publishes only what is already public on Solana
   // (mint identity, supply, authorities, concentration) plus our own published

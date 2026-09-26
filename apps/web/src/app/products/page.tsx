@@ -3,65 +3,71 @@ import Link from "next/link";
 import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, CtaBand } from "@/components/marketing/blocks";
 import JsonLd from "@/components/JsonLd";
+import StatusPill from "@/components/marketing/StatusPill";
 import { breadcrumb } from "@/lib/seo/schema";
 
 export const metadata: Metadata = {
-  title: "Products — Payments, Travel, Investing & Agentic Payments",
+  title: "Products — Stablecoin Payments, Wallet & x402 for Agents",
   description:
-    "Explore Furlpay's products: USDC payments on Arbitrum at 0.5%, crypto travel booking, fractional investing, a passkey wallet, x402 agentic payments, and merchant acceptance.",
+    "Explore Furlpay's products: USDC payment APIs on Arbitrum, a passkey wallet, x402 for AI agents, and merchant tooling. Travel booking, investing and card issuing are in development.",
   alternates: { canonical: "/products" },
   openGraph: {
     type: "website",
     url: "https://furlpay.com/products",
     siteName: "Furlpay",
-    title: "Products — Payments, Travel, Investing & Agentic Payments",
-    description: "Explore Furlpay's products: USDC payments on Arbitrum at 0.5%, crypto travel booking, fractional investing, a passkey wallet, x402 agentic payments, and merchant acceptance.",
+    title: "Products — Stablecoin Payments, Wallet & x402 for Agents",
+    description: "Explore Furlpay's products: USDC payment APIs on Arbitrum, a passkey wallet, x402 for AI agents, and merchant tooling. Travel booking, investing and card issuing are in development.",
     images: [{ url: "/og.png" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Products — Payments, Travel, Investing & Agentic Payments",
-    description: "Explore Furlpay's products: USDC payments on Arbitrum at 0.5%, crypto travel booking, fractional investing, a passkey wallet, x402 agentic payments, and merchant acceptance.",
+    title: "Products — Stablecoin Payments, Wallet & x402 for Agents",
+    description: "Explore Furlpay's products: USDC payment APIs on Arbitrum, a passkey wallet, x402 for AI agents, and merchant tooling. Travel booking, investing and card issuing are in development.",
     images: ["/og.png"],
   },
 };
 
+// Each product carries the capability id that decides its badge, so this grid
+// cannot drift from lib/productionStatus.ts. Before the badges existed all six
+// cards looked identical, and a reader had no way to tell the wallet (usable
+// today) from investing (no live brokerage) — the cards were the same size, the
+// same colour, and written in the same present tense.
 const PRODUCTS = [
   {
     href: "/products/payments",
     name: "Payments",
-    tag: "0.5% fees",
-    body: "Accept and send USDC on Arbitrum with sub-second settlement and a live fee API.",
+    capability: "payment-apis",
+    body: "Quote fees and build non-custodial USDC transfers on Arbitrum that your own wallet signs.",
   },
   {
     href: "/products/merchant",
     name: "Merchant acceptance",
-    tag: "For business",
-    body: "Take stablecoin payments online with hosted checkout, receipts, and refunds.",
+    capability: "payment-apis",
+    body: "Hosted checkout, receipts and refunds over stablecoin rails, with a documented API.",
   },
   {
     href: "/products/travel",
     name: "Travel",
-    tag: "hotels",
-    body: "Book hotels and flights and pay in USDC, with on-chain receipts and rewards.",
+    capability: "travel-search",
+    body: "Search hotels on a live global map today. Booking and paying in USDC is in development.",
   },
   {
     href: "/products/investing",
     name: "Investing",
-    tag: "Stocks & ETFs",
-    body: "Hold fractional US stocks, ETFs, and crypto alongside your spending balance.",
+    capability: "trading",
+    body: "Live market data and charts today. Placing stock and ETF orders is in development.",
   },
   {
     href: "/products/wallet",
     name: "Wallet",
-    tag: "No seed phrase",
-    body: "A passkey-secured MPC wallet — phishing-resistant, with no seed phrase to lose.",
+    capability: "passkeys",
+    body: "A passkey-secured wallet — phishing-resistant, with no seed phrase to lose.",
   },
   {
     href: "/products/x402",
     name: "x402 for AI agents",
-    tag: "Agentic",
-    body: "Let AI agents discover, negotiate, and pay for HTTP resources over the x402 protocol.",
+    capability: "x402-challenge",
+    body: "Serve and answer HTTP 402 payment challenges. Settling a challenge is in development.",
   },
 ];
 
@@ -78,8 +84,8 @@ export default function ProductsPage() {
       <main className="mx-auto max-w-6xl px-6 pb-24 pt-14">
         <Hero
           eyebrow="Products"
-          title="One account for payments, travel, and investing."
-          subtitle="Furlpay fuses stablecoin payments, global accounts, travel booking, and fractional investing into a single client — settled on Arbitrum, secured by passkeys, and open to AI agents."
+          title="One platform for stablecoin payments."
+          subtitle="Stablecoin payment APIs on Arbitrum, a passkey-secured wallet, and an x402 endpoint AI agents can talk to — in one open platform. Each card below says whether it is live today or still in development."
           secondary={{ href: "/pricing", label: "See pricing" }}
         />
 
@@ -125,9 +131,7 @@ export default function ProductsPage() {
             <Link key={p.href} href={p.href} className="glass-card group p-6 transition-colors hover:border-neon/30">
               <div className="flex items-center justify-between">
                 <h2 className="text-[18px] font-bold">{p.name}</h2>
-                <span className="rounded-full border border-white/10 px-2.5 py-0.5 text-[11px] text-textMuted">
-                  {p.tag}
-                </span>
+                <StatusPill id={p.capability} />
               </div>
               <p className="mt-2 text-[14px] leading-relaxed text-textSecondary">{p.body}</p>
               <span className="mt-4 inline-block text-[13px] text-neon opacity-0 transition-opacity group-hover:opacity-100">

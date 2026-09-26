@@ -515,7 +515,13 @@ export function developerWelcomeEmail(input: { endpointName?: string }): Rendere
     html: shell(
       "Registration confirmed",
       p(
-        `${input.endpointName ? `Your endpoint "${input.endpointName}" is` : "You're"} registered on the Furlpay x402 network. Agent-native payments — quotes, settlement and receipts — are available immediately.`
+        // "settlement ... available immediately" was the strongest false
+        // claim in the product: it lands in a developer's inbox at the moment
+        // they are deciding what to build against. Quotes and the 402
+        // challenge do work today; settlement is pending facilitator
+        // configuration, and an email is the worst place to discover that
+        // after integrating.
+        `${input.endpointName ? `Your endpoint "${input.endpointName}" is` : "You're"} registered on the Furlpay x402 network. Quotes and payment challenges are available now. On-chain settlement is pending production facilitator configuration — you can integrate against the protocol today and start settling when it goes live.`
       ) +
         p(`Start with the SDKs and the payments API reference in the developer docs.`) +
         cta("https://furlpay.com/developers", "Open developer docs")

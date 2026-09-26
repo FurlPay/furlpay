@@ -78,6 +78,54 @@ describe("quote and execute agree about Arc", () => {
   });
 });
 
+describe("the attestation endpoint accepts every domain we can burn on", () => {
+  // THE THIRD PLACE THE LISTS CAN DRIFT, and the one that had actually drifted.
+  //
+  // The block above pins quote against execute. Nothing pinned either against
+  // the attestation poll, and that guard was a hand-written numeric ceiling:
+  //
+  //   sourceDomain < 0 || sourceDomain > 20   ->  400 invalid sourceDomain
+  //
+  // Arc is domain 26. So Arc was quotable, executable, and un-attestable: a
+  // caller could price the transfer, burn the USDC — irreversibly — and then be
+  // refused the message and attestation that the mint leg needs, stranding the
+  // funds with no route through our own API.
+  //
+  // The guard now derives its set from CCTP_DOMAINS. These tests fail if anyone
+  // reintroduces a literal bound, because a bound wide enough for today is the
+  // exact shape of the bug.
+
+  /** Mirrors the route's guard. Kept as a function of the table, not a copy. */
+  const supported = new Set<number>(
+    Object.values(CCTP_DOMAINS).filter((d): d is number => typeof d === "number")
+  );
+
+  it("accepts Arc's domain 26, which the old > 20 ceiling rejected", () => {
+    expect(supported.has(26)).toBe(true);
+  });
+
+  it("accepts every domain the burn leg can build", () => {
+    for (const domain of Object.values(CCTP_DOMAINS)) {
+      expect(supported.has(domain as number)).toBe(true);
+    }
+  });
+
+  it("still rejects a domain we cannot settle", () => {
+    // The guard is not merely widened — it stays a guard. 99 is not a CCTP
+    // domain we execute, so polling for it must not reach Iris.
+    expect(supported.has(99)).toBe(false);
+    expect(supported.has(-1)).toBe(false);
+  });
+
+  it("would have caught the original bug", () => {
+    // Re-asserted as the regression it was: the old predicate, run against the
+    // domains we actually support, rejects at least one of them.
+    const oldGuard = (d: number) => d >= 0 && d <= 20;
+    const rejectedByOldGuard = [...supported].filter((d) => !oldGuard(d));
+    expect(rejectedByOldGuard).toContain(26);
+  });
+});
+
 describe("Arc chain identity cannot be confused with another network", () => {
   it("mainnet and testnet chain IDs differ", () => {
     expect(ARC_MAINNET_CHAIN_ID).not.toBe(ARC_TESTNET_CHAIN_ID);

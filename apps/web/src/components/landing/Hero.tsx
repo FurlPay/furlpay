@@ -50,8 +50,15 @@ export default function Hero() {
               readable measure for body copy, and the step down in width is
               what makes the centre column read as composed. */}
           <p className="mt-6 max-w-xl text-[16px] leading-relaxed text-textSecondary sm:text-[18px]">
-            Move money, issue cards, open global accounts, accept stablecoins, and let AI agents
-            pay — all through one API.
+            {/* Present tense is a production claim, so this sentence lists only
+                what a user can do today. Card issuing, global accounts and
+                agent payments were previously in this list; all three are
+                gated in lib/flags.ts or report NOT_CONFIGURED on /api/rails,
+                and the rail-status widget further down this same page says so.
+                A headline that contradicts the status widget beneath it is the
+                first thing an external reviewer notices. */}
+            Accept stablecoins, move money, and build on production payment APIs — all through one
+            interface. Agent payments, card issuing and global accounts are in development.
           </p>
 
           {/* Two primary actions on one line, the tertiary link on its own

@@ -134,7 +134,7 @@ export default function MonorepoPage() {
           {
             name: "desktop",
             badge: "Tauri (Rust)",
-            desc: "A native desktop client that bundles the compiled web assets into a lightweight binary for Windows (.msi), macOS (.dmg), and Linux (.deb) with OS-keychain secure storage.",
+            desc: "A native desktop client that bundles the compiled web assets into a lightweight binary for Windows (.msi), macOS (.dmg), and Linux (.deb) with OS-keychain secure storage. In development — no signed release is distributed to users yet.",
           },
           {
             name: "extension",

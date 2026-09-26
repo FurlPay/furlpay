@@ -46,12 +46,17 @@ import type { ClusterMember, PropertyFamily } from "@/lib/hotels/curated";
 import { LUXURY_MAP_CATEGORIES, type LuxuryCategoryId } from "@/lib/hotels/luxuryTiers";
 import { luxuryMapStyle } from "@/lib/hotels/mapStyle";
 import HotelDetailPanel, { type DetailTarget } from "./HotelDetailPanel";
+import DestinationCard from "./map/DestinationCard";
 import HotelMapSearchHeader, { type Destination } from "./map/HotelMapSearchHeader";
 import { clearRecent, pushRecent, readRecent } from "@/lib/hotels/recentSearches";
 import { decideViewAction, type BBox } from "@/lib/hotels/viewport";
 import { useSavedIds } from "./map/SaveButton";
 import { ThumbnailRegistry, thumbId, thumbnailSource } from "@/lib/hotels/markerThumbnails";
 import HotelMapHoverCard, { type HoverTarget } from "./map/HotelMapHoverCard";
+// Live Google Places discovery, layered over the indexed sources. See
+// lib/places/liveAugment.ts for why it augments rather than replaces them.
+import { discoverLive, liveStatusLabel, type LiveStatus } from "@/lib/places/discoverClient";
+import { mergeLivePoints, toMapPoints } from "@/lib/places/liveAugment";
 import AccessibleMarkerList, { type ListEntry } from "./map/AccessibleMarkerList";
 import {
   buildFeatures,
@@ -63,6 +68,10 @@ import {
   SRC_LEADERS,
   SRC_POINTS,
   SRC_PULSE,
+  LYR_VECTOR,
+  SRC_VECTOR,
+  vectorLayerSpecs,
+  vectorSourceSpec,
   type BuiltFeatures,
 } from "./map/layers";
 import { CategoryIcon, CloseIcon, SearchIcon } from "./map/icons";
@@ -161,7 +170,43 @@ function viewFromUrl(): { center: [number, number]; zoom: number } {
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
 
-export default function HotelMap() {
+/**
+ * Narrow a hit-test to the layers actually present in the style right now.
+ *
+ * `queryRenderedFeatures({ layers })` treats an unknown layer id as a caller
+ * error and reports one per id — "The layer 'hm-photo' does not exist in the
+ * map's style and cannot be queried for features" — on every pointer move,
+ * which is how a single mismatch becomes a console full of noise.
+ *
+ * The set of drawn layers is genuinely dynamic, so the query list and the style
+ * can disagree without anyone doing anything wrong:
+ *   - `showRegistryTiles` decides whether LYR_VECTOR is ever added, and the
+ *     handler below reads that flag from a closure the effect does not re-run
+ *     when it changes;
+ *   - a map torn down and rebuilt (React Strict Mode double-invokes effects in
+ *     development) leaves the previous instance's handlers able to fire against
+ *     a style that no longer holds its layers.
+ *
+ * Asking only about layers that exist is also the more honest question: the
+ * hit-test wants what is under the cursor, and a layer that is not in the style
+ * is drawing nothing to be under it. Filtering changes no outcome — a missing
+ * layer contributed no features before either — it just stops the renderer
+ * being asked something that cannot be answered.
+ */
+function layersInStyle(m: MapLibreMap, ids: string[]): string[] {
+  return ids.filter((id) => Boolean(m.getLayer(id)));
+}
+
+/**
+ * `showRegistryTiles` overlays the universal lodging registry (migration 0015)
+ * as vector tiles beneath the curated markers.
+ *
+ * OFF BY DEFAULT because `universal_hotels` is empty until someone runs
+ * scripts/ingest-hotel-seeds.mts — turning it on before ingest would add an
+ * empty layer and a stream of 204s, which looks like a broken map rather than
+ * an unpopulated one. Enable per-deployment once the registry has rows.
+ */
+export default function HotelMap({ showRegistryTiles = false }: { showRegistryTiles?: boolean } = {}) {
   const container = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
   const inflight = useRef<AbortController | null>(null);
@@ -225,6 +270,8 @@ export default function HotelMap() {
   const [meta, setMeta] = useState<Omit<MapResponse, "points" | "clusters"> | null>(null);
   const [noWebgl, setNoWebgl] = useState(false);
   const [selected, setSelected] = useState<DetailTarget | null>(null);
+  /** The cluster whose destination card is currently open, or null. */
+  const [destinationCluster, setDestinationCluster] = useState<MapCluster | null>(null);
 
   // --- user location tracking -----------------------------------------------
   //
@@ -374,6 +421,11 @@ export default function HotelMap() {
   const [exactOnly, setExactOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Status of the LIVE layer only. The indexed sources have their own
+  // `error` state; conflating them would report a working map as broken
+  // whenever Places is down.
+  const [liveStatus, setLiveStatus] = useState<LiveStatus>("idle");
+
   // What "More filters" stands for: everything NOT already named by its own
   // button in the header. `minStars` is excluded because the Rating button
   // reports it directly — counting it here would show the same filter twice.
@@ -433,6 +485,13 @@ export default function HotelMap() {
     [cancelClose, light]
   );
 
+  /** Show the destination card for a cluster. The card carries its own CTA that
+   *  zooms into the region — the reader sees the overview FIRST. */
+  const showDestinationCard = useCallback((c: MapCluster) => {
+    setDestinationCluster(c);
+    setHover(null);
+  }, []);
+
   /** Zoom a cluster to exactly the properties it counted. */
   const expandCluster = useCallback((c: MapCluster) => {
     programmatic.current = true;
@@ -441,6 +500,7 @@ export default function HotelMap() {
       { padding: 120, maxZoom: 15, duration: FLY_MS, easing: easeInOutCubic }
     );
     setHover(null);
+    setDestinationCluster(null);
   }, []);
 
   const openDetail = useCallback((p: MapPoint | ClusterMember) => {
@@ -553,6 +613,57 @@ export default function HotelMap() {
         const { points: _points, clusters: _clusters, ...rest } = data;
         setMeta(rest);
         setError(null);
+
+        // --- live Google Places augmentation ---------------------------------
+        //
+        // Fired AFTER the indexed sources have already painted, and never
+        // awaited by them. The snapshot answers instantly and covers the
+        // world; live discovery covers whatever rectangle is actually on
+        // screen, including properties the harvest never visited.
+        //
+        // Deliberately non-blocking and failure-tolerant: when Places API is
+        // unavailable the map keeps exactly what it just drew, and the only
+        // visible change is a quiet notice. It shares `ac` so a fast pan
+        // cancels the live call along with the request that started it.
+        //
+        // "Confirmed positions only" SUPPRESSES this layer entirely.
+        //
+        // That filter is applied server-side by /api/travel/hotels/map, and
+        // live points are merged here, afterwards — so without this guard they
+        // would bypass it completely and the map would show unconfirmed pins
+        // while the box was ticked.
+        //
+        // Suppressing rather than filtering is the honest reading: `precision`
+        // is `exact` only when the curated resolver confirmed the building
+        // against Google under its own gates. A Text Search result has had no
+        // such check, so NO live point can honestly claim a confirmed
+        // position — filtering them would always remove all of them anyway,
+        // and skipping the request saves a billed call.
+        if (f.exactOnly) {
+          setLiveStatus("idle");
+          return;
+        }
+
+        void (async () => {
+          const live = await discoverLive(
+            { north, south, east, west },
+            f.textFilter.trim() || undefined,
+            ac.signal
+          );
+          if (ac.signal.aborted || inflight.current !== ac) return;
+
+          setLiveStatus(live.status);
+          if (!live.places.length) return;
+
+          const merged = mergeLivePoints(latest.current.points, toMapPoints(live.places));
+          if (!merged.added) return;
+
+          // Repaint through the SAME path the indexed load uses, so clusters,
+          // hover targets and the accessible list all recompute together
+          // rather than drifting out of step with the markers.
+          latest.current = { clusters: latest.current.clusters, points: merged.points };
+          paint(latest.current.clusters, merged.points);
+        })();
       } catch (e) {
         // Check the SIGNAL, not just the error name. Aborting during fetch()
         // raises AbortError, but aborting while res.json() is still reading the
@@ -621,6 +732,17 @@ export default function HotelMap() {
         // survive a pan.
         m.addSource(SRC_POINTS, { type: "geojson", data: EMPTY_FC });
         m.addSource(SRC_PULSE, { type: "geojson", data: EMPTY_FC });
+
+        // Registry tiles go in FIRST so every curated layer added below draws
+        // on top of them. Order here is z-order: the curated set is the
+        // product and must never be occluded by the long tail.
+        if (showRegistryTiles) {
+          m.addSource(SRC_VECTOR, vectorSourceSpec());
+          for (const spec of vectorLayerSpecs()) {
+            m.addLayer(spec as Parameters<typeof m.addLayer>[0]);
+          }
+        }
+
         for (const spec of layerSpecs()) m.addLayer(spec);
 
         // --- user location layers -------------------------------------------
@@ -746,9 +868,48 @@ export default function HotelMap() {
         // what sits under the pointer, instead of 400 elements each waiting for
         // an event that will only ever reach one of them.
         m.on("mousemove", (ev) => {
-          const hit = m.queryRenderedFeatures(ev.point, { layers: INTERACTIVE_LAYERS })[0] as
+          // Curated layers are queried FIRST and registry pins only as a
+          // fallback, so a registry pin sitting under a curated one can never
+          // steal its hover. The curated set is the product.
+          const layers = layersInStyle(
+            m,
+            showRegistryTiles ? [...INTERACTIVE_LAYERS, LYR_VECTOR] : INTERACTIVE_LAYERS
+          );
+          if (!layers.length) return;
+          const hit = m.queryRenderedFeatures(ev.point, { layers })[0] as
             | MapGeoJSONFeature
             | undefined;
+
+          // A vector-tile feature carries its facts in `properties` rather than
+          // in `index`, which only holds records built from the GeoJSON route.
+          // Registering it on demand means openFor below works unchanged for
+          // both kinds of pin.
+          if (hit && hit.layer?.id === LYR_VECTOR) {
+            const props = hit.properties as Record<string, unknown>;
+            const rid = String(props.id ?? "");
+            if (rid && !index.current.has(rid)) {
+              const geom = hit.geometry as GeoJSON.Point;
+              const [lng, lat] = geom.coordinates as [number, number];
+              index.current.set(rid, {
+                kind: "property",
+                lngLat: [lng, lat],
+                point: {
+                  id: rid,
+                  kind: "property",
+                  source: "registry",
+                  latitude: lat,
+                  longitude: lng,
+                  name: String(props.name ?? "Unnamed property"),
+                  city: "",
+                  country: "",
+                  // `stars` absent is NOT zero — a property nobody has
+                  // classified must not render as a zero-star hotel.
+                  stars: typeof props.stars === "number" ? props.stars : undefined,
+                  hotelType: String(props.property_type ?? "hotel"),
+                },
+              } as never);
+            }
+          }
 
           // Writing style.cursor is a DOM write; only do it on a change.
           const wanted = hit ? "pointer" : "";
@@ -779,7 +940,11 @@ export default function HotelMap() {
         });
 
         m.on("click", (ev) => {
-          const hit = m.queryRenderedFeatures(ev.point, { layers: INTERACTIVE_LAYERS })[0] as
+          // Same guard as the mousemove hit-test above: a click can land during
+          // the same window in which the style does not hold every layer.
+          const clickLayers = layersInStyle(m, INTERACTIVE_LAYERS);
+          if (!clickLayers.length) return;
+          const hit = m.queryRenderedFeatures(ev.point, { layers: clickLayers })[0] as
             | MapGeoJSONFeature
             | undefined;
           if (!hit) {
@@ -791,9 +956,13 @@ export default function HotelMap() {
           if (!entry) return;
 
           // A cluster means the same thing under either input: show me what you
-          // counted. Only the property branch differs.
+          // counted. It now answers that with the destination card rather than
+          // an immediate zoom — the card names the place, counts it by family
+          // and prices its top properties, and carries the zoom as its own CTA.
+          // Zooming first threw the reader into a viewport with no explanation
+          // of what they had opened. Only the property branch differs.
           if (entry.kind === "cluster") {
-            expandCluster(entry.cluster!);
+            showDestinationCard(entry.cluster!);
             return;
           }
 
@@ -881,7 +1050,7 @@ export default function HotelMap() {
       map.current?.remove();
       map.current = null;
     };
-  }, [load, paint, openFor, expandCluster, openDetail, scheduleClose, light]);
+  }, [load, paint, openFor, showDestinationCard, openDetail, scheduleClose, light]);
 
   // A filter change re-asks the same viewport, on the same debounce as a pan so
   // typing issues one request rather than one per character.
@@ -1103,7 +1272,9 @@ export default function HotelMap() {
         entries={entries}
         onFocusEntry={(e) => openFor(e.id, null)}
         onBlurEntry={scheduleClose}
-        onActivate={(e) => (e.kind === "cluster" ? expandCluster(e.cluster!) : openDetail(e.point!))}
+        onActivate={(e) =>
+          e.kind === "cluster" ? showDestinationCard(e.cluster!) : openDetail(e.point!)
+        }
       />
 
       <div ref={headerBox} className="pointer-events-none absolute inset-x-0 top-0 z-30 p-3">
@@ -1216,12 +1387,26 @@ export default function HotelMap() {
           onLeave={scheduleClose}
           onOpenProperty={openDetail}
           onViewAll={() => {
-            if (hover.target.kind === "cluster") expandCluster(hover.target.cluster);
+            if (hover.target.kind === "cluster") showDestinationCard(hover.target.cluster);
           }}
         />
       )}
 
-      <StatusBar error={error} meta={meta} loading={loading} />
+      {/* Destination card — the cluster overview. Opened by a click, a keyboard
+          activation, or the hover card's "View all", so every route into a
+          cluster lands in the same place. */}
+      {destinationCluster && (
+        <DestinationCard
+          cluster={destinationCluster}
+          top={belowHeader}
+          onClose={() => setDestinationCluster(null)}
+          onViewAll={() => expandCluster(destinationCluster)}
+          onOpenProperty={openDetail}
+          onSearchArea={() => expandCluster(destinationCluster)}
+        />
+      )}
+
+      <StatusBar error={error} meta={meta} loading={loading} liveStatus={liveStatus} />
 
       <HotelDetailPanel target={selected} onClose={() => setSelected(null)} />
     </div>
@@ -1447,6 +1632,7 @@ function LocateButton({
           {error}
         </p>
       )}
+
     </div>
   );
 }
@@ -1607,11 +1793,14 @@ function FilterPanel({
  * OpenStreetMap hotels; "204 shown of 507" was true of nothing in particular.
  */
 function StatusBar({
-  error, meta, loading,
+  error, meta, loading, liveStatus,
 }: {
   error: string | null;
   meta: Omit<MapResponse, "points" | "clusters"> | null;
   loading: boolean;
+  /** State of the LIVE Google layer only -- never conflated with `error`,
+   *  which belongs to the indexed sources. */
+  liveStatus: LiveStatus;
 }) {
   const notes: string[] = [];
   if (meta && !loading) {
@@ -1635,6 +1824,12 @@ function StatusBar({
     else if (meta.osmFilteredOut) notes.push("Filters apply to luxury properties only — other hotels hidden");
     else if (meta.osmZoomIn) notes.push("Zoom in for all mapped hotels");
   }
+
+  // The live layer speaks for itself, and only when it has something to say.
+  // Appended after the indexed notes so a working map reads normally and the
+  // live state is an aside, not a headline.
+  const liveNote = liveStatusLabel(liveStatus);
+  if (liveNote) notes.push(liveNote);
 
   const warn = Boolean(error) || Boolean(meta?.osmUnavailable);
 

@@ -29,6 +29,15 @@ export default function Page() {
       slug="getyourguide"
       title="Furlpay vs GetYourGuide"
       subtitle="GetYourGuide is a leading tours-and-activities marketplace with an affiliate program. Furlpay is a stablecoin travel platform whose creator program pays up to 10% in USDC weekly, with on-chain attribution and 2% cashback for followers."
+      developmentNotice={
+        <>
+          <strong className="text-amber-300">Travel booking on Furlpay is in development.</strong>{" "}
+          Hotel discovery is live — the map shows real properties worldwide — but you cannot book or
+          pay for a stay through Furlpay today, and the card program and creator payouts have not
+          launched. The rows below marked &quot;in development&quot; describe what we are building,
+          against a competitor that books today.
+        </>
+      }
       atomicAnswer={
         <>
           <strong className="text-white">GetYourGuide</strong> pays affiliates a baseline near 8% in fiat,
@@ -39,13 +48,13 @@ export default function Page() {
         </>
       }
       rows={[
-        { feature: "Top commission", furlpay: "Up to 10% (flat gross)", other: "~8% baseline (of GYG's cut)", furlpayWins: true },
-        { feature: "Payout currency", furlpay: "USDC to any wallet", other: "Fiat, bank only", furlpayWins: true },
-        { feature: "Payout speed", furlpay: "Weekly", other: "Monthly on confirmation", furlpayWins: true },
-        { feature: "Minimum payout", furlpay: "None", other: "Threshold applies", furlpayWins: true },
-        { feature: "Cookie window", furlpay: "90 days", other: "~30 days", furlpayWins: true },
-        { feature: "Follower reward", furlpay: "2% USDC cashback", other: "None", furlpayWins: true },
-        { feature: "Attribution", furlpay: "On-chain, verifiable", other: "Dashboard only", furlpayWins: true },
+        { feature: "Top commission", furlpay: "Up to 10% (flat gross) — program in development", other: "~8% baseline (of GYG's cut)", furlpayWins: false },
+        { feature: "Payout currency", furlpay: "USDC to any wallet — in development", other: "Fiat, bank only", furlpayWins: false },
+        { feature: "Payout speed", furlpay: "Weekly — in development", other: "Monthly on confirmation", furlpayWins: false },
+        { feature: "Minimum payout", furlpay: "None planned", other: "Threshold applies", furlpayWins: false },
+        { feature: "Cookie window", furlpay: "90 days planned", other: "~30 days", furlpayWins: false },
+        { feature: "Follower reward", furlpay: "2% USDC cashback — in development", other: "None", furlpayWins: false },
+        { feature: "Attribution", furlpay: "On-chain, verifiable — in development", other: "Dashboard only", furlpayWins: false },
       ]}
       analysis={[
         { title: "Weekly USDC vs monthly fiat", body: "GetYourGuide pays affiliates in fiat, typically monthly and after the activity is confirmed. Furlpay settles creator commission in USDC weekly, the moment a booking clears — better cash flow and no bank minimums, from the first booking, anywhere in the world." },

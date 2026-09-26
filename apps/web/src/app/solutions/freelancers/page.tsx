@@ -25,6 +25,7 @@ export const metadata: Metadata = {
 export default function FreelancersSolutionPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Solutions · Freelancers"
       title="Get paid in USDC, anywhere in the world."
       subtitle="Invoice clients and receive USDC on Arbitrum in seconds — skip the 3–5 day wire, the 5–7% remittance cut, and the platform holds. Keep it dollar-stable or settle to a local account."
@@ -46,9 +47,9 @@ export default function FreelancersSolutionPage() {
         { title: "Global clients", body: "Accept from clients in any country without them needing a specific card network or bank." },
       ]}
       faq={[
-        { q: "How do freelancers get paid in USDC?", a: "Share a Furlpay payment link with your client, they pay in USDC on Arbitrum, and the funds settle to your account in about a second for 0.5%. You can hold the balance as dollar-stable USDC or settle to a local bank account." },
+        { q: "How do freelancers get paid in USDC?", a: "The design is: share a Furlpay payment link, your client pays in USDC on Arbitrum, and the payment lands in about a second for a flat 0.5%. Payment links and the fee quote work today; Furlpay-operated settlement and payout to a local bank account are in development, so this is not yet a way to get paid." },
         { q: "Is this cheaper than PayPal or a wire?", a: "Usually. International wires and remittance often cost 5–7% plus FX spread and take days; some payout platforms add currency-conversion fees and holds. USDC settles in seconds for a flat 0.5% with no FX markup." },
-        { q: "Can I convert USDC to my local currency?", a: "Yes. You can settle to a local USD or EUR account through Furlpay's banking rails, or hold USDC to keep a dollar-stable balance and convert when the rate suits you." },
+        { q: "Can I convert USDC to my local currency?", a: "That is the plan — settle to a local USD or EUR account through Furlpay's banking rails, or hold USDC and convert when the rate suits you. Local accounts are in development and cannot be opened yet." },
       ]}
       crumbs={[
         { name: "Home", path: "/" },

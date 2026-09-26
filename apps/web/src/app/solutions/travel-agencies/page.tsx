@@ -25,6 +25,7 @@ export const metadata: Metadata = {
 export default function TravelAgenciesSolutionPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Solutions · Travel agencies"
       title="White-label crypto travel booking."
       subtitle="Sell hotels and flights under your own brand and settle in USDC on Arbitrum. Team policies, spend reports, virtual cards, and on-chain receipts — exposed as a clean API."

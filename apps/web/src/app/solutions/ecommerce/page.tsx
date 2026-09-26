@@ -4,6 +4,7 @@ import { Hero, FeatureGrid, Section, CtaBand } from "@/components/marketing/bloc
 import FaqSection from "@/components/marketing/FaqSection";
 import FeeCalculator from "@/components/marketing/FeeCalculator";
 import JsonLd from "@/components/JsonLd";
+import MerchantSettlementNotice from "@/components/marketing/MerchantSettlementNotice";
 import { breadcrumb } from "@/lib/seo/schema";
 
 export const metadata: Metadata = {
@@ -69,6 +70,11 @@ export default function EcommercePage() {
           subtitle="Accept USDC at checkout for 0.5% instead of 2.9–3.5% card fees — with no chargebacks, instant settlement, and a drop-in hosted checkout that works with any stack."
           secondary={{ href: "/products/merchant", label: "Merchant features" }}
         />
+
+        {/* This page is hand-built rather than rendered by LandingPage, which
+            is exactly why the notice has to be added explicitly: the template's
+            merchantOffer flag cannot reach it. */}
+        <MerchantSettlementNotice />
 
         <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
           Add a Furlpay hosted checkout to your store and customers pay in{" "}

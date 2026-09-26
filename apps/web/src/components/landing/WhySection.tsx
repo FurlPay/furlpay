@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Check, Minus, X } from "lucide-react";
 import Reveal from "./Reveal";
 
@@ -11,16 +12,26 @@ import Reveal from "./Reveal";
  * genuinely mixed, and the footnote says so out loud.
  */
 
-type Level = "yes" | "partial" | "no";
+// "soon" is a FOURTH level, deliberately not folded into "partial".
+//
+// The footnote below defines "partial" as "the category is mixed rather than
+// absent" — a statement about an industry category, not about how finished a
+// product is. Marking FurlPay's unbuilt rows "partial" would have borrowed a
+// word that already means something else here, and a reader would have taken
+// it as "works, with caveats" rather than "does not work yet". Global
+// accounts, cards and agent settlement were each a green check in our column
+// on the same page that lists them as pending further down.
+type Level = "yes" | "partial" | "soon" | "no";
 
 const ROWS: { label: string; furlpay: Level; traditional: Level; crypto: Level }[] = [
-  { label: "Stablecoin payments", furlpay: "yes", traditional: "partial", crypto: "yes" },
-  { label: "Global accounts", furlpay: "yes", traditional: "yes", crypto: "no" },
-  { label: "Cards", furlpay: "yes", traditional: "yes", crypto: "partial" },
-  { label: "AI agent payments", furlpay: "yes", traditional: "no", crypto: "partial" },
-  { label: "Crypto checkout", furlpay: "yes", traditional: "no", crypto: "yes" },
+  { label: "Stablecoin payment APIs", furlpay: "yes", traditional: "partial", crypto: "yes" },
+  { label: "Passkey-first security", furlpay: "yes", traditional: "partial", crypto: "no" },
   { label: "Programmable payments", furlpay: "yes", traditional: "partial", crypto: "yes" },
-  { label: "One API for all of it", furlpay: "yes", traditional: "no", crypto: "no" },
+  { label: "AI agent payments", furlpay: "soon", traditional: "no", crypto: "partial" },
+  { label: "Crypto checkout", furlpay: "soon", traditional: "no", crypto: "yes" },
+  { label: "Global accounts", furlpay: "soon", traditional: "yes", crypto: "no" },
+  { label: "Cards", furlpay: "soon", traditional: "yes", crypto: "partial" },
+  { label: "One API for all of it", furlpay: "soon", traditional: "no", crypto: "no" },
 ];
 
 function Cell({
@@ -32,7 +43,14 @@ function Cell({
   strong?: boolean;
   className?: string;
 }) {
-  const label = level === "yes" ? "Yes" : level === "partial" ? "Partial" : "No";
+  const label =
+    level === "yes"
+      ? "Yes"
+      : level === "partial"
+        ? "Partial"
+        : level === "soon"
+          ? "In development"
+          : "No";
   return (
     <td className={`px-4 py-3.5 text-center sm:px-6 ${className}`.trim()}>
       <span className="sr-only">{label}</span>
@@ -43,6 +61,13 @@ function Cell({
         />
       ) : level === "partial" ? (
         <Minus aria-hidden className="mx-auto h-[18px] w-[18px] text-amber-400/80" />
+      ) : level === "soon" ? (
+        <span
+          aria-hidden
+          className="mx-auto block text-[11px] font-semibold uppercase tracking-wide text-amber-300"
+        >
+          Soon
+        </span>
       ) : (
         <X aria-hidden className="mx-auto h-[18px] w-[18px] text-white/20" />
       )}
@@ -109,6 +134,11 @@ export default function WhySection() {
       <p className="mt-4 max-w-3xl text-[12px] leading-relaxed text-textMuted">
         Compares product categories, not named vendors — individual products vary, and several are
         adding capabilities. “Partial” means the category is mixed rather than absent.
+        “Soon” in the FurlPay column means built but not yet available in production — see{" "}
+        <Link href="/#what-is-running" className="text-neon hover:underline">
+          what is actually running
+        </Link>
+        .
       </p>
     </section>
   );

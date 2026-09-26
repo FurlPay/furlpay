@@ -17,8 +17,8 @@ export default function FinalCta() {
             Build the financial layer of your product.
           </h2>
           <p className="section-lede mx-auto mt-4 text-center">
-            Payments, accounts, cards, stablecoins and AI agent infrastructure — all through one
-            API.
+            Stablecoin payment APIs, a passkey wallet and AI agent infrastructure — all through
+            one API. Accounts, cards and agent settlement are in development.
           </p>
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">

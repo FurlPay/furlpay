@@ -50,7 +50,7 @@ export default function Page() {
       analysis={[
         { title: "Half the fee", body: "Coinbase Commerce charges 1% on transactions. Furlpay is 0.5% flat on Arbitrum, so on the same volume your processing cost is roughly halved." },
         { title: "A product, not just a protocol", body: "Coinbase created the x402 protocol, which is excellent. Furlpay builds a full product around it — a hosted facilitator, MCP server, recurring authorizations, and merchant tooling — so you can ship agentic and subscription payments without assembling the pieces yourself." },
-        { title: "One account for money", body: "Furlpay bundles a passkey wallet, USDC travel booking, and fractional investing alongside acceptance. Coinbase Commerce is a focused payment product." },
+        { title: "One account for money", body: "Furlpay bundles a passkey wallet and a developer platform alongside acceptance, with USDC travel booking and investing in development. Coinbase Commerce is a focused payment product." },
         { title: "Open and self-hostable", body: "Furlpay's SDKs, CLI, MCP server, and x402 facilitator are MIT-licensed, so you can audit and self-host the payment path end to end." },
       ]}
       faq={[

@@ -29,6 +29,15 @@ export default function Page() {
       slug="trip-com"
       title="Furlpay vs Trip.com"
       subtitle="Trip.com added stablecoin checkout in 2026. Furlpay is built stablecoin-first: USDC settlement on Arbitrum with on-chain receipts, AI-agent booking over x402, single-use Visa cards for any merchant, and a creator program that pays up to 10% in USDC weekly."
+      developmentNotice={
+        <>
+          <strong className="text-amber-300">Travel booking on Furlpay is in development.</strong>{" "}
+          Hotel discovery is live — the map shows real properties worldwide — but you cannot book or
+          pay for a stay through Furlpay today, and the card program and creator payouts have not
+          launched. The rows below marked &quot;in development&quot; describe what we are building,
+          against a competitor that books today.
+        </>
+      }
       atomicAnswer={
         <>
           Both let you pay for travel with stablecoins. <strong className="text-white">Trip.com</strong> added
@@ -39,13 +48,13 @@ export default function Page() {
         </>
       }
       rows={[
-        { feature: "Stablecoin checkout", furlpay: "USDC — native settlement", other: "USDT/USDC (added 2026)", furlpayWins: true },
-        { feature: "Settlement", furlpay: "On-chain, Arbitrum receipt", other: "Off-chain processor", furlpayWins: true },
-        { feature: "Inventory", furlpay: "stays + flights", other: "1.4M+ hotels, flights, trains", furlpayWins: false },
-        { feature: "AI-agent booking", furlpay: "Yes (x402 / MCP)", other: "No", furlpayWins: true },
-        { feature: "Pay non-crypto merchants", furlpay: "Single-use Visa VCN", other: "Not applicable", furlpayWins: true },
-        { feature: "Creator / affiliate", furlpay: "Up to 10% USDC, weekly", other: "Standard affiliate (fiat)", furlpayWins: true },
-        { feature: "Beyond travel", furlpay: "Payments + investing", other: "Travel only", furlpayWins: true },
+        { feature: "Stablecoin checkout", furlpay: "USDC-native by design — in development", other: "USDT/USDC (added 2026)", furlpayWins: false },
+        { feature: "Settlement", furlpay: "On-chain Arbitrum receipt — in development", other: "Off-chain processor", furlpayWins: false },
+        { feature: "Inventory", furlpay: "Live hotel discovery map; bookable inventory in development", other: "1.4M+ hotels, flights, trains", furlpayWins: false },
+        { feature: "AI-agent booking", furlpay: "MCP live; x402 settlement in development", other: "No", furlpayWins: false },
+        { feature: "Pay non-crypto merchants", furlpay: "Single-use Visa VCN — in development", other: "Not applicable", furlpayWins: false },
+        { feature: "Creator / affiliate", furlpay: "Up to 10% USDC weekly — in development", other: "Standard affiliate (fiat)", furlpayWins: false },
+        { feature: "Beyond travel", furlpay: "Payment APIs and a passkey wallet; investing in development", other: "Travel only", furlpayWins: true },
       ]}
       analysis={[
         { title: "Stablecoin-native vs stablecoin-added", body: "Trip.com integrated USDT/USDC checkout in 2026 as a payment option on a traditional OTA. Furlpay is built the other way around: USDC is the settlement currency, so every booking produces an Arbiscan-verifiable receipt that is useful for expenses, reimbursements, and reconciliation." },

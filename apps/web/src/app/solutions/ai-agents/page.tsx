@@ -25,6 +25,7 @@ export const metadata: Metadata = {
 export default function AiAgentsSolutionPage() {
   return (
     <LandingPage
+      merchantOffer
       eyebrow="Solutions · AI agents"
       title="Payment infrastructure for AI agents."
       subtitle="Let agents pay for what they use. The x402 facilitator and MCP server turn any API into a pay-per-request resource, settled in USDC on Arbitrum — no API keys, no human in the loop."

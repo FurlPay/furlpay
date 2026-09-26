@@ -40,13 +40,8 @@ const LIVE: Capability[] = [
     path: "/api/agents/keys · lib/agentPolicy.ts · lib/mcp/tools.ts",
   },
   {
-    title: "x402 settlement",
-    body: "HTTP 402 payment-required flow with EIP-3009 authorization, facilitator verify/settle, and policy evaluation before funds move.",
-    path: "/api/x402/facilitator/settle · lib/x402Settler.ts",
-  },
-  {
     title: "MCP server for autonomous agents",
-    body: "Model Context Protocol server exposing tools, resources and prompts over JSON-RPC, with OAuth 2.1 and DPoP-bound tokens.",
+    body: "Model Context Protocol server exposing tools, resources and prompts over JSON-RPC, with OAuth 2.1 and DPoP-bound tokens. This is the transport and authorization layer; it is live and callable. Paying for a resource over it is x402, which is not — see below.",
     path: "/api/mcp · lib/mcp/oauth.ts · lib/mcp/dpop.ts",
   },
   {
@@ -88,6 +83,25 @@ const ROADMAP: Capability[] = [
     body: "Settlement is proven end-to-end in a local environment with real on-chain transfers. Pending: production fee-payer and RPC configuration.",
     path: "docs/GO-LIVE-MONEY.md",
   },
+  {
+    // Moved here from LIVE on 21 Sep 2026. The code is complete and the flow
+    // is correct, but /api/rails reports this rail NOT_CONFIGURED in
+    // production, which means no agent can actually pay through it today.
+    // This component's own rule is that a capability not yet exercised
+    // against a live counterparty belongs in ROADMAP with the gate stated,
+    // not in LIVE with a hedge — and a green dot beside a rail the same page
+    // reports as unconfigured is exactly the contradiction the rule exists to
+    // prevent.
+    title: "x402 pay-per-call and Machine Payments Protocol",
+    body: "HTTP 402 payment-required flow with EIP-3009 authorization, facilitator verify/settle, and policy evaluation before funds move. Pending: production facilitator configuration — /api/rails currently reports these rails as not configured, so agents cannot pay through them yet.",
+    path: "/api/x402/facilitator/settle · lib/x402Settler.ts · /api/rails",
+  },
+  {
+    // Same gate as x402: the relayer exists, the fee payer does not.
+    title: "Gasless USDC transfers",
+    body: "EIP-3009 transferWithAuthorization with a relayer that submits and pays gas on the sender's behalf. Pending: a funded production fee payer — /api/rails reports this rail as not configured.",
+    path: "/api/transfers/gasless · /api/rails",
+  },
 ];
 
 function Row({ c, live }: { c: Capability; live: boolean }) {
@@ -110,7 +124,7 @@ function Row({ c, live }: { c: Capability; live: boolean }) {
 
 export default function VerifiedCapabilities() {
   return (
-    <section className="section section-y max-w-3xl">
+    <section className="section section-y max-w-3xl" id="what-is-running">
       <p className="section-eyebrow">Provenance</p>
       <h2 className="mt-3 text-[26px] font-bold tracking-tight text-white sm:text-[30px]">
         What is actually running
