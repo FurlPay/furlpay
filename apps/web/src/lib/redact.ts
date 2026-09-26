@@ -6,9 +6,12 @@
 //
 //  - Card PANs: 13-19 digit runs (spaces/dashes allowed) that pass Luhn.
 //    Luhn is what separates a card number from a phone number or tracking id.
-//  - Seed phrases: a STANDALONE line of exactly 12 or 24 lowercase words —
-//    the shape wallets export. Prose lines have capitals/punctuation and
-//    don't come in exact 12/24-word lines, which keeps false positives rare.
+//  - Seed phrases: exactly 12 or 24 lowercase words, either as a STANDALONE
+//    line (the shape wallets export) or as a run that is labelled ("here it
+//    is: …") or cued ("my seed phrase is …") — the shapes people type into a
+//    chat box. A bare 12-word run is NOT enough on its own: uncapitalised,
+//    unpunctuated chat reaches twelve short words often enough that matching it
+//    unqualified would redact ordinary sentences.
 //  - Prefixed API tokens: sk_/pk_live/npm_/gh[pousr]_/xox?-/AKIA — formats
 //    designed to be unambiguous.
 //
@@ -41,6 +44,24 @@ function luhnValid(digits: string): boolean {
 
 const CARD_RUN = /(?<![\d.])(?:\d[ -]?){12,18}\d(?![\d.])/g;
 const SEED_LINE = /^\s*(?:[a-z]{3,8}[ \t]+){11}(?:[a-z]{3,8}[ \t]+(?:[a-z]{3,8}[ \t]+){11})?[a-z]{3,8}[ \t]*$/;
+
+// A run of exactly 12 or 24 BIP-39-shaped words (lowercase, 3-8 letters), found
+// anywhere rather than only as a whole line.
+//
+// The whole-line rule above matches a wallet EXPORT. It misses how a phrase
+// actually arrives in a chat box, which is labelled and inline:
+//
+//   here it is: legal winner thank year wave sausage worth useful legal winner thank yellow
+//
+// Matching this run on its own would be too loose — an uncapitalised,
+// unpunctuated sentence of twelve short words is ordinary chat. So the run only
+// counts with corroboration: a short label ending in a colon (the shape of
+// someone handing something over), or an explicit seed-phrase cue in the line.
+// A 13+ word run redacts its first 12; over-redacting a phrase-shaped run is
+// the safe direction, and the reply says what was removed.
+const WORD_RUN = /(?:[a-z]{3,8}[ \t]+){11}[a-z]{3,8}(?:[ \t]+(?:[a-z]{3,8}[ \t]+){11}[a-z]{3,8})?/;
+const LABELLED_RUN = new RegExp(`^([^:\\n]{0,40}:[ \\t]*)(${WORD_RUN.source})[ \\t]*$`);
+const SEED_CUE = /\b(?:seed|mnemonic|recovery|passphrase|secret phrase|backup phrase)\b/i;
 const TOKEN_PATTERNS = [
   /\bsk_(?:live|test)_[A-Za-z0-9]{8,}\b/g, // Stripe-style secret keys
   /\bsk-[A-Za-z0-9-]{16,}\b/g, // OpenAI/Anthropic-style keys
@@ -62,13 +83,35 @@ export function redactSecrets(input: string): RedactionResult {
     return `[card ****${digits.slice(-4)}]`;
   });
 
-  // Seed phrases: whole standalone lines of exactly 12 or 24 lowercase words.
+  // Seed phrases: whole standalone lines of exactly 12 or 24 lowercase words,
+  // plus the labelled/cued inline shapes people type into a chat box.
+  const SEED_NOTE = "[seed phrase removed — never share it; FurlPay will never ask for it]";
   text = text
     .split("\n")
     .map((line) => {
-      if (!SEED_LINE.test(line)) return line;
-      redactions++;
-      return "[seed phrase removed — never share it; FurlPay will never ask for it]";
+      if (SEED_LINE.test(line)) {
+        redactions++;
+        return SEED_NOTE;
+      }
+
+      // "here it is: <12 words>" — keep the label, drop the phrase, so the
+      // support agent can still see what the visitor was answering.
+      const labelled = line.match(LABELLED_RUN);
+      if (labelled) {
+        redactions++;
+        return `${labelled[1]}${SEED_NOTE}`;
+      }
+
+      // "my seed phrase is <12 words>" — no colon, but the line says what it is.
+      if (SEED_CUE.test(line)) {
+        const run = line.match(WORD_RUN);
+        if (run) {
+          redactions++;
+          return line.replace(run[0], SEED_NOTE);
+        }
+      }
+
+      return line;
     })
     .join("\n");
 
