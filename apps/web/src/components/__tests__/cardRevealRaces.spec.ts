@@ -149,7 +149,7 @@ describe("the source matches the model above", () => {
   );
 
   it("attaches the rejection handler BEFORE racing", () => {
-    const attach = gate.indexOf("authenticateFingerprint().catch(() => false)");
+    const attach = gate.indexOf("authenticateFingerprint()");
     const race = gate.indexOf("Promise.race");
     expect(attach).toBeGreaterThan(-1);
     expect(race).toBeGreaterThan(attach);
@@ -160,8 +160,8 @@ describe("the source matches the model above", () => {
   });
 
   it("the timeout resolves false, never true", () => {
-    expect(gate).toContain("resolve(false), 60_000");
-    expect(gate).not.toMatch(/resolve\(true\)[^)]*60_000/);
+    expect(gate).toMatch(/resolve\(false\);\s*\}, 60_000\)/);
+    expect(gate).not.toMatch(/resolve\(true\)/);
   });
 
   it("checks authenticator availability first", () => {
@@ -214,6 +214,97 @@ describe("unmount during authorization", () => {
   });
 });
 
+describe("credentials without a gate are refused, not silently shown", () => {
+  // AUDIT FINDING. The authorization block is guarded by
+  //   `!isFlipped && !isRevealed && onRevealRequest`
+  // which SHORT-CIRCUITS when no gate is supplied — so a caller passing
+  // cvv/fullPan with no onRevealRequest flipped straight to the back face with no
+  // authorization at all.
+  //
+  // Nothing leaked today, because `isRevealed` stays false and both render
+  // expressions mask on it. But that is masking rescuing an ungated path, not the
+  // path being correct: one edit to either expression turns it into a real leak.
+  // The card now refuses to flip instead.
+  const body = code(CARD);
+
+  it("detects that credentials were supplied", () => {
+    expect(body).toContain("const hasCredentials =");
+    expect(body).toMatch(/held\(cvv\) \|\| held\(fullPan\) \|\| held\(expiry\)/);
+  });
+
+  it("refuses the flip when credentials exist but no gate does", () => {
+    const flip = body.slice(body.indexOf("const toggleFlip"), body.indexOf("<div"));
+    expect(flip).toMatch(/else if \(!isFlipped && !isRevealed && hasCredentials\)/);
+    // And that branch returns rather than falling through to setIsFlipped.
+    const branch = flip.slice(flip.indexOf("hasCredentials)"));
+    expect(branch).toMatch(/triggerHaptic\("error"\);\s*return;/);
+  });
+
+  it("uses the empty-ish helper, so cvv:'' does not count as a credential", () => {
+    // A blank string is not a secret; refusing to flip for it would break a
+    // legitimate caller that passes empty placeholders.
+    expect(body).toContain("Boolean(held(cvv)");
+  });
+
+  it("is a dependency, so the guard cannot read a stale value", () => {
+    expect(body).toContain("onRevealRequest, hasCredentials]");
+  });
+
+  it("a card with NO credentials and no gate still flips freely", () => {
+    // The ordinary masked card must stay usable — refusing every ungated flip
+    // would break the only caller in the app.
+    const flip = body.slice(body.indexOf("const toggleFlip"), body.indexOf("<div"));
+    // The refusal is conditional on hasCredentials, not on the gate alone.
+    expect(flip).not.toMatch(/else if \(!isFlipped && !isRevealed\)\s*\{/);
+  });
+});
+
+describe("a late ceremony still hits the server", () => {
+  // AUDIT FINDING, and the one with a consequence beyond the UI.
+  //
+  // authenticateFingerprint() is not a local check: it POSTs the assertion to
+  // /api/auth/passkey/authenticate, which calls recordStepUp(). So a ceremony
+  // completing after the 60s bound grants a SERVER-SIDE step-up — satisfying the
+  // wallet-link and account gates — seconds after the user was told the reveal
+  // failed. The client cannot revoke that, but it must not treat the result as
+  // its own answer, and it should say plainly that it happened.
+  const gate = code(PAGE).slice(
+    code(PAGE).indexOf("const requestCardStepUp"),
+    code(PAGE).indexOf("const loadTxs")
+  );
+
+  it("marks the ceremony abandoned when the timeout wins", () => {
+    expect(gate).toContain("abandoned = true");
+    // Set inside the timeout callback, before it resolves.
+    expect(gate).toMatch(/setTimeout\(\(\) => \{\s*abandoned = true;\s*resolve\(false\);/);
+  });
+
+  it("warns when a stale approval lands", () => {
+    expect(gate).toMatch(/if \(abandoned && ok/);
+    expect(gate).toMatch(/recorded a step-up/);
+  });
+
+  it("still resolves false for the caller regardless", () => {
+    // The warning is diagnostics. The ANSWER must not change.
+    expect(gate).toMatch(/\.then\(\(ok\) => \{[\s\S]{0,400}return ok;/);
+    expect(gate).toMatch(/resolve\(false\);\s*\}, 60_000\)/);
+  });
+
+  it("keeps the rejection handler after the then", () => {
+    // Order matters: .then().catch() covers a rejection from either.
+    const thenAt = gate.indexOf(".then((ok)");
+    const catchAt = gate.indexOf(".catch(() => false)");
+    expect(thenAt).toBeGreaterThan(-1);
+    expect(catchAt).toBeGreaterThan(thenAt);
+  });
+
+  it("logs only under a non-production guard", () => {
+    // Console noise in production is its own defect, and this text names an auth
+    // event.
+    expect(gate).toMatch(/process\.env\.NODE_ENV !== "production"/);
+  });
+});
+
 describe("repeated activation while a ceremony is pending", () => {
   it("is refused, so ceremonies cannot stack", () => {
     // Without this, two Enter presses start two prompts and the LAST to resolve
@@ -230,6 +321,6 @@ describe("repeated activation while a ceremony is pending", () => {
   });
 
   it("isAuthorizing is a dependency, so the guard reads a fresh value", () => {
-    expect(code(CARD)).toContain("[isFlipped, isRevealed, isAuthorizing, onRevealRequest]");
+    expect(code(CARD)).toMatch(/\[isFlipped, isRevealed, isAuthorizing, onRevealRequest/);
   });
 });

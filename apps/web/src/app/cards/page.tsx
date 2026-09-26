@@ -101,6 +101,7 @@ export default function CardsPage() {
       // enough for a real person to find their finger and short enough that the
       // UI is never permanently stuck.
       let timer: ReturnType<typeof setTimeout> | undefined;
+      let abandoned = false;
 
       // The ceremony is given its own rejection handler BEFORE the race. Once the
       // timeout wins, nothing is awaiting this promise any more — and a WebAuthn
@@ -109,16 +110,37 @@ export default function CardsPage() {
       // error overlay in dev and logs as a crash in production.
       //
       // It resolves FALSE rather than propagating: a ceremony whose result
-      // arrives after we stopped waiting has not authorised anything. Late
-      // success cannot retroactively open the card, which is the important half —
-      // the caller has already been told "no" and moved on.
-      const ceremony = authenticateFingerprint().catch(() => false);
+      // arrives after we stopped waiting has not authorised anything.
+      //
+      // ABANDONMENT IS EXPLICIT, and this is the part that matters beyond the UI.
+      // authenticateFingerprint() is not a local check — it POSTs the assertion to
+      // /api/auth/passkey/authenticate, which calls recordStepUp(). So a ceremony
+      // that completes after the timeout still grants a SERVER-SIDE step-up,
+      // silently satisfying the wallet-link and account gates seconds after the
+      // user was told their reveal had failed. The client cannot un-ring that
+      // bell, but it can refuse to treat the result as its own answer and say
+      // plainly that a stale approval happened.
+      const ceremony = authenticateFingerprint()
+        .then((ok) => {
+          if (abandoned && ok && process.env.NODE_ENV !== "production") {
+            // eslint-disable-next-line no-console
+            console.warn(
+              "Card reveal: passkey assertion completed after the 60s bound. " +
+                "The card stays closed, but the server recorded a step-up for this session."
+            );
+          }
+          return ok;
+        })
+        .catch(() => false);
 
       try {
         return await Promise.race([
           ceremony,
           new Promise<boolean>((resolve) => {
-            timer = setTimeout(() => resolve(false), 60_000);
+            timer = setTimeout(() => {
+              abandoned = true;
+              resolve(false);
+            }, 60_000);
           }),
         ]);
       } finally {

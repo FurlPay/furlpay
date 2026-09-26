@@ -179,6 +179,9 @@ export default function Realistic3DCard({
     setGlarePos((prev) => ({ ...prev, opacity: 0 }));
   }, []);
 
+  // Were any credentials handed to this card? Drives the refusal below.
+  const hasCredentials = Boolean(held(cvv) || held(fullPan) || held(expiry));
+
   // Handle 3D card flip
   const toggleFlip = useCallback(async () => {
     if (!isFlipped && !isRevealed && onRevealRequest) {
@@ -219,6 +222,28 @@ export default function Realistic3DCard({
       // rather than inheriting an approval granted to a previous instance.
       if (!mounted.current) return;
       setIsRevealed(true);
+    } else if (!isFlipped && !isRevealed && hasCredentials) {
+      // NO GATE, BUT CREDENTIALS WERE PASSED.
+      //
+      // The condition above short-circuits on `onRevealRequest`, so a caller that
+      // supplies cvv/fullPan/expiry but no gate would flip straight to the back
+      // face with no authorization at all. Today nothing is exposed — `isRevealed`
+      // stays false so the values render masked — but that is masking saving an
+      // ungated path, not the path being safe. A future edit to either render
+      // expression turns it into a real credential leak.
+      //
+      // Refuse instead. A card that was given secrets and no way to protect them
+      // does not open: a developer sees an unresponsive flip and a console error
+      // rather than shipping an unguarded reveal.
+      if (process.env.NODE_ENV !== "production") {
+        // eslint-disable-next-line no-console
+        console.error(
+          "Realistic3DCard: cvv/fullPan/expiry were supplied without onRevealRequest. " +
+            "Credentials must sit behind a step-up gate; the card will not flip."
+        );
+      }
+      triggerHaptic("error");
+      return;
     }
 
     triggerHaptic("medium");
@@ -226,7 +251,7 @@ export default function Realistic3DCard({
     // instance that never asked for it.
     if (!mounted.current) return;
     setIsFlipped((prev) => !prev);
-  }, [isFlipped, isRevealed, isAuthorizing, onRevealRequest]);
+  }, [isFlipped, isRevealed, isAuthorizing, onRevealRequest, hasCredentials]);
 
   return (
     <div
