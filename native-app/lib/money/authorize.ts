@@ -1,5 +1,6 @@
 import { assessRisk, type RiskAssessment, type RiskSignals } from "@/lib/security/riskEngine";
 import { requireAuthFor, type RiskAction } from "@/lib/security/riskPolicy";
+import { isDeviceCompromised } from "@/lib/security/tamperDetection";
 
 // ---------------------------------------------------------------------------
 // The single authorization boundary for money movement.
@@ -69,6 +70,7 @@ export async function authorizeMoneyMove(input: AuthorizeInput): Promise<Authori
   const assessment = assessRisk({
     action: input.action,
     amountUsd: input.amountUsd,
+    deviceCompromised: isDeviceCompromised(),
     ...(input.signals ?? {}),
   });
 

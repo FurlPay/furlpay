@@ -23,6 +23,7 @@ import { pairWithUri } from "@/lib/walletconnect/useWalletConnect";
 import { track } from "@/lib/analytics";
 import { Button, Screen } from "@/components/ui";
 import { OfflineBanner } from "@/components/OfflineBanner";
+import { startTamperDetection } from "@/lib/security/tamperDetection";
 
 // Route-level crash screen (expo-router picks this export up for the whole
 // tree since it's on the root layout). Keeps a render error from taking the
@@ -130,6 +131,7 @@ function AppShell() {
   // depend on the payload arriving.
   useEffect(() => {
     void loadFlags();
+    void startTamperDetection();
     track("app_opened", { source: "cold" });
   }, []);
 

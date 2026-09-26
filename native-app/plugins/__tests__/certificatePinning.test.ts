@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-var-requires */
 const android = require("../withNetworkSecurityConfig");
 const ios = require("../withIosCertificatePinning");
+const fs = require("fs");
+const path = require("path");
 
 // ---------------------------------------------------------------------------
 // The AWS migration blocker, as a test.
@@ -98,18 +100,53 @@ describe("iOS — both CA hierarchies are pinned", () => {
   });
 });
 
-describe("the two platforms pin the same anchors", () => {
-  // Three implementations of one policy (this pair, plus
-  // guardian/core/network/FurlPayPinning.kt and the Swift CertificatePinner).
-  // A hostname pinned differently per platform is a cutover that half-breaks —
-  // and the half that breaks is whichever one nobody tested first.
-  it("the iOS pin list is exactly the Android pin list", () => {
-    const iosPins = new Set([...ios.ISRG_PINS, ...ios.AMAZON_PINS]);
-    const androidPins = new Set(
-      [...Object.values(ISRG), ...Object.values(AMAZON)].filter((p) =>
-        android.NETWORK_SECURITY_CONFIG.includes(p)
+describe("all four surfaces pin the same anchors", () => {
+  // FOUR implementations of one policy. A hostname pinned differently per
+  // surface is a cutover that half-breaks — and the half that breaks is
+  // whichever one nobody tested first.
+  //
+  // This used to assert only the two reachable from JS and name the other two
+  // in a comment, which left the Kotlin and Swift lists free to drift silently:
+  // exactly the failure the shared-constant refactor existed to prevent. They
+  // are now read off disk and compared by value. A regex over source is cruder
+  // than importing a module, but the alternative is no assertion at all until
+  // someone runs a Gradle build and an Xcode build in the same CI job.
+  const EXPECTED = new Set([...Object.values(ISRG), ...Object.values(AMAZON)]);
+
+  /** Every base64 SPKI digest in a file, `sha256/` prefix optional. */
+  function pinsIn(relPath: string): Set<string> {
+    const abs = path.join(__dirname, "..", "..", "..", relPath);
+    const src = fs.readFileSync(abs, "utf8");
+    const found = src.match(/[A-Za-z0-9+/]{43}=/g) ?? [];
+    return new Set(found);
+  }
+
+  const androidPins = new Set(
+    [...EXPECTED].filter((p) => android.NETWORK_SECURITY_CONFIG.includes(p))
+  );
+
+  it("the React Native iOS list is exactly the React Native Android list", () => {
+    expect(new Set([...ios.ISRG_PINS, ...ios.AMAZON_PINS])).toEqual(androidPins);
+  });
+
+  it("Guardian's Kotlin CertificatePinner pins the same set", () => {
+    expect(
+      pinsIn(
+        "guardian/core/network/src/main/kotlin/com/furlpay/guardian/network/FurlPayPinning.kt"
       )
-    );
-    expect(iosPins).toEqual(androidPins);
+    ).toEqual(EXPECTED);
+  });
+
+  it("the iOS Guardian's Swift CertificatePinner pins the same set", () => {
+    expect(
+      pinsIn("ios/FurlPayGuardian/Shared/Network/CertificatePinner.swift")
+    ).toEqual(EXPECTED);
+  });
+
+  it("and the React Native pair agrees with that same set", () => {
+    // Ties the two JS-reachable surfaces to the same constant the native two
+    // are checked against, so all four are pinned to one list rather than to
+    // each other pairwise.
+    expect(androidPins).toEqual(EXPECTED);
   });
 });

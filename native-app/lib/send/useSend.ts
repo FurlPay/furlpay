@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import { api, ApiError, demoSignature, NetworkError, TimeoutError } from "@/lib/api";
+import { flagEnabled } from "@/lib/flags";
+import { sendGasless } from "@/lib/wallet";
 import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { transition, type TxState } from "@/lib/money/transactionState";
 import {
@@ -525,17 +527,77 @@ export function useSendExecution(
       // successful — a timeout past this point may still have landed. Persisted
       // BEFORE the await, so a death mid-flight is recoverable.
       setTxState(updateTransactionState(tx.id, "SUBMITTED").state);
-      const res = await api<{ transactionHash: string }>("/wallets/transfer", {
-        method: "POST",
-        body: payload,
-        headers: { "Idempotency-Key": key },
-      });
+
+      // ---------------------------------------------------------------------
+      // RAIL SELECTION (self-custody Phase 4).
+      //
+      // Two rails, ONE surrounding safety envelope. Everything around this
+      // branch — the durable row, the idempotency key, the outbox, the MFA
+      // step-up, the state transitions — is identical for both, because the
+      // property that must hold ("this transfer happens at most once, and its
+      // outcome is never inferred") does not depend on which rail carries it.
+      //
+      // The self-custody rail is USDC-ONLY and deliberately so. sendGasless
+      // parses the amount at 6 decimals and signs an EIP-3009 authorization
+      // for a USDC contract; handing it a EURC or XSGD balance would sign a
+      // number that is not the number the user typed, at a contract that is
+      // not the token they picked. `check.amountUsd` equals the token amount
+      // only for a dollar-pegged 1:1 asset, so the guard below is a
+      // correctness requirement, not a product choice.
+      // ---------------------------------------------------------------------
+      const selfCustodyRail = flagEnabled("self_custody_send") && balance.token === "USDC";
+
+      let res: { transactionHash?: string; confirmed: boolean };
+
+      if (selfCustodyRail) {
+        // Device-signed. Biometric gates the key read inside sendGasless; the
+        // relayer pays gas and submits. No demoSignature is involved.
+        const g = await sendGasless(payload.destination, String(check.amountUsd));
+
+        if (g.kind === "unavailable") {
+          // Honest refusal — nothing was broadcast. Same treatment as the demo
+          // rail's 503 so the user reads one consistent message.
+          setUnavailable(g.detail);
+          setStage("idle");
+          setTxState(updateTransactionState(tx.id, "CANCELLED", { lastError: g.detail }).state);
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          return;
+        }
+        if (g.kind === "simulated") {
+          // The server answered but is not in live mode. A simulated hash is
+          // NOT a settlement and must never reach the success path — that is
+          // the exact fabrication this whole rail exists to remove.
+          const detail = "This environment simulates settlement — no USDC moved.";
+          setUnavailable(detail);
+          setStage("idle");
+          setTxState(updateTransactionState(tx.id, "CANCELLED", { lastError: detail }).state);
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          return;
+        }
+        // "settled" carries the required confirmation depth; "pending" means
+        // broadcast but not yet deep enough, which is PROCESSING, not done.
+        res = { transactionHash: g.transaction, confirmed: g.kind === "settled" };
+      } else {
+        const demo = await api<{ transactionHash: string }>("/wallets/transfer", {
+          method: "POST",
+          body: payload,
+          headers: { "Idempotency-Key": key },
+        });
+        res = { transactionHash: demo?.transactionHash, confirmed: Boolean(demo?.transactionHash) };
+      }
       // The server answered. A transaction hash is the acknowledgement that it
       // accepted and broadcast the transfer; without one there is nothing to
       // call complete, and we say so rather than showing a tick.
-      if (!res?.transactionHash) {
+      // Two ways to be un-finished, and both must land here rather than on the
+      // success path: no hash at all, or a hash that is on the wire but not yet
+      // confirmed to the depth this amount requires. Showing a tick for either
+      // one would be inferring a completion we have not observed.
+      if (!res.transactionHash || !res.confirmed) {
         setTxState(
-          updateTransactionState(tx.id, "PROCESSING", { reconcileRequired: true }).state
+          updateTransactionState(tx.id, "PROCESSING", {
+            reconcileRequired: true,
+            ...(res.transactionHash ? { transactionHash: res.transactionHash } : {}),
+          }).state
         );
         setStage("submitting");
         setError(

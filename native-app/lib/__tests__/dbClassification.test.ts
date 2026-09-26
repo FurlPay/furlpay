@@ -61,7 +61,7 @@ describe("SQLite cache — no-secrets invariant", () => {
     expect(found).toEqual([]);
   });
 
-  it("the schema is exactly the ten tables we classified", () => {
+  it("the schema is exactly the twelve tables we classified", () => {
     const tables = [...db.matchAll(/CREATE TABLE IF NOT EXISTS (\w+)/g)].map((m) => m[1]).sort();
     // kv_cache      -> JSON snapshots of GET responses (balances, cards, portfolio)
     // transactions  -> financial transaction METADATA (amounts, titles, status)
@@ -93,7 +93,23 @@ describe("SQLite cache — no-secrets invariant", () => {
     // discovered_assets -> cached balances from a chain scan. Display hints
     //                  only — nothing spends from this table. Public chain
     //                  data, account-scoped, wiped on sign-out.
+    // signing_counters -> a monotonic counter per key id, used to detect
+    //                  out-of-band signing (a signature this device did not
+    //                  draw). Holds an identifier and an INTEGER — no key, no
+    //                  signature, no payload. Device-scoped: the counter
+    //                  describes the device's key, not the account, so wiping
+    //                  it on sign-out would destroy the very history that makes
+    //                  an anomaly detectable.
+    // accounts      -> derived account metadata for multi-account: index,
+    //                  user label, and the two PUBLIC addresses (EVM + Solana).
+    //                  The mnemonic that derives them stays in SecureStore
+    //                  behind the biometric gate and never reaches SQLite, so
+    //                  this table maps index -> address and holds nothing that
+    //                  can spend. Losing it costs labels, not funds — every
+    //                  address re-derives from the phrase at the same index.
+    //                  Account-scoped, so it IS wiped on sign-out.
     expect(tables).toEqual([
+      "accounts",
       "custom_tokens",
       "device_prefs",
       "discovered_assets",
@@ -101,6 +117,7 @@ describe("SQLite cache — no-secrets invariant", () => {
       "money_transactions",
       "notifications",
       "pending_actions",
+      "signing_counters",
       "swaps",
       "transactions",
       "wc_sessions",

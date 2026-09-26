@@ -6,6 +6,7 @@ import * as Haptics from "expo-haptics";
 import { Ionicons } from "@expo/vector-icons";
 import { parseScannedAddress } from "@/lib/qr";
 import { looksLikeUpiUri, parseUpiUri } from "@/lib/upi";
+import { classifySgqrScan } from "@/lib/sgqr";
 import { looksLikePairingUri, parsePairingUri } from "@/lib/walletconnect/uri";
 import { pairWithUri } from "@/lib/walletconnect/useWalletConnect";
 import { ScannerFrame } from "@/components/ScannerFrame";
@@ -20,6 +21,7 @@ export default function Scan() {
   // malformed key), and each sends the user somewhere different — so it gets a
   // string rather than joining the two-value `invalid` enum above.
   const [wcError, setWcError] = useState<string | null>(null);
+  const [sgqrError, setSgqrError] = useState<string | null>(null);
   const [requesting, setRequesting] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [manual, setManual] = useState("");
@@ -63,6 +65,22 @@ export default function Scan() {
     }
     if (looksLikeUpiUri(entry)) {
       setManualError("That UPI link is damaged or incomplete.");
+      return;
+    }
+
+    // SGQR payloads get pasted too (shared in a chat, copied off a receipt),
+    // so the manual path accepts exactly what the camera does.
+    const sgqrManual = classifySgqrScan(entry);
+    if (sgqrManual.kind === "payable") {
+      setManualOpen(false);
+      setManual("");
+      setManualError(null);
+      void Haptics.selectionAsync();
+      router.replace({ pathname: "/paynow/confirm", params: { payload: entry } });
+      return;
+    }
+    if (sgqrManual.kind === "unpayable") {
+      setManualError(sgqrManual.detail);
       return;
     }
 
@@ -169,6 +187,27 @@ export default function Scan() {
             return;
           }
 
+          // Singapore SGQR / PayNow. Must come BEFORE parseScannedAddress:
+          // an EMVCo payload is a long digit string that the address parser
+          // will never match, so without this every hawker stall, cafe and
+          // till sticker in Singapore reported "not payable".
+          const sgqr = classifySgqrScan(data);
+          if (sgqr.kind === "payable") {
+            handled.current = true;
+            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            router.replace({ pathname: "/paynow/confirm", params: { payload: data } });
+            return;
+          }
+          if (sgqr.kind === "unpayable") {
+            // A DAMAGED or unsupported merchant code is a different failure
+            // from a QR holding no payment at all. Saying which is the
+            // difference between the user re-scanning and the user knowing
+            // the sticker itself is wrong — and a bad CRC may mean the label
+            // was pasted over, which they should not retry.
+            setSgqrError(sgqr.detail);
+            return;
+          }
+
           const address = parseScannedAddress(data);
           if (address) {
             handled.current = true;
@@ -186,7 +225,9 @@ export default function Scan() {
           {/* The WalletConnect message wins when present: it is the specific
               one ("this link expired", "this site uses WalletConnect v1"), and
               the generic hints below cannot tell the user any of that. */}
-          {wcError
+          {sgqrError
+            ? sgqrError
+            : wcError
             ? wcError
             : invalid === "bad_upi"
               ? "That UPI QR is damaged or incomplete — ask for a fresh one."
