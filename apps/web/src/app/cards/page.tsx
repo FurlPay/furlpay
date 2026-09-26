@@ -100,10 +100,32 @@ export default function CardsPage() {
       // finish has not proven anything, so the card stays closed. 60s is long
       // enough for a real person to find their finger and short enough that the
       // UI is never permanently stuck.
-      return await Promise.race([
-        authenticateFingerprint(),
-        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 60_000)),
-      ]);
+      let timer: ReturnType<typeof setTimeout> | undefined;
+
+      // The ceremony is given its own rejection handler BEFORE the race. Once the
+      // timeout wins, nothing is awaiting this promise any more — and a WebAuthn
+      // call that rejects later (the user finally dismissing a stuck prompt) would
+      // otherwise surface as an unhandled rejection, which Next.js reports as an
+      // error overlay in dev and logs as a crash in production.
+      //
+      // It resolves FALSE rather than propagating: a ceremony whose result
+      // arrives after we stopped waiting has not authorised anything. Late
+      // success cannot retroactively open the card, which is the important half —
+      // the caller has already been told "no" and moved on.
+      const ceremony = authenticateFingerprint().catch(() => false);
+
+      try {
+        return await Promise.race([
+          ceremony,
+          new Promise<boolean>((resolve) => {
+            timer = setTimeout(() => resolve(false), 60_000);
+          }),
+        ]);
+      } finally {
+        // Cleared on BOTH paths. Without this every successful reveal left a
+        // 60-second timer pinned for no reason.
+        if (timer) clearTimeout(timer);
+      }
     } catch {
       return false;
     }

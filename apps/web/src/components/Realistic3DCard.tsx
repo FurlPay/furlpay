@@ -99,6 +99,21 @@ export default function Realistic3DCard({
   const [isRevealed, setIsRevealed] = useState<boolean>(false);
   const [isAuthorizing, setIsAuthorizing] = useState<boolean>(false);
 
+  // Is this instance still on screen?
+  //
+  // The reveal gate can take up to 60 seconds (a passkey prompt the user has not
+  // answered), and the card unmounts underneath it if the list empties or the
+  // page navigates. Without this, a result arriving after unmount would set
+  // state on a dead component — and worse, a late approval could open a
+  // REMOUNTED card that never ran a ceremony of its own.
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+
   // ── Reduced motion ────────────────────────────────────────────────────────
   //
   // The component had NO reduced-motion handling: pointer tilt, the 450ms spring
@@ -183,17 +198,33 @@ export default function Realistic3DCard({
         // `finally`, because the await above can reject. Leaving this in the
         // `try` meant a throw skipped it and stranded the card in "confirming
         // your identity" with no way back.
-        setIsAuthorizing(false);
+        //
+        // Guarded on `mounted`: the gate can take up to 60 seconds, and the card
+        // unmounts if the list empties or the page navigates in the meantime.
+        // Setting state on an unmounted component is a no-op React warns about,
+        // but the REAL problem is below — a late `setIsRevealed(true)` on a
+        // remounted card would open it without a fresh ceremony.
+        if (mounted.current) setIsAuthorizing(false);
       }
 
       if (!authorized) {
+        // The haptic still fires: the user is present and refused, and they get
+        // the feedback whether or not this instance is still on screen.
         triggerHaptic("error");
         return;
       }
+
+      // A result that arrives after unmount authorises NOTHING. Dropping it here
+      // means a card that comes back on screen starts closed and asks again,
+      // rather than inheriting an approval granted to a previous instance.
+      if (!mounted.current) return;
       setIsRevealed(true);
     }
 
     triggerHaptic("medium");
+    // Same reason: a flip queued before unmount must not land on a remounted
+    // instance that never asked for it.
+    if (!mounted.current) return;
     setIsFlipped((prev) => !prev);
   }, [isFlipped, isRevealed, isAuthorizing, onRevealRequest]);
 
