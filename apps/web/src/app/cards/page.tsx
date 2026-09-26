@@ -12,6 +12,14 @@ import Modal from "@/components/Modal";
 
 export default function CardsPage() {
   const [cards, setCards] = useState<PaymentCard[]>([]);
+  // Distinguishes "not fetched yet" from "fetched, and you have none".
+  //
+  // `cards` starts as `[]`, so the old `if (!cards.length) return <Spinner />`
+  // was true in BOTH states: a customer with no cards — which is every new
+  // account, since emptyAccount() seeds `cards: []` — sat on a spinner forever,
+  // with no card, no empty state and no way to issue one. Found by rendering the
+  // page, not by a passing assertion.
+  const [cardsLoaded, setCardsLoaded] = useState(false);
   const [active, setActive] = useState(0);
   const [txs, setTxs] = useState<Transaction[]>([]);
   const [modal, setModal] = useState<null | "view" | "limits" | "settings" | "escrow" | "issue">(null);
@@ -46,8 +54,15 @@ export default function CardsPage() {
   }, []);
 
   const loadCards = useCallback(async () => {
-    const r = await getJSON<{ cards: PaymentCard[] }>("/api/cards");
-    setCards(r.cards);
+    try {
+      const r = await getJSON<{ cards: PaymentCard[] }>("/api/cards");
+      setCards(r.cards);
+    } finally {
+      // `finally`, so a failed fetch also leaves the spinner. Without it a
+      // network error is indistinguishable from a slow one and the page hangs
+      // on a spinner that will never resolve.
+      setCardsLoaded(true);
+    }
   }, []);
 
   useEffect(() => { loadCards(); }, [loadCards]);
@@ -142,7 +157,35 @@ export default function CardsPage() {
     setCards((cs) => cs.map((c) => (c.id === r.card.id ? r.card : c)));
   }
 
-  if (!cards.length) return <Spinner />;
+  // Loading and empty are DIFFERENT states and must look different.
+  if (!cardsLoaded) return <Spinner />;
+
+  if (!cards.length) {
+    return (
+      <div className="px-5 py-10 text-center">
+        <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-accent/40 text-accent">
+          <PlusIcon />
+        </span>
+        <h2 className="mt-4 text-lg font-semibold text-white">No cards yet</h2>
+        {/* Deliberately NOT "Issue a virtual card …". The claims linter caught
+            that wording, and it was right: card issuance is not live in
+            production, so promising it here would advertise a capability the
+            user cannot actually get. The copy describes what a card would do and
+            says plainly that it is not available yet. */}
+        <p className="mx-auto mt-1.5 max-w-[340px] text-sm text-textSecondary">
+          Cards let you spend your stablecoin balance online. Card ordering is not
+          available yet — see what&apos;s planned.
+        </p>
+        <button
+          type="button"
+          onClick={() => setModal("issue")}
+          className="mt-5 rounded-xl bg-accent px-5 py-2.5 text-sm font-semibold text-white transition-opacity hover:opacity-90"
+        >
+          See card options
+        </button>
+      </div>
+    );
+  }
 
   return (
     <>

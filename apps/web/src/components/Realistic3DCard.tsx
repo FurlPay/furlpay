@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useCallback, useMemo } from "react";
+import React, { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import { PaymentCard } from "@/lib/types";
 import { CardNetworkLogo } from "@furlpay/ui";
 import { ShieldCheck, Eye, EyeOff, Snowflake, Wifi } from "lucide-react";
@@ -49,6 +49,26 @@ interface Realistic3DCardProps {
 export type CardMaterial = "metal_obsidian" | "titanium_silver" | "cyber_neon" | "rose_gold";
 
 /**
+ * A credential we actually hold, or `null`.
+ *
+ * `??` alone is not enough, which is the whole reason this exists: it catches
+ * only `null` and `undefined`, so an EMPTY STRING from an API that returned
+ * `{ cvv: "" }` would satisfy `expiry ?? "••/••"` and render as a blank gap
+ * where a number belongs. The literal strings "undefined" and "null" are also
+ * rejected — those arrive from template interpolation somewhere upstream
+ * (`` `${maybeUndefined}` ``), and they look like data rather than like an error.
+ *
+ * One helper for all three fields so the masking cannot drift between them.
+ */
+function held(value: string | undefined | null): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (trimmed === "undefined" || trimmed === "null" || trimmed === "NaN") return null;
+  return trimmed;
+}
+
+/**
  * Realistic3DCard — Photorealistic 3D interactive payment card.
  *
  * Implements the realism benchmarks of Tangem Wallet and RedotPay:
@@ -79,6 +99,28 @@ export default function Realistic3DCard({
   const [isRevealed, setIsRevealed] = useState<boolean>(false);
   const [isAuthorizing, setIsAuthorizing] = useState<boolean>(false);
 
+  // ── Reduced motion ────────────────────────────────────────────────────────
+  //
+  // The component had NO reduced-motion handling: pointer tilt, the 450ms spring
+  // flip and the travelling glare all ran regardless of the OS setting. On a
+  // surface whose whole point is that it moves under your finger, that is the
+  // one place the preference matters most.
+  //
+  // Watched rather than read once, because the user can change it without
+  // reloading — and because on macOS it flips when "Reduce motion" is toggled in
+  // Accessibility settings mid-session.
+  const [reduceMotion, setReduceMotion] = useState(false);
+  useEffect(() => {
+    // Guarded: matchMedia is absent in jsdom without a shim and during SSR, and a
+    // throw here would take down the whole card.
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduceMotion(mq.matches);
+    const onChange = (e: MediaQueryListEvent) => setReduceMotion(e.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+
   // Derive material appearance
   const material: CardMaterial = useMemo(() => {
     const label = card.label?.toLowerCase() ?? "";
@@ -91,6 +133,10 @@ export default function Realistic3DCard({
   // Handle pointer move for 3D tilt & specular reflection
   const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
     if (!cardRef.current) return;
+    // The card stays flat. Tilt and a travelling specular highlight are pure
+    // decoration — nothing is communicated by them — so under reduced motion
+    // they are simply not produced.
+    if (reduceMotion) return;
     const rect = cardRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
@@ -109,7 +155,7 @@ export default function Realistic3DCard({
       y: (1 - normalizedY) * 50,
       opacity: 0.65,
     });
-  }, []);
+  }, [reduceMotion]);
 
   const handlePointerLeave = useCallback(() => {
     // Smoothly settle back to level
@@ -145,14 +191,46 @@ export default function Realistic3DCard({
         onPointerMove={handlePointerMove}
         onPointerLeave={handlePointerLeave}
         onClick={toggleFlip}
+        // WITHOUT THIS the card was focusable and inert: role="button" plus
+        // tabIndex={0} advertises a control to assistive tech, and a keyboard
+        // user could Tab to it, press Enter, and nothing happened. Space is
+        // preventDefault-ed because it scrolls the page by default.
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            void toggleFlip();
+          }
+        }}
         role="button"
         tabIndex={0}
-        aria-label={`${card.label} ${card.network} card. Click to flip.`}
+        aria-pressed={isFlipped}
+        aria-busy={isAuthorizing}
+        // Says WHAT HAPPENS, not which input device to use: "Click to flip" is
+        // wrong for the keyboard and screen-reader users this label exists for.
+        // It also names the current face and the frozen state, neither of which
+        // was announced — a frozen card looked identical to an active one to
+        // anyone not seeing the overlay.
+        aria-label={[
+          card.label,
+          card.network,
+          "card",
+          card.frozen ? "frozen" : null,
+          isFlipped ? "showing back" : "showing front",
+          isAuthorizing ? "confirming your identity" : "activate to turn over",
+        ]
+          .filter(Boolean)
+          .join(", ")}
         className="relative aspect-[1.586] w-full max-w-[420px] cursor-pointer transition-transform duration-200 ease-out preserve-3d"
         style={{
           transformStyle: "preserve-3d",
           transform: `rotateX(${rotateX}deg) rotateY(${isFlipped ? rotateY + 180 : rotateY}deg)`,
-          transition: "transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)",
+          // The FACE CHANGE is meaningful and is kept; the 450ms rotation
+          // through 3D space is not, so reduced motion swaps to an almost
+          // instant cut. Removing the flip entirely would remove the only way to
+          // see the reverse of the card.
+          transition: reduceMotion
+            ? "transform 0.01s linear"
+            : "transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
         {/* ── CARD FRONT ──────────────────────────────────────────────── */}
@@ -234,8 +312,10 @@ export default function Realistic3DCard({
           {/* Bottom Row: Card Number, Expiry, Network */}
           <div className="relative z-10">
             <p className="font-mono text-lg font-medium tracking-[0.22em] text-white/95 drop-shadow-sm">
-              {isRevealed && fullPan
-                ? fullPan
+              {/* last4 is data we genuinely have on every card, so the masked
+                  form is informative rather than a placeholder. */}
+              {isRevealed && held(fullPan)
+                ? held(fullPan)
                 : `•••• •••• •••• ${card.last4}`}
             </p>
 
@@ -245,9 +325,10 @@ export default function Realistic3DCard({
                   Valid Thru
                 </span>
                 <span className="font-mono text-xs font-semibold text-white/90">
-                  {/* Masked when unknown. A default here would state an expiry
-                      date for a card whose real date we do not hold. */}
-                  {expiry ?? "••/••"}
+                  {/* Masked unless genuinely held. A default here would state an
+                      expiry for a card whose real date we do not have, and a bare
+                      `??` would let an empty string render as a blank gap. */}
+                  {held(expiry) ?? "••/••"}
                 </span>
               </div>
 
@@ -317,7 +398,7 @@ export default function Realistic3DCard({
                     successful step-up must not leave a blank where a number
                     belongs. Staying masked says "we do not hold it", which is the
                     truth while no issuer is contracted. */}
-                {isRevealed && cvv ? cvv : "•••"}
+                {isRevealed && held(cvv) ? held(cvv) : "•••"}
               </span>
             </div>
           </div>

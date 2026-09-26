@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 // ---------------------------------------------------------------------------
@@ -44,13 +44,13 @@ describe("no fabricated card credentials", () => {
   });
 
   it("masks an unknown expiry rather than printing undefined", () => {
-    expect(code(CARD)).toMatch(/expiry \?\? ["']••\/••["']/);
+    expect(code(CARD)).toMatch(/held\(expiry\) \?\? ["']••\/••["']/);
   });
 
   it("masks the CVV unless it is both revealed AND known", () => {
     // `isRevealed ? cvv : "•••"` renders the string "undefined" once the default
     // is gone — a successful step-up must not leave a blank where a number goes.
-    expect(code(CARD)).toContain("isRevealed && cvv ? cvv");
+    expect(code(CARD)).toContain("isRevealed && held(cvv)");
   });
 
   it("falls back to last4 for the PAN, which is data we genuinely have", () => {
@@ -100,6 +100,158 @@ describe("the carousel passes no credentials", () => {
     // grant the client exchanges with the issuer's PCI vault.
     expect(PAGE).toContain("/api/cards/lifecycle/");
     expect(PAGE).toContain("reveal");
+  });
+});
+
+describe("credential masking rejects every empty-ish value", () => {
+  // `??` catches only null/undefined, so an API returning `{ cvv: "" }` would
+  // have rendered a blank gap where a number belongs, and a template
+  // interpolation upstream can produce the literal string "undefined".
+  it("routes all three fields through one helper", () => {
+    const body = code(CARD);
+    expect(body).toContain("function held(");
+    expect(body).toContain("held(cvv)");
+    expect(body).toContain("held(fullPan)");
+    expect(body).toContain("held(expiry)");
+  });
+
+  it("rejects empty, whitespace and stringified nullish values", () => {
+    const helper = code(CARD).slice(code(CARD).indexOf("function held("));
+    expect(helper).toContain("trim()");
+    expect(helper).toContain('"undefined"');
+    expect(helper).toContain('"null"');
+  });
+
+  it("never renders a raw credential without the helper", () => {
+    const body = code(CARD);
+    // A bare {cvv} / {expiry} / {fullPan} in JSX would bypass the masking.
+    expect(body).not.toMatch(/\{\s*(cvv|expiry|fullPan)\s*\}/);
+  });
+});
+
+describe("the card is operable by keyboard", () => {
+  // role="button" + tabIndex={0} advertises a control to assistive tech. Without
+  // a key handler a keyboard user could Tab to the card, press Enter, and have
+  // nothing happen — focusable and inert, which is worse than not focusable.
+  const body = code(CARD);
+
+  it("handles Enter and Space", () => {
+    expect(body).toContain("onKeyDown");
+    expect(body).toMatch(/e\.key === "Enter" \|\| e\.key === " "/);
+  });
+
+  it("prevents Space from scrolling the page", () => {
+    expect(body).toContain("e.preventDefault()");
+  });
+
+  it("announces state rather than naming an input device", () => {
+    // "Click to flip" is wrong for exactly the users the label exists for.
+    expect(body).not.toContain("Click to flip");
+    expect(body).toContain("activate to turn over");
+    // Frozen and face must be announced; neither was.
+    expect(body).toContain('card.frozen ? "frozen"');
+    expect(body).toContain('isFlipped ? "showing back"');
+  });
+
+  it("exposes pressed and busy state", () => {
+    expect(body).toContain("aria-pressed={isFlipped}");
+    expect(body).toContain("aria-busy={isAuthorizing}");
+  });
+});
+
+describe("reduced motion removes movement, not meaning", () => {
+  const body = code(CARD);
+
+  it("consults the media query", () => {
+    expect(body).toContain('matchMedia("(prefers-reduced-motion: reduce)")');
+  });
+
+  it("watches for changes and cleans up the listener", () => {
+    expect(body).toContain('mq.addEventListener("change"');
+    expect(body).toContain('mq.removeEventListener("change"');
+  });
+
+  it("guards against a missing matchMedia", () => {
+    // Absent during SSR and in jsdom without a shim; a throw would take down the
+    // whole card rather than just the motion.
+    expect(body).toMatch(/typeof window\.matchMedia !== "function"/);
+  });
+
+  it("suppresses tilt and glare, which carry no information", () => {
+    const move = body.slice(body.indexOf("handlePointerMove"), body.indexOf("handlePointerLeave"));
+    expect(move).toContain("if (reduceMotion) return;");
+    // And the callback must depend on the flag, or it captures a stale value.
+    expect(body).toContain("}, [reduceMotion]);");
+  });
+
+  it("KEEPS the flip, because the face change is the only way to see the back", () => {
+    expect(body).toMatch(/reduceMotion\s*\?\s*"transform 0\.01s linear"/);
+    // Not gated away entirely.
+    const flip = body.slice(body.indexOf("const toggleFlip"), body.indexOf("<div"));
+    expect(flip).not.toContain("if (reduceMotion) return");
+  });
+
+  it("KEEPS the haptics", () => {
+    // Same invariant as the native WobbleView: reduced motion is about movement,
+    // not about withholding feedback.
+    const flip = body.slice(body.indexOf("const toggleFlip"), body.indexOf("<div"));
+    expect(flip).toContain('triggerHaptic("error")');
+    expect(flip).toContain('triggerHaptic("medium")');
+  });
+});
+
+describe("the reveal fails closed", () => {
+  const body = code(CARD);
+
+  it("does not flip when authorization is refused", () => {
+    const flip = body.slice(body.indexOf("const toggleFlip"), body.indexOf("<div"));
+    // The early return must come BEFORE setIsFlipped, or a refusal still opens it.
+    const refuseAt = flip.indexOf("if (!authorized)");
+    const flipAt = flip.indexOf("setIsFlipped");
+    expect(refuseAt).toBeGreaterThan(-1);
+    expect(flipAt).toBeGreaterThan(refuseAt);
+    expect(flip).toMatch(/if \(!authorized\) \{[\s\S]{0,120}return;/);
+  });
+
+  it("buzzes error on refusal", () => {
+    const flip = body.slice(body.indexOf("const toggleFlip"), body.indexOf("<div"));
+    expect(flip).toMatch(/if \(!authorized\) \{[\s\S]{0,80}triggerHaptic\("error"\)/);
+  });
+
+  it("only asks once — a revealed card does not re-prompt", () => {
+    const flip = body.slice(body.indexOf("const toggleFlip"), body.indexOf("<div"));
+    expect(flip).toContain("!isRevealed");
+  });
+
+  it("clears the authorizing flag even when refused", () => {
+    // Otherwise a refusal leaves the card stuck in a busy state forever.
+    const flip = body.slice(body.indexOf("const toggleFlip"), body.indexOf("<div"));
+    const clearAt = flip.indexOf("setIsAuthorizing(false)");
+    const refuseAt = flip.indexOf("if (!authorized)");
+    expect(clearAt).toBeGreaterThan(-1);
+    expect(clearAt).toBeLessThan(refuseAt);
+  });
+});
+
+describe("VisaCard was consolidated away", () => {
+  it("no longer exists", () => {
+    // Two card visuals in one product drift. Realistic3DCard reached parity on
+    // every feature VisaCard had — frozen overlay, gradient, settlement
+    // currency, kind, label, network logo — and VisaCard had zero callers.
+    const path = join(__dirname, "..", "VisaCard.tsx");
+    expect(existsSync(path)).toBe(false);
+  });
+
+  it("nothing imports it", () => {
+    expect(code(PAGE)).not.toContain("VisaCard");
+  });
+
+  it("the replacement keeps every feature it had", () => {
+    const body = code(CARD);
+    expect(body).toContain("card.frozen");
+    expect(body).toContain("settlementCurrency");
+    expect(body).toContain("CardNetworkLogo");
+    expect(body).toContain("card.last4");
   });
 });
 
