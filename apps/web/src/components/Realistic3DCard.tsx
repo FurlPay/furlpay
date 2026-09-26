@@ -167,9 +167,25 @@ export default function Realistic3DCard({
   // Handle 3D card flip
   const toggleFlip = useCallback(async () => {
     if (!isFlipped && !isRevealed && onRevealRequest) {
+      // Guard against a SECOND activation while the first is still in flight.
+      // Without it, repeated Enter presses stack overlapping ceremonies and the
+      // last one to resolve wins — so a refusal could land after an approval.
+      if (isAuthorizing) return;
+
       setIsAuthorizing(true);
-      const authorized = await onRevealRequest();
-      setIsAuthorizing(false);
+      let authorized = false;
+      try {
+        authorized = await onRevealRequest();
+      } catch {
+        // A thrown gate is a refusal, not an open card.
+        authorized = false;
+      } finally {
+        // `finally`, because the await above can reject. Leaving this in the
+        // `try` meant a throw skipped it and stranded the card in "confirming
+        // your identity" with no way back.
+        setIsAuthorizing(false);
+      }
+
       if (!authorized) {
         triggerHaptic("error");
         return;
@@ -179,7 +195,7 @@ export default function Realistic3DCard({
 
     triggerHaptic("medium");
     setIsFlipped((prev) => !prev);
-  }, [isFlipped, isRevealed, onRevealRequest]);
+  }, [isFlipped, isRevealed, isAuthorizing, onRevealRequest]);
 
   return (
     <div
@@ -220,7 +236,13 @@ export default function Realistic3DCard({
         ]
           .filter(Boolean)
           .join(", ")}
-        className="relative aspect-[1.586] w-full max-w-[420px] cursor-pointer transition-transform duration-200 ease-out preserve-3d"
+        // No max-width here. The card filled its slide up to 420px while the
+        // slide itself stayed w-full, so on a wider viewport the NEXT card
+        // peeked past the edge and was clipped mid-slide. How wide a card may
+        // grow is the container's decision, not the component's — a card
+        // rendered outside a carousel should be free to fill whatever box it is
+        // given. The cards page caps the track instead.
+        className="relative aspect-[1.586] w-full cursor-pointer transition-transform duration-200 ease-out preserve-3d"
         style={{
           transformStyle: "preserve-3d",
           transform: `rotateX(${rotateX}deg) rotateY(${isFlipped ? rotateY + 180 : rotateY}deg)`,

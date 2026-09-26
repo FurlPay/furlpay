@@ -89,7 +89,21 @@ export default function CardsPage() {
   const requestCardStepUp = useCallback(async (): Promise<boolean> => {
     try {
       if (!(await isFingerprintAvailable())) return false;
-      return await authenticateFingerprint();
+
+      // BOUNDED. `navigator.credentials.get()` is not guaranteed to settle: if
+      // the platform reports an authenticator but no prompt ever appears — the
+      // exact behaviour observed in headless Chromium, and reachable on real
+      // devices with a wedged biometric service — the promise hangs forever and
+      // the card sits in "confirming your identity" with no way out.
+      //
+      // A timeout that resolves FALSE, never true: a ceremony that did not
+      // finish has not proven anything, so the card stays closed. 60s is long
+      // enough for a real person to find their finger and short enough that the
+      // UI is never permanently stuck.
+      return await Promise.race([
+        authenticateFingerprint(),
+        new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 60_000)),
+      ]);
     } catch {
       return false;
     }
@@ -214,10 +228,25 @@ export default function CardsPage() {
       <div
         ref={trackRef}
         onScroll={onScroll}
-        className="no-scrollbar flex snap-x snap-mandatory overflow-x-auto scroll-smooth px-5"
+        // max-w caps the TRACK, so each w-full slide and the card inside it end
+        // at the same edge. Capping the card alone (max-w on the component) left
+        // the slide wider than its contents and the next card peeked in and was
+        // clipped mid-slide — visible in the browser at 1440x900.
+        // NO px-5 here. Horizontal padding on the track shrinks the content box
+        // that each basis-full slide resolves against (440px track - 40px = 400px
+        // slides), which is exactly what left the next card peeking past the
+        // edge. The gutter moves onto the slides instead, so a slide is a full
+        // viewport wide and snap-center lands one card per page.
+        className="no-scrollbar mx-auto flex max-w-[460px] snap-x snap-mandatory overflow-x-auto scroll-smooth"
       >
         {cards.map((c) => (
-          <div key={c.id} className="w-full shrink-0 snap-center pr-4 last:pr-0">
+          // basis-full, not w-full: inside a flex row `w-full` resolves against
+          // the track's CONTENT box (440px track − px-5 padding = 400px), so each
+          // slide came out narrower than the scroll viewport and the next card
+          // peeked in and sat clipped at the edge. Measured in the browser, not
+          // guessed. basis-full makes a slide exactly one viewport wide, so
+          // snap-center lands one card per page.
+          <div key={c.id} className="shrink-0 basis-full snap-center px-5">
             {/* Realistic3DCard replaces the flat VisaCard: ISO 1.586:1 geometry,
                 pointer-tracked tilt, and a 3D flip to the reverse face.
 
