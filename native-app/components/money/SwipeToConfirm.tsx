@@ -11,7 +11,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as Haptics from "expo-haptics";
+import { haptic } from "@/lib/haptics";
 import { colors, radius, spacing } from "@/lib/theme";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +37,8 @@ import { colors, radius, spacing } from "@/lib/theme";
 
 /** Fraction of the track that must be crossed before release commits. */
 const COMMIT_THRESHOLD = 0.75;
+/** Where the reassurance tick fires, so the gesture is not silent until 75%. */
+const MIDPOINT = 0.5;
 /** A fast flick past this velocity commits from a shorter distance. */
 const COMMIT_VELOCITY = 1.2;
 /** Below this the flick shortcut is ignored — prevents an accidental fling. */
@@ -82,6 +84,7 @@ export function SwipeToConfirm({
   const dragX = useRef(0);
   // Latched so the threshold haptic fires once per drag, not once per frame.
   const passedThreshold = useRef(false);
+  const passedMidpoint = useRef(false);
 
   const blocked = disabled || !!disabledReason || state === "confirming" || state === "done";
   const knob = 56;
@@ -98,7 +101,11 @@ export function SwipeToConfirm({
   }, []);
 
   const springBack = useCallback(() => {
+    // BOTH latches. Resetting only the threshold left the midpoint latched, so a
+    // second attempt after an abort was silent through the first half of the
+    // track — the drag felt dead exactly when the user was least confident.
     passedThreshold.current = false;
+    passedMidpoint.current = false;
     dragX.current = 0;
     Animated.spring(x, {
       toValue: 0,
@@ -119,7 +126,18 @@ export function SwipeToConfirm({
   const commit = useCallback(() => {
     dragX.current = travel;
     Animated.spring(x, { toValue: travel, useNativeDriver: true, bounciness: 0, speed: 20 }).start();
-    void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // DELIBERATELY NO SUCCESS HAPTIC HERE.
+    //
+    // This fired `notificationAsync(Success)` the instant the thumb lifted —
+    // before onConfirm() had run, let alone before the server had accepted
+    // anything. The device therefore said "done" at the moment of release, so a
+    // payment that went on to be declined, rate-limited or dropped offline had
+    // already been celebrated in the user's hand. On a money action that is the
+    // one confirmation that must not be optimistic.
+    //
+    // The tactile "locked in" cue already fired when the knob crossed the commit
+    // threshold below. Success belongs to whoever observes the server's answer —
+    // useSend fires haptic.success() there.
     onConfirm();
   }, [onConfirm, travel, x]);
 
@@ -134,7 +152,8 @@ export function SwipeToConfirm({
 
         onPanResponderGrant: () => {
           passedThreshold.current = false;
-          void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          passedMidpoint.current = false;
+          haptic.tap();
         },
 
         onPanResponderMove: (_e, g) => {
@@ -151,12 +170,29 @@ export function SwipeToConfirm({
           dragX.current = Math.max(0, Math.min(next, travel));
           x.setValue(next);
 
-          const crossed = dragX.current >= travel * COMMIT_THRESHOLD;
+          // Two milestones, each latched so it fires once per drag rather than
+          // once per frame, and each un-latched on the way back so a user who
+          // hesitates and re-crosses feels the same track again.
+          //
+          // The midpoint tick is what makes the control legible without looking:
+          // with only a 75% cue, the first three quarters of the gesture were
+          // silent and there was no way to tell a stuck knob from a slow one.
+          const fraction = travel > 0 ? dragX.current / travel : 0;
+
+          const pastMid = fraction >= MIDPOINT;
+          if (pastMid && !passedMidpoint.current) {
+            passedMidpoint.current = true;
+            haptic.select();
+          } else if (!pastMid && passedMidpoint.current) {
+            passedMidpoint.current = false;
+          }
+
+          const crossed = fraction >= COMMIT_THRESHOLD;
           if (crossed && !passedThreshold.current) {
             passedThreshold.current = true;
-            // The "you can let go now" cue. Medium, so it is distinct from the
-            // light grant tick and from the success notification.
-            void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            // The "you can let go now" cue — heavier than the midpoint tick, and
+            // the last thing felt before the money moves.
+            haptic.commit();
           } else if (!crossed && passedThreshold.current) {
             passedThreshold.current = false;
           }
@@ -201,7 +237,9 @@ export function SwipeToConfirm({
     if (blocked) return;
     if (!armed) {
       setArmed(true);
-      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      // Same weight the drag gives at its commit threshold, so the screen-reader
+      // path feels like the same control rather than a different one.
+      haptic.commit();
       AccessibilityInfo.announceForAccessibility?.(
         `Armed. Activate again to confirm the ${noun}.`
       );

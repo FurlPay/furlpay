@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Linking, Pressable, StyleSheet, Text, View } from "react-native";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useRouter } from "expo-router";
@@ -9,7 +9,8 @@ import { looksLikeUpiUri, parseUpiUri } from "@/lib/upi";
 import { classifySgqrScan } from "@/lib/sgqr";
 import { looksLikePairingUri, parsePairingUri } from "@/lib/walletconnect/uri";
 import { pairWithUri } from "@/lib/walletconnect/useWalletConnect";
-import { ScannerFrame } from "@/components/ScannerFrame";
+import { LOCK_SNAP_MS, ScannerFrame } from "@/components/ScannerFrame";
+import { haptic } from "@/lib/haptics";
 import { colors, radius, spacing, type } from "@/lib/theme";
 import { Button, Field, Screen, Sheet } from "@/components/ui";
 
@@ -27,6 +28,37 @@ export default function Scan() {
   const [manual, setManual] = useState("");
   const [manualError, setManualError] = useState<string | null>(null);
   const handled = useRef(false);
+  // Drives the reticle snap. Separate from `handled` because `handled` also
+  // guards the non-navigating error paths, which must NOT clamp the frame.
+  const [locked, setLocked] = useState(false);
+  const snapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // A pending navigation must not outlive the screen. Without this, backing out
+  // during the 180ms window fires router.replace from an unmounted component and
+  // yanks the user to a route they had already left.
+  useEffect(
+    () => () => {
+      if (snapTimer.current) clearTimeout(snapTimer.current);
+    },
+    []
+  );
+
+  /**
+   * Acknowledge a successful scan, then navigate.
+   *
+   * One helper rather than a timer inlined at each of the four payable branches:
+   * duplicating it would mean four chances to forget the cleanup, and a missed
+   * `handled` latch lets a second frame from the camera fire a second
+   * navigation.
+   */
+  const lockThenGo = (go: () => void) => {
+    handled.current = true;
+    setLocked(true);
+    // "found", not "success" — the code was recognised, nothing has been paid.
+    // Buzzing success here would confirm a payment that has not happened.
+    haptic.found();
+    snapTimer.current = setTimeout(go, LOCK_SNAP_MS);
+  };
 
   // Manual entry — the web's "Enter address manually" escape hatch, for a
   // damaged QR or an address received as text. Validated through the SAME
@@ -159,14 +191,14 @@ export default function Scan() {
               setWcError(parsed.error.message);
               return;
             }
-            handled.current = true;
-            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
             // Navigate FIRST, pair second. The proposal arrives asynchronously
             // and the approval sheet lives on /walletconnect; pairing from a
             // screen that is about to unmount would land the proposal with
             // nothing mounted to show it.
-            router.replace("/walletconnect");
-            void pairWithUri(data, "qr");
+            lockThenGo(() => {
+              router.replace("/walletconnect");
+              void pairWithUri(data, "qr");
+            });
             return;
           }
 
@@ -174,9 +206,7 @@ export default function Scan() {
           // be mistaken for a crypto address, so the order costs nothing.
           const upi = parseUpiUri(data);
           if (upi) {
-            handled.current = true;
-            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            router.replace({ pathname: "/upi/confirm", params: { uri: data } });
+            lockThenGo(() => router.replace({ pathname: "/upi/confirm", params: { uri: data } }));
             return;
           }
           // A UPI QR we could not parse is a DIFFERENT failure from a QR that
@@ -193,9 +223,7 @@ export default function Scan() {
           // till sticker in Singapore reported "not payable".
           const sgqr = classifySgqrScan(data);
           if (sgqr.kind === "payable") {
-            handled.current = true;
-            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            router.replace({ pathname: "/paynow/confirm", params: { payload: data } });
+            lockThenGo(() => router.replace({ pathname: "/paynow/confirm", params: { payload: data } }));
             return;
           }
           if (sgqr.kind === "unpayable") {
@@ -210,15 +238,16 @@ export default function Scan() {
 
           const address = parseScannedAddress(data);
           if (address) {
-            handled.current = true;
-            void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-            router.replace({ pathname: "/(tabs)/send", params: { to: address } });
+            lockThenGo(() => router.replace({ pathname: "/(tabs)/send", params: { to: address } }));
           } else {
+            // NOT locked: the frame must keep sweeping so it is obvious the
+            // camera is still looking. Clamping it here would say "got it" about
+            // a code that holds no payment.
             setInvalid("not_payable");
           }
         }}
       />
-      <ScannerFrame />
+      <ScannerFrame locked={locked} />
 
       <View style={styles.overlay}>
         <Text style={[type.dim, styles.hint]}>
