@@ -13,6 +13,7 @@ import { RecipientInput } from "@/components/send/RecipientInput";
 import { SendSummary } from "@/components/send/SendSummary";
 import { SourceSelector } from "@/components/send/SourceSelector";
 import { Button, ErrorNote, Field, Screen } from "@/components/ui";
+import { WobbleView } from "@/components/ui/WobbleView";
 import { useContactForAddress } from "@/lib/contacts/useContacts";
 import { useNameResolution } from "@/lib/contacts/useResolveName";
 import { shortAddress, usd } from "@/lib/format";
@@ -244,7 +245,14 @@ export default function Send() {
               failedAt={1}
             />
           ) : null}
-          {exec.error ? <ErrorNote message={exec.error} /> : null}
+          {/* Wobbles on each NEW error. Keyed on the message so a retry that
+              fails the same way still gets feedback — a silent second failure
+              reads as the button having stopped working. */}
+          {exec.error ? (
+            <WobbleView triggerKey={exec.error}>
+              <ErrorNote message={exec.error} />
+            </WobbleView>
+          ) : null}
           {exec.correlationId ? (
             <Text style={styles.correlation}>Reference {exec.correlationId}</Text>
           ) : null}
@@ -393,7 +401,13 @@ export default function Send() {
           />
         ) : null}
 
-        <ErrorNote message={exec.error} />
+        {/* The error directly above the confirm control, where the thumb already
+            is — the placement that makes a refusal impossible to miss. ErrorNote
+            renders nothing for a null message, so this stays mounted and the key
+            does the triggering. */}
+        <WobbleView triggerKey={exec.error}>
+          <ErrorNote message={exec.error} />
+        </WobbleView>
 
         <SwipeToConfirm
           noun="payment"

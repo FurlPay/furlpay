@@ -5,7 +5,8 @@ import { getJSON, sendJSON } from "@/lib/api";
 import { PaymentCard, Transaction } from "@/lib/types";
 import { PageHeader, Pill, Spinner, usd } from "@/components/ui";
 import { EyeIcon, GearIcon, PlusIcon, SlidersIcon, SnowflakeIcon, LockIcon, CloseIcon } from "@/components/icons";
-import VisaCard from "@/components/VisaCard";
+import Realistic3DCard from "@/components/Realistic3DCard";
+import { authenticateFingerprint, isFingerprintAvailable } from "@/lib/passkey";
 import TransactionList from "@/components/TransactionList";
 import Modal from "@/components/Modal";
 
@@ -52,6 +53,32 @@ export default function CardsPage() {
   useEffect(() => { loadCards(); }, [loadCards]);
 
   const card = cards[active];
+
+  /**
+   * Prove presence before the card flips to its reverse face.
+   *
+   * Uses the PASSKEY ceremony, not `/api/wallets/biometric-pay/*`. That endpoint
+   * mints a proof bound to H(amount|asset|recipient|chain|nonce) for one specific
+   * payment; driving it from a card view would mean inventing a payment intent
+   * for something that is not a payment, prompting the user about a transfer they
+   * are not making, and putting a card id in the recipient field. Viewing a card
+   * is sensitive-data ACCESS, a different question from authorising a transfer.
+   *
+   * `authenticateFingerprint()` runs the WebAuthn assertion and the server
+   * records a step-up against this session's jti (lib/stepup.ts), so the
+   * re-authentication is server-observed rather than a client boolean.
+   *
+   * Returning false on ANY failure — refused, unsupported, or thrown — keeps the
+   * card closed. A reveal must fail closed.
+   */
+  const requestCardStepUp = useCallback(async (): Promise<boolean> => {
+    try {
+      if (!(await isFingerprintAvailable())) return false;
+      return await authenticateFingerprint();
+    } catch {
+      return false;
+    }
+  }, []);
 
   const loadTxs = useCallback(async (cardId: string) => {
     const r = await getJSON<{ transactions: Transaction[] }>(`/api/transactions?cardId=${cardId}`);
@@ -148,7 +175,18 @@ export default function CardsPage() {
       >
         {cards.map((c) => (
           <div key={c.id} className="w-full shrink-0 snap-center pr-4 last:pr-0">
-            <VisaCard card={c} />
+            {/* Realistic3DCard replaces the flat VisaCard: ISO 1.586:1 geometry,
+                pointer-tracked tilt, and a 3D flip to the reverse face.
+
+                NO CREDENTIAL PROPS ARE PASSED. cvv/fullPan/expiry stay undefined,
+                so the flip shows a masked reverse — which is the honest state
+                while no issuer is contracted. The real numbers come from
+                `/api/cards/lifecycle/:id/reveal`, which mints a single-use grant
+                the client exchanges directly with the issuer's PCI vault; FurlPay
+                never holds the PAN, so there is nothing here to hand the
+                component. ViewModal below owns that flow and reports 503 as
+                "unavailable" rather than inventing a number. */}
+            <Realistic3DCard card={c} onRevealRequest={requestCardStepUp} />
           </div>
         ))}
       </div>

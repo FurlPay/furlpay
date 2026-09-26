@@ -1,7 +1,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import React from "react";
-import TestRenderer, { act } from "react-test-renderer";
+import TestRenderer, { act, type ReactTestRenderer, type ReactTestInstance } from "react-test-renderer";
 import { ScannerFrame, LOCK_SNAP_MS } from "@/components/ScannerFrame";
 import { WobbleView, WOBBLE_DURATION_MS } from "@/components/ui/WobbleView";
 import { haptic } from "@/lib/haptics";
@@ -41,13 +41,14 @@ afterEach(() => jest.clearAllMocks());
 
 describe("ScannerFrame — seeking vs locked", () => {
   it("renders the sweep line while seeking", () => {
-    let tree!: TestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(<ScannerFrame />);
     });
     // The line is the only element that animates translateY.
     const animated = tree.root.findAll(
-      (n) => typeof n.type !== "string" && JSON.stringify(n.props?.style ?? "").includes("translateY"),
+      (n: ReactTestInstance) =>
+        typeof n.type !== "string" && JSON.stringify(n.props?.style ?? "").includes("translateY"),
       { deep: true }
     );
     expect(animated.length).toBeGreaterThan(0);
@@ -57,12 +58,12 @@ describe("ScannerFrame — seeking vs locked", () => {
   it("removes the sweep line once locked", () => {
     // Not merely faded: an invisible element still animating is work done for
     // nothing on a screen that is about to unmount.
-    let tree!: TestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(<ScannerFrame locked />);
     });
     const withTranslateY = tree.root.findAll(
-      (n) => JSON.stringify(n.props?.style ?? "").includes("translateY"),
+      (n: ReactTestInstance) => JSON.stringify(n.props?.style ?? "").includes("translateY"),
       { deep: true }
     );
     expect(withTranslateY).toHaveLength(0);
@@ -72,7 +73,7 @@ describe("ScannerFrame — seeking vs locked", () => {
   it("is reversible — an unpayable code reopens the frame", () => {
     // A scan that turns out to hold no payment resets `locked`, and the frame
     // must go back to seeking rather than staying clamped on nothing.
-    let tree!: TestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(<ScannerFrame locked />);
     });
@@ -80,7 +81,7 @@ describe("ScannerFrame — seeking vs locked", () => {
       tree.update(<ScannerFrame locked={false} />);
     });
     const withTranslateY = tree.root.findAll(
-      (n) => JSON.stringify(n.props?.style ?? "").includes("translateY"),
+      (n: ReactTestInstance) => JSON.stringify(n.props?.style ?? "").includes("translateY"),
       { deep: true }
     );
     expect(withTranslateY.length).toBeGreaterThan(0);
@@ -150,7 +151,7 @@ describe("WobbleView — refusal feedback", () => {
   });
 
   it("wobbles and buzzes when the key changes", () => {
-    let tree!: TestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(
         <WobbleView triggerKey={null}>
@@ -172,7 +173,7 @@ describe("WobbleView — refusal feedback", () => {
   it("does NOT re-wobble when a parent re-renders with the same key", () => {
     // Any unrelated state change during an error would otherwise restart the
     // animation and buzz again, turning one refusal into a stutter.
-    let tree!: TestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(
         <WobbleView triggerKey="err-1">
@@ -194,7 +195,7 @@ describe("WobbleView — refusal feedback", () => {
   it("wobbles again for a DIFFERENT key", () => {
     // The reason triggerKey is not a boolean: a user who corrects nothing and
     // retries must still get feedback, or the button looks broken.
-    let tree!: TestRenderer.ReactTestRenderer;
+    let tree!: ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(
         <WobbleView triggerKey={1}>
@@ -254,6 +255,79 @@ describe("WobbleView — refusal feedback", () => {
   it("stops the animation on unmount", () => {
     const code = src("components/ui/WobbleView.tsx");
     expect(code).toMatch(/return \(\) => \{[\s\S]{0,120}animation\.stop\(\)/);
+  });
+});
+
+describe("WobbleView — reduce motion", () => {
+  const code = src("components/ui/WobbleView.tsx");
+
+  it("consults the OS setting", () => {
+    expect(code).toContain("AccessibilityInfo.isReduceMotionEnabled()");
+  });
+
+  it("watches for changes rather than reading once", () => {
+    // The user can turn it on in Settings without restarting the app.
+    expect(code).toContain('addEventListener("reduceMotionChanged"');
+    expect(code).toContain("sub.remove()");
+  });
+
+  it("KEEPS the haptic when motion is suppressed", () => {
+    // The critical half. Reduce motion exists because movement itself is
+    // unpleasant for vestibular disorders — not because the user wants less
+    // information. Dropping the buzz too would leave them with no feedback and
+    // trade one accessibility problem for another.
+    const effect = code.slice(code.indexOf("if (lastKey.current === triggerKey) return;"));
+    const hapticAt = effect.indexOf("haptic.error()");
+    const bailAt = effect.indexOf("if (reduceMotionRef.current) return;");
+    expect(hapticAt).toBeGreaterThan(-1);
+    expect(bailAt).toBeGreaterThan(-1);
+    // The haptic must come FIRST, or the early return skips it.
+    expect(hapticAt).toBeLessThan(bailAt);
+  });
+
+  it("still renders children, so the error text survives", () => {
+    expect(code).toMatch(/if \(reduceMotion\) return <Animated\.View style=\{style\}>\{children\}/);
+  });
+
+  it("defaults to motion allowed if the read fails", () => {
+    // A silent read error must not quietly disable feedback for everyone.
+    expect(code).toContain("useState(false)");
+    expect(code).toMatch(/\.catch\(\(\) => \{\}\)/);
+  });
+
+  it("reads the flag from a ref inside the effect", () => {
+    // Listing reduceMotion as a dependency would re-run the effect when the user
+    // toggles the setting mid-error, and re-buzz for an error already reported.
+    expect(code).toContain("reduceMotionRef.current");
+    expect(code).toMatch(/\}, \[triggerKey, withHaptic, shake\]\)/);
+  });
+});
+
+describe("send.tsx — the wobble is wired to real validation failures", () => {
+  const code = src("app/(tabs)/send.tsx");
+
+  it("wraps both error surfaces", () => {
+    expect(code.match(/<WobbleView/g) ?? []).toHaveLength(2);
+  });
+
+  it("keys on the message, not a boolean", () => {
+    // A boolean would give no feedback on a second identical failure.
+    expect(code.match(/triggerKey=\{exec\.error\}/g) ?? []).toHaveLength(2);
+  });
+
+  it("leaves no un-wrapped exec error on the send path", () => {
+    // Every exec.error surface is inside a WobbleView. Asserted by pairing counts
+    // rather than by matching a bare line — the ErrorNote is still on its own
+    // line, just nested, so a line-anchored regex proves nothing either way.
+    const notes = code.match(/<ErrorNote message=\{exec\.error\}/g) ?? [];
+    const wraps = code.match(/<WobbleView triggerKey=\{exec\.error\}>/g) ?? [];
+    expect(notes.length).toBeGreaterThan(0);
+    expect(wraps).toHaveLength(notes.length);
+
+    // And each wrapper actually contains the note it is paired with.
+    for (const m of code.matchAll(/<WobbleView triggerKey=\{exec\.error\}>([\s\S]{0,160}?)<\/WobbleView>/g)) {
+      expect(m[1]).toContain("<ErrorNote message={exec.error}");
+    }
   });
 });
 

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from "react";
-import { Animated, type ViewStyle } from "react-native";
+import React, { useEffect, useRef, useState } from "react";
+import { AccessibilityInfo, Animated, type ViewStyle } from "react-native";
 import { haptic } from "@/lib/haptics";
 
 // ---------------------------------------------------------------------------
@@ -26,6 +26,12 @@ import { haptic } from "@/lib/haptics";
 // MOTION IS NEVER THE ONLY SIGNAL. This wraps an error message; it does not
 // replace one. A user who cannot perceive the movement — reduced motion, low
 // vision, or simply looking away — still has the text and the haptic.
+//
+// REDUCE MOTION drops the shake and KEEPS the haptic. That split is the point:
+// the OS setting exists because vestibular disorders make movement itself
+// unpleasant, so honouring it by removing all feedback would trade one
+// accessibility problem for another. The buzz conveys the same "that was
+// refused" without moving anything.
 // ---------------------------------------------------------------------------
 
 /** Peak offsets, in px. Decaying, and ending at exactly 0 so nothing is left displaced. */
@@ -63,6 +69,29 @@ export function WobbleView({ triggerKey, withHaptic = true, style, children }: W
   // re-fire. Without this, any parent state change during an error would restart
   // the animation and buzz again.
   const lastKey = useRef<WobbleViewProps["triggerKey"]>(undefined);
+  // Read once on mount AND watched, because the user can change it in Settings
+  // without restarting the app. A ref alongside the state so the effect below
+  // reads the current value without listing it as a dependency — otherwise
+  // toggling the setting mid-error would re-run the effect and re-buzz.
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotionRef = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    const apply = (on: boolean) => {
+      if (!alive) return;
+      reduceMotionRef.current = on;
+      setReduceMotion(on);
+    };
+    // Failure defaults to "motion allowed": the same default the platform uses,
+    // and a silent read error must not quietly disable feedback for everyone.
+    AccessibilityInfo.isReduceMotionEnabled().then(apply).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener("reduceMotionChanged", apply);
+    return () => {
+      alive = false;
+      sub.remove();
+    };
+  }, []);
 
   useEffect(() => {
     if (!triggerKey) {
@@ -72,7 +101,13 @@ export function WobbleView({ triggerKey, withHaptic = true, style, children }: W
     if (lastKey.current === triggerKey) return;
     lastKey.current = triggerKey;
 
+    // The haptic fires REGARDLESS of reduce motion — see the header. Removing it
+    // too would leave a user who opted out of movement with no feedback at all.
     if (withHaptic) haptic.error();
+
+    // Reduce motion: no translateX, nothing to start, nothing to clean up. The
+    // children and their error text still render.
+    if (reduceMotionRef.current) return;
 
     // Reset first: a wobble interrupted mid-flight would otherwise start from
     // wherever it had got to and travel the wrong distance.
@@ -90,6 +125,11 @@ export function WobbleView({ triggerKey, withHaptic = true, style, children }: W
       shake.setValue(0);
     };
   }, [triggerKey, withHaptic, shake]);
+
+  // Under reduce motion, render a plain View: an Animated.View carrying a
+  // permanently-zero transform still promotes the subtree to its own layer for
+  // nothing.
+  if (reduceMotion) return <Animated.View style={style}>{children}</Animated.View>;
 
   return (
     <Animated.View style={[style, { transform: [{ translateX: shake }] }]}>{children}</Animated.View>
