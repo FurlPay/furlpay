@@ -400,6 +400,14 @@ Routes:
 - `/bills` bill pay and off-ramp
 - `/profile` profile and security center
 - `/developer` developer console and API reference
+- `/support` support centre; `/support/new` raise a ticket, `/support/tickets`
+  your tickets, `/support/<id>` the conversation
+
+Note the detail route is `/support/<id>`, not `/support/tickets/<id>`. Both
+`/support/new` and `/support/tickets` are static segments so the dynamic `<id>`
+segment cannot absorb them — a earlier version lacked those segments and
+`/support/new` resolved as a ticket whose id was the literal string "new",
+producing "Could not load this ticket" on the create page.
 
 Global route boundaries provide loading skeletons, an error boundary, and a
 not-found page.
@@ -426,6 +434,19 @@ Cards:
 - `POST /api/cards/settings` card controls
 - `POST /api/cards/spend` policy-engine authorization
 - `GET`/`POST /api/escrow` pre-authorization holds
+
+Support:
+
+- `GET`/`POST /api/support/tickets` list or raise a ticket. The owner is taken
+  from the session; a `userId` in the body is ignored.
+- `GET`/`PATCH /api/support/tickets/<id>` ticket detail and status.
+  Ownership is enforced at the query layer and a non-owner gets **404, not 403**,
+  so ticket ids cannot be used as an existence oracle.
+- `GET`/`POST /api/support/tickets/<id>/messages` conversation. The author is
+  derived server-side, so a client cannot post as Support.
+- `POST /api/support/ask` grounded help-centre retrieval. Public, IP
+  rate-limited, secret-redacted. It takes no ticket id and has no ticket-reading
+  tool, so it has no private data in reach.
 
 Investing and swaps:
 
@@ -591,6 +612,32 @@ tests, Go build, Rust tests, and a Python signature check.
 ---
 
 ## Verification status
+
+**Verified locally, not in CI.** GitHub Actions is billing-locked account-wide —
+every job reports "not started because your account is locked due to a billing
+issue" — so no run gates this tree. The figures below are local runs on
+`extension-redesign`, and `npm run deploy:prod` will refuse until CI reports
+success for the deployed SHA.
+
+Last full pass on the web app:
+
+- `npm run build --workspace @furlpay/web` exits 0; 442/442 static pages.
+- `vitest` 4294 passed, 0 failed, 18 skipped.
+- `tsc --noEmit` clean; `next lint` 0 errors (1 pre-existing warning in
+  `HotelMap.tsx`).
+- `check-route-security` clean; the claims linter and synthetic-travel gate pass.
+- Support routes confirmed in the build manifest as distinct entries:
+  `/support/new` and `/support/tickets` static, `/support/[id]` dynamic.
+
+Not verified:
+
+- **No browser pass.** No Playwright/Puppeteer is installed, so hydration,
+  client-side runtime errors, layout and responsive behaviour are unchecked on
+  every page. SSR renders and asset chunks were checked over HTTP; that is a
+  weaker claim than "the page works".
+- **No authenticated end-to-end run** of create → list → detail → reply.
+- **Production env parity.** The build reads local `.env.local`; a variable that
+  exists here and not on the host fails at runtime, not at build.
 
 Verified locally:
 

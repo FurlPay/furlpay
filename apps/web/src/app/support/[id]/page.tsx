@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, use } from "react";
+import Link from "next/link";
 import { SupportHero, SupportNavbar, TicketBreadcrumb } from "@/components/support/SupportChrome";
 import {
   ReplyComposer,
@@ -68,11 +69,21 @@ export default function TicketThreadPage(props: { params: Promise<{ id: string }
   const [alert, setAlert] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [closing, setClosing] = useState(false);
+  const [needsAuth, setNeedsAuth] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const res = await fetch(`/api/support/tickets/${id}`);
       if (!res.ok) {
+        // A 401 is NOT a system failure, and this page is the target of
+        // support-reply push notifications — so the common way to arrive here
+        // signed out is a deep link opened after the session expired. Showing
+        // "Could not load this ticket" there is a dead end: it reads as data
+        // loss and offers no action. Say what actually happened.
+        if (res.status === 401) {
+          setNeedsAuth(true);
+          return;
+        }
         setError(res.status === 404 ? "That ticket could not be found." : "Could not load this ticket.");
         return;
       }
@@ -156,6 +167,19 @@ export default function TicketThreadPage(props: { params: Promise<{ id: string }
             <div className="rounded-2xl border border-white/[0.07] bg-[#101512]">
               {loading ? (
                 <p className="px-6 py-10 text-[13.5px] text-textSecondary">Loading ticket…</p>
+              ) : needsAuth ? (
+                <div className="px-6 py-12 text-center">
+                  <p className="text-[15px] font-semibold text-white">Sign in to view this ticket</p>
+                  <p className="mx-auto mt-1.5 max-w-[420px] text-[13.5px] text-textSecondary">
+                    Tickets are private to the account that raised them. Your session may have expired.
+                  </p>
+                  <Link
+                    href={`/login?next=/support/${encodeURIComponent(id)}`}
+                    className="mt-4 inline-block rounded-lg bg-neon px-5 py-2 text-[13.5px] font-semibold text-black transition-colors hover:bg-neonDeep"
+                  >
+                    Sign in
+                  </Link>
+                </div>
               ) : ticket ? (
                 <>
                   <TicketHeader
