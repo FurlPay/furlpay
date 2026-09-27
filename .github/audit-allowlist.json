@@ -1,8 +1,98 @@
 [
   {
-    "name": "bigint-buffer",
-    "reason": "GHSA-3gc7-fjrx-p6mg toBigIntLE overflow \u2014 no upstream patch exists; npm's only 'fix' is a breaking @solana/spl-token 0.1.8 downgrade. Server-side usage only builds transactions from values we control.",
-    "reviewed": "2026-07-09"
+    "name": "@ethersproject/abstract-provider",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/abstract-signer",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/hash",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/hdnode",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/json-wallets",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/providers",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/signing-key",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/transactions",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/wallet",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@ethersproject/wordlists",
+    "reason": "ethers v5 subtree pulled in by @irys/bundles. npm reports these as in-range fixable, but their versions are pinned by @irys/bundles, which itself has no fix. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@irys/bundles",
+    "reason": "Same subtree; also the path that drags in @ethersproject/*. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@irys/upload",
+    "reason": "Same subtree as @irys/upload-solana. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@irys/upload-core",
+    "reason": "Same subtree. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@irys/upload-solana",
+    "reason": "GHSA via its @irys/bundles, @irys/upload-core, @solana/spl-token and @solana/web3.js subtrees. No upstream patch exists at any version. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@metaplex-foundation/mpl-account-compression",
+    "reason": "Vulnerable only via merkletreejs (see bn.js chain). npm's 'fix' downgrades bubblegum to 0.11 — the pre-v2 API we depend on (same as the mpl-bubblegum entry).",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "@metaplex-foundation/mpl-bubblegum",
+    "reason": "merkletreejs -> web3-utils advisory; npm's only 'fix' is a downgrade to bubblegum 0.11 (pre-v2 API we depend on). cNFT minting is server-side with inputs we construct.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "@metaplex-foundation/spl-account-compression",
+    "reason": "Vulnerable only via merkletreejs (see bn.js chain); same downgrade-only 'fix' as mpl-account-compression.",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "@serwist/next",
+    "reason": "Flagged solely as the parent of browserslist (unbounded cache growth -> OOM; prototype write via untrusted browserslist-stats.json). @serwist/next@9.5.12 pins browserslist at 4.28.6 and a root override to ^4.29.1 does not materialize — verified by adding it, reinstalling, and observing 4.28.6 still resolved, so the override was removed rather than left as dead config. npm's suggested 'fix' is @serwist/next@9.4.1, a DOWNGRADE from the installed 9.5.11. browserslist runs at BUILD time over this repo's own browserslist config; there is no untrusted query set and no attacker-supplied stats file. Clears when serwist widens its pin.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "@solana/actions",
+    "reason": "Vulnerable only via @solana/web3.js -> jayson -> uuid (see uuid); npm's only 'fix' is a downgrade to actions 0.0.2.",
+    "reviewed": "2026-07-17"
   },
   {
     "name": "@solana/buffer-layout-utils",
@@ -15,39 +105,14 @@
     "reviewed": "2026-07-09"
   },
   {
-    "name": "postcss",
-    "reason": "The ROOT postcss is patched (override bumped to ^8.5.25, resolves 8.5.25). What audit still reports is next's own vendored copy, which next pins at an exact 8.4.31 \u2014 a root override does not displace it. Build-time only: that copy runs Next's CSS pipeline over stylesheets in this repo, so neither the </style> stringify XSS nor the attacker-controlled-path file read has an untrusted input. Clears when Next bumps its pin.",
-    "reviewed": "2026-08-01"
-  },
-  {
-    "name": "sharp",
-    "reason": "libvips CVE-2026-33327/33328/35590/35591. sharp is an OPTIONAL dependency of next constrained to ^0.34.3; the fix is 0.35.x, outside that range, and forcing the major on next's image optimizer is a worse risk than the finding. Image optimization runs on Vercel's infrastructure, not on this sharp binary. Clears when next widens the range.",
-    "reviewed": "2026-08-01"
+    "name": "@solana/web3.js",
+    "reason": "jayson -> uuid moderate (buffer bounds in uuid v3/v5/v6 when buf provided — jayson uses v4 without buf); npm's only 'fix' is a nonsensical downgrade to web3.js 0.0.3.",
+    "reviewed": "2026-07-10"
   },
   {
     "name": "adm-zip",
-    "reason": "GHSA crafted-ZIP 4GB allocation \u2014 fixed in 0.6.0, which nothing in the tree can reach. hardhat (through the newest 2.x, 2.29.0) still declares ^0.4.16 and web-ext-run -> firefox-profile declares ~0.5.x; a root override to ^0.6.0 does not materialize \u2014 npm drops the package from the tree rather than force it across the major, leaving hardhat with an unsatisfied dependency. Dev-only on both paths: the contracts toolchain and the browser-extension dev runner, neither bundled into the web app or any published package, and both only ever open archives they fetched themselves. Fix path is the hardhat 3 major upgrade (same as the 'hardhat' entry).",
+    "reason": "GHSA crafted-ZIP 4GB allocation — fixed in 0.6.0, which nothing in the tree can reach. hardhat (through the newest 2.x, 2.29.0) still declares ^0.4.16 and web-ext-run -> firefox-profile declares ~0.5.x; a root override to ^0.6.0 does not materialize — npm drops the package from the tree rather than force it across the major, leaving hardhat with an unsatisfied dependency. Dev-only on both paths: the contracts toolchain and the browser-extension dev runner, neither bundled into the web app or any published package, and both only ever open archives they fetched themselves. Fix path is the hardhat 3 major upgrade (same as the 'hardhat' entry).",
     "reviewed": "2026-08-01"
-  },
-  {
-    "name": "hardhat",
-    "reason": "Umbrella for the contracts dev toolchain (hardhat 2.x): undici (pinned to latest 5.x via root override; full fix needs hardhat 3 major), @sentry/node -> cookie, uuid, mocha, eth-gas-reporter, solidity-coverage -> web3-utils/ethjs-unit/number-to-bn/bn.js, @nomicfoundation/* -> ethereumjs-util/ethereum-cryptography/secp256k1/elliptic, and the ethers v5 @ethersproject/* chain. Dev-only: never bundled into the web app or any published package; runs only on developer machines and CI against code we author. Fix path is the hardhat 3 major upgrade (tracked separately).",
-    "reviewed": "2026-07-10"
-  },
-  {
-    "name": "lodash",
-    "reason": "_.template code injection / prototype pollution advisories have no patched 4.x release; reachable only via @nomicfoundation/ignition-core (hardhat deploy tooling, dev-only). Cleared by the hardhat 3 upgrade.",
-    "reviewed": "2026-07-10"
-  },
-  {
-    "name": "wxt",
-    "reason": "Umbrella for the browser-extension dev toolchain: web-ext-run -> tmp (path traversal; parents pin 0.0.x, no in-range patch) and node-notifier. Dev-only \u2014 used to launch browsers during `wxt dev`; the built extension bundle contains none of these. shell-quote (was critical) IS fixed via root override to 1.9.0.",
-    "reviewed": "2026-07-10"
-  },
-  {
-    "name": "eslint-config-next",
-    "reason": "glob CLI command-injection advisory via @next/eslint-plugin-next \u2014 affects the glob CLI binary only, never invoked; lint-time dev dependency. Cleared by the Next 16 upgrade (see 'next').",
-    "reviewed": "2026-07-10"
   },
   {
     "name": "ai",
@@ -55,63 +120,43 @@
     "reviewed": "2026-07-10"
   },
   {
-    "name": "@metaplex-foundation/mpl-bubblegum",
-    "reason": "merkletreejs -> web3-utils advisory; npm's only 'fix' is a downgrade to bubblegum 0.11 (pre-v2 API we depend on). cNFT minting is server-side with inputs we construct.",
-    "reviewed": "2026-07-10"
-  },
-  {
-    "name": "@solana/web3.js",
-    "reason": "jayson -> uuid moderate (buffer bounds in uuid v3/v5/v6 when buf provided \u2014 jayson uses v4 without buf); npm's only 'fix' is a nonsensical downgrade to web3.js 0.0.3.",
-    "reviewed": "2026-07-10"
-  },
-  {
-    "name": "esbuild",
-    "reason": "Dev-server arbitrary file read \u2014 applies to `esbuild serve` only, which we never run; build-time dependency of tsup/hardhat toolchains.",
-    "reviewed": "2026-07-10"
+    "name": "bigint-buffer",
+    "reason": "GHSA-3gc7-fjrx-p6mg toBigIntLE overflow — no upstream patch exists; npm's only 'fix' is a breaking @solana/spl-token 0.1.8 downgrade. Server-side usage only builds transactions from values we control.",
+    "reviewed": "2026-07-09"
   },
   {
     "name": "bn.js",
-    "reason": "ROOT advisory (Jul 2026): infinite loop decoding malformed bignum strings \u2014 DoS-class, not memory-unsafe. Reachable only through the Solana/Metaplex server-side chains where every bignum is self-constructed or regex/oracle-validated before parsing. No in-range patch for the pinned tree; real fix is the tracked @solana/web3.js v2 / Metaplex umi migration.",
+    "reason": "ROOT advisory (Jul 2026): infinite loop decoding malformed bignum strings — DoS-class, not memory-unsafe. Reachable only through the Solana/Metaplex server-side chains where every bignum is self-constructed or regex/oracle-validated before parsing. No in-range patch for the pinned tree; real fix is the tracked @solana/web3.js v2 / Metaplex umi migration.",
     "reviewed": "2026-07-17"
   },
   {
-    "name": "number-to-bn",
-    "reason": "Vulnerable only via its bn.js dependency (see bn.js).",
-    "reviewed": "2026-07-17"
+    "name": "browserslist",
+    "reason": "GHSA-c83g-rgw3-j3cx (unbounded cache growth to OOM) and GHSA-73wf-gq98-2v4g (prototype write via untrusted browserslist-stats.json), both <=4.28.6. Build-time only: browserslist resolves target browsers during next build, never at request time. The OOM needs a stream of distinct queries a build does not produce, and the prototype write needs an attacker-supplied browserslist-stats.json, a file this repo owns. npm's only fix is a semver-major Next 16 upgrade.",
+    "reviewed": "2026-09-02"
+  },
+  {
+    "name": "csv-parse",
+    "reason": "GHSA prototype replacement still reachable via the `columns` option. No upstream fix. Used for operator-supplied CSV in tooling, never for a request body; the `columns` option is not driven by user input anywhere in this repo.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "elliptic",
+    "reason": "GHSA risky cryptographic primitive implementation. Reached through secp256k1 inside the @ethersproject subtree. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "esbuild",
+    "reason": "Dev-server arbitrary file read — applies to `esbuild serve` only, which we never run; build-time dependency of tsup/hardhat toolchains.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "eslint-config-next",
+    "reason": "glob CLI command-injection advisory via @next/eslint-plugin-next — affects the glob CLI binary only, never invoked; lint-time dev dependency. Cleared by the Next 16 upgrade (see 'next').",
+    "reviewed": "2026-07-10"
   },
   {
     "name": "ethjs-unit",
     "reason": "Vulnerable only via bn.js / number-to-bn (see bn.js).",
-    "reviewed": "2026-07-17"
-  },
-  {
-    "name": "web3-utils",
-    "reason": "Vulnerable only via ethjs-unit / number-to-bn -> bn.js (see bn.js).",
-    "reviewed": "2026-07-17"
-  },
-  {
-    "name": "merkletreejs",
-    "reason": "Vulnerable only via web3-utils -> bn.js (see bn.js). Used by Metaplex account compression for cNFT tickets; every tree leaf is server-constructed.",
-    "reviewed": "2026-07-17"
-  },
-  {
-    "name": "@metaplex-foundation/mpl-account-compression",
-    "reason": "Vulnerable only via merkletreejs (see bn.js chain). npm's 'fix' downgrades bubblegum to 0.11 \u2014 the pre-v2 API we depend on (same as the mpl-bubblegum entry).",
-    "reviewed": "2026-07-17"
-  },
-  {
-    "name": "@metaplex-foundation/spl-account-compression",
-    "reason": "Vulnerable only via merkletreejs (see bn.js chain); same downgrade-only 'fix' as mpl-account-compression.",
-    "reviewed": "2026-07-17"
-  },
-  {
-    "name": "uuid",
-    "reason": "ROOT advisory (Jul 2026): missing buffer bounds check in v3/v5/v6 ONLY when the caller passes a pre-allocated buf. Our code uses crypto.randomUUID() (repo rule); the dependents that pull uuid in (jayson JSON-RPC, gaxios) call v4 without buf \u2014 the vulnerable path is never reached. Same verdict for native-app/package-lock.json, where uuid 7.0.3 arrives via @expo/config-plugins -> xcode: pbxProject.generateUuid() calls uuid.v4() with no buffer argument, and it runs only during `expo prebuild` for an iOS project this Android app does not build.",
-    "reviewed": "2026-08-01"
-  },
-  {
-    "name": "jayson",
-    "reason": "Vulnerable only via its uuid dependency (see uuid); jayson generates v4 request ids without a caller buffer.",
     "reviewed": "2026-07-17"
   },
   {
@@ -120,33 +165,93 @@
     "reviewed": "2026-07-17"
   },
   {
-    "name": "@solana/actions",
-    "reason": "Vulnerable only via @solana/web3.js -> jayson -> uuid (see uuid); npm's only 'fix' is a downgrade to actions 0.0.2.",
-    "reviewed": "2026-07-17"
-  },
-  {
-    "name": "inflight",
-    "reason": "ROOT advisory SNYK-JS-INFLIGHT-6095116 (CWE-772, medium): the package leaks memory by design and is deprecated \u2014 no fixed version exists across any of its 7 releases. Only path is apps/web/scratch/linkedin-scout: puppeteer-extra-plugin-stealth -> user-preferences -> user-data-dir -> rimraf@3 -> glob@7 -> inflight. Overriding glob/rimraf is NOT a fix: user-data-dir calls the callback form `rimraf(dir, opts, cb)`, removed in rimraf v4+, so the override would silently break temp-profile cleanup and cause a worse resource leak than the advisory describes. Scratch tooling \u2014 run manually on a developer machine, never imported by apps/web and never bundled or deployed.",
-    "reviewed": "2026-07-23"
-  },
-  {
-    "name": "puppeteer-extra-plugin-stealth",
-    "reason": "Umbrella for the linkedin-scout scratch chain (user-preferences, user-data-dir, rimraf@3, glob@7) that is vulnerable only via inflight (see above). The sibling brace-expansion advisory in the same chain IS fixed \u2014 bumped to 1.1.16 in the scout lockfile.",
-    "reviewed": "2026-07-23"
-  },
-  {
     "name": "glib (cargo, apps/desktop)",
-    "reason": "GHSA VariantStrIter unsoundness in glib 0.18.5 (Tauri desktop app). `cargo update -p glib` locks 0 packages \u2014 0.18.5 is the newest compatible with our Tauri version; fix needs a Tauri major. Desktop app is unreleased.",
+    "reason": "GHSA VariantStrIter unsoundness in glib 0.18.5 (Tauri desktop app). `cargo update -p glib` locks 0 packages — 0.18.5 is the newest compatible with our Tauri version; fix needs a Tauri major. Desktop app is unreleased.",
     "reviewed": "2026-07-10"
   },
   {
+    "name": "hardhat",
+    "reason": "Umbrella for the contracts dev toolchain (hardhat 2.x): undici (pinned to latest 5.x via root override; full fix needs hardhat 3 major), @sentry/node -> cookie, uuid, mocha, eth-gas-reporter, solidity-coverage -> web3-utils/ethjs-unit/number-to-bn/bn.js, @nomicfoundation/* -> ethereumjs-util/ethereum-cryptography/secp256k1/elliptic, and the ethers v5 @ethersproject/* chain. Dev-only: never bundled into the web app or any published package; runs only on developer machines and CI against code we author. Fix path is the hardhat 3 major upgrade (tracked separately).",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "inflight",
+    "reason": "ROOT advisory SNYK-JS-INFLIGHT-6095116 (CWE-772, medium): the package leaks memory by design and is deprecated — no fixed version exists across any of its 7 releases. Only path is apps/web/scratch/linkedin-scout: puppeteer-extra-plugin-stealth -> user-preferences -> user-data-dir -> rimraf@3 -> glob@7 -> inflight. Overriding glob/rimraf is NOT a fix: user-data-dir calls the callback form `rimraf(dir, opts, cb)`, removed in rimraf v4+, so the override would silently break temp-profile cleanup and cause a worse resource leak than the advisory describes. Scratch tooling — run manually on a developer machine, never imported by apps/web and never bundled or deployed.",
+    "reviewed": "2026-07-23"
+  },
+  {
+    "name": "jayson",
+    "reason": "Vulnerable only via its uuid dependency (see uuid); jayson generates v4 request ids without a caller buffer.",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "lodash",
+    "reason": "_.template code injection / prototype pollution advisories have no patched 4.x release; reachable only via @nomicfoundation/ignition-core (hardhat deploy tooling, dev-only). Cleared by the hardhat 3 upgrade.",
+    "reviewed": "2026-07-10"
+  },
+  {
+    "name": "merkletreejs",
+    "reason": "Vulnerable only via web3-utils -> bn.js (see bn.js). Used by Metaplex account compression for cNFT tickets; every tree leaf is server-constructed.",
+    "reviewed": "2026-07-17"
+  },
+  {
     "name": "nanoid",
-    "reason": "GHSA-2v37-7h3g-55p8 (custom generators loop forever when size is 0), fixed in 3.3.17. TEMPORARY: this IS fixable \u2014 security/autofix-root carries the lockfile that moves the root-hoisted nanoid 3.3.16 -> 3.3.18, and `npm audit fix` produces it cleanly. My own attempt via a root override of ^3.3.17 did not take, which I wrongly generalised into 'not fixable'; the autofix branch disproves that. Delete this entry the moment that lockfile lands. Until then the exposure is build-time only (Next's CSS pipeline via its vendored postcss) and needs an attacker-chosen size of 0, which no caller here reaches.",
+    "reason": "GHSA-2v37-7h3g-55p8 (custom generators loop forever when size is 0), fixed in 3.3.17. TEMPORARY: this IS fixable — security/autofix-root carries the lockfile that moves the root-hoisted nanoid 3.3.16 -> 3.3.18, and `npm audit fix` produces it cleanly. My own attempt via a root override of ^3.3.17 did not take, which I wrongly generalised into 'not fixable'; the autofix branch disproves that. Delete this entry the moment that lockfile lands. Until then the exposure is build-time only (Next's CSS pipeline via its vendored postcss) and needs an attacker-chosen size of 0, which no caller here reaches.",
     "reviewed": "2026-08-11"
   },
   {
-    "name": "browserslist",
-    "reason": "GHSA-c83g-rgw3-j3cx (unbounded cache growth to OOM) and GHSA-73wf-gq98-2v4g (prototype write via untrusted browserslist-stats.json), both <=4.28.6. Build-time only: browserslist resolves target browsers during next build, never at request time. The OOM needs a stream of distinct queries a build does not produce, and the prototype write needs an attacker-supplied browserslist-stats.json, a file this repo owns. npm's only fix is a semver-major Next 16 upgrade.",
-    "reviewed": "2026-09-02"
+    "name": "next",
+    "reason": "Flagged solely as the parent of its own vendored postcss pin (8.4.31) — see the postcss entry. Bumped 15.5.24 -> 15.5.26 this pass, the newest 15.x; the pin is unchanged there and npm's only 'fix' is next@16.3.6, a framework major. Build-time CSS pipeline over this repo's own stylesheets, so neither the </style> stringify XSS nor the path-read finding has untrusted input. Clears when Next bumps its pin.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "number-to-bn",
+    "reason": "Vulnerable only via its bn.js dependency (see bn.js).",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "postcss",
+    "reason": "The ROOT postcss is patched (override bumped to ^8.5.25, resolves 8.5.25). What audit still reports is next's own vendored copy, which next pins at an exact 8.4.31 — a root override does not displace it. Build-time only: that copy runs Next's CSS pipeline over stylesheets in this repo, so neither the </style> stringify XSS nor the attacker-controlled-path file read has an untrusted input. Clears when Next bumps its pin.",
+    "reviewed": "2026-08-01"
+  },
+  {
+    "name": "puppeteer-extra-plugin-stealth",
+    "reason": "Umbrella for the linkedin-scout scratch chain (user-preferences, user-data-dir, rimraf@3, glob@7) that is vulnerable only via inflight (see above). The sibling brace-expansion advisory in the same chain IS fixed — bumped to 1.1.16 in the scout lockfile.",
+    "reviewed": "2026-07-23"
+  },
+  {
+    "name": "secp256k1",
+    "reason": "Vulnerable only via elliptic (see above). Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "sharp",
+    "reason": "libvips CVE-2026-33327/33328/35590/35591. sharp is an OPTIONAL dependency of next constrained to ^0.34.3; the fix is 0.35.x, outside that range, and forcing the major on next's image optimizer is a worse risk than the finding. Image optimization runs on Vercel's infrastructure, not on this sharp binary. Clears when next widens the range.",
+    "reviewed": "2026-08-01"
+  },
+  {
+    "name": "stream-json",
+    "reason": "O(depth) filter complexity DoS. Reached through @solana/web3.js; npm's only 'fix' is @solana/web3.js@0.0.3, a downgrade from 1.99.0 that would break every Solana path. Not used to parse untrusted streams in this repo.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "uuid",
+    "reason": "ROOT advisory (Jul 2026): missing buffer bounds check in v3/v5/v6 ONLY when the caller passes a pre-allocated buf. Our code uses crypto.randomUUID() (repo rule); the dependents that pull uuid in (jayson JSON-RPC, gaxios) call v4 without buf — the vulnerable path is never reached. Same verdict for native-app/package-lock.json, where uuid 7.0.3 arrives via @expo/config-plugins -> xcode: pbxProject.generateUuid() calls uuid.v4() with no buffer argument, and it runs only during `expo prebuild` for an iOS project this Android app does not build.",
+    "reviewed": "2026-08-01"
+  },
+  {
+    "name": "web3-utils",
+    "reason": "Vulnerable only via ethjs-unit / number-to-bn -> bn.js (see bn.js).",
+    "reviewed": "2026-07-17"
+  },
+  {
+    "name": "ws",
+    "reason": "GHSA uninitialized-memory-disclosure and fragment-DoS, fixed in >=8.21.0. The root override is now ^8.21.0 and the app's own copy resolves to 8.21.0 (verified via `npm ls ws`). What audit still reports is a nested 8.18.0 held by @ethersproject/providers@5.8.0, which a root override does not displace. That copy is inside the Irys CLI subtree only. Reached ONLY through packages/furl-token, which is private:true, is never published, and is not imported by apps/web — the web app references it in comments and docs prose only (verified: no import, and `npm ls @irys/upload-solana` shows the package path as the sole parent). It is a set of operator CLI scripts (plan:mint, devnet:mint, audit:mainnet) that an engineer runs by hand against inputs they supply. No request path, no bundled artifact, no untrusted input. @irys/upload-solana itself has NO upstream fix, so every package below it is pinned by that one root.",
+    "reviewed": "2026-09-27"
+  },
+  {
+    "name": "wxt",
+    "reason": "Umbrella for the browser-extension dev toolchain: web-ext-run -> tmp (path traversal; parents pin 0.0.x, no in-range patch) and node-notifier. Dev-only — used to launch browsers during `wxt dev`; the built extension bundle contains none of these. shell-quote (was critical) IS fixed via root override to 1.9.0.",
+    "reviewed": "2026-07-10"
   }
 ]

@@ -213,12 +213,54 @@ resource "aws_iam_role" "ci_deploy" {
   tags               = local.common_tags
 }
 
+# The shared image repository, as an ARN rather than a resource reference.
+#
+# `aws_ecr_repository.web` has `count = var.env == "prod" ? 1 : 0` — it is created
+# once in the prod stack and shared, because an image promoted dev → staging →
+# prod must be the same bytes. So the dev and staging stacks cannot reference the
+# resource; they have to name it. Composed from the caller's own account and
+# region so it stays correct across partitions and never hardcodes an account id.
+data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
+data "aws_partition" "current" {}
+
+locals {
+  ecr_web_repository_arn = join("", [
+    "arn:", data.aws_partition.current.partition,
+    ":ecr:", data.aws_region.current.name,
+    ":", data.aws_caller_identity.current.account_id,
+    ":repository/furlpay/web",
+  ])
+}
+
 data "aws_iam_policy_document" "ci_deploy" {
+  # SPLIT INTO TWO STATEMENTS, deliberately.
+  #
+  # These were one statement with `resources = ["*"]` and a comment explaining
+  # that `ecr:GetAuthorizationToken` has no resource scope. That is true of
+  # GetAuthorizationToken and of nothing else in the list — so the wildcard it
+  # justified also granted `ecr:PutImage` and `ecr:UploadLayerPart` on EVERY
+  # repository in the account.
+  #
+  # The practical consequence: a compromised CI run, or any workflow able to
+  # assume this role, could push an arbitrary image to any other service's
+  # repository in the same account. With `IMMUTABLE` tags it could not overwrite
+  # an existing tag on this repo, but nothing stopped it creating a new tag on a
+  # neighbour's — and an image in a trusted registry is a supply-chain foothold.
+  #
+  # One statement for the token (genuinely account-scoped), one for the layer and
+  # manifest operations (scoped to the single repository this project deploys).
   statement {
-    sid    = "PushImages"
+    sid       = "EcrAuthToken"
+    effect    = "Allow"
+    actions   = ["ecr:GetAuthorizationToken"]
+    resources = ["*"] # No resource scope exists for this action.
+  }
+
+  statement {
+    sid    = "PushImagesToThisRepositoryOnly"
     effect = "Allow"
     actions = [
-      "ecr:GetAuthorizationToken",
       "ecr:BatchCheckLayerAvailability",
       "ecr:CompleteLayerUpload",
       "ecr:InitiateLayerUpload",
@@ -226,7 +268,7 @@ data "aws_iam_policy_document" "ci_deploy" {
       "ecr:UploadLayerPart",
       "ecr:BatchGetImage",
     ]
-    resources = ["*"] # GetAuthorizationToken has no resource scope
+    resources = [local.ecr_web_repository_arn]
   }
 
   statement {
@@ -238,6 +280,10 @@ data "aws_iam_policy_document" "ci_deploy" {
       "ecs:DescribeServices",
       "ecs:UpdateService",
     ]
+    # Wildcard NARROWED BY CONDITION, not unscoped. ecs:RegisterTaskDefinition
+    # has no resource to attach to (the definition does not exist yet), so AWS
+    # requires "*" here; the Environment tag condition below is what confines the
+    # whole statement to this environment's cluster and services.
     resources = ["*"]
 
     condition {
