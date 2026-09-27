@@ -39,6 +39,16 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("ALLOW_GUEST_LOGIN"),
       v("NEXT_PUBLIC_ALLOW_GUEST"),
       v("FURLPAY_ADMIN_EMAIL"),
+      // Outbound security-alert sink (lib/ops/alertSink.ts). Both are required
+      // for delivery: with no webhook the sink is a documented no-op, and with no
+      // secret it REFUSES to send rather than sending unsigned.
+      v("FURLPAY_ALERT_WEBHOOK"),
+      v("FURLPAY_ALERT_WEBHOOK_SECRET"),
+      // Contextual anomaly thresholds (lib/ops/accessContextAnomaly.ts).
+      // FURLPAY_OFFHOURS_UTC accepts "H-H" or "off"; a distributed team will want
+      // to widen or disable it rather than have it cry wolf.
+      v("FURLPAY_GEO_ANOMALY_MINUTES"),
+      v("FURLPAY_OFFHOURS_UTC"),
       // Self-custodial wallet rollout stage (0=off). 1=wallet linking only.
       // docs/SELF-CUSTODIAL-WALLET-DESIGN.md.
       v("FURLPAY_SELF_CUSTODY_STAGE"),

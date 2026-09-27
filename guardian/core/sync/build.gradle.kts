@@ -32,4 +32,10 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.play.services.wearable)
     implementation(libs.kotlinx.coroutines.play.services)
+
+    // This module had NO tests, and it owns the phone/watch wire format — the
+    // one place a field carrying a credential or a wallet address would silently
+    // start crossing to a device with a weaker lock screen and a plaintext cache.
+    testImplementation(libs.kotlin.test)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

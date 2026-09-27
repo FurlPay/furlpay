@@ -3,6 +3,7 @@ import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { requireAnyRole } from "@/lib/authz";
+import { noteAccessContext } from "@/lib/ops/accessContextAnomaly";
 import { getAccountDurable, findUserByIdentity, findUserByLinkedWallet, type UserAccount } from "@/lib/store";
 import {
   getAuthorityRequest,
@@ -81,6 +82,15 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
 
   const body = await validateBody(req, PatchActionSchema);
   if (body instanceof NextResponse) return body;
+
+  // WHERE and WHEN this privileged action happened. Country granularity only —
+  // see accessContextAnomaly.ts for why nothing finer is stored. Fire-and-forget:
+  // a telemetry write must never fail a statutory workflow step.
+  void noteAccessContext({
+    actorId: auth.account.user.id,
+    country: req.headers.get("x-vercel-ip-country") ?? req.headers.get("cf-ipcountry"),
+    action: `authority.${body.action}`,
+  });
 
   const actor = {
     id: auth.account.user.id,

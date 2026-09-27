@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
+import { noteAccessContext } from "@/lib/ops/accessContextAnomaly";
 import {
   GRANTABLE_ROLES,
   actorFrom,
@@ -77,6 +78,15 @@ export async function POST(req: NextRequest) {
 
   const body = await validateBody(req, ActionSchema);
   if (body instanceof NextResponse) return body;
+
+  // WHERE and WHEN this privilege change happened. Country granularity only —
+  // see accessContextAnomaly.ts for why nothing finer is stored. Fire-and-forget:
+  // telemetry must never be able to fail a privilege change.
+  void noteAccessContext({
+    actorId: auth.account.user.id,
+    country: req.headers.get("x-vercel-ip-country") ?? req.headers.get("cf-ipcountry"),
+    action: `rbac.${body.action}`,
+  });
 
   // Built from the VERIFIED session, never from the request body. A client-named
   // actor would make every dual-control check in the library decorative — the

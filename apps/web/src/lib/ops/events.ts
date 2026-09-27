@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { deliverSecurityAlert } from "@/lib/ops/alertSink";
 import { kvListPush, kvListRange, kvIncrBy } from "@/lib/kv";
 import type { Rail } from "@/lib/ops/controls";
 import { sbInsert, sbSelect, supabaseBackend } from "@/lib/supabase";
@@ -190,6 +191,19 @@ export async function recordSecurityEvent(e: Omit<OpsSecurityEvent, "id" | "ts">
   } catch {
     /* best-effort */
   }
+  // OUTBOUND, AND LAST. The event is already persisted above, so a sink that is
+  // down, slow or unconfigured cannot cost us the record — and cannot fail the
+  // security-critical action that raised it. `deliverSecurityAlert` never
+  // throws, filters to high/critical itself, and refuses to send unsigned or to
+  // a non-public destination (lib/ops/alertSink.ts).
+  await deliverSecurityAlert({
+    id: evt.id,
+    kind: evt.kind,
+    severity: evt.severity,
+    detail: evt.detail,
+    actor: evt.actor ?? "system",
+    ts: evt.ts,
+  }).catch(() => {});
 }
 
 function parseList<T>(rows: string[]): T[] {
