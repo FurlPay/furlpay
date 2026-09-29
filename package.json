@@ -2,7 +2,7 @@
   "name": "furlpay-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Furlpay — the Stripe + Coinbase of stablecoins & fractional investing. Turborepo monorepo.",
+  "description": "Furlpay \u2014 the Stripe + Coinbase of stablecoins & fractional investing. Turborepo monorepo.",
   "workspaces": [
     "examples/*",
     "apps/web",
@@ -18,7 +18,7 @@
     "build:desktop": "turbo run build --filter=@furlpay/desktop",
     "lint": "turbo run lint --filter=@furlpay/web",
     "web": "npm run dev --workspace @furlpay/web",
-    "test": "npm run build --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/compliance && npm test --workspace @furlpay/security && npm test --workspace @furlpay/ledger && npm test --workspace @furlpay/gateway",
+    "test": "npm run build --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/compliance && npm test --workspace @furlpay/security && npm test --workspace @furlpay/ledger && npm test --workspace @furlpay/gateway && npm test --workspace @furlpay/control-plane",
     "cli": "node packages/cli/bin/furlpay.js",
     "predeploy": "node apps/web/scripts/check-deploy-gate.mjs",
     "deploy:prod": "npm run predeploy && npx vercel deploy --prod --yes"

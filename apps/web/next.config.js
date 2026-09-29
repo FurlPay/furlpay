@@ -33,14 +33,17 @@ const zendeskFormAction =
 const csp = [
   "default-src 'self'",
   // Next.js streams inline bootstrap scripts; integrations load their own SDKs.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://apis.google.com https://*.withpersona.com https://www.googletagmanager.com",
+  // app.cal.com serves the Cal.com booking embed (embed.js). It is a script
+  // origin rather than a frame origin alone because Cal's embed injects and
+  // sizes the booking iframe itself — see ScheduleCallButton.tsx.
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://apis.google.com https://*.withpersona.com https://www.googletagmanager.com https://app.cal.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
   // XHR/fetch to our own API + integration + market-data / RPC endpoints.
   "connect-src 'self' https: wss:",
   // Embedded checkout / KYC / sign-in / scheduling surfaces.
-  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com https://calendly.com",
+  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com https://app.cal.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
@@ -86,6 +89,7 @@ const nextConfig = {
     "@furlpay/ui",
     "@furlpay/security",
     "@furlpay/ledger",
+    "@furlpay/control-plane",
   ],
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
@@ -112,6 +116,10 @@ const nextConfig = {
         destination: "https://discord.com/oauth2/authorize?client_id=1523364052116705400",
         permanent: false,
       },
+      // Short, shareable event link for social bios and print. Temporary so the
+      // canonical /events/<slug> page stays the one URL that accrues ranking and
+      // so the short link can be repointed at next year's edition.
+      { source: "/token2049", destination: "/events/token2049-singapore-2026", permanent: false },
       // Branded Telegram links.
       { source: "/telegram", destination: "https://t.me/FurlpayBot", permanent: false },
       { source: "/telegram/group", destination: "https://t.me/FurlPay", permanent: false },

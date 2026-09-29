@@ -15,6 +15,18 @@ export default defineConfig({
     // would only pay jsdom's startup cost for nothing.
     include: ["src/**/*.spec.ts", "src/**/*.spec.tsx"],
     globals: false,
+    // Vitest's default is 5s. A family of invariant tests here WALKS THE WHOLE
+    // SOURCE TREE — the DOM-sink inventory, the custody-claims sweep, the
+    // booking-provider check, the FURL mint uniqueness check — and their runtime
+    // scales with the repository and with how loaded the machine is. They
+    // individually take 5-7s and were timing out only when 300 test files
+    // competed for the same disk.
+    //
+    // This raises the BUDGET, never an assertion: every one of those tests
+    // asserts exactly what it did before. The alternative — re-running until the
+    // machine happens to be idle — is how a real regression eventually gets
+    // dismissed as "just the flaky scan test".
+    testTimeout: 30_000,
   },
   // Compiles JSX for the .tsx specs. The node-environment specs are unaffected
   // — the plugin only transforms files that actually contain JSX.
