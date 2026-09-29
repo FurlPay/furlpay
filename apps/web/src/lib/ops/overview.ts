@@ -1,4 +1,5 @@
 import { kvGet, kvSet } from "@/lib/kv";
+import { signatureEnforced } from "@/lib/x402Enforcement";
 import { controlSnapshot, RAILS, type Rail, type PauseState } from "@/lib/ops/controls";
 
 // ---------------------------------------------------------------------------
@@ -36,7 +37,10 @@ export async function recordRailHealth(
 
 /** Whether real settlement can actually fire (not just run in mock). */
 function x402Armed(): boolean {
-  const live = process.env.INTEGRATION_MODE === "live" || process.env.X402_ENFORCE_SIGNATURE === "1";
+  // Reported from the SINGLE enforcement authority rather than re-deriving the
+  // rule, so the ops console can never show a posture the facilitator is not
+  // actually applying.
+  const live = signatureEnforced();
   return live && !!process.env.FACILITATOR_EVM_PRIVATE_KEY && !!process.env.ARBITRUM_RPC_URL;
 }
 
