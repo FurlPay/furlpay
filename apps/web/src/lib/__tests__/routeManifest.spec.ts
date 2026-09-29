@@ -101,7 +101,8 @@ const BACKLOG = new Set<string>([
   //    account/fund, agents/keys and markets/[symbol] were migrated to
   //    optionalUser() on 23 Jul 2026 and removed from this list.
   // 2. unauthenticated readers with no rate limit
-  "actions/book-car",
+  //    `actions/book-car` gained a 60/min/IP limit on its GET (the POST was
+  //    already limited per payer) on 27 Sep 2026 and is now fixed.
   // `compliance` gained a per-route rate limit on 23 Jul 2026 and is now fixed.
   // `investing/schedule` gained a per-route rate limit and is now fixed.
   // 3. public mutators — middleware baseline applies, per-route budget missing

@@ -7,8 +7,8 @@ import { join } from "node:path";
 //
 // WHY AN INVENTORY AND NOT A SCANNER.
 //
-// A sweep of this codebase found four places where a string can become markup or
-// executable code, and all four are currently safe:
+// A sweep of this codebase found five places where a string can become markup or
+// executable code, and all five are currently safe:
 //
 //   JsonLd.tsx            JSON.stringify with `<` → <, so a value containing
 //                         "</script>" cannot break out of the tag.
@@ -18,6 +18,8 @@ import { join } from "node:path";
 //                         strings that are author-written literals.
 //   PersonaKycButton.tsx  A dynamically-created <script> whose src is a module
 //                         constant, not data.
+//   ScheduleCallButton    The Cal.com booking embed, same shape: a <script>
+//                         whose src is CAL_EMBED_SRC, a module constant.
 //
 // Every one of those is safe because of a property of its INPUT — "author
 // content", "a constant", "allowlisted" — and none of those properties is
@@ -46,6 +48,8 @@ const ALLOWED_SINKS: Record<string, string> = {
     "Mermaid SVG with securityLevel 'strict' over author-written chart literals.",
   "components/PersonaKycButton.tsx":
     "Dynamic <script> whose src is a module constant, never data.",
+  "components/marketing/ScheduleCallButton.tsx":
+    "Dynamic <script> for the Cal.com booking embed; src is the CAL_EMBED_SRC module constant, never data.",
 };
 
 const SINK_PATTERNS: Array<[string, RegExp]> = [
@@ -138,7 +142,13 @@ describe("DOM injection sink inventory", () => {
     expect(FILES.length, "the walker found almost nothing — check SRC").toBeGreaterThan(200);
   });
 
-  it("no file outside the reviewed list contains an HTML-injection sink", () => {
+  // Walks the whole source tree, so its runtime scales with the repository and
+  // with how loaded the machine is — it timed out at the 5s default while 300
+  // other test files were running, and passed in 5.3s on its own. The ASSERTION
+  // is untouched; only the budget for a filesystem scan is. A test that is green
+  // only on an idle machine is worth fixing rather than re-running until it
+  // agrees.
+  it("no file outside the reviewed list contains an HTML-injection sink", { timeout: 60_000 }, () => {
     const found: string[] = [];
     for (const file of FILES) {
       const rel = file.slice(SRC.length + 1).replace(/\\/g, "/");

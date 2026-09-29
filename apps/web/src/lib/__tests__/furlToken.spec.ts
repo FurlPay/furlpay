@@ -104,7 +104,9 @@ describe("one source of truth for the mint", () => {
     expect(mirror.image).toBe(FURL_IMAGE_URI);
   });
 
-  it("has no OTHER mint-shaped FURL address anywhere in the web app", () => {
+  // Same reason as domSinkInventory: a whole-repo scan against the 5s default.
+  // Assertion unchanged; only the scan budget.
+  it("has no OTHER mint-shaped FURL address anywhere in the web app", { timeout: 60_000 }, () => {
     // A stale address in a second file is the failure this guards: if someone
     // pastes a different mint into a component, this test names the file.
     const offenders: string[] = [];
