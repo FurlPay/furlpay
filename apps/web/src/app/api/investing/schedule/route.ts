@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 import { parse } from "@/lib/schemas";
 import { withIdempotency } from "@/lib/idempotency";
 

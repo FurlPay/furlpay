@@ -8,6 +8,8 @@ import { INSIGHT_CATEGORIES } from "@/lib/insights/categories";
 import { CITIES } from "@/lib/cities";
 import { INTEGRATIONS } from "@/lib/integrations/frameworks";
 import { visibleJobs } from "@/lib/careers/jobs";
+import { EVENTS, eventStatus } from "@/lib/events/events";
+import { publishedReports, publishedWebinars } from "@/lib/content";
 import { UNIVERSE } from "@/lib/markets/universe";
 import { CATALOG, bySymbol } from "@/lib/markets/catalog";
 import { sitemapSymbols } from "@/lib/markets/seo";
@@ -166,6 +168,35 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...visibleJobs().map((j) => ({
       path: `/careers/${j.slug}`,
       priority: j.status === "open" ? 0.8 : 0.6,
+      changeFrequency: "weekly" as const,
+    })),
+
+    // — Events (hub + one page per event) —
+    // An upcoming event outranks a finished one: it is the page people are
+    // searching for this month. Past events stay listed rather than dropped —
+    // they are the record of where we have been.
+    { path: "/events", priority: 0.7, changeFrequency: "weekly" as const },
+    ...EVENTS.map((e) => ({
+      path: `/events/${e.slug}`,
+      priority: eventStatus(e) === "past" ? 0.4 : 0.8,
+      changeFrequency: (eventStatus(e) === "past" ? "yearly" : "weekly") as
+        | "yearly"
+        | "weekly",
+    })),
+
+    // — Research and webinars —
+    // Only PUBLISHED items. A draft in the sitemap would invite a crawl of a
+    // URL that 404s, and would leak the publishing pipeline.
+    { path: "/reports", priority: 0.8, changeFrequency: "weekly" as const },
+    ...publishedReports().map((r) => ({
+      path: `/reports/${r.slug}`,
+      priority: 0.7,
+      changeFrequency: "monthly" as const,
+    })),
+    { path: "/webinars", priority: 0.8, changeFrequency: "weekly" as const },
+    ...publishedWebinars().map((w) => ({
+      path: `/webinars/${w.slug}`,
+      priority: 0.7,
       changeFrequency: "weekly" as const,
     })),
 

@@ -4,6 +4,12 @@ import { ChevronLeft, ArrowRight, Clock } from "lucide-react";
 import { GUIDE_CATEGORY_ICONS } from "@/components/travel/guideIcons";
 import { GUIDES, getGuide } from "@/lib/travel/guides";
 
+// The param set below is the complete list, so any other slug is a real miss.
+// Without this Next renders it on demand and the not-found page is returned
+// with a 200 — a soft 404 that Google indexes as content. Same rule as
+// /hotels/[city].
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return GUIDES.map((g) => ({ slug: g.slug }));
 }

@@ -24,6 +24,41 @@ export type LinkOutcome =
  * Address comparison is on the lowercased form so casing can never bypass
  * uniqueness; the EIP-55 display form is stored separately.
  */
+/**
+ * Correct a mislabelled conflict from link_wallet().
+ *
+ * The RPC's `unique_violation` handler re-resolves against `address_norm`
+ * only. When the violation actually came from `linked_wallets_user_key` — this
+ * user already has a DIFFERENT wallet, inserted by a concurrent request — that
+ * lookup finds no row, `v_existing_user` is NULL, and the function falls
+ * through to 'conflict_address'.
+ *
+ * The outcome is still a rejection, so nothing unsafe happens: the fix is
+ * about telling the user the truth. "That wallet belongs to another account"
+ * sends someone hunting for an imaginary duplicate account, when the real
+ * answer is "you already linked a different wallet — unlink it first".
+ *
+ * Corrected here rather than in SQL because the fix must not require a new
+ * migration. This runs only on the conflict path, so it costs one extra read
+ * in a case that is already terminal.
+ */
+async function disambiguateConflict(
+  outcome: LinkOutcome,
+  userId: string,
+  norm: string,
+): Promise<LinkOutcome> {
+  if (outcome !== "conflict_address") return outcome;
+
+  const current = getAccount(userId)?.user.linkedWallet;
+  if (current && current.address.toLowerCase() !== norm) {
+    return "conflict_user_has_wallet";
+  }
+
+  // The address genuinely belongs to someone else, or we cannot tell — either
+  // way the original rejection stands. Fail closed.
+  return outcome;
+}
+
 export async function linkWalletDurable(
   userId: string,
   addressDisplay: string,
@@ -39,7 +74,7 @@ export async function linkWalletDurable(
         p_address: addressDisplay,
         p_nonce: nonce,
       });
-      return outcome as LinkOutcome;
+      return disambiguateConflict(outcome as LinkOutcome, userId, norm);
     } catch (e) {
       if (!(e instanceof SupabaseFunctionMissing)) throw e; // real DB error -> fail closed upstream
       // migration not applied yet -> fall through to in-memory

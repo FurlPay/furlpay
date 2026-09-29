@@ -108,12 +108,30 @@ export async function verifyAuthorizationSignature(
     return { verified: false, reason: "bad_signature_format" };
   }
 
-  let value: bigint, validAfter: bigint, validBefore: bigint;
-  try {
-    value = BigInt(auth.value);
-    validAfter = BigInt(auth.validAfter);
-    validBefore = BigInt(auth.validBefore);
-  } catch {
+  // F-19. These were read with a bare `BigInt(...)` inside a try/catch, which
+  // rejects far less than it appears to. `BigInt` accepts hex, whitespace, an
+  // empty string, a leading `+`, and a leading `-`:
+  //
+  //     "0x10" -> 16n      ""  -> 0n      "   " -> 0n
+  //     "+5"   -> 5n       "-5" -> -5n
+  //
+  // Only `"1.5"`/`"1e6"`-shaped input actually threw, so the `catch` that was
+  // meant to be the validation almost never ran. A negative `value` is the
+  // worst of these: EIP-3009 encodes `value` as a uint256, so `-5` is not a
+  // small number, it is an enormous one — and the amount a signature commits to
+  // must never be something the parser reinterpreted on the way in.
+  //
+  // These are the fields an EIP-712 signature is computed over, so any
+  // disagreement between this parse and another one elsewhere in the pipeline is
+  // a confusion bug by construction. Same `/^[0-9]+$/` rule as `parseAtomic`
+  // (F-9) and `requiredConfirmations` (F-18): one rule, everywhere.
+  const decimal = (v: string): bigint | null =>
+    typeof v === "string" && /^[0-9]+$/.test(v) ? BigInt(v) : null;
+
+  const value = decimal(auth.value);
+  const validAfter = decimal(auth.validAfter);
+  const validBefore = decimal(auth.validBefore);
+  if (value === null || validAfter === null || validBefore === null) {
     return { verified: false, reason: "bad_numeric_field" };
   }
 

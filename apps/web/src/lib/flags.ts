@@ -64,6 +64,7 @@ export const MONEY_FLAGS = [
   "BANKING_LIVE",
   "ONRAMP_LIVE",
   "OFFRAMP_LIVE",
+  "ARC_RAIL_LIVE",
 ] as const;
 
 export type MoneyFlag = (typeof MONEY_FLAGS)[number];
@@ -111,6 +112,24 @@ export const FLAG_SPECS: Record<MoneyFlag, FlagSpec> = {
     description: "Broadcast real on-chain settlement transactions.",
     environments: ["staging", "production"],
     requires: ["FURLPAY_KMS_PROVIDER", "ARBITRUM_RPC_URL"],
+  },
+  ARC_RAIL_LIVE: {
+    description:
+      "Register the Arc USDC execution adapter so /api/v1/payments/execute can reach Arc. " +
+      "Without it the rail stays unregistered and execution answers 503 rail_not_connected.",
+    // Development is excluded deliberately: there is no local Arc node, so a
+    // developer enabling this would be pointing a money path at a public
+    // testnet from a laptop. Staging is where testnet execution belongs.
+    environments: ["staging", "production"],
+    // The signer is the same KMS the x402 settler requires — Arc does not get
+    // a weaker signing story than the rail that already exists. The RPC is
+    // named explicitly because the Arc mainnet endpoint constant in this repo
+    // is NOT independently verified (docs/arc/ARC_DEPENDENCIES.md §1).
+    requires: ["FURLPAY_KMS_PROVIDER", "ARC_RPC_URL"],
+    unimplemented:
+      "No Arc signer is wired yet (arcSigner() returns null), and no FurlPay contract has been " +
+      "deployed to Arc testnet or mainnet. Enabling this flag today changes nothing: the adapter " +
+      "still refuses to register. See docs/arc/ARC_PRODUCTION_ACTIVATION.md.",
   },
   ONCHAIN_BALANCES_LIVE: {
     description: "Read wallet balances from chain RPCs rather than the internal ledger.",

@@ -12,6 +12,12 @@ import { JOBS, getJob, jobPostingJsonLd } from "@/lib/careers/jobs";
 // but never a Google for Jobs listing (bait listings carry an SEO penalty
 // and cost candidate trust).
 
+// The param set below is the complete list, so any other slug is a real miss.
+// Without this Next renders it on demand and the not-found page is returned
+// with a 200 — a soft 404 that Google indexes as content. Same rule as
+// /hotels/[city].
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return JOBS.filter((j) => j.status !== "closed").map((j) => ({ slug: j.slug }));
 }

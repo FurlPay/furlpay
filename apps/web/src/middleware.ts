@@ -84,6 +84,17 @@ const PUBLIC_PAGE_PREFIXES = [
   "/compare", // SEO comparison pages (public)
   "/integrations", // pSEO framework-integration quickstarts (public)
   "/careers", // job board — per-role pages must be crawlable for Google for Jobs
+  // Events hub + one page per event. Public for the same reason /our-founders
+  // and /token are: the page exists to be read by people deciding whether to
+  // meet us, and by the crawlers that surface it when they search the event.
+  // A prefix, so /events/<slug> is reachable too — this was gated before, which
+  // meant the hub, its Event JSON-LD and its OG cards were all dead in prod.
+  "/events",
+  // Research and webinar hubs + their detail pages. Public for the same
+  // reason /events is: the whole point is to be read, and by the crawlers
+  // that surface it. Prefixes, so /reports/<slug> is reachable too.
+  "/reports",
+  "/webinars",
   "/hackathon", // FurlPay Build Challenge landing + submissions (public)
   "/swag", // FurlPay Swag Center store (public)
   "/newsletter", // subscribe / manage preferences (public)
@@ -110,6 +121,11 @@ const PUBLIC_API_PREFIXES = [
   // as a PNG -- the same numbers /api/markets already serves, in a different
   // format. Readable so Discord can fall back to fetching the URL if an
   // attachment upload fails; the normal path uploads the bytes directly.
+  // Lead capture for report downloads and webinar registrations. Public by
+  // design — a visitor has no account — and each route carries its own
+  // per-route rate limit (see routeManifest.spec.ts).
+  "/api/reports",
+  "/api/webinars",
   "/api/og",
   "/api/auth",
   "/api/webhooks",
@@ -209,6 +225,16 @@ const BASELINE_EXEMPT_PREFIXES = ["/api/webhooks"];
 const MUTATING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 const BASELINE = { limit: 150, windowMs: 60_000 };
 
+/**
+ * Hard ceiling on any /api/* request body, enforced before routing.
+ *
+ * Matches lib/validate.ts's MAX_BODY_BYTES so a request that would be refused
+ * by a validated handler is refused identically by an unvalidated one. Kept as
+ * its own constant rather than imported because middleware runs on the Edge and
+ * must not pull in a module that reaches for Node APIs.
+ */
+const MAX_API_BODY_BYTES = 100 * 1024;
+
 // CSRF backstop for cookie-authenticated mutating requests. SameSite=Lax on
 // the session cookie is the primary defense (browsers won't attach it to
 // cross-site POSTs); this Origin check catches what Lax can't — older
@@ -285,6 +311,40 @@ export async function middleware(req: NextRequest) {
     );
   }
 
+  // ── Body-size backstop ───────────────────────────────────────────────────
+  //
+  // THE GAP THIS CLOSES. lib/validate.ts enforces a 100KB cap and its comment
+  // explains why: "JSON.parse on a huge body is the cheapest way to burn a
+  // function." But the cap only applies to handlers that route through
+  // validateBody(), and an audit sweep found 74 route files calling
+  // `await req.json()` directly — around thirty of them classified
+  // PUBLIC_INTENTIONAL, including the x402 facilitator's /verify and /settle,
+  // which are unauthenticated by protocol design and move money.
+  //
+  // So the cap was real for most routes and absent on exactly the surface an
+  // attacker reaches first. A per-route fix would be 74 edits and would be
+  // incomplete again with the next route. This is the one place every /api/*
+  // request must pass, so the bound belongs here.
+  //
+  // CONTENT-LENGTH ONLY, AND THAT IS DELIBERATE. Reading the body in middleware
+  // would consume the stream the handler needs. Content-Length can be absent or
+  // can lie, so this is a BACKSTOP and not a replacement: validateBody() still
+  // measures the decoded text for handlers that use it, which is the check that
+  // catches a chunked or mis-declared body. Together they bound the common case
+  // cheaply and the adversarial case correctly.
+  if (isApi && MUTATING_METHODS.has(req.method)) {
+    const declared = Number(req.headers.get("content-length") ?? 0);
+    if (Number.isFinite(declared) && declared > MAX_API_BODY_BYTES) {
+      return NextResponse.json(
+        {
+          error: "payload_too_large",
+          message: `Request body exceeds the ${MAX_API_BODY_BYTES} byte limit.`,
+        },
+        { status: 413 }
+      );
+    }
+  }
+
   if (
     isApi &&
     MUTATING_METHODS.has(req.method) &&
@@ -329,6 +389,24 @@ export async function middleware(req: NextRequest) {
     // verifies the signature against registered agent keys and 401s any
     // invalid/unknown/tampered one (lib/agentTrustGate).
     if (pathname.startsWith("/api/escrow") && req.headers.get("signature-input")) {
+      return pass();
+    }
+    // The /api/v1 control plane authenticates with an API KEY, which is not a
+    // session JWT — so `hasSession` is false for every legitimate caller and the
+    // 401 below was answering the one credential these routes exist for.
+    //
+    // THE BUG THIS FIXES was not a hole, it was the opposite: every route
+    // classified API_KEY_AUTHENTICATED was unreachable, so `requireApiKey` —
+    // the only code that checks a key's scope, revocation, expiry, environment
+    // and IP allowlist — had never run. `/api/v1/payments` says in its own
+    // comment that it "makes `payments:read` mean something"; it could not.
+    //
+    // CONDITIONAL ON A CREDENTIAL BEING PRESENTED, deliberately. `/api/v1` is
+    // NOT added to PUBLIC_API_PREFIXES: an anonymous caller still gets this
+    // 401 and never reaches a route. Presenting a bearer only buys the right to
+    // be judged by requireApiKey, which is stricter than this gate and is
+    // enforced on every v1 route as an error-severity route-manifest rule.
+    if (pathname.startsWith("/api/v1") && req.headers.get("authorization")) {
       return pass();
     }
     return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers: { [CORRELATION_HEADER]: cid } });

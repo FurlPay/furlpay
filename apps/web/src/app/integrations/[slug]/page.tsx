@@ -11,6 +11,12 @@ import { INTEGRATIONS, integrationBySlug } from "@/lib/integrations/frameworks";
 // lib/integrations/frameworks.ts. The atomic answer + HowTo/FAQ schema are the
 // GEO layer: AI search engines lift the direct answer and cite the page.
 
+// The param set below is the complete list, so any other slug is a real miss.
+// Without this Next renders it on demand and the not-found page is returned
+// with a 200 — a soft 404 that Google indexes as content. Same rule as
+// /hotels/[city].
+export const dynamicParams = false;
+
 export function generateStaticParams() {
   return INTEGRATIONS.map((i) => ({ slug: i.slug }));
 }

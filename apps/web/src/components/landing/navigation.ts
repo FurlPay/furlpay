@@ -59,6 +59,11 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Changelog", href: "/changelog", desc: "What shipped, when" },
       { label: "Status", href: "/status", desc: "System status board" },
       { label: "Blog", href: "/blog", desc: "Engineering and product writing" },
+      // The three content surfaces sit together: where to meet us in person,
+      // the online sessions, and the written research.
+      { label: "Events", href: "/events", desc: "Where to find us in person" },
+      { label: "Webinars", href: "/webinars", desc: "Online sessions and recordings" },
+      { label: "Research", href: "/reports", desc: "Reports and market intelligence" },
       // /docs/integrations has no index page — link the first guide, not the
       // directory, or this 404s.
       { label: "Integration guides", href: "/docs/integrations/ai-assistants", desc: "AI assistants, Stripe, Persona" },

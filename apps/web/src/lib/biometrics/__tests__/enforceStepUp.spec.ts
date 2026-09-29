@@ -205,6 +205,37 @@ describe("a supplied proof", () => {
   });
 });
 
+describe("the proof field survives the route schemas", () => {
+  // The client attaches `stepUpProofId` to the SAME body the route parses. Two
+  // things must both hold, and they pull in opposite directions:
+  //
+  //   1. The schema must not REJECT it — a `.strict()` object would 400 every
+  //      stepped-up request, and the error would point at the body rather than at
+  //      the security field nobody remembered was in it.
+  //   2. The schema must not PASS IT THROUGH into the handler — AGENTS.md rule 4
+  //      forbids merging raw client JSON into stored objects.
+  //
+  // Zod's default (strip unknown keys) gives both. This pins that default for the
+  // schemas the proof actually travels through, because the failure mode of a
+  // later `.strict()` is a total outage on exactly the high-value paths.
+  it.each([
+    ["PaymentCreateSchema", () => import("@/lib/schemas").then((m) => m.PaymentCreateSchema),
+      { amount: 10, recipient: "0x" + "a".repeat(40) }],
+    ["SwapSchema", () => import("@/lib/schemas").then((m) => m.SwapSchema),
+      { fromToken: "USDC", toToken: "ETH", fromChain: "arbitrum", amountIn: 5 }],
+    ["OrderSchema", () => import("@/lib/schemas").then((m) => m.OrderSchema),
+      { symbol: "AAPL", side: "buy", notional: 100 }],
+  ])("%s accepts it and strips it", async (_label, load, valid) => {
+    const schema = await load();
+    const withProof = { ...valid, [STEP_UP_PROOF_FIELD]: "act_proof_abc123" };
+
+    const result = schema.safeParse(withProof);
+    expect(result.success, `schema rejected the proof field: ${JSON.stringify(result.error?.issues)}`).toBe(true);
+    // Stripped, so it can never be mass-assigned into a stored object.
+    expect(result.success && STEP_UP_PROOF_FIELD in result.data).toBe(false);
+  });
+});
+
 describe("the policy covers every Guardian money action", () => {
   it.each([
     "create_payment",

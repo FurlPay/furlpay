@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { kvSetNx } from "@/lib/kv";
+import { signatureEnforced } from "@/lib/x402Enforcement";
 import {
   NETWORK,
   PAY_TO,
@@ -9,6 +10,7 @@ import {
 import { verifyAuthorizationSignature, canVerifySignature } from "@/lib/x402Signature";
 import { defaultSettler, SettlementPendingError } from "@/lib/x402Settler";
 import { recordSettlement } from "@/lib/x402SettlementStore";
+import { recordX402Revenue } from "@/lib/revenue/x402";
 import type { FacilitatorRequest } from "@/lib/x402Facilitator";
 import { log } from "@/lib/log";
 
@@ -43,9 +45,7 @@ const MAX_HEADER_BYTES = 8 * 1024;
 
 /** Live mode: verify signatures + require a real settler. Mirrors x402LiveMode
  *  in lib/x402.ts (same env contract) so both dialects arm together. */
-function liveMode(): boolean {
-  return process.env.INTEGRATION_MODE === "live" || process.env.X402_ENFORCE_SIGNATURE === "1";
-}
+const liveMode = signatureEnforced;
 
 function challengeSecret(): Buffer {
   // Shared with x402's quote binding — one trust boundary for both dialects.
@@ -280,6 +280,17 @@ export async function verifyMppPayment(opts: {
       resource: realm,
       settledAt: new Date().toISOString(),
       status: "confirmed",
+    });
+
+    // API revenue, but only if this resource is ours — see lib/revenue/x402.
+    await recordX402Revenue({
+      transaction: submission.transaction,
+      network: NETWORK,
+      payTo: PAY_TO,
+      treasury: PAY_TO,
+      amountAtomic: expected.request.maxAmountRequired,
+      resource: realm,
+      payer: auth.from,
     });
     return { ok: true, reference: submission.transaction, payer: auth.from };
   } catch (e) {

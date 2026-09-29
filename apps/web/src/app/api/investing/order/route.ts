@@ -4,6 +4,8 @@ import { newTx, persistAccount, recordTransaction, type UserAccount } from "@/li
 import { withIdempotency } from "@/lib/idempotency";
 import { recordMovement } from "@/lib/ledger";
 import { bySymbol } from "@/lib/markets/catalog";
+import { quoteFor } from "@/lib/markets/quotes";
+import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 import { requireUser } from "@/lib/authz";
 import { OrderSchema, parse } from "@/lib/schemas";
 import { recordBuy, recordSell, projectHoldings } from "@/lib/corporateActions/projector";
@@ -60,7 +62,12 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const parsed = parse(OrderSchema, await req.json().catch(() => ({})));
+  // Carried alongside the parsed copy: the step-up digest is committed over what
+  // the client SENT, and Zod applies defaults and coercions. Re-deriving from
+  // `parsed.data` would hash a body the client never had, and every proof would
+  // be rejected as tampering.
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed = parse(OrderSchema, rawBody);
   if (!parsed.ok) return parsed.res;
 
   // Mobile networks make "tap → timeout → tap again" routine, and without a key
@@ -68,7 +75,7 @@ export async function POST(req: NextRequest) {
   // replay another account's request.
   const idempotencyKey = req.headers.get("Idempotency-Key");
   return withIdempotency(idempotencyKey, "investing.order", () =>
-    executeOrder(account, parsed.data, idempotencyKey)
+    executeOrder(account, parsed.data, idempotencyKey, rawBody)
   , { principal: account.user.id });
 }
 
@@ -77,7 +84,8 @@ type OrderInput = ReturnType<typeof OrderSchema.parse>;
 async function executeOrder(
   account: UserAccount,
   input: OrderInput,
-  idempotencyKey: string | null
+  idempotencyKey: string | null,
+  rawBody: unknown
 ): Promise<NextResponse> {
   const { symbol, side, notional, qty, limit_price, stop_price, trail_percent, trail_price } = input;
   const type = (input.type ?? "market") as OrderType;
@@ -127,6 +135,44 @@ async function executeOrder(
   if (!asset || asset.kind === "crypto") {
     return NextResponse.json({ error: "Symbol not found" }, { status: 404 });
   }
+
+  // ---- Step-up for high-value orders -------------------------------------
+  //
+  // This route enforced NOTHING before. The iOS Guardian app puts Face ID in
+  // front of every order, but `BiometricGate` returns a local Bool from LAContext
+  // that never reached the server, so a bearer token alone placed a $25,000
+  // order and nothing recorded that the prompt had been skipped.
+  //
+  // THE AMOUNT IS THE AWKWARD PART, and getting it wrong is the bypass. An order
+  // carries EITHER `notional` (USD, straightforward) OR `qty` (shares, whose USD
+  // value is not known until the fill — `notionalUsd` is computed from
+  // `filledQty * fillPrice`, long after this point). Gating on `notional` alone
+  // would mean "send qty instead" defeated the control entirely.
+  //
+  // So a qty order is priced from the quote cache, and a MISSING quote requires
+  // step-up rather than skipping it. That is the fail-closed direction: an
+  // unknown value cannot be ruled under the threshold, and the alternative is a
+  // price-feed hiccup silently disabling a security control on the exact orders
+  // it exists for.
+  const stepUpAmountUsd = await (async () => {
+    if (notional !== undefined && notional !== null) return Number(notional);
+    if (qty === undefined || qty === null) return undefined;
+    const quote = await quoteFor(sym).catch(() => undefined);
+    // Infinity, not undefined: `requiresStepUp` treats a missing amount as
+    // sub-threshold, so returning undefined here would fail OPEN.
+    return quote?.price ? Number(qty) * quote.price : Number.POSITIVE_INFINITY;
+  })();
+
+  const stepUp = await enforceActionStepUp({
+    userId: account.user.id,
+    action: "place_order",
+    amountUsd: stepUpAmountUsd,
+    endpoint: "/investing/order",
+    method: "POST",
+    body: rawBody as Record<string, never>,
+    proofId: (rawBody as { stepUpProofId?: unknown }).stepUpProofId,
+  });
+  if (stepUp) return stepUp;
 
   // ---- The brokerage -----------------------------------------------------
   let brokerage;

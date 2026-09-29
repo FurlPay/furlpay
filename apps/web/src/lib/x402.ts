@@ -1,17 +1,19 @@
 import crypto from "crypto";
+import { signatureEnforced } from "@/lib/x402Enforcement";
 import { kvSetNx, kvBackend } from "@/lib/kv";
 import { verifyAuthorizationSignature } from "@/lib/x402Signature";
 import { defaultSettler, SettlementPendingError } from "@/lib/x402Settler";
 import { recordSettlement } from "@/lib/x402SettlementStore";
+import { recordX402Revenue } from "@/lib/revenue/x402";
 import type { FacilitatorRequest } from "@/lib/x402Facilitator";
 import { log } from "@/lib/log";
 
 /** Live mode enforces both EIP-3009 signature recovery and real on-chain
  *  settlement; mock mode (default) keeps structural checks + a deterministic
  *  hash so the zero-credential demo runs. */
-function x402LiveMode(): boolean {
-  return process.env.INTEGRATION_MODE === "live" || process.env.X402_ENFORCE_SIGNATURE === "1";
-}
+// Signature enforcement: see lib/x402Enforcement.ts. Production always enforces
+// and cannot be configured out of it (SR2).
+const x402LiveMode = signatureEnforced;
 
 // ---------------------------------------------------------------------------
 // Hardened x402 (HTTP 402 "Payment Required") implementation.
@@ -130,14 +132,38 @@ export const replayProtectionDurable = kvBackend === "redis";
 // blocks are ~2s; the paper recommends k≥3 for sub-$1 resources (ε<1e-2) and
 // k≥12 for resources above $10 (ε<1e-4). A real settler must not report
 // `confirmed` until it has observed at least this depth.
-/** Required confirmation depth for a settlement of `amountAtomic` USDC (6dp). */
+/**
+ * Required confirmation depth for a settlement of `amountAtomic` USDC (6dp).
+ *
+ * F-18. This previously read the amount with a bare `BigInt(amountAtomic)` and
+ * returned 3 for anything under $1 — which handed the WEAKEST gate to every
+ * value `BigInt` silently coerces rather than rejects:
+ *
+ *     ""  and "   "  ->  0n   (not a throw)      ->  3 confirmations
+ *     "0x10"         ->  16n  (hex accepted)     ->  3 confirmations
+ *     "+5"           ->  5n                      ->  3 confirmations
+ *     "-99999999999" ->  negative, still `< 1`   ->  3 confirmations
+ *
+ * Only `"abc"`-shaped input actually threw, so the `catch` that was supposed to
+ * be the fail-closed path almost never ran. The surrounding code establishes a
+ * fail-closed convention and this function quietly broke it.
+ *
+ * Now the amount must be decimal digits — the same `/^[0-9]+$/` rule
+ * `parseAtomic` applies everywhere else in the repo (F-9) — and anything else,
+ * including zero, demands 12. A zero-value settlement is not a cheap settlement;
+ * it is a nonsensical one, and nonsense earns maximum caution.
+ *
+ * THE FLOAT IS DELIBERATE AND SAFE. Beyond 2^53 `Number(BigInt(x))` loses
+ * precision, but only upward — toward a larger figure, which selects a STRONGER
+ * gate. The error direction cannot weaken the control, so the comparison stays
+ * readable rather than being rewritten in BigInt for no behavioural gain.
+ */
 export function requiredConfirmations(amountAtomic: string): number {
-  let usd: number;
-  try {
-    usd = Number(BigInt(amountAtomic)) / 1e6;
-  } catch {
-    usd = Infinity; // unparseable → demand the strongest gate
-  }
+  if (typeof amountAtomic !== "string" || !/^[0-9]+$/.test(amountAtomic.trim())) return 12;
+  const atomic = BigInt(amountAtomic.trim());
+  if (atomic <= 0n) return 12;
+  const usd = Number(atomic) / 1e6;
+  if (!Number.isFinite(usd)) return 12;
   if (usd < 1) return 3;
   if (usd < 10) return 6;
   return 12;
@@ -174,10 +200,33 @@ export interface PaymentRequirements {
     quoteId: string;
     expiresAt: number; // unix seconds
     binding: string; // HMAC binding quote -> resource
+    /**
+     * HTTP method the binding was computed over.
+     *
+     * Present so the commitment is SELF-DESCRIBING. `bindingMac` mixes the
+     * method in, so a verifier that does not know it cannot recompute the MAC —
+     * which is why the facilitator could not check the binding at all before
+     * this field existed. Optional for one quote TTL so quotes minted by an
+     * older deployment still verify; see verifyResourceBinding for the narrowed
+     * fallback that handles them.
+     */
+    method?: string;
   };
 }
 
-function bindingMac(resource: string, method: string, amount: string, quoteId: string, expiresAt: number): string {
+/**
+ * HMAC binding a quote to the exact resource it was issued for.
+ *
+ * EXPORTED so the FACILITATOR can verify the same commitment this middleware
+ * issues. It was private, and the consequence was SR1: the facilitator had no
+ * way to tell that an authorization presented to it was bound to a different
+ * resource than the one being paid for, because the only component that could
+ * check was the resource server itself.
+ *
+ * Keyed with our own secret, so a caller cannot mint a binding for a resource
+ * we did not price.
+ */
+export function bindingMac(resource: string, method: string, amount: string, quoteId: string, expiresAt: number): string {
   return crypto
     .createHmac("sha256", secret())
     .update(`${method} ${resource} ${amount} ${quoteId} ${expiresAt}`)
@@ -212,6 +261,7 @@ export function buildRequirements(opts: {
       version: "2",
       quoteId,
       expiresAt,
+      method: opts.method.toUpperCase(),
       binding: bindingMac(opts.resource, opts.method, amount, quoteId, expiresAt),
     },
   };
@@ -543,6 +593,17 @@ export async function verifyPayment(opts: {
         resource,
         settledAt: new Date().toISOString(),
         status: "confirmed",
+      });
+
+      // API revenue, but only if this resource is ours — see lib/revenue/x402.
+      await recordX402Revenue({
+        transaction: submission.transaction,
+        network: NETWORK,
+        payTo: PAY_TO,
+        treasury: PAY_TO,
+        amountAtomic: expectedAmount,
+        resource,
+        payer: auth.from,
       });
       return {
         ok: true,

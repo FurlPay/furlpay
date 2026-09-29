@@ -14,6 +14,7 @@ import { EVM_CHAINS, rpcTransport } from "@/lib/x402Chains";
 import { createKmsAccount, kmsAccountAvailable } from "@/lib/kmsAccount";
 import { financialEnvironment, flagEnabled, flagState } from "@/lib/flags";
 import { log } from "@/lib/log";
+import { resolveSettlementAsset, settlementGasLimit, parseAtomicAmount } from "@/lib/x402Assets";
 
 // ---------------------------------------------------------------------------
 // Real on-chain x402 settler (EVM). This is the injectable `Settler` that
@@ -186,19 +187,65 @@ export function createEvmSettler(): Settler | null {
     const s = parsed.s;
     const v = parsed.v !== undefined ? Number(parsed.v) : 27 + parsed.yParity;
 
+    // ── The contract address is RE-RESOLVED, not trusted ──────────────────
+    //
+    // verify() pins the asset to the per-network allowlist and settle() always
+    // calls verify() first, so by here the address is already known-good. This
+    // repeats the check anyway, because this is the line that actually spends
+    // our gas on somebody else's bytecode. The cost is one map lookup; the thing
+    // it prevents is a future refactor that reorders or short-circuits verify()
+    // and reopens an arbitrary-contract call without anyone noticing.
+    const pinned = resolveSettlementAsset(network, req.paymentRequirements.asset);
+    if (!pinned.ok) {
+      throw new Error(`refusing to settle against a non-allowlisted asset (${pinned.reason})`);
+    }
+
     // Submit the payer's signed authorization. The token contract re-verifies
     // the EIP-712 signature and the nonce on-chain; we already verified both
     // off-chain in the facilitator, so a revert here is exceptional.
+    //
+    // GAS IS BOUNDED (arXiv:2607.19545 SR6, "sponsored execution must be
+    // constrained by configurable upper bounds"). WE pay this gas, and the
+    // caller is unauthenticated by protocol design, so an unbounded `gas` field
+    // means an unbounded bill. The default is derived from the operation rather
+    // than guessed: `transferWithAuthorization` on FiatTokenV2_2 is an ecrecover
+    // plus two balance writes and a nonce write, which lands under ~100k gas, so
+    // 200k is generous headroom for a proxy hop and still refuses anything that
+    // is not this operation. Raising it is an explicit env change.
+    // F-20. These were `BigInt(auth.value)` inline, which is the coercing
+    // built-in rather than this repository's rule for an atomic amount.
+    // `BigInt` accepts hex, octal, binary, a leading sign, surrounding
+    // whitespace, and the empty string as ZERO — so `"0x10"` submitted sixteen
+    // units while `recordSettlement` stored the literal `"0x10"` in the
+    // settlement record and the evidence trail. No signature is bypassed (EIP-712
+    // hashes numerically, so `"0x10"` and `"16"` share a digest), but the chain
+    // and the audit trail would disagree about what happened, which is the
+    // canonicalization mismatch F-9 exists to prevent.
+    //
+    // This is the last line before a transaction is signed, so it refuses rather
+    // than coerces. The facilitator validates upstream; a second gate here costs
+    // nothing and removes the assumption that it always ran.
+    const settleValue = parseAtomicAmount(auth.value);
+    const settleValidAfter = parseAtomicAmount(auth.validAfter);
+    const settleValidBefore = parseAtomicAmount(auth.validBefore);
+    if (settleValue === null || settleValidAfter === null || settleValidBefore === null) {
+      throw new Error(
+        `invalid_amount: authorization carries a non-canonical numeric field; refusing to settle ` +
+          `(value=${JSON.stringify(auth.value)})`
+      );
+    }
+
     const hash = await walletClient.writeContract({
-      address: req.paymentRequirements.asset as Address,
+      address: pinned.address as Address,
       abi: EIP3009_ABI,
       functionName: "transferWithAuthorization",
+      gas: settlementGasLimit(),
       args: [
         auth.from as Address,
         auth.to as Address,
-        BigInt(auth.value),
-        BigInt(auth.validAfter),
-        BigInt(auth.validBefore),
+        settleValue,
+        settleValidAfter,
+        settleValidBefore,
         auth.nonce as Hex,
         v,
         r,

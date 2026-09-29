@@ -105,6 +105,29 @@ export async function redeemQuote(userId: string, quoteId: string): Promise<Rede
   return { ok: true, quote: stored.quote };
 }
 
+/**
+ * Read a quote WITHOUT consuming it.
+ *
+ * Exists for the step-up gate, which has to know what a swap is worth before
+ * deciding whether to demand a biometric proof — and must do so without burning
+ * the id, because a refused step-up has to leave the user able to approve and
+ * retry rather than re-quoting at a new price.
+ *
+ * Ownership is checked here too: this returns a quote only to the user it was
+ * issued to, so it cannot become a way to read the size of someone else's
+ * pending swap by guessing ids.
+ *
+ * Deliberately NOT a general-purpose read. Anything that acts on a quote must
+ * still go through `redeemQuote`, whose atomic set-if-absent is what makes
+ * execution single-use; a caller that peeked and then acted would have skipped
+ * exactly that guarantee.
+ */
+export async function peekQuote(userId: string, quoteId: string): Promise<SwapQuote | null> {
+  const stored = await kvGet<StoredQuote>(quoteKey(quoteId));
+  if (!stored || stored.userId !== userId) return null;
+  return stored.quote;
+}
+
 /** Human-readable 400/409 text for a failed redemption. */
 export function redeemErrorMessage(reason: Exclude<RedeemResult, { ok: true }>["reason"]): string {
   switch (reason) {

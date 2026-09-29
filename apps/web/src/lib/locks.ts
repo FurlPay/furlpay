@@ -40,3 +40,31 @@ export async function releaseLock(name: string, token: string): Promise<void> {
   const held = await kvGet<string>(KEY(name));
   if (held === token) await kvDel(KEY(name));
 }
+
+/**
+ * Run `fn` while holding `name`, releasing it even if `fn` throws.
+ *
+ * The acquire/release pair is easy to get subtly wrong — an early return
+ * between them leaks the lock until its TTL expires, which turns a 30-second
+ * mutex into a 30-second outage for that user. This keeps the release in a
+ * finally so there is one place to get right.
+ *
+ * `onBusy` produces the result when another holder owns the lock. Callers pass
+ * the response they want a contending request to see; there is no default,
+ * because "what should the loser see" is a decision per call site, not a
+ * library default.
+ */
+export async function withLock<T>(
+  name: string,
+  ttlSeconds: number,
+  fn: () => Promise<T>,
+  onBusy: () => T | Promise<T>,
+): Promise<T> {
+  const token = await acquireLock(name, ttlSeconds);
+  if (!token) return await onBusy();
+  try {
+    return await fn();
+  } finally {
+    await releaseLock(name, token);
+  }
+}

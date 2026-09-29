@@ -4,6 +4,7 @@ import { createPayment } from "@/lib/services/payments";
 import { IntegrationNotConfiguredError } from "@/lib/integrations";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +18,31 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "payments.create", { limit: 60, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const parsed = parse(PaymentCreateSchema, await req.json().catch(() => ({})));
+  const raw = await req.json().catch(() => ({}));
+  const parsed = parse(PaymentCreateSchema, raw);
   if (!parsed.ok) return parsed.res;
   const body = parsed.data;
+
+  // Step-up for high-value payments.
+  //
+  // The gate in the iOS Guardian app was client-side only: Face ID via LAContext,
+  // returning a local Bool that never reached here. This route enforced nothing,
+  // so a bearer token alone authorised any amount. See lib/biometrics/actionProof.ts.
+  //
+  // `stepUpBody` is the ORIGINAL request body, not the parsed one. The proof was
+  // minted over what the client sent, and Zod applies defaults and coercions —
+  // re-deriving the digest from the parsed object would compare against a body
+  // the client never had, and every proof would be rejected.
+  const stepUp = await enforceActionStepUp({
+    userId: auth.account.user.id,
+    action: "create_payment",
+    amountUsd: body.amount,
+    endpoint: "/payments/create",
+    method: "POST",
+    body: raw as Record<string, never>,
+    proofId: (raw as { stepUpProofId?: unknown }).stepUpProofId,
+  });
+  if (stepUp) return stepUp;
 
   // Idempotency-Key (RFC-style header): a retry with the same key returns the
   // same intent instead of minting a duplicate — the retry-storm guard.

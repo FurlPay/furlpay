@@ -11,7 +11,8 @@ import { authorizeBooking, generateCars, MCC, type CarRental } from "@/lib/trave
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
 import { acquireLock, releaseLock } from "@/lib/locks";
-import { limit } from "@/lib/rateLimit";
+import { limit, rateLimitOr429 } from "@/lib/rateLimit";
+import type { NextRequest } from "next/server";
 
 // Solana Action: book a rental car straight from a Blink (X, Reddit, Discord,
 // wallet in-feed cards) — the playbook's "instant checkout moat". Inventory is
@@ -36,8 +37,28 @@ function findCar(city: string, carId: string | null): CarRental | undefined {
   return carId ? cars.find((c) => c.id === carId) : cars[0];
 }
 
+// A 429 from rateLimitOr429() is a bare NextResponse, which would drop the
+// Action CORS headers every other response on this route carries. A Blink
+// client that gets a header-less 429 reports a CORS failure rather than "slow
+// down", so the status/body are re-emitted with `headers` merged back in.
+async function blinkRateLimit(req: NextRequest, bucket: string, max: number) {
+  const limited = await rateLimitOr429(req, bucket, { limit: max, windowMs: 60_000 });
+  if (!limited) return null;
+  const merged = new Headers(headers as HeadersInit);
+  limited.headers.forEach((v, k) => merged.set(k, v));
+  return new Response(await limited.text(), { status: limited.status, headers: merged });
+}
+
 // GET — metadata the Blink client renders as an interactive card.
-export const GET = async (req: Request) => {
+export const GET = async (req: NextRequest) => {
+  // Unauthenticated public read: the middleware baseline only covers mutating
+  // methods, so without this the card metadata can be scraped without bound —
+  // and each call re-derives a city's inventory (seeded hashing) rather than
+  // reading a cache. 60/min/IP is far above what a feed rendering a Blink
+  // needs and well below what a scraper wants.
+  const limited = await blinkRateLimit(req, "actions.book-car.get", 60);
+  if (limited) return limited;
+
   const url = new URL(req.url);
   const city = parseCity(url.searchParams.get("city"));
   if (!city) {

@@ -1050,7 +1050,15 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       map.current?.remove();
       map.current = null;
     };
-  }, [load, paint, openFor, showDestinationCard, openDetail, scheduleClose, light]);
+    // `showRegistryTiles` is listed even though it cannot currently change in
+    // place: it is derived from a server-rendered search param (?all=1) in
+    // hotels/map/page.tsx, so flipping it is a navigation and the whole map
+    // remounts anyway. It belongs here regardless — the effect decides whether
+    // LYR_VECTOR is added at all and which layers are interactive, so if the
+    // prop ever becomes stateful a rebuild is the correct response, not a
+    // stale layer set. Listing a value that never changes costs nothing;
+    // omitting it would have been a real bug the day someone made it dynamic.
+  }, [load, paint, openFor, showDestinationCard, openDetail, scheduleClose, light, showRegistryTiles]);
 
   // A filter change re-asks the same viewport, on the same debounce as a pan so
   // typing issues one request rather than one per character.

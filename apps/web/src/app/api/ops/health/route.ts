@@ -4,6 +4,7 @@ import { requireOpsAdmin, opsOk } from "@/lib/ops/respond";
 import { kvGet, kvSet } from "@/lib/kv";
 import { sbSelect, supabaseBackend } from "@/lib/supabase";
 import { auditFlushStats } from "@/lib/auditDb";
+import { probeRequiredConstraints } from "@/lib/ops/schemaProbe";
 import { EVM_CHAINS, rpcTransport } from "@/lib/x402Chains";
 
 export const dynamic = "force-dynamic";
@@ -16,12 +17,17 @@ export const dynamic = "force-dynamic";
 // have report "not_configured" rather than a fake status.
 // ---------------------------------------------------------------------------
 
-type CheckStatus = "operational" | "degraded" | "down" | "not_configured";
+// "unverified" exists for the schema probe: a check that could not RUN is not
+// a check that passed, and collapsing the two would turn an unknown into a
+// false assurance on the question the probe was added to answer.
+type CheckStatus = "operational" | "degraded" | "down" | "not_configured" | "unverified";
 interface Check {
   status: CheckStatus;
   latencyMs?: number;
   blockNumber?: number;
   detail?: string;
+  /** Schema probe only: which required constraints are absent. */
+  missing?: { constraint: string; table: string; purpose: string }[];
 }
 
 const PROBE_TIMEOUT_MS = 2_500;
@@ -79,10 +85,16 @@ async function probeHttp(url: string): Promise<Check> {
 }
 
 function rollup(checks: Record<string, Check>): "healthy" | "degraded" | "unhealthy" {
-  const critical = ["redis", "supabase", "arbitrum_rpc"];
+  // `schema` is critical: a missing constraint is not a slow dependency that
+  // will recover on its own, it is a correctness guarantee that is absent now
+  // and stays absent until someone applies a migration.
+  const critical = ["redis", "supabase", "arbitrum_rpc", "schema"];
   if (critical.some((k) => checks[k]?.status === "down")) return "unhealthy";
   const active = Object.values(checks).filter((c) => c.status !== "not_configured");
-  if (active.some((c) => c.status === "down" || c.status === "degraded")) return "degraded";
+  // "unverified" degrades rather than fails: it means we do not know, which
+  // must be visible on the dashboard but is not itself evidence of a fault.
+  if (active.some((c) => c.status === "down" || c.status === "degraded" || c.status === "unverified"))
+    return "degraded";
   return "healthy";
 }
 
@@ -110,13 +122,16 @@ export async function GET(req: NextRequest) {
   if (cached) return opsOk({ ...cached, audit: auditSnapshot(), cached: true });
 
   const iris = process.env.CCTP_IRIS_API_URL || "https://iris-api.circle.com";
-  const [redis, supabase, arbitrum, base, irisCheck, lifi] = await Promise.all([
+  const [redis, supabase, arbitrum, base, irisCheck, lifi, schema] = await Promise.all([
     probeRedis(),
     probeSupabase(),
     probeRpc("arbitrum"),
     probeRpc("base"),
     probeHttp(`${iris}/v2/burn/USDC/fees/3/3`),
     probeHttp("https://li.quest/v1/chains"),
+    // Not wrapped in timed(): this asserts a fact about the schema, and a
+    // latency number would invite reading it as a dependency probe.
+    probeRequiredConstraints(),
   ]);
 
   const checks: Record<string, Check> = {
@@ -126,6 +141,7 @@ export async function GET(req: NextRequest) {
     base_rpc: base,
     cctp_iris: irisCheck,
     lifi_api: lifi,
+    schema,
   };
 
   const snapshot = {

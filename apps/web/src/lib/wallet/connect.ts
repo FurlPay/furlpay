@@ -1,6 +1,7 @@
 "use client";
 
 import { mipdStore, type EIP6963ProviderDetail, type Eip1193Provider } from "@/lib/wallet/mipd";
+import { addr, walletEvent } from "@/lib/wallet/telemetry";
 
 // ---------------------------------------------------------------------------
 // The wallet-provider abstraction behind the connect modal.
@@ -32,8 +33,13 @@ import { mipdStore, type EIP6963ProviderDetail, type Eip1193Provider } from "@/l
 /** How a wallet can fail to connect. Each maps to its own UI state. */
 export type ConnectErrorKind =
   | "rejected" // user declined in the wallet
+  | "pending" // a request is already open in the wallet (EIP-1193 -32002)
+  | "locked" // wallet installed but locked / not authorized (4100, 4900)
   | "not-detected" // no provider announced for this rdns
   | "wrong-network" // connected, but on a chain we do not support
+  | "chain-mismatch" // the wallet is not on the chain this action requires
+  | "provider-error" // the wallet itself faulted (-32603)
+  | "network" // the wallet could not reach its node (-32000, fetch failure)
   | "timeout" // the wallet never answered
   | "unavailable" // needs infrastructure this deployment lacks
   | "unknown";
@@ -44,6 +50,95 @@ export class WalletConnectError extends Error {
     super(message);
     this.name = "WalletConnectError";
     this.kind = kind;
+  }
+}
+
+/**
+ * Map an EIP-1193 provider error onto a kind the UI can speak.
+ *
+ * ── WHY -32002 GETS ITS OWN KIND ───────────────────────────────────────────
+ *
+ * It is the most common real-world wallet failure and the least self-
+ * explanatory: the user clicks Connect, the extension already has a popup open
+ * behind the browser window, and the page reports "Internal JSON-RPC error".
+ * The user retries, which produces another -32002, and concludes the site is
+ * broken. The correct message tells them where the request already is.
+ *
+ * 4100/4900 are the locked/disconnected pair: the wallet is installed and
+ * answering, but has not authorized this origin — "not installed" would send
+ * the user to reinstall something they already have.
+ *
+ * Codes are read from `code`, and from `data.originalError.code` because some
+ * wallets nest the RPC error one level down when proxying.
+ */
+export function classifyProviderError(e: unknown): { kind: ConnectErrorKind; message: string } {
+  const err = e as {
+    code?: number;
+    message?: string;
+    name?: string;
+    data?: { originalError?: { code?: number } };
+  };
+  const code = err?.code ?? err?.data?.originalError?.code;
+
+  // A fetch/abort failure carries no RPC code. Classified before the switch so
+  // it does not fall through to "unknown", which would hide the one cause the
+  // user can actually act on.
+  if (code === undefined) {
+    if (err?.name === "AbortError" || err?.name === "TimeoutError") {
+      return { kind: "timeout", message: "The wallet did not respond. Try again." };
+    }
+    if (typeof err?.message === "string" && /network|fetch|offline|ECONN/i.test(err.message)) {
+      return {
+        kind: "network",
+        message: "Your wallet could not reach the network. Check your connection and retry.",
+      };
+    }
+  }
+
+  switch (code) {
+    case 4001:
+      return { kind: "rejected", message: "You declined the request in your wallet." };
+    case -32002:
+      return {
+        kind: "pending",
+        message:
+          "A wallet request is already open. Finish or dismiss it in your wallet, then try again.",
+      };
+    case 4100:
+      return {
+        kind: "locked",
+        message: "Your wallet is locked or has not approved this site. Unlock it and try again.",
+      };
+    case 4900:
+      return { kind: "locked", message: "Your wallet is not connected to a network." };
+    case 4902:
+      return {
+        kind: "wrong-network",
+        message: "That network is not added to your wallet yet.",
+      };
+    case -32603:
+      // "Internal error". Genuinely ambiguous — wallets return it for an
+      // unreachable RPC, a reverted eth_call and their own internal faults
+      // alike. Reported as a provider fault rather than guessed at, because
+      // telling the user "you rejected it" when their RPC is down is worse
+      // than telling them something went wrong on the wallet's side.
+      return {
+        kind: "provider-error",
+        message: "Your wallet reported an internal error. Check its network settings and retry.",
+      };
+    case -32000:
+      // JSON-RPC server error. Usually the wallet's upstream node.
+      return {
+        kind: "network",
+        message: "Your wallet could not reach the network. Check your connection and retry.",
+      };
+    default:
+      // Never surface a raw provider string to the user. The original message
+      // still reaches the caller for logging.
+      return {
+        kind: "unknown",
+        message: "The wallet could not complete the request. Please try again.",
+      };
   }
 }
 
@@ -173,7 +268,110 @@ export function detect(rdns: string): EIP6963ProviderDetail | null {
  * and nothing else — no signing capability is granted by connecting, which is
  * why this step can be safely automatic while a transaction never is.
  */
+
+/**
+ * In-flight connection attempts, keyed by wallet.
+ *
+ * ── THE DOUBLE-CLICK BUG ───────────────────────────────────────────────────
+ *
+ * `eth_requestAccounts` opens a popup. A second call while the first is open
+ * does not open a second popup — the wallet answers -32002 ("already
+ * pending"), which the UI then renders as a failure even though the FIRST
+ * request is still perfectly alive and waiting for the user.
+ *
+ * So a repeat click must not reach the provider at all. It joins the promise
+ * already running, and both callers resolve from the one popup the user is
+ * actually looking at. Keyed per rdns so connecting MetaMask does not block
+ * connecting Phantom.
+ *
+ * The entry is cleared when the promise settles, so a genuine retry after a
+ * rejection still works.
+ */
+const inFlight = new Map<string, Promise<Connection>>();
+
+const SILENT_TIMEOUT_MS = 1_500;
+
+/**
+ * Identity for the in-flight map.
+ *
+ * The EIP-6963 `uuid` where we have one, because that is the PROVIDER. Keying
+ * on `rdns` (the brand) would make two colliding extensions share one slot, so
+ * connecting to the second would silently return the first's promise — the
+ * exact substitution the collision handling in mipd.ts exists to prevent.
+ */
+function attemptKey(wallet: ListedWallet): string {
+  return wallet.detail?.info.uuid ?? `rdns:${wallet.rdns}`;
+}
+
 export async function connect(wallet: ListedWallet): Promise<Connection> {
+  const key = attemptKey(wallet);
+  const existing = inFlight.get(key);
+  if (existing) return existing;
+
+  const started = Date.now();
+  walletEvent("wallet_connect_started", { uuid: wallet.detail?.info.uuid, rdns: wallet.rdns });
+
+  const attempt = connectOnce(wallet)
+    .then((conn) => {
+      walletEvent("wallet_connect_success", {
+        uuid: wallet.detail?.info.uuid,
+        rdns: wallet.rdns,
+        account: addr(conn.address),
+        chainId: conn.chainId,
+        durationMs: Date.now() - started,
+      });
+      return conn;
+    })
+    .catch((e) => {
+      const kind = e instanceof WalletConnectError ? e.kind : "unknown";
+      walletEvent(kind === "rejected" ? "wallet_connect_rejected" : "wallet_connect_failed", {
+        uuid: wallet.detail?.info.uuid,
+        rdns: wallet.rdns,
+        errorKind: kind,
+        durationMs: Date.now() - started,
+      });
+      throw e;
+    })
+    .finally(() => {
+      // Cleared on EVERY outcome — success, rejection, timeout — so a failed
+      // attempt can never poison the provider for the rest of the session.
+      inFlight.delete(key);
+    });
+
+  inFlight.set(key, attempt);
+  return attempt;
+}
+
+/**
+ * Which accounts this origin is ALREADY authorized for, without prompting.
+ *
+ * `eth_accounts` returns the permitted set and does not open a popup — that is
+ * `eth_requestAccounts`. This is what makes a reconnect affordance safe: the
+ * page can discover on load that permission still stands and show a connected
+ * state, without the pattern every wallet UX guide warns about (a permission
+ * dialog appearing because someone opened a tab).
+ *
+ * Returns [] on any failure. A wallet that will not answer is treated as not
+ * authorized, never as authorized-but-erroring.
+ */
+export async function silentAccounts(detail: EIP6963ProviderDetail): Promise<string[]> {
+  try {
+    const accounts = (await withTimeout(
+      detail.provider.request({ method: "eth_accounts" }),
+      SILENT_TIMEOUT_MS,
+    )) as string[];
+    return Array.isArray(accounts) ? accounts.filter((a) => typeof a === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Tests only — clears any in-flight attempt. */
+export function __resetInFlight(): void {
+  inFlight.clear();
+}
+
+async function connectOnce(wallet: ListedWallet): Promise<Connection> {
   if (wallet.requiresInfrastructure) {
     throw new WalletConnectError(
       "unavailable",
@@ -194,13 +392,9 @@ export async function connect(wallet: ListedWallet): Promise<Connection> {
     )) as string[];
   } catch (e) {
     if (e instanceof WalletConnectError) throw e;
-    // EIP-1193: 4001 is "user rejected request". Anything else is a genuine
-    // failure and must not be reported as a rejection.
-    const code = (e as { code?: number })?.code;
-    if (code === 4001) {
-      throw new WalletConnectError("rejected", "You declined the connection request.");
-    }
-    throw new WalletConnectError("unknown", (e as Error)?.message || "Could not reach the wallet.");
+    const { kind, message } = classifyProviderError(e);
+    // The raw provider message is logged, never shown — see classifyProviderError.
+    throw new WalletConnectError(kind, message);
   }
 
   const address = accounts?.[0];
@@ -270,4 +464,54 @@ export function chainName(chainId: number): string {
 
 export function isSupportedChain(chainId: number): boolean {
   return chainId in SUPPORTED_CHAINS;
+}
+
+/**
+ * Verify the wallet is on `expectedChainId` RIGHT NOW, before a transaction.
+ *
+ * ── WHY IT RE-READS INSTEAD OF TRUSTING STATE ──────────────────────────────
+ *
+ * A `Connection` records the chain as it was at connect time. The user can
+ * switch networks in the extension at any moment, and a `chainChanged` event
+ * can be missed — the listener may not be mounted, the page may have been
+ * backgrounded, or the wallet may not emit reliably. Signing against a cached
+ * chain id is how a transaction built for Base gets submitted on Ethereum,
+ * where the same calldata hits a different contract.
+ *
+ * So this asks the provider on every call. It is one RPC round trip against a
+ * local extension, which is cheap next to sending a transaction to the wrong
+ * chain.
+ *
+ * Throws rather than switching. Switching networks is a decision the user
+ * makes in their wallet; doing it silently on their behalf immediately before
+ * a signature is the wrong moment to be moving things around.
+ */
+export async function assertChain(
+  conn: Connection,
+  expectedChainId: number
+): Promise<void> {
+  let actual: number;
+  try {
+    const raw = (await conn.provider.request({ method: "eth_chainId" })) as string;
+    actual = Number.parseInt(raw, 16);
+  } catch (e) {
+    const { message } = classifyProviderError(e);
+    throw new WalletConnectError("chain-mismatch", message);
+  }
+
+  if (!Number.isFinite(actual)) {
+    throw new WalletConnectError(
+      "chain-mismatch",
+      "Your wallet did not report which network it is on. Reconnect and try again."
+    );
+  }
+
+  if (actual !== expectedChainId) {
+    const want = SUPPORTED_CHAINS[expectedChainId]?.name ?? `chain ${expectedChainId}`;
+    const have = SUPPORTED_CHAINS[actual]?.name ?? `chain ${actual}`;
+    throw new WalletConnectError(
+      "chain-mismatch",
+      `This transaction is for ${want}, but your wallet is on ${have}. Switch network and try again.`
+    );
+  }
 }

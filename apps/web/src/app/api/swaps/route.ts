@@ -5,12 +5,16 @@ import {
   issueQuote,
   redeemErrorMessage,
   redeemQuote,
+  peekQuote,
 } from "@/lib/services/swapQuote";
 import { newTx, recordTransaction } from "@/lib/store";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 import { SwapSchema, parse } from "@/lib/schemas";
 import type { Chain, Token } from "@/lib/types";
+import { recordRevenue, usdFromFloat } from "@/lib/revenue/record";
+import { log } from "@/lib/log";
 
 // /api/swaps — cheapest cross-chain swap routing (Li.Fi live quotes with a
 // local fallback), Doc-2 canonical. Execution settles against the demo ledger.
@@ -49,7 +53,11 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const parsed = parse(SwapSchema, await req.json().catch(() => ({})));
+  // Kept alongside the parsed copy: the step-up digest is committed over what the
+  // client SENT, and Zod applies defaults and coercions. Re-deriving from
+  // `parsed.data` would hash a body the client never had.
+  const rawBody = await req.json().catch(() => ({}));
+  const parsed = parse(SwapSchema, rawBody);
   if (!parsed.ok) return parsed.res;
   const body = parsed.data;
 
@@ -98,6 +106,39 @@ export async function POST(req: NextRequest) {
   }
 
   // --- execution phase -----------------------------------------------------
+  //
+  // Step-up BEFORE redeeming. A refusal after redemption would spend the quote
+  // and leave the user re-quoting at a new price for an approval they never got
+  // to give.
+  //
+  // Bound to the request body, which carries the quoteId — and a quoteId is
+  // server-issued and single-use, so the digest pins this execution to that
+  // exact quote. Quoting itself is not gated: it moves nothing.
+  //
+  // Valued from the STORED quote, not from the request body. On the execute
+  // branch the client sends a quoteId and need not resend `amountIn`/`fromToken`
+  // at all — reading them from the body would let a client under-declare its own
+  // swap to duck the threshold. `peekQuote` does not consume the id.
+  //
+  // A quote that cannot be read is priced as infinite rather than unknown:
+  // `requiresStepUp` treats a missing amount as sub-threshold, so `undefined`
+  // here would fail OPEN. `redeemQuote` below reports the real reason.
+  const pending = await peekQuote(account.user.id, body.quoteId);
+  const swapUsd = pending
+    ? pending.amountIn * usdPrice(pending.fromToken)
+    : Number.POSITIVE_INFINITY;
+
+  const stepUp = await enforceActionStepUp({
+    userId: account.user.id,
+    action: "swap",
+    amountUsd: swapUsd,
+    endpoint: "/swaps",
+    method: "POST",
+    body: rawBody as Record<string, never>,
+    proofId: (rawBody as { stepUpProofId?: unknown }).stepUpProofId,
+  });
+  if (stepUp) return stepUp;
+
   // The schema already guarantees a quoteId here: `execute: true` without one
   // fails validation, so re-quoting at execution time is not expressible.
   const redeemed = await redeemQuote(account.user.id, body.quoteId);
@@ -145,6 +186,42 @@ export async function POST(req: NextRequest) {
       });
     }
   }
+
+  // Revenue telemetry for the swap engine.
+  //
+  // status is ALWAYS "simulated" here, and that is not a placeholder: this
+  // branch refuses outright when NODE_ENV is production (the guard near the
+  // top), so by construction nothing it books is collectible. Recording it
+  // keeps the shape of the flow visible without it ever counting as revenue.
+  //
+  // The REAL Li.Fi integrator fee is deliberately NOT recorded anywhere yet.
+  // /api/swaps/execute returns unsigned calldata — FurlPay never learns whether
+  // the user broadcast it — and /api/swaps/status observes a confirmed hash but
+  // carries no fee figure. Booking at either point would be a guess. Closing it
+  // needs a quoteId -> txHash mapping written at execute time and read back on
+  // the DONE observation; see docs/REVENUE.md.
+  //
+  // Keyed on the quoteId, which redeemQuote() has already made single-use, so a
+  // retry cannot double-book.
+  await recordRevenue({
+    source: "swap_integrator_fee",
+    status: "simulated",
+    externalRef: body.quoteId ?? `${account.user.id}:${quote.fromToken}:${quote.amountIn}`,
+    fee: usdFromFloat(quote.feeUsd),
+    volume: usdFromFloat(quote.amountIn * usdPrice(quote.fromToken)),
+    userId: account.user.id,
+    chain: quote.fromChain,
+    metadata: {
+      fromToken: quote.fromToken,
+      toToken: quote.toToken,
+      fromChain: quote.fromChain,
+      toChain: quote.toChain,
+      // "lifi" = priced by a real upstream quote, "mock" = local fallback.
+      // Either way the EXECUTION is simulated; this records which pricing
+      // produced the numbers.
+      quoteSource: quote.source,
+    },
+  }).catch((e) => log.error("swap revenue telemetry failed", { error: (e as Error).message }));
 
   return NextResponse.json({ quote, executed: true });
 }

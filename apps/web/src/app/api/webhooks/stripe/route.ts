@@ -7,6 +7,7 @@ import { TIER_BY_PLAN } from "@/lib/entitlements";
 import { recordMovement } from "@/lib/ledger";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
+import { recordRevenue, minor } from "@/lib/revenue/record";
 
 // POST /api/webhooks/stripe — Stripe Crypto payment/settlement events.
 // Verifies the stripe-signature header via constructEvent (HMAC-SHA256 over the
@@ -57,6 +58,11 @@ export async function POST(request: Request) {
       // sets metadata.furlpayUserId when creating the intent; an unmatched
       // event is acknowledged but NOT credited (crediting the demo account
       // for a stranger's payment would corrupt balances).
+      // NOTE: this is a customer FUNDING their account. It is pass-through
+      // volume, not FurlPay revenue, and is deliberately NOT recorded as a
+      // revenue event — booking a $10,000 deposit as $10,000 of income is the
+      // exact mistake lib/revenue exists to make unrepresentable. When we
+      // start charging a ramp fee, record THAT fee here, never this amount.
       const userId = (pi.metadata?.furlpayUserId as string) || "";
       const target =
         (await getAccountDurable(userId)) ??
@@ -93,6 +99,39 @@ export async function POST(request: Request) {
         if ((await getAccountDurable(userId)) && tier) {
           setSubscriptionTier(userId, tier);
           audit("billing.subscription_started", userId, { plan, session: session.id });
+
+          // Revenue. This is one of the few genuinely REALIZED fees FurlPay
+          // earns today: Stripe has taken the customer's money and told us so
+          // over a signature-verified webhook, so the evidence is real and the
+          // amount is Stripe's own, not something recomputed here.
+          //
+          // `amount_total` is already in minor units (cents), so no float is
+          // involved. There is NO volume: a flat subscription charge is not a
+          // take on an underlying flow, and giving it one would corrupt the
+          // take-rate denominator for every other engine.
+          //
+          // Keyed on the session id, so Stripe's at-least-once delivery cannot
+          // book the same subscription twice even if the outer webhook guard
+          // is bypassed on a redelivery after a crash.
+          const amountMinor = session.amount_total;
+          const currency = (session.currency ?? "usd").toUpperCase();
+          if (amountMinor != null && amountMinor > 0) {
+            await recordRevenue({
+              source: "subscription_charge",
+              status: "realized",
+              externalRef: session.id,
+              fee: minor(amountMinor, currency),
+              userId,
+              metadata: { plan, tier, mode: "subscription" },
+            }).catch((e) =>
+              // Never fail the webhook over reporting: the subscription is
+              // already active and Stripe must not be told to retry.
+              log.error("subscription revenue not recorded", {
+                session: session.id,
+                error: (e as Error).message,
+              }),
+            );
+          }
         } else {
           log.warn("stripe subscription checkout without resolvable user/plan", {
             session: session.id,

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import LandingChrome from "@/components/landing/LandingChrome";
 import Hero from "@/components/landing/Hero";
+import EventBanner from "@/components/events/EventBanner";
 import AppShowcase from "@/components/landing/AppShowcase";
 import BuildSection from "@/components/landing/BuildSection";
 import InfrastructureSection from "@/components/landing/InfrastructureSection";
@@ -75,6 +76,10 @@ export default function LandingPage() {
 
       <main id="main">
         <Hero />
+
+        {/* Where to find us next. Renders nothing once the event has passed —
+            see EventBanner. */}
+        <EventBanner />
 
         {/* Product surfaces: the mobile capture, where to get the apps, and the
             wallet card — kept above the rails strip. */}

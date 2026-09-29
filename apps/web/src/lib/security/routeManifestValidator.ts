@@ -121,7 +121,17 @@ export const RULES: RouteRule[] = [
   {
     id: "api-key-routes-verify-the-key",
     appliesTo: ["API_KEY_AUTHENTICATED"],
-    requiresAnyCall: ["requireApiKey"],
+    // `requireTenant` is the control-plane door and it ALWAYS calls
+    // requireApiKey before doing anything else — it adds organization
+    // resolution on top, it does not replace the credential check. Admitting it
+    // here is the same disjunction this rule already uses for the several doors
+    // to an authenticated session.
+    //
+    // THE WRAPPER IS PINNED SO THIS CANNOT DRIFT: controlPlaneTenancy.spec.ts
+    // asserts requireTenant calls requireApiKey and refuses before any other
+    // work. Without that pin, adding a name here would be a way to satisfy the
+    // rule by indirection, which is precisely what the rule exists to catch.
+    requiresAnyCall: ["requireApiKey", "requireTenant"],
     severity: "error",
     reason:
       "A route classified API_KEY_AUTHENTICATED must go through requireApiKey(), which is the " +

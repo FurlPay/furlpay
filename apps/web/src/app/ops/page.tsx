@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import RevenuePanel from "@/components/ops/RevenuePanel";
 import type { ReactNode } from "react";
 import {
   Activity,
@@ -347,6 +348,8 @@ export default function OpsPage() {
           <Metric icon={<ShieldAlert />} label="High risk events" value={count(highSecurity)} meta={`${count(security.length)} security events`} tone={highSecurity > 0 ? "danger" : "ok"} />
           <Metric icon={<SlidersHorizontal />} label="Rail posture" value={`${liveRails}/${o.rails.length} live`} meta={`${pausedRails} paused, ${riskRails} need review`} tone={riskRails > 0 || pausedRails > 0 ? "warn" : "ok"} />
         </section>
+
+        <RevenuePanel />
 
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_minmax(340px,0.9fr)]">
           <Panel title="Payment rails" icon={<Database className="h-4 w-4" />}>

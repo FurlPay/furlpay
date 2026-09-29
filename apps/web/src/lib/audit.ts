@@ -56,6 +56,11 @@ export type AuditEvent =
   | "passport.session_created"
   | "passport.verified"
   | "passport.deleted"
+  // Content platform. `lead_captured` is the consent record for a report
+  // download or webinar registration; `leads_exported` records an admin
+  // pulling the contact list, which is the action that most needs a trail.
+  | "content.lead_captured"
+  | "content.leads_exported"
   | "travel.rewards_claimed"
   | "auth.handoff_minted"
   | "auth.handoff_redeemed"
@@ -118,6 +123,9 @@ export type AuditEvent =
   | "apikey.updated"
   | "apikey.deleted"
   | "apikey.auth_failed"
+  | "recipient.attested"
+  | "recipient.revoked"
+  | "recipient.destination_revoked"
   // MPC co-signing. `mpc.signed` records that a spendable signature was minted
   // — the closest thing in this system to "money left", since a signature is
   // irreversible once broadcast. Logged with the digest, which is public the

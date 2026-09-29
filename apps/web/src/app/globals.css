@@ -319,6 +319,19 @@ body {
     opacity: 1;
   }
 
+  /* Stretched link. Put this on the single anchor inside a `relative` card and
+     the whole card becomes the click target, while the tab order still has one
+     stop and a screen reader still reads only the anchor's own text as the link
+     name. Text selection survives because the overlay sits above the card but
+     the card's own text nodes stay selectable. */
+  .card-hit::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: inherit;
+  }
+
   /* ---- Landing page layout system ------------------------------------- */
   /* One measure, one gutter, one vertical rhythm. Every landing section uses
      `.section` so the page cannot drift into eleven different max-widths, and

@@ -529,3 +529,78 @@ export function developerWelcomeEmail(input: { endpointName?: string }): Rendere
     text: `${input.endpointName ? `Your endpoint "${input.endpointName}" is` : "You're"} registered on the Furlpay x402 network.\nDocs: https://furlpay.com/developers`,
   };
 }
+
+// ── Content platform ───────────────────────────────────────────────────────
+//
+// Both of these are TRANSACTIONAL: they are the thing the person just asked
+// for. Neither is marketing, neither requires a marketing opt-in, and neither
+// may carry promotional content beyond a plain link back to the hub. Marketing
+// email is a separate flow gated on the explicit opt-in recorded with the lead.
+
+/** Sent after a report download. The link is what they asked for. */
+export function reportDownloadEmail(input: {
+  reportTitle: string;
+  downloadUrl?: string;
+  reportUrl: string;
+}): RenderedEmail {
+  const body =
+    p(`Thanks for your interest in FurlPay research.`) +
+    p(`<strong style="color:#fff">${input.reportTitle}</strong>`) +
+    (input.downloadUrl
+      ? cta(input.downloadUrl, "Download the report")
+      : cta(input.reportUrl, "Read the report online")) +
+    p(
+      `You are receiving this because you requested this report. It is not a ` +
+        `subscription, and we will not email you again unless you asked us to.`
+    );
+  return {
+    subject: `Your FurlPay report: ${input.reportTitle}`,
+    html: shell("Your FurlPay report", body),
+    text:
+      `Thanks for your interest in FurlPay research.
+
+${input.reportTitle}
+
+` +
+      `${input.downloadUrl ?? input.reportUrl}
+
+` +
+      `You are receiving this because you requested this report.`,
+  };
+}
+
+/** Sent after a webinar registration. Carries the joining detail. */
+export function webinarRegistrationEmail(input: {
+  webinarTitle: string;
+  when?: string;
+  speakers?: string;
+  joinUrl?: string;
+  webinarUrl: string;
+}): RenderedEmail {
+  const rows =
+    (input.when ? row("When", input.when) : "") +
+    (input.speakers ? row("Speakers", input.speakers) : "");
+  const body =
+    p(`You are registered for:`) +
+    p(`<strong style="color:#fff">${input.webinarTitle}</strong>`) +
+    (rows ? detailsTable(rows) : "") +
+    cta(input.joinUrl ?? input.webinarUrl, input.joinUrl ? "Join the webinar" : "View the webinar") +
+    p(
+      `You are receiving this because you registered for this session. ` +
+        `We will not email you again unless you asked us to.`
+    );
+  return {
+    subject: `You are registered: ${input.webinarTitle}`,
+    html: shell("Webinar registration confirmed", body),
+    text:
+      `You are registered for ${input.webinarTitle}.
+
+` +
+      (input.when ? `When: ${input.when}
+` : "") +
+      `${input.joinUrl ?? input.webinarUrl}
+
+` +
+      `You are receiving this because you registered for this session.`,
+  };
+}

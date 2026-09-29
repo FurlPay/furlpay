@@ -1,6 +1,20 @@
 import crypto from "crypto";
-import { X402_VERSION, requiredConfirmations, type PaymentRequirements, type XPaymentPayload } from "@/lib/x402";
-import { kvSetNx } from "@/lib/kv";
+import {
+  X402_VERSION,
+  requiredConfirmations,
+  type PaymentRequirements,
+  type XPaymentPayload,
+} from "@/lib/x402";
+import { kvGet, kvSetNx } from "@/lib/kv";
+import { signatureEnforced } from "@/lib/x402Enforcement";
+import { log } from "@/lib/log";
+import {
+  canonicalResource,
+  checkClaimConsistency,
+  verifyResourceBinding,
+  type NonceClaim,
+} from "@/lib/x402ResourceBinding";
+import { parseAtomicAmount, resolveSettlementAsset } from "@/lib/x402Assets";
 import { verifyAuthorizationSignature } from "@/lib/x402Signature";
 import { defaultSettler, SettlementPendingError } from "@/lib/x402Settler";
 import { getSettlement, recordSettlement, type SettlementRecord } from "@/lib/x402SettlementStore";
@@ -9,13 +23,12 @@ import { getSettlement, recordSettlement, type SettlementRecord } from "@/lib/x4
 // an import cycle); re-exported here for existing consumers.
 export { getSettlement, recordSettlement, type SettlementRecord };
 
-// Signature + real-settlement enforcement. Live mode requires BOTH a recovered
-// EIP-3009 signature AND a real on-chain settler; mock/demo mode (the default,
-// zero-credential path) keeps the structural checks and the deterministic mock
-// settler so the whole stack still runs without keys.
-function liveMode(): boolean {
-  return process.env.INTEGRATION_MODE === "live" || process.env.X402_ENFORCE_SIGNATURE === "1";
-}
+// Signature enforcement is resolved by lib/x402Enforcement.ts — the SINGLE
+// authority. This file used to carry its own copy of the rule, as did x402.ts and
+// mpp.ts; three identical copies that all failed OPEN when neither environment
+// variable was set. Production now always enforces and cannot be configured out
+// of it (SR2).
+const liveMode = signatureEnforced;
 
 // ---------------------------------------------------------------------------
 // x402 Facilitator — the verify + settle service that sits between AI agents
@@ -175,6 +188,7 @@ function supports(scheme: string, network: string): boolean {
   return SUPPORTED_KINDS.some((k) => k.scheme === scheme && k.network === network);
 }
 
+
 /** Validate a payment payload against the requirements the resource server set.
  *  Async because live mode cryptographically recovers the EIP-3009 signer. */
 export async function verify(request: AnyFacilitatorRequest): Promise<VerifyResult> {
@@ -190,15 +204,73 @@ export async function verify(request: AnyFacilitatorRequest): Promise<VerifyResu
   if (p.network !== r.network) return fail("network_mismatch");
   if (!supports(p.scheme, p.network)) return fail("unsupported_kind");
 
+  // ── SR8: semantic execution binding ─────────────────────────────────────
+  //
+  // THE HOLE THIS CLOSES, PRECISELY. `paymentRequirements.asset` arrives in the
+  // REQUEST BODY, and settle() passes it straight to writeContract() as the
+  // contract address, with the fee-payer paying gas. It was never checked
+  // against anything. The chain of consequences:
+  //
+  //   1. An attacker deploys a contract M exposing a function with the
+  //      `transferWithAuthorization(...)` selector.
+  //   2. They POST asset = M. verifyAuthorizationSignature builds its EIP-712
+  //      domain with `verifyingContract: ctx.asset`, i.e. M — and `extra.name`
+  //      and `extra.version` are attacker-supplied too, so the ENTIRE domain is
+  //      theirs. They sign a valid authorization over it with their own key,
+  //      from their own address.
+  //   3. verify() passes: scheme and network are supported, `auth.to` equals the
+  //      `payTo` they also supplied, the amount covers the `maxAmountRequired`
+  //      they also supplied, the window is theirs, and the signature recovers to
+  //      `from` correctly, because it is genuinely their signature.
+  //   4. settle() calls M with OUR fee-payer as msg.sender and no gas ceiling.
+  //
+  // That is arXiv:2607.19545's SR8 violated, which is what makes its SR6 (Gas
+  // Abuse) unbounded: M can burn the block gas limit per call, and the route
+  // allows 30 requests per minute per IP with no authentication at all.
+  //
+  // THE FIX IS THE ALLOWLIST THE CODEBASE ALREADY DEFINES. NETWORK_USDC and
+  // NETWORK_XSGD name the canonical, on-chain-verified contract per network.
+  // `/supported` already promises callers which (scheme, network) pairs we
+  // settle; this makes the asset half of that promise enforced rather than
+  // implied. An unrecognised asset is refused here, before any signature work.
+  //
+  // THE DOMAIN IS DERIVED, NOT ACCEPTED. `extra.name`/`extra.version` are no
+  // longer trusted. Once the asset is pinned, a wrong name would still let
+  // verify() pass and then revert on-chain — we would pay gas for a guaranteed
+  // failure — so the domain is taken from our own registry for the pinned asset.
+  const assetCheck = resolveSettlementAsset(p.network, r.asset);
+  if (!assetCheck.ok) return fail(assetCheck.reason);
+
   // Recipient must be exactly who the resource server asked to be paid.
   if ((auth.to || "").toLowerCase() !== (r.payTo || "").toLowerCase()) return fail("recipient_mismatch");
 
   // Amount must cover the required amount (atomic units).
-  try {
-    if (BigInt(auth.value) < BigInt(r.maxAmountRequired)) return fail("insufficient_amount");
-  } catch {
-    return fail("invalid_amount");
-  }
+  //
+  // SR5 (fail-fast validation) requires refusing economically meaningless
+  // payments, and the comparison alone does not. Confirmed by a live request:
+  // `maxAmountRequired: "-1"` made `BigInt(value) < BigInt(-1)` false, so a
+  // NEGATIVE requirement was trivially satisfied by any amount and verify()
+  // answered isValid. A zero requirement is the same defect one step milder.
+  // Neither is a theft path — the transferred amount is the payer's own signed
+  // `auth.value` — but a facilitator that certifies a nonsensical requirement is
+  // certifying something, and a resource server is entitled to rely on it.
+  //
+  // Both sides are bounded: the requirement must be positive to mean anything,
+  // and the authorization must move a positive amount to be worth settling.
+  //
+  // PARSED STRICTLY, NOT COERCED. `BigInt()` is a lenient coercion that accepts
+  // "0x10" as 16, " 1 " as 1 and "" as 0 — see parseAtomicAmount for the measured
+  // list and for why the danger is representation disagreement between components
+  // rather than arithmetic. This is the gate: once a non-canonical amount is
+  // refused here, none reaches the signature verifier, the settler, or the
+  // settlement store, so the whole path downstream sees one representation.
+  const required = parseAtomicAmount(r.maxAmountRequired);
+  const offered = parseAtomicAmount(auth.value);
+  if (offered === null) return fail("invalid_amount");
+  if (required === null) return fail("invalid_required_amount");
+  if (required <= 0n) return fail("invalid_required_amount");
+  if (offered <= 0n) return fail("invalid_amount");
+  if (offered < required) return fail("insufficient_amount");
 
   // Authorization validity window.
   const now = Math.floor(Date.now() / 1000);
@@ -207,6 +279,25 @@ export async function verify(request: AnyFacilitatorRequest): Promise<VerifyResu
   if (Number.isFinite(vAfter) && now < vAfter) return fail("not_yet_valid");
   if (Number.isFinite(vBefore) && now > vBefore) return fail("authorization_expired");
 
+  // ── SR1: the payment must be for the resource the requirements name ──────
+  //
+  // Previously unchecked, which is the paper's F1. The leak is not double
+  // settlement — the single-use nonce closes that — it is DOUBLE DELIVERY:
+  // `/verify` burns nothing, so one authorization presented to two resource
+  // servers with the same price and payee made both of them serve.
+  //
+  // lib/x402.ts already mints `extra.binding` = HMAC(method, resource, amount,
+  // quoteId, expiresAt) on every quote it issues; this verifies the same
+  // commitment with the same function, so the two cannot drift.
+  const bindingCheck = verifyResourceBinding({
+    resource: r.resource,
+    method: r.extra?.method,
+    amountAtomic: r.maxAmountRequired,
+    extra: r.extra,
+    nowSeconds: now,
+  });
+  if (!bindingCheck.ok) return fail(bindingCheck.reason);
+
   // Cryptographic authorization: recover the EIP-3009 signer and require it to
   // equal `from`. Without this the structural checks above pass for a payment
   // "from" an address the caller does not control. Enforced in live mode; mock
@@ -214,9 +305,12 @@ export async function verify(request: AnyFacilitatorRequest): Promise<VerifyResu
   if (liveMode()) {
     const verdict = await verifyAuthorizationSignature(auth, p.payload.signature, {
       network: p.network,
-      asset: r.asset,
-      domainName: r.extra?.name ?? "USD Coin",
-      domainVersion: r.extra?.version ?? "2",
+      // The PINNED address, not the requested one. They are equal whenever the
+      // check above passed, and using the resolved value means a future edit to
+      // that check cannot accidentally leave an unpinned asset in the domain.
+      asset: assetCheck.address,
+      domainName: assetCheck.domainName,
+      domainVersion: assetCheck.domainVersion,
     });
     if (!verdict.verified) return fail(`invalid_signature:${verdict.reason}`);
   }
@@ -292,7 +386,37 @@ export async function settle(request: AnyFacilitatorRequest, settler?: Settler):
 
   // Atomic claim across all instances — a replayed nonce loses the SET NX and
   // is rejected before any on-chain submission (Attack II duplicate-settlement).
-  if (!(await kvSetNx(nonceKey(nonce), Math.floor(Date.now() / 1000), NONCE_TTL_SECONDS))) {
+  //
+  // THE CLAIM NOW RECORDS WHAT IT WAS CLAIMED FOR (SR1, verify/settle
+  // divergence). `/verify` and `/settle` are separate calls with separate
+  // bodies, so without this an authorization could be verified for resource A
+  // and settled for resource B: the nonce still admits only one settlement, but
+  // the settlement record and the evidence would name a resource the payer never
+  // authorized. Storing the tuple makes that divergence detectable instead of
+  // silent.
+  const claim: NonceClaim = {
+    resource: canonicalResource(req.paymentRequirements.resource ?? "") ?? "",
+    amountAtomic,
+    payTo: req.paymentRequirements.payTo ?? "",
+    claimedAtSeconds: Math.floor(Date.now() / 1000),
+  };
+  if (!(await kvSetNx(nonceKey(nonce), claim, NONCE_TTL_SECONDS))) {
+    // The nonce is taken. Read what it was taken FOR: a replay of the same
+    // payment is `nonce_already_used`, but a replay against a DIFFERENT resource
+    // is a substitution attempt and deserves its own reason so an operator can
+    // tell the two apart in the logs.
+    const previous = await kvGet<NonceClaim>(nonceKey(nonce)).catch(() => null);
+    if (previous && typeof previous === "object" && "resource" in previous) {
+      const consistency = checkClaimConsistency(previous, claim);
+      if (!consistency.ok) {
+        log.warn("x402 nonce presented against a different context", {
+          network,
+          reason: consistency.reason,
+          detail: consistency.detail,
+        });
+        return { success: false, network, payer: v.payer, errorReason: consistency.reason };
+      }
+    }
     return { success: false, network, payer: v.payer, errorReason: "nonce_already_used" };
   }
 
