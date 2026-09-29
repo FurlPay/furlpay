@@ -44,12 +44,23 @@ By conventional-commit type:
 
 This is **many months of unrelated work**, not a single releasable unit. There is **no tag** at HEAD; the only release tags (`android-v1.0.0`, `ledger-v1.0.0`) point at older commits.
 
-## What is actually in production (furlpay.com)
+## What is actually in production (furlpay.com) — VERIFIED via Vercel (read-only, 2026-09-29)
 
-**UNKNOWN / unprovable from this environment.** Deploys are manual (`npm run deploy:prod` → Vercel project `web`), so the deployed commit is whatever a checked-out tree was at deploy time. `.vercel/project.json` records the project, not the deployed SHA. There is no deployment-metadata file, git note, or release tag tying a commit to the live deployment.
+Authenticated as `ashutosh0x`, `vercel ls web --prod`:
 
-- `furlpay.com` responds **200**; `/api/ops/health` responds **401** (auth-gated) — so *something* recent is live, but not which commit.
-- To resolve: `vercel inspect` / `vercel ls` against project `web` (needs Vercel auth), or read the deployed commit from the Vercel dashboard.
+| Deployment | Created | Status |
+|---|---|---|
+| `web-mtdjuyjf7` | Sep 25 2026 (5d ago) | ● **Error** (failed deploy) |
+| **`web-2tahxh111`** | **Sep 08 2026 (21d ago)** | ● **Ready — CURRENT LIVE** |
+| `web-aejjxvkeg` | Sep 08 2026 | ● Ready (rollback target) |
+| `web-b9s91me40` | Sep 07 2026 | ● Ready |
+
+**Current production = `web-2tahxh111`, live since Sep 08 2026 (~21 days / ~340 commits stale).** The most recent deploy attempt (Sep 25) **errored** — consistent with the dirty-tree / CI-block state found in this audit.
+
+**Production commit SHA: still UNKNOWN.** `vercel inspect` shows no git metadata on these deployments — they were shipped via the manual `vercel deploy` CLI without Git integration, so no commit SHA is attached. The deployment *ID* and *date* are known; the source *commit* is not recoverable from Vercel. (Per rule, NOT inferred from local git history.)
+
+- `furlpay.com` → **200**; `/api/ops/health` → **401** (auth-gated). Live, and matches the Sep 08 deployment.
+- **Rollback target:** promote `web-2tahxh111` (current) or `web-aejjxvkeg` via Vercel "Promote to Production".
 
 ## Recommended integration strategy (do NOT execute without approval)
 
@@ -58,3 +69,30 @@ This is **many months of unrelated work**, not a single releasable unit. There i
 3. **Decide the branch model:** either fast-forward `main` to `extension-redesign` (making the working branch canonical) or formally designate `extension-redesign` as the release branch and update `origin/HEAD`. The current split makes `origin/HEAD` misleading.
 4. **Tag the release** so the next deploy has provable provenance.
 5. Only then deploy via the gate.
+
+## Release provenance evidence table (2026-09-29)
+
+Labels: **VERIFIED** (established by a command/evidence) · **UNKNOWN** (cannot be established here) · **UNVERIFIED** (needs an external check) · **PARKED** (deliberately deferred, not a release blocker).
+
+| Item | Status | Evidence |
+|---|---|---|
+| Release branch | VERIFIED `release/production-2026-09-29` | git |
+| Release commit | VERIFIED (HEAD of release branch) | git |
+| Working tree | clean before this doc's dep/provenance commit | git status |
+| Pushed | NO (not authorized) | local only |
+| Tagged (release) | NO | git tag |
+| Previous production SHA | **UNKNOWN** | Vercel deployments carry no git metadata (manual CLI deploy) |
+| Current live production | **VERIFIED** `web-2tahxh111`, Sep 08 2026, Ready | `vercel ls web --prod` |
+| Last deploy attempt | **VERIFIED** `web-mtdjuyjf7` Sep 25 2026 = Error | `vercel ls` |
+| Rollback target | `web-2tahxh111` / `web-aejjxvkeg` | Vercel Ready deployments |
+| Supabase migrations 0017–0021 | **UNVERIFIED** | read-only DB probe declined by operator |
+| AWS | **PARKED / not required** | zero AWS SDK in runtime; RUNBOOK "nothing applied"; creds invalid |
+| CI (GitHub Actions) | **UNVERIFIED external blocker** — account-level Actions block | every workflow fails 3–6s across schedule+PR+CI; SHA pins valid |
+| Security (app-layer) | **VERIFIED clean** | 343-route scan: 0 auth/HMAC gaps; no tracked secrets |
+| Security (git history) | **UNVERIFIED** | gitleaks/trufflehog not installed |
+| Dependency bumps | **VERIFIED** qs 6.16.0, sharp 0.35.5, tsx 4.23.15 | npm update --package-lock-only + install; tsc/build green |
+| Android | native-app v2.3.0 (vc7) canonical; TWA deprecated in-repo | app.json; apps/android/DEPRECATED.md |
+| iOS | **BLOCKED** | no macOS/Xcode |
+| Wear OS | **BLOCKED** | JDK 8 only (needs 17) |
+| Chrome extension | **VERIFIED build** | tsc + build + zip (MV3, least-privilege) |
+| Payment rail | **NOT CONNECTED (by design)** | 0 adapters outside tests; execute → 503 rail_not_connected |
