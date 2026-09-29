@@ -5,6 +5,7 @@ import { kvGet, kvSet } from "@/lib/kv";
 import { sbSelect, supabaseBackend } from "@/lib/supabase";
 import { auditFlushStats } from "@/lib/auditDb";
 import { probeRequiredConstraints } from "@/lib/ops/schemaProbe";
+import { buildInfo } from "@/lib/ops/buildInfo";
 import { EVM_CHAINS, rpcTransport } from "@/lib/x402Chains";
 
 export const dynamic = "force-dynamic";
@@ -147,7 +148,19 @@ export async function GET(req: NextRequest) {
   const snapshot = {
     status: rollup(checks),
     timestamp: new Date().toISOString(),
-    version: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "dev",
+    // Kept for dashboards that already read `version`; `build` below is the full
+    // provenance block. VERCEL_GIT_COMMIT_SHA is set only for git-integration
+    // deploys; manual `vercel deploy` CLI runs (FurlPay's ship path) do NOT set
+    // it, so this reported "dev" and the deployed commit was unprovable. See
+    // docs/operations/RELEASE_PROVENANCE.md.
+    version:
+      process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ??
+      process.env.FURLPAY_BUILD_SHA?.slice(0, 7) ??
+      "dev",
+    // Full deployment provenance for authenticated operators. Every value degrades
+    // to "unknown" rather than crashing, and NONE of these are secrets (a commit
+    // SHA, a branch name and a build id are all safe to show an ops admin).
+    build: buildInfo(),
     checks,
     // A failed or dropped entry means the compliance record has a HOLE, which
     // no upstream probe detects — Postgres is up, the action succeeded, and
