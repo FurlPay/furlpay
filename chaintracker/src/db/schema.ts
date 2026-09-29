@@ -787,4 +787,371 @@ export const MIGRATIONS: Migration[] = [
     CREATE INDEX IF NOT EXISTS idx_spends_addr ON btc_address_spends(address, id DESC);
     `,
   },
+  {
+    id: "0010_usdc_intelligence",
+    sql: `
+    -- Production-grade USDC movement tracker tables.
+    CREATE TABLE IF NOT EXISTS usdc_transfers (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      chain_slug      TEXT NOT NULL,
+      token_address   TEXT NOT NULL,
+      tx_hash         TEXT NOT NULL,
+      log_index       INTEGER NOT NULL DEFAULT 0,
+      block_number    INTEGER,
+      ts              INTEGER NOT NULL,
+      from_address    TEXT NOT NULL,
+      to_address      TEXT NOT NULL,
+      amount          REAL NOT NULL,
+      amount_usd      REAL NOT NULL,
+      from_label      TEXT,
+      to_label        TEXT,
+      from_category   TEXT NOT NULL DEFAULT 'unknown',
+      to_category     TEXT NOT NULL DEFAULT 'unknown',
+      from_entity     TEXT,
+      to_entity       TEXT,
+      classification  TEXT NOT NULL,
+      is_whale        INTEGER NOT NULL DEFAULT 0,
+      is_exchange     INTEGER NOT NULL DEFAULT 0,
+      is_cctp         INTEGER NOT NULL DEFAULT 0,
+      is_furlpay      INTEGER NOT NULL DEFAULT 0,
+      cctp_nonce      TEXT,
+      source          TEXT NOT NULL,
+      explorer_url    TEXT,
+      alerted         INTEGER NOT NULL DEFAULT 0,
+      created_at      INTEGER NOT NULL,
+      UNIQUE(chain_slug, tx_hash, log_index)
+    );
+    CREATE INDEX IF NOT EXISTS idx_usdc_chain_ts ON usdc_transfers(chain_slug, ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_usdc_amount_usd ON usdc_transfers(amount_usd DESC);
+    CREATE INDEX IF NOT EXISTS idx_usdc_class_ts ON usdc_transfers(classification, ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_usdc_from_addr ON usdc_transfers(from_address, ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_usdc_to_addr ON usdc_transfers(to_address, ts DESC);
+    CREATE INDEX IF NOT EXISTS idx_usdc_alerted ON usdc_transfers(alerted, ts DESC);
+
+    CREATE TABLE IF NOT EXISTS usdc_cctp_transfers (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_chain  TEXT NOT NULL,
+      source_tx     TEXT NOT NULL,
+      source_domain INTEGER NOT NULL,
+      dest_chain    TEXT,
+      dest_tx       TEXT,
+      dest_domain   INTEGER NOT NULL,
+      nonce         TEXT NOT NULL,
+      sender        TEXT NOT NULL,
+      recipient     TEXT NOT NULL,
+      amount        REAL NOT NULL,
+      burn_ts       INTEGER NOT NULL,
+      mint_ts       INTEGER,
+      status        TEXT NOT NULL DEFAULT 'burned',
+      alerted       INTEGER NOT NULL DEFAULT 0,
+      UNIQUE(source_domain, nonce)
+    );
+    CREATE INDEX IF NOT EXISTS idx_cctp_status ON usdc_cctp_transfers(status, burn_ts DESC);
+
+    CREATE TABLE IF NOT EXISTS usdc_daily_metrics (
+      date_utc              TEXT PRIMARY KEY,
+      total_volume_usd      REAL NOT NULL DEFAULT 0,
+      total_transfers       INTEGER NOT NULL DEFAULT 0,
+      chains_active         INTEGER NOT NULL DEFAULT 0,
+      whale_transfers       INTEGER NOT NULL DEFAULT 0,
+      whale_volume_usd      REAL NOT NULL DEFAULT 0,
+      largest_transfer_usd  REAL NOT NULL DEFAULT 0,
+      largest_transfer_chain TEXT,
+      largest_transfer_hash TEXT,
+      exchange_inflow_usd   REAL NOT NULL DEFAULT 0,
+      exchange_outflow_usd  REAL NOT NULL DEFAULT 0,
+      cctp_volume_usd       REAL NOT NULL DEFAULT 0,
+      furlpay_volume_usd    REAL NOT NULL DEFAULT 0,
+      payment_volume_usd    REAL NOT NULL DEFAULT 0,
+      rebalance_volume_usd  REAL NOT NULL DEFAULT 0,
+      chain_breakdown       TEXT NOT NULL DEFAULT '{}',
+      updated_at            INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS usdc_tracked_wallets (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      chain_slug  TEXT NOT NULL,
+      address     TEXT NOT NULL,
+      label       TEXT NOT NULL,
+      wallet_type TEXT NOT NULL,
+      entity      TEXT NOT NULL,
+      source      TEXT NOT NULL,
+      added_at    INTEGER NOT NULL,
+      UNIQUE(chain_slug, address)
+    );
+    CREATE INDEX IF NOT EXISTS idx_usdc_wallets_chain ON usdc_tracked_wallets(chain_slug, address);
+    `,
+  },
+  {
+    id: "0011_cctp_v2",
+    sql: `
+    -- CCTP V2 columns.
+    --
+    -- WHY THIS MIGRATION EXISTS. 0010 modelled CCTP as V1 did: a nonce emitted
+    -- on the source chain, so a burn could be stored complete and keyed
+    -- immediately. V2 does not emit a nonce on the source chain at all — Circle's
+    -- attestation service assigns it — so a burn now arrives with no correlation
+    -- key and acquires one later. That changes the shape of the table, not just
+    -- its contents.
+    --
+    -- The added columns exist so a row can say how much it knows and how it came
+    -- to know it: whether the burn/mint pair was matched on Circle's
+    -- authoritative nonce or on a heuristic, which CCTP version it came from,
+    -- and the fee a fast transfer paid.
+    --
+    -- match_key is the heuristic fallback: a deterministic digest of
+    -- (sourceDomain, destDomain, amount, mintRecipient) that both the burn and
+    -- the mint can compute independently, used only when Iris is unreachable.
+
+    ALTER TABLE usdc_cctp_transfers ADD COLUMN correlation TEXT NOT NULL DEFAULT 'none';
+    ALTER TABLE usdc_cctp_transfers ADD COLUMN cctp_version INTEGER NOT NULL DEFAULT 2;
+    ALTER TABLE usdc_cctp_transfers ADD COLUMN fee_usdc REAL;
+    ALTER TABLE usdc_cctp_transfers ADD COLUMN finality_executed INTEGER;
+    ALTER TABLE usdc_cctp_transfers ADD COLUMN match_key TEXT;
+    ALTER TABLE usdc_cctp_transfers ADD COLUMN attest_attempts INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE usdc_cctp_transfers ADD COLUMN attest_last_at INTEGER;
+
+    CREATE INDEX IF NOT EXISTS idx_cctp_match_key ON usdc_cctp_transfers(match_key);
+    -- Drives the attestation poller: burns still waiting for a nonce, oldest
+    -- attempt first, so a stuck row cannot starve the rest.
+    CREATE INDEX IF NOT EXISTS idx_cctp_pending_attest
+      ON usdc_cctp_transfers(correlation, attest_last_at);
+
+    -- Provenance for every ingested transfer. 'source' on usdc_transfers records
+    -- the provider; this records the exact scan that produced the row, so a
+    -- figure can be traced to a block range rather than just a vendor name.
+    CREATE TABLE IF NOT EXISTS usdc_scan_runs (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      chain_slug   TEXT NOT NULL,
+      scanner      TEXT NOT NULL,
+      from_block   INTEGER,
+      to_block     INTEGER,
+      logs_seen    INTEGER NOT NULL DEFAULT 0,
+      rows_new     INTEGER NOT NULL DEFAULT 0,
+      dropped      INTEGER NOT NULL DEFAULT 0,
+      endpoint     TEXT,
+      error        TEXT,
+      started_at   INTEGER NOT NULL,
+      finished_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_usdc_scan_runs ON usdc_scan_runs(chain_slug, finished_at DESC);
+    `,
+  },
+  {
+    id: "0012_scan_drop_detail",
+    sql: `
+    -- WHY a scan dropped rows, not just how many.
+    --
+    -- `+"`dropped`"+` alone cannot answer the question it exists to answer. A scan that
+    -- read 35,000 logs and stored 32,000 has dropped 3,000 — and whether that is
+    -- fine or a bug depends entirely on the reason. Zero-value ERC-20 Transfer
+    -- events are common and correctly discarded; a transfer dropped because its
+    -- block timestamp could not be read is lost coverage that nothing else reports.
+    --
+    -- Diagnosing exactly that took a round of manual RPC queries against a live
+    -- chain. Storing the breakdown means the next person reads it off `+"`usdc doctor`"+`.
+    ALTER TABLE usdc_scan_runs ADD COLUMN dropped_detail TEXT;
+    `,
+  },
+  {
+    id: "0013_usdc_posted_audit",
+    sql: `
+    -- WHAT THE CHANNEL ACTUALLY CLAIMED, as distinct from what was handled.
+    --
+    -- \`alerted\` is a "do not consider this again" flag, and it is set for three
+    -- quite different outcomes: the row was posted to Discord, the row was
+    -- suppressed with a reason, or the row was retired as too stale to post. That
+    -- conflation makes the most important audit question unanswerable — "did we
+    -- report this movement twice?" — because every row looks alike afterwards.
+    --
+    -- It mattered immediately. Reviewing a live tick for double-counted alerts
+    -- returned dozens of same-amount pairs that were in fact retired backlog, not
+    -- posted messages, so the real defects could not be separated from the noise.
+    --
+    -- posted_at is set ONLY when a message was actually sent. suppressed_reason
+    -- records why, for everything else.
+    ALTER TABLE usdc_transfers ADD COLUMN posted_at INTEGER;
+    ALTER TABLE usdc_transfers ADD COLUMN suppressed_reason TEXT;
+
+    CREATE INDEX IF NOT EXISTS idx_usdc_posted ON usdc_transfers(posted_at DESC);
+    `,
+  },
+  {
+    id: "0014_usdc_pass_through",
+    sql: `
+    -- RELAYED MONEY, resolved once at ingestion instead of twice at read time.
+    --
+    -- A transfer whose sender received the same amount moments earlier is passing
+    -- it along, not moving new money. Measured: 238 of 500 sampled transfers over
+    -- $100k were relays, so the daily "between distinct parties" figure — the whole
+    -- point of the reconciliation — was itself counting a
+    -- Coinbase Prime -> A -> B -> C chain of $24.4M as $73.2M.
+    --
+    -- WHY THE FLAG IS STORED RATHER THAN COMPUTED IN THE REPORT. The equivalent
+    -- aggregate is an EXISTS-correlated self-join whose amount-range predicate no
+    -- index can serve; it did not finish in two minutes over 722,091 rows. One
+    -- indexed lookup at insert time costs 0.15ms, so the same answer is available
+    -- for free at read time and both the alert path and the report read the SAME
+    -- decision instead of each recomputing it.
+    --
+    -- predecessor_id is kept so a suppression can be audited back to the leg that
+    -- caused it, rather than asserted.
+    ALTER TABLE usdc_transfers ADD COLUMN pass_through INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE usdc_transfers ADD COLUMN pass_through_kind TEXT;
+    ALTER TABLE usdc_transfers ADD COLUMN predecessor_id INTEGER;
+
+    CREATE INDEX IF NOT EXISTS idx_usdc_passthrough ON usdc_transfers(pass_through, ts DESC);
+    `,
+  },
+  {
+    id: "0015_usdc_leases",
+    sql: `
+    -- Single-writer lease for the scheduled tick. See src/usdc/lease.ts.
+    --
+    -- The tick is scheduled every 2-5 minutes and a measured full tick takes about
+    -- four, so overlap is the expected steady state rather than an edge case. Two
+    -- concurrent ticks select alert candidates from the same unalerted set and both
+    -- send before either marks the rows, which posts the same whale movement to
+    -- Discord twice.
+    --
+    -- A database row rather than a lock file, because a stale lock file after a
+    -- crash needs a human to remove it and this runs unattended. expires_at is what
+    -- makes a crash self-healing.
+    CREATE TABLE IF NOT EXISTS usdc_leases (
+      name        TEXT PRIMARY KEY,
+      holder      TEXT NOT NULL,
+      acquired_at INTEGER NOT NULL,
+      expires_at  INTEGER NOT NULL
+    );
+    `,
+  },
+  {
+    id: "0016_usdc_data_correctness",
+    sql: `
+    -- PHASE 1: make the raw ledger provably correct.
+    --
+    -- Everything added here is ADDITIVE. No column is dropped, no row is rewritten,
+    -- and every existing query keeps working — a transfer with no block hash and
+    -- finality 'observed' is exactly what the pre-migration rows are, and the
+    -- aggregates treat that as valid. Historical numbers do not move.
+
+    -- BLOCK LEDGER. One row per block observed to contain at least one native USDC
+    -- log. Populated from the logs themselves, which already carry blockHash and
+    -- blockTimestamp, so this costs no extra RPC.
+    --
+    -- Blocks with no USDC activity are deliberately NOT stored. Coverage is proven
+    -- by usdc_scan_ranges below — "we read every log in [a,b]" — which is the
+    -- correct claim for a log-filtered indexer and is far cheaper than storing
+    -- every block header on twelve chains.
+    CREATE TABLE IF NOT EXISTS usdc_blocks (
+      chain_slug    TEXT NOT NULL,
+      block_number  INTEGER NOT NULL,
+      block_hash    TEXT NOT NULL,
+      ts            INTEGER NOT NULL,
+      usdc_log_count INTEGER NOT NULL DEFAULT 0,
+      -- observed -> canonical -> final, or reorged.
+      status        TEXT NOT NULL DEFAULT 'observed',
+      observed_at   INTEGER NOT NULL,
+      finalized_at  INTEGER,
+      reorged_at    INTEGER,
+      PRIMARY KEY (chain_slug, block_number)
+    );
+    CREATE INDEX IF NOT EXISTS idx_usdc_blocks_status ON usdc_blocks(chain_slug, status, block_number);
+    CREATE INDEX IF NOT EXISTS idx_usdc_blocks_hash ON usdc_blocks(block_hash);
+
+    -- COVERAGE LEDGER. Merged half-open intervals of blocks fully scanned.
+    --
+    -- This is what turns "we think we are complete" into a checkable statement. A
+    -- gap is the complement of these intervals, so "missing blocks" is computed,
+    -- not assumed. Ranges are merged on insert so the table stays small.
+    CREATE TABLE IF NOT EXISTS usdc_scan_ranges (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      chain_slug  TEXT NOT NULL,
+      from_block  INTEGER NOT NULL,
+      to_block    INTEGER NOT NULL,
+      updated_at  INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_usdc_ranges ON usdc_scan_ranges(chain_slug, from_block);
+
+    -- Blocks known to be missing, queued for backfill. A gap that is detected but
+    -- not recorded is a gap nobody fixes.
+    CREATE TABLE IF NOT EXISTS usdc_backfill_queue (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      chain_slug  TEXT NOT NULL,
+      from_block  INTEGER NOT NULL,
+      to_block    INTEGER NOT NULL,
+      reason      TEXT NOT NULL,
+      queued_at   INTEGER NOT NULL,
+      attempts    INTEGER NOT NULL DEFAULT 0,
+      last_attempt_at INTEGER,
+      completed_at INTEGER,
+      UNIQUE(chain_slug, from_block, to_block)
+    );
+    CREATE INDEX IF NOT EXISTS idx_usdc_backfill_open
+      ON usdc_backfill_queue(completed_at, chain_slug, from_block);
+
+    -- PROVIDER CROSS-VALIDATION. Two endpoints asked for the same block; do they
+    -- agree on its hash? Alchemy is not the source of truth, and disagreement must
+    -- be detectable rather than assumed away.
+    CREATE TABLE IF NOT EXISTS usdc_provider_checks (
+      id           INTEGER PRIMARY KEY AUTOINCREMENT,
+      chain_slug   TEXT NOT NULL,
+      block_number INTEGER NOT NULL,
+      provider_a   TEXT NOT NULL,
+      hash_a       TEXT,
+      provider_b   TEXT NOT NULL,
+      hash_b       TEXT,
+      agree        INTEGER NOT NULL,
+      checked_at   INTEGER NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_usdc_provider_checks
+      ON usdc_provider_checks(chain_slug, checked_at DESC);
+
+    -- Per-chain finality position, so the engine does not re-query heads it already
+    -- knows and the operator can see how far behind finality runs.
+    CREATE TABLE IF NOT EXISTS usdc_chain_heads (
+      chain_slug      TEXT PRIMARY KEY,
+      latest_block    INTEGER,
+      safe_block      INTEGER,
+      finalized_block INTEGER,
+      -- Whether the chain's own "finalized" tag looked optimistic when measured
+      -- (finalized == latest). Polygon, Linea and Sonic reported exactly that.
+      optimistic_finality INTEGER NOT NULL DEFAULT 0,
+      updated_at      INTEGER NOT NULL
+    );
+
+    -- FINALITY AND REORG STATE ON EACH TRANSFER.
+    --
+    -- 'observed' is the correct value for every pre-existing row: it is what we
+    -- knew about them, and back-dating them to 'final' would be asserting something
+    -- never checked.
+    ALTER TABLE usdc_transfers ADD COLUMN block_hash TEXT;
+    ALTER TABLE usdc_transfers ADD COLUMN finality TEXT NOT NULL DEFAULT 'observed';
+    ALTER TABLE usdc_transfers ADD COLUMN removed INTEGER NOT NULL DEFAULT 0;
+    ALTER TABLE usdc_transfers ADD COLUMN reorged_at INTEGER;
+
+    CREATE INDEX IF NOT EXISTS idx_usdc_finality ON usdc_transfers(finality, ts DESC);
+    -- Aggregates filter on removed = 0; without an index that is a scan of the
+    -- whole window on every daily report.
+    CREATE INDEX IF NOT EXISTS idx_usdc_live ON usdc_transfers(removed, ts DESC);
+
+    -- REGISTRY PROVENANCE. The registry lives in code, but which asset a stored row
+    -- was matched against must be recoverable from the database alone — otherwise a
+    -- registry edit silently rewrites the meaning of history.
+    CREATE TABLE IF NOT EXISTS usdc_assets (
+      chain_slug   TEXT NOT NULL,
+      token_address TEXT NOT NULL,
+      asset_id     TEXT NOT NULL,
+      chain_id     INTEGER,
+      decimals     INTEGER NOT NULL,
+      issuer       TEXT NOT NULL,
+      native       INTEGER NOT NULL,
+      valid_from   INTEGER,
+      valid_until  INTEGER,
+      recorded_at  INTEGER NOT NULL,
+      PRIMARY KEY (chain_slug, token_address)
+    );
+    `,
+  },
 ];
+

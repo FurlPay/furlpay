@@ -47,6 +47,26 @@ export function getDb(): DatabaseSync {
 }
 
 function migrate(d: DatabaseSync): void {
+  // A SCHEMA CHANGE NEEDS A LONGER PATIENCE THAN A QUERY.
+  //
+  // The 5s busy_timeout above is right for ordinary statements and far too short for
+  // a migration: `CREATE INDEX` over the 722,091-row usdc_transfers table holds the
+  // write lock for longer than that on its own, and a concurrent tick pushed
+  // migration 0016 straight into "database is locked". Waiting is the correct
+  // behaviour — the migration is transactional, so failing merely rolls back and
+  // retries on the next command, but it also blocks that command for no good reason.
+  //
+  // Restored afterwards so normal operation keeps failing fast rather than queueing
+  // behind a stuck writer.
+  d.exec("PRAGMA busy_timeout = 120000");
+  try {
+    migrateInner(d);
+  } finally {
+    d.exec("PRAGMA busy_timeout = 5000");
+  }
+}
+
+function migrateInner(d: DatabaseSync): void {
   d.exec("CREATE TABLE IF NOT EXISTS _migrations (id TEXT PRIMARY KEY, applied_at INTEGER NOT NULL)");
   const done = new Set(
     (d.prepare("SELECT id FROM _migrations").all() as Array<{ id: string }>).map((r) => r.id),

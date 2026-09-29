@@ -79,6 +79,16 @@ export interface Env {
   /** Seconds between price collector runs. */
   priceIntervalSec: number;
   tvlIntervalSec: number;
+
+  /** USDC Intelligence configuration */
+  usdcDiscordChannel: string;
+  usdcDiscordCategory: string;
+  usdcWhaleMinUsd: number;
+  usdcAlertMinUsd: number;
+  usdcBackfillHours: number;
+  usdcPassThroughMinUsd: number;
+  furlpayTrackedWallets: string | null;
+  usdcTickSec: number;
 }
 
 export const env: Env = {
@@ -108,7 +118,80 @@ export const env: Env = {
   publicRpcFallback: bool("PUBLIC_RPC_FALLBACK", true),
   priceIntervalSec: num("PRICE_INTERVAL_SEC", 60),
   tvlIntervalSec: num("TVL_INTERVAL_SEC", 900),
+
+  // USDC intelligence. Documented here rather than only in .env.example, because
+  // .env.example is covered by the repository's `.env*` ignore rule and so is not
+  // tracked — this file is the version of these notes that actually ships.
+  //
+  // NONE of these is required. With no provider key at all the scanner falls back
+  // to the public RPC endpoints in src/usdc/registry.ts, which is how it was
+  // developed and measured; keys raise rate limits rather than unlocking anything.
+  // The one real exception is Solana: its coverage needs the Helius parsed-
+  // transaction API, and the public Solana RPC has no equivalent, so without
+  // HELIUS_API_KEY Solana is not read at all and `usdc doctor` says so.
+  usdcDiscordChannel: str("USDC_DISCORD_CHANNEL") ?? "usdc-intelligence",
+  usdcDiscordCategory: str("USDC_DISCORD_CATEGORY") ?? "CHAINTRACKER",
+  /** Floor for counting a transfer as "large" in the daily statistics. */
+  usdcWhaleMinUsd: num("USDC_WHALE_MIN_USD", 100_000),
+  /**
+   * Floor for posting a realtime alert. Keep it well above the whale floor: Base
+   * alone produces thousands of USDC transfers an hour, and measured after one
+   * backfill there were 804 transfers above $1M waiting against a cap of 6 posted
+   * per tick. FurlPay wallet movements ignore this floor entirely.
+   */
+  usdcAlertMinUsd: num("USDC_ALERT_MIN_USD", 1_000_000),
+  /**
+   * How far a cold start reaches back. Capped at 24h in code and further limited
+   * by the 2,000-block-per-tick ceiling — on Base that is closer to an hour than a
+   * day — and free-tier endpoints refuse archive reads past the recent window
+   * anyway, so asking for more history than is retrievable only produces failures.
+   */
+  usdcBackfillHours: num("USDC_BACKFILL_HOURS", 24),
+  /**
+   * Floor above which a transfer is checked for being relayed money.
+   *
+   * A transfer whose sender received the same amount moments earlier is passing it
+   * along, and counting both legs inflates every volume figure. The check is one
+   * indexed lookup at 0.15ms, so the floor exists purely to bound a full backfill:
+   * 722,091 rows would cost ~108s, while the 68,334 rows above $10k cost ~10s and
+   * carry 97.51% of the dollar volume (both measured on the live table).
+   *
+   * MUST stay below USDC_ALERT_MIN_USD, or a transfer could be posted without ever
+   * having been checked. `assertUsdcThresholds()` enforces that.
+   */
+  usdcPassThroughMinUsd: num("USDC_PASS_THROUGH_MIN_USD", 10_000),
+  /**
+   * Your own wallets, so their movements alert at any size and are labelled.
+   * JSON array, or comma-separated chain:address:label:wallet_type.
+   *
+   * Leave unset rather than filling it with placeholders. This feature previously
+   * shipped three invented "FurlPay treasury" addresses as seed data, one of which
+   * (0x1111111254fb6c44bac0bed2854e76f90643097d) is the real 1inch v4 router — so
+   * every USDC swap routed through 1inch posted a FurlPay wallet alert naming a
+   * treasury that does not exist. There are no seed wallets now; this is the only
+   * way a wallet is tracked.
+   */
+  furlpayTrackedWallets: str("FURLPAY_TRACKED_WALLETS"),
+  usdcTickSec: num("USDC_TICK_SEC", 30),
 };
+
+/**
+ * The pass-through floor must sit below the alert floor.
+ *
+ * Otherwise a transfer could clear the alert bar without ever having been checked
+ * for being relayed money, and the channel would post a hop-chain leg as an
+ * independent whale movement — the exact defect the check exists to prevent.
+ * Enforced rather than documented, because the two values are tuned independently.
+ */
+export function assertUsdcThresholds(): void {
+  if (env.usdcPassThroughMinUsd > env.usdcAlertMinUsd) {
+    throw new Error(
+      `USDC_PASS_THROUGH_MIN_USD (${env.usdcPassThroughMinUsd}) must be <= ` +
+        `USDC_ALERT_MIN_USD (${env.usdcAlertMinUsd}), or alerts can be posted for ` +
+        `transfers that were never checked for being relayed money.`,
+    );
+  }
+}
 
 /** Mask a secret for display: first 4 and last 2 characters only. */
 export function redact(secret: string | null | undefined): string {

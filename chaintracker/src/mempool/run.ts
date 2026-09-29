@@ -709,6 +709,7 @@ async function walkAnnouncedBlock(
   // Dated by `blockTime`, not by now — a catch-up run walking yesterday's
   // blocks must date their spends by when they happened, or every gap in every
   // profile collapses to zero and dormancy stops meaning anything.
+  let capped: EsploraTx[] = [];
   try {
     const at = b.timestamp * 1000;
     const cfg = triageConfigFromEnv();
@@ -742,7 +743,7 @@ async function walkAnnouncedBlock(
     // Bounded so one strange block cannot stall the tick. Sorted by value only
     // to make the cap deterministic — it decides WHICH of an over-large batch
     // is deferred, never whether analysis happens at all.
-    const capped = admitted.length > cfg.maxStage2PerBlock
+    capped = admitted.length > cfg.maxStage2PerBlock
       ? admitted
           .slice()
           .sort((x, y) =>

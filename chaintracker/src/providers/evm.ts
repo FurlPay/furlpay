@@ -52,6 +52,30 @@ export interface TokenTransfer {
   txHash: string;
   logIndex: number;
   blockNumber: number;
+  /**
+   * The hash of the block this log came from.
+   *
+   * Carried through because reorg detection needs it: a stored hash that no longer
+   * matches the chain at that height is how an orphaned block is identified, and the
+   * log already supplies it so there is nothing to fetch.
+   */
+  blockHash: string | null;
+  /**
+   * Block time in ms, when the endpoint supplied it on the log itself.
+   *
+   * Modern geth and friends include `blockTimestamp` in eth_getLogs responses.
+   * Measured across all seven public endpoints this repository uses — Ethereum,
+   * Base, Arbitrum, OP Mainnet, Polygon, Celo and ZKsync Era — every one returns
+   * it on every log. That makes a separate round of eth_getBlockByNumber calls
+   * unnecessary, which matters twice over: it is ~34 fewer batched calls per chain
+   * per tick, and the header fetches were the single largest source of dropped
+   * transfers (38,518 Ethereum rows lost in one measured backfill when a batch was
+   * refused).
+   *
+   * null when an endpoint does not provide it, and the caller then falls back to
+   * reading headers for those blocks.
+   */
+  blockTimestamp: number | null;
 }
 
 /** Alchemy publishes compute-unit costs per method; these are the ones we use. */
@@ -330,9 +354,54 @@ export class EvmProvider extends Provider {
         txHash: l.transactionHash,
         logIndex: hexToNum(l.logIndex) ?? 0,
         blockNumber: hexToNum(l.blockNumber) ?? fromBlock,
+        blockHash: l.blockHash ?? null,
+        blockTimestamp: logTimestampMs(l.blockTimestamp),
       });
     }
     return out;
+  }
+
+  /**
+   * Arbitrary eth_getLogs for one contract and topic filter.
+   *
+   * `transferLogs` above is ERC-20 specific: it hardcodes the Transfer topic and
+   * discards anything without three topics. The CCTP scanner needs a different
+   * contract and different event shapes, so it needs the raw logs — but it must
+   * NOT reimplement the range bisection, which is the part that took real
+   * measurement to get right. Hence this thin public door onto the same adaptive
+   * reader.
+   *
+   * Block numbers come back decoded so callers do not each parse hex.
+   */
+  async rawLogs(
+    chain: ChainRow,
+    filter: { address: string; topics: string[]; fromBlock: number; toBlock: number },
+  ): Promise<
+    Array<{
+      address: string;
+      topics: string[];
+      data: string;
+      blockNumber: number;
+      transactionHash: string;
+      logIndex: number;
+      blockTimestamp: number | null;
+    }>
+  > {
+    const logs = await this.getLogsAdaptive(
+      chain,
+      { address: filter.address, topics: filter.topics },
+      filter.fromBlock,
+      filter.toBlock,
+    );
+    return (logs ?? []).map((l) => ({
+      address: (l.address ?? "").toLowerCase(),
+      topics: Array.isArray(l.topics) ? l.topics.map((t) => t.toLowerCase()) : [],
+      data: l.data ?? "0x",
+      blockNumber: hexToNum(l.blockNumber) ?? filter.fromBlock,
+      transactionHash: l.transactionHash,
+      logIndex: hexToNum(l.logIndex) ?? 0,
+      blockTimestamp: logTimestampMs(l.blockTimestamp),
+    }));
   }
 
   /**
@@ -394,6 +463,171 @@ export class EvmProvider extends Provider {
           this.log.debug("narrowing log span", { chain: chain.slug, span });
         }
       }
+    }
+    return out;
+  }
+
+  /**
+   * A block by tag — "latest", "safe", "finalized", "earliest".
+   *
+   * WHY TAGS RATHER THAN A CONFIRMATION COUNT. A fixed depth is a guess about reorg
+   * behaviour that differs by two orders of magnitude across the chains here. The
+   * tags are the chain's own statement about its consensus, so they are the right
+   * primitive — probed live on 2026-09-29, all twelve chains answer "finalized" and
+   * eleven answer "safe" (Polygon rejects it).
+   *
+   * Returns null when the endpoint does not know the tag, rather than throwing, so a
+   * missing "safe" degrades one signal instead of failing the pass.
+   */
+  async getBlockByTag(
+    chain: ChainRow,
+    tag: "latest" | "safe" | "finalized" | "earliest",
+  ): Promise<{ number: number; hash: string; timestamp: number } | null> {
+    try {
+      const raw = await this.call<RawBlock | null>(chain, "eth_getBlockByNumber", [tag, false]);
+      if (!raw) return null;
+      const number = hexToNum(raw.number);
+      if (number === null) return null;
+      return {
+        number,
+        hash: raw.hash,
+        timestamp: (hexToNum(raw.timestamp) ?? 0) * 1000,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The hash of the block currently at a given height.
+   *
+   * The reorg check: a height whose hash no longer matches what we stored means the
+   * block we indexed is not on the chain that now exists. Returns null when the
+   * block cannot be read, which the caller must NOT treat as a changed hash — an
+   * unreadable block and a reorganised one are different facts.
+   */
+  async getBlockHashAt(chain: ChainRow, blockNumber: number): Promise<string | null> {
+    const raw = await this.call<RawBlock | null>(chain, "eth_getBlockByNumber", [
+      `0x${blockNumber.toString(16)}`,
+      false,
+    ]);
+    return raw?.hash ?? null;
+  }
+
+  /**
+   * Ask a SPECIFIC endpoint for a block hash, bypassing the fallback order.
+   *
+   * Every other read here takes the first endpoint that answers, which is right for
+   * availability and useless for cross-validation — asking the same ordered list
+   * twice just asks the same provider twice. This pins the URL so two providers can
+   * be compared on the same height.
+   *
+   * Deliberately raw: no breaker, no budget accounting. It is a diagnostic, and it
+   * must not be able to open a circuit that the ingestion path depends on.
+   */
+  async hashFromEndpoint(url: string, blockNumber: number, timeoutMs = 8000): Promise<string | null> {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "eth_getBlockByNumber",
+          params: [`0x${blockNumber.toString(16)}`, false],
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) return null;
+      const body = (await res.json()) as { result?: { hash?: string } | null };
+      return body.result?.hash ?? null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * The endpoints configured for a chain, as hostnames paired with their URLs.
+   *
+   * Exposed so the cross-validator can pick two DIFFERENT providers. The hostname is
+   * safe to log; the URL carries the API key and must not be.
+   */
+  endpointsFor(chain: ChainRow): Array<{ host: string; url: string }> {
+    return this.listFor(chain).map((url) => ({ host: safeHost(url), url }));
+  }
+
+  /**
+   * Block timestamps for an explicit, possibly sparse list of block numbers.
+   *
+   * WHY THIS EXISTS ALONGSIDE `getBlocks`. `getBlocks` takes a contiguous range,
+   * which is the wrong shape for "date these 1,127 specific blocks scattered over
+   * 2,000". Walking the range in 60-block windows fetched every block in between —
+   * 2,040 header reads to learn 1,127 timestamps — and a single refused batch lost
+   * every block in it with no retry. Measured on Arbitrum: 840 of 1,127 blocks came
+   * back, and the 287 missing cost 4,371 real transfers, because a transfer that
+   * cannot be dated is dropped rather than misdated.
+   *
+   * So this asks for exactly the blocks wanted, and retries whatever is still
+   * missing in smaller batches. A large batch is faster when it works; a small one
+   * is what works when the endpoint is refusing.
+   *
+   * Returns whatever it could read. Partial is safe — the caller drops the rest.
+   */
+  async blockTimestampsFor(
+    chain: ChainRow,
+    blockNumbers: readonly number[],
+  ): Promise<Map<number, number>> {
+    const out = new Map<number, number>();
+    const wanted = [...new Set(blockNumbers)].sort((a, b) => a - b);
+    if (wanted.length === 0) return out;
+
+    // Newest first, so if the endpoint gives up part way we keep the blocks an
+    // alert is most likely to be about.
+    const ordered = [...wanted].reverse();
+
+    const fetchBatch = async (nums: readonly number[]): Promise<void> => {
+      const calls = nums.map((n) => ({
+        method: "eth_getBlockByNumber",
+        params: [`0x${n.toString(16)}`, false] as unknown[],
+      }));
+      const raw = await this.callBatch<{ number: string; timestamp: string }>(chain, calls);
+      for (const b of raw) {
+        if (!b) continue;
+        const num = hexToNum(b.number);
+        const secs = hexToNum(b.timestamp);
+        if (num !== null && secs !== null && secs > 0) out.set(num, secs * 1000);
+      }
+    };
+
+    // Three descending batch sizes. Measured on Arbitrum, where every endpoint
+    // omits `blockTimestamp` on a varying share of logs so a cold start can need
+    // 1,100+ header reads in one pass: a single pass at 60 returned 768 of 1,131,
+    // and each smaller retry recovers most of what the previous one was refused.
+    // Large batches are fast when they work; small ones are what work when an
+    // endpoint is under load.
+    for (const size of [60, 20, 5]) {
+      const missing = ordered.filter((n) => !out.has(n));
+      if (missing.length === 0) break;
+      for (let i = 0; i < missing.length; i += size) {
+        try {
+          await fetchBatch(missing.slice(i, i + size));
+        } catch (err) {
+          // One failed batch is not fatal; the smaller pass below may recover it.
+          this.log.debug("header batch failed", {
+            chain: chain.slug,
+            size,
+            error: (err as Error).message.slice(0, 80),
+          });
+        }
+      }
+    }
+
+    if (out.size < wanted.length) {
+      this.log.debug("header timestamps incomplete", {
+        chain: chain.slug,
+        got: out.size,
+        wanted: wanted.length,
+      });
     }
     return out;
   }
@@ -496,8 +730,11 @@ interface EvmLogRaw {
   topics: string[];
   data: string;
   blockNumber: string;
+  blockHash?: string;
   transactionHash: string;
   logIndex: string;
+  /** Present on every endpoint measured, but optional because it is not required. */
+  blockTimestamp?: string;
 }
 
 function parseBlock(b: RawBlock, withTxs: boolean): EvmBlock {
@@ -542,6 +779,21 @@ function decodeAbiString(hex: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * A log's `blockTimestamp` as ms, or null when absent or unusable.
+ *
+ * The value is a hex seconds count, like a block header's. Guarded rather than
+ * trusted: a chain reporting it in some other unit would otherwise silently date
+ * every transfer wrongly, and `isUsableTimestamp` in the USDC scanner is the
+ * second line of defence rather than the first.
+ */
+function logTimestampMs(hex: string | undefined): number | null {
+  if (!hex) return null;
+  const secs = hexToNum(hex);
+  if (secs === null || secs <= 0) return null;
+  return secs * 1000;
 }
 
 /** Hostname only — never the path, which carries the API key. */

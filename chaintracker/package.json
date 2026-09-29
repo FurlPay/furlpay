@@ -23,7 +23,18 @@
     "mempool": "node dist/mempool.js",
     "mempool:watch": "node dist/mempool.js watch",
     "mempool:daily": "node dist/mempool.js daily",
-    "mempool:doctor": "node dist/mempool.js doctor"
+    "mempool:doctor": "node dist/mempool.js doctor",
+    "usdc": "node dist/usdc/run.js",
+    "usdc:doctor": "node dist/usdc/run.js doctor",
+    "usdc:ensure": "node dist/usdc/run.js ensure",
+    "usdc:probe": "node dist/usdc/run.js probe",
+    "usdc:verify": "node dist/usdc/run.js verify",
+    "usdc:scan": "node dist/usdc/run.js scan",
+    "usdc:tick": "node dist/usdc/run.js tick",
+    "usdc:backfill": "node dist/usdc/run.js backfill",
+    "usdc:daily": "node dist/usdc/run.js daily",
+    "usdc:flows": "node dist/usdc/run.js flows",
+    "usdc:report": "node dist/usdc/run.js report"
   },
   "dependencies": {
     "discord.js": "^14.16.3",
