@@ -175,3 +175,7 @@ signing.properties
 
 # Real-Postgres concurrency harness (embedded-postgres data dir, ephemeral)
 .pgdata-*
+
+# Local audit evidence scratch (not product code)
+.audit-money-*/
+audit/2026-09-29-*/
