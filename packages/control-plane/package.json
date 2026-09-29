@@ -1,0 +1,18 @@
+{
+  "name": "@furlpay/control-plane",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Deterministic core of the FurlPay programmable-money control plane: delegation chain, live revocation, intent mandates, policy engine, sequence-level drift, recipient verification, rail routing, decision lifecycle, independent evidence. Zero runtime dependencies.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build:test": "tsc -p tsconfig.json",
+    "test": "npm run build:test && node --test \"test/*.test.js\""
+  },
+  "devDependencies": {
+    "typescript": "5.5.3"
+  }
+}
