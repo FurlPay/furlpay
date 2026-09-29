@@ -1,0 +1,6121 @@
+{
+  "generatedAt": "2026-09-29T15:54:29.364Z",
+  "summary": {
+    "totalRoutes": 343,
+    "mutatingRoutes": 198,
+    "moneyRoutes": 98,
+    "webhooks": 9,
+    "withZod": 143,
+    "withRateLimit": 275,
+    "withAuth": 207,
+    "flagged": 89,
+    "byFlag": {
+      "NO_ZOD": 59,
+      "MONEY_NO_IDEMPOTENCY": 46
+    }
+  },
+  "routes": [
+    {
+      "route": "/api/account/balance",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/account/fund",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/account",
+      "methods": [
+        "GET",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/account/spend",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/actions/book-car",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": true,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/actions/pay/[orderId]",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": true,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": false,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/actions/step-up/challenge",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": true,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/actions/step-up/verify",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": true,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/agents/ap2",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/agents/keys",
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/agents",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/alerts",
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ambassadors/follow",
+      "methods": [
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/ambassadors/instagram",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ambassadors",
+      "methods": [
+        "GET",
+        "POST",
+        "PATCH"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/analytics/costs",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/analytics/graph",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/analytics",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/apple/callback",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/apple",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/google",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/guest",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/auth/handoff",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/auth/logout",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/auth/native/exchange",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/otp/check",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/otp/start",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/passkey/authenticate",
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/passkey/credentials",
+      "methods": [
+        "GET",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/auth/passkey/register",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/refresh",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/auth/session",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/auth/webauthn",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/banking/directory",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/banking",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/billing/checkout",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/bills",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/cards/challenges/options",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/challenges",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/cards/challenges/verify",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]/activate",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]/pin",
+      "methods": [
+        "GET",
+        "POST",
+        "PUT"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]/provisioning",
+      "methods": [
+        "POST",
+        "PATCH"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]/reissue",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]/report-lost",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]/reveal",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]",
+      "methods": [
+        "GET",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]/shipping",
+      "methods": [
+        "PUT"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/lifecycle/[id]/theme",
+      "methods": [
+        "PUT"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/order",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/cards/products",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/cards",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/cards/settings",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/cards/spend",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/careers",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/chain/contracts",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/chain/gas-price",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/chain/rpc",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/chain/status",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/chain/tx/[hash]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/chain/usdc/supply",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/chat",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/check",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/checkout/session",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/attestation/[tx]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/attestation/source-of-funds",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/compliance/authority-requests/[id]/disclose",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/authority-requests/[id]",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/authority-requests",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/credential",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/compliance/escrow/[action]",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/compliance/jurisdiction",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/kyc",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/role-grants",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/screen",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/tier",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/travel-rule",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/compliance/verify",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/contact",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/contacts/[id]/addresses/[addressId]",
+      "methods": [
+        "PATCH",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/contacts/[id]/addresses",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/contacts/[id]",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/contacts/recent",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/contacts/resolve",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/contacts",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/credit",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/cron/discord-welcome",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": true,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/cron/health",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": true,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/cron/market-brief",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": true,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/cron/price-alerts",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": true,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/cron/price-cards",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": true,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/cron/reconcile",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": true,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/deposits",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/developer/keys/[keyId]",
+      "methods": [
+        "GET",
+        "POST",
+        "PATCH",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/developer/keys",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/devices/register",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/discord/interactions",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/discord/linked-roles",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/discord/roles-setup",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/docs/feedback",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/early-access",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/earn/deposit",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/earn/position",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/earn",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/earn/vaults",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/earn/withdraw",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/escrow",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/expenses/summary",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/flags/client",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/gifts/claim",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/gifts/packets/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/gifts/packets",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/gifts/vouchers/redeem",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/gifts/vouchers",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/hackathon/submissions",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/insights",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/intents/cctp/attestation",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/intents/cctp",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/intents",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/investing/corporate-actions/ingest",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/investing/corporate-actions/settle",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/investing/dividends/settle",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/investing/lots",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/investing/order",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/investing/orders",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/investing/portfolio",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/investing/rwa",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/investing/schedule",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/ledger",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/[symbol]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/bars",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/indices",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/institutions/[cik]/changes",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/institutions/[cik]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/institutions",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/instruments/[symbol]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/movers",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/perps/bars",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/perps",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/search",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/table",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/markets/watchlist",
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/mcp",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/membership/auto-renew",
+      "methods": [
+        "PATCH"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/membership/cashback/claim",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/membership/cashback",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/membership/change",
+      "methods": [
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/membership/history",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/membership/plans",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/membership/subscription",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/mpc/sign",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/mpp/fx",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/newsletter/subscribe",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/newsletter/unsubscribe",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/nft",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/notifications/[id]",
+      "methods": [
+        "PATCH"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/notifications/read-all",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/notifications",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/oauth/authorize",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/oauth/register",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/oauth/revoke",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/oauth/token",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/offramp",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/offramp/session",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/og/captcha/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/og/price-card/[symbol]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/og/role-icon/[key]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/onramp/quote",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/onramp/session/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/onramp/session",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/ops/audit",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/configuration",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/controls",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/health",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/metrics/sparkline",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/metrics/timeseries",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/overview",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/readiness",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/reconciliation",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/security",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/transactions",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/transactions/summary",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/overview",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/ads/[id]",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/ads",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/config",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/heartbeat",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/p2p/merchant/apply",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/merchant",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/orders/[id]/appeal",
+      "methods": [
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/p2p/orders/[id]/cancel",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/p2p/orders/[id]/pay",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/p2p/orders/[id]/rate",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/p2p/orders/[id]/release",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/p2p/orders/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/orders",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/payment-methods/[id]",
+      "methods": [
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/p2p/payment-methods",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/p2p/quote",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/p2p/stats",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/passport/[id]",
+      "methods": [
+        "GET",
+        "PATCH",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/passport",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/passport/status",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/passport/verify",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/payments/[id]/receipt",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/payments/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/payments/batch",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/payments/create",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/payments/execute",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/payments/fees/estimate",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/payments/history",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/payments/refund",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/payments/review",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/payments/stripe/intent",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/payouts/payroll",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/payouts/validate-destination",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/places/discover",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/profile/avatar",
+      "methods": [
+        "PUT",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/profile",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/properties/capabilities",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/push/devices",
+      "methods": [
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/push/subscribe",
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/rails",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/receipts/match",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/reports/pnl",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/reports/spending",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/reports/tax",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/rewards",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/security/address-check",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/security/env",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/security/lock",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/security/mfa",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/security/scan",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/security/simulate",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/staking/protocols",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/summary",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/support/ask",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/support/kb",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/support/message",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/support/sso",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/support/tickets/[id]/agent",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/support/tickets/[id]/messages",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/support/tickets/[id]",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/support/tickets",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/swag/redeem",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/swaps/execute",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/swaps",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/swaps/status",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/telegram/webhook",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/token/furl/balance",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/token/furl",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/token/furl/supply/cross-chain",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/token/furl/supply",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/topup/apple-pay",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/transactions/authorize",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/transactions/prepare",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/transactions",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/transactions/status",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/transfers/gasless",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/transfers/sponsored",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/alerts",
+      "methods": [
+        "GET",
+        "POST",
+        "DELETE"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/travel/blogs",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/boarding-passes",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/book",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/business/policies",
+      "methods": [
+        "GET",
+        "PATCH"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/travel/business/reports",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/business/team",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/travel/cancel/[id]",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/travel/cards/create",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/travel/deals",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/destinations/[slug]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/destinations",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/entry-requirements",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/gift-cards/redeem",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/travel/gift-cards",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/travel/hotels/autocomplete",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/hotels/detail",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/hotels/map",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/hotels/photo",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/hotels/preview",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/hotels/price",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/hotels",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/hotels/stream-rates",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/hotels/tiles/[z]/[x]/[y]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/itineraries",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/property/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/referral",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/referral/track",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/travel/restaurants",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/rewards/claim",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/rewards",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/search",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/settle",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/travel/trip-match",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/travel/trips/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/trips",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/travel/vlogs",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/user/entitlements",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/v1/payments",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/wallet/authorize",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/wallet/balances",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/wallet/link/challenge",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/wallet/link",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/wallet/link/verify",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/wallets/biometric-pay/challenge",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/wallets/biometric-pay/verify",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/wallets",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/wallets/transfer",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/webhooks/card-auth",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": true,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/webhooks/complyadvantage",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": false,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/webhooks/deposit-detect",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/webhooks/github",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/webhooks/persona",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/webhooks/resend",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/webhooks/stripe",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": true,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/webhooks/sumsub",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": true,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": false,
+      "hasAuth": true,
+      "hasHmac": true,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/x402/discovery/resources",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/x402/facilitator/settle",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/x402/facilitator/supported",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/x402/facilitator/verify",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/x402/fx",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/x402/policy/evaluate",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/x402/policy/settle",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD",
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/x402/price",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/x402/register",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/x402/resources",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/x402/settlement/[tx]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/og/event/[slug]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/leads",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/ops/revenue",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/reports/[slug]/download",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    },
+    {
+      "route": "/api/v1/evidence/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/v1/mandates/[id]/revoke",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "MONEY_NO_IDEMPOTENCY"
+      ]
+    },
+    {
+      "route": "/api/v1/mandates/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/v1/mandates",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/v1/payments/[id]",
+      "methods": [
+        "GET"
+      ],
+      "mutating": false,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/v1/payments/authorize",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/v1/payments/execute",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": true,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/v1/recipients/revoke",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": []
+    },
+    {
+      "route": "/api/v1/recipients",
+      "methods": [
+        "GET",
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": true,
+      "hasRateLimit": true,
+      "hasAuth": true,
+      "hasHmac": false,
+      "hasIdempotency": true,
+      "flags": []
+    },
+    {
+      "route": "/api/webinars/[slug]/register",
+      "methods": [
+        "POST"
+      ],
+      "mutating": true,
+      "isWebhook": false,
+      "isCron": false,
+      "isPublicAction": false,
+      "money": false,
+      "hasZod": false,
+      "hasRateLimit": true,
+      "hasAuth": false,
+      "hasHmac": false,
+      "hasIdempotency": false,
+      "flags": [
+        "NO_ZOD"
+      ]
+    }
+  ]
+}

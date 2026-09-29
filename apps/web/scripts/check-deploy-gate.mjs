@@ -21,6 +21,10 @@
 //      bisect, revert or review.
 //   2. HEAD is pushed. A green run cannot exist for a SHA the remote has
 //      never seen.
+//   2b. HEAD is on the configured release branch (FURLPAY_RELEASE_BRANCH, see
+//      releaseBranch.mjs). Without this the gate verified CI for the exact
+//      commit and then happily shipped it from a feature branch — green, but
+//      not a commit anybody intended to release.
 //   3. GitHub reports the CI workflow SUCCESS for this exact SHA. Not the
 //      branch, not the latest run — this commit. A green run on the commit
 //      before yours says nothing about yours.
@@ -32,6 +36,7 @@
 // ---------------------------------------------------------------------------
 
 import { execFileSync } from "node:child_process";
+import { checkReleaseBranch } from "./releaseBranch.mjs";
 
 const WORKFLOW = "CI";
 
@@ -49,7 +54,9 @@ if (process.env.FURLPAY_DEPLOY_FORCE === "1") {
   console.warn(
     "\n  FURLPAY_DEPLOY_FORCE=1 — deploying WITHOUT a verified CI run.\n" +
       "  Nothing has checked that this commit lints, type-checks, passes the route-security\n" +
-      "  invariants, or builds. Use only for an incident hotfix, and follow up with a real run.\n"
+      "  invariants, or builds — and the release-branch restriction is skipped too, so this\n" +
+      "  may be shipping a branch nobody reviews. Use only for an incident hotfix, and follow\n" +
+      "  up with a real run.\n"
   );
   process.exit(0);
 }
@@ -65,6 +72,16 @@ if (dirty) {
 
 const sha = git("rev-parse", "HEAD");
 const branch = git("rev-parse", "--abbrev-ref", "HEAD");
+
+// ── 1b. The right branch ───────────────────────────────────────────────────
+// Before any network call, because this is the cheapest way to say no and it
+// needs nothing but the local repo.
+//
+// This check did not exist: the gate read `branch` and only printed it, so a
+// green FEATURE branch satisfied every other condition and shipped. The commit
+// really was green — it just was not a commit anyone intended to release.
+const release = checkReleaseBranch(branch);
+if (!release.ok) fail(release.reason, release.remedy);
 
 // ── 2. Pushed ──────────────────────────────────────────────────────────────
 let remoteSha = "";
