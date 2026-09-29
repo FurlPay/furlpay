@@ -146,3 +146,32 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+
+# Signing material and mobile service configs.
+#
+# None of these are currently tracked — verified with `git ls-files` during the
+# release audit — but nothing stopped the next `git add -A` from committing one.
+# A keystore or a .p8 in history cannot be un-published by deleting the file
+# later; the key has to be rotated. These rules make the accident impossible
+# rather than merely unlikely.
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.mobileprovision
+*.provisionprofile
+*.cer
+*.certSigningRequest
+# App Store Connect / APNs auth keys.
+AuthKey_*.p8
+*.p8
+# Firebase/Google service configs carry project identifiers and client ids, and
+# differ per environment — they belong in CI secrets, not in the tree.
+google-services.json
+GoogleService-Info.plist
+# Gradle signing properties (storePassword / keyAlias live here).
+keystore.properties
+signing.properties
+
+# Real-Postgres concurrency harness (embedded-postgres data dir, ephemeral)
+.pgdata-*
