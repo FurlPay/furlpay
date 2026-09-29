@@ -70,7 +70,7 @@ jobs:
       # but no floating `v2`, so `@v2` failed to resolve on every run since this
       # workflow was added — the job never got as far as scoring anything.
       - name: Run analysis
-        uses: ossf/scorecard-action@v2.4.4
+        uses: ossf/scorecard-action@55891bbd73f2425e97637d96e306fc9d491d0b21 # v2.4.4
         with:
           results_file: results.sarif
           results_format: sarif

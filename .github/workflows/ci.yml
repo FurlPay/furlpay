@@ -72,6 +72,32 @@ jobs:
         run: npm test --workspace @furlpay/security
       - name: Test ledger package
         run: npm test --workspace @furlpay/ledger
+      # These two were in the root `npm test` script but NOT here, so their
+      # suites never ran on a commit. That matters more than the usual "a test
+      # is missing from CI": `npm run deploy:prod` gates on CI reporting success
+      # for the exact SHA, so a green CI with these absent is a green light to
+      # ship a control-plane or paywall regression. The control-plane package is
+      # the deterministic core every authorization decision runs through.
+      - name: Test gateway package
+        run: npm test --workspace @furlpay/gateway
+      - name: Test control-plane package
+        run: npm test --workspace @furlpay/control-plane
+      # The advisory-lock invariant in cp_record_decision — "two concurrent
+      # decisions cannot claim the same position in the evidence chain" — can
+      # only be proven against a server with more than one connection. The rest
+      # of the database suite runs on an in-process engine where the lock is
+      # uncontended by construction, so without this step that invariant is
+      # asserted and never executed.
+      #
+      # Opt-in locally (it starts a real Postgres and costs ~30s), mandatory
+      # here: if a security invariant is required before deployment, the test
+      # that proves it belongs in the gate rather than in a command someone has
+      # to remember.
+      - name: Control-plane concurrency (real PostgreSQL, 10/100/500 workers)
+        working-directory: apps/web
+        env:
+          FURLPAY_PG_CONCURRENCY: "1"
+        run: npx vitest run src/lib/controlPlane/__tests__/pgConcurrency.spec.ts
 
   # Security auditing moved to .github/workflows/security-audit.yml
   # which has proper failure handling + Discord notifications.
@@ -83,6 +109,46 @@ jobs:
   # the kind of control that fails silently: Android IGNORES an expired
   # <pin-set> rather than erroring, so pinning would simply stop applying and
   # nothing would say so.
+  # Browser QA. The unit suite cannot see hydration failures, client-side
+  # exceptions or real navigation — the /support route-precedence bug shipped
+  # green past tsc and 4,500 unit tests, and the /cards infinite spinner was
+  # found by screenshotting the page, not by an assertion.
+  #
+  # Needs NO secrets: playwright.config.ts starts its own dev server with
+  # INTEGRATION_MODE=mock and a test-only session secret, and the suite mints its
+  # identities through the app's real OTP flow. Mock OTP is refused under
+  # NODE_ENV=production, so this cannot work against a production build — which is
+  # the guard, not a limitation to route around.
+  e2e:
+    runs-on: ubuntu-latest
+    env:
+      NODE_OPTIONS: --max-old-space-size=6144
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install
+      # --with-deps pulls the system libraries the browser needs on a bare
+      # runner; chromium only, matching playwright.config.ts.
+      - name: Install Chromium
+        working-directory: apps/web
+        run: npx playwright install --with-deps chromium
+      - name: Playwright (desktop + mobile)
+        working-directory: apps/web
+        run: npx playwright test
+      # Traces and screenshots are retained ONLY on failure (see the config), so
+      # a green run uploads nothing. They can contain session cookies, which is
+      # why the retention is short and the artifact is not public-by-default.
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failures
+          path: apps/web/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
   mobile:
     runs-on: ubuntu-latest
     steps:

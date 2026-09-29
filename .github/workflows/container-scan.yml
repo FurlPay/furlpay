@@ -47,7 +47,7 @@ jobs:
       # Runs against the Dockerfile itself, so it catches problems before a
       # build is even attempted.
       - name: Trivy config scan (Dockerfile)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           scan-type: config
           scan-ref: packages/furlpay-openbb-plugin
@@ -65,7 +65,7 @@ jobs:
       # of the low-severity list, e.g. CVE-2019-1010023 in glibc) from
       # permanently blocking every merge.
       - name: Trivy image scan (gate)
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: furlpay-openbb:scan
           format: table
@@ -77,7 +77,7 @@ jobs:
       # blocking, so the won't-fix tail stays visible without gating merges.
       - name: Trivy SARIF (all severities)
         if: always()
-        uses: aquasecurity/trivy-action@v0.36.0
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: furlpay-openbb:scan
           format: sarif

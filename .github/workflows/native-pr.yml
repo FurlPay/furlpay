@@ -1,0 +1,135 @@
+name: Native PR checks
+
+# WHY A SEPARATE WORKFLOW. mobile-release.yml already builds Android and iOS
+# properly — with EAS, Gradle and Xcode 26 — but it is `workflow_dispatch` only,
+# so nothing native has ever gated a pull request. A Kotlin or Swift change could
+# merge with only `tsc` and Jest behind it, and the first real compile would
+# happen during a release.
+#
+# This runs the SAME canonical commands, not a cheaper approximation, and only
+# when something that can break a native build actually changed.
+on:
+  pull_request:
+    paths:
+      # The Expo app and its native config.
+      - "native-app/**"
+      # Kotlin phone + Wear, and the Swift Guardian port.
+      - "guardian/**"
+      - "ios/**"
+      # Shared TypeScript the mobile app compiles against. Conservative on
+      # purpose: a change in packages/security reaches the mobile bundle even
+      # though native-app does not yet depend on the package directly.
+      - "packages/**"
+      # Workspace dependency changes move every lockfile-resolved version.
+      - "package-lock.json"
+      - "package.json"
+      - ".github/workflows/native-pr.yml"
+  # A manual run, for verifying a fix without opening a PR.
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  # Guardian phone + Wear, RELEASE variant. Debug would compile different code:
+  # R8/ProGuard, the release network-security config and the signing path only
+  # apply to release, and those are precisely where a break hides.
+  #
+  # Unsigned is expected here — guardian/app/mobile/build.gradle.kts leaves the
+  # release build unsigned rather than falling back to the debug key when no
+  # keystore is present, which is the behaviour this job must NOT disturb. It
+  # compiles the release variant; it does not produce a shippable artifact.
+  android-guardian:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
+      - name: Unit tests
+        working-directory: guardian
+        run: ./gradlew test --stacktrace
+      - name: Assemble phone + watch (release)
+        working-directory: guardian
+        run: |
+          ./gradlew \
+            ":app:mobile:assembleProdRelease" \
+            ":app:wear:assembleProdRelease" \
+            --stacktrace
+
+  # The Expo app's own gates. A native prebuild needs EAS credentials, so this
+  # covers what can be verified without them: the config resolves, types check,
+  # and the plugin tests — including the network-security-config test that fails
+  # once the certificate pins expire — actually run.
+  expo-config:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - working-directory: native-app
+        run: npm ci
+      - name: Verify build configuration resolves
+        working-directory: native-app
+        # Block scalar: the inline form starts with a brace after the quote, so
+        # YAML parses it as a flow mapping and the file fails to load.
+        run: |
+          node -e "require('./app.config.js')({config: require('./app.json').expo})"
+      - name: Type-check
+        working-directory: native-app
+        run: npx tsc --noEmit
+      - name: Unit tests
+        working-directory: native-app
+        run: npx jest --ci
+
+  # Swift Guardian. macOS runners are billed at a multiple of Linux, which is why
+  # this is path-filtered to ios/** rather than running on every PR.
+  #
+  # `build` and not `archive`: an archive needs a signing identity and a
+  # provisioning profile, and this repository deliberately holds neither. A
+  # compile catches the Swift errors; signing is verified in mobile-release.yml
+  # where the credentials exist.
+  ios-guardian:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_26.app
+      - name: Resolve the project
+        id: proj
+        run: |
+          # Discovered, not assumed: the repo has no committed .xcodeproj at the
+          # ios/ root, so the job reports that plainly instead of failing on a
+          # path somebody guessed.
+          WS=$(find ios -maxdepth 2 -name "*.xcworkspace" | head -1)
+          PROJ=$(find ios -maxdepth 2 -name "*.xcodeproj" | head -1)
+          echo "workspace=$WS" >> "$GITHUB_OUTPUT"
+          echo "project=$PROJ" >> "$GITHUB_OUTPUT"
+          if [ -z "$WS" ] && [ -z "$PROJ" ]; then
+            echo "::warning::No .xcodeproj or .xcworkspace under ios/ — the Swift sources are not yet an Xcode project, so there is nothing to compile. Skipping."
+          fi
+      - name: Build (no signing)
+        if: steps.proj.outputs.workspace != '' || steps.proj.outputs.project != ''
+        run: |
+          set -o pipefail
+          TARGET_FLAG=""
+          if [ -n "${{ steps.proj.outputs.workspace }}" ]; then
+            TARGET_FLAG="-workspace ${{ steps.proj.outputs.workspace }}"
+          else
+            TARGET_FLAG="-project ${{ steps.proj.outputs.project }}"
+          fi
+          SCHEME=$(xcodebuild $TARGET_FLAG -list -json | python3 -c "import json,sys;d=json.load(sys.stdin);print((d.get('workspace') or d.get('project'))['schemes'][0])")
+          echo "Building scheme: $SCHEME"
+          xcodebuild $TARGET_FLAG \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            build

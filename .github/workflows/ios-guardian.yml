@@ -32,6 +32,13 @@ env:
   # app is COMPILED against, which is the thing App Store Connect checks.
   XCODE_VERSION: '26'
 
+# Least privilege. This workflow only compiles and tests; it writes nothing
+# back to the repository, so the default token scope is narrowed to reads.
+# Jobs that genuinely need more should raise it themselves rather than
+# inheriting a broad default.
+permissions:
+  contents: read
+
 jobs:
   build:
     name: Build and test

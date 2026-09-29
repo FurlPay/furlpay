@@ -69,11 +69,16 @@ jobs:
         env:
           FURLPAY_ENV: ${{ inputs.environment }}
           EAS_BUILD_PROFILE: ${{ inputs.environment == 'prod' && 'production' || 'preview' }}
-        run: node -e "require('./app.config.js')({config: require('./app.json').expo})"
+        # Block scalar. Inline, this value starts with a brace after the quote,
+        # which strict YAML parsers read as a flow mapping — the file then fails
+        # to load in any tooling stricter than GitHub's own parser (it was
+        # unparseable to PyYAML before this change).
+        run: |
+          node -e "require('./app.config.js')({config: require('./app.json').expo})"
 
       - run: npm test -- --ci
 
-      - uses: expo/expo-github-action@v8
+      - uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
         with:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
@@ -112,7 +117,7 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@da187c8e6ffbd3802e00f2477aa5a822b25f2dda # v4.4.4
 
       - name: Unit tests
         run: ./gradlew test --stacktrace
