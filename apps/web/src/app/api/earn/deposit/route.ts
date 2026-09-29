@@ -4,9 +4,13 @@ import { selectVault, buildDepositBundle, earnIsLive } from "@/lib/services/morp
 import { addToPosition } from "@/lib/services/earn";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 import { withIdempotency } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
+
+/** Per-transaction USD ceiling — mirrors the money-schema bound in lib/schemas.ts. */
+const MAX_EARN_USD_PER_TX = 1_000_000;
 
 // POST /api/earn/deposit — deposit idle USDC into a Morpho vault.
 // Body: { amountUsd: number, vault?: address }.
@@ -32,9 +36,29 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const amountUsd = Number(body?.amountUsd);
-  if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+  // AGENTS rule 1: money amounts get .positive() AND an upper bound. An
+  // unbounded figure lets a client (or a coercion bug) drive a position size no
+  // human intended; MAX_EARN_USD_PER_TX matches the repo's money-schema ceiling.
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_EARN_USD_PER_TX) {
     return NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 });
   }
+
+  // Step-up for a high-value deposit. See lib/biometrics/actionProof.ts: the
+  // Guardian app's Face ID gate was client-side only and this route enforced
+  // nothing, so a bearer token alone opened a position of any size.
+  //
+  // Placed AFTER the amount is validated, so the figure the policy sees is a
+  // finite positive number rather than whatever the client sent.
+  const stepUp = await enforceActionStepUp({
+    userId: account.user.id,
+    action: "earn_deposit",
+    amountUsd,
+    endpoint: "/earn/deposit",
+    method: "POST",
+    body: body as Record<string, never>,
+    proofId: (body as { stepUpProofId?: unknown })?.stepUpProofId,
+  });
+  if (stepUp) return stepUp;
 
   // A deposit debits the USDC balance and opens a position, so a retry after a
   // timeout would debit twice. Same contract as wallets/transfer and

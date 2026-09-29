@@ -8,6 +8,9 @@ import { withIdempotency } from "@/lib/idempotency";
 
 export const dynamic = "force-dynamic";
 
+/** Per-transaction USD ceiling — mirrors the money-schema bound in lib/schemas.ts. */
+const MAX_EARN_USD_PER_TX = 1_000_000;
+
 // POST /api/earn/withdraw — withdraw USDC from a Morpho Earn position.
 // Body: { amountUsd: number, vault?: address }.
 //
@@ -28,7 +31,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const amountUsd = Number(body?.amountUsd);
-  if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
+  // AGENTS rule 1: money amounts get .positive() AND an upper bound.
+  if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_EARN_USD_PER_TX) {
     return NextResponse.json({ ok: false, error: "invalid_amount" }, { status: 400 });
   }
 
