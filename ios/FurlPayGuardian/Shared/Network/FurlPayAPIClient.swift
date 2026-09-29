@@ -1019,6 +1019,31 @@ public actor FurlPayAPIClient {
         let request = try await makeRequest(method, path, body: body)
         return try await send(request, as: JSONValue.self)
     }
+
+    // MARK: Action step-up
+
+    /// Asks the server for a challenge bound to the action about to be sent.
+    ///
+    /// Throws if the account has no registered passkey — which is a real state,
+    /// not an error to swallow: without one there is no way to produce evidence
+    /// the server will accept, and the caller has to decide what to do about it
+    /// rather than proceeding as though the gate had passed.
+    func beginActionStepUp(_ intent: ActionStepUpIntent) async throws -> ActionStepUpChallenge {
+        let request = try await makeRequest("POST", "actions/step-up/challenge", body: intent)
+        return try await send(request, as: ActionStepUpChallenge.self)
+    }
+
+    /// Exchanges a completed assertion for a single-use proof id (120s).
+    func completeActionStepUp(
+        challengeId: String,
+        assertion: WebAuthnAssertionPayload
+    ) async throws -> ActionStepUpProof {
+        let request = try await makeRequest(
+            "POST", "actions/step-up/verify",
+            body: ActionStepUpVerifyRequest(challengeId: challengeId, assertion: assertion)
+        )
+        return try await send(request, as: ActionStepUpProof.self)
+    }
 }
 
 // MARK: - Helpers

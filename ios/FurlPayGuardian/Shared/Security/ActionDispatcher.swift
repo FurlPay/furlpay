@@ -90,12 +90,32 @@ public struct GuardianActionDispatcher: Sendable {
         self.api = api
     }
 
+    /// Sends a validated action, optionally carrying a step-up proof.
+    ///
+    /// The proof is merged HERE rather than by the caller, and `ApprovedAction`
+    /// stays immutable, because the proof must be the only difference between the
+    /// body that was approved and the body that is sent. A caller free to build
+    /// its own body could approve one payload and dispatch another — which is the
+    /// exact substitution the digest exists to prevent, reintroduced on the near
+    /// side of it.
+    ///
+    /// The server strips `stepUpProofId` before re-deriving the digest; see
+    /// STEP_UP_PROOF_FIELD in apps/web/src/lib/biometrics/enforceStepUp.ts. It
+    /// cannot be part of the committed body, since the proof does not exist until
+    /// after the commitment is made.
     @discardableResult
-    public func dispatch(_ action: ApprovedAction) async throws -> JSONValue {
-        try await api.executeResolvedAction(
+    public func dispatch(
+        _ action: ApprovedAction,
+        stepUpProofId: String? = nil
+    ) async throws -> JSONValue {
+        var body = action.body
+        if let stepUpProofId {
+            body[kStepUpProofField] = .string(stepUpProofId)
+        }
+        return try await api.executeResolvedAction(
             endpoint: action.endpoint,
             method: action.method,
-            body: action.body
+            body: body
         )
     }
 }

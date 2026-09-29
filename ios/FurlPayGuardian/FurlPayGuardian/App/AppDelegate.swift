@@ -34,6 +34,21 @@ final class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCent
         }
 
         observeDeviceLock()
+
+        // Installed at launch, not when a sensitive screen opens. The switcher
+        // snapshot is taken on resign-active regardless of which screen is
+        // showing, and deciding per-screen means every new screen is a chance to
+        // forget. See PrivacyShield.swift for why RootView's SwiftUI overlay
+        // cannot cover presented sheets on its own.
+        //
+        // MainActor.assumeIsolated rather than a Task: `didFinishLaunching` is
+        // already on the main thread but is not itself MainActor-annotated, and a
+        // Task would defer installation past the first frame — which is long
+        // enough for a launch straight into the switcher to go unshielded.
+        MainActor.assumeIsolated {
+            PrivacyShield.shared.activate()
+        }
+
         return true
     }
 

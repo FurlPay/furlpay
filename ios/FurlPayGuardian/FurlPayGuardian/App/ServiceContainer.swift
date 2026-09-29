@@ -32,6 +32,13 @@ public final class ServiceContainer {
     public let banking: BankingRepository
     public let passkeys: PasskeyService
 
+    /// Server-verifiable approval for money-moving actions.
+    ///
+    /// Separate from `biometrics`, which answers a local question. This one
+    /// produces evidence the backend can check — see ActionStepUpService for why
+    /// a Bool from LocalAuthentication was not a control.
+    public let stepUp: ActionStepUpService
+
     public let sync: WatchSyncCoordinator
     public let alarms: AlarmScheduler
     public let push: PushNotificationService
@@ -119,6 +126,7 @@ public final class ServiceContainer {
         credit = CreditRepository(api: api)
         banking = BankingRepository(api: api)
         passkeys = PasskeyService(api: api)
+        stepUp = ActionStepUpService(api: api, passkeys: passkeys)
 
         alarms = AlarmScheduler()
         sync = WatchSyncCoordinator()
@@ -191,30 +199,80 @@ public final class ServiceContainer {
             "Confirm \(GuardianActionRegistry.formatUsd($0)) — \(action.title)"
         } ?? "Confirm \(action.title)"
 
-        // Honours the Settings toggle. The RN app had a bug worth not
-        // repeating: the preference was written to the profile but every screen
-        // called LocalAuthentication directly, so flipping it changed nothing.
-        // This is the ONE gate for approvals, so reading it here is what makes
-        // the toggle real.
+        // This is the ONE gate for approvals, and it splits on whether the action
+        // moves money.
         //
-        // Sensitive-data ACCESS does not come through here — the document
-        // wallet and bank details call `biometrics` directly and stay gated
-        // whatever this is set to.
+        // `amountUsd` is non-nil exactly when the registry validated a
+        // USD-denominated field, so it covers every payment, swap, order, DCA and
+        // deposit up to the $25,000 ceiling. Those take the server-verified path
+        // below. Everything else honours the Settings toggle — the RN app had a
+        // bug worth not repeating, where the preference was written to the profile
+        // but every screen called LocalAuthentication directly, so flipping it
+        // changed nothing.
         //
-        // The toggle CANNOT clear an action that moves money. `amountUsd` is
-        // non-nil exactly when the registry validated a USD-denominated field,
-        // so this covers every payment, swap, order, DCA and deposit — up to
-        // the $25,000 ceiling. A convenience preference is allowed to make
-        // freezing a card one tap; it is not allowed to make a five-figure
-        // transfer one tap.
-        if preferences.biometricApprovals || action.amountUsd != nil {
+        // The toggle still CANNOT clear an action that moves money: turning it off
+        // does not reach the money branch at all. A convenience preference is
+        // allowed to make freezing a card one tap; it is not allowed to make a
+        // five-figure transfer one tap.
+        //
+        // Sensitive-data ACCESS does not come through here — the document wallet
+        // and bank details call `biometrics` directly and stay gated whatever this
+        // is set to.
+
+        // ── Money: prove it to the SERVER, not just to the phone ──────────────
+        //
+        // `biometrics.authenticate` returns a local Bool that never crosses the
+        // wire, and the endpoints this dispatches to enforced nothing — a bearer
+        // token alone placed a $25,000 order, and the Face ID sheet below proved
+        // it to no one. For anything carrying a USD amount the gate is now a
+        // WebAuthn assertion over a server-issued challenge bound to this exact
+        // request; see ActionStepUpService.
+        //
+        // This REPLACES the local prompt rather than preceding it. The assertion
+        // already required Face ID, so running both would show the same sheet
+        // twice for one approval and only the weaker one would be the user's
+        // answer.
+        var stepUpProofId: String?
+        if action.amountUsd != nil {
+            switch await stepUp.prove(
+                endpoint: action.endpoint,
+                method: action.method,
+                body: action.body
+            ) {
+            case .proved(let proofId):
+                stepUpProofId = proofId
+
+            case .declined(let reason):
+                // The user said no, or the server refused the evidence. Falling
+                // back to the local prompt here would re-ask a question that has
+                // already been answered.
+                return .rejected(reason: reason)
+
+            case .unavailable:
+                // No passkey on this account. Fall through to the local gate and
+                // let the server decide: below the threshold it proceeds, at or
+                // above it the route returns 401 and nothing moves. The threshold
+                // deliberately lives only on the server.
+                guard await biometrics.authenticate(reason: prompt).isAuthenticated else {
+                    return .rejected(reason: "Not confirmed.")
+                }
+            }
+        } else if preferences.biometricApprovals {
+            // Non-money actions still honour the Settings toggle, unchanged. The
+            // RN app had a bug worth not repeating: the preference was written to
+            // the profile but every screen called LocalAuthentication directly,
+            // so flipping it changed nothing. This is the ONE gate for approvals.
+            //
+            // `.unavailable` counts as a refusal, not a pass — a device with no
+            // enrolled biometrics must not become the easy path.
             guard await biometrics.authenticate(reason: prompt).isAuthenticated else {
                 return .rejected(reason: "Not confirmed.")
             }
         }
 
         do {
-            let response = try await GuardianActionDispatcher(api: api).dispatch(action)
+            let response = try await GuardianActionDispatcher(api: api)
+                .dispatch(action, stepUpProofId: stepUpProofId)
             await refreshAll()
             return .dispatched(response: response)
         } catch {

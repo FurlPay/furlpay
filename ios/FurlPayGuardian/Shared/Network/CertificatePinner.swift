@@ -32,8 +32,15 @@
 //  A handshake that does not match fails. There is no "warn and continue": a
 //  pinning check that can be talked out of its verdict is not a control. The
 //  cost is that a mis-pinned build cannot reach the backend at all, which is
-//  why `pinsVerifiedOn` exists and why the test suite asserts both hierarchies
-//  are present.
+//  why `pinsVerifiedOn` exists and why Tests/CertificatePinningTests.swift
+//  asserts both hierarchies are present.
+//
+//  That claim used to be aspirational — no test in this project referenced this
+//  type at all, and the file itself did not compile (see `headerKey(for:)`). The
+//  tests now hash four of the pinned roots from embedded DER and compare against
+//  digests computed independently with openssl, so a mis-transcribed pin or an
+//  off-by-one ASN.1 header fails the suite rather than the handshake. All nine
+//  pins were re-verified against the CAs' published roots on 2026-09-26.
 //
 
 import Foundation
@@ -71,7 +78,30 @@ public enum CertificatePinner {
     /// ordinary system validation. Pinning a host whose certificate we do not
     /// control would break it on the CA's schedule rather than ours.
     static func isPinned(host: String) -> Bool {
-        host == "furlpay.com" || host.hasSuffix(".furlpay.com")
+        // Lowercased first. DNS hostnames are case-insensitive, so `FurlPay.com`
+        // and `furlpay.com` are the same host — but the raw comparison treated
+        // the first as a third-party domain and SKIPPED PINNING for it. The app
+        // builds its own URLs from a lowercase constant so this was not reachable
+        // today, and it is one character to make it unreachable by construction
+        // rather than by the caller's habits.
+        //
+        // The suffix form keeps the leading dot deliberately: `.furlpay.com`
+        // matches `api.furlpay.com` but not `evilfurlpay.com`, which a bare
+        // `hasSuffix("furlpay.com")` would happily pin — and, worse, would let an
+        // attacker-controlled host inherit our pin set and fail closed in a way
+        // that looks like our outage.
+        // The trailing dot goes too. `furlpay.com.` is the fully-qualified form of
+        // the same name and resolves identically, but it matched neither branch,
+        // so pinning was SKIPPED for it. Note the direction of that failure: an
+        // unrecognised host is not rejected here, it is handed to ordinary system
+        // validation — so every gap in this function fails OPEN. That is the right
+        // default for a photo CDN and the wrong one for our own API, which is why
+        // the matching is deliberately generous about spelling and strict about
+        // which name it is.
+        var normalized = host.lowercased()
+        if normalized.hasSuffix(".") { normalized.removeLast() }
+
+        return normalized == "furlpay.com" || normalized.hasSuffix(".furlpay.com")
     }
 
     /// ASN.1 DER headers prepended to a raw public key before hashing.
@@ -102,14 +132,37 @@ public enum CertificatePinner {
         ],
     ]
 
-    private static func headerKey(for attributes: [CFString: Any]) -> String? {
+    // `kSecAttrKeyType*` are `CFString`, and `SecKeyCopyAttributes` hands them
+    // back bridged to `String`. Writing the bridge INSIDE a case pattern does not
+    // work:
+    //
+    //     case (kSecAttrKeyTypeRSA as String, 2048):
+    //
+    // There, `as` is parsed as a TYPE-CASTING PATTERN, not as an expression, so
+    // the constant is never bridged and the compiler reports "expression pattern
+    // of type 'CFString' cannot match values of type 'String'". That is exactly
+    // what failed the build — four errors, one per case, and no iOS artifact has
+    // ever been produced as a result.
+    //
+    // Hoisting the bridge into a stored constant makes each case an ordinary
+    // expression pattern, matched with `==`. Same values, same semantics, and the
+    // bridge now happens where `as` means what it looks like it means.
+    private static let rsaKeyType = kSecAttrKeyTypeRSA as String
+    private static let ecKeyType = kSecAttrKeyTypeECSECPrimeRandom as String
+
+    /// Which SPKI header prefix a key needs, or nil for a key type we do not pin.
+    ///
+    /// Returning nil is a REFUSAL, not a pass: `spkiHash(of:)` propagates it and
+    /// `validate` treats a missing hash as a failed pin. An unknown key type must
+    /// never be waved through simply because we could not compute its hash.
+    static func headerKey(for attributes: [CFString: Any]) -> String? {
         guard let type = attributes[kSecAttrKeyType] as? String,
               let bits = attributes[kSecAttrKeySizeInBits] as? Int else { return nil }
         switch (type, bits) {
-        case (kSecAttrKeyTypeRSA as String, 2048): return "rsa-2048"
-        case (kSecAttrKeyTypeRSA as String, 4096): return "rsa-4096"
-        case (kSecAttrKeyTypeECSECPrimeRandom as String, 256): return "ec-256"
-        case (kSecAttrKeyTypeECSECPrimeRandom as String, 384): return "ec-384"
+        case (Self.rsaKeyType, 2048): return "rsa-2048"
+        case (Self.rsaKeyType, 4096): return "rsa-4096"
+        case (Self.ecKeyType, 256): return "ec-256"
+        case (Self.ecKeyType, 384): return "ec-384"
         default: return nil
         }
     }

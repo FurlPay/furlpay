@@ -116,9 +116,13 @@ one.
 
 ### Tests
 
+A selection — `Tests/` holds thirteen files; these are the ones worth knowing
+about before changing the code they cover.
+
 | File | Covers |
 | --- | --- |
 | `Tests/ActionRegistryTests.swift` | The allowlist: rejection paths and the drop-undeclared-fields invariant; plus the portfolio maths |
+| `Tests/CertificatePinningTests.swift` | SPKI header selection, pinned-host scope, pin-set integrity, and end-to-end hashing of four real published roots |
 | `Tests/DomainTests.swift` | Guardian score, prioritisation, briefing, voice parsing, natural time |
 | `Tests/SpendingTests.swift` | Period wire names, budget fractions, snapshot back-compat |
 | `Tests/PushDeepLinkTests.swift` | Payload parsing — the untrusted edge of the push path |

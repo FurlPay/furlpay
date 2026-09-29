@@ -122,6 +122,52 @@ public final class PasskeyService: NSObject {
         )
     }
 
+    /// Signs a SERVER-SUPPLIED challenge and returns the raw assertion.
+    ///
+    /// Distinct from `authenticate()` above, which completes a login and returns
+    /// a session token. This one performs only the ceremony and hands the fields
+    /// back, because the challenge it signs is bound to a specific payment or
+    /// order rather than to a session — the caller exchanges the result for a
+    /// single-use proof scoped to that one request.
+    ///
+    /// Reuses `perform`, so the "one ceremony at a time" guarantee covers this
+    /// too: a step-up cannot be started on top of a sign-in and silently abandon
+    /// the earlier continuation.
+    ///
+    /// Face ID is not requested here explicitly, and could not be. The server
+    /// sets `userVerification: "required"` when it mints the challenge and
+    /// enforces it when it verifies the signature; the platform authenticator
+    /// prompts because of that, and a client that asked for less would simply
+    /// produce an assertion the server rejects.
+    public func assertion(
+        challengeBase64URL: String,
+        relyingPartyId: String? = nil
+    ) async throws -> WebAuthnAssertionPayload {
+        guard let challenge = Data(base64URLEncoded: challengeBase64URL) else {
+            throw PasskeyError.failed("The server sent an invalid challenge.")
+        }
+
+        let provider = ASAuthorizationPlatformPublicKeyCredentialProvider(
+            relyingPartyIdentifier: relyingPartyId ?? Self.relyingParty
+        )
+        let request = provider.createCredentialAssertionRequest(challenge: challenge)
+
+        let authorization = try await perform([request])
+        guard let credential = authorization.credential
+            as? ASAuthorizationPlatformPublicKeyCredentialAssertion
+        else {
+            throw PasskeyError.failed("Unexpected credential type.")
+        }
+
+        return WebAuthnAssertionPayload(
+            credentialId: credential.credentialID.base64URLEncodedString(),
+            clientDataJSON: credential.rawClientDataJSON.base64URLEncodedString(),
+            authenticatorData: credential.rawAuthenticatorData.base64URLEncodedString(),
+            signature: credential.signature.base64URLEncodedString(),
+            userHandle: credential.userID.base64URLEncodedString()
+        )
+    }
+
     public func revoke(id: String) async throws {
         try await api.revokePasskey(id: id)
     }
