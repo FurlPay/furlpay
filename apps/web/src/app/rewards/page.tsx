@@ -15,10 +15,23 @@ interface RewardsData {
 
 export default function RewardsPage() {
   const [data, setData] = useState<RewardsData | null>(null);
+  const [unavailable, setUnavailable] = useState(false);
   const [copied, setCopied] = useState(false);
   useEffect(() => {
-    getJSON<RewardsData>("/api/rewards").then(setData).catch(console.error);
+    // A 503 means the rewards program is not live on this deployment
+    // (REWARDS_LIVE). Say so instead of spinning forever.
+    getJSON<RewardsData>("/api/rewards").then(setData).catch(() => setUnavailable(true));
   }, []);
+  if (unavailable) {
+    return (
+      <div className="px-4 pt-6">
+        <h1 className="text-[22px] font-bold tracking-tight">Rewards</h1>
+        <p className="mt-3 text-sm text-white/60">
+          Rewards aren&apos;t available yet. Nothing has been earned or tracked on your account.
+        </p>
+      </div>
+    );
+  }
   if (!data) return <Spinner />;
   const { referral: r, membership: m } = data;
 

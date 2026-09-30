@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { capabilityOr503, capabilityUnavailable } from "@/lib/capabilityGate";
 import { getAccount, newTx, recordTransaction } from "@/lib/store";
 import type { Token } from "@/lib/types";
 
@@ -12,19 +13,31 @@ import type { Token } from "@/lib/types";
 // prod until a real settlement path exists behind it.
 // ---------------------------------------------------------------------------
 
-/** Production has no real P2P settler, so every escrow-moving route stops here. */
+/**
+ * The P2P marketplace gate — EVERY P2P handler calls it, not only the ones
+ * that move escrow.
+ *
+ * It used to guard just create/release/cancel. Ads, saved payment methods
+ * (bank account numbers, UPI handles), quotes, appeals, ratings and the order
+ * book all served in production from process memory: a user could post an ad
+ * or save their bank details on one serverless instance and find them gone on
+ * the next request. P2P_LIVE (lib/flags.ts, `unimplemented`) now closes the
+ * whole surface.
+ *
+ * TWO conditions, either of which refuses: the capability gate (financial
+ * environment + flag), AND any production build (NODE_ENV). The second is the
+ * original guard, kept so preview deployments — production builds that
+ * financialEnvironment() classifies as development — stay closed as before.
+ */
 export function p2pSettlementUnavailable(): NextResponse | null {
-  if (process.env.NODE_ENV === "production") {
-    return NextResponse.json(
-      {
-        error: "service_unavailable",
-        detail: "P2P escrow settlement is not enabled on this deployment.",
-      },
-      { status: 503 },
-    );
-  }
+  const gated = capabilityOr503("P2P_LIVE", "The P2P marketplace");
+  if (gated) return gated;
+  if (process.env.NODE_ENV === "production") return capabilityUnavailable("P2P_LIVE", "The P2P marketplace");
   return null;
 }
+
+/** Alias used by the non-settlement P2P routes; same gate. */
+export const p2pUnavailable = p2pSettlementUnavailable;
 
 export class InsufficientFunds extends Error {
   constructor() {

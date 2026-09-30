@@ -1,6 +1,6 @@
-import { addressForSigning, hasWallet, signTransaction } from "@/lib/wallet";
+import { addressForSigning, hasWallet, signMessage, signTransaction, signTypedData } from "@/lib/wallet";
 import type { Eip1559Transaction } from "@/lib/evm/transaction";
-import type { AccountSigner, SignedTransaction, SignerCapabilities } from "./types";
+import type { AccountSigner, SignedTransaction, SignerCapabilities, TypedDataPayload } from "./types";
 import { SignerUnavailable } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -58,6 +58,26 @@ export class DeviceKeySigner implements AccountSigner {
     // Reading the key triggers the biometric gate, so this call IS the user's
     // approval of exactly this transaction.
     return signTransaction(tx);
+  }
+
+  // The two below delegate to the SAME lib/wallet functions WalletConnect used
+  // to call directly, so the bytes signed and the biometric gate are unchanged;
+  // what changes is that the call now goes through the signer abstraction.
+
+  async signMessage(message: string): Promise<string> {
+    await this.requireWallet();
+    return signMessage(message);
+  }
+
+  async signTypedData(payload: TypedDataPayload): Promise<string> {
+    await this.requireWallet();
+    return signTypedData(payload);
+  }
+
+  private async requireWallet(): Promise<void> {
+    if (!(await hasWallet())) {
+      throw new SignerUnavailable(this.kind, "No wallet on this device. Create or import one first.");
+    }
   }
 }
 

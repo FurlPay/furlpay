@@ -145,8 +145,12 @@ function DividendActions({ onSettled }: { onSettled: () => void }) {
   );
 }
 
-// Recurring investment (SIP) — first installment executes immediately via
-// /api/investing/order; the schedule itself is demo-local (same as web).
+// Recurring investment (SIP) — the first installment executes immediately via
+// /api/investing/order. THE REPEATS DO NOT HAPPEN: no schedule is stored and no
+// server worker executes recurring orders (api/investing/schedule is gated on
+// RECURRING_INVESTING_LIVE, which is `unimplemented`). This sheet used to end
+// on "SIP active — $X every month", promising purchases nothing would make. It
+// now says what actually happened: one order was placed.
 function SipSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [symbol, setSymbol] = useState("VOO");
   const [amount, setAmount] = useState("100");
@@ -223,10 +227,11 @@ function SipSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
       {done ? (
         <Surface style={{ alignItems: "center", gap: 6 }}>
           <Ionicons name="checkmark-circle" size={32} color={colors.neon} />
-          <Text style={[type.body, { fontWeight: "700" }]}>SIP active</Text>
+          <Text style={[type.body, { fontWeight: "700" }]}>First buy placed</Text>
           <Text style={[type.dim, { textAlign: "center" }]}>
-            ${amount} of {symbol.toUpperCase()} every {cadence === "weekly" ? "week" : "month"} — first
-            installment filled.
+            ${amount} of {symbol.toUpperCase()} was ordered once. Automatic{" "}
+            {cadence === "weekly" ? "weekly" : "monthly"} repeats aren&apos;t available yet — nothing
+            more will be bought unless you place the order again.
           </Text>
         </Surface>
       ) : (

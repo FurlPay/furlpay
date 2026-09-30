@@ -3,13 +3,14 @@ import crypto from "crypto";
 import { CHAINS, TOKENS, type Chain, type Token } from "@furlpay/types";
 import { recordDepositEvent, markCredited } from "@/lib/services/deposits";
 import { usdPrice } from "@/lib/services/swap";
-import { db } from "@/lib/store";
+import { findUserByLinkedWallet, persistAccount, type UserAccount } from "@/lib/store";
 import { log } from "@/lib/log";
 import { limit } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 import { depositReceivedEmail } from "@/lib/emailTemplates";
 import { lockLinkFor } from "@/lib/lockLink";
 import { occurredAtMs, recordApplied, staleEvent } from "@/lib/webhookOrdering";
+import { audit } from "@/lib/audit";
 
 // POST /api/webhooks/deposit-detect — address-activity webhooks from QuickNode
 // Streams (x-qn-signature) or Alchemy Notify (x-alchemy-signature). Both sign
@@ -58,12 +59,31 @@ function verifySignature(payload: string, req: Request): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-// Watched deposit addresses: the user's Safe plus an optional per-chain
-// treasury override (TREASURY_ADDRESS_BSC, TREASURY_ADDRESS_ETHEREUM, …).
-function isWatchedAddress(to: string, chain: Chain): boolean {
+// WHOSE DEPOSIT IS THIS? This used to watch only the seeded DEMO account's
+// `safeAddress` (a placeholder no key controls — see lib/receiveAddress.ts)
+// plus the shared treasury, and credited EVERY matching deposit — treasury
+// ones included — to the demo account's balances and emailed the demo address.
+// No real user's deposit was ever attributed to them.
+//
+// Resolution is now:
+//   - a VERIFIED linked wallet (EIP-191-proven, the only payable per-user
+//     address; lib/receiveAddress.ts) -> that user's account
+//   - the per-chain treasury -> UNATTRIBUTED: recorded and audited, credited to
+//     nobody, because a shared address carries no evidence of whose money it is
+//   - anything else -> ignored
+//
+// KNOWN LIMIT: findUserByLinkedWallet scans accounts loaded in THIS instance.
+// A deposit for an account another instance holds is ignored (never wrongly
+// credited). Closing that needs a durable address index — PGA2-R01 in
+// docs/audit/PRODUCTION_GAP_AUDIT.md.
+type Recipient = { kind: "user"; account: UserAccount } | { kind: "treasury" };
+
+function resolveRecipient(to: string, chain: Chain): Recipient | null {
+  const account = findUserByLinkedWallet(to);
+  if (account) return { kind: "user", account };
   const treasury = process.env[`TREASURY_ADDRESS_${chain.toUpperCase()}`];
-  const watched = [db.user.safeAddress, treasury].filter(Boolean) as string[];
-  return watched.some((w) => w.toLowerCase() === to.toLowerCase());
+  if (treasury && treasury.toLowerCase() === to.toLowerCase()) return { kind: "treasury" };
+  return null;
 }
 
 export async function POST(req: Request) {
@@ -107,7 +127,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `Unsupported token "${token}"` }, { status: 400 });
   }
 
-  if (!isWatchedAddress(to, chain)) {
+  const recipient = resolveRecipient(to, chain);
+  if (!recipient) {
     return NextResponse.json({ status: "ignored_address" });
   }
 
@@ -144,20 +165,26 @@ export async function POST(req: Request) {
   const event = await recordDepositEvent({ txHash, token, chain, amount, from, to, confirmations });
 
   // Credit the ledger exactly once per transaction, on the success transition.
-  if (event.status === "success" && (await markCredited(txHash))) {
-    const bal = db.tokenBalances.find((b) => b.token === token && b.chain === chain);
+  if (event.status === "success" && recipient.kind === "treasury") {
+    // Recorded (recordDepositEvent above) and audited, credited to no one.
+    audit("deposit.unattributed", "system", { chain, txHash, token, amount });
+    log.warn("treasury deposit not attributable to a user", { txHash, token, chain, amount });
+  } else if (event.status === "success" && recipient.kind === "user" && (await markCredited(txHash))) {
+    const account = recipient.account;
+    const bal = account.tokenBalances.find((b) => b.token === token && b.chain === chain);
     if (bal) {
       bal.amount += amount;
       bal.usdValue = bal.amount * usdPrice(token);
     } else {
-      db.tokenBalances.push({ token, chain, amount, usdValue: amount * usdPrice(token) });
+      account.tokenBalances.push({ token, chain, amount, usdValue: amount * usdPrice(token) });
     }
-    log.info("deposit credited", { txHash, token, chain, amount });
-    if (db.user.email) {
+    void persistAccount(account.user.id);
+    log.info("deposit credited", { txHash, token, chain, amount, userId: account.user.id });
+    if (account.user.email) {
       // Keyed by txHash: markCredited already guarantees one credit, and the
       // idempotency key catches a redelivered webhook racing the KV guard.
       void sendEmail({
-        to: db.user.email,
+        to: account.user.email,
         category: "deposit",
         idempotencyKey: `deposit-${txHash}`,
         ...depositReceivedEmail({
@@ -166,7 +193,7 @@ export async function POST(req: Request) {
           chain,
           txHash,
           confirmations: event.confirmations,
-          lockUrl: lockLinkFor(db.user.id) ?? undefined,
+          lockUrl: lockLinkFor(account.user.id) ?? undefined,
         }),
       });
     }

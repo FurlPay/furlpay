@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -37,6 +38,9 @@ const CreateAd = z.object({
 // before signing up), so it gets its own rate-limit budget and returns only the
 // redacted ad shape: maker badge yes, account numbers never.
 export async function GET(req: NextRequest) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const limited = await rateLimitOr429(req, "p2p.ads.list", { limit: 120, windowMs: 60_000 });
   if (limited) return limited;
 
@@ -65,6 +69,9 @@ export async function GET(req: NextRequest) {
 // method belongs to the caller, so an ad can never point buyers at a stranger's
 // bank account.
 export async function POST(req: NextRequest) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 

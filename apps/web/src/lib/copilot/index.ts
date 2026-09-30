@@ -1,8 +1,9 @@
-import { db } from "@/lib/store";
+import type { UserAccount } from "@/lib/store";
 import { trackCost } from "@/lib/costTracker";
 import { getAccountBalanceUsd } from "@/lib/services/account";
 import { planIntent } from "@/lib/services/intentRouter";
-import { generateStays } from "@/lib/travel/data";
+import { earnIsLive, selectVault } from "@/lib/services/morpho";
+import { capabilityMode } from "@/lib/capabilityGate";
 import type { Chain, Stablecoin } from "@furlpay/types";
 
 // ---------------------------------------------------------------------------
@@ -89,21 +90,21 @@ function parseCadence(text: string): "day" | "week" | "month" | undefined {
 
 // ---- deterministic tools (read the real store) -----------------------------
 
-function toolNetWorth() {
-  const crypto = db.tokenBalances.reduce((s, b) => s + b.usdValue, 0);
-  const fiat = db.fiatBalances.reduce((s, b) => s + b.usdValue, 0);
-  const equities = db.holdings.reduce((s, h) => s + h.marketValue, 0);
+function toolNetWorth(account: UserAccount) {
+  const crypto = account.tokenBalances.reduce((s, b) => s + b.usdValue, 0);
+  const fiat = account.fiatBalances.reduce((s, b) => s + b.usdValue, 0);
+  const equities = account.holdings.reduce((s, h) => s + h.marketValue, 0);
   return {
     netWorth: round(crypto + fiat + equities),
-    spendable: getAccountBalanceUsd(),
+    spendable: getAccountBalanceUsd(account.user.id),
     breakdown: { crypto: round(crypto), fiat: round(fiat), equities: round(equities) },
   };
 }
 
 /** Spend-by-category over a window (default: current calendar month). */
-function toolSpend(category?: string, sinceIso?: string) {
+function toolSpend(account: UserAccount, category?: string, sinceIso?: string) {
   const since = sinceIso ? new Date(sinceIso) : startOfMonth();
-  const out = db.transactions.filter(
+  const out = account.transactions.filter(
     (t) => t.direction === "out" && new Date(t.timestamp) >= since && t.status !== "declined"
   );
   const byCat: Record<string, number> = {};
@@ -124,23 +125,42 @@ function toolSpend(category?: string, sinceIso?: string) {
   return { since: since.toISOString(), total, byCategory: byCat, travel, matched };
 }
 
-const EARN_PRODUCTS = [
-  { token: "USDC", apy: 8.2, risk: "Low", protocol: "FurlPay Earn · Aave v3" },
-  { token: "USDT", apy: 9.5, risk: "Low", protocol: "FurlPay Earn · Morpho" },
-  { token: "EURC", apy: 6.4, risk: "Low", protocol: "FurlPay Earn · Aave v3" },
-];
+/**
+ * Earn, quoted from the vault the deposit route would actually use.
+ *
+ * This used to be a hardcoded table (USDC 8.2%, USDT 9.5%, EURC 6.4%) labelled
+ * "FurlPay Earn · Aave v3" — none of which was read from anywhere, and the
+ * deposit route it offered to confirm into is Morpho-only and 503s when Earn is
+ * not live. Quoting a rate we cannot source, then offering a confirmation the
+ * route will refuse, is two misstatements in one reply.
+ */
+type EarnFacts =
+  | { available: false; idleUsdc: number }
+  | { available: true; idleUsdc: number; vault: string; apy: number; projectedYearly: number };
 
-function toolEarn() {
-  const idleUsdc = db.tokenBalances.find((b) => b.token === "USDC")?.usdValue ?? 0;
-  const best = EARN_PRODUCTS[0];
-  return { products: EARN_PRODUCTS, idleUsdc: round(idleUsdc), projectedYearly: round((idleUsdc * best.apy) / 100) };
+async function toolEarn(account: UserAccount): Promise<EarnFacts> {
+  const idleUsdc = round(account.tokenBalances.find((b) => b.token === "USDC")?.usdValue ?? 0);
+  if (!earnIsLive()) return { available: false, idleUsdc };
+  try {
+    const vault = await selectVault();
+    return {
+      available: true,
+      idleUsdc,
+      vault: vault.name,
+      apy: round(vault.netApy),
+      projectedYearly: round((idleUsdc * vault.netApy) / 100),
+    };
+  } catch {
+    // The rate source is down. Saying so beats quoting a remembered number.
+    return { available: false, idleUsdc };
+  }
 }
 
-function toolPortfolio() {
-  const marketValue = round(db.holdings.reduce((s, h) => s + h.marketValue, 0));
-  const costBasis = round(db.holdings.reduce((s, h) => s + (h.costBasis ?? 0), 0));
+function toolPortfolio(account: UserAccount) {
+  const marketValue = round(account.holdings.reduce((s, h) => s + h.marketValue, 0));
+  const costBasis = round(account.holdings.reduce((s, h) => s + (h.costBasis ?? 0), 0));
   return {
-    holdings: db.holdings.map((h) => ({ symbol: h.symbol, shares: h.shares, marketValue: round(h.marketValue) })),
+    holdings: account.holdings.map((h) => ({ symbol: h.symbol, shares: h.shares, marketValue: round(h.marketValue) })),
     marketValue,
     totalReturn: round(marketValue - costBasis),
   };
@@ -149,10 +169,10 @@ function toolPortfolio() {
 // ---- support tools -----------------------------------------------------------
 
 /** Status of recent outgoing/incoming money that a user would ask about. */
-function toolTransactionStatus(idFragment?: string) {
+function toolTransactionStatus(account: UserAccount, idFragment?: string) {
   const txs = idFragment
-    ? db.transactions.filter((t) => t.id.includes(idFragment)).slice(0, 3)
-    : db.transactions.filter((t) => t.status === "pending").slice(0, 5);
+    ? account.transactions.filter((t) => t.id.includes(idFragment)).slice(0, 3)
+    : account.transactions.filter((t) => t.status === "pending").slice(0, 5);
   return {
     matched: txs.map((t) => ({
       id: t.id,
@@ -162,12 +182,12 @@ function toolTransactionStatus(idFragment?: string) {
       status: t.status,
       timestamp: t.timestamp,
     })),
-    pendingCount: db.transactions.filter((t) => t.status === "pending").length,
+    pendingCount: account.transactions.filter((t) => t.status === "pending").length,
   };
 }
 
-function toolKycStatus() {
-  const u = db.user;
+function toolKycStatus(account: UserAccount) {
+  const u = account.user;
   const missing =
     u.kycStatus === "verified"
       ? []
@@ -179,10 +199,10 @@ function toolKycStatus() {
 
 // ---- the router ------------------------------------------------------------
 
-export async function runCopilot(messages: ChatMessage[]): Promise<CopilotResult> {
+export async function runCopilot(messages: ChatMessage[], account: UserAccount): Promise<CopilotResult> {
   const last = [...messages].reverse().find((m) => m.role === "user")?.content ?? "";
   const t = last.toLowerCase();
-  const result = await route(last, t);
+  const result = await route(last, t, account);
 
   // Optional LLM phrasing over grounded facts. Never invents data or actions.
   if (process.env.ANTHROPIC_API_KEY) {
@@ -195,11 +215,11 @@ export async function runCopilot(messages: ChatMessage[]): Promise<CopilotResult
   return result;
 }
 
-async function route(raw: string, t: string): Promise<CopilotResult> {
+async function route(raw: string, t: string, account: UserAccount): Promise<CopilotResult> {
   // --- card freeze / unfreeze (support action, HITL like all mutations) ---
   if (/\b(freeze|unfreeze|lock|unlock)\b.*\bcard\b|\bcard\b.*\b(freeze|frozen|unfreeze|lock|unlock)\b/.test(t)) {
     const unfreeze = /\b(unfreeze|unlock)\b/.test(t);
-    const card = db.cards.find((c) => (unfreeze ? c.frozen : !c.frozen)) ?? db.cards[0];
+    const card = account.cards.find((c) => (unfreeze ? c.frozen : !c.frozen)) ?? account.cards[0];
     if (!card) {
       return {
         intent: "card_control",
@@ -231,7 +251,7 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
   // --- transaction / deposit status (support lookup) ---
   if (/\b(where('| i)?s|status of|stuck|delayed|not (arrived|credited|received)|track)\b.*\b(deposit|transaction|payment|transfer|money)\b/.test(t)) {
     const idFragment = raw.match(/\b(tx_[a-zA-Z0-9-]+|0x[a-fA-F0-9]{8,})\b/)?.[0];
-    const d = toolTransactionStatus(idFragment);
+    const d = toolTransactionStatus(account, idFragment);
     return {
       intent: "transaction_status",
       reply: d.matched.length
@@ -247,7 +267,7 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
 
   // --- KYC / verification status (support lookup) ---
   if (/\b(kyc|verification|verified|identity|onboarding tier)\b/.test(t)) {
-    const d = toolKycStatus();
+    const d = toolKycStatus(account);
     return {
       intent: "kyc_status",
       reply:
@@ -262,7 +282,7 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
 
   // --- balance / net worth ---
   if (/\b(balance|net worth|how much.*(have|got)|portfolio value|spendable)\b/.test(t)) {
-    const d = toolNetWorth();
+    const d = toolNetWorth(account);
     return {
       intent: "balance",
       reply: `Your net worth is $${d.netWorth.toLocaleString()} — $${d.spendable.toLocaleString()} spendable now, with $${d.breakdown.crypto.toLocaleString()} in stablecoins, $${d.breakdown.equities.toLocaleString()} in equities and $${d.breakdown.fiat.toLocaleString()} in fiat.`,
@@ -275,7 +295,7 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
   // --- spending analytics ---
   if (/\b(spend|spent|spending|how much did i)\b/.test(t)) {
     const category = /travel|hotel|flight/.test(t) ? "travel" : undefined;
-    const d = toolSpend(category);
+    const d = toolSpend(account, category);
     const headline = category
       ? `You've spent $${d.travel.toLocaleString()} on travel this month.`
       : `You've spent $${d.total.toLocaleString()} this month across ${Object.keys(d.byCategory).length} categories.`;
@@ -290,10 +310,19 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
 
   // --- earn / yield ---
   if (/\b(earn|yield|apy|interest|idle|passive)\b/.test(t)) {
-    const d = toolEarn();
+    const d = await toolEarn(account);
+    if (!d.available) {
+      return {
+        intent: "earn",
+        reply: `You have $${d.idleUsdc.toLocaleString()} idle USDC. Earn isn't available on your account right now, so I can't quote a rate or move funds into it.`,
+        toolCalls: [{ tool: "get_earn", args: {} }],
+        data: d,
+        suggestions: ["Check my balance", "How much did I spend this month?"],
+      };
+    }
     return {
       intent: "earn",
-      reply: `You have $${d.idleUsdc.toLocaleString()} idle USDC. At ${EARN_PRODUCTS[0].apy}% APY via ${EARN_PRODUCTS[0].protocol}, that earns ~$${d.projectedYearly.toLocaleString()}/yr. Want me to move it into Earn?`,
+      reply: `You have $${d.idleUsdc.toLocaleString()} idle USDC. ${d.vault} currently pays ${d.apy}% net APY (variable), about $${d.projectedYearly.toLocaleString()}/yr at today's rate. Want me to move it into Earn?`,
       toolCalls: [{ tool: "get_earn", args: {} }],
       data: d,
       requiresConfirmation:
@@ -303,11 +332,11 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
               method: "POST",
               endpoint: "/api/earn/deposit",
               body: { token: "USDC", amountUsd: d.idleUsdc },
-              summary: `Deposit $${d.idleUsdc.toLocaleString()} USDC into FurlPay Earn (${EARN_PRODUCTS[0].apy}% APY)`,
+              summary: `Deposit $${d.idleUsdc.toLocaleString()} USDC into ${d.vault} (${d.apy}% variable APY)`,
               amountUsd: d.idleUsdc,
             }
           : undefined,
-      suggestions: ["Deposit idle USDC", "Compare yield products", "What's the risk?"],
+      suggestions: ["Deposit idle USDC", "What's the risk?"],
     };
   }
 
@@ -317,6 +346,17 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
     const symbol = parseTicker(raw) ?? "VOO";
     const cadence = parseCadence(raw);
     const side = /\bsell\b/.test(t) ? "sell" : "buy";
+    if (cadence && capabilityMode("RECURRING_INVESTING_LIVE") === null) {
+      // Nothing executes recurring orders (see api/investing/schedule). Offering
+      // "Confirm to activate the schedule" would activate nothing.
+      return {
+        intent: "invest_dca",
+        reply: `Recurring investments aren't available yet, so I can't set up a ${cadence} ${side} of ${symbol}. You can place a one-off order instead.`,
+        toolCalls: [{ tool: "schedule_investment", args: { symbol, notional: amount ?? 50, cadence } }],
+        data: { symbol, cadence, notional: amount ?? 50, available: false },
+        suggestions: [`Buy $${amount ?? 50} of ${symbol} now`, "Show my portfolio"],
+      };
+    }
     if (cadence) {
       return {
         intent: "invest_dca",
@@ -391,18 +431,17 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
 
   // --- travel booking ---
   if (/\b(book|hotel|stay|flight|travel|trip|vacation|holiday)\b/.test(t)) {
+    // No stays are listed here. This branch used to call generateStays(), which
+    // invents hotel names and nightly prices from a hash of the city, and
+    // presented them as "top stays". Real availability comes from the travel
+    // search, which reports honestly when no live inventory provider exists.
     const city = extractCity(raw);
-    const stays = generateStays(city || "Anywhere", { count: 3 });
     return {
       intent: "travel",
-      reply: stays.length
-        ? `Here are top stays${city ? ` in ${city}` : ""}: ${stays
-            .map((s) => `${s.name} ($${s.nightlyUsd}/night)`)
-            .join(", ")}. Tell me your dates and I'll book with USDC — you earn 2% cashback.`
-        : `I can book 2.2M+ hotels and flights with stablecoins. Where and when?`,
+      reply: `Search stays${city ? ` in ${city}` : ""} from Travel with your dates — I only quote prices the live inventory returns.`,
       toolCalls: [{ tool: "search_stays", args: { city } }],
-      data: { city, stays },
-      suggestions: ["Book the first one", "Show flights instead", "Somewhere cheaper"],
+      data: { city },
+      suggestions: ["Open travel search", "Check my balance"],
     };
   }
 
@@ -456,7 +495,7 @@ async function route(raw: string, t: string): Promise<CopilotResult> {
     reply:
       "I'm your FurlPay co-pilot. I can check balances, analyze spending, book travel, invest in stocks/ETFs, earn yield, swap stablecoins, send payments — and handle support: transaction status, card freezes, KYC checks, or opening a ticket.",
     toolCalls: [],
-    data: toolNetWorth(),
+    data: toolNetWorth(account),
     suggestions: [
       "How much did I spend on travel this month?",
       "Earn yield on my idle USDC",

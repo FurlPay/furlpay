@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -31,6 +32,9 @@ const STATUSES: P2POrderStatus[] = ["pending_payment", "paid", "released", "canc
 
 // GET /api/p2p/orders — the caller's orders on both sides of the book.
 export async function GET(req: NextRequest) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const userId = auth.account.user.id;
@@ -64,26 +68,27 @@ export async function POST(req: NextRequest) {
 
   const idempotencyKey = req.headers.get("Idempotency-Key");
   return withIdempotency(idempotencyKey, "p2p.orders.create", async () => {
+    // Funding happens INSIDE createOrder, synchronously, before any state is
+    // written, so an unfunded order never exists — not even for one tick.
+    //
+    // This used to create the order first and debit second, unwinding with an
+    // `await import()` + cancelOrder when the seller could not fund it. For the
+    // length of that await a live order backed by nothing was visible and
+    // releasable: a release in the gap credited the buyer from escrow nobody
+    // had paid into. (The unwind also cancelled AS THE TAKER, which the seller
+    // payment-window rule in cancelOrder now refuses on a buy ad.)
     let created;
     try {
-      created = createOrder(userId, body);
+      created = createOrder(userId, body, { fundEscrow: debitAsset });
     } catch (e) {
+      if (e instanceof InsufficientFunds) {
+        return NextResponse.json({ ok: false, error: "seller_insufficient_balance" }, { status: 409 });
+      }
       const msg = (e as Error).message;
       return NextResponse.json({ ok: false, error: msg }, { status: msg.includes("not found") ? 404 : 400 });
     }
 
     const { order, escrow } = created;
-    try {
-      debitAsset(escrow.sellerId, escrow.asset, escrow.amount);
-    } catch (e) {
-      // The seller cannot fund the trade. Unwind the order rather than leaving
-      // a live order backed by nothing — an unfunded escrow is the one state
-      // this design exists to prevent.
-      const { cancelOrder } = await import("@/lib/services/p2p");
-      cancelOrder(order.id, userId, "seller_insufficient_balance");
-      const status = e instanceof InsufficientFunds ? 409 : 500;
-      return NextResponse.json({ ok: false, error: "seller_insufficient_balance" }, { status });
-    }
 
     recordP2PTransaction(escrow.sellerId, {
       direction: "out",

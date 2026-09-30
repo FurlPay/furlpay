@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { markPaid } from "@/lib/services/p2p";
@@ -12,6 +13,9 @@ export const dynamic = "force-dynamic";
 // fixed by the order. Accepting a client-supplied amount here would let a buyer
 // claim a different figure than the one escrow was sized against.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const userId = auth.account.user.id;

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -30,6 +31,9 @@ const AddEvidence = z.object({
 // already open. Opening freezes the escrow: neither side can move it until an
 // operator resolves the appeal.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const userId = auth.account.user.id;
@@ -61,6 +65,9 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
 // DELETE /api/p2p/orders/:id/appeal — withdraw an appeal you opened. The order
 // returns to whichever state it was in, and the escrow unfreezes.
 export async function DELETE(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const userId = auth.account.user.id;

@@ -1,4 +1,4 @@
-import { db, type UserAccount } from "@/lib/store";
+import type { UserAccount } from "@/lib/store";
 import type { Transaction } from "@/lib/types";
 
 // ---------------------------------------------------------------------------
@@ -43,7 +43,7 @@ export interface DisposalEvent {
   gain: number;
 }
 
-function disposals(transactions: Transaction[] = db.transactions): DisposalEvent[] {
+function disposals(transactions: Transaction[]): DisposalEvent[] {
   const events: DisposalEvent[] = [];
   for (const t of transactions) {
     if (t.status === "declined") continue;
@@ -87,9 +87,9 @@ function isCashback(t: Transaction): boolean {
   return t.direction === "in" && /cashback|reward|rebate/i.test(`${t.title} ${t.subtitle}`);
 }
 
-export function buildPnl(account?: UserAccount): PnlReport {
-  const holdings = account ? account.holdings : db.holdings;
-  const transactions = account ? account.transactions : db.transactions;
+export function buildPnl(account: UserAccount): PnlReport {
+  const holdings = account.holdings;
+  const transactions = account.transactions;
 
   const positions = holdings.map((h) => ({
     symbol: h.symbol,
@@ -118,20 +118,12 @@ export function buildPnl(account?: UserAccount): PnlReport {
 }
 
 /** IRS Form-8949-style CSV of realized disposal events. */
-export function buildTaxCsv(target?: UserAccount | number, maybeYear?: number): string {
-  let txs: Transaction[] = db.transactions;
-  let year: number | undefined;
-
-  if (typeof target === "number") {
-    year = target;
-  } else if (target) {
-    txs = target.transactions;
-    year = maybeYear;
-  } else {
-    year = maybeYear;
-  }
-
-  const rows = disposals(txs)
+//
+// The account is REQUIRED. This used to accept `(year)` or nothing and fall back
+// to the seeded demo account's transactions — a tax report of someone else's
+// disposals for any caller that forgot to pass one.
+export function buildTaxCsv(account: UserAccount, year?: number): string {
+  const rows = disposals(account.transactions)
     .filter((e) => (year ? new Date(e.date).getUTCFullYear() === year : true))
     .sort((a, b) => a.date.localeCompare(b.date));
 

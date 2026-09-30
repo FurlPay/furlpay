@@ -1,4 +1,5 @@
 import type { Eip1559Transaction } from "@/lib/evm/transaction";
+import type { TypedDataDomain, TypedDataTypes } from "@/lib/evm/eip712";
 import type { DeviceConnection } from "./connection";
 
 // ---------------------------------------------------------------------------
@@ -101,6 +102,54 @@ export interface AccountSigner {
 
   /** Signs, proving presence as `capabilities().presence` describes. */
   signTransaction(tx: Eip1559Transaction): Promise<SignedTransaction>;
+
+  /**
+   * EIP-191 `personal_sign`. Returns the 65-byte signature as 0x-hex.
+   *
+   * OPTIONAL because not every signer can: a digest-only card signs a hash it
+   * cannot show, and some hardware firmware has no message path at all. A
+   * caller that needs it must check for the method and refuse — never fall
+   * back to a different signer, which would sign from an address the user was
+   * not looking at. See `signMessageWith`.
+   */
+  signMessage?(message: string): Promise<string>;
+
+  /**
+   * EIP-712 typed data. Returns the 65-byte signature as 0x-hex. Optional for
+   * the same reason as signMessage; `capabilities().eip712` says whether the
+   * signer can render it.
+   */
+  signTypedData?(payload: TypedDataPayload): Promise<string>;
+}
+
+export interface TypedDataPayload {
+  domain: TypedDataDomain;
+  types: TypedDataTypes;
+  primaryType: string;
+  message: Record<string, unknown>;
+}
+
+/**
+ * Personal-sign through a specific signer, or refuse.
+ *
+ * WalletConnect used to import signMessage/signTypedData from lib/wallet
+ * directly, so the on-device key was the only thing that could ever answer a
+ * dApp's message request — adding a hardware signer would have meant rewriting
+ * the flow. It now goes through the signer, and a signer without the method is
+ * a refusal, not a silent fallback.
+ */
+export async function signMessageWith(signer: AccountSigner, message: string): Promise<string> {
+  if (!signer.signMessage) {
+    throw new SignerUnavailable(signer.kind, `${signer.label} cannot sign messages.`);
+  }
+  return signer.signMessage(message);
+}
+
+export async function signTypedDataWith(signer: AccountSigner, payload: TypedDataPayload): Promise<string> {
+  if (!signer.signTypedData || !signer.capabilities().eip712) {
+    throw new SignerUnavailable(signer.kind, `${signer.label} cannot sign typed data.`);
+  }
+  return signer.signTypedData(payload);
 }
 
 /**

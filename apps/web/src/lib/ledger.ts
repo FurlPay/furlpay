@@ -304,7 +304,7 @@ export async function recordMovement(
   direction: "in" | "out",
   amountUsd: number,
   memo: string,
-  userId: string = DEMO_USER_ID
+  userId: string
 ): Promise<{ id: string }> {
   const cents = usdToCents(amountUsd);
   if (cents <= 0) throw new LedgerError(`Movement must be at least 1 cent (got $${amountUsd})`);

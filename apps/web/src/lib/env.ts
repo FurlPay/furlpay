@@ -98,6 +98,20 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("OFFRAMP_LIVE"),
       v("FURLPAY_OFFRAMP_PROVIDER"),
       v("FURLPAY_OFFRAMP_PROVIDER_API_KEY"),
+      // Cannot be enabled: no lender and no biller network is contracted
+      // (flags.ts `unimplemented`). Registered so the names exist.
+      v("CREDIT_LIVE"),
+      v("FURLPAY_CREDIT_PROVIDER"),
+      v("FURLPAY_CREDIT_PROVIDER_API_KEY"),
+      v("BILL_PAY_LIVE"),
+      v("FURLPAY_BILLPAY_PROVIDER"),
+      v("FURLPAY_BILLPAY_PROVIDER_API_KEY"),
+      v("REWARDS_LIVE"),
+      v("FURLPAY_REWARDS_LEDGER"),
+      v("RECURRING_INVESTING_LIVE"),
+      v("P2P_LIVE"),
+      v("FURLPAY_P2P_STORE"),
+      v("ACCOUNT_SPEND_LIVE"),
       // WalletConnect relay project id. Public (it appears in the relay URL),
       // registered because clientFlags/registry.ts gates the wallet_connect
       // flag on it — no relay, no screen.
@@ -432,6 +446,93 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("NEXT_PUBLIC_GA4_ID"),
       v("NEXT_PUBLIC_GSC_VERIFICATION"),
       v("NEXT_PUBLIC_BING_VERIFICATION"),
+    ],
+  },
+  // --- Registered by the Sep 30 2026 environment audit ----------------------
+  // Every one of these was READ by production code without being registered
+  // here (AGENTS.md rule 10), so /api/security/env could not report them and
+  // nothing checked their presence. envRegistry.spec.ts now fails on any
+  // process.env read in src/ that is missing from this file.
+  {
+    group: "Secrets and signing credentials",
+    vars: [
+      // Cron routes accept either name; production must set one.
+      v("CRON_SECRET"),
+      v("FURLPAY_CRON_SECRET"),
+      v("FURLPAY_WEBHOOK_SECRET"),
+      v("COMPLYADVANTAGE_WEBHOOK_SECRET"),
+      // MPC signing proxy (lib/signing via the server). The private key is a
+      // Turnkey API credential, never a wallet key.
+      v("TURNKEY_API_URL"),
+      v("TURNKEY_API_PUBLIC_KEY"),
+      v("TURNKEY_API_PRIVATE_KEY"),
+      v("STRIPE_ISSUING_KEY"),
+      v("BRIDGE_API_KEY"),
+      v("FURLPAY_NFT_INDEXER"),
+      v("FURLPAY_NFT_INDEXER_API_KEY"),
+      v("FURLPAY_ALERT_SLACK_WEBHOOK"),
+      v("FURLPAY_ALERT_WEBHOOK_URL"),
+    ],
+  },
+  {
+    group: "Chain RPC endpoints",
+    vars: [
+      v("SOLANA_RPC_URL"),
+      v("SOLANA_DEVNET_RPC_URL"),
+      v("HELIUS_RPC_URL"),
+      v("ETHEREUM_SEPOLIA_RPC_URL"),
+      v("ARC_RPC_URL"),
+      v("ARC_TESTNET_RPC_URL"),
+      v("TEMPO_RPC_URL"),
+      v("TEMPO_TESTNET_RPC_URL"),
+      v("CCTP_IRIS_API_URL"),
+      v("CCTP_TESTNET"),
+      v("REDIS_URL"),
+    ],
+  },
+  {
+    group: "Arc rail and x402 tuning",
+    vars: [
+      v("ARC_RAIL_LIVE"),
+      v("ARC_MAINNET_ACTIVATED"),
+      v("ARC_CONFIRMATIONS"),
+      v("ARC_RECEIPT_TIMEOUT_MS"),
+      v("X402_REQUIRE_RESOURCE_BINDING"),
+      v("X402_SETTLEMENT_GAS_LIMIT"),
+      v("SWAP_QUOTE_TTL_MS"),
+      v("RAIN_ENFORCE_SOURCE_IP"),
+    ],
+  },
+  {
+    group: "Staking display metadata",
+    vars: [
+      v("FURLPAY_STAKING_ETH_VAULT_NAME"),
+      v("FURLPAY_STAKING_ETH_VAULT_SYMBOL"),
+      v("FURLPAY_STAKING_ETH_REBASING_NAME"),
+      v("FURLPAY_STAKING_ETH_REBASING_SYMBOL"),
+    ],
+  },
+  {
+    group: "Community, market data and email",
+    vars: [
+      v("ALPACA_DATA_BASE"),
+      v("BTC_PRICE_CHANNEL_ID"),
+      v("MARKET_BRIEF_CHANNEL_ID"),
+      v("MARKET_CARDS_CHANNEL_ID"),
+      v("FURLPAY_DISCORD_ADMINS"),
+      v("EMAIL_REPLY_TO"),
+      v("FURLPAY_VERIFY_DOMAIN"),
+    ],
+  },
+  {
+    group: "Build provenance (set by CI / Vercel, never secret)",
+    vars: [
+      v("FURLPAY_BUILD_SHA"),
+      v("FURLPAY_BUILD_BRANCH"),
+      v("FURLPAY_BUILD_ID"),
+      v("FURLPAY_BUILD_TIME"),
+      v("VERCEL_DEPLOYMENT_ID"),
+      v("VERCEL_PROJECT_PRODUCTION_URL"),
     ],
   },
 ];

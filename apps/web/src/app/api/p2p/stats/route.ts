@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { orderStats } from "@/lib/services/p2p";
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
 // rate, rating). Scoped to the session user; there is no path to another
 // account's stats beyond the public maker badge on an ad.
 export async function GET(req: NextRequest) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 

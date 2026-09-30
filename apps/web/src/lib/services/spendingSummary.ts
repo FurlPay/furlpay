@@ -8,7 +8,6 @@
 // summary is meaningful on any day, not just Mondays.
 // ---------------------------------------------------------------------------
 
-import { db } from "@/lib/store";
 import type { Transaction } from "@/lib/types";
 
 export interface CategoryBreakdown {
@@ -69,18 +68,11 @@ function capitalize(s: string): string {
 }
 
 /** Build the rolling 7-day spending summary ending now. */
-export function buildSpendingSummary(
-  txsOrNow?: Transaction[] | Date,
-  maybeNow = new Date()
-): SpendingSummary {
-  let allTxs: Transaction[] = db.transactions;
-  let now = maybeNow;
-
-  if (Array.isArray(txsOrNow)) {
-    allTxs = txsOrNow;
-  } else if (txsOrNow instanceof Date) {
-    now = txsOrNow;
-  }
+//
+// The caller's transactions are REQUIRED. This used to accept a Date or nothing
+// and fall back to the seeded demo account's history — someone else's spending
+// for any caller that forgot to pass the account's.
+export function buildSpendingSummary(allTxs: readonly Transaction[], now = new Date()): SpendingSummary {
 
   const weekMs = 7 * 86_400_000;
   const start = new Date(now.getTime() - weekMs);

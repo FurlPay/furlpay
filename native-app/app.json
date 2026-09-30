@@ -125,7 +125,8 @@
       "supportsTablet": false,
       "associatedDomains": [
         "applinks:furlpay.com",
-        "applinks:www.furlpay.com"
+        "applinks:www.furlpay.com",
+        "webcredentials:furlpay.com"
       ],
       "config": {
         "usesNonExemptEncryption": false
@@ -146,7 +147,8 @@
       "entitlements": {
         "keychain-access-groups": [
           "$(AppIdentifierPrefix)com.furlpay.app"
-        ]
+        ],
+        "com.apple.developer.devicecheck.appattest-environment": "production"
       }
     }
   }

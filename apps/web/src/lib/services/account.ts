@@ -1,4 +1,4 @@
-import { getAccount, newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
+import { getAccount, newTx, recordTransaction } from "@/lib/store";
 import { recordMovement, usdToCents } from "@/lib/ledger";
 import { log } from "@/lib/log";
 
@@ -27,7 +27,7 @@ function accountEntry(userId: string) {
   return entry;
 }
 
-export function getAccountBalanceUsd(userId: string = DEMO_USER_ID): number {
+export function getAccountBalanceUsd(userId: string): number {
   const entry = accountEntry(userId);
   return entry ? centsToUsd(usdToCents(entry.amount)) : 0;
 }

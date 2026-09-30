@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authz";
+import { capabilityMode, capabilityUnavailable } from "@/lib/capabilityGate";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/rewards — referrals, membership tier progress, and the mission center.
-// Mock/demo: values are deterministic. A live build reads referral conversions
-// and mission completion from the ledger + activity log.
+//
+// NOT LIVE. Every value below is a fixture: the same referral code, invite
+// counts, earnings, points and "completed" missions for every user, and perks
+// for a card program that does not exist. It used to be served as-is in
+// production. REWARDS_LIVE (lib/flags.ts, `unimplemented`) now gates it: 503 in
+// production, the fixture marked `simulated: true` elsewhere.
 const TIERS = ["Standard", "Pro", "Ultra"] as const;
 
 const MISSIONS = [
@@ -19,6 +24,8 @@ const MISSIONS = [
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+  const mode = capabilityMode("REWARDS_LIVE");
+  if (mode === null) return capabilityUnavailable("REWARDS_LIVE", "Rewards");
 
   const tier = auth.account.user.tier;
   const tierIndex = TIERS.indexOf(tier as (typeof TIERS)[number]);
@@ -31,6 +38,7 @@ export async function GET(req: NextRequest) {
   const pendingRewards = MISSIONS.filter((m) => !m.done).reduce((s, m) => s + m.reward, 0);
 
   return NextResponse.json({
+    simulated: mode === "simulated",
     referral: {
       code: "ASHU2026",
       url: "https://furlpay.com/r/ASHU2026",

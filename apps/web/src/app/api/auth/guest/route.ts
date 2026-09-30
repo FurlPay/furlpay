@@ -48,10 +48,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Guest login disabled" }, { status: 403 });
   }
 
+  // ROLES ARE NEVER INHERITED FROM THE DEMO SEED. db.user.roles is
+  // ["user", "compliance_officer", "admin"] (so the HITL console is clickable
+  // offline), and this route used to copy it into the token — every guest on a
+  // preview deployment with ALLOW_GUEST_LOGIN=1 received an admin-labelled
+  // session with no credential at all. requireRole's live-grant check
+  // (effectiveRoles) would still have refused it, but an unauthenticated
+  // session must not depend on a second layer to be harmless.
   const token = await signSession({
     sub: db.user.id,
     safe: db.user.safeAddress,
-    roles: db.user.roles,
+    roles: ["user"],
     guest: true,
     sepoch: await currentEpoch(db.user.id),
   });

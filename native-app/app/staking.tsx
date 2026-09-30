@@ -18,7 +18,8 @@ import { useFlag } from "@/lib/flags";
 import { useSecureScreen } from "@/lib/secureScreen";
 import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { track, bucketUsd } from "@/lib/analytics";
-import { getKnownAddress, signTransaction } from "@/lib/wallet";
+import { getKnownAddress } from "@/lib/wallet";
+import { defaultSigner } from "@/lib/signing/registry";
 import { estimateGas, getBalance, getFeeCaps, getTransactionCount, sendRawTransaction } from "@/lib/evm/rpc";
 import { chainSlugFor } from "@/lib/tokens/customTokens";
 import { formatUnits } from "@/app/tokens";
@@ -168,7 +169,7 @@ export default function StakingScreen() {
 
         track("stake_submitted", { chain: protocol.chain, bucket: bucketUsd(asNumber) });
 
-        const signed = await signTransaction({
+        const signed = await defaultSigner().signTransaction({
           chainId: chainIdOf(protocol.chain),
           nonce,
           maxFeePerGas: fees.maxFeePerGas,

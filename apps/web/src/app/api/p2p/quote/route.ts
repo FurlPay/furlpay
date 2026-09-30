@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
@@ -21,6 +22,9 @@ const Quote = z
 // POST /api/p2p/quote — price a trade against an ad without opening it. Read
 // only: no escrow moves and nothing is reserved.
 export async function POST(req: NextRequest) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const limited = await rateLimitOr429(req, "p2p.quote", { limit: 60, windowMs: 60_000 });
   if (limited) return limited;
 

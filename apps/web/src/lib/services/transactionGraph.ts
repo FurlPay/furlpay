@@ -7,7 +7,6 @@
 // it from the raw transaction list.
 // ---------------------------------------------------------------------------
 
-import { db } from "@/lib/store";
 import type { Transaction } from "@/lib/types";
 
 export type NodeType = "user" | "merchant" | "person" | "platform";
@@ -58,8 +57,8 @@ function nodeType(t: Transaction): NodeType {
 const nodeId = (label: string) => `cp:${label.toLowerCase().replace(/\s+/g, "-")}`;
 
 /** Build the aggregated counterparty graph from settled/pending transactions. */
-export function buildTransactionGraph(limit = 10): TransactionGraph {
-  const txs = db.transactions.filter((t) => t.status !== "declined");
+export function buildTransactionGraph(transactions: readonly Transaction[], limit = 10): TransactionGraph {
+  const txs = transactions.filter((t) => t.status !== "declined");
 
   const nodes = new Map<string, GraphNode>([
     [USER_NODE_ID, { id: USER_NODE_ID, type: "user", label: "You" }],

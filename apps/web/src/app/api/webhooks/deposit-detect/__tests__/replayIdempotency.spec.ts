@@ -64,9 +64,23 @@ const saved: Record<string, string | undefined> = {};
 beforeAll(async () => {
   for (const k of ["DEPOSIT_WEBHOOK_SECRET", "TREASURY_ADDRESS_BSC"]) saved[k] = process.env[k];
   process.env.DEPOSIT_WEBHOOK_SECRET = SECRET;
-  // Makes WATCHED a real deposit destination, which is what the running server
-  // lacked and why the HTTP harness could not reach this path.
-  process.env.TREASURY_ADDRESS_BSC = WATCHED;
+  // WATCHED is a real user's VERIFIED linked wallet. It used to be set as the
+  // treasury — which worked only because the route credited every treasury
+  // deposit to the seeded demo account. Treasury deposits are now recorded as
+  // unattributed and credit no one, so a creditable destination must be an
+  // address a user has proven they own.
+  delete process.env.TREASURY_ADDRESS_BSC;
+  const { findOrCreateUserByIdentity, setLinkedWallet } = await import("@/lib/store");
+  const { account } = findOrCreateUserByIdentity({ email: `replay-${Date.now()}@furlpay.test`, name: "Replay Probe" });
+  setLinkedWallet(account.user.id, {
+    address: WATCHED,
+    chainFamily: "evm",
+    verificationMethod: "eip191",
+    verifiedAt: new Date().toISOString(),
+    linkVersion: 1,
+    status: "active",
+    proofNonce: "replay-spec",
+  } as Parameters<typeof setLinkedWallet>[1]);
 
   ({ POST } = await import("../route"));
   ({ markCredited } = await import("@/lib/services/deposits"));

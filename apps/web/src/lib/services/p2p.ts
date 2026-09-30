@@ -525,6 +525,21 @@ export interface CreateOrderResult {
 export function createOrder(
   takerId: string,
   input: { adId: string; amount?: number; fiatAmount?: number; paymentMethodId?: string },
+  opts: {
+    /**
+     * Debit the seller's real balance into escrow. Called SYNCHRONOUSLY after
+     * every validation and BEFORE any state is mutated; if it throws, nothing
+     * was created, reserved or locked.
+     *
+     * WHY IT LIVES HERE. The route used to create the order first and debit
+     * after, rolling back with an `await import()` in its catch block when the
+     * seller could not fund it. For the length of that await an UNFUNDED order
+     * existed, visible and releasable — a release in that window credited the
+     * buyer from escrow nobody had paid into. Funding inside the same
+     * synchronous step as the state change makes that window zero-width.
+     */
+    fundEscrow?: (sellerId: string, asset: Token, amount: number) => void;
+  } = {},
 ): CreateOrderResult {
   const ad = state.ads.get(input.adId);
   if (!ad || ad.status !== "active") throw new Error("Ad not found");
@@ -547,6 +562,9 @@ export function createOrder(
   if (!paymentMethodId || !payeeMethods.includes(paymentMethodId)) {
     throw new Error("A valid payment method is required");
   }
+
+  // Fund first. A throw here leaves the ad, the order book and escrow untouched.
+  opts.fundEscrow?.(sellerId, ad.asset, q.amount);
 
   const now = Date.now();
   const order: P2POrder = {
@@ -621,6 +639,9 @@ export function markPaid(orderId: string, userId: string): P2POrder {
   const o = getOrder(orderId, userId);
   if (roleInOrder(o, userId) !== "buyer") throw new Error("Only the buyer can confirm payment");
   if (o.status !== "pending_payment") throw new Error(`Order is ${o.status}`);
+  // After the window the seller may reclaim the escrow (cancelOrder). A buyer
+  // declaring payment then would race that reclaim for the same coins.
+  if (Date.now() > Date.parse(o.expiresAt)) throw new Error("Payment window expired");
   o.status = "paid";
   o.paidAt = new Date().toISOString();
   return o;
@@ -665,6 +686,17 @@ export function cancelOrder(orderId: string, userId: string, reason: string): Ca
   // could unilaterally cancel a paid order would simply keep the fiat.
   if (o.status === "paid" && roleInOrder(o, userId) === "seller") {
     throw new Error("Cannot cancel a paid order — open an appeal instead");
+  }
+  // Nor an UNPAID one while the buyer's window is open. The buyer may already
+  // have sent fiat and not yet tapped "paid"; a seller who could cancel then
+  // would keep both the fiat and the returned escrow. Only the buyer may cancel
+  // inside the window; the seller may reclaim once it has expired.
+  if (
+    o.status === "pending_payment" &&
+    roleInOrder(o, userId) === "seller" &&
+    Date.now() <= Date.parse(o.expiresAt)
+  ) {
+    throw new Error("The buyer's payment window is still open");
   }
 
   const seller = sellerOf(o);

@@ -4,6 +4,8 @@ import { z } from "zod";
 import crypto from "crypto";
 import { validateBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { requireUser } from "@/lib/authz";
+import { cardIssuerOr503 } from "@/lib/cardIssuer";
 import { MCC } from "@/lib/travel/data";
 
 // POST /api/travel/cards/create — generate a single-use travel VCN funded from
@@ -15,6 +17,12 @@ import { MCC } from "@/lib/travel/data";
 //   • uses crypto RNG for card identifiers, never Math.random (rule 6)
 // The card itself stays a simulation (`simulated: true`) until the Marqeta
 // issuing rail is wired — the PAN is not a usable card number.
+//
+// GATED. This route used to be the one card route that skipped
+// cardIssuerOr503 — and requireUser — so in production an anonymous caller got
+// `status: "active"`, `network: "Visa"`, "funded from USDC balance" for a card
+// no issuer had issued. It now takes the same gate as every route under
+// api/cards: 503 in production until CARD_ISSUING_LIVE can be on.
 
 const MAX_CARD_USD = 25_000;
 
@@ -26,7 +34,13 @@ const Body = z
   .strip();
 
 export async function POST(req: NextRequest) {
-  const limited = await rateLimitOr429(req, "travel.cards.create", { limit: 10, windowMs: 600_000 });
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
+  const gated = cardIssuerOr503("Travel virtual card");
+  if (gated) return gated;
+
+  const limited = await rateLimitOr429(req, "travel.cards.create", { limit: 10, windowMs: 600_000 }, auth.account.user.id);
   if (limited) return limited;
 
   const body = await validateBody(req, Body);

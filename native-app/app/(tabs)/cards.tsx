@@ -234,9 +234,18 @@ function SheetModal({
   );
 }
 
-/** Biometric-gated card details — same demo PAN/CVV values as the web's
- *  ViewModal, but behind a REAL device biometric prompt instead of a
- *  simulated one.
+/** Device-owner-gated card details.
+ *
+ *  NO CARD DIGITS ARE CONSTRUCTED ON THE DEVICE. This modal used to render a
+ *  hardcoded "4111 5522 8834 {last4}", expiry "09 / 29" and CVV "284" after
+ *  authentication — a card number the phone assembled itself, never asked the
+ *  server for, and showed under a "Demo" banner a user could miss or ignore.
+ *  Real details come only from the issuer's PCI vault in exchange for a
+ *  server-minted grant (lib/cards/lifecycle.ts `mintRevealGrant`). That vault
+ *  exchange does not exist yet, so after authentication the modal shows what
+ *  is genuinely known — the masked number and network — and says why the rest
+ *  is unavailable. The device-owner gate stays so the flow is ready the day
+ *  the vault is.
  *
  *  Deliberately NOT routed through confirmWithBiometrics: revealing PAN/CVV is
  *  sensitive-data ACCESS, not an action approval, so it stays gated even when
@@ -284,23 +293,10 @@ function DetailsModal({ card, onClose }: { card: PaymentCard; onClose: () => voi
         </View>
       ) : (
         <View style={{ gap: spacing.sm, paddingVertical: spacing.sm }}>
-          {/* Honest disclosure: these are placeholder details, not this card's
-              real PAN. A user must not copy them expecting them to work — the
-              issuer-vended number arrives when card issuing goes live. */}
-          <PreviewBanner text="Demo details — not a live card number. Real details arrive when card issuing is enabled." />
+          <PreviewBanner text="Full card number, expiry and CVV come from the card issuer's secure vault, which isn't connected yet. No card details are available to show." />
           <View style={styles.detailField}>
             <Text style={type.dim}>Card number</Text>
-            <Text style={styles.detailMono}>4111 5522 8834 {card.last4}</Text>
-          </View>
-          <View style={{ flexDirection: "row", gap: spacing.sm }}>
-            <View style={[styles.detailField, { flex: 1 }]}>
-              <Text style={type.dim}>Expiry</Text>
-              <Text style={styles.detailMono}>09 / 29</Text>
-            </View>
-            <View style={[styles.detailField, { flex: 1 }]}>
-              <Text style={type.dim}>CVV</Text>
-              <Text style={styles.detailMono}>284</Text>
-            </View>
+            <Text style={styles.detailMono}>•••• •••• •••• {card.last4}</Text>
           </View>
           <View style={styles.detailField}>
             <Text style={type.dim}>Network</Text>

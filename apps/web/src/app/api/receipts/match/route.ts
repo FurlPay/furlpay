@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
+import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
-import { db } from "@/lib/store";
+import { validateBody } from "@/lib/validate";
 import type { Transaction } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -13,19 +15,36 @@ export const dynamic = "force-dynamic";
 // POST body: { receipts: Receipt[] } — a batch of parsed emails. Each is matched
 // to the closest outgoing transaction within an amount tolerance and a date
 // window. GET returns the current reconciliation coverage.
+//
+// SECURITY HISTORY. Both handlers used to run on the seeded demo account's
+// transactions for every caller, with no requireUser, no body validation, and
+// ONE process-global map of matches — so any signed-in user's GET listed every
+// other user's matched receipts (merchant, amount, date, reference). The route
+// now requires a session, validates the batch, matches only against the
+// caller's own transactions, and keeps matches per user.
+//
+// NOT DURABLE. Matches live in process memory: a restart or a different
+// serverless instance loses them. That is recorded as a gap in
+// docs/audit/PRODUCTION_GAP_AUDIT.md rather than papered over here.
 
-interface Receipt {
-  merchant: string;
-  amountUsd: number;
-  date: string; // ISO
-  reference?: string;
-}
+const Receipt = z
+  .object({
+    merchant: z.string().trim().min(1).max(200),
+    amountUsd: z.number().positive().max(1_000_000),
+    date: z.string().datetime({ offset: true }).or(z.string().date()),
+    reference: z.string().max(200).optional(),
+  })
+  .strip();
+
+const Body = z.object({ receipts: z.array(Receipt).min(1).max(100) }).strip();
+
+type Receipt = z.infer<typeof Receipt>;
 
 const AMOUNT_TOLERANCE = 0.02; // 2% — covers FX rounding / tips
 const DATE_WINDOW_MS = 3 * 86_400_000; // ±3 days
 
-function outgoing(): Transaction[] {
-  return db.transactions.filter((t) => t.direction === "out" && t.status !== "declined");
+function outgoing(transactions: readonly Transaction[]): Transaction[] {
+  return transactions.filter((t) => t.direction === "out" && t.status !== "declined");
 }
 
 function scoreMatch(r: Receipt, t: Transaction): number | null {
@@ -41,20 +60,34 @@ function scoreMatch(r: Receipt, t: Transaction): number | null {
   return nameHits * 100 + (1 - amtDiff / (r.amountUsd || 1)) * 10 + (1 - dt / DATE_WINDOW_MS);
 }
 
-// Module-level record of which tx ids are reconciled (demo persistence).
-const g = globalThis as unknown as { __receipts?: Record<string, Receipt> };
-const matched = g.__receipts ?? (g.__receipts = {});
+// Per-user: userId -> (transactionId -> receipt). Keyed by user so the shape
+// itself makes a cross-tenant read unrepresentable.
+const g = globalThis as unknown as { __receiptsByUser?: Map<string, Map<string, Receipt>> };
+const byUser = g.__receiptsByUser ?? (g.__receiptsByUser = new Map());
+
+function matchesFor(userId: string): Map<string, Receipt> {
+  let m = byUser.get(userId);
+  if (!m) {
+    m = new Map();
+    byUser.set(userId, m);
+  }
+  return m;
+}
 
 export async function POST(req: NextRequest) {
-  const body = await req.json().catch(() => ({}));
-  const receipts: Receipt[] = Array.isArray(body?.receipts) ? body.receipts : [];
-  if (receipts.length === 0) {
-    return NextResponse.json({ error: "no_receipts" }, { status: 400 });
-  }
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
 
-  const txns = outgoing();
+  const limited = await rateLimitOr429(req, "receipts.match", { limit: 20, windowMs: 60_000 }, auth.account.user.id);
+  if (limited) return limited;
+
+  const body = await validateBody(req, Body);
+  if (body instanceof NextResponse) return body;
+
+  const matched = matchesFor(auth.account.user.id);
+  const txns = outgoing(auth.account.transactions);
   const usedTx = new Set<string>();
-  const results = receipts.map((r) => {
+  const results = body.receipts.map((r) => {
     let best: { tx: Transaction; score: number } | null = null;
     for (const t of txns) {
       if (usedTx.has(t.id)) continue;
@@ -63,7 +96,7 @@ export async function POST(req: NextRequest) {
     }
     if (best) {
       usedTx.add(best.tx.id);
-      matched[best.tx.id] = r;
+      matched.set(best.tx.id, r);
       return {
         matched: true,
         receipt: r,
@@ -77,19 +110,23 @@ export async function POST(req: NextRequest) {
 
   const hits = results.filter((r) => r.matched).length;
   return NextResponse.json({
-    processed: receipts.length,
+    processed: body.receipts.length,
     matched: hits,
-    unmatched: receipts.length - hits,
+    unmatched: body.receipts.length - hits,
     results,
   });
 }
 
 export async function GET(req: NextRequest) {
-  const limited = await rateLimitOr429(req, "receipts.match", { limit: 60, windowMs: 60_000 });
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+
+  const limited = await rateLimitOr429(req, "receipts.match", { limit: 60, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const txns = outgoing();
-  const reconciled = txns.filter((t) => matched[t.id]);
+  const matched = matchesFor(auth.account.user.id);
+  const txns = outgoing(auth.account.transactions);
+  const reconciled = txns.filter((t) => matched.has(t.id));
   return NextResponse.json({
     totalOutgoing: txns.length,
     reconciled: reconciled.length,
@@ -98,7 +135,7 @@ export async function GET(req: NextRequest) {
       transactionId: t.id,
       title: t.title,
       amountUsd: t.amountUsd,
-      receipt: matched[t.id],
+      receipt: matched.get(t.id),
     })),
   });
 }

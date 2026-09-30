@@ -1,4 +1,3 @@
-import { db } from "../store";
 import { PaymentCard, PolicyDecision, Transaction } from "../types";
 import { screenAddress } from "./compliance";
 
@@ -21,9 +20,10 @@ interface SpendRequest {
   amountUsd: number;
   mcc?: string;
   destinationAddress?: string;
-  /** The CARD OWNER's transaction history for the velocity window. Falls back
-   *  to the demo account for legacy callers — pass this on every real path. */
-  transactions?: Transaction[];
+  /** The CARD OWNER's transaction history for the velocity window. REQUIRED:
+   *  it used to fall back to the seeded demo account, so a caller that forgot it
+   *  computed velocity limits from a stranger's spending. */
+  transactions: Transaction[];
 }
 
 export function evaluateSpend(req: SpendRequest): PolicyDecision {
@@ -43,7 +43,7 @@ export function evaluateSpend(req: SpendRequest): PolicyDecision {
   // nothing, and counting it would let an attacker (or one fat-fingered
   // amount) lock the card by stacking declines.
   const since = Date.now() - VELOCITY_WINDOW_MS;
-  const recentSpend = (req.transactions ?? db.transactions)
+  const recentSpend = req.transactions
     .filter(
       (t) =>
         t.category === "card" &&

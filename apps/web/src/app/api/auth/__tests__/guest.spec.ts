@@ -100,4 +100,25 @@ describe("guest login — opt-in", () => {
     const res = await POST(req());
     expect(res.status).not.toBe(403);
   });
+
+  it("never mints a privileged role, whatever the demo seed carries", async () => {
+    // The demo seed has roles ["user", "compliance_officer", "admin"]. They
+    // used to be copied into the guest token, so an unauthenticated guest on a
+    // preview deployment got an admin-labelled session.
+    vi.stubEnv("NODE_ENV", "production");
+    vi.stubEnv("VERCEL_ENV", "preview");
+    vi.stubEnv("ALLOW_GUEST_LOGIN", "1");
+    vi.stubEnv("FURLPAY_SESSION_SECRET", "t".repeat(48));
+
+    const res = await POST(
+      new NextRequest("https://furlpay.com/api/auth/guest", {
+        method: "POST",
+        headers: { "x-furlpay-client": "mobile-android" },
+      })
+    );
+    const { token } = await res.json();
+    const claims = JSON.parse(Buffer.from(String(token).split(".")[1], "base64url").toString("utf8"));
+    expect(claims.roles).toEqual(["user"]);
+    expect(claims.guest).toBe(true);
+  });
 });

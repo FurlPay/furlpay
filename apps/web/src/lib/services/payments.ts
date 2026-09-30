@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import { screenAddress } from "./compliance";
 import { getChain, gasQuote } from "./chainRegistry";
-import { newTx, recordTransaction, DEMO_USER_ID } from "@/lib/store";
+import { newTx, recordTransaction } from "@/lib/store";
 import { recordPaymentWithFee, reverseLedgerTx } from "@/lib/ledger";
 import { sendEmail } from "@/lib/email";
 import { mockAllowed, IntegrationNotConfiguredError } from "@/lib/integrations";
@@ -333,7 +333,7 @@ export async function executePayment(
   id: string,
   payer: string,
   signature: string,
-  actingUserId: string = DEMO_USER_ID
+  actingUserId: string
 ): Promise<ExecuteResult> {
   // Fail closed in production while settlement is mocked — a fabricated tx
   // hash must never masquerade as a real settlement.

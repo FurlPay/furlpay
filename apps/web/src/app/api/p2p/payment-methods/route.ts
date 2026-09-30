@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -27,6 +28,9 @@ const SaveMethod = z.object({
 // GET /api/p2p/payment-methods — the caller's own rails, unredacted (they are
 // the owner). Counterparties see these only through the order detail route.
 export async function GET(req: NextRequest) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
@@ -38,6 +42,9 @@ export async function GET(req: NextRequest) {
 
 // POST /api/p2p/payment-methods — add a fiat rail a taker can pay into.
 export async function POST(req: NextRequest) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 

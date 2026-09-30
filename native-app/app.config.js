@@ -255,6 +255,18 @@ module.exports = ({ config }) => {
     bundleIdentifier: `${config.ios?.bundleIdentifier ?? "com.furlpay.app"}${suffix}`,
   };
 
+  // APNs environment. expo-notifications writes `aps-environment` from its
+  // `mode` option, which DEFAULTS TO "development" — so without this every
+  // build, the App Store one included, asked for sandbox push tokens, and the
+  // production APNs gateway rejects those. Pushes carry 3DS2 approvals here,
+  // so a sandbox token in a store build is a card that can never be approved.
+  config.plugins = (config.plugins ?? []).map((p) => {
+    const name = Array.isArray(p) ? p[0] : p;
+    if (name !== "expo-notifications") return p;
+    const opts = Array.isArray(p) ? p[1] ?? {} : {};
+    return ["expo-notifications", { ...opts, mode: env === "prod" ? "production" : "development" }];
+  });
+
   if (env !== "prod") {
     // App Links / Universal Links belong to production alone — see the header.
     // Leaving them on a non-prod build means Android silently fails

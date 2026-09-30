@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { reportOnline } from "@/lib/services/p2p";
@@ -9,6 +10,9 @@ export const dynamic = "force-dynamic";
 // online dot on ads; takers avoid makers who cannot release right now.
 // No body: presence is the fact that an authenticated call arrived.
 export async function POST(req: NextRequest) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 

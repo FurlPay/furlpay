@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authz";
+import { capabilityMode, capabilityUnavailable } from "@/lib/capabilityGate";
 
 export const dynamic = "force-dynamic";
 
@@ -8,8 +9,12 @@ export const dynamic = "force-dynamic";
 // no card-only competitor can offer), each discounted by an asset-class LTV.
 // Interest accrues only on drawn funds; borrowing is not a taxable event.
 //
-// Mock/demo: `drawn` is a fixed demo balance. A live build books draws/repays
-// through the ledger and liquidates via the policy engine at max LTV.
+// NOT LIVE. No lender, no draw/repay ledger and no liquidation engine exist
+// (CREDIT_LIVE carries an `unimplemented` reason in lib/flags.ts). This route
+// used to report `drawn: 1200` to EVERY user in production — an outstanding
+// debt nobody incurred, which for a user with no collateral rendered as
+// "$1,200 drawn, $0 available, health 0". Production now answers 503; outside
+// production the fixture is served and marked `simulated: true`.
 
 const STABLES = new Set(["USDC", "USDT", "EURC", "PYUSD", "DAI"]);
 const APR = 7.9;
@@ -26,6 +31,8 @@ function cryptoLtv(token: string): number {
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+  const mode = capabilityMode("CREDIT_LIVE");
+  if (mode === null) return capabilityUnavailable("CREDIT_LIVE", "Credit");
   const account = auth.account;
 
   const collateral: { label: string; kind: "stablecoin" | "crypto" | "equity"; value: number; ltv: number; borrowable: number }[] = [];
@@ -54,7 +61,9 @@ export async function GET(req: NextRequest) {
 
   const totalCollateral = collateral.reduce((s, c) => s + c.value, 0);
   const borrowingPower = collateral.reduce((s, c) => s + c.borrowable, 0);
-  const drawn = 1200; // demo outstanding balance
+  // Simulation fixture only: there is no credit ledger to read a real drawn
+  // balance from, and CREDIT_LIVE cannot turn on until there is.
+  const drawn = 1200;
   const available = Math.max(0, borrowingPower - drawn);
   const utilizationPct = borrowingPower > 0 ? Math.round((drawn / borrowingPower) * 100) : 0;
   const currentLtv = totalCollateral > 0 ? drawn / totalCollateral : 0;
@@ -63,6 +72,7 @@ export async function GET(req: NextRequest) {
   const monthlyInterest = Math.round(((drawn * APR) / 100 / 12) * 100) / 100;
 
   return NextResponse.json({
+    simulated: mode === "simulated",
     apr: APR,
     totalCollateral: Math.round(totalCollateral * 100) / 100,
     borrowingPower: Math.round(borrowingPower * 100) / 100,

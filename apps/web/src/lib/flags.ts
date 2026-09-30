@@ -65,6 +65,12 @@ export const MONEY_FLAGS = [
   "ONRAMP_LIVE",
   "OFFRAMP_LIVE",
   "ARC_RAIL_LIVE",
+  "CREDIT_LIVE",
+  "BILL_PAY_LIVE",
+  "REWARDS_LIVE",
+  "RECURRING_INVESTING_LIVE",
+  "P2P_LIVE",
+  "ACCOUNT_SPEND_LIVE",
 ] as const;
 
 export type MoneyFlag = (typeof MONEY_FLAGS)[number];
@@ -192,6 +198,66 @@ export const FLAG_SPECS: Record<MoneyFlag, FlagSpec> = {
       "No off-ramp provider is contracted and no OfframpProviderAdapter is registered. The " +
       "off-ramp lifecycle also requires a verified-beneficiary path (penny drop or name match); " +
       "paying an unverified account is how a substituted beneficiary gets paid.",
+  },
+  CREDIT_LIVE: {
+    description: "Extend a real crypto- and equity-collateralised credit line.",
+    environments: ["staging", "production"],
+    requires: ["FURLPAY_CREDIT_PROVIDER", "FURLPAY_CREDIT_PROVIDER_API_KEY"],
+    unimplemented:
+      "No lender is contracted and no draw/repay ledger exists. api/credit computed borrowing " +
+      "power from balances but reported a fixed $1,200 outstanding balance for every user — a " +
+      "debt nobody incurred. A credit line needs a licensed lender, a collateral custody model " +
+      "and a liquidation engine (DEFI_COLLATERAL_LIVE records the same missing risk engine).",
+  },
+  BILL_PAY_LIVE: {
+    description: "Pay a biller from the user's balance over a contracted bill-payment rail.",
+    environments: ["staging", "production"],
+    requires: ["FURLPAY_BILLPAY_PROVIDER", "FURLPAY_BILLPAY_PROVIDER_API_KEY"],
+    unimplemented:
+      "No biller network or bill-payment aggregator is integrated. api/bills 'pay' zeroed the " +
+      "bill and recorded a settled on-chain transaction without moving any money.",
+  },
+  REWARDS_LIVE: {
+    description: "Attribute referrals, accrue points and pay out rewards from a real rewards ledger.",
+    environments: ["staging", "production"],
+    requires: ["FURLPAY_REWARDS_LEDGER"],
+    unimplemented:
+      "No referral attribution or rewards ledger exists. api/rewards returned the same referral " +
+      "code, invite counts, $60 earned, 1,840 points and completed missions to every user, and " +
+      "api/travel/referral served one process-global counter ($300 earned) to everyone. Rewards " +
+      "that pay out are money; they need a per-user ledger and fraud controls first.",
+  },
+  RECURRING_INVESTING_LIVE: {
+    description: "Execute recurring (DCA/SIP) investment orders on a server-side schedule.",
+    environments: ["staging", "production"],
+    // Recurring orders ARE brokerage orders; they cannot be live if one-off
+    // orders are not.
+    requires: ["ALPACA_API_KEY_ID", "ALPACA_API_SECRET_KEY", "CRON_SECRET"],
+    unimplemented:
+      "Schedules live in process memory (lost on restart, invisible to other instances) and no " +
+      "worker executes them — api/cron has no DCA job. Needs a durable schedule table, an " +
+      "idempotent executor with per-run keys, pause/resume/cancel, slippage bounds and an " +
+      "authorization that expires. See docs/audit/PRODUCTION_GAP_AUDIT.md.",
+  },
+  ACCOUNT_SPEND_LIVE: {
+    description: "Debit the FurlPay account balance to fund a booking, payout, card or transfer.",
+    environments: ["staging", "production"],
+    requires: ["ONCHAIN_SETTLEMENT_LIVE"],
+    unimplemented:
+      "api/account/spend debits a REAL ledger balance and books it as \"Card top-up · Arbitrum One\" / " +
+      "\"Creator payout · Arbitrum One\", but no rail delivers the spent value — the debit only destroys " +
+      "the user's balance behind a fabricated on-chain label. Needs a destination (card issuer, payout " +
+      "rail, booking provider) that actually receives the funds.",
+  },
+  P2P_LIVE: {
+    description: "Run the P2P crypto-for-fiat marketplace: ads, orders, escrow, appeals.",
+    environments: ["staging", "production"],
+    requires: ["FURLPAY_P2P_STORE"],
+    unimplemented:
+      "Ads, orders, escrow and saved payment methods live in process memory (lib/services/p2p.ts): " +
+      "lost on restart, different on every serverless instance, with no cross-instance lock on " +
+      "escrow transitions. No operator path resolves an appeal, so disputed escrow is frozen forever. " +
+      "Needs a durable, row-locked schema, dispute operations and a jurisdictional review.",
   },
   CARD_ISSUING_LIVE: {
     description: "Issue, provision and authorise real payment cards through a contracted issuer.",

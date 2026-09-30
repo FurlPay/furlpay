@@ -6,12 +6,20 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 import { parse } from "@/lib/schemas";
 import { withIdempotency } from "@/lib/idempotency";
+import { capabilityMode, capabilityUnavailable } from "@/lib/capabilityGate";
 
 export const dynamic = "force-dynamic";
 
-// Recurring investment (DCA) schedules — "buy $50 of AAPL every week". The
-// co-pilot creates these; a cron/worker executes each due schedule by POSTing
-// to /api/investing/order.
+// Recurring investment (DCA) schedules — "buy $50 of AAPL every week".
+//
+// NOTHING EXECUTES THESE. The comment here used to say "a cron/worker executes
+// each due schedule by POSTing to /api/investing/order"; no such worker exists
+// (api/cron has no DCA job), and the store below is process memory. A schedule
+// created here was a standing instruction that would never run, returned with
+// a `nextRun` date as if it would. RECURRING_INVESTING_LIVE (lib/flags.ts,
+// `unimplemented`) now gates creation: 503 in production; elsewhere the
+// schedule is recorded as a simulation and every response states
+// `automaticExecution: false`.
 //
 // SECURITY HISTORY: this route was unauthenticated AND kept every user's
 // schedules in one process-global array, so any anonymous caller could read
@@ -76,6 +84,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     schedules: schedulesFor(auth.account.user.id).filter((s) => s.active),
+    automaticExecution: false,
   });
 }
 
@@ -86,6 +95,10 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const userId = auth.account.user.id;
+
+  if (capabilityMode("RECURRING_INVESTING_LIVE") === null) {
+    return capabilityUnavailable("RECURRING_INVESTING_LIVE", "Recurring investing");
+  }
 
   // Creating a standing instruction is money-adjacent, so it gets a per-user
   // budget tighter than the middleware baseline.
@@ -137,5 +150,7 @@ async function createSchedule(userId: string, data: ScheduleInput): Promise<Next
   };
   schedules.push(schedule);
 
-  return NextResponse.json({ ok: true, schedule }, { status: 201 });
+  // `simulated` and `automaticExecution: false` are unconditional: this line is
+  // only reachable in simulation, and no executor exists in any environment.
+  return NextResponse.json({ ok: true, schedule, simulated: true, automaticExecution: false }, { status: 201 });
 }

@@ -157,6 +157,9 @@ export type AuditEvent =
   | "challenge.replay_detected"
   | "webhook.processed"
   | "webhook.failed"
+  // An on-chain deposit to the shared treasury: recorded, credited to no one,
+  // because a shared address carries no evidence of whose money it is.
+  | "deposit.unattributed"
   | "billing.checkout_created"
   | "billing.sandbox_upgrade"
   | "ambassadors.followed"

@@ -15,7 +15,8 @@ import { useI18n } from "@/lib/i18n";
 import { useSecureScreen } from "@/lib/secureScreen";
 import { authorizeMoneyMove } from "@/lib/money/authorize";
 import { track } from "@/lib/analytics";
-import { getKnownAddress, signTransaction } from "@/lib/wallet";
+import { getKnownAddress } from "@/lib/wallet";
+import { defaultSigner } from "@/lib/signing/registry";
 import { getFeeCaps, getTransactionCount, sendRawTransaction, estimateGas } from "@/lib/evm/rpc";
 import { CHAINS, type ChainId } from "@/lib/swap/assets";
 import { chainSlugFor } from "@/lib/tokens/customTokens";
@@ -162,7 +163,7 @@ export default function NftDetailScreen() {
 
       track("nft_transfer_submitted", { chain: parsed.chain, standard });
 
-      const signed = await signTransaction({
+      const signed = await defaultSigner().signTransaction({
         chainId: chainIdOf(parsed.chain),
         nonce,
         maxFeePerGas: fees.maxFeePerGas,

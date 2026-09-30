@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { p2pUnavailable } from "@/lib/services/p2pSettlement";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -17,6 +18,9 @@ const Rate = z.object({
 // trade. One rating per side per order: the service refuses a second, so a
 // maker cannot farm their own badge by re-rating.
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const unavailable = p2pUnavailable();
+  if (unavailable) return unavailable;
+
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const userId = auth.account.user.id;

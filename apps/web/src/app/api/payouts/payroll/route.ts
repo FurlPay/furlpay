@@ -12,9 +12,18 @@ export const dynamic = "force-dynamic";
 // account that runs payroll also books the team's travel, so a remote-team
 // operator does both in one product.
 //
-// GET  → the saved roster (demo).
-// POST → run payroll for the given (or saved) roster; returns per-line intents
-//        plus totals. Money only moves once each intent's sign data is signed.
+// GET  → the caller's saved roster. Roster persistence is not implemented, so
+//        this is always empty — see below for why it no longer returns one.
+// POST → run payroll for the roster IN THE BODY; returns per-line intents plus
+//        totals. Money only moves once each intent's sign data is signed.
+//
+// SECURITY HISTORY. A "saved demo roster" of three people at the placeholder
+// addresses 0x1111…, 0x2222… and 0x3333… used to be served by GET (to anyone,
+// unauthenticated) and used by POST whenever `employees` was omitted. That
+// fallback produced real, signable USDC payment intents totalling $12,900 to
+// addresses nobody at FurlPay controls: one tap on "Run payroll" plus a
+// signature would have sent a customer's money to them. `employees` is now
+// required, and there is no roster to fall back to.
 
 const EvmAddress = z.string().regex(/^0x[a-fA-F0-9]{40}$/, "invalid address");
 
@@ -28,19 +37,14 @@ const Employee = z.object({
 const RunSchema = z.object({
   sourceChain: z.enum(["arbitrum", "base", "polygon"]).optional(),
   cycle: z.string().max(40).optional(), // e.g. "2026-07" or "weekly"
-  employees: z.array(Employee).min(1).max(100).optional(),
+  // Required. Every recipient of a payroll run must come from the caller.
+  employees: z.array(Employee).min(1).max(100),
 });
 
-// Saved demo roster.
-const ROSTER: z.infer<typeof Employee>[] = [
-  { name: "Aisha Rahman", address: "0x1111111111111111111111111111111111111111", amountUsd: 5200, role: "Engineer (NL)" },
-  { name: "Diego Santos", address: "0x2222222222222222222222222222222222222222", amountUsd: 4100, role: "Designer (BR)" },
-  { name: "Mei Lin", address: "0x3333333333333333333333333333333333333333", amountUsd: 3600, role: "Contractor (SG)" },
-];
-
-export function GET() {
-  const monthly = ROSTER.reduce((s, e) => s + e.amountUsd, 0);
-  return NextResponse.json({ roster: ROSTER, headcount: ROSTER.length, monthlyUsd: monthly });
+export async function GET(req: NextRequest) {
+  const auth = await requireUser(req);
+  if (!auth.ok) return auth.res;
+  return NextResponse.json({ roster: [], headcount: 0, monthlyUsd: 0, persisted: false });
 }
 
 export async function POST(req: NextRequest) {
@@ -56,7 +60,7 @@ export async function POST(req: NextRequest) {
   }
   const sourceChain = parsed.data.sourceChain ?? "arbitrum";
   const cycle = parsed.data.cycle ?? new Date().toISOString().slice(0, 7);
-  const employees = parsed.data.employees ?? ROSTER;
+  const employees = parsed.data.employees;
 
   const created = await Promise.all(
     employees.map((e) =>

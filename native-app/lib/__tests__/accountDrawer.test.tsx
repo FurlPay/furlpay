@@ -135,6 +135,14 @@ afterEach(async () => {
   }
 });
 
+// Budget, not assertion. The first render in this file pays the cold cost of
+// the drawer's module graph; alone it passes in well under a second, but under
+// a full `jest` run (114 suites competing for the machine) it crossed Jest's
+// 5s default and failed the suite on every full run — including CI's. The
+// same fix and reasoning as apps/web/vitest.config.ts `testTimeout`. Every
+// assertion below is unchanged.
+jest.setTimeout(20_000);
+
 describe("AccountDrawer — identity", () => {
   it("shows the name, email, and a display-only FP- UID (never the raw UUID)", async () => {
     const { tree } = await render();

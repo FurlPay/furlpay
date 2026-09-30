@@ -1,4 +1,5 @@
-import { addressForSigning, signMessage, signTransaction, signTypedData } from "@/lib/wallet";
+import { defaultSigner } from "@/lib/signing/registry";
+import { signMessageWith, signTypedDataWith } from "@/lib/signing/types";
 import { getFeeCaps, getTransactionCount, sendRawTransaction, type ChainSlug } from "@/lib/evm/rpc";
 import { captureException } from "@/lib/observability";
 import { flagEnabled } from "@/lib/flags";
@@ -67,7 +68,7 @@ export async function ensureWalletConnect(): Promise<WalletConnectEngine | null>
 
     const created = new WalletConnectEngine({
       transport,
-      getAddress: addressForSigning,
+      getAddress: () => defaultSigner().getAddress(),
       signAndSend,
       knownAddresses,
     });
@@ -168,11 +169,11 @@ async function signAndSend(
       // signMessage applies the EIP-191 prefix. The decoded hex is converted
       // back to text only when it decoded cleanly; binary messages are signed
       // as their exact bytes rather than a lossy string.
-      return signMessage(intent.messageText ?? hexToBinaryString(intent.messageHex));
+      return signMessageWith(defaultSigner(), intent.messageText ?? hexToBinaryString(intent.messageHex));
     }
 
     case "typed_data": {
-      return signTypedData({
+      return signTypedDataWith(defaultSigner(), {
         domain: intent.domain,
         types: intent.types as Record<string, Array<{ name: string; type: string }>>,
         primaryType: intent.primaryType,
@@ -195,7 +196,7 @@ async function signAndSend(
       if (!slug) throw new Error("FurlPay does not support that network.");
 
       const tx = await buildTransaction(intent, slug);
-      const signed = await signTransaction(tx);
+      const signed = await defaultSigner().signTransaction(tx);
 
       // The address that signed must be the address the dApp asked for. A
       // mismatch means the wallet changed under the request — sending it anyway
