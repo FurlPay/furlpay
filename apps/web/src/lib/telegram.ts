@@ -169,6 +169,16 @@ export async function handleUpdate(update: TgUpdate): Promise<TgReply | null> {
       if (from.length !== 3 || to.length !== 3) {
         return sendMessage(chatId, "Usage: /flights LHR JFK 2026-08-01");
       }
+      // generateFlights() invents carriers, times and fares from a hash of the
+      // route. In production the bot must not post a fare nobody quoted, so it
+      // links to the live flight search (real provider, no fallback) instead.
+      if (process.env.NODE_ENV === "production") {
+        return sendMessage(
+          chatId,
+          `<b>Flights ${from} → ${to}</b>\n${esc(date)}\n\nLive fares are on the FurlPay flight search.`,
+          keyboard([{ text: "Search live fares", url: `${SITE}/travel/flights?from=${from}&to=${to}&date=${encodeURIComponent(date)}` }])
+        );
+      }
       const flights = generateFlights(from, to, date).sort((a, b) => a.priceUsd - b.priceUsd).slice(0, 5);
       const lines = flights
         .map((f) => {

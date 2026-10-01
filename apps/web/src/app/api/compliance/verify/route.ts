@@ -3,14 +3,19 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
+import { recordProductEvent } from "@/lib/analytics/events";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { kvSet } from "@/lib/kv";
 import { getCountryRule } from "@/lib/compliance/ruleEngine";
 import { getIdentityProvider } from "@/lib/compliance/providers/factory";
+import { bindKycSession } from "@/lib/compliance/kycBinding";
 
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
+// `referenceId` is still accepted so existing clients (native-app lib/kyc.ts)
+// do not start failing validation, but it is IGNORED: the reference a provider
+// receives is always the authenticated user's own id, set below.
 const Body = z.object({
   country: z.string().length(2),
   referenceId: z.string().max(200).optional(),
@@ -40,7 +45,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { country, referenceId } = parsed.data;
+  const { country } = parsed.data;
   const code = country.toUpperCase();
   const rule = getCountryRule(code);
 
@@ -52,13 +57,33 @@ export async function POST(req: NextRequest) {
   }
 
   const provider = await getIdentityProvider();
-  const ref = referenceId ?? crypto.randomUUID();
 
+  // The provider reference is the SERVER's idea of who this is, never the
+  // client's. The webhooks do not trust it on its own either: the result is
+  // applied through the session binding recorded below (lib/compliance/kycBinding).
   const session = await provider.startVerification(userId, {
     requiredDocs: rule.requiredDocs,
     requiredChecks: rule.requiredChecks,
-    referenceId: ref,
+    referenceId: userId,
     country: code,
+  });
+
+  if (provider.name === "persona" || provider.name === "sumsub") {
+    try {
+      await bindKycSession(provider.name, session.sessionId, userId);
+    } catch {
+      // A session whose outcome cannot be attributed must not be handed out:
+      // the user would complete it and the result would be refused.
+      return NextResponse.json({ error: "verification_unavailable" }, { status: 503 });
+    }
+  }
+
+  recordProductEvent({
+    name: "kyc_started",
+    eventId: `${userId}:${session.sessionId}`,
+    userId,
+    route: "/api/compliance/verify",
+    metadata: { provider: provider.name },
   });
 
   // Audit trail

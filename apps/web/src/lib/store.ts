@@ -1,11 +1,15 @@
 import { createHash, randomUUID } from "crypto";
 import type { Role } from "./session";
 import { log } from "./log";
+import { canonicalEmail } from "./identity";
+import { raiseFinancialAlert } from "./ops/financialAlerts";
 import { supabaseBackend } from "./supabase";
+import { kycTransitionAllowed, type KycState } from "./webhookOrdering";
 import {
   findUserIdByCard as dbFindUserIdByCard,
   findUserIdByIdentity as dbFindUserIdByIdentity,
   loadAccount as dbLoadAccount,
+  loadTokenBalances as dbLoadTokenBalances,
   saveAccount as dbSaveAccount,
 } from "./storeDb";
 import type { TradeLot } from "./corporateActions/types";
@@ -249,6 +253,23 @@ function seedLots(userId: string, rows: [string, number, number][]): TradeLot[] 
   }));
 }
 
+/**
+ * Where the seeded demo account may exist at all: local dev/test, and Vercel
+ * preview deployments (guest login). NEVER in a production runtime — the seed
+ * used to exist in every production process, indexed by an email on an
+ * unregistered domain and carrying admin + compliance_officer, which made a
+ * missing FURLPAY_ADMIN_EMAIL an admin takeover (lib/adminIdentity.ts).
+ */
+export function demoSeedAllowed(env: Record<string, string | undefined> = process.env): boolean {
+  return env.NODE_ENV !== "production" || env.VERCEL_ENV === "preview";
+}
+
+/** Privileged demo roles exist only where NODE_ENV is not production. A preview
+ *  deployment gets a plain user so guest login there can never be an officer. */
+function seedRoles(): Role[] {
+  return process.env.NODE_ENV === "production" ? ["user"] : ["user", "compliance_officer", "admin"];
+}
+
 function seedDemoAccount(): UserAccount {
   return {
     user: {
@@ -263,7 +284,7 @@ function seedDemoAccount(): UserAccount {
       // The demo user doubles as the demo compliance officer so the HITL
       // console is clickable offline. approvePayment still enforces
       // reviewer != payer, so even this account cannot self-approve.
-      roles: ["user", "compliance_officer", "admin"],
+      roles: seedRoles(),
       security: {
         biometricEnabled: true,
         accountLocked: false,
@@ -448,11 +469,11 @@ function tx(
 }
 
 function buildState(): AppState {
-  const demo = seedDemoAccount();
+  const demo = demoSeedAllowed() ? seedDemoAccount() : undefined;
   const state: AppState = {
-    accounts: new Map([[demo.user.id, demo]]),
+    accounts: new Map(demo ? [[demo.user.id, demo]] : []),
     byPhone: new Map(),
-    byEmail: new Map([[demo.user.email.toLowerCase(), demo.user.id]]),
+    byEmail: new Map(demo ? [[canonicalEmail(demo.user.email), demo.user.id]] : []),
     byGoogleSub: new Map(),
     byAppleSub: new Map(),
     byDiscordUserId: new Map(),
@@ -475,8 +496,9 @@ state.flushes ??= new Map();
 
 /** The seeded demo account. Exported as `db` for demo-surface routes; every
  *  money/identity path must resolve the acting user from session claims via
- *  getAccount() instead. */
-export const db: UserAccount = state.accounts.get(DEMO_USER_ID)!;
+ *  getAccount() instead. UNDEFINED in a production runtime, where no seed
+ *  exists (see demoSeedAllowed) — callers must handle that. */
+export const db: UserAccount | undefined = state.accounts.get(DEMO_USER_ID);
 
 export function getAccount(userId: string | undefined | null): UserAccount | undefined {
   if (!userId) return undefined;
@@ -527,7 +549,7 @@ export function evictAccount(userId: string): boolean {
     return false;
   }
   const { email, phone, googleSub, appleSub, discordUserId } = account.user;
-  if (email) state.byEmail.delete(email.toLowerCase());
+  if (email) state.byEmail.delete(canonicalEmail(email));
   if (phone) state.byPhone.delete(phone);
   if (googleSub) state.byGoogleSub.delete(googleSub);
   if (appleSub) state.byAppleSub.delete(appleSub);
@@ -566,7 +588,7 @@ export function findUserByIdentity(lookup: IdentityLookup): UserAccount | undefi
     (lookup.googleSub && state.byGoogleSub.get(lookup.googleSub)) ||
     (lookup.appleSub && state.byAppleSub.get(lookup.appleSub)) ||
     (lookup.phone && state.byPhone.get(lookup.phone)) ||
-    (lookup.email && state.byEmail.get(lookup.email.toLowerCase())) ||
+    (lookup.email && state.byEmail.get(canonicalEmail(lookup.email))) ||
     undefined;
   return id ? state.accounts.get(id) : undefined;
 }
@@ -584,7 +606,9 @@ export function findOrCreateUserByIdentity(
 
   const user = newUser({
     name: lookup.name,
-    email: lookup.email,
+    // Stored canonical, so every later lookup (memory, citext column, admin
+    // bootstrap) agrees on one identity per mailbox (lib/identity.ts).
+    email: lookup.email ? canonicalEmail(lookup.email) : lookup.email,
     phone: lookup.phone,
     phoneVerified: !!lookup.phone,
     authProvider: lookup.authProvider,
@@ -666,10 +690,66 @@ export async function getAccountDurable(userId: string | undefined | null): Prom
   }
 }
 
-/** Whole-account write-through, serialized per user so saves never
- *  interleave. Fire-and-forget from sync mutators (`void persistAccount(id)`),
- *  awaited where durability must be confirmed (signup). No-op without
- *  Supabase credentials or for accounts not in memory. */
+// ---------------------------------------------------------------------------
+// Money balances (audit P0-2). ONE writer: apply_financial_effect in Postgres.
+// These two helpers are the only sanctioned ways the in-memory copy of a
+// token balance changes:
+//   - refreshTokenBalancesFromDb: after a committed effect, adopt what the
+//     database says (durable deployments).
+//   - applyTokenBalanceDeltaInMemory: dev/test only (no durable backend), the
+//     same overdraft rule the SQL enforces.
+// ---------------------------------------------------------------------------
+
+/** Replace this instance's copy of a user's token balances with the
+ *  committed rows. No-op when the account is not loaded here. */
+export async function refreshTokenBalancesFromDb(userId: string): Promise<void> {
+  if (!durable) return;
+  const account = state.accounts.get(userId);
+  if (!account) return;
+  const fresh = await dbLoadTokenBalances(userId);
+  account.tokenBalances.splice(0, account.tokenBalances.length, ...fresh);
+}
+
+export class InsufficientBalanceError extends Error {
+  constructor(token: string, chain: string) {
+    super(`insufficient ${token} balance on ${chain}`);
+    this.name = "InsufficientBalanceError";
+  }
+}
+
+/** Non-durable (dev/test) application of a signed delta. Throws, changing
+ *  nothing, when the result would go below zero — mirroring the SQL guard. */
+export function applyTokenBalanceDeltaInMemory(
+  userId: string,
+  token: TokenBalance["token"],
+  chain: TokenBalance["chain"],
+  amount: number,
+  usdValue: number
+): void {
+  if (durable) throw new Error("in-memory balance deltas are not allowed with a durable backend");
+  const account = state.accounts.get(userId);
+  if (!account) throw new Error(`account ${userId} not loaded`);
+  let entry = account.tokenBalances.find((b) => b.token === token && b.chain === chain);
+  const next = Math.round(((entry?.amount ?? 0) + amount) * 1e8) / 1e8;
+  if (next < 0) throw new InsufficientBalanceError(token, chain);
+  if (!entry) {
+    entry = { token, chain, amount: 0, usdValue: 0 };
+    account.tokenBalances.push(entry);
+  }
+  entry.amount = next;
+  entry.usdValue = Math.max(0, Math.round((entry.usdValue + usdValue) * 100) / 100);
+}
+
+/** Whole-account write-through of NON-MONEY state (profile, cards, bills,
+ *  contacts, activity, lots), serialized per user so saves never interleave.
+ *  Money balances are not in it — they change only through
+ *  applyFinancialEffect (lib/ledger.ts, migration 0025).
+ *
+ *  A failed flush is NOT swallowed: the returned promise rejects, so an
+ *  awaited caller sees the error. Fire-and-forget callers
+ *  (`void persistAccount(id)`) are safe from unhandled rejections because the
+ *  failure is logged here first ("account flush failed" is a paging alert).
+ *  No-op without Supabase credentials or for accounts not in memory. */
 export function persistAccount(userId: string): Promise<void> {
   if (!durable) return Promise.resolve();
   const account = state.accounts.get(userId);
@@ -679,15 +759,21 @@ export function persistAccount(userId: string): Promise<void> {
 
 function flushAccount(userId: string): Promise<void> {
   const prev = state.flushes.get(userId) ?? Promise.resolve();
-  const next = prev.then(() => {
+  const run = prev.then(() => {
     const account = state.accounts.get(userId);
     if (!account) return;
-    return dbSaveAccount(account).catch((e: Error) => {
-      log.error("account flush failed", { userId, error: e.message });
-    });
+    return dbSaveAccount(account);
   });
-  state.flushes.set(userId, next);
-  return next;
+  run.catch((e: Error) => {
+    log.error("account flush failed", { userId, error: e.message });
+    void raiseFinancialAlert("account_flush_failed", { userId });
+  });
+  // The chain itself must survive one failure so the next save still runs.
+  state.flushes.set(
+    userId,
+    run.catch(() => undefined)
+  );
+  return run;
 }
 
 /**
@@ -696,9 +782,18 @@ function flushAccount(userId: string): Promise<void> {
  * Creation is flushed BEFORE returning so the session being issued never
  * references an account another instance can't load.
  */
+/** The identity store could not be consulted; the caller must refuse (503). */
+export class IdentityUnavailableError extends Error {
+  constructor() {
+    super("identity store unavailable");
+    this.name = "IdentityUnavailableError";
+  }
+}
+
 export async function findOrCreateUserByIdentityDurable(
   lookup: IdentityLookup & { name?: string; authProvider?: User["authProvider"] }
 ): Promise<{ account: UserAccount; created: boolean }> {
+  if (lookup.email) lookup = { ...lookup, email: canonicalEmail(lookup.email) };
   if (!durable) return findOrCreateUserByIdentity(lookup);
 
   const inMemory = findUserByIdentity(lookup);
@@ -707,19 +802,24 @@ export async function findOrCreateUserByIdentityDurable(
     const account = (await getAccountDurable(inMemory.user.id)) ?? inMemory;
     return { account, created: false };
   }
+  // FAIL CLOSED when the durable lookup fails. This used to fall through and
+  // CREATE a fresh in-memory account — a new user id for an identity that very
+  // likely already exists — and issue a session for it. The user landed in an
+  // empty phantom account, and anything they then did (link a wallet, fund,
+  // verify KYC) attached to an id that is not theirs. No database, no login.
+  let userId: string | undefined;
   try {
-    const userId = await dbFindUserIdByIdentity(lookup);
-    if (userId) {
-      const account = await getAccountDurable(userId);
-      if (account) return { account, created: false };
-    }
+    userId = await dbFindUserIdByIdentity(lookup);
   } catch (e) {
-    // DB outage during login: fall through and create in memory. If the
-    // identity already exists in the DB, the eventual flush hits the unique
-    // index and is logged rather than clobbering the existing row.
-    log.error("identity lookup failed — falling back to in-memory resolve", {
+    log.error("identity lookup failed — refusing to resolve an identity without the database", {
       error: (e as Error).message,
     });
+    throw new IdentityUnavailableError();
+  }
+  if (userId) {
+    const account = await getAccountDurable(userId);
+    if (account) return { account, created: false };
+    throw new IdentityUnavailableError();
   }
   const { account, created } = findOrCreateUserByIdentity(lookup);
   state.hydrated.add(account.user.id);
@@ -753,7 +853,7 @@ export async function findAccountByCard(
 
 function indexUser(user: User): void {
   if (user.phone) state.byPhone.set(user.phone, user.id);
-  if (user.email) state.byEmail.set(user.email.toLowerCase(), user.id);
+  if (user.email) state.byEmail.set(canonicalEmail(user.email), user.id);
   if (user.googleSub) state.byGoogleSub.set(user.googleSub, user.id);
   if (user.appleSub) state.byAppleSub.set(user.appleSub, user.id);
   if (user.discordUserId) state.byDiscordUserId.set(user.discordUserId, user.id);
@@ -777,11 +877,29 @@ type UpdatableField = (typeof UPDATABLE_FIELDS)[number];
 export function updateUser(userId: string, patch: Partial<Pick<User, UpdatableField>>): void {
   const account = state.accounts.get(userId);
   if (!account) return;
+  // Remember the identity keys this account is indexed under BEFORE the patch.
+  // When one changes, the OLD key must stop resolving to this account: a Google
+  // account whose email changed would otherwise leave the old address pointing
+  // here, and whoever controls that old mailbox later could OTP-login into it.
+  const before = {
+    email: account.user.email ? canonicalEmail(account.user.email) : undefined,
+    phone: account.user.phone,
+    googleSub: account.user.googleSub,
+    appleSub: account.user.appleSub,
+  };
   for (const field of UPDATABLE_FIELDS) {
     if (patch[field] !== undefined) {
-      (account.user as unknown as Record<string, unknown>)[field] = patch[field];
+      const value = field === "email" && typeof patch.email === "string" ? canonicalEmail(patch.email) : patch[field];
+      (account.user as unknown as Record<string, unknown>)[field] = value;
     }
   }
+  const dropIfMine = (index: Map<string, string>, key: string | undefined, now: string | undefined) => {
+    if (key && key !== now && index.get(key) === userId) index.delete(key);
+  };
+  dropIfMine(state.byEmail, before.email, account.user.email ? canonicalEmail(account.user.email) : undefined);
+  dropIfMine(state.byPhone, before.phone, account.user.phone);
+  dropIfMine(state.byGoogleSub, before.googleSub, account.user.googleSub);
+  dropIfMine(state.byAppleSub, before.appleSub, account.user.appleSub);
   indexUser(account.user);
   void persistAccount(userId);
 }
@@ -797,13 +915,31 @@ export function setSubscriptionTier(userId: string, tier: User["tier"]): void {
 }
 
 /** Dedicated KYC transition — only the KYC webhook/flow calls this; it is
- *  deliberately NOT reachable through updateUser's identity allow-list. */
-export function setKycStatus(userId: string, status: User["kycStatus"], tier?: User["kycTier"]): void {
+ *  deliberately NOT reachable through updateUser's identity allow-list.
+ *
+ *  THE TRANSITION RULE IS ENFORCED HERE, at the only mutation point, rather
+ *  than trusted to each caller. `kycTransitionAllowed` (lib/webhookOrdering.ts)
+ *  refuses any automatic move OUT of "verified": a redelivered, out-of-order
+ *  `inquiry.failed` must never demote a user who has been verified, granted a
+ *  higher tier cap and may have transacted against it. The Persona and Sumsub
+ *  webhooks already check this before calling; enforcing it here means a future
+ *  caller cannot forget to. A genuine revocation is a compliance decision with
+ *  its own audited path — it is not something this setter may do.
+ *
+ *  Returns false (and writes nothing) when the transition is refused, so a
+ *  caller can never mistake a refusal for a success. */
+export function setKycStatus(userId: string, status: User["kycStatus"], tier?: User["kycTier"]): boolean {
   const account = state.accounts.get(userId);
-  if (!account) return;
+  if (!account) return false;
+  const from = account.user.kycStatus as KycState;
+  if (!kycTransitionAllowed(from, status as KycState)) {
+    log.warn("refused KYC transition at the mutation boundary", { userId, from, to: status });
+    return false;
+  }
   account.user.kycStatus = status;
   if (tier !== undefined) account.user.kycTier = tier;
   void persistAccount(userId);
+  return true;
 }
 
 /**

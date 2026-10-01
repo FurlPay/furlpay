@@ -86,9 +86,16 @@ export default async function DestinationOrCategoryPage(props: { params: Promise
   const d = getDestination(params.slug);
   if (!d) notFound();
 
-  const topStays = generateStays(d.name, { count: 8, minStars: 4 }).slice(0, 3);
-  const topFlights = generateFlights("LHR", d.name.slice(0, 3), "").slice(0, 3);
-  const topActivities = generateActivities(d.name).slice(0, 3);
+  // These three lists are GENERATED from a hash of the city name: invented
+  // properties, carriers and prices. Development only. A production build
+  // (this page is statically generated) renders links to the live searches.
+  const demoListings = process.env.NODE_ENV !== "production";
+  const topStays = demoListings ? generateStays(d.name, { count: 8, minStars: 4 }).slice(0, 3) : [];
+  const topFlights = demoListings ? generateFlights("LHR", d.name.slice(0, 3), "").slice(0, 3) : [];
+  const topActivities = demoListings ? generateActivities(d.name).slice(0, 3) : [];
+  const liveRatesNote = (what: string) => (
+    <p className="text-sm text-textSecondary">Live {what} and rates are on the search; this page does not hold prices.</p>
+  );
   const maxTemp = Math.max(...d.weather.map(Math.abs), 1);
 
   // Counted from the indexed dataset, not authored. Null when we hold no
@@ -237,11 +244,15 @@ export default async function DestinationOrCategoryPage(props: { params: Promise
             View all →
           </Link>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {topStays.map((s) => (
-            <PropertyCard key={s.id} stay={s} nights={3} />
-          ))}
-        </div>
+        {topStays.length ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {topStays.map((s) => (
+              <PropertyCard key={s.id} stay={s} nights={3} />
+            ))}
+          </div>
+        ) : (
+          liveRatesNote("stays")
+        )}
       </section>
 
       {/* Top flights */}
@@ -252,11 +263,15 @@ export default async function DestinationOrCategoryPage(props: { params: Promise
             Search flights →
           </Link>
         </div>
-        <div className="space-y-3">
-          {topFlights.map((f) => (
-            <FlightCard key={f.id} flight={f} />
-          ))}
-        </div>
+        {topFlights.length ? (
+          <div className="space-y-3">
+            {topFlights.map((f) => (
+              <FlightCard key={f.id} flight={f} />
+            ))}
+          </div>
+        ) : (
+          liveRatesNote("flights")
+        )}
       </section>
 
       {/* Top activities */}
@@ -267,11 +282,15 @@ export default async function DestinationOrCategoryPage(props: { params: Promise
             View all →
           </Link>
         </div>
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {topActivities.map((a) => (
-            <ActivityCard key={a.id} activity={a} />
-          ))}
-        </div>
+        {topActivities.length ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {topActivities.map((a) => (
+              <ActivityCard key={a.id} activity={a} />
+            ))}
+          </div>
+        ) : (
+          liveRatesNote("experiences")
+        )}
       </section>
 
       {/* Crypto CTA */}

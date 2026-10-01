@@ -37,7 +37,7 @@ const FEATURES: Feature[] = [
   { label: "Travel", Icon: Plane, href: "/travel" },
   { label: "Earn", Icon: PiggyBank, href: "/earn" },
   { label: "Rewards", Icon: Trophy, href: "/rewards" },
-  { label: "Analytics", Icon: BarChart3, href: "/analytics" },
+  { label: "Analytics", Icon: BarChart3, href: "/spending" },
   { label: "Cards", Icon: CreditCard, href: "/cards" },
   { label: "Banking", Icon: Landmark, href: "/banking" },
   { label: "Bills", Icon: ReceiptText, href: "/bills" },

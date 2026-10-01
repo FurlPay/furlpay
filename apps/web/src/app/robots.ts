@@ -18,7 +18,8 @@ const DISALLOW = [
   "/earn",
   "/credit",
   "/rewards",
-  "/analytics",
+  "/spending",
+  "/analytics", // admin analytics dashboard
   // Per-user account history. Nothing here is indexable and every path under
   // it is user-scoped, so it is disallowed explicitly rather than relying on
   // the auth redirect — a crawler should not spend budget discovering that.

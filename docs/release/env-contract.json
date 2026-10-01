@@ -1,0 +1,372 @@
+{
+  "generated_by": "scripts/aws/check-env-contract.mjs --write-doc",
+  "source": "infra/aws/env-contract.json",
+  "architecture": "A: ECS Fargate -> Supabase Postgres (PostgREST over HTTPS) + Upstash Redis (REST over HTTPS). No DATABASE_URL / REDIS_URL: the application does not read them.",
+  "variables": [
+    {
+      "application_variable": "NODE_ENV",
+      "required": true,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "Next.js runtime; lib/adminIdentity.ts",
+      "read_in": [
+        "apps/web/src/app/api/account/fund/route.ts",
+        "apps/web/src/app/api/ambassadors/instagram/route.ts",
+        "apps/web/src/app/api/auth/guest/route.ts",
+        "apps/web/src/app/api/auth/webauthn/route.ts",
+        "apps/web/src/app/api/billing/checkout/route.ts",
+        "apps/web/src/app/api/earn/deposit/route.ts",
+        "apps/web/src/app/api/earn/withdraw/route.ts",
+        "apps/web/src/app/api/intents/route.ts",
+        "apps/web/src/app/api/membership/cashback/claim/route.ts",
+        "apps/web/src/app/api/offramp/route.ts",
+        "apps/web/src/app/api/swaps/route.ts",
+        "apps/web/src/app/api/travel/destinations/[slug]/route.ts",
+        "apps/web/src/app/api/wallets/transfer/route.ts",
+        "apps/web/src/app/api/webhooks/stripe/route.ts",
+        "apps/web/src/app/travel/destinations/[slug]/page.tsx",
+        "apps/web/src/components/Realistic3DCard.tsx",
+        "apps/web/src/lib/adminIdentity.ts",
+        "apps/web/src/lib/auth/apple.ts",
+        "apps/web/src/lib/auth/google.ts",
+        "apps/web/src/lib/auth/otp.ts",
+        "apps/web/src/lib/authz.ts",
+        "apps/web/src/lib/demoGate.ts",
+        "apps/web/src/lib/discord.ts",
+        "apps/web/src/lib/flags.ts",
+        "apps/web/src/lib/integrations.ts",
+        "apps/web/src/lib/kv.ts",
+        "apps/web/src/lib/log.ts",
+        "apps/web/src/lib/ops/buildInfo.ts",
+        "apps/web/src/lib/rails/singapore/straitsx.ts",
+        "apps/web/src/lib/services/p2pSettlement.ts",
+        "apps/web/src/lib/services/payments.ts",
+        "apps/web/src/lib/session.ts",
+        "apps/web/src/lib/signature.ts",
+        "apps/web/src/lib/store.ts",
+        "apps/web/src/lib/telegram.ts",
+        "apps/web/src/lib/travel/duffel.ts",
+        "apps/web/src/lib/webhookGuard.ts"
+      ]
+    },
+    {
+      "application_variable": "FURLPAY_ENV",
+      "required": true,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "lib/flags.ts financialEnvironment()",
+      "read_in": [
+        "apps/web/src/lib/cards/rainAdapter.ts",
+        "apps/web/src/lib/cards/rainNetwork.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/flags.ts"
+      ]
+    },
+    {
+      "application_variable": "PORT",
+      "required": true,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "Next.js standalone server",
+      "read_in": [
+        "apps/web/src/middleware.ts"
+      ]
+    },
+    {
+      "application_variable": "ORIGIN_VERIFY_REQUIRED",
+      "required": true,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "lib/originVerify.ts",
+      "read_in": [
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/originVerify.ts",
+        "apps/web/src/middleware.ts"
+      ]
+    },
+    {
+      "application_variable": "FURLPAY_TRUSTED_PROXY_HOPS",
+      "required": true,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "lib/rateLimit.ts clientIp() — X-Forwarded-For hops appended by CloudFront + ALB; unset trusts client-set IP headers",
+      "read_in": [
+        "apps/web/src/lib/clientIp.ts",
+        "apps/web/src/lib/env.ts"
+      ]
+    },
+    {
+      "application_variable": "PUBLIC_API_ORIGIN",
+      "required": true,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "lib/publicOrigin.ts — redirects, OAuth issuer, DPoP htu, CSRF host; on ECS the request URL is the bind address. Boot refuses it missing behind CloudFront (bootConfig.ts)",
+      "read_in": [
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/publicOrigin.ts"
+      ]
+    },
+    {
+      "application_variable": "FURLPAY_RP_ID",
+      "required": true,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "lib/webauthn.ts — without it the RP ID falls back to 'localhost' off Vercel and every passkey ceremony fails",
+      "read_in": [
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/webauthn.ts"
+      ]
+    },
+    {
+      "application_variable": "FURLPAY_ORIGIN",
+      "required": true,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "lib/webauthn.ts expected origins",
+      "read_in": [
+        "apps/web/src/app/api/discord/roles-setup/route.ts",
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/discordVerify/flow.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/lockLink.ts",
+        "apps/web/src/lib/markets/instrumentQuote.ts",
+        "apps/web/src/lib/webauthn.ts"
+      ]
+    },
+    {
+      "application_variable": "APPLE_TEAM_ID",
+      "required": false,
+      "source": "ECS task environment",
+      "terraform_mapping": "container environment",
+      "secrets_manager_name": null,
+      "runtime_consumer": "app/.well-known/apple-app-site-association/route.ts — 404 until set; iOS universal links and passkeys need it",
+      "read_in": [
+        "apps/web/src/app/.well-known/apple-app-site-association/route.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/integrity/providers.ts"
+      ]
+    },
+    {
+      "application_variable": "ORIGIN_VERIFY_SECRET",
+      "required": true,
+      "source": "Secrets Manager (Terraform-generated)",
+      "terraform_mapping": "aws_secretsmanager_secret.origin_verify",
+      "secrets_manager_name": "furlpay/<env>/ORIGIN_VERIFY_SECRET",
+      "runtime_consumer": "lib/originVerify.ts (paired with the ALB listener rule)",
+      "read_in": [
+        "apps/web/src/lib/originVerify.ts"
+      ]
+    },
+    {
+      "application_variable": "FURLPAY_CRON_SECRET",
+      "required": true,
+      "source": "Secrets Manager (Terraform-generated)",
+      "terraform_mapping": "aws_secretsmanager_secret.cron_secret",
+      "secrets_manager_name": "furlpay/<env>/FURLPAY_CRON_SECRET",
+      "runtime_consumer": "lib/cron/auth.ts (EventBridge sends it)",
+      "read_in": [
+        "apps/web/src/lib/cron/auth.ts",
+        "apps/web/src/lib/env.ts"
+      ]
+    },
+    {
+      "application_variable": "FURLPAY_SESSION_SECRET",
+      "required": true,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"FURLPAY_SESSION_SECRET\"]",
+      "secrets_manager_name": "furlpay/<env>/FURLPAY_SESSION_SECRET",
+      "runtime_consumer": "lib/session.ts — throws in production when unset",
+      "read_in": [
+        "apps/web/src/app/api/ops/readiness/route.ts",
+        "apps/web/src/lib/analytics/events.ts",
+        "apps/web/src/lib/analytics/telemetry.ts",
+        "apps/web/src/lib/auth/otp.ts",
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/lockLink.ts",
+        "apps/web/src/lib/session.ts"
+      ]
+    },
+    {
+      "application_variable": "FURLPAY_ADMIN_EMAIL",
+      "required": true,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"FURLPAY_ADMIN_EMAIL\"]",
+      "secrets_manager_name": "furlpay/<env>/FURLPAY_ADMIN_EMAIL",
+      "runtime_consumer": "lib/adminIdentity.ts — production refuses to boot without it (no fallback admin)",
+      "read_in": [
+        "apps/web/src/lib/adminIdentity.ts",
+        "apps/web/src/lib/env.ts"
+      ]
+    },
+    {
+      "application_variable": "SUPABASE_URL",
+      "required": true,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"SUPABASE_URL\"]",
+      "secrets_manager_name": "furlpay/<env>/SUPABASE_URL",
+      "runtime_consumer": "lib/supabase.ts — the only database connection the app has",
+      "read_in": [
+        "apps/web/src/app/api/ops/readiness/route.ts",
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/ops/overview.ts",
+        "apps/web/src/lib/services/notifications.ts",
+        "apps/web/src/lib/supabase.ts"
+      ]
+    },
+    {
+      "application_variable": "SUPABASE_SERVICE_ROLE_KEY",
+      "required": true,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"SUPABASE_SERVICE_ROLE_KEY\"]",
+      "secrets_manager_name": "furlpay/<env>/SUPABASE_SERVICE_ROLE_KEY",
+      "runtime_consumer": "lib/supabase.ts",
+      "read_in": [
+        "apps/web/src/app/api/ops/readiness/route.ts",
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/services/notifications.ts",
+        "apps/web/src/lib/supabase.ts"
+      ]
+    },
+    {
+      "application_variable": "KV_REST_API_URL",
+      "required": true,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"KV_REST_API_URL\"]",
+      "secrets_manager_name": "furlpay/<env>/KV_REST_API_URL",
+      "runtime_consumer": "lib/kv.ts — production refuses the in-memory fallback",
+      "read_in": [
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/kv.ts",
+        "apps/web/src/lib/locks.ts",
+        "apps/web/src/lib/ops/overview.ts"
+      ]
+    },
+    {
+      "application_variable": "KV_REST_API_TOKEN",
+      "required": true,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"KV_REST_API_TOKEN\"]",
+      "secrets_manager_name": "furlpay/<env>/KV_REST_API_TOKEN",
+      "runtime_consumer": "lib/kv.ts",
+      "read_in": [
+        "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/kv.ts",
+        "apps/web/src/lib/locks.ts"
+      ]
+    },
+    {
+      "application_variable": "STRIPE_SECRET_KEY",
+      "required": false,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"STRIPE_SECRET_KEY\"]",
+      "secrets_manager_name": "furlpay/<env>/STRIPE_SECRET_KEY",
+      "runtime_consumer": "lib/payments/stripe.ts",
+      "read_in": [
+        "apps/web/src/app/api/billing/checkout/route.ts",
+        "apps/web/src/app/docs/integrations/stripe-crypto/page.tsx",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/payments/stripe.ts",
+        "apps/web/src/lib/services/applePay.ts"
+      ]
+    },
+    {
+      "application_variable": "STRIPE_WEBHOOK_SECRET",
+      "required": false,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"STRIPE_WEBHOOK_SECRET\"]",
+      "secrets_manager_name": "furlpay/<env>/STRIPE_WEBHOOK_SECRET",
+      "runtime_consumer": "app/api/webhooks/stripe/route.ts (fails closed when unset)",
+      "read_in": [
+        "apps/web/src/app/api/webhooks/stripe/route.ts",
+        "apps/web/src/lib/env.ts"
+      ]
+    },
+    {
+      "application_variable": "RESEND_API_KEY",
+      "required": false,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"RESEND_API_KEY\"]",
+      "secrets_manager_name": "furlpay/<env>/RESEND_API_KEY",
+      "runtime_consumer": "lib/email.ts",
+      "read_in": [
+        "apps/web/src/lib/auth/otp.ts",
+        "apps/web/src/lib/email.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/ops/overview.ts"
+      ]
+    },
+    {
+      "application_variable": "SOLANA_RPC_URL",
+      "required": false,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"SOLANA_RPC_URL\"]",
+      "secrets_manager_name": "furlpay/<env>/SOLANA_RPC_URL",
+      "runtime_consumer": "lib/services/chainRegistry.ts",
+      "read_in": [
+        "apps/web/src/lib/chains/adapterRegistry.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/onchain/balances.ts",
+        "apps/web/src/lib/services/chainRegistry.ts",
+        "apps/web/src/lib/services/usdcBalances.ts"
+      ]
+    },
+    {
+      "application_variable": "ARBITRUM_RPC_URL",
+      "required": false,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"ARBITRUM_RPC_URL\"]",
+      "secrets_manager_name": "furlpay/<env>/ARBITRUM_RPC_URL",
+      "runtime_consumer": "lib/services/morpho.ts, lib/x402Settler.ts",
+      "read_in": [
+        "apps/web/src/lib/complianceGuard.ts",
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/onchain/balances.ts",
+        "apps/web/src/lib/ops/overview.ts",
+        "apps/web/src/lib/services/chainBalance.ts",
+        "apps/web/src/lib/services/chainRegistry.ts",
+        "apps/web/src/lib/services/morpho.ts",
+        "apps/web/src/lib/services/usdcBalances.ts"
+      ]
+    },
+    {
+      "application_variable": "FURLPAY_FCM_SERVICE_ACCOUNT",
+      "required": false,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"FURLPAY_FCM_SERVICE_ACCOUNT\"]",
+      "secrets_manager_name": "furlpay/<env>/FURLPAY_FCM_SERVICE_ACCOUNT",
+      "runtime_consumer": "lib/fcm.ts",
+      "read_in": [
+        "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/fcm.ts"
+      ]
+    },
+    {
+      "application_variable": "DEPOSIT_WEBHOOK_SECRET",
+      "required": false,
+      "source": "Secrets Manager (placeholder, set out-of-band)",
+      "terraform_mapping": "aws_secretsmanager_secret.app[\"DEPOSIT_WEBHOOK_SECRET\"]",
+      "secrets_manager_name": "furlpay/<env>/DEPOSIT_WEBHOOK_SECRET",
+      "runtime_consumer": "app/api/webhooks/deposit-detect/route.ts (fails closed when unset)",
+      "read_in": [
+        "apps/web/src/app/api/webhooks/deposit-detect/route.ts",
+        "apps/web/src/lib/env.ts"
+      ]
+    }
+  ]
+}

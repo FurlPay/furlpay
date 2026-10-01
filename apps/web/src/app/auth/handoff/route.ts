@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/publicOrigin";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { kvGet, kvDel, kvSetNx } from "@/lib/kv";
@@ -39,14 +40,14 @@ function safeNextUrl(raw: string | null, origin: string): URL {
 }
 
 function fail(req: NextRequest, reason: string): NextResponse {
-  const url = new URL("/login", req.nextUrl.origin);
+  const url = new URL("/login", publicOrigin(req));
   url.searchParams.set("error", reason);
   return NextResponse.redirect(url);
 }
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
-  const nextUrl = safeNextUrl(req.nextUrl.searchParams.get("next"), req.nextUrl.origin);
+  const nextUrl = safeNextUrl(req.nextUrl.searchParams.get("next"), publicOrigin(req));
   if (!code) return fail(req, "missing_code");
 
   // Burn first: whoever sets the `used` marker owns the redemption. A replay

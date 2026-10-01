@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { requireCron } from "@/lib/cron/auth";
+import { runOncePerDay } from "@/lib/cron/runOnce";
 import { runJob } from "@/lib/cron/runner";
 import { raiseAlert } from "@/lib/alerts";
 import { buildBrief } from "@/lib/markets/brief/brief";
@@ -90,7 +91,7 @@ interface DeliveryOutcome {
   skipped?: "not_configured" | "already_delivered";
 }
 
-export async function GET(req: NextRequest) {
+async function run(req: NextRequest) {
   const auth = requireCron(req);
   if (!auth.ok) return auth.res;
 
@@ -405,3 +406,16 @@ export async function GET(req: NextRequest) {
     ...(outcome.status === "skipped_locked" ? { detail: outcome.detail } : { record: outcome.record }),
   });
 }
+
+// Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)
+// calls POST — it used to get a 405 (audit P1-3). This job posts to an external
+// channel, so it runs at most once per UTC day: EventBridge retries after a
+// 5-second timeout and would otherwise post several times. Authentication comes
+// first, so an unauthenticated request can never consume the day's run.
+export async function GET(req: NextRequest) {
+  const auth = requireCron(req);
+  if (!auth.ok) return auth.res;
+  return runOncePerDay("market-brief", () => run(req));
+}
+
+export const POST = GET;

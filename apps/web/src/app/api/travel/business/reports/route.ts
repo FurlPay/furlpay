@@ -3,12 +3,17 @@ export const dynamic = "force-dynamic";
 import { getTeam } from "@/lib/travel/business";
 import { listTrips } from "@/lib/travel/store";
 import { requireUser } from "@/lib/authz";
+import { demoOnlyUnavailable } from "@/lib/demoGate";
 
 // GET /api/travel/business/reports?teamId=<id>&format=json|csv — expense report
 // built from the team's trips, auto-tagged for reconciliation.
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+  // The report assigns the caller's own trips to team members by position
+  // (members[i % n]): an invented attribution on an ownerless demo team.
+  const gate = demoOnlyUnavailable("Business travel reports", "Expense reports need owned teams and per-member trips.");
+  if (gate) return gate;
 
   const team = getTeam(req.nextUrl.searchParams.get("teamId") ?? undefined);
   if (!team) return NextResponse.json({ error: "Team not found." }, { status: 404 });

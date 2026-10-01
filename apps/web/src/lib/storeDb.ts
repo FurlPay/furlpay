@@ -1,4 +1,5 @@
 import { sbDelete, sbRpc, sbSelect, sbUpsert, SupabaseFunctionMissing } from "./supabase";
+import { canonicalEmail } from "./identity";
 import { log } from "./log";
 import type { IdentityLookup, User, UserAccount } from "./store";
 import type {
@@ -712,6 +713,24 @@ export async function saveReorgEvents(events: ReorgEvent[]): Promise<number> {
  *  atomic path once and then stop paying a 404 on every flush. */
 let atomicSaveAvailable = true;
 
+/**
+ * The durable token balances for one user — the authoritative figure after
+ * migration 0025. Read back after every financial effect so the in-memory copy
+ * reflects what Postgres committed, never the other way round.
+ */
+export async function loadTokenBalances(userId: string): Promise<TokenBalance[]> {
+  const rows = await sbSelect<TokenBalanceRow>(
+    "token_balances",
+    `user_id=eq.${encodeURIComponent(userId)}&select=user_id,token,chain,amount,usd_value`
+  );
+  return rows.map((b) => ({
+    token: b.token,
+    chain: b.chain,
+    amount: Number(b.amount),
+    usdValue: Number(b.usd_value),
+  }));
+}
+
 export async function saveAccount(account: UserAccount): Promise<void> {
   const uid = account.user.id;
   const byUser = `user_id=eq.${encodeURIComponent(uid)}`;
@@ -720,6 +739,13 @@ export async function saveAccount(account: UserAccount): Promise<void> {
 
   const children = {
     p_user_id: uid,
+    // MONEY IS NOT WRITTEN BY THE SNAPSHOT once migration 0025 is applied: its
+    // save_account_children accepts and IGNORES these two arguments, and
+    // balances change only through apply_financial_effect (audit P0-2).
+    // They are still SENT, deliberately: on a database that has not applied
+    // 0025 yet, the 0010 function deletes-then-reinserts from them, and an
+    // empty array would erase every balance. Sending the snapshot keeps a
+    // pre-0025 database exactly as it was; 0025 is what makes it harmless.
     p_token_balances: account.tokenBalances.map((b) => ({
       token: b.token,
       chain: b.chain,
@@ -1020,7 +1046,7 @@ export async function findUserIdByIdentity(lookup: IdentityLookup): Promise<stri
   if (lookup.googleSub) filters.push(`google_sub=eq.${encodeURIComponent(lookup.googleSub)}`);
   if (lookup.appleSub) filters.push(`apple_sub=eq.${encodeURIComponent(lookup.appleSub)}`);
   if (lookup.phone) filters.push(`phone=eq.${encodeURIComponent(lookup.phone)}`);
-  if (lookup.email) filters.push(`email=eq.${encodeURIComponent(lookup.email)}`);
+  if (lookup.email) filters.push(`email=eq.${encodeURIComponent(canonicalEmail(lookup.email))}`);
 
   for (const filter of filters) {
     const rows = await sbSelect<{ id: string }>("users", `${filter}&select=id&limit=1`);

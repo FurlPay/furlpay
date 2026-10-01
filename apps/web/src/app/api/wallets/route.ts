@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
-import { AccountKit } from "@furlpay/account-kit";
 import { requireUser } from "@/lib/authz";
 
-const accountKit = new AccountKit({ chain: "base", mock: true });
+// The paymaster is not deployed (see below), so there is no paymaster
+// configuration to read: the fee token is the one the module is designed for.
+const PAYMASTER_FEE_TOKEN = "USDC";
 
 // GET /api/wallets — the user's account view, scoped to the AUTHENTICATED user.
 //
@@ -24,11 +25,6 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  // Paymaster config surfaced via the Account Kit (gas sponsorship in USDC).
-  const { config } = await accountKit.configurePaymaster(account.user.safeAddress, {
-    mode: "erc20",
-    feeToken: "USDC",
-  });
 
   return NextResponse.json({
     safeAddress: account.user.safeAddress,
@@ -48,7 +44,7 @@ export async function GET(req: NextRequest) {
         type: "gas-sponsorship",
         enforcement: "not-deployed",
         enabled: false,
-        feeToken: config.feeToken,
+        feeToken: PAYMASTER_FEE_TOKEN,
       },
       { name: "Safe4337Module", type: "erc-4337", enforcement: "not-deployed", enabled: false },
     ],

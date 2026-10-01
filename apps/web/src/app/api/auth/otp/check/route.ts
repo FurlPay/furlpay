@@ -1,8 +1,10 @@
 import { currentEpoch } from "@/lib/sessionEpoch";
+import { recordProductEvent } from "@/lib/analytics/events";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { checkOtp } from "@/lib/auth/otp";
 import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
+import { canonicalEmail, isPlausibleEmail } from "@/lib/identity";
 import { signSession, setSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { recordStepUp } from "@/lib/stepup";
@@ -27,7 +29,15 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-  const { to, code, channel, login } = parsed.data;
+  const { code, channel, login } = parsed.data;
+  // One canonical identity per mailbox (lib/identity.ts): the rate-limit key,
+  // the OTP lookup, the account lookup and the stored email all use the same
+  // string, so " Alice@X.com " cannot become a second account or a fresh
+  // rate-limit bucket.
+  const to = channel === "email" ? canonicalEmail(parsed.data.to) : parsed.data.to.trim();
+  if (channel === "email" && !isPlausibleEmail(to)) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
 
   // Brute-force guard on top of checkOtp's own attempt counter: key by IP AND
   // destination so an attacker can't spray codes across identifiers.
@@ -73,6 +83,11 @@ export async function POST(req: NextRequest) {
     });
     if (isMobileClient) body = { ...body, token };
     audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: `otp:${channel}` });
+    recordProductEvent(
+      created
+        ? { name: "signup_completed", eventId: account.user.id, userId: account.user.id, subjectOf: to, route: "/api/auth/otp/check", metadata: { provider: "otp", channel } }
+        : { name: "login", eventId: `${account.user.id}:${jti}`, userId: account.user.id, route: "/api/auth/otp/check", metadata: { provider: "otp", channel } }
+    );
     // A fresh OTP verification is a strong step-up — satisfies the wallet-link gate.
     void recordStepUp(account.user.id, jti, "otp").catch(() => {});
   }

@@ -96,3 +96,34 @@ vercel env ls production | grep -E "FURLPAY_SESSION_SECRET|STRIPE_WEBHOOK_SECRET
 # 4. Preview deployments must NOT share the production session secret
 vercel env ls preview | grep FURLPAY_SESSION_SECRET   # must exist AND differ from production
 ```
+
+## Repository expected vs production actual (added 2026-09-30, audit P1-2)
+
+`scripts/db/probe-schema.mjs` runs **only SELECTs** (it sets `default_transaction_read_only = on`) and reports every object each money-path migration creates, the recorded migration history, and `furlpay_missing_constraints()`. It exits 1 when anything critical is missing.
+
+```bash
+# Session pooler (5432), ideally with a read-only role. Never the transaction pooler (6543).
+DATABASE_URL='postgresql://<ro_user>:<pw>@aws-1-ap-northeast-2.pooler.supabase.com:5432/postgres' \
+  node scripts/db/probe-schema.mjs --json prod-probe.json
+```
+
+Proven against a real PostgreSQL 18 (harness, not production): an empty database reports every object MISSING and exits 1; after the repository migrations it reports all 20 present and zero missing guards, exiting 0.
+
+Objects it checks (money-path critical unless marked):
+
+| Migration | Object |
+|---|---|
+| 0001 | `users`, `token_balances` |
+| 0004 | `save_account_children()` |
+| 0005 | `linked_wallets` |
+| 0006 | `corporate_actions`, `trade_lots`, `trade_lots.provenance` (non-critical) |
+| 0009 | `ledger_transactions`, `ledger_postings`, `ledger_post()`, trigger `ledger_postings_no_update` |
+| 0014 | `financial_transactions` (non-critical) |
+| 0017 | `furlpay_missing_constraints()` |
+| 0022 | `webhook_events`, `claim_webhook_event()` |
+| 0024 | `claim_webhook_event()` body contains the payload-hash reclaim guard |
+| 0025 | `ledger_transactions.external_ref`, index `ledger_tx_external_ref_uniq`, `apply_financial_effect()`, `save_account_children()` no longer writes balances |
+
+**Apply order for production:** 0006 → … → 0025, each through staging first, then run the probe against staging and production. **Deploy the application only after 0025 is applied**: the new code calls `apply_financial_effect` and fails closed (refuses the effect) without it.
+
+Status: **BLOCKED_EXTERNAL**. There are no production database credentials in this environment, and nothing about production state is claimed.

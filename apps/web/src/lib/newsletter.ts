@@ -34,8 +34,9 @@ export type Subscriber = {
   categories: string[];
   /** ISO-8601 timestamp of the most recent consent — the GDPR record. */
   consentTimestamp: string;
-  /** IP the consent came from. */
-  ip: string;
+  /** IP the consent came from; null when it could not be established
+   *  (lib/clientIp.ts). Never a placeholder that reads as an address. */
+  ip: string | null;
 };
 
 /** Addresses are matched case-insensitively; the local part is technically

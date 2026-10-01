@@ -174,8 +174,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (result.cashToCredit > 0) {
-      await recordMovement("in", result.cashToCredit, "Dividend payout", userId);
-      recordTransaction(
+      // Keyed by the settled corporate actions (the same facts the
+      // dividend_once_per_user constraint enforces): a retried settle can never
+      // post the cash twice, even if it slips past the settlement-record check.
+      const actions = [...new Set(result.events.filter((e) => !e.reinvested).map((e) => e.corporateActionId))].sort();
+      const payout = await recordMovement("in", result.cashToCredit, "Dividend payout", userId, {
+        effectKey: `dividend:${userId}:${crypto.createHash("sha256").update(actions.join(",")).digest("hex")}`,
+      });
+      if (payout.applied) recordTransaction(
         userId,
         newTx({
           category: "invest",

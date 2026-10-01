@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
-import { getPayment } from "@/lib/services/payments";
+import { getPayment, publicPaymentView } from "@/lib/services/payments";
 
 export const dynamic = "force-dynamic";
 
@@ -13,5 +13,5 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const params = await props.params;
   const record = getPayment(params.id);
   if (!record) return NextResponse.json({ error: "payment_not_found" }, { status: 404 });
-  return NextResponse.json(record);
+  return NextResponse.json(publicPaymentView(record));
 }

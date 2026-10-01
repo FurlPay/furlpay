@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateBody } from "@/lib/validate";
-import { clientIp } from "@/lib/rateLimit";
+import { trustedClientIp } from "@/lib/clientIp";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 import { sendEmail } from "@/lib/email";
@@ -61,7 +61,9 @@ export async function captureLead(
   const body = await validateBody(req, leadCaptureSchema);
   if (body instanceof NextResponse) return { response: body };
 
-  const ip = clientIp(req);
+  // consent_ip is NOT NULL (migration 0019); an address that could not be
+  // established is recorded as exactly that, never as a plausible IP.
+  const ip = trustedClientIp(req) ?? "unestablished";
 
   let lead;
   try {

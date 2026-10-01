@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/publicOrigin";
 import {
   ActionGetResponse,
   ActionPostRequest,
@@ -6,7 +7,8 @@ import {
   createPostResponse,
 } from "@solana/actions";
 import { PublicKey } from "@solana/web3.js";
-import { buildPaymentTransaction, getOrder, furlPaymentsEnabled, type PayAsset } from "@/lib/actions/solana";
+import { buildPaymentTransaction, getOrder, furlPaymentsEnabled, MerchantWalletNotConfiguredError, type PayAsset } from "@/lib/actions/solana";
+import { demoOnlyUnavailableWithHeaders } from "@/lib/demoGate";
 
 // Solana Actions require CORS + version/chain compatibility headers (sRFC 31).
 // createActionHeaders bundles ACTIONS_CORS_HEADERS with X-Action-Version and
@@ -16,11 +18,18 @@ const headers = createActionHeaders({ chainId: "mainnet", actionVersion: "2.4" }
 // CORS preflight — clients probe this before GET/POST.
 export const OPTIONS = async () => new Response(null, { headers });
 
+// getOrder() has no order store: it answers $25 for ANY order id. Building a
+// real mainnet transfer for an order nobody created is a payment for nothing,
+// so production refuses until orders are real (created, owned, priced).
+const ORDERS_REASON = "Blink checkout has no order store yet; every order id resolved to a fixed $25.";
+
 // GET /api/actions/pay/[orderId] — metadata used to render the Blink widget.
 export const GET = async (req: Request, props: { params: Promise<{ orderId: string }> }) => {
+  const gate = demoOnlyUnavailableWithHeaders(headers, "Blink checkout", ORDERS_REASON);
+  if (gate) return gate;
   const params = await props.params;
   const order = getOrder(params.orderId);
-  const base = new URL(req.url).origin;
+  const base = publicOrigin(req);
   const price = order.amountUsd.toFixed(2);
 
   const payload: ActionGetResponse = {
@@ -67,6 +76,8 @@ export const GET = async (req: Request, props: { params: Promise<{ orderId: stri
 
 // POST /api/actions/pay/[orderId] — return the serialized transaction to sign.
 export const POST = async (req: Request, props: { params: Promise<{ orderId: string }> }) => {
+  const gate = demoOnlyUnavailableWithHeaders(headers, "Blink checkout", ORDERS_REASON);
+  if (gate) return gate;
   const params = await props.params;
   try {
     const body: ActionPostRequest = await req.json();
@@ -116,6 +127,9 @@ export const POST = async (req: Request, props: { params: Promise<{ orderId: str
 
     return Response.json(payload, { headers });
   } catch (err) {
+    if (err instanceof MerchantWalletNotConfiguredError) {
+      return Response.json({ message: "Payments are not available on this deployment." }, { status: 503, headers });
+    }
     const message = err instanceof Error ? err.message : "Unable to build transaction.";
     return Response.json({ message }, { status: 400, headers });
   }

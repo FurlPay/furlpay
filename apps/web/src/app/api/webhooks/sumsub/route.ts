@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
+import { recordProductEvent } from "@/lib/analytics/events";
 import crypto from "crypto";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
 import { getAccountDurable, setKycStatus } from "@/lib/store";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 import { kycTransitionAllowed, type KycState } from "@/lib/webhookOrdering";
+import { resolveKycSession } from "@/lib/compliance/kycBinding";
 
 // POST /api/webhooks/sumsub — Sumsub applicant review outcomes (KYC/AML).
 // Sumsub signs the raw body with the webhook secret; the digest arrives in
@@ -56,15 +58,34 @@ export async function POST(request: Request) {
   }
 
   try {
-    // externalUserId is the FurlPay user id passed when the applicant was
-    // created; the KYC transition goes through the dedicated path only.
-    const userId: string | undefined = event.externalUserId;
+    // The account is the one THIS SERVER bound to the applicant when it created
+    // it (lib/compliance/kycBinding). externalUserId is only cross-checked
+    // against that binding, never used on its own to pick an account. The KYC
+    // transition goes through the dedicated path only.
+    const binding = await resolveKycSession("sumsub", event.applicantId, event.externalUserId);
+    if (!binding.ok) {
+      log.warn("sumsub webhook refused: applicant not bound to a user", {
+        applicantId: event.applicantId,
+        reason: binding.reason,
+      });
+      audit("webhook.processed", "system", {
+        provider: "sumsub",
+        event: event.type,
+        applicantId: event.applicantId,
+        refused: binding.reason,
+      });
+      await markProcessed(eventId);
+      return NextResponse.json({ received: true, refused: binding.reason });
+    }
+    const userId = binding.userId;
     const account = await getAccountDurable(userId);
 
     if (account && event.type === "applicantReviewed") {
       const answer: string = event.reviewResult?.reviewAnswer ?? "";
       if (answer === "GREEN") {
         setKycStatus(account.user.id, "verified", 2);
+        // One event per user: a redelivered approval is the same fact.
+        recordProductEvent({ name: "kyc_completed", eventId: account.user.id, userId: account.user.id, route: "/api/webhooks/sumsub", metadata: { provider: "sumsub", tier: 2 } });
         audit("webhook.processed", account.user.id, {
           provider: "sumsub",
           event: event.type,
@@ -108,8 +129,8 @@ export async function POST(request: Request) {
           rejectType: event.reviewResult?.reviewRejectType,
         });
       }
-    } else if (userId && !account) {
-      log.warn("sumsub webhook for unknown externalUserId", {
+    } else if (!account) {
+      log.warn("sumsub webhook for a bound user with no account", {
         applicantId: event.applicantId,
         userId,
       });

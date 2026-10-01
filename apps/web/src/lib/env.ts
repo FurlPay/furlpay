@@ -29,6 +29,16 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("INTEGRATION_MODE"),
       v("FURLPAY_SESSION_SECRET", true),
       v("FURLPAY_RP_ID"),
+      // Behind CloudFront → ALB: number of appended X-Forwarded-For hops (2).
+      // Unset = Vercel, which sets the IP headers itself.
+      v("FURLPAY_TRUSTED_PROXY_HOPS"),
+      // "true" behind CloudFront (Terraform sets it): origin verification is
+      // mandatory and admin page checks call the local port. Unset elsewhere.
+      v("ORIGIN_VERIFY_REQUIRED"),
+      // "off" disables client analytics ingestion (503); unset = on.
+      v("FURLPAY_ANALYTICS_INGEST"),
+      // Behind CloudFront: the public origin (https://host). Unset = Vercel.
+      v("PUBLIC_API_ORIGIN"),
       v("FURLPAY_ORIGIN"),
       // Signing-cert SHA-256 -> the native app's android:apk-key-hash WebAuthn
       // origin. Required for passkey sign-in from the Android app.
@@ -237,6 +247,22 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("APPLE_APP_ATTEST_ENVIRONMENT"),
       v("ANDROID_PACKAGE_NAME"),
       v("PLAY_INTEGRITY_SERVICE_ACCOUNT"),
+      // Play App Signing certificate SHA-256 digests (comma-separated, as Play
+      // Integrity reports them). Without them enforce mode refuses every mobile token.
+      v("FURLPAY_PLAY_CERT_DIGESTS"),
+      // off | report | enforce (lib/attestation). Default off.
+      v("FURLPAY_ATTESTATION_MODE"),
+    ],
+  },
+  {
+    // Server-driven mobile config (GET /api/app/config, lib/appConfig.ts).
+    group: "Mobile app control",
+    vars: [
+      v("FURLPAY_MIN_ANDROID_VERSION"),
+      v("FURLPAY_MIN_IOS_VERSION"),
+      v("FURLPAY_APP_FORCE_UPDATE"),
+      v("FURLPAY_APP_DISABLED_FEATURES"),
+      v("FURLPAY_APP_MESSAGE"),
     ],
   },
   {

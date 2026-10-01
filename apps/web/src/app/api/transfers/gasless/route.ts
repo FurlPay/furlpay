@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
+import { requireMobileAttestation } from "@/lib/attestation";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { assertRailActive } from "@/lib/ops/controls";
@@ -94,6 +95,10 @@ const GaslessTransfer = z
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+  // Mobile clients must present a platform attestation over a fresh single-use
+  // nonce when FURLPAY_ATTESTATION_MODE=enforce (lib/attestation, P1-9).
+  const unattested = await requireMobileAttestation(req, auth.account.user.id, "transfer.gasless");
+  if (unattested) return unattested;
 
   const limited = await rateLimitOr429(req, "transfers-gasless", { limit: 12, windowMs: 60_000 });
   if (limited) return limited;

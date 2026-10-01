@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/publicOrigin";
 import { NextRequest, NextResponse } from "next/server";
 import Stripe from "stripe";
 import { z } from "zod";
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
   // another account's request.
   const idempotencyKey = req.headers.get("Idempotency-Key");
   return withIdempotency(idempotencyKey, "billing.checkout", async () =>
-    startCheckout(account, body.plan, tier, req.nextUrl.origin, idempotencyKey)
+    startCheckout(account, body.plan, tier, publicOrigin(req), idempotencyKey)
   , { principal: account.user.id });
 }
 

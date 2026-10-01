@@ -87,9 +87,10 @@ jobs:
         env:
           FURLPAY_ENV: ${{ inputs.environment }}
         run: |
-          PROFILE=$([ "${{ inputs.environment }}" = "prod" ] && echo production \
-                   || [ "${{ inputs.environment }}" = "staging" ] && echo staging \
-                   || echo development)
+          # scripts/ci/eas-profile.sh (tested by eas-profile.test.sh, T-C2). The
+          # inline `&& … || … && …` chain it replaces printed "production" AND
+          # "staging" for prod, so no production build could come out of CI.
+          PROFILE="$(bash ../scripts/ci/eas-profile.sh "${{ inputs.environment }}")"
           PLATFORM=$([ "${{ inputs.platform }}" = "all" ] && echo all || echo "${{ inputs.platform }}")
           eas build --non-interactive --no-wait \
             --profile "$PROFILE" --platform "$PLATFORM"

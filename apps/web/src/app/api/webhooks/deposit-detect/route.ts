@@ -1,16 +1,21 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { CHAINS, TOKENS, type Chain, type Token } from "@furlpay/types";
-import { recordDepositEvent, markCredited } from "@/lib/services/deposits";
+import type { Chain } from "@furlpay/types";
+import { claimDepositNotification, recordDepositEvent } from "@/lib/services/deposits";
 import { usdPrice } from "@/lib/services/swap";
-import { findUserByLinkedWallet, persistAccount, type UserAccount } from "@/lib/store";
+import { getAccountDurable, newTx, recordTransaction } from "@/lib/store";
+import { findLinkedWalletOwner } from "@/lib/linkedWalletStore";
+import { depositKey, parseDepositPayload, type DepositFacts } from "@/lib/deposits/parseDeposit";
 import { log } from "@/lib/log";
-import { limit } from "@/lib/rateLimit";
+import { limit, rateLimitIdentity } from "@/lib/rateLimit";
+import { normalizeIp, trustedClientIp } from "@/lib/clientIp";
 import { sendEmail } from "@/lib/email";
 import { depositReceivedEmail } from "@/lib/emailTemplates";
 import { lockLinkFor } from "@/lib/lockLink";
 import { occurredAtMs, recordApplied, staleEvent } from "@/lib/webhookOrdering";
 import { audit } from "@/lib/audit";
+import { withDurableWebhook } from "@/lib/withDurableWebhook";
+import { raiseFinancialAlert } from "@/lib/ops/financialAlerts";
 
 // POST /api/webhooks/deposit-detect — address-activity webhooks from QuickNode
 // Streams (x-qn-signature) or Alchemy Notify (x-alchemy-signature). Both sign
@@ -38,12 +43,13 @@ function timestampFresh(req: Request): boolean {
 // Optional source-IP allowlist (defense in depth on top of the HMAC). Set
 // DEPOSIT_WEBHOOK_ALLOWED_IPS to a comma-separated list to enable; unset
 // means disabled, so the HMAC remains the primary and sufficient gate.
-function ipAllowed(ip: string): boolean {
+function ipAllowed(ip: string | null): boolean {
   const allow = (process.env.DEPOSIT_WEBHOOK_ALLOWED_IPS || "")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  return allow.length === 0 || allow.includes(ip);
+  if (allow.length === 0) return true;
+  return ip !== null && allow.map((a) => normalizeIp(a) ?? a).includes(ip);
 }
 
 function verifySignature(payload: string, req: Request): boolean {
@@ -59,28 +65,31 @@ function verifySignature(payload: string, req: Request): boolean {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-// WHOSE DEPOSIT IS THIS? This used to watch only the seeded DEMO account's
-// `safeAddress` (a placeholder no key controls — see lib/receiveAddress.ts)
-// plus the shared treasury, and credited EVERY matching deposit — treasury
-// ones included — to the demo account's balances and emailed the demo address.
-// No real user's deposit was ever attributed to them.
+// WHOSE DEPOSIT IS THIS, AND WHAT DOES IT MEAN? (audit P1-11 / P1-12)
 //
-// Resolution is now:
-//   - a VERIFIED linked wallet (EIP-191-proven, the only payable per-user
-//     address; lib/receiveAddress.ts) -> that user's account
-//   - the per-chain treasury -> UNATTRIBUTED: recorded and audited, credited to
-//     nobody, because a shared address carries no evidence of whose money it is
-//   - anything else -> ignored
+// A per-user deposit address is a VERIFIED linked wallet — the user's own
+// self-custody key (EIP-191-proven, lib/receiveAddress.ts). Coins that land
+// there are ALREADY the user's, on-chain. The old handler ALSO added them to
+// account.tokenBalances, an internal FurlPay balance: two claims on one asset,
+// a double-spend the day any spend-from-balance rail goes live. For a
+// self-custody address the chain is the source of truth, so this handler now
+// records ACTIVITY (history + notification) and creates NO balance claim and
+// NO ledger posting. A custodial credit needs a FurlPay-controlled deposit
+// address, which does not exist yet; when it does, it is a financial effect
+// (apply_financial_effect, key = depositKey()) — not a line in this handler.
 //
-// KNOWN LIMIT: findUserByLinkedWallet scans accounts loaded in THIS instance.
-// A deposit for an account another instance holds is ignored (never wrongly
-// credited). Closing that needs a durable address index — PGA2-R01 in
-// docs/audit/PRODUCTION_GAP_AUDIT.md.
-type Recipient = { kind: "user"; account: UserAccount } | { kind: "treasury" };
+// Resolution is DURABLE (findLinkedWalletOwner reads linked_wallets by its
+// primary key). It used to scan only accounts loaded into this instance and
+// answer 200 "ignored_address" for everyone else. Now:
+//   - owner found              → record activity for that user
+//   - the per-chain treasury   → UNATTRIBUTED: recorded and audited
+//   - genuinely unknown        → 200 ignored_address (it is not ours)
+//   - lookup failed            → 503, so the provider retries
+type Recipient = { kind: "self_custody"; userId: string } | { kind: "treasury" };
 
-function resolveRecipient(to: string, chain: Chain): Recipient | null {
-  const account = findUserByLinkedWallet(to);
-  if (account) return { kind: "user", account };
+async function resolveRecipient(to: string, chain: Chain): Promise<Recipient | null> {
+  const userId = await findLinkedWalletOwner(to);
+  if (userId) return { kind: "self_custody", userId };
   const treasury = process.env[`TREASURY_ADDRESS_${chain.toUpperCase()}`];
   if (treasury && treasury.toLowerCase() === to.toLowerCase()) return { kind: "treasury" };
   return null;
@@ -89,11 +98,12 @@ function resolveRecipient(to: string, chain: Chain): Recipient | null {
 export async function POST(req: Request) {
   // Cheap pre-verification shield: node providers batch, so 240/min per IP is
   // generous for legit traffic while capping HMAC work from a flood.
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
-  if (!ipAllowed(ip)) {
+  // A configured allowlist admits only an established address; without one,
+  // the HMAC below is the control.
+  if (!ipAllowed(trustedClientIp(req))) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
-  const rl = await limit(`webhooks.deposit:${ip}`, { limit: 240, windowMs: 60_000 });
+  const rl = await limit(`webhooks.deposit:${rateLimitIdentity(req)}`, { limit: 240, windowMs: 60_000 });
   if (!rl.ok) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
@@ -103,102 +113,158 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized signature" }, { status: 401 });
   }
 
-  let payload: any;
+  let payload: unknown;
   try {
     payload = JSON.parse(rawBody);
   } catch {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
   }
 
-  const tx = payload.transaction ?? payload;
-  const txHash: string = String(tx.hash ?? tx.txHash ?? "");
-  const to: string = String(tx.to ?? "");
-  const from: string = String(tx.from ?? "");
-  if (!txHash || !to) {
-    return NextResponse.json({ error: "Missing transaction fields" }, { status: 400 });
+  // Exact facts or a 400 — no float amounts, no defaulted chain/token (P1-13).
+  const parsed = parseDepositPayload(payload);
+  if (!parsed.ok) {
+    return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
+  const f = parsed.facts;
 
-  const chain = String(payload.network ?? tx.network ?? "bsc").toLowerCase() as Chain;
-  if (!CHAINS.includes(chain)) {
-    return NextResponse.json({ error: `Unsupported network "${chain}"` }, { status: 400 });
+  let recipient: Recipient | null;
+  try {
+    recipient = await resolveRecipient(f.to, f.chain);
+  } catch (e) {
+    log.error("deposit recipient lookup failed — asking provider to retry", {
+      txHash: f.txHash,
+      error: (e as Error).message.slice(0, 200),
+    });
+    void raiseFinancialAlert("recipient_lookup_failed", { chain: f.chain, txHash: f.txHash });
+    return NextResponse.json({ error: "recipient_lookup_unavailable", txHash: f.txHash }, { status: 503 });
   }
-  const token = String(payload.token ?? tx.token ?? "USDT").toUpperCase() as Token;
-  if (!TOKENS.includes(token)) {
-    return NextResponse.json({ error: `Unsupported token "${token}"` }, { status: 400 });
-  }
-
-  const recipient = resolveRecipient(to, chain);
   if (!recipient) {
     return NextResponse.json({ status: "ignored_address" });
   }
-
-  // Amount: prefer a normalized value; else convert raw base units using the
-  // payload's decimals (BEP-20 stables are 18-decimal, unlike 6 elsewhere).
-  const amount =
-    payload.amount != null
-      ? Number(payload.amount)
-      : Number(tx.value ?? 0) / 10 ** Number(payload.decimals ?? 18);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
-  }
-
-  const confirmations = Number(
-    payload.confirmations ?? (tx.blockNumber != null && tx.blockNumber !== null ? 1 : 0)
-  );
+  const to = recipient;
 
   // ORDERING, which idempotency does not cover. Providers make no ordering
-  // guarantee, so a delayed low-confirmation event for this transaction can
-  // arrive AFTER a later high-confirmation one — different event ids, both
-  // genuinely new, both claimed successfully — and walk the deposit's state
-  // backwards. Keyed on the TRANSACTION because that is the thing being
-  // changed; the event id is what webhookGuard already dedupes.
+  // guarantee, so a delayed low-confirmation event for this transfer can
+  // arrive AFTER a later high-confirmation one and walk its state backwards.
+  const p = payload as Record<string, unknown>;
+  const tx = (p.transaction && typeof p.transaction === "object" ? p.transaction : p) as Record<string, unknown>;
   const ordering = {
-    resource: `deposit:${chain}:${txHash.toLowerCase()}`,
-    occurredAtMs: occurredAtMs(
-      payload.timestamp ?? payload.occurredAt ?? tx.timestamp ?? tx.blockTimestamp
-    ),
+    resource: depositKey(f),
+    occurredAtMs: occurredAtMs(p.timestamp ?? p.occurredAt ?? tx.timestamp ?? tx.blockTimestamp),
   };
   if (await staleEvent(ordering)) {
-    return NextResponse.json({ status: "ignored_stale", txHash });
+    return NextResponse.json({ status: "ignored_stale", txHash: f.txHash });
   }
 
-  const event = await recordDepositEvent({ txHash, token, chain, amount, from, to, confirmations });
+  const event = await recordDepositEvent({
+    txHash: f.txHash,
+    token: f.token,
+    chain: f.chain,
+    // Display-only activity figure; the exact amount is f.amount.
+    amount: Number(f.amount),
+    from: f.from,
+    to: f.to,
+    confirmations: f.confirmations,
+  });
 
-  // Credit the ledger exactly once per transaction, on the success transition.
-  if (event.status === "success" && recipient.kind === "treasury") {
-    // Recorded (recordDepositEvent above) and audited, credited to no one.
-    audit("deposit.unattributed", "system", { chain, txHash, token, amount });
-    log.warn("treasury deposit not attributable to a user", { txHash, token, chain, amount });
-  } else if (event.status === "success" && recipient.kind === "user" && (await markCredited(txHash))) {
-    const account = recipient.account;
-    const bal = account.tokenBalances.find((b) => b.token === token && b.chain === chain);
-    if (bal) {
-      bal.amount += amount;
-      bal.usdValue = bal.amount * usdPrice(token);
-    } else {
-      account.tokenBalances.push({ token, chain, amount, usdValue: amount * usdPrice(token) });
+  // Notify once per transfer, on the success transition. Nothing here moves
+  // money, but a duplicate notification is still wrong, so the durable claim
+  // (0022/0024) keys it on the transfer identity.
+  if (event.status === "success") {
+    const outcome = await withDurableWebhook<"notified" | "unattributed" | "skipped" | "mismatch" | "unavailable">({
+      provider: "deposit-activity",
+      eventId: depositKey(f),
+      eventType: "deposit.observed",
+      rawBody: JSON.stringify({
+        chain: f.chain,
+        txHash: f.txHash,
+        logIndex: f.logIndex,
+        token: f.token,
+        to: f.to.toLowerCase(),
+        amount: f.amount,
+      }),
+      onDuplicate: () => "skipped",
+      onMismatch: () => {
+        audit("webhook.payload_mismatch", "system", { provider: "deposit-activity", chain: f.chain, txHash: f.txHash });
+        return "mismatch";
+      },
+      onUnavailable: () => "unavailable",
+      handler: async () => notifyDeposit(to, f, event.confirmations),
+    });
+    if (outcome === "unavailable") {
+      return NextResponse.json({ error: "deposit_store_unavailable", txHash: f.txHash }, { status: 503 });
     }
-    void persistAccount(account.user.id);
-    log.info("deposit credited", { txHash, token, chain, amount, userId: account.user.id });
+    if (outcome === "mismatch") {
+      return NextResponse.json({ error: "payload_mismatch", txHash: f.txHash }, { status: 400 });
+    }
+  }
+
+  await recordApplied(ordering);
+  return NextResponse.json({ status: "processed", txHash: f.txHash, state: event.status, orderId: event.orderId });
+}
+
+async function notifyDeposit(
+  recipient: Recipient,
+  f: DepositFacts,
+  confirmations: number
+): Promise<"notified" | "unattributed"> {
+  if (recipient.kind === "treasury") {
+    audit("deposit.unattributed", "system", { chain: f.chain, txHash: f.txHash, token: f.token, amount: f.amount });
+    log.warn("treasury deposit not attributable to a user", {
+      txHash: f.txHash,
+      token: f.token,
+      chain: f.chain,
+      amount: f.amount,
+    });
+    return "unattributed";
+  }
+  // Fast-path dedupe for the notice itself (KV; the durable claim above is the
+  // authority where Postgres exists). Nothing financial depends on it.
+  if (!(await claimDepositNotification(depositKey(f)))) return "notified";
+  // SELF-CUSTODY: activity only. No tokenBalances change, no ledger posting —
+  // the coins are in the user's own wallet and the chain is the record.
+  const account = await getAccountDurable(recipient.userId);
+  audit("deposit.self_custody_observed", recipient.userId, {
+    chain: f.chain,
+    txHash: f.txHash,
+    token: f.token,
+    amount: f.amount,
+  });
+  if (account) {
+    recordTransaction(
+      account.user.id,
+      newTx({
+        category: "transfer",
+        direction: "in",
+        title: `Received ${trimAmount(f.amount)} ${f.token}`,
+        subtitle: `To your own wallet · ${f.chain} · ${f.txHash.slice(0, 10)}…`,
+        // Display estimate only (activity row); the exact amount is in the title.
+        amountUsd: Math.round(Number(f.amount) * usdPrice(f.token) * 100) / 100,
+        token: f.token,
+        chain: f.chain,
+        status: "settled",
+      })
+    );
     if (account.user.email) {
-      // Keyed by txHash: markCredited already guarantees one credit, and the
-      // idempotency key catches a redelivered webhook racing the KV guard.
       void sendEmail({
         to: account.user.email,
         category: "deposit",
-        idempotencyKey: `deposit-${txHash}`,
+        idempotencyKey: depositKey(f),
         ...depositReceivedEmail({
-          amount,
-          token,
-          chain,
-          txHash,
-          confirmations: event.confirmations,
+          amount: Number(f.amount),
+          token: f.token,
+          chain: f.chain,
+          txHash: f.txHash,
+          confirmations,
           lockUrl: lockLinkFor(account.user.id) ?? undefined,
         }),
       });
     }
   }
+  return "notified";
+}
 
-  await recordApplied(ordering);
-  return NextResponse.json({ status: "processed", txHash, state: event.status, orderId: event.orderId });
+/** "1000.500000000000000000" -> "1000.5" — exact, just without trailing zeros. */
+function trimAmount(a: string): string {
+  return a.includes(".") ? a.replace(/\.?0+$/, "") : a;
 }

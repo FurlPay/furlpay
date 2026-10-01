@@ -1,0 +1,46 @@
+# Build context for apps/web/Dockerfile (built from the repository root).
+# Anything not needed to build the web app stays out — smaller context, and
+# nothing sensitive can be baked into an image layer by accident.
+
+# ── secrets and key material: NEVER in an image ──────────────────────────────
+**/.env
+**/.env.*
+!**/.env.example
+**/*.pem
+**/*.key
+**/*keypair*.json
+**/*-keypair.json
+**/id.json
+**/.cnft-payer.json
+**/.vercel
+**/.airtable.env
+**/service-account*.json
+
+# ── dependencies and build output (rebuilt inside the image) ────────────────
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/.output
+**/.wxt
+packages/contracts/artifacts
+packages/contracts/cache
+packages/contracts/typechain-types
+
+# ── not part of the web build ────────────────────────────────────────────────
+.git
+.github
+native-app
+ios
+guardian
+apps/android
+furlpay-nfc
+furlpay-validator
+chaintracker
+mempool-sentinel
+**/.venv
+**/__pycache__
+infra
+audit
+**/*.log

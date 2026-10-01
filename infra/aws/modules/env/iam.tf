@@ -35,9 +35,9 @@ data "aws_iam_policy_document" "task_execution_secrets" {
     # Scoped to this environment's prefix. A wildcard here is how a staging
     # task ends up able to read production credentials.
     resources = concat(
+      [for s in aws_secretsmanager_secret.database_url : s.arn],
+      [for s in aws_secretsmanager_secret.redis_url : s.arn],
       [
-        aws_secretsmanager_secret.database_url.arn,
-        aws_secretsmanager_secret.redis_url.arn,
         aws_secretsmanager_secret.origin_verify.arn,
         aws_secretsmanager_secret.cron_secret.arn,
       ],
@@ -199,9 +199,12 @@ data "aws_iam_policy_document" "assume_github" {
       values = var.env == "prod" ? [
         # Production deploys only from the GitHub environment named "prod",
         # which carries a required-reviewers protection rule.
-        "repo:FurlPay/Payment-App:environment:prod",
+        # The repository is a variable (audit P1-5): it used to be hard-coded
+        # as FurlPay/Payment-App while the code lives in Ashutosh0x/furlpay, so
+        # no workflow could ever assume this role.
+        "repo:${var.github_repo}:environment:prod",
         ] : [
-        "repo:FurlPay/Payment-App:environment:${var.env}",
+        "repo:${var.github_repo}:environment:${var.env}",
       ]
     }
   }
@@ -225,6 +228,11 @@ data "aws_region" "current" {}
 data "aws_partition" "current" {}
 
 locals {
+  # Application secrets, by the names the application reads — from the single
+  # source of truth checked in CI (scripts/aws/check-env-contract.mjs).
+  env_contract     = jsondecode(file("${path.module}/../../env-contract.json"))
+  app_secret_names = [for v in local.env_contract.variables : v.name if v.terraform == "secret"]
+
   ecr_web_repository_arn = join("", [
     "arn:", data.aws_partition.current.partition,
     ":ecr:", data.aws_region.current.name,

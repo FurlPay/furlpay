@@ -1,8 +1,10 @@
+import { publicOrigin } from "@/lib/publicOrigin";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { requireCron } from "@/lib/cron/auth";
+import { runOncePerDay } from "@/lib/cron/runOnce";
 import { runJob } from "@/lib/cron/runner";
 import { botToken, configuredChannels } from "@/lib/priceCards/config";
 import { getPriceCardData, type CardSymbol } from "@/lib/priceCards/data";
@@ -26,7 +28,7 @@ import { checkChannel, upsertCardMessage } from "@/lib/priceCards/discordBot";
 // the bot cannot see, must not stop the other three. Each is caught, recorded
 // and reported in the response.
 // ---------------------------------------------------------------------------
-export async function GET(req: NextRequest) {
+async function run(req: NextRequest) {
   const auth = requireCron(req);
   if (!auth.ok) return auth.res;
 
@@ -68,7 +70,7 @@ export async function GET(req: NextRequest) {
     const data = await getPriceCardData(symbols);
 
     const results: Record<string, unknown>[] = [];
-    const origin = new URL(req.url).origin;
+    const origin = publicOrigin(req);
 
     // PACED PER CHANNEL, so the retry is a safety net rather than the plan.
     //
@@ -251,3 +253,16 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({ job: "price-cards", status: outcome.status, dryRun: dry, ...report });
 }
+
+// Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)
+// calls POST — it used to get a 405 (audit P1-3). This job posts to an external
+// channel, so it runs at most once per UTC day: EventBridge retries after a
+// 5-second timeout and would otherwise post several times. Authentication comes
+// first, so an unauthenticated request can never consume the day's run.
+export async function GET(req: NextRequest) {
+  const auth = requireCron(req);
+  if (!auth.ok) return auth.res;
+  return runOncePerDay("price-cards", () => run(req));
+}
+
+export const POST = GET;

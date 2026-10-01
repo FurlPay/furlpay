@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { requireCron } from "@/lib/cron/auth";
+import { runOncePerDay } from "@/lib/cron/runOnce";
 import { runJob } from "@/lib/cron/runner";
 import { runWelcomeSweep, type SweepReport } from "@/lib/discordWelcome/welcome";
 
@@ -27,7 +28,7 @@ import { runWelcomeSweep, type SweepReport } from "@/lib/discordWelcome/welcome"
 // claim store, so configuration can be checked against a live server without
 // greeting anybody.
 // ---------------------------------------------------------------------------
-export async function GET(req: NextRequest) {
+async function run(req: NextRequest) {
   const auth = requireCron(req);
   if (!auth.ok) return auth.res;
 
@@ -60,3 +61,16 @@ export async function GET(req: NextRequest) {
     ...report,
   });
 }
+
+// Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)
+// calls POST — it used to get a 405 (audit P1-3). This job posts to an external
+// channel, so it runs at most once per UTC day: EventBridge retries after a
+// 5-second timeout and would otherwise post several times. Authentication comes
+// first, so an unauthenticated request can never consume the day's run.
+export async function GET(req: NextRequest) {
+  const auth = requireCron(req);
+  if (!auth.ok) return auth.res;
+  return runOncePerDay("discord-welcome", () => run(req));
+}
+
+export const POST = GET;

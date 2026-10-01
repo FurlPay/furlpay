@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
+import { requireMobileAttestation } from "@/lib/attestation";
 import { validateBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { linkingEnabled, verifyLink } from "@/lib/walletLink";
@@ -32,6 +33,10 @@ export async function POST(req: NextRequest) {
 
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+  // Mobile clients must present a platform attestation over a fresh single-use
+  // nonce when FURLPAY_ATTESTATION_MODE=enforce (lib/attestation, P1-9).
+  const unattested = await requireMobileAttestation(req, auth.account.user.id, "wallet.link");
+  if (unattested) return unattested;
   if (auth.claims.guest) return NextResponse.json({ error: "guest_forbidden" }, { status: 403 });
 
   const limited = await rateLimitOr429(req, "wallet.link.verify", { limit: 10, windowMs: 10 * 60_000 });

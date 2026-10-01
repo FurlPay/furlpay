@@ -174,6 +174,29 @@ export async function kvIncrBy(key: string, by: number, windowSeconds: number): 
   return current;
 }
 
+/** Integer counters for many keys in ONE round trip (MGET); a missing key is 0.
+ *  For reading the time-bucketed counters kvIncrBy writes. */
+export async function kvMGetCounts(keys: string[]): Promise<number[]> {
+  if (keys.length === 0) return [];
+  if (kvBackend === "redis") {
+    const out: number[] = [];
+    for (let i = 0; i < keys.length; i += 500) {
+      const chunk = keys.slice(i, i + 500);
+      const vals = ((await redis(["MGET", ...chunk])) as (string | null)[]) ?? [];
+      for (let j = 0; j < chunk.length; j++) {
+        const n = Number(vals[j] ?? 0);
+        out.push(Number.isFinite(n) ? n : 0);
+      }
+    }
+    return out;
+  }
+  assertDurableBackend("mget");
+  return keys.map((k) => {
+    const n = Number(memGet(k) ?? 0);
+    return Number.isFinite(n) ? n : 0;
+  });
+}
+
 /** Prepend to a bounded list (LPUSH + LTRIM) — newest first. */
 export async function kvListPush(key: string, value: string, maxLength: number): Promise<void> {
   if (kvBackend === "redis") {
@@ -297,4 +320,57 @@ export async function kvZScore(key: string, member: string): Promise<number | nu
     return v === null || v === undefined ? null : Number(v);
   }
   return memZRead(key).find((m) => m.member === member)?.score ?? null;
+}
+
+// --- HyperLogLog ------------------------------------------------------------
+//
+// Used for DAU/MAU counting (unique-user approximation). Redis HyperLogLog
+// gives ~0.81 % error at 12 KB per key — perfect for cardinality estimates
+// that don't need exact counts.
+
+/**
+ * PFADD: add members to a HyperLogLog (approximate distinct counting).
+ * \`ttlSeconds\` (optional) bounds retention; it is set only when the key is new.
+ */
+export async function kvPfAdd(key: string, ...members: string[]): Promise<number> {
+  return kvPfAddTtl(key, undefined, ...members);
+}
+
+export async function kvPfAddTtl(key: string, ttlSeconds: number | undefined, ...members: string[]): Promise<number> {
+  if (members.length === 0) return 0;
+  if (kvBackend === "redis") {
+    const changed = (await redis(["PFADD", key, ...members])) as number;
+    // Plain EXPIRE (no NX, which needs Redis 7): callers use per-day keys, so
+    // re-arming on each write moves the expiry by less than a day.
+    if (ttlSeconds) await redis(["EXPIRE", key, ttlSeconds]);
+    return changed;
+  }
+  assertDurableBackend("pfAdd");
+  // In-memory fallback: an exact Set (dev only).
+  const existing = memGet(key);
+  const set: Set<string> = existing ? new Set(JSON.parse(existing) as string[]) : new Set();
+  let added = 0;
+  for (const m of members) {
+    if (!set.has(m)) { set.add(m); added++; }
+  }
+  memSet(key, JSON.stringify([...set]), existing ? undefined : ttlSeconds);
+  return added > 0 ? 1 : 0;
+}
+
+/**
+ * PFCOUNT: approximate cardinality. Several keys give the cardinality of their
+ * UNION, i.e. distinct members across days, not a sum of daily counts.
+ */
+export async function kvPfCount(...keys: string[]): Promise<number> {
+  if (keys.length === 0) return 0;
+  if (kvBackend === "redis") {
+    return (await redis(["PFCOUNT", ...keys])) as number;
+  }
+  assertDurableBackend("pfCount");
+  const union = new Set<string>();
+  for (const k of keys) {
+    const existing = memGet(k);
+    if (existing) for (const m of JSON.parse(existing) as string[]) union.add(m);
+  }
+  return union.size;
 }

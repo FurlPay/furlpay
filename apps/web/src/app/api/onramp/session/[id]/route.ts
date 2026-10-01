@@ -12,5 +12,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
   const params = await props.params;
   const session = getOnrampSession(params.id);
   if (!session) return NextResponse.json({ error: "not_found" }, { status: 404 });
-  return NextResponse.json(session);
+  // Never the clientSecret: it is returned once, at creation, to the creator.
+  // A poll by id is not proof of being that creator, and echoing the secret
+  // here would make the id alone sufficient to act on the session.
+  const { clientSecret: _secret, ...status } = session;
+  return NextResponse.json(status);
 }

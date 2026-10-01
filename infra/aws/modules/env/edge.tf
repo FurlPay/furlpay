@@ -44,6 +44,11 @@ resource "aws_lb" "main" {
   enable_deletion_protection = var.deletion_protection
   drop_invalid_header_fields = true # request smuggling via malformed headers
   idle_timeout               = 60
+  # The app derives the client IP by counting appended X-Forwarded-For hops
+  # (FURLPAY_TRUSTED_PROXY_HOPS = 2: CloudFront appends the viewer, this ALB
+  # appends the CloudFront edge). "append" is the default; pinned because
+  # "preserve" or "remove" would silently break that count.
+  xff_header_processing_mode = "append"
 
   access_logs {
     bucket  = aws_s3_bucket.logs.id
@@ -83,12 +88,58 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = var.acm_certificate_arn
+  # Regional certificate for origin_domain_name: CloudFront validates it
+  # against that name (see the origin block below). The viewer certificate
+  # (acm_certificate_arn) lives in us-east-1 and cannot be attached here.
+  certificate_arn = var.alb_certificate_arn
 
+  # ORIGIN BOUNDARY. The default action REFUSES; only the rule below forwards,
+  # and only for requests carrying the CloudFront origin secret. This is the
+  # layer that covers every path — /_next/static, public/* files and anything
+  # else the Next.js middleware matcher skips never reach the app to be checked
+  # there. The prefix-list security group admits every CloudFront distribution
+  # in AWS, not just ours; this rule is what makes the ALB private to OURS.
+  #
+  # Same status and body for "missing" and "wrong", so a probe learns nothing
+  # about the secret. ALB target health checks do not traverse listener rules,
+  # so they are unaffected by this (they hit /api/health on the target directly).
   default_action {
+    type = "fixed-response"
+    fixed_response {
+      content_type = "text/plain"
+      message_body = "Not found"
+      status_code  = "404"
+    }
+  }
+}
+
+resource "aws_lb_listener_rule" "origin_verified" {
+  listener_arn = aws_lb_listener.https.arn
+  priority     = 1
+
+  action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.app.arn
   }
+
+  # Exact match is safe for this value: ALB treats `*` and `?` in condition
+  # values as wildcards, and random_password.origin_verify is generated with
+  # special = false (alphanumeric only, 48 chars — within ALB's 128-char limit).
+  # ALB compares header VALUES case-insensitively, which still leaves ~2^248
+  # combinations; the application re-checks the value case-sensitively
+  # (apps/web/src/lib/originVerify.ts).
+  #
+  # ROTATION: `values` accepts up to five entries. Add the new secret here,
+  # apply, switch CloudFront + the task secret, then remove the old one — never
+  # change both ends in one step or every request 404s in between.
+  condition {
+    http_header {
+      http_header_name = "X-Origin-Verify"
+      values           = [random_password.origin_verify.result]
+    }
+  }
+
+  tags = local.common_tags
 }
 
 # --- WAF ---------------------------------------------------------------------
@@ -185,6 +236,72 @@ resource "aws_wafv2_web_acl" "main" {
     }
   }
 
+  # Known-malicious sources (botnets, scanners) — AWS-maintained, no per-request
+  # charge beyond the rule group (audit P3-7). Credential stuffing against
+  # /api/auth/* is the traffic this is for.
+  rule {
+    name     = "ip-reputation"
+    priority = 4
+
+    override_action {
+      none {}
+    }
+
+    statement {
+      managed_rule_group_statement {
+        vendor_name = "AWS"
+        name        = "AWSManagedRulesAmazonIpReputationList"
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-ip-reputation"
+      sampled_requests_enabled   = true
+    }
+  }
+
+  # A tighter per-IP budget on the authentication surface than the global
+  # backstop above: OTP send/check and passkey ceremonies are where password-
+  # spray-style abuse concentrates.
+  rule {
+    name     = "auth-rate-limit"
+    priority = 5
+
+    action {
+      block {}
+    }
+
+    statement {
+      rate_based_statement {
+        limit              = var.env == "prod" ? 300 : 3000
+        aggregate_key_type = "IP"
+
+        scope_down_statement {
+          byte_match_statement {
+            search_string         = "/api/auth/"
+            positional_constraint = "STARTS_WITH"
+
+            field_to_match {
+              uri_path {}
+            }
+
+            text_transformation {
+              priority = 0
+              type     = "LOWERCASE"
+            }
+          }
+        }
+      }
+    }
+
+    visibility_config {
+      cloudwatch_metrics_enabled = true
+      metric_name                = "${local.name}-auth-rate-limit"
+      sampled_requests_enabled   = true
+    }
+  }
+
   visibility_config {
     cloudwatch_metrics_enabled = true
     metric_name                = "${local.name}-waf"
@@ -205,7 +322,10 @@ resource "aws_cloudfront_distribution" "main" {
   comment         = "FurlPay ${var.env} API"
 
   origin {
-    domain_name = aws_lb.main.dns_name
+    # NOT aws_lb.main.dns_name: the viewer Host is not forwarded, so CloudFront
+    # checks the origin certificate against THIS name, and no certificate can
+    # cover *.elb.amazonaws.com; every request would be a 502.
+    domain_name = aws_route53_record.origin.fqdn
     origin_id   = "alb"
 
     custom_origin_config {
@@ -289,6 +409,22 @@ resource "aws_secretsmanager_secret_version" "origin_verify" {
 }
 
 # --- DNS ----------------------------------------------------------------------
+
+# Origin hostname for CloudFront -> ALB TLS (variables.tf origin_domain_name).
+# Public DNS, but the ALB it names is already publicly resolvable under its AWS
+# name; what keeps it private is the prefix-list security group plus the
+# X-Origin-Verify listener rule, not the obscurity of the hostname.
+resource "aws_route53_record" "origin" {
+  zone_id = var.hosted_zone_id
+  name    = var.origin_domain_name
+  type    = "A"
+
+  alias {
+    name                   = aws_lb.main.dns_name
+    zone_id                = aws_lb.main.zone_id
+    evaluate_target_health = false
+  }
+}
 
 resource "aws_route53_record" "api" {
   zone_id = var.hosted_zone_id

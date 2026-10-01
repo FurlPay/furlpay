@@ -45,7 +45,7 @@ jobs:
           # Pinned. A Terraform minor release can change validation behaviour,
           # and "CI started failing and nobody changed anything" is an expensive
           # morning. Bump this deliberately.
-          terraform_version: 1.9.8
+          terraform_version: 1.11.4
           terraform_wrapper: false
 
       - name: Format
@@ -67,6 +67,19 @@ jobs:
             cd ../..
             echo "::endgroup::"
           done
+          # The organization guardrails root (org CloudTrail, SCPs, Config,
+          # Security Hub — audit P2-3) is applied from the management account.
+          echo "::group::org"
+          (cd org && terraform init -backend=false -input=false -no-color && terraform validate -no-color)
+          echo "::endgroup::"
+
+      - name: App env contract matches the task definition (T-A1)
+        working-directory: .
+        run: node scripts/aws/check-env-contract.mjs
+
+      - name: Edge configuration (cert regions, origin lock, XFF hop model)
+        working-directory: .
+        run: node scripts/aws/check-edge-config.mjs
 
       - name: Production must pin images by digest
         # The rule lives in envs/prod/main.tf. This asserts it actually FIRES,

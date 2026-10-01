@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { validateBody } from "@/lib/validate";
 import { screenTransaction, type TxRequest } from "@furlpay/security";
 
 export const dynamic = "force-dynamic";
@@ -8,25 +10,31 @@ export const dynamic = "force-dynamic";
 // effect of an outgoing transfer/approval and runs the ML scam classifier,
 // returning an allow/warn/block gate the client enforces BEFORE signing.
 // Body: TxRequest ({ from, to, valueUsd, approvalAmount?, recipientAgeDays?, ... }).
+//
+// ADVISORY ONLY: the signals are asserted by the caller about its own
+// transaction, and nothing server-side trusts this verdict to move money.
+// The body is still validated (AGENTS rule 1) rather than coerced: a non-numeric
+// valueUsd used to become NaN and reach the classifier.
+const Body = z.object({
+  from: z.string().max(128).optional(),
+  to: z.string().min(1).max(128),
+  valueUsd: z.number().nonnegative().max(1e12).optional(),
+  // Token units; "unlimited" approvals arrive as very large numbers (2^256-1).
+  approvalAmount: z.number().nonnegative().optional(),
+  token: z.string().max(32).optional(),
+  recipientAgeDays: z.number().nonnegative().max(1e6).optional(),
+  lookalikeOfKnown: z.boolean().optional(),
+  flaggedRecipient: z.boolean().optional(),
+  firstInteraction: z.boolean().optional(),
+  knownGoodContract: z.boolean().optional(),
+});
+
 export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "security.simulate", { limit: 30, windowMs: 60_000 });
   if (limited) return limited;
 
-  const b = (await req.json().catch(() => ({}))) as Partial<TxRequest>;
-  if (!b?.to || typeof b.to !== "string") {
-    return NextResponse.json({ error: "recipient `to` is required" }, { status: 400 });
-  }
-  const tx: TxRequest = {
-    from: String(b.from ?? ""),
-    to: b.to,
-    valueUsd: Number(b.valueUsd ?? 0),
-    approvalAmount: b.approvalAmount,
-    token: b.token,
-    recipientAgeDays: b.recipientAgeDays,
-    lookalikeOfKnown: b.lookalikeOfKnown,
-    flaggedRecipient: b.flaggedRecipient,
-    firstInteraction: b.firstInteraction,
-    knownGoodContract: b.knownGoodContract,
-  };
+  const b = await validateBody(req, Body, { maxBytes: 4 * 1024 });
+  if (b instanceof NextResponse) return b;
+  const tx: TxRequest = { ...b, from: b.from ?? "", valueUsd: b.valueUsd ?? 0 };
   return NextResponse.json(screenTransaction(tx));
 }

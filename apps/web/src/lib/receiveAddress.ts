@@ -1,4 +1,19 @@
 import type { UserAccount } from "@/lib/store";
+import { loadLinkedWallet } from "@/lib/linkedWalletStore";
+
+const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+
+/**
+ * The address a live on-chain call may name as the user's RECEIVER (vault
+ * shares, withdrawals): their verified, active, EIP-191-linked EVM wallet,
+ * read durably. Null when there is none — the caller must refuse, never
+ * substitute. account.user.safeAddress is never a receiver (T-E2).
+ */
+export async function verifiedReceiver(userId: string): Promise<string | null> {
+  const linked = await loadLinkedWallet(userId);
+  if (!linked || linked.status !== "active" || linked.verificationMethod !== "eip191") return null;
+  return EVM_ADDRESS.test(linked.address) ? linked.address : null;
+}
 
 // ---------------------------------------------------------------------------
 // The one answer to "where do I send this person money?"

@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/publicOrigin";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { SCOPES } from "@/lib/mcp/oauth";
@@ -6,7 +7,7 @@ import { SCOPES } from "@/lib/mcp/oauth";
 // its WWW-Authenticate header; this is how an MCP client discovers which
 // authorization server to run OAuth against.
 export async function GET(req: NextRequest) {
-  const origin = new URL(req.url).origin;
+  const origin = publicOrigin(req);
   return NextResponse.json(
     {
       resource: `${origin}/api/mcp`,

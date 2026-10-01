@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { demoOnlyUnavailable } from "@/lib/demoGate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { generateRestaurants } from "@/lib/travel/discover";
@@ -9,6 +10,8 @@ export async function GET(req: NextRequest) {
   const limited = await rateLimitOr429(req, "travel.restaurants", { limit: 60, windowMs: 60_000 });
   if (limited) return limited;
 
+  const gate = demoOnlyUnavailable("Restaurant discovery", "No restaurant provider is integrated; listings would be generated, not real venues.");
+  if (gate) return gate;
   const city = req.nextUrl.searchParams.get("city") ?? "";
   let restaurants = generateRestaurants(city, 14);
   if (req.nextUrl.searchParams.get("crypto") === "1") {

@@ -1,4 +1,5 @@
 import { currentEpoch } from "@/lib/sessionEpoch";
+import { recordProductEvent } from "@/lib/analytics/events";
 import { NextRequest, NextResponse } from "next/server";
 import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { verifyAppleIdentityToken } from "@/lib/auth/apple";
@@ -97,6 +98,11 @@ export async function POST(req: NextRequest) {
   });
   setSessionCookie(res, token);
   audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: "apple" });
+  recordProductEvent(
+    created
+      ? { name: "signup_completed", eventId: account.user.id, userId: account.user.id, subjectOf: identity.email ?? null, route: "/api/auth/apple", metadata: { provider: "apple" } }
+      : { name: "login", eventId: `${account.user.id}:${Date.now()}`, userId: account.user.id, route: "/api/auth/apple", metadata: { provider: "apple" } }
+  );
   if (created && identity.email) {
     void sendEmail({ to: identity.email, category: "welcome", ...welcomeEmail(identity.name) });
   }

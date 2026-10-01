@@ -3,6 +3,7 @@ import { newTx, recordTransaction } from "@/lib/store";
 import { selectVault, buildDepositBundle, earnIsLive } from "@/lib/services/morpho";
 import { addToPosition } from "@/lib/services/earn";
 import { requireUser } from "@/lib/authz";
+import { verifiedReceiver } from "@/lib/receiveAddress";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 import { withIdempotency } from "@/lib/idempotency";
@@ -73,7 +74,16 @@ export async function POST(req: NextRequest) {
   // LIVE: return the tx bundle for the Safe to sign. The position is recorded
   // when the deposit settles (webhook / on-chain read), not here.
   if (live) {
-    const receiver = account.user.safeAddress;
+    // THE RECEIVER IS THE USER'S VERIFIED LINKED WALLET OR NOTHING (T-E2).
+    // This used account.user.safeAddress — a hash placeholder no key controls —
+    // so vault shares would have been sent to an address nobody can ever move from.
+    const receiver = await verifiedReceiver(account.user.id);
+    if (!receiver) {
+      return NextResponse.json(
+        { ok: false, error: "wallet_required", message: "Link a wallet you control before using Earn." },
+        { status: 409 }
+      );
+    }
     const bundle = buildDepositBundle(vault.address, amountUsd, receiver);
     return NextResponse.json({
       ok: true,
@@ -99,7 +109,8 @@ export async function POST(req: NextRequest) {
     apy: vault.netApy,
     chainId: vault.chainId,
     amountUsd,
-    receiver: account.user.safeAddress,
+    // Simulation only (never production): the position records no address.
+    receiver: "simulated",
   });
 
   recordTransaction(

@@ -1,6 +1,15 @@
+import { createHash } from "crypto";
 import { Ledger, LedgerError, type Posting } from "@furlpay/ledger";
-import { DEMO_USER_ID } from "@/lib/store";
+import {
+  DEMO_USER_ID,
+  InsufficientBalanceError,
+  applyTokenBalanceDeltaInMemory,
+  getAccount,
+  refreshTokenBalancesFromDb,
+} from "@/lib/store";
 import { ensureLedgerAccount, postLedgerTransaction, paymentsDurable } from "@/lib/paymentsDb";
+import { sbRpc } from "@/lib/supabase";
+import type { TokenBalance } from "@/lib/types";
 import { financialEnvironment } from "@/lib/flags";
 import { log } from "@/lib/log";
 
@@ -136,9 +145,13 @@ export const CUSTOMER_FUND_ASSETS = [
   ACCOUNTS.OUTWARD_COLLECTION,
 ] as const;
 
-type AccountSpec = { id: string; code: string; name: string; type: string };
+export type AccountSpec = { id: string; code: string; name: string; type: string };
 
 /** Per-user fiat liability: what we owe this customer in cash. */
+export function userLiabilityAccount(userId: string): AccountSpec {
+  return userFiatLiability(userId);
+}
+
 function userFiatLiability(userId: string): AccountSpec {
   return {
     id: `acct_2000_${userId}`,
@@ -224,9 +237,8 @@ function nextTxId(): string {
   // Durable and mirror postings MUST share an id: it is what makes a retry a
   // no-op on the Postgres side (ledger_post returns early on a known id) and
   // what lets an operator match a mirror row to the real one.
-  return `txn_${Date.now().toString(36)}_${(++seq).toString(36)}_${Math.random()
-    .toString(36)
-    .slice(2, 8)}`;
+  // CSPRNG suffix (repo rule 6): the id is a lookup key, never guessable.
+  return `txn_${Date.now().toString(36)}_${(++seq).toString(36)}_${globalThis.crypto.randomUUID().slice(0, 8)}`;
 }
 
 /**
@@ -304,8 +316,26 @@ export async function recordMovement(
   direction: "in" | "out",
   amountUsd: number,
   memo: string,
+  userId: string,
+  opts: { effectKey?: string; webhook?: WebhookAck } = {}
+): Promise<{ id: string; applied: boolean }> {
+  const { accounts, postings } = movementPostings(direction, amountUsd, userId);
+  // With an effect key the movement is exactly-once in the database, however
+  // many times a provider redelivers (audit P0-1). Without one it is a plain
+  // request-driven posting, as before.
+  if (opts.effectKey) {
+    const r = await applyFinancialEffect({ effectKey: opts.effectKey, memo, accounts, postings, webhook: opts.webhook });
+    return { id: r.ledgerTxId, applied: r.applied };
+  }
+  return { ...(await post(memo, accounts, postings)), applied: true };
+}
+
+/** The two legs of a customer movement, in integer cents. */
+export function movementPostings(
+  direction: "in" | "out",
+  amountUsd: number,
   userId: string
-): Promise<{ id: string }> {
+): { accounts: AccountSpec[]; postings: Posting[] } {
   const cents = usdToCents(amountUsd);
   if (cents <= 0) throw new LedgerError(`Movement must be at least 1 cent (got $${amountUsd})`);
 
@@ -321,8 +351,152 @@ export async function recordMovement(
           { accountId: liability.id, side: "debit", amount: cents },
           { accountId: escrow.id, side: "credit", amount: cents },
         ];
+  return { accounts: [escrow, liability], postings };
+}
 
-  return post(memo, [escrow, liability], postings);
+/** Cashback/rewards paid INTO a customer's balance: Dr operational expense /
+ *  Cr customer liability. It is our cost, not customer funds arriving. */
+export function rewardPostings(amountUsd: number, userId: string): { accounts: AccountSpec[]; postings: Posting[] } {
+  const cents = usdToCents(amountUsd);
+  if (cents <= 0) throw new LedgerError(`Reward must be at least 1 cent (got $${amountUsd})`);
+  const liability = userFiatLiability(userId);
+  const expense = ACCOUNTS.OPERATIONAL_EXPENSE;
+  return {
+    accounts: [expense, liability],
+    postings: [
+      { accountId: expense.id, side: "debit", amount: cents },
+      { accountId: liability.id, side: "credit", amount: cents },
+    ],
+  };
+}
+
+// ── exactly-once financial effects (migration 0025, audit P0-1 / P0-2) ────
+
+export interface WebhookAck {
+  provider: string;
+  eventId: string;
+}
+
+/** A signed change to one token balance. Decimal STRINGS, never floats. */
+export interface BalanceDelta {
+  userId: string;
+  token: TokenBalance["token"];
+  chain: TokenBalance["chain"];
+  amount: string;
+  usdValue: string;
+}
+
+export interface FinancialEffect {
+  /** Derived from the provider's own facts (stripe:pi:<id>, x402-fund:<from>:<nonce>,
+   *  applepay:<provider>:<ref>, ...). Never a random id. */
+  effectKey: string;
+  memo: string;
+  accounts: AccountSpec[];
+  postings: Posting[];
+  balanceDeltas?: BalanceDelta[];
+  /** Marked processed IN THE SAME TRANSACTION as the effect. */
+  webhook?: WebhookAck;
+}
+
+export interface FinancialEffectResult {
+  /** false = this effect key had already been applied; nothing moved. */
+  applied: boolean;
+  ledgerTxId: string;
+}
+
+const DECIMAL = /^-?\d+(\.\d+)?$/;
+
+/** Ledger transaction id for an effect — identical to the SQL ('lx_' || md5(key)). */
+export function effectTxId(effectKey: string): string {
+  return `lx_${createHash("md5").update(effectKey, "utf8").digest("hex")}`;
+}
+
+const gfx = globalThis as unknown as { __appliedEffectsDev?: Set<string> };
+
+/**
+ * Apply a financial effect exactly once.
+ *
+ * Durable deployments: ONE call to apply_financial_effect (0025), which in a
+ * single Postgres transaction inserts the ledger header keyed by the effect
+ * (unique index), checks and inserts the balanced postings, applies balance
+ * deltas under row locks with an overdraft guard, and marks the webhook event
+ * processed. A repeat of the key returns applied=false and moves nothing — so
+ * a retry, a redelivery after a failed acknowledgement, or twenty concurrent
+ * deliveries all produce one effect (proven on real PostgreSQL by
+ * scripts/db/verify-financial-effects.mjs). The in-memory copy of any touched
+ * balance is then re-read from the database.
+ *
+ * Development/test without a backend: the same semantics in one process.
+ * Production without a backend: refused (assertLedgerDurable).
+ */
+export async function applyFinancialEffect(effect: FinancialEffect): Promise<FinancialEffectResult> {
+  const key = effect.effectKey?.trim();
+  if (!key) throw new LedgerError("A financial effect needs an effect key");
+  for (const d of effect.balanceDeltas ?? []) {
+    if (!DECIMAL.test(d.amount) || !DECIMAL.test(d.usdValue)) {
+      throw new LedgerError(`Balance deltas must be decimal strings (got ${d.amount} / ${d.usdValue})`);
+    }
+  }
+  assertLedgerDurable();
+  const id = effectTxId(key);
+
+  if (ledgerDurable()) {
+    for (const a of effect.accounts) {
+      await ensureLedgerAccount({ id: a.id, code: a.code, name: a.name, type: a.type as never, currency: "USD" });
+    }
+    const rows = await sbRpc<{ applied: boolean; ledger_tx_id: string }[]>("apply_financial_effect", {
+      p_effect_key: key,
+      p_memo: effect.memo,
+      p_postings: effect.postings.map((p) => ({ account_id: p.accountId, side: p.side, amount: p.amount })),
+      p_balance_deltas: (effect.balanceDeltas ?? []).map((d) => ({
+        user_id: d.userId,
+        token: d.token,
+        chain: d.chain,
+        amount: d.amount,
+        usd_value: d.usdValue,
+      })),
+      p_provider: effect.webhook?.provider ?? null,
+      p_event_id: effect.webhook?.eventId ?? null,
+    });
+    const row = Array.isArray(rows) ? rows[0] : (rows as unknown as { applied: boolean; ledger_tx_id: string });
+    if (!row) throw new LedgerDurabilityError();
+    if (row.applied && !ledger.getTransaction(id)) {
+      for (const a of effect.accounts) openMirror(a);
+      ledger.post(effect.memo, effect.postings, { id });
+    }
+    const users = [...new Set((effect.balanceDeltas ?? []).map((d) => d.userId))];
+    for (const u of users) await refreshTokenBalancesFromDb(u);
+    return { applied: row.applied, ledgerTxId: row.ledger_tx_id ?? id };
+  }
+
+  // Non-durable (dev/test only — production refused above).
+  const applied = (gfx.__appliedEffectsDev ??= new Set<string>());
+  if (applied.has(key)) return { applied: false, ledgerTxId: id };
+  // Check every delta BEFORE anything is written, so a refused effect leaves no
+  // trace — the same all-or-nothing the SQL transaction gives.
+  const projected = new Map<string, number>();
+  for (const d of effect.balanceDeltas ?? []) {
+    const k = `${d.userId}|${d.token}|${d.chain}`;
+    const current =
+      projected.get(k) ??
+      getAccount(d.userId)?.tokenBalances.find((b) => b.token === d.token && b.chain === d.chain)?.amount ??
+      0;
+    const next = current + Number(d.amount);
+    if (next < -1e-9) throw new InsufficientBalanceError(d.token, d.chain);
+    projected.set(k, next);
+  }
+  for (const a of effect.accounts) openMirror(a);
+  ledger.post(effect.memo, effect.postings, { id }); // throws on imbalance before anything moves
+  for (const d of effect.balanceDeltas ?? []) {
+    applyTokenBalanceDeltaInMemory(d.userId, d.token, d.chain, Number(d.amount), Number(d.usdValue));
+  }
+  applied.add(key);
+  return { applied: true, ledgerTxId: id };
+}
+
+/** Test hook: forget dev-mode applied effects. */
+export function __resetAppliedEffectsForTests(): void {
+  gfx.__appliedEffectsDev = new Set<string>();
 }
 
 /**

@@ -5,6 +5,7 @@ import { getChain } from "@/lib/services/chainRegistry";
 import { classifyAddress, isEvmAddress } from "@/lib/addressValidation";
 import { getHandle, normalizeHandle } from "@/lib/walletHandles";
 import { getAccountDurable } from "@/lib/store";
+import { loadLinkedWallet } from "@/lib/linkedWalletStore";
 
 // ---------------------------------------------------------------------------
 // Human name → payable address.
@@ -49,6 +50,8 @@ export type ResolutionOutcome =
   | { status: "unresolved"; kind: NameKind }
   /** The lookup itself failed — NOT evidence the name is unregistered. */
   | { status: "unavailable"; kind: NameKind; reason: string }
+  /** The name exists but its owner has no verified wallet to receive into. */
+  | { status: "no_receive_address"; kind: NameKind; reason: string }
   | { status: "invalid"; reason: string };
 
 /** Which resolver an input belongs to, before any lookup happens. */
@@ -152,12 +155,31 @@ async function resolveFurlpayHandle(name: string): Promise<ResolutionOutcome> {
     return { status: "unavailable", kind: "furlpay", reason: "Handle owner is unavailable." };
   }
 
+  // THE PAYABLE ADDRESS IS THE OWNER'S VERIFIED LINKED WALLET, NOTHING ELSE.
+  // This used to return account.user.safeAddress — sha256("furlpay:safe:"+key)
+  // truncated, an address no key controls. Anyone paying "name.furlpay" from an
+  // external wallet sent funds nobody could ever move. Read durably so a cold
+  // instance does not miss a link made elsewhere.
+  let linked;
+  try {
+    linked = await loadLinkedWallet(owner.ownerId);
+  } catch (e) {
+    return { status: "unavailable", kind: "furlpay", reason: (e as Error)?.message?.slice(0, 200) || "Wallet lookup failed." };
+  }
+  if (!linked || linked.status !== "active" || linked.verificationMethod !== "eip191") {
+    return {
+      status: "no_receive_address",
+      kind: "furlpay",
+      reason: "This FurlPay name has not set up a wallet to receive funds.",
+    };
+  }
+
   return {
     status: "resolved",
     result: {
       query: name.trim(),
       kind: "furlpay",
-      address: account.user.safeAddress,
+      address: linked.address,
       family: "evm",
       // The handle, never the owner's name or email — resolving a payment name
       // must not become a directory lookup for someone's identity.

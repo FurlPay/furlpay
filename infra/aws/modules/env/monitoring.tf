@@ -80,6 +80,8 @@ resource "aws_cloudwatch_metric_alarm" "latency" {
 }
 
 resource "aws_cloudwatch_metric_alarm" "db_cpu" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   alarm_name          = "${local.name}-db-cpu"
   alarm_description   = "Aurora sustained high CPU — usually a missing index reaching production data volumes."
   namespace           = "AWS/RDS"
@@ -92,7 +94,7 @@ resource "aws_cloudwatch_metric_alarm" "db_cpu" {
   treat_missing_data  = "notBreaching"
 
   dimensions = {
-    DBClusterIdentifier = aws_rds_cluster.main.cluster_identifier
+    DBClusterIdentifier = aws_rds_cluster.main[0].cluster_identifier
   }
 
   alarm_actions = [aws_sns_topic.alarms.arn]

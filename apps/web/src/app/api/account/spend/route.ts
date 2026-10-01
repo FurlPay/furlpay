@@ -48,15 +48,23 @@ export async function POST(req: NextRequest) {
     transfer: "Simulated transfer · no funds delivered",
   };
 
+  // A debit needs a caller-chosen key: it becomes the financial effect key, so
+  // a retried request can never debit twice (audit P0-1). No key, no debit.
+  const idempotencyKey = req.headers.get("Idempotency-Key");
+  if (!idempotencyKey || idempotencyKey.length > 200) {
+    return NextResponse.json({ spent: false, error: "idempotency_key_required" }, { status: 400 });
+  }
+
   return withIdempotency(
-    req.headers.get("Idempotency-Key"),
+    idempotencyKey,
     "account.spend",
     async () => {
       const result = await debitAccount(
         auth.account.user.id,
         amountUsd,
         memo,
-        purpose ? subtitleByPurpose[purpose] : undefined
+        purpose ? subtitleByPurpose[purpose] : undefined,
+        `account-spend:${auth.account.user.id}:${idempotencyKey}`
       );
       if (!result.ok) {
         return NextResponse.json(

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 // Bearer-token gate for privileged compliance operations (source-of-funds
@@ -12,8 +13,11 @@ export function requireOperator(req: NextRequest): NextResponse | null {
       { status: 403 },
     );
   }
-  const auth = req.headers.get("authorization");
-  if (auth !== `Bearer ${token}`) {
+  const auth = req.headers.get("authorization") ?? "";
+  // Constant-time: a plain !== leaks how many leading characters matched.
+  const a = Buffer.from(auth);
+  const b = Buffer.from(`Bearer ${token}`);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
   return null;

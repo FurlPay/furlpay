@@ -58,6 +58,13 @@ export async function GET(req: NextRequest) {
         { status: 503 }
       );
 
+    // The name is real but cannot receive: never a stand-in address.
+    case "no_receive_address":
+      return NextResponse.json(
+        { resolved: false, kind: outcome.kind, error: "no_receive_address", message: outcome.reason },
+        { status: 409 }
+      );
+
     case "resolved": {
       const { result } = outcome;
       const wanted = chain;

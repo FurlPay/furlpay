@@ -21,6 +21,7 @@ import { loadFlags } from "@/lib/flags";
 import { isPairingDeepLink } from "@/lib/deepLinks";
 import { pairWithUri } from "@/lib/walletconnect/useWalletConnect";
 import { track } from "@/lib/analytics";
+import { registerFurlpaySink } from "@/lib/analytics/registerFurlpaySink";
 import { Button, Screen } from "@/components/ui";
 import { OfflineBanner } from "@/components/OfflineBanner";
 import { startTamperDetection } from "@/lib/security/tamperDetection";
@@ -132,6 +133,9 @@ function AppShell() {
   useEffect(() => {
     void loadFlags();
     void startTamperDetection();
+    // Before the first track(): events fired during launch are buffered by
+    // lib/analytics and delivered once this sink exists.
+    registerFurlpaySink();
     track("app_opened", { source: "cold" });
   }, []);
 

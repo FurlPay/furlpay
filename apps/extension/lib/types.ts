@@ -26,7 +26,10 @@ export interface Transaction {
 }
 
 export interface Overview {
-  user: { id: string; name: string; safeAddress: string; kycStatus: string; region: string; tier: string };
+  // No safeAddress here on purpose: the API still sends it, but it is a keyless
+  // placeholder and must never be rendered or returned as a wallet address.
+  // Leaving it out of the type turns any use into a compile error (P0-3).
+  user: { id: string; name: string; kycStatus: string; region: string; tier: string };
   netWorth: number;
   breakdown: { crypto: number; fiat: number; equities: number };
   tokenBalances: TokenBalance[];
@@ -272,7 +275,6 @@ export interface PasskeyInfo {
 
 export interface PasskeyList {
   credentials: PasskeyInfo[];
-  safeAddress: string;
 }
 
 /** x402 PaymentRequirements captured from a 402 response (x402 v1 shape). */
@@ -299,6 +301,8 @@ export interface X402Detection {
 // Message protocol between UI surfaces and the background service worker.
 export type BgRequest =
   | { type: "GET_OVERVIEW" }
+  // The verified linked wallet only (lib/receiveAddress.ts). Never safeAddress.
+  | { type: "GET_RECEIVE_ADDRESS" }
   | { type: "GET_CHALLENGES" }
   | { type: "DECLINE_CHALLENGE"; challengeId: string }
   | { type: "OPEN_APPROVE"; challengeId?: string }

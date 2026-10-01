@@ -37,6 +37,10 @@
 
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import { parseV6Groups } from "../clientIp";
+import http from "node:http";
+import https from "node:https";
+import { Readable } from "node:stream";
 
 export const MAX_RESPONSE_BYTES = 2_000_000; // 2 MB
 export const FETCH_TIMEOUT_MS = 10_000;
@@ -113,21 +117,30 @@ function isBlockedV4(ip: string): boolean {
   return false;
 }
 
+/** 32-bit IPv4 embedded in two IPv6 groups, as a dotted string. */
+const embeddedV4 = (hi: number, lo: number) => `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+
+// Decided on the parsed GROUPS, never on the text: one address has many
+// spellings (`::1` = `0:0:0:0:0:0:0:1`; `::ffff:127.0.0.1` = `::ffff:7f00:1`,
+// which is how the WHATWG URL parser re-serialises it), and a prefix string
+// check misses all but one of them.
 function isBlockedV6(ip: string): boolean {
-  const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  const g = parseV6Groups(ip.replace(/^\[|\]$/g, ""));
+  if (!g) return true; // unparseable: refuse rather than allow
+  const zeros = (n: number) => g.slice(0, n).every((x) => x === 0);
 
-  // An IPv4-mapped or -compatible address is an IPv4 address in disguise:
-  // ::ffff:127.0.0.1 is loopback, and a string check for "127." misses it.
-  const mapped = /^(?:::ffff:|::)(\d+\.\d+\.\d+\.\d+)$/.exec(lower);
-  if (mapped) return isBlockedV4(mapped[1]);
-
-  if (lower === "::" || lower === "::1") return true; // unspecified, loopback
-  if (lower.startsWith("fe80")) return true; // link-local
-  if (/^f[cd]/.test(lower)) return true; // fc00::/7 unique local
-  if (lower.startsWith("ff")) return true; // multicast
-  if (lower.startsWith("2001:db8")) return true; // documentation
-  // NAT64 well-known prefix can reach IPv4 space.
-  if (lower.startsWith("64:ff9b")) return true;
+  if (zeros(8)) return true; // :: unspecified
+  if (zeros(7) && g[7] === 1) return true; // ::1 loopback
+  // IPv4 in disguise: mapped ::ffff:a.b.c.d, and deprecated compatible ::a.b.c.d.
+  if (zeros(5) && g[5] === 0xffff) return isBlockedV4(embeddedV4(g[6], g[7]));
+  if (zeros(6)) return isBlockedV4(embeddedV4(g[6], g[7]));
+  if ((g[0] & 0xffc0) === 0xfe80) return true; // fe80::/10 link-local
+  if ((g[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
+  if ((g[0] & 0xff00) === 0xff00) return true; // ff00::/8 multicast
+  if (g[0] === 0x2001 && g[1] === 0x0db8) return true; // documentation
+  if (g[0] === 0x0064 && g[1] === 0xff9b) return true; // NAT64 (well-known and local-use) reaches IPv4 space
+  if (g[0] === 0x2001 && g[1] === 0x0000) return true; // Teredo: tunnels to an IPv4 endpoint
+  if (g[0] === 0x2002) return isBlockedV4(embeddedV4(g[1], g[2])); // 6to4 embeds its IPv4 relay
   return false;
 }
 
@@ -174,12 +187,14 @@ export async function checkUrl(raw: string): Promise<UrlCheck> {
     return { ok: false, reason: "blocked_host", detail: `Host ${hostname} is not permitted.` };
   }
 
-  // A literal IP skips DNS but not the range check.
-  if (isIP(hostname)) {
-    if (isBlockedAddress(hostname)) {
+  // A literal IP skips DNS but not the range check. URL keeps IPv6 literals
+  // bracketed (`[::1]`), which isIP() does not recognise.
+  const literal = hostname.replace(/^\[(.*)\]$/, "$1");
+  if (isIP(literal)) {
+    if (isBlockedAddress(literal)) {
       return { ok: false, reason: "private_address", detail: `${hostname} is a reserved address.` };
     }
-    return { ok: true, address: hostname, hostname };
+    return { ok: true, address: literal, hostname };
   }
 
   let addresses: { address: string }[];
@@ -208,6 +223,62 @@ export async function checkUrl(raw: string): Promise<UrlCheck> {
 }
 
 /**
+ * One GET to `url`, over a connection to `address` and nowhere else.
+ *
+ * The URL's hostname still drives the Host header, TLS SNI and certificate
+ * verification; only the socket's destination is pinned. `lookup` is the one
+ * hook every Node connection goes through (http, https, and happy-eyeballs
+ * with `all: true`), so there is no second resolution to rebind.
+ */
+export function pinnedFetch(
+  url: URL,
+  address: string,
+  opts: { timeoutMs: number; headers: Record<string, string> }
+): Promise<Response> {
+  const family = isIP(address);
+  if (!family) return Promise.reject(new Error(`pinnedFetch: ${address} is not an IP address`));
+  const pinnedLookup = (
+    _host: string,
+    options: { all?: boolean } | number | undefined,
+    cb: (err: Error | null, a: string | { address: string; family: number }[], f?: number) => void
+  ) => {
+    if (typeof options === "object" && options?.all) cb(null, [{ address, family }]);
+    else cb(null, address, family);
+  };
+  const transport = url.protocol === "https:" ? https : http;
+  return new Promise((resolve, reject) => {
+    const req = transport.request(
+      url,
+      {
+        method: "GET",
+        headers: opts.headers,
+        lookup: pinnedLookup as never,
+        agent: false, // no pooled socket from an earlier, differently-resolved request
+        signal: AbortSignal.timeout(opts.timeoutMs),
+      },
+      (res) => {
+        const headers = new Headers();
+        for (const [k, v] of Object.entries(res.headers)) {
+          if (Array.isArray(v)) v.forEach((x) => headers.append(k, x));
+          else if (v !== undefined) headers.set(k, String(v));
+        }
+        const status = res.statusCode ?? 502;
+        const noBody = status === 204 || status === 304 || (status >= 100 && status < 200);
+        if (noBody) res.resume();
+        resolve(
+          new Response(noBody ? null : (Readable.toWeb(res) as ReadableStream<Uint8Array>), {
+            status: status >= 200 && status <= 599 ? status : 502,
+            headers,
+          })
+        );
+      }
+    );
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+/**
  * Fetch a URL with every defence applied.
  *
  * Redirects are followed BY HAND so each hop is re-validated. `redirect:
@@ -216,7 +287,13 @@ export async function checkUrl(raw: string): Promise<UrlCheck> {
  */
 export async function safeFetch(
   raw: string,
-  opts: { maxBytes?: number; timeoutMs?: number; accept?: string } = {}
+  opts: {
+    maxBytes?: number;
+    timeoutMs?: number;
+    accept?: string;
+    /** Tests only: replaces the socket layer. Receives the VALIDATED address. */
+    transport?: typeof pinnedFetch;
+  } = {}
 ): Promise<SafeFetchResult> {
   const maxBytes = opts.maxBytes ?? MAX_RESPONSE_BYTES;
   const timeoutMs = opts.timeoutMs ?? FETCH_TIMEOUT_MS;
@@ -230,10 +307,11 @@ export async function safeFetch(
 
     let res: Response;
     try {
-      res = await fetch(current, {
-        redirect: "manual",
-        signal: AbortSignal.timeout(timeoutMs),
-        cache: "no-store",
+      // Connect to the address checkUrl VALIDATED. Global fetch() would
+      // resolve the hostname again, and a rebinding DNS server answers that
+      // second lookup with 169.254.170.2 (the ECS credentials endpoint).
+      res = await (opts.transport ?? pinnedFetch)(new URL(current), check.address!, {
+        timeoutMs,
         headers: {
           // Identifies the crawler and gives operators a way to reach us. A
           // verification tool that hides what it is has no business reading

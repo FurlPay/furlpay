@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordProductEvent } from "@/lib/analytics/events";
 import { tokenFromRequest, verifySession, revokeSession, clearSessionCookie } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -14,6 +15,7 @@ export async function POST(req: NextRequest) {
   if (claims) {
     await revokeSession(claims.jti); // durable — dead on every instance, not just this one
     audit("auth.logout", claims.sub);
+    recordProductEvent({ name: "logout", eventId: `${claims.sub}:${claims.jti ?? Date.now()}`, userId: claims.sub, route: "/api/auth/logout" });
   }
   const res = NextResponse.json({ success: true });
   clearSessionCookie(res);

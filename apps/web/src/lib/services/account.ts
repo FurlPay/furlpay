@@ -1,6 +1,7 @@
-import { getAccount, newTx, recordTransaction } from "@/lib/store";
-import { recordMovement, usdToCents } from "@/lib/ledger";
+import { InsufficientBalanceError, getAccount, newTx, recordTransaction } from "@/lib/store";
+import { applyFinancialEffect, movementPostings, usdToCents } from "@/lib/ledger";
 import { log } from "@/lib/log";
+import { raiseFinancialAlert } from "@/lib/ops/financialAlerts";
 
 // ---------------------------------------------------------------------------
 // FurlPay account balance — the spendable USDC balance the funding loop feeds.
@@ -19,12 +20,7 @@ const ACCOUNT_CHAIN = "arbitrum" as const;
 function accountEntry(userId: string) {
   const account = getAccount(userId);
   if (!account) return undefined;
-  let entry = account.tokenBalances.find((b) => b.token === ACCOUNT_TOKEN && b.chain === ACCOUNT_CHAIN);
-  if (!entry) {
-    entry = { token: ACCOUNT_TOKEN, chain: ACCOUNT_CHAIN, amount: 0, usdValue: 0 };
-    account.tokenBalances.push(entry);
-  }
-  return entry;
+  return account.tokenBalances.find((b) => b.token === ACCOUNT_TOKEN && b.chain === ACCOUNT_CHAIN);
 }
 
 export function getAccountBalanceUsd(userId: string): number {
@@ -36,107 +32,129 @@ export interface CreditResult {
   ok: boolean;
   balanceUsd: number;
   error?: string;
+  /** The effect key had already been applied — nothing moved this time. */
+  duplicate?: boolean;
 }
 
 /** Credit the FurlPay account (e.g. after an x402 funding settles).
  *
- *  Async because the ledger posting is durable: the balance must not move
- *  until Postgres has accepted the balanced entry. */
+ *  EXACTLY ONCE PER EFFECT KEY (audit P0-1/P0-2). The ledger posting and the
+ *  balance change commit together in one Postgres transaction
+ *  (apply_financial_effect, migration 0025), keyed by `effectKey`. A retry
+ *  with the same key moves nothing and reports `duplicate: true`. The key must
+ *  come from the provider's own facts (the settled authorization, the
+ *  processor reference) — never a random id. */
 export async function creditAccount(
   userId: string,
   amountUsd: number,
   memo: string,
-  subtitle?: string
+  subtitle: string | undefined,
+  effectKey: string
 ): Promise<CreditResult> {
-  const entry = accountEntry(userId);
-  if (!entry) return { ok: false, balanceUsd: 0, error: "account_not_found" };
-
+  if (!getAccount(userId)) return { ok: false, balanceUsd: 0, error: "account_not_found" };
   let cents: number;
   try {
     cents = usdToCents(amountUsd);
   } catch {
-    return { ok: false, balanceUsd: centsToUsd(usdToCents(entry.amount)), error: "invalid_amount" };
+    return { ok: false, balanceUsd: getAccountBalanceUsd(userId), error: "invalid_amount" };
   }
-  if (cents <= 0) return { ok: false, balanceUsd: centsToUsd(usdToCents(entry.amount)), error: "invalid_amount" };
+  if (cents <= 0) return { ok: false, balanceUsd: getAccountBalanceUsd(userId), error: "invalid_amount" };
 
-  // Ledger first: if the balanced posting fails, the balance must not move.
+  const amount = centsToUsd(cents).toFixed(2);
+  let result;
   try {
-    await recordMovement("in", centsToUsd(cents), memo, userId);
+    result = await applyFinancialEffect({
+      effectKey,
+      memo,
+      ...movementPostings("in", centsToUsd(cents), userId),
+      balanceDeltas: [{ userId, token: ACCOUNT_TOKEN, chain: ACCOUNT_CHAIN, amount, usdValue: amount }],
+    });
   } catch (e) {
-    log.error("creditAccount ledger posting failed", { userId, amountUsd, error: (e as Error).message });
-    return { ok: false, balanceUsd: centsToUsd(usdToCents(entry.amount)), error: "ledger_error" };
+    log.error("creditAccount effect failed", { userId, amountUsd, effectKey, error: (e as Error).message });
+    void raiseFinancialAlert("financial_effect_failed", { op: "credit", userId, effectKey });
+    return { ok: false, balanceUsd: getAccountBalanceUsd(userId), error: "ledger_error" };
   }
-
-  const newCents = usdToCents(entry.amount) + cents;
-  entry.amount = centsToUsd(newCents);
-  entry.usdValue = entry.amount;
-  recordTransaction(
-    userId,
-    newTx({
-      category: "transfer",
-      direction: "in",
-      title: memo,
-      subtitle: subtitle ?? "Funded via x402 · Arbitrum One",
-      amountUsd: centsToUsd(cents),
-      token: ACCOUNT_TOKEN,
-      chain: ACCOUNT_CHAIN,
-      status: "settled",
-    })
-  );
-  return { ok: true, balanceUsd: entry.amount };
+  if (result.applied) {
+    recordTransaction(
+      userId,
+      newTx({
+        category: "transfer",
+        direction: "in",
+        title: memo,
+        subtitle: subtitle ?? "Funded via x402 · Arbitrum One",
+        amountUsd: centsToUsd(cents),
+        token: ACCOUNT_TOKEN,
+        chain: ACCOUNT_CHAIN,
+        status: "settled",
+      })
+    );
+  }
+  return { ok: true, balanceUsd: getAccountBalanceUsd(userId), duplicate: !result.applied };
 }
 
 export interface DebitResult {
   ok: boolean;
   balanceUsd: number;
   error?: string;
+  duplicate?: boolean;
 }
 
-/** Spend from the FurlPay account balance (booking, payout, card top-up). */
+/** Spend from the FurlPay account balance (booking, payout, card top-up).
+ *  Same exactly-once contract as creditAccount. The overdraft check is done
+ *  by the database under a row lock, not by reading this instance's copy. */
 export async function debitAccount(
   userId: string,
   amountUsd: number,
   memo: string,
-  subtitle?: string
+  subtitle: string | undefined,
+  effectKey: string
 ): Promise<DebitResult> {
-  const entry = accountEntry(userId);
-  if (!entry) return { ok: false, balanceUsd: 0, error: "account_not_found" };
-
+  if (!getAccount(userId)) return { ok: false, balanceUsd: 0, error: "account_not_found" };
   let cents: number;
   try {
     cents = usdToCents(amountUsd);
   } catch {
-    return { ok: false, balanceUsd: centsToUsd(usdToCents(entry.amount)), error: "invalid_amount" };
+    return { ok: false, balanceUsd: getAccountBalanceUsd(userId), error: "invalid_amount" };
   }
-  const balanceCents = usdToCents(entry.amount);
-  if (cents <= 0) return { ok: false, balanceUsd: centsToUsd(balanceCents), error: "invalid_amount" };
-  if (balanceCents < cents) {
-    return { ok: false, balanceUsd: centsToUsd(balanceCents), error: "insufficient_balance" };
-  }
+  if (cents <= 0) return { ok: false, balanceUsd: getAccountBalanceUsd(userId), error: "invalid_amount" };
 
+  const amount = centsToUsd(cents).toFixed(2);
+  let result;
   try {
-    await recordMovement("out", centsToUsd(cents), memo, userId);
+    result = await applyFinancialEffect({
+      effectKey,
+      memo,
+      ...movementPostings("out", centsToUsd(cents), userId),
+      balanceDeltas: [{ userId, token: ACCOUNT_TOKEN, chain: ACCOUNT_CHAIN, amount: `-${amount}`, usdValue: `-${amount}` }],
+    });
   } catch (e) {
-    log.error("debitAccount ledger posting failed", { userId, amountUsd, error: (e as Error).message });
-    return { ok: false, balanceUsd: centsToUsd(balanceCents), error: "ledger_error" };
+    const insufficient = e instanceof InsufficientBalanceError || /insufficient/i.test((e as Error).message);
+    if (!insufficient) {
+      log.error("debitAccount effect failed", { userId, amountUsd, effectKey, error: (e as Error).message });
+      void raiseFinancialAlert("financial_effect_failed", { op: "debit", userId, effectKey });
+    }
+    return {
+      ok: false,
+      balanceUsd: getAccountBalanceUsd(userId),
+      error: insufficient ? "insufficient_balance" : "ledger_error",
+    };
   }
-
-  entry.amount = centsToUsd(balanceCents - cents);
-  entry.usdValue = entry.amount;
-  recordTransaction(
-    userId,
-    newTx({
-      category: "transfer",
-      direction: "out",
-      title: memo,
-      subtitle: subtitle ?? "Spent from FurlPay balance · Arbitrum One",
-      amountUsd: centsToUsd(cents),
-      token: ACCOUNT_TOKEN,
-      chain: ACCOUNT_CHAIN,
-      status: "settled",
-    })
-  );
-  return { ok: true, balanceUsd: entry.amount };
+  if (result.applied) {
+    recordTransaction(
+      userId,
+      newTx({
+        category: "transfer",
+        direction: "out",
+        title: memo,
+        subtitle: subtitle ?? "Spent from FurlPay balance · Arbitrum One",
+        amountUsd: centsToUsd(cents),
+        token: ACCOUNT_TOKEN,
+        chain: ACCOUNT_CHAIN,
+        status: "settled",
+      })
+    );
+  }
+  return { ok: true, balanceUsd: getAccountBalanceUsd(userId), duplicate: !result.applied };
 }
 
 function centsToUsd(cents: number): number {

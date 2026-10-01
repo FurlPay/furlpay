@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/publicOrigin";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { SCOPES } from "@/lib/mcp/oauth";
@@ -9,7 +10,7 @@ import { SCOPES } from "@/lib/mcp/oauth";
 // and a public client without PKCE can have its code stolen. We advertise S256
 // only and enforce S256 only.
 export async function GET(req: NextRequest) {
-  const origin = new URL(req.url).origin;
+  const origin = publicOrigin(req); // the issuer clients see, not the bind address
   return NextResponse.json(
     {
       issuer: origin,

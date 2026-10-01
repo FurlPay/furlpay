@@ -1,3 +1,4 @@
+import { publicRequestUrl } from "./publicOrigin";
 import { keyIdOf, verifyRequest } from "@furlpay/agent-trust";
 import { getAgentKey } from "./agentPolicy";
 
@@ -52,7 +53,8 @@ export async function verifyAgentSignature(
 
   const verified = verifyRequest({
     method: req.method,
-    url: req.url,
+    // The signed @target-uri is the PUBLIC URL (on ECS req.url is the bind address).
+    url: publicRequestUrl(req).toString(),
     body: rawBody,
     headers: {
       "signature-input": req.headers.get("signature-input") ?? undefined,

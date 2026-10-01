@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/publicOrigin";
 import { createHmac, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authz";
@@ -59,7 +60,7 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) {
     // A help-center visitor without a session goes to login and comes back.
     const here = "/api/support/sso" + (req.nextUrl.search || "");
-    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(here)}`, req.url));
+    return NextResponse.redirect(new URL(`/login?next=${encodeURIComponent(here)}`, publicOrigin(req)));
   }
   const user = auth.account.user;
 

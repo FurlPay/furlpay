@@ -53,7 +53,7 @@ const MAIN = [
 
 const ACCOUNT = [
   { href: "/transactions", label: "Transactions", Icon: Receipt },
-  { href: "/analytics", label: "Reports", Icon: FileText },
+  { href: "/spending", label: "Reports", Icon: FileText },
   { href: "/profile", label: "Settings", Icon: Settings },
 ] as const;
 

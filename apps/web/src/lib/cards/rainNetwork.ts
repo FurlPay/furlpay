@@ -19,6 +19,7 @@
 // opt-in via RAIN_ENFORCE_SOURCE_IP, and off means "log the mismatch, allow the
 // request, let the signature decide".
 // ---------------------------------------------------------------------------
+import { trustedClientIp } from "../clientIp";
 
 /** Production egress addresses. */
 export const RAIN_EGRESS_IPS_PRODUCTION: readonly string[] = [
@@ -47,16 +48,14 @@ export type SourceIpVerdict =
 /**
  * Extract the caller's address from a forwarded-for chain.
  *
- * Takes the FIRST entry, which is the original client, and trusts the header
- * only because Vercel rewrites it at the edge. Behind a proxy that appends
- * rather than replaces, a caller can prepend whatever it likes — another reason
- * this is advisory and the signature is not.
+ * Same trust model as every other IP decision (lib/clientIp.ts): on Vercel
+ * the forwarded headers are platform-set; behind CloudFront only
+ * the Nth-from-right forwarded entry is. Still advisory — the signature decides.
  */
 export function clientIpFrom(headers: Readonly<Record<string, string | null | undefined>>): string | null {
-  const raw = headers["x-forwarded-for"] ?? headers["X-Forwarded-For"];
-  if (typeof raw !== "string" || raw.length === 0) return null;
-  const first = raw.split(",")[0]?.trim();
-  return first && first.length > 0 ? first : null;
+  const h = new Headers();
+  for (const [k, v] of Object.entries(headers)) if (typeof v === "string") h.set(k, v);
+  return trustedClientIp({ headers: h });
 }
 
 /**

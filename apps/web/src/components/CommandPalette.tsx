@@ -45,7 +45,7 @@ const ITEMS: Item[] = [
   { label: "Bills", category: "Pages", href: "/bills", Icon: ReceiptText, keywords: "pay autopay" },
   { label: "Earn", category: "Features", href: "/earn", Icon: PiggyBank, keywords: "yield apy vault interest" },
   { label: "Rewards", category: "Features", href: "/rewards", Icon: Trophy, keywords: "referral mission membership tier" },
-  { label: "Analytics", category: "Features", href: "/analytics", Icon: BarChart3, keywords: "spending category insights" },
+  { label: "Analytics", category: "Features", href: "/spending", Icon: BarChart3, keywords: "spending category insights" },
   { label: "Credit", category: "Features", href: "/credit", Icon: HandCoins, keywords: "loan borrow portfolio collateral" },
   { label: "Developers", category: "Pages", href: "/developer", Icon: Code2, keywords: "api keys webhooks sdk" },
   { label: "Profile & Security", category: "Pages", href: "/profile", Icon: User, keywords: "settings kyc passkey mfa" },

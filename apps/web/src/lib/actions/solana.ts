@@ -166,10 +166,24 @@ export async function solUsdPrice(): Promise<number> {
   return Number(process.env.SOLANA_SOL_USD_PRICE || "150");
 }
 
+/** No merchant treasury is configured: there is nowhere correct to send funds. */
+export class MerchantWalletNotConfiguredError extends Error {
+  constructor() {
+    super("MERCHANT_SOLANA_WALLET is not configured; payment transactions are not offered.");
+    this.name = "MerchantWalletNotConfiguredError";
+  }
+}
+
+// Fails closed. This used to fall back to the System Program address
+// (1111…1111) "for demos". These are mainnet USDC/SOL transfers that a real
+// wallet signs, and nobody holds a key for the System Program, so a payment
+// built without a configured treasury was unrecoverable for the payer.
 function merchantWallet(): PublicKey {
-  const configured = process.env.MERCHANT_SOLANA_WALLET;
-  // Fall back to a well-known valid base58 address for demos (System Program).
-  return new PublicKey(configured || "11111111111111111111111111111111");
+  const configured = process.env.MERCHANT_SOLANA_WALLET?.trim();
+  if (!configured) throw new MerchantWalletNotConfiguredError();
+  const pk = new PublicKey(configured);
+  if (pk.equals(SystemProgram.programId)) throw new MerchantWalletNotConfiguredError();
+  return pk;
 }
 
 // Platform fee split (Stripe-style take rate). Env-gated: PLATFORM_FEE_BPS

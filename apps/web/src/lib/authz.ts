@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordAdminAccess, recordAdminDenied } from "@/lib/adminAudit";
 import { tokenFromRequest, verifySession, type Role, type SessionClaims } from "@/lib/session";
 import { getAccountDurable, type UserAccount } from "@/lib/store";
 import { isAccountDeleted } from "@/lib/accountDeletion";
@@ -7,6 +8,8 @@ import { mcpDenialFor } from "@/lib/mcp/routeScopes";
 import { audit } from "@/lib/audit";
 import { EPOCH_OUTDATED, REVOCATION_HEADER, epochMatches } from "@/lib/sessionEpoch";
 import { effectiveRoles } from "@/lib/compliance/roleGrants";
+import { adminBootstrapEmail, isBootstrapAdminEmail } from "@/lib/adminIdentity";
+import { raiseFinancialAlert } from "@/lib/ops/financialAlerts";
 
 // ---------------------------------------------------------------------------
 // Route-level authentication + authorization helpers.
@@ -20,11 +23,11 @@ export type AuthResult =
   | { ok: true; claims: SessionClaims; account: UserAccount }
   | { ok: false; res: NextResponse };
 
-// The single account allowed to hold the admin role. Override via
-// FURLPAY_ADMIN_EMAIL; defaults to the seeded founder/demo account so local
-// dev and the verify scripts keep working without extra env.
-export const FOUNDER_ADMIN_EMAIL =
-  (process.env.FURLPAY_ADMIN_EMAIL ?? "ashutosh@furlpay.app").trim().toLowerCase();
+// The single account allowed to hold the admin role: FURLPAY_ADMIN_EMAIL. There
+// is NO production fallback — see lib/adminIdentity.ts. Outside production the
+// local demo account stands in so dev and the verify scripts work without env.
+// Null means no bootstrap admin exists in this deployment.
+export const FOUNDER_ADMIN_EMAIL: string | null = adminBootstrapEmail();
 
 function isProductionDeployment(): boolean {
   return process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview";
@@ -145,15 +148,28 @@ export async function optionalUser(req: NextRequest): Promise<OptionalAuth> {
 export async function requireRole(req: NextRequest, role: Role): Promise<AuthResult> {
   const auth = await requireUser(req);
   if (!auth.ok) return auth;
+  const uid = auth.account.user.id;
+  const path = req.nextUrl.pathname;
   if (role === "admin" && auth.claims.guest && isProductionDeployment()) {
+    recordAdminDenied(uid, req.method, path, "guest_in_production");
     return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
   const roles = await effectiveRoles(auth.account);
   if (!roles.includes(role)) {
+    if (role === "admin") recordAdminDenied(uid, req.method, path, "missing_role");
     return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
   }
-  if (role === "admin" && normalizedEmail(auth.account.user.email) !== FOUNDER_ADMIN_EMAIL) {
+  if (role === "admin" && !isBootstrapAdminEmail(auth.account.user.email)) {
+    // Holds the admin role but is not the bootstrap admin: refused, AND a
+    // security event — the role store says something it should not.
+    recordAdminDenied(uid, req.method, path, "role_without_bootstrap_email");
     return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+  }
+  if (role === "admin") {
+    // Recorded by category (lib/adminAudit.ts): a mutation is audited and
+    // announced every time; a read is audited (throttled) and not announced.
+    // The actor is the user id, never an email.
+    recordAdminAccess(uid, req.method, path);
   }
   return auth;
 }
@@ -171,7 +187,7 @@ export async function requireAnyRole(req: NextRequest, roles: Role[]): Promise<A
     if (auth.claims.guest && isProductionDeployment()) {
       return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
     }
-    if (normalizedEmail(auth.account.user.email) !== FOUNDER_ADMIN_EMAIL) {
+    if (!isBootstrapAdminEmail(auth.account.user.email)) {
       return { ok: false, res: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
     }
   }

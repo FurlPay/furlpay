@@ -1,4 +1,5 @@
 import { currentEpoch } from "@/lib/sessionEpoch";
+import { recordProductEvent } from "@/lib/analytics/events";
 import { NextRequest, NextResponse } from "next/server";
 import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { verifyGoogleCredential } from "@/lib/auth/google";
@@ -97,6 +98,11 @@ export async function POST(req: NextRequest) {
   });
   setSessionCookie(res, token);
   audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: "google" });
+  recordProductEvent(
+    created
+      ? { name: "signup_completed", eventId: account.user.id, userId: account.user.id, subjectOf: identity.email ?? null, route: "/api/auth/google", metadata: { provider: "google" } }
+      : { name: "login", eventId: `${account.user.id}:${Date.now()}`, userId: account.user.id, route: "/api/auth/google", metadata: { provider: "google" } }
+  );
   if (created && identity.email) {
     void sendEmail({ to: identity.email, category: "welcome", ...welcomeEmail(identity.name) });
   }

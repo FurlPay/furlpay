@@ -247,7 +247,8 @@ export class SolanaAdapter implements ChainAdapter {
   async healthCheck(): Promise<HealthResult> {
     const start = Date.now();
     if (MODE !== "live") {
-      return { healthy: true, latencyMs: 10, blockHeight: 250000000, source: "mock" };
+      // Not connected to a chain: never report healthy, never a block height.
+      return { healthy: false, latencyMs: 0, blockHeight: null, source: "mock", error: "INTEGRATION_MODE is not live; no RPC was contacted" };
     }
     const slot = await this.rpc<number>("getSlot");
     return {

@@ -7,6 +7,8 @@ import { sendPushToUser } from "@/lib/push";
 import { kvDel, kvSet, kvSetNx } from "@/lib/kv";
 import { endpointSecret } from "@/lib/webhookGuard";
 import { log } from "@/lib/log";
+import { audit } from "@/lib/audit";
+import { withDurableWebhook } from "@/lib/withDurableWebhook";
 
 // ---------------------------------------------------------------------------
 // POST /api/webhooks/card-auth — synchronous card authorization (JIT funding
@@ -124,6 +126,23 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unsupported_payload" }, { status: 400 });
   }
 
+  // Durable dedupe (migration 0022), keyed on the authorization id, wraps the
+  // existing KV guard + decision as an ADDITIONAL layer. Engages only where the
+  // Postgres store is provisioned; in dev/test it bypasses and the KV path below
+  // is unchanged. Signature verification (constructEvent) stays above.
+  try {
+    return await withDurableWebhook<NextResponse>({
+      provider: "card-auth",
+      eventId: auth.id,
+      eventType: typeof payload?.type === "string" ? payload.type : payload?.object ?? null,
+      rawBody: body,
+      onDuplicate: () => NextResponse.json({ received: true, deduped: true }),
+      onMismatch: () => {
+        audit("webhook.payload_mismatch", "system", { provider: "card-auth", authorizationId: auth.id });
+        return NextResponse.json({ error: "payload_mismatch" }, { status: 400 });
+      },
+      onUnavailable: () => NextResponse.json({ error: "webhook_store_unavailable" }, { status: 503 }),
+      handler: async () => {
   // Idempotency across serverless instances: first delivery wins; concurrent
   // or repeated deliveries ack as duplicates without re-running side effects.
   const evtKey = `cardauth:evt:${auth.id}`;
@@ -305,10 +324,16 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (e) {
-    // Release the event id so the issuer's redelivery is re-processed, and
-    // 500 so it actually redelivers.
+    // Release the event id so the issuer's redelivery is re-processed, then
+    // throw so the durable layer releases its row too; the outer catch renders
+    // the 500 that makes the issuer redeliver.
     await kvDel(evtKey);
     log.error("card-auth webhook failed", { error: (e as Error).message });
+    throw e;
+  }
+      },
+    });
+  } catch {
     return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }
 }

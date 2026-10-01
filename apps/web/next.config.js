@@ -30,13 +30,23 @@ const zendeskFormAction =
     ? ` https://${zendeskSubdomain}.zendesk.com`
     : "";
 
+// 'unsafe-eval' is DEVELOPMENT-ONLY (audit P2-1). React Refresh / the dev
+// overlay evaluate code at runtime; a production Next.js build does not, and
+// none of the script origins below require it (Stripe.js, Google Identity,
+// Persona and Cal.com publish CSPs without it). Leaving it in production turned
+// any HTML-injection sink into arbitrary script execution on the origin that
+// holds the session cookie and the passkey ceremonies. 'unsafe-inline' remains
+// until the pages move to per-request nonces with 'strict-dynamic' — tracked in
+// docs/release/PRODUCTION_REMEDIATION_STATUS.md, not silently dropped.
+const scriptEval = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
+
 const csp = [
   "default-src 'self'",
   // Next.js streams inline bootstrap scripts; integrations load their own SDKs.
   // app.cal.com serves the Cal.com booking embed (embed.js). It is a script
   // origin rather than a frame origin alone because Cal's embed injects and
   // sizes the booking iframe itself — see ScheduleCallButton.tsx.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://apis.google.com https://*.withpersona.com https://www.googletagmanager.com https://app.cal.com",
+  `script-src 'self' 'unsafe-inline'${scriptEval} https://js.stripe.com https://accounts.google.com https://apis.google.com https://*.withpersona.com https://www.googletagmanager.com https://app.cal.com`,
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
@@ -70,8 +80,23 @@ const securityHeaders = [
   { key: "X-DNS-Prefetch-Control", value: "on" },
 ];
 
+// Container build (Dockerfile at the repo root). OPT-IN via NEXT_OUTPUT so the
+// Vercel production build is byte-for-byte unchanged: Vercel does its own
+// packaging and does not need `standalone`. The tracing root is the monorepo
+// root because @furlpay/* workspace packages and the hoisted node_modules live
+// there — traced from apps/web alone, the server would start and then fail on
+// the first import of a workspace package.
+const standalone = process.env.NEXT_OUTPUT === "standalone";
+
 const nextConfig = {
+  ...(standalone
+    ? { output: "standalone", outputFileTracingRoot: require("path").join(__dirname, "../..") }
+    : {}),
   reactStrictMode: true,
+  // forbidden() / unauthorized() from next/navigation: lets a server layout
+  // answer a real 403 (app/forbidden.tsx) instead of a 200 that says "no".
+  // Used by the /analytics admin gate.
+  experimental: { authInterrupts: true },
   // Metaplex ships ESM that webpack mis-bundles server-side; load it via
   // Node require at runtime instead (cNFT ticket minting, lib/travel/cnft.ts).
   // Was experimental.serverComponentsExternalPackages until Next 15 promoted it

@@ -98,7 +98,8 @@ interface HandleRecord {
   /** Read scopes granted at consent time. */
   scopes: string[];
   consentAt: number;
-  ip: string;
+  /** null when the client IP could not be established (lib/clientIp.ts). */
+  ip: string | null;
 }
 
 /** True when the (already-normalized) handle has not been reserved yet. */
@@ -125,7 +126,7 @@ export async function bindHandleToUser(input: {
   normalized: string;
   userId: string;
   scopes: readonly string[];
-  ip: string;
+  ip: string | null;
 }): Promise<{ ok: true } | { ok: false; error: "taken" }> {
   const key = KEY(input.normalized);
   const record: HandleRecord = {

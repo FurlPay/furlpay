@@ -33,6 +33,12 @@ const CHAIN_IDS: Record<string, string> = {
 };
 const DEFAULT_CHAIN = CHAIN_IDS.arbitrum;
 
+import {
+  EIP1193_UNAUTHORIZED,
+  NO_LINKED_WALLET_ERROR,
+  SET_UP_WALLET_MESSAGE,
+} from "@/lib/receiveAddress";
+
 // 96x96 mark, data URI as EIP-6963 requires (no remote fetch at render time).
 const ICON =
   "data:image/svg+xml," +
@@ -88,6 +94,10 @@ export default defineContentScript({
       if (!p) return;
       pending.delete(msg.id);
       if (msg.ok && Array.isArray(msg.data?.accounts)) p.resolve(msg.data.accounts);
+      else if (msg.error === NO_LINKED_WALLET_ERROR)
+        // No verified wallet: there is no account to authorize. Never an
+        // address-shaped stand-in (lib/receiveAddress.ts).
+        p.reject(rpcError(EIP1193_UNAUTHORIZED, `No wallet is set up. ${SET_UP_WALLET_MESSAGE}.`));
       else p.reject(rpcError(4001, msg.error || "Connection request was rejected."));
     });
 

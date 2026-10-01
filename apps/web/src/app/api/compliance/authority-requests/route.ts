@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { trustedClientIp } from "@/lib/clientIp";
 import { validateBody } from "@/lib/validate";
 import { requireAnyRole } from "@/lib/authz";
 import {
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
   try {
     const request = await createAuthorityRequest({
       ...body,
-      submittedByIp: req.headers.get("x-forwarded-for") ?? undefined,
+      submittedByIp: trustedClientIp(req) ?? undefined,
     });
 
     return NextResponse.json(

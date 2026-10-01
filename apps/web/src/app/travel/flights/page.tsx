@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { trackClient } from "@/lib/analytics/client";
 import Link from "next/link";
 import { ChevronLeft, Plane, ArrowRight, Search, Bell, Radio } from "lucide-react";
 import { sendJSON } from "@/lib/api";
@@ -18,17 +19,18 @@ export default function FlightsPage() {
   const [date, setDate] = useState(() => new Date(Date.now() + 14 * 86_400_000).toISOString().slice(0, 10));
   const [cabin, setCabin] = useState<Flight["cabin"]>("Economy");
   const [results, setResults] = useState<Flight[] | null>(null);
-  const [source, setSource] = useState<string>("demo");
+  const [source, setSource] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function search() {
+    trackClient("travel_search", { metadata: { source: "flights" } });
     setLoading(true);
     try {
       const d = await sendJSON<{ results: Flight[]; source?: string }>("/api/travel/search", {
         type: "flights", from, to, date, cabin,
       });
       setResults(d.results);
-      setSource(d.source ?? "demo");
+      setSource(d.source ?? null);
     } finally {
       setLoading(false);
     }

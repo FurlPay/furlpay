@@ -192,3 +192,7 @@ export async function GET(req: NextRequest) {
     ...(outcome.status === "skipped_locked" ? { detail: outcome.detail } : { record: outcome.record }),
   });
 }
+
+// Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)
+// calls POST — it used to get a 405 (audit P1-3). Same handler, same auth.
+export const POST = GET;

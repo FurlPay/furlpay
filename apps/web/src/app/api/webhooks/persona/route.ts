@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { recordProductEvent } from "@/lib/analytics/events";
 import { createHash } from "crypto";
 import { verifyPersonaSignature } from "@/lib/kyc/persona";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
@@ -8,6 +9,7 @@ import { log } from "@/lib/log";
 import { sendEmail } from "@/lib/email";
 import { kycStatusEmail } from "@/lib/emailTemplates";
 import { kycTransitionAllowed, type KycState } from "@/lib/webhookOrdering";
+import { resolveKycSession } from "@/lib/compliance/kycBinding";
 
 // POST /api/webhooks/persona — Persona KYC inquiry outcomes (async liveness).
 // Verifies the persona-signature header (constant-time, rotation-aware) before
@@ -54,17 +56,31 @@ export async function POST(request: Request) {
   }
 
   try {
-    const userId: string | undefined = attrs.referenceId ?? attrs["reference-id"] ?? eventData.referenceId;
+    const reference: string | undefined = attrs.referenceId ?? attrs["reference-id"] ?? eventData.referenceId;
     const inquiryId: string | undefined = eventData.id ?? attrs.id;
     const status: string | undefined = attrs.status;
 
-    // referenceId is the FurlPay user id we handed Persona when the inquiry
-    // was created; the transition goes through the DEDICATED KYC path (it is
-    // deliberately unreachable via the identity-field updateUser allow-list).
+    // The account is the one THIS SERVER bound to the inquiry when it created
+    // it (lib/compliance/kycBinding) — never the reference-id alone, which the
+    // embedded web flow lets any browser choose. An unbound inquiry, or one
+    // whose reference disagrees with its binding, changes no account.
+    const binding = await resolveKycSession("persona", inquiryId, reference);
+    if (!binding.ok) {
+      log.warn("persona webhook refused: inquiry not bound to a user", { inquiryId, reason: binding.reason });
+      audit("webhook.processed", "system", { provider: "persona", eventType, inquiryId, refused: binding.reason });
+      await markProcessed(String(eventId));
+      return NextResponse.json({ received: true, refused: binding.reason });
+    }
+    const userId = binding.userId;
+
+    // The transition goes through the DEDICATED KYC path (it is deliberately
+    // unreachable via the identity-field updateUser allow-list).
     const account = await getAccountDurable(userId);
     if (account) {
       if (eventType === "inquiry.completed" || status === "completed") {
         setKycStatus(account.user.id, "verified", 2);
+        // One event per user: a redelivered approval is the same fact.
+        recordProductEvent({ name: "kyc_completed", eventId: account.user.id, userId: account.user.id, route: "/api/webhooks/persona", metadata: { provider: "persona", tier: 2 } });
         audit("webhook.processed", account.user.id, { provider: "persona", event: "inquiry.completed", inquiryId });
         if (account.user.email) {
           void sendEmail({
@@ -112,8 +128,8 @@ export async function POST(request: Request) {
           });
         }
       }
-    } else if (userId) {
-      log.warn("persona webhook for unknown referenceId", { inquiryId, userId });
+    } else {
+      log.warn("persona webhook for a bound user with no account", { inquiryId, userId });
     }
 
     await markProcessed(String(eventId));

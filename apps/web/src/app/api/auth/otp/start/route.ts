@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { startOtp, otpIsLive } from "@/lib/auth/otp";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { recordSignupStartedIfNew } from "@/lib/analytics/events";
+import { canonicalEmail } from "@/lib/identity";
+import { findUserByIdentity } from "@/lib/store";
+import { findUserIdByIdentity } from "@/lib/storeDb";
+import { supabaseBackend } from "@/lib/supabase";
 
 const Body = z.object({
   to: z.string().min(4), // E.164 phone, or email when channel="email"
@@ -28,6 +33,13 @@ export async function POST(req: NextRequest) {
 
   try {
     const result = await startOtp(to, channel);
+    if (result.sent) {
+      const identifier = channel === "email" ? canonicalEmail(to) : to.trim();
+      const lookup = channel === "email" ? { email: identifier } : { phone: identifier };
+      recordSignupStartedIfNew(identifier, channel, async () =>
+        supabaseBackend === "supabase" ? Boolean(await findUserIdByIdentity(lookup)) : Boolean(findUserByIdentity(lookup))
+      );
+    }
     // devCode is only ever present in mock mode; surfaced so local testing works.
     return NextResponse.json({
       sent: result.sent,

@@ -6,7 +6,8 @@ import {
   createPostResponse,
 } from "@solana/actions";
 import { PublicKey } from "@solana/web3.js";
-import { buildPaymentTransaction } from "@/lib/actions/solana";
+import { buildPaymentTransaction, MerchantWalletNotConfiguredError } from "@/lib/actions/solana";
+import { demoOnlyUnavailableWithHeaders } from "@/lib/demoGate";
 import { authorizeBooking, generateCars, MCC, type CarRental } from "@/lib/travel/data";
 import { addTrip } from "@/lib/travel/store";
 import { mintTicketCnft } from "@/lib/travel/cnft";
@@ -21,6 +22,11 @@ import type { NextRequest } from "next/server";
 const headers = createActionHeaders({ chainId: "mainnet", actionVersion: "2.4" });
 
 export const OPTIONS = async () => new Response(null, { headers });
+
+// The cars are GENERATED from a hash of the city name (generateCars): there is
+// no rental provider and no vehicle. Charging real USDC for one is a payment
+// for nothing, so production refuses until a real inventory source exists.
+const CARS_REASON = "Car rental inventory is generated; no rental provider is connected.";
 
 const MAX_DAYS = 7;
 
@@ -58,6 +64,9 @@ export const GET = async (req: NextRequest) => {
   // needs and well below what a scraper wants.
   const limited = await blinkRateLimit(req, "actions.book-car.get", 60);
   if (limited) return limited;
+  // The card advertises a generated car at a generated price: not in production.
+  const gate = demoOnlyUnavailableWithHeaders(headers, "Car rental Blink", CARS_REASON);
+  if (gate) return gate;
 
   const url = new URL(req.url);
   const city = parseCity(url.searchParams.get("city"));
@@ -107,6 +116,8 @@ export const GET = async (req: NextRequest) => {
 
 // POST — return the USDC transfer transaction for the wallet to sign.
 export const POST = async (req: Request) => {
+  const gate = demoOnlyUnavailableWithHeaders(headers, "Car rental Blink", CARS_REASON);
+  if (gate) return gate;
   try {
     const url = new URL(req.url);
     const city = parseCity(url.searchParams.get("city"));
@@ -214,6 +225,9 @@ export const POST = async (req: Request) => {
       await releaseLock(lockName, lockToken);
     }
   } catch (err) {
+    if (err instanceof MerchantWalletNotConfiguredError) {
+      return Response.json({ message: "Payments are not available on this deployment." }, { status: 503, headers });
+    }
     const message = err instanceof Error ? err.message : "Unable to build transaction.";
     return Response.json({ message }, { status: 400, headers });
   }

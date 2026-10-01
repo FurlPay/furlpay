@@ -23,7 +23,7 @@ const PROTECTED_ROUTES = [
   "/earn",
   "/credit",
   "/rewards",
-  "/analytics",
+  "/spending",
 ];
 const PAGE_CACHE = "furlpay-pages"; // must match sw.ts
 

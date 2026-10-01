@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSubscriber, putSubscriber } from "@/lib/newsletter";
 import { newsletterWelcome, sendEmail } from "@/lib/email";
 import { log } from "@/lib/log";
-import { clientIp, rateLimitOr429 } from "@/lib/rateLimit";
+import { rateLimitOr429 } from "@/lib/rateLimit";
+import { trustedClientIp } from "@/lib/clientIp";
 import { NewsletterSubscribeSchema } from "@/lib/schemas";
 import { validateBody } from "@/lib/validate";
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
       email,
       categories: merged,
       consentTimestamp: new Date().toISOString(),
-      ip: clientIp(req),
+      ip: trustedClientIp(req),
     });
 
     if (existing) {

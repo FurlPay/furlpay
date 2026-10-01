@@ -12,7 +12,7 @@
 # ---------------------------------------------------------------------------
 
 terraform {
-  required_version = ">= 1.9.0"
+  required_version = ">= 1.11.0, < 2.0.0"
 
   backend "s3" {
     bucket       = "furlpay-tfstate"
@@ -62,6 +62,11 @@ variable "acm_certificate_arn" {
   type        = string
 }
 
+variable "alb_certificate_arn" {
+  description = "ACM cert in the ALB's region (var.region) covering origin-api.furlpay.com."
+  type        = string
+}
+
 variable "container_image" {
   description = "ECR image pinned by DIGEST in production — a tag can be moved, a digest cannot."
   type        = string
@@ -89,9 +94,12 @@ module "env" {
   region      = var.region
   vpc_cidr    = "10.30.0.0/16"
   domain_name = "api.furlpay.com"
+  # CloudFront -> ALB TLS name (see modules/env/variables.tf).
+  origin_domain_name = "origin-api.furlpay.com"
 
   hosted_zone_id      = var.hosted_zone_id
   acm_certificate_arn = var.acm_certificate_arn
+  alb_certificate_arn = var.alb_certificate_arn
   container_image     = var.container_image
 
   task_cpu      = 2048

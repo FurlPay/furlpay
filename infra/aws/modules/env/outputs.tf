@@ -44,7 +44,8 @@ output "ci_deploy_role_arn" {
 }
 
 output "database_secret_arn" {
-  value = aws_secretsmanager_secret.database_url.arn
+  description = "Null unless var.enable_aws_data_plane."
+  value       = one(aws_secretsmanager_secret.database_url[*].arn)
 }
 
 output "app_secret_arns" {

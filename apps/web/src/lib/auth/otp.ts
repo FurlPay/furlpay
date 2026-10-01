@@ -16,6 +16,7 @@ import crypto from "crypto";
 import { kvGet, kvSet, kvDel, kvSetNx, kvIncr } from "@/lib/kv";
 import { sendEmail } from "@/lib/email";
 import { otpEmail } from "@/lib/emailTemplates";
+import { canonicalEmail } from "@/lib/identity";
 
 export type OtpChannel = "sms" | "call" | "email" | "whatsapp";
 
@@ -91,7 +92,7 @@ const EMAIL_OTP_TTL_S = 10 * 60;
 const RESEND_COOLDOWN_S = 30; // no second send within 30s of the last one
 
 function normalizeEmail(addr: string): string {
-  return addr.trim().toLowerCase();
+  return canonicalEmail(addr);
 }
 
 /** Pepper for the OTP HMAC. Reuses the session secret (already mandatory and

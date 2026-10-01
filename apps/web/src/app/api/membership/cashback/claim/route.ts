@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { recordProductEvent } from "@/lib/analytics/events";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { withIdempotency } from "@/lib/idempotency";
-import { claimCashback, creditCashbackToBalance, cashbackSummary } from "@/lib/services/membership";
+import { claimAndCreditCashback, cashbackSummary } from "@/lib/services/membership";
 import { newTx, recordTransaction } from "@/lib/store";
+import { log } from "@/lib/log";
 
 export const dynamic = "force-dynamic";
 
@@ -31,17 +33,25 @@ export async function POST(req: NextRequest) {
 
   const idempotencyKey = req.headers.get("Idempotency-Key");
   return withIdempotency(idempotencyKey, "membership.cashback.claim", async () => {
-    let result;
+    // One atomic claim-and-pay (lib/services/membership.ts claimAndCreditCashback):
+    // in Postgres the accruals are locked, paid through the keyed financial
+    // effect and marked claimed in a single transaction.
+    let outcome;
     try {
-      result = claimCashback(userId);
+      outcome = await claimAndCreditCashback(userId);
     } catch (e) {
-      return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 409 });
+      const msg = (e as Error).message;
+      if (msg === "Nothing to claim" || msg === "Cashback programme is not active") {
+        return NextResponse.json({ ok: false, error: msg }, { status: 409 });
+      }
+      log.error("cashback claim failed", { userId, error: msg.slice(0, 200) });
+      return NextResponse.json({ ok: false, error: "ledger_error" }, { status: 500 });
     }
-
-    const credited = creditCashbackToBalance(userId, result.claimedUsd);
-    if (!credited) {
-      return NextResponse.json({ ok: false, error: "account_unavailable" }, { status: 500 });
+    if (!outcome.applied) {
+      return NextResponse.json({ ok: false, error: "Nothing to claim" }, { status: 409 });
     }
+    // Lifecycle fact only; the money is in the ledger (claim_cashback, 0026).
+    recordProductEvent({ name: "cashback_claimed", eventId: `${userId}:${Date.now()}`, userId, route: "/api/membership/cashback/claim" });
 
     recordTransaction(
       userId,
@@ -49,8 +59,8 @@ export async function POST(req: NextRequest) {
         category: "yield",
         direction: "in",
         title: "Cashback claimed",
-        subtitle: `${result.accrualIds.length} accrual${result.accrualIds.length === 1 ? "" : "s"}`,
-        amountUsd: result.claimedUsd,
+        subtitle: `${outcome.accrualCount} accrual${outcome.accrualCount === 1 ? "" : "s"}`,
+        amountUsd: outcome.claimedUsd,
         token: "USDC",
         chain: "arbitrum",
         status: "settled",
@@ -59,8 +69,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       ok: true,
-      claimedUsd: result.claimedUsd,
-      accrualCount: result.accrualIds.length,
+      claimedUsd: outcome.claimedUsd,
+      accrualCount: outcome.accrualCount,
       summary: cashbackSummary(userId),
     });
   }, { principal: userId });

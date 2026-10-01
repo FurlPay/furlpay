@@ -297,6 +297,16 @@ export async function handleCommand(i: Interaction): Promise<Reply> {
       if (from.length !== 3 || to.length !== 3) {
         return reply({ content: "Use 3-letter airport codes, e.g. /flights from:LHR to:JFK.", flags: EPHEMERAL });
       }
+      const searchUrl = `${SITE}/travel/flights?from=${from}&to=${to}&date=${date}`;
+      // generateFlights() invents carriers, times and fares from a hash of the
+      // route. In production the bot must not post a fare nobody quoted, so it
+      // links to the live flight search (real provider, no fallback) instead.
+      if (process.env.NODE_ENV === "production") {
+        return reply({
+          embeds: [embed(`Flights ${from} → ${to}`, `${date} · ${cabin}\n\nLive fares are on the FurlPay flight search.`)],
+          components: [actionRow(linkButton("Search live fares", searchUrl))],
+        });
+      }
       const flights = generateFlights(from, to, date, cabin).slice(0, 5);
       const cheapest = flights.reduce((a, b) => (b.priceUsd < a.priceUsd ? b : a), flights[0]);
       const lines = flights

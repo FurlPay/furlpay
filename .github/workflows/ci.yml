@@ -99,6 +99,76 @@ jobs:
           FURLPAY_PG_CONCURRENCY: "1"
         run: npx vitest run src/lib/controlPlane/__tests__/pgConcurrency.spec.ts
 
+  # ---------------------------------------------------------------------------
+  # P0 REGRESSION SUITE (docs/release/PRODUCTION_REMEDIATION_STATUS.md).
+  #
+  # Every production-blocking finding from the 2026-09-30 audit has a test that
+  # proves its fix; this job runs all of them and nothing in it is optional.
+  # The financial-effect proof needs a REAL multi-connection PostgreSQL — an
+  # in-process engine cannot contend a unique index — so it runs against a
+  # service container with the actual migration files applied in order.
+  # ---------------------------------------------------------------------------
+  p0-regression:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: furlpay_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # migration immutability compares against the base
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Migration immutability (T-D1) — no committed migration edited
+        run: |
+          BASE="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then BASE=HEAD~1; fi
+          node scripts/db/check-migrations.mjs --base "$BASE"
+          node --test scripts/db/check-migrations.test.mjs
+      - name: Financial effects on real PostgreSQL (T-W1/T-W2/T-W3/T-L2, 20 repetitions)
+        env:
+          DATABASE_URL: postgres://postgres:ci@localhost:5432/furlpay_test
+        run: node scripts/db/verify-financial-effects.mjs --repeat 20
+      - name: Analytics migration 0027 on real PostgreSQL (correctness, privileges, benchmark)
+        env:
+          ADMIN_URL: postgres://postgres:ci@localhost:5432/postgres
+          DATABASE_URL: postgres://postgres:ci@localhost:5432/furlpay_analytics_test
+        run: |
+          node -e "const pg=require('pg');const c=new pg.Client(process.env.ADMIN_URL);c.connect().then(()=>c.query('create database furlpay_analytics_test')).then(()=>c.end())"
+          node scripts/db/verify-analytics.mjs --scale 1000,10000 --events 200000
+      - name: AWS env contract (T-A1)
+        run: node scripts/aws/check-env-contract.mjs
+      - name: AWS edge configuration (cert regions, origin lock, XFF hop model)
+        run: node scripts/aws/check-edge-config.mjs
+      - name: EAS profile resolution (T-C2)
+        run: bash scripts/ci/eas-profile.test.sh
+      - name: Web P0/P1 regression specs
+        working-directory: apps/web
+        run: >-
+          npx vitest run
+          src/lib/__tests__/adminFallback.spec.ts
+          src/lib/__tests__/bootConfig.spec.ts
+          src/lib/__tests__/financialEffects.spec.ts
+          src/lib/__tests__/safeAddressNeverRecipient.spec.ts
+          src/lib/__tests__/handleResolution.spec.ts
+          src/lib/__tests__/withDurableWebhook.spec.ts
+          src/lib/deposits
+          src/lib/cron
+          src/app/api/webhooks
+      - name: Extension P0 regression (T-E1)
+        working-directory: apps/extension
+        run: npx vitest run lib/__tests__/receiveAddress.test.ts
+
   # Security auditing moved to .github/workflows/security-audit.yml
   # which has proper failure handling + Discord notifications.
 

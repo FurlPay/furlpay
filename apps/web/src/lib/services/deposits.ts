@@ -133,6 +133,17 @@ export async function markCredited(txHash: string): Promise<boolean> {
   return kvSetNx(CREDIT_KEY(txHash), true, TTL_SECONDS);
 }
 
+/**
+ * First-sight guard for a deposit NOTIFICATION (activity row + email), keyed on
+ * the transfer identity (deposit:<chain>:<tx>:<log>). Not a money guard — no
+ * deposit moves money any more (self-custody: the chain is the record) — just
+ * the fast path that stops a redelivery repeating the same notice. The durable
+ * claim (webhook_events) is the authority where Postgres exists.
+ */
+export async function claimDepositNotification(depositKey: string): Promise<boolean> {
+  return kvSetNx(`deposit:notified:${depositKey}`, true, TTL_SECONDS);
+}
+
 export async function listRecentDeposits(limit = 10): Promise<DepositEvent[]> {
   const hashes = await kvListRange(RECENT_KEY, RECENT_MAX);
   const events = (await Promise.all(hashes.slice(0, limit * 2).map((h) => kvGet<DepositEvent>(EVENT_KEY(h)))))

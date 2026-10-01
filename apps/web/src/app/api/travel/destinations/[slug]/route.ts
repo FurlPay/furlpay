@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { demoOnlyUnavailable } from "@/lib/demoGate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { getDestination, generateStays, generateFlights, generateActivities } from "@/lib/travel/data";
@@ -13,6 +14,18 @@ export async function GET(req: NextRequest, props: { params: Promise<{ slug: str
   const destination = getDestination(params.slug);
   if (!destination) {
     return NextResponse.json({ error: "Unknown destination." }, { status: 404 });
+  }
+  // The destination itself is curated catalogue content. The stays, flights
+  // and activities below are GENERATED (invented prices): production omits them.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({
+      destination,
+      topStays: [],
+      topFlights: [],
+      topActivities: [],
+      listings: "unavailable",
+      listingsReason: "No live rates are held for destination pages; search uses the real providers.",
+    });
   }
   return NextResponse.json({
     destination,

@@ -1,4 +1,4 @@
-import { sbRpc, SupabaseFunctionMissing, supabaseBackend } from "@/lib/supabase";
+import { sbRpc, sbSelect, SupabaseFunctionMissing, supabaseBackend } from "@/lib/supabase";
 import { findUserByLinkedWallet, getAccount, type LinkedWallet } from "@/lib/store";
 
 // ---------------------------------------------------------------------------
@@ -98,6 +98,33 @@ interface LinkedWalletRow {
   address: string;
   proof_nonce: string;
   linked_at: string;
+}
+
+/**
+ * Who owns this address — resolved DURABLY (audit P1-12).
+ *
+ * The deposit webhook used findUserByLinkedWallet, which scans only accounts
+ * loaded into THIS instance: a deposit for anyone else got a 200
+ * "ignored_address", the provider stopped retrying, and the deposit was never
+ * recorded. This reads the indexed primary key (linked_wallets.address_norm).
+ *
+ *   owner found            → their user id
+ *   genuinely not linked   → null (a legitimate "not ours")
+ *   database unavailable   → THROWS, so the caller answers 5xx and the
+ *                            provider retries — never a silent "ignored"
+ */
+export async function findLinkedWalletOwner(address: string): Promise<string | null> {
+  const norm = address.trim().toLowerCase();
+  if (!/^0x[0-9a-f]{40}$/.test(norm)) return null;
+  if (supabaseBackend !== "supabase") {
+    // Dev/test with no database: the in-memory index is the only copy.
+    return findUserByLinkedWallet(norm)?.user.id ?? null;
+  }
+  const rows = await sbSelect<{ user_id: string }>(
+    "linked_wallets",
+    `address_norm=eq.${norm}&status=eq.active&select=user_id&limit=1`
+  );
+  return rows[0]?.user_id ?? null;
 }
 
 /**

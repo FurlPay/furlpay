@@ -20,52 +20,64 @@ resource "aws_kms_alias" "main" {
 # from reverting them on the next apply.
 
 resource "aws_secretsmanager_secret" "database_url" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   name       = "furlpay/${var.env}/DATABASE_URL"
   kms_key_id = aws_kms_key.main.arn
   tags       = local.common_tags
 }
 
 resource "aws_secretsmanager_secret_version" "database_url" {
-  secret_id = aws_secretsmanager_secret.database_url.id
+  count = var.enable_aws_data_plane ? 1 : 0
+
+  secret_id = aws_secretsmanager_secret.database_url[0].id
   secret_string = format(
     "postgresql://%s:%s@%s:5432/%s?sslmode=require",
-    aws_rds_cluster.main.master_username,
-    random_password.db.result,
-    aws_rds_cluster.main.endpoint,
-    aws_rds_cluster.main.database_name,
+    aws_rds_cluster.main[0].master_username,
+    random_password.db[0].result,
+    aws_rds_cluster.main[0].endpoint,
+    aws_rds_cluster.main[0].database_name,
   )
 }
 
 resource "aws_secretsmanager_secret" "redis_url" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   name       = "furlpay/${var.env}/REDIS_URL"
   kms_key_id = aws_kms_key.main.arn
   tags       = local.common_tags
 }
 
 resource "aws_secretsmanager_secret_version" "redis_url" {
-  secret_id = aws_secretsmanager_secret.redis_url.id
+  count = var.enable_aws_data_plane ? 1 : 0
+
+  secret_id = aws_secretsmanager_secret.redis_url[0].id
   # rediss:// — the TLS scheme. Plain redis:// against a transit-encrypted
   # cluster fails to connect, and the failure looks like a network problem.
   secret_string = format(
     "rediss://:%s@%s:6379",
-    random_password.redis_auth.result,
-    aws_elasticache_replication_group.main.primary_endpoint_address,
+    random_password.redis_auth[0].result,
+    aws_elasticache_replication_group.main[0].primary_endpoint_address,
   )
 }
 
-# Application secrets Terraform must not invent. Created empty so the task
-# definition can reference a stable ARN from day one.
+# Application secrets Terraform must not invent. Created with a placeholder so
+# the task definition can reference a stable ARN from day one.
+#
+# THE NAMES ARE THE APPLICATION'S (audit P0-5). This list used to inject
+# SESSION_SECRET, EVM_RPC_URL and FCM_SERVICE_ACCOUNT_JSON, none of which the
+# app reads, while omitting FURLPAY_SESSION_SECRET (without it the app throws
+# in production), SUPABASE_URL and the KV REST pair (without them there is no
+# data plane at all) and FURLPAY_ADMIN_EMAIL (without it production refuses to
+# boot — there is no fallback admin). The source of truth is
+# infra/aws/env-contract.json; scripts/aws/check-env-contract.mjs fails CI when
+# this list and the code disagree.
+#
+# A placeholder must never reach a running process as if it were a secret —
+# "REPLACE_ME" as STRIPE_WEBHOOK_SECRET would let anyone forge signed events.
+# lib/bootConfig.ts refuses to start with any placeholder value present.
 resource "aws_secretsmanager_secret" "app" {
-  for_each = toset([
-    "SESSION_SECRET",
-    "STRIPE_SECRET_KEY",
-    "STRIPE_WEBHOOK_SECRET",
-    "RESEND_API_KEY",
-    "SUPABASE_SERVICE_ROLE_KEY",
-    "SOLANA_RPC_URL",
-    "EVM_RPC_URL",
-    "FCM_SERVICE_ACCOUNT_JSON",
-  ])
+  for_each = toset(local.app_secret_names)
 
   name       = "furlpay/${var.env}/${each.value}"
   kms_key_id = aws_kms_key.main.arn
@@ -111,12 +123,29 @@ resource "aws_security_group" "service" {
   description = "Fargate tasks"
   vpc_id      = aws_vpc.main.id
 
+  # HTTPS ONLY (audit P2-2). Every dependency the task talks to — Supabase
+  # (PostgREST), Upstash (REST), Stripe, Resend, Persona/Sumsub, LI.FI, RPC
+  # providers, KMS and the other AWS APIs via VPC endpoints — is HTTPS on 443.
+  # This was all protocols to anywhere. DNS to the VPC resolver is not subject
+  # to security groups. A per-domain allowlist (Network Firewall) is the next
+  # step; docs/aws/EGRESS.md lists the destinations it must admit.
   egress {
-    description = "Outbound to AWS services, RPC endpoints and payment processors"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
+    description = "HTTPS to dependencies"
+    from_port   = 443
+    to_port     = 443
+    protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  dynamic "egress" {
+    for_each = var.enable_aws_data_plane ? { postgres = 5432, redis = 6379 } : {}
+    content {
+      description = "${egress.key} inside the VPC (data plane only)"
+      from_port   = egress.value
+      to_port     = egress.value
+      protocol    = "tcp"
+      cidr_blocks = [var.vpc_cidr]
+    }
   }
 
   tags = merge(local.common_tags, { Name = "${local.name}-service" })
@@ -171,7 +200,9 @@ resource "aws_ecs_task_definition" "app" {
       readonlyRootFilesystem = true
       mountPoints = [
         { sourceVolume = "tmp", containerPath = "/tmp", readOnly = false },
-        { sourceVolume = "next-cache", containerPath = "/app/.next/cache", readOnly = false },
+        # apps/web/Dockerfile runs the monorepo standalone server from
+        # /app/apps/web, so its cache is /app/apps/web/.next/cache.
+        { sourceVolume = "next-cache", containerPath = "/app/apps/web/.next/cache", readOnly = false },
       ]
 
       # Run as the `node` user baked into the official image, not root. Fargate
@@ -195,19 +226,38 @@ resource "aws_ecs_task_definition" "app" {
         { name = "AWS_REGION", value = var.region },
         { name = "ASSETS_BUCKET", value = aws_s3_bucket.assets.bucket },
         { name = "PUBLIC_API_ORIGIN", value = "https://${var.domain_name}" },
+        # Tells the app it runs behind CloudFront: without a usable
+        # ORIGIN_VERIFY_SECRET it then refuses everything (503, health included)
+        # rather than serving an unprotected origin. See lib/originVerify.ts.
+        { name = "ORIGIN_VERIFY_REQUIRED", value = "true" },
+        # Client IP = 2nd X-Forwarded-For entry from the right (CloudFront, then
+        # the ALB, append). Without it every per-IP rate limit trusts a header
+        # the client sets. See lib/rateLimit.ts clientIp().
+        { name = "FURLPAY_TRUSTED_PROXY_HOPS", value = "2" },
+        # Passkeys: off Vercel the RP ID would otherwise resolve to "localhost".
+        { name = "FURLPAY_RP_ID", value = var.webauthn_rp_id },
+        { name = "FURLPAY_ORIGIN", value = var.webauthn_origins },
+        # iOS universal links + passkeys (AASA). Not a secret: the Team ID is public.
+        { name = "APPLE_TEAM_ID", value = var.apple_team_id },
       ]
 
       # Injected by the execution role at task start — never baked into the
       # image, never visible in the task definition, which is world-readable
       # to anyone with ecs:DescribeTaskDefinition.
       secrets = concat(
+        # DATABASE_URL / REDIS_URL only when the AWS data plane exists AND the
+        # app has been taught to use it (var.enable_aws_data_plane).
+        [for s in aws_secretsmanager_secret.database_url : { name = "DATABASE_URL", valueFrom = s.arn }],
+        [for s in aws_secretsmanager_secret.redis_url : { name = "REDIS_URL", valueFrom = s.arn }],
         [
-          { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.database_url.arn },
-          { name = "REDIS_URL", valueFrom = aws_secretsmanager_secret.redis_url.arn },
           # The other half of the scheduler. EventBridge sends this value as
           # `x-furlpay-cron-key`; without it in the task, lib/cron/auth.ts
           # correctly refuses every scheduled job — including reconciliation.
           { name = "FURLPAY_CRON_SECRET", valueFrom = aws_secretsmanager_secret.cron_secret.arn },
+          # The application half of the origin boundary (the ALB listener rule
+          # in edge.tf is the other). The execution role could already read it;
+          # it was never injected, so the app-side check could not run.
+          { name = "ORIGIN_VERIFY_SECRET", valueFrom = aws_secretsmanager_secret.origin_verify.arn },
         ],
         [for k, s in aws_secretsmanager_secret.app : { name = k, valueFrom = s.arn }],
       )

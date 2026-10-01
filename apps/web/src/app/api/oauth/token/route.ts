@@ -1,3 +1,4 @@
+import { publicRequestUrl } from "@/lib/publicOrigin";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -34,7 +35,8 @@ export async function POST(req: NextRequest) {
   };
 
   const dpopHeader = req.headers.get("dpop") || undefined;
-  const url = new URL(req.url);
+  // htu is what the client signed: the PUBLIC URL, not the bind address.
+  const url = publicRequestUrl(req);
   const htu = `${url.origin}${url.pathname}`;
 
   const grantType = get("grant_type");

@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { recordSecurityEvent } from "@/lib/ops/events";
 import { noteSensitiveAccess } from "@/lib/ops/dataAccessAnomaly";
 import type { Role } from "@/lib/session";
+import { isBootstrapAdminEmail } from "@/lib/adminIdentity";
 
 // ---------------------------------------------------------------------------
 // Dual-controlled provisioning for privileged roles.
@@ -385,8 +386,10 @@ export async function hasActiveGrant(userId: string, role: GrantableRole): Promi
  * Read from the environment on every call rather than cached, so rotating it
  * takes effect on the next request rather than the next deploy.
  */
-function bootstrapEmail(): string {
-  return (process.env.FURLPAY_ADMIN_EMAIL ?? "ashutosh@furlpay.app").trim().toLowerCase();
+function isBootstrap(email: string | null | undefined): boolean {
+  // No production fallback: when FURLPAY_ADMIN_EMAIL is unset in production,
+  // nobody is the bootstrap founder (lib/adminIdentity.ts).
+  return isBootstrapAdminEmail(email);
 }
 
 /**
@@ -403,7 +406,7 @@ function bootstrapEmail(): string {
 export async function effectiveRoles(account: {
   user: { id: string; email: string; roles: Role[] };
 }): Promise<Role[]> {
-  const isBootstrap = (account.user.email ?? "").trim().toLowerCase() === bootstrapEmail();
+  const bootstrap = isBootstrap(account.user.email);
   const out: Role[] = [];
 
   for (const role of account.user.roles) {
@@ -411,7 +414,7 @@ export async function effectiveRoles(account: {
       out.push(role);
       continue;
     }
-    if (isBootstrap) {
+    if (bootstrap) {
       out.push(role);
       continue;
     }

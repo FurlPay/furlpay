@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { trackClient } from "@/lib/analytics/client";
 import Link from "next/link";
 import { NotWiredError, disconnectWallet, getLinkedWallet, type LinkedWalletInfo, type Profile } from "@/lib/accountApi";
 import { timeAgo } from "@/components/ui";
@@ -60,6 +61,7 @@ export default function WalletSection({ profile }: { profile: Profile }) {
       setConfirming(false);
       setLinked(null);
       setFeedback({ tone: "success", text: "Wallet disconnected." });
+      trackClient("wallet_disconnected");
     } catch (err) {
       setDialogError(
         err instanceof NotWiredError

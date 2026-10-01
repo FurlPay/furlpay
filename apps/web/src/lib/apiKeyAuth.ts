@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { audit } from "./audit";
+import { trustedClientIp } from "./clientIp";
 import {
   touchApiKey,
   verifyApiKey,
@@ -70,16 +71,9 @@ export function bearerToken(req: NextRequest): string | null {
 
 /** The client address as the platform reports it. */
 export function clientIp(req: NextRequest): string | null {
-  // x-forwarded-for is a list appended to by each hop; the FIRST entry is the
-  // original client. It is only trustworthy because Vercel overwrites it at
-  // the edge — behind a proxy that does not, an IP allowlist built on this is
-  // spoofable, which is why the UI documents it as defence in depth.
-  const forwarded = req.headers.get("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
-    if (first) return first;
-  }
-  return req.headers.get("x-real-ip");
+  // One trust model for every IP decision (rate limits, this allowlist):
+  // lib/clientIp.ts. null = not established, which an allowlist refuses.
+  return trustedClientIp(req);
 }
 
 export interface RequireApiKeyOptions {

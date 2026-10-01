@@ -20,5 +20,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "query must be at least 3 characters" }, { status: 400 });
   }
   const { signals, matches } = matchTrips(query.slice(0, 300));
-  return NextResponse.json({ signals, matches, source: "demo" });
+  // Deterministic keyword match over the curated destination catalogue (no
+  // LLM, no live rates): labelled as such rather than as "demo".
+  return NextResponse.json({ signals, matches, source: "catalogue" });
 }

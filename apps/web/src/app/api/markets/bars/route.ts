@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/publicOrigin";
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
@@ -133,7 +134,7 @@ export async function GET(req: NextRequest) {
   // data. Redirecting hands the second request to the caller, which already
   // knows the origin it used, and costs one hop less than proxying did.
   if (instrument?.quoteSource === "binance-perp") {
-    const to = new URL("/api/markets/perps/bars", req.url);
+    const to = new URL("/api/markets/perps/bars", publicOrigin(req));
     to.searchParams.set("symbol", symbol);
     to.searchParams.set("tf", tf);
     // 307, not 302: the method and body must survive, and this route is

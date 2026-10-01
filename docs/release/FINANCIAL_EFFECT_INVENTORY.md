@@ -1,0 +1,35 @@
+# Financial effect inventory
+
+Date: 2026-09-30. Scope: `apps/web` (the only service that writes money state). Source of truth for the mechanism: migration `0025_financial_effects.sql` and `applyFinancialEffect()` in `apps/web/src/lib/ledger.ts`.
+
+**The rule.** Every money-moving effect has a deterministic effect key built from the provider's or the business's own facts. `apply_financial_effect()` inserts the ledger header keyed by `external_ref` (UNIQUE), then the balanced postings and any balance deltas, all in **one** transaction, and marks the webhook processed in the same transaction. A repeated key moves nothing and returns `applied=false` with HTTP success. A random UUID is never an effect key.
+
+Proof on real PostgreSQL 18 (`scripts/db/verify-financial-effects.mjs`, 100 repetitions, 310/310 checks): 20 concurrent deliveries → 1 effect; ack failure plus redelivery → 1 effect; 100 interleaved mutations from two pools → no lost update.
+
+| Effect | Trigger | Provider id | Effect key | Ledger path | Idempotent? | Reversal | Test |
+|---|---|---|---|---|---|---|---|
+| Stripe funding credit | `payment_intent.succeeded` | PaymentIntent id | `stripe:pi:{pi.id}` | `recordMovement(in, …, {effectKey, webhook})` → `apply_financial_effect` (ack in same txn) | **Yes** (DB unique) | refund / dispute rows below | `stripe/__tests__/effectIdempotency.spec.ts` (T-W1/T-W2/T-W3 at the route), harness |
+| Stripe refund | `refund.created` / `refund.updated` (succeeded), `charge.refunded` | Refund id | `stripe:refund:{re.id}` | Dr customer liability / Cr bank escrow | **Yes** | itself a reversal | `payments/__tests__/stripeReversals.spec.ts` |
+| Stripe dispute opened | `charge.dispute.created` (and first step of `…closed`) | Dispute id | `stripe:dispute:{dp.id}:opened` | Dr customer liability / Cr chargeback liability | **Yes** | won/lost rows | `stripeReversals.spec.ts` |
+| Stripe dispute won | `charge.dispute.closed` status `won` | Dispute id | `stripe:dispute:{dp.id}:won` | Dr chargeback liability / Cr customer liability | **Yes** | — | `stripeReversals.spec.ts` |
+| Stripe dispute lost | `charge.dispute.closed` status `lost` | Dispute id | `stripe:dispute:{dp.id}:lost` | Dr chargeback liability / Cr bank escrow | **Yes** | — | `stripeReversals.spec.ts` |
+| Subscription revenue | `checkout.session.completed` (subscription) | Checkout Session id | `externalRef = session.id` (revenue store, pre-existing) | revenue events (not the customer ledger) | Yes (pre-existing) | — | existing revenue specs |
+| Account funding (x402) | `POST /api/account/fund` after facilitator settle | EIP-3009 authorization (payer + nonce) | `x402-fund:{network}:{from}:{nonce}` | `creditAccount` → effect with balance delta USDC/arbitrum | **Yes** | none (on-chain transfer) | `financialEffects.spec.ts` |
+| Apple Pay top-up | `POST /api/topup/apple-pay` | processor reference | `applepay:{provider}:{processorRef}` (mock: `applepay:mock:{user}:{requestUUID}`) | `creditAccount` | **Yes**; a live capture without a reference is refused (502) | processor refund (not wired) | `financialEffects.spec.ts` |
+| Account spend (debit) | `POST /api/account/spend` — capability-gated (`ACCOUNT_SPEND_LIVE` unimplemented) | client `Idempotency-Key` (now required) | `account-spend:{user}:{key}` | `debitAccount` → effect, overdraft checked in DB | **Yes** | — | `financialEffects.spec.ts` |
+| Cashback claim | `POST /api/membership/cashback/claim` → `claimAndCreditCashback` | durable accrual rows (`cashback_accruals`, migration 0026, UNIQUE(user_id, source_ref)) | `cashback:furlpay:{user}:{md5(sorted accrual ids)}`, derived **in SQL** by `claim_cashback()` | `claim_cashback()` locks the unclaimed rows `FOR UPDATE`, marks them, and calls `apply_financial_effect` in the SAME transaction (Dr operational expense / Cr `acct_2000_{user}` + balance delta); the liability account must belong to the claimant | **Yes** (row lock + DB-unique key); no claimed-but-unpaid state is possible | — | harness: 40 barrier-released + 100 concurrent + 100 sequential claims → one payout; user A never receives B’s accruals; wrong liability account refused. `cashbackClaim.spec.ts` (dev path: a failed credit un-claims) |
+| Dividend payout | `POST /api/investing/dividends/settle` | corporate action ids | `dividend:{user}:{sha256(sorted action ids)}` | `recordMovement(in, …, {effectKey})` | **Yes** (plus pre-existing `dividend_once_per_user`) | — | existing dividend specs + mechanism |
+| Corporate-action payout | `POST /api/investing/corporate-actions/settle` | corporate action ids | `reorg:{user}:{sha256(sorted action ids)}` | `recordMovement(in, …, {effectKey})` | **Yes** (plus `reorg_once_per_user`) | — | existing reorg specs + mechanism |
+| On-chain deposit to a user's linked wallet | `POST /api/webhooks/deposit-detect` | chain + tx hash + log index | activity key `deposit:{chain}:{tx}:{log}` | **no financial effect** — self-custody: chain is the source of truth (P1-11) | n/a (activity deduped by durable claim + KV) | n/a | `deposit-detect/__tests__/*.spec.ts` (T-L4, T-W4, T-W5) |
+| Treasury deposit | `deposit-detect` | same | same | none — recorded as unattributed | n/a | n/a | `durableCredit.spec.ts` |
+| Investing order cash leg | `POST /api/investing/order` | provider client order id (`fp_` + sha256(user:Idempotency-Key), or random when there is no key, i.e. one provider order per tap) | `order:{clientOrderId}` | `recordMovement(…, {effectKey})` → `apply_financial_effect` | **Yes**, one cash leg per provider order | — | `ledgerWriteOrdering.spec.ts`, `financialTripwires.spec.ts` |
+| Off-ramp | `POST /api/offramp` — gated (`OFFRAMP_LIVE` unimplemented) | — | un-keyed | random ledger id | No | — | **OPEN**, unreachable in prod |
+| Wallet transfer (demo rail) | `POST /api/wallets/transfer` — 503 in production | — | un-keyed | random ledger id | No | — | unreachable in prod |
+| Card authorisation daily spend | `POST /api/webhooks/card-auth` — no issuer (`CARD_ISSUING_LIVE` unimplemented) | issuer auth id | durable claim on event id | in-memory `card.limits.dailySpent` (not money) | claim-deduped | — | `card-auth/__tests__` |
+| Swaps / intents / earn (mock branches) | 503 in production; live branch returns a bundle to sign (no internal balance) | — | — | none in prod | n/a | n/a | `safeAddressNeverRecipient.spec.ts` (live receiver) |
+
+## Open items
+
+1. ~~Investing order cash leg un-keyed~~: **resolved**. The effect is keyed `order:{clientOrderId}`, the same id sent to the provider, so one provider order gives exactly one cash leg.
+2. **Off-ramp and wallet transfer** are un-keyed but unreachable in production (capability gates). Key them before any rail is connected.
+3. **In-memory money mutations remaining in gated mock branches** (swaps, intents, earn mock, P2P settlement, wallets/transfer): production returns 503 before them. With migration 0025 applied they can no longer reach Postgres through the snapshot, because `save_account_children` ignores balances. They remain development simulations.

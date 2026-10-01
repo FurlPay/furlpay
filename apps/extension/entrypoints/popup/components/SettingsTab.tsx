@@ -328,19 +328,11 @@ function PasskeysPanel() {
   }, []);
   useEffect(load, [load]);
 
-  const addr = list?.safeAddress;
-
   return (
     <div style={{ padding: "0 12px 10px" }}>
-      {addr && (
-        <div style={{ fontSize: "0.7rem", color: "var(--fp-text-muted)", marginBottom: 8 }}>
-          Smart account{" "}
-          <span style={{ fontFamily: "var(--fp-font-mono)", color: "var(--fp-text-secondary)" }}>
-            {addr.slice(0, 6)}…{addr.slice(-4)}
-          </span>{" "}
-          — controlled by the devices below.
-        </div>
-      )}
+      {/* No account address here. The old "Smart account … controlled by the
+          devices below" line showed the placeholder safeAddress, which no key
+          or device controls (lib/receiveAddress.ts, audit P0-3). */}
       {error && <div style={{ color: "var(--fp-loss)", fontSize: "0.75rem", marginBottom: 8 }}>{error}</div>}
       {!list && !error && <div className="skeleton" style={{ height: 40, borderRadius: 10, marginBottom: 8 }} />}
       {list?.credentials.length === 0 && (

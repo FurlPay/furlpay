@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { kvBackend, kvIncr } from "./kv";
+import { trustedClientIp } from "./clientIp";
 
 // ---------------------------------------------------------------------------
 // Rate limiter for sensitive endpoints (OTP, payments, funding, key
@@ -83,13 +84,19 @@ function evictStale(store: Map<string, Bucket>, now: number, windowMs: number): 
   }
 }
 
-/** Best-effort client IP (Vercel sets x-forwarded-for; first hop is client). */
-export function clientIp(req: NextRequest | undefined): string {
-  return (
-    req?.headers.get("x-real-ip") ||
-    req?.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
-    "unknown"
-  );
+/**
+ * Rate-limit identity for a request: the trusted client IP (lib/clientIp.ts).
+ *
+ * When trust cannot be established (null), every such request shares ONE
+ * strict bucket per route, still split by the route's extraKey (user id,
+ * phone). Deliberately harsh: under the deployed topology it cannot happen
+ * (the proxies always append and nothing else reaches the task), so a null
+ * means misconfiguration or a bypass attempt, and neither may earn a fresh
+ * budget per request. A per-request random key would disable limiting; a
+ * client-supplied value would let the attacker choose the bucket.
+ */
+export function rateLimitIdentity(req: Pick<Request, "headers"> | undefined): string {
+  return trustedClientIp(req) ?? "untrusted";
 }
 
 /**
@@ -122,7 +129,7 @@ export async function rateLimitOr429(
   opts: RateLimitOptions,
   extraKey = ""
 ): Promise<NextResponse | null> {
-  const result = await limit(`${name}:${clientIp(req)}:${extraKey}`, opts);
+  const result = await limit(`${name}:${rateLimitIdentity(req)}:${extraKey}`, opts);
   if (result.ok) return null;
   const windowSeconds = Math.ceil(opts.windowMs / 1000);
   return NextResponse.json(

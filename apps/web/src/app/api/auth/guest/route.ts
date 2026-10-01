@@ -55,18 +55,24 @@ export async function POST(req: NextRequest) {
   // session with no credential at all. requireRole's live-grant check
   // (effectiveRoles) would still have refused it, but an unauthenticated
   // session must not depend on a second layer to be harmless.
+  // No seed exists in a production runtime (lib/store.ts demoSeedAllowed), so
+  // there is nothing to sign in as — refuse rather than mint a dangling session.
+  const demo = db;
+  if (!demo) {
+    return NextResponse.json({ error: "Guest login disabled" }, { status: 403 });
+  }
   const token = await signSession({
-    sub: db.user.id,
-    safe: db.user.safeAddress,
+    sub: demo.user.id,
+    safe: demo.user.safeAddress,
     roles: ["user"],
     guest: true,
-    sepoch: await currentEpoch(db.user.id),
+    sepoch: await currentEpoch(demo.user.id),
   });
   // Mobile clients get the token in the body (Bearer flow) — same pattern as
   // /api/auth/otp/check. Web keeps the HttpOnly cookie only.
   const isMobileClient = (req.headers.get("x-furlpay-client") ?? "").startsWith("mobile");
   const res = NextResponse.json({ verified: true, guest: true, ...(isMobileClient ? { token } : {}) });
   setSessionCookie(res, token);
-  audit("auth.guest_login", db.user.id);
+  audit("auth.guest_login", demo.user.id);
   return res;
 }

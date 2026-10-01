@@ -107,6 +107,12 @@ export async function GET(req: NextRequest) {
   } catch {
     profile = null; // fall through to mock on any Graph API failure
   }
+  // A synthetic profile (invented follower counts, a "verified" badge) is a
+  // development convenience only. In production an unavailable Graph API is
+  // reported as unavailable — never as a plausible-looking creator.
+  if (!profile && process.env.NODE_ENV === "production") {
+    return NextResponse.json({ ok: false, error: "profile_unavailable" }, { status: 503 });
+  }
   const mocked = !profile;
   if (!profile) profile = mockProfile(handle);
 

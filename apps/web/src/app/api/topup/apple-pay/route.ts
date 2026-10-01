@@ -98,7 +98,19 @@ export async function POST(req: NextRequest) {
       ? `Apple Pay · ${capture.displayName}`
       : "Apple Pay top-up";
 
-    const credit = await creditAccount(userId, capture.amountUsd, "Apple Pay top-up", descriptor);
+    // Effect key = the processor's own reference for this capture: one capture,
+    // one credit, however often the client or the network retries (P0-1). A
+    // live capture without a reference cannot be keyed and is refused; a mock
+    // capture (no money moved, never in production) is keyed on the request's
+    // required idempotency UUID, scoped to the user.
+    if (capture.provider !== "mock" && !capture.processorRef) {
+      log.error("applePay.capture_without_reference", { userId, provider: capture.provider });
+      return NextResponse.json({ error: "capture_unkeyed" }, { status: 502 });
+    }
+    const effectKey = capture.processorRef
+      ? `applepay:${capture.provider}:${capture.processorRef}`
+      : `applepay:mock:${userId}:${body.idempotencyKey}`;
+    const credit = await creditAccount(userId, capture.amountUsd, "Apple Pay top-up", descriptor, effectKey);
     if (!credit.ok) {
       // The ledger refused, so the balance did not move. If a real capture
       // already happened this needs a refund, which is why it is an error-level

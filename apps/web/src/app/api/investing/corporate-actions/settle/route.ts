@@ -128,8 +128,12 @@ export async function POST(req: NextRequest) {
     account.tradeLots.splice(0, account.tradeLots.length, ...result.lots);
 
     if (result.cashToCredit > 0) {
-      await recordMovement("in", result.cashToCredit, "Corporate action payout", userId);
-      recordTransaction(
+      // Keyed by the settled actions (reorg_once_per_user's facts): no double cash.
+      const actions = [...new Set(result.events.map((e) => e.corporateActionId))].sort();
+      const payout = await recordMovement("in", result.cashToCredit, "Corporate action payout", userId, {
+        effectKey: `reorg:${userId}:${crypto.createHash("sha256").update(actions.join(",")).digest("hex")}`,
+      });
+      if (payout.applied) recordTransaction(
         userId,
         newTx({
           category: "invest",

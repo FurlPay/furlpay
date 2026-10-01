@@ -232,5 +232,5 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return NextResponse.json({ type: kind, results: [], note: "Unknown search type.", source: "demo" }, { status: 400 });
+  return NextResponse.json({ type: kind, results: [], note: "Unknown search type." }, { status: 400 });
 }

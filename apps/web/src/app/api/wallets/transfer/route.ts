@@ -10,6 +10,7 @@ import { recordMovement } from "@/lib/ledger";
 import { TransferSchema, parse } from "@/lib/schemas";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { trustedClientIp } from "@/lib/clientIp";
 import { audit } from "@/lib/audit";
 import { checkVelocity, commitVelocity } from "@/lib/services/velocity";
 import { analyzeDevice } from "@/lib/services/deviceIntel";
@@ -113,7 +114,7 @@ async function executeTransfer(
   // Device intelligence: collect the device signals (fingerprint & behavioral)
   // before running the trust evaluation.
   const country = req.headers.get("x-vercel-ip-country");
-  const ip = req.headers.get("x-forwarded-for") || req.headers.get("x-real-ip");
+  const ip = trustedClientIp(req);
   const hasFingerprint = deviceSignals && typeof deviceSignals === "object" && "visitorId" in deviceSignals;
   
   let deviceIntelResult;

@@ -163,7 +163,7 @@ export function RiskCard({ risk }: { risk: RiskProfile }) {
 
       <div className="mt-auto border-t border-white/[0.06] p-3">
         <Link
-          href="/analytics"
+          href="/spending"
           className="block rounded-lg border border-white/[0.1] py-2 text-center text-[12.5px] font-semibold text-white transition-colors hover:border-white/25 hover:bg-white/[0.04] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gain"
         >
           View risk report

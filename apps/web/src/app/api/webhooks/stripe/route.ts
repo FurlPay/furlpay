@@ -8,6 +8,8 @@ import { recordMovement } from "@/lib/ledger";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 import { recordRevenue, minor } from "@/lib/revenue/record";
+import { withDurableWebhook } from "@/lib/withDurableWebhook";
+import { applyStripeDispute, applyStripeRefund, type StripeDisputeLike, type StripeRefundLike } from "@/lib/payments/stripeReversals";
 
 // POST /api/webhooks/stripe — Stripe Crypto payment/settlement events.
 // Verifies the stripe-signature header via constructEvent (HMAC-SHA256 over the
@@ -44,6 +46,23 @@ export async function POST(request: Request) {
     );
   }
 
+  // Durable dedupe (migration 0022) wraps the existing KV guard + effects as an
+  // ADDITIONAL layer, engaging only where the Postgres store is provisioned
+  // (prod/staging); in dev/test it bypasses and the KV path below is unchanged.
+  // Signature verification stays ABOVE this — it is Stripe-specific.
+  try {
+    return await withDurableWebhook<NextResponse>({
+      provider: "stripe",
+      eventId: event.id,
+      eventType: event.type,
+      rawBody: payload,
+      onDuplicate: () => NextResponse.json({ received: true, deduped: true }),
+      onMismatch: () => {
+        audit("webhook.payload_mismatch", "system", { provider: "stripe", event: event.type });
+        return NextResponse.json({ error: "payload_mismatch" }, { status: 400 });
+      },
+      onUnavailable: () => NextResponse.json({ error: "webhook_store_unavailable" }, { status: 503 }),
+      handler: async () => {
   // Idempotency: Stripe delivers at-least-once. Claim the id, process, and
   // only mark processed on success — a failed handler releases the id and
   // returns 5xx so Stripe's redelivery is retried instead of lost.
@@ -69,9 +88,24 @@ export async function POST(request: Request) {
         getDevelopmentDemoAccount();
       const amountUsd = (pi.amount_received ?? pi.amount) / 100;
 
-      if (target) {
-        await recordMovement("in", amountUsd, `Stripe payment ${pi.id}`, target.user.id);
-        recordTransaction(
+      // The amount is minor units OF THE PI'S CURRENCY. Crediting a EUR or INR
+      // intent as if its minor units were US cents would book the wrong sum,
+      // so anything but USD is acknowledged and left for manual handling.
+      const currency = String(pi.currency ?? "").toLowerCase();
+      if (target && currency !== "usd") {
+        log.error("stripe payment_intent.succeeded in unsupported currency — not credited", { pi: pi.id, currency });
+        audit("webhook.unsupported_currency", target.user.id, { provider: "stripe", pi: pi.id, currency });
+      } else if (target) {
+        // EXACTLY ONCE (audit P0-1). The effect key is the PaymentIntent — the
+        // business fact — not the event id: Stripe can deliver the same PI
+        // success under more than one event, and a redelivery after a failed
+        // acknowledgement must not post again. The webhook row is marked
+        // processed in the SAME transaction as the posting (migration 0025).
+        const movement = await recordMovement("in", amountUsd, `Stripe payment ${pi.id}`, target.user.id, {
+          effectKey: `stripe:pi:${pi.id}`,
+          webhook: { provider: "stripe", eventId: event.id },
+        });
+        if (movement.applied) recordTransaction(
           target.user.id,
           newTx({
             category: "ramp",
@@ -142,6 +176,41 @@ export async function POST(request: Request) {
       }
     }
 
+    // Refunds and chargebacks (audit P2-7): each is its own balanced, keyed
+    // ledger transaction — see lib/payments/stripeReversals.ts. The customer is
+    // resolved from the PaymentIntent's own metadata, never from the event body.
+    const ack = { provider: "stripe", eventId: event.id };
+    const resolveUser = async (piId: string) => {
+      const pi = await getStripe().paymentIntents.retrieve(piId);
+      const uid = (pi.metadata?.furlpayUserId as string) || "";
+      return uid && (await getAccountDurable(uid)) ? uid : null;
+    };
+    if (event.type === "refund.created" || event.type === "refund.updated") {
+      const r = await applyStripeRefund(event.data.object as unknown as StripeRefundLike, resolveUser, ack);
+      if (r.reason) log.warn("stripe refund not posted", { event: event.type, reason: r.reason });
+    }
+    if (event.type === "charge.refunded") {
+      const charge = event.data.object as Stripe.Charge;
+      for (const refund of charge.refunds?.data ?? []) {
+        const r = await applyStripeRefund(
+          { ...(refund as unknown as StripeRefundLike), payment_intent: refund.payment_intent ?? charge.payment_intent },
+          resolveUser,
+          ack
+        );
+        if (r.reason) log.warn("stripe refund not posted", { event: event.type, reason: r.reason });
+      }
+    }
+    if (event.type === "charge.dispute.created" || event.type === "charge.dispute.closed") {
+      const r = await applyStripeDispute(
+        event.data.object as unknown as StripeDisputeLike,
+        event.type === "charge.dispute.created" ? "opened" : "closed",
+        resolveUser,
+        ack
+      );
+      if (r.reason) log.warn("stripe dispute not posted", { event: event.type, reason: r.reason });
+      else audit("webhook.processed", "system", { provider: "stripe", event: event.type });
+    }
+
     if (event.type === "customer.subscription.deleted") {
       const sub = event.data.object as Stripe.Subscription;
       const userId = (sub.metadata?.furlpayUserId as string) || "";
@@ -157,7 +226,14 @@ export async function POST(request: Request) {
     await markFailed(event.id);
     audit("webhook.failed", "system", { provider: "stripe", event: event.type, error: (e as Error).message });
     log.error("stripe webhook handler failed", { event: event.type, error: (e as Error).message });
-    // 5xx → Stripe redelivers; the released id lets the retry process it.
+    // Throw so the durable layer marks the event failed and releases it; the
+    // outer catch renders the retryable 500 Stripe expects.
+    throw e;
+  }
+      },
+    });
+  } catch {
+    // 5xx → Stripe redelivers; both the KV id and the durable row are released.
     return NextResponse.json({ error: "handler_failed" }, { status: 500 });
   }
 }

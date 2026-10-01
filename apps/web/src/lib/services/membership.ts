@@ -1,5 +1,8 @@
-import { randomUUID } from "crypto";
-import { getAccount, setSubscriptionTier } from "@/lib/store";
+import { createHash, randomUUID } from "crypto";
+import { getAccount, refreshTokenBalancesFromDb, setSubscriptionTier } from "@/lib/store";
+import { ACCOUNTS, applyFinancialEffect, rewardPostings, userLiabilityAccount } from "@/lib/ledger";
+import { ensureLedgerAccount, paymentsDurable } from "@/lib/paymentsDb";
+import { sbRpc } from "@/lib/supabase";
 import type { Tier } from "@/lib/entitlements";
 
 // ---------------------------------------------------------------------------
@@ -488,18 +491,32 @@ export function claimCashback(userId: string): ClaimResult {
   return { claimedUsd: round2(total), accrualIds: ids };
 }
 
-/** Credit a claim to the user's USDC balance. Caller owns the production gate. */
-export function creditCashbackToBalance(userId: string, amountUsd: number): boolean {
-  const account = getAccount(userId);
-  if (!account) return false;
-  const bal = account.tokenBalances.find((b) => b.token === "USDC");
-  if (bal) {
-    bal.amount = round2(bal.amount + amountUsd);
-    bal.usdValue = round2(bal.usdValue + amountUsd);
-    return true;
+/**
+ * Credit a claim to the user's USDC (Arbitrum) balance, exactly once per set of
+ * accruals. Caller owns the production gate.
+ *
+ * The old version mutated the in-memory balance directly (lost on another
+ * instance's flush) and credited whichever USDC row came first, on any chain.
+ * Now: one apply_financial_effect (migration 0025) posting Dr operational
+ * expense / Cr customer liability plus the balance delta, keyed by the sorted
+ * accrual ids — a retried claim of the same accruals moves nothing.
+ */
+export async function creditCashbackToBalance(
+  userId: string,
+  claim: ClaimResult
+): Promise<{ ok: boolean; duplicate: boolean }> {
+  if (!getAccount(userId) || claim.claimedUsd <= 0 || claim.accrualIds.length === 0) {
+    return { ok: false, duplicate: false };
   }
-  account.tokenBalances.push({ token: "USDC", chain: "arbitrum", amount: amountUsd, usdValue: amountUsd });
-  return true;
+  const digest = createHash("sha256").update([...claim.accrualIds].sort().join(","), "utf8").digest("hex");
+  const amount = round2(claim.claimedUsd).toFixed(2);
+  const r = await applyFinancialEffect({
+    effectKey: `cashback:furlpay:${userId}:${digest}`,
+    memo: `Cashback claim (${claim.accrualIds.length} accruals)`,
+    ...rewardPostings(Number(amount), userId),
+    balanceDeltas: [{ userId, token: "USDC", chain: "arbitrum", amount, usdValue: amount }],
+  });
+  return { ok: true, duplicate: !r.applied };
 }
 
 /** Test seam — the in-memory maps are process-global otherwise. */
@@ -512,4 +529,59 @@ export function __resetMembershipForTests(): void {
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
+}
+
+export interface ClaimOutcome {
+  /** false = nothing new was paid (nothing to claim, or already paid). */
+  applied: boolean;
+  claimedUsd: number;
+  accrualCount: number;
+}
+
+/**
+ * Claim and pay the caller's cashback as ONE operation.
+ *
+ * DURABLE (Postgres present): the migration-0026 function `claim_cashback`
+ * locks the user's unclaimed accruals, pays their total through the keyed
+ * financial effect, and marks them claimed — in one transaction. Retries,
+ * concurrent requests and other instances cannot pay the same accruals twice
+ * (proven on real PostgreSQL: scripts/db/verify-financial-effects.mjs).
+ *
+ * DEVELOPMENT (no Postgres): accruals are marked claimed and credited; if the
+ * credit fails the marks are rolled back, so a failure can never consume
+ * cashback without paying it (the previous two-step route could).
+ *
+ * The user id is the session subject, passed by the route — there is no
+ * parameter for choosing whose accruals, or which ones.
+ */
+export async function claimAndCreditCashback(userId: string): Promise<ClaimOutcome> {
+  if (paymentsDurable()) {
+    const liability = userLiabilityAccount(userId);
+    const expense = ACCOUNTS.OPERATIONAL_EXPENSE;
+    for (const a of [liability, expense]) {
+      await ensureLedgerAccount({ id: a.id, code: a.code, name: a.name, type: a.type as never, currency: "USD" });
+    }
+    const rows = await sbRpc<{ applied: boolean; claimed_minor: number | string; accrual_count: number }[]>("claim_cashback", {
+      p_user_id: userId,
+      p_liability_account: liability.id,
+      p_expense_account: expense.id,
+    });
+    const row = Array.isArray(rows) ? rows[0] : undefined;
+    if (!row) throw new Error("claim_cashback returned no row");
+    await refreshTokenBalancesFromDb(userId);
+    return { applied: row.applied, claimedUsd: Number(row.claimed_minor) / 100, accrualCount: row.accrual_count };
+  }
+
+  const claim = claimCashback(userId); // throws when there is nothing to claim
+  try {
+    const credited = await creditCashbackToBalance(userId, claim);
+    if (!credited.ok) throw new Error("account_unavailable");
+    return { applied: !credited.duplicate, claimedUsd: claim.claimedUsd, accrualCount: claim.accrualIds.length };
+  } catch (e) {
+    const ids = new Set(claim.accrualIds);
+    for (const acc of state.accruals.values()) {
+      if (acc.userId === userId && ids.has(acc.id)) acc.claimedAt = null;
+    }
+    throw e;
+  }
 }

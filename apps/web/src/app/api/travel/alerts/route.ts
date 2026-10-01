@@ -1,10 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
+import { demoOnlyUnavailable } from "@/lib/demoGate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
 import { createAlert, deleteAlert, listAlerts } from "@/lib/travel/alerts";
 
 // GET /api/travel/alerts — active price alerts.
+const ALERTS_REASON = "Price alerts are held in an ownerless in-memory list with no price monitor behind it; not served in production.";
+
 export async function GET() {
+  const gate = demoOnlyUnavailable("Price alerts", ALERTS_REASON);
+  if (gate) return gate;
   return NextResponse.json({ alerts: listAlerts(), source: "demo" });
 }
 
@@ -12,6 +17,8 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "travel.alerts", { limit: 10, windowMs: 600_000 });
   if (limited) return limited;
+  const gate = demoOnlyUnavailable("Price alerts", ALERTS_REASON);
+  if (gate) return gate;
 
   let body: any;
   try {
@@ -39,6 +46,8 @@ export async function POST(req: NextRequest) {
 
 // DELETE /api/travel/alerts?id=alrt_… — remove an alert.
 export async function DELETE(req: NextRequest) {
+  const gate = demoOnlyUnavailable("Price alerts", ALERTS_REASON);
+  if (gate) return gate;
   const id = req.nextUrl.searchParams.get("id") ?? "";
   if (!deleteAlert(id)) return NextResponse.json({ error: "Alert not found" }, { status: 404 });
   return NextResponse.json({ ok: true });

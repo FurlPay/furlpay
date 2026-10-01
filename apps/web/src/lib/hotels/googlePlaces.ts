@@ -382,11 +382,24 @@ export async function resolvePhotoUri(
       return null;
     }
     const json = (await res.json()) as { photoUri?: string };
-    return typeof json.photoUri === "string" ? json.photoUri : null;
+    // The photo route streams this URL server-side, so it is pinned to Google's
+    // image CDN over HTTPS: a response naming any other host (or an internal
+    // address) is refused rather than fetched.
+    return typeof json.photoUri === "string" && isGooglePhotoHost(json.photoUri) ? json.photoUri : null;
   } catch (e) {
     log.warn("google.places.photo.failed", { error: (e as Error).message });
     return null;
   } finally {
     clearTimeout(timer);
+  }
+}
+
+/** https://*.googleusercontent.com only. */
+export function isGooglePhotoHost(raw: string): boolean {
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" && (u.hostname === "googleusercontent.com" || u.hostname.endsWith(".googleusercontent.com"));
+  } catch {
+    return false;
   }
 }

@@ -43,8 +43,35 @@ variable "hosted_zone_id" {
 }
 
 variable "acm_certificate_arn" {
-  description = "ACM cert covering domain_name. MUST be in us-east-1 when fronted by CloudFront."
+  description = "VIEWER certificate for CloudFront: ACM cert covering domain_name. MUST be in us-east-1 (CloudFront reads certificates from nowhere else)."
   type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws:acm:us-east-1:", var.acm_certificate_arn))
+    error_message = "acm_certificate_arn is the CloudFront viewer certificate and must be an ACM ARN in us-east-1."
+  }
+}
+
+variable "origin_domain_name" {
+  description = <<-EOT
+    Hostname CloudFront uses to reach the ALB, e.g. origin-api.furlpay.com.
+    Needed because the origin request policy does NOT forward the viewer Host,
+    so CloudFront validates the ALB certificate against the ORIGIN domain name,
+    and no certificate can be issued for *.elb.amazonaws.com. Resolves to the
+    ALB (alias record in edge.tf); reaching it directly still meets the
+    prefix-list security group and the X-Origin-Verify listener rule.
+  EOT
+  type        = string
+}
+
+variable "alb_certificate_arn" {
+  description = "ORIGIN certificate for the ALB listener: ACM cert covering origin_domain_name, in the SAME region as the ALB (an ALB cannot use a certificate from another region)."
+  type        = string
+
+  validation {
+    condition     = can(regex("^arn:aws:acm:[a-z0-9-]+:", var.alb_certificate_arn))
+    error_message = "alb_certificate_arn must be an ACM certificate ARN."
+  }
 }
 
 variable "container_image" {
@@ -132,4 +159,45 @@ variable "tags" {
   description = "Extra tags merged into every resource."
   type        = map(string)
   default     = {}
+}
+
+variable "enable_aws_data_plane" {
+  description = <<-EOT
+    Provision Aurora PostgreSQL + ElastiCache and inject DATABASE_URL / REDIS_URL.
+    OFF by default (audit P0-5): the application reaches its database only
+    through Supabase PostgREST and its KV only through the Upstash REST API, and
+    reads neither DATABASE_URL nor REDIS_URL. Turning this on provisions
+    infrastructure nothing uses until the data layer is migrated.
+  EOT
+  type        = bool
+  default     = false
+}
+
+variable "github_repo" {
+  description = "owner/name of the repository whose GitHub Actions environments may assume the deploy role (OIDC sub claim)."
+  type        = string
+  default     = "Ashutosh0x/furlpay"
+
+  validation {
+    condition     = can(regex("^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$", var.github_repo))
+    error_message = "github_repo must be owner/name."
+  }
+}
+
+variable "webauthn_rp_id" {
+  description = "Passkey relying-party ID (FURLPAY_RP_ID). Off Vercel the app otherwise falls back to 'localhost' and every passkey ceremony fails."
+  type        = string
+  default     = "furlpay.com"
+}
+
+variable "webauthn_origins" {
+  description = "Comma-separated expected WebAuthn origins (FURLPAY_ORIGIN)."
+  type        = string
+  default     = "https://furlpay.com,https://www.furlpay.com"
+}
+
+variable "apple_team_id" {
+  description = "Apple Developer Team ID (APPLE_TEAM_ID). Empty = the AASA file 404s and iOS universal links / passkeys stay off."
+  type        = string
+  default     = ""
 }

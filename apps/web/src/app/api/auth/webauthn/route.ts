@@ -38,11 +38,15 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+    const demo = db;
+    if (!demo) {
+      return NextResponse.json({ error: "Demo passkey route unavailable" }, { status: 404 });
+    }
     // Phase 2: issue a signed session JWT (jose, HS256).
-    const token = await signSession({ sub: db.user.id, safe: db.user.safeAddress });
+    const token = await signSession({ sub: demo.user.id, safe: demo.user.safeAddress });
     const res = NextResponse.json({
       success: true,
-      safeAddress: db.user.safeAddress,
+      safeAddress: demo.user.safeAddress,
       newAccount: action === "register",
     });
     res.cookies.set(SESSION_COOKIE, token, {

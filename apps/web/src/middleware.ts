@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
 import {
   canRefreshSession,
   SESSION_COOKIE,
@@ -8,13 +8,17 @@ import {
   verifySession,
   type SessionClaims,
 } from "@/lib/session";
-import { clientIp, limit } from "@/lib/rateLimit";
+import { limit, rateLimitIdentity } from "@/lib/rateLimit";
 import {
   applyApiVersionHeaders,
   resolveApiVersion,
   SUPPORTED_API_VERSIONS,
 } from "@/lib/apiVersion";
 import { CORRELATION_HEADER, ensureCorrelationId } from "@/lib/correlation";
+import { checkOrigin, ORIGIN_VERIFY_HEADER } from "@/lib/originVerify";
+import { configuredPublicOrigin, publicOrigin } from "@/lib/publicOrigin";
+import { classifyRequest, recordActiveCountry, recordApiRequest, recordPageView } from "@/lib/analytics/telemetry";
+import { trustedClientCountry, trustedClientIp } from "@/lib/clientIp";
 
 // ---------------------------------------------------------------------------
 // Auth gate. A `furlpay_session` cookie is minted on passkey login/registration.
@@ -124,6 +128,10 @@ const PUBLIC_API_PREFIXES = [
   // Lead capture for report downloads and webinar registrations. Public by
   // design — a visitor has no account — and each route carries its own
   // per-route rate limit (see routeManifest.spec.ts).
+  // Cross-platform analytics ingestion: anonymous visitors and signed-out
+  // app sessions report too. Identity, if any, is derived in the route; the
+  // route rate-limits and validates every event (lib/analytics/contract.ts).
+  "/api/analytics/events",
   "/api/reports",
   "/api/webinars",
   "/api/og",
@@ -176,6 +184,7 @@ const PUBLIC_API_PREFIXES = [
   // this entry the cookie gate returns 401 before the route's own, stronger
   // check ever runs, and the scheduler silently never fires.
   "/api/cron",
+  "/api/health", // load-balancer liveness probe — returns a constant, touches no data (IP rate-limited)
   "/api/markets", // public market data — powers the research portal's pulse strip
   "/api/insights", // public research metadata
   "/api/travel", // FurlPay Travels — public search/deals/booking demo surface
@@ -256,7 +265,13 @@ export function crossSiteCookieForgery(req: NextRequest): boolean {
     return true; // malformed Origin from a browser — reject
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
-  const reqHost = req.headers.get("host");
+  // The host the browser addressed. Behind CloudFront the Host header is the
+  // ORIGIN hostname (the viewer's is not forwarded), so the configured public
+  // origin is the reference there; elsewhere the platform-routed Host is. A
+  // cross-site attacker controls neither: the victim's browser sets Host, and
+  // PUBLIC_API_ORIGIN is deploy configuration.
+  const configured = configuredPublicOrigin();
+  const reqHost = configured ? new URL(configured).host : req.headers.get("host");
   if (!reqHost) return false;
   // Exact host match, tolerating the www/apex pair (www.furlpay.com ↔ furlpay.com).
   const strip = (h: string) => h.replace(/^www\./, "");
@@ -287,14 +302,72 @@ async function maybeSlideSession(req: NextRequest, claims: SessionClaims | null,
   return res;
 }
 
-export async function middleware(req: NextRequest) {
+/** 403 page for a signed-in non-admin on /analytics; null when allowed or unknown. */
+async function adminPageDenied(req: NextRequest): Promise<NextResponse | null> {
+  // Same process, plain HTTP: on ECS the request URL is the bind address
+  // behind TLS-terminating proxies, so call the local port; elsewhere the
+  // platform origin is correct.
+  const base = process.env.ORIGIN_VERIFY_REQUIRED === "true" ? `http://127.0.0.1:${process.env.PORT ?? "3000"}` : publicOrigin(req);
+  const headers = new Headers();
+  for (const h of ["cookie", "authorization", ORIGIN_VERIFY_HEADER, "user-agent"]) {
+    const v = req.headers.get(h);
+    if (v) headers.set(h, v);
+  }
+  let status: number;
+  try {
+    status = (await fetch(new URL("/api/ops/analytics/access", base), { headers, cache: "no-store", signal: AbortSignal.timeout(5_000) })).status;
+  } catch {
+    return null; // unknown: the layout gate decides (and never renders for a non-admin)
+  }
+  if (status === 401) {
+    const url = new URL("/login", publicOrigin(req));
+    url.searchParams.set("next", req.nextUrl.pathname);
+    return NextResponse.redirect(url);
+  }
+  if (status !== 403) return null;
+  return new NextResponse(FORBIDDEN_HTML, { status: 403, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
+}
+
+const FORBIDDEN_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>Admin access required · FurlPay</title>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#070A09;color:#fff;font:15px/1.5 system-ui,-apple-system,Segoe UI,sans-serif;padding:24px}main{max-width:440px;border:1px solid rgba(255,255,255,.08);background:#0B100E;border-radius:16px;padding:32px;text-align:center}h1{font-size:22px;margin:12px 0 8px}p{color:#9aa3a0;margin:8px 0}a{color:#00E599}</style></head>
+<body><main role="main"><h1>Admin access required</h1><p>This area is an internal FurlPay operations tool. Your account does not have access to it.</p><p>Looking for your own spending breakdown? <a href="/spending">Open spending insights</a></p></main></body></html>`;
+
+export async function middleware(req: NextRequest, event?: NextFetchEvent) {
   const { pathname } = req.nextUrl;
+
+  // Origin verification (lib/originVerify.ts): behind CloudFront, a request
+  // without the distribution's secret header did not come through our WAF.
+  // First, before any session or KV work. A no-op where nothing is declared.
+  const origin = checkOrigin(pathname, req.method, req.headers.get(ORIGIN_VERIFY_HEADER));
+  if (origin === "misconfigured") {
+    return new NextResponse("Service unavailable", { status: 503 });
+  }
+  if (origin === "reject") {
+    return new NextResponse("Not found", { status: 404 });
+  }
+
   // Verify the JWT signature (edge-safe via jose), not just cookie presence.
   // Token comes from the cookie (web) or Authorization: Bearer (mobile app).
   const claims = await verifySession(tokenFromRequest(req));
   const hasSession = Boolean(claims);
 
   const isApi = pathname.startsWith("/api");
+
+  // Dashboard telemetry (lib/analytics/telemetry.ts): handed to waitUntil so it
+  // never delays or fails the request. Counted after origin verification, so a
+  // request the origin check refused is not "API traffic".
+  if (event) {
+    // What counts as API traffic and as a page view: lib/analytics/telemetry.ts
+    // classifyRequest (health checks, cron, admin polling, prefetches, bots and
+    // assets are excluded).
+    const cls = classifyRequest(req);
+    if (cls.kind === "api") event.waitUntil(recordApiRequest());
+    else if (cls.kind === "page") event.waitUntil(recordPageView(trustedClientIp(req), req.headers.get("user-agent") ?? ""));
+    if (claims?.sub && !claims.guest) {
+      const geo = recordActiveCountry(claims.sub, trustedClientCountry(req));
+      if (geo) event.waitUntil(geo);
+    }
+  }
 
   // API version negotiation (X-Api-Version, date-based). Unknown versions are
   // rejected up front so a client never silently runs against the wrong
@@ -350,7 +423,7 @@ export async function middleware(req: NextRequest) {
     MUTATING_METHODS.has(req.method) &&
     !BASELINE_EXEMPT_PREFIXES.some((p) => pathname.startsWith(p))
   ) {
-    const rl = await limit(`api-baseline:${clientIp(req)}`, BASELINE);
+    const rl = await limit(`api-baseline:${rateLimitIdentity(req)}`, BASELINE);
     if (!rl.ok) {
       return NextResponse.json(
         { error: "rate_limited", retryAfterSeconds: rl.retryAfterSeconds },
@@ -413,12 +486,24 @@ export async function middleware(req: NextRequest) {
   }
 
   // Page routes
+  // The admin dashboard's old address: a real redirect, before any rendering.
+  if (pathname === "/ops/analytics") {
+    return NextResponse.redirect(new URL(`/analytics${req.nextUrl.search}`, publicOrigin(req)), 308);
+  }
+  // /analytics answers a REAL 403 to a signed-in non-admin. The page cannot:
+  // the root loading.tsx streams the shell (and its 200) before the segment's
+  // layout runs. The layout gate stays as the second line (it never renders
+  // the dashboard for a non-admin even if this check is unavailable).
+  if (hasSession && (pathname === "/analytics" || pathname.startsWith("/analytics/"))) {
+    const denied = await adminPageDenied(req);
+    if (denied) return denied;
+  }
   const isPublicPage =
     PUBLIC_PAGES.has(pathname) || PUBLIC_PAGE_PREFIXES.some((p) => pathname.startsWith(p));
   if (isPublicPage || hasSession) return maybeSlideSession(req, claims, NextResponse.next());
 
-  const url = req.nextUrl.clone();
-  url.pathname = "/login";
+  // Public origin, not req.nextUrl: on ECS that is the bind address.
+  const url = new URL("/login", publicOrigin(req));
   url.searchParams.set("next", pathname);
   return NextResponse.redirect(url);
 }

@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { validateBody } from "@/lib/validate";
-import { rateLimitOr429, clientIp } from "@/lib/rateLimit";
+import { rateLimitOr429 } from "@/lib/rateLimit";
+import { trustedClientIp } from "@/lib/clientIp";
+import { publicOrigin } from "@/lib/publicOrigin";
 import { audit } from "@/lib/audit";
 import {
   normalizeHandle,
@@ -42,9 +44,10 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   // CSRF: this session-cookie write must originate from our own origin. A
-  // browser sends Origin on POST; reject anything that isn't us.
+  // browser sends Origin on POST; reject anything that isn't us. Compared with
+  // the PUBLIC origin: on ECS req.nextUrl.host is the bind address.
   const origin = req.headers.get("origin");
-  if (origin && new URL(origin).host !== req.nextUrl.host) {
+  if (origin && !sameHost(origin, publicOrigin(req))) {
     return NextResponse.json({ error: "bad_origin" }, { status: 403 });
   }
 
@@ -63,7 +66,7 @@ export async function POST(req: NextRequest) {
       normalized: v.normalized,
       userId,
       scopes: WALLET_GRANT_SCOPES,
-      ip: clientIp(req),
+      ip: trustedClientIp(req),
     });
   } catch {
     return NextResponse.json(
@@ -81,4 +84,13 @@ export async function POST(req: NextRequest) {
 
   audit("wallet.handle_reserved", userId, { handle: v.normalized, scopes: WALLET_GRANT_SCOPES });
   return NextResponse.json({ ok: true, handle: v.normalized, scopes: WALLET_GRANT_SCOPES });
+}
+
+/** Origin header vs our public origin, by host; a malformed Origin is not us. */
+function sameHost(origin: string, ours: string): boolean {
+  try {
+    return new URL(origin).host === new URL(ours).host;
+  } catch {
+    return false;
+  }
 }

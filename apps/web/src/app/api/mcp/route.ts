@@ -1,3 +1,4 @@
+import { publicOrigin, publicRequestUrl } from "@/lib/publicOrigin";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -37,7 +38,7 @@ const rpcErr = (id: unknown, code: number, message: string, status = 200) =>
 // A DPoP-bound token additionally advertises the `DPoP` scheme so a client
 // that dropped its proof knows to re-send one (RFC 9449 §7.1).
 function unauthorized(req: NextRequest, withDpop = false): NextResponse {
-  const origin = new URL(req.url).origin;
+  const origin = publicOrigin(req);
   const prm = `resource_metadata="${origin}/.well-known/oauth-protected-resource"`;
   const challenge = withDpop
     ? `DPoP realm="FurlPay", algs="ES256 RS256 EdDSA", ${prm}`
@@ -63,7 +64,8 @@ export async function POST(req: NextRequest) {
     if (creds.scheme !== "dpop") return unauthorized(req, true);
     const proof = req.headers.get("dpop") || undefined;
     if (!proof) return unauthorized(req, true);
-    const url = new URL(req.url);
+    // htu is what the client signed: the PUBLIC URL, not the bind address.
+    const url = publicRequestUrl(req);
     try {
       await verifyDpopProof(proof, {
         htm: "POST",
@@ -94,7 +96,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { id, method, params } = body;
-  const origin = new URL(req.url).origin;
+  const origin = publicOrigin(req);
 
   switch (method) {
     case "initialize":
@@ -204,7 +206,7 @@ function authorization(req: NextRequest): { scheme: "bearer" | "dpop"; token: st
  * to touch money.
  */
 function apiCaller(req: NextRequest, claims: McpClaims): ToolContext["api"] {
-  const origin = new URL(req.url).origin;
+  const origin = publicOrigin(req);
   // Internal hops stay Bearer: the proof binds the client to THIS edge, and we
   // are not that client when calling ourselves. The token itself is unchanged.
   const token = authorization(req)!.token;

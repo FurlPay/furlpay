@@ -157,9 +157,20 @@ export type AuditEvent =
   | "challenge.replay_detected"
   | "webhook.processed"
   | "webhook.failed"
+  // Same provider event id delivered with a DIFFERENT body (payload hash
+  // mismatch in webhook_events, migration 0022) — a forged replay; never processed.
+  | "webhook.payload_mismatch"
   // An on-chain deposit to the shared treasury: recorded, credited to no one,
   // because a shared address carries no evidence of whose money it is.
   | "deposit.unattributed"
+  // A deposit to a user's OWN (self-custody) wallet: activity only, no balance claim.
+  | "deposit.self_custody_observed"
+  // An admin MUTATION (non-GET) that passed requireRole("admin"): recorded and alerted.
+  | "admin.action"
+  // An admin READ (GET/HEAD/OPTIONS): recorded, throttled, not alerted (lib/adminAudit.ts).
+  | "admin.read"
+  // A provider event in a currency the credit path does not convert: not credited.
+  | "webhook.unsupported_currency"
   | "billing.checkout_created"
   | "billing.sandbox_upgrade"
   | "ambassadors.followed"

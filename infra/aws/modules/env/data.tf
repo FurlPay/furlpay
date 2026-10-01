@@ -1,16 +1,26 @@
 # --- Aurora PostgreSQL --------------------------------------------------------
+# NOT PROVISIONED BY DEFAULT (var.enable_aws_data_plane = false, audit P0-5).
+# The application reaches Postgres ONLY through Supabase's PostgREST HTTP API
+# (lib/supabase.ts reads SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY) and never
+# reads DATABASE_URL, so a cluster here would be paid for and never used. Enable
+# it only after the data layer speaks SQL (see docs/release/AWS_DATA_PLANE.md).
+#
 # Serverless v2 in every environment, including prod. The workload is a payment
 # API with a diurnal curve, not a steady batch load; provisioned instances
 # sized for the peak idle at the trough. Prod simply gets a higher floor and a
 # reader, set via db_min_acu / multi_az.
 
 resource "aws_db_subnet_group" "main" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   name       = "${local.name}-db"
   subnet_ids = aws_subnet.isolated[*].id
   tags       = local.common_tags
 }
 
 resource "aws_security_group" "db" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   name        = "${local.name}-db"
   description = "Aurora — reachable only from the application tier"
   vpc_id      = aws_vpc.main.id
@@ -31,21 +41,25 @@ resource "aws_security_group" "db" {
 }
 
 resource "random_password" "db" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   length  = 32
   special = false # some Postgres drivers mangle URL-unsafe characters in a DSN
 }
 
 resource "aws_rds_cluster" "main" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   cluster_identifier = "${local.name}-pg"
   engine             = "aurora-postgresql"
   engine_mode        = "provisioned"
   engine_version     = "16.4"
   database_name      = "furlpay"
   master_username    = "furlpay_app"
-  master_password    = random_password.db.result
+  master_password    = random_password.db[0].result
 
-  db_subnet_group_name   = aws_db_subnet_group.main.name
-  vpc_security_group_ids = [aws_security_group.db.id]
+  db_subnet_group_name   = aws_db_subnet_group.main[0].name
+  vpc_security_group_ids = [aws_security_group.db[0].id]
 
   storage_encrypted = true
   kms_key_id        = aws_kms_key.main.arn
@@ -79,11 +93,13 @@ resource "aws_rds_cluster" "main" {
 }
 
 resource "aws_rds_cluster_instance" "writer" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   identifier         = "${local.name}-pg-writer"
-  cluster_identifier = aws_rds_cluster.main.id
+  cluster_identifier = aws_rds_cluster.main[0].id
   instance_class     = var.db_instance_class
-  engine             = aws_rds_cluster.main.engine
-  engine_version     = aws_rds_cluster.main.engine_version
+  engine             = aws_rds_cluster.main[0].engine
+  engine_version     = aws_rds_cluster.main[0].engine_version
 
   performance_insights_enabled = var.env == "prod"
   monitoring_interval          = var.env == "prod" ? 30 : 0
@@ -93,13 +109,13 @@ resource "aws_rds_cluster_instance" "writer" {
 }
 
 resource "aws_rds_cluster_instance" "reader" {
-  count = var.multi_az ? 1 : 0
+  count = var.enable_aws_data_plane && var.multi_az ? 1 : 0
 
   identifier         = "${local.name}-pg-reader"
-  cluster_identifier = aws_rds_cluster.main.id
+  cluster_identifier = aws_rds_cluster.main[0].id
   instance_class     = var.db_instance_class
-  engine             = aws_rds_cluster.main.engine
-  engine_version     = aws_rds_cluster.main.engine_version
+  engine             = aws_rds_cluster.main[0].engine
+  engine_version     = aws_rds_cluster.main[0].engine_version
 
   performance_insights_enabled = true
   monitoring_interval          = 30
@@ -109,17 +125,26 @@ resource "aws_rds_cluster_instance" "reader" {
 }
 
 # --- ElastiCache Redis --------------------------------------------------------
-# Replaces Upstash. The app uses Redis for idempotency keys, distributed locks
+# NOT PROVISIONED BY DEFAULT (var.enable_aws_data_plane). The app's KV client
+# (lib/kv.ts) speaks the Upstash REST protocol over HTTPS and is called from
+# Edge middleware, which cannot open a TCP Redis connection; REDIS_URL is read
+# only by presence reports. ElastiCache is not a drop-in replacement.
+#
+# Would replace Upstash. The app uses Redis for idempotency keys, distributed locks
 # and rate limits (see apps/web/src/lib/rateLimit.ts) — all three are
 # correctness-critical on the money path, so this is not an optional cache.
 
 resource "aws_elasticache_subnet_group" "main" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   name       = "${local.name}-redis"
   subnet_ids = aws_subnet.isolated[*].id
   tags       = local.common_tags
 }
 
 resource "aws_security_group" "redis" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   name        = "${local.name}-redis"
   description = "ElastiCache — reachable only from the application tier"
   vpc_id      = aws_vpc.main.id
@@ -136,11 +161,15 @@ resource "aws_security_group" "redis" {
 }
 
 resource "random_password" "redis_auth" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   length  = 64
   special = false # ElastiCache AUTH tokens reject most punctuation
 }
 
 resource "aws_elasticache_replication_group" "main" {
+  count = var.enable_aws_data_plane ? 1 : 0
+
   replication_group_id = "${local.name}-redis"
   description          = "FurlPay ${var.env} — locks, idempotency, rate limits"
 
@@ -153,14 +182,14 @@ resource "aws_elasticache_replication_group" "main" {
   automatic_failover_enabled = var.multi_az
   multi_az_enabled           = var.multi_az
 
-  subnet_group_name  = aws_elasticache_subnet_group.main.name
-  security_group_ids = [aws_security_group.redis.id]
+  subnet_group_name  = aws_elasticache_subnet_group.main[0].name
+  security_group_ids = [aws_security_group.redis[0].id]
 
   # Both are required, and neither is on by default. Without transit encryption
   # the AUTH token crosses the VPC in cleartext, which makes the token pointless.
   at_rest_encryption_enabled = true
   transit_encryption_enabled = true
-  auth_token                 = random_password.redis_auth.result
+  auth_token                 = random_password.redis_auth[0].result
   kms_key_id                 = aws_kms_key.main.arn
 
   snapshot_retention_limit = var.env == "prod" ? 7 : 0

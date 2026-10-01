@@ -18,6 +18,7 @@ import {
 } from "@/lib/market";
 import { deriveCandles, isPlausibleSeries, type Candle } from "@/lib/candles";
 import type { BarsResponse, Overview, PendingChallenge, RewardsSummary, TokenBalance } from "@/lib/types";
+import { SET_UP_WALLET_MESSAGE, type PayableAddress } from "@/lib/receiveAddress";
 import {
   EmptyState,
   ErrorPanel,
@@ -273,12 +274,61 @@ export default function WalletTab({ name, onQuickAction }: { name?: string; onQu
         </button>
       </div>
 
-      {receiveOpen && <ReceiveSheet address={overview.user.safeAddress} onClose={() => setReceiveOpen(false)} />}
+      {receiveOpen && <ReceivePanel onClose={() => setReceiveOpen(false)} />}
     </div>
   );
 }
 
 // --- Receive (in-popup, real address QR) ---------------------------------------
+//
+// The address comes ONLY from the user's verified linked wallet (background
+// GET_RECEIVE_ADDRESS → /api/wallet/link). The account's placeholder address
+// has no private key; it is never rendered here (lib/receiveAddress.ts, P0-3).
+// No link → no QR, no copy button: the set-up instruction instead.
+
+function ReceivePanel({ onClose }: { onClose: () => void }) {
+  const [state, setState] = useState<PayableAddress | { ok: false; reason: "error"; error: string } | null>(null);
+  useEffect(() => {
+    let live = true;
+    send<PayableAddress>({ type: "GET_RECEIVE_ADDRESS" }).then((r) => {
+      if (!live) return;
+      setState(r.ok ? r.data : { ok: false, reason: "error", error: r.error });
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+
+  if (state?.ok) return <ReceiveSheet address={state.address} onClose={onClose} />;
+
+  return (
+    <>
+      <div className="sheet-backdrop" onClick={onClose} />
+      <div className="sheet" role="dialog" aria-label="Receive crypto">
+        <div className="sheet-handle" />
+        <div style={{ fontWeight: 800, fontSize: "0.95rem", marginBottom: 10 }}>Receive</div>
+        {state === null ? (
+          <div className="skeleton" style={{ height: 120, borderRadius: 12 }} />
+        ) : state.reason === "error" ? (
+          <div role="alert" style={{ fontSize: "0.8rem", color: "var(--fp-loss)" }}>
+            Couldn't load your wallet address: {state.error}
+          </div>
+        ) : (
+          <div className="risk risk--review" role="status">
+            <Icon name="security" size={15} />
+            <div>
+              <b>{SET_UP_WALLET_MESSAGE}.</b> Receiving needs a wallet you control. Create or import one in the FurlPay
+              mobile app and link it; its address will appear here.
+            </div>
+          </div>
+        )}
+        <button className="btn-ghost" style={{ width: "100%", marginTop: 12 }} onClick={onClose}>
+          Close
+        </button>
+      </div>
+    </>
+  );
+}
 //
 // Encodes the bare smart-account address — the compatibility-safe choice per
 // wallet-vendor guidance (EIP-681 amount/token params are still unevenly
@@ -322,7 +372,7 @@ function ReceiveSheet({ address, onClose }: { address: string; onClose: () => vo
         </div>
 
         <div style={{ textAlign: "center", fontSize: "0.72rem", color: "var(--fp-text-secondary)", marginBottom: 10 }}>
-          Your FurlPay smart account
+          Your linked wallet (verified by signature)
         </div>
 
         <div className="addr-box">

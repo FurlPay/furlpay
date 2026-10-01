@@ -1,4 +1,11 @@
-import { apiFetch, getBaseUrl, toResponse } from "@/lib/api";
+import { ApiError, apiFetch, getBaseUrl, toResponse } from "@/lib/api";
+import { flush as flushAnalytics, track } from "@/lib/analytics";
+import {
+  NO_LINKED_WALLET_ERROR,
+  payableAddressFrom,
+  type LinkStatusResponse,
+  type PayableAddress,
+} from "@/lib/receiveAddress";
 import { BADGE_BALANCE_KEY, badgeTextFor } from "@/lib/badge";
 // The consent gate — the logic deciding whether a web page learns the user's
 // Safe address — lives in lib/originGrants.ts so it can be tested. The key, the
@@ -97,17 +104,24 @@ async function repaintBadge(): Promise<void> {
 }
 
 export default defineBackground(() => {
-  browser.runtime.onInstalled.addListener(() => {
+  browser.runtime.onInstalled.addListener((details) => {
     browser.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
     void poll();
+    if (details?.reason === "install") void track("extension_installed");
   });
   browser.runtime.onStartup.addListener(() => {
     browser.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
     void poll();
+    void track("extension_started");
   });
 
   browser.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === POLL_ALARM) void poll();
+    if (alarm.name !== POLL_ALARM) return;
+    void poll();
+    // Analytics rides the existing alarm: no extra wake-ups, and a failure
+    // here never touches polling (flush swallows nothing it should not, but
+    // nothing it does can throw into the extension).
+    void flushAnalytics().catch(() => undefined);
   });
 
   // Flipping the badge preference must take effect now, not up to a minute
@@ -150,6 +164,9 @@ export default defineBackground(() => {
     if (sender.id !== browser.runtime.id) return;
 
     switch (message.type) {
+      case "GET_RECEIVE_ADDRESS":
+        void toResponse(fetchPayableAddress()).then(sendResponse);
+        return true;
       case "GET_OVERVIEW":
         void toResponse(apiFetch<Overview>("/api/overview")).then(sendResponse);
         return true;
@@ -267,6 +284,7 @@ export default defineBackground(() => {
         ).then(sendResponse);
         return true;
       case "TRAVEL_SEARCH":
+        void track("travel_search", { source: "extension" });
         void toResponse(
           apiFetch("/api/travel/search", { method: "POST", body: JSON.stringify(message.payload) })
         ).then(sendResponse);
@@ -330,17 +348,36 @@ const allowedOrigins = () => allowedOriginsOf(store);
 const originGranted = (origin: string) => originGrantedIn(store, origin);
 const rememberOrigin = (origin: string) => rememberOriginIn(store, origin);
 
-/** Resolve the Safe address for an approved connect. Signed out → open login
- *  so the user can authenticate, and let the dapp's request fail cleanly. */
-async function resolveAccounts(): Promise<BgResponse<{ accounts: string[] }>> {
-  const res = await toResponse(
-    apiFetch<{ safeAddress: string }>("/api/wallets").then((w) => ({ accounts: [w.safeAddress] }))
-  );
-  if (!res.ok) {
-    const base = await getBaseUrl();
-    void browser.tabs.create({ url: `${base}/login` });
+/** The user's VERIFIED linked wallet (GET /api/wallet/link), or the reason
+ *  there is none. Never falls back to anything address-shaped: the account's
+ *  placeholder address has no key (lib/receiveAddress.ts). Throws ApiError on
+ *  transport/auth failure so callers can tell "signed out" from "no wallet". */
+async function fetchPayableAddress(): Promise<PayableAddress> {
+  try {
+    return payableAddressFrom(await apiFetch<LinkStatusResponse>("/api/wallet/link"));
+  } catch (e) {
+    // 404 not_enabled: linking is switched off on this deployment.
+    if (e instanceof ApiError && e.status === 404) return { ok: false, reason: "linking_disabled" };
+    throw e;
   }
-  return res as BgResponse<{ accounts: string[] }>;
+}
+
+/** Resolve the account for an approved connect: the verified linked wallet
+ *  only. No link → NO_LINKED_WALLET (the page provider maps it to EIP-1193
+ *  4100) and the app's wallet setup is the remedy. Signed out → open login so
+ *  the user can authenticate, and let the dapp's request fail cleanly. */
+async function resolveAccounts(): Promise<BgResponse<{ accounts: string[] }>> {
+  try {
+    const payable = await fetchPayableAddress();
+    if (!payable.ok) return { ok: false, error: NO_LINKED_WALLET_ERROR };
+    return { ok: true, data: { accounts: [payable.address] } };
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 401) {
+      const base = await getBaseUrl();
+      void browser.tabs.create({ url: `${base}/login` });
+    }
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
 }
 
 async function connectWithConsent(
@@ -389,6 +426,8 @@ async function resolveConnectDecision(requestId: string, allow: boolean): Promis
     for (const [, p] of settled) p.respond({ ok: false, error: "Connection request was rejected." });
     return;
   }
+  // The decision, never the site: the dapp origin is not sent anywhere.
+  void track("extension_connected", { source: "dapp_consent" });
   await rememberOrigin(entry.origin);
   const res = await resolveAccounts();
   for (const [, p] of settled) p.respond(res);
@@ -497,6 +536,7 @@ async function openApprovePage(challengeId?: string): Promise<void> {
 }
 
 async function declineChallenge(challengeId: string): Promise<void> {
+  void track("transaction_rejected", { source: "card_challenge" });
   try {
     await apiFetch("/api/cards/challenges/verify", {
       method: "POST",

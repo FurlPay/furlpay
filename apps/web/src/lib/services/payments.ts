@@ -119,6 +119,33 @@ function boundStores(): void {
   }
 }
 
+/**
+ * What an UNAUTHENTICATED holder of a payment id may see (GET /api/payments/:id).
+ *
+ * The id is 96 random bits, so it works as a capability URL, but whoever holds
+ * it (the payee, anyone they forward the link to) is not the payer. The full
+ * record carries internal identities (createdByUserId, payerUserId, reviewedBy),
+ * the caller's idempotency key, the signing nonce, ledger ids and compliance
+ * review/blocking reasons; none of that belongs to a link holder.
+ */
+export function publicPaymentView(r: PaymentRecord) {
+  return {
+    id: r.id,
+    status: r.status,
+    amountUsdc: r.amountUsdc,
+    feeUsdc: r.feeUsdc,
+    sourceChain: r.sourceChain,
+    settlementChain: r.settlementChain,
+    recipient: r.recipient,
+    createdAt: r.createdAt,
+    expiresAt: r.expiresAt,
+    settledAt: r.settledAt ?? null,
+    refundedAt: r.refundedAt ?? null,
+    transactionHash: r.transactionHash ?? null,
+    refundTransactionHash: r.refundTransactionHash ?? null,
+  };
+}
+
 export function getPayment(id: string): PaymentRecord | undefined {
   const p = payments.get(id);
   if (p && p.status === "pending_signature" && Date.parse(p.expiresAt) < Date.now()) {

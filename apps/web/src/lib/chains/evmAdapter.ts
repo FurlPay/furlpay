@@ -269,7 +269,8 @@ export class EvmAdapter implements ChainAdapter {
   async healthCheck(): Promise<HealthResult> {
     const start = Date.now();
     if (MODE !== "live") {
-      return { healthy: true, latencyMs: 10, blockHeight: 1234567, source: "mock" };
+      // Not connected to a chain: never report healthy, never a block height.
+      return { healthy: false, latencyMs: 0, blockHeight: null, source: "mock", error: "INTEGRATION_MODE is not live; no RPC was contacted" };
     }
     const hex = await this.rpc<string>("eth_blockNumber");
     return {

@@ -362,7 +362,12 @@ async function executeOrder(
     // ledger refusal left the user looking at a filled trade the books had never
     // heard of — and `persistAccount` below was skipped too, so whether the
     // position survived depended on which instance served the next read.
-    await recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${sym}`, account.user.id);
+    // Keyed on the client order id — the one broker order this cash leg belongs
+    // to — so a retry that reaches this line again cannot post the cash twice
+    // (apply_financial_effect, migration 0025; FINANCIAL_EFFECT_INVENTORY.md).
+    await recordMovement(side === "buy" ? "out" : "in", notionalUsd, `${side === "buy" ? "Buy" : "Sell"} ${sym}`, account.user.id, {
+      effectKey: `order:${clientOrderId}`,
+    });
 
     holding.shares = next?.shares ?? 0;
     holding.costBasis = next?.costBasis ?? 0;

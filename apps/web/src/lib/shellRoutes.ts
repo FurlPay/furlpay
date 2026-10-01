@@ -28,7 +28,7 @@ export const APP_FRAME_PREFIXES = [
   "/credit",
   "/earn",
   "/rewards",
-  "/analytics",
+  "/spending",
   "/markets",
   "/swaps",
   "/auth",

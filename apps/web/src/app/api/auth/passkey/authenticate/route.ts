@@ -1,4 +1,5 @@
 import { currentEpoch } from "@/lib/sessionEpoch";
+import { recordProductEvent } from "@/lib/analytics/events";
 import { NextRequest, NextResponse } from "next/server";
 import { generateAuthenticationOptions, verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { getAccountDurable } from "@/lib/store";
@@ -120,6 +121,7 @@ export async function POST(req: NextRequest) {
   });
   // A passkey assertion is a strong step-up — satisfies the wallet-link gate.
   void recordStepUp(user.id, jti, "passkey").catch(() => {});
+  recordProductEvent({ name: "login", eventId: `${user.id}:${jti}`, userId: user.id, route: "/api/auth/passkey/authenticate", metadata: { provider: "passkey" } });
   // Native clients get the JWT in the body (Bearer flow); browsers get the
   // HttpOnly cookie only. See lib/clientKind.ts.
   const res = NextResponse.json({

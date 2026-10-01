@@ -64,7 +64,10 @@ describe("booking provider migration", () => {
   it("allows app.cal.com as BOTH a script and a frame origin in the CSP", () => {
     const cfg = readFileSync(join(WEB_ROOT, "next.config.js"), "utf8");
     const line = (name: string) =>
-      cfg.split("\n").find((l) => l.includes(`"${name} `)) ?? "";
+      // The directive may be a plain string or a template literal (the
+      // production-only 'unsafe-eval' switch made script-src one), so accept
+      // either opening quote.
+      cfg.split("\n").find((l) => l.includes(`"${name} `) || l.includes("`" + name + " ")) ?? "";
 
     // The embed script is what injects the booker, so script-src is not
     // optional here — with only frame-src the modal renders empty.
