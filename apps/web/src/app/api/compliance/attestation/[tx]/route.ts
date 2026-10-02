@@ -22,6 +22,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ tx: 
     if (e instanceof GuardNotConfiguredError) {
       return NextResponse.json({ error: e.message, status: guardStatus() }, { status: 503 });
     }
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    console.error("[compliance/attestation] read failed:", (e as Error).message);
+    return NextResponse.json({ error: "attestation_unavailable" }, { status: 502 });
   }
 }

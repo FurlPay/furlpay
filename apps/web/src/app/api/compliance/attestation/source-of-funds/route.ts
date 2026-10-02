@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
     if (e instanceof GuardNotConfiguredError) {
       return NextResponse.json({ error: e.message, status: guardStatus() }, { status: 503 });
     }
-    return NextResponse.json({ error: (e as Error).message }, { status: 502 });
+    console.error("[compliance/source-of-funds] attest failed:", (e as Error).message);
+    return NextResponse.json({ error: "attestation_failed" }, { status: 502 });
   }
 }

@@ -48,6 +48,9 @@ export async function POST(req: NextRequest) {
       ...(result.devCode ? { devCode: result.devCode } : {}),
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message || "Failed to send code" }, { status: 502 });
+    // The SMS/email provider error stays in the log; it can name the provider
+    // account state, which an unauthenticated caller must not learn.
+    console.error("[otp/start] send failed:", e?.message);
+    return NextResponse.json({ error: "Failed to send code" }, { status: 502 });
   }
 }
