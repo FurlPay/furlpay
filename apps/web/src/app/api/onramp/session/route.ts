@@ -7,14 +7,14 @@ import { requireUser } from "@/lib/authz";
 import { createOnrampSession } from "@/lib/services/onramp";
 import { coinbaseOnrampUrl, coinbaseRampBackend } from "@/lib/services/coinbaseRamp";
 import { demoOnlyUnavailable } from "@/lib/demoGate";
-import { rampGuard, rampCommit } from "@/lib/ramp/rampGuard";
+import { rampGuard, rampCommit, type RampAuth } from "@/lib/ramp/rampGuard";
+import { trustedClientCountry } from "@/lib/clientIp";
 import { recordRampAudit } from "@/lib/ramp/rampAudit";
 import { flagEnabled } from "@/lib/flags";
 import { selectProvider } from "@/lib/providers/router";
 import { registerProviders } from "@/lib/providers/register";
 import { Money, assetById } from "@/lib/money/money";
 import { rampAttribution } from "@/lib/providers/rampEnv";
-import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 import { attachCheckout, createRampOrder, updateRampOrderStatus, type RampProviderId } from "@/lib/ramp/rampOrder";
 import type { OnrampProviderAdapter, PaymentMethod } from "@/lib/providers/types";
 import type { Chain } from "@/lib/security/addressCheck";
@@ -56,27 +56,6 @@ export async function POST(req: NextRequest) {
     if (unavailable) return unavailable;
   }
 
-  const guard = await rampGuard({
-    req,
-    user: account.user,
-    direction: "onramp",
-    amountUsd: body.fiatAmount,
-    destinationAddress: body.destinationAddress,
-    chain: body.chain as Chain,
-  });
-  if (!guard.pass) return guard.response;
-
-  const stepUp = await enforceActionStepUp({
-    userId: account.user.id,
-    action: "create_payment",
-    amountUsd: body.fiatAmount,
-    endpoint: "/onramp/session",
-    method: "POST",
-    body: body as unknown as Parameters<typeof enforceActionStepUp>[0]["body"],
-    proofId: body.stepUpProofId,
-  });
-  if (stepUp) return stepUp;
-
   // Demo session: development only (the gate above refuses production).
   const session = createOnrampSession({
     fiatAmount: body.fiatAmount,
@@ -94,9 +73,10 @@ export async function POST(req: NextRequest) {
   const paymentMethod = (body.paymentMethod ?? "card") as PaymentMethod;
 
   // ── Pick the provider ────────────────────────────────────────────────
+  const rampAuth: RampAuth = { type: "user", user: account.user, jti: auth.claims.jti };
   let adapter: OnrampProviderAdapter | null = null;
   if (routerOn) {
-    const country = guard.meta.country;
+    const country = trustedClientCountry(req);
     if (!country) {
       return NextResponse.json({ error: "country_unknown", detail: "Your country could not be determined." }, { status: 400 });
     }
@@ -116,6 +96,19 @@ export async function POST(req: NextRequest) {
     : coinbaseRampBackend === "coinbase"
       ? "furlgateway"
       : null;
+
+  // Coinbase's checkout is hosted; a router-selected adapter says which it is.
+  const flowType = adapter && !adapter.hasHostedCheckout ? "server-initiated" : "hosted";
+  const guard = await rampGuard({
+    req,
+    auth: rampAuth,
+    direction: "onramp",
+    flowType,
+    amountUsd: body.fiatAmount,
+    destinationAddress: body.destinationAddress,
+    chain: body.chain as Chain,
+  });
+  if (!guard.pass) return guard.response;
 
   // ── Record the order, then call the provider ─────────────────────────
   const order = providerId
@@ -205,7 +198,7 @@ export async function POST(req: NextRequest) {
   }).catch(() => {});
 
   if (order) {
-    rampCommit({ userId: account.user.id, amountUsd: body.fiatAmount, country: guard.meta.country }).catch(() => {});
+    rampCommit({ auth: rampAuth, amountUsd: body.fiatAmount, country: guard.meta.country }).catch(() => {});
   }
 
   return NextResponse.json(
@@ -213,6 +206,7 @@ export async function POST(req: NextRequest) {
       ...session,
       orderId: order?.orderId ?? null,
       hosted,
+      flags: guard.meta.flags,
       ...(adapter &&
         checkoutUrl && {
           provider: { providerId: adapter.id, checkoutUrl, company: rampAttribution(adapter.id)?.company ?? null },

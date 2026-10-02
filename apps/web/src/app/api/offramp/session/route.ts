@@ -5,7 +5,7 @@ import { validateBody } from "@/lib/validate";
 import { OfframpSessionSchema } from "@/lib/schemas";
 import { requireUser } from "@/lib/authz";
 import { coinbaseOfframpUrl, coinbaseRampBackend, isCoinbaseRampChain } from "@/lib/services/coinbaseRamp";
-import { rampGuard, rampCommit } from "@/lib/ramp/rampGuard";
+import { rampGuard, rampCommit, type RampAuth } from "@/lib/ramp/rampGuard";
 import { recordRampAudit } from "@/lib/ramp/rampAudit";
 import { attachCheckout, createRampOrder, updateRampOrderStatus } from "@/lib/ramp/rampOrder";
 import type { Chain } from "@/lib/security/addressCheck";
@@ -33,10 +33,13 @@ export async function POST(req: NextRequest) {
   const body = await validateBody(req, OfframpSessionSchema);
   if (body instanceof NextResponse) return body;
 
+  // Hosted: Coinbase runs KYC and the payout; FurlPay's identity tiers do not apply.
+  const rampAuth: RampAuth = { type: "user", user: account.user, jti: auth.claims.jti };
   const guard = await rampGuard({
     req,
-    user: account.user,
+    auth: rampAuth,
     direction: "offramp",
+    flowType: "hosted",
     amountUsd: body.cryptoAmount,
     destinationAddress: body.address,
     chain: body.chain as Chain,
@@ -99,7 +102,7 @@ export async function POST(req: NextRequest) {
     metadata: { chain: body.chain, token: body.token },
   }).catch(() => {});
 
-  rampCommit({ userId: account.user.id, amountUsd: body.cryptoAmount, country: guard.meta.country }).catch(() => {});
+  rampCommit({ auth: rampAuth, amountUsd: body.cryptoAmount, country: guard.meta.country }).catch(() => {});
 
-  return NextResponse.json({ orderId: order.orderId, hosted }, { status: 201 });
+  return NextResponse.json({ orderId: order.orderId, hosted, flags: guard.meta.flags }, { status: 201 });
 }

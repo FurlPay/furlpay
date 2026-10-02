@@ -4,7 +4,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { BeneficiarySchema } from "@/lib/schemas";
 import { requireUser } from "@/lib/authz";
-import { rampGuard } from "@/lib/ramp/rampGuard";
+import { rampGuard, STEP_UP_WINDOW_MS } from "@/lib/ramp/rampGuard";
 import {
   BeneficiaryEncryptionUnavailable,
   beneficiaryVerifier,
@@ -12,7 +12,7 @@ import {
   getUserBeneficiaries,
 } from "@/lib/ramp/beneficiary";
 import { checkFeature } from "@/lib/kycTiers";
-import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
+import { recentStepUp } from "@/lib/stepup";
 
 export const dynamic = "force-dynamic";
 
@@ -57,19 +57,26 @@ export async function POST(req: NextRequest) {
   }
 
   // Embargo + velocity. Amount 0: adding an account moves no money.
-  const guard = await rampGuard({ req, user: account.user, direction: "offramp", amountUsd: 0 });
+  const guard = await rampGuard({
+    req,
+    auth: { type: "user", user: account.user, jti: auth.claims.jti },
+    direction: "offramp",
+    flowType: "server-initiated",
+    amountUsd: 0,
+  });
   if (!guard.pass) return guard.response;
 
   // Changing where money goes is the account-takeover move; always stepped up.
-  const stepUp = await enforceActionStepUp({
-    userId: account.user.id,
-    action: "add_payee",
-    endpoint: "/offramp/beneficiary",
-    method: "POST",
-    body: body as unknown as Parameters<typeof enforceActionStepUp>[0]["body"],
-    proofId: (body as { stepUpProofId?: unknown }).stepUpProofId,
-  });
-  if (stepUp) return stepUp;
+  if (!(await recentStepUp(account.user.id, auth.claims.jti, STEP_UP_WINDOW_MS))) {
+    return NextResponse.json(
+      {
+        error: "step_up_required",
+        message: "Adding a bank account requires additional verification.",
+        action: { type: "step_up", methods: ["otp", "passkey"] },
+      },
+      { status: 401 }
+    );
+  }
 
   let beneficiary;
   try {

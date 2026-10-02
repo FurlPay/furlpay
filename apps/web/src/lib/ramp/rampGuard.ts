@@ -4,25 +4,35 @@ import { trustedClientCountry } from "@/lib/clientIp";
 import { checkVelocity, commitVelocity } from "@/lib/services/velocity";
 import { verifyDestinationAddress, type Chain } from "@/lib/security/addressCheck";
 import { checkTransferAmount } from "@/lib/kycTiers";
+import { recentStepUp } from "@/lib/stepup";
 import type { User } from "@/lib/store";
 
 // ---------------------------------------------------------------------------
-// rampGuard — the pre-flight security check every on-ramp and off-ramp route
-// must pass before creating a provider order.
+// rampGuard — the pre-flight check every ramp route passes before it opens a
+// provider order. One function so no route can forget a check.
 //
-// It aggregates velocity checks, KYC tier gating, sanctions screening,
-// address verification, and embargoed-country blocking into ONE function so
-// no route can forget one. The alternative — sprinkling five `if` blocks in
-// every route — is how one gets skipped in a refactor.
+// WHAT IS CHECKED DEPENDS ON WHO MOVES THE MONEY (owner's decision, 2026-10-02):
 //
-// FAIL SEMANTICS: returns null when all checks pass, or a ready-to-return
-// NextResponse when any check fails. The caller does:
+//   | Check                               | hosted            | server-initiated  |
+//   |-------------------------------------|-------------------|-------------------|
+//   | Signed-in user OR partner key       | required          | required (user)   |
+//   | FurlPay KYC (onramp T1, offramp T2) | skipped           | required          |
+//   | KYC tier amount limit               | skipped           | required          |
+//   | Embargo (trusted platform country)  | always            | always            |
+//   | Velocity                            | always            | always            |
+//   | Destination address (on-ramp)       | always            | always            |
+//   | >= $5,000                           | flagged only      | session step-up   |
 //
-//   const guard = await rampGuard({ ... });
-//   if (guard) return guard;
+// HOSTED: the customer pays on the provider's page; the provider is the
+// regulated party, runs its own KYC and enhanced checks, and FurlPay never
+// holds the funds. A second FurlPay identity gate there added friction and no
+// control. SERVER-INITIATED: FurlPay funds the transfer, so FurlPay's own KYC
+// and step-up apply — and a partner key (no FurlPay user) cannot use it.
 //
-// This is the same pattern as rateLimitOr429 — a guard that produces its own
-// error response so the caller cannot misinterpret null vs undefined.
+// STEP-UP is the existing server-verified, session-bound kind (lib/stepup.ts):
+// a fresh OTP or passkey ceremony on THIS session within 15 minutes. A device
+// biometric is not accepted — it proves possession of the phone to the phone,
+// and nothing about it reaches the server unforgeably.
 // ---------------------------------------------------------------------------
 
 /** Countries where FurlPay cannot operate due to sanctions/embargo. */
@@ -36,156 +46,129 @@ const EMBARGOED_COUNTRIES = new Set([
   "RU", // Russia (OFAC broad sanctions)
 ]);
 
+export const STEP_UP_THRESHOLD_USD = 5_000;
+export const STEP_UP_WINDOW_MS = 15 * 60_000;
+
 export type RampDirection = "onramp" | "offramp";
+export type RampFlowType = "hosted" | "server-initiated";
+
+/** Who is asking. Produced by authenticateRampRequest (lib/ramp/partnerAuth.ts). */
+export type RampAuth =
+  | { type: "user"; user: User; jti?: string }
+  | { type: "partner"; partnerId: string; keyId: string; partnerName: string };
 
 export interface RampGuardInput {
   req: NextRequest;
-  user: User;
+  auth: RampAuth;
   direction: RampDirection;
+  flowType: RampFlowType;
   amountUsd: number;
-  /** Required for on-ramp: the destination wallet address. */
+  /** On-ramp: the wallet the crypto will land in. */
   destinationAddress?: string;
-  /** Required for on-ramp: the chain the crypto will land on. */
   chain?: Chain;
 }
 
+export type RampGuardFlag = "provider_enhanced_verification";
+
 export interface RampGuardResult {
-  /** Unique id for this guard invocation — attached to audit trail. */
   guardId: string;
   velocityFlags: { burst: boolean; dailyVolume: boolean; geoJump: boolean };
   country: string | null;
+  flags: RampGuardFlag[];
 }
 
-/**
- * Returns null on success (all checks pass) or a NextResponse on failure.
- * On success, also returns metadata for the audit trail.
- */
+/** The velocity subject: a user, or a partner's whole integration. */
+export function rampSubject(auth: RampAuth): string {
+  return auth.type === "user" ? auth.user.id : `partner:${auth.partnerId}`;
+}
+
+const deny = (status: number, body: Record<string, unknown>) => ({
+  pass: false as const,
+  response: NextResponse.json(body, { status }),
+});
+
 export async function rampGuard(
   input: RampGuardInput
 ): Promise<{ pass: true; meta: RampGuardResult } | { pass: false; response: NextResponse }> {
   const guardId = randomUUID();
-  // Only a platform-set country counts. `cf-ipcountry` was read as a fallback,
-  // but no Cloudflare proxy fronts FurlPay: that header is whatever the client
-  // typed, which made the embargo check opt-in. Null means "unknown" — routes
-  // that pick a corridor by country refuse on null rather than assume one.
+  const serverInitiated = input.flowType === "server-initiated";
+  const flags: RampGuardFlag[] = [];
+
+  // Only a platform-set country counts (no Cloudflare fronts FurlPay, so a
+  // `cf-ipcountry` header is whatever the client typed). Null = unknown;
+  // routes that pick a corridor by country refuse on null.
   const country = trustedClientCountry(input.req);
 
-  // ── 1. Embargoed country ──────────────────────────────────────────
   if (country && EMBARGOED_COUNTRIES.has(country)) {
-    return {
-      pass: false,
-      response: NextResponse.json(
-        { error: "region_blocked", detail: "This service is not available in your region." },
-        { status: 451 } // Unavailable For Legal Reasons
-      ),
-    };
+    return deny(451, { error: "region_blocked", detail: "This service is not available in your region." });
   }
 
-  // ── 2. KYC tier check ──────────────────────────────────────────────
-  // On-ramp requires Tier 1+, off-ramp requires Tier 2+.
-  const minTier = input.direction === "onramp" ? 1 : 2;
-  const userTier = input.user.kycTier ?? 0;
-  if (userTier < minTier) {
-    return {
-      pass: false,
-      response: NextResponse.json(
-        {
-          error: "kyc_required",
-          detail: input.direction === "onramp"
+  // A partner key carries no FurlPay identity to verify, so it cannot drive a
+  // transfer FurlPay funds.
+  if (serverInitiated && input.auth.type !== "user") {
+    return deny(403, { error: "user_required", detail: "This transfer needs a signed-in FurlPay account." });
+  }
+
+  if (serverInitiated && input.auth.type === "user") {
+    const user = input.auth.user;
+    const minTier = input.direction === "onramp" ? 1 : 2;
+    const tier = user.kycTier ?? 0;
+    if (tier < minTier) {
+      return deny(403, {
+        error: "kyc_required",
+        detail:
+          input.direction === "onramp"
             ? "Complete basic verification (Tier 1) to buy crypto."
             : "Complete identity verification (Tier 2) to cash out.",
-          requiredTier: minTier,
-          currentTier: userTier,
-        },
-        { status: 403 }
-      ),
-    };
+        requiredTier: minTier,
+        currentTier: tier,
+      });
+    }
+    const tierCheck = checkTransferAmount(user.kycTier, input.amountUsd);
+    if (!tierCheck.allowed) return deny(403, { error: tierCheck.code, detail: tierCheck.reason });
   }
 
-  // ── 3. KYC amount limit ────────────────────────────────────────────
-  const tierCheck = checkTransferAmount(input.user.kycTier, input.amountUsd);
-  if (!tierCheck.allowed) {
-    return {
-      pass: false,
-      response: NextResponse.json(
-        { error: tierCheck.code, detail: tierCheck.reason },
-        { status: 403 }
-      ),
-    };
-  }
-
-  // ── 4. Velocity check ──────────────────────────────────────────────
-  const velocity = await checkVelocity({
-    userId: input.user.id,
-    amountUsd: input.amountUsd,
-    country,
-  });
-
+  const subject = rampSubject(input.auth);
+  const velocity = await checkVelocity({ userId: subject, amountUsd: input.amountUsd, country });
   if (velocity.action === "block") {
-    return {
-      pass: false,
-      response: NextResponse.json(
-        {
-          error: "velocity_exceeded",
-          detail: "Transaction rate limit exceeded. Please try again later.",
-          reasons: velocity.reasons,
-        },
-        { status: 429 }
-      ),
-    };
+    return deny(429, {
+      error: "velocity_exceeded",
+      detail: "Transaction rate limit exceeded. Please try again later.",
+      reasons: velocity.reasons,
+    });
   }
 
-  // velocity.action === "review" → the caller should require step-up MFA.
-  // We pass the flags through so the caller can enforce it.
-
-  // ── 5. Destination address check (on-ramp only) ────────────────────
-  if (
-    input.direction === "onramp" &&
-    input.destinationAddress &&
-    input.chain
-  ) {
-    const addrReport = verifyDestinationAddress(
-      input.destinationAddress,
-      input.chain,
-      [], // no history hint available here
-    );
-    if (!addrReport.isValid || addrReport.riskLevel === "critical") {
-      return {
-        pass: false,
-        response: NextResponse.json(
-          {
-            error: "address_rejected",
-            detail: addrReport.summary,
-            riskFlags: addrReport.riskFlags,
-          },
-          { status: 400 }
-        ),
-      };
+  if (input.amountUsd >= STEP_UP_THRESHOLD_USD) {
+    if (!serverInitiated) {
+      // The provider runs its own enhanced verification at this size.
+      flags.push("provider_enhanced_verification");
+    } else if (input.auth.type === "user") {
+      const fresh = await recentStepUp(input.auth.user.id, input.auth.jti, STEP_UP_WINDOW_MS);
+      if (!fresh) {
+        return deny(401, {
+          error: "step_up_required",
+          message: `Transactions of $${STEP_UP_THRESHOLD_USD.toLocaleString("en-US")} or more require additional verification.`,
+          action: { type: "step_up", methods: ["otp", "passkey"] },
+        });
+      }
     }
   }
 
-  return {
-    pass: true,
-    meta: {
-      guardId,
-      velocityFlags: velocity.flags,
-      country,
-    },
-  };
+  if (input.direction === "onramp" && input.destinationAddress && input.chain) {
+    const addr = verifyDestinationAddress(input.destinationAddress, input.chain, []);
+    if (!addr.isValid || addr.riskLevel === "critical") {
+      return deny(400, { error: "address_rejected", detail: addr.summary, riskFlags: addr.riskFlags });
+    }
+  }
+
+  return { pass: true, meta: { guardId, velocityFlags: velocity.flags, country, flags } };
 }
 
 /**
- * Record that a ramp operation completed — updates velocity counters.
- * Call AFTER the money actually moved, not before.
+ * Record that a ramp operation went ahead — updates velocity counters.
+ * Called once a provider order exists, not before: a declined attempt must
+ * not lock out the victim of whoever tried it.
  */
-export async function rampCommit(input: {
-  userId: string;
-  amountUsd: number;
-  country: string | null;
-}): Promise<void> {
-  await commitVelocity({
-    userId: input.userId,
-    amountUsd: input.amountUsd,
-    country: input.country,
-  });
+export async function rampCommit(input: { auth: RampAuth; amountUsd: number; country: string | null }): Promise<void> {
+  await commitVelocity({ userId: rampSubject(input.auth), amountUsd: input.amountUsd, country: input.country });
 }

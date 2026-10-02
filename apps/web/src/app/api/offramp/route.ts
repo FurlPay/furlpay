@@ -6,7 +6,8 @@ import { recordMovement } from "@/lib/ledger";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { OfframpSchema, parse } from "@/lib/schemas";
-import { rampGuard, rampCommit } from "@/lib/ramp/rampGuard";
+import { rampGuard, rampCommit, STEP_UP_THRESHOLD_USD, type RampAuth } from "@/lib/ramp/rampGuard";
+import { consumeStepUp } from "@/lib/stepup";
 import { recordRampAudit } from "@/lib/ramp/rampAudit";
 import { flagEnabled } from "@/lib/flags";
 import { selectProvider } from "@/lib/providers/router";
@@ -15,7 +16,6 @@ import { Money, assetById } from "@/lib/money/money";
 import type { OfframpProviderAdapter } from "@/lib/providers/types";
 import { rampAttribution } from "@/lib/providers/rampEnv";
 import { checkBeneficiaryEligibility } from "@/lib/ramp/beneficiary";
-import { enforceActionStepUp } from "@/lib/biometrics/enforceStepUp";
 
 export const dynamic = "force-dynamic";
 
@@ -56,39 +56,28 @@ export async function POST(req: NextRequest) {
   if (!parsed.ok) return parsed.res;
   const { fromCurrency, toCurrency, amount, execute, beneficiaryId } = parsed.data;
 
-  // ── Ramp security guard ──────────────────────────────────────────────
-  const guard = await rampGuard({
-    req,
-    user: account.user,
-    direction: "offramp",
-    amountUsd: amount,
-  });
-  if (!guard.pass) return guard.response;
-
+  // Quotes need no identity tier; executing is server-initiated (FurlPay funds
+  // the payout), so the full guard applies: KYC Tier 2, velocity, and a fresh
+  // session step-up at $5,000 or more.
+  const rampAuth: RampAuth = { type: "user", user: account.user, jti: auth.claims.jti };
+  let guard: Awaited<ReturnType<typeof rampGuard>> | null = null;
   if (execute) {
-    const stepUp = await enforceActionStepUp({
-      userId: account.user.id,
-      action: "withdraw",
-      amountUsd: amount,
-      endpoint: "/offramp/execute",
-      method: "POST",
-      body: parsed.data as unknown as Parameters<typeof enforceActionStepUp>[0]["body"],
-      proofId: parsed.data.stepUpProofId,
-    });
-    if (stepUp) return stepUp;
+    guard = await rampGuard({ req, auth: rampAuth, direction: "offramp", flowType: "server-initiated", amountUsd: amount });
+    if (!guard.pass) return guard.response;
   }
+  const guardMeta = guard?.pass ? guard.meta : null;
 
   // ── Audit: quote requested ───────────────────────────────────────────
   recordRampAudit({
     userId: account.user.id,
     action: "offramp.quote.requested",
     direction: "offramp",
-    guardId: guard.meta.guardId,
+    guardId: guardMeta?.guardId,
     amount: { value: String(amount), currency: fromCurrency },
     ip: trustedClientIp(req) ?? undefined,
-    country: guard.meta.country ?? undefined,
+    country: guardMeta?.country ?? undefined,
     kycTier: account.user.kycTier ?? 0,
-    velocityFlags: guard.meta.velocityFlags,
+    velocityFlags: guardMeta?.velocityFlags,
   }).catch(() => {});
 
   const quote = await quoteFx(fromCurrency, toCurrency, amount);
@@ -107,7 +96,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Corridors are per-country; an unknown country is not "US".
-    const country = guard.meta.country;
+    const country = guardMeta?.country ?? null;
     if (!country) {
       return NextResponse.json({ error: "country_unknown", detail: "Your country could not be determined." }, { status: 400 });
     }
@@ -134,6 +123,10 @@ export async function POST(req: NextRequest) {
     }
 
     const adapter = selection.selected.adapter as OfframpProviderAdapter;
+    if (adapter.hasHostedCheckout) {
+      // A hosted sell runs on the provider's page: POST /api/offramp/session.
+      return NextResponse.json({ error: "use_hosted_session", detail: "Use /api/offramp/session for this provider." }, { status: 409 });
+    }
     const orderId = crypto.randomUUID();
     let order;
     try {
@@ -163,13 +156,13 @@ export async function POST(req: NextRequest) {
       action: "offramp.session.created",
       direction: "offramp",
       orderId,
-      guardId: guard.meta.guardId,
+      guardId: guardMeta?.guardId,
       amount: { value: String(amount), currency: fromCurrency },
       ip: trustedClientIp(req) ?? undefined,
       country,
       userAgent: req.headers.get("user-agent") ?? undefined,
       kycTier: account.user.kycTier ?? 0,
-      velocityFlags: guard.meta.velocityFlags,
+      velocityFlags: guardMeta?.velocityFlags,
       providerSelected: adapter.id,
       providerRef: order.providerRef,
       metadata: { toCurrency, beneficiaryId },
@@ -177,7 +170,9 @@ export async function POST(req: NextRequest) {
 
     // Counted at order creation: the user is about to send funds, and a
     // velocity limit that waits for settlement can be outrun.
-    rampCommit({ userId: account.user.id, amountUsd: amount, country }).catch(() => {});
+    rampCommit({ auth: rampAuth, amountUsd: amount, country }).catch(() => {});
+    // Step-up is single-use: one ceremony, one payout.
+    if (amount >= STEP_UP_THRESHOLD_USD) await consumeStepUp(account.user.id, auth.claims.jti);
 
     return NextResponse.json(
       {
@@ -229,13 +224,13 @@ export async function POST(req: NextRequest) {
       userId: account.user.id,
       action: "offramp.executed",
       direction: "offramp",
-      guardId: guard.meta.guardId,
+      guardId: guardMeta?.guardId,
       amount: { value: String(amount), currency: fromCurrency },
       ip: trustedClientIp(req) ?? undefined,
-      country: guard.meta.country ?? undefined,
+      country: guardMeta?.country ?? undefined,
       userAgent: req.headers.get("user-agent") ?? undefined,
       kycTier: account.user.kycTier ?? 0,
-      velocityFlags: guard.meta.velocityFlags,
+      velocityFlags: guardMeta?.velocityFlags,
       metadata: {
         toCurrency,
         amountTo: quote.amountTo,
@@ -244,11 +239,7 @@ export async function POST(req: NextRequest) {
       },
     }).catch(() => {});
 
-    rampCommit({
-      userId: account.user.id,
-      amountUsd: amount,
-      country: guard.meta.country,
-    }).catch(() => {});
+    rampCommit({ auth: rampAuth, amountUsd: amount, country: (guardMeta?.country ?? null) }).catch(() => {});
   }
 
   return NextResponse.json({ quote, executed: !!execute });

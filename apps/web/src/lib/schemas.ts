@@ -102,7 +102,6 @@ export const OfframpSchema = z.object({
   // Required to execute once a payout path exists: the user's VERIFIED
   // beneficiary (lib/ramp/beneficiary.ts). There is no "default" account.
   beneficiaryId: z.string().regex(/^ben_[a-f0-9]{20}$/).optional(),
-  stepUpProofId: z.string().min(1).max(200).optional(),
 });
 
 // --- On-ramp / off-ramp schemas (Rule 1: Zod on every POST body) -----------
@@ -144,7 +143,6 @@ export const OnrampSessionSchema = z.object({
   destinationAddress: z.string().min(20).max(128),
   externalId: z.string().max(128).optional(),
   idempotencyKey: z.string().uuid().optional(),
-  stepUpProofId: z.string().min(1).max(200).optional(),
 });
 
 export const OfframpSessionSchema = z.object({
@@ -168,7 +166,6 @@ export const BeneficiarySchema = z.object({
   bankName: z.string().max(200).optional(),
   country: z.string().length(2),                  // ISO 3166-1 alpha-2
   currency: FiatCurrency,
-  stepUpProofId: z.string().min(1).max(200).optional(),
 });
 
 export const CheckoutSchema = z.object({
