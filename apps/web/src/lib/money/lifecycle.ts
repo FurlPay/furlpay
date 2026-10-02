@@ -272,6 +272,10 @@ const HOSTED: Table = {
   CRYPTO_PENDING: ["CRYPTO_CONFIRMED", "MANUAL_REVIEW", "FAILED", "ABANDONED"],
   CRYPTO_CONFIRMED: ["COMPLETED", "MANUAL_REVIEW"],
   MANUAL_REVIEW: ["PAYMENT_CONFIRMED", "CRYPTO_PENDING", "CRYPTO_CONFIRMED", "FAILED", "ABANDONED"],
+  // ABANDONED means "no longer waited on", not "nothing happened". A provider
+  // reporting progress after that (the customer paid at minute 31) must reach a
+  // person, not be dropped: the one exit is MANUAL_REVIEW.
+  ABANDONED: ["MANUAL_REVIEW"],
 };
 
 const TABLES: Record<FlowKind, Table> = {

@@ -12,6 +12,7 @@ import androidx.wear.tiles.TileService
 import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.sync.WalletSnapshot
 import com.furlpay.guardian.wear.Routes
+import com.furlpay.guardian.wear.complication.ComplicationPrivacy
 import com.furlpay.guardian.wear.ui.compactUsd
 import com.furlpay.guardian.wear.ui.theme.FurlPayColors
 import com.furlpay.guardian.wear.wearServices
@@ -42,7 +43,14 @@ class WalletTileService : TileService() {
                 }.getOrNull()
             }
 
-        val headline = snapshot?.let { compactUsd(it.totalUsd) } ?: "—"
+        // Same lock gate as the money complications: a tile is reachable from the
+        // watch face, so a locked watch shows dots, not the balance.
+        val redacted = ComplicationPrivacy.isRedacted(applicationContext)
+        val headline = when {
+            snapshot == null -> "—"
+            redacted -> ComplicationPrivacy.REDACTED
+            else -> compactUsd(snapshot.totalUsd)
+        }
         val caption = if (snapshot != null) "FurlPay" else "Open app to sync"
 
         TileBuilders.Tile.Builder()

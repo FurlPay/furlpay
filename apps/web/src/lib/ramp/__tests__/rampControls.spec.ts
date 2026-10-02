@@ -49,7 +49,7 @@ function jwt(claims: object, key: string, alg = "HS256"): string {
   return `${h}.${p}.${b64url(createHmac("sha256", key).update(`${h}.${p}`).digest())}`;
 }
 const event = (overrides: object = {}) => ({
-  webhookData: { id: `ord_${randomUUID()}`, status: "COMPLETED", partnerOrderId: "p1" },
+  webhookData: { id: `ord_${randomUUID()}`, status: "COMPLETED", partnerOrderId: randomUUID() },
   eventID: "ORDER_COMPLETED",
   createdAt: new Date().toISOString(),
   ...overrides,

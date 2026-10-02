@@ -23,5 +23,6 @@ export async function GET(req: NextRequest) {
   const orders =
     auth.type === "user" ? await listUserOrders(auth.user.id, { limit }) : await listPartnerOrders(auth.partnerId, { limit });
   const fresh = await Promise.all(orders.map((o) => reconcileStaleOrder(o)));
-  return NextResponse.json({ orders: fresh.map(publicRampOrder) });
+  // Reading can resolve a stale order (a write), so nothing may cache it.
+  return NextResponse.json({ orders: fresh.map(publicRampOrder) }, { headers: { "cache-control": "no-store" } });
 }

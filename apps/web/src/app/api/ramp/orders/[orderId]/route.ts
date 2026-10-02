@@ -28,5 +28,6 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ orderId: st
       (auth.type === "partner" && order.partnerId === auth.partnerId));
   if (!order || !owns) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
-  return NextResponse.json(publicRampOrder(await reconcileStaleOrder(order)));
+  // Reading can resolve a stale order (a write), so nothing may cache it.
+  return NextResponse.json(publicRampOrder(await reconcileStaleOrder(order)), { headers: { "cache-control": "no-store" } });
 }

@@ -7,7 +7,10 @@ import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import androidx.core.content.getSystemService
+import androidx.wear.tiles.TileService
 import androidx.wear.watchface.complications.datasource.ComplicationDataSourceUpdateRequester
+import com.furlpay.guardian.wear.tile.PortfolioTileService
+import com.furlpay.guardian.wear.tile.WalletTileService
 
 /**
  * Whether a money complication may print a real figure right now.
@@ -58,6 +61,10 @@ internal object ComplicationPrivacy {
                 .create(context.applicationContext, ComponentName(context.applicationContext, service))
                 .requestUpdateAll()
         }
+        // The money tiles use the same gate; re-render them too.
+        val tiles = TileService.getUpdater(context.applicationContext)
+        tiles.requestUpdate(WalletTileService::class.java)
+        tiles.requestUpdate(PortfolioTileService::class.java)
     }
 
     private val REDACTING_SERVICES = listOf(

@@ -97,6 +97,12 @@ export function verifyFurlBridgeWebhook(rawBody: string, now = Date.now()): Furl
   if (!wd || typeof wd.id !== "string" || typeof wd.status !== "string" || typeof eventType !== "string") {
     throw new WebhookSignatureError("furlbridge", "missing webhookData.id, status or eventID");
   }
+  // Ids become KV key components and lookups: accept only plain identifier
+  // characters, even from a correctly signed payload.
+  if (!/^[A-Za-z0-9_-]{1,128}$/.test(wd.id)) throw new WebhookSignatureError("furlbridge", "malformed order id");
+  if (wd.partnerOrderId !== undefined && (typeof wd.partnerOrderId !== "string" || !/^[0-9a-f-]{36}$/.test(wd.partnerOrderId))) {
+    throw new WebhookSignatureError("furlbridge", "malformed partnerOrderId");
+  }
   const created = typeof createdAt === "string" ? Date.parse(createdAt) : NaN;
   if (!Number.isFinite(created) || now - created > MAX_EVENT_AGE_MS || created - now > 5 * 60_000) {
     throw new WebhookSignatureError("furlbridge", "event timestamp missing or outside the accepted window");

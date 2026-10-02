@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { trustedClientCountry } from "@/lib/clientIp";
-import { checkVelocity, commitVelocity } from "@/lib/services/velocity";
+import { recordVelocityGeo, reserveVelocity } from "@/lib/services/velocity";
 import { verifyDestinationAddress, type Chain } from "@/lib/security/addressCheck";
 import { checkTransferAmount } from "@/lib/kycTiers";
 import { recentStepUp } from "@/lib/stepup";
@@ -19,7 +19,8 @@ import type { User } from "@/lib/store";
 //   | FurlPay KYC (onramp T1, offramp T2) | skipped           | required          |
 //   | KYC tier amount limit               | skipped           | required          |
 //   | Embargo (trusted platform country)  | always            | always            |
-//   | Velocity                            | always            | always            |
+//   | Velocity (reserved atomically)      | always            | always            |
+//   | Velocity "review" (volume / geo)    | flagged only      | session step-up   |
 //   | Destination address (on-ramp)       | always            | always            |
 //   | >= $5,000                           | flagged only      | session step-up   |
 //
@@ -68,7 +69,7 @@ export interface RampGuardInput {
   chain?: Chain;
 }
 
-export type RampGuardFlag = "provider_enhanced_verification";
+export type RampGuardFlag = "provider_enhanced_verification" | "velocity_review";
 
 export interface RampGuardResult {
   guardId: string;
@@ -128,8 +129,11 @@ export async function rampGuard(
     if (!tierCheck.allowed) return deny(403, { error: tierCheck.code, detail: tierCheck.reason });
   }
 
+  // Reserve, not read-then-commit: the counters are incremented atomically
+  // first and judged after, so concurrent requests cannot all pass a check
+  // none of them has counted yet (lib/services/velocity.ts reserveVelocity).
   const subject = rampSubject(input.auth);
-  const velocity = await checkVelocity({ userId: subject, amountUsd: input.amountUsd, country });
+  const velocity = await reserveVelocity({ userId: subject, amountUsd: input.amountUsd, country });
   if (velocity.action === "block") {
     return deny(429, {
       error: "velocity_exceeded",
@@ -138,7 +142,12 @@ export async function rampGuard(
     });
   }
 
-  if (input.amountUsd >= STEP_UP_THRESHOLD_USD) {
+  // "review" (daily volume over the cap, or an impossible country change) gets
+  // the same treatment as a large amount. It used to fall through unchecked.
+  const review = velocity.action === "review";
+  if (review && !serverInitiated) flags.push("velocity_review");
+
+  if (input.amountUsd >= STEP_UP_THRESHOLD_USD || (review && serverInitiated)) {
     if (!serverInitiated) {
       // The provider runs its own enhanced verification at this size.
       flags.push("provider_enhanced_verification");
@@ -147,7 +156,9 @@ export async function rampGuard(
       if (!fresh) {
         return deny(401, {
           error: "step_up_required",
-          message: `Transactions of $${STEP_UP_THRESHOLD_USD.toLocaleString("en-US")} or more require additional verification.`,
+          message: review
+            ? "This transaction needs additional verification."
+            : `Transactions of ${STEP_UP_THRESHOLD_USD.toLocaleString("en-US")} or more require additional verification.`,
           action: { type: "step_up", methods: ["otp", "passkey"] },
         });
       }
@@ -165,10 +176,10 @@ export async function rampGuard(
 }
 
 /**
- * Record that a ramp operation went ahead — updates velocity counters.
- * Called once a provider order exists, not before: a declined attempt must
- * not lock out the victim of whoever tried it.
+ * Record that a ramp operation went ahead. The counters were already reserved
+ * by rampGuard; this only moves the geo baseline, and only for an order that
+ * exists, so a refused attempt from elsewhere cannot shift it.
  */
 export async function rampCommit(input: { auth: RampAuth; amountUsd: number; country: string | null }): Promise<void> {
-  await commitVelocity({ userId: rampSubject(input.auth), amountUsd: input.amountUsd, country: input.country });
+  await recordVelocityGeo(rampSubject(input.auth), input.country);
 }

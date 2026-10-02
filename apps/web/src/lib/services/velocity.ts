@@ -91,3 +91,57 @@ export async function commitVelocity(input: {
     // Fail open — see module comment.
   }
 }
+
+/**
+ * Check AND count in one step — for callers that must not be outrun.
+ *
+ * checkVelocity reads, the caller acts, commitVelocity counts afterwards: ten
+ * concurrent requests all read the same counters and all pass. Here the
+ * counters are incremented first (INCR/INCRBY are atomic) and the verdict is
+ * taken from the values AFTER this request, so the sixth request in a minute
+ * sees 6 whatever the interleaving. A blocked request gives its amount back
+ * so a refusal does not eat the day's volume; the burst slot stays spent,
+ * since an attempt is what the burst cap counts.
+ *
+ * Fails open like checkVelocity: a KV outage must not stop all money
+ * movement, and the route-level rate limits still apply.
+ */
+export async function reserveVelocity(input: {
+  userId: string;
+  amountUsd: number;
+  country?: string | null;
+}): Promise<VelocityVerdict> {
+  const reasons: string[] = [];
+  const flags = { burst: false, dailyVolume: false, geoJump: false };
+  const cents = Math.round(input.amountUsd * 100);
+  try {
+    const [txCount, usdCents, lastGeo] = await Promise.all([
+      kvIncr(minuteKey(input.userId), 120),
+      kvIncrBy(dayKey(input.userId), cents, 86_400),
+      kvGet<{ c: string; at: string }>(geoKey(input.userId)),
+    ]);
+    if (txCount > TX_PER_MIN_CAP) {
+      flags.burst = true;
+      reasons.push(`More than ${TX_PER_MIN_CAP} money movements in a minute`);
+    }
+    if (usdCents / 100 > USD_PER_DAY_CAP) {
+      flags.dailyVolume = true;
+      reasons.push(`Daily volume above $${USD_PER_DAY_CAP.toLocaleString("en-US")}`);
+    }
+    if (input.country && lastGeo && lastGeo.c !== input.country) {
+      flags.geoJump = true;
+      reasons.push(`Country changed ${lastGeo.c} → ${input.country} within 2 hours`);
+    }
+    if (flags.burst) await kvIncrBy(dayKey(input.userId), -cents, 86_400).catch(() => undefined);
+  } catch {
+    return { action: "allow", reasons: ["velocity check unavailable (fail-open)"], flags };
+  }
+  const action = flags.burst ? "block" : flags.dailyVolume || flags.geoJump ? "review" : "allow";
+  return { action, reasons, flags };
+}
+
+/** Record the country of a movement that went ahead (the geo-jump baseline). */
+export async function recordVelocityGeo(userId: string, country: string | null | undefined): Promise<void> {
+  if (!country) return;
+  await kvSet(geoKey(userId), { c: country, at: new Date().toISOString() }, GEO_WINDOW_SECONDS).catch(() => undefined);
+}

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
-import { kvDel, kvSetNx } from "@/lib/kv";
+import { kvDel, kvGet, kvSet, kvSetNx } from "@/lib/kv";
 import { verifyFurlBridgeWebhook, WebhookSignatureError } from "@/lib/ramp/webhookVerify";
 import { recordRampAudit } from "@/lib/ramp/rampAudit";
 import { TransitionError, canTransition } from "@/lib/money/lifecycle";
@@ -22,8 +22,11 @@ export const dynamic = "force-dynamic";
 //
 // 1. Verify: Transak's documented HS256 JWT in the body's `data` field, keyed
 //    with the Partner Access Token (lib/ramp/webhookVerify.ts). 401 if not.
-// 2. De-duplicate on (order, event, status). The claim is released if
-//    processing throws, so Transak's retry is processed rather than swallowed.
+// 2. De-duplicate on (order, event, status) in two stages: a short "processing"
+//    claim (2 min) while working, replaced by a 90-day "done" marker only after
+//    success. A crash mid-processing therefore cannot leave a claim that
+//    swallows every retry; a retry that lands while another delivery is still
+//    working gets 503 (retry later), not a false "duplicate".
 // 3. Find the order: by Transak's order id, else by `partnerOrderId` (our
 //    orderId, set in the widget URL) on the first event — then index it.
 //    Unknown order → 200 and an audit line: it may belong to another
@@ -50,7 +53,11 @@ export async function POST(req: NextRequest) {
   }
 
   const claimKey = `ramp:webhook:furlbridge:${event.dedupeKey}`;
-  if (!(await kvSetNx(claimKey, 1, 7 * 24 * 3600))) {
+  if (!(await kvSetNx(claimKey, "processing", 120))) {
+    const state = await kvGet<string>(claimKey);
+    if (state === "processing") {
+      return NextResponse.json({ error: "in_progress" }, { status: 503, headers: { "retry-after": "30" } });
+    }
     return NextResponse.json({ received: true, duplicate: true });
   }
 
@@ -75,6 +82,7 @@ export async function POST(req: NextRequest) {
     });
 
     if (!order) {
+      await kvSet(claimKey, "done", 90 * 24 * 3600);
       console.warn(`[webhook/furlbridge] no order for ${event.orderId}; acknowledged without effect`);
       return NextResponse.json({ received: true, matched: false });
     }
@@ -85,9 +93,24 @@ export async function POST(req: NextRequest) {
         ? String(event.webhookData.cryptoAmount)
         : undefined;
 
+    const path = furlbridgePath(event.status);
     let moved = false;
-    for (const to of remainingSteps(order.status, furlbridgePath(event.status))) {
-      if (!canTransition(order.flowKind, order.status, to)) break;
+    // A late event for an abandoned order: route it to a person first, then
+    // walk whatever the event still justifies from MANUAL_REVIEW.
+    if (order.status === "ABANDONED" && path.some((s) => s !== "FAILED" && s !== "CANCELLED")) {
+      order = await updateRampOrderStatus(order.orderId, {
+        to: "MANUAL_REVIEW",
+        trigger: "webhook",
+        providerStatus: event.status,
+        evidence: `Late provider event after abandonment: Transak ${event.eventType} (${event.status})`,
+      });
+      moved = true;
+    }
+    for (const to of remainingSteps(order.status, path)) {
+      // A step the current state cannot take is skipped, not fatal: from
+      // MANUAL_REVIEW the path's PAYMENT_PENDING is behind us. The FSM still
+      // checks every step that IS taken, with its evidence.
+      if (!canTransition(order.flowKind, order.status, to)) continue;
       try {
         order = await updateRampOrderStatus(order.orderId, {
           to,
@@ -114,6 +137,8 @@ export async function POST(req: NextRequest) {
     }
 
     if (order.status !== before) await notifyOrderChanged(order);
+    // Done: the 90-day marker outlives any provider retry schedule.
+    await kvSet(claimKey, "done", 90 * 24 * 3600);
     return NextResponse.json({ received: true, status: order.status });
   } catch (e) {
     // Release the claim so the provider's retry is processed.

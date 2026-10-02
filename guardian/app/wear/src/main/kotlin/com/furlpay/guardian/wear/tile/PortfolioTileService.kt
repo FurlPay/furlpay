@@ -13,6 +13,7 @@ import com.furlpay.guardian.sync.PortfolioSnapshot
 import com.furlpay.guardian.sync.SyncProtocol
 import com.furlpay.guardian.wear.Routes
 import com.furlpay.guardian.wear.ui.signedPct
+import com.furlpay.guardian.wear.complication.ComplicationPrivacy
 import com.furlpay.guardian.wear.ui.signedUsd
 import com.furlpay.guardian.wear.ui.theme.FurlPayColors
 import com.furlpay.guardian.wear.wearServices
@@ -42,13 +43,19 @@ class PortfolioTileService : TileService() {
                 }.getOrNull()
             }
 
-        val headline = snapshot?.let { signedUsd(it.dayChangeUsd) } ?: "—"
+        // Locked watch: no figure and no gain/loss colour (the colour alone leaks direction).
+        val redacted = ComplicationPrivacy.isRedacted(applicationContext)
+        val headline = when {
+            snapshot == null -> "—"
+            redacted -> ComplicationPrivacy.REDACTED
+            else -> signedUsd(snapshot.dayChangeUsd)
+        }
         val headlineColor = when {
-            snapshot == null -> FurlPayColors.ON_SURFACE_VARIANT_ARGB
+            snapshot == null || redacted -> FurlPayColors.ON_SURFACE_VARIANT_ARGB
             snapshot.dayChangeUsd >= 0 -> FurlPayColors.MONEY_POSITIVE_ARGB
             else -> FurlPayColors.ERROR_ARGB
         }
-        val caption = snapshot?.topMoverSymbol?.let { symbol ->
+        val caption = if (redacted) "Portfolio" else snapshot?.topMoverSymbol?.let { symbol ->
             "$symbol ${signedPct(snapshot.topMoverPct ?: 0.0)}"
         } ?: "Portfolio"
 
