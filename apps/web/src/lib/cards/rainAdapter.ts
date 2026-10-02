@@ -157,7 +157,7 @@ export class RainApiError extends Error {
   }
 }
 
-const SIGNATURE_BLOCKER =
+export const SIGNATURE_BLOCKER =
   "Rain's inbound webhook signature scheme is not public — /webhooks is a delivery log, not a " +
   "verification helper. Verifying against an invented scheme would accept any caller " +
   "(AGENTS.md rule 3), so this refuses.";
@@ -261,7 +261,7 @@ export function mapRainCard(card: RainCard): IssuedCard {
   };
 }
 
-async function rainRequest<T>(
+export async function rainRequest<T>(
   method: "GET" | "POST" | "PATCH" | "PUT",
   path: string,
   body?: unknown
