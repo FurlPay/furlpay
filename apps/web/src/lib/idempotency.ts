@@ -172,9 +172,23 @@ export async function withIdempotency(
 
   // Atomic claim: only the first caller wins the key. A loser is either racing
   // an in-flight request or lost to a just-completed one.
-  const won = await kvSetNx(cacheKey, { status: "processing", requestHash }, TTL_SECONDS).catch(
-    () => true
-  );
+  //
+  // FAIL CLOSED when the store cannot answer. This used to treat a KV error
+  // as "won", so during a Redis outage (production, 2026-10-02: every command
+  // 403 'Fixed plan limits') a retried transfer, spend or redemption ran the
+  // handler again with no duplicate protection. A caller that sends an
+  // Idempotency-Key is asking for at-most-once execution; when that cannot be
+  // guaranteed the honest answer is "not now", and retrying later is safe
+  // because nothing ran.
+  let won: boolean;
+  try {
+    won = await kvSetNx(cacheKey, { status: "processing", requestHash }, TTL_SECONDS);
+  } catch {
+    return NextResponse.json(
+      { error: "idempotency_unavailable", message: "Duplicate protection is temporarily unavailable; nothing was executed. Retry shortly with the same Idempotency-Key." },
+      { status: 503, headers: { "Retry-After": "30" } }
+    );
+  }
   if (!won) {
     const now = await kvGet<IdempotencyRecord>(cacheKey).catch(() => null);
     // Re-checked HERE, not only on the fast path above.
