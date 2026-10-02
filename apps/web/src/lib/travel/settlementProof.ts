@@ -51,6 +51,7 @@ export type ProofFailureReason =
   | "tx_not_found"
   | "tx_reverted"
   | "no_matching_transfer"
+  | "payer_mismatch"
   | "insufficient_confirmations"
   | "rpc_unavailable";
 
@@ -81,6 +82,13 @@ export interface VerifyPaymentParams {
   expectedTo: string;
   /** Minimum atomic USDC units required (6 decimals). Decimal string. */
   expectedAtomic: string;
+  /**
+   * The address the funds must have come FROM. Without it, a payment is not
+   * bound to its payer: anyone who sees a transfer to our address on-chain can
+   * submit that hash first and spend someone else's payment, and the real
+   * payer's own submission then fails as "already used".
+   */
+  expectedFrom?: string;
 }
 
 /** Decode a 32-byte indexed address topic into a checksummed address. */
@@ -103,7 +111,7 @@ function topicToAddress(topic: Hex): Address | null {
  * "reverted" demand opposite responses — one is retryable, the other final.
  */
 export async function verifyUsdcPayment(params: VerifyPaymentParams): Promise<ProofResult> {
-  const { txHash, network, expectedTo, expectedAtomic } = params;
+  const { txHash, network, expectedTo, expectedAtomic, expectedFrom } = params;
 
   if (!/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
     return { ok: false, reason: "malformed_tx_hash", detail: "Transaction hash must be 0x + 64 hex characters." };
@@ -131,6 +139,19 @@ export async function verifyUsdcPayment(params: VerifyPaymentParams): Promise<Pr
   if (expectedValue <= 0n) {
     return { ok: false, reason: "no_matching_transfer", detail: "Expected amount must be positive." };
   }
+  let expectedPayer: Address | null = null;
+  if (expectedFrom !== undefined) {
+    try {
+      expectedPayer = getAddress(expectedFrom);
+    } catch {
+      return { ok: false, reason: "payer_mismatch", detail: "Expected payer address is malformed." };
+    }
+  }
+  const PAYER_MISMATCH: ProofResult = {
+    ok: false,
+    reason: "payer_mismatch",
+    detail: "A matching USDC transfer exists, but it was not sent from your linked wallet.",
+  };
 
   const client = createPublicClient({ chain, transport: rpcTransport(network) });
 
@@ -163,14 +184,24 @@ export async function verifyUsdcPayment(params: VerifyPaymentParams): Promise<Pr
     // while ERC-20 calls emit from ARC_USDC_ERC20 (6dp).
     // arcCreditableTransfers handles deduplication, normalization to 6dp, and dust tracking.
     const transfers = arcCreditableTransfers(receipt.logs as any);
-    const match = transfers.find((t) => {
+    const paysUs = (t: (typeof transfers)[number]) => {
       try {
         return getAddress(t.to) === expectedRecipient && t.erc20Value >= expectedValue;
       } catch {
         return false;
       }
-    });
+    };
+    const fromPayer = (t: (typeof transfers)[number]) => {
+      if (!expectedPayer) return true;
+      try {
+        return getAddress(t.from) === expectedPayer;
+      } catch {
+        return false;
+      }
+    };
+    const match = transfers.find((t) => paysUs(t) && fromPayer(t));
 
+    if (!match && expectedPayer && transfers.some(paysUs)) return PAYER_MISMATCH;
     if (!match) {
       return {
         ok: false,
@@ -224,7 +255,7 @@ export async function verifyUsdcPayment(params: VerifyPaymentParams): Promise<Pr
 
   const usdcAddress = getAddress(usdc);
 
-  const match = receipt.logs.find((entry) => {
+  const paysUs = (entry: (typeof receipt.logs)[number]) => {
     // (1) THE CONTRACT. Checked before anything else — a Transfer log from a
     // token we did not name is not a payment, however well-formed it looks.
     let emitter: Address;
@@ -252,8 +283,13 @@ export async function verifyUsdcPayment(params: VerifyPaymentParams): Promise<Pr
       return false;
     }
     return value >= expectedValue;
-  });
+  };
+  // (5) THE PAYER, when one is required: topics[1] is the sender.
+  const fromPayer = (entry: (typeof receipt.logs)[number]) =>
+    !expectedPayer || topicToAddress(entry.topics[1] as Hex) === expectedPayer;
+  const match = receipt.logs.find((entry) => paysUs(entry) && fromPayer(entry));
 
+  if (!match && expectedPayer && receipt.logs.some(paysUs)) return PAYER_MISMATCH;
   if (!match) {
     return {
       ok: false,

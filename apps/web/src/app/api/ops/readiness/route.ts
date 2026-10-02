@@ -12,6 +12,8 @@ import { ledgerDurable } from "@/lib/ledger";
 import { cronConfigured } from "@/lib/cron/auth";
 import { notifierConfigured } from "@/lib/alerts";
 import { lastRun } from "@/lib/cron/runner";
+import { placesDatasetReadiness } from "@/lib/hotels/googlePlacesLayer";
+import { googlePlacesConfigured } from "@/lib/hotels/googlePlaces";
 
 // GET /api/ops/readiness — can this deployment move real money, and if not, why?
 //
@@ -225,6 +227,21 @@ export async function GET(req: NextRequest) {
     detail: reconcileRun
       ? `Reconciliation last ran ${reconcileRun.finishedAt} (ok: ${reconcileRun.ok}).`
       : "Reconciliation has never run on this deployment.",
+  });
+
+  // ── Data freshness ────────────────────────────────────────────────────
+  const places = placesDatasetReadiness();
+  checks.push({ id: "travel.places_dataset", ok: places.ok, blocking: false, detail: `[${places.state}] ${places.detail}` });
+  // The live path (/api/places/discover) is separate from the snapshot. This
+  // reports configuration only: a set key is not proof the provider answers,
+  // and a provider failure surfaces as a 502/503 from that route at call time.
+  checks.push({
+    id: "travel.places_live",
+    ok: googlePlacesConfigured(),
+    blocking: false,
+    detail: googlePlacesConfigured()
+      ? "GOOGLE_PLACES_API_KEY is set; live place discovery can be attempted (reachability not checked here)."
+      : "GOOGLE_PLACES_API_KEY is not set; /api/places/discover answers 503.",
   });
 
   // ── Alerting ──────────────────────────────────────────────────────────

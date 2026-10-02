@@ -8,6 +8,7 @@ import { kvSetNx } from "@/lib/kv";
 import { PAY_TO } from "@/lib/x402";
 import { audit } from "@/lib/audit";
 import { verifyUsdcPayment, usdToAtomicUsdc } from "@/lib/travel/settlementProof";
+import { verifiedReceiver } from "@/lib/receiveAddress";
 
 export const dynamic = "force-dynamic";
 
@@ -88,11 +89,31 @@ export async function POST(req: NextRequest) {
 
   const expectedAtomic = usdToAtomicUsdc(amountUsd);
 
+  // THE PAYER. A transfer to PAY_TO is public on-chain, so without binding it
+  // to its sender anyone could submit a stranger's payment hash to confirm
+  // their own trip first, and the real payer's submission would then fail as
+  // "already used". The payment must come from the caller's verified,
+  // EIP-191-linked wallet; with none linked there is no payer to bind, so the
+  // request is refused rather than settled on an unattributable transfer.
+  const payer = await verifiedReceiver(userId);
+  if (!payer) {
+    return NextResponse.json(
+      {
+        verified: false,
+        settled: false,
+        error: "payer_wallet_not_linked",
+        detail: "Link and verify the wallet you paid from before settling a booking.",
+      },
+      { status: 409 }
+    );
+  }
+
   const proof = await verifyUsdcPayment({
     txHash: body.txHash,
     network: body.network,
     expectedTo: PAY_TO,
     expectedAtomic,
+    expectedFrom: payer,
   });
 
   if (!proof.ok) {

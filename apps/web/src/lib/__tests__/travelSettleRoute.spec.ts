@@ -22,6 +22,15 @@ vi.mock("@/lib/travel/settlementProof", async (importOriginal) => {
   return { ...actual, verifyUsdcPayment };
 });
 
+// The payer binding (2026-10-02): settlement requires the caller's verified,
+// EIP-191-linked wallet. Every test user has one unless a test says otherwise.
+const LINKED_WALLET = "0x52908400098527886E0F7030069857D2E4169EE7";
+const verifiedReceiver = vi.fn(async (_userId: string): Promise<string | null> => LINKED_WALLET);
+vi.mock("@/lib/receiveAddress", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/receiveAddress")>();
+  return { ...actual, verifiedReceiver };
+});
+
 const { POST } = await import("@/app/api/travel/settle/route");
 const { signSession } = await import("@/lib/session");
 const { findOrCreateUserByIdentity } = await import("@/lib/store");
@@ -247,6 +256,34 @@ describe("proof outcomes map to the right status code", () => {
     expect(verifyUsdcPayment).toHaveBeenCalledWith(
       expect.objectContaining({ expectedAtomic: "500000000" })
     );
+  });
+
+  it("binds the payment to the caller's linked wallet (no front-running a stranger's transfer)", async () => {
+    const { token, account } = await actor();
+    const trip = pendingTrip(account.user.id, 120);
+    await POST(req({ tripId: trip.id, txHash: currentTx, network: "base" }, token));
+    expect(verifyUsdcPayment).toHaveBeenCalledWith(expect.objectContaining({ expectedFrom: LINKED_WALLET }));
+  });
+
+  it("no linked wallet → 409 payer_wallet_not_linked, verifier never called, trip unchanged", async () => {
+    const { token, account } = await actor();
+    const trip = pendingTrip(account.user.id, 120);
+    verifiedReceiver.mockResolvedValueOnce(null);
+    verifyUsdcPayment.mockClear();
+    const res = await POST(req({ tripId: trip.id, txHash: currentTx, network: "base" }, token));
+    expect(res.status).toBe(409);
+    expect(((await res.json()) as { error: string }).error).toBe("payer_wallet_not_linked");
+    expect(verifyUsdcPayment).not.toHaveBeenCalled();
+    expect(getTrip(trip.id, account.user.id)?.status).not.toBe("confirmed");
+  });
+
+  it("payer_mismatch from the verifier is terminal (409), not retryable", async () => {
+    const { token, account } = await actor();
+    const trip = pendingTrip(account.user.id, 120);
+    verifyUsdcPayment.mockResolvedValueOnce({ ok: false, reason: "payer_mismatch", detail: "not from your wallet" });
+    const res = await POST(req({ tripId: trip.id, txHash: currentTx, network: "base" }, token));
+    expect(res.status).toBe(409);
+    expect(getTrip(trip.id, account.user.id)?.status).not.toBe("confirmed");
   });
 });
 

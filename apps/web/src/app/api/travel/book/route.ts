@@ -23,6 +23,7 @@ import { kvGet, kvSet } from "@/lib/kv";
 import { sendEmail } from "@/lib/email";
 import { bookingConfirmationEmail } from "@/lib/emailTemplates";
 import { optionalUser } from "@/lib/authz";
+import { demoOnlyUnavailable } from "@/lib/demoGate";
 import crypto from "crypto";
 
 // POST /api/travel/book — authorize a booking and record it as a trip.
@@ -83,6 +84,16 @@ const BookBody = z
 export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "travel.book", { limit: 10, windowMs: 600_000 });
   if (limited) return limited;
+  // The payment authorization below is SIMULATED (authorizeBooking: an
+  // "x402_sim_" proof or a random card last-4) and no provider booking is made.
+  // In production that would tell a customer "Booking confirmed", record a trip
+  // and email a confirmation for a booking that does not exist. Refused there
+  // until a real payment rail and booking provider replace it.
+  const gate = demoOnlyUnavailable(
+    "Travel booking",
+    "Booking is not connected to a live payment rail or travel provider yet; nothing would be charged or reserved."
+  );
+  if (gate) return gate;
 
   const parsed = BookBody.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {

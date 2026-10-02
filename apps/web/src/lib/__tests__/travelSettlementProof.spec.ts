@@ -396,3 +396,53 @@ describe("verifyUsdcPayment — Arc dual emitter (EIP-7708)", () => {
     }
   });
 });
+
+describe("verifyUsdcPayment — the payer (2026-10-02)", () => {
+  // A transfer to PAY_TO is public. Without binding it to its sender, anyone
+  // could submit a stranger's payment hash to settle their own booking first.
+  const PAYER = getAddress("0x52908400098527886E0F7030069857D2E4169EE7");
+  const STRANGER = getAddress("0x2222222222222222222222222222222222222222");
+
+  it("accepts the transfer when it comes from the expected payer", async () => {
+    getTransactionReceipt.mockResolvedValue(
+      receiptWith([transferLog({ token: BASE_USDC, to: PAY_TO, value: 500_000_000n, from: PAYER })])
+    );
+    const r = await verifyUsdcPayment({ txHash: TX, network: "base", expectedTo: PAY_TO, expectedAtomic: "500000000", expectedFrom: PAYER });
+    expect(r.ok).toBe(true);
+  });
+
+  it("REJECTS a perfect payment sent by someone else (payer_mismatch)", async () => {
+    getTransactionReceipt.mockResolvedValue(
+      receiptWith([transferLog({ token: BASE_USDC, to: PAY_TO, value: 500_000_000n, from: STRANGER })])
+    );
+    const r = await verifyUsdcPayment({ txHash: TX, network: "base", expectedTo: PAY_TO, expectedAtomic: "500000000", expectedFrom: PAYER });
+    expect(r).toMatchObject({ ok: false, reason: "payer_mismatch" });
+  });
+
+  it("finds the payer's transfer among a stranger's transfers in the same transaction", async () => {
+    getTransactionReceipt.mockResolvedValue(
+      receiptWith([
+        transferLog({ token: BASE_USDC, to: PAY_TO, value: 500_000_000n, from: STRANGER }),
+        transferLog({ token: BASE_USDC, to: PAY_TO, value: 500_000_000n, from: PAYER }),
+      ])
+    );
+    const r = await verifyUsdcPayment({ txHash: TX, network: "base", expectedTo: PAY_TO, expectedAtomic: "500000000", expectedFrom: PAYER });
+    expect(r.ok).toBe(true);
+  });
+
+  it("an underpayment from the payer is still no_matching_transfer, not payer_mismatch", async () => {
+    getTransactionReceipt.mockResolvedValue(
+      receiptWith([transferLog({ token: BASE_USDC, to: PAY_TO, value: 1n, from: PAYER })])
+    );
+    const r = await verifyUsdcPayment({ txHash: TX, network: "base", expectedTo: PAY_TO, expectedAtomic: "500000000", expectedFrom: PAYER });
+    expect(r).toMatchObject({ ok: false, reason: "no_matching_transfer" });
+  });
+
+  it("a malformed expected payer is refused, never treated as 'no payer check'", async () => {
+    getTransactionReceipt.mockResolvedValue(
+      receiptWith([transferLog({ token: BASE_USDC, to: PAY_TO, value: 500_000_000n, from: STRANGER })])
+    );
+    const r = await verifyUsdcPayment({ txHash: TX, network: "base", expectedTo: PAY_TO, expectedAtomic: "500000000", expectedFrom: "0xnot-an-address" });
+    expect(r).toMatchObject({ ok: false, reason: "payer_mismatch" });
+  });
+});

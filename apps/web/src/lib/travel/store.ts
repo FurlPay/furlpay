@@ -47,8 +47,8 @@ function daysFromNow(d: number): string {
 // here is a physical-safety leak, not just a privacy one.
 const byUser: Map<string, Map<string, Trip>> = ((globalThis as any).__furlpayTrips ??= new Map());
 
-/** Demo trips are seeded PER USER, so My Trips is never empty without sharing
- *  one global itinerary list between every account. */
+/** Demo trips are seeded PER USER, in development only, so My Trips is never
+ *  empty locally without sharing one global itinerary list between accounts. */
 function bookOf(userId: string): Map<string, Trip> {
   let trips = byUser.get(userId);
   if (trips) return trips;
@@ -73,7 +73,10 @@ function bookOf(userId: string): Map<string, Trip> {
       cardLast4: "1042", cashbackUsd: 0, refundStatus: "Refunded to FurlPay balance", createdAt: new Date(Date.now() - 15 * 86_400_000).toISOString(),
     },
   ];
-  demo.forEach((t) => trips!.set(t.id, t));
+  // Development only. In production these three invented bookings (with
+  // amounts and a "Refunded" status) showed in every user's My Trips and fed
+  // the expense summary and travel rewards, for trips nobody made.
+  if (process.env.NODE_ENV !== "production") demo.forEach((t) => trips!.set(t.id, t));
   byUser.set(userId, trips);
   return trips;
 }

@@ -20,9 +20,15 @@ export default function GiftCardsPage() {
   // redeem
   const [redeemCode, setRedeemCode] = useState("");
   const [redeemMsg, setRedeemMsg] = useState<string | null>(null);
+  const [buyError, setBuyError] = useState<string | null>(null);
+  // Gift cards answer 503 in production until purchase, delivery and
+  // redemption are real (api/travel/gift-cards). Say so, not "failed: 503".
+  const unavailable = (e: unknown) =>
+    /\b503\b/.test(String((e as Error)?.message ?? "")) ? "Gift cards are not available yet. Nothing was charged." : null;
 
   async function buy() {
     setBusy(true);
+    setBuyError(null);
     try {
       const res = await sendJSON<{ giftCard: { code: string; amountUsd: number } }>("/api/travel/gift-cards", {
         amountUsd: amount,
@@ -31,6 +37,8 @@ export default function GiftCardsPage() {
         message: message || undefined,
       });
       setIssued(res.giftCard);
+    } catch (e) {
+      setBuyError(unavailable(e) ?? "Could not create the gift card. Nothing was charged.");
     } finally {
       setBusy(false);
     }
@@ -42,7 +50,7 @@ export default function GiftCardsPage() {
       const res = await sendJSON<{ balanceLabel: string; error?: string }>("/api/travel/gift-cards/redeem", { code: redeemCode });
       setRedeemMsg(res.balanceLabel);
     } catch (e: any) {
-      setRedeemMsg(e?.message ?? "Could not redeem this code.");
+      setRedeemMsg(unavailable(e) ?? e?.message ?? "Could not redeem this code.");
     }
   }
 
@@ -67,7 +75,8 @@ export default function GiftCardsPage() {
         </div>
         <h1 className="mt-3 text-2xl font-bold text-white">Give the gift of travel.</h1>
         <p className="mt-1 text-sm text-textSecondary">
-          Redeemable across FurlPay Travels. Never expires.
+          Coming soon: gift cards are not available yet, and nothing on this page can be bought or
+          redeemed today.
         </p>
       </div>
 
@@ -146,6 +155,11 @@ export default function GiftCardsPage() {
           >
             {busy ? "Creating…" : `Buy gift card — Pay ${token} $${amount}`}
           </button>
+          {buyError && (
+            <p role="alert" className="mt-3 rounded-lg bg-loss/15 px-3 py-2 text-center text-xs text-loss">
+              {buyError}
+            </p>
+          )}
         </div>
       )}
 

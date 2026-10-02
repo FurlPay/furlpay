@@ -9,7 +9,8 @@ import { trustedClientIp } from "./clientIp";
 //     (`rl:{name}:{window}`) — GLOBAL across serverless instances, which is
 //     what actually stops brute force and SMS pumping in production.
 //   - In-memory sliding window: dev/demo fallback, correct per instance.
-// Limiting must never take an endpoint down: Redis errors fail open.
+// Limiting must never take an endpoint down: a Redis error degrades to the
+// in-memory window (bounded per instance), never to no limit at all.
 // ---------------------------------------------------------------------------
 
 interface Bucket {
@@ -46,7 +47,12 @@ export async function limit(key: string, opts: RateLimitOptions): Promise<RateLi
       }
       return { ok: true, remaining: opts.limit - count, retryAfterSeconds: 0 };
     } catch {
-      return { ok: true, remaining: opts.limit, retryAfterSeconds: 0 }; // fail open
+      // Redis is unreachable. Do not take the endpoint down, but do not drop
+      // the limit either: this used to return ok unconditionally, so a Redis
+      // outage removed every throttle (OTP, login, payments) at once. The
+      // per-instance window still bounds each instance; the global limit
+      // resumes when Redis does.
+      return memoryLimit(key, opts);
     }
   }
   return memoryLimit(key, opts);
