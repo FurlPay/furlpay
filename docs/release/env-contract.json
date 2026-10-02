@@ -41,6 +41,7 @@
         "apps/web/src/lib/log.ts",
         "apps/web/src/lib/ops/buildInfo.ts",
         "apps/web/src/lib/rails/singapore/straitsx.ts",
+        "apps/web/src/lib/ramp/partnerAuth.ts",
         "apps/web/src/lib/services/p2pSettlement.ts",
         "apps/web/src/lib/services/payments.ts",
         "apps/web/src/lib/session.ts",

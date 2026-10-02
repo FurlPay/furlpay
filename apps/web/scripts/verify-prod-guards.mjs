@@ -1,6 +1,6 @@
 // Verifies the production mock-settlement guards (audit fix, Jul 2026):
-// against a `next start` (NODE_ENV=production) instance with
-// ALLOW_GUEST_LOGIN=1, the three demo-ledger money routes must refuse to
+// against a `next start` (NODE_ENV=production) instance, with a real session
+// cookie (FURLPAY_PROBE_COOKIE), the three demo-ledger money routes must refuse to
 // fabricate settlement (503) while their quote paths keep working.
 //   node scripts/verify-prod-guards.mjs [baseUrl]
 const APP = process.argv[2] || "http://localhost:3100";
@@ -11,10 +11,18 @@ const check = (name, cond, detail) => {
   if (!cond) failures++;
 };
 
-// Guest session (server-side opt-in) so we get PAST auth to the guards.
-const login = await fetch(`${APP}/api/auth/guest`, { method: "POST" });
-const cookie = login.headers.get("set-cookie")?.split(";")[0] ?? "";
-check("guest session minted", login.ok && cookie.includes("furlpay_session"), `status ${login.status}`);
+// A real session is needed to get PAST auth to the guards. Guest login used to
+// provide one, but production now refuses guest login whatever ALLOW_GUEST_LOGIN
+// says (lib/__tests__/productionAuth.spec.ts), so against a correct production
+// build that path can only 403. Pass a staging session instead:
+//   FURLPAY_PROBE_COOKIE="furlpay_session=..." node scripts/verify-prod-guards.mjs https://staging...
+const cookie = (process.env.FURLPAY_PROBE_COOKIE ?? "").trim();
+if (!cookie.startsWith("furlpay_session=")) {
+  console.error("FURLPAY_PROBE_COOKIE (a real furlpay_session cookie) is required; guest login is disabled in production.");
+  process.exit(2);
+}
+const me = await fetch(`${APP}/api/profile`, { headers: { cookie } });
+check("probe session is valid", me.ok, `status ${me.status}`);
 const authed = { "content-type": "application/json", cookie };
 
 // 1. wallets/transfer: must 503 before doing anything (guard precedes auth).
