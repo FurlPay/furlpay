@@ -2,7 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { ScrollView, StyleSheet, Text } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import * as WebBrowser from "expo-web-browser";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { isStepUpRequired } from "@/lib/stepUp";
 import { api } from "@/lib/api";
 import { authenticateDeviceOwner } from "@/lib/biometrics";
 import { getKnownAddress } from "@/lib/wallet";
@@ -48,6 +49,8 @@ export default function RampScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState<string | null>(null);
+  const [providerChecks, setProviderChecks] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     void getKnownAddress().then(setAddress);
@@ -101,11 +104,12 @@ export default function RampScreen() {
     try {
       let hosted: HostedCheckout | null;
       if (mode === "buy") {
-        const res = await api<{ hosted: HostedCheckout | null }>("/onramp/session", {
+        const res = await api<{ hosted: HostedCheckout | null; flags?: string[] }>("/onramp/session", {
           method: "POST",
           body: { fiatAmount: amount, fiatCurrency: fiat, token: "USDC", chain, paymentMethod: "card", destinationAddress: address },
         });
         hosted = res.hosted;
+        setProviderChecks(!!res.flags?.includes("provider_enhanced_verification"));
         if (hosted) track("onramp_session_created", { provider: "coinbase", fiat, asset: "USDC" });
       } else {
         track("offramp_quote_requested", { fiat, asset: "USDC" });
@@ -124,6 +128,11 @@ export default function RampScreen() {
       await WebBrowser.openBrowserAsync(hosted.url);
       setOpened(mode);
     } catch (e) {
+      if (isStepUpRequired(e)) {
+        // The server wants a fresh OTP/passkey on this session; come back here after.
+        router.push({ pathname: "/step-up", params: { returnTo: "/ramp" } } as never);
+        return;
+      }
       setError(rampErrorMessage(e, mode));
     } finally {
       setBusy(false);
@@ -186,6 +195,9 @@ export default function RampScreen() {
             {opened ? (
               <Surface style={styles.card}>
                 <Text style={type.body}>Checkout opened with Coinbase.</Text>
+                {providerChecks ? (
+                  <Text style={type.dim}>Coinbase may ask for extra identity checks for this amount.</Text>
+                ) : null}
                 <Text style={type.dim}>
                   {opened === "buy"
                     ? "Coinbase delivers USDC to your wallet once the payment clears. It appears in your balance when it lands on-chain; FurlPay does not receive a status from Coinbase."

@@ -12,6 +12,8 @@ import {
   type RampQuote,
 } from "@/lib/ramp";
 import { send } from "./shared";
+import StepUpPanel from "./StepUpPanel";
+import { isStepUpRequired } from "@/lib/stepUp";
 
 // Buy / sell USDC through Coinbase's hosted checkout, opened in a new tab.
 // Rules and the reasons for what is absent (no polling, no bank form) are in
@@ -30,6 +32,8 @@ export default function RampPanel({ onBack }: { onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [opened, setOpened] = useState(false);
+  const [stepUp, setStepUp] = useState(false);
+  const [providerChecks, setProviderChecks] = useState(false);
   const seq = useRef(0);
 
   useEffect(() => {
@@ -60,7 +64,7 @@ export default function RampPanel({ onBack }: { onBack: () => void }) {
     if (amount === null || !address?.ok) return;
     setBusy(true);
     setError(null);
-    const r = await send<{ opened: true }>({
+    const r = await send<{ opened: true; flags: string[] }>({
       type: "RAMP_CHECKOUT",
       direction: mode,
       amount,
@@ -69,8 +73,14 @@ export default function RampPanel({ onBack }: { onBack: () => void }) {
       address: address.address,
     });
     setBusy(false);
-    if (r.ok) setOpened(true);
-    else setError(rampErrorMessage(r.error, mode));
+    if (r.ok) {
+      setOpened(true);
+      setProviderChecks(r.data.flags.includes("provider_enhanced_verification"));
+    } else if (isStepUpRequired(r.error)) {
+      setStepUp(true);
+    } else {
+      setError(rampErrorMessage(r.error, mode));
+    }
   }
 
   return (
@@ -141,10 +151,19 @@ export default function RampPanel({ onBack }: { onBack: () => void }) {
             </div>
           )}
 
+          {stepUp && (
+            <StepUpPanel
+              onCancel={() => setStepUp(false)}
+              onDone={() => {
+                setStepUp(false);
+                void checkout();
+              }}
+            />
+          )}
           {error && <div className="risk risk--high" style={{ marginBottom: 10 }}>{error}</div>}
           {opened && (
             <div className="risk risk--safe" style={{ marginBottom: 10 }}>
-              Coinbase checkout opened in a new tab. {mode === "buy" ? "USDC appears in your wallet when it lands on-chain." : "Coinbase handles the payout; its receipt has the status."}
+              Coinbase checkout opened in a new tab. {providerChecks ? "Coinbase may ask for extra identity checks for this amount. " : ""}{mode === "buy" ? "USDC appears in your wallet when it lands on-chain." : "Coinbase handles the payout; its receipt has the status."}
             </div>
           )}
 

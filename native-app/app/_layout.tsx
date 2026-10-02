@@ -305,6 +305,7 @@ function AppShell() {
               <Stack.Screen name="bills" options={{ title: tr("nav.bills") }} />
               <Stack.Screen name="banking" options={{ title: tr("nav.banking") }} />
               <Stack.Screen name="ramp" options={{ title: "Buy & sell crypto" }} />
+              <Stack.Screen name="step-up" options={{ title: "Verify it's you" }} />
               <Stack.Screen name="credit" options={{ title: tr("nav.credit") }} />
               <Stack.Screen name="rewards" options={{ title: tr("nav.rewards") }} />
               <Stack.Screen name="travel/index" options={{ title: tr("nav.travel") }} />

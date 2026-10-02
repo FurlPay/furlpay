@@ -80,6 +80,8 @@ export function rampErrorMessage(code: string, direction: "buy" | "sell"): strin
     case "quote_unavailable":
     case "provider_error":
       return "Coinbase couldn't respond just now. Nothing was charged.";
+    case "step_up_required":
+      return "This needs an extra verification step.";
     case "untrusted_checkout_url":
       return "The checkout link didn't point to Coinbase, so it was not opened.";
     default:

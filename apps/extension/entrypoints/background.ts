@@ -1,5 +1,6 @@
 import { ApiError, apiFetch, getBaseUrl, toResponse } from "@/lib/api";
 import { isTrustedCheckoutUrl, type HostedCheckout, type RampQuote } from "@/lib/ramp";
+import { isStepUpCode, maskEmail } from "@/lib/stepUp";
 import { flush as flushAnalytics, track } from "@/lib/analytics";
 import {
   NO_LINKED_WALLET_ERROR,
@@ -231,7 +232,7 @@ export default defineBackground(() => {
       case "RAMP_CHECKOUT":
         void toResponse(
           (message.direction === "buy"
-            ? apiFetch<{ hosted: HostedCheckout | null }>("/api/onramp/session", {
+            ? apiFetch<{ hosted: HostedCheckout | null; flags?: string[] }>("/api/onramp/session", {
                 method: "POST",
                 body: JSON.stringify({
                   fiatAmount: message.amount,
@@ -242,7 +243,7 @@ export default defineBackground(() => {
                   destinationAddress: message.address,
                 }),
               })
-            : apiFetch<{ hosted: HostedCheckout | null }>("/api/offramp/session", {
+            : apiFetch<{ hosted: HostedCheckout | null; flags?: string[] }>("/api/offramp/session", {
                 method: "POST",
                 body: JSON.stringify({ address: message.address, chain: message.chain, token: "USDC", cryptoAmount: message.amount }),
               })
@@ -251,7 +252,32 @@ export default defineBackground(() => {
             // Never open a tab on a URL that is not Coinbase's checkout (lib/ramp.ts).
             if (!isTrustedCheckoutUrl(r.hosted.url)) throw new Error("untrusted_checkout_url");
             await browser.tabs.create({ url: r.hosted.url });
-            return { opened: true as const };
+            return { opened: true as const, flags: r.flags ?? [] };
+          })
+        ).then(sendResponse);
+        return true;
+      case "STEP_UP_SEND":
+        void toResponse(
+          apiFetch<{ email?: string | null }>("/api/profile").then(async (p) => {
+            if (!p.email) throw new Error("no_email");
+            await apiFetch("/api/auth/otp/start", { method: "POST", body: JSON.stringify({ to: p.email, channel: "email" }) });
+            return { sentTo: maskEmail(p.email) };
+          })
+        ).then(sendResponse);
+        return true;
+      case "STEP_UP_VERIFY":
+        // A successful check issues a fresh session cookie for furlpay.com with
+        // the step-up recorded on it (apps/web lib/stepup.ts). The email is
+        // re-read from the profile, never taken from the popup.
+        void toResponse(
+          apiFetch<{ email?: string | null }>("/api/profile").then(async (p) => {
+            if (!p.email) throw new Error("no_email");
+            if (!isStepUpCode(message.code)) throw new Error("bad_code");
+            await apiFetch("/api/auth/otp/check", {
+              method: "POST",
+              body: JSON.stringify({ to: p.email, code: message.code, channel: "email", login: true }),
+            });
+            return { verified: true as const };
           })
         ).then(sendResponse);
         return true;

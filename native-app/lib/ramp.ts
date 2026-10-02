@@ -101,6 +101,8 @@ export function rampErrorMessage(e: unknown, direction: "buy" | "sell" = "buy"):
     case "quote_unavailable":
     case "provider_error":
       return "Coinbase couldn't respond just now. Nothing was charged. Try again.";
+    case "step_up_required":
+      return "This needs an extra verification step.";
     case "beneficiary_verification_unavailable":
       return "Direct bank payouts aren't available yet.";
     default:
