@@ -16,6 +16,7 @@ import { Money, assetById } from "@/lib/money/money";
 import type { OfframpProviderAdapter } from "@/lib/providers/types";
 import { rampAttribution } from "@/lib/providers/rampEnv";
 import { checkBeneficiaryEligibility } from "@/lib/ramp/beneficiary";
+import { attachCheckout, createRampOrder, updateRampOrderStatus, type RampProviderId } from "@/lib/ramp/rampOrder";
 
 export const dynamic = "force-dynamic";
 
@@ -134,7 +135,23 @@ export async function POST(req: NextRequest) {
       // A hosted sell runs on the provider's page: POST /api/offramp/session.
       return NextResponse.json({ error: "use_hosted_session", detail: "Use /api/offramp/session for this provider." }, { status: 409 });
     }
-    const orderId = crypto.randomUUID();
+    // The order exists before the provider is called; its id is the provider's
+    // partner reference. The beneficiary travels as OUR reference only: bank
+    // details are not sent to an adapter whose API is unverified, and a
+    // provider that needs them collects them itself.
+    const rampOrder = await createRampOrder({
+      providerId: adapter.id as RampProviderId,
+      direction: "offramp",
+      flowKind: "offramp",
+      statusFeed: adapter.id === "furlbridge",
+      userId: account.user.id,
+      beneficiaryId,
+      fiatCurrency: toCurrency,
+      cryptoAsset: fromAsset.symbol,
+      cryptoAmount: String(amount),
+      chain: fromAsset.chain ?? "unspecified",
+    });
+    const orderId = rampOrder.orderId;
     let order;
     try {
       const providerQuote = await adapter.quote({
@@ -155,8 +172,11 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       // The provider's message stays in the server log; the client gets a code.
       console.error(`[offramp] ${adapter.id} order failed:`, (e as Error).message);
+      await updateRampOrderStatus(orderId, { to: "FAILED", trigger: "system", evidence: "Provider refused the order." }).catch(() => {});
       return NextResponse.json({ error: "provider_error" }, { status: 502 });
     }
+    await attachCheckout(orderId, { depositAddress: order.depositAddress });
+    await updateRampOrderStatus(orderId, { to: "QUOTED", trigger: "system", evidence: "Provider order opened; awaiting the customer's deposit." });
 
     await recordRampAudit({
       userId: account.user.id,
@@ -184,6 +204,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         quote,
+        orderId,
         executed: false,
         status: "awaiting_deposit",
         provider: {
