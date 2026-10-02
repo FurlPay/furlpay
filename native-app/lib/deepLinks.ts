@@ -84,6 +84,13 @@ export function resolveDeepLink(rawPath: string | undefined | null): string {
   // Drop query/fragment, collapse repeated slashes, strip trailing slash.
   p = (p.split("?")[0].split("#")[0] || "/").replace(/\/{2,}/g, "/").replace(/\/+$/, "") || "/";
 
+  // Verified app links. Android (intentFilters pathPrefix) and iOS (AASA
+  // components) claim ONLY https://furlpay.com/l/* — so /l/<path> is how a web
+  // link reaches the app, and <path> is the in-app route it names. Without this
+  // every verified link fell through to the inbox.
+  if (p === "/l") return HOME_ROUTE;
+  if (p.startsWith("/l/")) p = p.slice(2);
+
   // Web-only surfaces the native app cannot consume (the auth handoff sets a WEB
   // cookie; /api is server-only; /login,/pricing,/legal are web pages). Sending
   // the user home is correct — they were already in the app.

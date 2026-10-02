@@ -82,6 +82,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/docs",
   "/blog",
   "/.well-known", // OAuth 2.1 discovery metadata (RFC 8414 / 9728) + assetlinks
+  "/l/", // verified app links: redirect to the same path (app/l/[...path]); the target gates itself
 
   "/investing/insights", // FurlPay Research portal — public content, like /blog
 

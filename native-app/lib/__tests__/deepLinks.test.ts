@@ -108,3 +108,21 @@ describe("deepLinks — every resolver target is a real native route", () => {
     }
   });
 });
+
+describe("verified app links (/l/*)", () => {
+  // Android intentFilters and the AASA claim only https://furlpay.com/l/*; the
+  // rest of the path is the in-app route.
+  it.each([
+    ["https://furlpay.com/l/ramp", "/ramp"],
+    ["https://www.furlpay.com/l/transaction/tx_1", "/transaction/tx_1"],
+    ["https://furlpay.com/l/travel/bookings/x", "/travel"],
+    ["https://furlpay.com/l", HOME_ROUTE],
+    ["https://furlpay.com/l/", HOME_ROUTE],
+  ])("%s -> %s", (url, expected) => {
+    expect(resolveDeepLink(url)).toBe(expected);
+  });
+
+  it("a path merely starting with 'l' is not an app link", () => {
+    expect(resolveDeepLink("https://furlpay.com/legal")).toBe(HOME_ROUTE);
+  });
+});
