@@ -1055,3 +1055,61 @@ The owner approved committing (baseline first), the partner-key path, and KYC sp
 3. Echo's real API/webhook documentation.
 4. A retry queue for partner callbacks (one attempt today).
 5. Push, plus CI on the pushed SHA, before any deploy (`npm run deploy:prod` gate).
+
+## 19. Verification of the pasted 40-finding audit (2026-10-02)
+
+A pasted report from another session listed 5 critical, 11 high, 14 medium and 10 low findings. Each finding was checked against the code before anything changed. Several cite paths that do not exist in this repo (`apps/phone/…`, `apps/watch/…`, `CheckoutWebView.tsx`, `authStorage.ts`). They also quote code that is not here, such as `redis.set(beneficiary:…)` and a Solana `connection.getTransaction`.
+
+Fixes are in commit `1c458af`, with tests in `lib/ramp/__tests__/auditFixes.spec.ts` (8 tests).
+
+### 19.1 Real, fixed
+
+| Finding | What was actually wrong | Fix |
+|---|---|---|
+| C4 late payment after ABANDONED | A Transak event after a stale order was abandoned matched no transition and was dropped. The order record stayed wrong. Hosted funds go straight from the provider to the customer, so the "fund loss" framing is overstated, but the record was wrong. | `hosted_checkout`: `ABANDONED → MANUAL_REVIEW`. The webhook routes late progress there, then walks forward, with each step still FSM- and evidence-checked. |
+| H2 idempotency poison pill | The 7-day `SET NX` claim outlived a crash mid-processing, so every retry was answered "duplicate". | Two stages: a 2-min `processing` claim (a concurrent retry gets 503 + Retry-After), replaced by a 90-day `done` marker after success. This also covers M1. |
+| C3 velocity TOCTOU | `checkVelocity` read the counters and `commitVelocity` incremented them after the order, so concurrent requests all passed. | `reserveVelocity`: INCR/INCRBY first, judged on post-increment values. A blocked request returns its amount. Test: 10 concurrent requests → exactly 5 pass. |
+| *(not in report)* velocity "review" ignored | `rampGuard` blocked only on `block`. Daily volume over $5,000 or an impossible country change passed silently. | Server-initiated: session step-up. Hosted: `velocity_review` flag. |
+| H5 key injection (partly) | Ids came from a signed payload, so the risk is low, but they became KV key parts unchecked. | Transak id `^[A-Za-z0-9_-]{1,128}$`, `partnerOrderId` must be a UUID. |
+| M4 GET side effect | Order reads can resolve stale orders (by design, documented) but had no cache directive. | `Cache-Control: no-store` on both order reads. |
+| H10 watch tile shows balance | The Wallet and Portfolio tiles rendered figures on a locked watch. The complications already redacted. | Same `ComplicationPrivacy` gate (fails closed); tiles refresh on unlock. |
+
+### 19.2 Not real (already implemented, or describes code that is not here)
+
+| Finding | Evidence |
+|---|---|
+| C1 plaintext bank details | `beneficiary.ts` is AES-256-GCM, record id as AAD, refuses without a key (since §17). |
+| C2 no CSRF | `middleware.ts` Origin check for cookie-authenticated mutations, plus `SameSite=Lax` cookies. |
+| C5 tokens in AsyncStorage | `native-app/lib/api.ts` stores the token in `expo-secure-store` (Keystore/Keychain). AsyncStorage holds only the analytics queue. |
+| H1 non-atomic order updates | `rampOrder.ts` updates under a per-order `SET NX` lock (tested: concurrent transition + provider-id write both persist). |
+| H3 single Solana RPC | No Solana path. Delivery proof is the EVM `verifyUsdcPayment`, with a confirmation-depth check. |
+| H4 missing per-route limits | `offramp/session` 10/10 min, `onramp/session` 10/10 min, order reads 60–120/min, partner 10 sessions/min per key. |
+| H6 SSRF unverified | `safeFetch` resolve-check-pin, https only, no redirects. Tested against `169.254.169.254`. |
+| H7 WebView without allowlist | No WebView. Checkout opens in the system browser; a test forbids `<WebView`. The extension allowlists `pay.coinbase.com`. |
+| H11 token in `chrome.storage.local` | The extension authenticates with the furlpay.com cookie. Its local storage holds deposits, x402 logs and an install id. |
+| M6 uncontracted provider selectable | `evaluateCapability` hard-fails `contract_not_live`. Tested. |
+| M9 cookie attributes | `httpOnly`, `sameSite: "lax"`, `secure` in production (`lib/session.ts`). |
+| M10 Android backup | `app.json` `allowBackup: false`. |
+| M11 no certificate pinning | `plugins/withNetworkSecurityConfig.js` and `withIosCertificatePinning.js`, with tests. |
+| M8 error detail | Ramp routes return codes (`provider_error`, `not_quotable`). Provider messages stay in server logs. |
+| L7 docs say HMAC | §17/§18 and the code headers describe the HS256 JWT. |
+
+### 19.3 Real but by design or out of scope (no change)
+
+- **H8 custom scheme:** `furlpay://ramp` carries only a prefilled amount. Nothing is charged without the phone's device-owner prompt and the provider's checkout. Verified App Links and associated domains exist for the https routes.
+- **H9 watch app home shows balance:** the app opens only on an unlocked watch.
+- **Extension content scripts on all sites:** wallet discovery (EIP-6963), Blink and x402 detection must run everywhere. Reviewed earlier; they make no privileged calls.
+- **M5 partner callback retry:** one attempt (§18.4, still open).
+- **M12 Data Layer token:** documented in `SyncProtocol.DATA_AUTH_TOKEN`; the Data Layer channel is encrypted between paired devices.
+- **L5:** delivery-proof cases are covered in `rampOrder.spec`/`staleOrders.spec`: verified, short confirmations, mismatch, not found.
+
+### 19.4 Verification
+
+| Check | Result |
+|---|---|
+| Web vitest | 6,346 passed / 0 failed |
+| Web tsc / lint | clean / clean |
+| Root `npm test` | 0 failures |
+| `:app:wear:compileDevDebugKotlin` | OK |
+
+The audit session left two untracked files (`apps/web/findings.json`, `apps/web/script.js`). They are not committed.
