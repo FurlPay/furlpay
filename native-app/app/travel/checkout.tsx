@@ -10,7 +10,7 @@ import { Button, ErrorNote, Screen, SummaryRow, Surface } from "@/components/ui"
 
 // Native checkout — the last leg of the travel funnel that used to hand off to
 // the web. Mirrors apps/web/src/app/travel/checkout/page.tsx exactly: same
-// price math (10% taxes, 2% cashback off the total), same 15-minute rate lock,
+// price math (10% taxes, 2% cashback off the total), same 15-minute quote timer (not a provider rate lock),
 // same payment methods, same /api/travel/book call — so a booking made here is
 // indistinguishable server-side from one made on the web.
 
@@ -23,12 +23,15 @@ const METHODS: {
   icon: keyof typeof Ionicons.glyphMap;
   title: string;
   sub: string;
+  disabled?: boolean;
   source: "travala" | "legacy";
 }[] = [
   { id: "wallet", icon: "wallet-outline", title: "Pay with Crypto Wallet", sub: "Phantom, Solflare or Coinbase Wallet · x402 on Base", source: "travala" },
   { id: "balance", icon: "server-outline", title: "Pay with FurlPay Balance", sub: "USDC from your FurlPay account", source: "travala" },
   { id: "vcard", icon: "card-outline", title: "One-time Virtual Card", sub: "Single-use, MCC-locked Visa card", source: "legacy" },
-  { id: "card", icon: "card-outline", title: "Credit / Debit Card", sub: "Visa · Mastercard · Amex", source: "legacy" },
+  // No card processor is attached to travel checkout (the web checkout says the
+  // same): shown, but not selectable, and no card networks are advertised.
+  { id: "card", icon: "card-outline", title: "Credit / Debit Card", sub: "Not connected yet: no card processor is attached", source: "legacy", disabled: true },
   { id: "agent", icon: "hardware-chip-outline", title: "AI Agent Authorization", sub: "Set a budget; your agent completes the booking", source: "travala" },
 ];
 
@@ -44,11 +47,12 @@ function MethodOption({
   return (
     <TouchableOpacity
       activeOpacity={0.85}
-      onPress={onPress}
+      onPress={method.disabled ? undefined : onPress}
+      disabled={method.disabled}
       accessibilityRole="radio"
-      accessibilityState={{ selected }}
+      accessibilityState={{ selected, disabled: !!method.disabled }}
       accessibilityLabel={`${method.title}. ${method.sub}`}
-      style={[styles.method, selected && styles.methodSelected]}
+      style={[styles.method, selected && styles.methodSelected, method.disabled && { opacity: 0.5 }]}
     >
       <View style={[styles.methodIcon, selected && styles.methodIconSelected]}>
         <Ionicons name={method.icon} size={16} color={selected ? colors.neon : colors.textDim} />
@@ -80,8 +84,9 @@ export default function Checkout() {
   }>();
   const name = params.name ?? "Your stay";
   const city = params.city ?? "—";
-  const nights = Number(params.nights) || 3;
-  const guests = Number(params.guests) || 2;
+  // Only what the booking passed: no invented 3 nights / 2 guests.
+  const nights = Math.max(0, Math.floor(Number(params.nights) || 0));
+  const guests = Math.max(0, Math.floor(Number(params.guests) || 0));
   const checkIn = params.checkIn;
   const checkOut = params.checkOut;
   const roomRate = Number(params.amount) || 0;
@@ -146,10 +151,13 @@ export default function Checkout() {
       // The new trip must be there when the user lands back on the travel home.
       void queryClient.invalidateQueries({ queryKey: ["travel", "trips"] });
     } catch (e) {
+      const status = (e as { status?: number }).status;
       setError(
         (e as Error).message === "duplicate_booking_in_flight"
           ? "This booking is already being processed — check My Trips before retrying."
-          : "Payment couldn't be authorized — you were not charged. Please try again."
+          : status === 503
+            ? "Booking isn't available yet: it is not connected to a live payment rail or travel provider. You were not charged."
+            : "Payment couldn't be authorized — you were not charged. Please try again."
       );
     } finally {
       inFlight.current = false;
@@ -201,7 +209,9 @@ export default function Checkout() {
           <View style={styles.summaryBody}>
             <Text style={styles.name}>{name}</Text>
             <Text style={type.dim}>
-              {city} · {nights} {nights === 1 ? "night" : "nights"} · {guests} {guests === 1 ? "guest" : "guests"}
+              {[city, nights ? `${nights} ${nights === 1 ? "night" : "nights"}` : null, guests ? `${guests} ${guests === 1 ? "guest" : "guests"}` : null]
+                .filter(Boolean)
+                .join(" · ")}
             </Text>
             {checkIn && checkOut ? (
               <Text style={type.dim}>
@@ -209,7 +219,7 @@ export default function Checkout() {
               </Text>
             ) : null}
             <View style={styles.rows}>
-              <SummaryRow k={`Room rate (${nights} ${nights === 1 ? "night" : "nights"})`} v={usd(roomRate)} />
+              <SummaryRow k={nights ? `Room rate (${nights} ${nights === 1 ? "night" : "nights"})` : "Room rate"} v={usd(roomRate)} />
               <SummaryRow k="Taxes & fees" v={usd(taxes)} />
               <SummaryRow k="FurlPay cashback (2%)" v={`−${usd(cashback)}`} />
               <SummaryRow k="Total" v={usd(total)} bold />
@@ -221,7 +231,7 @@ export default function Checkout() {
             <View style={[styles.lockNote, expired && styles.lockNoteExpired]}>
               <Ionicons name="lock-closed-outline" size={12} color={expired ? colors.warning : colors.textDim} />
               <Text style={[styles.lockText, expired && { color: colors.warning }]}>
-                {expired ? "Rate lock expired — refresh to re-quote" : `Rate locked for ${mm}:${ss}`}
+                {expired ? "Quote expired — refresh it to continue" : `Quote expires in ${mm}:${ss} · re-checked when you book`}
               </Text>
             </View>
           </View>
@@ -249,7 +259,7 @@ export default function Checkout() {
         </Pressable>
 
         <ErrorNote message={error} />
-        <Text style={styles.secured}>Secured by FurlPay · Travel Rule & KYC enforced over $1,000</Text>
+        <Text style={styles.secured}>FurlPay's server calculates the amount you pay · one booking per checkout</Text>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -258,7 +268,7 @@ export default function Checkout() {
           <Text style={type.dim}>incl. taxes, after cashback</Text>
         </View>
         <Button
-          title={expired ? "Refresh rate" : busy ? "Authorizing…" : `Pay ${usd(total)}`}
+          title={expired ? "Refresh quote" : busy ? "Authorizing…" : `Pay ${usd(total)}`}
           onPress={expired ? () => setLock(RATE_LOCK_SECONDS) : pay}
           disabled={busy || (!expired && !agree)}
           loading={busy}

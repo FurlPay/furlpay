@@ -234,7 +234,7 @@ export default function Property() {
         <View style={styles.notice}>
           <Ionicons name="pricetag-outline" size={14} color={colors.neon} />
           <Text style={styles.noticeText}>
-            {cashbackPct}% cashback in USDC · rate locks {rateLockMinutes} min at checkout
+            {cashbackPct}% cashback in USDC · {rateLockMinutes}-min checkout quote, re-checked when you book
           </Text>
         </View>
 
