@@ -2,12 +2,7 @@
 
 import { useState } from "react";
 import { User as UserIcon } from "lucide-react";
-import {
-  NotWiredError,
-  patchProfile,
-  setUsername,
-  type Profile,
-} from "@/lib/accountApi";
+import { patchProfile, setUsername, UsernameError, type Profile } from "@/lib/accountApi";
 import { ActionButton, Feedback, NotWiredNote, Row, Section, StatusPill } from "./primitives";
 import ProfileImageUploader from "@/components/user/ProfileImageUploader";
 
@@ -19,11 +14,11 @@ import ProfileImageUploader from "@/components/user/ProfileImageUploader";
 //
 //   display name  REAL — PATCH /api/profile has always validated and stored a
 //                 name; the old page was the first thing to ever send one.
-//   picture       The provider's photo is shown, but there is nowhere to upload
-//                 a new one (no object storage on this deployment). The control
-//                 is present and reports that plainly instead of opening a file
-//                 picker that leads nowhere.
-//   username      No handle field exists on the account record at all.
+//   picture       REAL — cropped to a 256px square on a canvas (no EXIF/GPS),
+//                 stored per account by PUT /api/profile/avatar; falls back to
+//                 the identity provider's photo, then initials.
+//   username      REAL — PUT /api/profile/username (lib/username.ts, migration
+//                 0029): unique, lowercase, shared rules with wallet handles.
 //   email         Read-only by design — changing it is an identity change that
 //                 has to re-verify, not a text field.
 //   standing      Derived server state (tier, KYC, lock), never editable here.
@@ -40,6 +35,10 @@ export default function IdentitySection({
   const [draft, setDraft] = useState(profile.name);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<{ tone: "success" | "error"; text: string } | null>(null);
+  const [editingUsername, setEditingUsername] = useState(false);
+  const [usernameDraft, setUsernameDraft] = useState(profile.username ?? "");
+  const [usernameSaving, setUsernameSaving] = useState(false);
+  const [usernameError, setUsernameError] = useState<string | null>(null);
 
   async function saveName(e: React.FormEvent) {
     e.preventDefault();
@@ -67,23 +66,32 @@ export default function IdentitySection({
     }
   }
 
-  async function onEditUsername() {
+  async function saveUsername(e: React.FormEvent) {
+    e.preventDefault();
+    if (usernameSaving) return; // no duplicate submissions
+    const next = usernameDraft.trim().replace(/^@/, "");
+    if (!next) {
+      setUsernameError("Enter a username.");
+      return;
+    }
+    setUsernameSaving(true);
+    setUsernameError(null);
     setFeedback(null);
     try {
-      await setUsername("");
+      const saved = await setUsername(next);
+      setEditingUsername(false);
       onChanged();
+      setFeedback({ tone: "success", text: `Username set to @${saved}.` });
     } catch (err) {
-      setFeedback({
-        tone: "error",
-        text:
-          err instanceof NotWiredError
-            ? "Usernames are not part of a FurlPay account yet — your display name and email identify you today."
-            : "Could not update your username.",
-      });
+      // The server's wording names the actual rule (taken, reserved, length).
+      setUsernameError(err instanceof UsernameError ? err.message : "Could not save your username.");
+    } finally {
+      setUsernameSaving(false);
     }
   }
 
-  const kycTone = profile.kycStatus === "verified" ? "gain" : profile.kycStatus === "pending" ? "accent" : "muted";
+  const kycTone = profile.kycStatus === "verified" ? "gain" : "muted";
+  const kycLabel = profile.kycStatus.charAt(0).toUpperCase() + profile.kycStatus.slice(1);
 
   return (
     <Section
@@ -185,31 +193,94 @@ export default function IdentitySection({
         />
       </Row>
 
-      <Row label="Username" hint="Not part of a FurlPay account yet.">
-        <span className="font-mono text-[12.5px] text-textMuted">—</span>
-        <ActionButton onClick={onEditUsername} ariaLabel="Set a username">
-          Set
-        </ActionButton>
+      <Row
+        label="Username"
+        hint="Your public name on FurlPay. 3–32 letters, numbers or hyphens."
+        align={editingUsername ? "start" : "center"}
+      >
+        {editingUsername ? (
+          <form onSubmit={saveUsername} className="flex w-full min-w-0 flex-col gap-2 sm:w-auto" noValidate>
+            <label htmlFor="username-input" className="sr-only">
+              Username
+            </label>
+            <div className="flex min-w-0 items-center rounded-lg border border-white/[0.12] bg-black/40 focus-within:border-accent/60 focus-within:outline focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-accent">
+              <span aria-hidden className="pl-3 font-mono text-[13px] text-textMuted">@</span>
+              <input
+                id="username-input"
+                autoFocus
+                value={usernameDraft}
+                onChange={(ev) => setUsernameDraft(ev.target.value)}
+                maxLength={33}
+                autoComplete="username"
+                autoCapitalize="none"
+                spellCheck={false}
+                aria-invalid={usernameError ? true : undefined}
+                aria-describedby={usernameError ? "username-error" : undefined}
+                className="w-full min-w-0 bg-transparent py-2 pl-1 pr-3 font-mono text-[13px] text-white outline-none sm:w-56"
+              />
+            </div>
+            {usernameError && (
+              <p id="username-error" role="alert" className="text-[12px] font-medium text-loss">
+                {usernameError}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <ActionButton type="submit" variant="primary" disabled={usernameSaving || !usernameDraft.trim()}>
+                {usernameSaving ? "Saving…" : "Save"}
+              </ActionButton>
+              <ActionButton
+                onClick={() => {
+                  setEditingUsername(false);
+                  setUsernameError(null);
+                  setUsernameDraft(profile.username ?? "");
+                }}
+                disabled={usernameSaving}
+              >
+                Cancel
+              </ActionButton>
+            </div>
+          </form>
+        ) : (
+          <>
+            {profile.username ? (
+              <span className="min-w-0 truncate font-mono text-[13px] text-white">@{profile.username}</span>
+            ) : (
+              <span className="text-[12.5px] text-textMuted">Not set</span>
+            )}
+            <ActionButton
+              onClick={() => {
+                setUsernameDraft(profile.username ?? "");
+                setUsernameError(null);
+                setEditingUsername(true);
+              }}
+              ariaLabel={profile.username ? "Change your username" : "Set a username"}
+            >
+              {profile.username ? "Change" : "Set"}
+            </ActionButton>
+          </>
+        )}
       </Row>
 
       <Row label="Email" hint="Used for sign-in codes and security alerts.">
-        <span className="truncate text-[13px] text-textSecondary">{profile.email}</span>
+        <span title={profile.email} className="block min-w-0 max-w-full truncate text-[13px] text-textSecondary">
+          {profile.email}
+        </span>
       </Row>
 
       <Row label="Account status">
         <StatusPill tone={profile.security.accountLocked ? "loss" : "gain"}>
           {profile.security.accountLocked ? "Locked" : "Active"}
         </StatusPill>
-        <StatusPill tone="accent">{profile.tier}</StatusPill>
-        <StatusPill tone={kycTone}>{profile.kycStatus}</StatusPill>
+        <StatusPill tone="brand">{profile.tier}</StatusPill>
+        <StatusPill tone={kycTone}>{kycLabel}</StatusPill>
       </Row>
 
       {feedback && <Feedback tone={feedback.tone}>{feedback.text}</Feedback>}
 
       <NotWiredNote>
-        Choosing a username needs a handle field on the account record, which does not exist yet.
         Your picture is stored with your account; if you have never set one, it falls back to the
-        photo your identity provider hosts.
+        photo your identity provider hosts, then to your initials. A username is not a payment
+        address: people pay you through your FurlPay Wallet handle.
       </NotWiredNote>
     </Section>
   );

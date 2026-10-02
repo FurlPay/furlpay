@@ -41,6 +41,7 @@
 // ---------------------------------------------------------------------------
 
 import { getJSON, sendJSON } from "@/lib/api";
+import { isOffline, OFFLINE_WRITE_MESSAGE } from "@/lib/offline";
 
 /** Thrown by an integration point whose backend does not exist yet. The UI
  *  catches it and shows the "not available on this deployment" state rather
@@ -66,6 +67,8 @@ export interface Device {
 export interface Profile {
   name: string;
   email: string;
+  /** Lowercase, unique; null until the user chooses one (migration 0029). */
+  username: string | null;
   avatarUrl: string | null;
   initials: string | null;
   /** Internal account identifier. NOT a wallet and NOT a destination — see
@@ -286,18 +289,39 @@ export async function uploadAvatar(_file: File): Promise<{ avatarUrl: string }> 
   );
 }
 
+/** Why a username was not saved, in words the server chose for the user. */
+export class UsernameError extends Error {
+  constructor(
+    readonly reason: "invalid" | "taken" | "unavailable" | "network",
+    message: string
+  ) {
+    super(message);
+    this.name = "UsernameError";
+  }
+}
+
 /**
- * TODO(integration): username.
- *
- * The account record has a display `name` and an `email` and no handle. A
- * username needs its own column, a uniqueness constraint, a reserved-word list
- * and a rename policy before the UI can offer one.
+ * PUT /api/profile/username — set, change or (with null) clear YOUR username.
+ * Resolves to the stored, normalized name. Rules, uniqueness and the
+ * wallet-handle clash check live on the server (lib/username.ts, migration
+ * 0029); this only carries the server's verdict back.
  */
-export async function setUsername(_username: string): Promise<void> {
-  throw new NotWiredError(
-    "username",
-    "The account record has no username field yet — only a display name and an email."
-  );
+export async function setUsername(username: string | null): Promise<string | null> {
+  if (isOffline()) throw new UsernameError("network", OFFLINE_WRITE_MESSAGE);
+  let res: Response;
+  try {
+    res = await fetch("/api/profile/username", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+  } catch {
+    throw new UsernameError("network", "Could not reach FurlPay. Check your connection and try again.");
+  }
+  const body = (await res.json().catch(() => null)) as { username?: string | null; error?: string; detail?: string } | null;
+  if (res.ok) return body?.username ?? null;
+  const reason = body?.error === "invalid" || body?.error === "taken" ? body.error : "unavailable";
+  throw new UsernameError(reason, body?.detail ?? (res.status === 429 ? "Too many attempts. Try again in a few minutes." : "Could not save your username."));
 }
 
 // ── Sessions ───────────────────────────────────────────────────────────────

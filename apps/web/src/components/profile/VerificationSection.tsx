@@ -64,7 +64,7 @@ export default function VerificationSection({ profile }: { profile: Profile }) {
               : "You have not verified your identity yet."
         }
       >
-        <StatusPill tone={verified ? "gain" : pending ? "accent" : "muted"}>
+        <StatusPill tone={verified ? "gain" : "muted"}>
           {verified ? "Verified" : pending ? "In review" : "Not verified"}
         </StatusPill>
       </Row>

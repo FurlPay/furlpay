@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { Camera, Loader2, Trash2 } from "lucide-react";
 import UserAvatar from "./UserAvatar";
 
@@ -128,6 +128,7 @@ export default function ProfileImageUploader({
   const [preview, setPreview] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const hintId = useId();
 
   const shown = preview ?? avatarUrl ?? null;
 
@@ -206,7 +207,7 @@ export default function ProfileImageUploader({
   }
 
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex min-w-0 items-center gap-4">
       <div className="relative shrink-0">
         <UserAvatar name={name} initials={initials} avatarUrl={shown} size="xl" ring />
         {busy && (
@@ -219,12 +220,13 @@ export default function ProfileImageUploader({
         )}
       </div>
 
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
+            aria-describedby={hintId}
             className="inline-flex items-center gap-1.5 rounded-full border border-white/15 px-3.5 py-1.5 text-[12.5px] font-semibold text-white transition-colors hover:border-white/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/40 disabled:opacity-60"
           >
             <Camera className="h-[14px] w-[14px]" aria-hidden />
@@ -244,7 +246,7 @@ export default function ProfileImageUploader({
           )}
         </div>
 
-        <p className="mt-2 text-[11.5px] leading-relaxed text-textMuted">
+        <p id={hintId} className="mt-2 max-w-[46ch] text-[11.5px] leading-relaxed text-textMuted">
           JPEG, PNG or WEBP. Cropped to a centred square and resized to {OUTPUT_PX}×{OUTPUT_PX};
           location data in the original is discarded.
         </p>

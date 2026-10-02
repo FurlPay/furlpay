@@ -72,11 +72,18 @@ export function Row({
         align === "center" ? "items-center" : "items-start"
       }`}
     >
-      <div className="min-w-0 flex-1">
+      {/* The label takes the remaining space but never less than 14rem on sm+.
+          The content column may SHRINK and WRAP. It used to be `shrink-0`, so a
+          wide control (the picture uploader with its requirements line) sized
+          the column to that line's full width and crushed the label into a
+          sliver that wrapped every few words. */}
+      <div className="min-w-0 flex-1 basis-full sm:min-w-[14rem] sm:basis-0">
         <div className="text-[13.5px] font-medium text-white">{label}</div>
         {hint && <div className="mt-0.5 text-[12px] leading-relaxed text-textMuted">{hint}</div>}
       </div>
-      {children && <div className="flex shrink-0 items-center gap-2">{children}</div>}
+      {children && (
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2 sm:justify-end">{children}</div>
+      )}
     </div>
   );
 }
@@ -86,13 +93,17 @@ export function StatusPill({
   tone,
   children,
 }: {
-  tone: "gain" | "loss" | "accent" | "muted";
+  /** brand = the FurlPay emerald (plan / tier). accent is the legacy red,
+   *  nearly identical to loss, so it reads as an error and is not used for
+   *  neutral states such as a plan name or a pending check. */
+  tone: "gain" | "loss" | "accent" | "brand" | "muted";
   children: ReactNode;
 }) {
   const tones = {
     gain: "bg-gain/[0.12] text-gain",
     loss: "bg-loss/[0.12] text-loss",
     accent: "bg-accent/[0.12] text-accent",
+    brand: "bg-neon/[0.12] text-neon",
     muted: "bg-white/[0.06] text-textSecondary",
   } as const;
   return (

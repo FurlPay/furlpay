@@ -25,6 +25,8 @@ export async function GET(req: NextRequest) {
     id: u.id,
     name: u.name,
     email: u.email,
+    // Null until the user chooses one (migration 0029; lib/username.ts).
+    username: u.username ?? null,
     avatarUrl,
     initials: initialsFor(u.name),
     // DEPRECATED and deliberately renamed in the payload. store.ts derives it

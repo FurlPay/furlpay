@@ -59,6 +59,10 @@ export const EXPECTED = [
   { migration: "0028", kind: "function", name: "analytics_touch_device", critical: false },
   { migration: "0028", kind: "function", name: "analytics_platforms", critical: false },
   { migration: "0028", kind: "function", name: "analytics_versions", critical: false },
+  // Non-critical: without 0029 the username save answers 503 "not enabled".
+  { migration: "0029", kind: "column", name: "users.username", critical: false },
+  { migration: "0029", kind: "index", name: "users_username_key", critical: false },
+  { migration: "0029", kind: "function", name: "set_username", critical: false },
 ];
 
 async function present(c, e) {

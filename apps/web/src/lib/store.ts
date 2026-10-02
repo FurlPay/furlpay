@@ -96,6 +96,11 @@ export interface User {
   id: string;
   name: string;
   email: string;
+  /** Public username (lowercase, unique; migration 0029). Absent until the
+   *  user chooses one. Written ONLY through lib/username.ts (an atomic
+   *  set_username() call), never by the general account save, so a uniqueness
+   *  clash can never fail an unrelated save. */
+  username?: string;
   phone?: string; // E.164
   phoneVerified?: boolean;
   authProvider?: "passkey" | "google" | "apple" | "phone" | "email";

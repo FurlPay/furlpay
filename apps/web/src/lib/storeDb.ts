@@ -57,6 +57,9 @@ interface UserRow {
   region: User["region"];
   /** Added in migration 0007; absent on deployments still on 0006. */
   tax_residency?: string | null;
+  /** Added in migration 0029. READ-ONLY here: userToRow never writes it (see
+   *  lib/username.ts), so an account save cannot overwrite or collide on it. */
+  username?: string | null;
   tier: User["tier"];
   roles: User["roles"];
   security: User["security"];
@@ -188,6 +191,7 @@ function userFromRow(r: UserRow): User {
     kycTier: r.kyc_tier,
     region: r.region,
     ...(r.tax_residency ? { taxResidency: r.tax_residency } : {}),
+    ...(r.username ? { username: r.username } : {}),
     tier: r.tier,
     roles: r.roles,
     security: r.security,

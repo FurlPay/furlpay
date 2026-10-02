@@ -43,7 +43,7 @@ const SECTIONS = [
 ] as const;
 
 export default function ProfilePage() {
-  const { status } = useSession();
+  const { status, refresh: refreshSession } = useSession();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -69,7 +69,10 @@ export default function ProfilePage() {
       <AccountTopBar />
 
       <main className="mx-auto w-full max-w-[1440px] px-5 py-6 lg:px-8 lg:py-8 2xl:px-12">
-        <div className="flex flex-col gap-8 xl:flex-row xl:gap-10">
+        {/* One centred block: the section index plus a single readable column, so
+            the header, cards and dividers share one edge and wide screens do not
+            leave the content pinned left beside a dead gap. */}
+        <div className="mx-auto flex w-full max-w-[1116px] flex-col gap-8 xl:flex-row xl:gap-10">
           {/* Section index — a real nav landmark, not a decorative list. It is
               hidden below xl, where the sections simply stack in order. */}
           <nav
@@ -89,7 +92,7 @@ export default function ProfilePage() {
             </div>
           </nav>
 
-          <div className="min-w-0 flex-1">
+          <div className="w-full min-w-0 max-w-[880px] flex-1">
             <header className="mb-6">
               <h1 className="text-[22px] font-bold tracking-tight text-white sm:text-[26px]">
                 Account settings
@@ -106,8 +109,17 @@ export default function ProfilePage() {
             ) : !profile ? (
               <LoadingSections />
             ) : (
-              <div className="flex max-w-[820px] flex-col gap-8">
-                <IdentitySection profile={profile} onChanged={load} />
+              <div className="flex flex-col gap-8">
+                <IdentitySection
+                  profile={profile}
+                  onChanged={() => {
+                    load();
+                    // The header avatar and name come from the session, not this
+                    // page: refresh it too, so a new picture or name shows in both
+                    // places at once instead of only after a reload.
+                    void refreshSession();
+                  }}
+                />
                 <SecuritySection profile={profile} onChanged={load} />
                 <WalletSection profile={profile} />
                 <VerificationSection profile={profile} />
@@ -169,7 +181,7 @@ function AccountTopBar() {
  *  makes a long page appear to jump into place when it resolves. */
 function LoadingSections() {
   return (
-    <div className="flex max-w-[820px] flex-col gap-8" aria-busy="true" aria-label="Loading your account">
+    <div className="flex flex-col gap-8" aria-busy="true" aria-label="Loading your account">
       {["Profile", "Security", "Wallet & payments"].map((title) => (
         <Section key={title} title={title}>
           <RowSkeleton rows={3} />

@@ -15,6 +15,7 @@ export type AuditEvent =
   | "auth.logout"
   | "auth.signup"
   | "auth.guest_login"
+  | "auth.dev_session"
   | "auth.mfa_failed"
   // The positive counterpart. Only failures were recorded, so the log could show
   // that a step-up was never *rejected* but never that one actually *ran* — and
@@ -75,6 +76,7 @@ export type AuditEvent =
   | "account.funded"
   | "account.locked"
   | "profile.updated"
+  | "profile.username_changed"
   // Account erasure. Deliberately survives the deletion it records: audit_log
   // has no FK to users precisely so the trail outlives the account (0002).
   | "account.deleted"
