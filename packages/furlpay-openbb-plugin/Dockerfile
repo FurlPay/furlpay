@@ -28,6 +28,14 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# The runtime stage copies this venv wholesale, so pip/setuptools/wheel inside
+# it shipped too, and with them pip's VENDORED msgpack and urllib3. The
+# 2026-10-01 container scan failed on exactly those: msgpack GHSA-6v7p-g79w-8964
+# (HIGH), urllib3 CVE-2026-97687 and setuptools CVE-2025-47273, none of which the
+# app imports. Nothing installs at runtime, so remove them from the venv here
+# (the runtime stage's own uninstall only touches the system interpreter).
+RUN python -m pip uninstall -y pip setuptools wheel
+
 
 FROM ${PYTHON_BASE} AS runtime
 
