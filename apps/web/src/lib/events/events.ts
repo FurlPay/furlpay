@@ -77,7 +77,10 @@ export interface FurlpayEvent {
   imageHeight?: number;
   /** The organiser's own site. Never a third-party listing/aggregator. */
   officialUrl?: string;
-  /** One or two sentences, used on cards and as the meta description. */
+  /**
+   * One or two sentences, used on cards and as the meta description — so at
+   * most 160 characters, past which search results truncate it (events.spec).
+   */
   summary: string;
   /** Detail-page paragraphs. Original wording — never pasted from the organiser. */
   body?: string[];
@@ -134,7 +137,7 @@ export const EVENTS: FurlpayEvent[] = [
     imageHeight: 400,
     officialUrl: "https://www.token2049.com/singapore",
     summary:
-      "FurlPay is attending TOKEN2049 Singapore on 7-8 October 2026 at Marina Bay Sands, to meet founders, fintechs, financial institutions, stablecoin issuers, investors and developers building global payment infrastructure.",
+      "FurlPay is attending TOKEN2049 Singapore, 7–8 October 2026 at Marina Bay Sands. Book a 30-minute meeting on stablecoin settlement or cross-border payouts.",
     body: [
       "TOKEN2049 Singapore is the largest annual gathering in the industry FurlPay builds for. The people who decide how money moves across borders — issuers, institutions, payment processors, infrastructure teams and the developers wiring them together — are in one venue for two days.",
       "We are going as attendees, to have specific conversations rather than to run a stand. If you are working on stablecoin settlement, card issuing, cross-border payouts, tokenised assets or agentic payments, we would rather spend twenty focused minutes with you than hand out a flyer.",

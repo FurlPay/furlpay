@@ -69,6 +69,10 @@ const PUBLIC_PAGES = new Set([
   // /token is: someone checking whether a cross-chain FURL offer is real must be
   // able to read it without an account.
   "/bridge",
+  // Short link to the TOKEN2049 event page. next.config.js redirects() answers
+  // it before middleware runs, so this only matters if that rule is removed —
+  // and then the app/token2049 fallback must redirect, not hit the login wall.
+  "/token2049",
   "/grants",
   "/marketplace",
   "/login",

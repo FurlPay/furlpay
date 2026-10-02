@@ -406,3 +406,12 @@ describe("eventJsonLd", () => {
     expect(ld.location).toMatchObject({ "@type": "VirtualLocation" });
   });
 });
+
+describe("search snippet", () => {
+  // `summary` is the meta description; results truncate past ~160 characters,
+  // which cut the TOKEN2049 description mid-list (it was 218).
+  it.each(EVENTS.map((e) => [e.slug, e.summary] as const))("%s summary fits a search snippet", (_slug, summary) => {
+    expect(summary.length).toBeGreaterThanOrEqual(70);
+    expect(summary.length).toBeLessThanOrEqual(160);
+  });
+});
