@@ -19,6 +19,17 @@ import { checkOrigin, ORIGIN_VERIFY_HEADER } from "@/lib/originVerify";
 import { configuredPublicOrigin, publicOrigin } from "@/lib/publicOrigin";
 import { classifyRequest, recordActiveCountry, recordApiRequest, recordPageView } from "@/lib/analytics/telemetry";
 import { trustedClientCountry, trustedClientIp } from "@/lib/clientIp";
+import { devAutoLoginEnabled } from "@/lib/devAutoLogin";
+
+// Where an unauthenticated page request goes. Always /login, except in LOCAL
+// DEVELOPMENT with FURLPAY_DEV_AUTO_LOGIN=1, where it goes to the dev-only
+// auto sign-in (app/api/auth/dev-session), which answers 404 in any production
+// build. Public origin, not req.nextUrl: on ECS that is the bind address.
+function loginRedirect(req: NextRequest, next: string): NextResponse {
+  const url = new URL(devAutoLoginEnabled() ? "/api/auth/dev-session" : "/login", publicOrigin(req));
+  url.searchParams.set("next", next);
+  return NextResponse.redirect(url);
+}
 
 // ---------------------------------------------------------------------------
 // Auth gate. A `furlpay_session` cookie is minted on passkey login/registration.
@@ -319,11 +330,7 @@ async function adminPageDenied(req: NextRequest): Promise<NextResponse | null> {
   } catch {
     return null; // unknown: the layout gate decides (and never renders for a non-admin)
   }
-  if (status === 401) {
-    const url = new URL("/login", publicOrigin(req));
-    url.searchParams.set("next", req.nextUrl.pathname);
-    return NextResponse.redirect(url);
-  }
+  if (status === 401) return loginRedirect(req, req.nextUrl.pathname);
   if (status !== 403) return null;
   return new NextResponse(FORBIDDEN_HTML, { status: 403, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } });
 }
@@ -502,10 +509,7 @@ export async function middleware(req: NextRequest, event?: NextFetchEvent) {
     PUBLIC_PAGES.has(pathname) || PUBLIC_PAGE_PREFIXES.some((p) => pathname.startsWith(p));
   if (isPublicPage || hasSession) return maybeSlideSession(req, claims, NextResponse.next());
 
-  // Public origin, not req.nextUrl: on ECS that is the bind address.
-  const url = new URL("/login", publicOrigin(req));
-  url.searchParams.set("next", pathname);
-  return NextResponse.redirect(url);
+  return loginRedirect(req, pathname);
 }
 
 export const config = {

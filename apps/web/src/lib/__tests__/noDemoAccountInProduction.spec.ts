@@ -24,6 +24,8 @@ const ALLOWED: Record<string, string> = {
   "lib/store.ts": "defines the demo account",
   "app/api/auth/guest/route.ts":
     "intentional demo login; refused on production deployments, opt-in on previews, mints role 'user' only",
+  "app/api/auth/dev-session/route.ts":
+    "local-development auto sign-in; 404 unless NODE_ENV !== production AND FURLPAY_DEV_AUTO_LOGIN=1 (devAutoLogin.spec.ts), mints role 'user' only",
   "app/api/auth/webauthn/route.ts": "legacy demo passkey route; 404 when NODE_ENV=production",
   "lib/accountDeletion.ts": "compares against DEMO_USER_ID to REFUSE deleting the shared demo account",
   "lib/ledger.ts": "seedDemoOpeningBalance() only; returns early outside the development environment",
