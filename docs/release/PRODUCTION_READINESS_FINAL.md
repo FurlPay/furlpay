@@ -1219,3 +1219,115 @@ Verification: web 6,354 passed / 0 failed, tsc and lint clean, root `npm test` 0
 10. Legal checklist sign-off.
 
 **Confirmation:** this pass made no deploy, push, commit, Terraform apply, hosted migration, secret change, live transaction or data deletion. The live checks were read-only GETs and a DNS query.
+
+## 22. Release remediation and verification (2026-10-02)
+
+**Branch:** `docs/architecture-2026-09-29`. No upstream is configured, and `origin` has no branch of this name.
+
+**Git provenance:** this pass started at `bbd9f2d` and made **no** commit. While the verification matrix was running, four commits appeared (09:22–09:23 IST, author `ashutoshkumarsingh0x@gmail.com`, not made by this session): `a6d3e28`, `eb85ec3`, `0cdbd63`, `cbcb14c`. Together they contain exactly the 21 files this pass and §21 changed, and nothing else (`git diff --stat bbd9f2d HEAD`). The matrix tested that same content. Only this §22 text is uncommitted.
+
+This pass made no push, deploy, Terraform apply, hosted migration, DNS change or secret change. The only live production access was read-only: GETs and a DoH lookup.
+
+**Severity convention:** P0 critical / P1 release blocker / P2 significant gap / P3 moderate / P4–P5 low / PN verified non-issue. "Fixed" means code changed **and** a regression test fails without the change.
+
+### 22.A Executive summary
+
+- **No P0.**
+- **Three P1s remain open.** None is a code defect; each needs an authorized operator:
+  - DNS/hosting for `api.furlpay.com`;
+  - hosted migrations 0024–0029;
+  - push → CI → deploy.
+- **Fixed this pass:**
+  - verified app links (`/l/*`) were dead on both platforms;
+  - the operator settle route coerced `""` to deadline `0`;
+  - a public Stripe intent route had no amount ceiling or currency check;
+  - `trip-match` bypassed the 100 KB body cap;
+  - the earlier §21 items are re-verified.
+- **Added:**
+  - a host-readiness probe (`scripts/release/check-api-host.mjs`);
+  - an upgrade-path migration harness;
+  - a content-script message-boundary test.
+
+### 22.B Findings
+
+| ID | Sev | Component | Finding | Evidence | Fix applied | Verification | Owner / action | Blocker |
+|---|---|---|---|---|---|---|---|---|
+| R22-1 | P1 | DNS / mobile | Production iOS and Android builds call `https://api.furlpay.com/api`; the name does not resolve. It is the designed host: AWS prod TF, cert pins, 50+ SDK/doc references | DoH Status 3; `check-api-host.mjs api.furlpay.com` → `ENOTFOUND` | None in code: repointing clients would contradict the architecture. Probe script added | `check-api-host.mjs furlpay.com`: DNS ✓, chain → ISRG Root X1, **pinned** ✓ | Operator: see §22.D-1 | **Yes** (mobile) |
+| R22-2 | P1 | Database | 0024–0029 not applied to hosted Supabase | Repo state; no hosted access | Upgrade harness added | PG18 fresh 0001–0029 + financial effects ×20: **77/77**. Upgrade from populated 0023: **62/62** (applies, re-apply is a no-op, no row lost, constraint self-check clean) | Operator: §22.D-2 | **Yes** |
+| R22-3 | P1 | Release | Branch never pushed; production runs pre-`60d75d5` code (e.g. `/api/health` → 401 in prod, 200 on branch) | `git rev-parse @{u}` fails; live GET | — | Local CI-equivalent matrix all exit 0 (22.C) | Operator: §22.D-3 | **Yes** |
+| R22-4 | P2 | iOS links | AASA 404 in production | Live GET 404. Route returns 404 **by design** until `APPLE_TEAM_ID` is set | — | `aasa.spec` passes | Operator: set `APPLE_TEAM_ID` (10-char Team ID), deploy, recheck | Yes (iOS links) |
+| R22-5 | P2 | Android links | `assetlinks.json` has one fingerprint (`15:92:F6…`); whether it is the Play App Signing key cannot be verified here | Live file matches repo | — | — | Operator: compare with Play Console → App signing; add the app-signing SHA-256 if different | Yes (Android links) |
+| R22-6 | P3 | App links | Both platforms verify **only** `https://furlpay.com/l/*`, but the app routed `/l/x` to the inbox and the web 404'd `/l/x` | Code trace | `native-app/lib/deepLinks.ts` strips `/l`. New `app/l/[...path]/route.ts`: same-origin 307, segment allowlist, no open redirect. `/l/` added to public prefixes | 6 new native cases; 7 web cases incl. `..`, `%2F`, `%5C`, `//host` | — | No |
+| R22-7 | P3 | x402 settle (operator) | `releaseDeadline` via bare `BigInt()` (`""`→`0n`); `nonce/r/s/v` unchecked | Code | Zod discriminated union; canonical atomic rule for amounts and deadline; `v ∈ {0,1,27,28}`; bytes32 for nonce/r/s | `settleValidation.spec` (8): `""`,`"0"`,`"0x10"`,`"-5"`,`" 7"` → 400, no contract call | — | No |
+| R22-8 | P3 | Stripe intent (public) | No amount ceiling; any currency string forwarded, though the webhook credits USD only | Code | Zod: int, positive, ≤ 5,000,000 cents; `usd` only | `intentBounds.spec` (6): Stripe never called on refusal | — | No |
+| R22-9 | P4 | trip-match (public) | Hand-parsed body skipped the 100 KB cap | Scanner warning | Zod via `validateBody` | Route suite; scanner 26 → 24 manual warnings | — | No |
+| R22-10 | P4 | 24 routes | Remaining `BODY_MANUAL_VALIDATION` warnings | Scanner | Reviewed fund, earn/withdraw, payments/review: typed, bounded, role-gated; not defects | Scanner exit 0 | Optional Zod migration | No |
+| R22-11 | P3 | Extension | Step-up cookie refresh not exercised in a real Chrome | — | Boundary test: content scripts send only `WALLET_CONNECT`, `X402_DETECTED`, `OPEN_X402_CHECKOUT` (literal types), so a page cannot reach `RAMP_CHECKOUT`/`STEP_UP_*` | `contentScriptBoundary.test` (7); manifest permissions minimal; host list = `ALLOWED_ORIGINS` | **NOT TESTED** in real browser: needs a backend with the ramp code + real OTP email | No |
+| R22-12 | P2 | Ops | `ramp-maintenance` scheduled only in TF | — | — | Terraform 1.11.4: `fmt -check` 0; `validate` 0 for dev, staging, prod, org (backend disabled; **plan not run**: needs AWS credentials/state) | Operator: apply the scheduler module or an external scheduler with `x-furlpay-cron-key` | No (reads still resolve stale orders) |
+| R22-13 | P4 | Scripts | `verify-prod-guards.mjs` needs a real session | §21 | — | Refuses without `FURLPAY_PROBE_COOKIE` | Run against staging | No |
+| R22-14 | P4 | Environment | Drive C: 100% full (1.1 GB free); crashed the analytics harness's PG once ("recovery mode") | `df` | Re-ran: **15/15** | — | Free disk space; old `~/.furlpay-verify/pg-harness/data-*` dirs are from earlier sessions (not deleted) | No |
+| R22-15 | P4 | Repo | Untracked `apps/web/findings.json`, `apps/web/script.js` from another session | `git status` | Left untouched | — | Owner: keep or delete | No |
+| PN | — | Money invariants | Duplicate/concurrent webhooks, ack failure after effect, cross-instance updates, overdraft rollback, cashback uniqueness, ledger balance | — | — | PG18 77/77; T-W1–T-W3 in the web suite | — | — |
+| PN | — | Release guards | Prod refuses to boot without config; dev-session 404; guest 403; 16 sensitive routes refuse anonymous | §21 live `next start` probe | — | — | — | — |
+| PN | — | Deps | 0 unaccepted high/critical (prod deps, CI rule) | `npm audit --omit=dev` | — | Gate exit 0 | — | — |
+| PN | — | Pinning | Pins cover both ISRG (Vercel) and Amazon (AWS) roots, so either hosting option for R22-1 is TLS-compatible | Plugin + probe | — | `check-api-host` reads the pins from the plugin | — | — |
+
+### 22.C Test evidence (this pass; logs in `~/.furlpay-verify/matrix-20261002-091455/`)
+
+Each command ran with its own log and its real exit code recorded (no masking pipe).
+
+| Check | Exit | Result |
+|---|---|---|
+| web `tsc --noEmit` | 0 | — |
+| web `npm run lint` | 0 | no warnings |
+| web `vitest run` | 0 | 370 files, **6,377 passed**, 31 skipped |
+| web `npm run build` | 0 | — |
+| claims linter | 0 | 18 rules |
+| route security / synthetic travel | 0 / 0 | 24 manual-validation warnings, 0 unguarded |
+| env contract / edge config / EAS profile | 0 / 0 / 0 | 24 vars agree |
+| static migrations | 0 | 29 contiguous, unmodified |
+| native `tsc` / `jest --ci` | 0 / 0 | 118 suites, **1,874 passed** |
+| extension `tsc` / `vitest` / `build` | 0 / 0 / 0 | **200 passed** |
+| root `npm test` | 0 | **458 passed**, 0 failed |
+| Terraform `fmt -check` + `validate` ×4 | 0 | plan not run |
+| Kotlin domain tests + wear compile | 0 | — |
+| PG18 financial effects `--repeat 20` | 0 | **77/77** |
+| PG18 analytics | 1 then 0 | first run: PG crash (disk full); rerun **15/15** |
+| PG18 upgrade path (new) | 0 | **62/62** |
+| prod dependency gate | 0 | 0 unaccepted |
+| secret scan of diff + new files | — | 0 hits; no `.only/.skip/debugger/console.log` added |
+
+### 22.D Deployment prerequisites (operator, in order)
+
+1. **API host (R22-1).** Pick one option, then run `node scripts/release/check-api-host.mjs api.furlpay.com` until it exits 0.
+   - **Interim (Vercel):** add `api.furlpay.com` to the Vercel project `web` (Domains), then at the DNS provider (registrar-servers / Namecheap) create `CNAME api → cname.vercel-dns.com`. Vercel issues a Let's Encrypt certificate; ISRG roots are pinned. No code change is needed: the app is host-agnostic on Vercel.
+   - **Target (AWS):** apply `infra/aws/envs/prod` (CloudFront `api.furlpay.com`, ACM us-east-1). Then `CNAME api → <distribution>.cloudfront.net`. Amazon roots are pinned.
+   - **Rollback:** remove the CNAME or domain. Clients return to today's state (unreachable), so no worse.
+2. **Migrations (R22-2):**
+   - staging snapshot → `probe-schema.mjs` → apply 0024…0029 in order → `select * from furlpay_missing_constraints()` (expect 0 rows) → smoke tests;
+   - then production in the same order.
+   - **Ordering with code:** deploy this branch, then migrate in the same window. New code without 0025 fails closed: money webhooks return 5xx and the provider retries. Old code with 0025 would have its balance snapshot writes silently ignored. Keep the gap short either way.
+   - There are no down-migrations (forward-only); recovery is roll-forward.
+3. **Release (R22-3):**
+   - review the four 09:22–09:23 commits + commit §22 → `git push -u origin docs/architecture-2026-09-29` → CI green on the SHA → merge per policy → `npm run deploy:prod` (the gate requires a clean tree, pushed HEAD and green CI).
+4. **Links:**
+   - set `APPLE_TEAM_ID`;
+   - add the Play app-signing fingerprint to `assetlinks.json` if it differs;
+   - deploy;
+   - recheck `/.well-known/apple-app-site-association` (200, `application/json`) and `assetlinks.json`.
+5. **Scheduler:** apply the EventBridge module, or schedule `/api/cron/ramp-maintenance` every 5 min with `FURLPAY_CRON_SECRET`.
+6. **Native release:** rebuild with EAS after step 1 passes.
+7. **Extension:** real-Chrome step-up test against staging, then the CWS upload.
+
+### 22.E Release decision
+
+| Dimension | Status |
+|---|---|
+| Code | Committed locally (`cbcb14c`, see provenance above); review before push |
+| Tests and builds (local) | Ready: every check exit 0 (22.C) |
+| Remote CI | **Not run**: branch unpushed |
+| Infrastructure | Static only: TF fmt/validate pass; plan/apply not run; `api.furlpay.com` missing |
+| Database/schema | Verified locally (fresh + upgrade + concurrency); **not applied hosted** |
+| Mobile | **Blocked** on R22-1; links need R22-4/R22-5 |
+| Extension | Tests and build ready; real-browser step-up **not tested** |
+| Production | Running older code; **not production-ready until 22.D steps 1–3 are done** |
