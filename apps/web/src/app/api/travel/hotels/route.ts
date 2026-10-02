@@ -4,6 +4,7 @@ export const dynamic = "force-dynamic";
 import { curatedHotels } from "@/lib/travel/discover";
 import { searchProperties, isKnownCity } from "@/lib/travel/propertySource";
 import { searchDuffelStays } from "@/lib/travel/duffel";
+import { datasetStats } from "@/lib/hotels/googlePlacesLayer";
 
 // GET /api/travel/hotels — curated 4–5★ hotel collections by destination.
 // ?city=<name> returns top-rated hotels for that city instead (live Duffel
@@ -35,6 +36,10 @@ export async function GET(req: NextRequest) {
       // Distinguishes "we looked and there is nothing" from "we do not know
       // where that is", which a bare empty array cannot express.
       known: isKnownCity(city),
+      // The Google Places snapshot may only be served inside its cache window
+      // and serves nothing after it. Without this, an expired snapshot reads as
+      // "no hotels in this city", which is false. Same signal as /hotels/map.
+      googleDataset: datasetStats(),
       source: "indexed_dataset",
     });
   }

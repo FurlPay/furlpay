@@ -1,4 +1,5 @@
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
+import { datasetStats } from "../googlePlacesLayer";
 import {
   summariseDestination,
   summariseNamedDestination,
@@ -15,6 +16,18 @@ const DUBAI = { minLat: 24.9, maxLat: 25.4, minLng: 55.0, maxLng: 55.5 };
 const LONDON = { minLat: 51.4, maxLat: 51.6, minLng: -0.25, maxLng: 0.05 };
 /** Open ocean. There is nothing here and the summary must say so. */
 const EMPTY = { minLat: -40, maxLat: -39, minLng: -130, maxLng: -129 };
+
+
+// The Google Places layer may only be served inside its cache window
+// (datasetFresh; Google Places terms). These tests exercise the FRESH path, so
+// the clock is pinned inside that window: they began failing on 2026-10-01 when
+// the checked-in dataset expired, testing the calendar instead of the code.
+// Only Date is faked; timers and promises run normally.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.parse(datasetStats().generatedAt) + 86_400_000);
+});
+afterAll(() => vi.useRealTimers());
 
 describe("counts are counted, not estimated", () => {
   it("adds up to the total, with nothing double-counted", () => {
