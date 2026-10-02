@@ -154,7 +154,31 @@ describe("the embed", () => {
 
   it("uses a real timestamp field rather than text in the footer", () => {
     expect(embed.timestamp).toBe("2026-09-02T18:18:00.000Z");
-    expect((embed.footer as { text: string }).text).toBe("FurlPay");
+    expect((embed.footer as { text: string }).text).toBe("FurlPay · Source: CoinGecko");
+  });
+
+  it("states the provider's own timestamp when it has one", () => {
+    const now = new Date("2026-10-02T13:05:00Z");
+    const fresh = buildPriceCardMessage({ ...sample, asOf: "2026-10-02T13:04:30Z" }, "sol.png", now);
+    expect(((fresh.embeds[0] as Record<string, unknown>).footer as { text: string }).text).toBe(
+      "FurlPay · Source: CoinGecko · as of 2026-10-02 13:04 UTC"
+    );
+  });
+
+  it("leads with DELAYED DATA when the provider's price is older than the asset allows", () => {
+    // The September freeze: a card must not present an old number as current.
+    const now = new Date("2026-10-02T13:05:00Z");
+    const coin = buildPriceCardMessage({ ...sample, asOf: "2026-10-02T12:00:00Z" }, "sol.png", now);
+    expect(((coin.embeds[0] as Record<string, unknown>).footer as { text: string }).text).toMatch(
+      /^DELAYED DATA · last update 2026-10-02 12:00 UTC/
+    );
+    // An index keeps Friday's close over a weekend without being "delayed".
+    const index = buildPriceCardMessage(
+      { ...sample, source: "Yahoo Finance", unit: "points", asOf: "2026-10-02T20:00:00Z" },
+      "spx.png",
+      new Date("2026-10-04T13:05:00Z")
+    );
+    expect(((index.embeds[0] as Record<string, unknown>).footer as { text: string }).text).not.toMatch(/DELAYED/);
   });
 
   it("carries the instrument caveat into the footer when there is one", () => {
@@ -164,7 +188,7 @@ describe("the embed", () => {
       "gold.png"
     );
     expect(((gold.embeds[0] as Record<string, unknown>).footer as { text: string }).text)
-      .toBe("FurlPay · Front-month futures, not spot");
+      .toBe("FurlPay · Front-month futures, not spot · Source: CoinGecko");
   });
 
   it("renders dashes for an asset that genuinely has no rank or market cap", () => {

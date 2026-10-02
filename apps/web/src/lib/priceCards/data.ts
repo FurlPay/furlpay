@@ -55,6 +55,12 @@ export interface PriceCardData {
   accent: string;
   /** Where the numbers came from, shown on the card so it can be checked. */
   source: string;
+  /**
+   * The PROVIDER's timestamp for the price (ISO, UTC) — not when the card was
+   * drawn. The message timestamp says when FurlPay last ran; this says how old
+   * the number it ran with was. Null when the provider gave none.
+   */
+  asOf?: string | null;
   /** Set when the quoted instrument is not what the symbol implies. */
   note: string | null;
   /**
@@ -83,6 +89,7 @@ interface CgMarketRow {
   price_change_percentage_24h_in_currency?: number | null;
   price_change_percentage_7d_in_currency?: number | null;
   sparkline_in_7d?: { price?: number[] };
+  last_updated?: string | null;
 }
 
 /**
@@ -162,11 +169,12 @@ async function fetchInstrumentHistory(providerSymbol: string): Promise<{
   high24h: number | null;
   low24h: number | null;
   prevClose: number | null;
+  asOf?: string | null;
 }> {
   const key = `card:hist:${providerSymbol}`;
   const got = await cachedJson<{
     closes: number[]; price: number | null; high24h: number | null;
-    low24h: number | null; prevClose: number | null;
+    low24h: number | null; prevClose: number | null; asOf?: string | null;
   }>(key, TTL_HISTORY, async () => {
     // RETRIED, because this job runs ONCE A DAY. Every coin on a card comes
     // from one batched CoinGecko call, but each instrument is its own request
@@ -208,6 +216,7 @@ async function fetchInstrumentHistory(providerSymbol: string): Promise<{
       const m = r?.meta ?? {};
       return {
         closes,
+        asOf: typeof m.regularMarketTime === "number" ? new Date(m.regularMarketTime * 1000).toISOString() : null,
         price: num(m.regularMarketPrice),
         high24h: num(m.regularMarketDayHigh),
         low24h: num(m.regularMarketDayLow),
@@ -279,6 +288,7 @@ export async function getPriceCardData(
         ),
         accent: spec.accent,
         source: "CoinGecko",
+        asOf: typeof r.last_updated === "string" && !Number.isNaN(Date.parse(r.last_updated)) ? r.last_updated : null,
         note: null,
         unit: "usd",
         sparklineLabel: "7d",
@@ -319,6 +329,7 @@ export async function getPriceCardData(
       sparkline: window,
       accent: spec.accent,
       source: spec.symbol === "XAUUSD" ? "COMEX via Yahoo" : "Yahoo Finance",
+      asOf: h.asOf ?? null,
       // An index is quoted in points; gold is quoted in dollars an ounce.
       unit: isIndex ? "points" : "usd",
       sparklineLabel: "30d",

@@ -45,6 +45,37 @@ export interface CardMessage {
  * references it as attachment://<filename>, which is how Discord renders an
  * uploaded file inside the embed rather than as a separate download.
  */
+/**
+ * How old a provider price may be before the card says so. Coins trade around
+ * the clock, so half an hour is already a stale number. An index or a future
+ * legitimately keeps Friday's close through a weekend and a holiday Monday.
+ */
+const STALE_AFTER_MS = { coin: 30 * 60_000, instrument: 4 * 86_400_000 } as const;
+
+/**
+ * The footer: branding, the instrument caveat, where the number came from and
+ * when the PROVIDER last updated it. If that is older than the asset's
+ * threshold the footer leads with DELAYED DATA, so a card that is drawn from
+ * an old price cannot pass for a current one. Plain text: FurlPay posts carry
+ * no emoji.
+ */
+export function footerText(data: PriceCardData, now: Date): string {
+  const parts = ["FurlPay"];
+  if (data.note) parts.push(data.note);
+  parts.push(`Source: ${data.source}`);
+  const asOfMs = data.asOf ? Date.parse(data.asOf) : NaN;
+  if (Number.isFinite(asOfMs)) {
+    const stamp = new Date(asOfMs).toISOString().slice(0, 16).replace("T", " ") + " UTC";
+    // Coins come from CoinGecko; indices (points) and gold (carries a note)
+    // are exchange instruments with closing hours.
+    const isCoin = data.source === "CoinGecko";
+    const limit = isCoin ? STALE_AFTER_MS.coin : STALE_AFTER_MS.instrument;
+    if (now.getTime() - asOfMs > limit) return `DELAYED DATA · last update ${stamp} · ${parts.join(" · ")}`;
+    parts.push(`as of ${stamp}`);
+  }
+  return parts.join(" · ");
+}
+
 export function buildPriceCardMessage(
   data: PriceCardData,
   filename: string,
@@ -90,7 +121,7 @@ export function buildPriceCardMessage(
           //
           // The instrument note rides here too, for gold, where the symbol and
           // the contract actually quoted are not the same thing.
-          text: data.note ? `FurlPay · ${data.note}` : "FurlPay",
+          text: footerText(data, now),
         },
         // Discord renders this as the reader's local time and keeps it correct
         // when the message is edited hours later. A baked "6:18 PM" is right in
