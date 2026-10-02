@@ -112,6 +112,9 @@ Notes:
 | Serving deployment | apex and www both serve `dpl_E3CRNRPdYGaxPwrJvggf3xVwvGgq` (Sep 8, `extension-redesign@b8394a3`) — VERIFIED |
 | Edge cache | homepage `Age: 2055777` s (~24 days), `X-Vercel-Cache: HIT` — consistent with that deployment |
 | Web Analytics on furlpay.com | **not collecting** (client not in live code) — VERIFIED |
+| Re-check 2026-10-02 evening | production is now `dpl_2EDVoAYPUKsiehge88RFcqQKDr5B` (redeploy 12:22 UTC, `hotfix/token2049-public@30b613c`). That commit has no `@vercel/analytics` dependency and `vercelEvents.ts` is a no-op stub; 0 of the homepage's 12 JS chunks contain the insights loader. The analytics commit `36d4a2f` (preview `dpl_AoeTFLyxf8Mmj7K3JzockK6jJ7Jz`, 1 of 12 chunks carries the loader) is built but **not promoted**. A dashboard showing 1 visitor means preview traffic or the period filter, not a production session — VERIFIED (bundle scan) |
+
+**UTM attribution (added 2026-10-02):** `sanitize.ts` previously dropped every query parameter, which also discarded `utm_*` tags, so campaign links would have arrived as direct traffic even with Web Analytics Plus. The five `utm_*` keys are now kept when their value is a campaign label (`[A-Za-z0-9][A-Za-z0-9._+-]{0,63}`, not identifier-shaped); every other parameter is still dropped. The dashboard's UTM report needs Web Analytics Plus — a billing decision, not a code change.
 
 Domains are in sync with each other and with the production deployment. **The production deployment itself is stale** (see `docs/release/PRODUCTION_READINESS_FINAL.md` and the release blockers below).
 

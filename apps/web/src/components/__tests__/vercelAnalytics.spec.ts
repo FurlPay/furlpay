@@ -36,6 +36,24 @@ describe("sanitizeAnalyticsUrl", () => {
   });
 
   it.each([
+    [
+      "campaign tags kept, everything else dropped",
+      `${O}/?utm_source=linkedin&utm_medium=social&utm_campaign=token2049-sg&code=SECRET`,
+      `${O}/?utm_source=linkedin&utm_medium=social&utm_campaign=token2049-sg`,
+    ],
+    ["all five keys, canonical order", `${O}/x?utm_term=usdc&utm_content=hero&utm_source=nl`,
+      `${O}/x?utm_source=nl&utm_content=hero&utm_term=usdc`],
+    ["email as a utm value is dropped", `${O}/?utm_source=a%40b.com&utm_medium=email`, `${O}/?utm_medium=email`],
+    ["token-shaped utm value is dropped", `${O}/?utm_campaign=AbC123xyz789TOKEN0000q`, `${O}/`],
+    ["free text utm value is dropped", `${O}/?utm_campaign=hello%20world`, `${O}/`],
+    ["over-long utm value is dropped", `${O}/?utm_source=${"a".repeat(65)}`, `${O}/`],
+    ["uppercase key is not a utm key", `${O}/?UTM_SOURCE=x`, `${O}/`],
+    ["utm with a record path still redacts the path", `${O}/support/42?utm_source=nl`, `${O}/support/${REDACTED}?utm_source=nl`],
+  ])("attribution: %s", (_n, input, expected) => {
+    expect(sanitizeAnalyticsUrl(input)).toBe(expected);
+  });
+
+  it.each([
     ["not a URL", "not a url"],
     ["empty", ""],
     ["non-string", 42],

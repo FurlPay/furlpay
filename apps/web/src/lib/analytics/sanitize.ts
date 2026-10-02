@@ -67,5 +67,29 @@ export function sanitizeAnalyticsUrl(raw: unknown): string | null {
     }
   }
   const path = segments.map((s) => (s === REDACTED || !looksLikeIdentifier(s) ? s : REDACTED)).join("/");
-  return `${url.origin}/${path}`;
+  return `${url.origin}/${path}${campaignQuery(url.searchParams)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Campaign attribution — the ONE exception to "drop the query string".
+//
+// Vercel derives UTM attribution from the pageview URL, so stripping every
+// parameter (above) also discarded every campaign tag, and a LinkedIn or
+// newsletter link arrived as direct traffic. Allowed back in: the five utm_*
+// keys only, and only with values shaped like a campaign label. A value that
+// could be anything else — an email someone pasted into a link builder, a
+// token, free text — is dropped, not trimmed. Nothing is persisted on the
+// device: attribution is read from the landing URL by Vercel, not stored here.
+// ---------------------------------------------------------------------------
+const UTM_KEYS = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"] as const;
+const CAMPAIGN_LABEL = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,63}$/;
+
+function campaignQuery(params: URLSearchParams): string {
+  const kept: string[] = [];
+  for (const key of UTM_KEYS) {
+    const value = params.get(key);
+    if (value === null || !CAMPAIGN_LABEL.test(value) || looksLikeIdentifier(value)) continue;
+    kept.push(`${key}=${encodeURIComponent(value)}`);
+  }
+  return kept.length ? `?${kept.join("&")}` : "";
 }
