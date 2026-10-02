@@ -52,8 +52,10 @@ const csp = [
   "img-src 'self' data: blob: https:",
   // XHR/fetch to our own API + integration + market-data / RPC endpoints.
   "connect-src 'self' https: wss:",
-  // Embedded checkout / KYC / sign-in / scheduling surfaces.
-  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com https://app.cal.com",
+  // Embedded checkout / KYC / sign-in / scheduling surfaces. pw-auth.circle.com
+  // is Circle's PIN iframe for user-controlled wallets (/circle-wallet); the
+  // Web SDK hard-codes that origin and checks it on every postMessage.
+  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com https://app.cal.com https://pw-auth.circle.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",
