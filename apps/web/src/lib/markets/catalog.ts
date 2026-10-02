@@ -190,7 +190,9 @@ export const CATALOG: MarketAsset[] = [
   s("SNAP", "Snap Inc.", "Communication", "Social Media", "small"),
   s("ROKU", "Roku Inc.", "Communication", "Streaming Devices", "small"),
   s("WBD", "Warner Bros. Discovery", "Communication", "Entertainment", "mid"),
-  s("EA", "Electronic Arts", "Communication", "Video Games", "mid"),
+  // EA left the catalog 2026-10-02: taken private at $210 cash, delisted from
+  // NASDAQ 2026-08-04. Its last print kept rendering as a live quote for two
+  // months.
   s("TTWO", "Take-Two Interactive", "Communication", "Video Games", "mid"),
 
   // ================== US STOCKS — Consumer Cyclical =====================

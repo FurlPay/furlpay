@@ -56,8 +56,20 @@ export async function GET(req: NextRequest, props: { params: Promise<{ symbol: s
   // entry and relies on the live provider above.
   const curated = bySymbol.get(sym);
   const fallbackQuote = curated ? resolveQuote(quotes, curated) : null;
-  const quote: { price: number | null; changePct: number | null; live: boolean } =
-    real?.price != null
+  // A price is LIVE only if its exchange timestamp is recent. EA kept printing
+  // its 2026-08-04 last trade as `live: true` for two months after it was
+  // delisted, because this checked only that a price existed. Seven days
+  // clears any weekend-plus-holiday closure; a print older than that is a
+  // halted, suspended or delisted security, shown with its date, not as live.
+  const STALE_AFTER_SECONDS = 7 * 86_400;
+  const staleAsOf =
+    real?.marketTime != null && Date.now() / 1000 - real.marketTime > STALE_AFTER_SECONDS
+      ? new Date(real.marketTime * 1000).toISOString()
+      : null;
+  const quote: { price: number | null; changePct: number | null; live: boolean; staleAsOf?: string } =
+    staleAsOf
+      ? { price: real!.price, changePct: null, live: false, staleAsOf }
+      : real?.price != null
       ? // A change needs a previous close. Coalescing a missing one to 0 does
         // not degrade the claim, it replaces it with a different and wrong one:
         // "unchanged today" is a statement about the session, and it is the
@@ -188,7 +200,12 @@ export async function GET(req: NextRequest, props: { params: Promise<{ symbol: s
     stats.high52w != null && stats.low52w != null && quote.price != null && quote.changePct != null
       ? digestFor(
           digestAsset,
-          { price: quote.price, changePct: quote.changePct, live: quote.live },
+          {
+            price: quote.price,
+            changePct: quote.changePct,
+            live: quote.live,
+            ...(quote.staleAsOf ? { staleAsOf: quote.staleAsOf } : {}),
+          },
           {
           marketCap: stats.marketCap ?? 0,
           peRatio: stats.peRatio,
