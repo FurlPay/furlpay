@@ -18,14 +18,14 @@ const FAQ: { section: string; items: { q: string; a: string }[] }[] = [
     section: "Payments",
     items: [
       { q: "Which cryptos are supported?", a: "USDC, SOL, BTC, ETH and 100+ tokens. Travala-routed bookings settle in gasless USDC on Base via x402." },
-      { q: "Is the price locked?", a: "Yes — the exchange rate is locked for 15 minutes at checkout so you're never exposed to volatility." },
+      { q: "Is my price held while I check out?", a: "No. Checkout shows a quote for 15 minutes, and FurlPay's server calculates the amount again when you book; nothing is held with the hotel or airline during that time. If the quote expires, refresh it before paying." },
       { q: "How does refund work?", a: "Crypto bookings refund in USDC to your wallet; virtual-card bookings refund to your FurlPay balance." },
     ],
   },
   {
     section: "Rewards",
     items: [
-      { q: "How does cashback work?", a: "Earn 2–7% cashback in USDC based on your tier, auto-deposited after your trip completes." },
+      { q: "How does cashback work?", a: "Earn 2–7% cashback in USDC based on your tier, credited after your trip completes, once travel rewards launch (not live yet)." },
       { q: "How do gift cards work?", a: "Buy with crypto, deliver instantly by email, and redeem for travel credit. Gift cards never expire." },
     ],
   },

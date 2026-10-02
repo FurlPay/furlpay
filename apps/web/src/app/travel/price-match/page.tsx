@@ -4,9 +4,9 @@ import { BadgeCheck, Coins, Link2, Timer, ShieldCheck, ArrowLeft, ArrowRight } f
 import { Pill } from "@/components/ui";
 
 export const metadata: Metadata = {
-  title: "Price Match Guarantee — USDC cash, not credit | FurlPay Travels",
+  title: "Price match (coming soon) — USDC cash, not credit | FurlPay Travels",
   description:
-    "Find the same room or flight cheaper within 24 hours of booking and we refund the difference in USDC — straight to your wallet, no expiring platform credit.",
+    "Planned and not yet available: find the same room or flight cheaper within 24 hours of booking and the difference is paid in USDC, not expiring platform credit.",
 };
 
 const STEPS = [
@@ -56,11 +56,18 @@ export default function PriceMatchPage() {
       </Link>
 
       <div className="mb-3 flex items-center gap-2">
-        <Pill tone="accent">Price Match Guarantee</Pill>
+        <Pill tone="accent">Coming soon</Pill>
         <span className="text-xs text-textSecondary">Cash, not credit</span>
       </div>
+      {/* No price-match claim flow, payout or refund path exists in the code
+          (no API, no My Trips entry). Until it does, this page describes a
+          planned programme and says so first; it is not an active guarantee. */}
+      <p role="note" className="mb-4 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-[13px] text-textSecondary">
+        Price matching is not available yet. Nothing on this page is an active guarantee, and no claim
+        can be submitted today. It describes how the programme is planned to work.
+      </p>
       <h1 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
-        Found it cheaper? <span className="text-neon">We refund the difference in USDC.</span>
+        Found it cheaper? <span className="text-neon">The difference, paid in USDC.</span>
       </h1>
       <p className="mt-3 max-w-2xl text-sm text-textSecondary">
         Most platforms &quot;match&quot; prices with wallet credit that expires in a year and takes a support

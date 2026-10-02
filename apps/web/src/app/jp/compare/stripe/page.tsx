@@ -42,7 +42,7 @@ export default function Page() {
       analysis={[
         { title: "Different rails for different jobs", body: "Stripe is unmatched for accepting Japanese cards, wallets, konbini and bank payments, with mature tooling. Furlpay isn't trying to replace that everywhere — it's the better rail when your customer can pay in USDC and you want to keep 0.5% instead of card interchange plus FX, especially on inbound international bookings." },
         { title: "Inbound is where it counts", body: "Japanese hotels, ryokans and airlines take a large share of the country's 40M+ inbound visitors, where cards add FX and higher interchange. USDC is dollar-stable and borderless, so inbound cross-border is exactly where the 0.5% flat rate saves the most." },
-        { title: "Finality and cash flow", body: "Card payments settle over days and can be charged back. USDC on Arbitrum settles in about a second, is final, and has no rolling reserve — better cash flow and no dispute fees." },
+        { title: "Finality and cash flow", body: "Card payments settle over days and can be charged back. USDC on Arbitrum is confirmed within seconds, cannot be charged back, and has no rolling reserve — better cash flow and no dispute fees." },
         { title: "Use both", body: "Most Japanese businesses keep Stripe for cards and add Furlpay for USDC — offering customers a cheaper option and capturing crypto-native inbound demand without changing their existing checkout." },
       ]}
       faq={[

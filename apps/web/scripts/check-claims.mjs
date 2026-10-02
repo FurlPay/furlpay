@@ -38,7 +38,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(fileURLToPath(new URL(".", import.meta.url)), "..");
 
-const SCAN_DIRS = ["src/app", "src/components/marketing", "src/components/landing"];
+// src/lib/travel holds the travel guides (lib/travel/guides.ts): published
+// prose, so it is held to the same rules as a page.
+const SCAN_DIRS = ["src/app", "src/components/marketing", "src/components/landing", "src/lib/travel"];
 
 // Paths under SCAN_DIRS that are exempt, each with the reason.
 const EXCLUDE = [
@@ -54,6 +56,9 @@ const EXCLUDE = [
   // API route handlers are not prose. Their honesty is enforced by tests and
   // by fail-closed guards, not by phrase matching.
   "src/app/api",
+  // Development-only seed bookings (bookOf seeds them only when NODE_ENV is not
+  // production; travelSeed.spec.ts pins that). Fixture data, not copy.
+  "src/lib/travel/store.ts",
 ];
 
 const QUALIFIER_WINDOW = 320;
@@ -107,6 +112,27 @@ const RULES = [
   { id: "mobile", phrases: ["download on the app store", "get it on google play", "available on the app store", "available on google play"] },
   { id: "desktop", phrases: ["desktop client", "download the desktop app"] },
   { id: "settlement", phrases: ["we settle your payments", "funds settle to your account", "settlement is live"] },
+  // Added 2026-10-01 (PRODUCTION_READINESS_FINAL §14). Travel checkout shows a
+  // client-side quote timer; no provider holds a rate. Duffel production holds
+  // a test key. No price-match flow, payout or refund path exists. Nothing in
+  // the booking path enforces KYC or the Travel Rule, and travel checkout takes
+  // no card details.
+  { id: "rate-lock", phrases: ["rate lock", "rate-lock", "price lock", "price is locked", "price guarantee", "exchange rate is locked", "quote is guaranteed", "guaranteed for 15 minutes"] },
+  { id: "airline-coverage", phrases: ["300+ airlines", "live fares from"] },
+  { id: "price-match", phrases: ["price match guarantee", "refund the difference", "refunds the difference"] },
+  // Added 2026-10-02. PCI DSS scope is a determination for a formal assessment,
+  // not marketing copy; "no card data in the flow" is the factual statement.
+  { id: "pci-scope", phrases: ["no pci scope", "lowest pci bracket", "pci compliant", "pci dss compliant", "pci-compliant"] },
+  // An Arbitrum transfer is sequencer-confirmed in seconds; settlement to
+  // Ethereum takes longer. "Final in a second" overstates it.
+  { id: "finality", phrases: ["instant confirmation", "settles in about a second", "finalises on arbitrum in about a second", "finalizes on arbitrum in about a second", "tickets confirm immediately"] },
+  // Travel rewards are not live (REWARDS_LIVE unimplemented; claims 503), so
+  // nothing is deposited automatically.
+  { id: "cashback-auto", phrases: ["auto-deposited", "auto-depositing", "deposited automatically"] },
+  // Gift cards: no purchase, delivery, storage or ledger credit exists
+  // (api/travel/gift-cards is development-only).
+  { id: "gift-cards", phrases: ["instant email delivery", "delivered instantly", "travel credit added", "redeemable across furlpay"] },
+  { id: "travel-compliance", phrases: ["travel rule & kyc compliant", "travel rule &amp; kyc compliant", "kyc enforced over", "pci dss card handling"] },
 ];
 
 function walk(dir, out = []) {
@@ -171,8 +197,14 @@ function qualified(haystack, index, length) {
 
 const violations = [];
 
-for (const dir of SCAN_DIRS) {
-  for (const file of walk(join(ROOT, dir))) {
+// --scan-only <absolute dir>: lint just that directory with the same rules.
+// Used by the linter's own tests (a fixture with a known claim must fail);
+// the build never passes it.
+const scanOnlyAt = process.argv.indexOf("--scan-only");
+const scanRoots = scanOnlyAt !== -1 ? [process.argv[scanOnlyAt + 1]] : SCAN_DIRS.map((d) => join(ROOT, d));
+
+for (const root of scanRoots) {
+  for (const file of walk(root)) {
     const rel = relative(ROOT, file);
     if (isExcluded(rel)) continue;
     const source = readFileSync(file, "utf8");

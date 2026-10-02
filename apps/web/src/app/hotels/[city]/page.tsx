@@ -37,7 +37,7 @@ export default async function CityHotelsPage(props: { params: Promise<{ city: st
   const FAQ = [
     {
       q: `Can I pay for a hotel with crypto in ${c.name}?`,
-      a: `Yes. Hotels in ${c.name} that use Furlpay let you pay in USDC on Arbitrum — dollar-stable digital currency — from a passkey wallet. The payment settles in about a second and the hotel receives a signed receipt. ${c.context}`,
+      a: `Yes. Hotels in ${c.name} that use Furlpay let you pay in USDC on Arbitrum — dollar-stable digital currency — from a passkey wallet. The payment is confirmed on Arbitrum within seconds and the hotel receives a signed receipt. ${c.context}`,
     },
     {
       q: `How do ${c.name} hotels benefit from accepting USDC?`,

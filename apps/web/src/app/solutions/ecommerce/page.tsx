@@ -29,7 +29,7 @@ export const metadata: Metadata = {
 };
 
 const FEATURES = [
-  { title: "Drop-in checkout", body: "Add a checkout link or embed to any store — Shopify, WooCommerce, or a custom cart — with no PCI scope." },
+  { title: "Drop-in checkout", body: "Add a checkout link or embed to any store — Shopify, WooCommerce, or a custom cart — with no card form or card data in the flow." },
   { title: "0.5%, no chargebacks", body: "Replace 2.9–3.5% card fees with 0.5% flat, and eliminate chargeback fraud and dispute fees entirely." },
   { title: "Global by default", body: "USDC is borderless and dollar-stable, so you sell internationally without FX markups or declined foreign cards." },
   { title: "Instant settlement", body: "Funds arrive in about a second with no rolling reserve, improving cash flow versus card payouts." },
@@ -40,7 +40,7 @@ const FEATURES = [
 const FAQ = [
   {
     q: "How do I add crypto payments to my e-commerce store?",
-    a: "Add a Furlpay hosted checkout link or embed to your store and customers pay in USDC on Arbitrum. There is no PCI scope and no card form; you settle for 0.5% with signed receipts for each order.",
+    a: "Add a Furlpay hosted checkout link or embed to your store and customers pay in USDC on Arbitrum. There is no card form and no card data in the flow; you settle for 0.5% with signed receipts for each order.",
   },
   {
     q: "Can I accept USDC on Shopify or WooCommerce?",
@@ -79,7 +79,7 @@ export default function EcommercePage() {
         <p className="mt-8 max-w-2xl rounded-xl border border-white/10 bg-white/[0.02] p-5 text-[15px] leading-relaxed text-textSecondary">
           Add a Furlpay hosted checkout to your store and customers pay in{" "}
           <strong className="text-white">USDC on Arbitrum</strong>. You settle for{" "}
-          <strong className="text-white">0.5%</strong> with no chargebacks and no PCI scope — a
+          <strong className="text-white">0.5%</strong> with no chargebacks and no card data in the flow — a
           drop-in for Shopify, WooCommerce, or a custom cart.
         </p>
 

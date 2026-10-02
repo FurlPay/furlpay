@@ -6,7 +6,7 @@ import { Pill } from "@/components/ui";
 import { CITY_PHOTOS, type Activity } from "@/lib/travel/data";
 
 export default function ActivityCard({ activity }: { activity: Activity }) {
-  const href = `/travel/checkout?ref=${activity.id}&name=${encodeURIComponent(activity.title)}&amount=${activity.priceUsd}&nights=1`;
+  const href = `/travel/checkout?kind=activity&ref=${activity.id}&name=${encodeURIComponent(activity.title)}&amount=${activity.priceUsd}&nights=1`;
   const photo = CITY_PHOTOS[activity.city];
   return (
     <div className="group overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/20">

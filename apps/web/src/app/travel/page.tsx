@@ -32,7 +32,7 @@ const STEPS = [
   { Icon: Search, title: "Search", body: "Search stays, flights, cars and activities — book and pay in crypto." },
   { Icon: CalendarCheck, title: "Book", body: "Pick your room, flight or car and add traveler info." },
   { Icon: Coins, title: "Pay", body: "Pay with USDC, SOL or 100+ cryptos. Instant settlement." },
-  { Icon: Wallet, title: "Earn", body: "Get 2% cashback in USDC, auto-deposited to your wallet." },
+  { Icon: Wallet, title: "Earn", body: "2% cashback in USDC once travel rewards launch (not live yet)." },
   { Icon: Plane, title: "Travel", body: "Receive your confirmation and e-ticket instantly." },
 ];
 
@@ -256,9 +256,9 @@ export default function TravelHubPage() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { href: "/travel/alerts", Icon: Sparkles, tint: "text-cyan-400 bg-cyan-400/10", title: "Price Alerts", body: "Name your price — auto-book on the dip." },
-            { href: "/travel/price-match", Icon: Coins, tint: "text-green-400 bg-green-400/10", title: "Price Match", body: "Found it cheaper? Refund in USDC cash." },
+            { href: "/travel/price-match", Icon: Coins, tint: "text-green-400 bg-green-400/10", title: "Price Match", body: "Coming soon: not available yet." },
             { href: "/travel/rewards", Icon: Trophy, tint: "text-amber-400 bg-amber-400/10", title: "Travel Rewards", body: "2–7% USDC cashback, four tiers." },
-            { href: "/travel/gift-cards", Icon: Gift, tint: "text-rose-400 bg-rose-400/10", title: "Gift Cards", body: "$25–$500, instant email delivery." },
+            { href: "/travel/gift-cards", Icon: Gift, tint: "text-rose-400 bg-rose-400/10", title: "Gift Cards", body: "Coming soon: not available yet." },
             { href: "/travel/refer", Icon: Users, tint: "text-sky-400 bg-sky-400/10", title: "Invite & Earn", body: "$25 per referral in travel credits." },
             { href: "/travel/business", Icon: Building2, tint: "text-violet-400 bg-violet-400/10", title: "Business Travel", body: "Team wallets, VCNs & policies." },
             { href: "/travel/itineraries", Icon: Map, tint: "text-orange-400 bg-orange-400/10", title: "Bookable Itineraries", body: "Day-by-day plans you can book." },
@@ -267,7 +267,7 @@ export default function TravelHubPage() {
             { href: "/travel/guides", Icon: BookOpen, tint: "text-emerald-400 bg-emerald-400/10", title: "Travel Guides", body: "Tips, tutorials & destination guides." },
             { href: "/travel/my-trips", Icon: Luggage, tint: "text-teal-400 bg-teal-400/10", title: "My Trips", body: "Upcoming, past & cancelled bookings." },
             { href: "/travel/crypto-travel", Icon: Coins, tint: "text-yellow-400 bg-yellow-400/10", title: "Crypto Travel 101", body: "How paying with crypto works." },
-            { href: "/travel/help", Icon: MessageCircleQuestion, tint: "text-fuchsia-400 bg-fuchsia-400/10", title: "Help & FAQ", body: "Bookings, refunds & rate locks." },
+            { href: "/travel/help", Icon: MessageCircleQuestion, tint: "text-fuchsia-400 bg-fuchsia-400/10", title: "Help & FAQ", body: "Bookings, refunds & checkout quotes." },
           ].map((l) => (
             <Link
               key={l.href}

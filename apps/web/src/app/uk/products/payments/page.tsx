@@ -36,7 +36,7 @@ export default function UkPaymentsPage() {
         { title: "No FX on overseas customers", body: "USDC is dollar-stable and borderless, so you avoid currency-conversion costs and declined foreign cards at the checkout." },
         { title: "Sub-second settlement", body: "Payments finalise on Arbitrum in about a second, not two to four working days, with no rolling reserve held against your balance." },
         { title: "No chargebacks", body: "On-chain payments are final, so you avoid chargeback fraud and dispute fees. You issue refunds deliberately through the API." },
-        { title: "Runs beside your stack", body: "Add a hosted checkout or the API alongside your existing processor — no rip-and-replace, no PCI card form." },
+        { title: "Runs beside your stack", body: "Add a hosted checkout or the API alongside your existing processor — no rip-and-replace, no card form." },
         { title: "Open-source SDKs", body: "TypeScript, Python and Rust SDKs, plus webhooks, so your team can integrate and reconcile programmatically." },
       ]}
       crumbs={[

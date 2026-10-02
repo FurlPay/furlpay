@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ShieldCheck, Lock, Timer, BadgeCheck } from "lucide-react";
+import { Calculator, FileText, ShieldCheck } from "lucide-react";
 import TravelNav from "@/components/travel/TravelNav";
 
 export const metadata = {
@@ -70,20 +70,22 @@ export default function TravelLayout({ children }: { children: React.ReactNode }
       <main>{children}</main>
 
       <footer className="border-t border-white/5">
-        {/* Trust signals — calm, factual, near every exit point (2026 fintech UX) */}
+        {/* Trust signals: only statements this code supports. Removed on
+            2026-10-01 because nothing substantiated them: "PCI DSS card handling
+            via Stripe" (travel checkout takes no card details and does not use
+            Stripe), "15-minute rate lock" (the checkout timer is a client-side
+            quote timer; no provider rate is held) and "Travel Rule & KYC
+            compliant" (a compliance status the booking path does not enforce). */}
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-8 gap-y-3 px-5 py-6 text-[12px] text-textSecondary">
           <span className="flex items-center gap-1.5">
-            <ShieldCheck className="h-4 w-4 text-neon" /> Secured by FurlPay
+            <ShieldCheck className="h-4 w-4 text-neon" aria-hidden /> Secured by FurlPay
           </span>
           <span className="flex items-center gap-1.5">
-            <Lock className="h-4 w-4 text-neon" /> PCI DSS card handling via Stripe
+            <Calculator className="h-4 w-4 text-neon" aria-hidden /> Prices calculated by FurlPay&apos;s server
           </span>
-          <span className="flex items-center gap-1.5">
-            <Timer className="h-4 w-4 text-neon" /> 15-minute rate lock at checkout
-          </span>
-          <span className="flex items-center gap-1.5">
-            <BadgeCheck className="h-4 w-4 text-neon" /> Travel Rule &amp; KYC compliant
-          </span>
+          <Link href="/legal/travel-rule" className="flex items-center gap-1.5 hover:text-white">
+            <FileText className="h-4 w-4 text-neon" aria-hidden /> Travel Rule policy
+          </Link>
         </div>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-white/5 px-5 py-6 text-[12px] text-textMuted">
           <span>© 2026 Furlpay. All rights reserved.</span>

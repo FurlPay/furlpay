@@ -109,7 +109,7 @@ export async function POST(request: Request) {
       <UL>
         <LI>
           <b>Zero card custody:</b> with Elements, your servers never touch card details or wallet private
-          keys — keeping Furlpay in the lowest PCI bracket (SAQ-A).
+          keys — designed to keep card data out of Furlpay&apos;s systems. Which PCI DSS self-assessment applies is a determination for a formal assessment, not this page.
         </LI>
         <LI>
           <b>Travel Rule:</b> for transactions over $1,000, Stripe/Bridge injects sender/receiver identity

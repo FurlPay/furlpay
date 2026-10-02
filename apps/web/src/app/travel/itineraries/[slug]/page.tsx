@@ -96,7 +96,7 @@ export default async function ItineraryPage(props: { params: Promise<{ slug: str
       <div className="mt-10 rounded-card border border-white/10 bg-gradient-to-br from-sky-500/[0.12] via-charcoal to-teal-500/[0.10] p-6 text-center">
         <h2 className="text-xl font-bold text-white">Book this whole trip with USDC</h2>
         <p className="mx-auto mt-1 max-w-md text-xs text-textSecondary">
-          ~${it.budgetUsd} per person · 15-minute rate lock at checkout · +{cashback} USDC cashback auto-deposited.
+          ~${it.budgetUsd} per person · 15-minute checkout quote · +{cashback} USDC cashback once travel rewards launch (not live yet).
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
           <Link href={stayUrl} className="inline-flex items-center gap-1 rounded-lg bg-neon px-5 py-2.5 text-sm font-bold text-black transition hover:bg-neonDeep">

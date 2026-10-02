@@ -297,8 +297,8 @@ export default async function DestinationOrCategoryPage(props: { params: Promise
       <section className="mt-12 rounded-card border border-white/10 bg-gradient-to-br from-sky-500/[0.12] via-charcoal to-teal-500/[0.10] p-6 text-center sm:p-8">
         <h2 className="text-2xl font-bold text-white">Book your trip to {d.name} with USDC</h2>
         <p className="mx-auto mt-2 max-w-md text-sm text-textSecondary">
-          Pay with USDC, SOL, BTC or 100+ tokens. 15-minute rate lock at checkout, 2% cashback auto-deposited to your
-          wallet.
+          Pay with USDC, SOL, BTC or 100+ tokens. A 15-minute checkout quote, and 2% cashback once travel rewards
+          launch (not live yet).
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           <Link

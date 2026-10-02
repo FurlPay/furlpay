@@ -10,7 +10,7 @@ export const metadata = {
 const STEPS = [
   "Book any stay, flight, car, or activity.",
   "Complete your trip.",
-  "2–7% cashback auto-deposited to your FurlPay wallet in USDC.",
+  "2–7% cashback in USDC to your FurlPay wallet (planned; travel rewards are not live yet).",
   "Use rewards for future bookings or withdraw to an external wallet.",
 ];
 
@@ -23,7 +23,7 @@ export default function RewardsPage() {
       </div>
       <h1 className="mt-3 text-3xl font-bold text-white">Earn crypto on every trip.</h1>
       <p className="mt-2 max-w-xl text-sm text-textSecondary">
-        Cashback in USDC, auto-deposited to your wallet. The more you book, the higher your tier — up to 7% back.
+        Cashback in USDC, credited to your wallet once travel rewards launch (not live yet). The more you book, the higher your tier — up to 7% back.
       </p>
 
       <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">

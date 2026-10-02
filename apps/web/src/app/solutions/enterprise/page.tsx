@@ -47,7 +47,7 @@ export default function EnterpriseSolutionPage() {
         { title: "Proven rails", body: "Arbitrum is where Mastercard brought 24/7 stablecoin settlement and Robinhood built its chain." },
       ]}
       faq={[
-        { q: "What is enterprise stablecoin settlement?", a: "It is moving funds between businesses in a dollar-pegged stablecoin like USDC instead of via wires or card rails. On Arbitrum it settles in about a second, 24/7, for a fraction of a cent of gas, with compliance screening applied to each transfer." },
+        { q: "What is enterprise stablecoin settlement?", a: "It is moving funds between businesses in a dollar-pegged stablecoin like USDC instead of via wires or card rails. On Arbitrum it is confirmed within seconds, 24/7, for a fraction of a cent of gas, with compliance screening applied to each transfer." },
         { q: "How does Furlpay handle compliance at enterprise scale?", a: "Sanctions screening runs on both sides of every settlement, Travel Rule information is supported where required, and each transfer produces a signed, Arbiscan-verifiable receipt so audit and reconciliation are straightforward." },
         { q: "Why Arbitrum for enterprise settlement?", a: "Arbitrum is a mature Ethereum Layer 2 with sub-second finality and sub-cent gas, and it is where major institutions have moved: Mastercard runs 24/7 stablecoin settlement on it and Robinhood built its chain on Arbitrum Orbit." },
       ]}

@@ -30,7 +30,7 @@ export default function TravelsMcpPage() {
       <DepGraph
         caption="Search (Duffel live flights + Travala hotels) → trust gate (agent-trust mandates) → pay (x402/USDC on Base, or single-use Visa VCN) → book."
         layers={[
-          { label: "1 · Search", nodes: [{ name: "Duffel", sub: "live NDC/GDS/LCC · 300+ airlines" }, { name: "Travala", sub: "2.2M+ hotels · crypto-native" }] },
+          { label: "1 · Search", nodes: [{ name: "Duffel", sub: "NDC/GDS/LCC · production key not configured yet" }, { name: "Travala", sub: "2.2M+ hotels · crypto-native" }] },
           { label: "2 · Trust", accent: true, nodes: [{ name: "MandateVerifier", sub: "@furlpay/agent-trust booking token" }] },
           { label: "3 · Pay", nodes: [{ name: "x402 / USDC on Base", sub: "≈$0.01 · 10% cbBTC rebate" }, { name: "Visa VCN", sub: "single-use · MCC-locked" }] },
           { label: "4 · Book", nodes: [{ name: "confirm / cancel", sub: "passkey step-up in a real flow" }] },
@@ -122,7 +122,7 @@ const booking = await travel.authorizeBooking({
       <UL>
         <LI>Amadeus <b>Self-Service portal shut down July 17, 2026</b> — self-service keys are dead; Enterprise only.</LI>
         <LI>Kiwi&apos;s Tequila API is <b>closed to new partners</b>; Expedia Rapid and Booking.com Demand gate access behind case-by-case commercial review.</LI>
-        <LI>Duffel is the one top-tier supplier that is genuinely self-serve: free-forever test mode, transparent ~$3/order production pricing, NDC + GDS + LCC content from 300+ airlines, plus brand-compliant SVG airline logos in every offer (<Code>owner.logo_symbol_url</Code>).</LI>
+        <LI>Duffel is the one top-tier supplier that is genuinely self-serve: free-forever test mode, transparent ~$3/order production pricing, NDC + GDS + LCC content from 300+ airlines (FurlPay&apos;s production Duffel key is not configured yet, so none of it is live here), plus brand-compliant SVG airline logos in every offer (<Code>owner.logo_symbol_url</Code>).</LI>
       </UL>
       <P>
         The Furlpay web app uses the same integration: <Code>POST /api/travel/search</Code> returns{" "}

@@ -7,7 +7,7 @@ import type { CarRental } from "@/lib/travel/data";
 
 export default function CarRentalCard({ car, days }: { car: CarRental; days: number }) {
   const total = Math.round(car.dailyUsd * days * 100) / 100;
-  const href = `/travel/checkout?ref=${car.id}&name=${encodeURIComponent(`${car.make} ${car.model} · ${car.supplier}`)}&amount=${total}&nights=${days}`;
+  const href = `/travel/checkout?kind=car&ref=${car.id}&name=${encodeURIComponent(`${car.make} ${car.model} · ${car.supplier}`)}&amount=${total}&nights=${days}`;
   return (
     <div className="overflow-hidden rounded-card border border-white/10 bg-charcoal transition hover:border-white/20">
       <div className={`relative h-32 bg-gradient-to-br ${car.image}`}>

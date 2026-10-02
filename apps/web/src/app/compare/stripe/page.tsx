@@ -52,7 +52,7 @@ export default function Page() {
       ]}
       analysis={[
         { title: "Different rails for different jobs", body: "Stripe is unmatched for accepting cards, wallets, and local fiat methods worldwide, with mature dashboards and tooling. Furlpay isn't trying to replace that everywhere — it's the better rail when your customer can pay in USDC and you want to keep 0.5% instead of ~3%." },
-        { title: "Cost and finality", body: "Card payments cost about 2.9% + 30¢, settle in days, and can be charged back. USDC on Arbitrum settles in about a second, is final, and costs 0.5% — meaningful for high-volume, low-margin, or cross-border businesses." },
+        { title: "Cost and finality", body: "Card payments cost about 2.9% + 30¢, settle in days, and can be charged back. USDC on Arbitrum is confirmed within seconds, cannot be charged back, and costs 0.5% — meaningful for high-volume, low-margin, or cross-border businesses." },
         { title: "Agentic payments", body: "Furlpay's x402 facilitator lets AI agents pay per request in USDC. Stripe has no equivalent machine-to-machine, pay-per-call protocol." },
         { title: "Use both", body: "Many businesses keep Stripe for cards and add Furlpay for USDC and agent payments — offering customers a cheaper option and capturing crypto-native demand without ripping out existing checkout." },
       ]}

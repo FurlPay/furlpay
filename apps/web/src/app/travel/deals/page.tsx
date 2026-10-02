@@ -114,7 +114,7 @@ export default function DealsPage() {
                         <p className="pb-0.5 text-[11px] text-textSecondary">/night</p>
                       </div>
                       <p className="mt-2 text-[11px] font-semibold text-emerald-400">
-                        + 2% back in USDC · rate locks for 15:00 at checkout
+                        + 2% back in USDC · 15-minute checkout quote
                       </p>
                     </div>
                   </Link>

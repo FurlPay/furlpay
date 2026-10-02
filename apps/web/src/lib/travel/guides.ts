@@ -74,9 +74,9 @@ export const GUIDES: Guide[] = [
         ],
       },
       {
-        h2: "Rate locks, refunds and the Travel Rule",
+        h2: "Quotes, refunds and the Travel Rule",
         paragraphs: [
-          "Every checkout locks its quote for 15 minutes. Cancellations follow the property's policy and refund to your original payment method or balance. For crypto payments over $1,000, FurlPay collects Travel Rule originator information at checkout — a one-time form that takes under a minute.",
+          "Checkout shows a quote for 15 minutes, and FurlPay's server calculates the amount again when you book. Cancellations follow the property's policy. Travel Rule information collection for larger crypto payments is planned and not yet part of checkout.",
         ],
       },
     ],
@@ -87,7 +87,7 @@ export const GUIDES: Guide[] = [
     title: "How to Book Flights with USDC — Step by Step",
     category: "Tutorials",
    
-    excerpt: "From search to boarding pass in five steps, with a 15-minute rate lock so turbulence stays in the air, not your checkout.",
+    excerpt: "From search to boarding pass in five steps, with a 15-minute checkout quote that is re-checked when you book.",
     readMins: 4,
     date: "2026-06-28",
     sections: [
@@ -103,14 +103,14 @@ export const GUIDES: Guide[] = [
           "1. Search — enter route, dates and cabin on /travel/flights.",
           "2. Compare — every fare shows USD and live USDC/SOL equivalents plus your cashback.",
           "3. Select — traveler details autofill from your FurlPay profile.",
-          "4. Pay — connect a wallet or use balance; the rate locks for 15 minutes.",
+          "4. Pay — connect a wallet or use balance; the quote is shown for 15 minutes and re-checked when you book.",
           "5. Fly — e-ticket lands in your email and /travel/my-trips instantly, with the tx hash linked to Solscan or Basescan.",
         ],
       },
       {
         h2: "What if the price moves mid-checkout?",
         paragraphs: [
-          "It can't — that's the point of the rate lock. The USDC amount quoted when you enter checkout is guaranteed for 15 minutes. If the timer expires, you get a fresh quote before anything is charged. No surprise slippage, ever.",
+          "Checkout shows a quote for 15 minutes. FurlPay's server calculates the amount again when you book, so what you are charged is the server's figure, not a number held in your browser. If the quote expires, you refresh it before paying. Nothing is held with the airline or hotel during those 15 minutes.",
         ],
       },
     ],
@@ -184,7 +184,7 @@ export const GUIDES: Guide[] = [
         bullets: [
           "Pay in local currency when a terminal offers a choice (skip DCC markups)",
           "Use eSIMs over airport SIM stands — pay for them in USDC",
-          "Keep cashback auto-depositing; it compounds over a long trip",
+          "Cashback (once travel rewards launch) compounds over a long trip",
           "Screenshot booking confirmations for border officials",
           "Check tx hashes on Solscan if a merchant claims non-payment",
           "Revoke any agent session keys you're not actively using",
@@ -330,7 +330,7 @@ export const GUIDES: Guide[] = [
         h2: "Step 3 — Turn on auto-book (the part nobody else has)",
         paragraphs: [
           "With auto-book enabled, hitting your target doesn't send you a notification to race — it settles the booking from your USDC balance instantly, using your saved traveler profile and a spending cap you approved once. Fare dips last minutes; wallets settle in seconds. That's the whole edge.",
-          "And if the price drops again after you've booked? The Price Match Guarantee refunds the difference in USDC cash — so booking early never punishes you.",
+          "Price matching after you book is planned and not available yet.",
         ],
       },
     ],

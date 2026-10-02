@@ -859,7 +859,7 @@ const RAW_DESTINATIONS: Array<Omit<Destination, "photo">> = [
     gradient: "from-violet-500/40 to-fuchsia-700/40", heroEmoji: "🗽",
     bestTime: "Apr–Jun · Sep–Nov", avgHotelUsd: 290, avgFlightUsd: 520,
     visa: "ESTA required (VWP passports)", currency: "USD · $",
-    overview: "Broadway, bagels and the best skyline on earth. Tap your FurlPay card straight onto the subway turnstile — OMNY caps your weekly fare automatically.",
+    overview: "Broadway, bagels and the best skyline on earth. Tap any contactless card straight onto the subway turnstile — OMNY caps your weekly fare automatically.",
     tips: ["OMNY fare-caps after 12 rides/week", "Walk the High Line at golden hour", "Museum 'pay-what-you-wish' hours save $$", "Dollar slices > tourist-trap pizza"],
     weather: [4, 5, 9, 16, 21, 26, 29, 28, 24, 18, 12, 6],
   },

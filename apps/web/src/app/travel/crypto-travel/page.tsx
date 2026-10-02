@@ -3,7 +3,7 @@ import { ChevronLeft, Coins, ShieldCheck, Lock, Bot } from "lucide-react";
 
 export const metadata = {
   title: "How to Pay for Travel with Crypto — FurlPay Travels",
-  description: "Book hotels, flights, cars and activities with USDC, SOL, BTC and 100+ tokens. Instant settlement, 15-minute rate lock, and 2% cashback.",
+  description: "Book hotels, flights, cars and activities with USDC, SOL, BTC and 100+ tokens. A 15-minute checkout quote and 2% cashback.",
 };
 
 const TOKENS = ["USDC", "USDT", "SOL", "BTC", "ETH", "cbBTC", "USDG", "PYUSD", "+ 100 more"];
@@ -11,9 +11,9 @@ const TOKENS = ["USDC", "USDT", "SOL", "BTC", "ETH", "cbBTC", "USDG", "PYUSD", "
 const STEPS = [
   { t: "Search & select", b: "Find a stay, flight, car or activity." },
   { t: "Choose crypto at checkout", b: "Pick USDC, SOL, BTC — or connect Phantom / Coinbase Wallet." },
-  { t: "Rate locks for 15 minutes", b: "Your price is fixed while you confirm — no volatility risk." },
+  { t: "A 15-minute quote", b: "Checkout shows a quote for 15 minutes; FurlPay's server re-prices it when you book." },
   { t: "Instant settlement", b: "Gasless USDC on Base via x402 settles in seconds (~$0.01 fee)." },
-  { t: "Earn 2% cashback", b: "Cashback in USDC is auto-deposited to your FurlPay wallet." },
+  { t: "Earn 2% cashback", b: "Cashback in USDC is credited to your FurlPay wallet once travel rewards launch (not live yet)." },
 ];
 
 export default function CryptoTravelPage() {
@@ -30,7 +30,7 @@ export default function CryptoTravelPage() {
       <h1 className="mt-3 text-3xl font-bold text-white">Pay for travel with stablecoins.</h1>
       <p className="mt-2 text-sm text-textSecondary">
         No cards, no borders, no chargebacks. Book the world with USDC, SOL, BTC and 100+ tokens — settled instantly
-        on-chain and backed by a 15-minute rate lock.
+        on-chain, with a 15-minute checkout quote that the server re-checks when you book.
       </p>
 
       <div className="mt-5 flex flex-wrap gap-2">
@@ -58,7 +58,7 @@ export default function CryptoTravelPage() {
 
       <div className="mt-6 grid gap-3 sm:grid-cols-3">
         {[
-          { Icon: Lock, t: "Rate lock", b: "15-minute price guarantee." },
+          { Icon: Lock, t: "Checkout quote", b: "Shown for 15 minutes, re-checked at booking." },
           { Icon: ShieldCheck, t: "Protected", b: "Travel Rule & KYC over $1,000." },
           { Icon: Bot, t: "Agent-ready", b: "AI agents can book via x402." },
         ].map((f) => (

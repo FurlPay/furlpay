@@ -41,7 +41,7 @@ export default function Page() {
       analysis={[
         { title: "Cross-border is Dubai's default", body: "Dubai's customers are overwhelmingly international, where cards add FX and higher interchange. USDC is dollar-stable and borderless, so cross-border — Dubai's norm — is exactly where a flat 0.5% saves the most." },
         { title: "Different rails for different jobs", body: "Stripe is excellent for accepting cards and wallets, with mature tooling. Furlpay isn't trying to replace that everywhere — it's the better rail when your customer can pay in USDC and you want 0.5% instead of card interchange plus FX." },
-        { title: "Finality and cash flow", body: "Card payments settle in days and can be charged back. USDC on Arbitrum settles in about a second, is final, and has no rolling reserve — better cash flow and no dispute fees." },
+        { title: "Finality and cash flow", body: "Card payments settle in days and can be charged back. USDC on Arbitrum is confirmed within seconds, cannot be charged back, and has no rolling reserve — better cash flow and no dispute fees." },
         { title: "Use both", body: "Most UAE businesses keep cards and add Furlpay for USDC — offering a cheaper option and capturing crypto-native demand without changing their existing checkout." },
       ]}
       faq={[

@@ -16,7 +16,7 @@ export const metadata: Metadata = {
 };
 
 const FEATURES = [
-  { title: "Hosted checkout", body: "Drop in a checkout link or embed — no PCI scope, no card forms, no chargebacks." },
+  { title: "Hosted checkout", body: "Drop in a checkout link or embed — no card forms or card data in the flow, no chargebacks." },
   { title: "Settle to fiat", body: "Keep balances in USDC or auto-settle to a local USD/EUR account via integrated banking rails." },
   { title: "Refunds & receipts", body: "Issue full or partial refunds through the API; every payment returns a signed, on-chain-verifiable receipt." },
   { title: "No chargebacks", body: "On-chain payments are final. No friendly fraud, no dispute fees, no reserve held against your balance." },
@@ -68,7 +68,7 @@ export default function MerchantPage() {
         <Hero
           eyebrow="Merchant"
           title="Accept stablecoin payments — keep more of every sale."
-          subtitle="Take USDC online with hosted checkout, signed receipts, refunds, and settlement to a local bank account. No chargebacks, no PCI scope, no rolling reserve."
+          subtitle="Take USDC online with hosted checkout, signed receipts, refunds, and settlement to a local bank account. No chargebacks, no card data in the flow, no rolling reserve."
           secondary={{ href: "/resources/tools/fee-calculator", label: "Calculate savings" }}
         />
 
