@@ -983,3 +983,75 @@ Another session left a ramp implementation in the working tree: adapters, capabi
 3. A durable ramp order table, with the FurlBridge webhook driving the lifecycle FSM. Until then the webhook verifies, de-duplicates and audits only.
 4. Echo's real API and webhook documentation, from a contract.
 5. A native and extension step-up ceremony for amounts ≥ $5,000. Today the server refuses those amounts with `stepUpRequired`, and the clients say so.
+
+## 18. Ramp completion pass (2026-10-02, committed locally; NOT pushed)
+
+The owner approved committing (baseline first), the partner-key path, and KYC split by flow type. History on `docs/architecture-2026-09-29`, unpushed:
+
+- **Baseline:** `8d664c5`..`b1a5a18` (§13–§17 work), then `97c5728` (CRLF restore).
+- **Workstreams:**
+
+| Commit | Workstream |
+|---|---|
+| `a333db0` | 6d: adapters declare `hasHostedCheckout` |
+| `b7871a5` | 1: persistent ramp orders + FurlBridge webhook drives them |
+| `b25693b` | 3: guard by flow type (hosted vs server-initiated) |
+| `3426aa8` | 2: partner publishable-key path + partner callbacks |
+| `c8d3e96` | 5: beneficiary micro-deposit state machine + verifier interface |
+| `ebdb992` | 6a–c: order reads, stale-order resolution, server-initiated off-ramp orders |
+| `dfda25a` | 4: step-up screens (phone app, extension) |
+
+### 18.1 Where the brief and the repo differed (built to the repo)
+
+| Brief said | Repo reality | What was built |
+|---|---|---|
+| Webhooks at `/api/webhooks/furlbridge` **and** `/furlpayout`; HMAC SHA-256 / SHA-512 | FurlBridge is Transak's HS256 JWT body; Echo's scheme is undocumented | FurlBridge only. No FurlPayout webhook (would be an invented scheme). |
+| "Lifecycle FSM with 18 states", expire to `EXPIRED` | No `EXPIRED` state | Stale unpaid checkouts → `ABANDONED` ("no longer waited on; funds may have moved"). |
+| Hosted orders reach `COMPLETED` | `COMPLETED` required a ledger id, which a hosted flow never has | New flow `hosted_checkout`: completion evidence is the delivery tx, verified on-chain by FurlPay (`deliveryProof.ts`). A provider's "COMPLETED" alone stops at `CRYPTO_PENDING`. |
+| `partner:key:{pk}` Redis store | `lib/apiKeys.ts` already implements pk keys + Origin allowlists | Reused `requireApiKey`. Ramp access is an ops-only per-partner switch, because publishable scopes must stay `:read` (enforced by a test). |
+| `POST /api/security/step-up` setting `stepUpVerifiedAt` after PIN/biometric | A client biometric is unverifiable; session-bound OTP/passkey step-up already exists (`lib/stepup.ts`) | Ramp guard requires `recentStepUp(user, jti, 15 min)`; clients complete OTP/passkey. No PIN (FurlPay has none). |
+| `idempotencyGuard.check/mark` | `lib/webhooks/idempotencyGuard.ts` is in-memory only | KV `SET NX` claim, released on processing failure (tested). |
+| Selfie liveness | No IdP | Not built (a screen that verifies nothing). |
+
+### 18.2 Behaviour now
+
+- **Hosted flows** (Coinbase checkout, Transak widget):
+  - no FurlPay KYC;
+  - $5,000+ is flagged only (`provider_enhanced_verification`);
+  - embargo, velocity and the destination check apply.
+- **Server-initiated flows** (FurlPay-funded payouts):
+  - KYC on-ramp T1 / off-ramp T2;
+  - no partner keys;
+  - session step-up at $5,000+, single-use;
+  - a verified beneficiary (micro-deposits + name match + 24h hold), otherwise 400 `verify_beneficiary`.
+- **Partners** (`@furlpay/elements`):
+  - live pk/sk key, non-empty Origin allowlist, ops-enabled;
+  - 60 quotes/min and 10 sessions/min per key;
+  - orders carry `partnerId`;
+  - the callback `ramp.order.updated` is signed `t=..,v1=HMAC-SHA256(t.body)` and sent through the SSRF-pinned fetch, one attempt.
+- **Orders:**
+  - `GET /api/ramp/orders[/:id]` serves the owner only (404 otherwise);
+  - stale orders are resolved on read.
+
+### 18.3 Verification
+
+| Check | Result |
+|---|---|
+| Web vitest | 6,338 passed / 0 failed / 31 skipped |
+| Web tsc / lint / claims / `next build` | clean / clean / 18 rules clean / OK |
+| Phone app jest / tsc | 1,868 / clean |
+| Extension vitest / tsc / build | 193 / clean / OK |
+| Root `npm test` | all 6 packages, 0 failures |
+
+**UNVERIFIED:**
+- the extension step-up cookie swap in a real MV3 browser;
+- live Coinbase / Transak calls (no credentials used);
+- partner callbacks to a real endpoint.
+
+### 18.4 Still blocked (unchanged by design)
+
+1. Signed provider contracts and one observed live transaction before any capability row is `live`. `ONRAMP_LIVE` and `OFFRAMP_LIVE` stay `unimplemented`.
+2. A micro-deposit partner wired into `activeVerifier()`, plus a confirm-amounts route once it exists.
+3. Echo's real API/webhook documentation.
+4. A retry queue for partner callbacks (one attempt today).
+5. Push, plus CI on the pushed SHA, before any deploy (`npm run deploy:prod` gate).
