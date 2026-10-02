@@ -28,7 +28,10 @@ export type RampAuditAction =
   | "beneficiary.verified"
   | "beneficiary.changed"
   | "webhook.received"
-  | "webhook.rejected";
+  | "webhook.rejected"
+  | "onramp.status.changed"
+  | "offramp.status.changed"
+  | "order.created";
 
 export interface RampAuditEntry {
   readonly eventId: string;

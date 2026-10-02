@@ -33,7 +33,19 @@ export type FlowKind =
   | "internal_transfer"
   | "card_authorization"
   | "refund"
-  | "chargeback";
+  | "chargeback"
+  /**
+   * A provider-hosted ramp checkout (Coinbase, Transak widget). The provider
+   * takes the payment and delivers the crypto; FurlPay never holds the funds,
+   * so there is no SETTLED leg and no ledger entry to point at. Completion is
+   * evidenced by the delivery transaction itself, verified on-chain by FurlPay
+   * (FLOW_EVIDENCE below) — never by the provider saying "completed".
+   *
+   * Stored in KV ramp orders (lib/ramp/rampOrder.ts) only. Migration 0014's
+   * financial_transactions.flow_kind CHECK does not list it; persisting a
+   * hosted order there needs a migration first.
+   */
+  | "hosted_checkout";
 
 export type TxState =
   /** Intent recorded. Nothing has been promised to anyone. */
@@ -247,6 +259,21 @@ const CARD: Table = {
   COMPLETED: ["REVERSED", "REFUNDED"],
 };
 
+// Hosted checkout: the provider owns the payment leg. PAYMENT_CONFIRMED needs
+// the provider's order id; CRYPTO_PENDING needs the delivery tx hash;
+// CRYPTO_CONFIRMED and COMPLETED are set only after FurlPay verified that tx
+// on-chain. Refunds happen on the provider's side and are recorded as a
+// provider status, not as a FurlPay state (there is no FurlPay ledger leg).
+const HOSTED: Table = {
+  CREATED: ["PAYMENT_PENDING", "CANCELLED", "FAILED"],
+  PAYMENT_PENDING: ["PAYMENT_CONFIRMED", "COMPLIANCE_REVIEW", "FAILED", "CANCELLED", "ABANDONED"],
+  COMPLIANCE_REVIEW: ["PAYMENT_PENDING", "PAYMENT_CONFIRMED", "MANUAL_REVIEW", "FAILED", "CANCELLED"],
+  PAYMENT_CONFIRMED: ["CRYPTO_PENDING", "COMPLIANCE_REVIEW", "MANUAL_REVIEW", "FAILED"],
+  CRYPTO_PENDING: ["CRYPTO_CONFIRMED", "MANUAL_REVIEW", "FAILED", "ABANDONED"],
+  CRYPTO_CONFIRMED: ["COMPLETED", "MANUAL_REVIEW"],
+  MANUAL_REVIEW: ["PAYMENT_CONFIRMED", "CRYPTO_PENDING", "CRYPTO_CONFIRMED", "FAILED", "ABANDONED"],
+};
+
 const TABLES: Record<FlowKind, Table> = {
   onramp: ONRAMP,
   offramp: OFFRAMP,
@@ -258,6 +285,7 @@ const TABLES: Record<FlowKind, Table> = {
   card_authorization: CARD,
   refund: SIMPLE,
   chargeback: SIMPLE,
+  hosted_checkout: HOSTED,
 };
 
 // ── The guard ──────────────────────────────────────────────────────────────
@@ -293,8 +321,17 @@ export function canTransition(flow: FlowKind, from: TxState, to: TxState): boole
 }
 
 /** Which evidence a state needs but the supplied references do not carry. */
-export function missingEvidence(to: TxState, refs: TxReferences): EvidenceKind[] {
-  const required = REQUIRED_EVIDENCE[to] ?? [];
+/**
+ * Per-flow replacements for REQUIRED_EVIDENCE. Only where a flow's terminal
+ * proof genuinely differs: a hosted checkout has no FurlPay ledger leg, so its
+ * completion is proven by the delivery transaction, not by a ledger id.
+ */
+export const FLOW_EVIDENCE: Partial<Record<FlowKind, Partial<Record<TxState, readonly EvidenceKind[]>>>> = {
+  hosted_checkout: { COMPLETED: ["chainTxHash"] },
+};
+
+export function missingEvidence(to: TxState, refs: TxReferences, flow?: FlowKind): EvidenceKind[] {
+  const required = (flow && FLOW_EVIDENCE[flow]?.[to]) ?? REQUIRED_EVIDENCE[to] ?? [];
   return required.filter((kind) => {
     const value = refs[kind];
     return typeof value !== "string" || value.trim().length === 0;
@@ -342,7 +379,7 @@ export function assertTransition(
     );
   }
 
-  const missing = missingEvidence(to, refs);
+  const missing = missingEvidence(to, refs, flow);
   if (missing.length > 0) {
     throw new TransitionError(
       flow,

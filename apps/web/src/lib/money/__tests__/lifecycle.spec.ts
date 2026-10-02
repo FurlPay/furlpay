@@ -198,3 +198,18 @@ describe("table integrity", () => {
     }
   });
 });
+
+describe("hosted_checkout: the provider owns the payment leg", () => {
+  it("completes on a verified delivery tx, never on a ledger id it cannot have", () => {
+    expect(missingEvidence("COMPLETED", {}, "hosted_checkout")).toEqual(["chainTxHash"]);
+    expect(missingEvidence("COMPLETED", { chainTxHash: "0xabc" }, "hosted_checkout")).toEqual([]);
+    // Every other flow keeps the ledger requirement.
+    expect(missingEvidence("COMPLETED", { chainTxHash: "0xabc" }, "onramp")).toEqual(["ledgerTxId"]);
+  });
+
+  it("has no SETTLED leg and cannot skip the chain", () => {
+    expect(canTransition("hosted_checkout", "PAYMENT_CONFIRMED", "SETTLED")).toBe(false);
+    expect(canTransition("hosted_checkout", "PAYMENT_CONFIRMED", "COMPLETED")).toBe(false);
+    expect(canTransition("hosted_checkout", "PAYMENT_PENDING", "ABANDONED")).toBe(true);
+  });
+});

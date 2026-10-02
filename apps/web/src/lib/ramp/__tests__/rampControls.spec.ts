@@ -144,7 +144,7 @@ describe("FurlBridge (Transak) webhook: HS256 JWT in the body", () => {
     const body = JSON.stringify({ data: jwt(event(), KEY) });
     const first = await send(body);
     expect(first.status).toBe(200);
-    expect(await first.json()).toEqual({ received: true });
+    expect(await first.json()).toEqual({ received: true, matched: false });
     expect(await (await send(body)).json()).toEqual({ received: true, duplicate: true });
   });
 });
