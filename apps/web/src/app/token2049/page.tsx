@@ -1,19 +1,17 @@
-import { permanentRedirect } from "next/navigation";
+import { redirect } from "next/navigation";
 
 // /token2049 → /events/token2049-singapore-2026
 //
 // A vanity short URL for sharing on cards, slides and social bios. It is a
-// server-side PERMANENT redirect so the canonical URL stays on /events/… and
-// search engines consolidate signals there. No page content is rendered.
+// TEMPORARY redirect, deliberately: the short link is repointed at next year's
+// edition, and a permanent (308) redirect is cached by browsers indefinitely,
+// so last year's visitors would never see the new target. The canonical
+// /events/<slug> page is the URL that accrues ranking.
 //
-// permanentRedirect(), not redirect(): in a Server Component redirect() answers
-// 307 Temporary, which this header used to claim was a 308 — verified on a
-// preview, /token2049 returned 307. permanentRedirect() is the 308.
-//
-// Using next/navigation rather than a next.config.js rewrite so the route is
-// explicit in the app tree and shows up in `find` / grep when someone asks
-// "what links to TOKEN2049?". A config rewrite is invisible there.
+// The authoritative rule is in next.config.js redirects(), which runs before
+// this page and answers 307 (verified on a preview). This page is the fallback
+// for any path that bypasses config redirects, and must agree with it.
 
 export default function Token2049Redirect(): never {
-  permanentRedirect("/events/token2049-singapore-2026");
+  redirect("/events/token2049-singapore-2026");
 }

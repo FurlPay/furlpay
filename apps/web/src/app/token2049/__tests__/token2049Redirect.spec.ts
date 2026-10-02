@@ -1,8 +1,11 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { describe, expect, it, vi } from "vitest";
 import { EVENTS } from "@/lib/events/events";
 
-// /token2049 must be a PERMANENT redirect to an event that exists, so shared
-// links consolidate onto the canonical event page.
+// /token2049 is a TEMPORARY redirect to an event that exists: it is repointed
+// at each year's edition, so it must not be cached permanently. The config
+// rule (next.config.js) runs first; the page is the fallback; both must agree.
 const calls: { kind: string; to: string }[] = [];
 vi.mock("next/navigation", () => ({
   permanentRedirect: (to: string) => {
@@ -17,12 +20,20 @@ vi.mock("next/navigation", () => ({
 
 import Token2049Redirect from "@/app/token2049/page";
 
+const TARGET = "/events/token2049-singapore-2026";
+
 describe("/token2049", () => {
-  it("permanently redirects to the TOKEN2049 event page", () => {
+  it("page fallback: temporary redirect to the event page", () => {
     expect(() => Token2049Redirect()).toThrow("NEXT_REDIRECT");
-    expect(calls).toEqual([{ kind: "permanent", to: "/events/token2049-singapore-2026" }]);
+    expect(calls).toEqual([{ kind: "temporary", to: TARGET }]);
+  });
+  it("next.config.js rule: same target, permanent: false", () => {
+    const cfg = readFileSync(join(__dirname, "../../../../next.config.js"), "utf8");
+    const rule = cfg.match(/\{\s*source:\s*"\/token2049",\s*destination:\s*"([^"]+)",\s*permanent:\s*(true|false)\s*\}/);
+    expect(rule?.[1]).toBe(TARGET);
+    expect(rule?.[2]).toBe("false");
   });
   it("targets a slug that is in EVENTS (so the page and sitemap entry exist)", () => {
-    expect(EVENTS.some((e) => `/events/${e.slug}` === calls[0]?.to)).toBe(true);
+    expect(EVENTS.some((e) => `/events/${e.slug}` === TARGET)).toBe(true);
   });
 });
