@@ -1135,3 +1135,87 @@ Not applied, because the brief's code would replace something working or target 
 - **`Math.random`:** the remaining uses are avatar colours, jitter and run ids, none security-relevant.
 
 Verification: web 6,354 passed / 0 failed, tsc and lint clean, root `npm test` 0 failures. Terraform was not run (not installed; no apply in any case).
+
+## 21. Final production-readiness audit (2026-10-02, UNCOMMITTED per brief)
+
+**Scope:** web/API, ramp, money webhooks, ledger/migrations, native (Android/iOS), extension, Wear OS, AWS IaC (static), CI/release scripts.
+**Repository state at start:** `bbd9f2d` (branch `docs/architecture-2026-09-29`, unpushed). This pass made no commit, push, deploy, migration or infrastructure change.
+
+### 21.1 Findings
+
+| Priority | Component | Finding | Root cause | Fix applied | Verification | Remaining blocker |
+|---|---|---|---|---|---|---|
+| P1 | Mobile / DNS | Production native builds call `https://api.furlpay.com/api`, which is NXDOMAIN | DNS record never created; `app.config.js` host chosen without it | — | DoH query 2026-10-02: Status 3 (NXDOMAIN) | Owner: create the record or point the build at `furlpay.com/api` |
+| P1 | Database | 0024–0029 not applied to hosted Supabase. 0025 is what makes money effects exactly-once and stops balance clobbering in production | Migrations are local only | — | Local PG18 harness 77/77, analytics 15/15, `check-migrations` OK | Owner: staging apply, then production apply (runbook §11/§14.4) |
+| P1 | Release | furlpay.com runs pre-`60d75d5` code; this branch has never been pushed or CI-run | Unpushed branch; deploy gate requires pushed HEAD + green CI | — | `git log`; §16 live probes | Push, CI green, `npm run deploy:prod` |
+| P2 | CI | `docs/release/env-contract.json` stale, so `check-env-contract` failed | `partnerAuth.ts` reads `NODE_ENV`; doc not regenerated | Regenerated (`--write-doc`) | `check-env-contract` OK, 24 vars | — |
+| P2 | iOS | `/.well-known/apple-app-site-association` returns 404 in production | Route exists on the branch, not deployed | — | Live GET 404 | Deploy |
+| P2 | Ops | `ramp-maintenance` (stale sweep, partner retries) scheduled only in Terraform | Not applied | — | `schedulerContract.spec` passes; terraform not installed | Apply the EventBridge module, or another scheduler |
+| P3 | API | Six routes echoed thrown provider/RPC errors in 5xx bodies; `otp/start` is public | `{ error: e.message }` in catch blocks | Log server-side and return a stable code; ratchet `noErrorEchoIn5xx.spec` | Ratchet caught the five other files before the fix; passes now | — |
+| P3 | API | `compliance/escrow/[action]` body hand-parsed (AGENTS rule 1) | Regex instead of Zod | `validateBody` + Zod schema | tsc; route suite | — |
+| P3 | Scripts | `verify-prod-guards.mjs` relied on guest login, which production now refuses | Script predates the production auth hardening | Requires a real `FURLPAY_PROBE_COOKIE`; validates it first | Ran against `next start` :3100 (old script: 6 false FAILs; new: refuses without a cookie) | Run against staging with a real session |
+| P3 | Extension | Step-up cookie refresh not observed in a real MV3 browser | — | — | Unit tests only | Manual Chrome test |
+| P4 | API | `check-route-security` warns `BODY_MANUAL_VALIDATION` on `travel/trip-match`, `x402/policy/settle` | Manual validation (not unguarded) | — | Scanner exit 0 | Optional Zod migration |
+| P4 | Repo | Untracked `apps/web/findings.json`, `apps/web/script.js` from another audit session | — | Left untouched (no deletes) | `git status` | Owner: keep or delete |
+| P5 | Code | `Math.random` in avatar colour, retry jitter, cron run id | Not security-relevant (AGENTS rule 6 scope) | — | grep | — |
+
+### 21.2 Verified non-issues (PN)
+
+| Area | Evidence |
+|---|---|
+| Webhook: effect committed, then ack fails, then redelivery | `effectIdempotency.spec` T-W1 (200, one effect). PG18: effect key unique, ack inside the effect transaction |
+| Concurrent deliveries / cleared KV | T-W2, T-W3 (20 concurrent → one effect) |
+| Lost balance updates across instances | PG18 T-L2 ×20: 100 interleaved credits/debits, no loss; `save_account_children` cannot write balances |
+| Ledger balance invariant | PG18: 2,067 transactions, every one debits = credits; overdraft and unbalanced postings roll back fully |
+| Cashback double-pay / cross-user | PG18: 40 barrier + 100 concurrent claims → one payout; A never receives B's accruals |
+| Payload mismatch replay | deposit-detect 400 `payload_mismatch`, audited |
+| KYC identity binding | Webhooks resolve only via the binding written by authenticated `/api/compliance/verify` |
+| Production boot | Refuses without Supabase/KV/admin email (observed) |
+| Dev/guest auth in production | `dev-session` 404, `guest` 403 (observed on `next start`) |
+| Unauthenticated money/admin/ramp routes | 401/403/503 across 16 routes (observed) |
+| Ramp webhook | Bad signature → 401 (observed); JWT, replay window, two-stage dedupe (tests) |
+| Dependencies | `npm audit --omit=dev` with CI's acceptance rule: 0 unaccepted high/critical |
+| Edge config | `check-edge-config`: CloudFront→ALB TLS name, cert regions, origin lock, XFF hops |
+| Claims / synthetic data | 18-rule claims linter clean; no new synthetic travel data |
+| Cookies, CSRF, secure storage, backup, pinning, App Links | §19.2 |
+
+### 21.3 Commands and results (this pass)
+
+| Command | Result |
+|---|---|
+| `apps/web: npx tsc --noEmit` / `npm run lint` | 0 errors / clean |
+| `apps/web: npx vitest run` | 6,356 passed, 0 failed, 31 skipped |
+| `apps/web: npm run build` | OK |
+| `next start :3100` (production, unreachable backends) + curl matrix | as in §21.2 |
+| `native-app: tsc` / `jest` | clean / 1,868 passed |
+| `apps/extension: tsc` / `vitest` | clean / 193 passed |
+| root `npm test` | 458 passed, 0 failed |
+| `guardian: :core:domain:test :app:wear:compileDevDebugKotlin` | OK |
+| PG18 harness `verify-financial-effects --repeat 20` | 77/77 |
+| PG18 harness `verify-analytics` | 15/15 |
+| `check-migrations` | 29 contiguous, none modified |
+| `check-route-security`, `check-no-synthetic-travel`, `check-edge-config`, `eas-profile.test.sh`, `check-env-contract` | pass (env contract after regeneration) |
+| Terraform `fmt`/`validate`/`plan` | NOT RUN: terraform not installed |
+
+### 21.4 Platform readiness
+
+- **Web:** code ready on this branch. Blocked on push/CI/deploy and migrations 0024–0029.
+- **Android:** builds target a non-existent API host (P1). The Play App Signing fingerprint must be added to `assetlinks.json`.
+- **iOS:** same API host; AASA 404 until deploy. macOS CI is the compiler for the Swift target.
+- **Extension:** tests and build pass. Step-up cookie refresh is untested in a browser; CWS publish pending.
+- **Wear OS:** compiles; domain tests pass.
+
+### 21.5 Release checklist
+
+1. Commit this pass (owner approval).
+2. Push; CI green on the SHA.
+3. Staging: apply 0024→0029, run the probe, smoke test.
+4. Decide the API host; create DNS or rebuild native.
+5. Production env: admin email, session, Supabase, KV, cron secret, `FURLPAY_PARTNER_WEBHOOK_KEY` / `FURLPAY_BENEFICIARY_ENCRYPTION_KEY` (only if those features are used).
+6. Production migrations.
+7. `npm run deploy:prod`.
+8. Re-probe AASA and assetlinks.
+9. Schedule `ramp-maintenance`.
+10. Legal checklist sign-off.
+
+**Confirmation:** this pass made no deploy, push, commit, Terraform apply, hosted migration, secret change, live transaction or data deletion. The live checks were read-only GETs and a DNS query.
