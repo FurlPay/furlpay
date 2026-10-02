@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireCron } from "@/lib/cron/auth";
-import { runJob } from "@/lib/cron/runner";
+import { cronHttpStatus, runJob } from "@/lib/cron/runner";
 import { sweepStaleOrders } from "@/lib/ramp/staleOrders";
 import { processPartnerRetries } from "@/lib/ramp/partnerWebhooks";
 
@@ -44,8 +44,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     job: "ramp.maintenance",
     status: outcome.status,
-    ...(outcome.status === "skipped_locked" ? { detail: outcome.detail } : { record: outcome.record }),
-  });
+    ...("detail" in outcome ? { detail: outcome.detail } : { record: outcome.record, recorded: outcome.recorded }),
+  }, { status: cronHttpStatus(outcome) });
 }
 
 export const POST = GET;

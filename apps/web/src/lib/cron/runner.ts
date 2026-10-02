@@ -27,7 +27,7 @@
 //      to invoke, not to decide what a failure means.
 // ---------------------------------------------------------------------------
 
-import { kvDel, kvGet, kvListPush, kvListRange, kvSet, kvSetNx } from "@/lib/kv";
+import { kvDel, kvErrorCategory, kvGet, kvListPush, kvListRange, kvSet, kvSetNx } from "@/lib/kv";
 import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
@@ -72,9 +72,25 @@ const recordKey = (job: string, runId: string) => `cron:run:${job}:${runId}`;
 const historyKey = (job: string) => `cron:history:${job}`;
 const lastKey = (job: string) => `cron:last:${job}`;
 
+/**
+ * Bumped when JobRecord changes shape. Readers can tell a v1 record (no
+ * `status`, no `env`) from a current one without guessing.
+ */
+export const JOB_RECORD_SCHEMA = 2;
+
 export interface JobRecord {
+  schema?: number;
   job: string;
   runId: string;
+  /**
+   * `running` exists only in the per-run record (`cron:run:*`), written BEFORE
+   * the body starts. A run that is still `running` long after its budget is a
+   * run the platform killed — visible instead of absent. `cron:last:*` is only
+   * ever written with a finished status.
+   */
+  status?: "running" | "success" | "failed";
+  /** Where it ran — VERCEL_ENV and a short deployment id. Never a secret. */
+  env?: { vercelEnv: string | null; deployment: string | null };
   startedAt: string;
   finishedAt: string;
   durationMs: number;
@@ -103,9 +119,44 @@ export interface JobContext {
 export type JobBody = (ctx: JobContext) => Promise<void>;
 
 export type RunOutcome =
-  | { status: "completed"; record: JobRecord }
+  | { status: "completed"; record: JobRecord; recorded: boolean }
   | { status: "skipped_locked"; detail: string }
-  | { status: "failed"; record: JobRecord };
+  | { status: "store_unavailable"; detail: string }
+  | { status: "failed"; record: JobRecord; recorded: boolean };
+
+/**
+ * The HTTP status a cron route answers with.
+ *
+ * `store_unavailable` is 503: the job did NOT run, nothing was half-done, so a
+ * retry is safe and the scheduler's dashboard should show red. Until this
+ * existed a KV outage was reported as `skipped_locked` with a 200 — the shape
+ * of a healthy overlap — and on 2026-10-02 every job had been skipping that way
+ * since the Upstash database hit its plan limit, with nothing anywhere saying so.
+ *
+ * `failed` stays 200 with `ok: false` on purpose (header, point 4): the body ran
+ * and may have half-completed, and a non-2xx invites a retry of that work.
+ */
+export function cronHttpStatus(outcome: RunOutcome): number {
+  return outcome.status === "store_unavailable" ? 503 : 200;
+}
+
+/**
+ * Bounded and scrubbed for storage and logs. Error messages from fetch-based
+ * clients can carry URLs (Telegram puts the bot token in the path), bearer
+ * values or long key-like strings; none of that belongs in a run record.
+ */
+export function sanitizeError(message: string): string {
+  return message
+    .replace(/https?:\/\/[^\s"'<>]+/gi, "<url>")
+    .replace(/\b(bearer|bot|basic)\s+[A-Za-z0-9._~+/=-]{8,}/gi, "$1 <redacted>")
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, "<redacted>")
+    .slice(0, 300);
+}
+
+function runEnv(): JobRecord["env"] {
+  const deployment = process.env.VERCEL_DEPLOYMENT_ID ?? null;
+  return { vercelEnv: process.env.VERCEL_ENV ?? null, deployment: deployment ? deployment.slice(0, 16) : null };
+}
 
 /**
  * Run a job under lock, deadline and recording.
@@ -113,6 +164,10 @@ export type RunOutcome =
  * `skipped_locked` is a NORMAL outcome, not an error: it means the previous run
  * is still going, which is exactly what the lock is for. Reporting it as a
  * failure would train an operator to ignore the job's alerts.
+ *
+ * Delivery is AT-LEAST-ONCE from the scheduler's side; the lock makes runs of
+ * one job mutually exclusive, not exactly-once. Jobs with external side effects
+ * add their own idempotency (runOncePerDay, edit-in-place, per-order sync).
  */
 export async function runJob(
   job: string,
@@ -121,6 +176,7 @@ export async function runJob(
 ): Promise<RunOutcome> {
   const runId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const budgetMs = opts.budgetMs ?? DEFAULT_BUDGET_MS;
+  const env = runEnv();
 
   // ---- 1. Lock ---------------------------------------------------------
   let locked = false;
@@ -128,11 +184,11 @@ export async function runJob(
     locked = await kvSetNx(lockKey(job), { runId, at: new Date().toISOString() }, LOCK_TTL_SECONDS);
   } catch (e) {
     // A KV outage means we cannot prove exclusivity. Refuse to run rather than
-    // risk two concurrent passes over financial state.
-    return {
-      status: "skipped_locked",
-      detail: `Lock store unavailable (${e instanceof Error ? e.message : "error"}); job not run.`,
-    };
+    // risk two concurrent passes over financial state — and SAY so: the run
+    // store is down too, so this log line is the only record there will be.
+    const detail = `Lock store unavailable [${kvErrorCategory(e)}] (${sanitizeError(e instanceof Error ? e.message : String(e))}); job not run.`;
+    log.error("cron job not run: lock store unavailable", { job, runId, detail });
+    return { status: "store_unavailable", detail };
   }
   if (!locked) {
     return { status: "skipped_locked", detail: "A previous run of this job is still in progress." };
@@ -140,6 +196,40 @@ export async function runJob(
 
   // ---- 2. Deadline + context ------------------------------------------
   const startedAtMs = Date.now();
+
+  // The start record, BEFORE the body. A run the platform kills mid-flight
+  // otherwise leaves nothing at all; with this it leaves `status: running`.
+  try {
+    await kvSet(
+      recordKey(job, runId),
+      {
+        schema: JOB_RECORD_SCHEMA,
+        job,
+        runId,
+        status: "running",
+        env,
+        startedAt: new Date(startedAtMs).toISOString(),
+        finishedAt: "",
+        durationMs: 0,
+        ok: false,
+        partial: false,
+        metrics: {},
+        notes: [],
+        error: null,
+      } satisfies JobRecord,
+      RECORD_TTL_SECONDS
+    );
+    await kvListPush(historyKey(job), runId, HISTORY_MAX);
+  } catch (e) {
+    // The lock write succeeded a moment ago, so this is KV failing mid-run.
+    // A job that cannot record its start will not be able to record its end
+    // either; running it would be the invisible failure this file exists to
+    // prevent.
+    await kvDel(lockKey(job)).catch(() => undefined);
+    const detail = `Run store unavailable [${kvErrorCategory(e)}] (${sanitizeError(e instanceof Error ? e.message : String(e))}); job not run.`;
+    log.error("cron job not run: start record could not be stored", { job, runId, detail });
+    return { status: "store_unavailable", detail };
+  }
   const deadline = startedAtMs + budgetMs;
   const metrics: Record<string, number> = {};
   const notes: string[] = [];
@@ -165,14 +255,17 @@ export async function runJob(
   } catch (e) {
     // Caught, never rethrown — see the header. A 500 invites a retry of
     // half-completed work.
-    error = e instanceof Error ? e.message : String(e);
+    error = sanitizeError(e instanceof Error ? e.message : String(e));
     log.error("cron job threw", { job, runId, error });
   }
 
   const finishedAtMs = Date.now();
   const record: JobRecord = {
+    schema: JOB_RECORD_SCHEMA,
     job,
     runId,
+    status: error === null ? "success" : "failed",
+    env,
     startedAt: new Date(startedAtMs).toISOString(),
     finishedAt: new Date(finishedAtMs).toISOString(),
     durationMs: finishedAtMs - startedAtMs,
@@ -188,12 +281,23 @@ export async function runJob(
   // Recording BEFORE releasing matters: if the process dies between the two,
   // the run is on the books and the lock expires on its own. The other order
   // loses the record of work that actually happened.
+  //
+  // The history entry was pushed with the start record, so it is not pushed
+  // again here — one run, one list entry, newest first.
+  let recorded = true;
   try {
     await kvSet(recordKey(job, runId), record, RECORD_TTL_SECONDS);
     await kvSet(lastKey(job), record, RECORD_TTL_SECONDS);
-    await kvListPush(historyKey(job), runId, HISTORY_MAX);
   } catch (e) {
-    log.error("cron run record could not be stored", { job, runId, error: (e as Error).message });
+    // The job's own result stands — a storage failure must not turn a success
+    // into a failure or the reverse — but the caller is told it is unrecorded.
+    recorded = false;
+    log.error("cron run record could not be stored", {
+      job,
+      runId,
+      ok: record.ok,
+      error: sanitizeError(e instanceof Error ? e.message : String(e)),
+    });
   }
 
   try {
@@ -211,16 +315,29 @@ export async function runJob(
     ...metrics,
   });
 
-  return record.ok ? { status: "completed", record } : { status: "failed", record };
+  return record.ok ? { status: "completed", record, recorded } : { status: "failed", record, recorded };
 }
 
-/** The most recent run of a job, for the ops console. */
-export async function lastRun(job: string): Promise<JobRecord | null> {
+/**
+ * The most recent run, with the difference between "no record" and "could not
+ * read the store" kept. Collapsing the two is how a KV outage reads as "this
+ * job has never run" — a different problem with a different fix.
+ */
+export async function readLastRun(
+  job: string
+): Promise<{ state: "found"; record: JobRecord } | { state: "missing" } | { state: "store_error"; detail: string }> {
   try {
-    return await kvGet<JobRecord>(lastKey(job));
-  } catch {
-    return null;
+    const record = await kvGet<JobRecord>(lastKey(job));
+    return record ? { state: "found", record } : { state: "missing" };
+  } catch (e) {
+    return { state: "store_error", detail: sanitizeError(e instanceof Error ? e.message : String(e)) };
   }
+}
+
+/** The most recent run of a job, for the ops console. Null when absent OR unreadable. */
+export async function lastRun(job: string): Promise<JobRecord | null> {
+  const r = await readLastRun(job);
+  return r.state === "found" ? r.record : null;
 }
 
 /** Recent runs, newest first. */
@@ -241,8 +358,17 @@ export async function runHistory(job: string, limit = 20): Promise<JobRecord[]> 
  * nothing else notices, because a job that does not run generates no errors.
  */
 export async function isJobHealthy(job: string, maxAgeSeconds: number): Promise<{ healthy: boolean; detail: string }> {
-  const last = await lastRun(job);
-  if (!last) return { healthy: false, detail: `${job} has no recorded run.` };
+  const read = await readLastRun(job);
+  if (read.state === "store_error") {
+    return { healthy: false, detail: `${job}: run store unavailable (${read.detail}); run state unknown.` };
+  }
+  if (read.state === "missing") {
+    return {
+      healthy: false,
+      detail: `${job} has no recorded run (never ran here, or its record expired after ${RECORD_TTL_SECONDS / 86400} days).`,
+    };
+  }
+  const last = read.record;
   const ageSeconds = (Date.now() - Date.parse(last.finishedAt)) / 1000;
   if (ageSeconds > maxAgeSeconds) {
     return {

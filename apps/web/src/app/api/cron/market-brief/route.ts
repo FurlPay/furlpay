@@ -4,7 +4,7 @@ export const maxDuration = 60;
 
 import { requireCron } from "@/lib/cron/auth";
 import { runOncePerDay } from "@/lib/cron/runOnce";
-import { runJob } from "@/lib/cron/runner";
+import { cronHttpStatus, runJob } from "@/lib/cron/runner";
 import { raiseAlert } from "@/lib/alerts";
 import { buildBrief } from "@/lib/markets/brief/brief";
 import { renderBrief } from "@/lib/markets/brief/render";
@@ -403,8 +403,8 @@ async function run(req: NextRequest) {
     /** Returned on a dry run so the exact bytes that would be sent can be
      *  inspected before they reach a public channel. */
     payload: dry ? { discord: discordPayload, telegram: telegramPayload } : null,
-    ...(outcome.status === "skipped_locked" ? { detail: outcome.detail } : { record: outcome.record }),
-  });
+    ...("detail" in outcome ? { detail: outcome.detail } : { record: outcome.record, recorded: outcome.recorded }),
+  }, { status: cronHttpStatus(outcome) });
 }
 
 // Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)

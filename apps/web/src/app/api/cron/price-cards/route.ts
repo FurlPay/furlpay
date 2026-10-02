@@ -5,7 +5,7 @@ export const maxDuration = 60;
 
 import { requireCron } from "@/lib/cron/auth";
 import { runOncePerDay } from "@/lib/cron/runOnce";
-import { runJob } from "@/lib/cron/runner";
+import { cronHttpStatus, runJob } from "@/lib/cron/runner";
 import { botToken, configuredChannels } from "@/lib/priceCards/config";
 import { getPriceCardData, type CardSymbol } from "@/lib/priceCards/data";
 import { buildPriceCardMessage } from "@/lib/priceCards/embed";
@@ -251,7 +251,16 @@ async function run(req: NextRequest) {
   // duration is where that shows up first.
   { budgetMs: 55_000 });
 
-  return NextResponse.json({ job: "price-cards", status: outcome.status, dryRun: dry, ...report });
+  return NextResponse.json(
+    {
+      job: "price-cards",
+      status: outcome.status,
+      dryRun: dry,
+      ...report,
+      ...("detail" in outcome ? { detail: outcome.detail } : { recorded: outcome.recorded }),
+    },
+    { status: cronHttpStatus(outcome) }
+  );
 }
 
 // Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)

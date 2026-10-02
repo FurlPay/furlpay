@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { requireCron } from "@/lib/cron/auth";
-import { runJob } from "@/lib/cron/runner";
+import { cronHttpStatus, runJob } from "@/lib/cron/runner";
 import { raiseAlert } from "@/lib/alerts";
 import { runReconciliation } from "@/lib/reconciliation";
 import { getBrokerageOrNull } from "@/lib/brokerage";
@@ -201,8 +201,8 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({
     job: "brokerage.reconcile",
     status: outcome.status,
-    ...(outcome.status === "skipped_locked" ? { detail: outcome.detail } : { record: outcome.record }),
-  });
+    ...("detail" in outcome ? { detail: outcome.detail } : { record: outcome.record, recorded: outcome.recorded }),
+  }, { status: cronHttpStatus(outcome) });
 }
 
 // Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)

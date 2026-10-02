@@ -3,7 +3,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 import { requireCron } from "@/lib/cron/auth";
-import { isJobHealthy, runJob } from "@/lib/cron/runner";
+import { cronHttpStatus, isJobHealthy, runJob } from "@/lib/cron/runner";
 import { raiseAlert } from "@/lib/alerts";
 import { getBrokerageOrNull } from "@/lib/brokerage";
 import { evmRpcFor, solanaRpc } from "@/lib/onchain/balances";
@@ -189,8 +189,8 @@ export async function GET(req: NextRequest) {
     /** Stated rather than assumed: nothing outside this deployment is
      *  watching whether the scheduler itself still runs. */
     externalUptimeCheckConfigured: false,
-    ...(outcome.status === "skipped_locked" ? { detail: outcome.detail } : { record: outcome.record }),
-  });
+    ...("detail" in outcome ? { detail: outcome.detail } : { record: outcome.record, recorded: outcome.recorded }),
+  }, { status: cronHttpStatus(outcome) });
 }
 
 // Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)

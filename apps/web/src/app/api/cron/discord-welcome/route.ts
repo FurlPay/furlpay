@@ -4,7 +4,7 @@ export const maxDuration = 60;
 
 import { requireCron } from "@/lib/cron/auth";
 import { runOncePerDay } from "@/lib/cron/runOnce";
-import { runJob } from "@/lib/cron/runner";
+import { cronHttpStatus, runJob } from "@/lib/cron/runner";
 import { runWelcomeSweep, type SweepReport } from "@/lib/discordWelcome/welcome";
 
 // ---------------------------------------------------------------------------
@@ -59,7 +59,8 @@ async function run(req: NextRequest) {
     status: outcome.status,
     dryRun: dry,
     ...report,
-  });
+    ...("detail" in outcome ? { detail: outcome.detail } : { recorded: outcome.recorded }),
+  }, { status: cronHttpStatus(outcome) });
 }
 
 // Vercel Cron calls GET; EventBridge Scheduler (infra/aws/modules/env/scheduler.tf)

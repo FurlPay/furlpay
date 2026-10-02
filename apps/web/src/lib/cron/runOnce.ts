@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { kvDel, kvSetNx } from "@/lib/kv";
+import { kvDel, kvErrorCategory, kvSetNx } from "@/lib/kv";
+import { log } from "@/lib/log";
+import { sanitizeError } from "@/lib/cron/runner";
 
 // ---------------------------------------------------------------------------
 // At-most-once-per-day guard for scheduled jobs with EXTERNAL side effects
@@ -24,7 +26,18 @@ export function runKey(job: string, now = new Date()): string {
 
 export async function runOncePerDay(job: string, work: () => Promise<Response>): Promise<Response> {
   const key = runKey(job);
-  if (!(await kvSetNx(key, new Date().toISOString(), TTL_SECONDS))) {
+  let claimed: boolean;
+  try {
+    claimed = await kvSetNx(key, new Date().toISOString(), TTL_SECONDS);
+  } catch (e) {
+    // Without the claim a retry could post twice, so the job does not run.
+    // 503, not a thrown 500: the outcome is known (nothing ran) and a retry
+    // is safe — the same answer runJob gives for the same outage.
+    const detail = `Run store unavailable [${kvErrorCategory(e)}] (${sanitizeError(e instanceof Error ? e.message : String(e))}); job not run.`;
+    log.error("cron job not run: once-per-day claim unavailable", { job, detail });
+    return NextResponse.json({ ok: false, job, status: "store_unavailable", detail }, { status: 503 });
+  }
+  if (!claimed) {
     return NextResponse.json({ ok: true, job, skipped: "already_ran_today" });
   }
   let res: Response;
