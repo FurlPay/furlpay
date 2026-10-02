@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
-import { screenWallet } from "@furlpay/compliance";
+import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { requiresStepUp, verifyTotp } from "@furlpay/security";
 import { evaluateTransferRisk } from "@/lib/trust/trustBridge";
 import { validateAndConsumeBiometricProof } from "@/lib/biometrics/biometricPay";
@@ -224,9 +224,16 @@ async function executeTransfer(
     { role: "destination" as const, address: destination },
   ];
 
-  let screen = screenWallet(destination);
+  // OFAC always; Circle Compliance too when configured (lib/compliance/
+  // addressScreening.ts). A Circle "review" is not an allow: there is no
+  // transfer review queue, so the transfer is refused with its own code.
+  let screen = await screenAddressRisk(destination, chain);
   for (const party of parties) {
-    const result = screenWallet(party.address);
+    const result = party.address === destination ? screen : await screenAddressRisk(party.address, chain);
+    if (result.action === "review") {
+      audit("transfer.blocked", account.user.id, { destination, amount, reason: "aml_review", party: party.role });
+      return NextResponse.json({ error: "Transfer needs compliance review", code: "aml_review_required" }, { status: 409 });
+    }
     if (result.action === "block") {
       audit("transfer.blocked", account.user.id, {
         destination,
@@ -238,7 +245,9 @@ async function executeTransfer(
         // The response does not say WHICH side matched. Telling a payer that
         // they personally are the hit turns this endpoint into a sanctions
         // oracle; the audit event above records it for the compliance team.
-        { error: "Transfer blocked by AML policy", screen: result },
+        // No screen object either: it carries the matched address, which is
+        // exactly the "which side" detail the comment above withholds.
+        { error: "Transfer blocked by AML policy" },
         { status: 403 }
       );
     }

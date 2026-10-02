@@ -305,6 +305,13 @@ export const ENV_REGISTRY: EnvGroup[] = [
     ],
   },
   {
+    group: "Circle Compliance",
+    vars: [
+      v("CIRCLE_COMPLIANCE_API_KEY"),
+      v("CIRCLE_COMPLIANCE_API_URL"),
+    ],
+  },
+  {
     group: "Payments / banking rails",
     vars: [
       v("STRIPE_SECRET_KEY"),
@@ -591,6 +598,14 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("FURLPAY_BUILD_TIME"),
       v("VERCEL_DEPLOYMENT_ID"),
       v("VERCEL_PROJECT_PRODUCTION_URL"),
+    ],
+  },
+  {
+    group: "Circle Web3 Services",
+    vars: [
+      v("CIRCLE_W3S_API_KEY"),
+      v("CIRCLE_W3S_API_URL"),
+      v("CIRCLE_W3S_APP_ID"),
     ],
   },
 ];

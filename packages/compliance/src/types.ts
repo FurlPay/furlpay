@@ -20,7 +20,7 @@ export interface KycResult {
 
 export interface AmlScreenResult {
   address: string;
-  provider: "chainalysis" | "trm" | "ofac-sdn" | "chainalysis-oracle" | "onchain-registry";
+  provider: "chainalysis" | "trm" | "ofac-sdn" | "chainalysis-oracle" | "onchain-registry" | "circle";
   risk: "low" | "medium" | "high" | "severe";
   score: number; // 0-100
   sanctioned: boolean;

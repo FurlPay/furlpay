@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { FURL_DECIMALS } from "@/lib/token/furl";
-import { screenWallet } from "@furlpay/compliance";
+import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { CheckoutSchema, parse } from "@/lib/schemas";
 import { createSession, getSession, toAtomic, toPublic } from "@/lib/checkout/session";
 import { parseApiKey, verifyApiKey } from "@/lib/apiKeys";
@@ -115,9 +115,11 @@ export async function POST(req: NextRequest) {
   }
 
   if (wallet) {
-    const screen = screenWallet(wallet);
-    if (screen.action === "block") {
-      return NextResponse.json({ error: "Wallet blocked by AML policy", screen }, { status: 403 });
+    // The settlement rail is chosen later, so screen by address family: an EVM
+    // address on Ethereum (Circle's broadest EVM coverage), base58 on Solana.
+    const screen = await screenAddressRisk(wallet, /^0x[0-9a-fA-F]{40}$/.test(wallet) ? "ethereum" : "solana");
+    if (screen.action !== "allow") {
+      return NextResponse.json({ error: "Wallet blocked by AML policy" }, { status: 403 });
     }
   }
 
