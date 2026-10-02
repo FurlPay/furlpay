@@ -3,9 +3,9 @@ import { trustedClientIp } from "@/lib/clientIp";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { OfframpSessionSchema } from "@/lib/schemas";
-import { requireUser } from "@/lib/authz";
+import { authenticateRampRequest } from "@/lib/ramp/partnerAuth";
 import { coinbaseOfframpUrl, coinbaseRampBackend, isCoinbaseRampChain } from "@/lib/services/coinbaseRamp";
-import { rampGuard, rampCommit, type RampAuth } from "@/lib/ramp/rampGuard";
+import { rampGuard, rampCommit } from "@/lib/ramp/rampGuard";
 import { recordRampAudit } from "@/lib/ramp/rampAudit";
 import { attachCheckout, createRampOrder, updateRampOrderStatus } from "@/lib/ramp/rampOrder";
 import type { Chain } from "@/lib/security/addressCheck";
@@ -26,15 +26,19 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "offramp.session", { limit: 10, windowMs: 600_000 });
   if (limited) return limited;
 
-  const auth = await requireUser(req);
-  if (!auth.ok) return auth.res;
-  const account = auth.account;
+  // A FurlPay user session, or a partner's API key (@furlpay/elements).
+  const authed = await authenticateRampRequest(req, "session");
+  if (!authed.ok) return authed.res;
+  const rampAuth = authed.auth;
+  const userId = rampAuth.type === "user" ? rampAuth.user.id : undefined;
+  const partnerId = rampAuth.type === "partner" ? rampAuth.partnerId : undefined;
+  // Provider-facing reference for the customer: never a partner's raw user id.
+  const subjectRef = userId ?? `partner:${partnerId}`;
 
   const body = await validateBody(req, OfframpSessionSchema);
   if (body instanceof NextResponse) return body;
 
   // Hosted: Coinbase runs KYC and the payout; FurlPay's identity tiers do not apply.
-  const rampAuth: RampAuth = { type: "user", user: account.user, jti: auth.claims.jti };
   const guard = await rampGuard({
     req,
     auth: rampAuth,
@@ -58,7 +62,8 @@ export async function POST(req: NextRequest) {
     direction: "offramp",
     flowKind: "hosted_checkout",
     statusFeed: false,
-    userId: account.user.id,
+    userId,
+    partnerId,
     cryptoAsset: body.token,
     cryptoAmount: String(body.cryptoAmount),
     chain: body.chain,
@@ -87,7 +92,7 @@ export async function POST(req: NextRequest) {
   await updateRampOrderStatus(order.orderId, { to: "PAYMENT_PENDING", trigger: "system", evidence: "Hosted sell checkout opened." });
 
   await recordRampAudit({
-    userId: account.user.id,
+    userId: subjectRef,
     action: "offramp.session.created",
     direction: "offramp",
     orderId: order.orderId,
@@ -96,7 +101,7 @@ export async function POST(req: NextRequest) {
     ip: trustedClientIp(req) ?? undefined,
     country: guard.meta.country ?? undefined,
     userAgent: req.headers.get("user-agent") ?? undefined,
-    kycTier: account.user.kycTier ?? 0,
+    kycTier: rampAuth.type === "user" ? (rampAuth.user.kycTier ?? 0) : undefined,
     velocityFlags: guard.meta.velocityFlags,
     providerSelected: "furlgateway",
     metadata: { chain: body.chain, token: body.token },

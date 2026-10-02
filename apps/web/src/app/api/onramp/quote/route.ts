@@ -6,6 +6,7 @@ import { quoteOnramp } from "@/lib/services/onramp";
 import { coinbaseBuyQuote, coinbaseRampBackend } from "@/lib/services/coinbaseRamp";
 import { demoOnlyUnavailable } from "@/lib/demoGate";
 import { trustedClientCountry } from "@/lib/clientIp";
+import { optionalRampAuth } from "@/lib/ramp/partnerAuth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,6 +24,11 @@ export const dynamic = "force-dynamic";
 export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "onramp.quote", { limit: 30, windowMs: 60_000 });
   if (limited) return limited;
+
+  // Public, but a presented API key must be valid, ramp-enabled and within
+  // its own 60/min budget (lib/ramp/partnerAuth.ts).
+  const partner = await optionalRampAuth(req, "quote");
+  if (!partner.ok) return partner.res;
 
   const body = await validateBody(req, OnrampQuoteSchema);
   if (body instanceof NextResponse) return body;

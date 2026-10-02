@@ -52,6 +52,10 @@ export interface OnrampSession {
   /** Client secret the partner's payment sheet uses to confirm (headless). */
   clientSecret: string;
   createdAt: string;
+  /** FurlPay ramp order id (when a provider checkout was opened). Status: GET /api/ramp/orders/:id. */
+  orderId?: string | null;
+  /** The provider-hosted checkout to send the customer to. The page is the provider's, under its terms. */
+  hosted?: { provider: string; url: string } | null;
 }
 
 export interface OnrampClientOptions {

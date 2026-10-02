@@ -109,7 +109,11 @@ export const RULES: RouteRule[] = [
   {
     id: "authenticated-routes-resolve-a-principal",
     appliesTo: ["AUTHENTICATED_USER"],
-    requiresAnyCall: ["requireUser", "requireRole", "requireOpsAdmin", "requireAnyRole"],
+    // authenticateRampRequest (lib/ramp/partnerAuth.ts) resolves a user via
+    // requireUser, or a partner via requireApiKey when an API key is presented.
+    // Admitted on the same terms as requireTenant below: partnerAuth.spec pins
+    // that it calls both helpers, so this cannot become a bypass by indirection.
+    requiresAnyCall: ["requireUser", "requireRole", "requireOpsAdmin", "requireAnyRole", "authenticateRampRequest"],
     severity: "error",
     reason:
       "A route classified AUTHENTICATED_USER must resolve its principal through the shared " +

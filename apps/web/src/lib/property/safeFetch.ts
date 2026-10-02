@@ -233,7 +233,13 @@ export async function checkUrl(raw: string): Promise<UrlCheck> {
 export function pinnedFetch(
   url: URL,
   address: string,
-  opts: { timeoutMs: number; headers: Record<string, string> }
+  opts: {
+    timeoutMs: number;
+    headers: Record<string, string>;
+    /** Default GET. POST is for outbound webhooks (lib/ramp/partnerWebhooks.ts). */
+    method?: "GET" | "POST";
+    body?: string;
+  }
 ): Promise<Response> {
   const family = isIP(address);
   if (!family) return Promise.reject(new Error(`pinnedFetch: ${address} is not an IP address`));
@@ -250,7 +256,7 @@ export function pinnedFetch(
     const req = transport.request(
       url,
       {
-        method: "GET",
+        method: opts.method ?? "GET",
         headers: opts.headers,
         lookup: pinnedLookup as never,
         agent: false, // no pooled socket from an earlier, differently-resolved request
@@ -274,6 +280,7 @@ export function pinnedFetch(
       }
     );
     req.on("error", reject);
+    if (opts.body !== undefined) req.write(opts.body);
     req.end();
   });
 }

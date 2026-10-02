@@ -3,11 +3,11 @@ import { trustedClientIp } from "@/lib/clientIp";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { OnrampSessionSchema } from "@/lib/schemas";
-import { requireUser } from "@/lib/authz";
+import { authenticateRampRequest } from "@/lib/ramp/partnerAuth";
 import { createOnrampSession } from "@/lib/services/onramp";
 import { coinbaseOnrampUrl, coinbaseRampBackend } from "@/lib/services/coinbaseRamp";
 import { demoOnlyUnavailable } from "@/lib/demoGate";
-import { rampGuard, rampCommit, type RampAuth } from "@/lib/ramp/rampGuard";
+import { rampGuard, rampCommit } from "@/lib/ramp/rampGuard";
 import { trustedClientCountry } from "@/lib/clientIp";
 import { recordRampAudit } from "@/lib/ramp/rampAudit";
 import { flagEnabled } from "@/lib/flags";
@@ -24,7 +24,8 @@ export const dynamic = "force-dynamic";
 registerProviders();
 
 // POST /api/onramp/session — open an on-ramp checkout. Consumed by the FurlPay
-// apps and @furlpay/elements/onramp.
+// apps (user session) and @furlpay/elements/onramp (partner publishable key,
+// lib/ramp/partnerAuth.ts).
 //
 // PROVIDER
 //   A. ONRAMP_LIVE on → the router picks the adapter for the corridor
@@ -43,9 +44,14 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "onramp.session", { limit: 10, windowMs: 600_000 });
   if (limited) return limited;
 
-  const auth = await requireUser(req);
-  if (!auth.ok) return auth.res;
-  const account = auth.account;
+  // A FurlPay user session, or a partner's API key (@furlpay/elements).
+  const authed = await authenticateRampRequest(req, "session");
+  if (!authed.ok) return authed.res;
+  const rampAuth = authed.auth;
+  const userId = rampAuth.type === "user" ? rampAuth.user.id : undefined;
+  const partnerId = rampAuth.type === "partner" ? rampAuth.partnerId : undefined;
+  // Provider-facing reference for the customer: never a partner's raw user id.
+  const subjectRef = userId ?? `partner:${partnerId}`;
 
   const body = await validateBody(req, OnrampSessionSchema);
   if (body instanceof NextResponse) return body;
@@ -73,7 +79,6 @@ export async function POST(req: NextRequest) {
   const paymentMethod = (body.paymentMethod ?? "card") as PaymentMethod;
 
   // ── Pick the provider ────────────────────────────────────────────────
-  const rampAuth: RampAuth = { type: "user", user: account.user, jti: auth.claims.jti };
   let adapter: OnrampProviderAdapter | null = null;
   if (routerOn) {
     const country = trustedClientCountry(req);
@@ -118,7 +123,8 @@ export async function POST(req: NextRequest) {
         flowKind: adapter && !adapter.hasHostedCheckout ? "onramp" : "hosted_checkout",
         // Only FurlBridge pushes status (its webhook). Coinbase sends none.
         statusFeed: providerId === "furlbridge",
-        userId: account.user.id,
+        userId,
+        partnerId,
         fiatCurrency: body.fiatCurrency,
         fiatAmountMinor: Number(amountMinor),
         cryptoAsset: body.token,
@@ -136,7 +142,7 @@ export async function POST(req: NextRequest) {
         toAssetId: `${body.token}.${body.chain}`,
         paymentMethod,
         countryCode: guard.meta.country!,
-        userRef: account.user.id,
+        userRef: subjectRef,
       });
       const placed = await adapter.createOrder({
         orderId: order.orderId,
@@ -144,7 +150,7 @@ export async function POST(req: NextRequest) {
         quote,
         destinationAddress: body.destinationAddress,
         destinationChain: body.chain,
-        userRef: account.user.id,
+        userRef: subjectRef,
         countryCode: guard.meta.country!,
       });
       checkoutUrl = placed.checkoutUrl;
@@ -182,7 +188,7 @@ export async function POST(req: NextRequest) {
   }
 
   await recordRampAudit({
-    userId: account.user.id,
+    userId: subjectRef,
     action: "onramp.session.created",
     direction: "onramp",
     orderId: order?.orderId ?? session.id,
@@ -191,7 +197,7 @@ export async function POST(req: NextRequest) {
     ip: trustedClientIp(req) ?? undefined,
     country: guard.meta.country ?? undefined,
     userAgent: req.headers.get("user-agent") ?? undefined,
-    kycTier: account.user.kycTier ?? 0,
+    kycTier: rampAuth.type === "user" ? (rampAuth.user.kycTier ?? 0) : undefined,
     velocityFlags: guard.meta.velocityFlags,
     providerSelected: providerId ?? "demo",
     metadata: { chain: body.chain, token: body.token, destinationAddress: body.destinationAddress },

@@ -125,6 +125,8 @@ export type AuditEvent =
   | "apikey.updated"
   | "apikey.deleted"
   | "apikey.auth_failed"
+  | "developer.ramp_webhook_set"
+  | "developer.ramp_webhook_cleared"
   | "recipient.attested"
   | "recipient.revoked"
   | "recipient.destination_revoked"
@@ -192,6 +194,8 @@ export type AuditEvent =
   | "ops.control_changed"
   | "ops.policy_changed"
   | "ops.settlement_rechecked"
+  | "ops.ramp_partner_enabled"
+  | "ops.ramp_partner_disabled"
   | "ops.security_acknowledged";
 
 export interface AuditEntry {

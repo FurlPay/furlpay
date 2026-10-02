@@ -133,6 +133,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // AES-256-GCM key (base64, 32 bytes) for stored bank account numbers
       // (lib/ramp/beneficiary.ts). Unset => nothing is stored.
       v("FURLPAY_BENEFICIARY_ENCRYPTION_KEY"),
+      // AES-256-GCM key (base64, 32 bytes) sealing partner webhook signing
+      // secrets (lib/ramp/partnerConfig.ts). Unset => partners cannot set a callback.
+      v("FURLPAY_PARTNER_WEBHOOK_KEY"),
       // Cannot be enabled: no lender and no biller network is contracted
       // (flags.ts `unimplemented`). Registered so the names exist.
       v("CREDIT_LIVE"),
