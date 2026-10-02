@@ -1,5 +1,18 @@
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
+import { datasetStats } from "../googlePlacesLayer";
 import { googlePlacesInBBox, prominence, selectSpatially } from "../googlePlacesLayer";
+
+
+// The Google Places layer may only be served inside its cache window
+// (datasetFresh; Google Places terms). These tests exercise the FRESH path, so
+// the clock is pinned inside that window: they began failing on 2026-10-01 when
+// the checked-in dataset expired, testing the calendar instead of the code.
+// Only Date is faked; timers and promises run normally.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.parse(datasetStats().generatedAt) + 86_400_000);
+});
+afterAll(() => vi.useRealTimers());
 
 describe("spatial sampling vs pure ranking", () => {
   it("recovers the neighbourhoods pure ranking loses", () => {
