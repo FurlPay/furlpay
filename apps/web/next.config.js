@@ -90,6 +90,10 @@ const nextConfig = {
         destination: "https://discord.com/oauth2/authorize?client_id=1523364052116705400",
         permanent: false,
       },
+      // Short, shareable event link for social bios and print. Temporary so the
+      // canonical /events/<slug> page stays the one URL that accrues ranking and
+      // so the short link can be repointed at next year's edition.
+      { source: "/token2049", destination: "/events/token2049-singapore-2026", permanent: false },
       // Branded Telegram links.
       { source: "/telegram", destination: "https://t.me/FurlpayBot", permanent: false },
       { source: "/telegram/group", destination: "https://t.me/FurlPay", permanent: false },
