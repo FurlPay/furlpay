@@ -93,8 +93,82 @@ export const SwapSchema = z.union([SwapExecuteSchema, SwapQuoteSchema]);
 export const OfframpSchema = z.object({
   fromCurrency: z.string().min(2).max(10),
   toCurrency: z.string().min(2).max(10),
-  amount: z.number().positive().max(1_000_000),
+  amount: z
+    .number()
+    .positive("Amount must be positive")
+    .max(50_000, "Maximum off-ramp: $50,000")
+    .refine((n) => Number.isFinite(n), "Must be a finite number"),
   execute: z.boolean().optional(),
+  // Required to execute once a payout path exists: the user's VERIFIED
+  // beneficiary (lib/ramp/beneficiary.ts). There is no "default" account.
+  beneficiaryId: z.string().regex(/^ben_[a-f0-9]{20}$/).optional(),
+  stepUpProofId: z.string().min(1).max(200).optional(),
+});
+
+// --- On-ramp / off-ramp schemas (Rule 1: Zod on every POST body) -----------
+
+const RampToken = z.enum(["USDC", "USDT", "EURC"]);
+const RampChain = z.enum(["solana", "base", "ethereum", "arbitrum", "polygon"]);
+const FiatCurrency = z.enum([
+  "USD", "EUR", "GBP", "INR", "BRL", "JPY", "AED", "SGD", "THB", "MXN",
+]);
+const PaymentMethod = z.enum([
+  "card", "apple_pay", "google_pay", "bank_transfer",
+  "upi", "imps", "sepa", "ach", "faster_payments", "on_chain",
+]);
+
+export const OnrampQuoteSchema = z.object({
+  fiatAmount: z
+    .number()
+    .positive("Amount must be positive")
+    .max(50_000, "Maximum on-ramp: $50,000")
+    .refine((n) => Number.isFinite(n), "Must be a finite number"),
+  fiatCurrency: FiatCurrency,
+  token: RampToken,
+  chain: RampChain,
+  paymentMethod: PaymentMethod.optional(),
+});
+
+export const OnrampSessionSchema = z.object({
+  fiatAmount: z
+    .number()
+    .positive("Amount must be positive")
+    .min(1, "Minimum on-ramp: $1.00")
+    .max(50_000, "Maximum on-ramp: $50,000")
+    .refine((n) => Number.isFinite(n), "Must be a finite number"),
+  fiatCurrency: FiatCurrency,
+  token: RampToken,
+  chain: RampChain,
+  paymentMethod: PaymentMethod.optional(),
+  // Rule 9: address validated via addressCheck.ts after parsing.
+  destinationAddress: z.string().min(20).max(128),
+  externalId: z.string().max(128).optional(),
+  idempotencyKey: z.string().uuid().optional(),
+  stepUpProofId: z.string().min(1).max(200).optional(),
+});
+
+export const OfframpSessionSchema = z.object({
+  address: z.string().min(20).max(128),
+  chain: RampChain,
+  token: RampToken,
+  cryptoAmount: z
+    .number()
+    .positive("Amount must be positive")
+    .max(50_000, "Maximum off-ramp: $50,000")
+    .refine((n) => Number.isFinite(n), "Must be a finite number"),
+  // https only: the provider sends the user here after checkout.
+  redirectUrl: z.string().url().startsWith("https://").max(500).optional(),
+});
+
+export const BeneficiarySchema = z.object({
+  accountHolderName: z.string().min(2).max(200),
+  // Whitelist exactly the fields needed — AGENTS.md Rule 4.
+  accountNumber: z.string().min(5).max(34),     // IBAN can be up to 34 chars
+  bankCode: z.string().min(4).max(15).optional(), // IFSC (11), SWIFT (8-11), ABA (9)
+  bankName: z.string().max(200).optional(),
+  country: z.string().length(2),                  // ISO 3166-1 alpha-2
+  currency: FiatCurrency,
+  stepUpProofId: z.string().min(1).max(200).optional(),
 });
 
 export const CheckoutSchema = z.object({

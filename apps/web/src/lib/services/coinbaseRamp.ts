@@ -1,3 +1,4 @@
+import { rampEnv } from "@/lib/providers/rampEnv";
 import { createPrivateKey, randomBytes, sign } from "crypto";
 
 // ---------------------------------------------------------------------------
@@ -21,8 +22,9 @@ import { createPrivateKey, randomBytes, sign } from "crypto";
 // (base64 Ed25519 secret) or ES256 for legacy PEM EC keys.
 // ---------------------------------------------------------------------------
 
-const CDP_KEY_ID = process.env.CDP_API_KEY_ID;
-const CDP_SECRET = process.env.CDP_API_KEY_SECRET;
+// FURLGATEWAY_* is the internal name; CDP_* remains the fallback (lib/providers/rampEnv.ts).
+const CDP_KEY_ID = rampEnv("FURLGATEWAY_API_KEY_ID");
+const CDP_SECRET = rampEnv("FURLGATEWAY_API_KEY_SECRET");
 const HOST = "api.developer.coinbase.com";
 const TOKEN_PATH = "/onramp/v1/token";
 
@@ -96,7 +98,6 @@ async function sessionToken(address: string, blockchains: string[], assets: stri
 export interface HostedRamp {
   provider: "coinbase";
   url: string;
-  /** Coinbase charges 0% provider fees on USDC on/offramps. */
   feeNote: string;
   expiresNote: string;
 }
@@ -124,7 +125,7 @@ export async function coinbaseOnrampUrl(input: {
   return {
     provider: "coinbase",
     url: url.toString(),
-    feeNote: input.asset === "USDC" ? "0% Coinbase fees on USDC" : "Coinbase fees apply",
+    feeNote: "Coinbase shows its fees before you pay.",
     expiresNote: "Session token is single-use and expires in minutes — open promptly.",
   };
 }
@@ -150,7 +151,81 @@ export async function coinbaseOfframpUrl(input: {
   return {
     provider: "coinbase",
     url: url.toString(),
-    feeNote: input.asset === "USDC" ? "0% Coinbase fees on USDC" : "Coinbase fees apply",
+    feeNote: "Coinbase shows its fees before you pay.",
     expiresNote: "Session token is single-use and expires in minutes — open promptly.",
   };
+}
+
+// ---------------------------------------------------------------------------
+// Buy quote — the real price, from Coinbase.
+// POST /onramp/v1/buy/quote (docs.cdp.coinbase.com, "Create Buy Quote",
+// checked 2026-10-02). Amount fields are { value, currency } objects. Returns
+// null when FurlGateway (CDP) credentials are unset; throws on a CDP error so
+// the caller can say "unavailable" instead of inventing a number.
+// ---------------------------------------------------------------------------
+
+const QUOTE_PATH = "/onramp/v1/buy/quote";
+
+const CDP_PAYMENT_METHOD: Record<string, string> = {
+  card: "CARD",
+  apple_pay: "APPLE_PAY",
+  ach: "ACH_BANK_ACCOUNT",
+  bank_transfer: "ACH_BANK_ACCOUNT",
+};
+
+export interface CoinbaseBuyQuote {
+  provider: "coinbase";
+  quoteId: string;
+  purchaseAmount: { value: string; currency: string };
+  paymentTotal: { value: string; currency: string };
+  paymentSubtotal: { value: string; currency: string };
+  coinbaseFee: { value: string; currency: string };
+  networkFee: { value: string; currency: string };
+}
+
+type Amount = { value?: unknown; currency?: unknown };
+const amount = (a: Amount | undefined) =>
+  a && typeof a.value === "string" && typeof a.currency === "string" ? { value: a.value, currency: a.currency } : null;
+
+export async function coinbaseBuyQuote(input: {
+  asset: string;
+  chain: string;
+  fiatAmount: number;
+  fiatCurrency: string;
+  paymentMethod: string;
+  country: string;
+  subdivision?: string;
+}): Promise<CoinbaseBuyQuote | null> {
+  if (coinbaseRampBackend === "none" || !isCoinbaseRampChain(input.chain)) return null;
+  const method = CDP_PAYMENT_METHOD[input.paymentMethod];
+  if (!method) return null;
+  const res = await fetch(`https://${HOST}${QUOTE_PATH}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cdpJwt("POST", QUOTE_PATH)}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      purchaseCurrency: input.asset,
+      purchaseNetwork: input.chain,
+      paymentAmount: input.fiatAmount.toFixed(2),
+      paymentCurrency: input.fiatCurrency,
+      paymentMethod: method,
+      country: input.country,
+      ...(input.subdivision ? { subdivision: input.subdivision } : {}),
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  });
+  if (!res.ok) throw new Error(`cdp buy quote ${res.status}`);
+  const j = (await res.json()) as Record<string, unknown>;
+  const q = {
+    quoteId: typeof j.quote_id === "string" ? j.quote_id : null,
+    purchaseAmount: amount(j.purchase_amount as Amount),
+    paymentTotal: amount(j.payment_total as Amount),
+    paymentSubtotal: amount(j.payment_subtotal as Amount),
+    coinbaseFee: amount(j.coinbase_fee as Amount),
+    networkFee: amount(j.network_fee as Amount),
+  };
+  if (!q.quoteId || !q.purchaseAmount || !q.paymentTotal || !q.paymentSubtotal || !q.coinbaseFee || !q.networkFee) {
+    throw new Error("cdp buy quote: response missing fields");
+  }
+  return { provider: "coinbase", ...(q as Omit<CoinbaseBuyQuote, "provider">) };
 }

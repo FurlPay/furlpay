@@ -35,7 +35,9 @@ const QUICK_ACTIONS: { icon: IconName; label: string; path?: string; action?: "r
   { icon: "send", label: "Send", path: "/payouts" },
   { icon: "receive", label: "Receive", action: "receive" },
   { icon: "swap", label: "Swap", path: "/swaps" },
-  { icon: "card", label: "Card", path: "/cards" },
+  // Buy replaced Card here: the grid is six columns, and card issuing has no
+  // issuer behind it (CARD_ISSUING_LIVE is `unimplemented`). Cards stay on the site.
+  { icon: "card", label: "Buy", path: "/ramp" },
   { icon: "travel", label: "Travel", path: "/travel" },
   { icon: "invest", label: "Invest", path: "/investing" },
 ];

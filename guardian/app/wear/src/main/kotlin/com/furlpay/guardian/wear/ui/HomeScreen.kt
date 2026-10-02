@@ -208,6 +208,7 @@ fun HomeScreen(
                         Triple("Spending", GuardianGlyph.Bars, Routes.SPENDING),
                         Triple("Travel", GuardianGlyph.Plane, Routes.TRAVEL),
                         Triple("Receive", GuardianGlyph.Qr, Routes.QUICKPAY),
+                        Triple("Buy USDC", GuardianGlyph.Spark, Routes.BUY),
                     ),
                     ::navigate,
                 )

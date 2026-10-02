@@ -312,6 +312,9 @@ export type BgRequest =
   | { type: "GET_ENTITLEMENTS" }
   | { type: "UPGRADE_PLAN"; plan: "pro" | "developer" }
   | { type: "GET_EARN" }
+  // Buy / sell crypto (lib/ramp.ts). Quote is public; checkout opens Coinbase in a new tab.
+  | { type: "RAMP_QUOTE"; fiatAmount: number; fiatCurrency: string; chain: string }
+  | { type: "RAMP_CHECKOUT"; direction: "buy" | "sell"; amount: number; fiatCurrency: string; chain: string; address: string }
   | { type: "GET_MARKETS"; kind?: "stock" | "etf" | "crypto"; q?: string; limit?: number }
   | { type: "GET_MARKET_DETAIL"; symbol: string }
   | { type: "SEARCH_MARKETS"; q?: string; kind?: "stock" | "etf" | "crypto"; limit?: number }

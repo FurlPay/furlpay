@@ -311,6 +311,7 @@ export default function Settings() {
               payment (retyping an address) rather than adding a capability. */}
           <NavRow icon="people-outline" label="Address book" onPress={() => router.push("/contacts")} />
           <NavRow icon="wallet-outline" label="Self-custodial wallet" onPress={() => router.push("/wallet")} />
+          <NavRow icon="swap-vertical-outline" label="Buy & sell crypto" onPress={() => router.push("/ramp")} />
           <NavRow icon="business-outline" label="Banking — local accounts" onPress={() => router.push("/banking")} />
           <NavRow icon="pie-chart-outline" label="Spending analytics" onPress={() => router.push("/analytics")} />
           <NavRow icon="gift-outline" label="Rewards & referrals" onPress={() => router.push("/rewards")} />

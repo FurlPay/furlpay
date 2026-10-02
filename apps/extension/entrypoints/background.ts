@@ -1,4 +1,5 @@
 import { ApiError, apiFetch, getBaseUrl, toResponse } from "@/lib/api";
+import { isTrustedCheckoutUrl, type HostedCheckout, type RampQuote } from "@/lib/ramp";
 import { flush as flushAnalytics, track } from "@/lib/analytics";
 import {
   NO_LINKED_WALLET_ERROR,
@@ -210,6 +211,47 @@ export default defineBackground(() => {
           }).then(async (r) => {
             if (r.url) await browser.tabs.create({ url: r.url });
             return r;
+          })
+        ).then(sendResponse);
+        return true;
+      case "RAMP_QUOTE":
+        void toResponse(
+          apiFetch<RampQuote>("/api/onramp/quote", {
+            method: "POST",
+            body: JSON.stringify({
+              fiatAmount: message.fiatAmount,
+              fiatCurrency: message.fiatCurrency,
+              token: "USDC",
+              chain: message.chain,
+              paymentMethod: "card",
+            }),
+          })
+        ).then(sendResponse);
+        return true;
+      case "RAMP_CHECKOUT":
+        void toResponse(
+          (message.direction === "buy"
+            ? apiFetch<{ hosted: HostedCheckout | null }>("/api/onramp/session", {
+                method: "POST",
+                body: JSON.stringify({
+                  fiatAmount: message.amount,
+                  fiatCurrency: message.fiatCurrency,
+                  token: "USDC",
+                  chain: message.chain,
+                  paymentMethod: "card",
+                  destinationAddress: message.address,
+                }),
+              })
+            : apiFetch<{ hosted: HostedCheckout | null }>("/api/offramp/session", {
+                method: "POST",
+                body: JSON.stringify({ address: message.address, chain: message.chain, token: "USDC", cryptoAmount: message.amount }),
+              })
+          ).then(async (r) => {
+            if (!r.hosted) throw new Error("not_available");
+            // Never open a tab on a URL that is not Coinbase's checkout (lib/ramp.ts).
+            if (!isTrustedCheckoutUrl(r.hosted.url)) throw new Error("untrusted_checkout_url");
+            await browser.tabs.create({ url: r.hosted.url });
+            return { opened: true as const };
           })
         ).then(sendResponse);
         return true;

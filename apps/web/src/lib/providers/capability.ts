@@ -1,4 +1,5 @@
 import type { PaymentMethod, ProviderId, ProviderKind } from "./types";
+import { rampEnv } from "./rampEnv";
 
 // ---------------------------------------------------------------------------
 // What a provider is ALLOWED to do, and what we have EVIDENCE that it can do.
@@ -103,20 +104,181 @@ export interface CapabilityDecision {
 /**
  * The declared matrix.
  *
- * EMPTY, AND THAT IS THE HONEST STATE. FurlPay has no signed on-ramp,
- * off-ramp or banking agreement in any jurisdiction. Populating this with
- * plausible-looking rows would make `selectProvider()` return a provider that
- * cannot be paid through, which is worse than returning nothing — the caller
- * would proceed.
+ * A row is selectable only when `contractStatus` is "live" — a signed
+ * agreement, production credentials, and a live transaction observed end to
+ * end. Rows below that bar are declared so ops can see the corridor and why it
+ * is closed (`evaluateCorridor`). A row is promoted to "live" only when:
+ *   1. A signed agreement (or accepted self-serve terms) covers the corridor
+ *   2. Evidence URL documents the contract or written confirmation
+ *   3. Required env vars are identified
  *
- * A row is added when an agreement is signed, together with its evidence URL.
+ * The router evaluates this matrix per-query and rejects rows where
+ * `contractStatus !== "live"` or credentials are missing.
  */
-export const PROVIDER_CAPABILITIES: readonly ProviderCapability[] = [];
+export const PROVIDER_CAPABILITIES: readonly ProviderCapability[] = [
+  // ── FurlGateway = Coinbase CDP ─────────────────────────────────────────
+  // NOT "live": that status means a live transaction was observed end to end,
+  // and none has been. CDP Onramp is self-serve, but the owner must confirm
+  // the CDP project is approved for Onramp/Offramp in these countries and
+  // attach that evidence before promoting a row. evidenceUrl below is the
+  // product page, not a contract.
+  // US on-ramp — Coinbase-hosted checkout
+  {
+    providerId: "furlgateway",
+    kind: "onramp",
+    direction: "onramp",
+    country: "US",
+    fiatCurrency: "USD",
+    assets: ["USDC.base", "USDC.solana", "USDC.ethereum", "USDC.arbitrum", "USDC.polygon"],
+    paymentMethods: ["card", "bank_transfer", "apple_pay"],
+    contractStatus: "in_discussion",
+    vdaMerchantAccepted: true,
+    evidenceUrl: "https://portal.cdp.coinbase.com/products/onramp",
+    minMinor: 100n,            // $1.00
+    maxMinor: 10_000_00n,      // $10,000.00
+    settlementWindow: "instant",
+    requiredCredentials: ["FURLGATEWAY_API_KEY_ID", "FURLGATEWAY_API_KEY_SECRET"],
+  },
+  // EU on-ramp via Coinbase
+  {
+    providerId: "furlgateway",
+    kind: "onramp",
+    direction: "onramp",
+    country: "GB",
+    fiatCurrency: "GBP",
+    assets: ["USDC.base", "USDC.ethereum"],
+    paymentMethods: ["card", "bank_transfer"],
+    contractStatus: "in_discussion",
+    vdaMerchantAccepted: true,
+    evidenceUrl: "https://portal.cdp.coinbase.com/products/onramp",
+    minMinor: 100n,            // £1.00
+    maxMinor: 10_000_00n,      // £10,000.00
+    settlementWindow: "instant",
+    requiredCredentials: ["FURLGATEWAY_API_KEY_ID", "FURLGATEWAY_API_KEY_SECRET"],
+  },
+  // US off-ramp via Coinbase hosted sell
+  {
+    providerId: "furlgateway",
+    kind: "offramp",
+    direction: "offramp",
+    country: "US",
+    fiatCurrency: "USD",
+    assets: ["USDC.base", "USDC.solana", "USDC.ethereum", "USDC.arbitrum", "USDC.polygon"],
+    paymentMethods: ["bank_transfer"],
+    contractStatus: "in_discussion",
+    vdaMerchantAccepted: true,
+    evidenceUrl: "https://portal.cdp.coinbase.com/products/onramp",
+    minMinor: 100n,            // $1.00
+    maxMinor: 10_000_00n,      // $10,000.00
+    settlementWindow: "T+1",
+    requiredCredentials: ["FURLGATEWAY_API_KEY_ID", "FURLGATEWAY_API_KEY_SECRET"],
+  },
+
+  // ── FurlBridge = Transak: IN DISCUSSION, no contract ───────────────────
+  // India on-ramp — UPI/IMPS
+  {
+    providerId: "furlbridge",
+    kind: "onramp",
+    direction: "onramp",
+    country: "IN",
+    fiatCurrency: "INR",
+    assets: ["USDC.solana", "USDC.base"],
+    paymentMethods: ["upi", "imps"],
+    contractStatus: "in_discussion",
+    vdaMerchantAccepted: false, // unconfirmed until Transak accepts FurlPay as a merchant
+    minMinor: 50_000n,          // ₹500
+    maxMinor: 50_000_000n,      // ₹5,00,000
+    settlementWindow: "instant",
+    requiredCredentials: ["FURLBRIDGE_API_KEY", "FURLBRIDGE_ACCESS_TOKEN"],
+  },
+  // India off-ramp — IMPS/NEFT bank payout
+  {
+    providerId: "furlbridge",
+    kind: "offramp",
+    direction: "offramp",
+    country: "IN",
+    fiatCurrency: "INR",
+    assets: ["USDC.solana", "USDC.base"],
+    paymentMethods: ["imps", "neft"],
+    contractStatus: "in_discussion",
+    vdaMerchantAccepted: false, // unconfirmed until Transak accepts FurlPay as a merchant
+    minMinor: 100_000n,         // ₹1,000
+    maxMinor: 20_000_000n,      // ₹2,00,000
+    settlementWindow: "T+0",
+    requiredCredentials: ["FURLBRIDGE_API_KEY", "FURLBRIDGE_SECRET_KEY", "FURLBRIDGE_ACCESS_TOKEN"],
+  },
+  // Transak global on-ramp — card (160+ countries, representative row)
+  {
+    providerId: "furlbridge",
+    kind: "onramp",
+    direction: "onramp",
+    country: "GB",
+    fiatCurrency: "GBP",
+    assets: ["USDC.solana", "USDC.base", "USDC.ethereum"],
+    paymentMethods: ["card", "faster_payments"],
+    contractStatus: "in_discussion",
+    vdaMerchantAccepted: false, // unconfirmed until Transak accepts FurlPay as a merchant
+    minMinor: 1_000n,           // £10
+    maxMinor: 5_000_00n,        // £5,000
+    settlementWindow: "instant",
+    requiredCredentials: ["FURLBRIDGE_API_KEY", "FURLBRIDGE_ACCESS_TOKEN"],
+  },
+
+  // ── FurlPayout = Echo Money: NOT CONTRACTED; API scheme unverified ─────
+  // India B2B off-ramp — travel supplier payouts
+  {
+    providerId: "furlpayout",
+    kind: "offramp",
+    direction: "payout",
+    country: "IN",
+    fiatCurrency: "INR",
+    assets: ["USDC.solana"],
+    paymentMethods: ["upi", "imps", "neft"],
+    contractStatus: "none",
+    vdaMerchantAccepted: false,
+    minMinor: 100_000n,         // ₹1,000
+    maxMinor: 100_000_000n,     // ₹10,00,000
+    settlementWindow: "T+0",
+    requiredCredentials: ["FURLPAYOUT_API_KEY", "FURLPAYOUT_API_SECRET"],
+  },
+  // Thailand B2B off-ramp — hotel payouts
+  {
+    providerId: "furlpayout",
+    kind: "offramp",
+    direction: "payout",
+    country: "TH",
+    fiatCurrency: "THB",
+    assets: ["USDC.solana"],
+    paymentMethods: ["bank_transfer"],
+    contractStatus: "none",
+    vdaMerchantAccepted: false,
+    minMinor: 1_000_00n,        // ฿1,000
+    maxMinor: 3_000_000_00n,    // ฿3,000,000
+    settlementWindow: "T+0",
+    requiredCredentials: ["FURLPAYOUT_API_KEY", "FURLPAYOUT_API_SECRET"],
+  },
+  // EU B2B off-ramp — SEPA payouts
+  {
+    providerId: "furlpayout",
+    kind: "offramp",
+    direction: "payout",
+    country: "DE",
+    fiatCurrency: "EUR",
+    assets: ["USDC.solana", "USDC.base"],
+    paymentMethods: ["sepa"],
+    contractStatus: "none",
+    vdaMerchantAccepted: false,
+    minMinor: 10_00n,           // €10
+    maxMinor: 100_000_00n,      // €100,000
+    settlementWindow: "T+1",
+    requiredCredentials: ["FURLPAYOUT_API_KEY", "FURLPAYOUT_API_SECRET"],
+  },
+];
 
 /** Does the deployment actually hold every credential this row needs? */
 function credentialsPresent(capability: ProviderCapability): boolean {
   return capability.requiredCredentials.every(
-    (name) => (process.env[name] ?? "").trim().length > 0
+    (name) => (rampEnv(name) ?? "").length > 0
   );
 }
 

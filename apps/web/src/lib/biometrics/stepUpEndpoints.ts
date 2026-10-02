@@ -25,6 +25,10 @@ export const STEP_UP_ENDPOINTS = [
   "/earn/deposit",
   "/cards/settings",
   "/support/tickets",
+  // ─── Ramp endpoints: money-moving operations that require biometric ───
+  "/onramp/session",      // Creating an on-ramp session (fiat → crypto)
+  "/offramp/execute",     // Executing an off-ramp (crypto → fiat)
+  "/offramp/beneficiary", // Adding or changing bank account details
 ] as const;
 
 export type StepUpEndpoint = (typeof STEP_UP_ENDPOINTS)[number];

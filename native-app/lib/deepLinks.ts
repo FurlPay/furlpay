@@ -31,6 +31,7 @@ const KNOWN_ROUTES = new Set<string>([
   "/bills",
   "/credit",
   "/banking",
+  "/ramp",
   "/rewards",
   "/insights",
   "/chains",

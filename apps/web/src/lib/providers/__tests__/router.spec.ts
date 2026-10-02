@@ -80,12 +80,23 @@ function stubAdapter(id: string): OnrampProviderAdapter {
 beforeEach(() => __resetProviderState());
 afterEach(() => __resetProviderState());
 
-describe("the declared matrix is honestly empty", () => {
-  it("declares no capability for any corridor", () => {
-    // FurlPay has no signed on-ramp, off-ramp or banking agreement. Seeding
-    // plausible rows would make selection return a provider that cannot be paid
+describe("the declared matrix selects nothing", () => {
+  it("declares no live corridor", () => {
+    // FurlPay has no signed on-ramp, off-ramp or banking agreement, and "live"
+    // means a live transaction was observed end to end. Rows are declared so ops
+    // can see each corridor and why it is closed; a row marked live without that
+    // evidence would make selection return a provider that cannot be paid
     // through — worse than returning nothing, because the caller would proceed.
-    expect(PROVIDER_CAPABILITIES).toHaveLength(0);
+    // (2026-10-02: three Coinbase rows had been marked live on a product-page URL.)
+    expect(PROVIDER_CAPABILITIES.filter((c) => c.contractStatus === "live")).toEqual([]);
+  });
+
+  it("names partners by internal id only", () => {
+    // User-facing attribution comes from rampAttribution(); the matrix itself
+    // never hard-wires a vendor name.
+    for (const c of PROVIDER_CAPABILITIES) {
+      expect(["furlgateway", "furlbridge", "furlpayout"]).toContain(c.providerId);
+    }
   });
 
   it("says so plainly rather than failing obscurely", () => {

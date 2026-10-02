@@ -184,20 +184,25 @@ export const FLAG_SPECS: Record<MoneyFlag, FlagSpec> = {
     description: "Accept real fiat and deliver real crypto through a contracted on-ramp provider.",
     environments: ["staging", "production"],
     requires: ["FURLPAY_ONRAMP_PROVIDER", "FURLPAY_ONRAMP_PROVIDER_API_KEY"],
+    // Adapters exist (lib/providers/adapters: furlgateway = Coinbase CDP,
+    // furlbridge = Transak). The Coinbase-hosted checkout keeps working with
+    // this flag off — it is the provider's own flow, not FurlPay moving money.
     unimplemented:
-      "No on-ramp provider capability row has contractStatus 'live' " +
-      "(lib/providers/capability.ts — the matrix is empty) and no OnrampProviderAdapter is " +
-      "registered. Selection would find nothing, so enabling this could only produce a failure " +
-      "that looks like an outage instead of the honest 'this corridor does not exist'.",
+      "No capability row is 'live' (that status means a live transaction was observed end to end, " +
+      "and none has been). No provider outcome reaches FurlPay: the Coinbase adapter has no status " +
+      "or webhook path, and the Transak webhook is not yet linked to FurlPay orders. The router " +
+      "could open a checkout but never learn whether the user paid or received anything.",
   },
   OFFRAMP_LIVE: {
     description: "Convert real crypto to real fiat and pay it to a customer's bank account.",
     environments: ["staging", "production"],
     requires: ["FURLPAY_OFFRAMP_PROVIDER", "FURLPAY_OFFRAMP_PROVIDER_API_KEY"],
     unimplemented:
-      "No off-ramp provider is contracted and no OfframpProviderAdapter is registered. The " +
-      "off-ramp lifecycle also requires a verified-beneficiary path (penny drop or name match); " +
-      "paying an unverified account is how a substituted beneficiary gets paid.",
+      "No off-ramp provider is contracted (no capability row is 'live'), and the verified-beneficiary " +
+      "path does not exist: lib/ramp/beneficiary.ts has no penny-drop partner, so nothing can move a " +
+      "bank account out of pending_verification, and /api/offramp/beneficiary refuses to collect " +
+      "account numbers it cannot verify. Paying an unverified account is how a substituted " +
+      "beneficiary gets paid. The Echo (furlpayout) adapter's API and webhook scheme are unverified.",
   },
   CREDIT_LIVE: {
     description: "Extend a real crypto- and equity-collateralised credit line.",

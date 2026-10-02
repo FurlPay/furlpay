@@ -48,6 +48,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("FURLPAY_EXTENSION_ID"),
       v("ALLOW_GUEST_LOGIN"),
       v("NEXT_PUBLIC_ALLOW_GUEST"),
+      // Local development only: unauthenticated pages auto sign in to the demo
+      // account (app/api/auth/dev-session). Ignored by every production build.
+      v("FURLPAY_DEV_AUTO_LOGIN"),
       v("FURLPAY_ADMIN_EMAIL"),
       // Outbound security-alert sink (lib/ops/alertSink.ts). Both are required
       // for delivery: with no webhook the sink is a documented no-op, and with no
@@ -108,6 +111,28 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("OFFRAMP_LIVE"),
       v("FURLPAY_OFFRAMP_PROVIDER"),
       v("FURLPAY_OFFRAMP_PROVIDER_API_KEY"),
+      // FurlBridge = Transak (no contract; capability rows "in_discussion").
+      // FURLBRIDGE_* is read first, TRANSAK_* is the fallback (rampEnv.ts).
+      // The access token also verifies webhooks (HS256 JWT body).
+      v("FURLBRIDGE_API_KEY"),
+      v("FURLBRIDGE_SECRET_KEY"),
+      v("FURLBRIDGE_ACCESS_TOKEN"),
+      v("FURLBRIDGE_API_URL"),
+      v("TRANSAK_API_KEY"),
+      v("TRANSAK_SECRET_KEY"),
+      v("TRANSAK_ACCESS_TOKEN"),
+      v("TRANSAK_API_URL"),
+      // FurlPayout = Echo Money (no contract; API scheme unverified; never
+      // registered by lib/providers/register.ts).
+      v("FURLPAYOUT_API_KEY"),
+      v("FURLPAYOUT_API_SECRET"),
+      v("FURLPAYOUT_API_URL"),
+      v("ECHO_API_KEY"),
+      v("ECHO_API_SECRET"),
+      v("ECHO_API_URL"),
+      // AES-256-GCM key (base64, 32 bytes) for stored bank account numbers
+      // (lib/ramp/beneficiary.ts). Unset => nothing is stored.
+      v("FURLPAY_BENEFICIARY_ENCRYPTION_KEY"),
       // Cannot be enabled: no lender and no biller network is contracted
       // (flags.ts `unimplemented`). Registered so the names exist.
       v("CREDIT_LIVE"),
@@ -300,6 +325,10 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("EMAIL_FROM"),
       v("CDP_API_KEY_ID"),
       v("CDP_API_KEY_SECRET"),
+      // Internal names for the same CDP key (lib/providers/rampEnv.ts); the
+      // CDP_* names above stay as the fallback.
+      v("FURLGATEWAY_API_KEY_ID"),
+      v("FURLGATEWAY_API_KEY_SECRET"),
     ],
   },
   {

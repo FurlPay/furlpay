@@ -33,6 +33,7 @@
         "apps/web/src/lib/auth/otp.ts",
         "apps/web/src/lib/authz.ts",
         "apps/web/src/lib/demoGate.ts",
+        "apps/web/src/lib/devAutoLogin.ts",
         "apps/web/src/lib/discord.ts",
         "apps/web/src/lib/flags.ts",
         "apps/web/src/lib/integrations.ts",
@@ -47,6 +48,7 @@
         "apps/web/src/lib/store.ts",
         "apps/web/src/lib/telegram.ts",
         "apps/web/src/lib/travel/duffel.ts",
+        "apps/web/src/lib/travel/store.ts",
         "apps/web/src/lib/webhookGuard.ts"
       ]
     },

@@ -18,6 +18,7 @@ import androidx.wear.compose.navigation.rememberSwipeDismissableNavController
 import com.furlpay.guardian.wear.complication.ComplicationLockReceiver
 import com.furlpay.guardian.wear.complication.ComplicationPrivacy
 import com.furlpay.guardian.wear.tile.EXTRA_ROUTE
+import com.furlpay.guardian.wear.ui.BuyScreen
 import com.furlpay.guardian.wear.ui.CardsScreen
 import com.furlpay.guardian.wear.ui.HomeScreen
 import com.furlpay.guardian.wear.ui.MarketsScreen
@@ -154,6 +155,7 @@ object Routes {
     const val QUICKPAY = "quickpay"
     const val MARKETS = "markets"
     const val TRAVEL = "travel"
+    const val BUY = "buy"
 }
 
 @Composable
@@ -198,6 +200,7 @@ fun GuardianWearUi(
                     StockScreen(symbol = backStack.arguments?.getString("symbol") ?: "")
                 }
                 composable(Routes.TRAVEL) { TravelScreen() }
+                composable(Routes.BUY) { BuyScreen() }
             }
         }
     }
