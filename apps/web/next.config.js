@@ -9,14 +9,16 @@
 const csp = [
   "default-src 'self'",
   // Next.js streams inline bootstrap scripts; integrations load their own SDKs.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://apis.google.com https://*.withpersona.com https://www.googletagmanager.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://accounts.google.com https://apis.google.com https://*.withpersona.com https://www.googletagmanager.com https://app.cal.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https:",
   // XHR/fetch to our own API + integration + market-data / RPC endpoints.
   "connect-src 'self' https: wss:",
-  // Embedded checkout / KYC / sign-in / scheduling surfaces.
-  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com https://calendly.com",
+  // Embedded checkout / KYC / sign-in / scheduling surfaces. app.cal.com (script
+  // + frame) is the Cal.com booking embed in ScheduleCallButton; it replaced
+  // the Calendly iframe, so calendly.com is no longer allowed.
+  "frame-src 'self' https://js.stripe.com https://*.withpersona.com https://accounts.google.com https://app.cal.com",
   "worker-src 'self' blob:",
   "object-src 'none'",
   "base-uri 'self'",

@@ -46,6 +46,7 @@ const PUBLIC_PAGES = new Set([
   "/waitlist",
   "/downloads", // where every store + desktop badge on the landing page points
   "/grants",
+  "/token2049", // short link → /events/token2049-singapore-2026 (hotfix; same as release b9d3d27+)
   "/marketplace",
   "/login",
   "/signup",
@@ -75,6 +76,10 @@ const PUBLIC_PAGE_PREFIXES = [
   "/compare", // SEO comparison pages (public)
   "/integrations", // pSEO framework-integration quickstarts (public)
   "/careers", // job board — per-role pages must be crawlable for Google for Jobs
+  // Events hub + one page per event (TOKEN2049 hotfix; same rule as release
+  // b9d3d27). Public marketing content: behind /login it was unreachable to
+  // the people it invites and uncrawlable.
+  "/events",
   "/hackathon", // FurlPay Build Challenge landing + submissions (public)
   "/swag", // FurlPay Swag Center store (public)
   "/newsletter", // subscribe / manage preferences (public)

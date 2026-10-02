@@ -1,114 +1,72 @@
-import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { Calendar, MapPin, Users, Video, ExternalLink, ArrowRight, PlayCircle, Code } from "lucide-react";
+import { ArrowRight, CalendarDays, ExternalLink, MapPin } from "lucide-react";
 import LandingChrome from "@/components/landing/LandingChrome";
 import JsonLd from "@/components/JsonLd";
+import EventCard from "@/components/events/EventCard";
+import { seoMetadata } from "@/lib/seo/meta";
 import { breadcrumb } from "@/lib/seo/schema";
+import {
+  eventStatus,
+  featuredEvent,
+  formatDateRange,
+  formatLocation,
+  participationLabel,
+  pastEvents,
+  statusLabel,
+  upcomingEvents,
+} from "@/lib/events/events";
 
-export const metadata: Metadata = {
-  title: "Furlpay Events & Roadshow 2026",
+// ---------------------------------------------------------------------------
+// /events — the events hub.
+//
+// Everything on this page is derived from EVENTS in @/lib/events/events. The
+// previous version of this file hard-coded four events inline, which is how it
+// ended up serving two 404 links (/events/london-founder-house and
+// /events/money2020-middle-east had no route), two CTAs pointing at bare
+// https://linkedin.com and https://youtube.com, and a list of finished events
+// under a heading that said "Upcoming".
+//
+// Sections render only when they have something in them, so the page is never
+// a set of empty headings. There is deliberately no client-side category
+// filter: with a handful of events the Upcoming/Past split is the whole
+// navigation problem, and a filter would ship JS to solve nothing. Add one when
+// the grid outgrows a single screen.
+// ---------------------------------------------------------------------------
+
+export const metadata = seoMetadata({
+  title: "Events",
   description:
-    "Join Furlpay at leading global fintech conferences, developer hackathons, and developer-relation meetups. Learn how we are building the future of PayFi, stablecoin rails, and x402 agentic payments.",
-  alternates: { canonical: "/events" },
-};
+    "Where to find FurlPay in person. Conferences, summits and developer events we are attending, speaking at, or hosting — including TOKEN2049 Singapore on 7-8 October 2026.",
+  path: "/events",
+  ogTitle: "FurlPay Events",
+});
 
-const UPCOMING_EVENTS = [
+const TOPICS = [
   {
-    title: "Arbitrum Open House & Founder House",
-    type: "Hackathon",
-    date: "July 10 - 12, 2026",
-    time: "All Day",
-    location: "Encode Hub, Shoreditch, London",
-    description:
-      "A 3-day intense builder event with $300,000 in prizes. FurlPay is showcasing our production-grade contracts and the x402 agentic payment protocol live in front of the Arbitrum Foundation and Offchain Labs core engineers.",
-    link: "/events/london-founder-house",
-    external: false,
-    cta: "Join Founder House",
-    featured: true,
+    title: "Stablecoin payments",
+    body: "Settlement in USDC and other stablecoins, what it costs against card interchange, and where the rails still break.",
   },
   {
-    title: "RWA WEEK: Stablecoin Velocity in Travel",
-    type: "Webinar",
-    date: "July 8, 2026",
-    time: "5:30 PM - 6:30 PM IST",
-    location: "LinkedIn Live / Online",
-    description:
-      "A deep-dive panel discussion hosted by UVECON.VC featuring FurlPay's founder alongside industry leaders, exploring real-world asset (RWA) tokenization and stablecoin payment layers for the travel sector.",
-    link: "https://linkedin.com",
-    external: true,
-    cta: "Register on LinkedIn",
-    featured: false,
+    title: "Agentic payments",
+    body: "The x402 standard for machine-to-machine payment: how an agent negotiates, funds an escrow, and settles without a human in the loop.",
   },
   {
-    title: "Stripe Tour & PayFi Integration Roadshow",
-    type: "Meetup",
-    date: "July 28, 2026",
-    time: "6:00 PM - 9:00 PM JST",
-    location: "Tokyo, Japan",
-    description:
-      "For Japanese hotel owners, travel tech developers, and ryokan operators. Explore how to implement USDC stablecoin checkouts beside existing Property Management Systems (PMS) with 0.5% fees and 1-second settlement.",
-    link: "/talk-to-us",
-    external: false,
-    cta: "Request Invitation",
-    featured: false,
-  },
-  {
-    title: "Money20/20 Middle East (Riyadh)",
-    type: "Conference",
-    date: "September 14 - 16, 2026",
-    time: "All Day",
-    location: "Riyadh, Saudi Arabia",
-    description:
-      "The premier global fintech summit. FurlPay will exhibit in the Startup Pod, pitch for the $400K equity-free Moneysurge pitch competition, and showcase our SAMA sandbox travel payments application.",
-    link: "/events/money2020-middle-east",
-    external: false,
-    cta: "Book Meeting in Riyadh",
-    featured: true,
-  },
-];
-
-const PAST_RESOURCES = [
-  {
-    title: "How to Build an AI Travel Booking Agent via x402 Protocol",
-    type: "Developer Workshop",
-    duration: "45 mins",
-    speaker: "Ashutosh Kumar Singh, Founder",
-    link: "https://youtube.com",
-  },
-  {
-    title: "Stablecoins vs. Card Interchange: A Hotel GM's Practical Guide",
-    type: "Webinar Recording",
-    duration: "30 mins",
-    speaker: "FurlPay Business Dev Team",
-    link: "/blog",
-  },
-  {
-    title: "Smart Contract Escrows & Oracle Check-Ins on Arbitrum",
-    type: "Technical Deep-dive",
-    duration: "15 mins read",
-    speaker: "FurlPay Protocol Team",
-    link: "/docs",
-  },
-];
-
-const TRACKS = [
-  {
-    title: "PayFi & Stablecoins",
-    body: "Understand the financial engineering behind USDC velocity, 0.5% transaction routing, and instant settlements without traditional clearing windows.",
-  },
-  {
-    title: "Agentic Payments (x402)",
-    body: "Explore the HTTP 402 standard enabling AI agents to negotiate rates, fund escrows, and execute automated hotel/flight bookings autonomously.",
-  },
-  {
-    title: "Fintech Compliance",
-    body: "Detailed reviews of operating legally under multi-jurisdiction frameworks including FinCEN (US), FCA (UK), VARA (UAE), JFSA (Japan), and SAMA (KSA).",
+    title: "Cross-border infrastructure",
+    body: "Payouts, virtual card issuing, and operating across multiple regulatory regimes without rebuilding the stack per market.",
   },
 ];
 
 export default function EventsPage() {
+  // One clock for the whole render, so a card and its section heading cannot
+  // disagree about what "today" is.
+  const now = new Date();
+  const featured = featuredEvent(now);
+  const upcoming = upcomingEvents(now).filter((e) => e.slug !== featured?.slug);
+  const past = pastEvents(now);
+
   return (
-    <div className="min-h-screen bg-black text-textPrimary">
+    <div className="min-h-screen bg-oled text-textPrimary">
       <LandingChrome />
       <JsonLd
         data={breadcrumb([
@@ -117,152 +75,222 @@ export default function EventsPage() {
         ])}
       />
 
-      <main className="mx-auto max-w-6xl px-6 pb-24 pt-14">
-        {/* Hero Section */}
-        <section className="text-center">
-          <p className="mb-3 text-[12px] font-semibold uppercase tracking-[0.18em] text-neon">Roadshow & Events</p>
-          <h1 className="mx-auto max-w-3xl text-[42px] font-extrabold leading-[1.1] tracking-tighter sm:text-[56px]">
-            Join us where the future of <span className="text-neon">PayFi</span> is built.
+      <main className="section pb-24 pt-14">
+        {/* ---- Hero ---------------------------------------------------- */}
+        <header className="max-w-3xl">
+          <p className="section-eyebrow">Events</p>
+          <h1 className="mt-3 text-[40px] font-extrabold leading-[1.08] tracking-tighter sm:text-[52px]">
+            Meet FurlPay around the world.
           </h1>
-          <p className="mx-auto mt-5 max-w-2xl text-[16px] leading-relaxed text-textSecondary">
-            Meet the FurlPay team at developer summits, fintech conferences, and live code workshops globally. 
-            Discover how we&apos;re building the on-chain payment layer for travel and agentic commerce.
+          <p className="mt-5 max-w-2xl text-[16px] leading-relaxed text-textSecondary">
+            We show up where payment infrastructure actually gets decided — crypto and fintech
+            summits, banking and stablecoin conferences, and developer events. If we are going to be
+            in your city, come and find us.
           </p>
-        </section>
+        </header>
 
-        {/* Featured Events & Calendar */}
-        <section className="mt-16">
-          <div className="flex items-center justify-between border-b border-white/10 pb-4">
-            <h2 className="text-[22px] font-bold tracking-tight">Upcoming Events</h2>
-            <span className="text-[13px] text-textSecondary">Sync with Calendar (iCal)</span>
-          </div>
+        {/* ---- Featured ------------------------------------------------ */}
+        {featured && (
+          <section aria-labelledby="featured-heading" className="mt-14">
+            <h2 id="featured-heading" className="sr-only">
+              Featured event
+            </h2>
 
-          <div className="mt-8 grid gap-6">
-            {UPCOMING_EVENTS.map((event) => (
-              <div
-                key={event.title}
-                className={`relative rounded-3xl border p-6 sm:p-8 transition-colors ${
-                  event.featured
-                    ? "border-neon/30 bg-gradient-to-br from-neon/[0.04] to-transparent"
-                    : "border-white/10 bg-white/[0.01] hover:border-white/20"
-                }`}
-              >
-                {event.featured && (
-                  <span className="absolute right-6 top-6 rounded-full bg-neon/10 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-neon">
-                    Featured Event
-                  </span>
-                )}
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded bg-white/10 px-2 py-0.5 text-[11px] font-medium text-textSecondary">
-                    {event.type}
-                  </span>
-                </div>
-                <h3 className="mt-3 text-[22px] font-bold tracking-tight">{event.title}</h3>
-                <p className="mt-2 text-[14px] leading-relaxed text-textSecondary max-w-3xl">
-                  {event.description}
-                </p>
-
-                <div className="mt-6 flex flex-wrap gap-4 text-[13px] text-textMuted">
-                  <div className="flex items-center gap-1.5">
-                    <Calendar className="h-4 w-4 text-neon" />
-                    <span>{event.date}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    {event.type === "Webinar" ? (
-                      <Video className="h-4 w-4 text-neon" />
-                    ) : (
-                      <MapPin className="h-4 w-4 text-neon" />
-                    )}
-                    <span>{event.location}</span>
-                  </div>
-                </div>
-
-                <div className="mt-8">
-                  {event.external ? (
-                    <a
-                      href={event.link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full bg-white/10 px-6 py-2.5 text-[14px] font-semibold hover:bg-white/20"
-                    >
-                      {event.cta} <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
+            <article className="group relative overflow-hidden rounded-card border border-neon/25 bg-gradient-to-br from-neon/[0.07] via-white/[0.02] to-transparent">
+              <div className="grid items-stretch gap-0 lg:grid-cols-[1.05fr_1fr]">
+                {/* Art */}
+                <div className="relative flex min-h-[220px] items-center justify-center border-b border-white/10 bg-black/40 p-8 sm:min-h-[280px] lg:border-b-0 lg:border-r">
+                  {featured.image ? (
+                    <Image
+                      src={featured.image}
+                      alt={featured.imageAlt ?? featured.name}
+                      width={featured.imageWidth ?? 833}
+                      height={featured.imageHeight ?? 400}
+                      sizes="(min-width: 1024px) 520px, 90vw"
+                      priority
+                      className="h-auto w-full max-w-[420px] object-contain"
+                    />
                   ) : (
-                    <Link
-                      href={event.link}
-                      className="inline-flex items-center gap-2 rounded-full bg-neon px-6 py-2.5 text-[14px] font-semibold text-black hover:opacity-90"
-                    >
-                      {event.cta} <ArrowRight className="h-3.5 w-3.5" />
-                    </Link>
+                    <p className="text-center text-[26px] font-extrabold leading-tight tracking-tighter text-white/90">
+                      {featured.name}
+                    </p>
                   )}
+                  <span className="absolute left-4 top-4 rounded-pill border border-neon/40 bg-neon/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-neon">
+                    {statusLabel(eventStatus(featured, now))}
+                  </span>
                 </div>
+
+                {/* Copy */}
+                <div className="flex flex-col justify-center p-6 sm:p-9">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-textMuted">
+                    {featured.category}
+                  </p>
+                  <h3 className="mt-2 text-[27px] font-extrabold leading-tight tracking-tighter sm:text-[32px]">
+                    <Link href={`/events/${featured.slug}`} className="card-hit">
+                      {featured.name}
+                    </Link>
+                  </h3>
+
+                  <dl className="mt-4 space-y-2 text-[14px] text-textSecondary">
+                    <div className="flex items-start gap-2">
+                      <dt className="sr-only">Dates</dt>
+                      <CalendarDays aria-hidden className="mt-[3px] h-4 w-4 shrink-0 text-neon" />
+                      <dd>{formatDateRange(featured.startDate, featured.endDate)}</dd>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <dt className="sr-only">Location</dt>
+                      <MapPin aria-hidden className="mt-[3px] h-4 w-4 shrink-0 text-neon" />
+                      <dd>{formatLocation(featured)}</dd>
+                    </div>
+                  </dl>
+
+                  <p className="mt-4 text-[14px] leading-relaxed text-textSecondary">
+                    {featured.summary}
+                  </p>
+
+                  <div className="mt-7 flex flex-wrap items-center gap-4">
+                    <span className="inline-flex items-center gap-1.5 rounded-pill bg-neon px-5 py-2.5 text-[14px] font-semibold text-black shadow-glow-sm">
+                      View event
+                      <ArrowRight
+                        aria-hidden
+                        className="h-3.5 w-3.5 transition-transform duration-200 group-hover:translate-x-0.5"
+                      />
+                    </span>
+                    <span className="text-[12px] font-semibold uppercase tracking-[0.12em] text-neon/80">
+                      {participationLabel(featured, now)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </article>
+          </section>
+        )}
+
+        {/* ---- Upcoming ------------------------------------------------ */}
+        {upcoming.length > 0 && (
+          <section aria-labelledby="upcoming-heading" className="mt-20">
+            <div className="flex items-baseline justify-between border-b border-white/10 pb-4">
+              <h2 id="upcoming-heading" className="text-[22px] font-bold tracking-tight">
+                Upcoming events
+              </h2>
+              <span className="text-[13px] text-textMuted">
+                {upcoming.length} {upcoming.length === 1 ? "event" : "events"}
+              </span>
+            </div>
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {upcoming.map((event) => (
+                <EventCard key={event.slug} event={event} now={now} />
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ---- What we talk about -------------------------------------- */}
+        <section aria-labelledby="topics-heading" className="mt-20">
+          <h2 id="topics-heading" className="text-[22px] font-bold tracking-tight">
+            What we come to talk about
+          </h2>
+          <div className="mt-8 grid gap-5 md:grid-cols-3">
+            {TOPICS.map((topic) => (
+              <div
+                key={topic.title}
+                className="rounded-card border border-white/10 bg-white/[0.02] p-6"
+              >
+                <h3 className="text-[16px] font-bold tracking-tight">{topic.title}</h3>
+                <p className="mt-2 text-[14px] leading-relaxed text-textSecondary">{topic.body}</p>
               </div>
             ))}
           </div>
         </section>
 
-        {/* Tracks of Learning */}
-        <section className="mt-24">
-          <div className="text-center">
-            <h2 className="text-[28px] font-bold tracking-tight">Main Tracks & Keynotes</h2>
-            <p className="mt-2 text-[14px] text-textSecondary">What we are sharing and presenting at events in 2026.</p>
-          </div>
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {TRACKS.map((track) => (
-              <div key={track.title} className="rounded-2xl border border-white/10 bg-white/[0.02] p-6">
-                <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg bg-neon/10 text-neon">
-                  <Code className="h-5 w-5" />
-                </div>
-                <h3 className="text-[17px] font-bold">{track.title}</h3>
-                <p className="mt-2 text-[14px] leading-relaxed text-textSecondary">{track.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* ---- Past ---------------------------------------------------- */}
+        {past.length > 0 && (
+          <section aria-labelledby="past-heading" className="mt-20">
+            <div className="flex items-baseline justify-between border-b border-white/10 pb-4">
+              <h2 id="past-heading" className="text-[22px] font-bold tracking-tight">
+                Past events
+              </h2>
+              <span className="text-[13px] text-textMuted">
+                {past.length} {past.length === 1 ? "event" : "events"}
+              </span>
+            </div>
+            <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {past.map((event) => (
+                <EventCard key={event.slug} event={event} now={now} />
+              ))}
+            </div>
+          </section>
+        )}
 
-        {/* On-Demand Resources */}
-        <section className="mt-24 rounded-3xl border border-white/10 bg-white/[0.01] p-6 sm:p-8">
-          <h2 className="text-[22px] font-bold tracking-tight">On-Demand Developer Resources</h2>
-          <p className="text-[14px] text-textSecondary">Can&apos;t make it to London or Riyadh? Tune in to recordings and deep dives.</p>
-          
-          <div className="mt-6 divide-y divide-white/10">
-            {PAST_RESOURCES.map((resource) => (
-              <div key={resource.title} className="flex flex-col gap-4 py-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <span className="text-[11px] uppercase tracking-wider text-neon">{resource.type}</span>
-                  <h4 className="text-[15px] font-semibold mt-1">{resource.title}</h4>
-                  <p className="text-[13px] text-textMuted mt-0.5">{resource.speaker} · {resource.duration}</p>
-                </div>
-                <div>
-                  <a
-                    href={resource.link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-[13px] font-medium text-neon hover:underline"
-                  >
-                    Watch/Read <PlayCircle className="h-4 w-4 ml-1" />
-                  </a>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Newsletter Signup */}
-        <section className="mt-24 rounded-3xl border border-white/10 bg-gradient-to-br from-neon/[0.04] to-transparent p-8 text-center sm:p-12">
-          <h2 className="text-[24px] font-extrabold tracking-tight">Never miss an update</h2>
-          <p className="mx-auto mt-2 max-w-md text-[14px] text-textSecondary">
-            Sign up for the FurlPay newsletter to receive notifications on upcoming developer events, roadshows, and product announcements.
+        {/* ---- Newsletter --------------------------------------------- */}
+        {/* Links to /newsletter, which has the working signup. The previous
+            version of this page rendered an email input and a Subscribe button
+            with no handler attached to either. */}
+        <section className="mt-20 rounded-card border border-white/10 bg-gradient-to-br from-neon/[0.05] to-transparent p-8 text-center sm:p-12">
+          <h2 className="text-[24px] font-extrabold tracking-tight">Know where we will be next</h2>
+          <p className="mx-auto mt-2 max-w-md text-[14px] leading-relaxed text-textSecondary">
+            We announce events on the FurlPay newsletter before they go on this page.
           </p>
-          <div className="mt-6 flex flex-col justify-center gap-3 sm:flex-row">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="rounded-full border border-white/10 bg-white/[0.03] px-6 py-2.5 text-[14px] text-textPrimary placeholder:text-textSecondary focus:border-neon/50 focus:outline-none sm:w-64"
-            />
-            <button className="rounded-full bg-neon px-6 py-2.5 text-[14px] font-semibold text-black hover:opacity-90">
-              Subscribe
-            </button>
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-3">
+            <Link href="/newsletter" className="btn-green px-7 py-3 text-[15px]">
+              Subscribe to updates
+            </Link>
+            <Link href="/talk-to-us" className="btn-outline px-7 py-3 text-[15px]">
+              Talk to us
+            </Link>
+          </div>
+        </section>
+
+        {/* ---- On-demand ---------------------------------------------- */}
+        <section aria-labelledby="ondemand-heading" className="mt-20">
+          <h2 id="ondemand-heading" className="text-[22px] font-bold tracking-tight">
+            Can it wait until you are at a desk?
+          </h2>
+          <p className="mt-2 text-[14px] text-textSecondary">
+            The same material we take to events, written down.
+          </p>
+          <div className="mt-6 divide-y divide-white/10 border-y border-white/10">
+            <Link
+              href="/blog"
+              className="flex items-center justify-between gap-4 py-4 transition-colors hover:text-neon"
+            >
+              <span>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-neon">Writing</span>
+                <span className="mt-1 block text-[15px] font-semibold">
+                  Stablecoins against card interchange, and the rest of the blog
+                </span>
+              </span>
+              <ArrowRight aria-hidden className="h-4 w-4 shrink-0" />
+            </Link>
+            <Link
+              href="/docs"
+              className="flex items-center justify-between gap-4 py-4 transition-colors hover:text-neon"
+            >
+              <span>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-neon">
+                  Documentation
+                </span>
+                <span className="mt-1 block text-[15px] font-semibold">
+                  Smart contract escrows, the API, and the x402 integration guide
+                </span>
+              </span>
+              <ArrowRight aria-hidden className="h-4 w-4 shrink-0" />
+            </Link>
+            <a
+              href="https://github.com/FurlPay"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between gap-4 py-4 transition-colors hover:text-neon"
+            >
+              <span>
+                <span className="text-[11px] uppercase tracking-[0.14em] text-neon">Source</span>
+                <span className="mt-1 block text-[15px] font-semibold">
+                  Our SDKs and open-source packages on GitHub
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </span>
+              </span>
+              <ExternalLink aria-hidden className="h-4 w-4 shrink-0" />
+            </a>
           </div>
         </section>
       </main>
