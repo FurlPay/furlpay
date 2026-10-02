@@ -43,6 +43,8 @@ const SECRET_KEY = rampEnv("FURLBRIDGE_SECRET_KEY") ?? "";
 export const furlbridgeOfframp: OfframpProviderAdapter = {
   id: PROVIDER_ID,
   kind: "offramp",
+  // Server-side sell order (unverified API; see header).
+  hasHostedCheckout: false,
 
   async quote(request: QuoteRequest): Promise<Quote> {
     if (!API_KEY) {

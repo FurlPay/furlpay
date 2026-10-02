@@ -37,6 +37,8 @@ const PROVIDER_ID = "furlgateway" as const;
 export const furlgatewayOnrampAdapter: OnrampProviderAdapter = {
   id: PROVIDER_ID,
   kind: "onramp",
+  // Coinbase-hosted buy page (pay.coinbase.com).
+  hasHostedCheckout: true,
 
   async quote(request: QuoteRequest): Promise<Quote> {
     // Coinbase hosted flow does not expose a server-side quote endpoint in

@@ -35,6 +35,8 @@ const PROVIDER_ID = "furlgateway" as const;
 export const furlgatewayOfframpAdapter: OfframpProviderAdapter = {
   id: PROVIDER_ID,
   kind: "offramp",
+  // Coinbase-hosted sell page; Coinbase pays out.
+  hasHostedCheckout: true,
 
   async quote(request: QuoteRequest): Promise<Quote> {
     // Same pass-through pattern as the on-ramp adapter: the real price is

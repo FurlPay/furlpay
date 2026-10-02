@@ -297,3 +297,18 @@ describe("routes", () => {
     delete process.env.FURLGATEWAY_API_KEY_SECRET;
   });
 });
+
+describe("adapters declare who runs the checkout", () => {
+  it("hosted = provider page and provider KYC; server-initiated = FurlPay funds it", async () => {
+    const { furlgatewayOnrampAdapter } = await import("@/lib/providers/adapters/furlgateway-onramp");
+    const { furlgatewayOfframpAdapter } = await import("@/lib/providers/adapters/furlgateway-offramp");
+    const { furlbridgeOnramp } = await import("@/lib/providers/adapters/furlbridge-onramp");
+    const { furlbridgeOfframp } = await import("@/lib/providers/adapters/furlbridge-offramp");
+    const { furlpayoutOfframp } = await import("@/lib/providers/adapters/furlpayout-offramp");
+    expect(furlgatewayOnrampAdapter.hasHostedCheckout).toBe(true);
+    expect(furlgatewayOfframpAdapter.hasHostedCheckout).toBe(true);
+    expect(furlbridgeOnramp.hasHostedCheckout).toBe(true);
+    expect(furlbridgeOfframp.hasHostedCheckout).toBe(false);
+    expect(furlpayoutOfframp.hasHostedCheckout).toBe(false);
+  });
+});

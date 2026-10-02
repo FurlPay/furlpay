@@ -33,6 +33,7 @@ import type { OnrampProviderAdapter } from "../types";
 
 const QUERY: CapabilityQuery = {
   kind: "onramp",
+  hasHostedCheckout: true,
   direction: "onramp",
   country: "IN",
   fiatCurrency: "INR",
@@ -46,6 +47,7 @@ function liveRow(overrides: Partial<ProviderCapability> = {}): ProviderCapabilit
   return {
     providerId: "test-provider",
     kind: "onramp",
+    hasHostedCheckout: true,
     direction: "onramp",
     country: "IN",
     fiatCurrency: "INR",
@@ -68,6 +70,7 @@ function stubAdapter(id: string): OnrampProviderAdapter {
   return {
     id,
     kind: "onramp",
+    hasHostedCheckout: true,
     quote: notCalled as never,
     createOrder: notCalled as never,
     getStatus: notCalled as never,

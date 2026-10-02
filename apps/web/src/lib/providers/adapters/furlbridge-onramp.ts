@@ -104,6 +104,8 @@ function fromTransakPaymentMethod(method: string): string {
 export const furlbridgeOnramp: OnrampProviderAdapter = {
   id: PROVIDER_ID,
   kind: "onramp",
+  // Transak widget (global.transak.com).
+  hasHostedCheckout: true,
 
   async quote(request: QuoteRequest): Promise<Quote> {
     if (!API_KEY) {

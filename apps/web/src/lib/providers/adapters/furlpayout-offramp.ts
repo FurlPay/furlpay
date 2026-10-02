@@ -74,6 +74,8 @@ function echoHeaders(method: string, path: string, body: string): Record<string,
 export const furlpayoutOfframp: OfframpProviderAdapter = {
   id: PROVIDER_ID,
   kind: "offramp",
+  // FurlPay-funded B2B payout (unverified API; never registered).
+  hasHostedCheckout: false,
 
   async quote(request: QuoteRequest): Promise<Quote> {
     if (!API_KEY || !API_SECRET) {

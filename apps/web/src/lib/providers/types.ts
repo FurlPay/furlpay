@@ -175,6 +175,15 @@ export interface CollectionInstruction {
 export interface OnrampProviderAdapter {
   readonly id: ProviderId;
   readonly kind: "onramp";
+  /**
+   * True when the customer completes this flow on the provider's own hosted
+   * page (card entry, KYC, sell confirmation). A hosted flow is the provider's
+   * relationship with the customer: the provider runs identity checks and
+   * FurlPay never holds the funds. False when FurlPay initiates the transfer
+   * server-side (a payout FurlPay funds), where FurlPay's own KYC and step-up
+   * apply. lib/ramp/rampGuard.ts keys the checks off this.
+   */
+  readonly hasHostedCheckout: boolean;
   quote(request: QuoteRequest): Promise<Quote>;
   createOrder(request: OnrampOrderRequest): Promise<OnrampOrder>;
   getStatus(providerRef: string): Promise<ProviderOutcome>;
@@ -215,6 +224,15 @@ export interface OfframpOrder {
 export interface OfframpProviderAdapter {
   readonly id: ProviderId;
   readonly kind: "offramp";
+  /**
+   * True when the customer completes this flow on the provider's own hosted
+   * page (card entry, KYC, sell confirmation). A hosted flow is the provider's
+   * relationship with the customer: the provider runs identity checks and
+   * FurlPay never holds the funds. False when FurlPay initiates the transfer
+   * server-side (a payout FurlPay funds), where FurlPay's own KYC and step-up
+   * apply. lib/ramp/rampGuard.ts keys the checks off this.
+   */
+  readonly hasHostedCheckout: boolean;
   quote(request: QuoteRequest): Promise<Quote>;
   createOrder(request: OfframpOrderRequest): Promise<OfframpOrder>;
   /** Tell the provider which on-chain transaction funds this order. */
