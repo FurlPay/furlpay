@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
-import { readGrant } from "@/lib/research/access";
+import { readGrant, redeemGrantUse } from "@/lib/research/access";
 import { signedPdfUrl } from "@/lib/research/storage";
 import { getPublishedReport } from "@/lib/content";
 import { audit } from "@/lib/audit";
@@ -26,6 +26,13 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ grantId: st
   let grant;
   try {
     grant = await readGrant(grantId);
+    // Counted only for a real, live grant, and before any URL is signed.
+    if (grant && !(await redeemGrantUse(grantId))) {
+      return NextResponse.json(
+        { error: "expired", detail: "This download link has been used. Request the report again." },
+        { status: 410, headers: NO_STORE },
+      );
+    }
   } catch (e) {
     log.error("research grant store unavailable", { error: (e as Error).message });
     return NextResponse.json({ error: "temporarily_unavailable" }, { status: 503, headers: NO_STORE });

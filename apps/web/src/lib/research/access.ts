@@ -23,7 +23,7 @@
 // ---------------------------------------------------------------------------
 
 import { createHash, randomBytes } from "node:crypto";
-import { kvGet, kvSet, kvSetNx } from "@/lib/kv";
+import { kvGet, kvIncr, kvSet, kvSetNx } from "@/lib/kv";
 
 export const TOKEN_TTL_SECONDS = 30 * 60;
 export const GRANT_TTL_SECONDS = 10 * 60;
@@ -91,6 +91,21 @@ export async function consumeVerificationToken(token: string): Promise<ConsumeRe
   };
   await kvSet(grantKey(grantId), grant, GRANT_TTL_SECONDS);
   return { ok: true, grantId, grant };
+}
+
+/**
+ * Redemptions allowed per grant. The grant id travels in a URL PATH, and the
+ * hosting platform's request logs record paths; a cap means an id recovered
+ * from a log has almost certainly been spent already. Three covers a browser
+ * retry or a second click, not sharing.
+ */
+export const GRANT_MAX_USES = 3;
+const grantUsesKey = (id: string) => `research:grant-uses:${id}`;
+
+/** Count one redemption; false once the cap is exceeded. Atomic (INCR). */
+export async function redeemGrantUse(grantId: string): Promise<boolean> {
+  const n = await kvIncr(grantUsesKey(grantId), GRANT_TTL_SECONDS);
+  return n <= GRANT_MAX_USES;
 }
 
 /** A live grant, or null for anything malformed, unknown or expired. */

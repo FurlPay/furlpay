@@ -8,9 +8,14 @@ vi.mock("@/lib/kv", () => ({
   kvSet: async (k: string, v: unknown) => void store.set(k, v),
   kvSetNx: async (k: string, v: unknown) => (store.has(k) ? false : (store.set(k, v), true)),
   kvDel: async (k: string) => void store.delete(k),
+  kvIncr: async (k: string) => {
+    const n = ((store.get(k) as number) ?? 0) + 1;
+    store.set(k, n);
+    return n;
+  },
 }));
 
-const { issueVerificationToken, consumeVerificationToken, readGrant, sha256 } = await import("../access");
+const { issueVerificationToken, consumeVerificationToken, readGrant, redeemGrantUse, GRANT_MAX_USES, sha256 } = await import("../access");
 const { isDisposableEmail } = await import("../disposable");
 const { signedPdfUrl, storageConfigured } = await import("../storage");
 const { isPubliclyVisible, REPORTS, filterResearch, publishedReports } = await import("@/lib/content");
@@ -139,6 +144,12 @@ describe("verification tokens and grants", () => {
     store.set(`research:grant:${r.grantId}`, { ...r.grant, expiresAt: new Date(Date.now() - 1000).toISOString() });
     expect(await readGrant(r.grantId)).toBeNull();
     expect(await readGrant("not-a-grant")).toBeNull();
+  });
+
+  it("a grant redeems at most GRANT_MAX_USES times, even concurrently", async () => {
+    const id = "G".repeat(43);
+    const results = await Promise.all(Array.from({ length: 10 }, () => redeemGrantUse(id)));
+    expect(results.filter(Boolean)).toHaveLength(GRANT_MAX_USES);
   });
 });
 

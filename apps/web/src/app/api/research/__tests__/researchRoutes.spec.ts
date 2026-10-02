@@ -10,6 +10,7 @@ const state = {
   grant: null as unknown,
   signed: { ok: true, url: "https://proj.supabase.co/storage/v1/object/sign/b/r/v1.pdf?token=t" } as unknown,
   configured: true,
+  uses: 0,
   sent: { ok: true } as unknown,
   emails: [] as { to: string; text: string }[],
 };
@@ -33,6 +34,7 @@ vi.mock("@/lib/research/access", async (orig) => ({
   issueVerificationToken: async () => "T".repeat(43),
   consumeVerificationToken: async () => state.consume,
   readGrant: async () => state.grant,
+  redeemGrantUse: async () => state.uses++ < 3,
 }));
 vi.mock("@/lib/leads/capture", () => ({
   captureLead: async (req: NextRequest) => {
@@ -57,6 +59,7 @@ const post = (url: string, body: unknown) =>
 beforeEach(() => {
   state.report = { ...REPORT };
   state.configured = true;
+  state.uses = 0;
   state.sent = { ok: true };
   state.emails = [];
   state.consume = { ok: true, grantId: "G".repeat(43), grant: { slug: "r", objectKey: "r/v1.pdf", expiresAt: "2099-01-01T00:00:00Z" } };
@@ -145,6 +148,11 @@ describe("GET /api/research/downloads/[grantId]", () => {
     expect(res.headers.get("location")).toBe("https://proj.supabase.co/storage/v1/object/sign/b/r/v1.pdf?token=t");
     expect(res.headers.get("referrer-policy")).toBe("no-referrer");
     expect(res.headers.get("cache-control")).toBe("no-store");
+  });
+
+  it("410 once a grant has been redeemed its maximum number of times", async () => {
+    for (let i = 0; i < 3; i++) expect((await get()).status).toBe(303);
+    expect((await get()).status).toBe(410);
   });
 
   it("410 for an expired or unknown grant", async () => {
