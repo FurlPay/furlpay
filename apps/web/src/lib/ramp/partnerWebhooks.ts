@@ -1,8 +1,8 @@
 import { createHmac, randomUUID } from "crypto";
-import { kvSet } from "@/lib/kv";
+import { kvDel, kvGet, kvSet, kvZAdd, kvZRangeByScore, kvZRem } from "@/lib/kv";
 import { checkUrl, pinnedFetch } from "@/lib/property/safeFetch";
 import { getPartnerConfig, openWebhookSecret } from "./partnerConfig";
-import type { RampOrder } from "./rampOrder";
+import { getRampOrder, type RampOrder } from "./rampOrder";
 
 // ---------------------------------------------------------------------------
 // Callback to a partner when one of its ramp orders changes state.
@@ -21,10 +21,14 @@ import type { RampOrder } from "./rampOrder";
 // DNS answer cannot change between check and connect. Redirects are not
 // followed.
 //
-// DELIVERY is best-effort, one attempt, 5 s. There is no retry queue yet, so
-// the partner should also read GET /api/ramp/orders/:id; the last delivery
-// result is kept for the partner's dashboard. A failed callback never fails
-// the webhook that caused it.
+// DELIVERY: one attempt inline (5 s), never blocking the provider webhook that
+// caused it. A transport or non-2xx failure is queued (ramp:partner:retry) and
+// retried by the ramp-maintenance cron at 1 min, 10 min, 1 h, 6 h — five
+// attempts in all, each re-signed with a fresh timestamp and carrying
+// X-FurlPay-Attempt. A retry is dropped if the order has moved on (the newer
+// state has its own delivery). Configuration problems (no URL, no secret, a
+// URL that resolves privately) are not retried. Partners should still read
+// GET /api/ramp/orders/:id as the source of truth.
 // ---------------------------------------------------------------------------
 
 export interface PartnerEvent {
@@ -69,9 +73,25 @@ export type DeliveryResult =
   | { delivered: true; status: number }
   | { delivered: false; reason: string };
 
+/** Seconds to wait before attempt n+1, after attempt n (1-based) failed. */
+export const RETRY_BACKOFF_S = [60, 600, 3_600, 21_600];
+export const MAX_ATTEMPTS = RETRY_BACKOFF_S.length + 1;
+const RETRY_INDEX = "ramp:partner:retry";
+const retryKey = (member: string) => `ramp:partner:retry:${member}`;
+
+interface QueuedRetry {
+  orderId: string;
+  status: RampOrder["status"];
+  attempt: number; // the attempt number to make next
+}
+
+const RETRYABLE = (reason: string) => reason === "timeout" || reason === "transport_error" || reason.startsWith("http_");
+
 export async function deliverPartnerWebhook(
   order: RampOrder,
-  transport: typeof pinnedFetch = pinnedFetch
+  transport: typeof pinnedFetch = pinnedFetch,
+  attempt = 1,
+  now = Date.now()
 ): Promise<DeliveryResult> {
   if (!order.partnerId) return { delivered: false, reason: "not_a_partner_order" };
   const cfg = await getPartnerConfig(order.partnerId);
@@ -98,6 +118,7 @@ export async function deliverPartnerWebhook(
         "content-length": String(Buffer.byteLength(body)),
         "user-agent": "FurlPay-Webhooks/1",
         "x-furlpay-event-id": evt.eventId,
+        "x-furlpay-attempt": String(attempt),
         "x-furlpay-signature": signPartnerPayload(secret, body, Math.floor(Date.now() / 1000)),
       },
     });
@@ -109,8 +130,47 @@ export async function deliverPartnerWebhook(
 
   await kvSet(
     `ramp:partner:${order.partnerId}:lastDelivery`,
-    { orderId: order.orderId, status: order.status, at: new Date().toISOString(), ...result },
+    { orderId: order.orderId, status: order.status, at: new Date().toISOString(), attempt, ...result },
     30 * 24 * 3600
   ).catch(() => {});
+
+  if (!result.delivered && RETRYABLE(result.reason) && attempt < MAX_ATTEMPTS) {
+    const member = `${order.orderId}:${order.status}`;
+    const next: QueuedRetry = { orderId: order.orderId, status: order.status, attempt: attempt + 1 };
+    await kvSet(retryKey(member), next, 2 * 24 * 3600);
+    await kvZAdd(RETRY_INDEX, now + RETRY_BACKOFF_S[attempt - 1] * 1000, member);
+  }
   return result;
+}
+
+export interface RetryRunResult {
+  attempted: number;
+  delivered: number;
+  dropped: number;
+}
+
+/** Deliver every queued callback that is due. Called by the ramp-maintenance cron. */
+export async function processPartnerRetries(
+  now = Date.now(),
+  limit = 100,
+  transport: typeof pinnedFetch = pinnedFetch
+): Promise<RetryRunResult> {
+  const due = (await kvZRangeByScore(RETRY_INDEX, "-inf", now)).slice(0, limit);
+  const out: RetryRunResult = { attempted: 0, delivered: 0, dropped: 0 };
+  for (const member of due) {
+    // Take the entry off the queue first: a failing attempt re-queues itself,
+    // and two overlapping cron runs cannot both deliver it.
+    if ((await kvZRem(RETRY_INDEX, [member])) === 0) continue;
+    const queued = await kvGet<QueuedRetry>(retryKey(member));
+    await kvDel(retryKey(member));
+    const order = queued ? await getRampOrder(queued.orderId) : null;
+    if (!queued || !order || order.status !== queued.status) {
+      out.dropped++;
+      continue;
+    }
+    out.attempted++;
+    const r = await deliverPartnerWebhook(order, transport, queued.attempt, now);
+    if (r.delivered) out.delivered++;
+  }
+  return out;
 }

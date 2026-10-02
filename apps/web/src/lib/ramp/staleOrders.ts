@@ -1,6 +1,6 @@
 import { confirmDeliveryOnChain } from "./deliveryProof";
 import { notifyOrderChanged } from "./orderEvents";
-import { getRampOrder, updateRampOrderStatus, type RampOrder } from "./rampOrder";
+import { getRampOrder, listIdleActiveOrders, updateRampOrderStatus, type RampOrder } from "./rampOrder";
 
 // ---------------------------------------------------------------------------
 // Orders stuck in an intermediate state, resolved on access.
@@ -16,8 +16,9 @@ import { getRampOrder, updateRampOrderStatus, type RampOrder } from "./rampOrder
 // would claim nothing moved. Clients show ABANDONED on a no-feed order as
 // "check your provider receipt", never as a failure.
 //
-// Called from GET /api/ramp/orders/:id (and the list), so no cron is needed;
-// every change goes through notifyOrderChanged like any other transition.
+// Called on read (GET /api/ramp/orders[/:id], no-store) AND by the
+// ramp-maintenance cron (sweepStaleOrders), so an order nobody reads still
+// resolves. Every change goes through notifyOrderChanged.
 // ---------------------------------------------------------------------------
 
 export const STALE_AFTER_MS = {
@@ -65,4 +66,33 @@ export async function reconcileStaleOrder(order: RampOrder, now = Date.now()): P
     return next;
   }
   return (await getRampOrder(order.orderId)) ?? order;
+}
+
+export interface SweepResult {
+  checked: number;
+  changed: number;
+  errors: number;
+}
+
+/**
+ * Resolve every idle active order. Reads the ramp:active index for orders not
+ * updated within the shortest staleness window, oldest first, bounded so one
+ * run fits a function budget; the next run continues.
+ */
+export async function sweepStaleOrders(now = Date.now(), limit = 200): Promise<SweepResult> {
+  const ids = await listIdleActiveOrders(now - STALE_AFTER_MS.PAYMENT_PENDING, limit);
+  const result: SweepResult = { checked: 0, changed: 0, errors: 0 };
+  for (const id of ids) {
+    try {
+      const order = await getRampOrder(id);
+      if (!order) continue;
+      result.checked++;
+      const after = await reconcileStaleOrder(order, now);
+      if (after.status !== order.status) result.changed++;
+    } catch (e) {
+      result.errors++;
+      console.error(`[staleOrders] sweep failed for ${id}:`, (e as Error).message);
+    }
+  }
+  return result;
 }

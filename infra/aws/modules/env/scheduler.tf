@@ -12,6 +12,7 @@
 #   30 21 * * *   /api/cron/market-brief
 #   5  13 * * *   /api/cron/price-cards
 #   20 6  * * *   /api/cron/discord-welcome
+#   every 5 min   /api/cron/ramp-maintenance   (AWS only; not in vercel.json)
 #
 # WHY EVENTBRIDGE RULES AND NOT EVENTBRIDGE SCHEDULER
 #
@@ -65,6 +66,15 @@ locals {
       schedule    = "cron(20 6 * * ? *)"
       path        = "/api/cron/discord-welcome"
       description = "Discord welcome sweep."
+    }
+    # Not in vercel.json (sub-daily Vercel cron depends on the plan). Every 5 min
+    # keeps the 30-minute stale-checkout rule and the 1-minute first partner
+    # callback retry honest. A run that overlaps the previous one is skipped by
+    # the job lock, not doubled.
+    ramp-maintenance = {
+      schedule    = "rate(5 minutes)"
+      path        = "/api/cron/ramp-maintenance"
+      description = "Ramp stale-order sweep and partner callback retries."
     }
   }
 }

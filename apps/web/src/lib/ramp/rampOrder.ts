@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { kvDel, kvGet, kvSet, kvSetNx, kvZAdd, kvZRangeByScore } from "@/lib/kv";
+import { kvDel, kvGet, kvSet, kvSetNx, kvZAdd, kvZRangeByScore, kvZRem } from "@/lib/kv";
 import {
   assertTransition,
   isTerminal,
@@ -20,6 +20,11 @@ import {
 //   ramp:provider:{providerId}:{providerOrderId}  orderId (webhook reverse lookup)
 //   ramp:user:{userId}:orders                     zset of orderIds by createdAt
 //   ramp:partner:{partnerId}:orders               zset of orderIds by createdAt
+//   ramp:sweepable                                zset of orderIds by updatedAt, ONLY while in a
+//                                                 state the stale sweep can resolve
+//                                                 (PAYMENT_PENDING, CRYPTO_PENDING, PROVIDER_PENDING).
+//                                                 Orders waiting on a person (MANUAL_REVIEW) are
+//                                                 not in it, so they cannot starve the sweep.
 // Active orders have no TTL. A terminal order is re-written with a 90-day TTL
 // so finished records age out; an active one never silently disappears.
 //
@@ -130,6 +135,8 @@ const providerKey = (p: string, ref: string) => `ramp:provider:${p}:${ref}`;
 const userIndex = (u: string) => `ramp:user:${u}:orders`;
 const partnerIndex = (p: string) => `ramp:partner:${p}:orders`;
 const lockKey = (id: string) => `ramp:lock:${id}`;
+export const SWEEP_INDEX = "ramp:sweepable";
+const SWEEPABLE: readonly TxState[] = ["PAYMENT_PENDING", "CRYPTO_PENDING", "PROVIDER_PENDING"];
 
 export class RampOrderError extends Error {
   constructor(
@@ -143,6 +150,13 @@ export class RampOrderError extends Error {
 
 async function save(order: RampOrder): Promise<void> {
   await kvSet(orderKey(order.orderId), order, isTerminal(order.status) ? TERMINAL_TTL_S : undefined);
+  if (SWEEPABLE.includes(order.status)) await kvZAdd(SWEEP_INDEX, Date.parse(order.updatedAt), order.orderId);
+  else await kvZRem(SWEEP_INDEX, [order.orderId]);
+}
+
+/** Sweepable orders not updated since `olderThanMs` (epoch ms), oldest first. */
+export async function listIdleActiveOrders(olderThanMs: number, limit = 200): Promise<string[]> {
+  return (await kvZRangeByScore(SWEEP_INDEX, "-inf", olderThanMs)).slice(0, limit);
 }
 
 export async function createRampOrder(input: CreateRampOrderInput): Promise<RampOrder> {
