@@ -17,7 +17,8 @@ export { rampGuard, rampCommit, type RampGuardInput, type RampGuardResult } from
 export { recordRampAudit, type RampAuditAction, type RampAuditEntry } from "./rampAudit";
 export {
   createBeneficiary,
-  verifyBeneficiary,
+  confirmMicroDeposits,
+  removeBeneficiary,
   checkBeneficiaryEligibility,
   getUserBeneficiaries,
   type Beneficiary,

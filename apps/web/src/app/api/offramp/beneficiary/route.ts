@@ -7,7 +7,7 @@ import { requireUser } from "@/lib/authz";
 import { rampGuard, STEP_UP_WINDOW_MS } from "@/lib/ramp/rampGuard";
 import {
   BeneficiaryEncryptionUnavailable,
-  beneficiaryVerifier,
+  beneficiaryVerificationAvailable,
   createBeneficiary,
   getUserBeneficiaries,
 } from "@/lib/ramp/beneficiary";
@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
   const account = auth.account;
 
   // Before the body is read, so no account number is ever received for nothing.
-  if (!beneficiaryVerifier()) {
+  if (!beneficiaryVerificationAvailable()) {
     return NextResponse.json(
       {
         error: "beneficiary_verification_unavailable",
@@ -126,5 +126,5 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const beneficiaries = await getUserBeneficiaries(auth.account.user.id);
-  return NextResponse.json({ available: beneficiaryVerifier() !== null, beneficiaries });
+  return NextResponse.json({ available: beneficiaryVerificationAvailable(), beneficiaries });
 }

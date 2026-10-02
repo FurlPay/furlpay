@@ -92,7 +92,14 @@ export async function POST(req: NextRequest) {
     }
     const eligibility = await checkBeneficiaryEligibility(beneficiaryId, account.user.id);
     if (!eligibility.eligible) {
-      return NextResponse.json({ error: "beneficiary_not_eligible", detail: eligibility.reason }, { status: 409 });
+      return NextResponse.json(
+        {
+          error: "beneficiary_not_eligible",
+          detail: eligibility.reason,
+          ...("action" in eligibility && eligibility.action ? { action: eligibility.action } : {}),
+        },
+        { status: 400 }
+      );
     }
 
     // Corridors are per-country; an unknown country is not "US".

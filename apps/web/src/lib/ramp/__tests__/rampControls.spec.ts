@@ -185,12 +185,13 @@ describe("name match is token-based", () => {
 });
 
 describe("beneficiary eligibility checks ownership", () => {
-  it("another user's active account is 'not found', not payable", async () => {
+  it("another user's verified account is 'not found', not payable", async () => {
     const id = `ben_${randomUUID().replace(/-/g, "").slice(0, 20)}`;
     await kvSet(`beneficiary:${id}`, {
       id,
       userId: "owner",
-      status: "active",
+      status: "verified",
+      coolingExpiresAt: new Date(Date.now() - 1000).toISOString(),
       lastPayoutAt: null,
     });
     expect(await checkBeneficiaryEligibility(id, "owner")).toEqual({ eligible: true });
