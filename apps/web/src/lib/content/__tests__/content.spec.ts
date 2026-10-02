@@ -7,6 +7,7 @@ import {
   formatDate,
   getPublishedReport,
   getPublishedWebinar,
+  isPubliclyVisible,
   publishedReports,
   publishedWebinars,
   REPORTS,
@@ -79,8 +80,10 @@ describe("drafts never reach the public surface", () => {
     // pass vacuously and prove nothing about filtering.
     expect(REPORTS.length).toBeGreaterThan(0);
     expect(WEBINARS.length).toBeGreaterThan(0);
-    expect(REPORTS.every((r) => r.status === "draft")).toBe(true);
-    expect(WEBINARS.every((w) => w.status === "draft")).toBe(true);
+    // Not public = any pre-publication state (draft, review, approved). The
+    // 2026 stablecoin report sits in "review" until an editor approves it.
+    expect(REPORTS.every((r) => !isPubliclyVisible(r))).toBe(true);
+    expect(WEBINARS.every((w) => !isPubliclyVisible(w))).toBe(true);
   });
 
   it("refuses to resolve a draft by slug", () => {

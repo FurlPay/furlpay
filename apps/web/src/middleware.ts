@@ -97,6 +97,13 @@ const PUBLIC_PAGE_PREFIXES = [
   "/products", // SEO product landing pages (public)
   "/solutions", // SEO audience/solution landing pages (public)
   "/resources", // guides, tools (fee calculator), glossary (public)
+  // The learn glossary (USDC, GENIUS Act, MiCA, CCTP, travel rule...) is a
+  // static page per term with no user data. It is in the sitemap, and until
+  // 2026-10-02 every one of its 20 URLs 307'd to /login — the site's most
+  // search-relevant explainer content was invisible to every crawler.
+  "/learn",
+  // FurlPay Research library: hub, desks and the email-verification landing.
+  "/research",
   "/trust", // trust & security center (public)
   "/contact", // contact page (public)
   "/support", // support center — public help content; the tickets API stays session-gated
@@ -149,6 +156,9 @@ const PUBLIC_API_PREFIXES = [
   // route rate-limits and validates every event (lib/analytics/contract.ts).
   "/api/analytics/events",
   "/api/reports",
+  // Research downloads: verification + grant redemption. Both authorise by an
+  // unguessable single-use token or short-lived grant, not by session.
+  "/api/research",
   "/api/webinars",
   "/api/og",
   "/api/auth",

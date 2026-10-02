@@ -179,3 +179,7 @@ signing.properties
 # Local audit evidence scratch (not product code)
 .audit-money-*/
 audit/2026-09-29-*/
+
+# Gated research PDFs live in PRIVATE storage (docs/research/RESEARCH_PLATFORM.md).
+# Never commit them: this repository is public.
+/FurlPay Stablecoin Report 2026.pdf

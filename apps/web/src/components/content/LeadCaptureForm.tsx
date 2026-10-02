@@ -59,6 +59,9 @@ interface SuccessState {
   downloadUrl?: string | null;
   readUrl?: string;
   joinUrl?: string | null;
+  /** "sent" when the report is delivered through email verification. */
+  verification?: "sent";
+  expiresMinutes?: number;
 }
 
 export default function LeadCaptureForm({
@@ -127,6 +130,27 @@ export default function LeadCaptureForm({
     } finally {
       setBusy(false);
     }
+  }
+
+  if (done?.verification === "sent") {
+    return (
+      <div role="status" className="rounded-card border border-neon/25 bg-neon/[0.06] p-6 text-center">
+        <Check aria-hidden className="mx-auto h-6 w-6 text-neon" />
+        <p className="mt-3 text-[16px] font-bold tracking-tight">Check your email</p>
+        <p className="mx-auto mt-2 max-w-sm text-[13px] leading-relaxed text-textSecondary">
+          We sent a confirmation link to {f.email.trim()}. Open it on this or any device to download the
+          report. It works once and expires in {done.expiresMinutes ?? 30} minutes.
+        </p>
+        <p className="mx-auto mt-3 max-w-sm text-[12px] text-textMuted">
+          Nothing arrived? Check spam, or submit the form again for a new link.
+        </p>
+        {done.readUrl && (
+          <a href={done.readUrl} className="mt-4 inline-block text-[13px] text-neon underline-offset-4 hover:underline">
+            Read the summary online
+          </a>
+        )}
+      </div>
+    );
   }
 
   if (done) {

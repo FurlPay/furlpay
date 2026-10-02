@@ -10,6 +10,8 @@ import { KeyFindingItem, RelatedContent } from "@/components/content/ContentShel
 import { seoMetadata } from "@/lib/seo/meta";
 import { breadcrumb, SITE } from "@/lib/seo/schema";
 import {
+  CADENCES,
+  EVIDENCE_LABEL_TEXT,
   formatDate,
   getPublishedReport,
   publishedReports,
@@ -79,14 +81,14 @@ export default async function ReportPage(props: { params: Promise<{ slug: string
       <JsonLd
         data={breadcrumb([
           { name: "Home", path: "/" },
-          { name: "Research", path: "/reports" },
+          { name: "Research", path: "/research" },
           { name: report.title, path: `/reports/${report.slug}` },
         ])}
       />
 
       <main className="section pb-24 pt-14">
         <Link
-          href="/reports"
+          href="/research"
           className="inline-flex items-center gap-1 text-[14px] text-textSecondary transition-colors hover:text-white"
         >
           <ChevronLeft aria-hidden className="h-4 w-4" /> All research
@@ -112,6 +114,9 @@ export default async function ReportPage(props: { params: Promise<{ slug: string
               ) : null}
               {report.readingTime ? <Meta label="Reading time" value={report.readingTime} /> : null}
               {report.pageCount ? <Meta label="Pages" value={String(report.pageCount)} /> : null}
+              {report.cadence ? <Meta label="Edition" value={CADENCES[report.cadence]} /> : null}
+              {report.reportingPeriod ? <Meta label="Data covers" value={report.reportingPeriod} /> : null}
+              {report.version ? <Meta label="Version" value={report.version} /> : null}
             </dl>
 
             {report.executiveSummary && (
@@ -125,6 +130,34 @@ export default async function ReportPage(props: { params: Promise<{ slug: string
               </section>
             )}
 
+            {report.metrics?.length ? (
+              <section aria-labelledby="metrics" className="mt-14">
+                <h2 id="metrics" className="text-[22px] font-bold tracking-tight">
+                  The numbers, and what they measure
+                </h2>
+                <p className="mt-2 text-[13px] text-textMuted">
+                  Each figure carries its period, definition and source type. They are different measures and are not additive.
+                </p>
+                <ul className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {report.metrics.map((m) => (
+                    <li key={m.label} className="rounded-card border border-white/10 bg-white/[0.02] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <span className="text-[12px] font-semibold uppercase tracking-wide text-textMuted">{m.label}</span>
+                        <span className="shrink-0 rounded-full border border-white/15 px-2 py-0.5 text-[11px] text-textSecondary">
+                          {EVIDENCE_LABEL_TEXT[m.evidence]}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-[24px] font-bold tracking-tight">{m.value}</p>
+                      <p className="mt-1 text-[12px] leading-relaxed text-textSecondary">
+                        {m.context}
+                        {m.refs?.length ? <span className="ml-1 font-mono text-textMuted">[{m.refs.join(", ")}]</span> : null}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
             {report.keyFindings?.length ? (
               <section aria-labelledby="findings" className="mt-14">
                 <h2 id="findings" className="text-[22px] font-bold tracking-tight">
@@ -132,7 +165,12 @@ export default async function ReportPage(props: { params: Promise<{ slug: string
                 </h2>
                 <ol className="mt-6">
                   {report.keyFindings.map((f, i) => (
-                    <KeyFindingItem key={f.title} index={i} title={f.title} detail={f.detail} />
+                    <KeyFindingItem
+                      key={f.title}
+                      index={i}
+                      title={f.title}
+                      detail={f.refs?.length ? `${f.detail} [${f.refs.join(", ")}]` : f.detail}
+                    />
                   ))}
                 </ol>
               </section>
@@ -162,10 +200,15 @@ export default async function ReportPage(props: { params: Promise<{ slug: string
                 <h2 id="sources" className="text-[22px] font-bold tracking-tight">
                   Sources
                 </h2>
+                {report.privatePdf ? (
+                  <p className="mt-2 text-[13px] text-textMuted">
+                    References cited on this page, numbered as in the report. The full bibliography is in the PDF.
+                  </p>
+                ) : null}
                 <ol className="mt-4 space-y-2 text-[13px] text-textSecondary">
                   {report.sources.map((s, i) => (
                     <li key={s.label} className="flex gap-3">
-                      <span className="font-mono text-textMuted">[{i + 1}]</span>
+                      <span className="font-mono text-textMuted">[{s.ref ?? i + 1}]</span>
                       {s.url ? (
                         <a
                           href={s.url}
@@ -183,6 +226,23 @@ export default async function ReportPage(props: { params: Promise<{ slug: string
                   ))}
                 </ol>
               </section>
+            ) : null}
+
+            {report.revisions?.length ? (
+              <section aria-labelledby="revisions" className="mt-14">
+                <h2 id="revisions" className="text-[18px] font-bold tracking-tight">Corrections and revisions</h2>
+                <ul className="mt-3 space-y-2 text-[13px] text-textSecondary">
+                  {report.revisions.map((r) => (
+                    <li key={`${r.version}-${r.date}`}>
+                      <span className="font-mono text-textMuted">{formatDate(r.date)} · v{r.version}</span> — {r.note}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : null}
+
+            {report.disclaimer ? (
+              <p className="mt-10 border-t border-white/10 pt-4 text-[12px] leading-relaxed text-textMuted">{report.disclaimer}</p>
             ) : null}
 
             <RelatedContent

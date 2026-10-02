@@ -35,6 +35,10 @@ describe("public event routes — anonymous visitor", () => {
     "/events/token2049-singapore-2026",
     "/token2049",
     "/talk-to-us",
+    // Sitemap-listed glossary; was 307 → /login in production until 2026-10-02.
+    "/learn",
+    "/learn/usdc",
+    "/learn/genius-act",
   ])("%s is NOT sent to /login", async (path) => {
     const res = await middleware(anon(path));
     expect(isLoginRedirect(res)).toBe(false);

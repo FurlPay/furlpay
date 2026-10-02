@@ -21,8 +21,27 @@
 // leaking it, and deleting an item cannot produce a dead link.
 // ---------------------------------------------------------------------------
 
-/** Draft is invisible to the public site. Nothing else is. */
-export type PublishStatus = "draft" | "published";
+/**
+ * Editorial workflow. Only `published` — and `scheduled` once its publishedAt
+ * has passed — is visible on the public site; everything else is a 404.
+ *
+ *   draft → review → approved → scheduled | published → archived
+ *
+ * `scheduled` exists for an ALREADY-APPROVED report waiting for its date. A
+ * cadence ("monthly") never moves a report forward on its own: a date
+ * arriving is not editorial approval.
+ */
+export type PublishStatus = "draft" | "review" | "approved" | "scheduled" | "published" | "archived";
+
+/** The single definition of "a reader may see this", shared by every listing and page. */
+export function isPubliclyVisible(item: { status: PublishStatus; publishedAt?: string; startsAt?: string }, now = Date.now()): boolean {
+  if (item.status === "published") return true;
+  if (item.status === "scheduled") {
+    const at = Date.parse(item.publishedAt ?? item.startsAt ?? "");
+    return Number.isFinite(at) && at <= now;
+  }
+  return false;
+}
 
 /** Shared taxonomy so a reader filtering "Stablecoins" sees both content types. */
 export const CONTENT_CATEGORIES = [
@@ -108,12 +127,85 @@ export type ReportBlock =
 export interface KeyFinding {
   title: string;
   detail: string;
+  /** Numbers into `sources` (the report's own bracketed references). */
+  refs?: number[];
 }
+
+/**
+ * Source-type label, as defined in the report's evidence grading. Shown next
+ * to a figure so a reader can tell a regulator's number from an estimate.
+ */
+export type EvidenceLabel = "primary" | "independent" | "secondary" | "company-claim" | "estimate" | "law";
+
+export const EVIDENCE_LABEL_TEXT: Record<EvidenceLabel, string> = {
+  primary: "Primary",
+  independent: "Independent",
+  secondary: "Secondary",
+  "company-claim": "Company claim",
+  estimate: "Estimate / model",
+  law: "Law",
+};
 
 export interface Citation {
   /** Shown as the source line. */
   label: string;
+  /** Only when the source document gives one. Never reconstructed. */
   url?: string;
+  /** The report's bracketed reference number, when it has one. */
+  ref?: number;
+}
+
+/** A headline figure with what it measures and how strong the evidence is. */
+export interface ReportMetric {
+  label: string;
+  value: string;
+  /** Period, definition and scope — what the number actually counts. */
+  context: string;
+  evidence: EvidenceLabel;
+  refs?: number[];
+}
+
+/** The six standing research desks. */
+export const RESEARCH_DESKS = [
+  { slug: "stablecoin-markets", title: "Stablecoin Market Intelligence", blurb: "Supply, issuers, reserves, chains, and the gap between on-chain volume and real payments." },
+  { slug: "security", title: "Blockchain & Financial Security", blurb: "Incidents, depegs, custody and wallet risk — confirmed facts kept apart from allegations." },
+  { slug: "payments-infrastructure", title: "Payments & Fintech Infrastructure", blurb: "Card networks, settlement, cross-border economics, merchant and treasury adoption." },
+  { slug: "regulation", title: "Regulation & Compliance", blurb: "Enacted law, final rules, consultations and guidance — by jurisdiction, with as-of dates." },
+  { slug: "networks", title: "Networks & Developer Infrastructure", blurb: "Chains, x402 and agent payments, settlement latency, fees and developer tooling." },
+  { slug: "market-intelligence", title: "Market & Competitive Intelligence", blurb: "Launches, partnerships, pricing and market structure relevant to stablecoin payments." },
+] as const;
+export type ResearchDesk = (typeof RESEARCH_DESKS)[number]["slug"];
+
+/** Publishing cadence. A cadence is a schedule, never permission to publish. */
+export const CADENCES = {
+  weekly: "Weekly brief",
+  monthly: "Monthly report",
+  quarterly: "Quarterly review",
+  annual: "Annual report",
+  brief: "Research brief",
+  dataset: "Dataset",
+} as const;
+export type Cadence = keyof typeof CADENCES;
+
+/** A correction or material revision, shown on the report page. */
+export interface Revision {
+  date: string;
+  version: string;
+  note: string;
+}
+
+/**
+ * A PDF held in PRIVATE storage. Never served from /public and never linked
+ * directly: delivery is a verified, short-lived grant that resolves to a
+ * signed URL (lib/research/storage.ts).
+ */
+export interface PrivatePdf {
+  /** Object key inside the private research bucket. */
+  objectKey: string;
+  bytes: number;
+  /** sha256 of the exact file uploaded, so a swapped file is detectable. */
+  sha256: string;
+  version: string;
 }
 
 export interface Report {
@@ -153,6 +245,20 @@ export interface Report {
   relatedReports?: string[];
   relatedWebinars?: string[];
   featured?: boolean;
+
+  // ── Research programme fields (optional: older records predate them) ──
+  desk?: ResearchDesk;
+  cadence?: Cadence;
+  /** What the data covers, e.g. "January 2025 – 2 October 2026". */
+  reportingPeriod?: string;
+  version?: string;
+  revisions?: Revision[];
+  /** Headline figures, each with its context and evidence label. */
+  metrics?: ReportMetric[];
+  /** Full PDF in private storage, delivered only through email verification. */
+  privatePdf?: PrivatePdf;
+  /** Plain-language disclaimer shown with the report. */
+  disclaimer?: string;
 }
 
 export type ContentType = "report" | "webinar";

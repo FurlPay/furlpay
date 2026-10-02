@@ -186,7 +186,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
   },
   {
     group: "Database (Supabase)",
-    vars: [v("SUPABASE_URL"), v("SUPABASE_SERVICE_ROLE_KEY")],
+    vars: [v("SUPABASE_URL"), v("SUPABASE_SERVICE_ROLE_KEY"), v("RESEARCH_PDF_BUCKET")],
   },
   {
     group: "Auth providers",

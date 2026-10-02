@@ -63,7 +63,7 @@ export const NAV_GROUPS: NavGroup[] = [
       // the online sessions, and the written research.
       { label: "Events", href: "/events", desc: "Where to find us in person" },
       { label: "Webinars", href: "/webinars", desc: "Online sessions and recordings" },
-      { label: "Research", href: "/reports", desc: "Reports and market intelligence" },
+      { label: "Research", href: "/research", desc: "Reports and market intelligence" },
       // /docs/integrations has no index page — link the first guide, not the
       // directory, or this 404s.
       { label: "Integration guides", href: "/docs/integrations/ai-assistants", desc: "AI assistants, Stripe, Persona" },

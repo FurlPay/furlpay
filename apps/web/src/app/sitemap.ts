@@ -9,7 +9,7 @@ import { CITIES } from "@/lib/cities";
 import { INTEGRATIONS } from "@/lib/integrations/frameworks";
 import { visibleJobs } from "@/lib/careers/jobs";
 import { EVENTS, eventStatus } from "@/lib/events/events";
-import { publishedReports, publishedWebinars } from "@/lib/content";
+import { publishedReports, publishedWebinars, RESEARCH_DESKS } from "@/lib/content";
 import { UNIVERSE } from "@/lib/markets/universe";
 import { CATALOG, bySymbol } from "@/lib/markets/catalog";
 import { sitemapSymbols } from "@/lib/markets/seo";
@@ -187,7 +187,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // — Research and webinars —
     // Only PUBLISHED items. A draft in the sitemap would invite a crawl of a
     // URL that 404s, and would leak the publishing pipeline.
-    { path: "/reports", priority: 0.8, changeFrequency: "weekly" as const },
+    { path: "/research", priority: 0.8, changeFrequency: "weekly" as const },
+    ...RESEARCH_DESKS.map((d) => ({ path: `/research/${d.slug}`, priority: 0.6, changeFrequency: "weekly" as const })),
     ...publishedReports().map((r) => ({
       path: `/reports/${r.slug}`,
       priority: 0.7,

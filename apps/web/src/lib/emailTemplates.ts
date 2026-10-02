@@ -569,6 +569,34 @@ ${input.reportTitle}
   };
 }
 
+/**
+ * Email verification for a gated research PDF. The link carries a single-use
+ * token in the URL FRAGMENT (#t=...), which browsers never send to a server,
+ * so it cannot land in request logs, proxies or analytics.
+ */
+export function researchVerifyEmail(input: {
+  reportTitle: string;
+  verifyUrl: string;
+  expiresMinutes: number;
+}): RenderedEmail {
+  const body =
+    p(`Confirm this address to download:`) +
+    p(`<strong style="color:#fff">${input.reportTitle}</strong>`) +
+    cta(input.verifyUrl, "Confirm and download") +
+    p(
+      `The link works once and expires in ${input.expiresMinutes} minutes. ` +
+        `If you did not request this report, ignore this email; nothing else will be sent.`
+    );
+  return {
+    subject: `Confirm your email to download: ${input.reportTitle}`,
+    html: shell("Confirm your email", body),
+    text:
+      `Confirm this address to download: ${input.reportTitle}\n\n${input.verifyUrl}\n\n` +
+      `The link works once and expires in ${input.expiresMinutes} minutes. ` +
+      `If you did not request this report, ignore this email.`,
+  };
+}
+
 /** Sent after a webinar registration. Carries the joining detail. */
 export function webinarRegistrationEmail(input: {
   webinarTitle: string;

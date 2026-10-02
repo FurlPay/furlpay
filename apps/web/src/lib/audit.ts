@@ -61,6 +61,9 @@ export type AuditEvent =
   // download or webinar registration; `leads_exported` records an admin
   // pulling the contact list, which is the action that most needs a trail.
   | "content.lead_captured"
+  | "research.verification_sent"
+  | "research.verification_consumed"
+  | "research.download_issued"
   | "content.leads_exported"
   | "travel.rewards_claimed"
   | "auth.handoff_minted"
