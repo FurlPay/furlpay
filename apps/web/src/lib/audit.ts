@@ -196,7 +196,9 @@ export type AuditEvent =
   | "ops.settlement_rechecked"
   | "ops.ramp_partner_enabled"
   | "ops.ramp_partner_disabled"
-  | "ops.security_acknowledged";
+  | "ops.security_acknowledged"
+  | "circle.user_initialized"
+  | "circle.transfer_challenge_created";
 
 export interface AuditEntry {
   id: number;
