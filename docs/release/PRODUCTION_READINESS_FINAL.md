@@ -1113,3 +1113,25 @@ Fixes are in commit `1c458af`, with tests in `lib/ramp/__tests__/auditFixes.spec
 | `:app:wear:compileDevDebugKotlin` | OK |
 
 The audit session left two untracked files (`apps/web/findings.json`, `apps/web/script.js`). They are not committed.
+
+## 20. The "fix all 40 findings" brief (2026-10-02)
+
+The brief re-stated the §19 audit as drop-in code. Applied where it matched a real gap (commit `0a38413`):
+- **M4:** a background stale-order sweep (on-read resolution is kept, with `no-store`).
+- **M5:** partner callback retries via a KV queue (1 min → 6 h, five attempts) instead of sleeping inside a request.
+- **Cron:** `/api/cron/ramp-maintenance`, scheduled every 5 min in the EventBridge module (code only).
+- **M2:** removed the unreferenced in-memory `idempotencyGuard.ts`.
+
+Not applied, because the brief's code would replace something working or target files that do not exist:
+- **C1:** its hex-key `fieldEncrypt.ts` would make data sealed under the existing base64 `FURLPAY_BENEFICIARY_ENCRYPTION_KEY` unreadable.
+- **C2:** its CSRF check admits requests with no Origin header; the existing `middleware.ts` check is stricter.
+- **H1:** a Lua update would duplicate the per-order lock (Upstash REST `EVAL` is untested here).
+- **H3:** a Solana verifier; there is no Solana delivery path.
+- **H6:** a second SSRF fetch weaker than `safeFetch`; it re-resolves DNS, so it can be rebound.
+- **M10:** `allowBackup="true"`, where today it is `false`.
+- **M11:** placeholder pins `REPLACE_WITH_ACTUAL_PIN` over the real pinning plugins, which would hard-fail every connection.
+- **C5 / H7 / H9 / H11 / M12–M14 / L9:** they target `apps/phone`, `apps/watch` and `CheckoutWebView.tsx`, none of which exist (see §19.2).
+- **M3:** amounts are at most 50,000 with ≤6 decimals, so `Number()` round-trips exactly.
+- **`Math.random`:** the remaining uses are avatar colours, jitter and run ids, none security-relevant.
+
+Verification: web 6,354 passed / 0 failed, tsc and lint clean, root `npm test` 0 failures. Terraform was not run (not installed; no apply in any case).
