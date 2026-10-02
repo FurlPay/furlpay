@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { kvBackend, kvIncr } from "./kv";
+import { kvBackend, kvErrorCategory, kvIncr } from "./kv";
+import { log } from "./log";
 import { trustedClientIp } from "./clientIp";
 
 // ---------------------------------------------------------------------------
@@ -33,7 +34,68 @@ export interface RateLimitResult {
   ok: boolean;
   remaining: number;
   retryAfterSeconds: number;
+  /** Set when the request was refused because the GLOBAL counter could not be read. */
+  storeUnavailable?: boolean;
 }
+
+// ---------------------------------------------------------------------------
+// WHICH LIMITS FAIL CLOSED.
+//
+// The per-instance fallback below keeps most endpoints up through a Redis
+// outage, and for reads that is right. For the buckets matched here it is not:
+// serverless runs many instances, each with its own fresh window, so "5 OTPs
+// per 10 minutes" becomes 5 per instance — SMS pumping and credential stuffing
+// scale with the instance count. These refuse (503) until the global counter
+// is back. Matched by bucket NAME, so the policy is reviewed here, in one
+// list, instead of drifting across sixty route files.
+//
+// The consequence is deliberate and should be known before a deploy: during
+// a Redis outage, sign-in, step-up and money movement stop. They already
+// depend on Redis for OTP codes, sessions and step-up state; this only stops
+// the limiter from being the one piece that pretends otherwise.
+// ---------------------------------------------------------------------------
+const FAIL_CLOSED_BUCKETS: RegExp[] = [
+  // Authentication and step-up
+  /^otp\./,
+  /^auth\.(passkey|webauthn|apple|google|native|handoff)/,
+  /^actions\.step_up\./,
+  /^security\.mfa$/,
+  /^wallet\.link\./,
+  /^wallets\.biometric_pay\./,
+  /^attestation\.challenge$/,
+  // Money movement and its authorization
+  /^payments\.(create|execute|batch|stripe\.intent)$/,
+  /^payouts\.payroll$/,
+  /^v1\.(payments\.(authorize|execute)|mandates\.create)$/,
+  /^wallets?\.(transfer|authorize|circle\.(transfer|challenge))$/,
+  /^transfers[.-]/,
+  /^swaps\.execute$/,
+  /^(onramp|offramp)\.session$/,
+  /^offramp$/,
+  /^account\.(fund|spend)$/,
+  /^earn\.(deposit|withdraw)$/,
+  /^bills\.pay$/,
+  /^p2p\.orders\.(create|pay|release)$/,
+  /^mpc\.sign$/,
+  /^intents\.cctp$/,
+  /^investing\.orders$/,
+  /^travel\.(book|settle)$/,
+  /^x402\.(facilitator\.settle|policy\.settle)$/,
+  /^(giftcards|gifts\.vouchers)\.redeem$/,
+  // Unauthenticated endpoints that SEND EMAIL (mail pumping scales with the
+  // instance count exactly like SMS does)
+  /^content\.report_download$/,
+  // Card secrets and credentials
+  /^cards\.(reveal|pin\.(set|verify)|issue)$/,
+  /^developer\.keys\.(create|rotate)$/,
+];
+
+export function failsClosed(bucket: string): boolean {
+  return FAIL_CLOSED_BUCKETS.some((re) => re.test(bucket));
+}
+
+/** How long a fail-closed refusal asks the client to wait. */
+const STORE_UNAVAILABLE_RETRY_SECONDS = 30;
 
 export async function limit(key: string, opts: RateLimitOptions): Promise<RateLimitResult> {
   if (kvBackend === "redis") {
@@ -46,12 +108,21 @@ export async function limit(key: string, opts: RateLimitOptions): Promise<RateLi
         return { ok: false, remaining: 0, retryAfterSeconds: (window + 1) * windowSeconds - now || 1 };
       }
       return { ok: true, remaining: opts.limit - count, retryAfterSeconds: 0 };
-    } catch {
-      // Redis is unreachable. Do not take the endpoint down, but do not drop
-      // the limit either: this used to return ok unconditionally, so a Redis
-      // outage removed every throttle (OTP, login, payments) at once. The
-      // per-instance window still bounds each instance; the global limit
-      // resumes when Redis does.
+    } catch (e) {
+      // Redis is unreachable. Do not drop the limit: this used to return ok
+      // unconditionally, so a Redis outage removed every throttle (OTP,
+      // login, payments) at once.
+      //   - Sensitive buckets (FAIL_CLOSED_BUCKETS) refuse until it is back.
+      //   - Everything else degrades to the per-instance window, which still
+      //     bounds each instance; the global limit resumes when Redis does.
+      const bucket = key.split(":", 1)[0];
+      if (failsClosed(bucket)) {
+        log.error("rate limit store unavailable; refusing sensitive request", {
+          bucket,
+          category: kvErrorCategory(e),
+        });
+        return { ok: false, remaining: 0, retryAfterSeconds: STORE_UNAVAILABLE_RETRY_SECONDS, storeUnavailable: true };
+      }
       return memoryLimit(key, opts);
     }
   }
@@ -137,6 +208,13 @@ export async function rateLimitOr429(
 ): Promise<NextResponse | null> {
   const result = await limit(`${name}:${rateLimitIdentity(req)}:${extraKey}`, opts);
   if (result.ok) return null;
+  if (result.storeUnavailable) {
+    // 503, not 429: the client did nothing wrong, and a 429 would tell it so.
+    return NextResponse.json(
+      { error: "temporarily_unavailable", detail: "Please try again shortly.", retryAfterSeconds: result.retryAfterSeconds },
+      { status: 503, headers: { "Retry-After": String(result.retryAfterSeconds) } }
+    );
+  }
   const windowSeconds = Math.ceil(opts.windowMs / 1000);
   return NextResponse.json(
     { error: "rate_limited", retryAfterSeconds: result.retryAfterSeconds },

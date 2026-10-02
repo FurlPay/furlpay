@@ -20,16 +20,86 @@ export const kvBackend: "redis" | "memory" = REST_URL && REST_TOKEN ? "redis" : 
 
 // --- Redis (Upstash REST protocol: POST /  ["CMD", ...args]) ---------------
 
+// --- Failure classification ----------------------------------------------
+//
+// "Redis is down" is several different incidents with different owners. On
+// 2026-10-02 every command returned 403 "This database has reached current
+// Fixed plan limits" — a billing action, not a network one — and it was
+// indistinguishable in logs from an outage. Upstash reports which quota was
+// hit in the error text when it knows; a generic plan-limit message is kept
+// as its own category rather than guessed into one of the specific ones.
+
+export type KvErrorCategory =
+  | "timeout"
+  | "auth"
+  | "request_limit"
+  | "bandwidth_limit"
+  | "storage_limit"
+  | "plan_limit"
+  | "throttled"
+  | "network"
+  | "unknown";
+
+export class KvError extends Error {
+  readonly category: KvErrorCategory;
+  readonly httpStatus: number | null;
+  constructor(message: string, category: KvErrorCategory, httpStatus: number | null) {
+    super(message);
+    this.name = "KvError";
+    this.category = category;
+    this.httpStatus = httpStatus;
+  }
+}
+
+/** Pure, so it can be tested against the provider's real messages. */
+export function classifyKvFailure(httpStatus: number | null, text: string): KvErrorCategory {
+  const t = text.toLowerCase();
+  if (httpStatus === 401 || /wrongpass|unauthori[sz]ed|invalid (api )?token|noauth/.test(t)) return "auth";
+  if (/bandwidth/.test(t)) return "bandwidth_limit";
+  if (/(max|db|database|data)[ _-]?(size|storage)|storage limit|disk/.test(t)) return "storage_limit";
+  if (/request(s)? limit|max (daily |monthly )?requests?|commands? limit/.test(t)) return "request_limit";
+  if (/plan limit/.test(t)) return "plan_limit";
+  if (httpStatus === 429 || /too many requests|throttl|rate limit/.test(t)) return "throttled";
+  return "unknown";
+}
+
+/** Category of any error thrown by this module; "unknown" for anything else. */
+export function kvErrorCategory(e: unknown): KvErrorCategory {
+  return e instanceof KvError ? e.category : "unknown";
+}
+
+/** Bounded, so a hung Redis cannot hang every request that touches state. */
+const KV_TIMEOUT_MS = 5_000;
+
 async function redis(command: (string | number)[]): Promise<unknown> {
-  const res = await fetch(REST_URL!, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${REST_TOKEN}`, "Content-Type": "application/json" },
-    body: JSON.stringify(command),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new Error(`kv redis error ${res.status}: ${await res.text()}`);
+  let res: Response;
+  try {
+    res = await fetch(REST_URL!, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${REST_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify(command),
+      cache: "no-store",
+      signal: AbortSignal.timeout(KV_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const name = e instanceof Error ? e.name : "";
+    const timedOut = name === "TimeoutError" || name === "AbortError";
+    throw new KvError(
+      timedOut ? `kv redis timeout after ${KV_TIMEOUT_MS}ms` : `kv redis network error: ${(e as Error)?.message ?? e}`,
+      timedOut ? "timeout" : "network",
+      null
+    );
+  }
+  if (!res.ok) {
+    // The body is the provider's error text — it never echoes our command or
+    // the token — but it is bounded anyway.
+    const body = (await res.text()).slice(0, 300);
+    throw new KvError(`kv redis error ${res.status}: ${body}`, classifyKvFailure(res.status, body), res.status);
+  }
   const data = (await res.json()) as { result?: unknown; error?: string };
-  if (data.error) throw new Error(`kv redis error: ${data.error}`);
+  if (data.error) {
+    throw new KvError(`kv redis error: ${data.error.slice(0, 300)}`, classifyKvFailure(res.status, data.error), res.status);
+  }
   return data.result;
 }
 

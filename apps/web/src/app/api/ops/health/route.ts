@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { createPublicClient } from "viem";
 import { requireOpsAdmin, opsOk } from "@/lib/ops/respond";
-import { kvGet, kvSet } from "@/lib/kv";
+import { kvErrorCategory, kvGet, kvSet } from "@/lib/kv";
 import { sbSelect, supabaseBackend } from "@/lib/supabase";
 import { auditFlushStats } from "@/lib/auditDb";
 import { probeRequiredConstraints } from "@/lib/ops/schemaProbe";
@@ -51,10 +51,32 @@ async function timed(probe: () => Promise<Partial<Check>>): Promise<Check> {
 }
 
 async function probeRedis(): Promise<Check> {
-  return timed(async () => {
+  const check = await timed(async () => {
+    // A WRITE, not just a read: Upstash's storage limit rejects writes while
+    // reads still succeed, so a read-only probe reports green over a store
+    // that can no longer record a cron run or a webhook dedup key.
+    await kvSet("ops:health:ping", Date.now(), 60);
     await kvGet("ops:health:ping");
     return {};
   });
+  if (check.status !== "down") return check;
+  // Which incident, without the provider's raw text: "plan_limit" is a billing
+  // action, "auth" a rotated token, "timeout"/"network" an outage.
+  try {
+    await kvGet("ops:health:ping");
+  } catch (e) {
+    return { ...check, detail: `redis ${kvErrorCategory(e)}` };
+  }
+  return { ...check, detail: "redis write rejected (reads succeed): storage or plan limit likely" };
+}
+
+/** The snapshot cache is an optimisation; Redis being down must not take the health page down with it. */
+async function readCache(): Promise<object | null> {
+  try {
+    return await kvGet<object>(CACHE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 async function probeSupabase(): Promise<Check> {
@@ -115,7 +137,7 @@ export async function GET(req: NextRequest) {
   const auth = await requireOpsAdmin(req);
   if (!auth.ok) return auth.res;
 
-  const cached = await kvGet<object>(CACHE_KEY);
+  const cached = await readCache();
   // Dependency probes are shared and cacheable; audit counters are NOT — they
   // live in this lambda's memory. Serving a cached copy would report some
   // other instance's counters, so they are always recomputed locally and
@@ -168,6 +190,6 @@ export async function GET(req: NextRequest) {
     // nobody reads.
     audit: auditSnapshot(),
   };
-  await kvSet(CACHE_KEY, snapshot, CACHE_TTL_S);
+  await kvSet(CACHE_KEY, snapshot, CACHE_TTL_S).catch(() => undefined);
   return opsOk({ ...snapshot, cached: false });
 }
