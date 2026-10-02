@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CalendarClock, X } from "lucide-react";
+import { trackEvent } from "@/lib/analytics/vercelEvents";
 
 // ---------------------------------------------------------------------------
 // "Book 30 minutes with the founder" — Cal.com inline embed in a modal.
@@ -110,6 +111,18 @@ function loadCal(): CalApi {
 
   window.Cal = cal;
   cal("init", CAL_NS, { origin: CAL_ORIGIN });
+  // Registered here, once per page, and NOT in the open effect: that effect
+  // re-runs on every open and would stack a listener per open. The event is
+  // Cal's confirmation of a new booking (bookingSuccessfulV2, which replaces
+  // the deprecated bookingSuccessful); the booking uid dedupes a repeat. Only
+  // the event name is sent — no booking data, times or attendee details.
+  cal.ns?.[CAL_NS]?.("on", {
+    action: "bookingSuccessfulV2",
+    callback: (e: { detail?: { data?: { uid?: unknown } } }) => {
+      const uid = e?.detail?.data?.uid;
+      trackEvent("founder_call_booked", {}, typeof uid === "string" ? uid : "unknown");
+    },
+  });
   return cal;
 }
 
@@ -135,6 +148,7 @@ export default function ScheduleCallButton({ className }: { className?: string }
   useEffect(() => {
     if (!open || !mountRef.current) return;
 
+    trackEvent("scheduler_opened");
     const cal = loadCal();
     const ns = cal.ns?.[CAL_NS];
     if (!ns) return;
