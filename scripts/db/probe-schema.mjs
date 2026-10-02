@@ -155,9 +155,35 @@ async function main() {
   process.exit(criticalMissing ? 1 : 0);
 }
 
+/**
+ * Strip the DATABASE_URL password (raw and percent-decoded) from a message
+ * before it is printed. A driver error can echo part of the URI — notably when
+ * a password containing "@" or ":" was not percent-encoded and the parser took
+ * a fragment of it for the host (ENOTFOUND <fragment>). Exit-2 output is what
+ * an operator pastes into a ticket or chat, so it must never carry the secret.
+ */
+export function redactSecret(message, url = process.env.DATABASE_URL) {
+  let out = String(message ?? "");
+  if (!url) return out;
+  const secrets = new Set();
+  const m = /^[a-z][a-z0-9+.-]*:\/\/[^:/?#@]*:(.*)@[^@]*$/i.exec(url);
+  if (m && m[1]) {
+    secrets.add(m[1]);
+    try {
+      secrets.add(decodeURIComponent(m[1]));
+    } catch {
+      /* malformed escape: the raw form is already covered */
+    }
+    // Fragments either side of a stray "@" are what a mis-parse exposes.
+    for (const part of m[1].split(/[@:]/)) if (part.length >= 4) secrets.add(part);
+  }
+  for (const s of [...secrets].sort((a, b) => b.length - a.length)) if (s) out = out.split(s).join("[redacted]");
+  return out;
+}
+
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   main().catch((e) => {
-    console.error(e.message);
+    console.error(redactSecret(e?.message ?? e));
     process.exit(2);
   });
 }
