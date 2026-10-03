@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { createHash } from "node:crypto";
 
 // In-memory KV with TTL-free semantics; enough for single-use and replay.
 const store = new Map<string, unknown>();
@@ -18,7 +21,7 @@ vi.mock("@/lib/kv", () => ({
 const { issueVerificationToken, consumeVerificationToken, readGrant, redeemGrantUse, GRANT_MAX_USES, sha256 } = await import("../access");
 const { isDisposableEmail } = await import("../disposable");
 const { signedPdfUrl, storageConfigured } = await import("../storage");
-const { isPubliclyVisible, REPORTS, filterResearch, publishedReports } = await import("@/lib/content");
+const { isPubliclyVisible, REPORTS, filterResearch, publishedReports, getPublishedReport, reportCta } = await import("@/lib/content");
 const { sanitizeFilters } = await import("@/components/content/ResearchLibrary");
 
 beforeEach(() => store.clear());
@@ -34,10 +37,10 @@ describe("editorial visibility", () => {
     expect(isPubliclyVisible(at("scheduled", "not-a-date"))).toBe(false);
   });
 
-  it("the 2026 report is in review and therefore NOT on the public site", () => {
+  it("the 2026 report is published and on the public site", () => {
     const r = REPORTS.find((x) => x.slug === "global-stablecoin-report-2026");
-    expect(r?.status).toBe("review");
-    expect(publishedReports().some((x) => x.slug === "global-stablecoin-report-2026")).toBe(false);
+    expect(r?.status).toBe("published");
+    expect(publishedReports().some((x) => x.slug === "global-stablecoin-report-2026")).toBe(true);
   });
 });
 
@@ -62,10 +65,22 @@ describe("the 2026 report record — provenance integrity", () => {
     expect(r.sources!.every((s) => s.url === undefined)).toBe(true);
   });
 
-  it("the PDF is private, versioned and checksummed — never a public path", () => {
-    expect(r.pdfPath).toBeUndefined();
-    expect(r.privatePdf).toMatchObject({ objectKey: "global-stablecoin-report-2026/v1.0.pdf", version: "1.0" });
-    expect(r.privatePdf!.sha256).toMatch(/^[0-9a-f]{64}$/);
+  // Access policy: PUBLIC (founder decision, 2026-10-03), matching production.
+  // The served file is pinned by hash, size and page count, so a different
+  // edition cannot be swapped in under the same URL without this failing.
+  it("the PDF is the verified public 87-page edition, pinned by hash", () => {
+    expect(r.status).toBe("published");
+    expect(r.gated).toBe(false);
+    expect(r.privatePdf).toBeUndefined();
+    expect(r.pdfPath).toBe("/reports/global-stablecoin-report-2026.pdf");
+    expect(r.pageCount).toBe(87);
+    const file = readFileSync(join(process.cwd(), "public", r.pdfPath!));
+    expect(file.length).toBe(16_353_216);
+    expect(createHash("sha256").update(file).digest("hex")).toBe(
+      "1597d0542661896dd561a8588e8d5d71012b09486d3f5b6aeedd9bc8e2fb401d",
+    );
+    const text = file.toString("latin1");
+    expect((text.match(/\/Type\s*\/Page(?![s\w])/g) ?? []).length).toBe(87);
   });
 
   it("keeps all 16 findings", () => expect(r.keyFindings).toHaveLength(16));
@@ -183,5 +198,24 @@ describe("private storage", () => {
   it("maps a storage error to unavailable", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("nope", { status: 400 }));
     expect(await signedPdfUrl("a/v1.pdf", env)).toEqual({ ok: false, reason: "unavailable" });
+  });
+});
+
+describe("the 2026 report's production URLs keep working", () => {
+  it("the old /research/<slug> link redirects to the canonical /reports/<slug> page", async () => {
+    // next.config.js exports an async factory that wraps the config in plugins.
+    const factory = (await import("../../../../next.config.js")).default as () => Promise<{ redirects: () => Promise<{ source: string; destination: string; permanent: boolean }[]> }>;
+    const rules = await (await factory()).redirects();
+    expect(rules).toContainEqual({
+      source: "/research/global-stablecoin-report-2026",
+      destination: "/reports/global-stablecoin-report-2026",
+      permanent: true,
+    });
+  });
+
+  it("the canonical page resolves (not a 404) and offers the public download", () => {
+    const r = getPublishedReport("global-stablecoin-report-2026");
+    expect(r).toBeDefined();
+    expect(reportCta(r!).kind).toBe("download");
   });
 });

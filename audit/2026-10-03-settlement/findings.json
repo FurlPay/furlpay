@@ -546,6 +546,10 @@
         {
           "date": "2026-10-03",
           "note": "Opened in round 3."
+        },
+        {
+          "date": "2026-10-03",
+          "note": "Round 6: HTML escaping fixed; auth/points still open."
         }
       ],
       "id": "FP-WEB-01",
@@ -557,10 +561,10 @@
       "production_exposure": "yes (route is public)",
       "confidence": "high",
       "validation": "confirmed by code inspection",
-      "remediation": "Require auth and debit points atomically before accepting; HTML-escape interpolated fields.",
+      "remediation": "Fixed: every user-supplied field in the notification HTML is escaped (swagEmailEscape.spec; fails on the original route). Open: requiring auth and debiting points needs a points ledger that does not exist; fulfilment remains a manual human check.",
       "owner": "engineering",
-      "status": "open",
-      "regression_test": null,
+      "status": "partially fixed (pending deploy): HTML injection fixed; unauthenticated redemption with no points check still open",
+      "regression_test": "src/app/api/swag/redeem/__tests__/swagEmailEscape.spec.ts",
       "fix_commit": null,
       "retest": null,
       "residual_risk": "Spam/phishing into the swag inbox; free swag if a human ships without checking."
@@ -589,6 +593,31 @@
         {
           "date": "2026-10-03",
           "note": "Opened in round 5."
+        }
+      ]
+    },
+    {
+      "id": "FP-REL-01",
+      "title": "PR #93 would have taken the public 87-page report offline",
+      "severity": "P3",
+      "original_severity": null,
+      "source": "release review (round 6)",
+      "component": "apps/web/src/lib/content/data.ts; apps/web/public/reports; apps/web/next.config.js",
+      "description": "In PR #93 the report entry was status review (publishedReports() filters it out, so /reports/global-stablecoin-report-2026 404s), referenced the older 50-page private file (sha 441219ab...) via privatePdf, and production has no RESEARCH_PDF_BUCKET (downloads would 503). The public PDF had been deleted, and /research/global-stablecoin-report-2026 (200 in production) would fall into /research/[desk] and 404.",
+      "production_exposure": "none (not deployed); would have been an outage of a public, shared URL",
+      "remediation": "Founder decision: public, as live today. Catalog entry published with pdfPath to the verified 87-page file (sha256 1597d054...401d, 16,353,216 bytes, 87 pages; byte-identical to production), gated false, no privatePdf, no invented version. Tests that encoded 'nothing published' updated to assert exactly this report is published and that genuine drafts stay hidden. Permanent redirect /research/<slug> -> /reports/<slug>.",
+      "confidence": "high",
+      "validation": "verified: hash, size and page count pinned in research.spec; canonical page resolves with a download CTA; redirect asserted",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "regression_test": "research.spec.ts (PDF pin, published state, redirect, canonical page); content.spec.ts (drafts behind the filter)",
+      "fix_commit": "round-6 commit",
+      "retest": "61/61 report/content specs; claims linter clean",
+      "residual_risk": "The catalog still carries the 50-page edition's metrics and findings, valid for the shared Parts I-III; Parts IV-VI have no catalog summary.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened and fixed in round 6."
         }
       ]
     }

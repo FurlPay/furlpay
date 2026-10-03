@@ -123,6 +123,15 @@ const nextConfig = {
   },
   async redirects() {
     return [
+      // The 2026 stablecoin report was served at /research/<slug> in
+      // production before the research library moved reports to
+      // /reports/<slug>. That path now belongs to /research/[desk] and would
+      // 404, so the shared link is sent to the canonical page.
+      {
+        source: "/research/global-stablecoin-report-2026",
+        destination: "/reports/global-stablecoin-report-2026",
+        permanent: true,
+      },
       // Retired blog post — send any lingering links to the blog.
       { source: "/blog/i-decompiled-robinhood-redotpay-indmoney", destination: "/blog", permanent: true },
       // The hotel-map engineering post was retired in favour of the

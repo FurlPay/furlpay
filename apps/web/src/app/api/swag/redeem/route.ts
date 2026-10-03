@@ -40,6 +40,11 @@ interface Order {
 const g = globalThis as unknown as { __swagOrders?: Order[] };
 const orders = g.__swagOrders ?? (g.__swagOrders = []);
 
+/** HTML-escape user input for the internal notification email. */
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+}
+
 const SWAG_INBOX = process.env.SWAG_INBOX || "hello@furlpay.com";
 
 export async function POST(req: NextRequest) {
@@ -78,7 +83,9 @@ export async function POST(req: NextRequest) {
     to: SWAG_INBOX,
     replyTo: d.email,
     subject: `Swag redemption: ${d.name} · ${totalPoints} pts · ${d.items.length} item(s)`,
-    html: `<p><b>${d.name}</b> &lt;${d.email}&gt;${d.wallet ? ` · ${d.wallet}` : ""}</p><pre>${itemsText}</pre><p><b>Total: ${totalPoints} points</b></p><p>Ship to: ${d.address.line1}, ${d.address.city} ${d.address.postal}, ${d.address.country}</p>`,
+    // Every interpolated value is user input (FP-WEB-01): unescaped, a name like
+    // <a href=...> rendered as live HTML in the swag inbox.
+    html: `<p><b>${esc(d.name)}</b> &lt;${esc(d.email)}&gt;${d.wallet ? ` · ${esc(d.wallet)}` : ""}</p><pre>${esc(itemsText)}</pre><p><b>Total: ${totalPoints} points</b></p><p>Ship to: ${esc(d.address.line1)}, ${esc(d.address.city)} ${esc(d.address.postal)}, ${esc(d.address.country)}</p>`,
     text: `${d.name} <${d.email}> ${d.wallet ?? ""}\n${itemsText}\nTotal ${totalPoints} points\nShip to: ${d.address.line1}, ${d.address.city} ${d.address.postal}, ${d.address.country}`,
   });
   console.log(`[swag] redemption: ${d.name} <${d.email}> · ${d.items.length} items · ${totalPoints} pts → ${SWAG_INBOX}`);
