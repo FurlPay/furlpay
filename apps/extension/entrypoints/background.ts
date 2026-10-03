@@ -40,6 +40,10 @@ import type {
   X402Detection,
 } from "@/lib/types";
 import { checkoutParams, sanitizeDetection } from "@/lib/x402Trust";
+import { messageAllowed } from "@/lib/messageGate";
+
+/** `chrome-extension://<id>/` (or `moz-extension://<uuid>/`). */
+const extensionBase = () => browser.runtime.getURL("/");
 
 // ---------------------------------------------------------------------------
 // FurlPay service worker (MV3).
@@ -162,8 +166,12 @@ export default defineBackground(() => {
   });
 
   browser.runtime.onMessage.addListener((message: BgRequest, sender, sendResponse) => {
-    // Only trust our own extension surfaces (popup/sidepanel/content scripts).
-    if (sender.id !== browser.runtime.id) return;
+    // Our own surfaces only, and content scripts only for their three types
+    // (lib/messageGate.ts — a content script shares this extension's id).
+    if (!messageAllowed(message?.type, sender, browser.runtime.id, extensionBase())) {
+      if (sender.id === browser.runtime.id) sendResponse({ ok: false, error: "Not permitted from this context." });
+      return;
+    }
 
     switch (message.type) {
       case "GET_RECEIVE_ADDRESS":

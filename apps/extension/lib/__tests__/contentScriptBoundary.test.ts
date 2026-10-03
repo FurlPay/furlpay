@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
+import { CONTENT_SCRIPT_MESSAGES } from "../messageGate";
 
 // Content scripts run on arbitrary websites and share this extension's id, so
 // the background's `sender.id === browser.runtime.id` check does not tell a
@@ -8,9 +9,11 @@ import { join } from "node:path";
 // privileged handlers (RAMP_CHECKOUT, STEP_UP_SEND/VERIFY, LOGOUT, ...) is that
 // no content script forwards a page-chosen message type. Pinned here: every
 // sendMessage in a content script uses a literal type from this short list.
+// The worker enforces the same list at runtime (lib/messageGate.ts), for the
+// case source cannot cover: a compromised renderer.
 
 const ENTRY = join(__dirname, "..", "..", "entrypoints");
-const ALLOWED = new Set(["WALLET_CONNECT", "X402_DETECTED", "OPEN_X402_CHECKOUT"]);
+const ALLOWED = CONTENT_SCRIPT_MESSAGES;
 
 const contentScripts = readdirSync(ENTRY).filter((f) => f.endsWith(".content.ts"));
 
