@@ -2,12 +2,13 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 const getTransactionReceipt = vi.fn();
 const getTransactionConfirmations = vi.fn();
+const getBlock = vi.fn();
 
 vi.mock("viem", async (importOriginal) => {
   const actual = await importOriginal<typeof import("viem")>();
   return {
     ...actual,
-    createPublicClient: () => ({ getTransactionReceipt, getTransactionConfirmations }),
+    createPublicClient: () => ({ getTransactionReceipt, getTransactionConfirmations, getBlock }),
   };
 });
 
@@ -444,5 +445,48 @@ describe("verifyUsdcPayment — the payer (2026-10-02)", () => {
     );
     const r = await verifyUsdcPayment({ txHash: TX, network: "base", expectedTo: PAY_TO, expectedAtomic: "500000000", expectedFrom: "0xnot-an-address" });
     expect(r).toMatchObject({ ok: false, reason: "payer_mismatch" });
+  });
+});
+
+// FP-SET-15: a proof is bound to the booking it settles, not only to payer,
+// recipient and amount. The KV claim that blocks reuse has a TTL; without this
+// an old payment could confirm a later booking once that claim expired.
+describe("verifyUsdcPayment: binding to the booking's creation time", () => {
+  const PAYER = getAddress("0x2222222222222222222222222222222222222222");
+  const args = (notBefore?: number) => ({
+    txHash: TX,
+    network: "base",
+    expectedTo: PAY_TO,
+    expectedAtomic: "1000000",
+    expectedFrom: PAYER,
+    ...(notBefore !== undefined ? { notBefore } : {}),
+  });
+  beforeEach(() => {
+    getBlock.mockReset();
+    getTransactionReceipt.mockResolvedValue({
+      ...receiptWith([transferLog({ token: BASE_USDC, to: PAY_TO, value: 1_000_000n, from: PAYER })]),
+      blockNumber: 100n,
+    });
+  });
+
+  it("accepts a payment mined after the booking was created", async () => {
+    getBlock.mockResolvedValue({ timestamp: 2_000n });
+    expect((await verifyUsdcPayment(args(1_500))).ok).toBe(true);
+  });
+
+  it("rejects a payment mined before the booking existed (the replay case)", async () => {
+    getBlock.mockResolvedValue({ timestamp: 1_000n });
+    const r = await verifyUsdcPayment(args(1_500));
+    expect(r).toMatchObject({ ok: false, reason: "tx_predates_booking" });
+  });
+
+  it("an unreadable block is retryable, never a pass", async () => {
+    getBlock.mockRejectedValue(new Error("rpc down"));
+    expect(await verifyUsdcPayment(args(1_500))).toMatchObject({ ok: false, reason: "rpc_unavailable" });
+  });
+
+  it("a NaN bound (unparseable booking time) refuses instead of comparing false", async () => {
+    getBlock.mockResolvedValue({ timestamp: 2_000n });
+    expect(await verifyUsdcPayment(args(Number.NaN))).toMatchObject({ ok: false, reason: "tx_predates_booking" });
   });
 });

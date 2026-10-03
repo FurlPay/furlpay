@@ -53,6 +53,7 @@ export type ProofFailureReason =
   | "no_matching_transfer"
   | "payer_mismatch"
   | "insufficient_confirmations"
+  | "tx_predates_booking"
   | "rpc_unavailable";
 
 export type ProofResult =
@@ -89,6 +90,14 @@ export interface VerifyPaymentParams {
    * payer's own submission then fails as "already used".
    */
   expectedFrom?: string;
+  /**
+   * Unix seconds. The transaction's block must not be older than this — set it
+   * to the booking's creation time. Without it a proof is bound to a payer,
+   * recipient and amount but not to a BOOKING: the replay guard is a KV claim
+   * with a TTL, so once that claim expired (or the key was evicted) one old
+   * payment could confirm a second booking of equal or lower price.
+   */
+  notBefore?: number;
 }
 
 /** Decode a 32-byte indexed address topic into a checksummed address. */
@@ -177,6 +186,31 @@ export async function verifyUsdcPayment(params: VerifyPaymentParams): Promise<Pr
 
   if (receipt.status !== "success") {
     return { ok: false, reason: "tx_reverted", detail: "The transaction reverted on-chain." };
+  }
+
+  // A payment made before the booking existed cannot be FOR that booking.
+  // Compared against the block's own timestamp (the chain's clock, not ours);
+  // an unreadable block is retryable, never a pass.
+  if (params.notBefore !== undefined) {
+    // NaN compares false against everything, which would silently PASS the
+    // check below; an unparseable bound is a refusal.
+    if (!Number.isFinite(params.notBefore)) {
+      return { ok: false, reason: "tx_predates_booking", detail: "The booking has no usable creation time to bind the payment to." };
+    }
+    let blockTime: number;
+    try {
+      blockTime = Number((await client.getBlock({ blockNumber: receipt.blockNumber })).timestamp);
+    } catch (e) {
+      log.warn("travel settlement proof: block lookup failed", { txHash, network, error: (e as Error).message });
+      return { ok: false, reason: "rpc_unavailable", detail: "Could not read the transaction's block time; try again." };
+    }
+    if (!Number.isFinite(blockTime) || blockTime < params.notBefore) {
+      return {
+        ok: false,
+        reason: "tx_predates_booking",
+        detail: "This transaction was mined before the booking was created, so it cannot be its payment.",
+      };
+    }
   }
 
   if (isArc) {

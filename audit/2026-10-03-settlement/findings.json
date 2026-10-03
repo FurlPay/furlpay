@@ -1,6 +1,6 @@
 {
   "schema": "furlpay-findings/1",
-  "generated": "2026-10-03 (round 2)",
+  "generated": "2026-10-03 (round 3: adversarial double-settlement / race audit)",
   "scope": "EVM settlement path (x402 settler and its callers), ops emergency controls, browser extension message boundary, Elements/Liquid exposure",
   "sources_searched": {
     "Savant": "no report found in the repository",
@@ -414,6 +414,144 @@
       "fix_commit": null,
       "retest": null,
       "residual_risk": "Not deployed; untracked."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        }
+      ],
+      "id": "FP-SET-15",
+      "title": "Travel payment proof not bound to the booking: one payment could confirm a later booking",
+      "severity": "P2",
+      "source": "manual review (round 3)",
+      "component": "apps/web/src/lib/travel/settlementProof.ts verifyUsdcPayment; apps/web/src/app/api/travel/settle/route.ts",
+      "money_path": "on-chain USDC payment proof -> booking confirmed",
+      "description": "verifyUsdcPayment bound a proof to payer, recipient and minimum amount, never to time. The only replay guard was a KV claim (travel:settle:proof:<network>:<tx>) with a 30-day TTL. After the claim expired, or if the key was evicted, the same old payment verified again and confirmed a second booking of equal or lower price.",
+      "preconditions": "A user with one past payment to PAY_TO; booking creation live; claim expired or evicted.",
+      "exploit": "Pay once for booking A; settle A. After 30 days (or Redis key loss), create booking B priced <= A; POST /api/travel/settle with A's txHash -> confirmed without payment.",
+      "invariant": "One on-chain payment funds at most one booking.",
+      "production_exposure": "none today: /api/travel/book returns 503 in production (demoOnlyUnavailable) and trips are an in-memory per-instance Map",
+      "rationale_for_severity": "A real payment-replay design flaw (P1-shaped once bookings are live), currently unreachable in production.",
+      "remediation": "verifyUsdcPayment takes notBefore; the tx's block timestamp must be >= booking createdAt - 120s. An unreadable block -> rpc_unavailable (retryable); a NaN bound -> refused.",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "confidence": "high",
+      "validation": "confirmed by code inspection; regression tests",
+      "regression_test": "travelSettlementProof.spec.ts 'binding to the booking's creation time' (4 tests)",
+      "fix_commit": "round-3 commit",
+      "retest": "67/67 travel proof + route specs pass",
+      "residual_risk": "Two bookings created before one payment, with prices <= the payment, remain distinguishable only by the KV claim (still SET NX, 30-day TTL)."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        }
+      ],
+      "id": "FP-SET-16",
+      "title": "Legacy /api/payments: concurrent execute double-posts to the ledger; concurrent refund double-reverses",
+      "severity": "P3",
+      "source": "manual review (round 3)",
+      "component": "apps/web/src/lib/services/payments.ts executePayment / approvePayment / settle / refundPayment",
+      "money_path": "payment intent -> ledger posting (recordPaymentWithFee) -> settled; settled -> reverseLedgerTx -> refunded",
+      "description": "settle() awaited recordPaymentWithFee BEFORE setting status = 'settled'. Two requests on one payment both passed the pending_signature check and both posted. executePayment also wrote record.payer/payerUserId before settling, so the second caller overwrote who paid. refundPayment had the same shape; there the durable ledger's partial unique index on ledger_transactions.reverses refuses the second reversal, but the in-memory mirror did not.",
+      "preconditions": "Non-production (settle and refund return 503 in production); two concurrent requests on one payment id on one instance.",
+      "invariant": "A payment posts to the ledger at most once; a refund reverses at most once.",
+      "production_exposure": "none: mockAllowed()/NODE_ENV gates return 503 in production before any posting",
+      "rationale_for_severity": "Real double-posting race, demonstrated by test, but unreachable in production. It would be P1 if this mock path were wired to a live rail unchanged.",
+      "remediation": "In-flight claim (per-process Set) taken synchronously before any field is written or any await; released in finally. Same for approve and refund. A cross-instance rail must use a durable compare-and-set (as /api/v1/payments does).",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "confidence": "high",
+      "validation": "reproduced: both race tests fail on the original code (second request reaches the ledger) and pass with the fix",
+      "regression_test": "paymentsConcurrency.spec.ts (4 tests)",
+      "fix_commit": "round-3 commit",
+      "retest": "pass",
+      "residual_risk": "Per-process only, by design; this store is not durable and not used in production."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        }
+      ],
+      "id": "FP-SET-17",
+      "title": "x402-guard releaseProvenUnsettled() reported success when its release script refused",
+      "severity": "P3",
+      "source": "manual review (round 3)",
+      "component": "packages/x402-guard/src/redis.ts RedisMandateSpendStore.releaseProvenUnsettled (published @furlpay/x402-guard 0.3.0)",
+      "money_path": "agent mandate budget reservation -> release on proven non-settlement",
+      "description": "HMGET (read reservation) and EVAL (release) are separate round trips. The Lua scripts are atomic and correctly refuse once the nonce is 'settled' (or already released), but the method returned true regardless of the script result. If a late SUCCESS committed between the read and the script, the caller was told a SETTLED payment had been released, and could treat a paid authorization as unpaid and charge again. The budget itself was never double-credited (the script guards that).",
+      "preconditions": "A consumer of the package calls release while a settlement commit lands concurrently.",
+      "invariant": "release reports true only if the budget was actually returned.",
+      "production_exposure": "not used by apps/web at runtime; affects external consumers of the npm package",
+      "remediation": "Return Number(EVAL result) === 1 for both bucket and rolling paths.",
+      "owner": "engineering; founder to approve version bump + npm publish",
+      "status": "fixed in source (pending release)",
+      "confidence": "high",
+      "validation": "interleaving injected between HMGET and EVAL; mutant (old return true) fails both new tests",
+      "regression_test": "packages/x402-guard/test/mandate-spend.test.mjs (2 new interleaving tests)",
+      "fix_commit": "round-3 commit",
+      "retest": "node --test: 114 pass, 0 fail, 5 skipped",
+      "residual_risk": "Published 0.3.0 still has the old behaviour until a release."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        }
+      ],
+      "id": "FP-SET-18",
+      "title": "Dividend settlement: credit effectKey covers the action SET, so a lease-expiry overlap could pay a shared action twice",
+      "severity": "P3",
+      "source": "manual review (round 3)",
+      "component": "apps/web/src/app/api/investing/dividends/settle/route.ts",
+      "description": "Protected by a per-user withLock (30s lease) and an effectKey on the cash credit hashed over the sorted set of corporate actions paid. If the lease expired mid-run and a new action appeared, a second run with a different action set gets a different key, and an action common to both would be credited twice.",
+      "preconditions": "Lock lease expiry during a run (slow quote fetches) plus a newly ingested corporate action in the window; investing live.",
+      "production_exposure": "none today (investing not live)",
+      "confidence": "medium",
+      "validation": "suspected; not reproduced",
+      "remediation": "Key the credit per corporate action (one effect per action) or extend the lease with a heartbeat.",
+      "owner": "engineering",
+      "status": "open (suspected)",
+      "regression_test": null,
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "As described."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        }
+      ],
+      "id": "FP-WEB-01",
+      "title": "Swag redemption is unauthenticated, unchecked against any points balance, and interpolates user input into email HTML",
+      "severity": "P3",
+      "source": "manual review (round 3)",
+      "component": "apps/web/src/app/api/swag/redeem/route.ts",
+      "description": "Public route (rate-limited 5/min/IP). No points balance is checked, so any request is a 'redemption'. Fulfilment is a human reading an email, which also contains name/email/address interpolated unescaped into HTML (HTML injection into the internal inbox). Not a settlement path.",
+      "production_exposure": "yes (route is public)",
+      "confidence": "high",
+      "validation": "confirmed by code inspection",
+      "remediation": "Require auth and debit points atomically before accepting; HTML-escape interpolated fields.",
+      "owner": "engineering",
+      "status": "open",
+      "regression_test": null,
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "Spam/phishing into the swag inbox; free swag if a human ships without checking."
     }
   ],
   "production_state": {
@@ -438,5 +576,22 @@
       "SETTLEMENT_SAFETY_AUTOHALT"
     ],
     "consequence": "EVM settlement and compliance-guard writes cannot run in production today; no settlement finding is production-exposed. No account holds the admin role in production."
+  },
+  "audit_round3": {
+    "question": "Any remaining P0/P1 on the settlement path?",
+    "answer": "No confirmed P0 or P1 in the audited scope. Every concurrency defect found (FP-SET-15..18) is unreachable in production today, because the paths are gated off there. Two are fixed with reproduction tests; one is fixed in package source pending release; one is suspected and open.",
+    "verified_strong": [
+      "/api/v1/payments execute: atomic phase compare-and-set (PostgREST conditional UPDATE), CI-tested against real PostgreSQL with 10/100/500 workers",
+      "x402 settler paths: single-use EIP-3009 nonce claim (SET NX) + on-chain nonce enforcement by USDC + epoch-fenced breaker",
+      "ledger reversals: partial unique index on ledger_transactions.reverses; durable write precedes the in-memory mirror",
+      "travel settle: SET NX claim per tx hash + (round 3) block-time binding",
+      "dividends: per-user lock + effectKey on the credit"
+    ],
+    "not_tested": [
+      "real-chain reorg/replacement behaviour (mocks only)",
+      "cross-instance races on in-memory stores (per-process by construction, non-production)",
+      "smart contracts (packages/contracts, PolicyWrapper/Escrow): not audited in this round",
+      "external providers (Circle, Coinbase ramps, brokerage) beyond their adapters"
+    ]
   }
 }

@@ -92,6 +92,25 @@ const g = globalThis as unknown as {
   __furlpayIdem?: Map<string, string>;
 };
 const payments = g.__furlpayPayments ?? (g.__furlpayPayments = new Map());
+
+// Payments with a settlement or refund in progress on THIS instance.
+// settle()/refund await the ledger before setting the terminal status, so
+// without a claim taken synchronously before that await, two concurrent
+// requests both passed the status check and both posted (finding FP-SET-16).
+// Per-process by construction, like the Map above: this store is the
+// non-production path (settle and refund refuse in production), and a
+// cross-instance rail needs a durable compare-and-set, as /api/v1/payments has.
+const inFlight: Set<string> =
+  (globalThis as unknown as { __furlpayPaymentInFlight?: Set<string> }).__furlpayPaymentInFlight ??
+  ((globalThis as unknown as { __furlpayPaymentInFlight?: Set<string> }).__furlpayPaymentInFlight = new Set());
+function claimInFlight(key: string): boolean {
+  if (inFlight.has(key)) return false;
+  inFlight.add(key);
+  return true;
+}
+function releaseInFlight(key: string): void {
+  inFlight.delete(key);
+}
 // Idempotency-Key → paymentId, SCOPED PER USER (`${userId}:${key}`): two
 // tenants supplying the same key must never resolve to each other's intent.
 // Under retry storms the same (user, key) resolves to the same payment intent
@@ -378,6 +397,17 @@ export async function executePayment(
     return { ok: false, status: 409, error: `payment_already_${record.status}` };
   if (!/^0x[0-9a-fA-F]{64,}$/.test(signature))
     return { ok: false, status: 400, error: "invalid_signature" };
+  // Claimed BEFORE any field is written: a second execute arriving while this
+  // one awaits the ledger must neither settle again nor overwrite the payer.
+  if (!claimInFlight(record.id)) return { ok: false, status: 409, error: "payment_in_flight", record };
+  try {
+    return await screenReviewAndSettle(record, payer, actingUserId);
+  } finally {
+    releaseInFlight(record.id);
+  }
+}
+
+async function screenReviewAndSettle(record: PaymentRecord, payer: string, actingUserId: string): Promise<ExecuteResult> {
 
   // OFAC screening on both legs before anything touches the chain.
   const screens: Record<"payer" | "recipient", ReturnType<typeof screenAddress>> = {
@@ -426,9 +456,15 @@ export async function approvePayment(id: string, approverUserId: string): Promis
     return { ok: false, status: 403, error: "reviewer_cannot_approve_own_payment", record };
   }
 
-  record.reviewedAt = new Date().toISOString();
-  record.reviewedBy = approverUserId;
-  const result = await settle(record);
+  if (!claimInFlight(record.id)) return { ok: false, status: 409, error: "payment_in_flight", record };
+  let result: ExecuteResult;
+  try {
+    record.reviewedAt = new Date().toISOString();
+    record.reviewedBy = approverUserId;
+    result = await settle(record);
+  } finally {
+    releaseInFlight(record.id);
+  }
   if (result.ok) {
     audit("payment.review_approved", approverUserId, { paymentId: record.id });
   }
@@ -500,6 +536,18 @@ export async function refundPayment(id: string, actingUserId: string): Promise<E
   if (record.status !== "settled")
     return { ok: false, status: 409, error: "only_settled_payments_refundable" };
 
+  // Same in-flight claim as execute, so two concurrent refunds cannot both
+  // reach the reversal (the durable ledger's unique index on `reverses` also
+  // refuses the second, but the in-memory mirror alone would not).
+  if (!claimInFlight(`refund:${record.id}`)) return { ok: false, status: 409, error: "refund_in_flight", record };
+  try {
+    return await reverseAndRecordRefund(record, actingUserId);
+  } finally {
+    releaseInFlight(`refund:${record.id}`);
+  }
+}
+
+async function reverseAndRecordRefund(record: PaymentRecord, actingUserId: string): Promise<ExecuteResult> {
   const userId = record.payerUserId ?? record.createdByUserId;
 
   // Reverse the settlement's balanced ledger entry (compensating transaction,
