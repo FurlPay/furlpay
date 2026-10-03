@@ -602,6 +602,11 @@
     "web-and-node": "TS2307 fixed in 4a41dfc; round 4 installs native-app deps (npm ci --ignore-scripts) so nativeParity.spec can load",
     "mobile": "releaseConfig.test.ts assumed the gitignored google-services.json exists; round 4 adds withGoogleServices() (placeholder only when absent, removed in finally)",
     "e2e": "CSP violations came from @vercel/analytics loading its DEBUG script under next dev; round 4 renders <Analytics/> in production builds only. Production CSP unchanged, not loosened. The support-security OTP fixture failure is separate and not addressed.",
-    "snyk": "external blocker: private-test quota exhausted; not a passing scan"
+    "snyk": "external blocker: private-test quota exhausted; not a passing scan",
+    "verified_on_d42dfec": "mobile PASS (releaseConfig fix), p0-regression PASS, web-and-node: all 386 test files / 6615 tests PASS incl. nativeParity; e2e: no CSP violations remain",
+    "control-plane": "web-and-node then failed at `node --test \"test/*.test.js\"`: a quoted glob only Node 21+ expands; CI runs Node 20. Script now uses an unquoted glob (sh expands on Linux, Node expands on Windows/21+). 307/307 locally both ways.",
+    "android-guardian": "./gradlew Permission denied: committed as 100644; set to 100755.",
+    "ios-guardian": "workflow selects /Applications/Xcode_26.app, absent on the macos-15-arm64 runner image. Not changed: the available Xcode version cannot be verified from here. Owner: whoever maintains native-pr.yml.",
+    "e2e_remaining": "cardVisual keyboard test (element not found) and support-security OTP fixture (No pending code). UI/auth fixtures, not settlement. Not addressed."
   }
 }
