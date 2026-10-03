@@ -35,9 +35,9 @@ describe("public stablecoin report", () => {
   it("ships the complete, unmodified PDF approved for public release", () => {
     const pdf = readFileSync(new URL("../../../public/reports/global-stablecoin-report-2026.pdf", import.meta.url));
     expect(pdf.subarray(0, 5).toString()).toBe("%PDF-");
-    expect(pdf.length).toBe(29_815_276);
+    expect(pdf.length).toBe(16_353_216);
     expect(createHash("sha256").update(pdf).digest("hex")).toBe(
-      "441219ab3739cabd01bc63a5f6cbc1c5bf0da5bb536b55714f741430e0de2d03",
+      "1597d0542661896dd561a8588e8d5d71012b09486d3f5b6aeedd9bc8e2fb401d",
     );
   });
 });

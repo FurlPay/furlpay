@@ -7,7 +7,7 @@ import { breadcrumb, ORG_ID, SITE } from "@/lib/seo/schema";
 
 const TITLE = "FurlPay Global Stablecoin Report 2026";
 const DESCRIPTION =
-  "Fifty pages on where stablecoins actually move money. Supply, issuers, USDC and USDT, card-network settlement, cross-border flows, 23 market profiles and regulation, with every major figure labelled by source type.";
+  "Eighty-seven pages on where stablecoins and digital accounts move money. Supply, issuers, USDC and USDT, card-network settlement, cross-border flows, 23 market profiles, regulation, market structure and risk, fiat rails and licences, and the digital banks that issue IBANs, with every major figure labelled by source type.";
 const PATH = "/reports/global-stablecoin-report-2026";
 const PDF_PATH = "/reports/global-stablecoin-report-2026.pdf";
 
@@ -36,6 +36,24 @@ const CHAPTERS = [
     description:
       "Card-network settlement, infrastructure, treasury, remittances, agent payments, regulation and the outlook.",
   },
+  {
+    number: "04",
+    title: "Structure & risk",
+    description:
+      "Paxos, PYUSD and USDG, issuer economics from SEC filings, audits, liquidity, the yield wall, cross-chain rails, confidential payments and depegs.",
+  },
+  {
+    number: "05",
+    title: "Fiat rails & licences",
+    description:
+      "The licensing stack, MiCA after transition, PSD2 and PSD3, virtual IBANs, Verification of Payee, safeguarding and Canada.",
+  },
+  {
+    number: "06",
+    title: "Digital banks & IBANs",
+    description:
+      "A verified league table of the digital banks that issue IBANs: Revolut, Wise, N26, bunq, Klarna, PayPal, Stripe and Banking Circle.",
+  },
 ];
 
 export default function GlobalStablecoinReportPage() {
@@ -62,8 +80,7 @@ export default function GlobalStablecoinReportPage() {
           publisher: { "@id": ORG_ID },
           inLanguage: "en",
           isAccessibleForFree: true,
-          numberOfPages: 50,
-          version: "1.0",
+          numberOfPages: 87,
           encoding: {
             "@type": "MediaObject",
             contentUrl: `${SITE}${PDF_PATH}`,
@@ -137,7 +154,7 @@ export default function GlobalStablecoinReportPage() {
               </p>
             </div>
             <div className="relative mt-10 border-t border-white/15 pt-4 text-[11px] uppercase tracking-[0.15em] text-textSecondary">
-              50 pages · 23 markets · One global view
+              87 pages · 23 markets · One global view
             </div>
           </div>
         </header>
@@ -146,8 +163,8 @@ export default function GlobalStablecoinReportPage() {
           {[
             { label: "Published", value: "2 October 2026" },
             { label: "Research window", value: "January 2025 – 2 October 2026" },
-            { label: "Format", value: "50-page PDF" },
-            { label: "Edition", value: "Annual · Version 1.0" },
+            { label: "Format", value: "87-page PDF" },
+            { label: "Edition", value: "Annual · 2026 edition" },
           ].map((detail) => (
             <div key={detail.label} className="bg-oled p-5">
               <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-textMuted">

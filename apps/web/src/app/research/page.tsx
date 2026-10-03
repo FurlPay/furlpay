@@ -53,9 +53,9 @@ export default function ResearchPage() {
                   </Link>
                 </h2>
                 <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-textSecondary">
-                  Fifty pages on where stablecoins actually move money. Supply, issuers, USDC
-                  and USDT, card-network settlement, cross-border flows, 23 market profiles and
-                  regulation, with every major figure labelled by source type.
+                  Eighty-seven pages on where stablecoins and digital accounts move money. Supply, issuers, USDC
+                  and USDT, card-network settlement, cross-border flows, 23 market profiles,
+                  regulation, fiat rails and the digital banks that issue IBANs, with every major figure labelled by source type.
                 </p>
                 <div className="mt-7 flex flex-wrap gap-3">
                   <Link href="/reports/global-stablecoin-report-2026" className="btn-green inline-flex items-center gap-2 px-6 py-3 text-[14px]">
