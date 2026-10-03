@@ -13,6 +13,8 @@ import { NETWORK, USDC_ASSET, X402_VERSION, requiredConfirmations } from "@/lib/
 import { verifyAuthorizationSignature } from "@/lib/x402Signature";
 import { defaultSettler, SettlementPendingError } from "@/lib/x402Settler";
 import type { FacilitatorRequest } from "@/lib/x402Facilitator";
+import { recordSettlement } from "@/lib/x402SettlementStore";
+import { SettlementHaltedError } from "@/lib/settlementSafety";
 import { maxTransferUsd } from "@/lib/moneyLimits";
 
 // ---------------------------------------------------------------------------
@@ -175,8 +177,24 @@ export async function POST(req: NextRequest) {
 
     const required = requiredConfirmations(a.value);
     const started = Date.now();
+    // Every outcome that reached the chain goes into the settlement store, the
+    // same one the facilitator writes. Before this, gasless wrote only a tx
+    // event: a PENDING transfer pointed the client at
+    // /api/x402/settlement/[tx], which 404'd for it forever, and the reconciler
+    // and the recovery gate could not see it (finding FP-SET-08).
+    const settlementRecord = (transaction: string, status: "confirmed" | "pending") => ({
+      transaction,
+      network: NETWORK,
+      payer: a.from,
+      payTo: a.to,
+      amountAtomic: a.value,
+      resource: "furlpay:transfers:gasless",
+      settledAt: new Date().toISOString(),
+      status,
+    });
     try {
       const submission = await settler(facReq, a.from, required);
+      await recordSettlement(settlementRecord(submission.transaction, "confirmed"));
       await recordTxEvent({ rail: "transfers", state: "settled", substate: "GASLESS_SETTLED", amountUsd, feeUsd: GASLESS_FEE_USD, token: "USDC", payer: a.from, recipient: a.to, txHash: submission.transaction, userId: auth.account.user.id });
       await recordRailHealth("transfers", "HEALTHY", undefined, Date.now() - started);
       return NextResponse.json({
@@ -187,7 +205,13 @@ export async function POST(req: NextRequest) {
         fee: { usd: GASLESS_FEE_USD, sponsored: true },
       });
     } catch (e) {
+      // Refused by the settlement circuit breaker before anything was signed:
+      // nothing was sent, and this is a deliberate halt, not rail degradation.
+      if (e instanceof SettlementHaltedError) {
+        return NextResponse.json({ error: "settlement_halted", scope: e.scope }, { status: 503 });
+      }
       if (e instanceof SettlementPendingError) {
+        await recordSettlement(settlementRecord(e.transaction, "pending"));
         await recordTxEvent({ rail: "transfers", state: "pending", substate: "GASLESS_PENDING", amountUsd, token: "USDC", payer: a.from, recipient: a.to, txHash: e.transaction, userId: auth.account.user.id });
         return NextResponse.json(
           { ok: false, pending: { transaction: e.transaction, statusPath: `/api/x402/settlement/${e.transaction}` } },

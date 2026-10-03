@@ -1,4 +1,4 @@
-import { kvGet, kvSet, kvDel } from "@/lib/kv";
+import { kvGet, kvSet, kvDel, kvSetNx } from "@/lib/kv";
 
 // ---------------------------------------------------------------------------
 // Server-enforced, SESSION-BOUND step-up authentication.
@@ -40,6 +40,22 @@ export async function recentStepUp(userId: string, jti: string | undefined, maxA
   if (!jti) return false;
   const rec = await kvGet<StepUpRecord>(KEY(userId, jti));
   return Boolean(rec && typeof rec.at === "number" && Date.now() - rec.at <= maxAgeMs);
+}
+
+/**
+ * Atomically claim THIS session's recent step-up for one privileged action.
+ * True for exactly one caller per step-up: recentStepUp() + consumeStepUp() is
+ * check-then-delete, so two concurrent requests could both pass on a single
+ * re-authentication. The claim is a SET NX keyed to the step-up's own
+ * timestamp; the record is then deleted so it cannot be reused at all.
+ */
+export async function claimStepUp(userId: string, jti: string | undefined, maxAgeMs = DEFAULT_MAX_AGE_MS): Promise<boolean> {
+  if (!jti) return false;
+  const rec = await kvGet<StepUpRecord>(KEY(userId, jti));
+  if (!rec || typeof rec.at !== "number" || Date.now() - rec.at > maxAgeMs) return false;
+  const won = await kvSetNx(`${KEY(userId, jti)}:claimed:${rec.at}`, 1, RECORD_TTL_S);
+  if (won) await kvDel(KEY(userId, jti)).catch(() => {});
+  return won;
 }
 
 /** Consume the step-up (single-use) after the guarded action succeeds. */

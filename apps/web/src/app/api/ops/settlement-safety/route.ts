@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireOpsAdmin, opsOk, opsError } from "@/lib/ops/respond";
 import { validateBody } from "@/lib/validate";
-import { consumeStepUp, recentStepUp } from "@/lib/stepup";
+import { claimStepUp } from "@/lib/stepup";
 import {
   approveRecovery,
   autoHaltMode,
@@ -20,7 +20,8 @@ import { evaluateChainHealth, probeChain } from "@/lib/settlementDetectors";
 import { reconcileNetwork } from "@/lib/settlementReconcile";
 import { checkSettlementOnChain } from "@/lib/x402Settler";
 import { EVM_CHAIN_IDS } from "@/lib/x402Signature";
-import { rpcUrl } from "@/lib/x402Chains";
+import { settlementNetworks } from "@/lib/settlementSweep";
+import { checkNetworkTokens } from "@/lib/settlementTokenMonitor";
 
 export const dynamic = "force-dynamic";
 
@@ -31,7 +32,7 @@ export const dynamic = "force-dynamic";
 //   { action: "approve",  scope, incidentId, evidence }  — one recovery approval
 //
 // Every action requires the ops admin role. mitigate and approve also require a
-// recent step-up (OTP/passkey) on THIS session, and each approval consumes it,
+// recent step-up (OTP/passkey) on THIS session, claimed atomically per action,
 // so one step-up cannot be replayed into several approvals. Recovery checks —
 // chain health and reconciliation — are re-run server-side on every mitigate
 // and approve; the client cannot assert them. There is no force/override
@@ -96,7 +97,9 @@ export async function POST(req: NextRequest) {
     return opsOk({ record: rec });
   }
 
-  if (!(await recentStepUp(actor, auth.claims.jti))) {
+  // One step-up buys exactly one mitigate or approve, claimed atomically
+  // (claimStepUp) so concurrent requests cannot share it.
+  if (!(await claimStepUp(actor, auth.claims.jti))) {
     return opsError("step_up_required", "Re-authenticate (OTP or passkey) before changing settlement safety state.", 403);
   }
 
@@ -105,7 +108,6 @@ export async function POST(req: NextRequest) {
     body.action === "mitigate"
       ? await markMitigated(scope, actor, body.notes, checks, body.incidentId)
       : await approveRecovery(scope, actor, body.evidence, checks, body.incidentId);
-  if (body.action === "approve") await consumeStepUp(actor, auth.claims.jti);
 
   if (!result.ok) {
     const status = result.code === "awaiting_approvals" ? 202 : 409;
@@ -114,15 +116,8 @@ export async function POST(req: NextRequest) {
   return opsOk({ record: result.record, checks });
 }
 
-/** Networks a global recovery must check: those this deployment settles on,
- *  i.e. with an RPC configured. Probing every chain we know of would let one
- *  flaky public endpoint for a chain we never use block recovery forever. */
-function settlementNetworks(): string[] {
-  const configured = NETWORKS.filter((n) => !!rpcUrl(n));
-  return configured.length ? configured : ["arbitrum"];
-}
-
-/** Re-run chain health and reconciliation for the scope's networks, now. */
+/** Re-run chain health, settlement-token integrity and reconciliation for the
+ *  scope's networks, now — the same checks the scheduled sweep runs. */
 async function recoveryChecks(scope: SafetyScope): Promise<RecoveryChecks> {
   const networks = scope === "global" ? settlementNetworks() : [scope.slice(8)];
   const detail: Record<string, unknown> = {};
@@ -130,7 +125,10 @@ async function recoveryChecks(scope: SafetyScope): Promise<RecoveryChecks> {
   let unresolved = 0;
   const now = Date.now();
   for (const n of networks) {
-    const findings = evaluateChainHealth(n, await probeChain(n), Math.floor(now / 1000));
+    const findings = [
+      ...evaluateChainHealth(n, await probeChain(n), Math.floor(now / 1000)),
+      ...(await checkNetworkTokens(n)),
+    ];
     const recon = await reconcileNetwork(n, checkSettlementOnChain, now);
     const blocking = findings.filter((f) => f.action !== "report").map((f) => f.signal);
     if (blocking.length || recon.reorged.length || recon.errors) healthy = false;

@@ -147,6 +147,33 @@ export function evaluateChainHealth(
   return findings;
 }
 
+/**
+ * Are the configured providers plausibly independent? Agreement between two
+ * URLs on the same host is one provider agreeing with itself, and adds no
+ * assurance. Compares HOSTNAMES only (registrable domain approximation: the
+ * last two labels) — never logs or returns the URLs, which can embed API keys.
+ * Report-only: independence is a configuration property, not a runtime fault.
+ */
+export function evaluateRpcIndependence(network: string, urls: string[] = rpcUrls(network)): Finding | null {
+  if (urls.length < 2) return null;
+  const domains = urls.map((u) => {
+    try {
+      return new URL(u).hostname.split(".").slice(-2).join(".");
+    } catch {
+      return null;
+    }
+  });
+  if (domains.some((d) => d === null) || new Set(domains).size < domains.length) {
+    return {
+      signal: "rpc_not_independent",
+      severity: "medium",
+      action: "report",
+      evidence: { network, providers: urls.length, note: "two configured RPCs share a domain (or one is unparseable): agreement between them is not independent evidence" },
+    };
+  }
+  return null;
+}
+
 /** Query every configured provider individually. Never throws: a failed
  *  provider is an observation (ok: false), not an exception. */
 export async function probeChain(network: string, timeoutMs = 4_000): Promise<ProviderObservation[]> {

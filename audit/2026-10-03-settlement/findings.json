@@ -1,6 +1,6 @@
 {
   "schema": "furlpay-findings/1",
-  "generated": "2026-10-03",
+  "generated": "2026-10-03 (round 2)",
   "scope": "EVM settlement path (x402 settler and its callers), ops emergency controls, browser extension message boundary, Elements/Liquid exposure",
   "sources_searched": {
     "Savant": "no report found in the repository",
@@ -107,34 +107,47 @@
       "confidence": "high",
       "validation": "confirmed",
       "classification": "Operational / reconciliation gap",
-      "remediation": "Sorted-set indexes maintained in recordSettlement; reconcileNetwork() pass; recovery blocked while any are unresolved.",
+      "remediation": "Sorted-set indexes maintained in recordSettlement; reconcileNetwork() pass; recovery blocked while any are unresolved. Round 2: scheduled sweep (lib/settlementSweep.ts, GET /api/cron/settlement-safety, requireCron + runJob lock/budget/record), daily Vercel cron as backstop, external scheduler supported via FURLPAY_CRON_SECRET.",
       "owner": "engineering",
-      "status": "fixed (pending deploy); reconciler not yet scheduled",
-      "regression_test": "settlementSafety.spec.ts: reconciliation block (4 tests)",
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementSafety.spec.ts reconciliation block; settlementHardening.spec.ts 'scheduled sweep' block",
       "fix_commit": "this change set",
       "retest": "pass",
-      "residual_risk": "Reconciler runs only on recovery actions until wired to a cron (founder/ops decision). Records written before the index existed are not indexed."
+      "residual_risk": "Vercel cron is daily: a backstop, not a monitor. Sub-hourly cadence needs an external scheduler (founder/ops decision). Records written before the index existed are not indexed.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Scheduled sweep added."
+        }
+      ]
     },
     {
       "id": "FP-SET-06",
       "title": "Single-RPC deployments cannot detect provider disagreement",
-      "severity": "PN",
+      "severity": "P3",
       "original_severity": null,
       "source": "manual review",
       "component": "Deployment configuration (<NET>_RPC_URL_FALLBACK)",
       "description": "With one provider, a consistently lying or forked RPC is undetectable. Whether production has a fallback configured could not be verified from the repository.",
       "preconditions": "Only one RPC configured for a settlement network.",
-      "evidence": "Production env not inspected.",
-      "confidence": "low",
-      "validation": "awaiting validation: list production env var names (not values) for *_RPC_URL_FALLBACK",
+      "evidence": "vercel env ls production (names only), 2026-10-03",
+      "confidence": "high",
+      "validation": "confirmed: production defines no ARBITRUM_RPC_URL or fallback, so the settler would use viem's single public endpoint",
       "classification": "CWE-1188 (insecure default) if confirmed",
-      "remediation": "Configure an independent second provider per settlement network. The probe reports `rpc_unverified` until then.",
-      "owner": "founder/ops",
-      "status": "awaiting validation",
+      "remediation": "Configure an independent second provider per settlement network. The probe reports `rpc_unverified` until then. Round 2: evaluateRpcIndependence() reports two configured URLs on one domain as rpc_not_independent.",
+      "owner": "founder/ops: configure ARBITRUM_RPC_URL and ARBITRUM_RPC_URL_FALLBACK from two different providers before enabling settlement",
+      "status": "open: configuration",
       "regression_test": "settlementSafety.spec.ts: 'a single provider is reported as unverified'",
       "fix_commit": null,
       "retest": null,
-      "residual_risk": "As described."
+      "residual_risk": "As described.",
+      "production_exposure": "none today (settlement off in production); applies the moment ONCHAIN_SETTLEMENT_LIVE is enabled",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "PN -> P3: validated against production env names."
+        }
+      ]
     },
     {
       "id": "FP-SET-07",
@@ -146,13 +159,20 @@
       "description": "The allowlist pins token addresses but not their implementation. FP-SET-04's receipt check covers misbehaviour after an upgrade; watching the FiatToken proxy Upgraded event would give earlier warning.",
       "confidence": "medium",
       "validation": "hardening recommendation",
-      "remediation": "Watch the proxy implementation slot / Upgraded events; halt on change pending review.",
+      "remediation": "lib/settlementTokenMonitor.ts pins implementation, proxy admin and owner per token; checks paused. Implementation/admin change -> critical halt; owner change -> high halt; paused or unreadable -> degrade. Run by the scheduled sweep and by every recovery check. A test fails if an allowlisted mainnet asset has no pin.",
       "owner": "engineering",
-      "status": "open",
-      "regression_test": null,
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementHardening.spec.ts 'FP-SET-07' block",
       "fix_commit": null,
       "retest": null,
-      "residual_risk": "Covered after the fact by FP-SET-04."
+      "residual_risk": "Detection latency = sweep cadence (daily unless an external scheduler is configured). A legitimate issuer upgrade halts the network until a reviewed commit updates the pin. FiatToken role holders below owner (pauser, blacklister, masterMinter) are not pinned.",
+      "evidence": "On-chain read 2026-10-03: all four pinned tokens (USDC arbitrum/base/polygon, XSGD arbitrum) use ZeppelinOS AdminUpgradeabilityProxy slots; EIP-1967 slots are empty. owner()/paused() readable on all four.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Implemented."
+        }
+      ]
     },
     {
       "id": "FP-SET-08",
@@ -161,35 +181,49 @@
       "original_severity": null,
       "source": "manual review",
       "component": "apps/web/src/app/api/transfers/gasless/route.ts",
-      "description": "On SettlementPendingError the gasless route writes a tx event (recordTxEvent) but not a SettlementRecord, so the reconciler and the recovery gate do not see its unresolved transactions.",
+      "description": "On SettlementPendingError the gasless route writes a tx event (recordTxEvent) but not a SettlementRecord, so the reconciler and the recovery gate do not see its unresolved transactions. Round 2 evidence: the route's 202 response pointed clients at /api/x402/settlement/[tx], which returns 404 settlement_not_found for any tx not in the store, so a pending gasless transfer could never be polled.",
       "confidence": "high",
       "validation": "confirmed by code inspection",
       "classification": "Reconciliation gap",
-      "remediation": "Also call recordSettlement with status pending in that branch.",
+      "remediation": "Gasless records confirmed and pending outcomes in the settlement store (indexed); a breaker refusal returns 503 settlement_halted instead of 502 + rail DEGRADED.",
       "owner": "engineering",
-      "status": "open",
-      "regression_test": null,
-      "fix_commit": null,
-      "retest": null,
-      "residual_risk": "A disputed gasless tx would not block recovery."
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementPaths.spec.ts 'FP-SET-08' block (route-level, real store)",
+      "fix_commit": "round-2 commit",
+      "retest": "pass; mutation (pending record removed) fails the test",
+      "residual_risk": "A disputed gasless tx would not block recovery.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Fixed."
+        }
+      ]
     },
     {
       "id": "FP-SET-09",
-      "title": "Single admin identity makes dual-approval recovery impossible",
-      "severity": "P4",
-      "original_severity": null,
+      "title": "No production admin, and a single admin identity cannot satisfy dual approval",
+      "severity": "P2",
+      "original_severity": "P4 (round 1)",
       "source": "manual review",
       "component": "lib/authz.ts (FURLPAY_ADMIN_EMAIL), lib/settlementSafety.ts",
-      "description": "Critical incidents require two distinct approvers; only one account can hold the admin role. Critical halts therefore cannot be resumed. This fails closed; it is an operational constraint, not a vulnerability.",
+      "description": "Round 1: critical recovery needs two distinct approvers and only one account can hold the admin role. Round 2: production defines no FURLPAY_ADMIN_EMAIL at all, so NO account holds the admin role. Manual halt, ops pause/resume and breaker recovery are all unreachable in production. Automatic halts (when enforced) and the env kill switch still work.",
       "confidence": "high",
       "validation": "confirmed",
       "remediation": "Founder decision: add a second admin identity, or explicitly accept single-operator recovery (not implemented).",
-      "owner": "founder",
+      "owner": "founder: (1) set FURLPAY_ADMIN_EMAIL in production; (2) decide how a second approver is provided (second admin identity; role-based admin is not implemented); critical recovery stays fail-closed until then",
       "status": "open: decision required",
       "regression_test": "settlementSafety.spec.ts: '15. a critical incident needs two distinct approvers'",
       "fix_commit": null,
       "retest": null,
-      "residual_risk": "Operational lock-out after a critical incident."
+      "residual_risk": "Operational lock-out after a critical incident.",
+      "rationale_for_severity": "Raised from P4: the containment controls an operator would use in an incident are unavailable in production, not merely awkward. Not P1: settlement itself is off in production today.",
+      "production_exposure": "yes (controls unavailable); settlement not live",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "P4 -> P2 after production env check."
+        }
+      ]
     },
     {
       "id": "FP-SET-10",
@@ -202,13 +236,19 @@
       "confidence": "high",
       "validation": "confirmed",
       "classification": "CWE-308 (single-factor for a critical function)",
-      "remediation": "Require recentStepUp on resume; consider routing resume through the breaker's approval workflow.",
+      "remediation": "Resume (paused=false) on /api/ops/controls requires a fresh step-up claimed atomically (claimStepUp). Pausing does not require step-up, by design.",
       "owner": "engineering",
-      "status": "open",
-      "regression_test": null,
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementHardening.spec.ts 'FP-SET-10' block",
       "fix_commit": null,
-      "retest": null,
-      "residual_risk": "A hijacked admin session can resume a paused rail (but cannot clear a breaker halt)."
+      "retest": "pass",
+      "residual_risk": "Resume is still single-operator (no second approver), unlike breaker recovery.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Fixed."
+        }
+      ]
     },
     {
       "id": "FP-EXT-01",
@@ -247,6 +287,156 @@
       "fix_commit": null,
       "retest": null,
       "residual_risk": "Counterparty exposure, if any, is outside FurlPay's control."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-SET-11",
+      "title": "Compliance-guard wrapper/escrow writes bypassed every settlement control",
+      "severity": "P2",
+      "source": "manual review",
+      "component": "apps/web/src/lib/complianceGuard.ts via /api/x402/policy/settle and /api/compliance/escrow/[action]",
+      "money_path": "PolicyWrapper settleWithPolicy / settleTranche; ComplianceEscrow release / refund (Arbitrum)",
+      "description": "A second settlement path beside createEvmSettler: payer-signed EIP-3009 authorizations submitted through the PolicyWrapper, and escrow release/refund, signed with FURLPAY_RELAYER_PRIVATE_KEY from process env. No circuit breaker, no ops pause, no chain-identity check, no ONCHAIN_SETTLEMENT_LIVE flag, and a raw key allowed in production.",
+      "preconditions": "Operator credential (requireOperator) and the wrapper/escrow addresses plus relayer key configured.",
+      "evidence": "grep of writeContract call sites; complianceGuard.walletFor",
+      "confidence": "high",
+      "validation": "confirmed by code inspection",
+      "classification": "CWE-693; CWE-321-adjacent (raw key in app env)",
+      "rationale_for_severity": "Bypass of the settlement containment controls and of the KMS-only custody rule; needs an operator credential and configuration that production does not have today.",
+      "production_exposure": "none today (no relayer key or wrapper address in production env)",
+      "remediation": "Money-moving writes call assertMoneyWriteAllowed(): ONCHAIN_SETTLEMENT_LIVE outside development, then beforeBroadcast('arbitrum'). walletFor refuses raw keys in production. Routes map a halt to 503 settlement_halted.",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementPaths.spec.ts 'FP-SET-11' block",
+      "fix_commit": "round-2 commit",
+      "retest": "pass; mutation (gate removed) fails the test",
+      "residual_risk": "Wrapper receipts are not event-verified the way afterReceipt verifies direct EIP-3009 (different event surface). recordSoF attestations (no funds) are not breaker-gated. In production the feature is unavailable until a KMS signer exists."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-SET-12",
+      "title": "Step-up check-then-consume allowed one re-authentication to authorize concurrent actions",
+      "severity": "P3",
+      "source": "manual review",
+      "component": "apps/web/src/lib/stepup.ts (recentStepUp + consumeStepUp); /api/ops/settlement-safety; /api/ops/controls",
+      "description": "recentStepUp() then consumeStepUp() is check-then-delete. Concurrent requests on one session could each pass on a single step-up, e.g. two approvals or two resumes.",
+      "confidence": "high",
+      "validation": "confirmed (concurrency test fails without the fix)",
+      "classification": "CWE-367",
+      "remediation": "claimStepUp(): SET NX keyed to the step-up's timestamp, then delete. Used by breaker mitigate/approve and controls resume.",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementHardening.spec.ts 'step-up claims are single-use under concurrency'",
+      "fix_commit": "round-2 commit",
+      "retest": "pass; mutation (NX removed) fails the test",
+      "residual_risk": "Other routes still use recentStepUp/consumeStepUp (account deletion, offramp, beneficiary); review separately."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-SET-13",
+      "title": "User-signed transaction relays are outside the breaker (by design)",
+      "severity": "P4",
+      "source": "manual review",
+      "component": "/api/chain/rpc (eth_sendRawTransaction relay), /api/mpc/sign (returns signatures, no broadcast), lib/chains/evmAdapter.broadcastTransaction (no callers)",
+      "description": "These move the user's own funds under the user's own key. The breaker governs what FurlPay signs and pays gas for; it does not and should not gate a user's wallet. Recorded so the boundary is explicit.",
+      "confidence": "high",
+      "validation": "confirmed",
+      "remediation": "None. Remove evmAdapter.broadcastTransaction if it stays unused.",
+      "owner": "engineering",
+      "status": "accepted (by design)",
+      "regression_test": null,
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "During a chain incident FurlPay still relays user-signed transactions."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-SET-14",
+      "title": "x402 paywall mock path returns a generated tx hash with ok:true",
+      "severity": "P4",
+      "source": "manual review",
+      "component": "apps/web/src/lib/x402.ts (after the live branch)",
+      "description": "When x402LiveMode() is false the paywall returns a random txHash as a successful settlement. x402LiveMode = signatureEnforced(), which lib/x402Enforcement.ts forces on in production (X402_ENFORCE_SIGNATURE cannot disable it there), so the path is unreachable in production.",
+      "confidence": "high",
+      "validation": "confirmed by code inspection; covered by x402Enforcement.spec",
+      "remediation": "None required. Keep x402Enforcement.spec as the guard.",
+      "owner": "engineering",
+      "status": "accepted",
+      "regression_test": "x402Enforcement.spec.ts",
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "A staging deployment without enforcement returns simulated successes, by design."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-REV-01",
+      "title": "Review notes on uncommitted /api/payouts/batch (another session's work)",
+      "severity": "PN",
+      "source": "manual review",
+      "component": "apps/web/src/app/api/payouts/batch/route.ts (untracked, not part of any commit)",
+      "description": "Authenticated (requireUser) and rate-limited; creates pending_signature payment intents only, so no broadcast or settlement bypass. Notes for its owner, unvalidated: (1) response field estimatedGasSavingsVsSwiftUsd assumes $25 per SWIFT payment, an invented figure in an API response; (2) intents are created with Promise.all, so one failing line leaves earlier lines created (non-atomic batch); (3) body read with req.json() + safeParse bypasses validateBody's 100KB cap; (4) audit log records recipient addresses; (5) no KYC tier/feature check, unlike other money routes; (6) route is unclassified in security/route-manifest.json (fails routeManifest.spec). Correct classification: USER.",
+      "confidence": "medium",
+      "validation": "awaiting owner review",
+      "remediation": "Owner to address before committing.",
+      "owner": "the session that authored payouts/batch",
+      "status": "awaiting validation",
+      "regression_test": null,
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "Not deployed; untracked."
     }
-  ]
+  ],
+  "production_state": {
+    "verified": "2026-10-03 via `vercel ls`/`vercel inspect` and `vercel env ls production` (names only)",
+    "deployment": "dpl_5behwnngnFKr6hLaJGXfBniptBNo = commit ea2ee50; 88ddff0 and later are NOT deployed",
+    "settlement_env_present": [
+      "KV_REST_API_URL",
+      "KV_REST_API_TOKEN",
+      "CRON_SECRET",
+      "FURLPAY_CRON_SECRET",
+      "SOLANA_RPC_URL"
+    ],
+    "settlement_env_absent": [
+      "ONCHAIN_SETTLEMENT_LIVE",
+      "FURLPAY_KMS_PROVIDER",
+      "FACILITATOR_EVM_ADDRESS",
+      "ARBITRUM_RPC_URL",
+      "ARBITRUM_RPC_URL_FALLBACK",
+      "FURLPAY_RELAYER_PRIVATE_KEY",
+      "FURLPAY_POLICY_WRAPPER_ADDRESS",
+      "FURLPAY_ADMIN_EMAIL",
+      "SETTLEMENT_SAFETY_AUTOHALT"
+    ],
+    "consequence": "EVM settlement and compliance-guard writes cannot run in production today; no settlement finding is production-exposed. No account holds the admin role in production."
+  }
 }

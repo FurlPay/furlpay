@@ -13,6 +13,7 @@ import {
   type Authorization,
 } from "@/lib/complianceGuard";
 import { requireOperator } from "@/lib/complianceOperator";
+import { SettlementHaltedError } from "@/lib/settlementSafety";
 
 export const dynamic = "force-dynamic";
 
@@ -128,6 +129,10 @@ export async function POST(req: NextRequest) {
   } catch (e) {
     if (e instanceof GuardNotConfiguredError) {
       return NextResponse.json({ error: e.message, status: guardStatus() }, { status: 503 });
+    }
+    // Refused by the settlement circuit breaker BEFORE anything was signed.
+    if (e instanceof SettlementHaltedError) {
+      return NextResponse.json({ error: "settlement_halted", scope: e.scope }, { status: 503 });
     }
     // A malformed amount is the CLIENT's error, not an upstream failure. 502
     // would tell the caller to retry something that can never succeed, and
