@@ -72,6 +72,21 @@ export function rpcUrl(network: string): string | undefined {
 
 /** Transport for a network: fallback(primary, secondary) when a fallback URL
  *  is configured, plain http(primary) otherwise, public default as last resort. */
+/** Every configured RPC for a network, each on its own — primary, then
+ *  fallback — or the chain's public default when none is set. The settlement
+ *  safety probe queries these individually: a viem `fallback` transport would
+ *  answer from whichever responds, which hides exactly the disagreement the
+ *  probe exists to see. */
+export function rpcUrls(network: string): string[] {
+  const prefix = RPC_ENV_PREFIX[network];
+  const configured = prefix
+    ? [process.env[`${prefix}_RPC_URL`], process.env[`${prefix}_RPC_URL_FALLBACK`]].filter((u): u is string => !!u)
+    : [];
+  if (configured.length) return configured;
+  const def = EVM_CHAINS[network]?.rpcUrls.default.http[0];
+  return def ? [def] : [];
+}
+
 export function rpcTransport(network: string): Transport {
   const prefix = RPC_ENV_PREFIX[network];
   const primary = prefix ? process.env[`${prefix}_RPC_URL`] : undefined;

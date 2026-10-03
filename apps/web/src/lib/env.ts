@@ -88,6 +88,13 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("BROKERAGE_LIVE"),
       v("TOKENIZED_STOCKS_LIVE"),
       v("ONCHAIN_SETTLEMENT_LIVE"),
+      // Settlement circuit breaker (lib/settlementSafety.ts). Unset = shadow
+      // auto-halts, default thresholds, velocity cap off.
+      v("SETTLEMENT_SAFETY_AUTOHALT"),
+      v("SETTLEMENT_RECOVERY_MIN_APPROVERS"),
+      v("SETTLEMENT_MAX_HEAD_AGE_S"),
+      v("SETTLEMENT_MAX_PROVIDER_LAG_BLOCKS"),
+      v("SETTLEMENT_MAX_PER_HOUR"),
       v("ONCHAIN_BALANCES_LIVE"),
       v("DEFI_COLLATERAL_LIVE"),
       v("AI_TRADING_LIVE"),

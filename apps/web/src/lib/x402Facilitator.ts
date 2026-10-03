@@ -17,6 +17,7 @@ import {
 import { parseAtomicAmount, resolveSettlementAsset } from "@/lib/x402Assets";
 import { verifyAuthorizationSignature } from "@/lib/x402Signature";
 import { defaultSettler, SettlementPendingError } from "@/lib/x402Settler";
+import { SettlementHaltedError } from "@/lib/settlementSafety";
 import { getSettlement, recordSettlement, type SettlementRecord } from "@/lib/x402SettlementStore";
 
 // Settlement log moved to x402SettlementStore (shared with lib/x402.ts without
@@ -478,6 +479,13 @@ export async function settle(request: AnyFacilitatorRequest, settler?: Settler):
         requiredConfirmations: required,
         errorReason: "settlement_pending",
       };
+    }
+    // The settlement safety controller refused BEFORE broadcast
+    // (lib/settlementSafety.ts): nothing was sent. A refusal after broadcast
+    // (receipt mismatch) arrives as SettlementPendingError above instead. The
+    // nonce stays burned, as below.
+    if (e instanceof SettlementHaltedError) {
+      return { success: false, network, payer: v.payer, errorReason: "settlement_halted" };
     }
     // Fail closed: a settler error/timeout is NOT proof the on-chain settlement
     // did not land, so we keep the nonce burned rather than freeing it. Freeing

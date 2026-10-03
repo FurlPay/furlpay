@@ -200,6 +200,8 @@ export type AuditEvent =
   | "ops.ramp_partner_enabled"
   | "ops.ramp_partner_disabled"
   | "ops.security_acknowledged"
+  | "ops.settlement_safety_tripped"
+  | "ops.settlement_safety_recovered"
   | "circle.user_initialized"
   | "circle.transfer_challenge_created";
 

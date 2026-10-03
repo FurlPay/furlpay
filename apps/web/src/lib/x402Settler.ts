@@ -15,6 +15,7 @@ import { createKmsAccount, kmsAccountAvailable } from "@/lib/kmsAccount";
 import { financialEnvironment, flagEnabled, flagState } from "@/lib/flags";
 import { log } from "@/lib/log";
 import { resolveSettlementAsset, settlementGasLimit, parseAtomicAmount } from "@/lib/x402Assets";
+import { afterReceipt, beforeBroadcast } from "@/lib/settlementGuard";
 
 // ---------------------------------------------------------------------------
 // Real on-chain x402 settler (EVM). This is the injectable `Settler` that
@@ -235,6 +236,14 @@ export function createEvmSettler(): Settler | null {
       );
     }
 
+    // ── Settlement safety: the last gate before anything is signed ────────
+    // Chain identity and RPC health for this network, the settlement velocity
+    // cap, then the durable epoch-fenced halt state — refused on any failure to
+    // read it (lib/settlementGuard.ts). Every caller of the settler (facilitator,
+    // paywall, MPP, gasless transfers, account funding) passes through here, so
+    // a halt cannot be bypassed by a route that forgot a pause check.
+    await beforeBroadcast(network);
+
     const hash = await walletClient.writeContract({
       address: pinned.address as Address,
       abi: EIP3009_ABI,
@@ -292,6 +301,26 @@ export function createEvmSettler(): Settler | null {
 
     if (receipt.status !== "success") {
       throw new Error(`settlement reverted on-chain (tx ${landed})`);
+    }
+
+    // `success` is not enough: the receipt must show exactly the authorized
+    // transfer (from, to, value) and the authorization's nonce consumed. A
+    // mismatch halts the network and is never reported as settled.
+    //
+    // It surfaces as SettlementPendingError, not as a plain failure: the tx IS
+    // on-chain and its outcome is disputed. Every caller (facilitator, paywall,
+    // MPP, gasless) already records that class as PENDING with the hash, which
+    // puts it in the unresolved index that blocks recovery until a human
+    // resolves it. A plain error would let three of the four callers drop it.
+    try {
+      await afterReceipt(
+        network,
+        receipt.logs,
+        { token: pinned.address, from: auth.from, to: auth.to, value: settleValue, nonce: auth.nonce },
+        landed,
+      );
+    } catch (e) {
+      throw new SettlementPendingError(landed, network, (e as Error).message);
     }
 
     const confirmations = Number(

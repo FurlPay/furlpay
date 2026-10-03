@@ -1,4 +1,4 @@
-import { kvGet, kvSet } from "@/lib/kv";
+import { kvGet, kvSet, kvZAdd, kvZRangeByScore, kvZRem } from "@/lib/kv";
 
 // ---------------------------------------------------------------------------
 // Durable x402 settlement log, backed by Redis (lib/kv.ts). Split out of
@@ -78,6 +78,34 @@ export async function getSettlement(tx: string): Promise<SettlementRecord | unde
   return (await kvGet<SettlementRecord>(settlementKey(tx))) ?? undefined;
 }
 
+// Per-network indexes, so the settlement safety controller can answer "what is
+// still unresolved on this network?" (recovery is blocked while anything is)
+// and the reconciler can re-check recent confirmations for reorgs. Both are
+// scored by submission time and maintained here, at the one write path, so no
+// caller can update a record without updating its index.
+export const unresolvedIndexKey = (network: string) => `x402fac:unresolved:${network}`;
+export const confirmedIndexKey = (network: string) => `x402fac:confirmed:${network}`;
+
 export async function recordSettlement(record: SettlementRecord): Promise<void> {
   await kvSet(settlementKey(record.transaction), record, SETTLEMENT_TTL_SECONDS);
+  const score = Date.parse(record.settledAt) || Date.now();
+  const status = record.status ?? "confirmed";
+  if (status === "pending" || status === "abandoned") {
+    await kvZAdd(unresolvedIndexKey(record.network), score, record.transaction);
+    await kvZRem(confirmedIndexKey(record.network), [record.transaction]);
+  } else {
+    await kvZRem(unresolvedIndexKey(record.network), [record.transaction]);
+    if (status === "confirmed") await kvZAdd(confirmedIndexKey(record.network), score, record.transaction);
+    else await kvZRem(confirmedIndexKey(record.network), [record.transaction]);
+  }
+}
+
+/** Settlements on `network` with no confirmed outcome (pending or abandoned). */
+export async function unresolvedSettlements(network: string): Promise<string[]> {
+  return kvZRangeByScore(unresolvedIndexKey(network), "-inf", "+inf");
+}
+
+/** Confirmed settlements submitted at or after `sinceMs`, oldest first. */
+export async function recentConfirmedSettlements(network: string, sinceMs: number): Promise<string[]> {
+  return kvZRangeByScore(confirmedIndexKey(network), sinceMs, "+inf");
 }
