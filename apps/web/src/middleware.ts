@@ -45,6 +45,12 @@ const PUBLIC_PAGES = new Set([
   "/press",
   "/waitlist",
   "/downloads", // where every store + desktop badge on the landing page points
+  // Published research and its PDF are available without a session or email.
+  "/research",
+  "/reports",
+  "/research/global-stablecoin-report-2026",
+  "/reports/global-stablecoin-report-2026",
+  "/reports/global-stablecoin-report-2026.pdf",
   "/grants",
   "/token2049", // short link → /events/token2049-singapore-2026 (hotfix; same as release b9d3d27+)
   "/marketplace",
