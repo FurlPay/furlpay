@@ -96,11 +96,20 @@ Approval rules:
 
 Resuming a *rail/global ops pause* (`/api/ops/controls`, `paused:false`) now also needs an atomic step-up claim.
 
-> **Founder decision (FP-SET-09).**
-> 1. Set `FURLPAY_ADMIN_EMAIL` in production. Today *nobody* can halt, pause, resume or recover through the API there.
-> 2. Decide how a second approver exists. Only one account can hold the admin role (`lib/authz.ts`), and role-based admin is **[proposed]**, not implemented.
+> **Second approver (FP-SET-09) [impl].** `SETTLEMENT_RECOVERY_APPROVER_EMAILS` lists up to 5 accounts that may **only** read breaker state and `approve`. They can't halt, mitigate, or reach any other admin route.
 >
-> Until then, critical recovery stays fail-closed. The env kill switch (`FURLPAY_MONEY_KILL_SWITCH`, which needs a redeploy) and automatic halts in enforce mode still work.
+> They still need:
+> - a non-guest session;
+> - an atomic step-up claim on each approval;
+> - to be a different user from the mitigator and from the other approvers.
+>
+> The `compliance_officer` role grant couldn't serve here, because issuing it needs two admins. With the list unset there are no extra approvers, and critical recovery stays fail-closed.
+>
+> **[manual, founder]** In production, set:
+> 1. `FURLPAY_ADMIN_EMAIL`. Today *nobody* can halt, pause, resume or recover through the API.
+> 2. `SETTLEMENT_RECOVERY_APPROVER_EMAILS` to a **different person's** account.
+>
+> Until both are set, the env kill switch (`FURLPAY_MONEY_KILL_SWITCH`, which needs a redeploy) and automatic halts in enforce mode remain the only controls.
 
 ## 6. Procedures
 

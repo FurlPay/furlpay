@@ -92,6 +92,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // auto-halts, default thresholds, velocity cap off.
       v("SETTLEMENT_SAFETY_AUTOHALT"),
       v("SETTLEMENT_RECOVERY_MIN_APPROVERS"),
+      v("SETTLEMENT_RECOVERY_APPROVER_EMAILS"),
       v("SETTLEMENT_MAX_HEAD_AGE_S"),
       v("SETTLEMENT_MAX_PROVIDER_LAG_BLOCKS"),
       v("SETTLEMENT_MAX_PER_HOUR"),

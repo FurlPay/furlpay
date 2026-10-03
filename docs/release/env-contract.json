@@ -28,6 +28,7 @@
         "apps/web/src/app/api/webhooks/stripe/route.ts",
         "apps/web/src/app/travel/destinations/[slug]/page.tsx",
         "apps/web/src/components/Realistic3DCard.tsx",
+        "apps/web/src/components/VercelAnalytics.tsx",
         "apps/web/src/lib/adminIdentity.ts",
         "apps/web/src/lib/auth/apple.ts",
         "apps/web/src/lib/auth/google.ts",

@@ -75,6 +75,15 @@ jobs:
 
       - name: Route security invariants
         run: node apps/web/scripts/check-route-security.mjs
+      # src/lib/geo/__tests__/nativeParity.spec.ts imports native-app/lib/geo.ts
+      # to hold the web and native geo maths against each other. Vite transforms
+      # that file with ITS tsconfig, which extends expo/tsconfig.base, so without
+      # native-app's dependencies the spec cannot even load ("Tsconfig not
+      # found"). Same install as the mobile job; scripts skipped, since only the
+      # package files are needed here.
+      - name: Install native-app dependencies (for the web/native parity spec)
+        working-directory: native-app
+        run: npm ci --ignore-scripts
       - name: Test web app (wallet-link security matrix + units)
         run: npm test --workspace @furlpay/web
       - name: Build web app

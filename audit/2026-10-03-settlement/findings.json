@@ -209,12 +209,12 @@
       "description": "Round 1: critical recovery needs two distinct approvers and only one account can hold the admin role. Round 2: production defines no FURLPAY_ADMIN_EMAIL at all, so NO account holds the admin role. Manual halt, ops pause/resume and breaker recovery are all unreachable in production. Automatic halts (when enforced) and the env kill switch still work.",
       "confidence": "high",
       "validation": "confirmed",
-      "remediation": "Founder decision: add a second admin identity, or explicitly accept single-operator recovery (not implemented).",
-      "owner": "founder: (1) set FURLPAY_ADMIN_EMAIL in production; (2) decide how a second approver is provided (second admin identity; role-based admin is not implemented); critical recovery stays fail-closed until then",
-      "status": "open: decision required",
-      "regression_test": "settlementSafety.spec.ts: '15. a critical incident needs two distinct approvers'",
+      "remediation": "Second distinct approver: SETTLEMENT_RECOVERY_APPROVER_EMAILS (max 5, canonicalised; malformed dropped; over the cap = none). Listed accounts may ONLY read breaker state and POST approve; they cannot halt, mitigate or reach any other admin route. Non-guest session, an atomic step-up claim per approval, and distinctness from the mitigator and other approvers still apply. The existing compliance_officer grant could not serve, because issuing it needs two admins. Unset = no extra approvers, so critical recovery stays fail-closed.",
+      "owner": "founder: set FURLPAY_ADMIN_EMAIL and SETTLEMENT_RECOVERY_APPROVER_EMAILS (a different person) in production",
+      "status": "mechanism fixed (pending deploy); production configuration required",
+      "regression_test": "settlementApprovers.spec.ts (8 tests: full admin+approver recovery, approver read-only + approve-only, unlisted/guest refused, step-up required, unset list keeps single admin fail-closed)",
       "fix_commit": null,
-      "retest": null,
+      "retest": "8/8 pass; mutation (approve-only guard removed) fails the halt/mitigate test",
       "residual_risk": "Operational lock-out after a critical incident.",
       "rationale_for_severity": "Raised from P4: the containment controls an operator would use in an incident are unavailable in production, not merely awkward. Not P1: settlement itself is off in production today.",
       "production_exposure": "yes (controls unavailable); settlement not live",
@@ -222,6 +222,10 @@
         {
           "date": "2026-10-03",
           "note": "P4 -> P2 after production env check."
+        },
+        {
+          "date": "2026-10-03",
+          "note": "Round 4: approver mechanism implemented; configuration still absent in production."
         }
       ]
     },
@@ -593,5 +597,11 @@
       "smart contracts (packages/contracts, PolicyWrapper/Escrow): not audited in this round",
       "external providers (Circle, Coinbase ramps, brokerage) beyond their adapters"
     ]
+  },
+  "ci_round4": {
+    "web-and-node": "TS2307 fixed in 4a41dfc; round 4 installs native-app deps (npm ci --ignore-scripts) so nativeParity.spec can load",
+    "mobile": "releaseConfig.test.ts assumed the gitignored google-services.json exists; round 4 adds withGoogleServices() (placeholder only when absent, removed in finally)",
+    "e2e": "CSP violations came from @vercel/analytics loading its DEBUG script under next dev; round 4 renders <Analytics/> in production builds only. Production CSP unchanged, not loosened. The support-security OTP fixture failure is separate and not addressed.",
+    "snyk": "external blocker: private-test quota exhausted; not a passing scan"
   }
 }

@@ -3,6 +3,8 @@ import { z } from "zod";
 import { requireOpsAdmin, opsOk, opsError } from "@/lib/ops/respond";
 import { validateBody } from "@/lib/validate";
 import { claimStepUp } from "@/lib/stepup";
+import { requireRecoveryApprover } from "@/lib/settlementApprovers";
+import type { AuthResult } from "@/lib/authz";
 import {
   approveRecovery,
   autoHaltMode,
@@ -31,7 +33,10 @@ export const dynamic = "force-dynamic";
 //   { action: "mitigate", scope, incidentId, notes }     — HALTED → RECOVERY_PENDING
 //   { action: "approve",  scope, incidentId, evidence }  — one recovery approval
 //
-// Every action requires the ops admin role. mitigate and approve also require a
+// Every action requires the ops admin role, except that a configured recovery
+// approver (SETTLEMENT_RECOVERY_APPROVER_EMAILS, lib/settlementApprovers.ts)
+// may read state and approve, the second distinct identity critical
+// recovery needs. mitigate and approve also require a
 // recent step-up (OTP/passkey) on THIS session, claimed atomically per action,
 // so one step-up cannot be replayed into several approvals. Recovery checks —
 // chain health and reconciliation — are re-run server-side on every mitigate
@@ -65,9 +70,21 @@ const ActionSchema = z.discriminatedUnion("action", [
   }),
 ]);
 
+/** The ops admin, or (when `approverAllowed`) a configured recovery approver
+ *  (lib/settlementApprovers.ts). Approvers never get anything else. */
+async function authorize(req: NextRequest): Promise<
+  { ok: true; auth: Extract<AuthResult, { ok: true }>; role: "admin" | "approver" } | { ok: false; res: Response }
+> {
+  const admin = await requireOpsAdmin(req);
+  if (admin.ok) return { ok: true, auth: admin, role: "admin" };
+  const approver = await requireRecoveryApprover(req);
+  if (approver.ok) return { ok: true, auth: approver, role: "approver" };
+  return { ok: false, res: admin.res };
+}
+
 export async function GET(req: NextRequest) {
-  const auth = await requireOpsAdmin(req);
-  if (!auth.ok) return auth.res;
+  const authz = await authorize(req);
+  if (!authz.ok) return authz.res;
   try {
     const scopes: SafetyScope[] = ["global", ...NETWORKS.map(networkScope)];
     const records = await Promise.all(scopes.map((s) => readScope(s)));
@@ -85,10 +102,16 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const auth = await requireOpsAdmin(req);
-  if (!auth.ok) return auth.res;
+  const authz = await authorize(req);
+  if (!authz.ok) return authz.res;
+  const auth = authz.auth;
   const body = await validateBody(req, ActionSchema);
   if (body instanceof Response) return body as never;
+  // A recovery approver may approve and nothing else: halting and declaring
+  // mitigation stay with the ops admin.
+  if (authz.role === "approver" && body.action !== "approve") {
+    return opsError("forbidden", "Recovery approvers may only approve recovery.", 403);
+  }
   const actor = auth.account.user.id;
   const scope = body.scope as SafetyScope;
 

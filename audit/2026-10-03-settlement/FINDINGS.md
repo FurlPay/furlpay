@@ -49,7 +49,7 @@ That's 22 findings in total. The open P2 is FP-SET-09 (no production admin), a f
 |---|---|---|---|
 | FP-SET-01 | **P2** | Ops pause not enforced at the settlement boundary | fixed, pending deploy |
 | FP-SET-11 | **P2** | Compliance-guard wrapper/escrow writes bypassed every settlement control (raw relayer key) | fixed, pending deploy |
-| FP-SET-09 | **P2** | No production admin; one admin can't satisfy dual approval | **open: founder decision** |
+| FP-SET-09 | **P2** | No production admin; one admin can't satisfy dual approval | approver mechanism fixed (pending deploy); **production config required** |
 | FP-SET-15 | **P2** | Travel payment proof not bound to the booking (payment replay after claim TTL) | fixed, pending deploy |
 | FP-SET-16 | P3 | Legacy payments: concurrent execute double-posts; concurrent refund double-reverses (non-prod) | fixed, pending deploy (reproduced) |
 | FP-SET-17 | P3 | `x402-guard` `releaseProvenUnsettled()` reported success when the script refused | fixed in source, needs npm release |
