@@ -209,10 +209,10 @@
       "description": "Round 1: critical recovery needs two distinct approvers and only one account can hold the admin role. Round 2: production defines no FURLPAY_ADMIN_EMAIL at all, so NO account holds the admin role. Manual halt, ops pause/resume and breaker recovery are all unreachable in production. Automatic halts (when enforced) and the env kill switch still work.",
       "confidence": "high",
       "validation": "confirmed",
-      "remediation": "Second distinct approver: SETTLEMENT_RECOVERY_APPROVER_EMAILS (max 5, canonicalised; malformed dropped; over the cap = none). Listed accounts may ONLY read breaker state and POST approve; they cannot halt, mitigate or reach any other admin route. Non-guest session, an atomic step-up claim per approval, and distinctness from the mitigator and other approvers still apply. The existing compliance_officer grant could not serve, because issuing it needs two admins. Unset = no extra approvers, so critical recovery stays fail-closed.",
+      "remediation": "Second distinct approver: SETTLEMENT_RECOVERY_APPROVER_EMAILS (max 5, canonicalised; malformed dropped; over the cap = none). Listed accounts may ONLY read breaker state and POST approve; they cannot halt, mitigate or reach any other admin route. Non-guest session, an atomic step-up claim per approval, and distinctness from the mitigator and other approvers still apply. The existing compliance_officer grant could not serve, because issuing it needs two admins. Unset = no extra approvers, so critical recovery stays fail-closed. Round 5: each approval emits ops.settlement_safety_approval (actor, scope, incident, count, required; no evidence text).",
       "owner": "founder: set FURLPAY_ADMIN_EMAIL and SETTLEMENT_RECOVERY_APPROVER_EMAILS (a different person) in production",
       "status": "mechanism fixed (pending deploy); production configuration required",
-      "regression_test": "settlementApprovers.spec.ts (8 tests: full admin+approver recovery, approver read-only + approve-only, unlisted/guest refused, step-up required, unset list keeps single admin fail-closed)",
+      "regression_test": "settlementApprovers.spec.ts (12 tests: full admin+approver recovery; approver read-only + approve-only; unlisted/guest refused; step-up required; unset list fail-closed; step-up replay refused; concurrent approvals cannot resume early; case-variant duplicates = one approver; per-approval audit with actor, without evidence text)",
       "fix_commit": null,
       "retest": "8/8 pass; mutation (approve-only guard removed) fails the halt/mitigate test",
       "residual_risk": "Operational lock-out after a critical incident.",
@@ -226,6 +226,10 @@
         {
           "date": "2026-10-03",
           "note": "Round 4: approver mechanism implemented; configuration still absent in production."
+        },
+        {
+          "date": "2026-10-03",
+          "note": "Round 5: replay/concurrency/audit coverage added; per-approval audit event added."
         }
       ]
     },
@@ -484,6 +488,10 @@
         {
           "date": "2026-10-03",
           "note": "Opened in round 3."
+        },
+        {
+          "date": "2026-10-03",
+          "note": "Round 5: corrected exposure. Earlier text said published 0.3.0 had the bug; npm has only 0.2.0, without this module."
         }
       ],
       "id": "FP-SET-17",
@@ -495,10 +503,10 @@
       "description": "HMGET (read reservation) and EVAL (release) are separate round trips. The Lua scripts are atomic and correctly refuse once the nonce is 'settled' (or already released), but the method returned true regardless of the script result. If a late SUCCESS committed between the read and the script, the caller was told a SETTLED payment had been released, and could treat a paid authorization as unpaid and charge again. The budget itself was never double-credited (the script guards that).",
       "preconditions": "A consumer of the package calls release while a settlement commit lands concurrently.",
       "invariant": "release reports true only if the budget was actually returned.",
-      "production_exposure": "not used by apps/web at runtime; affects external consumers of the npm package",
+      "production_exposure": "none: npm latest is 0.2.0 (2026-07-04), which ships only dist/index.js with no redis module and no releaseProvenUnsettled. The affected code exists only in unpublished repo version 0.3.0.",
       "remediation": "Return Number(EVAL result) === 1 for both bucket and rolling paths.",
-      "owner": "engineering; founder to approve version bump + npm publish",
-      "status": "fixed in source (pending release)",
+      "owner": "founder: approve publishing 0.3.0 (first release containing the redis store, fix included)",
+      "status": "fixed in source; never published (no consumer exposure)",
       "confidence": "high",
       "validation": "interleaving injected between HMGET and EVAL; mutant (old return true) fails both new tests",
       "regression_test": "packages/x402-guard/test/mandate-spend.test.mjs (2 new interleaving tests)",
@@ -556,6 +564,33 @@
       "fix_commit": null,
       "retest": null,
       "residual_risk": "Spam/phishing into the swag inbox; free swag if a human ships without checking."
+    },
+    {
+      "id": "FP-AUTH-01",
+      "title": "OTP start stored the code under the email as typed; OTP check looked it up canonicalised",
+      "severity": "P3",
+      "original_severity": null,
+      "source": "e2e failure investigation (round 5)",
+      "component": "apps/web/src/app/api/auth/otp/start/route.ts",
+      "description": "start passed the raw address to startOtp and to the per-destination rate limit; check canonicalises before lookup. Mock store (dev/e2e, keyed raw): a capitalised email could never verify ('No pending code'), which is the support-security e2e failure (fixture email e2e-userA-...). Resend path (production): verification still worked because its key normalises, but each capitalisation of one mailbox got its own 5-per-10-minute send budget, and mail went to the raw-cased address.",
+      "preconditions": "Email OTP with any capital letter.",
+      "production_exposure": "rate-limit budget multiplied per capitalisation (OTP email volume to one mailbox); login unaffected on the Resend path",
+      "rationale_for_severity": "Limited-impact abuse-control weakness in production plus a dev/e2e login defect; no auth bypass.",
+      "remediation": "Canonicalise once at the top of start (same form check uses) and use it for the rate limit, the stored code and analytics.",
+      "confidence": "high",
+      "validation": "reproduced: 3 new tests fail on the original route (mock-path verify, canonical delivery, shared budget) and pass with the fix",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "regression_test": "otpAuth.spec.ts (3 new tests)",
+      "fix_commit": "round-5 commit",
+      "retest": "17/17; e2e support-security passes locally",
+      "residual_risk": "None known.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 5."
+        }
+      ]
     }
   ],
   "production_state": {
@@ -608,5 +643,13 @@
     "android-guardian": "./gradlew Permission denied: committed as 100644; set to 100755.",
     "ios-guardian": "workflow selects /Applications/Xcode_26.app, absent on the macos-15-arm64 runner image. Not changed: the available Xcode version cannot be verified from here. Owner: whoever maintains native-pr.yml.",
     "e2e_remaining": "cardVisual keyboard test (element not found) and support-security OTP fixture (No pending code). UI/auth fixtures, not settlement. Not addressed."
+  },
+  "ci_round5": {
+    "head_before": "691315a",
+    "android-guardian": "PASS on 691315a (run 37114794929) after the gradlew mode fix",
+    "web-and-node": "PASS on 691315a (run 37114794937): typecheck, lint, 6615 tests, build, control-plane, real-PostgreSQL concurrency",
+    "e2e": "691315a: 63 passed / 3 failed / 1 flaky. Round 5: support-security = FP-AUTH-01 (product bug, fixed); cardVisual mobile = test raced the fail-closed refusal (no platform authenticator on the emulated device); assertion now records every label and also asserts the card never opened. support-ticket = flaky (passed on retry; passed locally). Local: 3 specs x 2 projects = 40/40.",
+    "ios-guardian": "Xcode_26.app absent on macos-15-arm64 20260907.0337 (authoritative image readme: 26.0.1, 26.1.1, 26.2, 26.3; default 16.4). native-pr.yml and mobile-release.yml now use ios-guardian.yml's selection (highest installed >= 26, hard fail otherwise). Note: ios/ has only an XcodeGen project.yml, so native-pr's build step skips by design.",
+    "snyk": "external blocker: 'You have used your limit of private tests' on 691315a. Newest successes are 2026-08-15 'No manifest changes detected' (no scan performed); no usable result for this PR, which changes a manifest."
   }
 }

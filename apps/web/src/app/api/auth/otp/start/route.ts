@@ -19,7 +19,14 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-  const { to, channel } = parsed.data;
+  const { channel } = parsed.data;
+  // ONE canonical destination for everything below, the same form
+  // /api/auth/otp/check derives before it looks the code up. This route used to
+  // store the code under the address exactly as typed while check looked it up
+  // canonicalised, so any email with a capital letter ("John@x.com", which
+  // phone keyboards produce by default) could never verify: "No pending code".
+  // It also gave each capitalisation of one mailbox its own rate-limit budget.
+  const to = channel === "email" ? canonicalEmail(parsed.data.to) : parsed.data.to.trim();
 
   // SMS-pumping / spam guard: a few sends per destination per window, keyed by
   // IP + destination so one attacker can't burn a victim's budget from afar.
@@ -34,7 +41,7 @@ export async function POST(req: NextRequest) {
   try {
     const result = await startOtp(to, channel);
     if (result.sent) {
-      const identifier = channel === "email" ? canonicalEmail(to) : to.trim();
+      const identifier = to;
       const lookup = channel === "email" ? { email: identifier } : { phone: identifier };
       recordSignupStartedIfNew(identifier, channel, async () =>
         supabaseBackend === "supabase" ? Boolean(await findUserIdByIdentity(lookup)) : Boolean(findUserByIdentity(lookup))

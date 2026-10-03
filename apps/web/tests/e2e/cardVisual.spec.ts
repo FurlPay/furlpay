@@ -109,13 +109,34 @@ test.describe("@auth issued card — 3D visual", () => {
     await card.focus();
     expect(await card.evaluate((el) => el === document.activeElement)).toBe(true);
 
-    // Enter reaches the handler: the card enters its authorizing state. It does
-    // not open, because the passkey ceremony cannot complete headlessly — which
-    // is the correct fail-closed outcome, not a broken test.
+    // Enter reaches the handler: the card enters its authorizing state, and it
+    // does not open, because the step-up cannot complete headlessly. That is the
+    // correct fail-closed outcome, not a broken test.
+    //
+    // HOW LONG the authorizing state lasts depends on the device: on desktop the
+    // passkey ceremony stays pending, but on the mobile project there is no
+    // platform authenticator, so the gate refuses within milliseconds
+    // (app/cards/page.tsx: isFingerprintAvailable() → false). Polling for the
+    // transient label raced that refusal. Every label the card ever shows is
+    // recorded instead, so the test asserts the state was entered AND that the
+    // card stayed closed afterwards.
+    await card.evaluate((el) => {
+      const seen: string[] = [el.getAttribute("aria-label") ?? ""];
+      (window as unknown as { __cardLabels: string[] }).__cardLabels = seen;
+      new MutationObserver(() => seen.push(el.getAttribute("aria-label") ?? "")).observe(el, {
+        attributes: true,
+        attributeFilter: ["aria-label"],
+      });
+    });
     await page.keyboard.press("Enter");
     await expect
-      .poll(async () => card.getAttribute("aria-label"), { timeout: 10_000 })
+      .poll(async () => page.evaluate(() => (window as unknown as { __cardLabels: string[] }).__cardLabels.join("\n")), {
+        timeout: 10_000,
+      })
       .toMatch(/confirming your identity/i);
+    // Fail closed: whatever the gate did, the card never turned to its back face.
+    await expect(card).toHaveAttribute("aria-label", /showing front/i);
+    expect(await page.evaluate(() => (window as unknown as { __cardLabels: string[] }).__cardLabels.some((l) => /showing back/i.test(l)))).toBe(false);
   });
 
   test("the accessible name states real state, not an input device", async () => {

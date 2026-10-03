@@ -177,7 +177,26 @@ jobs:
       # App Store Connect rejects anything not built with the Xcode 26 SDK
       # since 28 April 2026 — see project.yml's header.
       - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_26.app
+        # /Applications/Xcode_26.app does not exist on the macos-15 image
+        # (runner-images macos-15-arm64 20260907.0337 ships Xcode_26.0.app,
+        # 26.1.1, 26.2 and 26.3, with 16.4 as the default), so this step failed
+        # on every run. Same selection as ios-guardian.yml: the highest installed
+        # Xcode at or above major 26, and a hard failure if there is none,
+        # never a silent fallback to 16.
+        run: |
+          set -euo pipefail
+          REQUIRED=26
+          best=""
+          for app in /Applications/Xcode*.app; do
+            [ -d "$app" ] || continue
+            v=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app/Contents/Info.plist" 2>/dev/null || echo 0)
+            if [ "${v%%.*}" -ge "$REQUIRED" ] 2>/dev/null; then best="$app"; fi
+          done
+          if [ -z "$best" ]; then
+            echo "::error::No Xcode >= ${REQUIRED} on this runner."; ls -d /Applications/Xcode*.app || true; exit 1
+          fi
+          sudo xcode-select -switch "$best"
+          xcodebuild -version
 
       - run: brew install xcodegen
 

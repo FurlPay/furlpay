@@ -142,3 +142,68 @@ describe("FP-SET-09: critical recovery with an admin and a distinct approver", (
     expect((await readScope(SCOPE)).state).toBe("RECOVERY_PENDING");
   });
 });
+
+describe("FP-SET-09: replay, concurrency, identity duplicates and audit", () => {
+  const APPROVER2 = { id: "u-approver-2", email: "third@example.com", jti: "j-approver-2" };
+
+  async function pendingIncident() {
+    await as(ADMIN);
+    const halted = await post({ action: "halt", scope: SCOPE, reason: "incident drill for tests" });
+    const incidentId = (await halted.json()).data.record.incidentId as string;
+    await post({ action: "mitigate", scope: SCOPE, incidentId, notes: "rotated the provider and verified heads" });
+    return incidentId;
+  }
+
+  it("one step-up cannot be replayed into a second approval", async () => {
+    vi.stubEnv("SETTLEMENT_RECOVERY_MIN_APPROVERS", "3");
+    vi.stubEnv("SETTLEMENT_RECOVERY_APPROVER_EMAILS", "second@example.com,third@example.com");
+    const incidentId = await pendingIncident();
+    await as(APPROVER); // one step-up recorded
+    expect((await post({ action: "approve", scope: SCOPE, incidentId, evidence: "first approval" })).status).toBe(202);
+    // Same session, no fresh step-up: refused.
+    expect((await post({ action: "approve", scope: SCOPE, incidentId, evidence: "replayed approval" })).status).toBe(403);
+  });
+
+  it("concurrent approvals from two approvers resume exactly once, both identities recorded", async () => {
+    vi.stubEnv("SETTLEMENT_RECOVERY_MIN_APPROVERS", "3");
+    vi.stubEnv("SETTLEMENT_RECOVERY_APPROVER_EMAILS", "second@example.com,third@example.com");
+    const incidentId = await pendingIncident();
+    await as(ADMIN);
+    await post({ action: "approve", scope: SCOPE, incidentId, evidence: "admin reviewed evidence" });
+    await recordStepUp(APPROVER.id, APPROVER.jti, "passkey");
+    await recordStepUp(APPROVER2.id, APPROVER2.jti, "passkey");
+    // Two requests in flight at once, one per approver.
+    session = APPROVER;
+    const a = post({ action: "approve", scope: SCOPE, incidentId, evidence: "approver one review" });
+    session = APPROVER2;
+    const b = post({ action: "approve", scope: SCOPE, incidentId, evidence: "approver two review" });
+    const statuses = (await Promise.all([a, b])).map((r) => r.status).sort();
+    const rec = await readScope(SCOPE);
+    // Lost-update is possible (both read the same record), which can only
+    // DELAY recovery, never grant it early: either NORMAL with three distinct
+    // approvers, or still pending awaiting another approval.
+    if (rec.state === "NORMAL") {
+      expect(new Set(rec.approvals!.map((x) => x.approver)).size).toBeGreaterThanOrEqual(3);
+    } else {
+      expect(rec.state).toBe("RECOVERY_PENDING");
+      expect(statuses).toContain(202);
+    }
+  });
+
+  it("the same identity listed twice (case variants) is one approver, not two", async () => {
+    vi.stubEnv("SETTLEMENT_RECOVERY_APPROVER_EMAILS", "second@example.com,SECOND@example.com");
+    expect(recoveryApproverEmails()).toEqual(["second@example.com"]);
+  });
+
+  it("each approval is audited with actor and decision, never the evidence text", async () => {
+    const { auditEntries } = await import("@/lib/audit");
+    const incidentId = await pendingIncident();
+    await as(ADMIN);
+    await post({ action: "approve", scope: SCOPE, incidentId, evidence: "SECRET-EVIDENCE-TEXT admin" });
+    await as(APPROVER);
+    await post({ action: "approve", scope: SCOPE, incidentId, evidence: "SECRET-EVIDENCE-TEXT approver" });
+    const mine = auditEntries(50).filter((e) => e.event === "ops.settlement_safety_approval" && JSON.stringify(e).includes(incidentId));
+    expect(mine.map((e) => e.actor).sort()).toEqual([ADMIN.id, APPROVER.id].sort());
+    expect(JSON.stringify(auditEntries(200))).not.toContain("SECRET-EVIDENCE-TEXT");
+  });
+});

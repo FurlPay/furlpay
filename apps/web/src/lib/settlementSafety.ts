@@ -350,6 +350,12 @@ export async function approveRecovery(
     const next: ScopeRecord = { ...rec, approvals, policyVersion: POLICY_VERSION };
     const w = await fencedWrite(scope, rec, next, approver);
     if (!w.ok) return w;
+    // Every approval is its own audit event, not only the final recovery:
+    // who approved, for which incident, and how far along the count is. The
+    // evidence text stays on the record and out of the audit trail.
+    audit("ops.settlement_safety_approval", approver, {
+      scope, incidentId, approvals: distinct.size, required: needed, policyVersion: POLICY_VERSION,
+    });
     return {
       ok: false,
       code: "awaiting_approvals",
@@ -358,6 +364,9 @@ export async function approveRecovery(
     };
   }
 
+  audit("ops.settlement_safety_approval", approver, {
+    scope, incidentId, approvals: distinct.size, required: needed, policyVersion: POLICY_VERSION,
+  });
   audit("ops.settlement_safety_recovered", approver, {
     scope, incidentId, approvers: [...distinct], policyVersion: POLICY_VERSION,
   });

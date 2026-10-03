@@ -202,6 +202,7 @@ export type AuditEvent =
   | "ops.security_acknowledged"
   | "ops.settlement_safety_tripped"
   | "ops.settlement_safety_recovered"
+  | "ops.settlement_safety_approval"
   | "circle.user_initialized"
   | "circle.transfer_challenge_created";
 

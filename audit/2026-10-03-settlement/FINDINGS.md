@@ -37,11 +37,11 @@ This is not a claim that the system is secure in general.
 | P0 | 0 | 0 | 0 | 0 |
 | P1 | 0 | 0 | 0 | 0 |
 | P2 | 4 | 0 | 3 | 0 |
-| P3 | 12 | 1 | 10 | 0 |
+| P3 | 13 | 1 | 11 | 0 |
 | P4 | 4 | 0 | 1 | 0 |
 | PN | 0 | 0 | 0 | 1 |
 
-That's 22 findings in total. The open P2 is FP-SET-09 (no production admin), a founder decision.
+That's 23 findings in total. The open P2 is FP-SET-09 (no production admin), a founder decision.
 
 ## Register
 
@@ -52,7 +52,8 @@ That's 22 findings in total. The open P2 is FP-SET-09 (no production admin), a f
 | FP-SET-09 | **P2** | No production admin; one admin can't satisfy dual approval | approver mechanism fixed (pending deploy); **production config required** |
 | FP-SET-15 | **P2** | Travel payment proof not bound to the booking (payment replay after claim TTL) | fixed, pending deploy |
 | FP-SET-16 | P3 | Legacy payments: concurrent execute double-posts; concurrent refund double-reverses (non-prod) | fixed, pending deploy (reproduced) |
-| FP-SET-17 | P3 | `x402-guard` `releaseProvenUnsettled()` reported success when the script refused | fixed in source, needs npm release |
+| FP-SET-17 | P3 | `x402-guard` `releaseProvenUnsettled()` reported success when the script refused | fixed in source; never published (npm has 0.2.0 without this module) |
+| FP-AUTH-01 | P3 | OTP start stored the code under the email as typed; check canonicalised (e2e login failure; per-case rate-limit budget) | fixed, pending deploy (reproduced) |
 | FP-SET-18 | P3 | Dividend credit key covers the action set; lease-expiry overlap could double-pay | open (suspected) |
 | FP-WEB-01 | P3 | Swag redemption: unauthenticated, no points check, HTML injection into the inbox | open |
 | FP-SET-02 | P3 | Control state fails open on store errors (settlement path) | fixed, pending deploy |
