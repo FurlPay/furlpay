@@ -42,6 +42,23 @@ jobs:
         with:
           node-version: 20
       - run: npm install
+      # These workspace packages publish their types from dist/, which is not
+      # committed. Without building them first, `tsc --noEmit` below fails with
+      # TS2307 (it did on every run since payouts/address.ts started importing
+      # @furlpay/gateway), while `next build` passes because Vercel builds
+      # dependencies first. Build them so the type-check gate checks code, not
+      # build order.
+      #
+      # Compiled with the web app's pinned TypeScript (5.5.3, the one the
+      # type-check below uses), not `npm run build`: the packages' own build
+      # scripts resolve the root TypeScript 5.9, under which their Buffer usage
+      # fails to type-check (a separate, pre-existing issue). All three emit
+      # with 0 errors under 5.5.3.
+      - name: Build workspace packages the web app imports (types live in dist/)
+        run: |
+          for pkg in gateway agent-trust furlpay-ap2; do
+            node apps/web/node_modules/typescript/bin/tsc -p "packages/$pkg/tsconfig.json"
+          done
       - name: Lint web app
         run: npm run lint --workspace @furlpay/web
       - name: Type-check web app
