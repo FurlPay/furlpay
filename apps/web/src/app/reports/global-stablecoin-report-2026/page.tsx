@@ -8,48 +8,75 @@ import { breadcrumb, ORG_ID, SITE } from "@/lib/seo/schema";
 const TITLE = "FurlPay Global Stablecoin Report 2026";
 const DESCRIPTION =
   "Eighty-seven pages on where stablecoins and digital accounts move money. Supply, issuers, USDC and USDT, card-network settlement, cross-border flows, 23 market profiles, regulation, market structure and risk, fiat rails and licences, and the digital banks that issue IBANs, with every major figure labelled by source type.";
+// Search-snippet length (~155 chars). DESCRIPTION above stays as the on-page
+// summary; every claim here is on the PDF's cover or contents page.
+const META_DESCRIPTION =
+  "Free 87-page report: stablecoin supply, USDC vs USDT, card-network settlement, cross-border flows, regulation and 23 market profiles. Data to 2 Oct 2026.";
 const PATH = "/reports/global-stablecoin-report-2026";
 const PDF_PATH = "/reports/global-stablecoin-report-2026.pdf";
+// Built from the PDF's own cover page (1200x630). Lives in public/ so it is
+// served as a static file, outside the middleware's login redirect.
+const OG_IMAGE = "/reports/global-stablecoin-report-2026-og.png";
+const PUBLISHED = "2026-10-02";
 
-export const metadata = seoMetadata({
+const baseMetadata = seoMetadata({
   title: TITLE,
-  description: DESCRIPTION,
+  description: META_DESCRIPTION,
   path: PATH,
+  image: OG_IMAGE,
 });
+
+export const metadata = {
+  ...baseMetadata,
+  // TITLE already carries the brand; the layout template would append it again.
+  title: { absolute: `${TITLE} (87-page PDF)` },
+  openGraph: {
+    ...baseMetadata.openGraph,
+    type: "article",
+    publishedTime: PUBLISHED,
+    images: [{ url: OG_IMAGE, width: 1200, height: 630, alt: "Cover of the FurlPay Global Stablecoin Report 2026" }],
+  },
+} satisfies typeof baseMetadata;
 
 const CHAPTERS = [
   {
     number: "01",
+    pages: [9, 19],
     title: "Market & issuers",
     description:
       "Stablecoin supply, the issuer landscape, USDC and USDT, reserves, chains and the scale of real-economy payments.",
   },
   {
     number: "02",
+    pages: [20, 35],
     title: "Countries & cross-border flows",
     description:
       "23 market profiles, regional adoption and a closer look at the United States, India, Brazil and Asia Pacific.",
   },
   {
     number: "03",
+    pages: [36, 49],
     title: "Networks & use cases",
     description:
       "Card-network settlement, infrastructure, treasury, remittances, agent payments, regulation and the outlook.",
   },
   {
     number: "04",
+    pages: [50, 63],
     title: "Structure & risk",
     description:
       "Paxos, PYUSD and USDG, issuer economics from SEC filings, audits, liquidity, the yield wall, cross-chain rails, confidential payments and depegs.",
   },
   {
     number: "05",
+    pages: [64, 74],
     title: "Fiat rails & licences",
     description:
       "The licensing stack, MiCA after transition, PSD2 and PSD3, virtual IBANs, Verification of Payee, safeguarding and Canada.",
   },
   {
     number: "06",
+    pages: [75, 83],
     title: "Digital banks & IBANs",
     description:
       "A verified league table of the digital banks that issue IBANs: Revolut, Wise, N26, bunq, Klarna, PayPal, Stripe and Banking Circle.",
@@ -75,8 +102,11 @@ export default function GlobalStablecoinReportPage() {
           headline: TITLE,
           description: DESCRIPTION,
           url: `${SITE}${PATH}`,
-          datePublished: "2026-10-02",
-          author: { "@type": "Organization", name: "FurlPay Research" },
+          datePublished: PUBLISHED,
+          // The PDF's research window (page 3).
+          temporalCoverage: "2025-01/2026-10-02",
+          image: `${SITE}${OG_IMAGE}`,
+          author: { "@type": "Organization", name: "FurlPay Research", parentOrganization: { "@id": ORG_ID } },
           publisher: { "@id": ORG_ID },
           inLanguage: "en",
           isAccessibleForFree: true,
@@ -204,6 +234,14 @@ export default function GlobalStablecoinReportPage() {
                 <p className="text-[12px] font-semibold tracking-[0.16em] text-neon">PART {chapter.number}</p>
                 <h3 className="mt-5 text-[18px] font-bold tracking-tight">{chapter.title}</h3>
                 <p className="mt-3 text-[14px] leading-relaxed text-textSecondary">{chapter.description}</p>
+                <a
+                  href={`${PDF_PATH}#page=${chapter.pages[0]}`}
+                  className="mt-4 inline-flex items-center gap-1 text-[13px] font-semibold text-neon hover:underline"
+                >
+                  Read Part {chapter.number}, pages {chapter.pages[0]}–{chapter.pages[1]}
+                  <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
+                  <span className="sr-only"> (PDF)</span>
+                </a>
               </article>
             ))}
           </div>
