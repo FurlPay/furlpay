@@ -59,6 +59,22 @@ function withoutGoogleServices<T>(fn: () => T): T {
   }
 }
 
+/** The opposite case: a developer machine, where the gitignored file DOES
+ *  exist. CI checkouts never have it (it is gitignored), so the two tests
+ *  that need it failed on every CI run. A placeholder is created only when no
+ *  real file is present, is never written over a real one, and is removed in
+ *  `finally`. Its content is deliberately not a valid Firebase config, so a
+ *  stray copy could not be mistaken for a real one by a release build. */
+function withGoogleServices<T>(fn: () => T): T {
+  if (fs.existsSync(GOOGLE_SERVICES)) return fn();
+  fs.writeFileSync(GOOGLE_SERVICES, JSON.stringify({ _releaseConfigTestPlaceholder: true }), { flag: "wx" });
+  try {
+    return fn();
+  } finally {
+    fs.rmSync(GOOGLE_SERVICES, { force: true });
+  }
+}
+
 const originalEnv = { ...process.env };
 afterEach(() => {
   process.env = { ...originalEnv };
@@ -130,16 +146,18 @@ describe("release build configuration guard", () => {
   });
 
   it("wires googleServicesFile from the EAS file secret when it resolves", () => {
-    const out = evaluate({
-      EAS_BUILD_PROFILE: "production",
-      GOOGLE_SERVICES_JSON: GOOGLE_SERVICES,
-      ...AUTH_ENV,
-    });
+    const out = withGoogleServices(() =>
+      evaluate({
+        EAS_BUILD_PROFILE: "production",
+        GOOGLE_SERVICES_JSON: GOOGLE_SERVICES,
+        ...AUTH_ENV,
+      })
+    );
     expect(out.android?.googleServicesFile).toBe(GOOGLE_SERVICES);
   });
 
   it("falls back to the local google-services.json on a developer machine", () => {
-    const out = evaluate({ EAS_BUILD_PROFILE: "production", ...AUTH_ENV });
+    const out = withGoogleServices(() => evaluate({ EAS_BUILD_PROFILE: "production", ...AUTH_ENV }));
     expect(out.android?.googleServicesFile).toBe("./google-services.json");
   });
 });

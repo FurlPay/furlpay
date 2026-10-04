@@ -7,7 +7,8 @@
 // No Postgres needed — the demo store + in-memory kv fallback are exercised.
 // ---------------------------------------------------------------------------
 
-import { describe, it, expect } from "vitest";
+import { afterAll, beforeAll, describe, it, expect, vi } from "vitest";
+import { datasetStats } from "@/lib/hotels/googlePlacesLayer";
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 import { POST as bookPOST } from "@/app/api/travel/book/route";
@@ -34,13 +35,27 @@ const book = async (body: unknown, ip?: string) => {
 // to re-derive a nightly rate from a hash of the city name, so these tests were
 // asserting that a fabricated price was charged correctly.
 const CITY = "Dubai";
-const realProperty = searchProperties({ city: CITY, limit: 1 })[0];
+// Resolved in beforeAll, once the clock is inside the dataset window.
+let realProperty: ReturnType<typeof searchProperties>[number];
 
 // The web checkout's actual path: it sends a SUBTOTAL and the server owns
 // taxes, cashback and the total. The invariants below (idempotency, nights
 // clamping, canonical cashback) all live on this path and are unaffected by
 // the property-pricing change — so they are exercised through it.
 const SUBTOTAL = 240;
+
+
+// The indexed Google Places layer may only be served inside its cache window
+// (datasetFresh; Google Places terms). These tests exercise the FRESH path, so
+// the clock is pinned inside that window: they began failing on 2026-10-01 when
+// the checked-in dataset expired, testing the calendar instead of the code.
+// Only Date is faked; timers and promises run normally.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.parse(datasetStats().generatedAt) + 86_400_000);
+  realProperty = searchProperties({ city: CITY, limit: 1 })[0];
+});
+afterAll(() => vi.useRealTimers());
 
 describe("C1 — the server owns the price", () => {
   it("ignores a tampered total and prices the subtotal itself", async () => {

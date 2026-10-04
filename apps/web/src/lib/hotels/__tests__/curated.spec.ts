@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import dataset from "@/data/luxury-properties.json";
 import {
   CLUSTER_MAX_ZOOM,
   clusterPoints,
@@ -9,6 +10,7 @@ import {
   familyOf,
   type CuratedPoint,
 } from "../curated";
+import type { CuratedDataset } from "../curatedTypes";
 
 // ---------------------------------------------------------------------------
 // These run against the REAL artifact, not a fixture. The point of most of them
@@ -61,8 +63,100 @@ describe("the dataset", () => {
   it("reports its own confirmed share", () => {
     const stats = curatedStats();
     expect(stats.total).toBe(507);
+    // Every property lands in exactly one precision family, whatever the clock
+    // says. This is the invariant the card's arithmetic depends on.
     expect(stats.exact + stats.approximate).toBe(stats.total);
-    expect(stats.exact).toBeGreaterThan(400);
+    expect(stats.stale).toBeLessThanOrEqual(stats.total);
+  });
+
+  it("still holds every coordinate the resolver confirmed, before expiry", () => {
+    // WHAT THIS ASSERTION IS FOR, and why it reads the artifact directly.
+    //
+    // It used to be `curatedStats().exact > 400`, which was true when written
+    // and then failed on 2026-09-24 — not on a commit. CURATED_STALE_DAYS caps
+    // how long a Places-derived coordinate may be SERVED at 30 days, so 30 days
+    // after any resolver run every confirmed row is re-labelled `approximate`
+    // and `stats.exact` legitimately falls to 0. The policy was working; the
+    // test was asserting a number that decays by design.
+    //
+    // The thing it meant to protect is still worth protecting: that a resolver
+    // run did not silently drop most of the CSV. That lives in the artifact, not
+    // in the served view, so it is checked there — where it does not rot.
+    const raw = dataset as unknown as CuratedDataset;
+    expect(raw.properties.length).toBe(507);
+    const confirmed = raw.properties.filter((p) => p.precision === "exact");
+    expect(confirmed.length).toBeGreaterThan(400);
+    for (const p of confirmed) {
+      expect(p.coordinateSource, p.name).toBe("google_places");
+      expect(p.resolvedAt, p.name).toBeTruthy();
+    }
+  });
+
+  it("expires a Places coordinate at the 30-day boundary, in both directions", async () => {
+    // Pinned to a fixed clock, because the served view genuinely depends on the
+    // wall clock and every other test in this file therefore sees whichever side
+    // of the boundary CI happens to run on. Two things need locking down:
+    //
+    //   * the downgrade HAPPENS — a coordinate is not served past its licence;
+    //   * it is a downgrade and not a LOSS — all 507 properties stay on the map,
+    //     at the curated coordinate, honestly labelled.
+    //
+    // It also keeps the `exact` branch of "labels precision honestly" above from
+    // going vacuous: once the artifact ages past 30 days that loop sees zero
+    // exact rows and asserts nothing, so the strongest claim in this file — an
+    // exact position is one Google confirmed, with a placeId — is only actually
+    // exercised here.
+    const resolvedAt = Date.parse("2026-08-25T04:52:54.924Z"); // newest row
+    const day = 86_400_000;
+
+    async function statsAt(when: number) {
+      vi.resetModules(); // curatedProperties() memoises, so reload the module
+      vi.setSystemTime(when);
+      const mod = await import("../curated");
+      return { stats: mod.curatedStats(), points: mod.curatedProperties() };
+    }
+
+    vi.useFakeTimers();
+    try {
+      const fresh = await statsAt(resolvedAt + 7 * day);
+      expect(fresh.stats.exact).toBeGreaterThan(400);
+      expect(fresh.stats.stale).toBe(0);
+      for (const p of fresh.points.filter((q) => q.precision === "exact")) {
+        expect(p.coordinateSource, p.name).toBe("google_places");
+        expect(p.match?.verdict, p.name).toBe("confirmed");
+        expect(p.placeId, p.name).toBeTruthy();
+      }
+
+      const expired = await statsAt(resolvedAt + 31 * day);
+      expect(expired.stats.exact).toBe(0);
+      // Nothing was dropped — the map is vaguer, not smaller.
+      expect(expired.stats.total).toBe(507);
+      expect(expired.stats.approximate).toBe(507);
+
+      // `stale` counts what AGED OUT, which is narrower than "is approximate":
+      // the rows Google never confirmed were always serving their curated
+      // coordinate, so they have no licence clock and stay `fresh`. Conflating
+      // the two would report a permanent 28 as a refresh backlog.
+      const everConfirmed = new Set(
+        (dataset as unknown as CuratedDataset).properties
+          .filter((p) => p.coordinateSource === "google_places")
+          .map((p) => p.id)
+      );
+      expect(everConfirmed.size).toBe(expired.stats.stale);
+
+      for (const p of expired.points) {
+        // Whatever the row's history, nothing is served at a precision it no
+        // longer has evidence for.
+        expect(p.precision, p.name).toBe("approximate");
+        expect(p.coordinateSource, p.name).toBe("curated_csv");
+        expect(p.latitude, p.name).toBe(p.curatedLatitude);
+        expect(p.longitude, p.name).toBe(p.curatedLongitude);
+        expect(p.fresh, p.name).toBe(!everConfirmed.has(p.id));
+      }
+    } finally {
+      vi.useRealTimers();
+      vi.resetModules();
+    }
   });
 });
 

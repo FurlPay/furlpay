@@ -75,7 +75,40 @@ export const GOOGLE_PLACES_ATTRIBUTION = data.attribution ?? "Powered by Google"
  * reasoned about is one that should not be on screen.
  */
 export function datasetFresh(now: Date = new Date()): boolean {
-  const t = Date.parse(data.expiresAt);
+  return isFresh(data.expiresAt, now);
+}
+
+/**
+ * Operator view of the snapshot (GET /api/ops/readiness). Warns a week ahead,
+ * because the 2026-10-01 expiry emptied hotel search with nothing to flag it.
+ */
+export type PlacesDatasetState = "missing" | "stale" | "expiring" | "healthy";
+
+export function placesDatasetReadiness(
+  now: Date = new Date(),
+  expiresAt: unknown = data.expiresAt,
+  count: unknown = data.count
+): { ok: boolean; state: PlacesDatasetState; detail: string } {
+  // Missing: no records, or no parseable expiry to reason about at all.
+  if (typeof count !== "number" || count <= 0 || typeof expiresAt !== "string" || !Number.isFinite(Date.parse(expiresAt))) {
+    return { ok: false, state: "missing", detail: "Google Places snapshot is missing or has no valid expiry; the hotel layer serves nothing." };
+  }
+  if (!isFresh(expiresAt, now)) {
+    return {
+      ok: false,
+      state: "stale",
+      detail: `Google Places snapshot expired (${expiresAt}); the hotel layer serves nothing. Restoration needs an owner decision: docs/release/PRODUCTION_READINESS_FINAL.md §14.3.`,
+    };
+  }
+  const daysLeft = Math.floor((Date.parse(expiresAt) - now.getTime()) / 86_400_000);
+  return daysLeft < 7
+    ? { ok: false, state: "expiring", detail: `Google Places snapshot (${count} records) expires in ${daysLeft} day(s) (${expiresAt}).` }
+    : { ok: true, state: "healthy", detail: `Google Places snapshot (${count} records) fresh until ${expiresAt}.` };
+}
+
+/** The freshness rule itself, pure: missing, malformed or past → not fresh. */
+export function isFresh(expiresAt: unknown, now: Date): boolean {
+  const t = typeof expiresAt === "string" ? Date.parse(expiresAt) : NaN;
   return Number.isFinite(t) && t > now.getTime();
 }
 
@@ -113,9 +146,11 @@ const NOT_ACCOMMODATION = new Set([
   "School", "Church", "Museum",
 ]);
 
-/** Words that overrule the category, because the NAME is better evidence. */
+/** Words that overrule the category, because the NAME is better evidence.
+ *  (Until 2026-10-01 the two `\b` were literal backspace characters, from a
+ *  shell heredoc, so this never matched and named lodging was dropped.) */
 const STAY_WORDS =
-  /(hotel|hostel|guest\s?house|guesthouse|inn|resort|lodge|motel|b&b|homestay|villa|apartment|aparthotel|residence)/i;
+  /\b(hotel|hostel|guest\s?house|guesthouse|inn|resort|lodge|motel|b&b|homestay|villa|apartment|aparthotel|residence)\b/i;
 
 /**
  * Is this somewhere a person can actually stay?
