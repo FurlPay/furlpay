@@ -24,7 +24,28 @@ describe("public stablecoin report", () => {
     expect(res.headers.get("location")).toBeNull();
   });
 
-  it.each(["/profile", "/cards", "/reports/private-draft", "/research/admin", "/reports/global-stablecoin-report-2026-lite.pdf.bak", "/reports/other-report-lite.pdf"])(
+  // /research and /reports are public PREFIXES (the research library's desks
+  // and report pages). What keeps an unpublished report private there is not
+  // the login wall but the pages themselves: both dynamic segments set
+  // dynamicParams = false over published entries only, so any other slug is a
+  // 404, and public/reports holds only the released PDFs.
+  it.each(["/reports/private-draft", "/research/admin", "/reports/other-report-lite.pdf"])(
+    "lets %s reach the page layer, which 404s anything unpublished",
+    async (path) => {
+      const res = await middleware(new NextRequest(`https://furlpay.com${path}`));
+      expect(res.headers.get("location")).toBeNull();
+    },
+  );
+
+  it("publishes only enumerated reports and desks", () => {
+    for (const f of ["../app/reports/[slug]/page.tsx", "../app/research/[desk]/page.tsx"]) {
+      const src = readFileSync(new URL(`../${f}`, import.meta.url), "utf8");
+      expect(src, f).toMatch(/export const dynamicParams = false;/);
+      expect(src, f).toMatch(/notFound\(\)/);
+    }
+  });
+
+  it.each(["/profile", "/cards"])(
     "keeps %s behind authentication",
     async (path) => {
       const res = await middleware(new NextRequest(`https://furlpay.com${path}`));
