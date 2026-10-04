@@ -21,12 +21,14 @@
         "apps/web/src/app/api/intents/route.ts",
         "apps/web/src/app/api/membership/cashback/claim/route.ts",
         "apps/web/src/app/api/offramp/route.ts",
+        "apps/web/src/app/api/reports/[slug]/download/route.ts",
         "apps/web/src/app/api/swaps/route.ts",
         "apps/web/src/app/api/travel/destinations/[slug]/route.ts",
         "apps/web/src/app/api/wallets/transfer/route.ts",
         "apps/web/src/app/api/webhooks/stripe/route.ts",
         "apps/web/src/app/travel/destinations/[slug]/page.tsx",
         "apps/web/src/components/Realistic3DCard.tsx",
+        "apps/web/src/components/VercelAnalytics.tsx",
         "apps/web/src/lib/adminIdentity.ts",
         "apps/web/src/lib/auth/apple.ts",
         "apps/web/src/lib/auth/google.ts",
@@ -225,6 +227,7 @@
         "apps/web/src/lib/bootConfig.ts",
         "apps/web/src/lib/env.ts",
         "apps/web/src/lib/ops/overview.ts",
+        "apps/web/src/lib/research/storage.ts",
         "apps/web/src/lib/services/notifications.ts",
         "apps/web/src/lib/supabase.ts"
       ]
@@ -240,6 +243,7 @@
         "apps/web/src/app/api/ops/readiness/route.ts",
         "apps/web/src/lib/bootConfig.ts",
         "apps/web/src/lib/env.ts",
+        "apps/web/src/lib/research/storage.ts",
         "apps/web/src/lib/services/notifications.ts",
         "apps/web/src/lib/supabase.ts"
       ]

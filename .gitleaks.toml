@@ -31,4 +31,7 @@ regexes = [
   # (apps/web/src/lib/seo/__tests__/indexnow.spec.ts), replaced by a low-entropy
   # literal in the next commit. Never configured anywhere; not a credential.
   '''0f6b1d9e-4c2a-4b7e-9a3d-1e2f3a4b5c6d''',
+  # Native USDC's contract address on Arbitrum One: a public on-chain
+  # constant, flagged as generic-api-key in settlementSafety.spec.ts (88ddff0).
+  '''0xaf88d065e77c8cC2239327C5EDb3A432268e5831''',
 ]
