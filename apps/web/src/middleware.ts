@@ -51,6 +51,9 @@ const PUBLIC_PAGES = new Set([
   "/research/global-stablecoin-report-2026",
   "/reports/global-stablecoin-report-2026",
   "/reports/global-stablecoin-report-2026.pdf",
+  // The same report with images downsampled (5.6 MB vs 15.6 MB) for mobile
+  // readers. Same content, same access as the full PDF above; exact path only.
+  "/reports/global-stablecoin-report-2026-lite.pdf",
   "/grants",
   "/token2049", // short link → /events/token2049-singapore-2026 (hotfix; same as release b9d3d27+)
   "/marketplace",

@@ -14,6 +14,11 @@ const META_DESCRIPTION =
   "Free 87-page report: stablecoin supply, USDC vs USDT, card-network settlement, cross-border flows, regulation and 23 market profiles. Data to 2 Oct 2026.";
 const PATH = "/reports/global-stablecoin-report-2026";
 const PDF_PATH = "/reports/global-stablecoin-report-2026.pdf";
+// Same report, images downsampled to 150 DPI (publicReportRoutes.spec pins both files).
+const LITE_PDF_PATH = "/reports/global-stablecoin-report-2026-lite.pdf";
+// Decimal MB, as browsers and phones show file sizes: 16,353,216 and 5,876,092 bytes.
+const PDF_SIZE = "16.4 MB";
+const LITE_PDF_SIZE = "5.9 MB";
 // Built from the PDF's own cover page (1200x630). Lives in public/ so it is
 // served as a static file, outside the middleware's login redirect.
 const OG_IMAGE = "/reports/global-stablecoin-report-2026-og.png";
@@ -111,11 +116,10 @@ export default function GlobalStablecoinReportPage() {
           inLanguage: "en",
           isAccessibleForFree: true,
           numberOfPages: 87,
-          encoding: {
-            "@type": "MediaObject",
-            contentUrl: `${SITE}${PDF_PATH}`,
-            encodingFormat: "application/pdf",
-          },
+          encoding: [
+            { "@type": "MediaObject", contentUrl: `${SITE}${PDF_PATH}`, encodingFormat: "application/pdf", contentSize: PDF_SIZE },
+            { "@type": "MediaObject", contentUrl: `${SITE}${LITE_PDF_PATH}`, encodingFormat: "application/pdf", contentSize: LITE_PDF_SIZE },
+          ],
         }}
       />
 
@@ -141,24 +145,35 @@ export default function GlobalStablecoinReportPage() {
               {DESCRIPTION}
             </p>
 
+            {/* Read here first; download only on request. The full PDF is
+                16.4 MB, which is slow on mobile data, so the default download
+                is the lite edition (same text and pages, images downsampled). */}
             <div className="mt-8 flex flex-wrap gap-3">
               <a
-                href={PDF_PATH}
-                target="_blank"
-                rel="noopener noreferrer"
+                href="#summary-heading"
                 className="btn-green inline-flex items-center justify-center gap-2 px-7 py-3.5 text-[15px]"
               >
-                Read the full report <ArrowUpRight aria-hidden className="h-4 w-4" />
-                <span className="sr-only"> (PDF, opens in a new tab)</span>
+                Read the summary
               </a>
+              <a
+                href={LITE_PDF_PATH}
+                download="FurlPay-Global-Stablecoin-Report-2026-lite.pdf"
+                className="btn-outline inline-flex items-center justify-center gap-2 px-6 py-3.5 text-[15px]"
+              >
+                Download PDF <span className="text-textMuted">({LITE_PDF_SIZE})</span>
+                <ArrowDownToLine aria-hidden className="h-4 w-4" />
+              </a>
+            </div>
+            <p className="mt-3 text-[13px] text-textSecondary">
+              Lite edition: all 87 pages and the same text, with images compressed for mobile data.{" "}
               <a
                 href={PDF_PATH}
                 download="FurlPay-Global-Stablecoin-Report-2026.pdf"
-                className="btn-outline inline-flex items-center justify-center gap-2 px-6 py-3.5 text-[15px]"
+                className="font-semibold text-neon underline-offset-2 hover:underline"
               >
-                Download PDF <ArrowDownToLine aria-hidden className="h-4 w-4" />
+                Full-quality PDF ({PDF_SIZE})
               </a>
-            </div>
+            </p>
             <p className="mt-4 flex items-center gap-2 text-[13px] text-textSecondary">
               <Globe2 aria-hidden className="h-4 w-4 shrink-0 text-neon" />
               Free and publicly accessible. No signup required.
@@ -266,7 +281,7 @@ export default function GlobalStablecoinReportPage() {
         <footer className="mt-14 flex flex-col items-start justify-between gap-5 border-t border-white/10 pt-7 sm:flex-row sm:items-center">
           <p className="text-[14px] text-textSecondary">FurlPay Research · Open access for everyone.</p>
           <a href={PDF_PATH} className="inline-flex items-center gap-2 text-[14px] font-semibold text-neon hover:underline">
-            Open the complete PDF <ArrowUpRight aria-hidden className="h-4 w-4" />
+            Open the complete PDF ({PDF_SIZE}) <ArrowUpRight aria-hidden className="h-4 w-4" />
           </a>
         </footer>
       </main>
