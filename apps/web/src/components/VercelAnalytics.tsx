@@ -18,5 +18,13 @@ export function beforeSend(event: BeforeSendEvent): BeforeSendEvent | null {
 }
 
 export default function VercelAnalytics() {
+  // Production builds only. Outside them the package injects its DEBUG script
+  // from https://va.vercel-scripts.com, which the CSP (correctly) does not
+  // allow; every `next dev` page, the e2e suite included, then logged a CSP
+  // violation. A production build loads /_vercel/insights/script.js from our
+  // own origin, which 'self' already covers, so this changes nothing in
+  // production and does not loosen the CSP anywhere. A dev server has no
+  // analytics to collect.
+  if (process.env.NODE_ENV !== "production") return null;
   return <Analytics beforeSend={beforeSend} />;
 }
