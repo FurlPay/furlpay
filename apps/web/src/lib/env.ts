@@ -396,6 +396,8 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("NEXT_PUBLIC_GA4_ID"),
       v("NEXT_PUBLIC_GSC_VERIFICATION"),
       v("NEXT_PUBLIC_BING_VERIFICATION"),
+      // IndexNow key (lib/seo/indexnow.ts); public by design via /indexnow.txt.
+      v("INDEXNOW_KEY"),
     ],
   },
 ];

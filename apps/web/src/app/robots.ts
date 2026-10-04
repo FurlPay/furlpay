@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
 
-// Index the marketing/docs/blog surface; keep the authenticated app and API
-// out of search results. AI-answer crawlers (ChatGPT, Claude, Perplexity,
-// Google-Extended, etc.) are explicitly welcomed — being in their training and
-// live-retrieval sets is how we earn citations in AI Overviews / AI Mode (GEO).
+// Index the marketing/docs/blog/research surface; keep the authenticated app
+// and API out of search results. robots.txt is a crawl-budget and courtesy
+// signal, NOT access control: anything private is protected by the session
+// middleware, whatever a crawler is told here.
 
 // Public content lives everywhere except the authed app and API.
 const ALLOW = ["/", "/investing/insights"];
@@ -25,19 +25,38 @@ const DISALLOW = [
   "/notifications",
 ];
 
-// Named AI/LLM crawlers we explicitly allow (same surface as search engines).
-const AI_CRAWLERS = [
+// Policy, by what a crawler does with the page. Every group gets the SAME
+// public surface today; they are named separately so each can be changed on
+// its own (founder decisions are marked).
+
+// 1. Search engines: index pages and send visitors. Verified in 2026-10 traffic
+//    by forward-confirmed reverse DNS: Bingbot (search.msn.com), PetalBot
+//    (petalsearch.com), YouBot (search.you.com), Googlebot (googlebot.com).
+const SEARCH_CRAWLERS = ["Googlebot", "Bingbot", "PetalBot", "YouBot", "DuckDuckBot", "Applebot"];
+
+// 2. AI answer/search retrieval: fetch pages to answer a question, usually
+//    with a citation back. Being retrievable is how we earn AI citations.
+const AI_RETRIEVAL = [
+  "OAI-SearchBot", // ChatGPT search index
+  "ChatGPT-User", // ChatGPT fetching a page a user asked about
+  "Claude-User", // Claude fetching a page a user asked about
+  "Claude-SearchBot",
+  "Perplexity-User", // Perplexity live fetch
+  "PerplexityBot", // Perplexity index
+];
+
+// 3. AI training crawlers: collect pages for model training; no visitor or
+//    citation follows directly. FOUNDER DECISION: currently allowed (unchanged
+//    from the previous policy, which welcomed them for GEO visibility). To opt
+//    out, move this group to `disallow: ["/"]` — search and retrieval above
+//    are unaffected because each group is matched by its own user agent.
+const AI_TRAINING = [
   "GPTBot", // OpenAI training
-  "OAI-SearchBot", // ChatGPT search
-  "ChatGPT-User", // ChatGPT live browsing
   "ClaudeBot", // Anthropic training
   "anthropic-ai",
   "Claude-Web",
-  "Claude-User",
-  "PerplexityBot", // Perplexity index
-  "Perplexity-User", // Perplexity live fetch
-  "Google-Extended", // Gemini / AI Overviews training
-  "Applebot-Extended", // Apple Intelligence
+  "Google-Extended", // Gemini / AI Overviews training (not Google Search)
+  "Applebot-Extended", // Apple Intelligence training (not Apple search)
   "Amazonbot",
   "Meta-ExternalAgent", // Meta AI
   "cohere-ai",
@@ -50,8 +69,9 @@ export default function robots(): MetadataRoute.Robots {
       // Allow wins by longer-path specificity: /investing/insights is public
       // SEO content nested under the private /investing app route.
       { userAgent: "*", allow: ALLOW, disallow: DISALLOW },
-      // Explicitly welcome AI answer engines to the same public surface.
-      { userAgent: AI_CRAWLERS, allow: ALLOW, disallow: DISALLOW },
+      { userAgent: SEARCH_CRAWLERS, allow: ALLOW, disallow: DISALLOW },
+      { userAgent: AI_RETRIEVAL, allow: ALLOW, disallow: DISALLOW },
+      { userAgent: AI_TRAINING, allow: ALLOW, disallow: DISALLOW },
     ],
     sitemap: "https://furlpay.com/sitemap.xml",
   };
