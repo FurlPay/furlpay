@@ -74,6 +74,13 @@ const PUBLIC_PAGES = new Set([
   // it before middleware runs, so this only matters if that rule is removed —
   // and then the app/token2049 fallback must redirect, not hit the login wall.
   "/token2049",
+  // Published research and its PDF are available without a session or email.
+  "/research/global-stablecoin-report-2026",
+  "/reports/global-stablecoin-report-2026",
+  "/reports/global-stablecoin-report-2026.pdf",
+  // The same report with images downsampled (5.6 MB vs 15.6 MB) for mobile
+  // readers. Same content, same access as the full PDF above; exact path only.
+  "/reports/global-stablecoin-report-2026-lite.pdf",
   "/grants",
   "/marketplace",
   "/login",
