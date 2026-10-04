@@ -10,7 +10,9 @@ import {
 import { GET as keyFile } from "@/app/indexnow.txt/route";
 import robots from "@/app/robots";
 
-const KEY = "0f6b1d9e-4c2a-4b7e-9a3d-1e2f3a4b5c6d";
+// Deliberately low-entropy and obviously fake: a random-looking literal here
+// trips gitleaks' generic-api-key rule (it did, on da2c1ba).
+const KEY = "test-indexnow-key-" + "0".repeat(18);
 const PROD = { VERCEL_ENV: "production", INDEXNOW_KEY: KEY };
 
 function respond(status: number) {
