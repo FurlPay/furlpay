@@ -85,6 +85,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // Emergency stop. Disables every money capability at once, checked
       // before any per-flag setting so nothing can defeat it.
       v("FURLPAY_MONEY_KILL_SWITCH"),
+      // Comma-separated /api prefixes to answer 503 (lib/featureGate.ts).
+      // Unset = nothing frozen; only allow-listed prefixes are honoured.
+      v("FURLPAY_FROZEN_API_PREFIXES"),
       v("BROKERAGE_LIVE"),
       v("TOKENIZED_STOCKS_LIVE"),
       v("ONCHAIN_SETTLEMENT_LIVE"),

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
+import { isFrozenRoute, featureGateResponse } from "@/lib/featureGate";
 import {
   canRefreshSession,
   SESSION_COOKIE,
@@ -356,6 +357,10 @@ const FORBIDDEN_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-
 
 export async function middleware(req: NextRequest, event?: NextFetchEvent) {
   const { pathname } = req.nextUrl;
+
+  if (isFrozenRoute(pathname)) {
+    return featureGateResponse();
+  }
 
   // Origin verification (lib/originVerify.ts): behind CloudFront, a request
   // without the distribution's secret header did not come through our WAF.
