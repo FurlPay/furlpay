@@ -2,6 +2,7 @@ package com.furlpay.guardian.network
 
 import com.furlpay.guardian.network.dto.RefreshResponse
 import java.util.UUID
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -80,8 +81,15 @@ class FurlPayClient(
 
     private inner class SessionInterceptor : Interceptor {
         override fun intercept(chain: Interceptor.Chain): Response {
-            var token = runBlocking { tokenStore.token() }
+            val initialToken = runBlocking { tokenStore.token() }
+            var token = initialToken
             if (token != null) token = refreshedIfExpiring(token)
+            // A request which began under a session that was replaced or signed
+            // out must not carry on under whichever account happens to be
+            // current now. The caller can re-issue it from the new session.
+            if (initialToken != null && (token == null || runBlocking { tokenStore.token() } != token)) {
+                throw IOException("Session changed while preparing request")
+            }
 
             val request = chain.request().newBuilder()
                 .header("X-Furlpay-Client", clientHeader)
@@ -89,8 +97,11 @@ class FurlPayClient(
                 .apply { token?.let { header("Authorization", "Bearer $it") } }
                 .build()
 
+            val requestToken = token
             val response = chain.proceed(request)
-            if (response.code == 401 && token != null) onUnauthorized()
+            if (response.code == 401 && requestToken != null && runBlocking { tokenStore.clearIfCurrent(requestToken) }) {
+                onUnauthorized()
+            }
             return response
         }
     }
@@ -100,12 +111,13 @@ class FurlPayClient(
      * Single-flight: concurrent requests serialize on [refreshLock]; whoever
      * arrives second re-reads the store and finds a fresh token already there.
      */
-    private fun refreshedIfExpiring(token: String): String {
+    private fun refreshedIfExpiring(token: String): String? {
         val exp = tokenExpiryMs(token) ?: return token
         if (exp - nowMs() > REFRESH_MARGIN_MS) return token
 
         synchronized(refreshLock) {
-            val current = runBlocking { tokenStore.token() } ?: return token
+            val current = runBlocking { tokenStore.token() } ?: return null
+            if (current != token) return null // login/logout raced this request
             val currentExp = tokenExpiryMs(current)
             if (currentExp != null && currentExp - nowMs() > REFRESH_MARGIN_MS) {
                 return current // someone else refreshed while we waited
@@ -122,8 +134,7 @@ class FurlPayClient(
                     val body = res.body?.string() ?: return current
                     val refreshed = json.decodeFromString<RefreshResponse>(body)
                     val newToken = refreshed.token ?: return current
-                    runBlocking { tokenStore.update(newToken) }
-                    return newToken
+                    return if (runBlocking { tokenStore.replaceIfCurrent(current, newToken) }) newToken else null
                 }
             } catch (_: Exception) {
                 // Offline / already expired / 30-day ceiling: proceed with the

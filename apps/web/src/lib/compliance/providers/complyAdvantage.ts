@@ -138,8 +138,16 @@ export class ComplyAdvantageProvider implements ComplianceProvider {
     const bodyStr = typeof rawBody === "string" ? rawBody : rawBody.toString("utf-8");
     const expected = crypto.createHmac("sha256", secret).update(bodyStr).digest("hex");
 
-    const sigBuf = Buffer.from(signature, "hex");
-    const expBuf = Buffer.from(expected, "hex");
+    // Buffer.from(hex) silently truncates at the first non-hex character. A
+    // valid digest followed by junk would otherwise decode to the same bytes
+    // and pass the constant-time comparison below.
+    if (!/^[a-f0-9]{64}$/i.test(signature)) {
+      throw new Error("ComplyAdvantage webhook signature verification failed");
+    }
+    // `Uint8Array.from` also avoids the Buffer generic mismatch between the
+    // Node and DOM type packages used by the web project.
+    const sigBuf = Uint8Array.from(Buffer.from(signature, "hex"));
+    const expBuf = Uint8Array.from(Buffer.from(expected, "hex"));
     if (sigBuf.length !== expBuf.length || !crypto.timingSafeEqual(sigBuf, expBuf)) {
       throw new Error("ComplyAdvantage webhook signature verification failed");
     }

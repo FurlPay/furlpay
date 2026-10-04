@@ -188,6 +188,13 @@ export async function POST(req: NextRequest) {
       payer: a.from,
       payTo: a.to,
       amountAtomic: a.value,
+      expectedTransfer: {
+        token: USDC_ASSET,
+        from: a.from,
+        to: a.to,
+        valueAtomic: a.value,
+        nonce: a.nonce,
+      },
       resource: "furlpay:transfers:gasless",
       settledAt: new Date().toISOString(),
       status,

@@ -15,6 +15,7 @@ import { BADGE_BALANCE_KEY, badgeTextFor } from "@/lib/badge";
 // definition of each rather than a copy that can drift.
 import {
   allowedOrigins as allowedOriginsOf,
+  ALLOWED_ORIGINS_KEY,
   originGranted as originGrantedIn,
   rememberOrigin as rememberOriginIn,
   senderOrigin,
@@ -346,7 +347,15 @@ export default defineBackground(() => {
         ).then(sendResponse);
         return true;
       case "LOGOUT":
-        void toResponse(apiFetch("/api/auth/logout", { method: "POST" })).then(sendResponse);
+        // Grants, display snapshots, and notification de-duplication belong to
+        // the signed-in account. Leaving any of them behind lets the next
+        // account on this browser inherit a dapp's wallet-connect consent.
+        void toResponse(
+          apiFetch("/api/auth/logout", { method: "POST" }).then(async (result) => {
+            await clearAccountState();
+            return result;
+          })
+        ).then(sendResponse);
         return true;
       case "GET_PASSKEYS":
         void toResponse(apiFetch<PasskeyList>("/api/auth/passkey/credentials")).then(sendResponse);
@@ -391,10 +400,18 @@ export default defineBackground(() => {
         sendResponse({ ok: true, data: null });
         return false;
       }
-      case "X402_DETECTED":
-        void onX402Detected(message.detection);
+      case "X402_DETECTED": {
+        // The isolated-world relay is fed by window.postMessage, so validate
+        // again at the worker boundary before storing page-controlled data.
+        const detected = sanitizeDetection(message.detection);
+        if (!detected) {
+          sendResponse({ ok: false, error: "Invalid x402 detection." });
+          return false;
+        }
+        void onX402Detected(detected);
         sendResponse({ ok: true, data: null });
         return false;
+      }
       case "OPEN_X402_CHECKOUT":
         // `sender` carries the real page origin — the only part of this flow the
         // page cannot forge. See openX402Checkout.
@@ -517,6 +534,18 @@ async function sessionState(): Promise<{ authenticated: boolean; name?: string; 
   } catch {
     return { authenticated: false, baseUrl };
   }
+}
+
+async function clearAccountState(): Promise<void> {
+  for (const [, pending] of pendingConnects) {
+    pending.respond({ ok: false, error: "Signed out before the connection request was completed." });
+  }
+  pendingConnects.clear();
+  await Promise.all([
+    browser.storage.session.remove(["cachedOverview", "cachedChallenges"]),
+    browser.storage.local.remove([ALLOWED_ORIGINS_KEY, NOTIFIED_KEY, DEPOSITS_KEY]),
+    action().setBadgeText({ text: "" }),
+  ]).catch(() => undefined);
 }
 
 /** Refresh badge (net worth across all assets) and surface any new 3DS challenges. */

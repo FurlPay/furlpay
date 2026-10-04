@@ -181,9 +181,9 @@ public actor FurlPayAPIClient {
     // screen mid-use — which is what the RN and Android clients each added a
     // refresh to avoid.
     //
-    // Single-flight comes free here: this is an actor, so a burst of parallel
-    // requests serialises on `refreshIfExpiring` and everyone after the first
-    // re-reads a token that is no longer near expiry and returns immediately.
+    // Actors are reentrant across network awaits. Coalesce refreshes explicitly
+    // and commit them only if the same session is still in the keychain.
+    private var refreshTask: (token: String, task: Task<Void, Never>)?
 
     /// `exp` (in seconds) from a JWT without verifying it. The server verifies
     /// properly; this only needs a clock to schedule the swap.
@@ -205,6 +205,17 @@ public actor FurlPayAPIClient {
         guard let token = await tokenStore.get(), let exp = Self.expiry(of: token) else { return }
         guard exp.timeIntervalSinceNow <= Self.refreshMargin else { return }
 
+        if let flight = refreshTask, flight.token == token {
+            await flight.task.value
+            return
+        }
+        let task = Task { await self.performRefresh(token: token) }
+        refreshTask = (token, task)
+        await task.value
+        if refreshTask?.token == token { refreshTask = nil }
+    }
+
+    private func performRefresh(token: String) async {
         var request = URLRequest(url: baseURL.appendingPathComponent("auth/refresh"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -220,7 +231,7 @@ public actor FurlPayAPIClient {
               let refreshed = try? decoder.decode(RefreshResponse.self, from: data),
               let newToken = refreshed.token
         else { return }
-        try? await tokenStore.save(newToken)
+        _ = try? await tokenStore.replaceIfCurrent(token, with: newToken)
     }
 
     // MARK: Request plumbing
@@ -290,7 +301,10 @@ public actor FurlPayAPIClient {
             throw APIError.transport("Malformed response.")
         }
         guard (200..<300).contains(http.statusCode) else {
-            if http.statusCode == 401 {
+            if http.statusCode == 401,
+               let authorization = request.value(forHTTPHeaderField: "Authorization"),
+               authorization.hasPrefix("Bearer "),
+               await tokenStore.clearIfCurrent(String(authorization.dropFirst(7))) {
                 // Clearing the token is necessary but was never sufficient: the
                 // UI stayed signed in, the repositories kept the previous
                 // session's balances, the assistant kept a transcript holding
@@ -298,7 +312,6 @@ public actor FurlPayAPIClient {
                 // token. The handler performs the same teardown as an explicit
                 // sign-out — a session the server has rejected is as over as
                 // one the user ended.
-                await tokenStore.clear()
                 // Single-flight: a screen that fires six parallel requests gets
                 // six 401s, and six concurrent teardowns would race on the same
                 // observable state.

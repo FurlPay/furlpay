@@ -133,7 +133,15 @@ describe("scheduled sweep", () => {
   });
 
   it("reconciles pending settlements as part of the pass and reports what is still unresolved", async () => {
-    const base = { network: ARB, payer: "0x1", payTo: "0x2", amountAtomic: "1000000", resource: "r", settledAt: new Date(NOW).toISOString() };
+    const base = {
+      network: ARB,
+      payer: "0x1",
+      payTo: "0x2",
+      amountAtomic: "1000000",
+      expectedTransfer: { token: "0x3", from: "0x1", to: "0x2", valueAtomic: "1000000", nonce: `0x${"a".repeat(64)}` },
+      resource: "r",
+      settledAt: new Date(NOW).toISOString(),
+    };
     await recordSettlement({ ...base, transaction: `0x${"1".repeat(64)}`, status: "pending" });
     await recordSettlement({ ...base, transaction: `0x${"2".repeat(64)}`, status: "pending" });
     const r = await sweepNetwork(ARB, deps({

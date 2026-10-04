@@ -34,6 +34,13 @@ describe("messageAllowed", () => {
     expect(messageAllowed(type, page, ID, BASE)).toBe(true);
   });
 
+  it.each([...CONTENT_SCRIPT_MESSAGES])("refuses %s without a valid HTTPS content-script URL", (type) => {
+    expect(messageAllowed(type, { id: ID }, ID, BASE)).toBe(false);
+    expect(messageAllowed(type, { id: ID, url: "not a url" }, ID, BASE)).toBe(false);
+    expect(messageAllowed(type, { id: ID, url: "http://evil.example/" }, ID, BASE)).toBe(false);
+    expect(messageAllowed(type, { id: ID, url: "chrome-extension://otherextensionid/page.html" }, ID, BASE)).toBe(false);
+  });
+
   it.each(PRIVILEGED)("allows %s from the popup and side panel", (type) => {
     expect(messageAllowed(type, popup, ID, BASE)).toBe(true);
     expect(messageAllowed(type, sidepanel, ID, BASE)).toBe(true);

@@ -536,6 +536,13 @@ export async function verifyPayment(opts: {
 
   const assetAddress = asset === "XSGD" ? XSGD_ASSET : USDC_ASSET;
   const domainName = asset === "XSGD" ? "XSGD" : "USD Coin";
+  const expectedTransfer = {
+    token: assetAddress,
+    from: auth.from,
+    to: auth.to,
+    valueAtomic: expectedAmount,
+    nonce: auth.nonce,
+  };
 
   // ── cryptographic authorization (live mode) ──
   // Recover the EIP-3009 signer and require it to equal `from`. Without this
@@ -590,6 +597,7 @@ export async function verifyPayment(opts: {
         payer: auth.from,
         payTo: PAY_TO,
         amountAtomic: expectedAmount,
+        expectedTransfer,
         resource,
         settledAt: new Date().toISOString(),
         status: "confirmed",
@@ -625,6 +633,7 @@ export async function verifyPayment(opts: {
           payer: auth.from,
           payTo: PAY_TO,
           amountAtomic: expectedAmount,
+          expectedTransfer,
           resource,
           settledAt: new Date().toISOString(),
           status: "pending",

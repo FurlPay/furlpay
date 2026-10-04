@@ -18,6 +18,7 @@ import com.furlpay.guardian.security.AuthManager
 import com.furlpay.guardian.security.KeystoreTokenStore
 import com.furlpay.guardian.sync.DataLayerManager
 import com.furlpay.guardian.sync.MessageRouter
+import com.furlpay.guardian.sync.PairedNodeGate
 import com.google.firebase.FirebaseApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +37,8 @@ class MobileServices(context: Context) {
     // initialises properties in declaration order, so the lambda would capture
     // an uninitialised field.
     val dataLayer = DataLayerManager(context)
+    /** Validates every command relayed from the paired watch. */
+    val pairedNodes = PairedNodeGate(context)
 
     val authManager = AuthManager(
         tokenStore,

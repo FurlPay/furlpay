@@ -1,4 +1,22 @@
-import { api, ApiError } from "../api";
+// Jest Expo's SecureStore auto-mock does not retain writes. These tests need a
+// real in-memory store to exercise the token-transition race.
+jest.mock("expo-secure-store", () => {
+  const values = new Map<string, string>();
+  return {
+    getItemAsync: jest.fn(async (key: string) => values.get(key) ?? null),
+    setItemAsync: jest.fn(async (key: string, value: string) => { values.set(key, value); }),
+    deleteItemAsync: jest.fn(async (key: string) => { values.delete(key); }),
+    WHEN_UNLOCKED_THIS_DEVICE_ONLY: "WHEN_UNLOCKED_THIS_DEVICE_ONLY",
+  };
+});
+
+import { api, ApiError, AbortedError, getToken, setToken } from "../api";
+
+function expiringJwt(): string {
+  const b64url = (value: string) =>
+    Buffer.from(value).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return `${b64url('{"alg":"HS256"}')}.${b64url(JSON.stringify({ exp: Math.floor((Date.now() + 5 * 60_000) / 1000) }))}.sig`;
+}
 
 // SecureStore is auto-mocked by jest-expo (getToken -> null), so requests are
 // anonymous here; we mock fetch to assert correlation-id behavior.
@@ -42,6 +60,45 @@ describe("api client — correlation id", () => {
       expect(e).toBeInstanceOf(ApiError);
       expect((e as ApiError).correlationId).toMatch(/[0-9a-f-]{36}/);
     }
+  });
+});
+
+describe("api client — session transitions", () => {
+  const realFetch = global.fetch;
+
+  afterEach(async () => {
+    global.fetch = realFetch;
+    await setToken(null);
+  });
+
+  it("does not restore an old session or dispatch its request after account switch during refresh", async () => {
+    const oldToken = expiringJwt();
+    const newToken = "new-account-session";
+    await setToken(oldToken);
+
+    let refreshStarted!: () => void;
+    const started = new Promise<void>((resolve) => { refreshStarted = resolve; });
+    let finishRefresh!: (response: Response) => void;
+    const refresh = new Promise<Response>((resolve) => { finishRefresh = resolve; });
+    const dispatched: string[] = [];
+    global.fetch = ((url: string) => {
+      if (url.endsWith("/auth/refresh")) {
+        refreshStarted();
+        return refresh;
+      }
+      dispatched.push(url);
+      return Promise.resolve({ ok: true, json: async () => ({ ok: true }) } as Response);
+    }) as unknown as typeof fetch;
+
+    const pending = api("/wallets");
+    await started;
+    await setToken(newToken);
+    await expect(getToken()).resolves.toBe(newToken);
+    finishRefresh({ ok: true, json: async () => ({ token: "refreshed-old-session" }) } as Response);
+
+    await expect(pending).rejects.toBeInstanceOf(AbortedError);
+    expect(dispatched).toEqual([]);
+    await expect(getToken()).resolves.toBe(newToken);
   });
 });
 

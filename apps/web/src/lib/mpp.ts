@@ -265,6 +265,13 @@ export async function verifyMppPayment(opts: {
       extra: { name: "USD Coin", version: "2", quoteId: ch.id, expiresAt: Math.floor(Date.parse(ch.expires) / 1000), binding: ch.id },
     },
   };
+  const expectedTransfer = {
+    token: expected.request.asset,
+    from: auth.from,
+    to: auth.to,
+    valueAtomic: expected.request.maxAmountRequired,
+    nonce: auth.nonce,
+  };
 
   try {
     const submission = await settler(facReq, auth.from, required);
@@ -277,6 +284,7 @@ export async function verifyMppPayment(opts: {
       payer: auth.from,
       payTo: PAY_TO,
       amountAtomic: expected.request.maxAmountRequired,
+      expectedTransfer,
       resource: realm,
       settledAt: new Date().toISOString(),
       status: "confirmed",
@@ -301,6 +309,7 @@ export async function verifyMppPayment(opts: {
         payer: auth.from,
         payTo: PAY_TO,
         amountAtomic: expected.request.maxAmountRequired,
+        expectedTransfer,
         resource: realm,
         settledAt: new Date().toISOString(),
         status: "pending",

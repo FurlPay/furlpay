@@ -4,10 +4,16 @@ import { NextResponse } from "next/server";
 // Shared zod schemas + a parse helper for route handlers. Malformed input is
 // provably rejected with a 400 before any business logic runs.
 
+// Request ceilings, not account spending limits. Provider, balance, and
+// compliance checks still apply after parsing. Match the existing payment cap.
+export const MAX_MONEY_AMOUNT = 1_000_000;
+export const MAX_ORDER_QUANTITY = 1_000_000;
+const MoneyAmount = z.number().finite().positive().max(MAX_MONEY_AMOUNT);
+
 export const TransferSchema = z.object({
   safeAddress: z.string().optional(),
   destination: z.string().min(4),
-  amount: z.number().positive(),
+  amount: MoneyAmount,
   token: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"]),
   chain: z.enum(["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis", "arc", "tempo"]),
   signature: z.string().min(1),
@@ -19,17 +25,17 @@ export const TransferSchema = z.object({
 export const OrderSchema = z.object({
   symbol: z.string().min(1),
   side: z.enum(["buy", "sell"]),
-  notional: z.number().positive().optional(),
-  qty: z.number().positive().optional(),
+  notional: MoneyAmount.optional(),
+  qty: z.number().finite().positive().max(MAX_ORDER_QUANTITY).optional(),
   type: z.enum(["market", "limit", "stop", "stop_limit", "trailing_stop"]).optional(),
   time_in_force: z.enum(["day", "gtc", "ioc", "fok", "opg", "cls"]).optional(),
-  limit_price: z.number().positive().optional(),
-  stop_price: z.number().positive().optional(),
+  limit_price: MoneyAmount.optional(),
+  stop_price: MoneyAmount.optional(),
   // Trailing stop: exactly one of these, enforced in lib/brokerage/alpaca.ts
   // where the arithmetic and the time-in-force interaction are also checked.
   // Bounded here so an absurd value is rejected before it reaches the provider.
   trail_percent: z.number().positive().max(99.99).optional(),
-  trail_price: z.number().positive().optional(),
+  trail_price: MoneyAmount.optional(),
 });
 
 export const IntentSchema = z.object({
@@ -37,8 +43,8 @@ export const IntentSchema = z.object({
   toToken: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"]),
   fromChain: z.enum(["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis"]),
   toChain: z.enum(["ethereum", "polygon", "base", "arbitrum", "solana", "gnosis"]),
-  amount: z.number().positive(),
-  settleWithinSec: z.number().positive().optional(),
+  amount: MoneyAmount,
+  settleWithinSec: z.number().int().positive().max(86_400).optional(),
   fallbackToken: z.enum(["USDC", "USDT", "EURC", "PYUSD", "DAI", "XSGD", "XUSD"]).optional(),
   execute: z.boolean().optional(),
 });
@@ -169,7 +175,7 @@ export const BeneficiarySchema = z.object({
 });
 
 export const CheckoutSchema = z.object({
-  amount: z.number().positive(),
+  amount: MoneyAmount,
   currency: z.string().optional(),
   token: z.string().optional(),
   wallet: z.string().optional(),

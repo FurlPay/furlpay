@@ -16,6 +16,7 @@ import { financialEnvironment, flagEnabled, flagState } from "@/lib/flags";
 import { log } from "@/lib/log";
 import { resolveSettlementAsset, settlementGasLimit, parseAtomicAmount } from "@/lib/x402Assets";
 import { afterReceipt, beforeBroadcast } from "@/lib/settlementGuard";
+import type { SettlementExpectedTransfer } from "@/lib/x402SettlementStore";
 
 // ---------------------------------------------------------------------------
 // Real on-chain x402 settler (EVM). This is the injectable `Settler` that
@@ -346,8 +347,9 @@ export function createEvmSettler(): Settler | null {
  */
 export async function checkSettlementOnChain(
   txHash: string,
-  network: string
-): Promise<{ found: boolean; confirmed: boolean; confirmations: number } | null> {
+  network: string,
+  expected?: SettlementExpectedTransfer,
+): Promise<{ found: boolean; confirmed: boolean; confirmations: number; receiptVerified?: boolean } | null> {
   const chain = EVM_CHAINS[network];
   if (!chain || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) return null;
   const publicClient = createPublicClient({ chain, transport: rpcTransport(network) });
@@ -355,7 +357,35 @@ export async function checkSettlementOnChain(
     const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
     if (receipt.status !== "success") return { found: true, confirmed: false, confirmations: 0 };
     const confirmations = Number(await publicClient.getTransactionConfirmations({ hash: txHash as Hex }));
-    return { found: true, confirmed: true, confirmations };
+    if (!expected) return { found: true, confirmed: true, confirmations };
+
+    // Recovery runs after the original request is gone, so it can only be as
+    // trustworthy as the expected effect durably stored with that request.
+    // Reject malformed stored data too: accepting a successful receipt without
+    // a usable expected transfer would recreate the bypass this check closes.
+    if (!/^[1-9]\d*$/.test(expected.valueAtomic)) {
+      return { found: true, confirmed: true, confirmations, receiptVerified: false };
+    }
+    try {
+      await afterReceipt(
+        network,
+        receipt.logs,
+        {
+          token: expected.token,
+          from: expected.from,
+          to: expected.to,
+          value: BigInt(expected.valueAtomic),
+          nonce: expected.nonce,
+        },
+        txHash,
+      );
+      return { found: true, confirmed: true, confirmations, receiptVerified: true };
+    } catch {
+      // afterReceipt has already recorded the receipt-mismatch finding and
+      // tripped the network (or shadow alert). The caller now keeps this
+      // settlement out of the success path for manual reconciliation.
+      return { found: true, confirmed: true, confirmations, receiptVerified: false };
+    }
   } catch {
     // Not found yet (still in mempool / dropped) — not proof of failure.
     return { found: false, confirmed: false, confirmations: 0 };

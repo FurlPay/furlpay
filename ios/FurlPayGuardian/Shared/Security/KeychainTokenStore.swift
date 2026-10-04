@@ -143,6 +143,22 @@ public actor KeychainTokenStore {
         cached = nil
     }
 
+    /// Compare and replace within this actor, with no suspension between the
+    /// comparison and write. A refresh from a previous login cannot restore it.
+    @discardableResult
+    public func replaceIfCurrent(_ expected: String, with token: String) throws -> Bool {
+        guard self.get() == expected else { return false }
+        try save(token)
+        return true
+    }
+
+    @discardableResult
+    public func clearIfCurrent(_ expected: String) -> Bool {
+        guard self.get() == expected else { return false }
+        clear()
+        return true
+    }
+
     /// Drop the in-memory copy WITHOUT signing the user out.
     ///
     /// Called when the device locks (`UIApplication.protectedDataWillBecome

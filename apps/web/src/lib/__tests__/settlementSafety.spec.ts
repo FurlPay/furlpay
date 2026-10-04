@@ -291,7 +291,14 @@ describe("receipt verification", () => {
 });
 
 describe("reconciliation", () => {
-  const base = { network: ARB, payer: FROM, payTo: TO, amountAtomic: "1000000", resource: "https://r.example/x" };
+  const base = {
+    network: ARB,
+    payer: FROM,
+    payTo: TO,
+    amountAtomic: "1000000",
+    expectedTransfer: { token: TOKEN, from: FROM, to: TO, valueAtomic: "1000000", nonce: NONCE },
+    resource: "https://r.example/x",
+  };
   const txA = `0x${"a1".repeat(32)}`;
   const txB = `0x${"b2".repeat(32)}`;
 
@@ -311,6 +318,19 @@ describe("reconciliation", () => {
     });
     expect(r).toMatchObject({ errors: 1, stillPending: [txA], confirmed: [], abandoned: [] });
     expect((await getSettlement(txA))?.status).toBe("pending");
+  });
+
+  it("never promotes a successful receipt whose authorized transfer does not match", async () => {
+    await recordSettlement({ ...base, transaction: txA, settledAt: new Date().toISOString(), status: "pending" });
+    const r = await reconcileNetwork(ARB, async () => ({
+      found: true,
+      confirmed: true,
+      confirmations: 100,
+      receiptVerified: false,
+    }));
+    expect(r.confirmed).toEqual([]);
+    expect(r.abandoned).toEqual([txA]);
+    expect((await getSettlement(txA))?.status).toBe("abandoned");
   });
 
   it("6. a confirmed settlement that vanished is a reorg: the network halts, the record is kept", async () => {

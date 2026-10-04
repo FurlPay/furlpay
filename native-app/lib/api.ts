@@ -73,13 +73,27 @@ const CLIENT_HEADER = `mobile-${Platform.OS}/${CLIENT_VERSION}`;
  */
 const TOKEN_OPTS = DEVICE_ONLY;
 
+// Login/logout invalidates work already in flight. Serialize SecureStore
+// writes so a late refresh cannot restore a token after sign-out.
+let sessionGeneration = 0;
+let tokenWrites: Promise<void> = Promise.resolve();
+function writeToken(work: () => Promise<void>): Promise<void> {
+  const next = tokenWrites.then(work);
+  tokenWrites = next.catch(() => undefined);
+  return next;
+}
+
 export async function getToken(): Promise<string | null> {
+  await tokenWrites;
   return SecureStore.getItemAsync(TOKEN_KEY, TOKEN_OPTS);
 }
 
 export async function setToken(token: string | null): Promise<void> {
-  if (token) await SecureStore.setItemAsync(TOKEN_KEY, token, TOKEN_OPTS);
-  else await SecureStore.deleteItemAsync(TOKEN_KEY, TOKEN_OPTS);
+  sessionGeneration++;
+  await writeToken(async () => {
+    if (token) await SecureStore.setItemAsync(TOKEN_KEY, token, TOKEN_OPTS);
+    else await SecureStore.deleteItemAsync(TOKEN_KEY, TOKEN_OPTS);
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -123,34 +137,50 @@ export function tokenExpiryMs(token: string): number | null {
   }
 }
 
-let refreshInFlight: Promise<void> | null = null;
+let refreshInFlight: { generation: number; promise: Promise<void> } | null = null;
 
 async function refreshTokenIfExpiring(): Promise<void> {
+  const generation = sessionGeneration;
   const token = await getToken();
-  if (!token) return;
+  if (!token || generation !== sessionGeneration) return;
   const exp = tokenExpiryMs(token);
   if (exp === null || exp - Date.now() > REFRESH_MARGIN_MS) return;
-  refreshInFlight ??= (async () => {
+  if (refreshInFlight?.generation === generation) return refreshInFlight.promise;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+  const promise = (async () => {
     try {
       const res = await fetch(`${API_BASE}/auth/refresh`, {
         method: "POST",
+        signal: controller.signal,
         headers: {
           "X-Furlpay-Client": CLIENT_HEADER,
           Authorization: `Bearer ${token}`,
         },
       });
       const data = res.ok ? ((await res.json()) as { token?: string }) : null;
-      if (data?.token) await setToken(data.token);
+      if (typeof data?.token === "string" && data.token) {
+        const refreshed = data.token;
+        await writeToken(async () => {
+          if (generation !== sessionGeneration) return;
+          const current = await SecureStore.getItemAsync(TOKEN_KEY, TOKEN_OPTS);
+          if (generation === sessionGeneration && current === token) {
+            await SecureStore.setItemAsync(TOKEN_KEY, refreshed, TOKEN_OPTS);
+          }
+        });
+      }
       // Failure (offline, already expired, 30-day ceiling) is NOT handled here:
       // the request that triggered us proceeds with the old token and the
       // normal 401 path decides what happens.
     } catch {
       /* offline — proceed with the old token */
     } finally {
-      refreshInFlight = null;
+      clearTimeout(timer);
+      if (refreshInFlight?.generation === generation) refreshInFlight = null;
     }
   })();
-  await refreshInFlight;
+  refreshInFlight = { generation, promise };
+  await promise;
 }
 
 export class ApiError extends Error {
@@ -222,9 +252,11 @@ export class TimeoutError extends Error {
 export class AbortedError extends Error {}
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  const generation = sessionGeneration;
   // Swap an about-to-expire token BEFORE using it (no-op with >10min left).
   if (!opts.anonymous) await refreshTokenIfExpiring();
   const token = opts.anonymous ? null : await getToken();
+  if (!opts.anonymous && generation !== sessionGeneration) throw new AbortedError("Session changed.");
   // Per-request correlation id — the server echoes it and logs it, so a failure
   // the user reports can be traced to the exact server-side request.
   const correlationId = crypto.randomUUID();
@@ -279,8 +311,9 @@ export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T
   }
 
   const data = await res.json().catch(() => null);
+  if (!opts.anonymous && generation !== sessionGeneration) throw new AbortedError("Session changed.");
   if (!res.ok) {
-    if (res.status === 401 && !opts.anonymous) onUnauthorized?.();
+    if (res.status === 401 && !opts.anonymous && token === await getToken() && generation === sessionGeneration) onUnauthorized?.();
     const message =
       (data && typeof data === "object" && "error" in data && String((data as any).error)) ||
       `Request failed (${res.status})`;

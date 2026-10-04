@@ -27,9 +27,34 @@ class KeystoreTokenStore(context: Context) : TokenStore {
     private val prefs =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    override suspend fun token(): String? = withContext(Dispatchers.IO) {
-        val stored = prefs.getString(KEY_TOKEN, null) ?: return@withContext null
-        try {
+    override suspend fun token(): String? = withContext(Dispatchers.IO) { synchronized(tokenLock) { readToken() } }
+
+    override suspend fun update(token: String?): Unit = withContext(Dispatchers.IO) { synchronized(tokenLock) { writeToken(token) } }
+
+    override suspend fun replaceIfCurrent(expected: String, replacement: String): Boolean =
+        withContext(Dispatchers.IO) {
+            synchronized(tokenLock) {
+                if (readToken() != expected) false
+                else {
+                    writeToken(replacement)
+                    true
+                }
+            }
+        }
+
+    override suspend fun clearIfCurrent(expected: String): Boolean = withContext(Dispatchers.IO) {
+        synchronized(tokenLock) {
+            if (readToken() != expected) false
+            else {
+                writeToken(null)
+                true
+            }
+        }
+    }
+
+    private fun readToken(): String? {
+        val stored = prefs.getString(KEY_TOKEN, null) ?: return null
+        return try {
             val raw = Base64.decode(stored, Base64.NO_WRAP)
             val iv = raw.copyOfRange(0, IV_LENGTH)
             val ciphertext = raw.copyOfRange(IV_LENGTH, raw.size)
@@ -37,20 +62,20 @@ class KeystoreTokenStore(context: Context) : TokenStore {
             cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(TAG_BITS, iv))
             cipher.doFinal(ciphertext).decodeToString()
         } catch (_: Exception) {
-            prefs.edit().remove(KEY_TOKEN).apply() // unrecoverable — force re-login
+            prefs.edit().remove(KEY_TOKEN).commit() // unrecoverable — force re-login
             null
         }
     }
 
-    override suspend fun update(token: String?): Unit = withContext(Dispatchers.IO) {
+    private fun writeToken(token: String?) {
         if (token == null) {
-            prefs.edit().remove(KEY_TOKEN).apply()
-            return@withContext
+            prefs.edit().remove(KEY_TOKEN).commit()
+            return
         }
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val sealed = cipher.iv + cipher.doFinal(token.encodeToByteArray())
-        prefs.edit().putString(KEY_TOKEN, Base64.encodeToString(sealed, Base64.NO_WRAP)).apply()
+        prefs.edit().putString(KEY_TOKEN, Base64.encodeToString(sealed, Base64.NO_WRAP)).commit()
     }
 
     /**
@@ -84,6 +109,8 @@ class KeystoreTokenStore(context: Context) : TokenStore {
     private companion object {
         /** Guards fetch-or-create of the AndroidKeyStore entry. */
         val keyLock = Any()
+        /** Serializes token read/compare/write transitions. */
+        val tokenLock = Any()
 
         const val ANDROID_KEYSTORE = "AndroidKeyStore"
         const val KEY_ALIAS = "furlpay.guardian.session"

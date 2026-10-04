@@ -7,12 +7,31 @@ package com.furlpay.guardian.network
  */
 interface TokenStore {
     suspend fun token(): String?
+    /** A login/logout transition. This advances the session visible to requests. */
     suspend fun update(token: String?)
+    /** Commit a refresh only when the user is still on [expected]. */
+    suspend fun replaceIfCurrent(expected: String, replacement: String): Boolean
+    /** Do not let a late 401 clear a newer login. */
+    suspend fun clearIfCurrent(expected: String): Boolean
 }
 
 class InMemoryTokenStore(@Volatile private var value: String? = null) : TokenStore {
-    override suspend fun token(): String? = value
+    private val lock = Any()
+
+    override suspend fun token(): String? = synchronized(lock) { value }
     override suspend fun update(token: String?) {
-        value = token
+        synchronized(lock) { value = token }
+    }
+
+    override suspend fun replaceIfCurrent(expected: String, replacement: String): Boolean = synchronized(lock) {
+        if (value != expected) return@synchronized false
+        value = replacement
+        true
+    }
+
+    override suspend fun clearIfCurrent(expected: String): Boolean = synchronized(lock) {
+        if (value != expected) return@synchronized false
+        value = null
+        true
     }
 }
