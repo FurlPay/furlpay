@@ -304,9 +304,9 @@ describe("reconciliation", () => {
 
   it("5. pending without enough confirmations stays unresolved; with them it confirms", async () => {
     await recordSettlement({ ...base, transaction: txA, settledAt: new Date().toISOString(), status: "pending" });
-    let r = await reconcileNetwork(ARB, async () => ({ found: true, confirmed: true, confirmations: 0 }));
+    let r = await reconcileNetwork(ARB, async () => ({ found: true, confirmed: true, confirmations: 0, receiptVerified: true }));
     expect(r.stillPending).toEqual([txA]);
-    r = await reconcileNetwork(ARB, async () => ({ found: true, confirmed: true, confirmations: 100 }));
+    r = await reconcileNetwork(ARB, async () => ({ found: true, confirmed: true, confirmations: 100, receiptVerified: true }));
     expect(r.confirmed).toEqual([txA]);
     expect(await unresolvedSettlements(ARB)).toEqual([]);
   });
@@ -320,13 +320,13 @@ describe("reconciliation", () => {
     expect((await getSettlement(txA))?.status).toBe("pending");
   });
 
-  it("never promotes a successful receipt whose authorized transfer does not match", async () => {
+  it.each([false, undefined])("never promotes a successful receipt without explicit verification (%s)", async (receiptVerified) => {
     await recordSettlement({ ...base, transaction: txA, settledAt: new Date().toISOString(), status: "pending" });
     const r = await reconcileNetwork(ARB, async () => ({
       found: true,
       confirmed: true,
       confirmations: 100,
-      receiptVerified: false,
+      receiptVerified,
     }));
     expect(r.confirmed).toEqual([]);
     expect(r.abandoned).toEqual([txA]);

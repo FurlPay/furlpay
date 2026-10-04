@@ -29,17 +29,15 @@ enum GuardianModelTools {
     /// Derived from the catalog rather than listed by hand, so a tool added to
     /// GuardianTools is either exposed or explicitly excluded — it cannot be
     /// forgotten into existence.
+    #if canImport(FoundationModels)
+    @available(iOS 26.0, *)
     @MainActor
-    static func all(container: ServiceContainer) -> [any Sendable] {
-        #if canImport(FoundationModels)
-        if #available(iOS 26.0, *) {
-            return GuardianTools.all
-                .filter { !$0.mutating }
-                .map { GuardianReadTool(spec: $0, container: container) }
-        }
-        #endif
-        return []
+    static func all(container: ServiceContainer) -> [any Tool] {
+        GuardianTools.all
+            .filter { !$0.mutating }
+            .map { GuardianReadTool(spec: $0, container: container) }
     }
+    #endif
 }
 
 #if canImport(FoundationModels)

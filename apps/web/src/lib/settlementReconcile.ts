@@ -89,7 +89,7 @@ export async function reconcileNetwork(
       out.stillPending.push(tx);
       continue;
     }
-    if (r.found && r.confirmed && r.receiptVerified === false) {
+    if (r.found && r.confirmed && r.receiptVerified !== true) {
       await recordSettlement({
         ...rec,
         status: "abandoned",
@@ -112,7 +112,8 @@ export async function reconcileNetwork(
 
   for (const tx of await recentConfirmedSettlements(network, now - REORG_LOOKBACK_MS)) {
     const rec = await getSettlement(tx);
-    if (!rec || !rec.expectedTransfer) {
+    if (!rec) continue; // an expired record leaves a stale index, not a reorg
+    if (!rec.expectedTransfer) {
       out.reorged.push(tx);
       continue;
     }
@@ -128,7 +129,7 @@ export async function reconcileNetwork(
       out.errors++;
       continue;
     }
-    if (!r.found || !r.confirmed || r.receiptVerified === false) out.reorged.push(tx);
+    if (!r.found || !r.confirmed || r.receiptVerified !== true) out.reorged.push(tx);
   }
 
   if (out.reorged.length) {

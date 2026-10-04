@@ -121,18 +121,21 @@ jobs:
           fi
           sudo xcode-select -switch "$best"
           xcodebuild -version
-      - name: Resolve the project
+      - name: Generate and resolve the project
         id: proj
         run: |
-          # Discovered, not assumed: the repo has no committed .xcodeproj at the
-          # ios/ root, so the job reports that plainly instead of failing on a
-          # path somebody guessed.
+          set -euo pipefail
+          brew install xcodegen
+          (cd ios/FurlPayGuardian && xcodegen generate)
+          # Projects are generated from project.yml, never committed. Failing
+          # generation must fail the check rather than skip compilation.
           WS=$(find ios -maxdepth 2 -name "*.xcworkspace" | head -1)
           PROJ=$(find ios -maxdepth 2 -name "*.xcodeproj" | head -1)
           echo "workspace=$WS" >> "$GITHUB_OUTPUT"
           echo "project=$PROJ" >> "$GITHUB_OUTPUT"
           if [ -z "$WS" ] && [ -z "$PROJ" ]; then
-            echo "::warning::No .xcodeproj or .xcworkspace under ios/ — the Swift sources are not yet an Xcode project, so there is nothing to compile. Skipping."
+            echo "::error::XcodeGen did not produce an iOS project."
+            exit 1
           fi
       - name: Build (no signing)
         if: steps.proj.outputs.workspace != '' || steps.proj.outputs.project != ''

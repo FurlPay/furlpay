@@ -17,8 +17,7 @@ import {
 // ── WHY A DATA URL AND NOT AN UPLOAD ───────────────────────────────────────
 //
 // There is no object storage on this deployment — no Blob, no S3, no Supabase
-// Storage — which is why `accountApi.uploadAvatar` throws NotWiredError and
-// says so. Rather than pretend a bucket exists, the picture is cropped and
+// Storage. ProfileImageUploader crops the picture and it is
 // re-encoded IN THE BROWSER to a small square and stored inline.
 //
 // That is not a workaround with a hidden cost; it changes the threat model for

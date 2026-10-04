@@ -15,16 +15,11 @@
 //   getLinkedWallet                GET /api/wallet/link  (404s when the
 //                                  deployment has wallet linking switched off)
 //   getDeletionPreview             GET /api/account
+//   setUsername                    PUT /api/profile/username (migration 0029)
+//   Avatar editing uses ProfileImageUploader, which crops and re-encodes the
+//   file before calling PUT /api/profile/avatar. No raw-file upload is exposed.
 //
 // NOT WIRED — UI is built, integration point is marked
-//   uploadAvatar        No object storage is configured in this app (no Blob,
-//                       no S3, no Supabase Storage). lib/profileAvatar.ts says
-//                       so explicitly and only stores an https URL from an
-//                       identity provider we authenticate against. A real
-//                       upload needs a bucket plus a signed-URL route first.
-//   setUsername         `User` has `name` and `email` and no handle field. A
-//                       username needs a column, a uniqueness index and a
-//                       reservation/collision policy — not a client-side field.
 //   getBackupCodes      /api/security/mfa implements enroll/verify/disable and
 //                       has no recovery-code store. Codes must be generated,
 //                       hashed and single-use server-side.
@@ -272,22 +267,6 @@ export async function startVerification(): Promise<{ url: string }> {
 }
 
 // ── Avatar & username ──────────────────────────────────────────────────────
-
-/**
- * TODO(integration): avatar upload.
- *
- * There is no object storage in this app — see lib/profileAvatar.ts, which
- * stores only an https URL on a provider host we authenticate against, and
- * says why. An upload needs a bucket, a signed-upload route, content-type and
- * size validation, and image re-encoding to strip EXIF before anything is
- * served back.
- */
-export async function uploadAvatar(_file: File): Promise<{ avatarUrl: string }> {
-  throw new NotWiredError(
-    "avatar-upload",
-    "No object storage is configured on this deployment, so there is nowhere to upload a picture yet."
-  );
-}
 
 /** Why a username was not saved, in words the server chose for the user. */
 export class UsernameError extends Error {

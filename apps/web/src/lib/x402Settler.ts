@@ -3,6 +3,7 @@ import {
   createWalletClient,
   parseAbi,
   parseSignature,
+  TransactionReceiptNotFoundError,
   type Account,
   type Address,
   type Hex,
@@ -357,7 +358,7 @@ export async function checkSettlementOnChain(
     const receipt = await publicClient.getTransactionReceipt({ hash: txHash as Hex });
     if (receipt.status !== "success") return { found: true, confirmed: false, confirmations: 0 };
     const confirmations = Number(await publicClient.getTransactionConfirmations({ hash: txHash as Hex }));
-    if (!expected) return { found: true, confirmed: true, confirmations };
+    if (!expected) return { found: true, confirmed: true, confirmations, receiptVerified: false };
 
     // Recovery runs after the original request is gone, so it can only be as
     // trustworthy as the expected effect durably stored with that request.
@@ -386,9 +387,13 @@ export async function checkSettlementOnChain(
       // settlement out of the success path for manual reconciliation.
       return { found: true, confirmed: true, confirmations, receiptVerified: false };
     }
-  } catch {
-    // Not found yet (still in mempool / dropped) — not proof of failure.
-    return { found: false, confirmed: false, confirmations: 0 };
+  } catch (error) {
+    // Only an explicit absent receipt proves "not found". A transport error
+    // or rate limit must not abandon a payment or raise a false reorg alert.
+    if (error instanceof TransactionReceiptNotFoundError) {
+      return { found: false, confirmed: false, confirmations: 0 };
+    }
+    throw error;
   }
 }
 

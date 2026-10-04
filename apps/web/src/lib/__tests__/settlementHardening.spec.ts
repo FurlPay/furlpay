@@ -40,7 +40,7 @@ const healthyProbe = async (): Promise<ProviderObservation[]> => [
 const deps = (over: Partial<SweepDeps> = {}): SweepDeps => ({
   probe: healthyProbe,
   readToken: async (t) => clean(t),
-  chainCheck: async () => ({ found: true, confirmed: true, confirmations: 100 }),
+  chainCheck: async () => ({ found: true, confirmed: true, confirmations: 100, receiptVerified: true }),
   now: () => NOW,
   ...over,
 });
@@ -145,7 +145,7 @@ describe("scheduled sweep", () => {
     await recordSettlement({ ...base, transaction: `0x${"1".repeat(64)}`, status: "pending" });
     await recordSettlement({ ...base, transaction: `0x${"2".repeat(64)}`, status: "pending" });
     const r = await sweepNetwork(ARB, deps({
-      chainCheck: async (tx) => (tx.startsWith("0x1") ? { found: true, confirmed: true, confirmations: 100 } : { found: false, confirmed: false, confirmations: 0 }),
+      chainCheck: async (tx) => (tx.startsWith("0x1") ? { found: true, confirmed: true, confirmations: 100, receiptVerified: true } : { found: false, confirmed: false, confirmations: 0 }),
     }));
     expect(r.unresolved).toBe(1);
     expect(await unresolvedSettlements(ARB)).toEqual([`0x${"2".repeat(64)}`]);

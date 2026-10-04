@@ -55,6 +55,16 @@ public actor KeychainTokenStore {
     /// enforce that on its own, hence the explicit entry point rather than a
     /// silent assumption that the cache is harmless.
     private var cached: String?
+    private var generation: UInt64 = 0
+
+    public struct SessionSnapshot: Sendable {
+        public let token: String?
+        public let generation: UInt64
+    }
+
+    public func snapshot() -> SessionSnapshot {
+        SessionSnapshot(token: self.get(), generation: generation)
+    }
 
     public init(service: String = "com.furlpay.guardian") {
         self.service = service
@@ -82,6 +92,11 @@ public actor KeychainTokenStore {
     /// refresh, which trains the user to approve prompts reflexively — the
     /// opposite of what the gate is for.
     public func save(_ token: String) throws {
+        try persist(token)
+        generation &+= 1
+    }
+
+    private func persist(_ token: String) throws {
         let data = Data(token.utf8)
 
         var query = baseQuery
@@ -141,20 +156,22 @@ public actor KeychainTokenStore {
     public func clear() {
         SecItemDelete(baseQuery as CFDictionary)
         cached = nil
+        generation &+= 1
     }
 
     /// Compare and replace within this actor, with no suspension between the
     /// comparison and write. A refresh from a previous login cannot restore it.
     @discardableResult
-    public func replaceIfCurrent(_ expected: String, with token: String) throws -> Bool {
-        guard self.get() == expected else { return false }
-        try save(token)
+    public func replaceIfCurrent(_ expected: SessionSnapshot, with token: String) throws -> Bool {
+        guard generation == expected.generation, self.get() == expected.token else { return false }
+        // Refresh rotates credentials within the same session.
+        try persist(token)
         return true
     }
 
     @discardableResult
-    public func clearIfCurrent(_ expected: String) -> Bool {
-        guard self.get() == expected else { return false }
+    public func clearIfCurrent(_ expected: SessionSnapshot) -> Bool {
+        guard generation == expected.generation, self.get() == expected.token else { return false }
         clear()
         return true
     }
