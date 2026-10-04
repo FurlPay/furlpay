@@ -117,7 +117,7 @@ export type AuthorizeFailure =
 /** How long an ALLOW stays executable. Short on purpose: an authorization is a
  *  statement about a moment, and the longer it is valid the more the world can
  *  change beneath it. Execution re-checks everything regardless. */
-const AUTHORIZATION_TTL_SECONDS = 300;
+export const AUTHORIZATION_TTL_SECONDS = 300;
 
 /**
  * Canonical hash of what execution is permitted to submit.

@@ -105,6 +105,8 @@ export interface EvidenceApproval {
   readonly approverRole?: string;
   readonly approvedBy?: string;
   readonly approvedAt?: string;
+  readonly deniedBy?: string;
+  readonly deniedAt?: string;
   readonly timeoutSeconds?: number;
   readonly onTimeout?: string;
   /** Hash of the step-up evidence, never the evidence itself. */
@@ -160,6 +162,12 @@ export interface EvidenceLedger {
  * inconvenient one.
  */
 export interface EvidenceBundle {
+  /**
+   * What this record attests. Absent on authorization records written before
+   * the field existed, which `canonicalize` drops, so their leaf hashes still
+   * verify. `approval_decision` records a human approving or denying.
+   */
+  readonly event?: "authorization" | "approval_decision";
   readonly paymentId: string;
   readonly organizationId: string;
   readonly sequence: number;

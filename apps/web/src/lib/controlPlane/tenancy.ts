@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireApiKey } from "@/lib/apiKeyAuth";
+import { requireUser } from "@/lib/authz";
 import { sbSelect } from "@/lib/supabase";
 import type { ApiScope } from "@/lib/apiKeys";
 import { controlPlaneDurable } from "./store";
@@ -57,6 +58,39 @@ export async function requireTenant(
   const auth = await requireApiKey(req, { scope });
   if (!auth.ok) return { ok: false, res: auth.res };
 
+  const found = await organizationOwnedBy(auth.record.userId);
+  if (!found.ok) return found;
+  const org = found.org;
+
+  // A live key must not operate a sandbox organization, or vice versa. The two
+  // have different verification requirements (resolveAuthority's
+  // requireVerifiedPrincipal), so crossing them would silently apply the wrong
+  // posture to real money.
+  const keyEnv = auth.record.environment === "live" ? "live" : "sandbox";
+  if (keyEnv !== org.environment) {
+    return {
+      ok: false,
+      res: problem(403, "environment_mismatch", {
+        message: `This key is for the ${keyEnv} environment; the organization is ${org.environment}.`,
+      }),
+    };
+  }
+
+  return {
+    ok: true,
+    tenant: {
+      organizationId: org.id,
+      environment: org.environment,
+      userId: auth.record.userId,
+      keyId: auth.record.keyId,
+    },
+  };
+}
+
+/** The one organization a user owns, refused unless durable and ACTIVE. */
+async function organizationOwnedBy(
+  userId: string
+): Promise<{ ok: true; org: OrgRow } | { ok: false; res: NextResponse }> {
   if (!controlPlaneDurable()) {
     return {
       ok: false,
@@ -72,7 +106,7 @@ export async function requireTenant(
   try {
     rows = await sbSelect<OrgRow>(
       "cp_organizations",
-      `owner_user_id=eq.${encodeURIComponent(auth.record.userId)}&limit=1`
+      `owner_user_id=eq.${encodeURIComponent(userId)}&limit=1`
     );
   } catch {
     return {
@@ -100,28 +134,42 @@ export async function requireTenant(
       }),
     };
   }
+  return { ok: true, org };
+}
 
-  // A live key must not operate a sandbox organization, or vice versa. The two
-  // have different verification requirements (resolveAuthority's
-  // requireVerifiedPrincipal), so crossing them would silently apply the wrong
-  // posture to real money.
-  const keyEnv = auth.record.environment === "live" ? "live" : "sandbox";
-  if (keyEnv !== org.environment) {
-    return {
-      ok: false,
-      res: problem(403, "environment_mismatch", {
-        message: `This key is for the ${keyEnv} environment; the organization is ${org.environment}.`,
-      }),
-    };
-  }
+export interface HumanTenantContext {
+  readonly organizationId: string;
+  readonly environment: "sandbox" | "live";
+  readonly userId: string;
+  /** The session's id, which step-up records are bound to. */
+  readonly jti: string | undefined;
+}
+
+/**
+ * Resolve the organization for a signed-in HUMAN: a session, never an API key.
+ *
+ * Approving a held payment is the one control-plane act an API key must not
+ * perform. The agent that asked for the payment holds the key, and an approval
+ * the agent can grant itself is not a control. `requireUser` rejects API keys
+ * (they are not session JWTs) and applies MCP connector scopes, which have no
+ * entry for these routes and so are denied by default.
+ */
+export async function requireHumanTenant(
+  req: NextRequest
+): Promise<{ ok: true; tenant: HumanTenantContext } | { ok: false; res: NextResponse }> {
+  const auth = await requireUser(req);
+  if (!auth.ok) return { ok: false, res: auth.res };
+
+  const found = await organizationOwnedBy(auth.account.user.id);
+  if (!found.ok) return found;
 
   return {
     ok: true,
     tenant: {
-      organizationId: org.id,
-      environment: org.environment,
-      userId: auth.record.userId,
-      keyId: auth.record.keyId,
+      organizationId: found.org.id,
+      environment: found.org.environment,
+      userId: auth.account.user.id,
+      jti: auth.claims.jti,
     },
   };
 }
