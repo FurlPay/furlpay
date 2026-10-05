@@ -21,6 +21,11 @@ const GOOGLE_SERVICES = path.join(ROOT, "google-services.json");
 const ENV_KEYS = [
   "EAS_BUILD_PROFILE",
   "FURLPAY_RELEASE_BUILD",
+  "FURLPAY_ENV",
+  "EXPO_PUBLIC_API_BASE",
+  "FURLPAY_FREERASP_CERT_HASHES",
+  "FURLPAY_APPLE_TEAM_ID",
+  "EAS_BUILD_PLATFORM",
   "GOOGLE_SERVICES_JSON",
   "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID",
   "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID",
@@ -44,6 +49,9 @@ const evaluate = (env: Record<string, string>) => {
 const AUTH_ENV = {
   EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID: "111-android.apps.googleusercontent.com",
   EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: "111-web.apps.googleusercontent.com",
+  // freeRASP signing identity — required for a release since P0-3. Public
+  // property of a signed app, not a secret. Colon-hex, as Play Console shows it.
+  FURLPAY_FREERASP_CERT_HASHES: Array.from({ length: 32 }, (_, i) => i.toString(16).padStart(2, "0").toUpperCase()).join(":"),
 };
 
 /** Reproduce an EAS worker faithfully: the gitignored file is not in the
@@ -141,5 +149,109 @@ describe("release build configuration guard", () => {
   it("falls back to the local google-services.json on a developer machine", () => {
     const out = evaluate({ EAS_BUILD_PROFILE: "production", ...AUTH_ENV });
     expect(out.android?.googleServicesFile).toBe("./google-services.json");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P0-2 (audit 2026-10-05): every release was built against api.furlpay.com,
+// which does not resolve. A release must talk to exactly the production base,
+// and must not resolve to a non-prod environment by omission.
+// ---------------------------------------------------------------------------
+describe("release build API host", () => {
+  type Extra = { extra?: { apiBase?: string; furlpayEnv?: string } };
+  const mod = () => require(CONFIG) as { PRODUCTION_API_BASE: string; assertReleaseApiBase: (u: string) => string };
+  const GS = { GOOGLE_SERVICES_JSON: GOOGLE_SERVICES };
+
+  it("production resolves to https://furlpay.com/api — a host that exists, not api.furlpay.com", () => {
+    const out = evaluate({ EAS_BUILD_PROFILE: "production", ...AUTH_ENV, ...GS }) as Extra;
+    expect(out.extra?.apiBase).toBe("https://furlpay.com/api");
+    expect(mod().PRODUCTION_API_BASE).toBe("https://furlpay.com/api");
+  });
+
+  it("FAILS a local signed release with no FURLPAY_ENV instead of building against dev", () => {
+    expect(() => evaluate({ FURLPAY_RELEASE_BUILD: "1", ...AUTH_ENV, ...GS })).toThrow(/environment "dev", not "prod"/);
+  });
+
+  it("FAILS a release that explicitly asks for staging", () => {
+    expect(() =>
+      evaluate({ FURLPAY_RELEASE_BUILD: "1", FURLPAY_ENV: "staging", ...AUTH_ENV, ...GS })
+    ).toThrow(/not "prod"/);
+  });
+
+  it("builds a local signed release with FURLPAY_ENV=prod (what build-android.sh now exports)", () => {
+    const out = evaluate({ FURLPAY_RELEASE_BUILD: "1", FURLPAY_ENV: "prod", ...AUTH_ENV, ...GS }) as Extra;
+    expect(out.extra?.apiBase).toBe("https://furlpay.com/api");
+    expect(fs.readFileSync(path.join(ROOT, "build-android.sh"), "utf8")).toMatch(/^export FURLPAY_ENV=prod$/m);
+  });
+
+  it.each([
+    "http://localhost:3000/api",
+    "http://192.168.1.5:3000/api",
+    "https://web-abc123-team.vercel.app/api",
+    "https://api-staging.furlpay.com/api",
+    "https://api.furlpay.com/api",
+    "http://furlpay.com/api",
+    "https://furlpay.com/api/",
+  ])("FAILS a release whose EXPO_PUBLIC_API_BASE is %s", (base) => {
+    expect(() =>
+      evaluate({ EAS_BUILD_PROFILE: "production", EXPO_PUBLIC_API_BASE: base, ...AUTH_ENV, ...GS })
+    ).toThrow(/not the production backend/);
+    expect(() => mod().assertReleaseApiBase(base)).toThrow();
+  });
+
+  it("still lets a DEV build point at a laptop (the override is a real workflow)", () => {
+    const out = evaluate({ EXPO_PUBLIC_API_BASE: "http://192.168.1.5:3000/api" }) as Extra;
+    expect(out.extra?.apiBase).toBe("http://192.168.1.5:3000/api");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// P0-3 (audit 2026-10-05): freeRASP ran against a placeholder identity.
+// ---------------------------------------------------------------------------
+describe("release build freeRASP identity", () => {
+  type Rasp = { extra?: { freerasp?: { packageName: string; appBundleId: string; certificateHashes: string[]; appTeamId: string | null; isProd: boolean } } };
+  const GS = { GOOGLE_SERVICES_JSON: GOOGLE_SERVICES };
+  const { FURLPAY_FREERASP_CERT_HASHES: _omit, ...AUTH_NO_RASP } = AUTH_ENV;
+
+  it("FAILS an Android release with no signing certificate hash", () => {
+    expect(() => evaluate({ EAS_BUILD_PROFILE: "production", ...AUTH_NO_RASP, ...GS })).toThrow(
+      /FURLPAY_FREERASP_CERT_HASHES/
+    );
+  });
+
+  it("FAILS an Android release whose hash is the old placeholder", () => {
+    expect(() =>
+      evaluate({ EAS_BUILD_PROFILE: "production", ...AUTH_NO_RASP, ...GS, FURLPAY_FREERASP_CERT_HASHES: "TODO_CERT_HASH" })
+    ).toThrow(/not a SHA-256 digest/);
+  });
+
+  it("FAILS an iOS release with no Apple Team ID, and with the old placeholder", () => {
+    const ios = {
+      EAS_BUILD_PROFILE: "production",
+      EAS_BUILD_PLATFORM: "ios",
+      EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID: "111-ios.apps.googleusercontent.com",
+      EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID: "111-web.apps.googleusercontent.com",
+    };
+    expect(() => evaluate(ios)).toThrow(/FURLPAY_APPLE_TEAM_ID/);
+    expect(() => evaluate({ ...ios, FURLPAY_APPLE_TEAM_ID: "YOUR_TEAM_ID" })).toThrow(/FURLPAY_APPLE_TEAM_ID/);
+  });
+
+  it("writes the RESOLVED identity and a base64 hash into extra.freerasp, isProd only for a prod release", () => {
+    const out = evaluate({ EAS_BUILD_PROFILE: "production", ...AUTH_ENV, ...GS }) as Rasp;
+    const rasp = out.extra!.freerasp!;
+    expect(rasp.packageName).toBe("com.furlpay.app");
+    expect(rasp.certificateHashes).toEqual([Buffer.from(Array.from({ length: 32 }, (_, i) => i)).toString("base64")]);
+    expect(rasp.isProd).toBe(true);
+  });
+
+  it("a dev build carries its own suffixed identity and isProd false", () => {
+    const out = evaluate({}) as Rasp;
+    expect(out.extra!.freerasp!.packageName).toBe("com.furlpay.app.dev");
+    expect(out.extra!.freerasp!.isProd).toBe(false);
+  });
+
+  it("the old hardcoded placeholder identity is gone from the runtime module", () => {
+    const src = fs.readFileSync(path.join(ROOT, "lib", "security", "tamperDetection.ts"), "utf8").replace(/\/\/.*$/gm, "");
+    expect(src).not.toMatch(/TODO_CERT_HASH|YOUR_TEAM_ID|com\.furlpay\.mobile/);
   });
 });
