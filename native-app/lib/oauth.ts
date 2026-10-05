@@ -4,6 +4,7 @@ import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
 import { api, API_BASE } from "./api";
 import { isRealGoogleClientId } from "./googleClientId";
+import { createPkcePair } from "./pkce";
 
 // ---------------------------------------------------------------------------
 // Federated sign-in (Google, Apple) for the native app.
@@ -44,11 +45,12 @@ const WEB_ORIGIN = API_BASE.replace(/\/api$/, "");
 export const googleConfigured = isRealGoogleClientId(GOOGLE_ANDROID_CLIENT_ID);
 export const appleConfigured = Boolean(APPLE_CLIENT_ID) && !/placeholder/i.test(APPLE_CLIENT_ID ?? "");
 
-/** Trade a one-time web→native handoff code for a session token. */
-async function exchangeNativeCode(code: string): Promise<string> {
+/** Trade a one-time web→native handoff code AND its PKCE verifier for a
+ *  session token. The code alone is not redeemable (see lib/pkce.ts). */
+async function exchangeNativeCode(code: string, codeVerifier: string): Promise<string> {
   const res = await api<{ token: string }>("/auth/native/exchange", {
     method: "POST",
-    body: { code },
+    body: { code, code_verifier: codeVerifier },
     anonymous: true,
   });
   if (!res.token) throw new Error("Handoff code was rejected.");
@@ -107,8 +109,12 @@ export async function signInWithApple(): Promise<string | null> {
   if (!APPLE_CLIENT_ID) throw new Error("Apple sign-in isn't configured for this build.");
 
   // Apple requires a nonce and echoes `state` back; both are anti-CSRF/replay.
-  const state = Crypto.randomUUID();
-  const nonce = Crypto.randomUUID();
+  // PKCE. The challenge rides in `state` (so the server can bind the code to
+  // it) and as Apple's `nonce` (so the id_token is bound to this attempt). The
+  // verifier stays in this closure until the exchange.
+  const { verifier, challenge } = await createPkcePair();
+  const state = `${Crypto.randomUUID()}.${challenge}`;
+  const nonce = challenge;
   const redirectUri = `${WEB_ORIGIN}/api/auth/apple/callback`;
 
   const url =
@@ -141,7 +147,7 @@ export async function signInWithApple(): Promise<string | null> {
   if (err) throw new Error(appleErrorMessage(err));
   const handoff = typeof returned.code === "string" ? returned.code : null;
   if (!handoff) throw new Error("Apple sign-in returned no code.");
-  return exchangeNativeCode(handoff);
+  return exchangeNativeCode(handoff, verifier);
 }
 
 function appleErrorMessage(code: string): string {
