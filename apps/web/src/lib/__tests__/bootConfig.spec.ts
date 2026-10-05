@@ -34,8 +34,13 @@ describe("assertBootConfig", () => {
     expect(missingCoreVariables({ ...noKv, UPSTASH_REDIS_REST_URL: "u", UPSTASH_REDIS_REST_TOKEN: "t" })).toEqual([]);
   });
 
-  it("the admin rule still applies first", () => {
-    expect(() => assertBootConfig({ ...GOOD, FURLPAY_ADMIN_EMAIL: "" })).toThrow(AdminConfigError);
+  it("the admin rule still applies first: a malformed admin email refuses to boot", () => {
+    expect(() => assertBootConfig({ ...GOOD, FURLPAY_ADMIN_EMAIL: "not-an-email" })).toThrow(AdminConfigError);
+  });
+
+  it("a MISSING admin email boots with administration disabled and a warning, never an outage", () => {
+    const report = assertBootConfig({ ...GOOD, FURLPAY_ADMIN_EMAIL: "" });
+    expect(report.warnings.join(" ")).toMatch(/administration is DISABLED/);
   });
 
   it("previews and development are not held to production requirements", () => {

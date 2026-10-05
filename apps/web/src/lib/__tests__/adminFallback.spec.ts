@@ -4,6 +4,7 @@ import { join, relative, sep } from "path";
 import {
   AdminConfigError,
   adminBootstrapEmail,
+  adminConfigStatus,
   assertAdminConfig,
   isBootstrapAdminEmail,
 } from "../adminIdentity";
@@ -23,8 +24,12 @@ const DEV = { NODE_ENV: "development" } as const;
 const OLD_FALLBACK = ["ashutosh", "furlpay.app"].join("@");
 
 describe("adminIdentity", () => {
-  it("production without FURLPAY_ADMIN_EMAIL: boot check throws", () => {
-    expect(() => assertAdminConfig(PROD)).toThrow(AdminConfigError);
+  it("production without FURLPAY_ADMIN_EMAIL: boots with administration DISABLED, never a fallback", () => {
+    // Changed 2026-10-02: a missing admin no longer stops the boot (it took
+    // the whole public site down). The takeover guarantee is the null
+    // identity, asserted in the next test, and is unchanged.
+    expect(assertAdminConfig(PROD)).toBe("disabled_not_configured");
+    expect(adminConfigStatus(PROD)).toBe("disabled_not_configured");
   });
 
   it("production without FURLPAY_ADMIN_EMAIL: nobody is the bootstrap admin", () => {
@@ -49,6 +54,7 @@ describe("adminIdentity", () => {
 
   it("rejects a malformed configured value instead of trusting it", () => {
     expect(() => assertAdminConfig({ ...PROD, FURLPAY_ADMIN_EMAIL: "not-an-email" })).toThrow(AdminConfigError);
+    expect(adminConfigStatus({ ...PROD, FURLPAY_ADMIN_EMAIL: "not-an-email" })).toBe("invalid");
   });
 
   it("the demo identity is a development-only convenience", () => {
