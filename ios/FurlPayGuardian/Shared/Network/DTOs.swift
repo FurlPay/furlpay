@@ -26,6 +26,12 @@ struct OtpCheckResponse: Decodable, Sendable {
     let token: String
 }
 
+/// POST /api/auth/watch-token: the Apple Watch's scoped credential
+/// (read-only plus card freeze), minted from the phone session.
+struct WatchTokenResponse: Decodable, Sendable {
+    let token: String
+}
+
 // MARK: - Wallets
 
 /// One row of GET /api/wallets `balances`.

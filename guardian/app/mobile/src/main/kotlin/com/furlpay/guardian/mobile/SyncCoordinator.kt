@@ -30,9 +30,17 @@ class SyncCoordinator(private val services: MobileServices) {
         pushMarket()
     }
 
+    /**
+     * Give the watch a SCOPED token (SEC-P2-004): read-only plus card freeze,
+     * not refreshable, tied to this phone session so sign-out ends it. It used
+     * to be the phone's own bearer, the one that moves money. If minting fails
+     * nothing is pushed: the watch keeps its synced snapshots, and the phone
+     * token is never a fallback.
+     */
     suspend fun pushToken() {
-        val token = services.tokenStore.token() ?: return
-        runCatching { services.dataLayer.putJson(SyncProtocol.DATA_AUTH_TOKEN, token) }
+        if (services.tokenStore.token() == null) return
+        val watchToken = runCatching { services.client.api.watchToken().token }.getOrNull() ?: return
+        runCatching { services.dataLayer.putJson(SyncProtocol.DATA_AUTH_TOKEN, watchToken) }
     }
 
     suspend fun pushWallet() {

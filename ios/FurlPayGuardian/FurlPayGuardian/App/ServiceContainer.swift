@@ -323,6 +323,7 @@ public final class ServiceContainer {
         async let v: Void = travel.refresh()
         _ = await (w, c, t, p, m, v)
         events.prune()          // unbounded local history is the store's failure mode
+        await pushWatchToken()  // the watch token lasts 1h and cannot refresh itself
         await sync.pushAllSnapshots(from: self)
     }
 
@@ -333,8 +334,16 @@ public final class ServiceContainer {
         isSessionLocked = false
         // The expiry notice belongs to the session that ended, not this one.
         sessionEndedReason = nil
-        await sync.pushToken(token)
+        await pushWatchToken()
         await refreshAll()
+    }
+
+    /// The watch gets a SCOPED token minted from this session (SEC-P2-004),
+    /// never the phone's own bearer. If minting fails nothing is pushed; the
+    /// watch keeps its synced snapshots.
+    private func pushWatchToken() async {
+        guard let watchToken = try? await api.watchToken() else { return }
+        await sync.pushToken(watchToken)
     }
 
     public func signOut() async {

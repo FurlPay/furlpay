@@ -5,6 +5,7 @@ import { getAccountDurable, type UserAccount } from "@/lib/store";
 import { isAccountDeleted } from "@/lib/accountDeletion";
 import type { McpClaims } from "@/lib/mcp/oauth";
 import { mcpDenialFor } from "@/lib/mcp/routeScopes";
+import { watchDenialFor } from "@/lib/watchScope";
 import { audit } from "@/lib/audit";
 import { EPOCH_OUTDATED, REVOCATION_HEADER, epochMatches } from "@/lib/sessionEpoch";
 import { effectiveRoles } from "@/lib/compliance/roleGrants";
@@ -44,9 +45,19 @@ function normalizedEmail(email: string | undefined | null): string {
 export async function requireUser(req: NextRequest, opts: { allowUnknownRevocation?: boolean } = {}): Promise<AuthResult> {
   // durable: also consult the cross-instance revocation denylist — a token
   // revoked by logout/account-lock on another lambda must die here too.
-  const { claims, revocation } = await verifySessionState(tokenFromRequest(req), { durable: true });
+  const { claims, revocation } = await verifySessionState(tokenFromRequest(req), { durable: true, allowWatch: true });
   if (!claims?.sub) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  // A Wear OS watch token is read-only plus card freeze (lib/watchScope.ts,
+  // default deny). Checked before anything else so no route sees it as a
+  // full session.
+  if (claims.watch === true) {
+    const denial = watchDenialFor(req.method, req.nextUrl.pathname);
+    if (denial) {
+      audit("watch.scope_denied", claims.sub, { method: req.method, path: req.nextUrl.pathname });
+      return { ok: false, res: denial };
+    }
   }
   // A connector (MCP) access token is scoped, not a full session: it may only
   // reach the routes its consented scopes map to (default deny — see

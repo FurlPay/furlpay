@@ -384,6 +384,12 @@ public actor FurlPayAPIClient {
         return try await send(request, as: OtpCheckResponse.self).token
     }
 
+    /// Mint the watch's scoped token from this (phone) session (SEC-P2-004).
+    public func watchToken() async throws -> String {
+        let request = try await makeRequest("POST", "auth/watch-token")
+        return try await send(request, as: WatchTokenResponse.self).token
+    }
+
     // MARK: - Wallets, cards, transactions
 
     public func fetchWallets() async throws -> WalletOverview {

@@ -81,6 +81,8 @@ export type AuditEvent =
   | "mcp.token_refreshed"
   | "mcp.token_revoked"
   | "mcp.scope_denied"
+  | "watch.scope_denied"
+  | "auth.watch_token_issued"
   | "account.funded"
   | "account.locked"
   | "profile.updated"

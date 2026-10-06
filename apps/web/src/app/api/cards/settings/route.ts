@@ -4,6 +4,7 @@ import { requireUser } from "@/lib/authz";
 import { validateBody } from "@/lib/validate";
 import { recordSecurityEvent } from "@/lib/ops/events";
 import { cardIssuingLive, cardSimulationAllowed, getCardIssuer } from "@/lib/cardIssuer";
+import { isWatchFreezeOnly } from "@/lib/watchScope";
 
 // POST /api/cards/settings — real-time card controls (Marqeta-style).
 // body: { cardId, freeze?, limits?: { daily?, perPurchase? }, channels?, priority?, settlementCurrency? }
@@ -40,6 +41,12 @@ export async function POST(req: NextRequest) {
 
   const body = await validateBody(req, Body);
   if (body instanceof NextResponse) return body;
+
+  // A watch token may only FREEZE (SEC-P2-004). Unfreezing re-enables spending
+  // and needs the phone's biometric; limits and channels likewise stay there.
+  if (auth.claims.watch === true && !isWatchFreezeOnly(body)) {
+    return NextResponse.json({ error: "Only freezing a card is available from the watch. Use your phone." }, { status: 403 });
+  }
 
   const account = auth.account;
   const card = account.cards.find((c) => c.id === body.cardId);

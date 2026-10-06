@@ -54,6 +54,14 @@ export interface SessionClaims extends JWTPayload {
    * treated as 1, so the rollout does not sign anyone out.
    */
   sepoch?: number;
+  /**
+   * A Wear OS watch token (SEC-P2-004): read-only plus card freeze, minted by
+   * /api/auth/watch-token from a full phone session. It shares that session's
+   * jti and epoch, so the phone's logout and "log out everywhere" end it too.
+   * verifySession() refuses it unless the caller opts in; only requireUser()
+   * does, and requireUser() confines it to lib/watchScope.ts.
+   */
+  watch?: boolean;
 }
 
 /** How long a session may keep sliding via /api/auth/refresh before the user
@@ -168,7 +176,7 @@ export async function signSession(claims: SessionClaims): Promise<string> {
  */
 export async function verifySession(
   token: string | undefined | null,
-  opts?: { durable?: boolean }
+  opts?: { durable?: boolean; allowWatch?: boolean }
 ): Promise<SessionClaims | null> {
   return (await verifySessionState(token, opts)).claims;
 }
@@ -184,7 +192,7 @@ export type RevocationState = "clear" | "unknown";
 
 export async function verifySessionState(
   token: string | undefined | null,
-  opts?: { durable?: boolean }
+  opts?: { durable?: boolean; allowWatch?: boolean }
 ): Promise<{ claims: SessionClaims | null; revocation: RevocationState }> {
   if (!token) return { claims: null, revocation: "clear" };
   try {
@@ -194,6 +202,10 @@ export async function verifySessionState(
       algorithms: [ALG], // pin HS256 — never honour a header-chosen algorithm
     });
     const claims = payload as SessionClaims;
+    // Default deny for watch tokens: every direct verifySession() caller
+    // (middleware, logout, handoff, OAuth, the MCP connector) treats a watch
+    // token as no session at all, so it can never be exchanged for a full one.
+    if (claims.watch === true && !opts?.allowWatch) return { claims: null, revocation: "clear" };
     if (isRevoked(claims.jti)) return { claims: null, revocation: "clear" };
     if (opts?.durable && claims.jti) {
       try {
