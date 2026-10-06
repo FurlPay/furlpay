@@ -13,6 +13,7 @@ import {
 import JsonLd from "@/components/JsonLd";
 import LandingChrome from "@/components/landing/LandingChrome";
 import { seoMetadata } from "@/lib/seo/meta";
+import ReportDownload from "./ReportDownload";
 import { breadcrumb, ORG_ID, SITE } from "@/lib/seo/schema";
 
 const TITLE = "FurlPay Global Stablecoin Report 2026";
@@ -304,18 +305,22 @@ function ReportHero() {
               ))}
             </dl>
 
-            {/* Download is the lite edition: same 87 pages and text, images
+            {/* Download asks for a business email first (ReportDownload), then
+                hands over the lite edition: same 87 pages and text, images
                 compressed, 5.9 MB instead of 16.4 MB on mobile data. The full
                 file is linked from every chapter and the page footer. */}
             <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:gap-5">
-              <a
-                href={LITE_PDF_PATH}
-                download="FurlPay-Global-Stablecoin-Report-2026-lite.pdf"
+              <ReportDownload
+                slug="global-stablecoin-report-2026"
+                reportTitle={TITLE}
+                fileHref={LITE_PDF_PATH}
+                fileName="FurlPay-Global-Stablecoin-Report-2026.pdf"
+                coverSrc={COVER_IMAGE}
                 className="inline-flex h-[60px] items-center justify-center gap-3 whitespace-nowrap rounded-[10px] bg-neon px-10 text-[17px] font-semibold text-black shadow-glow-sm transition hover:-translate-y-0.5 hover:bg-neon/90 sm:h-[66px] sm:px-[52px] sm:text-[19px] lg:px-8 xl:px-[52px]"
               >
                 Download PDF
                 <ArrowDownToLine aria-hidden className="h-5 w-5" />
-              </a>
+              </ReportDownload>
               <a
                 href="#summary-heading"
                 className="inline-flex h-[60px] items-center justify-center gap-3 whitespace-nowrap rounded-[10px] border border-white/25 bg-white/[0.02] px-10 text-[17px] font-semibold text-textPrimary transition hover:border-white/45 hover:bg-white/[0.05] sm:h-[66px] sm:px-[50px] sm:text-[19px] lg:px-8 xl:px-[50px]"
