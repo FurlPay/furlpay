@@ -116,8 +116,12 @@ public final class FlightActivityController {
     public func update(_ pass: BoardingPass, now: Date = .now) async {
         #if canImport(ActivityKit)
         guard #available(iOS 16.2, *) else { return }
+        // Match on a copied id, not `pass`: a closure capturing the
+        // actor-isolated `pass` ties `activity` to this actor, and Swift 6
+        // then refuses to send it into the nonisolated `update` below.
+        let passId = pass.id
         guard let activity = Activity<FlightActivityAttributes>.activities
-            .first(where: { $0.attributes.passId == pass.id })
+            .first(where: { $0.attributes.passId == passId })
         else { return }
 
         await activity.update(

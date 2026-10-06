@@ -114,9 +114,13 @@ extension WatchSyncCoordinator: WCSessionDelegate {
         activationDidCompleteWith activationState: WCSessionActivationState,
         error: Error?
     ) {
+        // Read on the delegate queue; only the Bools cross to the main actor.
+        // WCSession is not Sendable, so capturing it in the Task is a data race.
+        let paired = session.isPaired
+        let reachable = session.isReachable
         Task { @MainActor in
-            isPaired = session.isPaired
-            isReachable = session.isReachable
+            isPaired = paired
+            isReachable = reachable
         }
     }
 
@@ -129,7 +133,8 @@ extension WatchSyncCoordinator: WCSessionDelegate {
     }
 
     nonisolated public func sessionReachabilityDidChange(_ session: WCSession) {
-        Task { @MainActor in isReachable = session.isReachable }
+        let reachable = session.isReachable
+        Task { @MainActor in isReachable = reachable }
     }
 
     /// Watch -> phone. The watch cannot perform mutating actions itself, so it
@@ -139,24 +144,32 @@ extension WatchSyncCoordinator: WCSessionDelegate {
         didReceiveMessage message: [String: Any],
         replyHandler: @escaping ([String: Any]) -> Void
     ) {
+        // `message` ([String: Any]) and `replyHandler` are not Sendable. Pull
+        // out the Sendable fields here, and box the handler: WatchConnectivity
+        // accepts a reply from any thread, so calling it from the main actor is
+        // safe, which the compiler cannot see.
+        let wantsRefresh = message[SyncKey.requestRefresh] != nil
+        let command = message[SyncKey.voiceCommand] as? String
+        let reply = ReplyHandler(replyHandler)
+
         Task { @MainActor in
-            if message[SyncKey.requestRefresh] != nil {
+            if wantsRefresh {
                 await container?.refreshAll()
-                replyHandler(["ok": true])
+                reply(["ok": true])
                 return
             }
 
-            if let command = message[SyncKey.voiceCommand] as? String {
+            if let command {
                 // Read-only by construction: the watch relay has no visible
                 // scene on the phone, so a mutating tool call has nowhere to
                 // present its confirmation. Mirrors the Android rule for
                 // VoiceRelayService running without an Activity.
                 let answer = await self.handleVoiceRelay(command)
-                replyHandler([SyncKey.voiceResponse: answer])
+                reply([SyncKey.voiceResponse: answer])
                 return
             }
 
-            replyHandler(["ok": false])
+            reply(["ok": false])
         }
     }
 
@@ -185,4 +198,13 @@ extension WatchSyncCoordinator: WCSessionDelegate {
         return "I can answer about your balance, spending, portfolio, cards, "
             + "trips and schedule."
     }
+}
+
+/// WatchConnectivity's reply closure, carried across to the main actor. The
+/// replies are built there from Sendable values (Bool, String), and
+/// WCSession accepts a reply from any thread.
+private struct ReplyHandler: @unchecked Sendable {
+    private let handler: ([String: Any]) -> Void
+    init(_ handler: @escaping ([String: Any]) -> Void) { self.handler = handler }
+    func callAsFunction(_ reply: [String: Any]) { handler(reply) }
 }
