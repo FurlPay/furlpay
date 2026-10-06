@@ -176,4 +176,20 @@ describe("FP-SET-10: step-up claims are single-use under concurrency", () => {
     await recordStepUp("op-1", "jti-1", "otp");
     expect(await claimStepUp("op-1", "jti-1", -1)).toBe(false);
   });
+
+  it("a fresh step-up in the same millisecond as a claimed one is still claimable once", async () => {
+    // The claim key used to be the step-up's timestamp, so a genuine second
+    // re-authentication recorded in the same millisecond was refused as a
+    // replay (seen in CI as a missing recovery approval).
+    const clock = vi.spyOn(Date, "now").mockReturnValue(NOW);
+    try {
+      await recordStepUp("op-1", "jti-1", "passkey");
+      expect(await claimStepUp("op-1", "jti-1")).toBe(true);
+      await recordStepUp("op-1", "jti-1", "passkey");
+      expect(await claimStepUp("op-1", "jti-1")).toBe(true);
+      expect(await claimStepUp("op-1", "jti-1")).toBe(false);
+    } finally {
+      clock.mockRestore();
+    }
+  });
 });
