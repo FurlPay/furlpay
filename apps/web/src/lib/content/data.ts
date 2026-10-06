@@ -97,6 +97,10 @@ export const REPORTS: Report[] = [
     // Public, as served in production since 2026-10-03 (founder decision):
     // the file lives under /public and needs no storage or email gate.
     pdfPath: "/reports/global-stablecoin-report-2026.pdf",
+    // The printed-report mockup (transparent PNG), as on the report page.
+    coverImage: "/reports/global-stablecoin-report-2026-cover.png",
+    coverWidth: 1024,
+    coverHeight: 1536,
     gated: false,
     featured: true,
     executiveSummary:

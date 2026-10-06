@@ -13,7 +13,7 @@ import {
 import JsonLd from "@/components/JsonLd";
 import LandingChrome from "@/components/landing/LandingChrome";
 import { seoMetadata } from "@/lib/seo/meta";
-import ReportDownload from "./ReportDownload";
+import ReportDownload from "@/components/content/ReportDownload";
 import { breadcrumb, ORG_ID, SITE } from "@/lib/seo/schema";
 
 const TITLE = "FurlPay Global Stablecoin Report 2026";
