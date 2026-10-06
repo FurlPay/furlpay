@@ -13,6 +13,7 @@ import { recordSettlement } from "@/lib/x402SettlementStore";
 import { recordX402Revenue } from "@/lib/revenue/x402";
 import type { FacilitatorRequest } from "@/lib/x402Facilitator";
 import { log } from "@/lib/log";
+import { quoteSecret } from "@/lib/x402QuoteSecret";
 
 // ---------------------------------------------------------------------------
 // Machine Payments Protocol (MPP) adapter — the second 402 dialect.
@@ -49,7 +50,8 @@ const liveMode = signatureEnforced;
 
 function challengeSecret(): Buffer {
   // Shared with x402's quote binding — one trust boundary for both dialects.
-  return Buffer.from(process.env.X402_QUOTE_SECRET || "x402_dev_quote_secret_change_me");
+  // No default: production requires X402_QUOTE_SECRET (lib/x402QuoteSecret.ts).
+  return quoteSecret();
 }
 
 // ── base64url (no padding) ────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { kvGet, kvSet } from "@/lib/kv";
 import { signatureEnforced } from "@/lib/x402Enforcement";
-import { controlSnapshot, RAILS, type Rail, type PauseState } from "@/lib/ops/controls";
+import { controlSnapshot, controlSnapshotSafe, RAILS, type Rail, type PauseState } from "@/lib/ops/controls";
 
 // ---------------------------------------------------------------------------
 // Overview aggregation — reads the REAL ops counters (ops:count:*) and control
@@ -100,33 +100,57 @@ async function railMetrics(rail: Rail) {
 }
 
 async function recentRailHealth(rail: Rail): Promise<RailHealthSignal | null> {
-  const signal = await kvGet<RailHealthSignal>(healthKey(rail));
+  // An unreadable health signal is "no recent signal" — which railStatus
+  // already renders as UNKNOWN, never as HEALTHY.
+  const signal = await kvGet<RailHealthSignal>(healthKey(rail)).catch(() => null);
   if (!signal?.checkedAt) return null;
   const checkedAt = Date.parse(signal.checkedAt);
   if (!Number.isFinite(checkedAt) || Date.now() - checkedAt > HEALTH_FRESH_MS) return null;
   return signal;
 }
 
-function railStatus(armed: boolean, pause: PauseState, globalPaused: boolean, health: RailHealthSignal | null): RailStatus {
+export function railStatus(
+  armed: boolean,
+  pause: PauseState & { unknown?: boolean },
+  globalPaused: boolean,
+  health: RailHealthSignal | null,
+  /** False when the pause flags could not be read. */
+  controlsKnown = true
+): RailStatus {
   if (globalPaused || pause.paused) return "PAUSED";
+  // Missing production credentials is a fact about config, not the store.
   if (!armed) return "NOT_CONFIGURED";
+  // Could not read whether it is paused → we do not know its status. Never
+  // HEALTHY on the strength of a stale or absent read.
+  if (!controlsKnown || pause.unknown) return "UNKNOWN";
   return health?.status ?? "UNKNOWN";
 }
 
-/** Public-safe operational status per rail: pause state + freshness-bounded
- *  health only — no env presence, no volumes (those stay admin-gated). */
-export async function publicRailStatuses(): Promise<Record<Rail, RailStatus>> {
-  const controls = await controlSnapshot();
+/** Public-safe operational status per rail, plus whether the controls behind
+ *  it could be read. Never throws: a store outage is reported, not raised. */
+export async function publicRailStatusReport(): Promise<{
+  statuses: Record<Rail, RailStatus>;
+  controlsAvailable: boolean;
+  /** Secret-free category of the store failure, when there was one. */
+  reason?: string;
+}> {
+  const controls = await controlSnapshotSafe();
   const cfg = configReadiness();
   const armed: Record<Rail, boolean> = {
     x402: cfg.x402.armed, mpp: cfg.x402.armed, lifi: cfg.lifi.armed, cctp: cfg.cctp.armed, transfers: cfg.x402.armed,
   };
   const out = {} as Record<Rail, RailStatus>;
   for (const rail of RAILS) {
-    const health = await recentRailHealth(rail);
-    out[rail] = railStatus(armed[rail], controls.rails[rail], controls.global.paused, health);
+    const health = controls.available ? await recentRailHealth(rail) : null;
+    out[rail] = railStatus(armed[rail], controls.rails[rail], controls.global.paused, health, controls.available && !controls.global.unknown);
   }
-  return out;
+  return { statuses: out, controlsAvailable: controls.available, reason: controls.reason };
+}
+
+/** Public-safe operational status per rail: pause state + freshness-bounded
+ *  health only — no env presence, no volumes (those stay admin-gated). */
+export async function publicRailStatuses(): Promise<Record<Rail, RailStatus>> {
+  return (await publicRailStatusReport()).statuses;
 }
 
 export async function opsOverview() {
