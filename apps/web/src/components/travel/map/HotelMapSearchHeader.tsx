@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { PropertyFamily } from "@/lib/hotels/curated";
 import VoiceInputButton from "@/components/VoiceInputButton";
 import { ClockIcon, CloseIcon, HotelIcon, PinIcon, SearchIcon } from "./icons";
@@ -65,6 +65,7 @@ export default function HotelMapSearchHeader({
   moreFilterCount,
   recent,
   onClearRecent,
+  leading,
 }: {
   query: string;
   onQuery: (s: string) => void;
@@ -82,6 +83,8 @@ export default function HotelMapSearchHeader({
    *  picking a row is recorded in one place — see lib/hotels/recentSearches. */
   recent: Destination[];
   onClearRecent: () => void;
+  /** Rendered first in the filter row: the stay-dates control. */
+  leading?: ReactNode;
 }) {
   const [focused, setFocused] = useState(false);
   const [highlight, setHighlight] = useState(0);
@@ -385,6 +388,7 @@ export default function HotelMapSearchHeader({
         {/* `flex-wrap`, never `overflow-x`. Three compact controls fit on one
             line at any realistic width; if they ever cannot, they wrap. */}
         <div className="no-scrollbar -mx-1 flex items-center gap-2 overflow-x-auto px-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
+          {leading}
           <FilterButton
             label={minStars ? `${minStars}+ stars` : "Rating"}
             active={minStars > 0}

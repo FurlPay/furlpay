@@ -30,6 +30,9 @@ export const MAP_PALETTE = {
   building: "#EDE9DE",
   road: "#E8E5D9",
   roadCasing: "#E0DCCE",
+  /** Railways. Positron draws them near-white (#ddd with #fafafa dashes),
+   *  which on the dark palette was the brightest thing on the map. */
+  rail: "#D6D1C3",
   border: "#E4E0D4",
   /**
    * Labels.
@@ -64,6 +67,7 @@ export const DARK_MAP_PALETTE: typeof MAP_PALETTE = {
   building: "#141C1D",
   road: "#1A2324",
   roadCasing: "#121A1B",
+  rail: "#26302F",
   border: "#2A3536",
   label: "#9AA6A3",
   labelSecondary: "#5F6B69",
@@ -88,6 +92,10 @@ function rulesFor(p: typeof MAP_PALETTE): Array<{
     { test: /park|wood|forest|grass|landcover/, fill: p.terrain },
     { test: /residential|landuse/, fill: p.residential },
     { test: /building/, fill: p.building, opacity: 0.5 },
+    // Rail before roads: the dash overlay takes the LAND colour, so it cuts
+    // the rail line into the familiar hatch instead of drawing white dashes.
+    { test: /railway.*dashline/, line: p.land },
+    { test: /railway/, line: p.rail },
     { test: /casing/, line: p.roadCasing },
     { test: /boundary|admin/, line: p.border },
     { test: /highway|road|aeroway|bridge|tunnel|pier|path/, line: p.road },
@@ -104,10 +112,54 @@ function rulesFor(p: typeof MAP_PALETTE): Array<{
 export function applyPalette(style: StyleSpecification, palette: typeof MAP_PALETTE = MAP_PALETTE): StyleSpecification {
   const next: StyleSpecification = JSON.parse(JSON.stringify(style));
   const rules = rulesFor(palette);
-
   for (const layer of next.layers) {
-    const id = layer.id.toLowerCase();
     const paint = ((layer as { paint?: Record<string, unknown> }).paint ??= {});
+    Object.assign(paint, palettePaintFor(layer.id, layer.type, palette, rules));
+  }
+  return next;
+}
+
+/** Prefix of every layer this app adds on top of the basemap. */
+const APP_LAYER_PREFIX = /^(hm-|user-)/;
+
+/**
+ * Recolour a LIVE map's basemap in place — the light/dark switch.
+ *
+ * `setStyle` would rebuild the style and drop every source and layer the hotel
+ * map added (markers, prices, user location), so the switch instead re-applies
+ * the same per-layer paint as `applyPalette` through setPaintProperty. The
+ * app's own layers are skipped: they are styled for both grounds already.
+ */
+export function applyPaletteToMap(
+  m: { getStyle(): StyleSpecification; setPaintProperty(layer: string, name: string, value: unknown): void },
+  theme: MapTheme
+): void {
+  const palette = theme === "dark" ? DARK_MAP_PALETTE : MAP_PALETTE;
+  const rules = rulesFor(palette);
+  for (const layer of m.getStyle().layers) {
+    if (APP_LAYER_PREFIX.test(layer.id)) continue;
+    for (const [name, value] of Object.entries(palettePaintFor(layer.id, layer.type, palette, rules))) {
+      try {
+        m.setPaintProperty(layer.id, name, value);
+      } catch {
+        // A property this layer type does not accept: leave it as it was.
+      }
+    }
+  }
+}
+
+/** The paint one basemap layer takes under a palette. Shared by both paths so
+ *  a fetched style and a live switch can never disagree. */
+function palettePaintFor(
+  layerId: string,
+  type: string,
+  palette: typeof MAP_PALETTE,
+  rules: ReturnType<typeof rulesFor>
+): Record<string, unknown> {
+  const paint: Record<string, unknown> = {};
+  {
+    const id = layerId.toLowerCase();
+    const layer = { type };
 
     if (layer.type === "symbol") {
       // PLACE NAMES ARE THE POINT OF A MAP. A country, a city or a town label
@@ -125,11 +177,11 @@ export function applyPalette(style: StyleSpecification, palette: typeof MAP_PALE
       // compete with the markers, which are the only things that should look
       // like controls on this surface. The TEXT stays; only the badge goes.
       if (/shield/.test(id)) paint["icon-opacity"] = 0;
-      continue;
+      return paint;
     }
 
     const rule = rules.find((r) => r.test.test(id));
-    if (!rule) continue;
+    if (!rule) return paint;
 
     if (layer.type === "background" && rule.fill) {
       paint["background-color"] = rule.fill;
@@ -141,8 +193,27 @@ export function applyPalette(style: StyleSpecification, palette: typeof MAP_PALE
       paint["line-color"] = rule.line;
     }
   }
+  return paint;
+}
 
-  return next;
+/** Where the reader's map-theme choice is remembered (a per-viewer
+ *  convenience, so localStorage is the right home for it). */
+export const MAP_THEME_STORAGE_KEY = "furlpay.hotelMap.theme";
+
+export function readStoredMapTheme(): MapTheme {
+  try {
+    return window.localStorage.getItem(MAP_THEME_STORAGE_KEY) === "light" ? "light" : "dark";
+  } catch {
+    return "dark";
+  }
+}
+
+export function storeMapTheme(theme: MapTheme): void {
+  try {
+    window.localStorage.setItem(MAP_THEME_STORAGE_KEY, theme);
+  } catch {
+    // private mode or blocked storage: the choice just isn't remembered
+  }
 }
 
 export const BASE_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";

@@ -4,6 +4,7 @@ import { memo, useState } from "react";
 import type { MapPoint } from "@/app/api/travel/hotels/map/route";
 import { thumbnailSource } from "@/lib/hotels/markerThumbnails";
 import SaveButton from "./SaveButton";
+import { formatMoney, isShowablePrice, type MapRate } from "@/lib/hotels/mapPrices";
 
 // One row of the hotel map's results list.
 //
@@ -68,9 +69,38 @@ export interface HotelResultCardProps {
   distanceKm?: number;
   onHover: (id: string | null) => void;
   onSelect: (point: MapPoint) => void;
+  /** The live rate for the reader's stay, if one was asked for. */
+  rate?: MapRate;
+  hasStay?: boolean;
 }
 
-function HotelResultCard({ point: p, selected, hovered, saved, distanceKm, onHover, onSelect }: HotelResultCardProps) {
+/** The price, or what the rate check actually found. Never a blank that reads
+ *  as "no price exists". */
+function RateLine({ rate }: { rate?: MapRate }) {
+  if (!rate) return null;
+  if (isShowablePrice(rate, Date.now())) {
+    return (
+      <span className="ml-auto whitespace-nowrap text-right text-[11px] text-[#A4AAA9]">
+        <span className="text-[16px] font-bold text-[#F5F7F6]">{formatMoney(rate.perNightAmount, rate.currency)}</span> /night
+        {rate.totalAmount !== undefined && rate.nights !== undefined && rate.nights > 1 && (
+          <span className="block text-[10.5px] text-[#6E7675]">{formatMoney(rate.totalAmount, rate.currency)} for {rate.nights} nights</span>
+        )}
+      </span>
+    );
+  }
+  const text =
+    rate.state === "loading" ? "Checking rate…"
+    : rate.state === "sandbox" ? "Test-mode rate · not bookable"
+    : rate.state === "unavailable" ? "No rate for your dates"
+    : rate.state === "error" ? "Rate check failed"
+    : "";
+  if (!text) return null;
+  return (
+    <span className={`ml-auto whitespace-nowrap text-[11px] ${rate.state === "loading" ? "animate-pulse text-[#6E7675]" : "text-[#6E7675]"}`}>{text}</span>
+  );
+}
+
+function HotelResultCard({ point: p, selected, hovered, saved, distanceKm, onHover, onSelect, rate }: HotelResultCardProps) {
   const type = TYPE_LABEL[p.hotelType?.toLowerCase()] ?? (p.hotelType ? p.hotelType[0].toUpperCase() + p.hotelType.slice(1) : undefined);
   const place = [p.city, p.country].filter(Boolean).join(", ");
   return (
@@ -135,7 +165,8 @@ function HotelResultCard({ point: p, selected, hovered, saved, distanceKm, onHov
         )}
         <p className="mt-auto flex flex-wrap items-center gap-1.5 pt-1 text-[11px]">
           {type && <span className="rounded-full border border-white/[0.08] px-2 py-0.5 text-[#A4AAA9]">{type}</span>}
-          {p.brand && <span className="truncate text-[#6E7675]">{p.brand}</span>}
+          {p.brand && <span className="min-w-0 truncate text-[#6E7675]">{p.brand}</span>}
+          <RateLine rate={rate} />
         </p>
       </div>
 

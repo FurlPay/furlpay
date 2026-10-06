@@ -3,6 +3,45 @@
 import { useEffect, useRef, useState } from "react";
 import type { HotelDetailResponse } from "@/app/api/travel/hotels/detail/route";
 import SaveButton, { useSavedIds } from "./map/SaveButton";
+import { formatMoney, isShowablePrice, nightsOf, type MapRate, type StayContext } from "@/lib/hotels/mapPrices";
+
+/** The rate block above the booking button: the live price for the reader's
+ *  stay, or an honest line about why there is none. */
+function DetailRate({ rate, stay }: { rate?: MapRate; stay: StayContext | null }) {
+  if (!stay) {
+    return <p className="mb-3 text-[12.5px] text-[#A4AAA9]">Add your dates in the toolbar to see live nightly rates on the map.</p>;
+  }
+  const nights = nightsOf(stay);
+  if (rate && isShowablePrice(rate, Date.now())) {
+    return (
+      <div className="mb-3 flex items-end justify-between">
+        <div>
+          <p className="text-[22px] font-bold leading-none text-[#F5F7F6]">
+            {formatMoney(rate.perNightAmount, rate.currency)}
+            <span className="ml-1 text-[12px] font-medium text-[#A4AAA9]">/night</span>
+          </p>
+          {rate.totalAmount !== undefined && (
+            <p className="mt-1 text-[12px] text-[#A4AAA9]">
+              {formatMoney(rate.totalAmount, rate.currency)} total · {nights} {nights === 1 ? "night" : "nights"} · {stay.adults} {stay.adults === 1 ? "adult" : "adults"}
+            </p>
+          )}
+        </div>
+        <span className="rounded-full bg-[rgba(0,230,167,0.10)] px-2 py-0.5 text-[10.5px] font-semibold text-[#00E6A7]">Live rate</span>
+      </div>
+    );
+  }
+  const text =
+    !rate || rate.state === "not_checked"
+      ? "Not priced yet — rates are checked for the hotels nearest the map centre."
+      : rate.state === "loading"
+        ? "Checking the live rate…"
+        : rate.state === "sandbox"
+          ? "Only a test-mode rate exists for this hotel — it is not bookable."
+          : rate.state === "unavailable"
+            ? "Our booking supplier has no rate for this hotel on your dates."
+            : "The live rate couldn't be checked right now.";
+  return <p className="mb-3 text-[12.5px] text-[#A4AAA9]">{text}</p>;
+}
 
 // ---------------------------------------------------------------------------
 // Hotel detail panel.
@@ -54,9 +93,15 @@ type State =
 export default function HotelDetailPanel({
   target,
   onClose,
+  stay = null,
+  rate,
 }: {
   target: DetailTarget | null;
   onClose: () => void;
+  /** The reader's stay, carried into the booking link. */
+  stay?: StayContext | null;
+  /** The live rate the map holds for this hotel and stay, if any. */
+  rate?: MapRate;
 }) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -91,7 +136,7 @@ export default function HotelDetailPanel({
       try {
         const res = await fetch(`/api/travel/hotels/detail?${params}`, { signal: ac.signal });
         if (res.status === 503) {
-          setState({ kind: "error", message: "Hotel detail is not configured" });
+          setState({ kind: "error", message: "Photos and reviews aren't available on this deployment." });
           return;
         }
         if (!res.ok) throw new Error(`detail ${res.status}`);
@@ -318,8 +363,9 @@ export default function HotelDetailPanel({
           path — rather than a price this panel would have to invent. */}
       {target.city && (
         <div className="border-t border-white/[0.08] p-4">
+          <DetailRate rate={rate} stay={stay} />
           <a
-            href={`/travel/stays?city=${encodeURIComponent(target.city)}`}
+            href={`/travel/stays?${new URLSearchParams({ city: target.city, ...(stay ? { checkIn: stay.checkIn, checkOut: stay.checkOut, adults: String(stay.adults) } : {}) })}`}
             className="flex h-[46px] w-full items-center justify-center gap-2 rounded-[11px] bg-[#00E6A7] text-[14px] font-bold text-[#030505] transition hover:bg-[#00F0B0] active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             Check rates &amp; book in {target.city}

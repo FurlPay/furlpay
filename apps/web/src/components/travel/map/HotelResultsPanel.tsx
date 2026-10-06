@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef } from "react";
 import type { MapPoint, MapResponse } from "@/app/api/travel/hotels/map/route";
 import { RESULT_SORTS, distanceKm, sortResults, type ResultSort } from "@/lib/hotels/resultSort";
+import type { MapRate } from "@/lib/hotels/mapPrices";
+import type { RatesStatus } from "./useMapRates";
 import HotelResultCard from "./HotelResultCard";
 
 // The results list beside the map.
@@ -31,6 +33,37 @@ export interface HotelResultsPanelProps {
   onSelect: (p: MapPoint) => void;
   onRetry: () => void;
   onClearFilters: () => void;
+  /** Live rates for the reader's stay, by hotel id. Empty without dates. */
+  rates: ReadonlyMap<string, MapRate>;
+  ratesStatus: RatesStatus;
+  hasStay: boolean;
+}
+
+/** One line on what the rate check found — said, never implied by blank cards. */
+function RatesNote({ rates, status }: { rates: ReadonlyMap<string, MapRate>; status: RatesStatus }) {
+  let priced = 0;
+  let failed = 0;
+  for (const r of rates.values()) {
+    if (r.state === "available") priced += 1;
+    else if (r.state === "error") failed += 1;
+  }
+  const text =
+    status === "loading"
+      ? "Checking live rates for the hotels nearest the map centre…"
+      : status === "error" || (status === "done" && priced === 0 && failed > 0)
+        ? "Live rates couldn't be checked right now — hotels are shown without prices."
+        : status === "done" && priced === 0
+          ? "No live rates found for these dates nearby."
+          : status === "done"
+            ? `Live nightly rates for ${priced} ${priced === 1 ? "hotel" : "hotels"} nearest the map centre.`
+            : "";
+  if (!text) return null;
+  return (
+    <p className="mt-0.5 flex items-center gap-1.5 text-[12px] text-[#A4AAA9]" role="status">
+      {status === "loading" && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00E6A7]" aria-hidden />}
+      {text}
+    </p>
+  );
 }
 
 export default function HotelResultsPanel(props: HotelResultsPanelProps) {
@@ -59,6 +92,7 @@ export default function HotelResultsPanel(props: HotelResultsPanelProps) {
               +{clustered.toLocaleString("en-US")} more in clusters — zoom in or open a cluster to list them
             </p>
           )}
+          {props.hasStay && <RatesNote rates={props.rates} status={props.ratesStatus} />}
         </div>
         <label className="flex shrink-0 items-center gap-2 text-[12px] text-[#A4AAA9]">
           <span className="hidden sm:inline">Sort</span>
@@ -128,6 +162,8 @@ export default function HotelResultsPanel(props: HotelResultsPanelProps) {
                 distanceKm={center ? distanceKm(center, p) : undefined}
                 onHover={props.onHover}
                 onSelect={props.onSelect}
+                rate={props.rates.get(p.id)}
+                hasStay={props.hasStay}
               />
             ))}
           </ol>

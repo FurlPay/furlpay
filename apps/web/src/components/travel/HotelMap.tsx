@@ -8,7 +8,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 // Named imports are the supported shape.
 import {
   Map as MapLibreMap,
+  ScaleControl,
   setWorkerUrl,
+  type ExpressionSpecification,
   type GeoJSONSource,
   type LngLatBounds,
   type MapGeoJSONFeature,
@@ -44,7 +46,8 @@ setWorkerUrl("/maplibre-gl-worker.mjs");
 import type { MapCluster, MapPoint, MapResponse } from "@/app/api/travel/hotels/map/route";
 import type { ClusterMember, PropertyFamily } from "@/lib/hotels/curated";
 import { LUXURY_MAP_CATEGORIES, type LuxuryCategoryId } from "@/lib/hotels/luxuryTiers";
-import { luxuryMapStyle } from "@/lib/hotels/mapStyle";
+import { applyPaletteToMap, luxuryMapStyle, readStoredMapTheme, storeMapTheme, type MapTheme } from "@/lib/hotels/mapStyle";
+import MapViewControls from "./map/MapViewControls";
 import HotelDetailPanel, { type DetailTarget } from "./HotelDetailPanel";
 import DestinationCard from "./map/DestinationCard";
 import HotelMapSearchHeader, { type Destination } from "./map/HotelMapSearchHeader";
@@ -60,7 +63,16 @@ import { mergeLivePoints, toMapPoints } from "@/lib/places/liveAugment";
 import AccessibleMarkerList, { type ListEntry } from "./map/AccessibleMarkerList";
 import HotelResultsPanel from "./map/HotelResultsPanel";
 import { isResultSort, type ResultSort } from "@/lib/hotels/resultSort";
+import { priceLabel, stayFromParams, stayKey, type StayContext } from "@/lib/hotels/mapPrices";
+import { useMapRates } from "./map/useMapRates";
+import StayPicker from "./map/StayPicker";
 import {
+  LYR_HEATMAP,
+  LYR_PRICE,
+  LYR_PROPERTY_NAME,
+  MARKER_LAYERS,
+  PRICE_PILL_IMAGE,
+  pricePillImage,
   buildFeatures,
   categoryColor,
   hashId,
@@ -191,10 +203,19 @@ interface UrlSearchState {
   exactOnly: boolean;
   sort: ResultSort;
   hotel: string | null;
+  /** Stay dates and party (`?in=&out=&adults=`). Prices are asked for only
+   *  with these — a rate without dates is a guess. */
+  stay: StayContext | null;
+}
+
+/** Today in the reader's own calendar, as YYYY-MM-DD. */
+function todayLocalIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
 function searchStateFromUrl(): UrlSearchState {
-  const empty: UrlSearchState = { minStars: 0, families: [], categories: [], textFilter: "", exactOnly: false, sort: "recommended", hotel: null };
+  const empty: UrlSearchState = { minStars: 0, families: [], categories: [], textFilter: "", exactOnly: false, sort: "recommended", hotel: null, stay: null };
   if (typeof window === "undefined") return empty;
   const q = new URLSearchParams(window.location.search);
   const list = (k: string) => (q.get(k) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -210,6 +231,7 @@ function searchStateFromUrl(): UrlSearchState {
     exactOnly: q.get("exact") === "1",
     sort: isResultSort(sort) ? sort : "recommended",
     hotel: hotel && /^[\w:.\-]{1,120}$/.test(hotel) ? hotel : null,
+    stay: stayFromParams(q, todayLocalIso()),
   };
 }
 
@@ -231,6 +253,9 @@ function writeSearchToUrl(s: Omit<UrlSearchState, "hotel"> & { hotel: string | n
   set("exact", s.exactOnly ? "1" : null);
   set("sort", s.sort !== "recommended" ? s.sort : null);
   set("hotel", s.hotel);
+  set("in", s.stay?.checkIn ?? null);
+  set("out", s.stay?.checkOut ?? null);
+  set("adults", s.stay ? String(s.stay.adults) : null);
   const next = `${window.location.pathname}${q.toString() ? `?${q}` : ""}`;
   if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", next);
 }
@@ -498,6 +523,36 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   const [center, setCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   /** Phones show one surface at a time. Desktop shows both. */
   const [mobileView, setMobileView] = useState<"list" | "map">("map");
+  /** The reader's stay; null until they pick dates (then prices appear). */
+  const [stay, setStay] = useState<StayContext | null>(null);
+
+  // --- map view: theme, density, fullscreen ---------------------------------
+  // The theme is read from storage AFTER mount (the server has no storage) —
+  // the map itself is built client-side from the stored value, so there is no
+  // flash of the other palette, only these buttons settling.
+  const [mapTheme, setMapTheme] = useState<MapTheme>("dark");
+  const [density, setDensity] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [fullscreenSupported, setFullscreenSupported] = useState(false);
+  const mapColumn = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    setMapTheme(readStoredMapTheme());
+    setFullscreenSupported(Boolean(document.fullscreenEnabled));
+    const onFs = () => setFullscreen(document.fullscreenElement === mapColumn.current);
+    document.addEventListener("fullscreenchange", onFs);
+    return () => document.removeEventListener("fullscreenchange", onFs);
+  }, []);
+  const toggleFullscreen = useCallback(() => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    else void mapColumn.current?.requestFullscreen().catch(() => {});
+  }, []);
+  const toggleTheme = useCallback(() => {
+    setMapTheme((t) => {
+      const next = t === "dark" ? "light" : "dark";
+      storeMapTheme(next);
+      return next;
+    });
+  }, []);
   /** The URL's ?hotel=, reopened once its point has loaded. */
   const pendingHotel = useRef<string | null>(null);
   /** False until the URL has been READ, so nothing writes over it first. */
@@ -516,9 +571,31 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
     setMinStars(s.minStars);
     setExactOnly(s.exactOnly);
     setSort(s.sort);
+    setStay(s.stay);
     pendingHotel.current = s.hotel;
     urlRead.current = true;
   }, []);
+
+  // --- prices ---------------------------------------------------------------
+  //
+  // Live rates for the hotels on screen, once the reader has chosen dates.
+  // The labels reach the GPU through a ref read by `paint` (registered on map
+  // events once, like `filters`), and a change repaints what is already drawn.
+  const { rates, status: ratesStatus } = useMapRates(listPoints, center, stay);
+  const priceLabels = useRef<ReadonlyMap<string, string>>(new Map());
+  useEffect(() => {
+    const now = Date.now();
+    const labels = new Map<string, string>();
+    for (const [id, r] of rates) {
+      const l = priceLabel(r, now);
+      if (l) labels.set(id, l);
+    }
+    priceLabels.current = labels;
+    const m = map.current;
+    if (m?.getSource(SRC_POINTS)) paint(latest.current.clusters, latest.current.points);
+    // `paint` is stable (useCallback with no deps).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rates]);
 
   // Status of the LIVE layer only. The indexed sources have their own
   // `error` state; conflating them would report a working map as broken
@@ -661,7 +738,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         clusters = [];
         points = points.filter((p) => savedIds.has(p.id));
       }
-      const built = buildFeatures(clusters, points, m);
+      const built = buildFeatures(clusters, points, m, null, priceLabels.current);
       index.current = built.index;
       (m.getSource(SRC_POINTS) as GeoJSONSource).setData(built.points);
       (m.getSource(SRC_LEADERS) as GeoJSONSource).setData(built.leaders);
@@ -828,7 +905,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
     let disposed = false;
 
     void (async () => {
-      const style = await luxuryMapStyle(ac.signal);
+      const style = await luxuryMapStyle(ac.signal, readStoredMapTheme());
       if (disposed || !container.current) return;
 
       let m: MapLibreMap;
@@ -871,7 +948,17 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
           }
         }
 
+        // The price pill, registered before the layer that draws it.
+        if (!m.hasImage(PRICE_PILL_IMAGE)) {
+          const pill = pricePillImage();
+          m.addImage(PRICE_PILL_IMAGE, { width: pill.width, height: pill.height, data: pill.data }, pill.options);
+        }
+
         for (const spec of layerSpecs()) m.addLayer(spec);
+
+        // Native scale bar, metric. Styled for the dark chrome by the map
+        // column's classes; top-left keeps it clear of every other control.
+        m.addControl(new ScaleControl({ maxWidth: 96, unit: "metric" }), "top-left");
 
         // --- user location layers -------------------------------------------
         // Source: one point with accuracy (metres) and heading (degrees) as
@@ -1424,9 +1511,59 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       sort,
       // Until a pending ?hotel= has been reopened, keep it rather than erase it.
       hotel: selectedId ?? pendingHotel.current,
+      stay,
       camera: m && center ? { lat: center.latitude, lng: center.longitude, z: m.getZoom() } : undefined,
     });
-  }, [center, minStars, families, categories, textFilter, exactOnly, sort, selectedId]);
+  }, [center, minStars, families, categories, textFilter, exactOnly, sort, selectedId, stay]);
+
+  // Light/dark: recolour the basemap in place. Markers, prices and the user's
+  // position are untouched — they read on either ground.
+  useEffect(() => {
+    const m = map.current;
+    if (!m?.isStyleLoaded()) return;
+    applyPaletteToMap(m, mapTheme);
+    // Hotel names are the one app layer drawn ON the cartography rather than
+    // as a badge, so they follow the ground: light text on dark, dark on ivory.
+    if (m.getLayer(LYR_PROPERTY_NAME)) {
+      const light = mapTheme === "light";
+      m.setPaintProperty(LYR_PROPERTY_NAME, "text-color", light ? "#1F2421" : "#F5F7F6");
+      m.setPaintProperty(LYR_PROPERTY_NAME, "text-halo-color", light ? "rgba(255,255,255,0.95)" : "rgba(5,9,9,0.92)");
+    }
+    // Price pills invert with the ground so they never sink into it: light
+    // pills on the dark map, dark pills on ivory. Hover/selected stay emerald.
+    if (m.getLayer(LYR_PRICE)) {
+      const active: ExpressionSpecification = ["any", ["boolean", ["feature-state", "hover"], false], ["boolean", ["feature-state", "selected"], false]];
+      const light = mapTheme === "light";
+      m.setPaintProperty(LYR_PRICE, "icon-color", ["case", active, "#00E6A7", light ? "#0D1314" : "#F5F7F6"]);
+      m.setPaintProperty(LYR_PRICE, "text-color", ["case", active, "#030505", light ? "#F5F7F6" : "#030505"]);
+    }
+  }, [mapTheme]);
+
+  // Density: the heatmap and the markers draw from one source, so switching is
+  // a visibility change — no refetch, no rebuild.
+  useEffect(() => {
+    const m = map.current;
+    if (!m?.getLayer(LYR_HEATMAP)) return;
+    m.setLayoutProperty(LYR_HEATMAP, "visibility", density ? "visible" : "none");
+    for (const id of MARKER_LAYERS) {
+      if (m.getLayer(id)) m.setLayoutProperty(id, "visibility", density ? "none" : "visible");
+    }
+    if (density) setHover(null);
+  }, [density]);
+
+  // The open hotel's price pill turns emerald, through feature-state like hover.
+  const selectedFeature = useRef<number | null>(null);
+  useEffect(() => {
+    const m = map.current;
+    if (!m?.getSource(SRC_POINTS)) return;
+    if (selectedFeature.current !== null) {
+      m.setFeatureState({ source: SRC_POINTS, id: selectedFeature.current }, { selected: false });
+    }
+    selectedFeature.current = selectedId ? hashId(selectedId) : null;
+    if (selectedFeature.current !== null) {
+      m.setFeatureState({ source: SRC_POINTS, id: selectedFeature.current }, { selected: true });
+    }
+  }, [selectedId, listPoints]);
 
   // Reopen ?hotel= once its point is on the map (Back, reload, shared link).
   useEffect(() => {
@@ -1498,6 +1635,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
           moreFilterCount={moreFilterCount}
           recent={recent}
           onClearRecent={() => setRecent(clearRecent())}
+          leading={<StayPicker stay={stay} onChange={setStay} today={todayLocalIso()} />}
         />
       </div>
 
@@ -1524,10 +1662,16 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
             if (m) void load(m.getBounds(), m.getZoom());
           }}
           onClearFilters={clearFilters}
+          rates={rates}
+          ratesStatus={ratesStatus}
+          hasStay={stay !== null}
         />
       </div>
 
-      <div className={`${mobileView === "map" ? "block" : "hidden"} relative min-w-0 flex-1 overflow-hidden bg-[#0B1112] lg:block`}>
+      <div
+        ref={mapColumn}
+        className={`${mobileView === "map" ? "block" : "hidden"} relative min-w-0 flex-1 overflow-hidden bg-[#0B1112] lg:block [&_.maplibregl-ctrl-scale]:rounded-[4px] [&_.maplibregl-ctrl-scale]:border-white/40 [&_.maplibregl-ctrl-scale]:bg-[#090D0E]/85 [&_.maplibregl-ctrl-scale]:px-1 [&_.maplibregl-ctrl-scale]:text-[10px] [&_.maplibregl-ctrl-scale]:text-[#C9CFCD]`}
+      >
       <div ref={container} className="h-full w-full" />
 
       {/* The map, as a list. Off-screen until focused — see AccessibleMarkerList. */}
@@ -1575,6 +1719,23 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
           if (m) m.easeTo({ zoom: m.getZoom() + delta, duration: 220 });
         }}
       />
+
+      <MapViewControls
+        top={belowHeader + 84 + 10}
+        fullscreen={fullscreen}
+        fullscreenSupported={fullscreenSupported}
+        onToggleFullscreen={toggleFullscreen}
+        theme={mapTheme}
+        onToggleTheme={toggleTheme}
+        density={density}
+        onToggleDensity={() => setDensity((d) => !d)}
+      />
+
+      {density && (
+        <p className="pointer-events-none absolute left-1/2 top-[64px] z-20 -translate-x-1/2 rounded-full border border-white/[0.10] bg-[#090D0E]/95 px-3 py-1.5 text-[11.5px] text-[#C9CFCD]" role="status">
+          Density of the hotels loaded for this view
+        </p>
+      )}
 
       <SavedFilterButton
         active={savedOnly}
@@ -1658,7 +1819,12 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       <StatusBar error={error} meta={meta} loading={loading} liveStatus={liveStatus} />
       </div>
 
-      <HotelDetailPanel target={selected} onClose={() => setSelected(null)} />
+      <HotelDetailPanel
+        target={selected}
+        onClose={() => setSelected(null)}
+        stay={stay}
+        rate={selected ? rates.get(selected.id) : undefined}
+      />
       </div>
 
       {/* Phones: one surface at a time. */}
