@@ -47,6 +47,36 @@ describe("radius search", () => {
     expect(bad.body.area).toBeNull(); // bow-tie: ignored, not "repaired"
   });
 
+  it("stops waiting on Overpass after it fails, then tries again after the cool-down", async () => {
+    const osm = await import("@/lib/travel/osmHotels");
+    const lookup = vi.mocked(osm.osmHotelsInBBox);
+    const breaker = await import("@/lib/travel/osmBreaker");
+    breaker.resetOsmBreaker();
+    lookup.mockClear();
+    lookup.mockResolvedValueOnce(null); // Overpass down
+    const first = await call("bbox=139.70,35.65,139.80,35.70&z=13&osm=wait");
+    expect(first.body.osmUnavailable).toBe(true);
+    expect(lookup).toHaveBeenCalledTimes(1);
+
+    // Breaker open: answered at once, no lookup, honestly unavailable (not deferred).
+    const second = await call("bbox=139.70,35.65,139.80,35.70&z=13");
+    expect(lookup).toHaveBeenCalledTimes(1);
+    expect(second.body.osmUnavailable).toBe(true);
+    expect(second.body.osmDeferred).toBe(false);
+
+    // After the cool-down the next request asks again.
+    vi.useFakeTimers({ now: Date.now() + 121_000, toFake: ["Date"] });
+    try {
+      lookup.mockResolvedValueOnce([]);
+      const third = await call("bbox=139.70,35.65,139.80,35.70&z=13&osm=wait");
+      expect(lookup).toHaveBeenCalledTimes(2);
+      expect(third.body.osmUnavailable).toBe(false);
+    } finally {
+      vi.useRealTimers();
+      breaker.resetOsmBreaker();
+    }
+  });
+
   it("ignores an invalid radius rather than scanning an arbitrary circle", async () => {
     const r = await call("bbox=139.55,35.55,139.95,35.80&z=11&near=35.68,139.76&radiusKm=500");
     expect(r.status).toBe(200);

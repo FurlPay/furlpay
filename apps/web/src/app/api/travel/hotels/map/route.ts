@@ -22,6 +22,7 @@ import {
 import { haversineMeters, jaroWinkler, normalizeName } from "@/lib/hotels/h3";
 import { parseRadius, withinRadius } from "@/lib/hotels/radius";
 import { inArea, parseArea } from "@/lib/hotels/drawArea";
+import { noteOsmResult, osmCoolingDown } from "@/lib/travel/osmBreaker";
 import { LUXURY_MAP_CATEGORIES, type LuxuryCategoryId } from "@/lib/hotels/luxuryTiers";
 
 export const dynamic = "force-dynamic";
@@ -509,8 +510,13 @@ export async function GET(req: NextRequest) {
   const osmAttempted = osmWanted && !filtersCurated && !googleCoversIt;
   let osm: Awaited<ReturnType<typeof osmHotelsInBBox>> = null;
   let osmDeferred = false;
-  if (osmAttempted && osmWaitFull) {
+  // Breaker open: Overpass failed moments ago. Do not ask, do not wait; the
+  // answer is "OSM layer unavailable" (osm stays null, not deferred).
+  if (osmAttempted && osmCoolingDown()) {
+    osm = null;
+  } else if (osmAttempted && osmWaitFull) {
     osm = await osmHotelsInBBox(box, filter.minStars ?? 0);
+    noteOsmResult(osm);
   } else if (osmAttempted) {
     const lookup = osmHotelsInBBox(box, filter.minStars ?? 0);
     const LATE = Symbol("late");
@@ -524,9 +530,12 @@ export async function GET(req: NextRequest) {
     clearTimeout(timer);
     if (raced === LATE) {
       osmDeferred = true;
-      lookup.catch(() => {}); // finishes in the background, into the cache
+      // Finishes in the background where the platform allows; its outcome
+      // still feeds the breaker on this instance.
+      lookup.then(noteOsmResult, () => noteOsmResult(null));
     } else {
       osm = raced;
+      noteOsmResult(osm);
     }
   }
   // null from a call we made is an upstream failure; null because we never
