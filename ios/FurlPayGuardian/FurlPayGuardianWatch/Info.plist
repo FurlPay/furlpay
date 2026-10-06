@@ -4,6 +4,8 @@
 <dict>
     <key>CFBundleDisplayName</key>
     <string>Guardian</string>
+    <key>CFBundleExecutable</key>
+    <string>$(EXECUTABLE_NAME)</string>
     <key>CFBundleIdentifier</key>
     <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
     <key>CFBundleName</key>
@@ -19,8 +21,10 @@
          WKWatchKitApp plus a separate extension; that shape is retired. -->
     <key>WKApplication</key>
     <true/>
+    <!-- Must equal the host app's bundle id, which carries the per-config
+         suffix (.dev / .staging); a hardcoded id only matched Release. -->
     <key>WKCompanionAppBundleIdentifier</key>
-    <string>com.furlpay.guardian</string>
+    <string>$(FURLPAY_BUNDLE_ID_BASE)$(FURLPAY_BUNDLE_SUFFIX)</string>
 
     <!-- Push-to-talk on the watch relays to the phone, but the recognition
          itself runs on-watch, so both strings are needed here too. -->
