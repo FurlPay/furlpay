@@ -41,25 +41,12 @@ function normalizedEmail(email: string | undefined | null): string {
 }
 
 /** Resolve the acting user from the session cookie. 401 when absent/stale. */
-export async function requireUser(req: NextRequest): Promise<AuthResult> {
+export async function requireUser(req: NextRequest, opts: { allowUnknownRevocation?: boolean } = {}): Promise<AuthResult> {
   // durable: also consult the cross-instance revocation denylist — a token
   // revoked by logout/account-lock on another lambda must die here too.
   const { claims, revocation } = await verifySessionState(tokenFromRequest(req), { durable: true });
   if (!claims?.sub) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-  }
-  // Revocation could not be checked (KV unreachable), so a logged-out or
-  // stolen token is indistinguishable from a live one. Reads stay available;
-  // anything that changes state — money movement, credentials, settings — is
-  // refused until the denylist is readable again.
-  if (revocation === "unknown" && !READ_ONLY_METHODS.has(req.method)) {
-    return {
-      ok: false,
-      res: NextResponse.json(
-        { error: "session_check_unavailable", detail: "Please try again shortly.", retryAfterSeconds: 30 },
-        { status: 503, headers: { "Retry-After": "30" } }
-      ),
-    };
   }
   // A connector (MCP) access token is scoped, not a full session: it may only
   // reach the routes its consented scopes map to (default deny — see
@@ -113,6 +100,22 @@ export async function requireUser(req: NextRequest): Promise<AuthResult> {
       res: NextResponse.json(
         { error: "Session ended — sign in again" },
         { status: 401, headers: { [REVOCATION_HEADER]: EPOCH_OUTDATED } }
+      ),
+    };
+  }
+  // Revocation could not be checked (KV unreachable), so a logged-out or
+  // stolen token is indistinguishable from a live one. Reads stay available;
+  // anything that changes state — money movement, credentials, settings — is
+  // refused until the denylist is readable again. Runs LAST: a logout during
+  // the outage bumped the Postgres epoch above, which answers 401, not 503.
+  // allowUnknownRevocation: only /api/auth/refresh — a refreshed token keeps
+  // its jti, so it stays revocable, and it still cannot write while unknown.
+  if (revocation === "unknown" && !READ_ONLY_METHODS.has(req.method) && !opts.allowUnknownRevocation) {
+    return {
+      ok: false,
+      res: NextResponse.json(
+        { error: "session_check_unavailable", detail: "Please try again shortly.", retryAfterSeconds: 30 },
+        { status: 503, headers: { "Retry-After": "30" } }
       ),
     };
   }

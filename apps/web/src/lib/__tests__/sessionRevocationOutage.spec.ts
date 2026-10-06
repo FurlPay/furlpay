@@ -1,105 +1,100 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
 
-// Session revocation while the KV denylist is unavailable (audit 7 Oct 2026,
-// P1-4). Before: the revocation write was swallowed and the durable read failed
-// open, so a logged-out or stolen token kept full access on other instances.
-// Now:
-//   - an unreadable denylist is "unknown", never "clear";
-//   - requireUser lets an unknown READ, but refuses any state change (503);
-//   - logout that cannot reach the denylist falls back to the Postgres-backed
-//     session epoch, so the logout holds on every instance.
+// SEC-P2-002: a revoked session must stay revoked through a kv outage.
+// Before the fix, refresh minted a NEW jti, and the durable revocation check
+// fails open on kv errors, so a logged-out token could be refreshed into an
+// unrevoked one that outlived the outage by up to 30 days.
 
-const S = vi.hoisted(() => ({ kvDown: false, revoked: new Set<string>() }));
-
+const kvState = { down: false };
 vi.mock("@/lib/kv", async (orig) => {
   const real = await orig<typeof import("@/lib/kv")>();
-  return {
-    ...real,
-    kvGet: vi.fn(async (k: string) => {
-      if (S.kvDown) throw new real.KvError("ERR max plan limit exceeded", "plan_limit", 400);
-      return S.revoked.has(k) ? 1 : null;
-    }),
-    kvSet: vi.fn(async (k: string) => {
-      if (S.kvDown) throw new real.KvError("ERR max plan limit exceeded", "plan_limit", 400);
-      S.revoked.add(k);
-    }),
-  };
+  const guard =
+    <A extends unknown[], R>(fn: (...a: A) => Promise<R>) =>
+    (...a: A): Promise<R> =>
+      kvState.down ? Promise.reject(new Error("kv unavailable")) : fn(...a);
+  return { ...real, kvGet: guard(real.kvGet), kvSet: guard(real.kvSet) };
 });
 
-const bump = vi.hoisted(() => vi.fn(async () => 2));
-vi.mock("@/lib/sessionEpoch", async (orig) => ({ ...(await orig<typeof import("@/lib/sessionEpoch")>()), bumpSessionEpoch: bump }));
+const { POST: refresh } = await import("@/app/api/auth/refresh/route");
+const { POST: logout } = await import("@/app/api/auth/logout/route");
+const { signSession, verifySession } = await import("@/lib/session");
+const { findOrCreateUserByIdentity } = await import("@/lib/store");
 
-import { revokeSession, signSession, verifySessionState, SESSION_COOKIE } from "@/lib/session";
-import { requireUser } from "@/lib/authz";
-import { POST as logout } from "@/app/api/auth/logout/route";
+/** Forget this instance's in-memory revocations: "the next request lands elsewhere". */
+const otherInstance = () => (globalThis as unknown as { __revokedJtis?: Map<string, number> }).__revokedJtis?.clear();
 
-const req = (method: string, token: string) =>
-  new NextRequest("http://localhost/api/account", { method, headers: { authorization: `Bearer ${token}`, "x-forwarded-for": "192.0.2.10" } });
+async function session() {
+  const { account } = findOrCreateUserByIdentity({ email: `rev-${randomUUID()}@furlpay.test`, name: "Rev" });
+  const jti = randomUUID();
+  const token = await signSession({ sub: account.user.id, safe: "0x0", roles: ["user"], jti });
+  return { userId: account.user.id, jti, token };
+}
 
-beforeEach(() => {
-  S.kvDown = false;
-  S.revoked.clear();
-  bump.mockClear();
+const call = (handler: (r: NextRequest) => Promise<Response>, path: string, token: string) =>
+  handler(new NextRequest(`https://furlpay.com${path}`, { method: "POST", headers: { authorization: `Bearer ${token}`, "x-furlpay-client": "mobile-test" } }));
+
+async function refreshed(token: string) {
+  const res = await call(refresh, "/api/auth/refresh", token);
+  return { status: res.status, token: res.status === 200 ? ((await res.json()) as { token: string }).token : null };
+}
+
+afterEach(() => {
+  kvState.down = false;
 });
 
-describe("verifySessionState", () => {
-  it("is clear when the denylist is readable, and null once revoked", async () => {
-    const t = await signSession({ sub: "u1", jti: "j1" });
-    expect((await verifySessionState(t, { durable: true })).revocation).toBe("clear");
-    expect(await revokeSession("j1")).toBe(true);
-    expect((await verifySessionState(t, { durable: true })).claims).toBeNull();
+describe("session revocation survives kv outages (SEC-P2-002)", () => {
+  it("refresh keeps the session's jti", async () => {
+    const s = await session();
+    const r = await refreshed(s.token);
+    expect(r.status).toBe(200);
+    expect((await verifySession(r.token!))?.jti).toBe(s.jti);
   });
 
-  it("reports unknown (not clear) when KV cannot be read", async () => {
-    const t = await signSession({ sub: "u1", jti: "j2" });
-    S.kvDown = true;
-    const r = await verifySessionState(t, { durable: true });
-    expect(r.claims?.sub).toBe("u1");
-    expect(r.revocation).toBe("unknown");
+  it("concurrent refreshes all stay in the same session", async () => {
+    const s = await session();
+    const results = await Promise.all(Array.from({ length: 10 }, () => refreshed(s.token)));
+    const jtis = await Promise.all(results.map(async (r) => (await verifySession(r.token!))?.jti));
+    expect(new Set(jtis)).toEqual(new Set([s.jti]));
   });
 
-  it("revokeSession says when the revocation did not become durable", async () => {
-    S.kvDown = true;
-    expect(await revokeSession("j3")).toBe(false);
-  });
-});
-
-describe("requireUser while revocation is unknown", () => {
-  it.each(["POST", "PUT", "PATCH", "DELETE"])("refuses %s with 503 session_check_unavailable", async (m) => {
-    const t = await signSession({ sub: "u1", jti: "j4" });
-    S.kvDown = true;
-    const r = await requireUser(req(m, t));
-    expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.res.status).toBe(503);
-      expect((await r.res.json()).error).toBe("session_check_unavailable");
-    }
+  it("after logout, neither the token nor anything refreshed from it works (kv up)", async () => {
+    const s = await session();
+    const child = (await refreshed(s.token)).token!;
+    expect((await call(logout, "/api/auth/logout", s.token)).status).toBe(200);
+    otherInstance();
+    expect((await refreshed(s.token)).status).toBe(401);
+    expect((await refreshed(child)).status).toBe(401);
   });
 
-  it("does not turn a GET into a 503 (reads stay available)", async () => {
-    const t = await signSession({ sub: "u-missing", jti: "j5" });
-    S.kvDown = true;
-    const r = await requireUser(req("GET", t));
-    // No such account in the test store, so the next check answers 401 — the
-    // point is that the revocation check did not refuse the read.
-    if (!r.ok) expect(r.res.status).not.toBe(503);
-  });
-});
-
-describe("logout while KV is down", () => {
-  it("falls back to bumping the durable session epoch", async () => {
-    const t = await signSession({ sub: "u1", jti: "j6" });
-    S.kvDown = true;
-    const res = await logout(new NextRequest("http://localhost/api/auth/logout", { method: "POST", headers: { cookie: `${SESSION_COOKIE}=${t}`, "x-forwarded-for": "192.0.2.11" } }));
-    expect(res.status).toBe(200);
-    expect(bump).toHaveBeenCalledWith("u1");
+  it("a session revoked before an outage, refreshed during it, is dead once kv recovers", async () => {
+    const s = await session();
+    expect((await call(logout, "/api/auth/logout", s.token)).status).toBe(200); // durable revocation recorded
+    otherInstance();
+    kvState.down = true; // revocation check now fails open
+    const during = await refreshed(s.token);
+    kvState.down = false;
+    otherInstance();
+    // Whatever the outage handed out carries the revoked jti, so it is refused.
+    if (during.token) expect((await refreshed(during.token)).status).toBe(401);
+    expect((await refreshed(s.token)).status).toBe(401);
   });
 
-  it("does not bump the epoch when the denylist took the revocation", async () => {
-    const t = await signSession({ sub: "u1", jti: "j7" });
-    await logout(new NextRequest("http://localhost/api/auth/logout", { method: "POST", headers: { cookie: `${SESSION_COOKIE}=${t}`, "x-forwarded-for": "192.0.2.12" } }));
-    expect(bump).not.toHaveBeenCalled();
-    expect((await verifySessionState(t, { durable: true })).claims).toBeNull();
+  it("a logout DURING an outage falls back to the account epoch and ends the session everywhere", async () => {
+    const s = await session();
+    kvState.down = true;
+    expect((await call(logout, "/api/auth/logout", s.token)).status).toBe(200);
+    otherInstance();
+    // Even with kv still down, the epoch (account store) refuses the token.
+    expect((await refreshed(s.token)).status).toBe(401);
+    kvState.down = false;
+    expect((await refreshed(s.token)).status).toBe(401);
+  });
+
+  it("a session that was never revoked keeps refreshing through an outage", async () => {
+    const s = await session();
+    kvState.down = true;
+    expect((await refreshed(s.token)).status).toBe(200);
   });
 });

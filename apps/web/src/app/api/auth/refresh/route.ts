@@ -19,7 +19,7 @@ import { canRefreshSession, setSessionCookie, signSession, SESSION_MAX_AGE } fro
 // refresh_token grant at /api/oauth/token).
 
 export async function POST(req: NextRequest) {
-  const auth = await requireUser(req);
+  const auth = await requireUser(req, { allowUnknownRevocation: true });
   if (!auth.ok) return auth.res;
   const { claims } = auth;
 
@@ -30,6 +30,12 @@ export async function POST(req: NextRequest) {
   }
 
   const token = await signSession({
+    // SAME jti (SEC-P2-002). A fresh jti per refresh let a revoked session slide
+    // into a token the denylist had never heard of: during a kv outage the
+    // revocation check fails open, so a logged-out or stolen token could be
+    // refreshed into an unrevoked one that lived 30 days, even after kv came
+    // back. The jti now names the session, and one revocation ends all of it.
+    jti: claims.jti,
     sub: claims.sub,
     ...(claims.safe ? { safe: claims.safe } : {}),
     ...(claims.roles ? { roles: claims.roles } : {}),

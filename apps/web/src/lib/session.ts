@@ -85,26 +85,31 @@ const revoked = (): Map<string, number> => (g.__revokedJtis ??= new Map());
 
 const revokedKey = (jti: string) => `session:revoked:${jti}`;
 
+// A jti names a SESSION, not one token: /api/auth/refresh re-mints with the
+// same jti (SEC-P2-002), so a revocation must outlive every token the session
+// can still slide into, i.e. the 30-day refresh ceiling, not one token's 1h.
+const REVOCATION_TTL_SECONDS = 30 * 24 * 3600; // = MAX_SESSION_LIFETIME_SECONDS
+
 /**
- * Revoke one token by jti. Returns true when the revocation reached the
- * cross-instance denylist, false when only this instance knows it (KV write
- * failed). A caller that needs the revocation to hold everywhere — logout —
- * falls back to a durable mechanism on false: the account's session epoch,
- * which lives in Postgres. Never throws.
+ * Revoke a session by jti, in memory and durably.
+ *
+ * Returns whether the DURABLE write succeeded. When it did not (kv outage),
+ * the caller must fall back to a revocation that survives one: logout bumps
+ * the account's session epoch, which lives in the account store, not kv.
  */
 export async function revokeSession(jti: string | undefined): Promise<boolean> {
-  if (!jti) return false;
+  if (!jti) return true;
   const now = Date.now();
-  revoked().set(jti, now + TTL_SECONDS * 1000);
+  revoked().set(jti, now + REVOCATION_TTL_SECONDS * 1000);
   // Sweep expired revocations so the set stays bounded.
   for (const [id, expiresAt] of revoked()) {
     if (expiresAt < now) revoked().delete(id);
   }
-  // Durable write LAST: a kv outage must not turn logout into a 500 — the
-  // memory layer above already killed the token on this instance, and the
-  // caller is told the revocation is NOT yet durable.
+  // Durable write LAST: a kv outage must not turn logout into a 500. The
+  // memory layer above already killed the session on this instance; the
+  // caller handles the cross-instance part when this returns false.
   try {
-    await kvSet(revokedKey(jti), 1, TTL_SECONDS);
+    await kvSet(revokedKey(jti), 1, REVOCATION_TTL_SECONDS);
     return true;
   } catch {
     return false;
