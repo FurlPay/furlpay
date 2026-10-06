@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
   // another account's request.
   return withIdempotency(req.headers.get("Idempotency-Key"), "investing.schedule", async () =>
     createSchedule(userId, parsed.data)
-  , { principal: userId });
+  , { principal: userId, request: parsed.data });
 }
 
 type ScheduleInput = ReturnType<typeof ScheduleSchema.parse>;

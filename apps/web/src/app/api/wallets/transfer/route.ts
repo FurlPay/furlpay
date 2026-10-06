@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
   const idempotencyKey = req.headers.get("Idempotency-Key");
   return withIdempotency(idempotencyKey, "wallets.transfer", () =>
     executeTransfer(req, account, parsed.data)
-  , { principal: account.user.id });
+  , { principal: account.user.id, request: parsed.data });
 }
 
 type TransferInput = ReturnType<typeof TransferSchema.parse>;

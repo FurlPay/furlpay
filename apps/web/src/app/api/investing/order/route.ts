@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
   const idempotencyKey = req.headers.get("Idempotency-Key");
   return withIdempotency(idempotencyKey, "investing.order", () =>
     executeOrder(account, parsed.data, idempotencyKey, rawBody)
-  , { principal: account.user.id });
+  , { principal: account.user.id, request: parsed.data });
 }
 
 type OrderInput = ReturnType<typeof OrderSchema.parse>;

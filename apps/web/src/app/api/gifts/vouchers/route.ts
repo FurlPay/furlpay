@@ -79,5 +79,5 @@ export async function POST(req: NextRequest) {
       { ok: true, voucher: voucherView(created.voucher, userId), code: created.voucher.code },
       { status: 201 },
     );
-  }, { principal: userId });
+  }, { principal: userId, request: body });
 }

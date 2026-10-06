@@ -74,6 +74,6 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ spent: true, simulated: true, amountUsd: amountUsd.toFixed(2), balanceUsd: result.balanceUsd.toFixed(2) });
     },
-    { principal: auth.account.user.id }
+    { principal: auth.account.user.id, request: parsed.data }
   );
 }

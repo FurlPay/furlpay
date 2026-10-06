@@ -72,5 +72,5 @@ export async function POST(req: NextRequest) {
       token: voucher.token,
       voucher: voucherView(voucher, userId),
     });
-  }, { principal: userId });
+  }, { principal: userId, request: body });
 }

@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
     withdrawnUsd: result.withdrawnUsd,
     remainingUsd: result.remainingUsd,
   });
-  }, { principal: account.user.id });
+  }, { principal: account.user.id, request: body });
 }
 
 function round(n: number): number {

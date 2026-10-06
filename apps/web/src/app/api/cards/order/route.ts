@@ -75,5 +75,5 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 409 });
     }
-  }, { principal: account.user.id });
+  }, { principal: account.user.id, request: body });
 }

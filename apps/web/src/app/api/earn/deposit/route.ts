@@ -134,7 +134,7 @@ export async function POST(req: NextRequest) {
     position: { principalUsd: pos.principalUsd, apy: pos.apy },
     projectedYearly: round((pos.principalUsd * pos.apy) / 100),
   });
-  }, { principal: account.user.id });
+  }, { principal: account.user.id, request: body });
 }
 
 function round(n: number): number {
