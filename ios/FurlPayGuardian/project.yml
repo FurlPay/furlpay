@@ -105,6 +105,10 @@ targets:
         # elsewhere, so all three can be installed on one device.
         PRODUCT_BUNDLE_IDENTIFIER: $(FURLPAY_BUNDLE_ID_BASE)$(FURLPAY_BUNDLE_SUFFIX)
         PRODUCT_NAME: $(FURLPAY_DISPLAY_NAME)
+        # PRODUCT_NAME varies per environment ("Guardian Dev"), and the module
+        # name would follow it ("Guardian_Dev"). Pinned, so the tests'
+        # `@testable import FurlPayGuardian` resolves in every configuration.
+        PRODUCT_MODULE_NAME: FurlPayGuardian
         INFOPLIST_FILE: FurlPayGuardian/Resources/Info.plist
         # Read back at runtime by AppEnvironment.swift. Info.plist substitution
         # is the only way a build setting reaches Swift without a generated
@@ -238,6 +242,13 @@ targets:
       # distinct types to the compiler, so `Confirmation` from the app would not
       # match `Confirmation` from the test bundle.
       - path: Tests
+    settings:
+      base:
+        # The host app is named after FURLPAY_DISPLAY_NAME ("Guardian Dev.app"
+        # in Debug), not the target, so XcodeGen's default TEST_HOST pointed at
+        # a FurlPayGuardian.app that is never built.
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/$(FURLPAY_DISPLAY_NAME).app/$(FURLPAY_DISPLAY_NAME)
+        BUNDLE_LOADER: $(TEST_HOST)
     dependencies:
       - target: FurlPayGuardian
 
