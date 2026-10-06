@@ -15,7 +15,9 @@ const ICONS = { stays: Building2, flights: Plane, pay: Wallet, cashback: Gift } 
  *  the trip carousel is a client island. */
 export default function HomeHero({ metrics, trips, children }: { metrics: HeroMetric[]; trips: HeroTrip[]; children?: React.ReactNode }) {
   return (
-    <section className="relative -mt-16 overflow-hidden pt-16">
+    // `isolate` gives the section its own stacking context, so the -z-10
+    // photo sits behind the content but above the layout's background.
+    <section className="relative isolate -mt-16 overflow-hidden pt-16">
       <div className="absolute inset-0 -z-10">
         <img src={HOME_IMAGES.hero} alt="" fetchPriority="high" className="h-full w-full object-cover object-[65%_40%]" />
         <div className="absolute inset-0 bg-gradient-to-r from-[#030505] via-[#030505]/80 to-[#030505]/10" />
@@ -24,7 +26,7 @@ export default function HomeHero({ metrics, trips, children }: { metrics: HeroMe
 
       <div className="mx-auto max-w-[1400px] px-4 pb-6 pt-10 sm:px-6 lg:px-10 lg:pt-16">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-[620px]">
+          <div className="max-w-[720px]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neon">FurlPay Travel</p>
             <h1 className="mt-4 text-[44px] font-extrabold leading-[0.98] tracking-[-0.03em] text-white sm:text-[60px] lg:text-[74px]">
               Plan anywhere.
@@ -38,11 +40,11 @@ export default function HomeHero({ metrics, trips, children }: { metrics: HeroMe
               100+ tokens or cards, and earn 2% USDC cashback once travel rewards launch.
             </p>
 
-            <ul className="mt-7 grid grid-cols-2 gap-x-6 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-8">
+            <ul className="mt-7 grid grid-cols-2 gap-x-6 gap-y-4 sm:flex sm:flex-wrap sm:gap-x-6 xl:flex-nowrap">
               {metrics.map((m) => {
                 const Icon = ICONS[m.icon];
                 return (
-                  <li key={m.label} className="flex items-center gap-3">
+                  <li key={m.label} className="flex items-center gap-3 sm:whitespace-nowrap">
                     <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-neon/30 bg-neon/10 text-neon">
                       <Icon className="h-4 w-4" aria-hidden />
                     </span>

@@ -117,7 +117,7 @@ export interface FeaturedStay {
 
 export const FEATURED_STAYS: FeaturedStay[] = [
   { title: "Bali · Cliffside resorts", area: "Uluwatu, Indonesia", city: "Bali", photo: IMG("stay-bali"), destinationSlug: "bali" },
-  { title: "Tokyo · Hotels near the action", area: "Shinjuku, Japan", city: "Tokyo", photo: IMG("stay-tokyo"), destinationSlug: "tokyo" },
+  { title: "Tokyo · City hotels", area: "Shinjuku, Japan", city: "Tokyo", photo: IMG("stay-tokyo"), destinationSlug: "tokyo" },
   { title: "Dubai · Luxury stays", area: "Downtown, UAE", city: "Dubai", photo: IMG("stay-dubai"), destinationSlug: "dubai" },
   { title: "Paris · Boutique hotels", area: "Le Marais, France", city: "Paris", photo: IMG("stay-paris"), destinationSlug: "paris" },
 ];
