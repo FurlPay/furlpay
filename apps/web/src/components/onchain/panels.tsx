@@ -8,6 +8,7 @@ import type { OnchainDashboard as Data, Kpi, TokenKey } from "@/lib/onchain/dash
 import world from "@/components/analytics/worldDots.json";
 import { fmtCount, fmtUsd, relTime } from "@/components/analytics/format";
 import { CHAINS } from "./Shell";
+import { BrandLogo, chainName } from "./BrandLogo";
 import { Card, Change, Empty, GhostButton, Menu, NEON, PALETTE, RAIL_COLOR, SHORT_RAIL, Spark, TipBox, Unavailable, chainLabel, pct, railLabel } from "./ui";
 
 // The cards of /onchain. Each takes the whole payload and reads only its own
@@ -15,7 +16,6 @@ import { Card, Change, Empty, GhostButton, Menu, NEON, PALETTE, RAIL_COLOR, SHOR
 
 const TOKEN_COLORS: Record<TokenKey, string> = { USDC: "#2F80ED", USDT: "#10D9A0", BTC: "#F7931A", ETH: "#8B5CF6", SOL: "#EC4899", OTHER: "#6B7280" };
 const RAIL_ICON: Record<string, LucideIcon> = { x402: Bot, mpp: Bot, lifi: ArrowLeftRight, cctp: Link2, transfers: Wallet };
-const CHAIN_LOGOS = new Set(["arbitrum", "avalanche", "ethereum", "gnosis", "optimism", "polygon", "solana"]);
 const WORLD = world as unknown as { width: number; height: number; dots: [number, number][]; centroids: Record<string, [number, number]> };
 const usdC = (n: number) => fmtUsd(n, { compact: true });
 const axisUsd = (n: number) => (n === 0 ? "$0" : fmtUsd(n, { compact: true }).replace(".0", ""));
@@ -104,7 +104,8 @@ export function PaymentVolume({ data, chain, setChain, rangeKey }: { data: Data;
             <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11.5px] text-white/85">
               {tokens.map((t) => (
                 <li key={t} className="flex items-center gap-1.5">
-                  <span className="h-2 w-2 rounded-full" style={{ background: TOKEN_COLORS[t] }} /> {t}
+                  {t === "OTHER" ? <span className="mx-[2px] h-2.5 w-2.5 rounded-full" style={{ background: TOKEN_COLORS[t] }} /> : (<><span className="h-2 w-2 rounded-full" style={{ background: TOKEN_COLORS[t] }} /><BrandLogo kind="token" id={t} size={14} /></>)}
+                  <span className="ml-0.5">{t === "OTHER" ? "Other" : t}</span>
                 </li>
               ))}
             </ul>
@@ -146,10 +147,12 @@ const DONUT = ["#2F80ED", "#10D9A0", "#1D4ED8", "#F97316", "#8B5CF6", "#6B7280"]
 export function ChainDonut({ data }: { data: Data }) {
   const [metric, setMetric] = useState<"volume" | "count">("volume");
   const L = ledgerOf(data);
-  const all = (L?.chains ?? []).map((c) => ({ label: chainLabel(c.chain), value: metric === "volume" ? c.volume : c.count }));
+  const all = (L?.chains ?? [])
+    .map((c) => ({ id: c.chain as string | null, label: c.chain === "unknown" ? "Unknown chain" : chainName(c.chain), value: metric === "volume" ? c.volume : c.count }))
+    .sort((a, b) => b.value - a.value);
   const top = all.slice(0, 5);
   const rest = all.slice(5).reduce((a, c) => a + c.value, 0);
-  const items = [...top, ...(rest > 0 ? [{ label: "Others", value: rest }] : [])].map((it, i) => ({ ...it, color: it.label === "Others" ? DONUT[5] : DONUT[i] }));
+  const items = [...top, ...(rest > 0 ? [{ id: null, label: "Others", value: rest }] : [])].map((it, i) => ({ ...it, color: it.id === null ? DONUT[5] : DONUT[i] }));
   const total = items.reduce((a, b) => a + b.value, 0);
   const fmt = (n: number) => (metric === "volume" ? usdC(n) : fmtCount(n, { compact: true }));
   return (
@@ -164,7 +167,7 @@ export function ChainDonut({ data }: { data: Data }) {
       ) : total === 0 ? (
         <Empty text="No settled transactions to break down by chain yet." />
       ) : (
-        <div className="flex flex-1 flex-col items-center gap-4 sm:flex-row sm:gap-5">
+        <div className="flex flex-1 flex-col items-center gap-4 sm:flex-row sm:gap-4">
           <div className="relative h-[150px] w-[150px] shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
@@ -181,11 +184,15 @@ export function ChainDonut({ data }: { data: Data }) {
               <span className="text-[11.5px] text-white/70">{metric === "volume" ? "Total Volume" : "Transactions"}</span>
             </div>
           </div>
-          <ul className="w-full space-y-[9px] text-[12px]">
+          <ul className="w-full min-w-0 space-y-[9px] pr-0.5 text-[12px]">
             {items.map((it) => (
-              <li key={it.label} className="flex items-center gap-2.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ background: it.color }} />
-                <span className="whitespace-nowrap text-white/90">{it.label}</span>
+              <li key={it.label} className="flex min-w-0 items-center gap-2">
+                {it.id && it.id !== "unknown" ? (
+                  <><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: it.color }} /><BrandLogo kind="chain" id={it.id} size={15} /></>
+                ) : (
+                  <><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: it.color }} /><span className="w-[15px]" /></>
+                )}
+                <span className="truncate text-white/90">{it.label}</span>
                 <span className="ml-auto tabular-nums text-white/80">{pct(it.value / total)}</span>
               </li>
             ))}
@@ -295,18 +302,6 @@ export function Categories({ data }: { data: Data }) {
 
 // ── Counterparties ──────────────────────────────────────────────────────────
 
-function ChainIcon({ chain }: { chain: string | null }) {
-  if (chain && CHAIN_LOGOS.has(chain)) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img src={`/logos/chains/${chain}.svg`} alt={chainLabel(chain)} width={20} height={20} className="h-5 w-5 rounded-full" />;
-  }
-  return (
-    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white/[0.08] text-[8.5px] font-semibold uppercase text-white/75" title={chain ?? "unknown chain"}>
-      {(chain ?? "?").slice(0, 2)}
-    </span>
-  );
-}
-
 export function Counterparties({ data, query }: { data: Data; query: string }) {
   const [all, setAll] = useState(false);
   const L = ledgerOf(data);
@@ -326,9 +321,11 @@ export function Counterparties({ data, query }: { data: Data; query: string }) {
         <ul className={`text-[12.5px] ${all ? "max-h-[230px] overflow-y-auto pr-1" : ""}`}>
           {(all ? rows : rows.slice(0, 6)).map((c) => (
             <li key={c.address} className="grid grid-cols-[20px_minmax(0,1.2fr)_minmax(0,0.9fr)_auto_auto] items-center gap-3 rounded-md px-1 py-[6px] transition-colors hover:bg-white/[0.035]">
-              <ChainIcon chain={c.chain} />
+              <BrandLogo kind="chain" id={c.chain} size={20} />
               <span className="truncate font-mono text-[12px] text-white/90">{c.address}</span>
-              <span className="truncate text-white/55">Unlabeled</span>
+              <span className="truncate text-white/55" title="Entity labels (exchange, protocol, issuer) need Allium">
+                Unlabeled
+              </span>
               <span className="text-right tabular-nums text-white">{usdC(c.volume)}</span>
               <span className="w-[64px] text-right tabular-nums text-white/55">{fmtCount(c.count)} txs</span>
             </li>
@@ -358,14 +355,30 @@ export function Activity({ data, query }: { data: Data; query: string }) {
       ) : (
         <ul className="text-[12.5px]">
           {rows.slice(0, 6).map((a, i) => (
-            <li key={`${a.at}-${i}`} className="grid grid-cols-[22px_minmax(0,1fr)_minmax(0,1fr)_auto_52px] items-center gap-3 rounded-md px-1 py-[6px] transition-colors hover:bg-white/[0.035]">
-              <RailIcon rail={a.rail} />
+            <li key={`${a.at}-${i}`} className="grid grid-cols-[26px_minmax(0,1fr)_minmax(0,1fr)_auto_52px] items-center gap-3 rounded-md px-1 py-[6px] transition-colors hover:bg-white/[0.035]">
+              {/* Rail icon, with the chain's official mark as a corner badge. */}
+              <span className="relative h-[22px] w-[22px]">
+                <RailIcon rail={a.rail} />
+                {a.chain && (
+                  <span className="absolute -bottom-1 -right-1.5 rounded-full bg-[#0A0F10] p-[1.5px]">
+                    <BrandLogo kind="chain" id={a.chain} size={11} />
+                  </span>
+                )}
+              </span>
               <span className="truncate font-mono text-[12px] text-white/90">{a.hash ?? "no tx hash"}</span>
               <span className="truncate text-white/60">
                 {SHORT_RAIL[a.rail] ?? railLabel(a.rail)}
                 {a.state !== "settled" ? ` · ${a.state}` : ""}
               </span>
-              <span className="text-right tabular-nums text-white">{a.amountUsd === null ? "—" : `${fmtUsd(a.amountUsd)}${a.token ? ` ${a.token.toUpperCase()}` : ""}`}</span>
+              <span className="flex items-center justify-end gap-1.5 tabular-nums text-white">
+                {a.amountUsd === null ? "—" : fmtUsd(a.amountUsd)}
+                {a.token && (
+                  <>
+                    <BrandLogo kind="token" id={a.token} size={13} />
+                    <span className="text-white/70">{a.token.toUpperCase()}</span>
+                  </>
+                )}
+              </span>
               <span className="text-right text-white/50">{relTime(a.at)}</span>
             </li>
           ))}
@@ -398,7 +411,7 @@ export function Risk({ data }: { data: Data }) {
                 <p className="text-[11px] text-white/65">{R.total === 0 ? "no events" : "Low Risk"}</p>
               </div>
             </div>
-            <ul className="w-full space-y-[9px] text-[12px]">
+            <ul className="w-full min-w-0 space-y-[9px] pr-0.5 text-[12px]">
               {(
                 [
                   ["Low Risk", R.bySeverity.low, "#10D9A0"],
@@ -503,9 +516,10 @@ export function Flow({ data, chain, setChain }: { data: Data; chain: string; set
             </div>
             <div className="relative" style={{ height: H }}>
               {dst.map((d, i) => (
-                <div key={d.label} className="absolute inset-x-0 flex items-center gap-2" style={{ top: ld[i].mid - 9 }}>
+                <div key={d.label} className="absolute inset-x-0 flex items-center gap-1.5" style={{ top: ld[i].mid - 9 }}>
                   <span className="tabular-nums text-white/90">{usdC(d.value)}</span>
-                  <span className="truncate text-white/70">{chainLabel(d.label).replace(" One", "")}</span>
+                  {d.label !== "unknown" && <BrandLogo kind="chain" id={d.label} size={14} />}
+                  <span className="truncate text-white/70">{d.label === "unknown" ? "Unknown" : chainName(d.label).replace(" One", "")}</span>
                 </div>
               ))}
             </div>
@@ -552,6 +566,16 @@ export function MarketInsights({ data }: { data: Data }) {
       <div className="grid flex-1 gap-3 sm:grid-cols-[0.78fr_1.22fr]">
         <div className="space-y-[7px]">
           {metric("Total Stablecoin Supply", M ? usdC(M.totalSupplyUsd) : null, M?.supplyChange30d ?? null)}
+          {M && M.topCoins.length > 0 && (
+            <ul className="-mt-0.5 flex flex-wrap gap-x-2.5 gap-y-1 text-[11px] text-white/70" aria-label="Largest USD stablecoins by supply share">
+              {M.topCoins.slice(0, 2).map((c) => (
+                <li key={c.symbol} className="flex items-center gap-1" title={`${c.name}: ${usdC(c.supplyUsd)}`}>
+                  <BrandLogo kind="token" id={c.symbol} size={13} />
+                  <span className="tabular-nums">{pct(c.share)}</span>
+                </li>
+              ))}
+            </ul>
+          )}
           {metric("Daily Transfer Volume", last ? usdC(last.transferVolumeUsd) : null, r(last?.transferVolumeUsd, prev?.transferVolumeUsd))}
           {metric("Active Addresses", last ? fmtCount(last.activeAddresses, { compact: true }) : null, r(last?.activeAddresses, prev?.activeAddresses))}
           {metric("Avg Transfer Size", avg(last) !== undefined ? fmtUsd(avg(last)!) : null, r(avg(last), avg(prev)))}
