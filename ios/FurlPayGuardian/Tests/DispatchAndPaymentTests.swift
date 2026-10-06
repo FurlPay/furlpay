@@ -16,8 +16,9 @@ struct ActionDispatchTests {
 
     private func confirmation(
         action: String?, endpoint: String, body: [String: JSONValue]
-    ) -> Confirmation {
-        Confirmation(
+    ) -> FurlPayGuardian.Confirmation {
+        // Module-qualified: Swift Testing also exports a `Confirmation`.
+        FurlPayGuardian.Confirmation(
             action: action, endpoint: endpoint, method: "POST",
             body: body, summary: "test", amountUsd: nil
         )
@@ -110,7 +111,7 @@ struct ActionDispatchTests {
             for (name, field) in spec.fields where !field.optional {
                 body[name] = sample(for: field)
             }
-            let resolved = GuardianActionRegistry.resolve(Confirmation(
+            let resolved = GuardianActionRegistry.resolve(FurlPayGuardian.Confirmation(
                 action: spec.id, endpoint: spec.endpoint, method: spec.method,
                 body: body, summary: "t", amountUsd: nil
             ))
@@ -124,7 +125,7 @@ struct ActionDispatchTests {
         // hint the model controls. It used to be forwarded straight into
         // ApprovedAction and from there into the Face ID prompt, so a payload
         // could show "$5.00" over a body authorising $9,000.
-        let resolved = GuardianActionRegistry.resolve(Confirmation(
+        let resolved = GuardianActionRegistry.resolve(FurlPayGuardian.Confirmation(
             action: "place_order", endpoint: "/investing/order", method: "POST",
             body: ["symbol": .string("AAPL"), "side": .string("buy"),
                    "notional": .number(9_000)],
