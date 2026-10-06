@@ -1,5 +1,15 @@
+import Image from "next/image";
 import Link from "next/link";
-import { ArrowDownToLine, ArrowUpRight, ChevronLeft, Globe2 } from "lucide-react";
+import {
+  ArrowDownToLine,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
+  CalendarDays,
+  ChartColumnIncreasing,
+  ChevronRight,
+  FileText,
+} from "lucide-react";
 import JsonLd from "@/components/JsonLd";
 import LandingChrome from "@/components/landing/LandingChrome";
 import { seoMetadata } from "@/lib/seo/meta";
@@ -22,6 +32,8 @@ const LITE_PDF_SIZE = "5.9 MB";
 // Built from the PDF's own cover page (1200x630). Lives in public/ so it is
 // served as a static file, outside the middleware's login redirect.
 const OG_IMAGE = "/reports/global-stablecoin-report-2026-og.png";
+// The printed-report mockup in the hero (1024x1536, transparent background).
+const COVER_IMAGE = "/reports/global-stablecoin-report-2026-cover.png";
 const PUBLISHED = "2026-10-02";
 
 const baseMetadata = seoMetadata({
@@ -123,168 +135,220 @@ export default function GlobalStablecoinReportPage() {
         }}
       />
 
-      <main className="section pb-24 pt-14">
-        <Link
-          href="/research"
-          className="inline-flex items-center gap-1 text-[14px] text-textSecondary transition-colors hover:text-neon"
+      <main>
+        <ReportHero />
+
+        <div className="section pb-24 pt-6">
+          <dl className="mt-14grid grid-cols-2 gap-px overflow-hidden rounded-card border border-white/10 bg-white/[0.06] lg:grid-cols-4">
+            {[
+              { label: "Published", value: "2 October 2026" },
+              { label: "Research window", value: "January 2025 – 2 October 2026" },
+              { label: "Format", value: "87-page PDF" },
+              { label: "Edition", value: "Annual · 2026 edition" },
+            ].map((detail) => (
+              <div key={detail.label} className="bg-oled p-5">
+                <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-textMuted">
+                  {detail.label}
+                </dt>
+                <dd className="mt-2 text-[14px] font-semibold leading-relaxed">{detail.value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <section aria-labelledby="summary-heading" className="mt-16 grid gap-6 lg:grid-cols-[0.65fr_1.35fr]">
+            <div>
+              <p className="section-eyebrow">Executive summary</p>
+              <h2 id="summary-heading" className="mt-3 text-[28px] font-extrabold leading-tight tracking-tighter">
+                Where stablecoins actually move money.
+              </h2>
+            </div>
+            <div className="space-y-4 text-[16px] leading-relaxed text-textSecondary">
+              <p>
+                The report tests whether USDC is becoming an important settlement layer for global
+                payments. Its conclusion is strongest in specific areas: card-network settlement,
+                crypto-linked card spend, institutional mint and redeem, and agent micropayments.
+              </p>
+              <p>
+                The report finds the thesis supported for institutional and network settlement,
+                partly supported for card-funded consumer spending, and not yet supported for mass
+                remittances and emerging-market retail, where USDT dominates.
+              </p>
+            </div>
+          </section>
+
+          <section aria-labelledby="contents-heading" className="mt-16">
+            <h2 id="contents-heading" className="text-[24px] font-bold tracking-tight">Inside the report</h2>
+            <div className="mt-6 grid gap-5 md:grid-cols-3">
+              {CHAPTERS.map((chapter) => (
+                <article key={chapter.number} className="rounded-card border border-white/10 bg-white/[0.02] p-6">
+                  <p className="text-[12px] font-semibold tracking-[0.16em] text-neon">PART {chapter.number}</p>
+                  <h3 className="mt-5 text-[18px] font-bold tracking-tight">{chapter.title}</h3>
+                  <p className="mt-3 text-[14px] leading-relaxed text-textSecondary">{chapter.description}</p>
+                  <a
+                    href={`${PDF_PATH}#page=${chapter.pages[0]}`}
+                    className="mt-4 inline-flex items-center gap-1 text-[13px] font-semibold text-neon hover:underline"
+                  >
+                    Read Part {chapter.number}, pages {chapter.pages[0]}–{chapter.pages[1]}
+                    <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
+                    <span className="sr-only"> (PDF)</span>
+                  </a>
+                </article>
+              ))}
+            </div>
+          </section>
+
+          <section aria-labelledby="methodology-heading" className="mt-14 rounded-card border border-white/10 p-6 sm:p-8">
+            <h2 id="methodology-heading" className="text-[20px] font-bold tracking-tight">How to read the data</h2>
+            <p className="mt-3 max-w-4xl text-[14px] leading-relaxed text-textSecondary">
+              The report distinguishes on-chain transfers, adjusted transfers, institutional
+              settlement and economic payments. These measures have different scopes and should
+              not be added together. Major figures carry source labels and evidence statuses;
+              company claims and estimates are identified in the PDF alongside its methodology
+              and references.
+            </p>
+            <p className="mt-4 max-w-4xl text-[12px] leading-relaxed text-textMuted">
+              For information only; not investment, legal or tax advice. Company-reported metrics
+              have not been independently audited. FurlPay capabilities in the report are marked
+              “To be confirmed” pending product documentation.
+            </p>
+          </section>
+
+          <footer className="mt-14 flex flex-col items-start justify-between gap-5 border-t border-white/10 pt-7 sm:flex-row sm:items-center">
+            <p className="text-[14px] text-textSecondary">FurlPay Research · Open access for everyone.</p>
+            <a href={PDF_PATH} className="inline-flex items-center gap-2 text-[14px] font-semibold text-neon hover:underline">
+              Open the complete PDF ({PDF_SIZE}) <ArrowUpRight aria-hidden className="h-4 w-4" />
+            </a>
+          </footer>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+const HERO_FACTS = [
+  { icon: CalendarDays, label: "Published", value: "2 October 2026" },
+  { icon: FileText, label: "Pages", value: "87" },
+  { icon: ChartColumnIncreasing, label: "Edition", value: "Annual report" },
+];
+
+/** The report's landing hero: copy and actions on the left, the printed
+ *  report on the right, lit by a restrained green atmosphere. */
+function ReportHero() {
+  return (
+    <section aria-labelledby="report-title" className="relative isolate overflow-hidden">
+      {/* Atmosphere: a glow behind the report, a horizontal light band across
+          the lower hero, and thin orbital lines. Decorative only. */}
+      <div aria-hidden className="pointer-events-none absolute inset-0 -z-10">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_70%_60%_at_72%_42%,rgba(0,229,153,0.13),transparent_70%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_45%_40%_at_74%_48%,rgba(0,229,153,0.10),transparent_70%)]" />
+        <div className="absolute inset-x-0 top-[74%] h-56 -translate-y-1/2 bg-[radial-gradient(ellipse_50%_45%_at_72%_50%,rgba(0,229,153,0.24),transparent_70%)] blur-2xl" />
+        <div className="absolute left-[45%] right-0 top-[74%] h-px bg-gradient-to-r from-transparent via-neon/70 to-neon/10 blur-[0.5px]" />
+        <svg
+          className="absolute right-[-10%] top-[4%] hidden h-[88%] w-[58%] lg:block"
+          viewBox="0 0 1000 800"
+          fill="none"
+          preserveAspectRatio="none"
         >
-          <ChevronLeft aria-hidden className="h-4 w-4" /> All research
-        </Link>
+          <ellipse cx="560" cy="430" rx="520" ry="210" transform="rotate(-14 560 430)" stroke="rgb(0 229 153 / 0.16)" />
+          <ellipse cx="620" cy="400" rx="430" ry="300" transform="rotate(18 620 400)" stroke="rgb(0 229 153 / 0.10)" />
+          <ellipse cx="700" cy="360" rx="330" ry="330" stroke="rgb(0 229 153 / 0.07)" />
+        </svg>
+      </div>
 
-        <header className="mt-8 grid items-center gap-10 lg:grid-cols-[1.35fr_0.8fr] lg:gap-16">
-          <div>
-            <p className="section-eyebrow">FurlPay Research · Annual report</p>
-            <h1 className="mt-4 max-w-3xl text-[38px] font-extrabold leading-[1.08] tracking-tighter sm:text-[54px]">
-              FurlPay Global Stablecoin Report <span className="text-neon">2026</span>
+      <div className="mx-auto w-full max-w-[1640px] px-5 pb-16 pt-8 sm:px-8 lg:px-12 lg:pb-20 lg:pt-11">
+        <nav aria-label="Breadcrumb" className="flex items-center gap-3 text-[15px] text-textSecondary sm:text-[17px]">
+          <Link href="/research" className="inline-flex items-center gap-3 transition-colors hover:text-textPrimary">
+            <ArrowLeft aria-hidden className="h-[18px] w-[18px]" />
+            All research
+          </Link>
+          <ChevronRight aria-hidden className="h-4 w-4" />
+          <Link href="/research/stablecoin-markets" className="text-white/80 transition-colors hover:text-textPrimary">
+            Stablecoins
+          </Link>
+        </nav>
+
+        <div className="mt-12 grid items-center gap-14 lg:mt-[52px] lg:items-start lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)] lg:gap-8 lg:pl-[60px]">
+          <div className="lg:pt-3">
+            <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-neon sm:text-[14px]">
+              Annual report
+            </p>
+            <h1
+              id="report-title"
+              className="mt-4 text-[clamp(40px,3.95vw,70px)] font-bold leading-[1.0] tracking-[-0.035em] text-textPrimary"
+            >
+              FurlPay Global
+              <br />
+              Stablecoin Report
+              <br />
+              <span className="text-neon">2026</span>
             </h1>
-            <p className="mt-6 max-w-2xl text-[18px] leading-relaxed text-textSecondary">
-              Stablecoins for a global economy: market data, 23 market profiles, networks,
-              regulation and outlook.
-            </p>
-            <p className="mt-4 max-w-2xl text-[15px] leading-relaxed text-textMuted">
-              {DESCRIPTION}
+            <p className="mt-5 max-w-[650px] text-[clamp(17px,1.24vw,22px)] leading-[1.5] text-white/70">
+              A data-driven analysis of stablecoin supply, payment flows, issuers, cross-border
+              adoption, card settlement, regulation and the infrastructure moving money globally.
             </p>
 
-            {/* Read here first; download only on request. The full PDF is
-                16.4 MB, which is slow on mobile data, so the default download
-                is the lite edition (same text and pages, images downsampled). */}
-            <div className="mt-8 flex flex-wrap gap-3">
-              <a
-                href="#summary-heading"
-                className="btn-green inline-flex items-center justify-center gap-2 px-7 py-3.5 text-[15px]"
-              >
-                Read the summary
-              </a>
+            {/* One row with dividers from `sm` up (never wrapped, so a divider
+                cannot start a line); a plain stacked list on phones. */}
+            <dl className="mt-9 grid gap-4 sm:flex sm:items-center">
+              {HERO_FACTS.map(({ icon: Icon, label, value }, i) => (
+                <div
+                  key={label}
+                  className={`flex items-center gap-5 sm:gap-6 sm:pr-10 lg:gap-3 lg:pr-4 xl:gap-6 xl:pr-10 ${i > 0 ? "sm:border-l sm:border-white/15 sm:pl-8 lg:pl-4 xl:pl-8" : ""}`}
+                >
+                  <Icon aria-hidden strokeWidth={1.5} className="h-7 w-7 shrink-0 text-white/75 lg:h-6 lg:w-6 xl:h-7 xl:w-7" />
+                  <div className="whitespace-nowrap text-[15px] leading-snug lg:text-[14px] xl:text-[15px]">
+                    <dt className="text-textSecondary">{label}</dt>
+                    <dd className="text-textPrimary">{value}</dd>
+                  </div>
+                </div>
+              ))}
+            </dl>
+
+            {/* Download is the lite edition: same 87 pages and text, images
+                compressed, 5.9 MB instead of 16.4 MB on mobile data. The full
+                file is linked from every chapter and the page footer. */}
+            <div className="mt-9 flex flex-col gap-4 sm:flex-row sm:gap-5">
               <a
                 href={LITE_PDF_PATH}
                 download="FurlPay-Global-Stablecoin-Report-2026-lite.pdf"
-                className="btn-outline inline-flex items-center justify-center gap-2 px-6 py-3.5 text-[15px]"
+                className="inline-flex h-[60px] items-center justify-center gap-3 whitespace-nowrap rounded-[10px] bg-neon px-10 text-[17px] font-semibold text-black shadow-glow-sm transition hover:-translate-y-0.5 hover:bg-neon/90 sm:h-[66px] sm:px-[52px] sm:text-[19px] lg:px-8 xl:px-[52px]"
               >
-                Download PDF <span className="text-textMuted">({LITE_PDF_SIZE})</span>
-                <ArrowDownToLine aria-hidden className="h-4 w-4" />
+                Download PDF
+                <ArrowDownToLine aria-hidden className="h-5 w-5" />
               </a>
-            </div>
-            <p className="mt-3 text-[13px] text-textSecondary">
-              Lite edition: all 87 pages and the same text, with images compressed for mobile data.{" "}
               <a
-                href={PDF_PATH}
-                download="FurlPay-Global-Stablecoin-Report-2026.pdf"
-                className="font-semibold text-neon underline-offset-2 hover:underline"
+                href="#summary-heading"
+                className="inline-flex h-[60px] items-center justify-center gap-3 whitespace-nowrap rounded-[10px] border border-white/25 bg-white/[0.02] px-10 text-[17px] font-semibold text-textPrimary transition hover:border-white/45 hover:bg-white/[0.05] sm:h-[66px] sm:px-[50px] sm:text-[19px] lg:px-8 xl:px-[50px]"
               >
-                Full-quality PDF ({PDF_SIZE})
+                Explore report
+                <ArrowRight aria-hidden className="h-5 w-5" />
               </a>
-            </p>
-            <p className="mt-4 flex items-center gap-2 text-[13px] text-textSecondary">
-              <Globe2 aria-hidden className="h-4 w-4 shrink-0 text-neon" />
-              Free and publicly accessible. No signup required.
-            </p>
-          </div>
-
-          <div
-            aria-hidden="true"
-            className="relative mx-auto flex aspect-[4/5] w-full max-w-[360px] flex-col justify-between overflow-hidden rounded-card border border-neon/30 bg-gradient-to-br from-neon/[0.12] via-white/[0.03] to-black p-8 shadow-glow-sm"
-          >
-            <div className="absolute -right-24 top-20 h-72 w-72 rounded-full border border-neon/20" />
-            <div className="absolute -right-16 top-28 h-56 w-56 rounded-full border border-neon/15" />
-            <div className="absolute -right-8 top-36 h-40 w-40 rounded-full border border-neon/10" />
-            <p className="relative text-[12px] font-bold uppercase tracking-[0.22em] text-neon">
-              FurlPay / Research
-            </p>
-            <div className="relative mt-16">
-              <p className="text-[34px] font-extrabold leading-[1.1] tracking-tighter">
-                Global<br />Stablecoin<br />Report
-              </p>
-              <p className="mt-3 text-[64px] font-extrabold leading-none tracking-tighter text-neon">
-                2026
-              </p>
             </div>
-            <div className="relative mt-10 border-t border-white/15 pt-4 text-[11px] uppercase tracking-[0.15em] text-textSecondary">
-              87 pages · 23 markets · One global view
-            </div>
-          </div>
-        </header>
-
-        <dl className="mt-14 grid grid-cols-2 gap-px overflow-hidden rounded-card border border-white/10 bg-white/[0.06] lg:grid-cols-4">
-          {[
-            { label: "Published", value: "2 October 2026" },
-            { label: "Research window", value: "January 2025 – 2 October 2026" },
-            { label: "Format", value: "87-page PDF" },
-            { label: "Edition", value: "Annual · 2026 edition" },
-          ].map((detail) => (
-            <div key={detail.label} className="bg-oled p-5">
-              <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-textMuted">
-                {detail.label}
-              </dt>
-              <dd className="mt-2 text-[14px] font-semibold leading-relaxed">{detail.value}</dd>
-            </div>
-          ))}
-        </dl>
-
-        <section aria-labelledby="summary-heading" className="mt-16 grid gap-6 lg:grid-cols-[0.65fr_1.35fr]">
-          <div>
-            <p className="section-eyebrow">Executive summary</p>
-            <h2 id="summary-heading" className="mt-3 text-[28px] font-extrabold leading-tight tracking-tighter">
-              Where stablecoins actually move money.
-            </h2>
-          </div>
-          <div className="space-y-4 text-[16px] leading-relaxed text-textSecondary">
-            <p>
-              The report tests whether USDC is becoming an important settlement layer for global
-              payments. Its conclusion is strongest in specific areas: card-network settlement,
-              crypto-linked card spend, institutional mint and redeem, and agent micropayments.
-            </p>
-            <p>
-              The report finds the thesis supported for institutional and network settlement,
-              partly supported for card-funded consumer spending, and not yet supported for mass
-              remittances and emerging-market retail, where USDT dominates.
+            <p className="mt-4 flex flex-wrap items-center gap-x-3 text-[15px] text-textSecondary">
+              <span>Free research</span>
+              <span aria-hidden>·</span>
+              <span>PDF</span>
+              <span aria-hidden>·</span>
+              <span>No account required</span>
             </p>
           </div>
-        </section>
 
-        <section aria-labelledby="contents-heading" className="mt-16">
-          <h2 id="contents-heading" className="text-[24px] font-bold tracking-tight">Inside the report</h2>
-          <div className="mt-6 grid gap-5 md:grid-cols-3">
-            {CHAPTERS.map((chapter) => (
-              <article key={chapter.number} className="rounded-card border border-white/10 bg-white/[0.02] p-6">
-                <p className="text-[12px] font-semibold tracking-[0.16em] text-neon">PART {chapter.number}</p>
-                <h3 className="mt-5 text-[18px] font-bold tracking-tight">{chapter.title}</h3>
-                <p className="mt-3 text-[14px] leading-relaxed text-textSecondary">{chapter.description}</p>
-                <a
-                  href={`${PDF_PATH}#page=${chapter.pages[0]}`}
-                  className="mt-4 inline-flex items-center gap-1 text-[13px] font-semibold text-neon hover:underline"
-                >
-                  Read Part {chapter.number}, pages {chapter.pages[0]}–{chapter.pages[1]}
-                  <ArrowUpRight aria-hidden className="h-3.5 w-3.5" />
-                  <span className="sr-only"> (PDF)</span>
-                </a>
-              </article>
-            ))}
+          <div className="relative mx-auto flex w-full max-w-[480px] justify-center lg:-mt-[72px] lg:max-w-none lg:pr-12">
+            {/* Glow and floor reflection the cover stands in. */}
+            <div aria-hidden className="absolute left-1/2 top-1/2 -z-10 h-[78%] w-[86%] -translate-x-1/2 -translate-y-1/2 rounded-full bg-neon/[0.14] blur-[90px]" />
+            <div aria-hidden className="absolute bottom-[5%] left-1/2 -z-10 h-10 w-[62%] -translate-x-1/2 rounded-[50%] bg-neon/25 blur-2xl" />
+            <Image
+              src={COVER_IMAGE}
+              alt="The FurlPay Global Stablecoin Report 2026, printed annual report cover"
+              width={1024}
+              height={1536}
+              priority
+              sizes="(min-width: 1024px) 30vw, 78vw"
+              className="h-auto w-[min(78vw,360px)] drop-shadow-[0_40px_60px_rgba(0,0,0,0.6)] lg:w-[clamp(320px,26vw,470px)]"
+            />
           </div>
-        </section>
-
-        <section aria-labelledby="methodology-heading" className="mt-14 rounded-card border border-white/10 p-6 sm:p-8">
-          <h2 id="methodology-heading" className="text-[20px] font-bold tracking-tight">How to read the data</h2>
-          <p className="mt-3 max-w-4xl text-[14px] leading-relaxed text-textSecondary">
-            The report distinguishes on-chain transfers, adjusted transfers, institutional
-            settlement and economic payments. These measures have different scopes and should
-            not be added together. Major figures carry source labels and evidence statuses;
-            company claims and estimates are identified in the PDF alongside its methodology
-            and references.
-          </p>
-          <p className="mt-4 max-w-4xl text-[12px] leading-relaxed text-textMuted">
-            For information only; not investment, legal or tax advice. Company-reported metrics
-            have not been independently audited. FurlPay capabilities in the report are marked
-            “To be confirmed” pending product documentation.
-          </p>
-        </section>
-
-        <footer className="mt-14 flex flex-col items-start justify-between gap-5 border-t border-white/10 pt-7 sm:flex-row sm:items-center">
-          <p className="text-[14px] text-textSecondary">FurlPay Research · Open access for everyone.</p>
-          <a href={PDF_PATH} className="inline-flex items-center gap-2 text-[14px] font-semibold text-neon hover:underline">
-            Open the complete PDF ({PDF_SIZE}) <ArrowUpRight aria-hidden className="h-4 w-4" />
-          </a>
-        </footer>
-      </main>
-    </div>
+        </div>
+      </div>
+    </section>
   );
 }
