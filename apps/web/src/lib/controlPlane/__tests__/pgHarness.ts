@@ -43,7 +43,11 @@ const MIGRATIONS_DIR = join(__dirname, "..", "..", "..", "..", "..", "..", "supa
  * is itself worth testing, because a migration that only works against a
  * hand-built schema is a migration that will fail on the day it is run.
  */
-const MIGRATIONS = ["0020_control_plane.sql", "0021_recipient_attestation.sql"];
+const MIGRATIONS = [
+  "0020_control_plane.sql",
+  "0021_recipient_attestation.sql",
+  "0030_cp_approval_decisions.sql",
+];
 
 export interface PgHarness {
   db: PGlite;
@@ -247,7 +251,24 @@ export async function startPg(): Promise<PgHarness> {
 
         const args = Object.entries(body ?? {});
         const call = args.map(([name], i) => `${ident(name)} := $${i + 1}`).join(", ");
-        const values = args.map(([, v]) => (v === null || typeof v === "object" ? JSON.stringify(v) : v));
+        // A JSON null reaches a jsonb parameter as the jsonb scalar 'null' (the
+        // case 0020's cp_jsonb_present exists for) but reaches a scalar
+        // parameter as SQL NULL. Stringifying it for a timestamptz would send
+        // the text "null", which no PostgREST call ever does.
+        const jsonArgs = await db.query<{ name: string }>(
+          `select unnest(p.proargnames) as name, unnest(p.proargtypes::oid[])::regtype::text as type
+             from pg_proc p join pg_namespace ns on ns.oid=p.pronamespace
+            where ns.nspname='public' and p.proname=$1`,
+          [fn]
+        );
+        const jsonNames = new Set(
+          (jsonArgs.rows as { name: string; type: string }[])
+            .filter((r) => r.type === "jsonb" || r.type === "json")
+            .map((r) => r.name)
+        );
+        const values = args.map(([name, v]) =>
+          v === null ? (jsonNames.has(name) ? "null" : null) : typeof v === "object" ? JSON.stringify(v) : v
+        );
         const out = await db.query<{ v: unknown }>(`select ${ident(fn)}(${call}) as v`, values);
         return json(out.rows[0]?.v ?? null);
       }

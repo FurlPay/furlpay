@@ -43,6 +43,7 @@ export * from "./rails";
 export * from "./capability";
 export * from "./policy";
 export * from "./evidence";
+export * from "./approval";
 
 /**
  * The policy semantics version.

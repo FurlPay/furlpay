@@ -28,7 +28,7 @@ describe("requireTenant is a real credential check, not a bypass", () => {
     const fnStart = src.indexOf("export async function requireTenant");
     const body = src.slice(fnStart);
     const authAt = body.indexOf("requireApiKey(req");
-    const orgAt = body.indexOf("sbSelect");
+    const orgAt = body.indexOf("organizationOwnedBy(");
     expect(authAt).toBeGreaterThan(-1);
     expect(orgAt).toBeGreaterThan(-1);
     // The organization is never looked up for an unauthenticated caller.
@@ -64,6 +64,58 @@ describe("requireTenant is a real credential check, not a bypass", () => {
     expect(src).toMatch(/export function notFound/);
     expect(src).toMatch(/problem\(404, "not_found"/);
     expect(src).not.toMatch(/problem\(403, "forbidden"/);
+  });
+});
+
+describe("requireHumanTenant is a session check that an API key cannot pass", () => {
+  // Admitted by the route-manifest validator for AUTHENTICATED_USER on the same
+  // terms as requireTenant: only because these tests pin what it does.
+  const fnStart = src.indexOf("export async function requireHumanTenant");
+  const body = src.slice(fnStart, src.indexOf("// ── Responses"));
+
+  it("exists", () => {
+    expect(fnStart).toBeGreaterThan(-1);
+  });
+
+  it("calls requireUser first and returns on failure", () => {
+    const authAt = body.indexOf("requireUser(req)");
+    const orgAt = body.indexOf("organizationOwnedBy(");
+    expect(authAt).toBeGreaterThan(-1);
+    expect(authAt).toBeLessThan(orgAt);
+    expect(body).toMatch(/if \(!auth\.ok\) return \{ ok: false, res: auth\.res \}/);
+  });
+
+  it("never accepts an API key", () => {
+    expect(body).not.toContain("requireApiKey");
+  });
+
+  it("derives the organization from the signed-in account, never from the request", () => {
+    expect(body).toContain("organizationOwnedBy(auth.account.user.id)");
+    expect(body).not.toMatch(/body\.organizationId|params\.organizationId|searchParams/);
+  });
+});
+
+describe("the approval routes are human-only", () => {
+  const API = join(__dirname, "..", "..", "..", "app", "api", "control-plane", "approvals");
+  for (const file of ["route.ts", "[id]/route.ts"]) {
+    const route = readFileSync(join(API, file), "utf8");
+    it(`${file} resolves a human tenant and never an API key`, () => {
+      expect(route).toContain("requireHumanTenant(req)");
+      expect(route).not.toContain("requireApiKey");
+      expect(route).not.toContain("requireTenant(");
+    });
+    it(`${file} has a per-route rate limit`, () => {
+      expect(route).toMatch(/rateLimitOr429\(req, "cp\.approvals\./);
+    });
+  }
+
+  it("deciding requires a fresh step-up and consumes it", () => {
+    const route = readFileSync(join(API, "[id]", "route.ts"), "utf8");
+    const stepAt = route.indexOf("recentStepUp(");
+    const decideAt = route.indexOf("decideApproval(");
+    expect(stepAt).toBeGreaterThan(-1);
+    expect(stepAt).toBeLessThan(decideAt);
+    expect(route).toContain("consumeStepUp(");
   });
 });
 

@@ -713,3 +713,171 @@ export async function transitionAuthorization(input: {
   );
   return (updated?.length ?? 0) > 0;
 }
+
+// ── Human approvals (migration 0030) ───────────────────────────────────────
+
+export interface ApprovalRow {
+  id: string;
+  organization_id: string;
+  authorization_id: string;
+  approver_role: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  denied_by: string | null;
+  denied_at: string | null;
+  on_timeout: "HOLD" | "DENY";
+  timeout_seconds: number;
+  requested_at: string;
+}
+
+export async function findApproval(
+  organizationId: string,
+  approvalId: string
+): Promise<ApprovalRow | null> {
+  const rows = await optional(() =>
+    sbSelect<ApprovalRow>(
+      "cp_approvals",
+      `organization_id=${eq(organizationId)}&id=${eq(approvalId)}&limit=1`
+    )
+  );
+  return rows?.[0] ?? null;
+}
+
+/** Undecided approvals for a tenant, oldest first: the order a human works them. */
+export async function listPendingApprovals(
+  organizationId: string,
+  limit = 50
+): Promise<ApprovalRow[] | null> {
+  return optional(() =>
+    sbSelect<ApprovalRow>(
+      "cp_approvals",
+      `organization_id=${eq(organizationId)}&approved_at=is.null&denied_at=is.null` +
+        `&order=requested_at.asc&limit=${Math.min(Math.max(limit, 1), 200)}`
+    )
+  );
+}
+
+/** The authorizations behind a page of approvals, tenant-scoped. */
+export async function findAuthorizations(
+  organizationId: string,
+  ids: readonly string[]
+): Promise<AuthorizationRow[] | null> {
+  if (ids.length === 0) return [];
+  const list = ids.map((id) => encodeURIComponent(id)).join(",");
+  return optional(() =>
+    sbSelect<AuthorizationRow>(
+      "cp_authorizations",
+      `organization_id=${eq(organizationId)}&id=in.(${list})&limit=${ids.length}`
+    )
+  );
+}
+
+/** The evidence written when the payment was DECIDED: its first record. */
+export async function findDecisionEvidence(
+  organizationId: string,
+  authorizationId: string
+): Promise<EvidenceRow | null> {
+  const rows = await optional(() =>
+    sbSelect<EvidenceRow>(
+      "cp_evidence_records",
+      `organization_id=${eq(organizationId)}&authorization_id=${eq(authorizationId)}` +
+        `&order=sequence.asc&limit=1`
+    )
+  );
+  return rows?.[0] ?? null;
+}
+
+export type ApprovalWriteResult =
+  | { status: "decided"; authorizationId: string; phase: string; evidenceId: string; sequence: number }
+  | { status: "replayed"; authorizationId: string; decidedAt: string }
+  | { status: "not_found" }
+  | { status: "already_decided" }
+  | { status: "phase_changed"; phase: string | null }
+  | { status: "slot_stale" };
+
+/**
+ * Record a human's answer: approval row, phase and evidence as one fact.
+ * Null when the store is absent; `slot_stale` when a concurrent write took the
+ * evidence position the leaf hash committed to, which the caller retries.
+ */
+export async function recordApprovalDecision(input: {
+  organizationId: string;
+  approvalId: string;
+  decision: "APPROVE" | "DENY";
+  actor: string;
+  fromPhase: string;
+  toPhase: string;
+  stepUpHash: string | null;
+  expiresAt: string | null;
+  evidence: {
+    id: string;
+    leaf_hash: string;
+    bundle: unknown;
+    sequence: number;
+    previous_leaf_hash: string | null;
+  };
+}): Promise<ApprovalWriteResult | null> {
+  let raw: Record<string, unknown> | Record<string, unknown>[] | null;
+  try {
+    raw = await optional(() =>
+      sbRpc<Record<string, unknown>>("cp_decide_approval", {
+        p_organization_id: input.organizationId,
+        p_approval_id: input.approvalId,
+        p_decision: input.decision,
+        p_actor: input.actor,
+        p_from_phase: input.fromPhase,
+        p_to_phase: input.toPhase,
+        p_step_up_hash: input.stepUpHash,
+        p_expires_at: input.expiresAt,
+        p_evidence: input.evidence,
+      })
+    );
+  } catch (e) {
+    if (((e as Error).message ?? "").includes("cp_evidence_slot_stale")) return { status: "slot_stale" };
+    throw e;
+  }
+  if (!raw) return null;
+  const row = (Array.isArray(raw) ? raw[0] : raw) as Record<string, unknown>;
+  switch (row.status) {
+    case "decided":
+      return {
+        status: "decided",
+        authorizationId: String(row.authorization_id),
+        phase: String(row.phase),
+        evidenceId: String(row.evidence_id),
+        sequence: Number(row.sequence),
+      };
+    case "replayed":
+      return {
+        status: "replayed",
+        authorizationId: String(row.authorization_id),
+        decidedAt: String(row.decided_at),
+      };
+    case "not_found":
+    case "already_decided":
+      return { status: row.status };
+    case "phase_changed":
+      return { status: "phase_changed", phase: (row.phase as string | null) ?? null };
+    default:
+      throw new Error(`cp_decide_approval returned an unknown status: ${String(row.status)}`);
+  }
+}
+
+/**
+ * The approval row for an authorization. `undefined` when there is none, `null`
+ * when the store could not be read: the execute guard must not read an outage
+ * as "no approval needed" or as "approved".
+ */
+export async function findApprovalForAuthorization(
+  organizationId: string,
+  authorizationId: string
+): Promise<ApprovalRow | undefined | null> {
+  const rows = await optional(() =>
+    sbSelect<ApprovalRow>(
+      "cp_approvals",
+      `organization_id=${eq(organizationId)}&authorization_id=${eq(authorizationId)}&limit=1`
+    )
+  );
+  if (!rows) return null;
+  return rows[0];
+}

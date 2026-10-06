@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
+import { isFrozenRoute, featureGateResponse } from "@/lib/featureGate";
 import {
   canRefreshSession,
   SESSION_COOKIE,
@@ -73,6 +74,13 @@ const PUBLIC_PAGES = new Set([
   // it before middleware runs, so this only matters if that rule is removed —
   // and then the app/token2049 fallback must redirect, not hit the login wall.
   "/token2049",
+  // Published research and its PDF are available without a session or email.
+  "/research/global-stablecoin-report-2026",
+  "/reports/global-stablecoin-report-2026",
+  "/reports/global-stablecoin-report-2026.pdf",
+  // The same report with images downsampled (5.6 MB vs 15.6 MB) for mobile
+  // readers. Same content, same access as the full PDF above; exact path only.
+  "/reports/global-stablecoin-report-2026-lite.pdf",
   "/grants",
   "/marketplace",
   "/login",
@@ -356,6 +364,10 @@ const FORBIDDEN_HTML = `<!doctype html><html lang="en"><head><meta charset="utf-
 
 export async function middleware(req: NextRequest, event?: NextFetchEvent) {
   const { pathname } = req.nextUrl;
+
+  if (isFrozenRoute(pathname)) {
+    return featureGateResponse();
+  }
 
   // Origin verification (lib/originVerify.ts): behind CloudFront, a request
   // without the distribution's secret header did not come through our WAF.

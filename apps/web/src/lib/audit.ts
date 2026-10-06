@@ -39,6 +39,9 @@ export type AuditEvent =
   | "payment.review_requested"
   | "payment.review_approved"
   | "payment.review_rejected"
+  // A human answering a control-plane approval (app/api/control-plane/approvals).
+  | "control_plane.approval.approved"
+  | "control_plane.approval.denied"
   | "payment.refunded"
   | "transfer.executed"
   | "transfer.blocked"

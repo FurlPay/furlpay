@@ -10,6 +10,7 @@ import { revocationLookup } from "@/lib/controlPlane/revocationAdapter";
 import { checkRecipient } from "@/lib/controlPlane/recipientStore";
 import { railAdapterFor, submitToRail } from "@/lib/controlPlane/railAdapter";
 import {
+  findApprovalForAuthorization,
   findAuthorization,
   findMandate,
   loadChain,
@@ -96,7 +97,12 @@ export async function POST(req: NextRequest) {
       // DENIED and HOLD are not executable. PENDING_APPROVAL is not executable
       // either: that is precisely the state in which a human has not answered,
       // and executing from it would make the approval decorative.
-      if (auth.verdict !== "ALLOW") {
+      //
+      // A HOLD that a human has since approved is in APPROVED, and that is the
+      // one case where a non-ALLOW verdict executes. The approval itself is read
+      // from cp_approvals below, not inferred from the phase.
+      const humanApproved = auth.verdict === "HOLD" && auth.phase === "APPROVED";
+      if (auth.verdict !== "ALLOW" && !humanApproved) {
         return problem(409, "not_authorized", {
           phase: auth.phase,
           decision: auth.verdict,
@@ -306,10 +312,24 @@ export async function POST(req: NextRequest) {
       // Enforces the invariant edges alone cannot: a payment that required
       // approval carries `approvalRequired` and refuses EXECUTE without a
       // recorded approver, even from a phase whose edge is legal.
+      //
+      // The approver comes from the stored approval row. Deriving it from the
+      // phase would let any write that set phase=APPROVED satisfy the guard,
+      // which is the forged-phase case the guard exists for.
+      let approvedAt: string | undefined;
+      if (auth.approval_required || humanApproved) {
+        const approval = await findApprovalForAuthorization(org, auth.id);
+        if (approval === null) {
+          return problem(503, "control_plane_unavailable", {
+            message: "The approval record could not be read; execution refused.",
+          });
+        }
+        approvedAt = approval?.approved_at ?? undefined;
+      }
       const record: LifecycleRecord = {
         phase: auth.phase as LifecycleRecord["phase"],
-        approvalRequired: auth.approval_required,
-        approvedAt: auth.phase === "APPROVED" ? new Date().toISOString() : undefined,
+        approvalRequired: auth.approval_required || humanApproved,
+        approvedAt,
         history: [],
         updatedAt: new Date().toISOString(),
       };

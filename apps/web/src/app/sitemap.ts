@@ -30,6 +30,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { path: "/token", priority: 0.9, changeFrequency: "weekly" as const },
     { path: "/bridge", priority: 0.6, changeFrequency: "monthly" as const },
     { path: "/about", priority: 0.7, changeFrequency: "monthly" as const },
+    { path: "/research", priority: 0.8, changeFrequency: "monthly" as const },
+    { path: "/reports/global-stablecoin-report-2026", priority: 0.8, changeFrequency: "yearly" as const },
     // The entity home for the founder — the page every Person node on the
     // site points at. Ranked with /about rather than below it.
     { path: "/our-founders", priority: 0.8, changeFrequency: "monthly" as const },

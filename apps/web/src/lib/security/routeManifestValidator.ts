@@ -113,7 +113,18 @@ export const RULES: RouteRule[] = [
     // requireUser, or a partner via requireApiKey when an API key is presented.
     // Admitted on the same terms as requireTenant below: partnerAuth.spec pins
     // that it calls both helpers, so this cannot become a bypass by indirection.
-    requiresAnyCall: ["requireUser", "requireRole", "requireOpsAdmin", "requireAnyRole", "authenticateRampRequest"],
+    //
+    // requireHumanTenant (lib/controlPlane/tenancy.ts) is requireUser plus the
+    // caller's organization; tenancy.spec pins that it calls requireUser first
+    // and never accepts an API key.
+    requiresAnyCall: [
+      "requireUser",
+      "requireRole",
+      "requireOpsAdmin",
+      "requireAnyRole",
+      "authenticateRampRequest",
+      "requireHumanTenant",
+    ],
     severity: "error",
     reason:
       "A route classified AUTHENTICATED_USER must resolve its principal through the shared " +
