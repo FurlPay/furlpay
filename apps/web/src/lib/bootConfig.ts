@@ -85,9 +85,20 @@ export function edgeTrustProblems(env: Env): string[] {
   return problems;
 }
 
-export function assertBootConfig(env: Env = process.env): void {
-  assertAdminConfig(env);
-  if (!isProductionRuntime(env)) return;
+/** Non-fatal findings the boot hook logs; the process still serves traffic. */
+export interface BootReport {
+  warnings: string[];
+}
+
+export function assertBootConfig(env: Env = process.env): BootReport {
+  const warnings: string[] = [];
+  const admin = assertAdminConfig(env); // throws only for a malformed value
+  if (admin === "disabled_not_configured" && isProductionRuntime(env)) {
+    warnings.push(
+      "FURLPAY_ADMIN_EMAIL is not set: administration is DISABLED (no account holds the admin role; there is no fallback). Set it to enable admin and ops routes."
+    );
+  }
+  if (!isProductionRuntime(env)) return { warnings };
   const edge = edgeTrustProblems(env);
   if (edge.length) {
     throw new BootConfigError(`edge trust misconfigured: ${edge.join("; ")}`);
@@ -100,4 +111,5 @@ export function assertBootConfig(env: Env = process.env): void {
   if (missing.length) {
     throw new BootConfigError(`missing required production configuration: ${missing.join(", ")}`);
   }
+  return { warnings };
 }

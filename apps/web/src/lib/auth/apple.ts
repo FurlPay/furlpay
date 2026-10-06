@@ -34,8 +34,26 @@ function decodeJwtPayload(token: string): Record<string, unknown> {
   return JSON.parse(json);
 }
 
+export interface AppleVerifyOptions {
+  /**
+   * When set, the token's `nonce` claim must equal this exactly. The native
+   * flow passes its PKCE code_challenge here, binding the Apple authorization
+   * to the app session that started it (app/api/auth/apple/callback).
+   */
+  expectedNonce?: string;
+}
+
+function assertNonce(claim: unknown, expected: string | undefined): void {
+  if (expected === undefined) return;
+  if (typeof claim !== "string" || claim !== expected) throw new Error("Apple token nonce mismatch");
+}
+
 /** Verify an Apple identity token and return the normalized identity, or throw. */
-export async function verifyAppleIdentityToken(idToken: string, name?: string): Promise<AppleIdentity> {
+export async function verifyAppleIdentityToken(
+  idToken: string,
+  name?: string,
+  opts: AppleVerifyOptions = {}
+): Promise<AppleIdentity> {
   if (appleIsLive()) {
     const { createRemoteJWKSet, jwtVerify } = await import("jose");
     const jwks = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"));
@@ -44,6 +62,7 @@ export async function verifyAppleIdentityToken(idToken: string, name?: string): 
       audience: CLIENT_ID,
     });
     if (!payload.sub || !payload.email) throw new Error("Apple token missing required claims");
+    assertNonce(payload.nonce, opts.expectedNonce);
     return {
       sub: String(payload.sub),
       email: String(payload.email),
@@ -64,6 +83,7 @@ export async function verifyAppleIdentityToken(idToken: string, name?: string): 
   const sub = String(p.sub ?? "");
   const email = String(p.email ?? "");
   if (!sub || !email) throw new Error("Stub token missing sub/email");
+  assertNonce(p.nonce, opts.expectedNonce);
   return {
     sub,
     email,

@@ -41,6 +41,9 @@ export const dynamic = "force-dynamic";
 
 const GASLESS_FEE_USD = 0;
 
+/** Seconds a quote may be acted on; the app refuses to sign past `expiresAt`. */
+const GASLESS_QUOTE_TTL_SECONDS = 60;
+
 // GET /api/transfers/gasless — Smart Gas quote. Everything the client needs
 // to render a send screen with no native-token mention.
 export async function GET() {
@@ -55,9 +58,19 @@ export async function GET() {
   //
   // INTEGRATION_MODE only says mocks are forbidden. The relayer is what
   // actually submits, so ask for the relayer.
-  const relayerReady = defaultSettler() !== null;
+  //
+  // ...and ALSO the mode (audit P3-5, 2026-10-05). The POST below settles
+  // on-chain only when BOTH hold; with a relayer in mock mode it answers
+  // `simulated` — after the app has already signed a real, 10-minute EIP-3009
+  // authorization and handed it over. The app now signs only against
+  // `live === true` and an unexpired quote, so `live` must mean exactly "this
+  // POST will settle", and the quote carries an expiry.
+  const relayerReady = process.env.INTEGRATION_MODE === "live" && defaultSettler() !== null;
+  const quotedAt = Math.floor(Date.now() / 1000);
   return NextResponse.json(
     {
+      quotedAt,
+      expiresAt: quotedAt + GASLESS_QUOTE_TTL_SECONDS,
       network: NETWORK,
       asset: { symbol: "USDC", address: USDC_ASSET, decimals: 6 },
       fee: { usd: GASLESS_FEE_USD, sponsored: true, detail: "Gas is paid by Furlpay's relayer. You only sign — no ETH needed." },

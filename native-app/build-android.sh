@@ -59,6 +59,9 @@ trap scrub EXIT
 # used to happen on EAS, where the gitignored google-services.json never reached
 # the worker). See app.config.js.
 export FURLPAY_RELEASE_BUILD=1
+# A signed release targets production. Without this, app.config.js resolved the
+# environment to "dev" (dev backend, .dev applicationId); it now refuses that.
+export FURLPAY_ENV=prod
 
 # EXPO_PUBLIC_* are inlined into the JS bundle at build time. Source them from
 # the signing dir (same custody boundary as the keystore, outside the synced

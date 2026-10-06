@@ -6,12 +6,64 @@ jest.mock("@/lib/security/riskPolicy", () => {
   return { ...actual, requireAuthFor: jest.fn() };
 });
 
+// Tamper detection is a native SDK; these tests drive its two outputs directly.
+// Default: detection running, nothing found — the healthy-device baseline the
+// rest of this file assumes.
+jest.mock("@/lib/security/tamperDetection", () => ({
+  isDeviceCompromised: jest.fn(() => false),
+  isIntegrityUnknown: jest.fn(() => false),
+}));
+import { isDeviceCompromised, isIntegrityUnknown } from "@/lib/security/tamperDetection";
+const mockCompromised = isDeviceCompromised as jest.Mock;
+const mockUnknown = isIntegrityUnknown as jest.Mock;
+
 const mockAuth = requireAuthFor as jest.MockedFunction<typeof requireAuthFor>;
 
 beforeEach(() => {
   mockAuth.mockReset();
   mockAuth.mockResolvedValue({ ok: true });
+  mockCompromised.mockReturnValue(false);
+  mockUnknown.mockReturnValue(false);
   clearStepUp();
+});
+
+// P0-3 (audit 2026-10-05): tamper detection that is not running must neither
+// silently allow nor block — it must demand proof of presence.
+describe("tamper detection feeds the decision", () => {
+  it("detection not running (config missing / start failed) → STEP_UP with a forced prompt, not ALLOW", async () => {
+    mockUnknown.mockReturnValue(true);
+    const res = await authorizeMoneyMove(send({ signals: { knownBeneficiary: true } }));
+    expect(res.assessment.decision).toBe("STEP_UP");
+    expect(res.assessment.rules.map((r) => r.id)).toContain("integrity_unknown");
+    expect(mockAuth).toHaveBeenCalledWith("send_funds", expect.objectContaining({ force: true }));
+    expect(res.ok).toBe(true); // proven presence → proceeds
+  });
+
+  it("detection not running and the user fails the prompt → nothing is sent", async () => {
+    mockUnknown.mockReturnValue(true);
+    mockAuth.mockResolvedValue({ ok: false, reason: "rejected" });
+    const res = await authorizeMoneyMove(send({ signals: { knownBeneficiary: true } }));
+    expect(res.ok).toBe(false);
+  });
+
+  it("a detected threat BLOCKS before any prompt", async () => {
+    mockCompromised.mockReturnValue(true);
+    const res = await authorizeMoneyMove(send());
+    expect(res.ok === false && res.kind).toBe("blocked");
+    expect(mockAuth).not.toHaveBeenCalled();
+  });
+
+  it("a caller cannot clear the detector's verdict by passing deviceCompromised: false", async () => {
+    mockCompromised.mockReturnValue(true);
+    const res = await authorizeMoneyMove(send({ signals: { deviceCompromised: false } }));
+    expect(res.ok === false && res.kind).toBe("blocked");
+  });
+
+  it("a caller cannot clear unknown integrity by passing integrityUnknown: false", async () => {
+    mockUnknown.mockReturnValue(true);
+    const res = await authorizeMoneyMove(send({ signals: { integrityUnknown: false, knownBeneficiary: true } }));
+    expect(res.assessment.decision).toBe("STEP_UP");
+  });
 });
 
 const send = (over = {}) => ({

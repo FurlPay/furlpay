@@ -1,8 +1,11 @@
 #include "Base.xcconfig"
 
-// Matches infra/aws/envs/prod `api_base_url`.
+// furlpay.com, NOT the planned AWS host api.furlpay.com — that name has never
+// resolved (NXDOMAIN, 2026-10-05). Must agree with native-app/app.config.js
+// PRODUCTION_API_BASE and the Guardian prod flavors; pinned by
+// guardian/core/network ReleaseApiBaseTest.
 FURLPAY_ENV = prod
-FURLPAY_API_HOST = api.furlpay.com
+FURLPAY_API_HOST = furlpay.com
 
 // NO SUFFIX. This is the identifier the App Store record owns; changing it
 // orphans every existing install and every keychain item they hold.
