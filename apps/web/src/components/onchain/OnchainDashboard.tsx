@@ -38,7 +38,7 @@ import { useOnchain, type OnchainRange } from "./useOnchain";
 
 // ---------------------------------------------------------------------------
 // /onchain — Onchain Intelligence. Layout follows the reference design; every
-// number comes from /api/ops/onchain, and every card names its source. A card
+// number comes from /api/onchain, and every card names its source. A card
 // whose source is not connected says so in place of a chart: nothing on this
 // page is a placeholder value.
 // ---------------------------------------------------------------------------

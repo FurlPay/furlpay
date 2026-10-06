@@ -12,7 +12,7 @@ function unavailable(d: OnchainDashboard): number {
 }
 
 /**
- * Polls GET /api/ops/onchain every 30s (paused while the tab is hidden).
+ * Polls GET /api/onchain every 30s (paused while the tab is hidden).
  * Keeps the last good payload on a failed poll and reports Offline with its
  * age instead of blanking the page — the same contract as useDashboard.
  */
@@ -22,7 +22,7 @@ export function useOnchain(range: OnchainRange, chain: string) {
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const abort = useRef<AbortController | null>(null);
-  const url = `/api/ops/onchain?${new URLSearchParams({ range, chain }).toString()}`;
+  const url = `/api/onchain?${new URLSearchParams({ range, chain }).toString()}`;
 
   const load = useCallback(async () => {
     abort.current?.abort();

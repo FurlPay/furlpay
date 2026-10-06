@@ -138,6 +138,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
   "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
   "/trips", // FurlPay Trips product page — marketing composition, no user data
+  "/onchain", // Onchain Intelligence — public aggregates from /api/onchain (no user ids, truncated addresses)
   // Market data is public: /api/markets* already serves every quote, stat and
   // chart anonymously (rate-limited per IP), so gating the PAGE only stopped
   // people READING published prices — it protected nothing. The one
@@ -244,6 +245,7 @@ const PUBLIC_API_PREFIXES = [
   // as an open RPC proxy.
   "/api/token",
   "/api/rails", // public payment-rail map — protocol, chains, fees, live status
+  "/api/onchain", // public /onchain aggregates — IP rate-limited, one shared 60 s build per (range, chain)
   "/api/docs/feedback", // anonymous docs page feedback counters (IP rate-limited)
   "/api/transfers/gasless", // Smart Gas: GET quote is public; POST enforces its own session via requireUser
   "/api/payments/fees", // public fee estimator — merchants compare vs card interchange

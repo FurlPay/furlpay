@@ -265,6 +265,24 @@ async function risk(range: AnalyticsRange): Promise<Section<RiskView>> {
   }
 }
 
+const CACHE_MS = 60_000;
+const cache = new Map<string, { at: number; value: Promise<OnchainDashboard> }>();
+
+/**
+ * One shared build per (range, chain) for 60 s, with concurrent callers
+ * awaiting the same promise. The page is public, so this — not the per-IP
+ * limiter — is what bounds ledger reads.
+ */
+export function onchainCached(range: AnalyticsRange, chain: ChainFilter, now = Date.now()): Promise<OnchainDashboard> {
+  const key = `${range.key}:${chain}`;
+  const hit = cache.get(key);
+  if (hit && now - hit.at < CACHE_MS) return hit.value;
+  const value = buildOnchainDashboard(range, chain);
+  cache.set(key, { at: now, value });
+  value.catch(() => cache.delete(key));
+  return value;
+}
+
 export async function buildOnchainDashboard(range: AnalyticsRange, chain: ChainFilter): Promise<OnchainDashboard> {
   const [l, r, market, daily, corridors] = await Promise.all([
     ledger(range, chain),
