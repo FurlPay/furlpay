@@ -49,22 +49,29 @@ contract FurlPayEscrow is Ownable2Step, Pausable, ReentrancyGuard {
     /// @notice After checkInDate + grace, release needs no oracle.
     uint64 public constant RELEASE_GRACE_PERIOD = 7 days;
 
-    mapping(bytes32 bookingId => Booking) public bookings;
+    /// @notice Bookings by KEY, where key = bookingKey(traveler, bookingId).
+    /// @dev Keyed by the funding traveler, not the bare caller-chosen id
+    ///      (SEC-P3-004). With a global `bookingId` an observer of a pending
+    ///      createBooking could fund the same id first with 1 unit, so the
+    ///      traveler's transaction reverted and the receipt NFT for that id
+    ///      went to the attacker. A front-runner now lands under its OWN key.
+    mapping(bytes32 key => Booking) public bookings;
 
     event BookingFunded(
-        bytes32 indexed bookingId,
+        bytes32 indexed key,
         address indexed traveler,
         address indexed provider,
+        bytes32 bookingId,
         uint256 amount,
         uint64 checkInDate,
         uint64 cancellationDeadline
     );
-    event BookingReleased(bytes32 indexed bookingId, address indexed provider, uint256 amount);
-    event BookingRefunded(bytes32 indexed bookingId, address indexed traveler, uint256 amount);
+    event BookingReleased(bytes32 indexed key, address indexed provider, uint256 amount);
+    event BookingRefunded(bytes32 indexed key, address indexed traveler, uint256 amount);
     event CheckInOracleUpdated(address indexed previousOracle, address indexed newOracle);
 
-    error BookingExists(bytes32 bookingId);
-    error BookingNotFunded(bytes32 bookingId);
+    error BookingExists(bytes32 key);
+    error BookingNotFunded(bytes32 key);
     error NotOracle(address caller);
     error NotTraveler(address caller);
     error CancellationWindowClosed(uint64 deadline);
@@ -85,16 +92,24 @@ contract FurlPayEscrow is Ownable2Step, Pausable, ReentrancyGuard {
         checkInOracle = checkInOracle_;
     }
 
+    /// @notice The storage key of `traveler`'s booking `bookingId`. Every
+    ///         other function, and the receipt NFT's token id, uses this key.
+    function bookingKey(address traveler, bytes32 bookingId) public pure returns (bytes32) {
+        return keccak256(abi.encode(traveler, bookingId));
+    }
+
     /// @notice Fund a booking. Caller (the traveler) must have approved
-    ///         `amount` USDC. Mints the booking receipt NFT to the traveler.
+    ///         `amount` USDC. Mints the booking receipt NFT (token id = key)
+    ///         to the traveler. Returns the booking key.
     function createBooking(
         bytes32 bookingId,
         uint256 amount,
         address provider,
         uint64 checkInDate,
         uint64 cancellationDeadline
-    ) external nonReentrant whenNotPaused {
-        if (bookings[bookingId].status != BookingStatus.None) revert BookingExists(bookingId);
+    ) external nonReentrant whenNotPaused returns (bytes32 key) {
+        key = bookingKey(msg.sender, bookingId);
+        if (bookings[key].status != BookingStatus.None) revert BookingExists(key);
         if (provider == address(0)) revert ZeroAddress();
         if (amount == 0) revert ZeroAmount();
         // Cancellation must close at or before check-in, and check-in must be
@@ -103,7 +118,7 @@ contract FurlPayEscrow is Ownable2Step, Pausable, ReentrancyGuard {
             revert InvalidSchedule();
         }
 
-        bookings[bookingId] = Booking({
+        bookings[key] = Booking({
             traveler: msg.sender,
             provider: provider,
             amount: amount,
@@ -113,9 +128,9 @@ contract FurlPayEscrow is Ownable2Step, Pausable, ReentrancyGuard {
         });
 
         usdc.safeTransferFrom(msg.sender, address(this), amount);
-        receipt.mint(msg.sender, uint256(bookingId));
+        receipt.mint(msg.sender, uint256(key));
 
-        emit BookingFunded(bookingId, msg.sender, provider, amount, checkInDate, cancellationDeadline);
+        emit BookingFunded(key, msg.sender, provider, bookingId, amount, checkInDate, cancellationDeadline);
     }
 
     /// @notice Oracle-confirmed check-in → pay the provider.
@@ -125,26 +140,26 @@ contract FurlPayEscrow is Ownable2Step, Pausable, ReentrancyGuard {
     ///      pay out every funded booking early (SEC-P2-003). The deadline is
     ///      at or before check-in (createBooking enforces it), so this also
     ///      means the window has closed.
-    function confirmCheckIn(bytes32 bookingId) external nonReentrant {
+    function confirmCheckIn(bytes32 key) external nonReentrant {
         if (msg.sender != checkInOracle) revert NotOracle(msg.sender);
-        uint64 checkInDate = bookings[bookingId].checkInDate;
+        uint64 checkInDate = bookings[key].checkInDate;
         if (block.timestamp < checkInDate) revert CheckInNotReached(checkInDate);
-        _release(bookingId);
+        _release(key);
     }
 
     /// @notice Permissionless release once the grace period after check-in
     ///         has passed — protects providers from oracle downtime.
-    function releaseAfterGrace(bytes32 bookingId) external nonReentrant {
-        Booking storage b = bookings[bookingId];
+    function releaseAfterGrace(bytes32 key) external nonReentrant {
+        Booking storage b = bookings[key];
         uint64 releasableAt = b.checkInDate + RELEASE_GRACE_PERIOD;
         if (block.timestamp < releasableAt) revert GracePeriodNotReached(releasableAt);
-        _release(bookingId);
+        _release(key);
     }
 
     /// @notice Traveler cancels before the cancellation deadline → full refund.
-    function cancel(bytes32 bookingId) external nonReentrant {
-        Booking storage b = bookings[bookingId];
-        if (b.status != BookingStatus.Funded) revert BookingNotFunded(bookingId);
+    function cancel(bytes32 key) external nonReentrant {
+        Booking storage b = bookings[key];
+        if (b.status != BookingStatus.Funded) revert BookingNotFunded(key);
         if (msg.sender != b.traveler) revert NotTraveler(msg.sender);
         if (block.timestamp > b.cancellationDeadline) {
             revert CancellationWindowClosed(b.cancellationDeadline);
@@ -152,16 +167,16 @@ contract FurlPayEscrow is Ownable2Step, Pausable, ReentrancyGuard {
 
         b.status = BookingStatus.Refunded;
         usdc.safeTransfer(b.traveler, b.amount);
-        emit BookingRefunded(bookingId, b.traveler, b.amount);
+        emit BookingRefunded(key, b.traveler, b.amount);
     }
 
-    function _release(bytes32 bookingId) internal {
-        Booking storage b = bookings[bookingId];
-        if (b.status != BookingStatus.Funded) revert BookingNotFunded(bookingId);
+    function _release(bytes32 key) internal {
+        Booking storage b = bookings[key];
+        if (b.status != BookingStatus.Funded) revert BookingNotFunded(key);
 
         b.status = BookingStatus.Released;
         usdc.safeTransfer(b.provider, b.amount);
-        emit BookingReleased(bookingId, b.provider, b.amount);
+        emit BookingReleased(key, b.provider, b.amount);
     }
 
     // --- Admin ---------------------------------------------------------------
