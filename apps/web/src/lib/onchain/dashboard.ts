@@ -58,7 +58,7 @@ export interface LedgerView {
   truncated: boolean;
   kpis: { volume: Kpi; transactions: Kpi; users: Kpi; recipients: Kpi; fees: Kpi };
   volumeByBucket: { bucket: string; tokens: Record<TokenKey, number> }[];
-  chains: { chain: string; volume: number; share: number }[];
+  chains: { chain: string; volume: number; count: number; share: number }[];
   rails: { rail: string; volume: number; count: number; share: number }[];
   counterparties: { address: string; volume: number; count: number; chain: string | null }[];
   flow: { sources: { label: string; value: number }[]; destinations: { label: string; value: number }[] };
@@ -128,7 +128,7 @@ export function summarizeLedger(range: AnalyticsRange, cur: LedgerRow[], prev: L
   const userSets = range.buckets.map(() => new Set<string>());
   const recSets = range.buckets.map(() => new Set<string>());
   const byBucket = range.buckets.map(() => Object.fromEntries(TOKENS.map((t) => [t, 0])) as Record<TokenKey, number>);
-  const chains = new Map<string, number>();
+  const chains = new Map<string, { volume: number; count: number }>();
   const rails = new Map<string, { volume: number; count: number }>();
   const cps = new Map<string, { volume: number; count: number; chain: string | null }>();
   const users = new Set<string>();
@@ -151,7 +151,10 @@ export function summarizeLedger(range: AnalyticsRange, cur: LedgerRow[], prev: L
     }
     if (r.user_id) users.add(r.user_id);
     const c = chainOf(r) ?? "unknown";
-    chains.set(c, (chains.get(c) ?? 0) + amt);
+    const ch = chains.get(c) ?? { volume: 0, count: 0 };
+    ch.volume += amt;
+    ch.count += 1;
+    chains.set(c, ch);
     const rail = rails.get(r.rail) ?? { volume: 0, count: 0 };
     rail.volume += amt;
     rail.count += 1;
@@ -172,7 +175,7 @@ export function summarizeLedger(range: AnalyticsRange, cur: LedgerRow[], prev: L
   const prevRecipients = new Set(prevSettled.map((r) => r.recipient?.toLowerCase()).filter(Boolean)).size;
   const share = (v: number) => (volume > 0 ? v / volume : 0);
 
-  const chainList = [...chains.entries()].map(([c, v]) => ({ chain: c, volume: v, share: share(v) })).sort((a, b) => b.volume - a.volume);
+  const chainList = [...chains.entries()].map(([c, v]) => ({ chain: c, ...v, share: share(v.volume) })).sort((a, b) => b.volume - a.volume);
   const railList = [...rails.entries()].map(([rail, v]) => ({ rail, ...v, share: share(v.volume) })).sort((a, b) => b.volume - a.volume);
 
   return {
@@ -190,14 +193,14 @@ export function summarizeLedger(range: AnalyticsRange, cur: LedgerRow[], prev: L
     counterparties: [...cps.entries()]
       .map(([address, v]) => ({ address: shortRef(address) ?? "—", ...v }))
       .sort((a, b) => b.volume - a.volume)
-      .slice(0, 6),
+      .slice(0, 20),
     flow: {
       sources: railList.slice(0, 5).map((r) => ({ label: r.rail, value: r.volume })),
       destinations: chainList.slice(0, 5).map((c) => ({ label: c.chain, value: c.volume })),
     },
     activity: [...inCur]
       .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
-      .slice(0, 6)
+      .slice(0, 20)
       .map((r) => ({
         hash: shortRef(r.tx_hash),
         rail: r.rail,
