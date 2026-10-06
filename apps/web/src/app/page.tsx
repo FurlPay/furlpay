@@ -8,6 +8,7 @@ import BuildSection from "@/components/landing/BuildSection";
 import InfrastructureSection from "@/components/landing/InfrastructureSection";
 import AgentSection from "@/components/landing/AgentSection";
 import ApiPlayground from "@/components/landing/ApiPlayground";
+import ApiSettlementHub from "@/components/landing/ApiSettlementHub";
 import ProductionSection from "@/components/landing/ProductionSection";
 import SecuritySection from "@/components/landing/SecuritySection";
 import ProofSection from "@/components/landing/ProofSection";
@@ -114,6 +115,11 @@ export default function LandingPage() {
               Five surfaces, one client. The Agents tab runs a real, unauthenticated request
               against this deployment — the rest show documented response shapes.
             </p>
+          </Reveal>
+          {/* The architecture, before the code: what connects to the API, what
+              it runs on, what it powers, where it settles. */}
+          <Reveal className="mt-8" delay={40}>
+            <ApiSettlementHub />
           </Reveal>
           <Reveal className="mt-8" delay={60}>
             <ApiPlayground />
