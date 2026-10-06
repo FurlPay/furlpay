@@ -612,6 +612,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       country: p.country,
       stars: p.stars,
       placeId: p.placeId,
+      source: "source" in p ? p.source : undefined,
     });
     setHover(null);
   }, []);

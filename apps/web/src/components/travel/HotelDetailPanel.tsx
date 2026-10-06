@@ -40,6 +40,8 @@ export interface DetailTarget {
    * property whose ID was in the dataset the whole time.
    */
   placeId?: string;
+  /** Where the map point came from, so the empty state names the right source. */
+  source?: string;
 }
 
 type State =
@@ -180,8 +182,9 @@ export default function HotelDetailPanel({
 
         {state.kind === "empty" && (
           <p className="p-4 text-[13px] leading-relaxed text-white/60">
-            No matching place found. The hotel is on the map because OpenStreetMap has it;
-            Google simply has no listing under this name here.
+            {target.source === "osm"
+              ? "No matching place found. The hotel is on the map because OpenStreetMap has it; Google simply has no listing under this name here."
+              : "Google returned no listing for this hotel here, so there are no photos or reviews to show. Rates are still available through the button below."}
           </p>
         )}
 
