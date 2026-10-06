@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { trackClient } from "@/lib/analytics/client";
 import Link from "next/link";
 import { ChevronLeft, Plane, ArrowRight, Search, Bell, Radio } from "lucide-react";
@@ -22,12 +22,35 @@ export default function FlightsPage() {
   const [source, setSource] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  async function search() {
+  // /travel/flights?from=&to=&date= (the /travel search panel) prefills the
+  // form and runs the search once. Read from location rather than
+  // useSearchParams so the page needs no Suspense boundary.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const iata = (v: string | null) => (v && /^[A-Za-z]{3}$/.test(v) ? v.toUpperCase() : null);
+    const qTo = iata(q.get("to"));
+    if (!qTo) return;
+    const qFrom = iata(q.get("from"));
+    const qDate = q.get("date");
+    const next = {
+      from: qFrom ?? from,
+      to: qTo,
+      date: qDate && /^\d{4}-\d{2}-\d{2}$/.test(qDate) ? qDate : date,
+    };
+    setFrom(next.from);
+    setTo(next.to);
+    setDate(next.date);
+    void search(next);
+    // Runs once, on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function search(override?: { from: string; to: string; date: string }) {
     trackClient("travel_search", { metadata: { source: "flights" } });
     setLoading(true);
     try {
       const d = await sendJSON<{ results: Flight[]; source?: string }>("/api/travel/search", {
-        type: "flights", from, to, date, cabin,
+        type: "flights", from: override?.from ?? from, to: override?.to ?? to, date: override?.date ?? date, cabin,
       });
       setResults(d.results);
       setSource(d.source ?? null);
@@ -93,7 +116,7 @@ export default function FlightsPage() {
           </select>
         </div>
         <button
-          onClick={search}
+          onClick={() => search()}
           className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-xl bg-neon py-3 text-sm font-bold text-black transition hover:bg-neonDeep"
         >
           <Search className="h-4 w-4" /> Search flights
