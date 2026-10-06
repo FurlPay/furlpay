@@ -399,10 +399,54 @@ export interface Flight {
   durationMin: number;
   stops: number;
   cabin: "Economy" | "Premium" | "Business" | "First";
+  /** The offer's total amount. Historically named priceUsd; for live offers
+   *  the unit is `currency`, which may not be USD — render with the currency. */
   priceUsd: number;
+  /** Human summary of the bags the airline says are included. */
   baggage: string;
   /** Brand-compliant SVG airline logo (Duffel assets CDN). */
   logoUrl?: string;
+
+  // ── Detail fields (live Duffel offers). Optional so every existing client
+  //    of this shape — extension, CLI, MCP — keeps working unchanged. ──────
+  /** ISO 4217 code of priceUsd. */
+  currency?: string;
+  /** Bags per passenger as stated by the airline; undefined = not stated. */
+  bags?: { checked: number; carryOn: number };
+  /** Offer conditions; undefined = the airline did not say. */
+  refundable?: boolean;
+  changeable?: boolean;
+  /** When the airline stops honouring this price. */
+  expiresAt?: string;
+  /** Outbound and (for a return trip) inbound legs. */
+  legs?: FlightLeg[];
+  /** Ranking output (lib/travel/flightRanking.ts), 0-100. */
+  score?: number;
+}
+
+export interface FlightSegment {
+  carrier: string;
+  carrierCode: string;
+  flightNumber: string;
+  from: string;
+  to: string;
+  departAt: string;
+  arriveAt: string;
+  durationMin: number;
+  aircraft?: string;
+  operatedBy?: string;
+}
+
+export interface FlightLeg {
+  from: string;
+  to: string;
+  departAt: string;
+  arriveAt: string;
+  durationMin: number;
+  stops: number;
+  segments: FlightSegment[];
+  /** Connection time at each intermediate airport, in minutes. */
+  layovers: Array<{ airport: string; minutes: number }>;
 }
 
 const CARRIERS: Array<[string, string]> = [

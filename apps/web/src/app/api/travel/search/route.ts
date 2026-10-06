@@ -10,12 +10,16 @@ import {
   StayType,
   Flight,
 } from "@/lib/travel/data";
+import { createHash } from "node:crypto";
 import {
   duffelMode,
   searchDuffelCars,
-  searchDuffelFlights,
+  searchDuffelFlightOffers,
   searchDuffelStays,
+  type FlightSearchRequest,
 } from "@/lib/travel/duffel";
+import { highlights, rankFlights, type FlightSort } from "@/lib/travel/flightRanking";
+import { kvGet, kvSet } from "@/lib/kv";
 import { assessResultSet, rankingWeight } from "@/lib/property/intelligence";
 import { rankStays } from "@/lib/travel/ranking";
 
@@ -47,6 +51,12 @@ const SearchBody = z
     maxPriceUsd: z.coerce.number().positive().max(1_000_000).optional(),
     propertyType: z.string().max(30).optional(),
     category: z.string().max(30).optional(),
+    // flights
+    returnDate: z.string().max(40).optional(),
+    adults: z.coerce.number().int().min(1).max(9).optional(),
+    childAges: z.array(z.coerce.number().int().min(0).max(17)).max(8).optional(),
+    maxStops: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+    sort: z.enum(["best", "cheapest", "fastest"]).optional(),
   })
   .strip();
 
@@ -167,11 +177,71 @@ export async function POST(req: NextRequest) {
   }
 
   if (kind === "flights") {
-    const cabin = (body.cabin as Flight["cabin"]) ?? "Economy";
-    // Live Duffel offers when DUFFEL_API_KEY is set; demo generator otherwise.
-    const live = await searchDuffelFlights(body.from ?? "", body.to ?? "", body.date ?? "", cabin);
+    const cabin: Flight["cabin"] = (["Economy", "Premium", "Business", "First"] as const).includes(body.cabin as Flight["cabin"])
+      ? (body.cabin as Flight["cabin"])
+      : "Economy";
+    const iata = /^[A-Za-z]{3}$/;
+    const isoDate = /^\d{4}-\d{2}-\d{2}$/;
+    const from = (body.from ?? "").trim().toUpperCase();
+    const to = (body.to ?? "").trim().toUpperCase();
+    const departDate = body.date ?? "";
+    const returnDate = body.returnDate || undefined;
+    if (!iata.test(from) || !iata.test(to) || from === to) {
+      return NextResponse.json({ error: "from and to must be two different 3-letter airport codes" }, { status: 400 });
+    }
+    if (!isoDate.test(departDate) || (returnDate && (!isoDate.test(returnDate) || returnDate < departDate))) {
+      return NextResponse.json({ error: "date must be YYYY-MM-DD, and returnDate on or after it" }, { status: 400 });
+    }
+    const request: FlightSearchRequest = {
+      from,
+      to,
+      departDate,
+      returnDate,
+      cabin,
+      adults: body.adults ?? 1,
+      childAges: body.childAges ?? [],
+      maxConnections: body.maxStops ?? 1,
+    };
+
+    // Offers are cached only until the airlines stop honouring them: the TTL
+    // is the earliest `expires_at` in the set minus a minute, capped at ten
+    // minutes. A cache that outlived the offers would quote dead prices. The
+    // cache is an optimisation only — a KV failure falls through to Duffel.
+    const cacheKey = `travel:flights:v2:${createHash("sha256").update(JSON.stringify(request)).digest("hex").slice(0, 32)}`;
+    let live: Flight[] | null = null;
+    let cached = false;
+    try {
+      const hit = await kvGet<Flight[]>(cacheKey);
+      if (hit?.length && hit.every((f) => !f.expiresAt || Date.parse(f.expiresAt) > Date.now() + 60_000)) {
+        live = hit;
+        cached = true;
+      }
+    } catch {
+      /* cache unavailable */
+    }
+    if (!live) {
+      live = await searchDuffelFlightOffers(request);
+      if (live?.length) {
+        const earliest = Math.min(...live.map((f) => (f.expiresAt ? Date.parse(f.expiresAt) : Infinity)));
+        const ttl = Math.floor(Math.min(600_000, earliest - Date.now() - 60_000) / 1000);
+        if (ttl >= 30) kvSet(cacheKey, live, ttl).catch(() => {});
+      }
+    }
     if (live?.length) {
-      return NextResponse.json({ type: "flights", count: live.length, results: live, source: "duffel" });
+      const sort: FlightSort = body.sort ?? "best";
+      const ranked = rankFlights(live, sort);
+      return NextResponse.json({
+        type: "flights",
+        count: ranked.length,
+        results: ranked,
+        highlights: highlights(live),
+        sort,
+        source: "duffel",
+        // Test-mode offers are Duffel's sandbox and must never be shown as a
+        // live, bookable price.
+        isLiveSearch: duffelMode() === "live",
+        cached,
+      });
     }
     // No fallback. This used to call generateFlights(), which invented
     // carriers, times and fares from a hash of the route — so a search Duffel

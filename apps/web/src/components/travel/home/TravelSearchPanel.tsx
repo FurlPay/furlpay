@@ -16,7 +16,6 @@ import {
   UtensilsCrossed,
 } from "lucide-react";
 import VoiceInputButton from "@/components/VoiceInputButton";
-import { searchAirports } from "@/lib/travel/airports";
 import { TRY_CHIPS } from "@/lib/travel/home";
 import TravelersPicker, { type Travelers } from "./TravelersPicker";
 import { requestPlan } from "./planEvents";
@@ -39,11 +38,33 @@ function looksLikeRequest(s: string): boolean {
   return t.split(/\s+/).length >= 4 || /\$|\bunder\b|\bcheap|\bbest\b|\bwith\b/i.test(t);
 }
 
-/** City name or IATA code → IATA code, via the bundled airport table. */
-function toIata(s: string): string | null {
+interface AirportOption {
+  iata: string;
+  name: string;
+  city: string;
+  size: number;
+}
+type Resolved = { iata: string } | { choices: AirportOption[] } | null;
+
+/** City name or IATA code → airport, via the 4,000-airport index
+ *  (/api/travel/airports). An exact code resolves directly. A city with
+ *  several major airports (London, New York, Tokyo) is NOT silently resolved
+ *  to one of them: the caller asks the traveller which. */
+async function resolveAirport(s: string): Promise<Resolved> {
   const t = s.trim();
-  if (/^[A-Za-z]{3}$/.test(t)) return t.toUpperCase();
-  return searchAirports(t, 1)[0]?.iata ?? null;
+  if (!t) return null;
+  const bare = /^[A-Za-z]{3}$/.test(t) ? t.toUpperCase() : null;
+  try {
+    const r = await fetch(`/api/travel/airports?q=${encodeURIComponent(t)}&limit=6`);
+    const list = ((await r.json()) as { airports?: AirportOption[] }).airports ?? [];
+    if (!list.length) return bare ? { iata: bare } : null;
+    if (list[0].iata === bare) return { iata: bare };
+    const q = t.toLowerCase();
+    const sameCity = list.filter((a) => a.size >= 2 && a.city.toLowerCase().startsWith(q.slice(0, Math.max(3, q.length))));
+    return sameCity.length > 1 ? { choices: sameCity } : { iata: list[0].iata };
+  } catch {
+    return bare ? { iata: bare } : null;
+  }
 }
 
 export default function TravelSearchPanel() {
@@ -56,7 +77,9 @@ export default function TravelSearchPanel() {
   const [travelers, setTravelers] = useState<Travelers>({ adults: 2, children: 0, rooms: 1 });
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [choose, setChoose] = useState<{ field: "from" | "to"; city: string; options: AirportOption[] } | null>(null);
   const whereRef = useRef<HTMLInputElement>(null);
+  const formRef = useRef<HTMLFormElement>(null);
 
   // /travel?focus=search (the header search icon on other pages).
   useEffect(() => {
@@ -71,7 +94,7 @@ export default function TravelSearchPanel() {
   };
   const showDates = tab !== "restaurants";
 
-  function submit(e?: React.FormEvent) {
+  async function submit(e?: React.FormEvent) {
     e?.preventDefault();
     setError(null);
     const city = where.trim();
@@ -92,17 +115,35 @@ export default function TravelSearchPanel() {
 
     let url: string;
     if (flights) {
-      const to = toIata(city);
-      const origin = from.trim() ? toIata(from) : null;
-      if (!to) {
+      setSubmitting(true);
+      const [toR, fromR] = await Promise.all([resolveAirport(city), from.trim() ? resolveAirport(from) : Promise.resolve(null)]);
+      setSubmitting(false);
+      setChoose(null);
+      if (!toR) {
         setError(`We couldn't find an airport for "${city}". Try a city name or a 3-letter code.`);
         return;
       }
-      if (from.trim() && !origin) {
+      if (from.trim() && !fromR) {
         setError(`We couldn't find an airport for "${from}".`);
         return;
       }
-      const q = new URLSearchParams({ to, ...(origin ? { from: origin } : {}), ...(start ? { date: start } : {}) });
+      if (fromR && "choices" in fromR) {
+        setChoose({ field: "from", city: from.trim(), options: fromR.choices });
+        return;
+      }
+      if ("choices" in toR) {
+        setChoose({ field: "to", city, options: toR.choices });
+        return;
+      }
+      const to = toR.iata;
+      const origin = fromR && "iata" in fromR ? fromR.iata : null;
+      const q = new URLSearchParams({
+        to,
+        ...(origin ? { from: origin } : {}),
+        ...(start ? { date: start } : {}),
+        ...(end ? { returnDate: end } : {}),
+        adults: String(travelers.adults),
+      });
       url = `/travel/flights?${q}`;
     } else if (tab === "stays") {
       const q = new URLSearchParams({ city, guests: String(travelers.adults + travelers.children), rooms: String(travelers.rooms) });
@@ -161,7 +202,7 @@ export default function TravelSearchPanel() {
       </div>
 
       {/* form */}
-      <form onSubmit={submit} noValidate className="mt-4 flex flex-col gap-3 lg:flex-row">
+      <form ref={formRef} onSubmit={submit} noValidate className="mt-4 flex flex-col gap-3 lg:flex-row">
         <div className="grid flex-1 grid-cols-2 overflow-visible rounded-xl border border-white/[0.08] bg-black/30 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.05fr)] lg:divide-x lg:divide-white/[0.08]">
           <Field label={labels.where} className="col-span-2 lg:col-span-1">
             {flights && (
@@ -241,6 +282,33 @@ export default function TravelSearchPanel() {
         <p id="travel-search-error" role="alert" className="mt-2 text-[12px] text-red-400">
           {error}
         </p>
+      )}
+
+      {choose && (
+        <div role="group" aria-label={`Choose an airport for ${choose.city}`} className="mt-3 rounded-xl border border-neon/25 bg-neon/[0.04] p-3">
+          <p className="text-[12px] text-white/75">
+            {choose.city} has several airports — which one {choose.field === "from" ? "are you leaving from" : "are you flying to"}?
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {choose.options.map((a) => (
+              <button
+                key={a.iata}
+                type="button"
+                onClick={() => {
+                  if (choose.field === "from") setFrom(a.iata);
+                  else setWhere(a.iata);
+                  setChoose(null);
+                  // Resubmit once the field holds the chosen code.
+                  setTimeout(() => formRef.current?.requestSubmit(), 0);
+                }}
+                className="flex items-center gap-2 rounded-full border border-white/10 bg-black/40 px-3 py-1.5 text-[12px] text-white transition hover:border-neon/50"
+              >
+                <span className="font-mono font-semibold text-neon">{a.iata}</span>
+                <span className="text-white/75">{a.name}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* try chips */}

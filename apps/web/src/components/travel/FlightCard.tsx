@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Plane, Briefcase } from "lucide-react";
-import { Pill } from "@/components/ui";
 import type { Flight } from "@/lib/travel/data";
+import { money } from "@/components/travel/flights/FlightResultCard";
 
 // Brand SVG from Duffel's assets CDN; falls back to the IATA code chip when
 // the CDN has no asset for a carrier.
@@ -95,10 +95,7 @@ export default function FlightCard({ flight, badge }: { flight: Flight; badge?: 
         </div>
 
         <div className="shrink-0 text-right">
-          <p className="text-lg font-bold text-white">${flight.priceUsd.toLocaleString()}</p>
-          <div className="mt-1 flex justify-end">
-            <Pill tone="gain">2% back</Pill>
-          </div>
+          <p className="text-lg font-bold text-white">{money(flight.priceUsd, flight.currency)}</p>
           <Link
             href={href}
             className="mt-2 inline-block rounded-lg bg-neon px-3.5 py-1.5 text-xs font-bold text-black transition hover:bg-neonDeep"
