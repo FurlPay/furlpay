@@ -69,6 +69,7 @@ contract FurlPayEscrow is Ownable2Step, Pausable, ReentrancyGuard {
     error NotTraveler(address caller);
     error CancellationWindowClosed(uint64 deadline);
     error GracePeriodNotReached(uint64 releasableAt);
+    error CheckInNotReached(uint64 checkInDate);
     error InvalidSchedule();
     error ZeroAddress();
     error ZeroAmount();
@@ -118,8 +119,16 @@ contract FurlPayEscrow is Ownable2Step, Pausable, ReentrancyGuard {
     }
 
     /// @notice Oracle-confirmed check-in → pay the provider.
+    /// @dev Not before `checkInDate`. Without this the oracle could release
+    ///      at any time, including inside the traveler's cancellation window,
+    ///      which removed the refund right and let a compromised oracle key
+    ///      pay out every funded booking early (SEC-P2-003). The deadline is
+    ///      at or before check-in (createBooking enforces it), so this also
+    ///      means the window has closed.
     function confirmCheckIn(bytes32 bookingId) external nonReentrant {
         if (msg.sender != checkInOracle) revert NotOracle(msg.sender);
+        uint64 checkInDate = bookings[bookingId].checkInDate;
+        if (block.timestamp < checkInDate) revert CheckInNotReached(checkInDate);
         _release(bookingId);
     }
 

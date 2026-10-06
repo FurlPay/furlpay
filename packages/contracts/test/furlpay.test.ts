@@ -228,10 +228,22 @@ describe("Furlpay contracts", () => {
     });
 
     it("oracle check-in releases funds to the provider", async () => {
-      const { usdc, escrow, provider, oracle } = await fundedBooking();
+      const { usdc, escrow, provider, oracle, checkIn } = await fundedBooking();
+      await time.increaseTo(checkIn);
       await expect(escrow.connect(oracle).confirmCheckIn(bookingId))
         .to.emit(escrow, "BookingReleased");
       expect(await usdc.balanceOf(provider.address)).to.equal(USDC("300"));
+    });
+
+    it("the oracle cannot release before check-in, so the cancellation window holds (SEC-P2-003)", async () => {
+      const { usdc, escrow, oracle, payer, checkIn } = await fundedBooking();
+      await expect(escrow.connect(oracle).confirmCheckIn(bookingId))
+        .to.be.revertedWithCustomError(escrow, "CheckInNotReached")
+        .withArgs(checkIn);
+      // The traveler can still cancel and is refunded in full.
+      const before = await usdc.balanceOf(payer.address);
+      await escrow.connect(payer).cancel(bookingId);
+      expect(await usdc.balanceOf(payer.address)).to.equal(before + USDC("300"));
     });
 
     it("non-oracle cannot confirm check-in", async () => {
