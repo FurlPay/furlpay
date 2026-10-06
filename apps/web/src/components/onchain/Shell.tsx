@@ -187,6 +187,7 @@ export function TopNav({
   setQuery,
   risk,
   onMenu,
+  onSearch,
 }: {
   range: OnchainRange;
   setRange: (r: OnchainRange) => void;
@@ -196,6 +197,7 @@ export function TopNav({
   setQuery: (q: string) => void;
   risk: RiskView | null;
   onMenu: () => void;
+  onSearch: (q: string) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [bell, setBell] = useState(false);
@@ -231,6 +233,10 @@ export function TopNav({
           ref={input}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && query.trim()) onSearch(query.trim());
+          }}
+          enterKeyHint="search"
           className="min-w-0 flex-1 bg-transparent text-[12.5px] text-white placeholder:text-white/50 focus:outline-none"
           placeholder="Search transactions, addresses, entities, merchants..."
           aria-label="Search transactions, addresses, entities, merchants"

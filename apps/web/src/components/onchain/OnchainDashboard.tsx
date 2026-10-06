@@ -9,6 +9,8 @@ import { AlliumMark, RANGE_LABEL, Sidebar, TopNav } from "./Shell";
 import { Activity, Categories, ChainDonut, Counterparties, Flow, KpiRow, MarketInsights, PaymentVolume, Risk, StablecoinFlows } from "./panels";
 import { chainLabel } from "./ui";
 import { useOnchain, type OnchainRange } from "./useOnchain";
+import { ChainEventRow, LiveBadge, TxDrawer, useOnchainLive, type ConnState } from "./live";
+import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 
 // ---------------------------------------------------------------------------
 // /onchain — Onchain Intelligence. Layout follows the reference design; every
@@ -52,7 +54,22 @@ export default function OnchainDashboard() {
   const [chain, setChain] = useState("all");
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState(false);
-  const { data, state, error, updatedAt } = useOnchain(range, chain);
+  const { data, error, reload } = useOnchain(range, chain);
+  // A new chain event also refreshes the ledger-backed cards on the page.
+  const live = useOnchainLive(() => void reload());
+  const [openEv, setOpenEv] = useState<FeedEvent | null>(null);
+  const [search, setSearch] = useState<SearchState | null>(null);
+  const runSearch = async (q: string) => {
+    setSearch({ q, status: "loading", events: [], message: null });
+    try {
+      const res = await fetch(`/api/onchain/search?q=${encodeURIComponent(q)}`, { cache: "no-store" });
+      const b = (await res.json().catch(() => null)) as { ok: true; data: { events: FeedEvent[]; scope: string } } | { ok: false; error?: { message?: string } } | null;
+      if (b && b.ok) setSearch({ q, status: "done", events: b.data.events, message: b.data.scope === "furlpay_owned" ? "Public search covers FurlPay-owned addresses; user wallets stay private." : null });
+      else setSearch({ q, status: "done", events: [], message: (b && !b.ok && b.error?.message) || `Search failed (${res.status})` });
+    } catch {
+      setSearch({ q, status: "done", events: [], message: "Network error." });
+    }
+  };
   const active = useActiveSection(Boolean(data));
   const allium = data?.alliumConfigured ?? false;
 
@@ -84,9 +101,11 @@ export default function OnchainDashboard() {
             setQuery={setQuery}
             risk={data?.risk.status === "ok" ? data.risk.data : null}
             onMenu={() => setDrawer(true)}
+            onSearch={runSearch}
           />
           <main id="overview" className="px-4 pb-8 pt-[18px] sm:px-[20px]">
-            <TitleRow data={data} state={state} updatedAt={updatedAt} />
+            <TitleRow data={data} snap={live.snap} conn={live.conn} />
+            {search && <SearchPanel s={search} onClose={() => setSearch(null)} onOpen={setOpenEv} />}
             {error && (
               <p role="alert" className="mt-3 rounded-lg border border-[#FF4D6D]/30 bg-[#FF4D6D]/[0.06] px-3 py-2 text-[13px] text-[#FFB3C1]">
                 {error}
@@ -112,7 +131,7 @@ export default function OnchainDashboard() {
                 <div className="grid grid-cols-1 gap-[14px] xl:min-h-[242px] xl:grid-cols-[428fr_410fr_442fr]">
                   <Categories data={data} />
                   <Counterparties data={data} query={query} />
-                  <Activity data={data} query={query} />
+                  <Activity data={data} query={query} live={live.snap} onOpen={setOpenEv} />
                 </div>
                 <div className="grid grid-cols-1 gap-[14px] xl:min-h-[234px] xl:grid-cols-[404fr_436fr_442fr]">
                   <Risk data={data} />
@@ -127,19 +146,47 @@ export default function OnchainDashboard() {
           </main>
         </div>
       </div>
+      {openEv && <TxDrawer ev={openEv} onClose={() => setOpenEv(null)} />}
     </div>
   );
 }
 
-function TitleRow({ data, state, updatedAt }: { data: Data | null; state: string; updatedAt: number | null }) {
-  const badge =
-    state === "live"
-      ? { text: "Live Data", cls: "border-[#00E599]/45 text-[#00E599]", dot: "bg-[#00E599]" }
-      : state === "degraded"
-        ? { text: "Live · some sources unavailable", cls: "border-[#F5B83D]/45 text-[#F5B83D]", dot: "bg-[#F5B83D]" }
-        : state === "offline"
-          ? { text: updatedAt ? `Offline · ${relTime(updatedAt)}` : "Offline", cls: "border-[#FF4D6D]/45 text-[#FF8FA3]", dot: "bg-[#FF4D6D]" }
-          : { text: "Connecting…", cls: "border-white/20 text-white/70", dot: "bg-white/50" };
+interface SearchState {
+  q: string;
+  status: "loading" | "done";
+  events: FeedEvent[];
+  message: string | null;
+}
+
+function SearchPanel({ s, onClose, onOpen }: { s: SearchState; onClose: () => void; onOpen: (e: FeedEvent) => void }) {
+  return (
+    <section className="mt-3 rounded-[10px] border border-white/[0.09] bg-[#0A0F10] px-4 py-3" aria-label="Search results">
+      <div className="mb-1 flex items-center gap-2 text-[13px]">
+        <span className="font-semibold">Search</span>
+        <span className="truncate font-mono text-white/60">{s.q}</span>
+        <button onClick={onClose} aria-label="Close search" className="ml-auto rounded p-1 text-white/50 hover:text-white">
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+      {s.status === "loading" ? (
+        <p className="py-2 text-[12.5px] text-white/50">Searching…</p>
+      ) : s.events.length === 0 ? (
+        <p className="py-2 text-[12.5px] text-white/50">{s.message ?? "No matching onchain events."}</p>
+      ) : (
+        <>
+          <ul className="text-[12.5px]">
+            {s.events.map((e) => (
+              <ChainEventRow key={e.key} e={e} onOpen={onOpen} />
+            ))}
+          </ul>
+          {s.message && <p className="mt-1 text-[11px] text-white/40">{s.message}</p>}
+        </>
+      )}
+    </section>
+  );
+}
+
+function TitleRow({ data, snap, conn }: { data: Data | null; snap: LiveSnapshot | null; conn: ConnState }) {
   return (
     <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
       <div className="min-w-0">
@@ -159,10 +206,7 @@ function TitleRow({ data, state, updatedAt }: { data: Data | null; state: string
           </div>
         )}
         {data?.alliumConfigured && <span className="hidden h-8 w-px bg-white/[0.1] sm:block" />}
-        <span className={`flex h-[34px] items-center gap-2 rounded-lg border bg-[#00E599]/[0.04] px-4 text-[12.5px] font-medium ${badge.cls}`} aria-live="polite">
-          <span className={`h-2 w-2 rounded-full ${badge.dot} ${state === "live" ? "animate-pulse" : ""}`} />
-          {badge.text}
-        </span>
+        <LiveBadge snap={snap} conn={conn} />
       </div>
     </div>
   );

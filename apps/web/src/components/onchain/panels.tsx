@@ -9,6 +9,8 @@ import world from "@/components/analytics/worldDots.json";
 import { fmtCount, fmtUsd, relTime } from "@/components/analytics/format";
 import { CHAINS } from "./Shell";
 import { BrandLogo, chainName } from "./BrandLogo";
+import { ChainEventRow } from "./live";
+import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 import { Card, Change, Empty, GhostButton, Menu, NEON, PALETTE, RAIL_COLOR, SHORT_RAIL, Spark, TipBox, Unavailable, chainLabel, pct, railLabel } from "./ui";
 
 // The cards of /onchain. Each takes the whole payload and reads only its own
@@ -48,7 +50,13 @@ export function KpiRow({ data }: { data: Data }) {
       <KpiCard label="Total Transactions" kpi={L?.kpis.transactions ?? null} format={(n) => fmtCount(n, { compact: true })} color="#2F80ED" />
       <KpiCard label="Unique Paying Users" kpi={L?.kpis.users ?? null} format={(n) => fmtCount(n)} color="#9B5CF6" />
       <KpiCard label="Active Recipients" kpi={L?.kpis.recipients ?? null} format={(n) => fmtCount(n)} color="#F5B83D" />
-      <KpiCard label="Fees Earned" kpi={L?.kpis.fees ?? null} format={usdC} color="#10D9A0" />
+      {data.holdings.status === "ok" ? (
+        // FurlPay-owned onchain holdings (Allium balances). A point-in-time
+        // value: no period change, no series — nothing is made up for them.
+        <KpiCard label="Treasury Holdings" kpi={{ value: data.holdings.data.totalUsd, change: null, series: [] }} format={usdC} color="#10D9A0" />
+      ) : (
+        <KpiCard label="Fees Earned" kpi={L?.kpis.fees ?? null} format={usdC} color="#10D9A0" />
+      )}
     </div>
   );
 }
@@ -123,7 +131,7 @@ export function PaymentVolume({ data, chain, setChain, rangeKey }: { data: Data;
                     cursor={{ fill: "rgba(255,255,255,0.04)" }}
                     content={({ active, payload, label }) =>
                       active && payload?.length ? (
-                        <TipBox title={String(label)} rows={[...payload].reverse().filter((p) => Number(p.value) > 0).map((p) => ({ label: String(p.dataKey), value: fmtUsd(Number(p.value)), color: TOKEN_COLORS[p.dataKey as TokenKey] }))} />
+                        <TipBox title={String(label)} rows={[...payload].reverse().filter((series) => Number(series.value) > 0).map((series) => ({ label: String(series.dataKey), value: fmtUsd(Number(series.value)), color: TOKEN_COLORS[series.dataKey as TokenKey] }))} />
                       ) : null
                     }
                   />
@@ -338,15 +346,48 @@ export function Counterparties({ data, query }: { data: Data; query: string }) {
 
 // ── Real-time activity ──────────────────────────────────────────────────────
 
-export function Activity({ data, query }: { data: Data; query: string }) {
+/**
+ * Real-time Activity. Two real sources, switchable: "Chain" = transfers
+ * ingested from Allium for tracked addresses (pushed live over SSE), "Ledger"
+ * = FurlPay's own ops ledger. Defaults to Chain once it has events.
+ */
+export function Activity({ data, query, live, onOpen }: { data: Data; query: string; live: LiveSnapshot | null; onOpen: (e: FeedEvent) => void }) {
   const [state, setState] = useState<"all" | "settled" | "pending" | "failed">("all");
+  const [picked, setPicked] = useState<"chain" | "ledger" | null>(null);
+  const source = picked ?? (live && live.feed.length > 0 ? "chain" : "ledger");
   const L = ledgerOf(data);
   const rows = (L?.activity ?? []).filter((a) => (state === "all" || a.state === state || (state === "failed" && a.state === "rejected")) && matches(query, a.hash, a.rail, railLabel(a.rail), a.chain, a.token));
+  const chainRows = (live?.feed ?? []).filter((e) => matches(query, e.hash, e.hashFull, e.from, e.to, e.asset, e.chain, e.activity));
+  const sourceMenu = <Menu label="Source" width={86} value={source} onChange={setPicked} options={[["chain", "Chain"], ["ledger", "Ledger"]] as const} />;
+  if (source === "chain") {
+    return (
+      <Card title="Real-time Activity" source="Allium (Beam stream + Realtime API) → onchain_events, tracked addresses only" action={sourceMenu}>
+        {!live ? (
+          <Empty text="Connecting to the live feed…" />
+        ) : live.state === "offline" || live.state === "not_configured" ? (
+          <Unavailable reason={live.reason ?? "Onchain ingestion is not available."} />
+        ) : chainRows.length === 0 ? (
+          <Empty text={query ? `No chain event matches “${query}”.` : "No onchain activity on tracked addresses yet."} />
+        ) : (
+          <ul className="text-[12.5px]">
+            {chainRows.slice(0, 6).map((e) => (
+              <ChainEventRow key={e.key} e={e} onOpen={onOpen} />
+            ))}
+          </ul>
+        )}
+      </Card>
+    );
+  }
   return (
     <Card
       title="Real-time Activity"
       source={data.ledger.source}
-      action={<Menu label="Transactions" width={140} value={state} onChange={setState} options={[["all", "All Transactions"], ["settled", "Settled"], ["pending", "Pending"], ["failed", "Failed"]] as const} />}
+      action={
+        <>
+          {sourceMenu}
+          <Menu label="Transactions" width={124} value={state} onChange={setState} options={[["all", "All Transactions"], ["settled", "Settled"], ["pending", "Pending"], ["failed", "Failed"]] as const} />
+        </>
+      }
     >
       {!L ? (
         <Unavailable reason={ledgerReason(data)} />

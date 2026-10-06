@@ -607,7 +607,20 @@ export const ENV_REGISTRY: EnvGroup[] = [
     // columns match the contract in lib/onchain/allium.ts. Unset = those cards
     // say "not connected"; nothing is substituted.
     group: "Allium (blockchain data)",
-    vars: [v("ALLIUM_API_KEY"), v("ALLIUM_STABLECOIN_DAILY_QUERY_ID"), v("ALLIUM_CORRIDOR_QUERY_ID")],
+    // Ingestion (docs/ALLIUM_INTEGRATION.md): the Beam webhook HMAC key (the
+    // same value as the Allium org secret named in the sink's hash_key; >= 32
+    // chars, unset = webhook refuses everything), "1" when the pipeline runs
+    // is_zerolag (events arrive pre-finality), extra addresses to track, and an
+    // optional allowlist narrowing the chains Allium reports as supported.
+    vars: [
+      v("ALLIUM_API_KEY"),
+      v("ALLIUM_STABLECOIN_DAILY_QUERY_ID"),
+      v("ALLIUM_CORRIDOR_QUERY_ID"),
+      v("ALLIUM_BEAM_WEBHOOK_SECRET"),
+      v("ALLIUM_BEAM_ZEROLAG"),
+      v("ONCHAIN_WATCH_ADDRESSES"),
+      v("ONCHAIN_SYNC_CHAINS"),
+    ],
   },
   {
     group: "Build provenance (set by CI / Vercel, never secret)",

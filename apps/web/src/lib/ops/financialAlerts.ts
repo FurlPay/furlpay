@@ -34,6 +34,7 @@ export const FINANCIAL_ALERTS = {
   origin_misconfigured: { route: "page", severity: "critical", title: "Origin verification misconfigured — serving 503" },
   cron_dlq: { route: "page", severity: "high", title: "Scheduled job dead-lettered" },
   recipient_lookup_failed: { route: "ticket", severity: "medium", title: "Deposit recipient lookup failed (provider will retry)" },
+  onchain_ledger_mismatch: { route: "ticket", severity: "high", title: "On-chain activity disagrees with the ledger (reconciliation required)" },
   kms_signing_refused: { route: "ticket", severity: "medium", title: "KMS refused to sign" },
   rpc_failure: { route: "ticket", severity: "medium", title: "Chain RPC failures above threshold" },
   kyc_provider_failure: { route: "ticket", severity: "medium", title: "KYC provider failures above threshold" },

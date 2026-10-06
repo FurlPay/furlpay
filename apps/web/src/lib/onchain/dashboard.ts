@@ -2,6 +2,7 @@ import { sbSelect, supabaseBackend } from "@/lib/supabase";
 import { bucketIndex, type AnalyticsRange } from "@/lib/analytics/range";
 import { alliumKeyConfigured, alliumQuery, type Sourced } from "./allium";
 import { stablecoinMarket } from "./market";
+import { treasuryHoldings, type Holdings } from "./holdings";
 
 // ---------------------------------------------------------------------------
 // /onchain — the Onchain Intelligence dashboard. Three kinds of source, each
@@ -85,6 +86,7 @@ export interface OnchainDashboard {
   alliumConfigured: boolean;
   alliumDaily: Sourced<{ day: string; transferVolumeUsd: number; transferCount: number; activeAddresses: number }[]>;
   corridors: Sourced<{ from: string; to: string; volumeUsd: number }[]>;
+  holdings: Sourced<Holdings>;
 }
 
 const ROW_LIMIT = 20_000;
@@ -287,12 +289,13 @@ export function onchainCached(range: AnalyticsRange, chain: ChainFilter, now = D
 }
 
 export async function buildOnchainDashboard(range: AnalyticsRange, chain: ChainFilter): Promise<OnchainDashboard> {
-  const [l, r, market, daily, corridors] = await Promise.all([
+  const [l, r, market, daily, corridors, holdings] = await Promise.all([
     ledger(range, chain),
     risk(range),
     stablecoinMarket(),
     alliumQuery("stablecoinDaily"),
     alliumQuery("corridors"),
+    treasuryHoldings(),
   ]);
   return {
     generatedAt: new Date().toISOString(),
@@ -302,6 +305,7 @@ export async function buildOnchainDashboard(range: AnalyticsRange, chain: ChainF
     risk: r,
     market,
     alliumConfigured: alliumKeyConfigured(),
+    holdings,
     alliumDaily:
       daily.status === "ok"
         ? {

@@ -174,6 +174,25 @@ export async function requireRole(req: NextRequest, role: Role): Promise<AuthRes
   return auth;
 }
 
+/**
+ * For PUBLIC routes that show operators more detail: is the caller the admin?
+ * The same tests as requireRole("admin") — live grant, bootstrap email, no
+ * guest session in production — but a "no" is not an access attempt on an
+ * admin route, so it records no denial (a public page polled by every
+ * signed-in user would otherwise flood the security log). A "yes" is audited
+ * as an admin read, exactly like requireRole.
+ */
+export async function isOperator(req: NextRequest): Promise<boolean> {
+  if (!tokenFromRequest(req)) return false;
+  const auth = await requireUser(req);
+  if (!auth.ok) return false;
+  if (auth.claims.guest && isProductionDeployment()) return false;
+  const roles = await effectiveRoles(auth.account);
+  if (!roles.includes("admin") || !isBootstrapAdminEmail(auth.account.user.email)) return false;
+  recordAdminAccess(auth.account.user.id, req.method, req.nextUrl.pathname);
+  return true;
+}
+
 /** requireUser + check that the user holds AT LEAST ONE of the specified roles. */
 export async function requireAnyRole(req: NextRequest, roles: Role[]): Promise<AuthResult> {
   const auth = await requireUser(req);
