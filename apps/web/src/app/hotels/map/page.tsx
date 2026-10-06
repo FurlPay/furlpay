@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import HotelMap from "@/components/travel/HotelMap";
+import TravelHeader from "@/components/travel/home/TravelHeader";
 
 export const metadata: Metadata = {
   title: "Hotel map",
@@ -37,7 +38,10 @@ export default async function HotelMapPage({
   const showRegistryTiles = params.all === "1";
 
   return (
-    <div className="h-[100dvh] w-full">
+    // The Travels header, then the hotel workspace filling the rest of the
+    // viewport — a booking surface, not a page that scrolls past a map.
+    <div className="flex h-[100dvh] w-full flex-col bg-[#030505]">
+      <TravelHeader />
       {/* The map is WebGL and client-rendered, so a crawler that does not run
           JS — and Googlebot, which runs it but never drags or zooms — sees an
           empty canvas and nothing to index. This gives both a real route into
@@ -55,7 +59,9 @@ export default async function HotelMapPage({
           </Link>
         </div>
       </noscript>
-      <HotelMap showRegistryTiles={showRegistryTiles} />
+      <div className="min-h-0 flex-1">
+        <HotelMap showRegistryTiles={showRegistryTiles} />
+      </div>
     </div>
   );
 }

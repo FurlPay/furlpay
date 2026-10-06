@@ -183,11 +183,16 @@ const BANDS = [
   // however confident they look in a mockup. Those take the dark label; only
   // coral is deep enough to carry white. The fills themselves are exactly the
   // specified palette, so nothing was re-toned to dodge the problem.
-  { max: 5, r: 19, bg: "#72C83F", fg: "#1F2937" },
-  { max: 15, r: 21, bg: "#72C83F", fg: "#1F2937" },
-  { max: 50, r: 23, bg: "#F4B51B", fg: "#1F2937" },
-  { max: 120, r: 25, bg: "#F0862B", fg: "#1F2937" },
-  { max: Infinity, r: 27, bg: "#E85D32", fg: "#FFFFFF" },
+  //
+  // DARK THEME (FurlPay Travels). Clusters are quiet emerald discs rather than
+  // traffic-light bubbles: the fill deepens with the count and the numeral is
+  // FurlPay green, which clears the 3:1 floor on every band (asserted in
+  // __tests__/layers.spec.ts by measured contrast, not by hex).
+  { max: 5, r: 19, bg: "#0C2A23", fg: "#00E6A7" },
+  { max: 15, r: 21, bg: "#0D3128", fg: "#00E6A7" },
+  { max: 50, r: 23, bg: "#0E392E", fg: "#00E6A7" },
+  { max: 120, r: 25, bg: "#104235", fg: "#00E6A7" },
+  { max: Infinity, r: 27, bg: "#124C3D", fg: "#5CF5C8" },
 ] as const;
 
 /**
@@ -493,7 +498,9 @@ export function buildFeatures(
 }
 
 /** MapLibre feature ids must be numeric for feature-state to work. */
-function hashId(id: string): number {
+/** Stable numeric feature id for a point's string id. Exported so the results
+ *  list can light the marker for a card through feature-state. */
+export function hashId(id: string): number {
   let h = 2166136261;
   for (let i = 0; i < id.length; i++) {
     h ^= id.charCodeAt(i);
@@ -549,7 +556,7 @@ export function layerSpecs(): LayerSpecification[] {
       source: SRC_PULSE,
       paint: {
         "circle-radius": 0,
-        "circle-color": "#1B7A4E",
+        "circle-color": "#00E6A7",
         "circle-opacity": 0,
       },
     },
@@ -563,7 +570,7 @@ export function layerSpecs(): LayerSpecification[] {
         "circle-radius-transition": { duration: HOVER_MS, delay: 0 },
         "circle-color": ["get", "color"],
         "circle-stroke-width": 1.5,
-        "circle-stroke-color": ["case", hovered, "#1B7A4E", "#94A3B8"],
+        "circle-stroke-color": ["case", hovered, "#00E6A7", "#94A3B8"],
         "circle-stroke-color-transition": { duration: HOVER_MS, delay: 0 },
         "circle-opacity": 0.95,
       },
@@ -647,8 +654,10 @@ export function layerSpecs(): LayerSpecification[] {
         "circle-radius": ["*", ["get", "radius"], ["case", hovered, 1.1, 1]],
         "circle-radius-transition": { duration: HOVER_MS, delay: 0 },
         "circle-color": ["get", "color"],
-        "circle-stroke-width": 2.5,
-        "circle-stroke-color": "rgba(255,255,255,0.9)",
+        "circle-stroke-width": 1.5,
+        // Emerald ring, brighter on hover: the cluster reads as a FurlPay
+        // control on the dark basemap without a glow.
+        "circle-stroke-color": ["case", hovered, "#00E6A7", "rgba(0,230,167,0.65)"],
       },
     },
     {
@@ -735,8 +744,9 @@ export function layerSpecs(): LayerSpecification[] {
         // A halo rather than a drawn pill: legible over terrain, water and
         // roads without putting an opaque rectangle on the cartography, which
         // is what makes a label feel part of the map instead of on top of it.
-        "text-color": "#0F172A",
-        "text-halo-color": "#FFFFFF",
+        // Light names on a dark halo for the dark basemap.
+        "text-color": "#F5F7F6",
+        "text-halo-color": "rgba(5,9,9,0.92)",
         "text-halo-width": 1.6,
         "text-halo-blur": 0.3,
       },

@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, Bell, Info, Plane, Search, SlidersHorizontal, X } from "lucide-react";
+import { ArrowLeftRight, Bell, Info, Loader2, Plane, Search, SlidersHorizontal, X } from "lucide-react";
 import { trackClient } from "@/lib/analytics/client";
 import type { Flight } from "@/lib/travel/data";
 import { rankFlights, WEIGHTS, type FlightSort } from "@/lib/travel/flightRanking";
@@ -19,7 +19,6 @@ const TIME_WINDOWS = [
   { id: "evening", label: "Evening", hint: "18–24", from: 18, to: 24 },
 ] as const;
 
-const isoIn = (days: number) => new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
 const today = () => new Date().toISOString().slice(0, 10);
 
 type Result =
@@ -42,8 +41,9 @@ export default function FlightsPage() {
   const [trip, setTrip] = useState<"return" | "oneway">("return");
   const [from, setFrom] = useState<AirportValue | null>(null);
   const [to, setTo] = useState<AirportValue | null>(null);
-  const [depart, setDepart] = useState(isoIn(21));
-  const [ret, setRet] = useState(isoIn(28));
+  // Empty until the traveller picks: the page never chooses dates for them.
+  const [depart, setDepart] = useState("");
+  const [ret, setRet] = useState("");
   const [pax, setPax] = useState<Passengers>({ adults: 1, childAges: [] });
   const [cabin, setCabin] = useState<Flight["cabin"]>("Economy");
   const [maxConnections, setMaxConnections] = useState<0 | 1 | 2>(1);
@@ -53,6 +53,7 @@ export default function FlightsPage() {
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
   const [showHow, setShowHow] = useState(false);
+  const inFlight = useRef(false);
 
   // /travel/flights?from=LHR&to=SIN&date=…&returnDate=… (homepage search
   // panel, shared links) prefills the form and runs the search once.
@@ -66,16 +67,27 @@ export default function FlightsPage() {
     const next = {
       from: qFrom ? { iata: qFrom, label: qFrom } : null,
       to: { iata: qTo, label: qTo },
-      depart: date(q.get("date")) ?? depart,
+      depart: date(q.get("date")),
       ret: date(q.get("returnDate")),
       adults: Math.min(9, Math.max(1, Number(q.get("adults")) || 1)),
+      childAges: (q.get("children") ?? "")
+        .split(",")
+        .filter((s) => /^\d{1,2}$/.test(s) && Number(s) <= 17)
+        .slice(0, 8)
+        .map(Number),
     };
+    const qCabinRaw = q.get("cabin");
+    const qCabin = qCabinRaw && (CABINS as string[]).includes(qCabinRaw) ? (qCabinRaw as Flight["cabin"]) : "Economy";
+    const qStopsRaw = q.get("stops");
+    const qStops: 0 | 1 | 2 = qStopsRaw === "0" ? 0 : qStopsRaw === "2" ? 2 : 1;
+    setCabin(qCabin);
+    setMaxConnections(qStops);
     setFrom(next.from);
     setTo(next.to);
-    setDepart(next.depart);
+    if (next.depart) setDepart(next.depart);
     if (next.ret) setRet(next.ret);
     else setTrip("oneway");
-    setPax({ adults: next.adults, childAges: [] });
+    setPax({ adults: next.adults, childAges: next.childAges });
     // Show "London (LHR)" rather than a bare code once the index answers.
     const named = async (code: string, set: (v: AirportValue) => void) => {
       try {
@@ -88,27 +100,42 @@ export default function FlightsPage() {
     };
     void named(qTo, setTo);
     if (qFrom) void named(qFrom, setFrom);
-    if (next.from) void run({ ...next, trip: next.ret ? "return" : "oneway", pax: { adults: next.adults, childAges: [] } });
+    // Auto-run only a COMPLETE search: both airports and a departure date.
+    if (next.from && next.depart) void run({ ...next, depart: next.depart, trip: next.ret ? "return" : "oneway", pax: { adults: next.adults, childAges: next.childAges }, cabin: qCabin, stops: qStops });
     // Runs once, on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function run(o?: { from: AirportValue | null; to: AirportValue; depart: string; ret: string | null; trip: "return" | "oneway"; pax: Passengers }) {
+  async function run(o?: { from: AirportValue | null; to: AirportValue; depart: string; ret: string | null; trip: "return" | "oneway"; pax: Passengers; cabin?: Flight["cabin"]; stops?: 0 | 1 | 2 }) {
+    const cab = o?.cabin ?? cabin;
+    const stops = o?.stops ?? maxConnections;
     const f = o?.from ?? from;
     const t = o?.to ?? to;
     const d = o?.depart ?? depart;
     const r = (o ? o.trip : trip) === "return" ? (o ? o.ret : ret) : null;
     const p = o?.pax ?? pax;
+    // One search at a time. A ref, not state: three submits in the same tick
+    // all read the pre-render state, so a state check lets every one through.
+    if (inFlight.current) return;
     setFormError(null);
-    if (!f || !t) return setFormError("Choose where you're flying from and to.");
+    if (!f) return setFormError("Choose a valid departure airport.");
+    if (!t) return setFormError("Choose a valid destination airport.");
     if (f.iata === t.iata) return setFormError("Origin and destination must be different airports.");
-    if (!d || d < today()) return setFormError("Pick a departure date from today onwards.");
-    if (r && r < d) return setFormError("The return date must be on or after the departure date.");
+    if (!d) return setFormError("Choose a departure date.");
+    if (d < today()) return setFormError("Choose a departure date from today onwards.");
+    if ((o ? o.trip : trip) === "return" && !r) return setFormError("Choose a return date, or switch to one way.");
+    if (r && r < d) return setFormError("Choose a return date on or after departure.");
 
     trackClient("travel_search", { metadata: { source: "flights", trip: r ? "return" : "oneway" } });
+    inFlight.current = true;
     setResult({ kind: "loading" });
     setFilters(NO_FILTERS());
     const qs = new URLSearchParams({ from: f.iata, to: t.iata, date: d, adults: String(p.adults), ...(r ? { returnDate: r } : {}) });
+    // Everything that changes the offers goes in the URL, so a refresh or a
+    // shared link repeats the same search.
+    if (p.childAges.length) qs.set("children", p.childAges.join(","));
+    if (cab !== "Economy") qs.set("cabin", cab);
+    if (stops !== 1) qs.set("stops", String(stops));
     window.history.replaceState(null, "", `/travel/flights?${qs}`);
     try {
       const res = await fetch("/api/travel/search", {
@@ -122,20 +149,24 @@ export default function FlightsPage() {
           ...(r ? { returnDate: r } : {}),
           adults: p.adults,
           childAges: p.childAges,
-          cabin,
-          maxStops: maxConnections,
+          cabin: cab,
+          maxStops: stops,
         }),
       });
       const body = await res.json().catch(() => ({}));
-      if (!res.ok) return setResult({ kind: "error", message: body?.error ?? body?.detail ?? `Search failed (${res.status}).` });
+      // Show the server's human message; never a raw error code or status.
+      if (!res.ok) return setResult({ kind: "error", message: typeof body?.detail === "string" ? body.detail : "We couldn't search flights right now. Try again." });
       if (body.source !== "duffel" || !body.results?.length) return setResult({ kind: "unavailable", reason: body.unavailableReason ?? "no_offers" });
       setResult({ kind: "ok", flights: body.results, highlights: body.highlights ?? {}, sandbox: body.isLiveSearch === false, cached: !!body.cached });
     } catch {
       setResult({ kind: "error", message: "We couldn't reach flight search. Check your connection and try again." });
+    } finally {
+      inFlight.current = false;
     }
   }
 
-  const all = result.kind === "ok" ? result.flights : [];
+  // Memoised so the filter/sort memos below recompute only when results change.
+  const all = useMemo(() => (result.kind === "ok" ? result.flights : []), [result]);
   const airlines = useMemo(() => {
     const m = new Map<string, { name: string; min: number; currency?: string }>();
     for (const f of all) {
@@ -223,7 +254,10 @@ export default function FlightsPage() {
           </select>
         </div>
 
-        <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)_minmax(0,0.75fr)_minmax(0,0.75fr)_minmax(0,0.8fr)_auto] lg:items-end">
+        {/* Two rows below xl (airports / dates, travellers, search), one row from
+            xl up. A single seven-column row at 1024px truncated every field. */}
+        <div className="mt-4 grid gap-3 xl:grid-cols-[minmax(0,0.85fr)_minmax(0,1.3fr)] xl:items-end">
+          <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-end">
           <AirportCombobox kind="from" label="From" placeholder="City or airport" value={from} onChange={setFrom} invalid={!!formError && !from} />
           <button
             type="button"
@@ -232,12 +266,13 @@ export default function FlightsPage() {
               setTo(from);
             }}
             aria-label="Swap origin and destination"
-            className="mx-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/80 transition hover:border-neon hover:text-neon lg:mb-1"
+            className="mx-auto flex h-9 w-9 items-center justify-center rounded-full border border-white/10 text-white/80 transition hover:border-neon hover:text-neon md:mb-1"
           >
             <ArrowLeftRight className="h-4 w-4" />
           </button>
           <AirportCombobox kind="to" label="To" placeholder="City or airport" value={to} onChange={setTo} invalid={!!formError && !to} />
-          <div className="grid grid-cols-2 gap-3 lg:contents">
+          </div>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.25fr)_auto] md:items-end">
             <label className="block text-[11px] font-medium text-white/55">
               Depart
               <input type="date" value={depart} min={today()} onChange={(e) => setDepart(e.target.value)} className="mt-1.5 w-full rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 text-[14px] text-white [color-scheme:dark] focus:border-neon/50 focus:outline-none" />
@@ -246,11 +281,14 @@ export default function FlightsPage() {
               Return
               <input type="date" value={trip === "oneway" ? "" : ret} min={depart || today()} disabled={trip === "oneway"} onChange={(e) => setRet(e.target.value)} className="mt-1.5 w-full rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 text-[14px] text-white [color-scheme:dark] focus:border-neon/50 focus:outline-none disabled:opacity-40" />
             </label>
+          <div className="col-span-2 md:col-span-1">
+            <PassengersPicker value={pax} onChange={setPax} />
           </div>
-          <PassengersPicker value={pax} onChange={setPax} />
-          <button type="submit" disabled={result.kind === "loading"} className="flex h-[46px] items-center justify-center gap-2 rounded-xl bg-neon px-7 text-[15px] font-bold text-black shadow-[0_0_28px_-8px_rgba(0,229,153,0.7)] transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70">
-            <Search className="h-4 w-4" aria-hidden /> {result.kind === "loading" ? "Searching…" : "Search"}
+          <button type="submit" disabled={result.kind === "loading"} className="flex h-[46px] w-full items-center justify-center gap-2 col-span-2 whitespace-nowrap rounded-xl bg-neon px-5 text-[15px] md:col-span-1 md:w-[176px] font-bold text-black shadow-[0_0_28px_-8px_rgba(0,229,153,0.7)] transition hover:brightness-110 active:scale-[0.98] disabled:opacity-70">
+            {result.kind === "loading" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Search className="h-4 w-4" aria-hidden />}
+            {result.kind === "loading" ? "Searching…" : "Search"}
           </button>
+          </div>
         </div>
         {formError && (
           <p id="flight-form-error" role="alert" className="mt-3 text-[12px] text-red-400">

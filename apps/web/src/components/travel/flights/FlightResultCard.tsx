@@ -136,8 +136,8 @@ export default function FlightResultCard({ flight, badges, sandbox }: { flight: 
 
   return (
     <article className={`overflow-hidden rounded-2xl border bg-[#090D0E] transition hover:border-white/20 ${badges.includes("Best") ? "border-neon/35 shadow-[0_0_30px_-18px_rgba(0,229,153,0.8)]" : "border-white/[0.08]"}`}>
-      <div className="flex flex-col gap-4 p-4 sm:p-5 lg:flex-row lg:items-center">
-        <div className="flex min-w-0 items-center gap-3 lg:w-48">
+      <div className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-center">
+        <div className="flex min-w-0 items-center gap-3 xl:w-44 xl:shrink-0">
           <Logo flight={flight} />
           <div className="min-w-0">
             <p className="truncate text-[14px] font-semibold text-white">{flight.carrier}</p>
@@ -151,10 +151,10 @@ export default function FlightResultCard({ flight, badges, sandbox }: { flight: 
           ))}
         </div>
 
-        <div className="flex items-end justify-between gap-4 border-t border-white/[0.06] pt-3 lg:w-48 lg:flex-col lg:items-end lg:border-0 lg:pt-0">
-          <div className="lg:text-right">
+        <div className="flex items-end justify-between gap-4 border-t border-white/[0.06] pt-3 xl:w-48 xl:shrink-0 xl:flex-col xl:items-end xl:border-0 xl:pt-0">
+          <div className="xl:text-right">
             {badges.length > 0 && (
-              <div className="mb-1 flex gap-1 lg:justify-end">
+              <div className="mb-1 flex gap-1 xl:justify-end">
                 {badges.map((b) => (
                   <span key={b} className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${b === "Best" ? "bg-neon text-black" : b === "Cheapest" ? "bg-white text-black" : "bg-sky-400 text-black"}`}>
                     {b}

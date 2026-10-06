@@ -128,8 +128,10 @@ export default function HotelDetailPanel({
     <aside
       role="dialog"
       aria-label={`Details for ${target.name}`}
-      className="absolute right-0 top-0 z-30 flex h-full w-full max-w-[380px] flex-col border-l border-white/10 bg-[#0f1016] shadow-2xl sm:w-[380px]"
-      style={{ animation: "hmSlide 180ms ease-out" }}
+      // Desktop: a column DOCKED beside the map (in flow, not over it) — the
+      // Places content must stay off the map surface. Phones: a bottom sheet.
+      className="fixed inset-x-0 bottom-0 z-50 flex max-h-[82dvh] w-full flex-col rounded-t-[22px] border-t border-white/[0.10] bg-[#090D0E] shadow-[0_-20px_60px_rgba(0,0,0,0.5)] lg:static lg:z-auto lg:max-h-none lg:w-[400px] lg:shrink-0 lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none"
+      style={{ animation: "hmSlide 200ms ease-out" }}
     >
       <header className="flex items-start gap-2 border-b border-white/10 p-4">
         <div className="min-w-0 flex-1">
@@ -307,6 +309,24 @@ export default function HotelDetailPanel({
           </>
         )}
       </div>
+
+      {/* The one primary action. This map holds no rates, so the next step is
+          the live stays search for the hotel's city — the existing booking
+          path — rather than a price this panel would have to invent. */}
+      {target.city && (
+        <div className="border-t border-white/[0.08] p-4">
+          <a
+            href={`/travel/stays?city=${encodeURIComponent(target.city)}`}
+            className="flex h-[46px] w-full items-center justify-center gap-2 rounded-[11px] bg-[#00E6A7] text-[14px] font-bold text-[#030505] transition hover:bg-[#00F0B0] active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Check rates &amp; book in {target.city}
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </a>
+          <p className="mt-2 text-center text-[11px] text-white/45">Live rates come from our booking supplier at search time.</p>
+        </div>
+      )}
 
       {/* Required whenever Places content is displayed off a Google map. */}
       {place && (

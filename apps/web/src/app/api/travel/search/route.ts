@@ -14,7 +14,7 @@ import { createHash } from "node:crypto";
 import {
   duffelMode,
   searchDuffelCars,
-  searchDuffelFlightOffers,
+  runDuffelFlightSearch,
   searchDuffelStays,
   type FlightSearchRequest,
 } from "@/lib/travel/duffel";
@@ -219,8 +219,25 @@ export async function POST(req: NextRequest) {
     } catch {
       /* cache unavailable */
     }
+    let emptyReason: "no_offers" | "no_live_provider" = "no_offers";
     if (!live) {
-      live = await searchDuffelFlightOffers(request);
+      const outcome = await runDuffelFlightSearch(request);
+      if (!outcome.ok && outcome.reason === "no_provider") {
+        emptyReason = "no_live_provider";
+      } else if (!outcome.ok) {
+        // The supplier failed (HTTP error or our deadline). This is not "no
+        // flights": say so, so the client can offer a retry.
+        return NextResponse.json(
+          {
+            type: "flights",
+            error: "supplier_unavailable",
+            detail: outcome.reason === "timeout" ? "Airlines took too long to answer. Try again." : "We couldn't search flights right now. Try again.",
+          },
+          { status: 502 }
+        );
+      } else {
+        live = outcome.offers;
+      }
       if (live?.length) {
         const earliest = Math.min(...live.map((f) => (f.expiresAt ? Date.parse(f.expiresAt) : Infinity)));
         const ttl = Math.floor(Math.min(600_000, earliest - Date.now() - 60_000) / 1000);
@@ -253,7 +270,9 @@ export async function POST(req: NextRequest) {
       count: 0,
       results: [],
       source: "unavailable",
-      unavailableReason: duffelMode() === "live" ? "no_offers" : "no_live_provider",
+      // From what happened, not from the key's mode: a test-mode search
+      // with no offers is "no offers", not "not connected".
+      unavailableReason: emptyReason,
     });
   }
 

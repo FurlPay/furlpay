@@ -28,6 +28,24 @@ describe("airport index", () => {
     expect(codes("Reykjavik")).toContain("KEF");
   });
 
+  it("resolves city, code in any case, and padded input", () => {
+    expect(codes("San Francisco")[0]).toBe("SFO");
+    expect(codes("sfo")[0]).toBe("SFO");
+    expect(codes("  SFO  ")[0]).toBe("SFO");
+    expect(codes("Delhi")[0]).toBe("DEL");
+    expect(codes("Heathrow")[0]).toBe("LHR"); // airport name
+  });
+
+  it("empty and unknown input return no airports (the caller shows a validation message)", () => {
+    expect(codes("")).toEqual([]);
+    expect(codes("   ")).toEqual([]);
+    expect(codes("qzxwvplmk")).toEqual([]);
+  });
+
+  it("is deterministic", () => {
+    expect(codes("an", 20)).toEqual(codes("an", 20));
+  });
+
   it("returns nothing for one character and caps the limit", () => {
     expect(codes("L")).toEqual([]);
     expect(searchAirportIndex("an", 999).length).toBeLessThanOrEqual(20);

@@ -43,37 +43,67 @@ export const MAP_PALETTE = {
   label: "#5B564C",
   labelSecondary: "#867F72",
   labelHalo: "#FFFFFF",
-} as const;
+};
+
+/**
+ * The dark FurlPay palette — the hotel map's default since the Travels
+ * redesign (near-black workspace, emerald accents).
+ *
+ * Same job as the ivory one: quiet enough that markers and prices are the
+ * strongest things on the surface. Land sits a step above the page background
+ * so the map reads as its own panel; roads are barely lighter than land;
+ * labels are a muted grey-green with a dark halo, clearing 4.5:1 for place
+ * names against land without competing with the white marker labels.
+ */
+export const DARK_MAP_PALETTE: typeof MAP_PALETTE = {
+  land: "#0B1112",
+  terrain: "#0E1715",
+  water: "#071A22",
+  ice: "#101819",
+  residential: "#0D1415",
+  building: "#141C1D",
+  road: "#1A2324",
+  roadCasing: "#121A1B",
+  border: "#2A3536",
+  label: "#9AA6A3",
+  labelSecondary: "#5F6B69",
+  labelHalo: "#050909",
+};
+
+export type MapTheme = "light" | "dark";
 
 /** Layer id patterns -> the paint they should take. First match wins, so the
  *  specific patterns are listed before the general ones. */
-const RULES: Array<{
+function rulesFor(p: typeof MAP_PALETTE): Array<{
   test: RegExp;
   fill?: string;
   line?: string;
   text?: string;
   opacity?: number;
-}> = [
-  { test: /^background$/, fill: MAP_PALETTE.land },
-  { test: /water|waterway|ocean|sea/, fill: MAP_PALETTE.water, line: MAP_PALETTE.water },
-  { test: /ice_shelf|glacier/, fill: MAP_PALETTE.ice },
-  { test: /park|wood|forest|grass|landcover/, fill: MAP_PALETTE.terrain },
-  { test: /residential|landuse/, fill: MAP_PALETTE.residential },
-  { test: /building/, fill: MAP_PALETTE.building, opacity: 0.5 },
-  { test: /casing/, line: MAP_PALETTE.roadCasing },
-  { test: /boundary|admin/, line: MAP_PALETTE.border },
-  { test: /highway|road|aeroway|bridge|tunnel|pier|path/, line: MAP_PALETTE.road },
-];
+}> {
+  return [
+    { test: /^background$/, fill: p.land },
+    { test: /water|waterway|ocean|sea/, fill: p.water, line: p.water },
+    { test: /ice_shelf|glacier/, fill: p.ice },
+    { test: /park|wood|forest|grass|landcover/, fill: p.terrain },
+    { test: /residential|landuse/, fill: p.residential },
+    { test: /building/, fill: p.building, opacity: 0.5 },
+    { test: /casing/, line: p.roadCasing },
+    { test: /boundary|admin/, line: p.border },
+    { test: /highway|road|aeroway|bridge|tunnel|pier|path/, line: p.road },
+  ];
+}
 
 /**
- * Apply the palette to a fetched style.
+ * Apply a palette to a fetched style.
  *
  * Mutates a parsed copy rather than the network response, and never touches
  * `layout` or the data sources — only paint. A layer whose id matches nothing
  * is left exactly as upstream drew it.
  */
-export function applyPalette(style: StyleSpecification): StyleSpecification {
+export function applyPalette(style: StyleSpecification, palette: typeof MAP_PALETTE = MAP_PALETTE): StyleSpecification {
   const next: StyleSpecification = JSON.parse(JSON.stringify(style));
+  const rules = rulesFor(palette);
 
   for (const layer of next.layers) {
     const id = layer.id.toLowerCase();
@@ -85,10 +115,10 @@ export function applyPalette(style: StyleSpecification): StyleSpecification {
       // means anything, so these are the strongest text on the surface.
       // Roads, water and minor features are the supporting tier.
       const isPlace = /place|label_(country|state|city|town|village|other)|country|city|town/.test(id);
-      paint["text-color"] = isPlace ? MAP_PALETTE.label : MAP_PALETTE.labelSecondary;
-      paint["text-halo-color"] = MAP_PALETTE.labelHalo;
-      // A wide halo is what lets a dark label stay readable over terrain and
-      // water without the map needing more contrast of its own.
+      paint["text-color"] = isPlace ? palette.label : palette.labelSecondary;
+      paint["text-halo-color"] = palette.labelHalo;
+      // A wide halo is what lets a label stay readable over terrain and water
+      // without the map needing more contrast of its own.
       paint["text-halo-width"] = isPlace ? 1.9 : 1.3;
       paint["text-halo-blur"] = 0.4;
       // Route shields and airport glyphs read as UI chrome at this weight and
@@ -98,7 +128,7 @@ export function applyPalette(style: StyleSpecification): StyleSpecification {
       continue;
     }
 
-    const rule = RULES.find((r) => r.test.test(id));
+    const rule = rules.find((r) => r.test.test(id));
     if (!rule) continue;
 
     if (layer.type === "background" && rule.fill) {
@@ -121,15 +151,17 @@ export const BASE_STYLE_URL = "https://tiles.openfreemap.org/styles/positron";
  * The recoloured style, or the plain URL when the fetch fails.
  *
  * Falling back to the URL means a network hiccup costs the palette, not the
- * map. A blank viewport would be a much worse failure than a grey one.
+ * map. A blank viewport would be a much worse failure than a grey one — even
+ * in the dark theme, where the fallback is the light upstream style.
  */
 export async function luxuryMapStyle(
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  theme: MapTheme = "dark"
 ): Promise<StyleSpecification | string> {
   try {
     const res = await fetch(BASE_STYLE_URL, { signal });
     if (!res.ok) return BASE_STYLE_URL;
-    return applyPalette((await res.json()) as StyleSpecification);
+    return applyPalette((await res.json()) as StyleSpecification, theme === "dark" ? DARK_MAP_PALETTE : MAP_PALETTE);
   } catch {
     return BASE_STYLE_URL;
   }

@@ -216,14 +216,25 @@ export function mapDuffelOffer(o: any, cabin: Flight["cabin"] = "Economy"): Flig
   };
 }
 
+/** Why a flight search produced no offers — the UI says different things for
+ *  "nothing to search with", "airlines had nothing" and "the supplier failed". */
+export type FlightSearchOutcome =
+  | { ok: true; offers: Flight[]; skipped: number }
+  | { ok: false; reason: "no_provider" | "supplier_error" | "timeout" };
+
+/** Our own deadline for the whole offer request. Duffel's supplier_timeout
+ *  (15 s) bounds each airline; this bounds Duffel itself. */
+const FLIGHT_SEARCH_DEADLINE_MS = 25_000;
+
 /**
  * Offer request with every offer returned (no price-sort-and-truncate: the
  * caller ranks the full set). Return trips are two slices; children are
  * passengers with an age, as Duffel requires.
  */
-export async function searchDuffelFlightOffers(req: FlightSearchRequest): Promise<Flight[] | null> {
+export async function runDuffelFlightSearch(req: FlightSearchRequest): Promise<FlightSearchOutcome> {
   const apiKey = duffelKey();
-  if (!apiKey || !req.from || !req.to || !req.departDate) return null;
+  if (!apiKey) return { ok: false, reason: "no_provider" };
+  if (!req.from || !req.to || !req.departDate) return { ok: true, offers: [], skipped: 0 };
   const cabin = req.cabin ?? "Economy";
   const from = req.from.toUpperCase();
   const to = req.to.toUpperCase();
@@ -248,19 +259,40 @@ export async function searchDuffelFlightOffers(req: FlightSearchRequest): Promis
         },
       }),
       cache: "no-store",
+      signal: AbortSignal.timeout(FLIGHT_SEARCH_DEADLINE_MS),
     });
     if (!res.ok) {
       log.warn("duffel.flights.http", { status: res.status });
-      return null;
+      return { ok: false, reason: "supplier_error" };
     }
     const json: any = await res.json();
-    const offers: any[] = json?.data?.offers ?? [];
-    const mapped = offers.map((o) => mapDuffelOffer(o, cabin)).filter((f): f is Flight => !!f);
-    return mapped.length ? mapped : null;
+    const offers: unknown[] = Array.isArray(json?.data?.offers) ? json.data.offers : [];
+    // One malformed offer must not take down the rest: map each in
+    // isolation, skip what cannot be priced or placed, and count it.
+    const mapped: Flight[] = [];
+    let skipped = 0;
+    for (const o of offers) {
+      try {
+        const f = mapDuffelOffer(o, cabin);
+        if (f) mapped.push(f);
+        else skipped++;
+      } catch {
+        skipped++;
+      }
+    }
+    if (skipped) log.warn("duffel.flights.skipped_offers", { skipped, total: offers.length });
+    return { ok: true, offers: mapped, skipped };
   } catch (e) {
-    log.warn("duffel.flights.failed", { error: (e as Error).message });
-    return null;
+    const timedOut = (e as Error)?.name === "TimeoutError" || (e as Error)?.name === "AbortError";
+    log.warn("duffel.flights.failed", { reason: timedOut ? "timeout" : "network", error: (e as Error).message });
+    return { ok: false, reason: timedOut ? "timeout" : "supplier_error" };
   }
+}
+
+/** Offers, or null for any non-result — the shape older callers expect. */
+export async function searchDuffelFlightOffers(req: FlightSearchRequest): Promise<Flight[] | null> {
+  const r = await runDuffelFlightSearch(req);
+  return r.ok && r.offers.length ? r.offers : null;
 }
 
 /** One-way, one adult — the original signature, kept for existing callers. */

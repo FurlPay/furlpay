@@ -14,7 +14,7 @@ import { ChevronDown, Menu, Search, X } from "lucide-react";
 
 const NAV: Array<{ href: string; label: string; match?: (p: string) => boolean }> = [
   { href: "/travel/destinations", label: "Explore" },
-  { href: "/travel/stays", label: "Stays", match: (p) => p.startsWith("/travel/stays") || p.startsWith("/travel/hotels") },
+  { href: "/travel/stays", label: "Stays", match: (p) => p.startsWith("/travel/stays") || p.startsWith("/travel/hotels") || p.startsWith("/hotels") },
   { href: "/travel/flights", label: "Flights" },
   { href: "/travel/car-rentals", label: "Cars" },
   { href: "/travel/activities", label: "Activities" },
@@ -195,7 +195,7 @@ export default function TravelHeader() {
           ) : state === "out" ? (
             <Link
               href={`/login?next=${encodeURIComponent(pathname)}`}
-              className="flex h-9 items-center rounded-full bg-neon px-4 text-[12px] font-bold text-black transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
+              className="flex h-9 shrink-0 items-center whitespace-nowrap rounded-full bg-neon px-4 text-[12px] font-bold text-black transition hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white"
             >
               Sign in
             </Link>

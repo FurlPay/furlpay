@@ -67,7 +67,7 @@ export default function PassengersPicker({ value, onChange }: { value: Passenger
         className="mt-1.5 flex w-full items-center gap-2 rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 text-left text-[14px] text-white transition hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon"
       >
         <Users className="h-4 w-4 text-white/55" aria-hidden />
-        <span className="flex-1">{passengersLabel(value)}</span>
+        <span className="min-w-0 flex-1 truncate whitespace-nowrap">{passengersLabel(value)}</span>
         <ChevronDown className={`h-4 w-4 text-white/50 transition ${open ? "rotate-180" : ""}`} aria-hidden />
       </button>
       {open && (

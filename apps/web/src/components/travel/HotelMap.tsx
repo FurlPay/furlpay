@@ -58,9 +58,12 @@ import HotelMapHoverCard, { type HoverTarget } from "./map/HotelMapHoverCard";
 import { discoverLive, liveStatusLabel, type LiveStatus } from "@/lib/places/discoverClient";
 import { mergeLivePoints, toMapPoints } from "@/lib/places/liveAugment";
 import AccessibleMarkerList, { type ListEntry } from "./map/AccessibleMarkerList";
+import HotelResultsPanel from "./map/HotelResultsPanel";
+import { isResultSort, type ResultSort } from "@/lib/hotels/resultSort";
 import {
   buildFeatures,
   categoryColor,
+  hashId,
   layerSpecs,
   INTERACTIVE_LAYERS,
   LYR_PULSE,
@@ -166,6 +169,70 @@ function viewFromUrl(): { center: [number, number]; zoom: number } {
     return DEFAULT_VIEW;
   }
   return { center: [lng, lat], zoom: Number.isFinite(z) ? Math.min(18, Math.max(1, z)) : 14 };
+}
+
+// ---------------------------------------------------------------------------
+// Search state in the URL.
+//
+// The camera (lat/lng/z) was already readable from the URL; filters, sort and
+// the selected hotel now are too, and all of it is written back with
+// replaceState as it changes. That is what makes Back from a hotel page — or a
+// reload, or a shared link — return to the same place, the same filters and
+// the same open hotel. Short flat keys, no JSON: `?stars=4&types=hotels,resorts`.
+// Everything read is validated; anything unknown is dropped, never trusted.
+// ---------------------------------------------------------------------------
+const FAMILY_IDS: readonly PropertyFamily[] = ["hotels", "resorts", "villas"];
+
+interface UrlSearchState {
+  minStars: number;
+  families: PropertyFamily[];
+  categories: LuxuryCategoryId[];
+  textFilter: string;
+  exactOnly: boolean;
+  sort: ResultSort;
+  hotel: string | null;
+}
+
+function searchStateFromUrl(): UrlSearchState {
+  const empty: UrlSearchState = { minStars: 0, families: [], categories: [], textFilter: "", exactOnly: false, sort: "recommended", hotel: null };
+  if (typeof window === "undefined") return empty;
+  const q = new URLSearchParams(window.location.search);
+  const list = (k: string) => (q.get(k) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  const stars = Number(q.get("stars"));
+  const catIds = new Set<string>(LUXURY_MAP_CATEGORIES.map((c) => c.id));
+  const sort = q.get("sort");
+  const hotel = q.get("hotel");
+  return {
+    minStars: Number.isInteger(stars) && stars >= 1 && stars <= 5 ? stars : 0,
+    families: list("types").filter((f): f is PropertyFamily => (FAMILY_IDS as readonly string[]).includes(f)),
+    categories: list("cats").filter((c): c is LuxuryCategoryId => catIds.has(c)),
+    textFilter: (q.get("q") ?? "").slice(0, 80),
+    exactOnly: q.get("exact") === "1",
+    sort: isResultSort(sort) ? sort : "recommended",
+    hotel: hotel && /^[\w:.\-]{1,120}$/.test(hotel) ? hotel : null,
+  };
+}
+
+/** Write the current search into the URL without adding history entries
+ *  (a pan is not a navigation). Unrelated params, like `?all=1`, survive. */
+function writeSearchToUrl(s: Omit<UrlSearchState, "hotel"> & { hotel: string | null; camera?: { lat: number; lng: number; z: number } }) {
+  if (typeof window === "undefined") return;
+  const q = new URLSearchParams(window.location.search);
+  const set = (k: string, v: string | null) => (v ? q.set(k, v) : q.delete(k));
+  if (s.camera) {
+    q.set("lat", s.camera.lat.toFixed(4));
+    q.set("lng", s.camera.lng.toFixed(4));
+    q.set("z", s.camera.z.toFixed(2));
+  }
+  set("stars", s.minStars ? String(s.minStars) : null);
+  set("types", s.families.length ? [...s.families].sort().join(",") : null);
+  set("cats", s.categories.length ? [...s.categories].sort().join(",") : null);
+  set("q", s.textFilter.trim() || null);
+  set("exact", s.exactOnly ? "1" : null);
+  set("sort", s.sort !== "recommended" ? s.sort : null);
+  set("hotel", s.hotel);
+  const next = `${window.location.pathname}${q.toString() ? `?${q}` : ""}`;
+  if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", next);
 }
 
 const EMPTY_FC: GeoJSON.FeatureCollection = { type: "FeatureCollection", features: [] };
@@ -421,6 +488,38 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   const [exactOnly, setExactOnly] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // --- results list ---------------------------------------------------------
+  // The individual properties the map last painted — the list's only data.
+  const [listPoints, setListPoints] = useState<MapPoint[]>([]);
+  /** A card the pointer (or keyboard focus) is on, lighting its marker. */
+  const [listHoverId, setListHoverId] = useState<string | null>(null);
+  const [sort, setSort] = useState<ResultSort>("recommended");
+  /** Map centre, for "distance from map centre" — updated on moveend only. */
+  const [center, setCenter] = useState<{ latitude: number; longitude: number } | null>(null);
+  /** Phones show one surface at a time. Desktop shows both. */
+  const [mobileView, setMobileView] = useState<"list" | "map">("map");
+  /** The URL's ?hotel=, reopened once its point has loaded. */
+  const pendingHotel = useRef<string | null>(null);
+  /** False until the URL has been READ, so nothing writes over it first. */
+  const urlRead = useRef(false);
+
+  // Restore the search from the URL AFTER mount, not in the initial state: the
+  // server renders this component without a URL, and seeding state from one
+  // during render would give the client markup the server never produced.
+  // The map's first load happens later (it waits for the style), so it already
+  // sees these values.
+  useEffect(() => {
+    const s = searchStateFromUrl();
+    setTextFilter(s.textFilter);
+    setFamilies(s.families);
+    setCategories(s.categories);
+    setMinStars(s.minStars);
+    setExactOnly(s.exactOnly);
+    setSort(s.sort);
+    pendingHotel.current = s.hotel;
+    urlRead.current = true;
+  }, []);
+
   // Status of the LIVE layer only. The indexed sources have their own
   // `error` state; conflating them would report a working map as broken
   // whenever Places is down.
@@ -566,6 +665,9 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       (m.getSource(SRC_POINTS) as GeoJSONSource).setData(built.points);
       (m.getSource(SRC_LEADERS) as GeoJSONSource).setData(built.leaders);
       setEntries([...built.index.entries()].map(([id, e]) => ({ id, ...e })));
+      // The results list shows exactly what was just drawn — same array, same
+      // Saved filter — so list and markers cannot disagree.
+      setListPoints(points);
     } catch (e) {
       console.error("hotel map: could not draw markers", e);
       setError("Could not draw the markers for this view");
@@ -996,6 +1098,8 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         });
 
         void load(m.getBounds(), m.getZoom());
+        const c0 = m.getCenter();
+        setCenter({ latitude: c0.lat, longitude: c0.lng });
       });
 
       const schedule = () => {
@@ -1003,6 +1107,10 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         timer.current = setTimeout(() => void load(m.getBounds(), m.getZoom()), DEBOUNCE_MS);
       };
       m.on("moveend", () => {
+        // Feeds the list's distances and the URL's camera. State setter, so
+        // it is stable and does not rebuild this effect.
+        const c = m.getCenter();
+        setCenter({ latitude: c.lat, longitude: c.lng });
         // Our own camera moves always load: the reader asked to go somewhere, so
         // making them then ask again for what is there would be absurd.
         if (programmatic.current) {
@@ -1142,22 +1250,10 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   const thumbs = useRef<ThumbnailRegistry | null>(null);
   const thumbSrcById = useRef<Map<string, { url: string; ring: string }>>(new Map());
 
-  // How far down the map the header reaches, measured rather than assumed.
-  // Everything that hangs below it is offset from this, so a filter row that
-  // wraps on a narrow phone pushes the zoom controls down instead of ending up
-  // underneath them. The seed value is the height at the common case, so the
-  // first paint is already correct and nothing visibly jumps on mount.
-  const headerBox = useRef<HTMLDivElement>(null);
-  const [headerH, setHeaderH] = useState(136);
-  useEffect(() => {
-    const el = headerBox.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setHeaderH(el.getBoundingClientRect().height));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  /** Top edge for any overlay that must clear the header. */
-  const belowHeader = headerH + 12;
+  // The search bar now sits in the toolbar ABOVE the map instead of floating
+  // over it, so overlays inside the map column start at its top edge. (This was
+  // a measured header height while the bar covered the map.)
+  const belowHeader = 12;
 
   // ── "Search this area" ───────────────────────────────────────────────────
   //
@@ -1245,23 +1341,105 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
     setFamilies((prev) => (prev.includes(f) ? prev.filter((x) => x !== f) : [...prev, f]));
   }, []);
 
+  // ── list ↔ map ───────────────────────────────────────────────────────────
+  //
+  // ONE SOURCE OF TRUTH FOR SELECTION: `selected` (the detail panel's target).
+  // The list's highlighted card, the lit marker and the open panel are all
+  // derived from its id, so they cannot drift apart. Hover is the same: a
+  // card's hover lights its marker through feature-state, and a marker's hover
+  // (the map's own hover card) highlights its card.
+  const selectedId = selected?.id ?? null;
+  const markerHoverId = hover?.target.kind === "property" ? hover.target.point.id : null;
+  const hoveredCardId = listHoverId ?? markerHoverId;
+
+  const onListHover = useCallback(
+    (id: string | null) => {
+      setListHoverId(id);
+      light(id ? hashId(id) : null);
+    },
+    [light]
+  );
+
+  const onListSelect = useCallback(
+    (p: MapPoint) => {
+      openDetail(p);
+      const m = map.current;
+      if (!m) return;
+      light(hashId(p.id));
+      // Move the map only when the hotel is off-screen: a camera jump for a
+      // hotel already in view would throw away where the reader was looking.
+      if (!m.getBounds().contains([p.longitude, p.latitude])) {
+        programmatic.current = true;
+        m.easeTo({ center: [p.longitude, p.latitude], duration: FLY_MS, easing: easeInOutCubic });
+      }
+    },
+    [openDetail, light]
+  );
+
+  const filtersActive = minStars > 0 || families.length > 0 || categories.length > 0 || exactOnly || textFilter.trim() !== "";
+  const clearFilters = useCallback(() => {
+    setCategories([]);
+    setMinStars(0);
+    setExactOnly(false);
+    setFamilies([]);
+    setTextFilter("");
+  }, []);
+
+  // Keep the URL in step with the search (camera, filters, sort, open hotel).
+  useEffect(() => {
+    if (!urlRead.current) return;
+    const m = map.current;
+    writeSearchToUrl({
+      minStars,
+      families,
+      categories,
+      textFilter,
+      exactOnly,
+      sort,
+      // Until a pending ?hotel= has been reopened, keep it rather than erase it.
+      hotel: selectedId ?? pendingHotel.current,
+      camera: m && center ? { lat: center.latitude, lng: center.longitude, z: m.getZoom() } : undefined,
+    });
+  }, [center, minStars, families, categories, textFilter, exactOnly, sort, selectedId]);
+
+  // Reopen ?hotel= once its point is on the map (Back, reload, shared link).
+  useEffect(() => {
+    const want = pendingHotel.current;
+    if (!want) return;
+    const p = listPoints.find((x) => x.id === want);
+    if (p) {
+      pendingHotel.current = null;
+      openDetail(p);
+    }
+  }, [listPoints, openDetail]);
+
+  // The map's column changes width when the detail panel docks or the list
+  // toggles; MapLibre only watches the WINDOW, so it is told explicitly.
+  useEffect(() => {
+    const el = container.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => map.current?.resize());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   if (noWebgl) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-[#F7F5EF] p-6">
+      <div className="flex h-full w-full items-center justify-center bg-[#0B1112] p-6">
         <div className="max-w-[420px] text-center">
-          <p className="text-[16px] font-bold text-[#0F172A]">This map needs WebGL2</p>
-          <p className="mt-2 text-[13.5px] leading-relaxed text-[#64748B]">
+          <p className="text-[16px] font-bold text-[#F5F7F6]">This map needs WebGL2</p>
+          <p className="mt-2 text-[13.5px] leading-relaxed text-[#A4AAA9]">
             The renderer could not get a WebGL2 context, so the map cannot draw. This is a
             browser or driver setting rather than a problem with the page.
           </p>
-          <ul className="mt-4 space-y-1.5 text-left text-[13px] text-[#64748B]">
+          <ul className="mt-4 space-y-1.5 text-left text-[13px] text-[#A4AAA9]">
             <li>
               • Chrome: enable{" "}
-              <span className="text-[#0F172A]">Settings → System → Use graphics acceleration</span>,
+              <span className="text-[#F5F7F6]">Settings → System → Use graphics acceleration</span>,
               then restart the browser.
             </li>
             <li>
-              • Check <span className="text-[#0F172A]">chrome://gpu</span> — it lists WebGL2 as
+              • Check <span className="text-[#F5F7F6]">chrome://gpu</span> — it lists WebGL2 as
               enabled or blocklisted, and why.
             </li>
             <li>• Remote desktop and VM sessions often have no GPU to hand through.</li>
@@ -1272,7 +1450,58 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   }
 
   return (
-    <div className="relative h-full w-full overflow-hidden bg-[#F7F5EF]">
+    // WORKSPACE: search toolbar on top; below it the results list, the map and
+    // (when a hotel is open) the detail panel DOCKED BESIDE the map. The panel
+    // carries Google Places content, which may not be drawn on a non-Google
+    // map — beside it is where it belongs (see HotelDetailPanel). Phones show
+    // the list OR the map, switched by the segmented control at the bottom.
+    <div className="relative flex h-full w-full flex-col overflow-hidden bg-[#030505]">
+      <div className="relative z-30 border-b border-white/[0.08] bg-[#050909] px-3 py-3 sm:px-4 lg:px-5">
+        <HotelMapSearchHeader
+          query={query}
+          onQuery={setQuery}
+          suggestions={suggestions}
+          onPick={(d) => {
+            flyTo(d);
+            setMobileView("map");
+          }}
+          families={families}
+          minStars={minStars}
+          filtersOpen={filtersOpen}
+          onToggleFilters={() => setFiltersOpen((v) => !v)}
+          moreFilterCount={moreFilterCount}
+          recent={recent}
+          onClearRecent={() => setRecent(clearRecent())}
+        />
+      </div>
+
+      <div className="relative flex min-h-0 flex-1">
+      <div
+        className={`${mobileView === "list" ? "flex" : "hidden"} min-h-0 w-full flex-col border-r border-white/[0.08] lg:flex lg:w-[40%] lg:min-w-[400px] lg:max-w-[600px]`}
+      >
+        <HotelResultsPanel
+          points={listPoints}
+          meta={meta}
+          loading={loading}
+          error={error}
+          sort={sort}
+          onSort={setSort}
+          center={center}
+          hoveredId={hoveredCardId}
+          selectedId={selectedId}
+          savedIds={savedIds}
+          filtersActive={filtersActive}
+          onHover={onListHover}
+          onSelect={onListSelect}
+          onRetry={() => {
+            const m = map.current;
+            if (m) void load(m.getBounds(), m.getZoom());
+          }}
+          onClearFilters={clearFilters}
+        />
+      </div>
+
+      <div className={`${mobileView === "map" ? "block" : "hidden"} relative min-w-0 flex-1 overflow-hidden bg-[#0B1112] lg:block`}>
       <div ref={container} className="h-full w-full" />
 
       {/* The map, as a list. Off-screen until focused — see AccessibleMarkerList. */}
@@ -1284,22 +1513,6 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
           e.kind === "cluster" ? showDestinationCard(e.cluster!) : openDetail(e.point!)
         }
       />
-
-      <div ref={headerBox} className="pointer-events-none absolute inset-x-0 top-0 z-30 p-3">
-        <HotelMapSearchHeader
-          query={query}
-          onQuery={setQuery}
-          suggestions={suggestions}
-          onPick={flyTo}
-          families={families}
-          minStars={minStars}
-          filtersOpen={filtersOpen}
-          onToggleFilters={() => setFiltersOpen((v) => !v)}
-          moreFilterCount={moreFilterCount}
-          recent={recent}
-          onClearRecent={() => setRecent(clearRecent())}
-        />
-      </div>
 
       {filtersOpen && (
         <FilterPanel
@@ -1370,7 +1583,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
               setViewDrifted(false);
               void load(m.getBounds(), m.getZoom());
             }}
-            className="app-pop-in flex items-center gap-2 rounded-full bg-[#181C23] px-4 py-2.5 text-[13px] font-semibold text-[#F5F7FA] shadow-[0_10px_30px_rgba(0,0,0,0.45)] transition-colors hover:bg-[#20242D] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/50"
+            className="app-pop-in flex h-[42px] items-center gap-2 rounded-full border border-white/[0.12] bg-[#090D0E] px-4 text-[13px] font-semibold text-[#F5F7F6] shadow-[0_16px_40px_rgba(0,0,0,0.35)] transition-colors hover:border-[#00E6A7]/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#00E6A7]"
           >
             <SearchIcon className="h-4 w-4 shrink-0" />
             Search this area
@@ -1380,10 +1593,12 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
 
       {loading && (
         <div
-          className="pointer-events-none absolute left-1/2 z-20 -translate-x-1/2 rounded-lg bg-white/95 px-2.5 py-1.5 text-[11.5px] font-medium text-[#64748B] shadow-[0_4px_14px_rgba(15,23,42,0.10)]"
+          role="status"
+          className="pointer-events-none absolute left-1/2 z-20 flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/[0.10] bg-[#090D0E]/95 px-3 py-1.5 text-[12px] font-medium text-[#A4AAA9] shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
           style={{ top: belowHeader }}
         >
-          Loading…
+          <span className="h-2 w-2 animate-pulse rounded-full bg-[#00E6A7]" aria-hidden />
+          Updating stays…
         </div>
       )}
 
@@ -1415,8 +1630,32 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       )}
 
       <StatusBar error={error} meta={meta} loading={loading} liveStatus={liveStatus} />
+      </div>
 
       <HotelDetailPanel target={selected} onClose={() => setSelected(null)} />
+      </div>
+
+      {/* Phones: one surface at a time. */}
+      <div
+        role="tablist"
+        aria-label="Show list or map"
+        className="absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 z-40 flex -translate-x-1/2 rounded-full border border-white/[0.10] bg-[#090D0E]/95 p-1 shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur lg:hidden"
+      >
+        {(["list", "map"] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            role="tab"
+            aria-selected={mobileView === v}
+            onClick={() => setMobileView(v)}
+            className={`h-9 rounded-full px-5 text-[13px] font-semibold capitalize transition ${
+              mobileView === v ? "bg-[#00E6A7] text-[#030505]" : "text-[#A4AAA9]"
+            }`}
+          >
+            {v === "list" ? `List${listPoints.length ? ` · ${listPoints.length}` : ""}` : "Map"}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -1425,25 +1664,25 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
 function MapControls({ top, onZoom }: { top: number; onZoom: (delta: number) => void }) {
   return (
     <div
-      className="absolute right-4 z-20 flex flex-col overflow-hidden rounded-xl bg-white shadow-[0_4px_12px_rgba(15,23,42,0.12)]"
+      className="absolute right-4 z-20 flex flex-col overflow-hidden rounded-xl bg-[#090D0E] shadow-[0_4px_12px_rgba(0,0,0,0.12)]"
       style={{ top }}
     >
       <button
         type="button"
         onClick={() => onZoom(1)}
         aria-label="Zoom in"
-        className="flex h-[42px] w-[42px] items-center justify-center text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+        className="flex h-[42px] w-[42px] items-center justify-center text-[#C9CFCD] transition-colors hover:bg-white/[0.05]"
       >
         <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden>
           <path d="M8 3v10M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
         </svg>
       </button>
-      <div className="h-px bg-[#F1F5F9]" />
+      <div className="h-px bg-white/[0.05]" />
       <button
         type="button"
         onClick={() => onZoom(-1)}
         aria-label="Zoom out"
-        className="flex h-[42px] w-[42px] items-center justify-center text-[#334155] transition-colors hover:bg-[#F8FAFC]"
+        className="flex h-[42px] w-[42px] items-center justify-center text-[#C9CFCD] transition-colors hover:bg-white/[0.05]"
       >
         <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none" aria-hidden>
           <path d="M3 8h10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
@@ -1488,10 +1727,10 @@ function SavedFilterButton({
         type="button"
         onClick={onToggle}
         aria-pressed={active}
-        className={`flex h-[46px] items-center gap-2 rounded-full px-4 text-[13px] font-semibold shadow-[0_4px_12px_rgba(15,23,42,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1B7A4E] ${
+        className={`flex h-[46px] items-center gap-2 rounded-full px-4 text-[13px] font-semibold shadow-[0_4px_12px_rgba(0,0,0,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1B7A4E] ${
           active
             ? "bg-[#1B7A4E] text-white hover:bg-[#146B44]"
-            : "bg-white text-[#334155] hover:bg-[#F8FAFC]"
+            : "bg-[#090D0E] text-[#C9CFCD] hover:bg-white/[0.05]"
         }`}
       >
         <svg
@@ -1508,13 +1747,13 @@ function SavedFilterButton({
           />
         </svg>
         Saved
-        <span className={active ? "text-white/70" : "text-[#94A3B8]"}>{count}</span>
+        <span className={active ? "text-white/70" : "text-[#6E7675]"}>{count}</span>
       </button>
 
       {active && drawn === 0 && (
         <p
           role="status"
-          className="rounded-lg bg-white px-3 py-1.5 text-[12px] font-medium text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.10)]"
+          className="rounded-lg bg-[#090D0E] px-3 py-1.5 text-[12px] font-medium text-[#C9CFCD] shadow-[0_4px_14px_rgba(0,0,0,0.10)]"
         >
           None of your saved hotels are in this view
         </p>
@@ -1564,12 +1803,12 @@ function LocateButton({
               : "Stop tracking"
         }
         aria-pressed={active}
-        className={`grid h-[46px] w-[46px] place-items-center rounded-full shadow-[0_4px_12px_rgba(15,23,42,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] ${
+        className={`grid h-[46px] w-[46px] place-items-center rounded-full shadow-[0_4px_12px_rgba(0,0,0,0.12)] transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#2563EB] ${
           mode === "track"
             ? "bg-[#4285F4] text-white hover:bg-[#3574D4]"
             : active
-              ? "bg-white text-[#4285F4] hover:bg-[#F0F7FF]"
-              : "bg-white text-[#334155] hover:bg-[#F8FAFC]"
+              ? "bg-[#090D0E] text-[#4285F4] hover:bg-white/[0.05]"
+              : "bg-[#090D0E] text-[#C9CFCD] hover:bg-white/[0.05]"
         }`}
       >
         <svg className="h-5 w-5" viewBox="0 0 20 20" fill="none" aria-hidden>
@@ -1601,8 +1840,8 @@ function LocateButton({
       {/* Accuracy badge — shows the same High/Medium/Low levels as Google Maps
           calibration. Only visible while tracking. */}
       {active && userLoc && (
-        <div className="rounded-lg bg-white px-3 py-1.5 shadow-[0_4px_14px_rgba(15,23,42,0.10)]">
-          <p className="flex items-center gap-1.5 text-[12px] font-medium text-[#334155]">
+        <div className="rounded-lg bg-[#090D0E] px-3 py-1.5 shadow-[0_4px_14px_rgba(0,0,0,0.10)]">
+          <p className="flex items-center gap-1.5 text-[12px] font-medium text-[#C9CFCD]">
             <span
               className={`inline-block h-2 w-2 rounded-full ${
                 userLoc.accuracyLevel === "high"
@@ -1617,12 +1856,12 @@ function LocateButton({
               : userLoc.accuracyLevel === "medium"
                 ? "Medium accuracy"
                 : "Low accuracy"}
-            <span className="text-[#94A3B8]">
+            <span className="text-[#6E7675]">
               ±{Math.round(userLoc.accuracy)}m
             </span>
           </p>
           {userLoc.heading !== null && (
-            <p className="mt-0.5 text-[11px] text-[#94A3B8]">
+            <p className="mt-0.5 text-[11px] text-[#6E7675]">
               Heading {Math.round(userLoc.heading)}°
               {userLoc.speed !== null && userLoc.speed > 0.5
                 ? ` · ${(userLoc.speed * 3.6).toFixed(1)} km/h`
@@ -1635,7 +1874,7 @@ function LocateButton({
       {error && (
         <p
           role="status"
-          className="rounded-lg bg-white px-3 py-1.5 text-[12px] font-medium text-[#334155] shadow-[0_4px_14px_rgba(15,23,42,0.10)]"
+          className="rounded-lg bg-[#090D0E] px-3 py-1.5 text-[12px] font-medium text-[#C9CFCD] shadow-[0_4px_14px_rgba(0,0,0,0.10)]"
         >
           {error}
         </p>
@@ -1667,16 +1906,16 @@ function FilterPanel({
 }) {
   return (
     <div
-      className="absolute right-4 z-30 w-[340px] max-w-[calc(100%-32px)] rounded-2xl border border-[#E2E8F0] bg-white p-4 shadow-[0_15px_40px_rgba(15,23,42,0.16)]"
+      className="absolute right-4 z-30 w-[340px] max-w-[calc(100%-32px)] rounded-2xl border border-white/[0.10] bg-[#090D0E] p-4 shadow-[0_15px_40px_rgba(0,0,0,0.16)]"
       style={{ top }}
     >
       <div className="flex items-center justify-between">
-        <p className="text-[14px] font-bold text-[#0F172A]">Filters</p>
+        <p className="text-[14px] font-bold text-[#F5F7F6]">Filters</p>
         <button
           type="button"
           onClick={onClose}
           aria-label="Close filters"
-          className="text-[#94A3B8] transition-colors hover:text-[#0F172A]"
+          className="text-[#6E7675] transition-colors hover:text-white"
         >
           <CloseIcon />
         </button>
@@ -1688,14 +1927,14 @@ function FilterPanel({
           the user was still reading the suggestions. Search now only suggests
           and flies; narrowing the set is this explicit control. */}
       <label className="mt-3 block">
-        <span className="text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">
+        <span className="text-[11px] font-bold uppercase tracking-wide text-[#6E7675]">
           Name contains
         </span>
         <input
           value={textFilter}
           onChange={(e) => onTextFilter(e.target.value)}
           placeholder="Aman, Belmond, Kyoto…"
-          className="mt-1.5 w-full rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-1.5 text-[12.5px] text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[#B6DCC8]"
+          className="mt-1.5 w-full rounded-lg border border-white/[0.10] bg-[#090D0E] px-2.5 py-1.5 text-[12.5px] text-[#F5F7F6] outline-none placeholder:text-[#6E7675] focus:border-[#B6DCC8]"
         />
       </label>
 
@@ -1705,7 +1944,7 @@ function FilterPanel({
           carried its own family pills on desktop; those are gone, so this is
           now the only place property type can be set. */}
       <div className="mt-3">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">Property type</p>
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#6E7675]">Property type</p>
         <div className="mt-2 flex gap-1.5">
           {(["hotels", "resorts", "villas"] as PropertyFamily[]).map((f) => (
             <button
@@ -1715,8 +1954,8 @@ function FilterPanel({
               aria-pressed={families.includes(f)}
               className={`flex-1 rounded-lg border px-2 py-1.5 text-[12px] font-medium capitalize transition-colors ${
                 families.includes(f)
-                  ? "border-[#B6DCC8] bg-[#ECF7F1] text-[#1B7A4E]"
-                  : "border-[#E2E8F0] bg-white text-[#64748B]"
+                  ? "border-[#B6DCC8] bg-[rgba(0,230,167,0.10)] text-[#1B7A4E]"
+                  : "border-white/[0.10] bg-[#090D0E] text-[#A4AAA9]"
               }`}
             >
               {f}
@@ -1725,7 +1964,7 @@ function FilterPanel({
         </div>
       </div>
 
-      <p className="mt-3.5 text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">Collection</p>
+      <p className="mt-3.5 text-[11px] font-bold uppercase tracking-wide text-[#6E7675]">Collection</p>
       <div className="mt-2 flex flex-wrap gap-1.5">
         {LUXURY_MAP_CATEGORIES.map((c) => {
           const on = categories.includes(c.id);
@@ -1743,7 +1982,7 @@ function FilterPanel({
                     : "Observed: recorded in the source data"
               }
               className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11.5px] font-medium transition-colors ${
-                on ? "border-transparent text-white" : "border-[#E2E8F0] bg-white text-[#64748B]"
+                on ? "border-transparent text-white" : "border-white/[0.10] bg-[#090D0E] text-[#A4AAA9]"
               }`}
               style={on ? { background: c.color } : undefined}
             >
@@ -1755,12 +1994,12 @@ function FilterPanel({
       </div>
 
       <div className="mt-4 flex items-center justify-between">
-        <label className="flex items-center gap-2 text-[12.5px] text-[#64748B]">
+        <label className="flex items-center gap-2 text-[12.5px] text-[#A4AAA9]">
           Min stars
           <select
             value={minStars}
             onChange={(e) => onMinStars(Number(e.target.value))}
-            className="rounded-lg border border-[#E2E8F0] bg-white px-2 py-1 text-[12.5px] text-[#0F172A]"
+            className="rounded-lg border border-white/[0.10] bg-[#090D0E] px-2 py-1 text-[12.5px] text-[#F5F7F6]"
           >
             <option value={0}>Any</option>
             <option value={4}>4+</option>
@@ -1777,7 +2016,7 @@ function FilterPanel({
       </div>
 
       <label
-        className="mt-2.5 flex items-center gap-2 text-[12.5px] text-[#64748B]"
+        className="mt-2.5 flex items-center gap-2 text-[12.5px] text-[#A4AAA9]"
         title="Hide properties whose position could not be confirmed against Google"
       >
         <input
@@ -1842,15 +2081,18 @@ function StatusBar({
   const warn = Boolean(error) || Boolean(meta?.osmUnavailable);
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 p-4 max-sm:flex-col max-sm:items-stretch">
+    // Compact: the results list already carries the headline count, so this is
+    // a two-line-max footnote that never buries the map. Full text stays in the
+    // DOM (line-clamp hides overflow visually only).
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 p-3 max-lg:pb-[72px] max-sm:flex-col max-sm:items-stretch">
       <div
-        className={`rounded-xl px-3.5 py-2 text-[12.5px] font-medium shadow-[0_4px_14px_rgba(15,23,42,0.10)] ${
-          warn ? "bg-[#F97316] text-white" : "bg-white/95 text-[#334155]"
+        className={`line-clamp-2 max-w-[min(560px,62%)] rounded-xl px-3 py-1.5 text-[11.5px] font-medium leading-[1.45] shadow-[0_4px_14px_rgba(0,0,0,0.10)] max-sm:max-w-none ${
+          warn ? "bg-[#F97316] text-white" : "bg-[#090D0E]/95 text-[#C9CFCD]"
         }`}
       >
         {error ?? notes.join(" · ")}
         {!error && meta && (
-          <span className="ml-2 text-[#94A3B8]">
+          <span className="ml-2 text-[#6E7675]">
             {meta.dataset.exact} of {meta.dataset.total} positions confirmed
           </span>
         )}
@@ -1858,7 +2100,7 @@ function StatusBar({
       {/* Required by the ODbL and by Google's Places policy. Rendered
           unconditionally: it is the condition under which the data may be shown
           at all, not a caption. */}
-      <p className="rounded-lg bg-white/85 px-2 py-1 text-[10.5px] text-[#94A3B8]">
+      <p className="max-w-[38%] rounded-lg bg-[#090D0E]/85 px-2 py-1 text-right text-[10px] leading-snug text-[#6E7675] max-sm:max-w-none max-sm:text-left">
         {meta?.attribution ?? "© OpenStreetMap contributors"}
       </p>
     </div>

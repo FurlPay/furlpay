@@ -34,16 +34,14 @@ import { ClockIcon, CloseIcon, HotelIcon, PinIcon, SearchIcon } from "./icons";
 // controls behind a gesture most people never make.
 // ---------------------------------------------------------------------------
 
-/** The bar and the dropdown share one ground: white, and translucent enough
- *  that the map reads through it without the text on top losing contrast. The
- *  blur is what makes that legible — over an unblurred map, coastlines and
- *  labels show through the panel and fight the words sitting on it. */
-const BAR = "rgba(255,255,255,0.82)";
-/** The inset well the input sits in. On a white ground "inset" is a step
- *  DARKER, not lighter — the dark build had this the other way round. */
-const WELL = "rgba(15,23,42,0.045)";
+/** The bar and the dropdown share one ground: the FurlPay workspace black.
+ *  The bar now sits in the page's toolbar above the map rather than floating
+ *  over it, so it is opaque. */
+const BAR = "#050909";
+/** The inset well the input sits in: the card surface, a step above the bar. */
+const WELL = "#090D0E";
 /** The keyboard-shortcut badge. */
-const KBD = "rgba(15,23,42,0.06)";
+const KBD = "rgba(255,255,255,0.06)";
 
 export interface Destination {
   /** What the user sees and what gets searched. */
@@ -213,16 +211,18 @@ export default function HotelMapSearchHeader({
           say "these are different things" — a divider here would reintroduce
           exactly the boxed-in look this layout is shedding. */}
       <div
-        className="pointer-events-auto mx-auto flex flex-col gap-3 rounded-[15px] border border-black/[0.07] p-3 backdrop-blur-xl backdrop-saturate-150 shadow-[0_12px_32px_rgba(15,23,42,0.13),0_2px_8px_rgba(15,23,42,0.07)]"
+        // One row on desktop (search, then the filter chips), stacked below lg.
+        // It lives in the page toolbar now, so no card chrome of its own.
+        className="pointer-events-auto flex flex-col gap-3 lg:flex-row lg:items-center"
         style={{ background: BAR }}
       >
-        <div ref={wrap} className="relative min-w-0">
+        <div ref={wrap} className="relative min-w-0 lg:w-[min(34vw,520px)] lg:shrink-0">
           {/* Focus brightens the border and nothing else. No ring, no glow, no
               hue — at this width a coloured outline reads as a container in its
               own right rather than as a state. */}
           <div
-            className={`flex h-[52px] items-center gap-2.5 rounded-xl border pl-2 pr-3 transition-colors duration-200 ${
-              focused ? "border-black/[0.24]" : "border-black/[0.07] hover:border-black/[0.12]"
+            className={`flex h-[48px] items-center gap-2.5 rounded-xl border pl-2 pr-3 transition-colors duration-200 ${
+              focused ? "border-[#00E6A7]/60" : "border-white/[0.10] hover:border-white/[0.15]"
             }`}
             style={{ background: WELL }}
           >
@@ -230,7 +230,7 @@ export default function HotelMapSearchHeader({
                 the well, so it reads as inset rather than as another button. */}
             <span
               className="grid h-9 w-9 shrink-0 place-items-center rounded-lg transition-colors duration-200"
-              style={{ background: "rgba(15,23,42,0.075)", color: focused ? "#0F172A" : "#475569" }}
+              style={{ background: "rgba(255,255,255,0.05)", color: focused ? "#00E6A7" : "#A4AAA9" }}
             >
               <SearchIcon />
             </span>
@@ -250,7 +250,7 @@ export default function HotelMapSearchHeader({
               // screen reader learns that Enter is about to choose something
               // other than what was typed.
               aria-activedescendant={open && flat[highlight] ? optionId(highlight) : undefined}
-              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#0F172A] outline-none placeholder:text-[#64748B]"
+              className="min-w-0 flex-1 bg-transparent text-[15px] font-medium text-[#F5F7F6] outline-none placeholder:text-[#6E7675]"
             />
             {query ? (
               <button
@@ -260,7 +260,7 @@ export default function HotelMapSearchHeader({
                   input.current?.focus();
                 }}
                 aria-label="Clear search"
-                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[#64748B] transition-colors hover:bg-black/[0.06] hover:text-[#0F172A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/30"
+                className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-[#A4AAA9] transition-colors hover:bg-white/[0.06] hover:text-[#F5F7F6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#00E6A7]"
               >
                 <CloseIcon />
               </button>
@@ -272,7 +272,7 @@ export default function HotelMapSearchHeader({
               shortcut && !focused && (
                 <kbd
                   aria-hidden
-                  className="shrink-0 rounded-md border border-black/[0.07] px-1.5 py-0.5 font-sans text-[11px] font-semibold text-[#64748B] max-sm:hidden"
+                  className="shrink-0 rounded-md border border-white/[0.10] px-1.5 py-0.5 font-sans text-[11px] font-semibold text-[#A4AAA9] max-sm:hidden"
                   style={{ background: KBD }}
                 >
                   {shortcut}
@@ -301,7 +301,7 @@ export default function HotelMapSearchHeader({
                 // just set, so the spoken query behaves exactly like a typed one.
                 input.current?.focus();
               }}
-              className="text-[#64748B] hover:bg-black/[0.06] hover:text-[#0F172A]"
+              className="text-[#A4AAA9] hover:bg-white/[0.06] hover:text-[#F5F7F6]"
             />
           </div>
 
@@ -314,7 +314,7 @@ export default function HotelMapSearchHeader({
               // the blur, and reads as a rendering fault rather than a control.
               // `overscroll-contain` stops a wheel gesture that reaches the end
               // of this list from continuing into the map and panning it.
-              className="no-scrollbar absolute inset-x-0 top-[calc(100%+8px)] max-h-[420px] overflow-y-auto overscroll-contain rounded-[15px] border border-black/[0.07] py-2 backdrop-blur-xl backdrop-saturate-150 shadow-[0_12px_32px_rgba(15,23,42,0.13),0_2px_8px_rgba(15,23,42,0.07)]"
+              className="no-scrollbar absolute inset-x-0 top-[calc(100%+8px)] max-h-[420px] overflow-y-auto overscroll-contain rounded-[15px] border border-white/[0.10] py-2 backdrop-blur-xl backdrop-saturate-150 shadow-[0_16px_40px_rgba(0,0,0,0.35)]"
               style={{ background: BAR }}
             >
               {showRecent && (
@@ -331,7 +331,7 @@ export default function HotelMapSearchHeader({
                         e.preventDefault();
                         onClearRecent();
                       }}
-                      className="rounded px-1 text-[11.5px] font-semibold text-[#475569] transition-colors hover:text-[#0F172A] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-black/30"
+                      className="rounded px-1 text-[11.5px] font-semibold text-[#A4AAA9] transition-colors hover:text-[#F5F7F6] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#00E6A7]"
                     >
                       Clear
                     </button>
@@ -384,7 +384,7 @@ export default function HotelMapSearchHeader({
 
         {/* `flex-wrap`, never `overflow-x`. Three compact controls fit on one
             line at any realistic width; if they ever cannot, they wrap. */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="no-scrollbar -mx-1 flex items-center gap-2 overflow-x-auto px-1 lg:mx-0 lg:flex-wrap lg:overflow-visible lg:px-0">
           <FilterButton
             label={minStars ? `${minStars}+ stars` : "Rating"}
             active={minStars > 0}
@@ -447,10 +447,10 @@ function FilterButton({
       // State is surface contrast, not hue. On the white bar an active filter
       // is a slightly deeper chip with darker text; there is no coloured fill
       // or border anywhere in this row.
-      className={`flex h-9 items-center gap-1.5 rounded-lg border px-3 text-[13px] font-medium transition-colors duration-200 ${
+      className={`flex h-[38px] shrink-0 items-center gap-1.5 rounded-full border px-4 text-[13px] font-medium transition-colors duration-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00E6A7] ${
         active
-          ? "border-black/[0.12] bg-black/[0.07] text-[#0F172A]"
-          : "border-black/[0.07] bg-black/[0.03] text-[#64748B] hover:bg-black/[0.05] hover:text-[#0F172A]"
+          ? "border-[#00E6A7] bg-[rgba(0,230,167,0.10)] text-[#00E6A7]"
+          : "border-white/[0.10] bg-[#090D0E] text-[#D9DEDC] hover:border-white/[0.15] hover:bg-white/[0.055] hover:text-white"
       }`}
     >
       {label}
@@ -458,7 +458,7 @@ function FilterButton({
           the white bar that is what makes a count read as a count rather than
           as more label text. */}
       {count !== undefined && count > 0 && (
-        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#0F172A] px-1 text-[10.5px] font-bold text-white">
+        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#00E6A7] px-1 text-[10.5px] font-bold text-[#030505]">
           {count}
         </span>
       )}
@@ -482,7 +482,7 @@ function Group({
   return (
     <div className="px-2 py-1">
       <div className="flex items-center justify-between gap-2 px-3 py-1.5">
-        <p className="text-[11px] font-bold uppercase tracking-wide text-[#64748B]">
+        <p className="text-[11px] font-bold uppercase tracking-wide text-[#A4AAA9]">
           {title}
         </p>
         {action}
@@ -513,24 +513,24 @@ function Suggestion({
       onClick={onPick}
       // The divider is a hairline at 4% and is suppressed on the first row of
       // each group, so it separates siblings without drawing a box around them.
-      className={`flex w-full items-center gap-3 rounded-lg border-t border-black/[0.05] px-3 py-3 text-left transition-colors first:border-t-0 ${
-        active ? "bg-black/[0.06]" : "hover:bg-black/[0.04]"
+      className={`flex w-full items-center gap-3 rounded-lg border-t border-white/[0.05] px-3 py-3 text-left transition-colors first:border-t-0 ${
+        active ? "bg-white/[0.06]" : "hover:bg-white/[0.05]"
       }`}
     >
       <span
-        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-black/[0.05] ${
-          history ? "text-[#64748B]" : "text-[#475569]"
+        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/[0.05] ${
+          history ? "text-[#A4AAA9]" : "text-[#A4AAA9]"
         }`}
       >
         {history ? <ClockIcon /> : d.kind === "destination" ? <PinIcon /> : <HotelIcon />}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[14px] font-semibold text-[#0F172A]">{d.label}</span>
-        <span className="block truncate text-[12.5px] text-[#64748B]">{d.sublabel}</span>
+        <span className="block truncate text-[14px] font-semibold text-[#F5F7F6]">{d.label}</span>
+        <span className="block truncate text-[12.5px] text-[#A4AAA9]">{d.sublabel}</span>
       </span>
       {/* The real number of curated properties there. This is what stops the
           list being decorative — every row is somewhere the map can go. */}
-      <span className="shrink-0 text-[12px] font-semibold text-[#64748B]">
+      <span className="shrink-0 text-[12px] font-semibold text-[#A4AAA9]">
         {d.count}
       </span>
     </button>

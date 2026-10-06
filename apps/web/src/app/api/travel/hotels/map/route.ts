@@ -24,6 +24,11 @@ import { LUXURY_MAP_CATEGORIES, type LuxuryCategoryId } from "@/lib/hotels/luxur
 
 export const dynamic = "force-dynamic";
 
+/** How long a map request waits for OpenStreetMap before answering without
+ *  it. Overpass answers a cached or light query well inside this; a slow one
+ *  keeps running and lands in the cache for the next request. */
+const OSM_WAIT_MS = 5_000;
+
 // GET /api/travel/hotels/map — hotels inside a viewport.
 //
 // TWO SOURCES, ONE MEANING. Every point is a real hotel that somebody recorded
@@ -176,6 +181,9 @@ export interface MapResponse {
    * of the two it is.
    */
   osmFilteredOut: boolean;
+  /** True when OSM was asked but answered after the route stopped waiting:
+   *  the layer is still loading into the cache, not missing and not down. */
+  osmDeferred: boolean;
   dataset: ReturnType<typeof curatedStats>;
   googleDataset: ReturnType<typeof datasetStats>;
   fetchedAt: string;
@@ -460,16 +468,41 @@ export async function GET(req: NextRequest) {
   const GOOGLE_QUOTA = 300;
   const googleCoversIt = googleCandidates.length >= GOOGLE_DENSE_ENOUGH;
 
-  const osm =
-    osmWanted && !filtersCurated && !googleCoversIt
-      ? await osmHotelsInBBox(box, filter.minStars ?? 0)
-      : null;
-  // null from a call we made is an upstream failure; null because we never
-  // called is not. Collapsing the two would let a wide zoom read as an outage.
-  // Only an attempted call can fail. Skipping Overpass because Google already
-  // covers the viewport is not an outage and must not be reported as one.
+  // --- bounded wait --------------------------------------------------------
+  //
+  // MEASURED: a Tokyo viewport at zoom 12 answered in 31.3 s, all of it this
+  // await, to return 8 curated hotels that were ready in milliseconds; the
+  // worst case is every endpoint's 20 s budget in turn. So the route waits at
+  // most OSM_WAIT_MS and then answers with what it has. The lookup is NOT
+  // cancelled: it keeps running and fills its 6-hour cache (osmHotels.ts), so
+  // the next request for this area — "Search this area", a small pan — gets
+  // the OSM layer instantly. `osmDeferred` tells the client the layer is
+  // still coming, which is different from "no OSM hotels" and from an outage.
   const osmAttempted = osmWanted && !filtersCurated && !googleCoversIt;
-  const osmUnavailable = osmAttempted && osm === null;
+  let osm: Awaited<ReturnType<typeof osmHotelsInBBox>> = null;
+  let osmDeferred = false;
+  if (osmAttempted) {
+    const lookup = osmHotelsInBBox(box, filter.minStars ?? 0);
+    const LATE = Symbol("late");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const raced = await Promise.race([
+      lookup,
+      new Promise<typeof LATE>((resolve) => {
+        timer = setTimeout(() => resolve(LATE), OSM_WAIT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (raced === LATE) {
+      osmDeferred = true;
+      lookup.catch(() => {}); // finishes in the background, into the cache
+    } else {
+      osm = raced;
+    }
+  }
+  // null from a call we made is an upstream failure; null because we never
+  // called — or stopped waiting — is not. Collapsing them would let a slow
+  // upstream or a wide zoom read as an outage.
+  const osmUnavailable = osmAttempted && !osmDeferred && osm === null;
 
   const { points: osmPoints, corroborated } = dedupe(curated, osm);
 
@@ -577,6 +610,7 @@ export async function GET(req: NextRequest) {
     truncated: all.length - points.length,
     osmZoomIn,
     osmUnavailable,
+    osmDeferred,
     osmFilteredOut: osmWanted && filtersCurated,
     dataset: curatedStats(),
     // Freshness of the Google layer, so the UI can say why coverage thinned if

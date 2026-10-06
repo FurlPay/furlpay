@@ -8,6 +8,7 @@ import {
   CalendarDays,
   Car,
   Compass,
+  Loader2,
   MapPin,
   Plane,
   Search,
@@ -94,8 +95,23 @@ export default function TravelSearchPanel() {
   };
   const showDates = tab !== "restaurants";
 
+  // One submission at a time. A ref, not state: submits fired in the same
+  // tick all read the pre-render `submitting`, so a state check lets each
+  // through. Released on every path that does not navigate away.
+  const busy = useRef(false);
   async function submit(e?: React.FormEvent) {
     e?.preventDefault();
+    if (busy.current) return;
+    busy.current = true;
+    let navigated = false;
+    try {
+      navigated = (await attempt()) === true;
+    } finally {
+      if (!navigated) busy.current = false;
+    }
+  }
+
+  async function attempt(): Promise<boolean | void> {
     setError(null);
     const city = where.trim();
 
@@ -104,27 +120,38 @@ export default function TravelSearchPanel() {
       return;
     }
     if (!city) {
-      setError(flights ? "Where are you flying to?" : "Enter a destination to search.");
+      setError(flights ? "Choose a valid destination airport." : "Enter a destination to search.");
       whereRef.current?.focus();
       return;
     }
-    if (start && end && end <= start) {
-      setError(`${labels.end} must be after ${labels.start.toLowerCase()}.`);
+    // A same-day return flight is real; a same-day check-out is not.
+    if (start && end && (flights ? end < start : end <= start)) {
+      setError(flights ? "Choose a return date on or after departure." : `${labels.end} must be after ${labels.start.toLowerCase()}.`);
+      return;
+    }
+    if (flights && !start) {
+      // Never let the results page pick a date the traveller didn't.
+      setError("Choose a departure date.");
       return;
     }
 
     let url: string;
     if (flights) {
       setSubmitting(true);
-      const [toR, fromR] = await Promise.all([resolveAirport(city), from.trim() ? resolveAirport(from) : Promise.resolve(null)]);
-      setSubmitting(false);
+      let toR: Resolved, fromR: Resolved;
+      try {
+        [toR, fromR] = await Promise.all([resolveAirport(city), from.trim() ? resolveAirport(from) : Promise.resolve(null)]);
+      } finally {
+        setSubmitting(false);
+      }
       setChoose(null);
       if (!toR) {
-        setError(`We couldn't find an airport for "${city}". Try a city name or a 3-letter code.`);
+        setError(`Choose a valid destination airport — we couldn't find "${city}".`);
+        whereRef.current?.focus();
         return;
       }
       if (from.trim() && !fromR) {
-        setError(`We couldn't find an airport for "${from}".`);
+        setError(`Choose a valid departure airport — we couldn't find "${from.trim()}".`);
         return;
       }
       if (fromR && "choices" in fromR) {
@@ -160,6 +187,7 @@ export default function TravelSearchPanel() {
     }
     setSubmitting(true);
     router.push(url);
+    return true;
   }
 
   return (
@@ -272,7 +300,8 @@ export default function TravelSearchPanel() {
           className="group flex min-h-[64px] shrink-0 flex-col items-center justify-center rounded-xl bg-neon px-10 text-black shadow-[0_0_32px_-8px_rgba(0,229,153,0.7)] transition hover:brightness-110 active:scale-[0.98] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white disabled:opacity-70 lg:w-[180px]"
         >
           <span className="flex items-center gap-2 text-[16px] font-bold">
-            <Search className="h-5 w-5" aria-hidden /> {submitting ? "Searching…" : "Search"}
+            {submitting ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : <Search className="h-5 w-5" aria-hidden />}
+            {submitting ? "Searching…" : "Search"}
           </span>
           <span className="text-[11px] font-medium text-black/65">Pay with crypto</span>
         </button>
