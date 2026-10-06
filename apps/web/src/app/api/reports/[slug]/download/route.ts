@@ -9,6 +9,7 @@ import { sendEmail } from "@/lib/email";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
 import { isDisposableEmail } from "@/lib/research/disposable";
+import { classifyEmail } from "@/lib/leads/types";
 import { issueVerificationToken, sha256, TOKEN_TTL_SECONDS } from "@/lib/research/access";
 import { storageConfigured } from "@/lib/research/storage";
 
@@ -159,11 +160,24 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
   // Resolved from the record, never from the request.
   const downloadUrl = report.pdfPath ?? null;
 
+  // The download form asks for a business email and nothing else. A consumer
+  // or throwaway mailbox is refused before a contact record is created, with
+  // the same wording the form shows inline.
+  const peek = (await req.clone().json().catch(() => null)) as { email?: unknown } | null;
+  const peeked = typeof peek?.email === "string" ? peek.email.trim().toLowerCase() : "";
+  if (peeked && (classifyEmail(peeked) === "consumer" || isDisposableEmail(peeked))) {
+    return NextResponse.json(
+      { error: "business_email_required", detail: "Please enter your business or work email." },
+      { status: 422 },
+    );
+  }
+
   const { response, lead } = await captureLead(req, {
     source: "report_download",
     interaction: "report_download",
     contentType: "report",
     contentId: report.slug,
+    profile: "email",
     email: () =>
       reportDownloadEmail({
         reportTitle: report.title,

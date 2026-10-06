@@ -6,7 +6,7 @@ import { log } from "@/lib/log";
 import { sendEmail } from "@/lib/email";
 import type { RenderedEmail } from "@/lib/emailTemplates";
 import { recordInteraction, upsertLead } from "./store";
-import { leadCaptureSchema, type InteractionType, type LeadSource } from "./types";
+import { leadCaptureSchema, reportLeadSchema, type InteractionType, type LeadSource } from "./types";
 
 // ---------------------------------------------------------------------------
 // The shared lead-capture pipeline behind report downloads and webinar
@@ -55,10 +55,12 @@ export async function captureLead(
     contentId: string;
     /** Built after the lead is stored; null skips the email. */
     email?: (lead: { firstName: string }) => RenderedEmail | null;
+    /** "email": the profile fields are optional (report downloads). */
+    profile?: "full" | "email";
   },
 ): Promise<CaptureOutcome> {
   // validateBody enforces the 100KB cap before parsing (AGENTS.md rule 1).
-  const body = await validateBody(req, leadCaptureSchema);
+  const body = await validateBody(req, opts.profile === "email" ? reportLeadSchema : leadCaptureSchema);
   if (body instanceof NextResponse) return { response: body };
 
   // consent_ip is NOT NULL (migration 0019); an address that could not be
