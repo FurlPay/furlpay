@@ -20,6 +20,7 @@ import {
   resolveRelatedWebinars,
   type ReportBlock,
 } from "@/lib/content";
+import { DEDICATED_REPORT_PAGES } from "@/lib/content/dedicatedPages";
 
 // /reports/[slug]
 //
@@ -27,8 +28,14 @@ import {
 // false — so a draft slug is a real 404 at routing time, not a soft 404 that
 // Google indexes, and the publishing pipeline is not guessable.
 
+// A report with its own route folder (DEDICATED_REPORT_PAGES) is not
+// prerendered here: in a production build this route's HTML for the same path
+// was served instead of the dedicated page (next dev routes to the dedicated
+// page, so only a deployed build showed it).
 export function generateStaticParams() {
-  return publishedReports().map((r) => ({ slug: r.slug }));
+  return publishedReports()
+    .filter((r) => !DEDICATED_REPORT_PAGES.has(r.slug))
+    .map((r) => ({ slug: r.slug }));
 }
 
 export const dynamicParams = false;
