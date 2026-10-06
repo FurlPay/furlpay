@@ -478,10 +478,20 @@ export async function GET(req: NextRequest) {
   // the next request for this area — "Search this area", a small pan — gets
   // the OSM layer instantly. `osmDeferred` tells the client the layer is
   // still coming, which is different from "no OSM hotels" and from an outage.
+  //
+  // THE CACHE CANNOT BE RELIED ON TO CARRY IT. On Vercel the function is
+  // frozen once the response is sent, and the cache is KV, which production
+  // refuses to back with memory — so a deferred lookup may never land. The
+  // client therefore follows a deferred answer with ONE `osm=wait` request for
+  // the same view, which waits for the lookup like the route always used to.
+  // First paint stays fast; the OSM layer arrives when Overpass answers.
+  const osmWaitFull = sp.get("osm") === "wait";
   const osmAttempted = osmWanted && !filtersCurated && !googleCoversIt;
   let osm: Awaited<ReturnType<typeof osmHotelsInBBox>> = null;
   let osmDeferred = false;
-  if (osmAttempted) {
+  if (osmAttempted && osmWaitFull) {
+    osm = await osmHotelsInBBox(box, filter.minStars ?? 0);
+  } else if (osmAttempted) {
     const lookup = osmHotelsInBBox(box, filter.minStars ?? 0);
     const LATE = Symbol("late");
     let timer: ReturnType<typeof setTimeout> | undefined;

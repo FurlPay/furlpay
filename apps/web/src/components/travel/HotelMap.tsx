@@ -716,6 +716,31 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         setMeta(rest);
         setError(null);
 
+        // The route stopped waiting for OpenStreetMap to answer fast. Ask once
+        // more for the same view, waiting this time (see the route's bounded
+        // wait), and repaint when it lands. Shares `ac`, so a pan cancels it;
+        // live Google points already merged into this view are kept.
+        if (data.osmDeferred) {
+          void (async () => {
+            try {
+              const full = new URLSearchParams(params);
+              full.set("osm", "wait");
+              const r = await fetch(`/api/travel/hotels/map?${full}`, { signal: ac.signal });
+              if (!r.ok) return;
+              const d: MapResponse = await r.json();
+              if (ac.signal.aborted || inflight.current !== ac) return;
+              const live = latest.current.points.filter((p) => p.source === "google-live");
+              const points = live.length ? mergeLivePoints(d.points, live).points : d.points;
+              latest.current = { clusters: d.clusters, points };
+              paint(d.clusters, points);
+              const { points: _p, clusters: _c, ...m } = d;
+              setMeta(m);
+            } catch {
+              // Aborted or failed: the first answer stands, and says so.
+            }
+          })();
+        }
+
         // --- live Google Places augmentation ---------------------------------
         //
         // Fired AFTER the indexed sources have already painted, and never

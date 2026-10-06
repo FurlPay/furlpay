@@ -134,7 +134,7 @@ export default function HotelResultsPanel(props: HotelResultsPanelProps) {
         )}
 
         {meta?.osmDeferred && points.length > 0 && (
-          <p className="mt-3 text-center text-[11.5px] text-[#6E7675]">More hotels from OpenStreetMap are still loading for this area — move the map slightly or use “Search this area”.</p>
+          <p className="mt-3 text-center text-[11.5px] text-[#6E7675]">More hotels from OpenStreetMap are still loading for this area…</p>
         )}
       </div>
     </section>
