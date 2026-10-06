@@ -8,9 +8,9 @@ Every figure below is computed from committed code at the commit shown.
 | | |
 |---|---|
 | Repository | https://github.com/Ashutosh0x/furlpay |
-| Branch | `codex/cross-platform-audit` |
-| Commit | `86656d9c84cef48197a3e8b7798afb3cb7d316df` |
-| Commit date | 2026-10-06T10:54:46+05:30 |
+| Branch | `security/full-audit-2026-10-06` |
+| Commit | `516d87592d21c59a37e110daf5a1cf1fddd960e8` |
+| Commit date | 2026-10-06T11:42:33+05:30 |
 
 SLOC = non-blank, non-comment source lines. Test code is counted separately and is not part of the audit SLOC.
 
@@ -18,9 +18,9 @@ SLOC = non-blank, non-comment source lines. Test code is counted separately and 
 
 | Component | Paths | Language | Files | SLOC | Test SLOC | Priority | Suggested service |
 |---|---|---|---:|---:|---:|---|---|
-| EVM smart contracts | `packages/contracts/contracts` | .sol | 13 | 855 | 61 | Critical | Smart contract audit; formal verification of fund-moving paths |
+| EVM smart contracts | `packages/contracts/contracts` | .sol | 13 | 858 | 61 | Critical | Smart contract audit; formal verification of fund-moving paths |
 | Solana escrow program (Anchor) | `furlpay-programs/programs` | .rs | 10 | 310 | 0 | Critical | Smart contract audit (Rust/Anchor) |
-| Web app + payment API (Next.js) | `apps/web/src` | .ts .tsx | 1,473 | 173,648 | 60,270 | High | Web + API penetration test; business-logic review of settlement and payouts |
+| Web app + payment API (Next.js) | `apps/web/src` | .ts .tsx | 1,473 | 173,665 | 60,469 | High | Web + API penetration test; business-logic review of settlement and payouts |
 | Browser extension (MV3) | `apps/extension` | .ts .tsx | 45 | 5,750 | 972 | High | Browser-extension penetration test |
 | Mobile app (React Native) | `native-app` | .ts .tsx | 309 | 47,349 | 14,646 | Medium | Mobile penetration test (Android/iOS) |
 | iOS + watchOS app (Swift) | `ios` | .swift | 98 | 15,299 | 3,012 | Medium | Mobile penetration test (iOS) |
@@ -29,18 +29,18 @@ SLOC = non-blank, non-comment source lines. Test code is counted separately and 
 | Shared packages (gateway, x402-guard, settlement, ...) | `packages` | .ts .tsx | 137 | 16,417 | 2,497 | High | Code review with the web/API scope |
 | MCP server (agent payments) | `mcp` | .ts .js | 1 | 167 | 0 | High | API penetration test; AI/agent abuse cases |
 | AWS infrastructure (Terraform) | `infra` | .tf | 15 | 1,448 | 0 | High | Cloud configuration review (IAM, network, secrets) |
-| **Total** | | | 2,239 | **273,162** | 83,359 | | |
+| **Total** | | | 2,239 | **273,182** | 83,558 | | |
 
 ## 2. On-chain code, file by file
 
 Smart-contract audits are quoted on SLOC; this is the list to send.
 
-### EVM smart contracts: 855 SLOC
+### EVM smart contracts: 858 SLOC
 
 | File | SLOC |
 |---|---:|
 | `packages/contracts/contracts/compliance/X402PolicyWrapper.sol` | 129 |
-| `packages/contracts/contracts/FurlPayEscrow.sol` | 125 |
+| `packages/contracts/contracts/FurlPayEscrow.sol` | 128 |
 | `packages/contracts/contracts/FurlPayRouter.sol` | 114 |
 | `packages/contracts/contracts/compliance/ComplianceEscrow.sol` | 106 |
 | `packages/contracts/contracts/X402Facilitator.sol` | 83 |
