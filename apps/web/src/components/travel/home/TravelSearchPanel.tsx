@@ -162,8 +162,8 @@ export default function TravelSearchPanel() {
 
       {/* form */}
       <form onSubmit={submit} noValidate className="mt-4 flex flex-col gap-3 lg:flex-row">
-        <div className="grid flex-1 grid-cols-1 overflow-visible rounded-xl border border-white/[0.08] bg-black/30 sm:grid-cols-2 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.05fr)] lg:divide-x lg:divide-white/[0.08]">
-          <Field label={labels.where} className="sm:col-span-2 lg:col-span-1">
+        <div className="grid flex-1 grid-cols-2 overflow-visible rounded-xl border border-white/[0.08] bg-black/30 lg:grid-cols-[minmax(0,2.1fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.05fr)] lg:divide-x lg:divide-white/[0.08]">
+          <Field label={labels.where} className="col-span-2 lg:col-span-1">
             {flights && (
               <span className="flex items-center gap-1.5">
                 <input
@@ -207,7 +207,7 @@ export default function TravelSearchPanel() {
                   className="w-full min-w-0 bg-transparent text-[13px] text-white [color-scheme:dark] focus:outline-none"
                 />
               </Field>
-              <Field label={labels.end}>
+              <Field label={labels.end} className="border-l lg:border-l-0">
                 <CalendarDays className="h-4 w-4 shrink-0 text-white/60" aria-hidden />
                 <input
                   type="date"
@@ -220,7 +220,7 @@ export default function TravelSearchPanel() {
               </Field>
             </>
           )}
-          <div className={`border-t border-white/[0.08] sm:border-t-0 lg:border-t-0 ${showDates ? "" : "lg:col-span-3"}`}>
+          <div className={`col-span-2 border-t border-white/[0.08] lg:col-span-1 lg:border-t-0 ${showDates ? "" : "lg:col-span-3"}`}>
             <TravelersPicker value={travelers} onChange={setTravelers} />
           </div>
         </div>
@@ -274,7 +274,7 @@ export default function TravelSearchPanel() {
 
 function Field({ label, className = "", children }: { label: string; className?: string; children: ReactNode }) {
   return (
-    <label className={`flex min-w-0 flex-col justify-center gap-1.5 border-t border-white/[0.08] px-4 py-3 first:border-t-0 sm:border-t-0 lg:border-t-0 ${className}`}>
+    <label className={`flex min-w-0 flex-col justify-center gap-1.5 border-t border-white/[0.08] px-4 py-3 first:border-t-0 lg:border-t-0 ${className}`}>
       <span className="text-[11px] font-medium text-white/55">{label}</span>
       <span className="relative flex min-w-0 items-center gap-2">{children}</span>
     </label>

@@ -8,6 +8,8 @@ import { HOME_IMAGES } from "@/lib/travel/home";
 import { PLAN_EVENT } from "./planEvents";
 
 const CHECKLIST = ["Personalized itineraries", "Real-time prices", "Crypto payment options", "Book everything in one go"];
+const EXAMPLES = ["Plan a 7-day Japan trip under $3,000", "Beach destination under $100/night", "Quiet mountains for a family trip in July"];
+const SHIMMER = "bg-[linear-gradient(90deg,rgba(255,255,255,0.04),rgba(255,255,255,0.10),rgba(255,255,255,0.04))] bg-[length:200%_100%] motion-safe:animate-shimmer";
 const PLACEHOLDER = "Plan a 7-day Japan trip under $3,000 with great food and nightlife…";
 
 type State =
@@ -135,10 +137,23 @@ export default function AiTripPlanner() {
 
       <div aria-live="polite" className="relative">
         {state.kind === "loading" && (
-          <div className="grid gap-3 px-6 pb-6 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
-            {[0, 1, 2, 3].map((n) => (
-              <div key={n} className="h-[150px] animate-pulse rounded-xl bg-white/[0.05]" />
-            ))}
+          <div className="px-6 pb-6 sm:px-8">
+            <p className="mb-3 flex items-center gap-2 text-[12px] text-white/60">
+              <Sparkles className="h-3.5 w-3.5 text-neon motion-safe:animate-pulse" aria-hidden />
+              Reading your request and matching it against every destination…
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-hidden>
+              {[0, 1, 2, 3].map((n) => (
+                <div key={n} className="overflow-hidden rounded-xl border border-white/[0.06] bg-black/40">
+                  <div className={`h-24 ${SHIMMER}`} />
+                  <div className="space-y-2 p-3">
+                    <div className={`h-3 w-3/4 rounded ${SHIMMER}`} />
+                    <div className={`h-3 w-1/2 rounded ${SHIMMER}`} />
+                    <div className={`mt-3 h-7 rounded-lg ${SHIMMER}`} />
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
         {state.kind === "error" && (
@@ -162,10 +177,27 @@ export default function AiTripPlanner() {
               </p>
             )}
             {state.matches.length === 0 ? (
-              <p className="rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3 text-[13px] text-white/70">
-                No destination fits all of that yet. Try fewer constraints, or{" "}
-                <Link href="/travel/destinations" className="text-neon hover:underline">browse every destination</Link>.
-              </p>
+              <div className="rounded-xl border border-white/[0.08] bg-black/30 px-4 py-4">
+                <p className="text-[13px] text-white/75">
+                  No destination fits all of that yet. Try fewer constraints — a budget, a vibe, a month — or{" "}
+                  <Link href="/travel/destinations" className="text-neon hover:underline">browse every destination</Link>.
+                </p>
+                <p className="mt-3 flex flex-wrap gap-2">
+                  {EXAMPLES.map((ex) => (
+                    <button
+                      key={ex}
+                      type="button"
+                      onClick={() => {
+                        setQuery(ex);
+                        void run(ex);
+                      }}
+                      className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[12px] text-white/80 transition hover:border-neon/40 hover:text-white"
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </p>
+              </div>
             ) : (
               <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                 {state.matches.map((m) => (

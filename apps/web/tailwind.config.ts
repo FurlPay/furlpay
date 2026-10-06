@@ -80,9 +80,19 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-12px)" },
         },
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
       },
       animation: {
         float: "float 6s ease-in-out infinite",
+        "fade-up": "fade-up 0.35s ease-out both",
+        shimmer: "shimmer 1.6s linear infinite",
       },
     },
   },

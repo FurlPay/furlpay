@@ -28,6 +28,7 @@ export default function WhyBook({ destinationCount }: { destinationCount: number
       Icon: Coins,
       tint: "text-neon bg-neon/10 border-neon/25",
       title: "2% cashback",
+      badge: "Coming soon",
       body: "USDC cashback on every booking — launching with travel rewards.",
     },
     {
@@ -56,17 +57,22 @@ export default function WhyBook({ destinationCount }: { destinationCount: number
   return (
     <section aria-labelledby="why-title">
       <SectionHeader id="why-title" title="Why book with FurlPay Travel" />
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5">
-        {cards.map((c) => (
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+        {cards.map((c, i) => (
           <Link
             key={c.title}
             href={c.href}
-            className="group flex flex-col rounded-[14px] border border-white/[0.07] bg-gradient-to-b from-[#0D1213] to-[#090D0E] p-5 transition duration-300 hover:-translate-y-0.5 hover:border-white/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon"
+            className={`group flex flex-col rounded-[14px] border border-white/[0.07] bg-gradient-to-b from-[#0D1213] to-[#090D0E] p-4 sm:p-5 ${i === 0 ? "col-span-2 lg:col-span-1" : ""} transition duration-300 hover:-translate-y-0.5 hover:border-white/20 hover:shadow-[0_12px_30px_-14px_rgba(0,229,153,0.35)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon`}
           >
             <span className={`flex h-10 w-10 items-center justify-center rounded-xl border ${c.tint}`}>
               <c.Icon className="h-5 w-5" aria-hidden />
             </span>
-            <p className="mt-4 text-[15px] font-semibold text-white">{c.title}</p>
+            <p className="mt-4 flex flex-wrap items-center gap-2 text-[15px] font-semibold text-white">
+              {c.title}
+              {"badge" in c && c.badge && (
+                <span className="rounded-full border border-amber-300/30 bg-amber-300/10 px-2 py-0.5 text-[10px] font-semibold text-amber-200">{c.badge}</span>
+              )}
+            </p>
             {c.logos && (
               <span className="mt-2.5 flex flex-wrap gap-1.5">
                 {PAY_LOGOS.map((l) => (

@@ -19,16 +19,18 @@ export default function HomeHero({ metrics, trips, children }: { metrics: HeroMe
     // photo sits behind the content but above the layout's background.
     <section className="relative isolate -mt-16 overflow-hidden pt-16">
       <div className="absolute inset-0 -z-10">
-        <img src={HOME_IMAGES.hero} alt="" fetchPriority="high" className="h-full w-full object-cover object-[65%_40%]" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#030505] via-[#030505]/80 to-[#030505]/10" />
-        <div className="absolute inset-0 bg-gradient-to-t from-[#030505] via-transparent to-[#030505]/40" />
+        <img src={HOME_IMAGES.hero} alt="" fetchPriority="high" decoding="async" className="h-full w-full object-cover object-[72%_42%] md:object-[60%_45%]" />
+        {/* Mobile: a vertical scrim keeps the photo visible above the copy.
+            Wider screens: the reference's left-to-right scrim behind the text. */}
+        <div className="absolute inset-0 bg-gradient-to-b from-[#030505]/35 via-[#030505]/75 to-[#030505] md:bg-gradient-to-r md:from-[#030505]/95 md:via-[#030505]/65 md:to-[#030505]/0" />
+        <div className="absolute inset-0 hidden bg-gradient-to-t from-[#030505] via-transparent to-[#030505]/50 md:block" />
       </div>
 
       <div className="mx-auto max-w-[1400px] px-4 pb-6 pt-10 sm:px-6 lg:px-10 lg:pt-16">
         <div className="flex flex-col gap-10 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-[720px]">
             <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-neon">FurlPay Travel</p>
-            <h1 className="mt-4 text-[44px] font-extrabold leading-[0.98] tracking-[-0.03em] text-white sm:text-[60px] lg:text-[74px]">
+            <h1 className="mt-4 text-[42px] font-extrabold leading-[0.98] tracking-[-0.03em] text-white [text-shadow:0_2px_24px_rgba(0,0,0,0.35)] sm:text-[58px] lg:text-[64px] xl:text-[74px]">
               Plan anywhere.
               <br />
               Book anything.
@@ -73,7 +75,12 @@ export default function HomeHero({ metrics, trips, children }: { metrics: HeroMe
           </div>
         </div>
 
-        <div className="mt-10">{children}</div>
+        <div className="mt-8 lg:mt-10">{children}</div>
+
+        {/* Below md the floating card becomes an ordinary stacked card. */}
+        <div className="mt-6 md:hidden">
+          <HeroTripCard trips={trips} fluid />
+        </div>
       </div>
     </section>
   );
