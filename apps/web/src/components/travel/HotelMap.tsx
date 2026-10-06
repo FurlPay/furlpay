@@ -68,6 +68,10 @@ import { useMapRates } from "./map/useMapRates";
 import StayPicker from "./map/StayPicker";
 import RadiusControl, { type RadiusCentre } from "./map/RadiusControl";
 import TravelContextChips from "./map/TravelContextChips";
+import ResultsSheet, { type SheetSnap } from "./map/ResultsSheet";
+import DrawControl from "./map/DrawControl";
+import { useDrawArea } from "./map/useDrawArea";
+import { encodeArea, parseArea, ringBBox, type Ring } from "@/lib/hotels/drawArea";
 import { OVERLAY_SOURCES, overlayLayerSpecs } from "./map/overlays";
 import { parseRouteParam, useTravelOverlays, type NearbyPoi } from "./map/useTravelOverlays";
 import { parseRadius, type RadiusQuery } from "@/lib/hotels/radius";
@@ -215,6 +219,8 @@ interface UrlSearchState {
   /** Radius search (`?near=lat,lng&r=5&rl=label`). */
   radius: RadiusQuery | null;
   radiusLabel: string;
+  /** A drawn search area (`?area=lng,lat;...`), revalidated on read. */
+  area: Ring | null;
 }
 
 /** Today in the reader's own calendar, as YYYY-MM-DD. */
@@ -224,7 +230,7 @@ function todayLocalIso(): string {
 }
 
 function searchStateFromUrl(): UrlSearchState {
-  const empty: UrlSearchState = { minStars: 0, families: [], categories: [], textFilter: "", exactOnly: false, sort: "recommended", hotel: null, stay: null, radius: null, radiusLabel: "" };
+  const empty: UrlSearchState = { minStars: 0, families: [], categories: [], textFilter: "", exactOnly: false, sort: "recommended", hotel: null, stay: null, radius: null, radiusLabel: "", area: null };
   if (typeof window === "undefined") return empty;
   const q = new URLSearchParams(window.location.search);
   const list = (k: string) => (q.get(k) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -242,6 +248,7 @@ function searchStateFromUrl(): UrlSearchState {
     hotel: hotel && /^[\w:.\-]{1,120}$/.test(hotel) ? hotel : null,
     stay: stayFromParams(q, todayLocalIso()),
     radius: parseRadius(q.get("near"), q.get("r")),
+    area: parseArea(q.get("area")),
     radiusLabel: (q.get("rl") ?? "").replace(/[^\p{L}\p{N} .,'&()\-]/gu, "").slice(0, 80) || "this point",
   };
 }
@@ -270,6 +277,7 @@ function writeSearchToUrl(s: Omit<UrlSearchState, "hotel"> & { hotel: string | n
   set("near", s.radius ? `${s.radius.center.latitude.toFixed(5)},${s.radius.center.longitude.toFixed(5)}` : null);
   set("r", s.radius ? String(s.radius.km) : null);
   set("rl", s.radius ? s.radiusLabel : null);
+  set("area", s.area ? encodeArea(s.area) : null);
   const next = `${window.location.pathname}${q.toString() ? `?${q}` : ""}`;
   if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", next);
 }
@@ -373,6 +381,14 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   const [entries, setEntries] = useState<ListEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Offline is not an error. With no connection the map keeps the last hotels
+   * it loaded and says how old they are, instead of an outage banner — and it
+   * reloads the view by itself when the connection returns.
+   */
+  const [offline, setOffline] = useState(false);
+  /** When the hotels on screen were fetched (the response's own timestamp). */
+  const [loadedAt, setLoadedAt] = useState<string | null>(null);
   const [meta, setMeta] = useState<Omit<MapResponse, "points" | "clusters"> | null>(null);
   const [noWebgl, setNoWebgl] = useState(false);
   const [selected, setSelected] = useState<DetailTarget | null>(null);
@@ -536,7 +552,8 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   /** Map centre, for "distance from map centre" — updated on moveend only. */
   const [center, setCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   /** Phones show one surface at a time. Desktop shows both. */
-  const [mobileView, setMobileView] = useState<"list" | "map">("map");
+  /** Phones: how far the results sheet is pulled up over the map. */
+  const [sheet, setSheet] = useState<SheetSnap>("peek");
   /** The reader's stay; null until they pick dates (then prices appear). */
   const [stay, setStay] = useState<StayContext | null>(null);
 
@@ -546,6 +563,11 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   /** Read by `load` (registered once) — same pattern as `filters`. */
   const radiusRef = useRef<RadiusQuery | null>(null);
   radiusRef.current = radius;
+  const [area, setArea] = useState<Ring | null>(null);
+  const areaRef = useRef<Ring | null>(null);
+  areaRef.current = area;
+  /** True while the reader is drawing — the hotel handlers stand down. */
+  const drawing = useRef(false);
   const [airportsOn, setAirportsOn] = useState(false);
   const [routeCodes, setRouteCodes] = useState<[string, string] | null>(null);
   const [nearbyPois, setNearbyPois] = useState<NearbyPoi[]>([]);
@@ -602,6 +624,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
     setStay(s.stay);
     setRadius(s.radius);
     setRadiusLabel(s.radius ? s.radiusLabel : "");
+    setArea(s.area);
     const q = new URLSearchParams(window.location.search);
     setRouteCodes(parseRouteParam(q.get("route")));
     urlHadCamera.current = q.has("lat") && q.has("lng");
@@ -631,6 +654,19 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       map.current?.flyTo({ center: [r.to.longitude, r.to.latitude], zoom: 11, duration: FLY_MS, easing: easeInOutCubic, essential: true });
     },
   });
+
+  const draw = useDrawArea({
+    map: map.current,
+    ready: mapReady,
+    area,
+    onComplete: (ring) => {
+      setArea(ring);
+      const b = ringBBox(ring);
+      programmatic.current = true;
+      map.current?.fitBounds([[b.minLng, b.minLat], [b.maxLng, b.maxLat]], { padding: 56, duration: FLY_MS, easing: easeInOutCubic });
+    },
+  });
+  drawing.current = draw.mode !== null;
 
   /** What a radius can be drawn around — only real places the reader has in
    *  front of them. The open hotel first, since that is the usual question. */
@@ -830,6 +866,12 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   const load = useCallback(
     async (bounds: LngLatBounds, zoom: number) => {
       inflight.current?.abort();
+      // No connection: keep what is drawn, say so, and wait for "online".
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        setOffline(true);
+        setLoading(false);
+        return;
+      }
       const ac = new AbortController();
       inflight.current = ac;
       setLoading(true);
@@ -842,7 +884,10 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       // list shows everything within N km even after a pan, and the server
       // keeps only what is truly inside (route.ts, near=/radiusKm=).
       const rq = radiusRef.current;
-      const rb = rq ? circleBBox(rq.center, rq.km) : null;
+      const ar = areaRef.current;
+      // A drawn area is the tighter question when both are set; the server
+      // applies both either way.
+      const rb = ar ? ringBBox(ar) : rq ? circleBBox(rq.center, rq.km) : null;
       const west = clamp(rb ? rb.minLng : bounds.getWest(), -180, 180);
       const south = clamp(rb ? rb.minLat : bounds.getSouth(), -90, 90);
       const east = clamp(rb ? rb.maxLng : bounds.getEast(), -180, 180);
@@ -855,6 +900,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         params.set("near", `${rq.center.latitude.toFixed(5)},${rq.center.longitude.toFixed(5)}`);
         params.set("radiusKm", String(rq.km));
       }
+      if (ar) params.set("area", encodeArea(ar));
       if (f.families.length) params.set("families", f.families.join(","));
       if (f.categories.length) params.set("categories", f.categories.join(","));
       if (f.minStars) params.set("minStars", String(f.minStars));
@@ -875,6 +921,8 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         const { points: _points, clusters: _clusters, ...rest } = data;
         setMeta(rest);
         setError(null);
+        setOffline(false);
+        setLoadedAt(data.fetchedAt);
 
         // The route stopped waiting for OpenStreetMap to answer fast. Ask once
         // more for the same view, waiting this time (see the route's bounded
@@ -959,6 +1007,10 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         // as a spurious "unavailable" banner every time a fast pan superseded
         // an in-flight request.
         if (ac.signal.aborted || (e as Error).name === "AbortError") return;
+        if (typeof navigator !== "undefined" && navigator.onLine === false) {
+          setOffline(true);
+          return;
+        }
         setError("Could not reach the hotel service");
       } finally {
         if (inflight.current === ac) setLoading(false);
@@ -1171,6 +1223,8 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         // what sits under the pointer, instead of 400 elements each waiting for
         // an event that will only ever reach one of them.
         m.on("mousemove", (ev) => {
+          // Drawing an area: the pointer belongs to the outline, not to pins.
+          if (drawing.current) return;
           // Curated layers are queried FIRST and registry pins only as a
           // fallback, so a registry pin sitting under a curated one can never
           // steal its hover. The curated set is the product.
@@ -1243,6 +1297,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         });
 
         m.on("click", (ev) => {
+          if (drawing.current) return;
           // Same guard as the mousemove hit-test above: a click can land during
           // the same window in which the style does not hold every layer.
           const clickLayers = layersInStyle(m, INTERACTIVE_LAYERS);
@@ -1370,6 +1425,24 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
     // omitting it would have been a real bug the day someone made it dynamic.
   }, [load, paint, openFor, showDestinationCard, openDetail, scheduleClose, light, showRegistryTiles]);
 
+  // Connection lost / back. Losing it only flags the state (requests would
+  // fail anyway); regaining it reloads the current view so nothing stays stale.
+  useEffect(() => {
+    const onOffline = () => setOffline(true);
+    const onOnline = () => {
+      setOffline(false);
+      const m = map.current;
+      if (m) void load(m.getBounds(), m.getZoom());
+    };
+    if (navigator.onLine === false) setOffline(true);
+    window.addEventListener("offline", onOffline);
+    window.addEventListener("online", onOnline);
+    return () => {
+      window.removeEventListener("offline", onOffline);
+      window.removeEventListener("online", onOnline);
+    };
+  }, [load]);
+
   // A filter change re-asks the same viewport, on the same debounce as a pan so
   // typing issues one request rather than one per character.
   useEffect(() => {
@@ -1377,7 +1450,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
     if (!m) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void load(m.getBounds(), m.getZoom()), DEBOUNCE_MS);
-  }, [filterKey, radius, load]);
+  }, [filterKey, radius, area, load]);
 
   // Escape closes whatever is open, innermost first.
   useEffect(() => {
@@ -1603,9 +1676,10 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       stay,
       radius,
       radiusLabel,
+      area,
       camera: m && center ? { lat: center.latitude, lng: center.longitude, z: m.getZoom() } : undefined,
     });
-  }, [center, minStars, families, categories, textFilter, exactOnly, sort, selectedId, stay, radius, radiusLabel]);
+  }, [center, minStars, families, categories, textFilter, exactOnly, sort, selectedId, stay, radius, radiusLabel, area]);
 
   // Light/dark: recolour the basemap in place. Markers, prices and the user's
   // position are untouched — they read on either ground.
@@ -1717,7 +1791,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
           suggestions={suggestions}
           onPick={(d) => {
             flyTo(d);
-            setMobileView("map");
+            setSheet("peek");
           }}
           families={families}
           minStars={minStars}
@@ -1730,14 +1804,17 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
             <>
               <StayPicker stay={stay} onChange={setStay} today={todayLocalIso()} />
               <RadiusControl radius={radius} label={radiusLabel} centres={radiusCentres} onApply={applyRadius} onClear={() => applyRadius(null)} />
+              <DrawControl mode={draw.mode} hasArea={area !== null} onStart={(m) => { setSheet("peek"); draw.start(m); }} onClear={() => setArea(null)} />
             </>
           }
         />
       </div>
 
       <div className="relative flex min-h-0 flex-1">
-      <div
-        className={`${mobileView === "list" ? "flex" : "hidden"} min-h-0 w-full flex-col border-r border-white/[0.08] lg:flex lg:w-[40%] lg:min-w-[400px] lg:max-w-[600px]`}
+      <ResultsSheet
+        snap={sheet}
+        onSnap={setSheet}
+        label={`${listPoints.length} ${listPoints.length === 1 ? "property" : "properties"} in view`}
       >
         <HotelResultsPanel
           points={listPoints}
@@ -1762,11 +1839,11 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
           ratesStatus={ratesStatus}
           hasStay={stay !== null}
         />
-      </div>
+      </ResultsSheet>
 
       <div
         ref={mapColumn}
-        className={`${mobileView === "map" ? "block" : "hidden"} relative min-w-0 flex-1 overflow-hidden bg-[#0B1112] lg:block [&_.maplibregl-ctrl-scale]:rounded-[4px] [&_.maplibregl-ctrl-scale]:border-white/40 [&_.maplibregl-ctrl-scale]:bg-[#090D0E]/85 [&_.maplibregl-ctrl-scale]:px-1 [&_.maplibregl-ctrl-scale]:text-[10px] [&_.maplibregl-ctrl-scale]:text-[#C9CFCD]`}
+        className={`relative min-w-0 flex-1 overflow-hidden bg-[#0B1112] [&_.maplibregl-ctrl-scale]:rounded-[4px] [&_.maplibregl-ctrl-scale]:border-white/40 [&_.maplibregl-ctrl-scale]:bg-[#090D0E]/85 [&_.maplibregl-ctrl-scale]:px-1 [&_.maplibregl-ctrl-scale]:text-[10px] [&_.maplibregl-ctrl-scale]:text-[#C9CFCD]`}
       >
       <div ref={container} className="h-full w-full" />
 
@@ -1830,6 +1907,8 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       />
 
       <TravelContextChips
+        area={area !== null && !draw.mode}
+        onClearArea={() => setArea(null)}
         radius={radius}
         radiusLabel={radiusLabel}
         onClearRadius={() => applyRadius(null)}
@@ -1891,7 +1970,49 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
 
       {/* The offer. Occupies the same slot as the loading pill and never both:
           while a request is in flight there is nothing to ask for. */}
-      {viewDrifted && !loading && (
+      {draw.mode && (
+        <div
+          role="status"
+          className="absolute left-1/2 z-30 flex max-w-[calc(100%-32px)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-2xl border border-[#00E6A7]/40 bg-[#090D0E]/95 px-3 py-2 text-[12px] text-[#E6EAE8] shadow-[0_12px_32px_rgba(0,0,0,0.45)]"
+          style={{ top: belowHeader }}
+        >
+          <span>
+            {draw.mode === "rectangle"
+              ? draw.count === 0
+                ? "Click one corner of the area"
+                : "Now click the opposite corner"
+              : draw.count < 3
+                ? `Click to add points (${draw.count} so far)`
+                : `${draw.count} points — double-click or click the first point to finish`}
+          </span>
+          {draw.problem && <span className="text-amber-300">{draw.problem}</span>}
+          {draw.mode === "polygon" && draw.count >= 3 && (
+            <button type="button" onClick={draw.finish} className="h-7 rounded-full bg-[#00E6A7] px-3 text-[12px] font-bold text-[#030505] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">
+              Finish
+            </button>
+          )}
+          <button type="button" onClick={draw.cancel} className="h-7 rounded-full border border-white/[0.15] px-3 text-[12px] font-semibold text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00E6A7]">
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {offline && (
+        <div
+          role="status"
+          className="absolute left-1/2 z-20 max-w-[calc(100%-120px)] -translate-x-1/2 rounded-full border border-amber-300/30 bg-[#1A1408]/95 px-3.5 py-1.5 text-center text-[12px] font-medium text-amber-100 shadow-[0_8px_24px_rgba(0,0,0,0.35)]"
+          style={{ top: belowHeader }}
+        >
+          {/* The app's own banner already says "offline"; this says what the
+              map is showing meanwhile. */}
+          {loadedAt
+            ? `Showing hotels loaded at ${new Date(loadedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+            : "Showing the hotels already loaded"}
+          {" — they'll refresh when you're back online."}
+        </div>
+      )}
+
+      {viewDrifted && !loading && !offline && (
         <div
           className="absolute left-1/2 z-20 -translate-x-1/2"
           style={{ top: belowHeader }}
@@ -1960,28 +2081,6 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         rate={selected ? rates.get(selected.id) : undefined}
         onNearbyPois={setNearbyPois}
       />
-      </div>
-
-      {/* Phones: one surface at a time. */}
-      <div
-        role="tablist"
-        aria-label="Show list or map"
-        className="absolute bottom-[max(16px,env(safe-area-inset-bottom))] left-1/2 z-40 flex -translate-x-1/2 rounded-full border border-white/[0.10] bg-[#090D0E]/95 p-1 shadow-[0_16px_40px_rgba(0,0,0,0.45)] backdrop-blur lg:hidden"
-      >
-        {(["list", "map"] as const).map((v) => (
-          <button
-            key={v}
-            type="button"
-            role="tab"
-            aria-selected={mobileView === v}
-            onClick={() => setMobileView(v)}
-            className={`h-9 rounded-full px-5 text-[13px] font-semibold capitalize transition ${
-              mobileView === v ? "bg-[#00E6A7] text-[#030505]" : "text-[#A4AAA9]"
-            }`}
-          >
-            {v === "list" ? `List${listPoints.length ? ` · ${listPoints.length}` : ""}` : "Map"}
-          </button>
-        ))}
       </div>
     </div>
   );
@@ -2411,7 +2510,7 @@ function StatusBar({
     // Compact: the results list already carries the headline count, so this is
     // a two-line-max footnote that never buries the map. Full text stays in the
     // DOM (line-clamp hides overflow visually only).
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 p-3 max-lg:pb-[72px] max-sm:flex-col max-sm:items-stretch">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 flex items-end justify-between gap-3 p-3 max-lg:pb-[160px] max-sm:flex-col max-sm:items-stretch">
       <div
         className={`line-clamp-2 max-w-[min(560px,62%)] rounded-xl px-3 py-1.5 text-[11.5px] font-medium leading-[1.45] shadow-[0_4px_14px_rgba(0,0,0,0.10)] max-sm:max-w-none ${
           warn ? "bg-[#F97316] text-white" : "bg-[#090D0E]/95 text-[#C9CFCD]"

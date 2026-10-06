@@ -24,6 +24,8 @@ function Close({ label, onClick }: { label: string; onClick: () => void }) {
 }
 
 export default function TravelContextChips({
+  area,
+  onClearArea,
   radius,
   radiusLabel,
   onClearRadius,
@@ -34,6 +36,9 @@ export default function TravelContextChips({
   onCloseAirport,
   onAirportRadius,
 }: {
+  /** A drawn search area is active. */
+  area: boolean;
+  onClearArea: () => void;
   radius: RadiusQuery | null;
   radiusLabel: string;
   onClearRadius: () => void;
@@ -44,9 +49,16 @@ export default function TravelContextChips({
   onCloseAirport: () => void;
   onAirportRadius: (a: MapAirport) => void;
 }) {
-  if (!radius && !route && !routeError && !airport) return null;
+  if (!area && !radius && !route && !routeError && !airport) return null;
   return (
     <div className="pointer-events-none absolute left-4 top-[44px] z-20 flex max-w-[calc(100%-96px)] flex-col items-start gap-2">
+      {area && (
+        <div className={CHIP} role="status">
+          <span className="h-2.5 w-2.5 shrink-0 rotate-12 rounded-[2px] border border-[#00E6A7]" aria-hidden />
+          <span className="truncate">Hotels inside your drawn area</span>
+          <Close label="Clear drawn area" onClick={onClearArea} />
+        </div>
+      )}
       {radius && (
         <div className={CHIP} role="status">
           <span className="h-2 w-2 shrink-0 rounded-full border border-[#00E6A7]" aria-hidden />

@@ -30,6 +30,23 @@ describe("radius search", () => {
     expect(near.body.points.length).toBeLessThan(all.body.points.length);
   });
 
+  it("narrows to a drawn area, and refuses a malformed one", async () => {
+    // A small box around the Marunouchi/Ginza hotels.
+    const ring = "139.755,35.670;139.775,35.670;139.775,35.690;139.755,35.690";
+    const r = await call(`bbox=139.55,35.55,139.95,35.80&z=11&area=${ring}`);
+    expect(r.status).toBe(200);
+    expect(r.body.area).toEqual({ vertices: 4 });
+    expect(r.body.clusters).toEqual([]);
+    for (const p of r.body.points) {
+      expect(p.longitude).toBeGreaterThanOrEqual(139.755);
+      expect(p.longitude).toBeLessThanOrEqual(139.775);
+      expect(p.latitude).toBeGreaterThanOrEqual(35.67);
+      expect(p.latitude).toBeLessThanOrEqual(35.69);
+    }
+    const bad = await call("bbox=139.55,35.55,139.95,35.80&z=11&area=139.7,35.6;139.8,35.7;139.8,35.6;139.7,35.7");
+    expect(bad.body.area).toBeNull(); // bow-tie: ignored, not "repaired"
+  });
+
   it("ignores an invalid radius rather than scanning an arbitrary circle", async () => {
     const r = await call("bbox=139.55,35.55,139.95,35.80&z=11&near=35.68,139.76&radiusKm=500");
     expect(r.status).toBe(200);

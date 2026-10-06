@@ -21,6 +21,7 @@ import {
 } from "@/lib/hotels/curated";
 import { haversineMeters, jaroWinkler, normalizeName } from "@/lib/hotels/h3";
 import { parseRadius, withinRadius } from "@/lib/hotels/radius";
+import { inArea, parseArea } from "@/lib/hotels/drawArea";
 import { LUXURY_MAP_CATEGORIES, type LuxuryCategoryId } from "@/lib/hotels/luxuryTiers";
 
 export const dynamic = "force-dynamic";
@@ -187,6 +188,8 @@ export interface MapResponse {
   osmDeferred: boolean;
   /** The circle this answer was narrowed to, when it was a radius search. */
   radius: { latitude: number; longitude: number; km: number } | null;
+  /** Set when the answer was narrowed to a drawn area. */
+  area: { vertices: number } | null;
   dataset: ReturnType<typeof curatedStats>;
   googleDataset: ReturnType<typeof datasetStats>;
   fetchedAt: string;
@@ -433,7 +436,11 @@ export async function GET(req: NextRequest) {
   // Curated properties are listed individually in a radius search (never
   // clustered): a cluster's count would include members outside the circle.
   const radius = parseRadius(sp.get("near"), sp.get("radiusKm"));
-  const inCircle = <T extends { latitude: number; longitude: number }>(p: T) => !radius || withinRadius(p, radius);
+  // A drawn area (`area=lng,lat;...`) works the same way, and both may apply.
+  // parseArea rejects anything unbounded, oversized or self-crossing.
+  const area = parseArea(sp.get("area"));
+  const inCircle = <T extends { latitude: number; longitude: number }>(p: T) =>
+    (!radius || withinRadius(p, radius)) && (!area || inArea(p, area));
 
   // --- curated layer: always answers, at any zoom ---------------------------
   const curated = curatedInBBox(box, filter).filter(inCircle);
@@ -565,7 +572,7 @@ export async function GET(req: NextRequest) {
   }
 
   // --- assemble --------------------------------------------------------------
-  const { clusters, singles } = clusterPoints(curated, radius ? Math.max(zoom, CLUSTER_MAX_ZOOM) : zoom);
+  const { clusters, singles } = clusterPoints(curated, radius || area ? Math.max(zoom, CLUSTER_MAX_ZOOM) : zoom);
 
   const curatedPoints = singles.map((p) => curatedToPoint(p, corroborated.has(p.id)));
 
@@ -636,6 +643,7 @@ export async function GET(req: NextRequest) {
     osmDeferred,
     osmFilteredOut: osmWanted && filtersCurated,
     radius: radius ? { latitude: radius.center.latitude, longitude: radius.center.longitude, km: radius.km } : null,
+    area: area ? { vertices: area.length } : null,
     dataset: curatedStats(),
     // Freshness of the Google layer, so the UI can say why coverage thinned if
     // the dataset ages out rather than silently drawing fewer pins.

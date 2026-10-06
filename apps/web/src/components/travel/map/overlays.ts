@@ -12,6 +12,8 @@ export const SRC_AIRPORTS = "hm-airports";
 export const SRC_ROUTE = "hm-route";
 export const SRC_RADIUS = "hm-radius";
 export const SRC_POIS = "hm-pois";
+/** The area being drawn, or the finished drawn area. */
+export const SRC_DRAW = "hm-draw";
 
 export const LYR_AIRPORT_DOT = "hm-airport-dot";
 export const LYR_AIRPORT_LABEL = "hm-airport-label";
@@ -21,8 +23,11 @@ export const LYR_RADIUS_FILL = "hm-radius-fill";
 export const LYR_RADIUS_LINE = "hm-radius-line";
 export const LYR_POI = "hm-poi";
 export const LYR_POI_LABEL = "hm-poi-label";
+export const LYR_DRAW_FILL = "hm-draw-fill";
+export const LYR_DRAW_LINE = "hm-draw-line";
+export const LYR_DRAW_VERTEX = "hm-draw-vertex";
 
-export const OVERLAY_SOURCES = [SRC_RADIUS, SRC_ROUTE, SRC_POIS, SRC_AIRPORTS] as const;
+export const OVERLAY_SOURCES = [SRC_RADIUS, SRC_DRAW, SRC_ROUTE, SRC_POIS, SRC_AIRPORTS] as const;
 
 /** One colour per nearby-place category, readable on both map grounds. */
 export const POI_COLORS: Record<string, string> = {
@@ -44,6 +49,27 @@ const poiColorExpr = [
 /** Layers in draw order, all BELOW the hotel layers. */
 export function overlayLayerSpecs(): LayerSpecification[] {
   return [
+    {
+      id: LYR_DRAW_FILL,
+      type: "fill",
+      source: SRC_DRAW,
+      filter: ["==", ["geometry-type"], "Polygon"],
+      paint: { "fill-color": "#00E6A7", "fill-opacity": 0.08 },
+    },
+    {
+      id: LYR_DRAW_LINE,
+      type: "line",
+      source: SRC_DRAW,
+      filter: ["in", ["geometry-type"], ["literal", ["Polygon", "LineString"]]],
+      paint: { "line-color": "#00E6A7", "line-width": 2, "line-opacity": 0.9 },
+    },
+    {
+      id: LYR_DRAW_VERTEX,
+      type: "circle",
+      source: SRC_DRAW,
+      filter: ["==", ["geometry-type"], "Point"],
+      paint: { "circle-radius": 4.5, "circle-color": "#030505", "circle-stroke-width": 2, "circle-stroke-color": "#00E6A7" },
+    },
     {
       id: LYR_RADIUS_FILL,
       type: "fill",
