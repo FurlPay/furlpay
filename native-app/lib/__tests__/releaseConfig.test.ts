@@ -83,6 +83,21 @@ function withGoogleServices<T>(fn: () => T): T {
   }
 }
 
+/** The same placeholder, held for a whole describe block whose release builds
+ *  all pass GOOGLE_SERVICES_JSON. Same rules: never written over a real file,
+ *  and removed afterwards only if this created it. */
+function useGoogleServicesPlaceholder(): void {
+  let created = false;
+  beforeAll(() => {
+    if (fs.existsSync(GOOGLE_SERVICES)) return;
+    fs.writeFileSync(GOOGLE_SERVICES, JSON.stringify({ _releaseConfigTestPlaceholder: true }), { flag: "wx" });
+    created = true;
+  });
+  afterAll(() => {
+    if (created) fs.rmSync(GOOGLE_SERVICES, { force: true });
+  });
+}
+
 const originalEnv = { ...process.env };
 afterEach(() => {
   process.env = { ...originalEnv };
@@ -176,6 +191,7 @@ describe("release build configuration guard", () => {
 // and must not resolve to a non-prod environment by omission.
 // ---------------------------------------------------------------------------
 describe("release build API host", () => {
+  useGoogleServicesPlaceholder();
   type Extra = { extra?: { apiBase?: string; furlpayEnv?: string } };
   const mod = () => require(CONFIG) as { PRODUCTION_API_BASE: string; assertReleaseApiBase: (u: string) => string };
   const GS = { GOOGLE_SERVICES_JSON: GOOGLE_SERVICES };
@@ -227,6 +243,7 @@ describe("release build API host", () => {
 // P0-3 (audit 2026-10-05): freeRASP ran against a placeholder identity.
 // ---------------------------------------------------------------------------
 describe("release build freeRASP identity", () => {
+  useGoogleServicesPlaceholder();
   type Rasp = { extra?: { freerasp?: { packageName: string; appBundleId: string; certificateHashes: string[]; appTeamId: string | null; isProd: boolean } } };
   const GS = { GOOGLE_SERVICES_JSON: GOOGLE_SERVICES };
   const { FURLPAY_FREERASP_CERT_HASHES: _omit, ...AUTH_NO_RASP } = AUTH_ENV;
