@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { HotelDetailResponse } from "@/app/api/travel/hotels/detail/route";
 import SaveButton, { useSavedIds } from "./map/SaveButton";
+import HotelNearby from "./map/HotelNearby";
+import type { NearbyPoi } from "./map/useTravelOverlays";
+
+const noopPois = () => {};
 import { formatMoney, isShowablePrice, nightsOf, type MapRate, type StayContext } from "@/lib/hotels/mapPrices";
 
 /** The rate block above the booking button: the live price for the reader's
@@ -95,6 +99,7 @@ export default function HotelDetailPanel({
   onClose,
   stay = null,
   rate,
+  onNearbyPois,
 }: {
   target: DetailTarget | null;
   onClose: () => void;
@@ -102,6 +107,8 @@ export default function HotelDetailPanel({
   stay?: StayContext | null;
   /** The live rate the map holds for this hotel and stay, if any. */
   rate?: MapRate;
+  /** Draw (or clear, with []) the hotel's nearby places on the map. */
+  onNearbyPois?: (pois: NearbyPoi[]) => void;
 }) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -356,11 +363,19 @@ export default function HotelDetailPanel({
             </div>
           </>
         )}
+
+        {/* Airports and nearby places come from our own data and OpenStreetMap,
+            not Google, so they show whether or not Places answered. */}
+        <HotelNearby
+          hotelId={target.id}
+          latitude={target.latitude}
+          longitude={target.longitude}
+          onPois={onNearbyPois ?? noopPois}
+        />
       </div>
 
-      {/* The one primary action. This map holds no rates, so the next step is
-          the live stays search for the hotel's city — the existing booking
-          path — rather than a price this panel would have to invent. */}
+      {/* The one primary action: the live stays search for the hotel's city,
+          carrying the reader's dates — the existing booking path. */}
       {target.city && (
         <div className="border-t border-white/[0.08] p-4">
           <DetailRate rate={rate} stay={stay} />

@@ -10,6 +10,7 @@ import {
   layerSpecs,
   vectorLayerSpecs,
 } from "../layers";
+import { OVERLAY_SOURCES, overlayLayerSpecs } from "../overlays";
 
 // ---------------------------------------------------------------------------
 // Every layer the hit-test queries must actually be addable.
@@ -59,6 +60,16 @@ describe("layerSpecs() are valid against the MapLibre style spec", () => {
     const built = new Set(layerSpecs().map((l) => l.id));
     const missing = INTERACTIVE_LAYERS.filter((id) => !built.has(id));
     expect(missing).toEqual([]);
+  });
+
+  it("the travel overlays (airports, route, radius, nearby places) are valid too", () => {
+    const empty = { type: "geojson", data: { type: "FeatureCollection", features: [] } };
+    const style = {
+      version: 8 as const,
+      sources: Object.fromEntries(OVERLAY_SOURCES.map((s) => [s, empty])),
+      layers: overlayLayerSpecs(),
+    };
+    expect(validateStyleMin(style as never).map((e) => `${e.message}`)).toEqual([]);
   });
 
   it("the registry-tile layers are valid too", () => {

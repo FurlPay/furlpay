@@ -55,5 +55,29 @@ for (const line of lines.slice(1)) {
   rows.push([iata, r[col.name], r[col.municipality] || "", r[col.iso_country], size, kw]);
 }
 rows.sort((a, b) => b[4] - a[4] || a[0].localeCompare(b[0]));
+
+// --coords-only: write airportCoords.json ({ IATA: [lat, lng] }) for exactly
+// the codes already in airportsData.json, without regenerating that file.
+// Coordinates are kept apart because the search dataset ships to the client
+// and the map's airport layer is served by a route that reads this file.
+if (process.argv.includes("--coords-only")) {
+  const COORDS = join(dirname(OUT), "airportCoords.json");
+  const wanted = new Set(JSON.parse(readFileSync(OUT, "utf8")).map((r) => r[0]));
+  const coords = {};
+  for (const line of lines.slice(1)) {
+    if (!line) continue;
+    const r = parseLine(line);
+    const iata = r[col.iata_code];
+    if (!wanted.has(iata) || coords[iata] || !SIZE[r[col.type]] || r[col.scheduled_service] !== "yes") continue;
+    const lat = Number(r[col.latitude_deg]);
+    const lng = Number(r[col.longitude_deg]);
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) continue;
+    coords[iata] = [Math.round(lat * 1e4) / 1e4, Math.round(lng * 1e4) / 1e4];
+  }
+  writeFileSync(COORDS, JSON.stringify(coords));
+  console.log(`${Object.keys(coords).length}/${wanted.size} airports with coordinates -> ${COORDS}`);
+  process.exit(0);
+}
+
 writeFileSync(OUT, JSON.stringify(rows));
 console.log(`${rows.length} airports -> ${OUT} (${(JSON.stringify(rows).length / 1024).toFixed(0)} KB)`);

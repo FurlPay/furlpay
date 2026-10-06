@@ -63,9 +63,15 @@ import { mergeLivePoints, toMapPoints } from "@/lib/places/liveAugment";
 import AccessibleMarkerList, { type ListEntry } from "./map/AccessibleMarkerList";
 import HotelResultsPanel from "./map/HotelResultsPanel";
 import { isResultSort, type ResultSort } from "@/lib/hotels/resultSort";
-import { priceLabel, stayFromParams, stayKey, type StayContext } from "@/lib/hotels/mapPrices";
+import { priceLabel, stayFromParams, type StayContext } from "@/lib/hotels/mapPrices";
 import { useMapRates } from "./map/useMapRates";
 import StayPicker from "./map/StayPicker";
+import RadiusControl, { type RadiusCentre } from "./map/RadiusControl";
+import TravelContextChips from "./map/TravelContextChips";
+import { OVERLAY_SOURCES, overlayLayerSpecs } from "./map/overlays";
+import { parseRouteParam, useTravelOverlays, type NearbyPoi } from "./map/useTravelOverlays";
+import { parseRadius, type RadiusQuery } from "@/lib/hotels/radius";
+import { circleBBox } from "@/lib/geo/geodesy";
 import {
   LYR_HEATMAP,
   LYR_PRICE,
@@ -206,6 +212,9 @@ interface UrlSearchState {
   /** Stay dates and party (`?in=&out=&adults=`). Prices are asked for only
    *  with these — a rate without dates is a guess. */
   stay: StayContext | null;
+  /** Radius search (`?near=lat,lng&r=5&rl=label`). */
+  radius: RadiusQuery | null;
+  radiusLabel: string;
 }
 
 /** Today in the reader's own calendar, as YYYY-MM-DD. */
@@ -215,7 +224,7 @@ function todayLocalIso(): string {
 }
 
 function searchStateFromUrl(): UrlSearchState {
-  const empty: UrlSearchState = { minStars: 0, families: [], categories: [], textFilter: "", exactOnly: false, sort: "recommended", hotel: null, stay: null };
+  const empty: UrlSearchState = { minStars: 0, families: [], categories: [], textFilter: "", exactOnly: false, sort: "recommended", hotel: null, stay: null, radius: null, radiusLabel: "" };
   if (typeof window === "undefined") return empty;
   const q = new URLSearchParams(window.location.search);
   const list = (k: string) => (q.get(k) ?? "").split(",").map((s) => s.trim()).filter(Boolean);
@@ -232,6 +241,8 @@ function searchStateFromUrl(): UrlSearchState {
     sort: isResultSort(sort) ? sort : "recommended",
     hotel: hotel && /^[\w:.\-]{1,120}$/.test(hotel) ? hotel : null,
     stay: stayFromParams(q, todayLocalIso()),
+    radius: parseRadius(q.get("near"), q.get("r")),
+    radiusLabel: (q.get("rl") ?? "").replace(/[^\p{L}\p{N} .,'&()\-]/gu, "").slice(0, 80) || "this point",
   };
 }
 
@@ -256,6 +267,9 @@ function writeSearchToUrl(s: Omit<UrlSearchState, "hotel"> & { hotel: string | n
   set("in", s.stay?.checkIn ?? null);
   set("out", s.stay?.checkOut ?? null);
   set("adults", s.stay ? String(s.stay.adults) : null);
+  set("near", s.radius ? `${s.radius.center.latitude.toFixed(5)},${s.radius.center.longitude.toFixed(5)}` : null);
+  set("r", s.radius ? String(s.radius.km) : null);
+  set("rl", s.radius ? s.radiusLabel : null);
   const next = `${window.location.pathname}${q.toString() ? `?${q}` : ""}`;
   if (next !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(window.history.state, "", next);
 }
@@ -526,6 +540,20 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   /** The reader's stay; null until they pick dates (then prices appear). */
   const [stay, setStay] = useState<StayContext | null>(null);
 
+  // --- travel context: radius, airports, route, nearby places ---------------
+  const [radius, setRadius] = useState<RadiusQuery | null>(null);
+  const [radiusLabel, setRadiusLabel] = useState("");
+  /** Read by `load` (registered once) — same pattern as `filters`. */
+  const radiusRef = useRef<RadiusQuery | null>(null);
+  radiusRef.current = radius;
+  const [airportsOn, setAirportsOn] = useState(false);
+  const [routeCodes, setRouteCodes] = useState<[string, string] | null>(null);
+  const [nearbyPois, setNearbyPois] = useState<NearbyPoi[]>([]);
+  /** True once the style and every source exist, so overlays can be drawn. */
+  const [mapReady, setMapReady] = useState(false);
+  /** Whether the URL gave a camera — if not, a route flies to its destination. */
+  const urlHadCamera = useRef(false);
+
   // --- map view: theme, density, fullscreen ---------------------------------
   // The theme is read from storage AFTER mount (the server has no storage) —
   // the map itself is built client-side from the stored value, so there is no
@@ -572,6 +600,11 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
     setExactOnly(s.exactOnly);
     setSort(s.sort);
     setStay(s.stay);
+    setRadius(s.radius);
+    setRadiusLabel(s.radius ? s.radiusLabel : "");
+    const q = new URLSearchParams(window.location.search);
+    setRouteCodes(parseRouteParam(q.get("route")));
+    urlHadCamera.current = q.has("lat") && q.has("lng");
     pendingHotel.current = s.hotel;
     urlRead.current = true;
   }, []);
@@ -582,6 +615,46 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
   // The labels reach the GPU through a ref read by `paint` (registered on map
   // events once, like `filters`), and a change repaints what is already drawn.
   const { rates, status: ratesStatus } = useMapRates(listPoints, center, stay);
+
+  const overlays = useTravelOverlays({
+    map: map.current,
+    ready: mapReady,
+    airportsOn,
+    routeCodes,
+    radius,
+    pois: nearbyPois,
+    // A shared route link with no camera lands on the destination city.
+    onRouteLoaded: (r) => {
+      if (urlHadCamera.current) return;
+      urlHadCamera.current = true;
+      programmatic.current = true;
+      map.current?.flyTo({ center: [r.to.longitude, r.to.latitude], zoom: 11, duration: FLY_MS, easing: easeInOutCubic, essential: true });
+    },
+  });
+
+  /** What a radius can be drawn around — only real places the reader has in
+   *  front of them. The open hotel first, since that is the usual question. */
+  const radiusCentres = useMemo<RadiusCentre[]>(() => {
+    const out: RadiusCentre[] = [];
+    if (selected) out.push({ label: selected.name, point: { latitude: selected.latitude, longitude: selected.longitude } });
+    if (overlays.selectedAirport) {
+      const a = overlays.selectedAirport;
+      out.push({ label: `${a.name} (${a.iata})`, point: { latitude: a.latitude, longitude: a.longitude } });
+    }
+    if (userLoc) out.push({ label: "My location", point: { latitude: userLoc.latitude, longitude: userLoc.longitude } });
+    if (center) out.push({ label: "Map centre", point: center });
+    return out;
+  }, [selected, overlays.selectedAirport, userLoc, center]);
+
+  /** Apply a radius: draw it, fit the map to it, and reload for the circle. */
+  const applyRadius = useCallback((r: RadiusQuery | null, label = "") => {
+    setRadius(r);
+    setRadiusLabel(r ? label : "");
+    if (!r) return;
+    const b = circleBBox(r.center, r.km);
+    programmatic.current = true;
+    map.current?.fitBounds([[b.minLng, b.minLat], [b.maxLng, b.maxLat]], { padding: 48, duration: FLY_MS, easing: easeInOutCubic });
+  }, []);
   const priceLabels = useRef<ReadonlyMap<string, string>>(new Map());
   useEffect(() => {
     const now = Date.now();
@@ -765,14 +838,23 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       // than once — longitudes come back beyond ±180. Clamp before sending so
       // the request describes a real region of the earth.
       const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
-      const west = clamp(bounds.getWest(), -180, 180);
-      const south = clamp(bounds.getSouth(), -90, 90);
-      const east = clamp(bounds.getEast(), -180, 180);
-      const north = clamp(bounds.getNorth(), -90, 90);
+      // A radius search asks about the CIRCLE, wherever the camera is: the
+      // list shows everything within N km even after a pan, and the server
+      // keeps only what is truly inside (route.ts, near=/radiusKm=).
+      const rq = radiusRef.current;
+      const rb = rq ? circleBBox(rq.center, rq.km) : null;
+      const west = clamp(rb ? rb.minLng : bounds.getWest(), -180, 180);
+      const south = clamp(rb ? rb.minLat : bounds.getSouth(), -90, 90);
+      const east = clamp(rb ? rb.maxLng : bounds.getEast(), -180, 180);
+      const north = clamp(rb ? rb.maxLat : bounds.getNorth(), -90, 90);
       const bbox = [west, south, east, north].map((n) => n.toFixed(4)).join(",");
 
       const f = filters.current;
       const params = new URLSearchParams({ bbox, z: zoom.toFixed(2) });
+      if (rq) {
+        params.set("near", `${rq.center.latitude.toFixed(5)},${rq.center.longitude.toFixed(5)}`);
+        params.set("radiusKm", String(rq.km));
+      }
       if (f.families.length) params.set("families", f.families.join(","));
       if (f.categories.length) params.set("categories", f.categories.join(","));
       if (f.minStars) params.set("minStars", String(f.minStars));
@@ -947,6 +1029,12 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
             m.addLayer(spec as Parameters<typeof m.addLayer>[0]);
           }
         }
+
+        // Travel overlays (radius, route, nearby places, airports) go in
+        // BEFORE the hotel layers, so a hotel pin is always drawn on top and
+        // always wins a hit-test.
+        for (const id of OVERLAY_SOURCES) m.addSource(id, { type: "geojson", data: EMPTY_FC });
+        for (const spec of overlayLayerSpecs()) m.addLayer(spec);
 
         // The price pill, registered before the layer that draws it.
         if (!m.hasImage(PRICE_PILL_IMAGE)) {
@@ -1213,6 +1301,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         void load(m.getBounds(), m.getZoom());
         const c0 = m.getCenter();
         setCenter({ latitude: c0.lat, longitude: c0.lng });
+        setMapReady(true);
       });
 
       const schedule = () => {
@@ -1288,7 +1377,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
     if (!m) return;
     if (timer.current) clearTimeout(timer.current);
     timer.current = setTimeout(() => void load(m.getBounds(), m.getZoom()), DEBOUNCE_MS);
-  }, [filterKey, load]);
+  }, [filterKey, radius, load]);
 
   // Escape closes whatever is open, innermost first.
   useEffect(() => {
@@ -1512,9 +1601,11 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
       // Until a pending ?hotel= has been reopened, keep it rather than erase it.
       hotel: selectedId ?? pendingHotel.current,
       stay,
+      radius,
+      radiusLabel,
       camera: m && center ? { lat: center.latitude, lng: center.longitude, z: m.getZoom() } : undefined,
     });
-  }, [center, minStars, families, categories, textFilter, exactOnly, sort, selectedId, stay]);
+  }, [center, minStars, families, categories, textFilter, exactOnly, sort, selectedId, stay, radius, radiusLabel]);
 
   // Light/dark: recolour the basemap in place. Markers, prices and the user's
   // position are untouched — they read on either ground.
@@ -1635,7 +1726,12 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
           moreFilterCount={moreFilterCount}
           recent={recent}
           onClearRecent={() => setRecent(clearRecent())}
-          leading={<StayPicker stay={stay} onChange={setStay} today={todayLocalIso()} />}
+          leading={
+            <>
+              <StayPicker stay={stay} onChange={setStay} today={todayLocalIso()} />
+              <RadiusControl radius={radius} label={radiusLabel} centres={radiusCentres} onApply={applyRadius} onClear={() => applyRadius(null)} />
+            </>
+          }
         />
       </div>
 
@@ -1729,7 +1825,45 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         onToggleTheme={toggleTheme}
         density={density}
         onToggleDensity={() => setDensity((d) => !d)}
+        airports={airportsOn}
+        onToggleAirports={() => setAirportsOn((a) => !a)}
       />
+
+      <TravelContextChips
+        radius={radius}
+        radiusLabel={radiusLabel}
+        onClearRadius={() => applyRadius(null)}
+        route={overlays.route}
+        routeError={overlays.routeError ? routeCodes : null}
+        onClearRoute={() => {
+          setRouteCodes(null);
+          const q = new URLSearchParams(window.location.search);
+          q.delete("route");
+          window.history.replaceState(window.history.state, "", `${window.location.pathname}${q.toString() ? `?${q}` : ""}`);
+        }}
+        airport={overlays.selectedAirport}
+        onCloseAirport={() => overlays.setSelectedAirport(null)}
+        onAirportRadius={(a) => {
+          applyRadius({ center: { latitude: a.latitude, longitude: a.longitude }, km: 25 }, `${a.name} (${a.iata})`);
+          overlays.setSelectedAirport(null);
+        }}
+      />
+
+      {airportsOn && overlays.airports.length > 0 && (
+        // Airports for keyboard and screen-reader users: the canvas has nothing
+        // to focus, so the same airports are real buttons, visible on focus.
+        <nav aria-label="Airports in view" className="sr-only focus-within:not-sr-only focus-within:absolute focus-within:bottom-24 focus-within:left-4 focus-within:z-30 focus-within:max-h-48 focus-within:overflow-auto focus-within:rounded-xl focus-within:border focus-within:border-white/[0.10] focus-within:bg-[#090D0E] focus-within:p-2">
+          <ul>
+            {overlays.airports.slice(0, 40).map((a) => (
+              <li key={a.iata}>
+                <button type="button" onClick={() => overlays.setSelectedAirport(a)} className="w-full rounded px-2 py-1 text-left text-[12px] text-[#E6EAE8] focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#00E6A7]">
+                  {a.iata} · {a.name}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
 
       {density && (
         <p className="pointer-events-none absolute left-1/2 top-[64px] z-20 -translate-x-1/2 rounded-full border border-white/[0.10] bg-[#090D0E]/95 px-3 py-1.5 text-[11.5px] text-[#C9CFCD]" role="status">
@@ -1824,6 +1958,7 @@ export default function HotelMap({ showRegistryTiles = false }: { showRegistryTi
         onClose={() => setSelected(null)}
         stay={stay}
         rate={selected ? rates.get(selected.id) : undefined}
+        onNearbyPois={setNearbyPois}
       />
       </div>
 

@@ -43,6 +43,8 @@ export default function MapViewControls({
   onToggleTheme,
   density,
   onToggleDensity,
+  airports,
+  onToggleAirports,
 }: {
   top: number;
   fullscreen: boolean;
@@ -52,6 +54,8 @@ export default function MapViewControls({
   onToggleTheme: () => void;
   density: boolean;
   onToggleDensity: () => void;
+  airports: boolean;
+  onToggleAirports: () => void;
 }) {
   return (
     <div
@@ -91,6 +95,11 @@ export default function MapViewControls({
           <circle cx="12" cy="12" r="8.5" opacity="0.35" />
           <circle cx="12" cy="12" r="5" opacity="0.65" />
           <circle cx="12" cy="12" r="1.8" fill="currentColor" />
+        </svg>
+      </ControlButton>
+      <ControlButton label="Show airports" pressed={airports} onClick={onToggleAirports}>
+        <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden>
+          <path d="M10.5 21l1.5-1.2 1.5 1.2v-2l-1-1v-4.5l7 2.5v-2l-7-4.5V4.5a1 1 0 0 0-2 0V9L3.5 13.5v2l7-2.5V17l-1 1z" />
         </svg>
       </ControlButton>
     </div>

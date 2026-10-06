@@ -1,13 +1,13 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 374,
+  "_total": 376,
   "_counts": {
     "ADMIN_ONLY": 30,
     "API_KEY_AUTHENTICATED": 10,
     "AUTHENTICATED_USER": 159,
     "DEVELOPMENT_ONLY": 2,
     "INTERNAL_ONLY": 9,
-    "PUBLIC_INTENTIONAL": 151,
+    "PUBLIC_INTENTIONAL": 153,
     "WEBHOOK_VERIFIED": 13
   },
   "routes": {
@@ -312,6 +312,7 @@
     "travel/cancel/[id]": "AUTHENTICATED_USER",
     "travel/cards/create": "AUTHENTICATED_USER",
     "travel/airports": "PUBLIC_INTENTIONAL",
+    "travel/airports/map": "PUBLIC_INTENTIONAL",
     "travel/deals": "PUBLIC_INTENTIONAL",
     "travel/destinations": "PUBLIC_INTENTIONAL",
     "travel/destinations/[slug]": "PUBLIC_INTENTIONAL",
@@ -324,6 +325,7 @@
     "travel/hotels/map": "PUBLIC_INTENTIONAL",
     "travel/hotels/photo": "PUBLIC_INTENTIONAL",
     "travel/hotels/preview": "PUBLIC_INTENTIONAL",
+    "travel/hotels/pois": "PUBLIC_INTENTIONAL",
     "travel/hotels/price": "PUBLIC_INTENTIONAL",
     "travel/hotels/stream-rates": "PUBLIC_INTENTIONAL",
     "travel/hotels/tiles/[z]/[x]/[y]": "PUBLIC_INTENTIONAL",

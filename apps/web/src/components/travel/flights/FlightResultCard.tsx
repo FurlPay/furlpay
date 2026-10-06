@@ -188,6 +188,18 @@ export default function FlightResultCard({ flight, badges, sandbox }: { flight: 
       )}
       <div id={detailId} hidden={!open}>
         {open && <Detail flight={flight} />}
+        {open && /^[A-Z]{3}$/.test(legs[0]?.from ?? "") && /^[A-Z]{3}$/.test(legs[0]?.to ?? "") && (
+          // The route on the hotel map is drawn between the two real airports
+          // of this leg — geometry, not a schedule.
+          <div className="border-t border-white/[0.06] px-4 py-3 sm:px-5">
+            <Link
+              href={`/hotels/map?route=${legs[0].from}-${legs[0].to}`}
+              className="inline-flex items-center gap-1.5 text-[12.5px] font-semibold text-neon hover:underline"
+            >
+              Hotels near {legs[0].to} — see the route on the map
+            </Link>
+          </div>
+        )}
       </div>
     </article>
   );

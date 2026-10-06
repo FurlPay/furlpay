@@ -20,6 +20,7 @@ import {
   type PropertyFamily,
 } from "@/lib/hotels/curated";
 import { haversineMeters, jaroWinkler, normalizeName } from "@/lib/hotels/h3";
+import { parseRadius, withinRadius } from "@/lib/hotels/radius";
 import { LUXURY_MAP_CATEGORIES, type LuxuryCategoryId } from "@/lib/hotels/luxuryTiers";
 
 export const dynamic = "force-dynamic";
@@ -184,6 +185,8 @@ export interface MapResponse {
   /** True when OSM was asked but answered after the route stopped waiting:
    *  the layer is still loading into the cache, not missing and not down. */
   osmDeferred: boolean;
+  /** The circle this answer was narrowed to, when it was a radius search. */
+  radius: { latitude: number; longitude: number; km: number } | null;
   dataset: ReturnType<typeof curatedStats>;
   googleDataset: ReturnType<typeof datasetStats>;
   fetchedAt: string;
@@ -422,8 +425,18 @@ export async function GET(req: NextRequest) {
   const zoomRaw = Number(sp.get("z"));
   const zoom = Number.isFinite(zoomRaw) ? Math.min(20, Math.max(0, zoomRaw)) : 3;
 
+  // --- radius search ----------------------------------------------------------
+  //
+  // `near=lat,lng&radiusKm=N` narrows every source to a circle, server-side.
+  // The client sends the circle's bounding box as `bbox`, so the sources are
+  // asked about the right area; this then keeps only what is truly inside.
+  // Curated properties are listed individually in a radius search (never
+  // clustered): a cluster's count would include members outside the circle.
+  const radius = parseRadius(sp.get("near"), sp.get("radiusKm"));
+  const inCircle = <T extends { latitude: number; longitude: number }>(p: T) => !radius || withinRadius(p, radius);
+
   // --- curated layer: always answers, at any zoom ---------------------------
-  const curated = curatedInBBox(box, filter);
+  const curated = curatedInBBox(box, filter).filter(inCircle);
 
   // --- OSM layer: only where Overpass can be asked ---------------------------
   //
@@ -552,7 +565,7 @@ export async function GET(req: NextRequest) {
   }
 
   // --- assemble --------------------------------------------------------------
-  const { clusters, singles } = clusterPoints(curated, zoom);
+  const { clusters, singles } = clusterPoints(curated, radius ? Math.max(zoom, CLUSTER_MAX_ZOOM) : zoom);
 
   const curatedPoints = singles.map((p) => curatedToPoint(p, corroborated.has(p.id)));
 
@@ -564,7 +577,7 @@ export async function GET(req: NextRequest) {
   // lib/places/liveAugment.ts. It appears in these two maps only because the
   // union demands exhaustiveness.
   const RANK: Record<MapPointSource, number> = { curated: 0, google: 1, osm: 2, registry: 3, "google-live": 4 };
-  const all = [...curatedPoints, ...googlePoints, ...osmPoints].sort((a, b) => {
+  const all = [...curatedPoints, ...googlePoints, ...osmPoints].filter(inCircle).sort((a, b) => {
     if (a.source !== b.source) return RANK[a.source] - RANK[b.source];
     // Within a source, the most significant first, so a cap keeps the
     // properties a reader is most likely to be looking for.
@@ -622,6 +635,7 @@ export async function GET(req: NextRequest) {
     osmUnavailable,
     osmDeferred,
     osmFilteredOut: osmWanted && filtersCurated,
+    radius: radius ? { latitude: radius.center.latitude, longitude: radius.center.longitude, km: radius.km } : null,
     dataset: curatedStats(),
     // Freshness of the Google layer, so the UI can say why coverage thinned if
     // the dataset ages out rather than silently drawing fewer pins.
