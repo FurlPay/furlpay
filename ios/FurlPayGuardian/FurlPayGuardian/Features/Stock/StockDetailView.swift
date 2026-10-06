@@ -142,7 +142,7 @@ struct StockDetailView: View {
     /// figure only when there is too little history to compute one — which
     /// means the panel works offline, where the server's number cannot.
     private var localScore: GuardianScore? {
-        ComputeGuardianScore(closes: candles.map(\.close), timeframe: timeframe)
+        ComputeGuardianScore.callAsFunction(closes: candles.map(\.close), timeframe: timeframe)
     }
 
     private func guardianScore(_ score: Int, _ verdict: String?) -> some View {

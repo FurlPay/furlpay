@@ -90,27 +90,10 @@ public final class TapToPayService {
         if Self.isRunningBetaOS { return .osIsBeta }
 
         guard PaymentCardReader.isSupported else { return .deviceNotSupported }
-        guard Self.hasEntitlement else { return .notEntitled }
+        // The PSP must prepare the reader and surface Apple's entitlement
+        // failure from the public ProximityReader API. SecTask entitlement
+        // inspection is not public iOS API. The default provider fails closed.
         return nil
-        #endif
-    }
-
-    /// Reads the entitlement out of the built binary rather than assuming it.
-    ///
-    /// A missing entitlement produces an opaque session failure at tap time,
-    /// which is the worst possible moment to discover it — a customer is
-    /// standing there holding a card.
-    static var hasEntitlement: Bool {
-        #if canImport(UIKit)
-        // Present in the embedded provisioning profile only when Apple has
-        // granted it, so this is a real check and not a manifest read.
-        guard let task = SecTaskCreateFromSelf(nil) else { return false }
-        let value = SecTaskCopyValueForEntitlement(
-            task, "com.apple.developer.proximity-reader.payment.acceptance" as CFString, nil
-        )
-        return (value as? Bool) == true
-        #else
-        return false
         #endif
     }
 
@@ -137,7 +120,7 @@ public final class TapToPayService {
             do {
                 let discovery = ProximityReaderDiscovery()
                 let content = try await discovery.content(for: .payment(.howToTap))
-                discovery.presentContent(content, from: top)
+                try await discovery.presentContent(content, from: top)
                 hasShownEducation = true
             } catch {
                 // Do NOT mark it shown. If Apple's content could not load, the

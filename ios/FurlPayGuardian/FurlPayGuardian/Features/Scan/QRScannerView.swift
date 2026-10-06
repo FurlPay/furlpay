@@ -160,7 +160,9 @@ private struct CameraPreview: UIViewRepresentable {
 private final class PreviewView: UIView, AVCaptureMetadataOutputObjectsDelegate {
     var onScan: ((String) -> Void)?
 
-    private let session = AVCaptureSession()
+    // Configuration and start/stop are confined to sessionQueue. UIKit only
+    // attaches the session to the preview layer on the main actor.
+    nonisolated(unsafe) private let session = AVCaptureSession()
     private let sessionQueue = DispatchQueue(label: "com.furlpay.guardian.scanner")
 
     override class var layerClass: AnyClass { AVCaptureVideoPreviewLayer.self }
@@ -218,7 +220,7 @@ private final class PreviewView: UIView, AVCaptureMetadataOutputObjectsDelegate 
         device.unlockForConfiguration()
     }
 
-    func metadataOutput(
+    nonisolated func metadataOutput(
         _ output: AVCaptureMetadataOutput,
         didOutput metadataObjects: [AVMetadataObject],
         from connection: AVCaptureConnection
@@ -226,6 +228,6 @@ private final class PreviewView: UIView, AVCaptureMetadataOutputObjectsDelegate 
         guard let object = metadataObjects.first as? AVMetadataMachineReadableCodeObject,
               let value = object.stringValue, !value.isEmpty
         else { return }
-        onScan?(value)
+        Task { @MainActor [weak self] in self?.onScan?(value) }
     }
 }
