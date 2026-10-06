@@ -603,6 +603,13 @@ export const ENV_REGISTRY: EnvGroup[] = [
     ],
   },
   {
+    // /onchain. Explorer API key plus the ids of two SAVED queries whose output
+    // columns match the contract in lib/onchain/allium.ts. Unset = those cards
+    // say "not connected"; nothing is substituted.
+    group: "Allium (blockchain data)",
+    vars: [v("ALLIUM_API_KEY"), v("ALLIUM_STABLECOIN_DAILY_QUERY_ID"), v("ALLIUM_CORRIDOR_QUERY_ID")],
+  },
+  {
     group: "Build provenance (set by CI / Vercel, never secret)",
     vars: [
       v("FURLPAY_BUILD_SHA"),
