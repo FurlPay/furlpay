@@ -96,18 +96,35 @@ export function createHold(userId: string, cardId: string, merchant: string, amo
   return hold;
 }
 
+/** A hold past its TTL has auto-refunded on-chain; record that before any
+ *  action, so neither a capture nor a release can act on it. */
+function expireIfDue(hold: EscrowHold, now = Date.now()): void {
+  if (hold.status === "held" && new Date(hold.expiresAt).getTime() < now) {
+    hold.status = "expired";
+    hold.capturedAmount = 0;
+  }
+}
+
 // Merchant settles the final (usually lower) amount; remainder returns to Safe.
+// held → captured only. A capture after expiry would take funds the contract
+// already returned.
 export function captureHold(id: string, finalAmount: number, userId: string): EscrowHold {
   const hold = ownedHold(id, userId);
+  expireIfDue(hold);
   if (hold.status !== "held") throw new Error(`Hold already ${hold.status}`);
-  if (finalAmount > hold.authorizedAmount) throw new Error("Capture exceeds authorized amount");
+  if (!(finalAmount > 0) || finalAmount > hold.authorizedAmount) throw new Error("Capture exceeds authorized amount");
   hold.capturedAmount = finalAmount;
   hold.status = "captured";
   return hold;
 }
 
+// held → released only. Releasing a captured hold used to flip it to
+// "released" with capturedAmount 0 and report the whole authorization as
+// refunded, after the merchant had already been paid (SEC-P2-001).
 export function releaseHold(id: string, userId: string): EscrowHold {
   const hold = ownedHold(id, userId);
+  expireIfDue(hold);
+  if (hold.status !== "held") throw new Error(`Hold already ${hold.status}`);
   hold.status = "released";
   hold.capturedAmount = 0;
   return hold;
@@ -116,12 +133,7 @@ export function releaseHold(id: string, userId: string): EscrowHold {
 export function listHolds(userId: string): EscrowHold[] {
   // Lazily expire any holds past TTL (contract auto-refund).
   const now = Date.now();
-  for (const h of holds.values()) {
-    if (h.status === "held" && new Date(h.expiresAt).getTime() < now) {
-      h.status = "expired";
-      h.capturedAmount = 0;
-    }
-  }
+  for (const h of holds.values()) expireIfDue(h, now);
   return Array.from(holds.values())
     .filter((h) => h.userId === userId)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
