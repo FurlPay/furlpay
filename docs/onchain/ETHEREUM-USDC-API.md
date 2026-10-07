@@ -1,6 +1,12 @@
 # Ethereum USDC index — API design
 
-Status: **design only**; none of these routes exist yet. They follow the
+Status (2026-10-07): **implemented** — `metrics`, `transfers`,
+`address/:address` (they answer 503 / "not migrated" until migration 0036 is
+applied and the indexer has run). **Not yet implemented** — `metrics/hourly`,
+`metrics/daily`, `volume`, `transactions`, `addresses`; `tx/:hash` is served
+today by `/api/onchain/lookup` (node receipt + decoded transfers). Implemented
+routes differ from this design in one place: `metrics` returns the whole
+materialised window set in one response (`?window=` is not needed). They follow the
 repo's conventions (AGENTS.md): Next.js App Router routes under
 `/api/onchain/…`, public routes call `rateLimitOr429()`, are registered in
 `security/route-manifest.json`, return `{ ok: true, data }` or
