@@ -205,13 +205,20 @@ export async function kvSetNx(key: string, value: unknown, ttlSeconds: number): 
   return true;
 }
 
+// INCRBY and its window TTL in ONE atomic step. The previous INCR-then-EXPIRE
+// pair was two requests: when the EXPIRE failed (timeout, plan limit), the
+// counter lived forever, a slow leak of keys that never expire on a store
+// whose plan limit took production down on 7 Oct 2026. The TTL is (re)armed
+// whenever the key has none, which also heals counters leaked before this
+// change, and a new window costs one request instead of two.
+const INCR_WITH_TTL =
+  "local v = redis.call('INCRBY', KEYS[1], ARGV[1]) if redis.call('TTL', KEYS[1]) < 0 then redis.call('EXPIRE', KEYS[1], ARGV[2]) end return v";
+
 /** Atomic counter with a fixed-window TTL — the rate-limit primitive.
  *  Returns the count within the current window. */
 export async function kvIncr(key: string, windowSeconds: number): Promise<number> {
   if (kvBackend === "redis") {
-    const count = (await redis(["INCR", key])) as number;
-    if (count === 1) await redis(["EXPIRE", key, windowSeconds]);
-    return count;
+    return Number(await redis(["EVAL", INCR_WITH_TTL, 1, key, 1, windowSeconds]));
   }
   assertDurableBackend("incr");
   const current = Number(memGet(key) ?? 0) + 1;
@@ -230,9 +237,7 @@ export async function kvIncr(key: string, windowSeconds: number): Promise<number
 export async function kvIncrBy(key: string, by: number, windowSeconds: number): Promise<number> {
   const amount = Math.round(by);
   if (kvBackend === "redis") {
-    const total = (await redis(["INCRBY", key, amount])) as number;
-    if (total === amount) await redis(["EXPIRE", key, windowSeconds]);
-    return total;
+    return Number(await redis(["EVAL", INCR_WITH_TTL, 1, key, amount, windowSeconds]));
   }
   assertDurableBackend("incrBy");
   const current = Number(memGet(key) ?? 0) + amount;
