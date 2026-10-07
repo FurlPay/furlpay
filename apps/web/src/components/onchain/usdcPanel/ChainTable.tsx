@@ -2,6 +2,7 @@
 
 import type { UsdcNetwork } from "@/lib/onchain/usdcNetwork";
 import { BrandLogo, chainName } from "../BrandLogo";
+import { Address, explorerUrl } from "../Address";
 import { ago, Def, dur, Flash, int, StateBadge, usdc } from "./parts";
 
 // One row per chain: live node read + stored-index health side by side, so
@@ -13,7 +14,7 @@ export function ChainTable({ data, winLabel }: { data: UsdcNetwork; winLabel: st
   const now = Date.now();
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[1080px] text-[11.5px] tabular-nums">
+      <table className="w-full min-w-[1180px] text-[11.5px] tabular-nums">
         <caption className="sr-only">USDC per chain: state, node head, indexed block, lag, supply and live-window activity</caption>
         <thead>
           <tr className="border-b border-white/[0.07] text-left text-[10.5px] uppercase tracking-wide text-white/45">
@@ -47,12 +48,18 @@ export function ChainTable({ data, winLabel }: { data: UsdcNetwork; winLabel: st
             const solNa = na(c.windowReason ?? "Not available for this chain.");
             return (
               <tr key={c.chain} className="border-b border-white/[0.05] align-top">
-                <th scope="row" className="py-2 pr-2 text-left font-normal">
+                <th scope="row" className="max-w-[230px] py-2 pr-2 text-left align-top font-normal">
                   <span className="flex items-center gap-2">
                     <BrandLogo kind="chain" id={c.chain} size={16} />
                     <span className="font-semibold text-white">{chainName(c.chain)}</span>
                   </span>
                   <span className="mt-0.5 block text-[10px] text-white/40">{sol ? "Supply + tracked wallets" : "Network-wide"}</span>
+                  {c.token && (
+                    <span className="mt-1 block">
+                      <span className="block text-[9.5px] uppercase tracking-wide text-white/35">{sol ? "USDC mint" : "USDC contract"}</span>
+                      <Address value={c.token} href={explorerUrl(c.explorer, sol ? "address" : "address", c.token)} label={`${chainName(c.chain)} USDC ${sol ? "mint" : "contract"}`} />
+                    </span>
+                  )}
                 </th>
                 <td className="py-2 pr-2">
                   {h ? <StateBadge state={h.state} reasons={h.reasons} /> : <span className="text-white/35">—</span>}

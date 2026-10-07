@@ -22,6 +22,8 @@ export interface CctpTransferView {
   fee: string | null;
   maxFee: string | null;
   recipient: string | null;
+  /** Explorer link for the recipient on the destination chain, when FurlPay knows that chain. */
+  recipientUrl: string | null;
   depositor: string | null;
   nonce: string | null;
   minFinalityThreshold: number | null;
@@ -78,6 +80,11 @@ export function toView(r: Row): CctpTransferView {
     fee: fmt(s(r.mint_fee_raw) ?? s(r.executed_fee_raw)),
     maxFee: fmt(s(r.max_fee_raw)),
     recipient: s(r.mint_recipient),
+    recipientUrl: (() => {
+      const e = dst ? getChain(dst)?.explorer : null;
+      const a = s(r.mint_recipient);
+      return e && a && /^0x[0-9a-f]{40}$/.test(a) ? `${e.replace(/\/+$/, "").split("?")[0]}/address/${a}` : null;
+    })(),
     depositor: s(r.depositor),
     nonce: s(r.nonce),
     minFinalityThreshold: n(r.min_finality_threshold),

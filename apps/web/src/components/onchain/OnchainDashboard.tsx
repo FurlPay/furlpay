@@ -12,6 +12,7 @@ import { useOnchain, type OnchainRange } from "./useOnchain";
 import { ChainEventRow, LiveBadge, TxDrawer, useOnchainLive, type ConnState } from "./live";
 import { UsdcNetworkPanel } from "./usdc";
 import { CctpPanel } from "./cctp";
+import { ChainLookup, isChainQuery } from "./lookup";
 import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 
 // ---------------------------------------------------------------------------
@@ -173,7 +174,7 @@ function SearchPanel({ s, onClose, onOpen }: { s: SearchState; onClose: () => vo
     <section className="mt-3 rounded-[10px] border border-white/[0.09] bg-[#0A0F10] px-4 py-3" aria-label="Search results">
       <div className="mb-1 flex items-center gap-2 text-[13px]">
         <span className="font-semibold">Search</span>
-        <span className="truncate font-mono text-white/60">{s.q}</span>
+        <span className="min-w-0 break-all font-mono text-white/60">{s.q}</span>
         <button onClick={onClose} aria-label="Close search" className="ml-auto rounded p-1 text-white/50 hover:text-white">
           <X className="h-4 w-4" />
         </button>
@@ -191,6 +192,12 @@ function SearchPanel({ s, onClose, onOpen }: { s: SearchState; onClose: () => vo
           </ul>
           {s.message && <p className="mt-1 text-[11px] text-white/40">{s.message}</p>}
         </>
+      )}
+      {isChainQuery(s.q) && (
+        <div className="mt-2 border-t border-white/[0.07] pt-2">
+          <p className="text-[12px] font-semibold text-white/80">On-chain</p>
+          <ChainLookup q={s.q} />
+        </div>
       )}
     </section>
   );

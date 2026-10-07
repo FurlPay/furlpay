@@ -1,12 +1,13 @@
 "use client";
 
-import { ArrowRight, ArrowUpRight, Check, Circle } from "lucide-react";
+import { ArrowRight, Check, Circle } from "lucide-react";
 import type { CctpTransferView, CctpView } from "@/lib/onchain/cctpView";
 import { BrandLogo, chainName } from "./BrandLogo";
 import { domainName } from "@/lib/onchain/cctpDomains";
 import { Card, Unavailable } from "./ui";
 import { usePolled, useTick } from "./usdcPanel/hooks";
-import { ago, int, short, usdc } from "./usdcPanel/parts";
+import { ago, int, usdc } from "./usdcPanel/parts";
+import { Address } from "./Address";
 
 // ---------------------------------------------------------------------------
 // Cross-chain USDC via Circle CCTP V2, from FurlPay's index (finalized blocks;
@@ -165,7 +166,7 @@ export function CctpPanelView({ data, error, lastOk }: { data: CctpView | null; 
             <p className="text-[11px] text-white/45">No CCTP transfers indexed yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[820px] text-[11.5px] tabular-nums">
+              <table className="w-full min-w-[1320px] text-[11.5px] tabular-nums">
                 <caption className="sr-only">Latest Circle CCTP V2 USDC transfers indexed by FurlPay, with verification checks</caption>
                 <thead>
                   <tr className="text-left text-[10.5px] uppercase tracking-wide text-white/45">
@@ -173,6 +174,7 @@ export function CctpPanelView({ data, error, lastOk }: { data: CctpView | null; 
                     <th scope="col" className="py-1 text-right font-medium">Amount (USDC)</th>
                     <th scope="col" className="py-1 font-medium">Status</th>
                     <th scope="col" className="py-1 font-medium">Checks</th>
+                    <th scope="col" className="py-1 font-medium">Recipient</th>
                     <th scope="col" className="py-1 font-medium">Burn tx</th>
                     <th scope="col" className="py-1 font-medium">Mint tx</th>
                     <th scope="col" className="py-1 text-right font-medium">Burned</th>
@@ -201,22 +203,13 @@ export function CctpPanelView({ data, error, lastOk }: { data: CctpView | null; 
                         <td className="py-1.5">
                           <Checks t={t} />
                         </td>
-                        <td className="py-1.5 font-mono">
-                          {t.sourceTxUrl ? (
-                            <a href={t.sourceTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[#7DD3FC] hover:underline" title={t.sourceTx ?? undefined}>
-                              {short(t.sourceTx!)}
-                              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-                            </a>
-                          ) : (
-                            <span className="text-white/35">{t.sourceTx ? short(t.sourceTx) : "not indexed"}</span>
-                          )}
+                        <td className="max-w-[230px] py-1.5 pr-2">{t.recipient ? <Address value={t.recipient} href={t.recipientUrl} label="mint recipient" /> : <span className="text-white/35">—</span>}</td>
+                        <td className="max-w-[250px] py-1.5 pr-2">
+                          {t.sourceTx ? <Address value={t.sourceTx} href={t.sourceTxUrl} label="burn transaction" /> : <span className="text-white/35">source leg not indexed</span>}
                         </td>
-                        <td className="py-1.5 font-mono">
-                          {t.destinationTxUrl ? (
-                            <a href={t.destinationTxUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-[#7DD3FC] hover:underline" title={t.destinationTx ?? undefined}>
-                              {short(t.destinationTx!)}
-                              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-                            </a>
+                        <td className="max-w-[250px] py-1.5 pr-2">
+                          {t.destinationTx ? (
+                            <Address value={t.destinationTx} href={t.destinationTxUrl} label="mint transaction" />
                           ) : (
                             <span className="text-white/35" title={t.statusReason ?? undefined}>
                               {t.destinationMethod === "used_nonce" ? "proven, tx not indexed" : "—"}

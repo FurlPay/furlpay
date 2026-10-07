@@ -5,14 +5,13 @@ import { useState } from "react";
 // ---------------------------------------------------------------------------
 // The one place /onchain turns a chain or token name into its official mark.
 //
-// Assets are the repo's existing official marks: public/logos/chains/* and
-// public/logos/coins/* (TradingView's crypto logo set, already used across
-// the app), plus Base's square from base-org/brand-kit. Nothing is redrawn.
-//
-// The file is resolved by NAME and the browser reports whether it exists: a
-// token or chain without an asset falls back to a neutral monogram badge on
-// the image's error event, rather than this file guessing a table of which
-// assets exist.
+// OFFICIAL MARKS ONLY. The only images are in public/logos/official-onchain/,
+// each byte-identical to the project's own publication (see SOURCES.md there,
+// verified 2026-10-07). A chain or token without a verified official asset gets
+// NO image — not a third-party icon set (the repo's public/logos/chains and
+// coins come from TradingView), not a letter badge. Its name is always printed
+// next to where the mark would be. In a chart legend the colour key survives
+// as a plain swatch, which is a legend key, not a brand mark.
 // ---------------------------------------------------------------------------
 
 /** Ledger chain ids → asset file, where the id is not already the file name. */
@@ -44,19 +43,25 @@ const CHAIN_NAME: Record<string, string> = {
   unichain: "Unichain",
 };
 
-/** Wrapped / bridged tickers share the underlying asset's mark. */
-const TOKEN_ALIAS: Record<string, string> = { WETH: "eth", WBTC: "btc", CBBTC: "btc", WSOL: "sol", "USDC.E": "usdc", USDT0: "usdt", POL: "pol", MATIC: "pol" };
+/** Verified official chain marks (public/logos/official-onchain/SOURCES.md). */
+const OFFICIAL_CHAIN: Record<string, string> = {
+  ethereum: "ethereum.svg",
+  base: "base.svg",
+  arbitrum: "arbitrum.png",
+  "arbitrum-one": "arbitrum.png",
+  polygon: "polygon.svg",
+  solana: "solana.svg",
+};
 
-function src(kind: "chain" | "token", id: string): { url: string; name: string } {
+function src(kind: "chain" | "token", id: string): { url: string | null; name: string } {
   if (kind === "chain") {
     const key = id.toLowerCase();
-    const hit = CHAIN_FILE[key];
-    if (hit) return { url: `/logos/${hit.dir}/${hit.file}.svg`, name: hit.name };
-    return { url: `/logos/chains/${key.replace(/[^a-z0-9-]/g, "")}.svg`, name: CHAIN_NAME[key] ?? key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ") };
+    const file = OFFICIAL_CHAIN[key];
+    const name = CHAIN_FILE[key]?.name ?? CHAIN_NAME[key] ?? key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ");
+    return { url: file ? `/logos/official-onchain/${file}` : null, name };
   }
   const t = id.toUpperCase();
-  const file = TOKEN_ALIAS[t] ?? t.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return { url: `/logos/coins/${file}.svg`, name: t };
+  return { url: null, name: t }; // no verified official token marks yet
 }
 
 /**
@@ -65,25 +70,17 @@ function src(kind: "chain" | "token", id: string): { url: string; name: string }
  */
 export function BrandLogo({ kind, id, size = 18, ring, className = "" }: { kind: "chain" | "token"; id: string | null | undefined; size?: number; ring?: string; className?: string }) {
   const [failed, setFailed] = useState(false);
-  const shape = kind === "chain" && id?.toLowerCase() === "base" ? "rounded-[22%]" : "rounded-full";
   const style = { width: size, height: size, ...(ring ? { boxShadow: `0 0 0 1.5px #0A0F10, 0 0 0 3px ${ring}` } : {}) };
-  if (!id || failed) {
-    const label = (id ?? "?").replace(/[^A-Za-z0-9]/g, "").slice(0, kind === "token" ? 3 : 2) || "?";
-    return (
-      <span
-        className={`inline-flex shrink-0 items-center justify-center rounded-full bg-white/[0.08] font-semibold uppercase leading-none text-white/75 ${className}`}
-        style={{ ...style, fontSize: Math.max(7, size * 0.36) }}
-        role="img"
-        aria-label={id ?? "unknown"}
-      >
-        {label}
-      </span>
-    );
+  const official = id ? src(kind, id) : null;
+  if (!official?.url || failed) {
+    // No verified official mark: no image. A legend keeps its colour key as a plain swatch.
+    return ring ? <span aria-hidden="true" className={`inline-block shrink-0 rounded-full ${className}`} style={{ width: Math.max(8, size * 0.55), height: Math.max(8, size * 0.55), background: ring }} /> : null;
   }
-  const { url, name } = src(kind, id);
+  const shape = kind === "chain" && id?.toLowerCase() === "base" ? "rounded-[22%]" : "";
   return (
+    // Decorative: the chain name is always printed beside the mark.
     // eslint-disable-next-line @next/next/no-img-element
-    <img src={url} alt={name} title={name} width={size} height={size} loading="lazy" onError={() => setFailed(true)} className={`inline-block shrink-0 ${shape} ${className}`} style={style} />
+    <img src={official.url} alt="" aria-hidden="true" title={official.name} width={size} height={size} loading="lazy" onError={() => setFailed(true)} className={`inline-block shrink-0 object-contain ${shape} ${className}`} style={style} />
   );
 }
 

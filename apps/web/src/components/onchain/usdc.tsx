@@ -1,15 +1,16 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowUpRight, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
+import { RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { UsdcChain, UsdcWindow } from "@/lib/onchain/usdcNetwork";
 import type { HistoryRange } from "@/lib/onchain/usdcHistory";
 import { BrandLogo, chainName } from "./BrandLogo";
+import { Address, explorerUrl } from "./Address";
 import { Card, Unavailable } from "./ui";
 import { useTick, useUsdcHistory, useUsdcLive } from "./usdcPanel/hooks";
 import { ChainTable } from "./usdcPanel/ChainTable";
 import { HistoryChart, Rankings } from "./usdcPanel/History";
-import { ago, Def, DEFINITIONS, Flash, int, Segmented, short, usdc } from "./usdcPanel/parts";
+import { ago, Def, DEFINITIONS, Flash, int, Segmented, usdc } from "./usdcPanel/parts";
 
 // ---------------------------------------------------------------------------
 // USDC Network — the first-class asset on /onchain. Two sources, labelled as
@@ -212,7 +213,7 @@ export function UsdcNetworkPanel() {
             <p className="text-[11.5px] text-white/45">No USDC transfers were read in this window.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[560px] text-[11.5px] tabular-nums">
+              <table className="w-full min-w-[980px] text-[11.5px] tabular-nums">
                 <caption className="sr-only">Largest native USDC transfers in the {winLabel}, read from chain nodes</caption>
                 <thead>
                   <tr className="text-left text-white/45">
@@ -236,22 +237,15 @@ export function UsdcNetworkPanel() {
                           </span>
                         </td>
                         <td className="py-1.5 text-white/70">#{int(t.block)}</td>
-                        <td className="py-1.5 font-mono text-white/80" title={t.from}>
-                          {short(t.from)}
+                        <td className="max-w-[210px] py-1.5 pr-2 align-top">
+                          <Address value={t.from} href={explorerUrl(t.c.explorer, "address", t.from)} label="sender address" />
                         </td>
-                        <td className="py-1.5 font-mono text-white/80" title={t.to}>
-                          {short(t.to)}
+                        <td className="max-w-[210px] py-1.5 pr-2 align-top">
+                          <Address value={t.to} href={explorerUrl(t.c.explorer, "address", t.to)} label="recipient address" />
                         </td>
-                        <td className="py-1.5 text-right font-semibold">{usdc(t.amount, { compact: false })}</td>
-                        <td className="py-1.5 text-right">
-                          {href ? (
-                            <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 font-mono text-[#7DD3FC] hover:underline" title={t.txHash}>
-                              {short(t.txHash)}
-                              <ArrowUpRight className="h-3 w-3" aria-hidden="true" />
-                            </a>
-                          ) : (
-                            <span className="font-mono">{short(t.txHash)}</span>
-                          )}
+                        <td className="py-1.5 pr-2 text-right align-top font-semibold">{usdc(t.amount, { compact: false })}</td>
+                        <td className="max-w-[260px] py-1.5 align-top">
+                          <Address value={t.txHash} href={href} label="transaction hash" />
                         </td>
                       </tr>
                     );
@@ -265,7 +259,7 @@ export function UsdcNetworkPanel() {
           <div className="mt-3 space-y-1 text-[10.5px] text-white/40">
             {data.excluded.map((e) => (
               <p key={e.symbol}>
-                <span className="font-semibold text-white/60">Excluded: {e.symbol}</span> ({Object.entries(e.contracts).map(([c, a]) => `${chainName(c)} ${short(a)}`).join(", ")}). {e.reason}
+                <span className="font-semibold text-white/60">Excluded: {e.symbol}</span> ({Object.entries(e.contracts).map(([c, a]) => `${chainName(c)} ${a}`).join(", ")}). {e.reason}
               </p>
             ))}
             <details className="group">
