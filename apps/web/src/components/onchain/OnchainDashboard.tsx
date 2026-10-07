@@ -198,7 +198,7 @@ function TitleRow({ data, snap, conn }: { data: Data | null; snap: LiveSnapshot 
       <div className="min-w-0">
         <h1 className="text-[27px] font-bold leading-tight tracking-[-0.02em]">Onchain Intelligence</h1>
         <p className="mt-0.5 text-[14.5px] text-white/80">
-          {data?.alliumConfigured ? "Real-time blockchain data, analytics and insights powered by Allium." : "Real-time payment analytics from the FurlPay ledger and live stablecoin market data."}
+          {data?.alliumConfigured ? "Blockchain data, analytics and insights from Allium, the FurlPay ledger and FurlPay's chain nodes; each card shows its source and freshness." : "Payment analytics from the FurlPay ledger, USDC read from FurlPay's chain nodes, and stablecoin market data; each card shows its source and freshness."}
         </p>
       </div>
       <div className="flex items-center gap-5 lg:ml-auto">

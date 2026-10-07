@@ -115,12 +115,16 @@ export function UsdcNetworkPanel() {
             <Metric k="minted" label="Minted" value={act ? usdc(T!.mintVolume) : "Unavailable"} exact={act ? T!.mintVolume : null} sub={act ? winLabel : noAct} />
             <Metric k="burned" label="Burned" value={act ? usdc(T!.burnVolume) : "Unavailable"} exact={act ? T!.burnVolume : null} sub={act ? winLabel : noAct} />
             <Metric k="senders" label="Unique senders" value={act ? int(T!.uniqueSenders) : "Unavailable"} sub={act ? `${int(T!.uniqueRecipients)} receivers · per chain` : noAct} />
-            <Metric k="eps" label="Events / sec" value={act && T!.eventsPerSecond !== null ? T!.eventsPerSecond.toFixed(1) : "Unavailable"} sub={`${T!.windowChains.length} chains · ${liveCount}/${data.chains.length} live`} />
+            <Metric k="eps" label="Events / sec" value={act && T!.eventsPerSecond !== null ? T!.eventsPerSecond.toFixed(1) : "Unavailable"} sub={`${T!.windowChains.length} ${T!.windowChains.length === 1 ? "chain" : "chains"} · ${liveCount}/${data.chains.length} live`} />
           </div>
           {T!.windowChains.length < T!.supplyChains.length && (
             <p className="mt-2 text-[11px] text-white/45">
               Live activity covers {T!.windowChains.map(chainName).join(", ") || "no chain"}.{" "}
-              {data.chains.find((c) => c.chain !== "solana" && c.status === "ok" && !c.window)?.windowReason ?? ""} Solana: supply, slots and tracked wallets are indexed from the node; network-wide Solana transfer enumeration requires a Geyser streaming source and is not counted.
+              {(() => {
+                const off = data.chains.filter((c) => c.chain !== "solana" && c.status === "ok" && !c.window);
+                return off.length ? `${off.map((c) => chainName(c.chain)).join(", ")}: live window off; scanning their logs on every page view would exhaust the RPC plan (Alchemy Free: 10-block eth_getLogs, 30M CU/month), so their activity comes from the indexer.` : "";
+              })()}{" "}
+              Solana: supply, slots and tracked wallets are indexed from the node; network-wide Solana transfer enumeration requires a Geyser streaming source and is not counted.
             </p>
           )}
 
