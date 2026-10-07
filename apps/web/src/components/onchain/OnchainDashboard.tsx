@@ -12,6 +12,7 @@ import { useOnchain, type OnchainRange } from "./useOnchain";
 import { ChainEventRow, LiveBadge, TxDrawer, useOnchainLive, type ConnState } from "./live";
 import { UsdcNetworkPanel } from "./usdc";
 import { CctpPanel } from "./cctp";
+import { UsdcIndexPanel } from "./usdcIndex";
 import { ChainLookup, isChainQuery } from "./lookup";
 import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 
@@ -111,6 +112,9 @@ export default function OnchainDashboard({ operatorSection = null }: { operatorS
             {search && <SearchPanel s={search} onClose={() => setSearch(null)} onOpen={setOpenEv} />}
             {/* Network-wide USDC straight from the chain nodes; loads independently of the ledger cards below. */}
             <div className="mt-[18px]">
+              <UsdcIndexPanel />
+            </div>
+            <div className="mt-[14px]">
               <UsdcNetworkPanel />
             </div>
             <div className="mt-[14px]">

@@ -1,13 +1,13 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 391,
+  "_total": 395,
   "_counts": {
     "ADMIN_ONLY": 33,
     "API_KEY_AUTHENTICATED": 10,
     "AUTHENTICATED_USER": 159,
     "DEVELOPMENT_ONLY": 2,
-    "INTERNAL_ONLY": 11,
-    "PUBLIC_INTENTIONAL": 162,
+    "INTERNAL_ONLY": 12,
+    "PUBLIC_INTENTIONAL": 165,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -109,6 +109,7 @@
     "cron/health": "INTERNAL_ONLY",
     "cron/market-brief": "INTERNAL_ONLY",
     "cron/onchain-node": "INTERNAL_ONLY",
+    "cron/usdc-index": "INTERNAL_ONLY",
     "cron/onchain-reconcile": "INTERNAL_ONLY",
     "cron/price-alerts": "INTERNAL_ONLY",
     "cron/price-cards": "INTERNAL_ONLY",
@@ -204,6 +205,9 @@
     "onchain/cctp": "PUBLIC_INTENTIONAL",
     "onchain/usdc": "PUBLIC_INTENTIONAL",
     "onchain/usdc/history": "PUBLIC_INTENTIONAL",
+    "onchain/token/usdc/address/[address]": "PUBLIC_INTENTIONAL",
+    "onchain/token/usdc/metrics": "PUBLIC_INTENTIONAL",
+    "onchain/token/usdc/transfers": "PUBLIC_INTENTIONAL",
     "onramp/quote": "PUBLIC_INTENTIONAL",
     "onramp/session": "AUTHENTICATED_USER",
     "onramp/session/[id]": "PUBLIC_INTENTIONAL",

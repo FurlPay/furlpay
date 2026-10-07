@@ -634,6 +634,11 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("BASE_RPC_URL_SECONDARY"),
       v("ARBITRUM_RPC_URL_SECONDARY"),
       v("POLYGON_RPC_URL_SECONDARY"),
+      // Ethereum USDC index (migration 0036): keyless archive RPC pool (comma
+      // separated; defaults to the census-verified list; Alchemy is refused)
+      // and the raw-event retention window in days (default 30).
+      v("USDC_INDEX_RPC_URLS"),
+      v("USDC_INDEX_RETENTION_DAYS"),
     ],
   },
   {
