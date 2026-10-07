@@ -27,7 +27,7 @@ function freePort(): Promise<number> {
 export async function startPg(_preferred?: number) {
   const port = await freePort();
   const dir = mkdtempSync(join(tmpdir(), "usdc-index-pg-"));
-  const server = new EmbeddedPostgres({ databaseDir: dir, user: "postgres", password: "postgres", port, persistent: false, initdbFlags: ["--encoding=UTF8", "--locale=C"], onLog: () => {}, onError: () => {} });
+  const server = new EmbeddedPostgres({ databaseDir: dir, user: "postgres", password: "postgres", port, persistent: true, initdbFlags: ["--encoding=UTF8", "--locale=C"], onLog: () => {}, onError: () => {} });
   await server.initialise();
   await server.start();
   const pool = new pg.Pool({ host: "localhost", port, user: "postgres", password: "postgres", database: "postgres", max: 8 });
@@ -48,6 +48,7 @@ export async function startPg(_preferred?: number) {
         rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 300 });
       } catch {
         // Windows can hold the data directory briefly after shutdown; it is a temp dir.
+        // (persistent: true above, so embedded-postgres never throws EBUSY itself.)
       }
     },
   };

@@ -6,6 +6,7 @@ import { unregisterFromPush } from "./push";
 import { clearAllCaches } from "./db";
 import { queryClient } from "./queries";
 import { shutdownWalletConnect } from "./walletconnect/runtime";
+import { clearAnalyticsQueue, flushAndClearAnalytics } from "./analytics/activeSink";
 
 /** Wipe everything scoped to a session — the SQLite caches AND the in-memory
  *  react-query cache. Runs on BOTH edges of a session (sign-out and sign-in),
@@ -27,6 +28,10 @@ function clearSessionState(): void {
   // `shutdownWalletConnect` swallows its own errors and clears the singleton
   // either way; the sessions expire on their own deadline in the worst case.
   void shutdownWalletConnect();
+
+  // Queued analytics belong to the account that recorded them (P2-1, audit
+  // 7 Oct 2026); signOut() uploads them first, while its token is still valid.
+  clearAnalyticsQueue();
 
   try {
     clearAllCaches();
@@ -186,6 +191,7 @@ export const useAuth = create<AuthState>((set, get) => ({
     // Best-effort server-side revocation; local sign-out must not depend on it.
     // Deregister push FIRST — it needs the session token that's about to go.
     await unregisterFromPush();
+    await flushAndClearAnalytics();
     await api("/auth/logout", { method: "POST" }).catch(() => {});
     await setToken(null);
     clearSessionState();
