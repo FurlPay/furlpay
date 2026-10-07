@@ -11,6 +11,7 @@ import { chainLabel } from "./ui";
 import { useOnchain, type OnchainRange } from "./useOnchain";
 import { ChainEventRow, LiveBadge, TxDrawer, useOnchainLive, type ConnState } from "./live";
 import { UsdcNetworkPanel } from "./usdc";
+import { CctpPanel } from "./cctp";
 import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 
 // ---------------------------------------------------------------------------
@@ -110,6 +111,9 @@ export default function OnchainDashboard({ operatorSection = null }: { operatorS
             {/* Network-wide USDC straight from the chain nodes; loads independently of the ledger cards below. */}
             <div className="mt-[18px]">
               <UsdcNetworkPanel />
+            </div>
+            <div className="mt-[14px]">
+              <CctpPanel />
             </div>
             {error && (
               <p role="alert" className="mt-3 rounded-lg border border-[#FF4D6D]/30 bg-[#FF4D6D]/[0.06] px-3 py-2 text-[13px] text-[#FFB3C1]">

@@ -9,7 +9,7 @@ import type { HistoryRange, UsdcHistory } from "@/lib/onchain/usdcHistory";
 // wins over an older one (sequence numbers), and polling pauses while the tab
 // is hidden.
 
-function usePolled<T>(url: string, everyMs: number) {
+export function usePolled<T>(url: string, everyMs: number) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [lastOk, setLastOk] = useState<number | null>(null);

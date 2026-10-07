@@ -58,6 +58,47 @@ Chain states on the panel: `LIVE`, `INDEXING` (behind finalized > 10 min),
 `DEGRADED` (stale head, failing indexer, not indexed, open issue, no store),
 `UNAVAILABLE` (node read failed — reason shown), `NOT CONFIGURED` (no RPC URL).
 
+## Circle CCTP V2 (cross-chain USDC)
+
+`lib/onchain/cctp.ts`, migration `0035_cctp_v2.sql`, panel "Cross-chain USDC ·
+Circle CCTP V2", API `GET /api/onchain/cctp`. Runs in the same worker pass for
+every EVM chain in `ONCHAIN_NODE_CHAINS`.
+
+One CCTP transfer = one `cctp_transfers` row, identified by the CCTP message
+(`version, source_domain, nonce`), built from:
+
+1. **Source burn**: `DepositForBurn` from TokenMessengerV2 in a **finalized**
+   block (raw event kept append-only in `cctp_events`).
+2. **Attestation**: Circle Iris (`/v2/messages/{sourceDomain}?transactionHash=`),
+   matched field-for-field (amount, recipient as raw bytes, destination, max
+   fee, finality threshold), retried with exponential backoff and never
+   blocking ingestion. V2 emits no nonce on the source chain; Iris supplies it.
+3. **Destination**: proven on the destination chain itself, either an indexed
+   `MintAndWithdraw` + `MessageReceived` (exact tx, minted amount, fee) or
+   `usedNonces(nonce) = 1` read at the destination chain's **finalized** block.
+   An Iris "complete" alone never marks a transfer completed.
+4. **Reconciliation**: minted + fee must equal the burned amount; recipient and
+   domains must agree. Otherwise `mismatch` plus an integrity issue.
+
+States move forward only: burned, attestation pending, attested (destination
+unverified), completed (verified); `mismatch` is flagged, not hidden. Every
+transition is recorded in append-only `cctp_transfer_evidence`. A mint seen
+before its burn is attested is recorded inbound-only and merged later, never
+deleted.
+
+Facts behind the design (mainnet, 2026-10-07): the event layouts and the
+`usedNonces` selector; `MintAndWithdraw` immediately precedes its
+`MessageReceived`; a generic `MessageReceived` (no paired mint, or body version
+other than 1) is rejected; Iris returns Solana recipients base58 and some
+non-EVM recipients as null; and a public provider served a different burn
+amount at the chain tip than the sealed block, which is why only finalized
+blocks are indexed.
+
+Coverage: outbound transfers from, and inbound transfers into, every indexed
+chain. Destinations FurlPay cannot read (unmapped domains, Solana, chains with
+no RPC) stay "attested · destination unverified" with the reason. Domain names
+in the UI come from Circle's official list and are labels only.
+
 ## Production requirements
 
 ### Environment (Vercel project `web`)
@@ -114,8 +155,8 @@ there (no implicit backfill).
 
 ## Migration
 
-Migrations `0032_onchain_ingestion.sql` and `0034_onchain_asset_index.sql`
-(0034 depends on 0032). Both are idempotent (`if not exists`,
+Migrations `0032_onchain_ingestion.sql`, `0034_onchain_asset_index.sql` and
+`0035_cctp_v2.sql` (each depends on the previous). All are idempotent (`if not exists`,
 `create or replace`), contain no `concurrently` statements, and are safe to
 re-run. **Do not apply to production without the verification below.**
 
@@ -124,6 +165,7 @@ re-run. **Do not apply to production without the verification below.**
    ```sh
    DATABASE_URL=postgres://…/onchain_test node scripts/db/verify-onchain-ingest.mjs
    DATABASE_URL=postgres://…/onchain_test node scripts/db/verify-onchain-asset-index.mjs
+   DATABASE_URL=postgres://…/onchain_test node scripts/db/verify-cctp.mjs
    # a database that already applied an earlier 0032 (fresh _test DB per run):
    DATABASE_URL=postgres://…/onchain_up_test node scripts/db/verify-onchain-upgrade.mjs 2e5f3657
    DATABASE_URL=postgres://…/onchain_up_test node scripts/db/verify-onchain-upgrade.mjs 461ff1bb
@@ -146,6 +188,7 @@ re-run. **Do not apply to production without the verification below.**
    ```sh
    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/0032_onchain_ingestion.sql
    psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/0034_onchain_asset_index.sql
+   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -1 -f supabase/migrations/0035_cctp_v2.sql
    ```
 
    Note: `0031` exists on another branch (security audit). `db push` applies

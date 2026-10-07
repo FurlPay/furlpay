@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCron } from "@/lib/cron/auth";
 import { nodeChains, scanNodes } from "@/lib/onchain/nodeIndexer";
 import { scanAssets } from "@/lib/onchain/assetIndexer";
+import { runCctp } from "@/lib/onchain/cctp";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -33,8 +34,10 @@ export async function GET(req: NextRequest) {
   const started = Date.now();
   // Wallet scan first (small, user-facing), then the asset index with what is left.
   const reports = await scanNodes({ deadline: () => Date.now() - started > 20_000, only });
-  const assets = await scanAssets({ deadline: () => Date.now() - started > 45_000, only });
-  const all = [...reports.map((r) => r.status), ...assets.map((a) => a.status)];
+  const assets = await scanAssets({ deadline: () => Date.now() - started > 38_000, only });
+  // Circle CCTP V2: finalized burn/mint events, then attestation + destination workers.
+  const cctp = await runCctp({ deadline: () => Date.now() - started > 50_000, only });
+  const all = [...reports.map((r) => r.status), ...assets.map((a) => a.status), ...cctp.scans.map((s) => s.status)];
   const failed = all.filter((s) => s === "failed").length;
-  return NextResponse.json({ ok: failed === 0, reports, assets }, { status: failed === all.length && failed > 0 ? 502 : 200 });
+  return NextResponse.json({ ok: failed === 0, reports, assets, cctp }, { status: failed === all.length && failed > 0 ? 502 : 200 });
 }
