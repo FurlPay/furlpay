@@ -253,3 +253,46 @@ run `POST /api/ops/onchain/sync {"kind":"reconcile","lookbackHours":26}`.
 2. Rotate the Beam secret: update the org secret, set
    `ALLIUM_BEAM_WEBHOOK_SECRET`, redeploy the pipeline, then redeploy the app.
 3. Old signatures fail immediately.
+
+## Tokenized assets (RWA) snapshots
+
+**Licensing rule.** Allium exports are licensed data. Allium ToS §1.3(iii) and §1.11 forbid distributing Allium's datasets or Output beyond what the order authorizes.
+
+**Where the data lives.**
+- Table: `rwa_asset_snapshots` (migration 0033), one row per (snapshot_date, chain, product_name, token_symbol).
+- RLS is on, the table is service_role only, and the `rwa_assets_latest` view is `security_invoker`.
+- Aggregation runs in `rwa_summary(date)` and `rwa_search(...)`. Both take an optional snapshot date and default to the latest.
+
+**Where it is shown, admin only.**
+- `/analytics/rwa`, behind the /analytics layout gate.
+- The "Tokenized Assets" section of `/onchain`. The server renders it only when `isOperator()` is true, so for everyone else it is not in the page payload at all.
+- Data comes from `GET /api/ops/rwa` (ADMIN_ONLY, 60/min/admin). There is no public endpoint, no static file and no export.
+- The CSV must never be committed (it is in `.gitignore`), copied into `public/`, or bundled.
+
+**Loading a new export.**
+
+```
+node scripts/data/import-rwa-snapshot.mjs "<CSV_PATH>" --as-of YYYY-MM-DD           # dry run: validates, prints totals
+node scripts/data/import-rwa-snapshot.mjs "<CSV_PATH>" --as-of YYYY-MM-DD --apply   # writes (DATABASE_URL = session pooler, port 5432)
+```
+
+- **All or nothing:** every row is validated first. Any invalid row (bad chain, class, type, money, duplicate key, wrong header) aborts the run with nothing written. The write is one transaction.
+- **Exact money:** amounts stay decimal strings end to end. Exponent notation is expanded by moving the decimal point, never via a float. The column holds 8 decimals, and the importer checks the stored total equals the file total exactly.
+- **Idempotent:** re-importing the same file for the same date changes 0 rows.
+- **Different file, same date:** refused and rolled back, so a snapshot always equals one file.
+- **History is kept:** a new `--as-of` adds a snapshot and never touches earlier ones. The UI shows the latest by default, and a snapshot picker appears once there are two or more.
+
+**First production load (2026-10-06 export).** The expected dry-run output is 33,338 rows, 7,770 non-zero, 25,568 zero, total `32090414743.38735443`, 344 products, 101 issuers and 26 chains. Afterwards, check:
+
+```sql
+select count(*), count(*) filter (where market_cap_usd > 0), sum(market_cap_usd),
+       count(distinct product_name), count(distinct issuer_name), count(distinct chain)
+  from rwa_asset_snapshots where snapshot_date = '2026-10-06';
+-- expect 33338 | 7770 | 32090414743.38735443 | 344 | 101 | 26
+select token_symbol, count(*), sum(market_cap_usd) from rwa_asset_snapshots
+ where snapshot_date = '2026-10-06' and token_symbol in ('BUIDL','XAUT','USYC','USDY','PAXG') group by 1 order by 3 desc;
+-- expect XAUT 1 2810893623.83580100 | USYC 4 2405568767.59929841 | BUIDL 8 2245797970.17764900
+--        USDY 9 2201749543.42125579 | PAXG 2 1803198641.18916658
+```
+
+**Proof.** The import, aggregation, multi-snapshot and permission behaviour were verified on PostgreSQL 18 with the real export, using a local harness kept outside the repo.

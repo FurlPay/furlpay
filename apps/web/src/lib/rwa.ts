@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SupabaseFunctionMissing, sbRpc, supabaseBackend } from "@/lib/supabase";
+import { log } from "@/lib/log";
 
 // ---------------------------------------------------------------------------
 // Tokenized real-world-asset index (admin). Reads rwa_asset_snapshots through
@@ -56,6 +57,12 @@ const rowSchema = z.object({
 const searchSchema = z.object({ total: num, total_usd: num, rows: z.array(rowSchema) });
 export type RwaSearch = z.infer<typeof searchSchema>;
 
+/** A real calendar date (YYYY-MM-DD), or absent for the latest snapshot. */
+export const SnapshotDate = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/)
+  .refine((d) => !Number.isNaN(Date.parse(`${d}T00:00:00Z`)) && new Date(`${d}T00:00:00Z`).toISOString().slice(0, 10) === d, "invalid date");
+
 export const RwaQuery = z.object({
   q: z.string().trim().max(80).optional(),
   assetClass: z.string().regex(/^[a-z_]{2,40}$/).optional(),
@@ -65,29 +72,39 @@ export const RwaQuery = z.object({
   sort: z.enum(["market_cap", "name"]).default("market_cap"),
   limit: z.coerce.number().int().min(1).max(200).default(50),
   offset: z.coerce.number().int().min(0).max(100_000).default(0),
+  snapshot: SnapshotDate.optional(),
 });
 export type RwaQuery = z.infer<typeof RwaQuery>;
 
-export type RwaResult<T> = { ok: true; data: T } | { ok: false; reason: string };
+/** not_loaded: migration or snapshot absent (actionable). error: the store failed. */
+export type RwaResult<T> = { ok: true; data: T } | { ok: false; kind: "not_loaded" | "error"; reason: string };
 
-function why(e: unknown): string {
-  if (e instanceof SupabaseFunctionMissing) return "Migration 0033_rwa_asset_snapshots.sql is not applied.";
-  return e instanceof Error ? e.message.slice(0, 160) : "store failed";
+/**
+ * What the admin sees when the store fails. A missing migration is actionable
+ * and says so; anything else is logged server-side and reported generically,
+ * so hostnames, SQL and driver messages never reach the browser.
+ */
+function why(e: unknown): { ok: false; kind: "not_loaded" | "error"; reason: string } {
+  if (e instanceof SupabaseFunctionMissing) return { ok: false, kind: "not_loaded", reason: "Migration 0033_rwa_asset_snapshots.sql is not applied." };
+  log.error("rwa index query failed", { error: e instanceof Error ? e.message.slice(0, 200) : String(e) });
+  return { ok: false, kind: "error", reason: "The tokenized-assets store is temporarily unavailable." };
 }
 
-export async function rwaSummary(): Promise<RwaResult<RwaSummary>> {
-  if (supabaseBackend !== "supabase") return { ok: false, reason: "No durable store configured (SUPABASE_URL)." };
+export async function rwaSummary(snapshot?: string): Promise<RwaResult<RwaSummary>> {
+  if (supabaseBackend !== "supabase") return { ok: false, kind: "error", reason: "No durable store configured." };
   try {
-    const s = summarySchema.parse(await sbRpc<unknown>("rwa_summary", {}));
-    if (!s.snapshot_date) return { ok: false, reason: "No snapshot imported yet (scripts/data/import-rwa-snapshot.mjs)." };
+    const s = summarySchema.parse(await sbRpc<unknown>("rwa_summary", snapshot ? { p_snapshot: snapshot } : {}));
+    if (!s.snapshot_date) {
+      return { ok: false, kind: "not_loaded", reason: snapshot ? `No snapshot for ${snapshot}.` : "No snapshot imported yet (scripts/data/import-rwa-snapshot.mjs)." };
+    }
     return { ok: true, data: s };
   } catch (e) {
-    return { ok: false, reason: why(e) };
+    return why(e);
   }
 }
 
 export async function rwaSearch(q: RwaQuery): Promise<RwaResult<RwaSearch>> {
-  if (supabaseBackend !== "supabase") return { ok: false, reason: "No durable store configured (SUPABASE_URL)." };
+  if (supabaseBackend !== "supabase") return { ok: false, kind: "error", reason: "No durable store configured." };
   try {
     const r = await sbRpc<unknown>("rwa_search", {
       p_q: q.q || null,
@@ -98,9 +115,10 @@ export async function rwaSearch(q: RwaQuery): Promise<RwaResult<RwaSearch>> {
       p_sort: q.sort,
       p_limit: q.limit,
       p_offset: q.offset,
+      p_snapshot: q.snapshot ?? null,
     });
     return { ok: true, data: searchSchema.parse(r) };
   } catch (e) {
-    return { ok: false, reason: why(e) };
+    return why(e);
   }
 }

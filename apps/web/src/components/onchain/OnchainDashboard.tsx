@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 import type { OnchainDashboard as Data } from "@/lib/onchain/dashboard";
@@ -49,7 +49,7 @@ function useActiveSection(ready: boolean) {
   return active;
 }
 
-export default function OnchainDashboard() {
+export default function OnchainDashboard({ operatorSection = null }: { operatorSection?: ReactNode }) {
   const [range, setRange] = useState<OnchainRange>("30d");
   const [chain, setChain] = useState("all");
   const [query, setQuery] = useState("");
@@ -77,7 +77,7 @@ export default function OnchainDashboard() {
     <div className="min-h-screen bg-[#05080A] font-sans text-white antialiased">
       <div className="flex">
         <aside className="sticky top-0 hidden h-screen w-[188px] shrink-0 overflow-y-auto border-r border-white/[0.07] bg-[#06090B] xl:block">
-          <Sidebar active={active} alliumConfigured={allium} />
+          <Sidebar active={active} alliumConfigured={allium} operator={Boolean(operatorSection)} />
         </aside>
         {drawer && (
           <div className="fixed inset-0 z-50 xl:hidden" role="dialog" aria-modal="true" aria-label="Navigation">
@@ -86,7 +86,7 @@ export default function OnchainDashboard() {
               <button aria-label="Close navigation" onClick={() => setDrawer(false)} className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-white/60 hover:text-white">
                 <X className="h-5 w-5" />
               </button>
-              <Sidebar active={active} alliumConfigured={allium} onNavigate={() => setDrawer(false)} />
+              <Sidebar active={active} alliumConfigured={allium} operator={Boolean(operatorSection)} onNavigate={() => setDrawer(false)} />
             </div>
           </div>
         )}
@@ -138,6 +138,7 @@ export default function OnchainDashboard() {
                   <Flow data={data} chain={chain} setChain={setChain} />
                   <MarketInsights data={data} />
                 </div>
+                {operatorSection && <div className="mt-6 border-t border-white/[0.07] pt-6">{operatorSection}</div>}
                 <p className="pt-1 text-[11px] text-white/35">
                   Generated {new Date(data.generatedAt).toLocaleString("en-US", { timeZone: "UTC" })} UTC · {chainLabel(data.chain)} · {RANGE_LABEL[range]}. Settled transactions only; changes compare with the equally long period before.
                 </p>

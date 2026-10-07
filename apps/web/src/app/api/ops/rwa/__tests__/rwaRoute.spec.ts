@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
-const state = { admin: true, rpcArgs: [] as Record<string, unknown>[], missing: false };
+const state = { admin: true, rpcArgs: [] as Record<string, unknown>[], missing: false, fail: false, empty: false };
 
 vi.mock("@/lib/ops/respond", async (orig) => ({
   ...(await orig<typeof import("@/lib/ops/respond")>()),
@@ -17,6 +17,8 @@ vi.mock("@/lib/supabase", async (orig) => {
     supabaseBackend: "supabase",
     sbRpc: vi.fn(async (fn: string, args: Record<string, unknown>) => {
       if (state.missing) throw new real.SupabaseFunctionMissing(fn);
+      if (state.fail) throw new Error("connect ECONNREFUSED db.internal-host.supabase.co:5432 password=hunter2");
+      if (state.empty && fn === "rwa_summary") return { snapshot_date: null, snapshots: [], total_usd: 0, deployments: 0, live_deployments: 0, products: 0, issuers: 0, chains: 0, by_class: [], by_type: [], by_chain: [], by_issuer: [], top_products: [] };
       state.rpcArgs.push({ fn, ...args });
       if (fn === "rwa_search") return { total: 1, total_usd: "2810893623.835801", rows: [{ product_name: "Tether Gold", token_symbol: "XAUT", chain: "ethereum", issuer_name: "Tether", asset_class: "commodities", asset_type: "metals", market_cap_usd: "2810893623.835801" }] };
       return {
@@ -35,6 +37,8 @@ const req = (qs: string) => new NextRequest(`https://furlpay.com/api/ops/rwa?${q
 beforeEach(() => {
   state.admin = true;
   state.missing = false;
+  state.fail = false;
+  state.empty = false;
   state.rpcArgs = [];
 });
 
@@ -56,7 +60,7 @@ describe("GET /api/ops/rwa", () => {
     const res = await GET(req("view=search&q=gold&assetClass=commodities&chain=ethereum&minUsd=1000000&sort=name&limit=25&offset=50"));
     expect(res.status).toBe(200);
     expect(state.rpcArgs.at(-1)).toEqual({
-      fn: "rwa_search", p_q: "gold", p_asset_class: "commodities", p_chain: "ethereum", p_issuer: null, p_min_usd: 1000000, p_sort: "name", p_limit: 25, p_offset: 50,
+      fn: "rwa_search", p_q: "gold", p_asset_class: "commodities", p_chain: "ethereum", p_issuer: null, p_min_usd: 1000000, p_sort: "name", p_limit: 25, p_offset: 50, p_snapshot: null,
     });
     expect((await res.json()).data.rows[0].market_cap_usd).toBe(2810893623.835801);
   });
@@ -68,10 +72,39 @@ describe("GET /api/ops/rwa", () => {
     expect(state.rpcArgs).toHaveLength(0);
   });
 
-  it("says plainly when the migration is not applied", async () => {
+  it("says plainly when the migration is not applied (not_loaded, 404)", async () => {
     state.missing = true;
     const res = await GET(req("view=summary"));
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error.code).toBe("not_loaded");
+    expect(body.error.message).toMatch(/0033_rwa_asset_snapshots\.sql is not applied/);
+  });
+
+  it("reports an empty dataset as not_loaded", async () => {
+    state.empty = true;
+    const body = await (await GET(req("view=summary"))).json();
+    expect(body.error).toMatchObject({ code: "not_loaded" });
+    expect(body.error.message).toMatch(/No snapshot imported yet/);
+  });
+
+  it("never leaks infrastructure details from a store failure", async () => {
+    state.fail = true;
+    const res = await GET(req("view=search&q=x"));
     expect(res.status).toBe(503);
-    expect((await res.json()).error.message).toMatch(/0033_rwa_asset_snapshots\.sql is not applied/);
+    const text = JSON.stringify(await res.json());
+    expect(text).not.toMatch(/ECONNREFUSED|supabase\.co|hunter2|5432/);
+    expect(text).toContain("temporarily unavailable");
+  });
+
+  it("validates and forwards a snapshot date (historical snapshots stay queryable)", async () => {
+    expect((await GET(req("view=summary&snapshot=2026-02-30"))).status).toBe(400);
+    expect((await GET(req("view=search&snapshot=yesterday"))).status).toBe(400);
+    await GET(req("view=summary&snapshot=2026-10-06"));
+    expect(state.rpcArgs.at(-1)).toMatchObject({ fn: "rwa_summary", p_snapshot: "2026-10-06" });
+    await GET(req("view=search&snapshot=2026-10-06"));
+    expect(state.rpcArgs.at(-1)).toMatchObject({ fn: "rwa_search", p_snapshot: "2026-10-06" });
+    await GET(req("view=summary"));
+    expect(state.rpcArgs.at(-1)).not.toHaveProperty("p_snapshot");
   });
 });

@@ -13,6 +13,7 @@ import {
   CreditCard,
   FileText,
   Globe2,
+  Landmark,
   LayoutDashboard,
   Network,
   Plane,
@@ -83,7 +84,9 @@ function useMe() {
 
 const initialOf = (me: Me | null | undefined) => (me?.initials || me?.name?.[0] || me?.email?.[0] || "").toUpperCase();
 
-export function Sidebar({ active, onNavigate, alliumConfigured }: { active: string; onNavigate?: () => void; alliumConfigured: boolean }) {
+export function Sidebar({ active, onNavigate, alliumConfigured, operator = false }: { active: string; onNavigate?: () => void; alliumConfigured: boolean; operator?: boolean }) {
+  // The Tokenized Assets section exists on the page only for the operator.
+  const nav = operator ? [...NAV.slice(0, 12), { label: "Tokenized Assets", href: "#rwa", Icon: Landmark }, ...NAV.slice(12)] : NAV;
   const me = useMe();
   const row = "flex h-[35px] items-center gap-3 rounded-lg border px-3 text-[13px] transition-colors";
   return (
@@ -100,7 +103,7 @@ export function Sidebar({ active, onNavigate, alliumConfigured }: { active: stri
         <ChartNoAxesCombined className="h-4 w-4 text-[#00E599]" /> Analytics <ChevronDown className="ml-auto h-3.5 w-3.5 text-white/70" />
       </Link>
       <ul className="space-y-[1px]">
-        {NAV.map(({ label, href, Icon }) => {
+        {nav.map(({ label, href, Icon }) => {
           const on = label === active;
           return (
             <li key={label}>
