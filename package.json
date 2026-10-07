@@ -21,7 +21,12 @@
     "test": "npm run build --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/compliance && npm test --workspace @furlpay/security && npm test --workspace @furlpay/ledger && npm test --workspace @furlpay/gateway && npm test --workspace @furlpay/control-plane",
     "cli": "node packages/cli/bin/furlpay.js",
     "predeploy": "node apps/web/scripts/check-deploy-gate.mjs",
-    "deploy:prod": "npm run predeploy && npx vercel deploy --prod --yes"
+    "deploy:prod": "npm run predeploy && npx vercel deploy --prod --yes",
+    "usdc:probe": "node scripts/onchain/usdc-history-scan.mjs",
+    "usdc:probe:report": "node scripts/onchain/usdc-history-scan.mjs --report",
+    "usdc:probe:crosscheck": "node scripts/onchain/usdc-history-crosscheck.mjs",
+    "usdc:storage": "node scripts/onchain/usdc-storage-measure.mjs",
+    "usdc:bench": "node scripts/onchain/usdc-index-bench.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
