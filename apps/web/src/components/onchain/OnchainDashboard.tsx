@@ -10,6 +10,7 @@ import { Activity, Categories, ChainDonut, Counterparties, Flow, KpiRow, MarketI
 import { chainLabel } from "./ui";
 import { useOnchain, type OnchainRange } from "./useOnchain";
 import { ChainEventRow, LiveBadge, TxDrawer, useOnchainLive, type ConnState } from "./live";
+import { UsdcNetworkPanel } from "./usdc";
 import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 
 // ---------------------------------------------------------------------------
@@ -106,6 +107,10 @@ export default function OnchainDashboard({ operatorSection = null }: { operatorS
           <main id="overview" className="px-4 pb-8 pt-[18px] sm:px-[20px]">
             <TitleRow data={data} snap={live.snap} conn={live.conn} />
             {search && <SearchPanel s={search} onClose={() => setSearch(null)} onOpen={setOpenEv} />}
+            {/* Network-wide USDC straight from the chain nodes; loads independently of the ledger cards below. */}
+            <div className="mt-[18px]">
+              <UsdcNetworkPanel />
+            </div>
             {error && (
               <p role="alert" className="mt-3 rounded-lg border border-[#FF4D6D]/30 bg-[#FF4D6D]/[0.06] px-3 py-2 text-[13px] text-[#FFB3C1]">
                 {error}

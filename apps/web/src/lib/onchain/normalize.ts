@@ -31,7 +31,7 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 
 export type ConfirmationState = "observed" | "confirmed" | "finalized";
-export type Source = "allium_beam" | "allium_realtime_api" | "reconcile";
+export type Source = "allium_beam" | "allium_realtime_api" | "reconcile" | "node_rpc";
 
 /** A normalized transfer before scope (who it belongs to) is resolved. */
 export interface Transfer {
@@ -279,4 +279,245 @@ export function normalizeWalletItem(raw: unknown): Normalized {
     });
   }
   return { ok: true, transfers: out };
+}
+
+// ── 3. A node's own Transfer logs (eth_getLogs) ─────────────────────────────
+
+/** keccak256("Transfer(address,address,uint256)") — the ERC-20 Transfer topic. */
+export const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+const HEX = /^0x[0-9a-f]*$/;
+const WORD = /^0x[0-9a-f]{64}$/;
+
+export interface RpcLog {
+  address: string;
+  topics: string[];
+  data: string;
+  blockNumber: string | null;
+  blockHash: string | null;
+  transactionHash: string | null;
+  logIndex: string | null;
+  removed?: boolean;
+  /** Not in the base JSON-RPC spec; newer Geth/Reth include it. */
+  blockTimestamp?: string;
+}
+
+/** Exact base units -> decimal string. String arithmetic only; never a float. */
+export function formatUnits(raw: string, decimals: number): string {
+  if (decimals === 0) return raw;
+  const s = raw.padStart(decimals + 1, "0");
+  const int = s.slice(0, -decimals);
+  const frac = s.slice(-decimals).replace(/0+$/, "");
+  return frac ? `${int}.${frac}` : int;
+}
+
+/**
+ * One eth_getLogs entry -> a Transfer, straight from the chain's own client.
+ * Same identity as Allium ("<chain>:<tx>:<log_index>"), so the node and the
+ * provider deduplicate against each other and a disagreement between them is
+ * a detectable conflict, not a second row.
+ *
+ * Rejects (null): `removed` logs, ERC-721 Transfers (tokenId is a 4th topic,
+ * data is empty), and anything malformed. Amount comes from the 32-byte data
+ * word as a BigInt; the decimal amount only when the token's decimals() was
+ * read from the same node.
+ */
+export function normalizeTransferLog(
+  chain: string,
+  log: RpcLog,
+  ctx: { blockTimestamp: string; finalizedBlock: bigint; token?: { decimals: number | null; symbol: string | null } }
+): Transfer | null {
+  if (log.removed) return null;
+  const topics = (log.topics ?? []).map((t) => String(t).toLowerCase());
+  if (topics.length !== 3 || topics[0] !== TRANSFER_TOPIC || !WORD.test(topics[1]) || !WORD.test(topics[2])) return null;
+  const data = String(log.data ?? "").toLowerCase();
+  if (!WORD.test(data)) return null;
+  const tx = normHash(log.transactionHash);
+  const blockHash = normHash(log.blockHash);
+  const asset = normAddr(log.address);
+  if (!tx || !blockHash || !asset || !log.blockNumber || !log.logIndex || !HEX.test(log.blockNumber) || !HEX.test(log.logIndex)) return null;
+  const block = BigInt(log.blockNumber);
+  const logIndex = Number(BigInt(log.logIndex));
+  if (logIndex > 1_000_000) return null;
+  const from = `0x${topics[1].slice(26)}`;
+  const to = `0x${topics[2].slice(26)}`;
+  // An address word must be zero-padded above its 20 bytes.
+  if (!/^0x0{24}/.test(topics[1]) || !/^0x0{24}/.test(topics[2])) return null;
+  const when = ts(ctx.blockTimestamp);
+  if (!when) return null;
+  const amountRaw = BigInt(data).toString();
+  const decimals = ctx.token?.decimals ?? null;
+  return {
+    event_key: eventKey(chain, tx, logIndex),
+    source: "node_rpc",
+    chain,
+    tx_hash: tx,
+    block_number: Number(block),
+    block_hash: blockHash,
+    block_timestamp: when,
+    log_index: logIndex,
+    from_address: from,
+    to_address: to,
+    asset_address: asset,
+    asset_symbol: ctx.token?.symbol ?? null,
+    asset_decimals: decimals,
+    amount_raw: amountRaw,
+    amount: decimals === null ? null : formatUnits(amountRaw, decimals),
+    // No price is invented: USD stays empty unless a source that observed one supplies it.
+    amount_usd: null,
+    activity_type: from === "0x0000000000000000000000000000000000000000" ? "mint" : to === "0x0000000000000000000000000000000000000000" ? "burn" : "transfer",
+    confirmation_state: block <= ctx.finalizedBlock ? "finalized" : "observed",
+    provider_event_id: null,
+    metadata: rawCopy(log),
+  };
+}
+
+// ── 4. A Solana node's own transaction (getTransaction, jsonParsed) ─────────
+
+/** The parsed-instruction shape a Solana RPC returns with encoding "jsonParsed". */
+export interface SolanaParsedIx {
+  program?: string;
+  programId?: string;
+  parsed?: { type?: string; info?: Record<string, unknown> } | string;
+}
+export interface SolanaTokenBalance {
+  accountIndex: number;
+  mint: string;
+  owner?: string;
+  programId?: string;
+  uiTokenAmount: { amount: string; decimals: number };
+}
+export interface SolanaTx {
+  slot: number;
+  blockTime: number | null;
+  meta: {
+    err: unknown;
+    preTokenBalances?: SolanaTokenBalance[] | null;
+    postTokenBalances?: SolanaTokenBalance[] | null;
+    innerInstructions?: { index: number; instructions: SolanaParsedIx[] }[] | null;
+  } | null;
+  transaction: { signatures: string[]; message: { accountKeys: ({ pubkey: string } | string)[]; instructions: SolanaParsedIx[] } };
+}
+
+const SPL_PROGRAMS = new Set(["spl-token", "spl-token-2022"]);
+const SPL_TRANSFERS = new Set(["transfer", "transferChecked", "transferCheckedWithFee"]);
+const SOL_TRANSFERS = new Set(["transfer", "transferWithSeed"]);
+
+/**
+ * One Solana transaction -> its fungible transfers, from the chain's own
+ * client. Solana has no event log: a transfer IS an executed instruction, so
+ * this walks the top-level instructions and the inner (CPI) instructions in
+ * execution order and keeps:
+ *
+ *   SPL Token / Token-2022  transfer, transferChecked, transferCheckedWithFee
+ *                           (token ACCOUNTS are mapped to their owner WALLETS
+ *                           through the transaction's own pre/post token
+ *                           balances — the same node, the same transaction)
+ *   System program          transfer, transferWithSeed (native SOL)
+ *
+ * Exact integers only: token amounts are the node's string amounts; lamports
+ * must be a safe integer or the transfer is skipped (and counted). A failed
+ * transaction moved nothing and yields nothing. Mint/burn/close are not
+ * transfers and are not reported.
+ *
+ * Identity: Solana has no log index, so this uses the SAME native-style key as
+ * the Allium path ("solana:<sig>:native:<from>:<to>:<raw>"), letting the node
+ * and Allium deduplicate against each other. Two identical transfers in one
+ * transaction get ":2", ":3"… in execution order.
+ *
+ * `confirmation_state`: slot <= the node's finalized slot -> finalized;
+ * otherwise confirmed (the scanner reads at "confirmed" commitment, i.e.
+ * supermajority-voted).
+ */
+export function normalizeSolanaTransaction(tx: SolanaTx, ctx: { finalizedSlot: number }): { transfers: Transfer[]; skipped: number } {
+  const out: Transfer[] = [];
+  let skipped = 0;
+  const sig = normHash(tx.transaction?.signatures?.[0]);
+  if (!sig || !tx.meta || tx.meta.err !== null) return { transfers: out, skipped };
+  const when = tx.blockTime === null ? null : ts(tx.blockTime);
+  if (!when || !Number.isSafeInteger(tx.slot) || tx.slot < 0) return { transfers: out, skipped: skipped + 1 };
+
+  const keys = tx.transaction.message.accountKeys.map((k) => (typeof k === "string" ? k : k.pubkey));
+  // token account -> owner/mint/decimals, as this transaction's balances report them
+  const accounts = new Map<string, { owner: string | null; mint: string; decimals: number }>();
+  for (const b of [...(tx.meta.preTokenBalances ?? []), ...(tx.meta.postTokenBalances ?? [])]) {
+    const acct = keys[b.accountIndex];
+    if (!acct || accounts.has(acct)) continue;
+    accounts.set(acct, { owner: b.owner && B58.test(b.owner) ? b.owner : null, mint: b.mint, decimals: b.uiTokenAmount.decimals });
+  }
+
+  const ordered: SolanaParsedIx[] = [];
+  const inner = new Map((tx.meta.innerInstructions ?? []).map((g) => [g.index, g.instructions]));
+  tx.transaction.message.instructions.forEach((ix, i) => {
+    ordered.push(ix, ...(inner.get(i) ?? []));
+  });
+
+  const seen = new Map<string, number>();
+  const state: ConfirmationState = tx.slot <= ctx.finalizedSlot ? "finalized" : "confirmed";
+  for (const ix of ordered) {
+    if (!ix.parsed || typeof ix.parsed === "string" || !ix.parsed.type) continue;
+    const info = ix.parsed.info ?? {};
+    let from: string | null = null;
+    let to: string | null = null;
+    let raw: string | null = null;
+    let mint: string | null = null;
+    let decimals: number | null = null;
+    let symbol: string | null = null;
+    let detail: Record<string, unknown> = {};
+    if (ix.program && SPL_PROGRAMS.has(ix.program) && SPL_TRANSFERS.has(ix.parsed.type)) {
+      const src = typeof info.source === "string" ? accounts.get(info.source) : undefined;
+      const dst = typeof info.destination === "string" ? accounts.get(info.destination) : undefined;
+      const ta = info.tokenAmount as { amount?: unknown; decimals?: unknown } | undefined;
+      raw = exactUint(ta?.amount ?? info.amount);
+      mint = typeof info.mint === "string" ? info.mint : src?.mint ?? dst?.mint ?? null;
+      decimals = typeof ta?.decimals === "number" ? ta.decimals : src?.decimals ?? dst?.decimals ?? null;
+      // The OWNER wallet is the party; without it this would credit a token
+      // account nobody tracks. An unresolvable side is skipped, not guessed.
+      from = src?.owner ?? null;
+      to = dst?.owner ?? null;
+      detail = { source_account: info.source, destination_account: info.destination, program: ix.program, type: ix.parsed.type };
+    } else if (ix.program === "system" && SOL_TRANSFERS.has(ix.parsed.type)) {
+      const lamports = info.lamports;
+      raw = typeof lamports === "number" && Number.isSafeInteger(lamports) && lamports >= 0 ? String(lamports) : null;
+      from = typeof info.source === "string" ? info.source : null;
+      to = typeof info.destination === "string" ? info.destination : null;
+      decimals = 9;
+      symbol = "SOL";
+      detail = { program: "system", type: ix.parsed.type };
+    } else continue;
+
+    const f = normAddr(from);
+    const t = normAddr(to);
+    const asset = mint === null ? null : normAddr(mint);
+    if (!f || !t || !raw || (mint !== null && !asset)) {
+      skipped++;
+      continue;
+    }
+    const base = eventKey("solana", sig, null, { from: f, to: t, raw });
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    out.push({
+      event_key: n === 1 ? base : `${base}:${n}`,
+      source: "node_rpc",
+      chain: "solana",
+      tx_hash: sig,
+      block_number: tx.slot,
+      // getTransaction does not return the block's hash; the scanner pins slots instead.
+      block_hash: null,
+      block_timestamp: when,
+      log_index: null,
+      from_address: f,
+      to_address: t,
+      asset_address: asset,
+      asset_symbol: symbol,
+      asset_decimals: decimals,
+      amount_raw: raw,
+      amount: decimals === null ? null : formatUnits(raw, decimals),
+      amount_usd: null,
+      activity_type: "transfer",
+      confirmation_state: state,
+      provider_event_id: null,
+      metadata: detail,
+    });
+  }
+  return { transfers: out, skipped };
 }

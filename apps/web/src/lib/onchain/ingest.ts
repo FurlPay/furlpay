@@ -66,6 +66,42 @@ function treasuryFor(chain: string): string | null {
 
 type Who = { scope: Scope; user_id: string | null } | null;
 
+/**
+ * Operator-registered wallets (migration 0034): one wallet, any number of
+ * (chain, address) pairs — the chain-agnostic way to track a treasury or a
+ * watched counterparty on EVM chains and Solana alike. Cached for 30 s per
+ * instance. Before 0034 is applied the table does not exist: that is "no
+ * registered wallets", reported once, not an error that blocks ingestion.
+ * Any other failure throws, so a webhook is redelivered rather than dropped.
+ */
+const REG_TTL_MS = 30_000;
+let reg: { at: number; rows: { chain: string; address: string; scope: Scope }[] } | null = null;
+let regMissingLogged = false;
+export function resetRegisteredCache() {
+  reg = null;
+}
+export async function registeredAddresses(now = Date.now()): Promise<{ chain: string; address: string; scope: Scope }[]> {
+  if (supabaseBackend !== "supabase") return [];
+  if (reg && now - reg.at < REG_TTL_MS) return reg.rows;
+  try {
+    const wallets = await sbSelect<{ id: string; scope: "treasury" | "watch" }>("onchain_tracked_wallets", "select=id,scope&active=eq.true&limit=1000");
+    const scopes = new Map(wallets.map((w) => [w.id, w.scope]));
+    const addrs = wallets.length ? await sbSelect<{ wallet_id: string; chain: string; address: string }>("onchain_tracked_addresses", "select=wallet_id,chain,address&limit=5000") : [];
+    const rows = addrs.filter((a) => scopes.has(a.wallet_id)).map((a) => ({ chain: a.chain, address: a.address, scope: scopes.get(a.wallet_id)! as Scope }));
+    reg = { at: now, rows };
+    return rows;
+  } catch (e) {
+    const m = (e as Error).message;
+    if (/does not exist|PGRST205|Could not find the table|42P01/i.test(m)) {
+      if (!regMissingLogged) log.warn("onchain_tracked_wallets missing (apply migration 0034); no registered wallets", {});
+      regMissingLogged = true;
+      reg = { at: now, rows: [] };
+      return [];
+    }
+    throw e;
+  }
+}
+
 /** Who an address belongs to, if FurlPay tracks it. Throws when the lookup itself fails. */
 export async function resolveAddress(chain: string, address: string, cache = new Map<string, Who>()): Promise<Who> {
   const key = `${chain}:${address}`;
@@ -77,6 +113,10 @@ export async function resolveAddress(chain: string, address: string, cache = new
     if (owner) who = { scope: "user", user_id: owner };
   }
   if (!who && watchList().some((w) => (w.chain === "*" || w.chain === chain) && w.address === address)) who = { scope: "watch", user_id: null };
+  if (!who) {
+    const hit = (await registeredAddresses()).find((r) => r.chain === chain && r.address === address);
+    if (hit) who = { scope: hit.scope, user_id: null };
+  }
   cache.set(key, who);
   return who;
 }
@@ -175,5 +215,6 @@ export async function trackedAddresses(limit = 2_000): Promise<{ address: string
     if (m && v) out.push({ address: EVM.test(v.toLowerCase()) ? v.toLowerCase() : v.trim(), chains: [m[1].toLowerCase()], scope: "treasury" });
   }
   for (const w of watchList()) out.push({ address: w.address, chains: w.chain === "*" ? (EVM.test(w.address) ? "evm" : ["solana"]) : [w.chain], scope: "watch" });
+  for (const r of await registeredAddresses()) out.push({ address: r.address, chains: [r.chain], scope: r.scope });
   return out;
 }

@@ -1,5 +1,6 @@
 import { sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
 import { alliumKeyConfigured } from "./allium";
+import { nodeChains } from "./nodeIndexer";
 import { beamSecret } from "./beamAuth";
 import { dataVersion, shortRef } from "./dashboard";
 
@@ -41,14 +42,15 @@ export interface LiveSnapshot {
   generatedAt: string;
   state: PipelineState;
   reason: string | null;
-  configured: { alliumApiKey: boolean; beamWebhook: boolean; store: boolean };
+  /** nodeRpc: at least one chain is scanned from its own node (ONCHAIN_NODE_CHAINS). */
+  configured: { alliumApiKey: boolean; beamWebhook: boolean; store: boolean; nodeRpc?: boolean };
   freshness: { lastBlockAt: string | null; lastIngestAt: string | null; ingestLagMs: number | null; ageMs: number | null };
   health: { eventsTotal: number; deadLetters24h: number; deadLettersOpen: number; reconciliationRequired: number; reorgedTotal: number; lastRun: { kind: string; status: string; finishedAt: string | null; startedAt: string; inserted: number; markedReorged: number } | null } | null;
   latestId: number | null;
   /** Signature of ledger/security/chain-event changes; the SSE stream sends it so clients refetch exactly when data changed. */
   dataVersion: string;
   /** Last-hour ingest stats per source (onchain_ingest_metrics). */
-  ingest1h: Record<string, { received: number; inserted: number; duplicates: number; reorgReplaced: number; lagMsAvg: number | null; lagMsMax: number | null }>;
+  ingest1h: Record<string, { received: number; inserted: number; duplicates: number; reorgReplaced: number; conflicts: number; lagMsAvg: number | null; lagMsMax: number | null }>;
   /** Upstream source bookkeeping (onchain_source_status). */
   sources: Record<string, { lastSuccessAt: string | null; lastErrorAt: string | null; lastError: string | null; lastDataAt: string | null }>;
   feed: FeedEvent[];
@@ -136,7 +138,8 @@ export function pipelineState(input: {
 }): { state: PipelineState; reason: string | null } {
   const { configured, health, now } = input;
   if (!configured.store) return { state: "offline", reason: "No durable store configured." };
-  if (!configured.alliumApiKey && !configured.beamWebhook) return { state: "not_configured", reason: "Allium is not connected (ALLIUM_API_KEY, ALLIUM_BEAM_WEBHOOK_SECRET)." };
+  if (!configured.alliumApiKey && !configured.beamWebhook && !configured.nodeRpc)
+    return { state: "not_configured", reason: "No chain source is connected (ALLIUM_API_KEY, ALLIUM_BEAM_WEBHOOK_SECRET, or ONCHAIN_NODE_CHAINS)." };
   if (!health) return { state: "offline", reason: "Ingestion store unreachable." };
   const lastRunOkAt = health.lastRun && health.lastRun.status === "ok" ? Date.parse(health.lastRun.finishedAt ?? health.lastRun.startedAt) : NaN;
   const lastIngest = input.lastIngestAt ? Date.parse(input.lastIngestAt) : NaN;
@@ -163,7 +166,7 @@ export function liveSnapshot(full: boolean, now = Date.now()): Promise<LiveSnaps
 }
 
 async function buildLive(full: boolean, now: number): Promise<LiveSnapshot> {
-  const configured = { alliumApiKey: alliumKeyConfigured(), beamWebhook: beamSecret().length >= 32, store: supabaseBackend === "supabase" };
+  const configured = { alliumApiKey: alliumKeyConfigured(), beamWebhook: beamSecret().length >= 32, store: supabaseBackend === "supabase", nodeRpc: nodeChains().length > 0 };
   const base: LiveSnapshot = {
     generatedAt: new Date(now).toISOString(),
     state: "offline",
@@ -178,7 +181,7 @@ async function buildLive(full: boolean, now: number): Promise<LiveSnapshot> {
     feed: [],
   };
   // Not connected (or no store) is the root state: report it without querying.
-  if (!configured.store || (!configured.alliumApiKey && !configured.beamWebhook)) return { ...base, ...pipelineState({ configured, health: null, lastIngestAt: null, now }) };
+  if (!configured.store || (!configured.alliumApiKey && !configured.beamWebhook && !configured.nodeRpc)) return { ...base, ...pipelineState({ configured, health: null, lastIngestAt: null, now }) };
   try {
     const [h, rows] = await Promise.all([
       sbRpc<Record<string, unknown>>("onchain_health", {}),
@@ -202,12 +205,13 @@ async function buildLive(full: boolean, now: number): Promise<LiveSnapshot> {
     );
     const rawM = (h.metrics_1h ?? {}) as Record<string, Record<string, number | null>>;
     const ingest1h: LiveSnapshot["ingest1h"] = Object.fromEntries(
-      Object.entries(rawM).map(([k, v]) => [k, { received: Number(v.received ?? 0), inserted: Number(v.inserted ?? 0), duplicates: Number(v.duplicates ?? 0), reorgReplaced: Number(v.reorg_replaced ?? 0), lagMsAvg: v.lag_ms_avg === null || v.lag_ms_avg === undefined ? null : Number(v.lag_ms_avg), lagMsMax: v.lag_ms_max === null || v.lag_ms_max === undefined ? null : Number(v.lag_ms_max) }])
+      Object.entries(rawM).map(([k, v]) => [k, { received: Number(v.received ?? 0), inserted: Number(v.inserted ?? 0), duplicates: Number(v.duplicates ?? 0), reorgReplaced: Number(v.reorg_replaced ?? 0), conflicts: Number(v.conflicts ?? 0), lagMsAvg: v.lag_ms_avg === null || v.lag_ms_avg === undefined ? null : Number(v.lag_ms_avg), lagMsMax: v.lag_ms_max === null || v.lag_ms_max === undefined ? null : Number(v.lag_ms_max) }])
     );
     // Evidence the pipeline is alive: newest ingested row, or a successful
     // webhook delivery / reconciliation recorded in onchain_source_status
     // (a healthy stream with nothing of ours in it is still healthy).
-    const evidence = [h.last_observed_at as string | null, sources.allium_beam?.lastSuccessAt, sources.allium_realtime_api?.lastSuccessAt].filter((x): x is string => Boolean(x)).sort();
+    const nodeOk = Object.entries(sources).filter(([k]) => k.startsWith("node:")).map(([, v]) => v.lastSuccessAt);
+    const evidence = [h.last_observed_at as string | null, sources.allium_beam?.lastSuccessAt, sources.allium_realtime_api?.lastSuccessAt, ...nodeOk].filter((x): x is string => Boolean(x)).sort();
     const lastIngestAt = evidence.at(-1) ?? null;
     const beam = sources.allium_beam;
     const beamFailing = Boolean(beam?.lastErrorAt && (!beam.lastSuccessAt || beam.lastErrorAt > beam.lastSuccessAt));

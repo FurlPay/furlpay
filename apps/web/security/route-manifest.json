@@ -1,13 +1,13 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 385,
+  "_total": 389,
   "_counts": {
-    "ADMIN_ONLY": 32,
+    "ADMIN_ONLY": 33,
     "API_KEY_AUTHENTICATED": 10,
     "AUTHENTICATED_USER": 159,
     "DEVELOPMENT_ONLY": 2,
-    "INTERNAL_ONLY": 10,
-    "PUBLIC_INTENTIONAL": 158,
+    "INTERNAL_ONLY": 11,
+    "PUBLIC_INTENTIONAL": 160,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -108,6 +108,7 @@
     "cron/discord-welcome": "INTERNAL_ONLY",
     "cron/health": "INTERNAL_ONLY",
     "cron/market-brief": "INTERNAL_ONLY",
+    "cron/onchain-node": "INTERNAL_ONLY",
     "cron/onchain-reconcile": "INTERNAL_ONLY",
     "cron/price-alerts": "INTERNAL_ONLY",
     "cron/price-cards": "INTERNAL_ONLY",
@@ -199,6 +200,8 @@
     "onchain/search": "PUBLIC_INTENTIONAL",
     "onchain/stream": "PUBLIC_INTENTIONAL",
     "onchain/tx": "PUBLIC_INTENTIONAL",
+    "onchain/usdc": "PUBLIC_INTENTIONAL",
+    "onchain/usdc/history": "PUBLIC_INTENTIONAL",
     "onramp/quote": "PUBLIC_INTENTIONAL",
     "onramp/session": "AUTHENTICATED_USER",
     "onramp/session/[id]": "PUBLIC_INTENTIONAL",
@@ -216,6 +219,7 @@
     "ops/metrics/sparkline": "ADMIN_ONLY",
     "ops/metrics/timeseries": "ADMIN_ONLY",
     "ops/onchain/sync": "ADMIN_ONLY",
+    "ops/onchain/wallets": "ADMIN_ONLY",
     "ops/overview": "ADMIN_ONLY",
     "ops/ramp-partners": "ADMIN_ONLY",
     "ops/readiness": "ADMIN_ONLY",

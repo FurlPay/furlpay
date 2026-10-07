@@ -131,6 +131,9 @@ export function LiveBadge({ snap, conn }: { snap: LiveSnapshot | null; conn: Con
             <span className="flex justify-between">Webhook events 1h <span className="text-white">{snap.ingest1h.allium_beam.received} recv · {snap.ingest1h.allium_beam.duplicates} dup · {snap.ingest1h.allium_beam.reorgReplaced} reorg</span></span>
           </>
         )}
+        {snap?.ingest1h?.node_rpc && (
+          <span className="flex justify-between">Node events 1h <span className="text-white">{snap.ingest1h.node_rpc.received} recv · {snap.ingest1h.node_rpc.inserted} new · {snap.ingest1h.node_rpc.conflicts} conflict</span></span>
+        )}
         <span className="flex justify-between">Browser link <span className="text-white">{conn === "open" ? "streaming" : conn}</span></span>
       </span>
     </span>

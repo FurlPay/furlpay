@@ -29,7 +29,7 @@
 create table if not exists onchain_events (
   id                 bigserial primary key,
   event_key          text not null unique check (event_key = lower(event_key) and length(event_key) between 10 and 300),
-  source             text not null check (source in ('allium_beam', 'allium_realtime_api', 'reconcile')),
+  source             text not null check (source in ('allium_beam', 'allium_realtime_api', 'reconcile', 'node_rpc')),
   chain              text not null check (chain ~ '^[a-z0-9_-]{2,32}$'),
   tx_hash            text not null check (length(tx_hash) between 8 and 128),
   block_number       bigint check (block_number >= 0),
@@ -66,6 +66,11 @@ create table if not exists onchain_events (
   -- moves anything.
   risk_action        text not null default 'allow' check (risk_action in ('allow', 'review', 'block')),
   risk_flags         jsonb not null default '[]'::jsonb,
+  -- True when the reorg was PROVEN against a finalized canonical block (the
+  -- transaction is absent from the chain a FurlPay-configured node serves at
+  -- a finalized height). Such an event can never be reinstated by a later
+  -- delivery of the same (orphaned) block: finality is final.
+  reorg_final        boolean not null default false,
   metadata           jsonb not null default '{}'::jsonb,
   observed_at        timestamptz not null default now(),
   created_at         timestamptz not null default now(),
@@ -90,7 +95,7 @@ create table if not exists onchain_event_revisions (
   id          bigserial primary key,
   event_key   text not null,
   revision    integer not null,
-  change      text not null check (change in ('promoted', 'reorg_replaced', 'reorged', 'reinstated', 'ledger_flagged')),
+  change      text not null check (change in ('promoted', 'reorg_replaced', 'reorged', 'reinstated', 'ledger_flagged', 'source_conflict')),
   previous    jsonb not null,
   reason      text,
   created_at  timestamptz not null default now()
@@ -169,6 +174,7 @@ create table if not exists onchain_ingest_metrics (
   promoted      bigint not null default 0,
   reorg_replaced bigint not null default 0,
   reinstated    bigint not null default 0,
+  conflicts     bigint not null default 0,
   lag_ms_sum    numeric not null default 0,
   lag_ms_max    bigint not null default 0,
   lag_n         bigint not null default 0,
@@ -185,6 +191,49 @@ create table if not exists onchain_source_status (
   last_data_at   timestamptz,
   updated_at     timestamptz not null default now()
 );
+
+-- Direct-to-node scanning (lib/onchain/nodeIndexer.ts): per chain, the
+-- newest FINALIZED block whose Transfer logs have been fully scanned for the
+-- tracked addresses. Everything above it is re-scanned every run (idempotent),
+-- so the unfinalized tip is always re-read from the node. chain_id (EVM) or
+-- genesis_hash (Solana has no chain id; lib/onchain/solanaNodeIndexer.ts) pins
+-- the endpoint: a URL that starts answering for another chain is refused.
+-- For Solana, last_block is a slot and last_block_hash that slot's blockhash.
+create table if not exists onchain_node_cursors (
+  chain            text primary key check (chain ~ '^[a-z0-9_-]{2,32}$'),
+  chain_id         bigint check (chain_id > 0),
+  genesis_hash     text check (genesis_hash is null or length(genesis_hash) between 32 and 64),
+  last_block       bigint not null check (last_block >= 0),
+  last_block_hash  text not null,
+  updated_at       timestamptz not null default now(),
+  check (chain_id is not null or genesis_hash is not null)
+);
+
+-- Upgrade path for a database that applied the FIRST version of this file
+-- (committed at 2e5f3657 or 461ff1bb, before direct-to-node ingestion). There
+-- `create table if not exists` above skipped the existing tables, so bring
+-- them to this version explicitly. Every statement is a no-op on a database
+-- created from this version (idempotent; verified by
+-- scripts/db/verify-onchain-upgrade.mjs).
+-- (2e5f3657 also predates the OFAC screen columns added in 461ff1bb.)
+alter table onchain_events add column if not exists risk_action text not null default 'allow';
+alter table onchain_events add column if not exists risk_flags jsonb not null default '[]'::jsonb;
+alter table onchain_events drop constraint if exists onchain_events_risk_action_check;
+alter table onchain_events add constraint onchain_events_risk_action_check check (risk_action in ('allow', 'review', 'block'));
+alter table onchain_events add column if not exists reorg_final boolean not null default false;
+alter table onchain_ingest_metrics add column if not exists conflicts bigint not null default 0;
+alter table onchain_events drop constraint if exists onchain_events_source_check;
+alter table onchain_events add constraint onchain_events_source_check
+  check (source in ('allium_beam', 'allium_realtime_api', 'reconcile', 'node_rpc'));
+alter table onchain_event_revisions drop constraint if exists onchain_event_revisions_change_check;
+alter table onchain_event_revisions add constraint onchain_event_revisions_change_check
+  check (change in ('promoted', 'reorg_replaced', 'reorged', 'reinstated', 'ledger_flagged', 'source_conflict'));
+alter table onchain_node_cursors add column if not exists genesis_hash text;
+alter table onchain_node_cursors alter column chain_id drop not null;
+-- The functions below gained a parameter; the old signatures would otherwise
+-- remain as overloads and make every existing call ambiguous.
+drop function if exists onchain_mark_reorged(text, text);
+drop function if exists onchain_node_cursor_advance(text, bigint, bigint, bigint, text);
 
 -- Entity labels. Only provider-verified labels are stored; no row = unknown.
 create table if not exists onchain_entity_labels (
@@ -255,6 +304,7 @@ $$;
 --   same key, same block, higher     -> promoted (observed -> confirmed -> finalized; never backwards)
 --   same key, different block_hash   -> reorg_replaced (old version kept in revisions)
 --   same key, row was 'reorged'      -> reinstated
+--   irreconcilable (see below)       -> conflicts: flagged reconciliation_required, never overwritten
 -- Then rebuilds the hourly rollup for exactly the hours touched.
 create or replace function onchain_ingest(p_events jsonb)
 returns jsonb
@@ -266,7 +316,8 @@ declare
   cur onchain_events%rowtype;
   k text;
   new_state text;
-  v_inserted int := 0; v_dup int := 0; v_promoted int := 0; v_reorg int := 0; v_reinstated int := 0;
+  v_inserted int := 0; v_dup int := 0; v_promoted int := 0; v_reorg int := 0; v_reinstated int := 0; v_conflict int := 0;
+  v_conflict_note text;
   t_min timestamptz; t_max timestamptz; ts timestamptz;
   v_blocked text[] := '{}';
   v_lag_sum numeric := 0; v_lag_max bigint := 0; v_lag_n int := 0; v_lag bigint;
@@ -306,6 +357,37 @@ begin
 
     select * into cur from onchain_events where event_key = k for update;
 
+    -- Two sources (or two deliveries) that cannot both be true. Nothing is
+    -- overwritten: the row is flagged for an operator, once.
+    --   * a finalized event delivered in a different block (a lagging source
+    --     still serving an orphaned fork, or bad data): finality is final;
+    --   * an event proven orphaned at a finalized height delivered again;
+    --   * the same event in the same block with a different exact amount.
+    v_conflict_note := case
+      when cur.confirmation_state = 'finalized' and (e->>'block_hash') is not null and cur.block_hash is not null
+           and (e->>'block_hash') <> cur.block_hash
+        then format('%s delivered block %s for a finalized event in block %s', e->>'source', left(e->>'block_hash', 18), left(cur.block_hash, 18))
+      -- (a delivery in a DIFFERENT block is a legitimate re-inclusion and is
+      -- handled as reorg_replaced below; one with no block hash cannot be told
+      -- apart from the orphan, so it is a conflict too)
+      when cur.confirmation_state = 'reorged' and cur.reorg_final
+           and ((e->>'block_hash') is null or (e->>'block_hash') = cur.block_hash)
+        then format('%s delivered an event proven absent from the finalized chain', e->>'source')
+      when (e->>'amount_raw') is not null and cur.amount_raw is not null and (e->>'amount_raw')::numeric <> cur.amount_raw
+           and (e->>'block_hash') is not distinct from cur.block_hash
+        then format('%s reports amount_raw %s; stored %s (%s)', e->>'source', e->>'amount_raw', cur.amount_raw, cur.source)
+    end;
+    if v_conflict_note is not null then
+      if not cur.reconciliation_required then
+        insert into onchain_event_revisions (event_key, revision, change, previous, reason)
+          values (k, cur.revision, 'source_conflict', to_jsonb(cur), left(v_conflict_note, 300));
+        update onchain_events set reconciliation_required = true, reconciliation_note = left(v_conflict_note, 300),
+          revision = cur.revision + 1, updated_at = now() where event_key = k;
+      end if;
+      v_conflict := v_conflict + 1;
+      continue;
+    end if;
+
     if cur.confirmation_state = 'reorged' and (e->>'block_hash') is not distinct from cur.block_hash then
       insert into onchain_event_revisions (event_key, revision, change, previous, reason)
         values (k, cur.revision, 'reinstated', to_jsonb(cur), 'redelivered after being marked reorged');
@@ -318,7 +400,7 @@ begin
         block_number = (e->>'block_number')::bigint, block_hash = e->>'block_hash', block_timestamp = ts,
         from_address = e->>'from_address', to_address = e->>'to_address', amount_raw = (e->>'amount_raw')::numeric,
         amount = (e->>'amount')::numeric, amount_usd = (e->>'amount_usd')::numeric, confirmation_state = new_state,
-        revision = cur.revision + 1, updated_at = now()
+        reorg_final = false, revision = cur.revision + 1, updated_at = now()
        where event_key = k;
       v_reorg := v_reorg + 1;
       t_min := least(coalesce(t_min, cur.block_timestamp), cur.block_timestamp); t_max := greatest(coalesce(t_max, cur.block_timestamp), cur.block_timestamp);
@@ -340,18 +422,19 @@ begin
   end if;
 
   if jsonb_array_length(p_events) > 0 then
-    insert into onchain_ingest_metrics as m (bucket, source, received, inserted, duplicates, promoted, reorg_replaced, reinstated, lag_ms_sum, lag_ms_max, lag_n)
-    values (date_trunc('hour', now(), 'UTC'), coalesce(v_source, 'unknown'), jsonb_array_length(p_events), v_inserted, v_dup, v_promoted, v_reorg, v_reinstated, v_lag_sum, v_lag_max, v_lag_n)
+    insert into onchain_ingest_metrics as m (bucket, source, received, inserted, duplicates, promoted, reorg_replaced, reinstated, conflicts, lag_ms_sum, lag_ms_max, lag_n)
+    values (date_trunc('hour', now(), 'UTC'), coalesce(v_source, 'unknown'), jsonb_array_length(p_events), v_inserted, v_dup, v_promoted, v_reorg, v_reinstated, v_conflict, v_lag_sum, v_lag_max, v_lag_n)
     on conflict (bucket, source) do update set
       received = m.received + excluded.received, inserted = m.inserted + excluded.inserted,
       duplicates = m.duplicates + excluded.duplicates, promoted = m.promoted + excluded.promoted,
       reorg_replaced = m.reorg_replaced + excluded.reorg_replaced, reinstated = m.reinstated + excluded.reinstated,
+      conflicts = m.conflicts + excluded.conflicts,
       lag_ms_sum = m.lag_ms_sum + excluded.lag_ms_sum, lag_ms_max = greatest(m.lag_ms_max, excluded.lag_ms_max),
       lag_n = m.lag_n + excluded.lag_n;
   end if;
 
   return jsonb_build_object('inserted', v_inserted, 'duplicates', v_dup, 'promoted', v_promoted,
-                            'reorg_replaced', v_reorg, 'reinstated', v_reinstated, 'blocked_keys', to_jsonb(v_blocked));
+                            'reorg_replaced', v_reorg, 'reinstated', v_reinstated, 'conflicts', v_conflict, 'blocked_keys', to_jsonb(v_blocked));
 end $$;
 
 -- Freshness bookkeeping for an upstream source (webhook, reconciliation,
@@ -373,7 +456,11 @@ $$;
 
 -- Reconciliation: the provider no longer returns an event inside its finality
 -- window. Mark it (never delete) and rebuild its hour.
-create or replace function onchain_mark_reorged(p_event_key text, p_reason text)
+-- p_final: the caller PROVED the event is absent from a finalized canonical
+-- block (lib/onchain/nodeIndexer.ts). Without it this is the provider-based
+-- judgement (absent from a fully paginated Allium window), which a later
+-- delivery of the same block may overturn ('reinstated').
+create or replace function onchain_mark_reorged(p_event_key text, p_reason text, p_final boolean default false)
 returns boolean
 language plpgsql
 set search_path = public, pg_catalog
@@ -381,10 +468,18 @@ as $$
 declare cur onchain_events%rowtype;
 begin
   select * into cur from onchain_events where event_key = lower(p_event_key) for update;
-  if not found or cur.confirmation_state = 'reorged' then return false; end if;
+  if not found then return false; end if;
+  if cur.confirmation_state = 'reorged' then
+    -- Upgrade a provider judgement to a proof; never downgrade.
+    if p_final and not cur.reorg_final then
+      update onchain_events set reorg_final = true, updated_at = now() where event_key = cur.event_key;
+      return true;
+    end if;
+    return false;
+  end if;
   insert into onchain_event_revisions (event_key, revision, change, previous, reason)
     values (cur.event_key, cur.revision, 'reorged', to_jsonb(cur), left(p_reason, 300));
-  update onchain_events set confirmation_state = 'reorged', revision = cur.revision + 1, updated_at = now()
+  update onchain_events set confirmation_state = 'reorged', reorg_final = coalesce(p_final, false), revision = cur.revision + 1, updated_at = now()
    where event_key = cur.event_key;
   perform onchain_refresh_hourly(cur.block_timestamp, cur.block_timestamp);
   return true;
@@ -425,6 +520,36 @@ begin
   return true;
 end $$;
 
+-- Compare-and-set cursor advance. Concurrent scanners both ingest (that is
+-- idempotent) but only the one that read the current cursor moves it; the
+-- cursor never moves backwards and never changes chain_id / genesis_hash.
+create or replace function onchain_node_cursor_advance(p_chain text, p_chain_id bigint, p_expected bigint, p_next bigint, p_hash text, p_genesis text default null)
+returns boolean
+language plpgsql
+set search_path = public, pg_catalog
+as $$
+declare cur onchain_node_cursors%rowtype;
+begin
+  if p_next is null or p_next < 0 or p_hash is null then raise exception 'invalid cursor'; end if;
+  if p_chain_id is null and p_genesis is null then raise exception 'cursor needs a chain id or a genesis hash'; end if;
+  select * into cur from onchain_node_cursors where chain = p_chain for update;
+  if not found then
+    if p_expected is not null then return false; end if;
+    insert into onchain_node_cursors (chain, chain_id, genesis_hash, last_block, last_block_hash) values (p_chain, p_chain_id, p_genesis, p_next, p_hash)
+      on conflict (chain) do nothing;
+    return found;
+  end if;
+  if cur.chain_id is distinct from p_chain_id then
+    raise exception 'chain % is pinned to chain id %, endpoint answered %', p_chain, cur.chain_id, p_chain_id;
+  end if;
+  if cur.genesis_hash is distinct from p_genesis then
+    raise exception 'chain % is pinned to genesis %, endpoint answered %', p_chain, cur.genesis_hash, p_genesis;
+  end if;
+  if p_expected is distinct from cur.last_block or p_next < cur.last_block then return false; end if;
+  update onchain_node_cursors set last_block = p_next, last_block_hash = p_hash, updated_at = now() where chain = p_chain;
+  return true;
+end $$;
+
 -- Health for the dashboard's live/stale state.
 create or replace function onchain_health()
 returns jsonb
@@ -441,12 +566,13 @@ as $$
     'reorged_total', (select count(*) from onchain_events where confirmation_state = 'reorged'),
     'last_run', (select to_jsonb(r) from onchain_reconciliation_runs r order by started_at desc limit 1),
     'metrics_1h', (select coalesce(jsonb_object_agg(source, jsonb_build_object(
-        'received', received, 'inserted', inserted, 'duplicates', duplicates, 'reorg_replaced', reorg_replaced,
+        'received', received, 'inserted', inserted, 'duplicates', duplicates, 'reorg_replaced', reorg_replaced, 'conflicts', conflicts,
         'lag_ms_avg', case when lag_n > 0 then round(lag_ms_sum / lag_n) end, 'lag_ms_max', lag_ms_max)), '{}'::jsonb)
-      from (select source, sum(received) received, sum(inserted) inserted, sum(duplicates) duplicates, sum(reorg_replaced) reorg_replaced,
+      from (select source, sum(received) received, sum(inserted) inserted, sum(duplicates) duplicates, sum(reorg_replaced) reorg_replaced, sum(conflicts) conflicts,
                    sum(lag_ms_sum) lag_ms_sum, max(lag_ms_max) lag_ms_max, sum(lag_n) lag_n
               from onchain_ingest_metrics where bucket >= date_trunc('hour', now(), 'UTC') - interval '1 hour' group by source) x),
-    'sources', (select coalesce(jsonb_object_agg(source, to_jsonb(s) - 'source'), '{}'::jsonb) from onchain_source_status s)
+    'sources', (select coalesce(jsonb_object_agg(source, to_jsonb(s) - 'source'), '{}'::jsonb) from onchain_source_status s),
+    'node_cursors', (select coalesce(jsonb_object_agg(chain, jsonb_build_object('last_block', last_block, 'updated_at', updated_at)), '{}'::jsonb) from onchain_node_cursors)
   )
 $$;
 
@@ -462,13 +588,14 @@ alter table onchain_entity_labels enable row level security;
 alter table onchain_hourly enable row level security;
 alter table onchain_ingest_metrics enable row level security;
 alter table onchain_source_status enable row level security;
+alter table onchain_node_cursors enable row level security;
 
 do $$
 declare t text;
 begin
   foreach t in array array['onchain_events', 'onchain_event_revisions', 'onchain_webhook_nonces', 'onchain_dead_letters',
                            'onchain_ingest_checkpoints', 'onchain_reconciliation_runs', 'onchain_entity_labels', 'onchain_hourly',
-                           'onchain_ingest_metrics', 'onchain_source_status'] loop
+                           'onchain_ingest_metrics', 'onchain_source_status', 'onchain_node_cursors'] loop
     execute format('revoke all on table %I from public, anon, authenticated', t);
     execute format('grant select, insert, update on table %I to service_role', t);
   end loop;
@@ -481,8 +608,9 @@ declare f text;
 begin
   foreach f in array array[
     'onchain_refresh_hourly(timestamptz, timestamptz)', 'onchain_state_rank(text)', 'onchain_ingest(jsonb)',
-    'onchain_mark_reorged(text, text)', 'onchain_flag_ledger(text, text, text)', 'onchain_claim_nonce(text)', 'onchain_health()',
-    'onchain_touch_source(text, boolean, text, timestamptz)'
+    'onchain_mark_reorged(text, text, boolean)', 'onchain_flag_ledger(text, text, text)', 'onchain_claim_nonce(text)', 'onchain_health()',
+    'onchain_touch_source(text, boolean, text, timestamptz)',
+    'onchain_node_cursor_advance(text, bigint, bigint, bigint, text, text)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);

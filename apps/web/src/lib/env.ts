@@ -622,6 +622,14 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("ALLIUM_BEAM_ZEROLAG"),
       v("ONCHAIN_WATCH_ADDRESSES"),
       v("ONCHAIN_SYNC_CHAINS"),
+      v("ONCHAIN_NODE_CHAINS"),
+      v("ONCHAIN_NODE_TOKENS"),
+      // Optional independent provider per chain for the USDC network index: the
+      // range's last block hash and supply must match it or the range is not committed.
+      v("ETHEREUM_RPC_URL_SECONDARY"),
+      v("BASE_RPC_URL_SECONDARY"),
+      v("ARBITRUM_RPC_URL_SECONDARY"),
+      v("POLYGON_RPC_URL_SECONDARY"),
     ],
   },
   {
