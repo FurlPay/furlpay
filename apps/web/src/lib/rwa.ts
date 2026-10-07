@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { SupabaseFunctionMissing, sbRpc, supabaseBackend } from "@/lib/supabase";
 import { log } from "@/lib/log";
+import { alliumKeyConfigured } from "@/lib/onchain/allium";
+import { DAY, classify, type SectionFreshness } from "@/lib/onchain/freshness";
 
 // ---------------------------------------------------------------------------
 // Tokenized real-world-asset index (admin). Reads rwa_asset_snapshots through
@@ -18,6 +20,8 @@ export const RWA_SOURCE = "Allium tokenized-assets dataset (export), via rwa_ass
 const num = z.union([z.number(), z.string()]).transform((v) => Number(v));
 const summarySchema = z.object({
   snapshot_date: z.string().nullable(),
+  imported_at: z.string().nullish(),
+  sources: z.array(z.string()).nullish(),
   snapshots: z.array(z.string()),
   total_usd: num,
   deployments: num,
@@ -43,7 +47,27 @@ const summarySchema = z.object({
     })
   ),
 });
-export type RwaSummary = z.infer<typeof summarySchema>;
+export type RwaSummary = z.infer<typeof summarySchema> & { freshness?: SectionFreshness };
+
+/**
+ * Freshness of the tokenized-assets view. Without a refresh source it is a
+ * point-in-time SNAPSHOT and says so (never "live"); with ALLIUM_RWA_QUERY_ID
+ * it is a daily-refreshed source, judged by when today's snapshot was written.
+ */
+export function rwaFreshness(s: { snapshot_date: string | null; imported_at?: string | null; sources?: string[] | null }, now = Date.now()): SectionFreshness {
+  const refresh = alliumKeyConfigured() && Boolean((process.env.ALLIUM_RWA_QUERY_ID ?? "").trim());
+  const fromRefresh = (s.sources ?? []).includes("allium_query");
+  if (!refresh || !fromRefresh) {
+    return {
+      state: refresh ? "stale" : "not_connected",
+      source: (s.sources ?? []).join(", ") || "snapshot",
+      asOf: s.snapshot_date,
+      cadence: refresh ? "daily refresh" : "snapshot",
+      reason: refresh ? `Daily refresh configured but has not written a snapshot yet; showing ${s.snapshot_date}.` : `Showing the ${s.snapshot_date} snapshot. Set ALLIUM_RWA_QUERY_ID for daily refresh.`,
+    };
+  }
+  return classify({ kind: "polled", cadenceMs: DAY, source: "Allium Explorer (tokenized assets)", cadence: "daily refresh", configured: true, ok: true, asOf: s.imported_at ?? null, now });
+}
 
 const rowSchema = z.object({
   product_name: z.string(),
@@ -97,7 +121,7 @@ export async function rwaSummary(snapshot?: string): Promise<RwaResult<RwaSummar
     if (!s.snapshot_date) {
       return { ok: false, kind: "not_loaded", reason: snapshot ? `No snapshot for ${snapshot}.` : "No snapshot imported yet (scripts/data/import-rwa-snapshot.mjs)." };
     }
-    return { ok: true, data: s };
+    return { ok: true, data: { ...s, freshness: rwaFreshness(s) } };
   } catch (e) {
     return why(e);
   }

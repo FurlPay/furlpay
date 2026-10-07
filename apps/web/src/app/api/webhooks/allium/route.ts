@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import zlib from "zlib";
 import { verifyBeam } from "@/lib/onchain/beamAuth";
 import { normalizeBeamRecord, type Transfer } from "@/lib/onchain/normalize";
-import { deadLetter, persist, scopeTransfers } from "@/lib/onchain/ingest";
+import { deadLetter, persist, scopeTransfers, touchSource } from "@/lib/onchain/ingest";
 import { sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
 import { limit, rateLimitIdentity } from "@/lib/rateLimit";
 import { log } from "@/lib/log";
@@ -111,11 +111,16 @@ export async function POST(req: Request) {
     const { scoped, ignored } = await scopeTransfers(transfers);
     const counts = await persist(scoped);
     await sbRpc<boolean>("onchain_claim_nonce", { p_nonce: auth.nonce });
+    // A delivery that authenticated and was stored is evidence the stream is
+    // healthy even when nothing in it was ours (out-of-scope records).
+    const newest = transfers.reduce<string | null>((a, t) => (!a || t.block_timestamp > a ? t.block_timestamp : a), null);
+    await touchSource("allium_beam", true, { dataAt: newest });
     return json({ status: "ok", received: records.length, rejected, out_of_scope: ignored, ...counts });
   } catch (e) {
     // Our store failed mid-way. The nonce is not claimed, so the provider's
     // redelivery is processed; every write is idempotent on event_key.
     log.error("allium webhook ingest failed", { error: (e as Error).message.slice(0, 200) });
+    await touchSource("allium_beam", false, { error: "ingest failed" });
     return json({ error: "ingest_unavailable" }, 503);
   }
 }

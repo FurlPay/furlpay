@@ -70,6 +70,8 @@ as $$
   )
   select jsonb_build_object(
     'snapshot_date', (select max(snapshot_date) from s),
+    'imported_at', (select max(imported_at) from s),
+    'sources', (select coalesce(jsonb_agg(distinct source), '[]'::jsonb) from s),
     'snapshots', (select coalesce(jsonb_agg(d order by d desc), '[]'::jsonb) from (select distinct snapshot_date d from rwa_asset_snapshots) x),
     'total_usd', (select coalesce(sum(market_cap_usd), 0) from s),
     'deployments', (select count(*) from s),
@@ -125,6 +127,60 @@ as $$
   )
 $$;
 
+-- Continuous refresh: replace TODAY's snapshot from a provider source (the
+-- saved Allium query behind lib/rwa/refresh.ts) in one transaction.
+--   - only the current UTC date: historical snapshots can never be rewritten
+--     this way (they stay exactly as imported);
+--   - only rows of the same source: a date loaded from the CSV export is not
+--     silently mixed with or overwritten by another source;
+--   - rows absent from the new set are removed for that (date, source), so
+--     the latest snapshot is exactly the provider's latest answer;
+--   - the caller passes validated rows; table constraints re-check them.
+-- Returns {inserted_or_changed, removed, rows, total_usd}.
+create or replace function rwa_replace_snapshot(p_snapshot date, p_source text, p_rows jsonb)
+returns jsonb
+language plpgsql
+set search_path = public, pg_catalog
+as $$
+declare
+  v_changed int; v_removed int;
+begin
+  if p_snapshot <> (now() at time zone 'UTC')::date then
+    raise exception 'rwa_replace_snapshot only writes the current UTC date (got %)', p_snapshot;
+  end if;
+  if jsonb_typeof(p_rows) <> 'array' or jsonb_array_length(p_rows) = 0 or jsonb_array_length(p_rows) > 200000 then
+    raise exception 'rwa_replace_snapshot expects 1..200000 rows';
+  end if;
+  if exists (select 1 from rwa_asset_snapshots where snapshot_date = p_snapshot and source <> p_source) then
+    raise exception 'snapshot % already holds rows from another source', p_snapshot;
+  end if;
+  -- Serialize concurrent refreshes of the same day.
+  perform pg_advisory_xact_lock(hashtext('rwa_replace_snapshot'), hashtext(p_snapshot::text));
+
+  with incoming as (
+    select x.chain, x.product_name, coalesce(x.token_symbol, '') token_symbol, x.issuer_name, x.asset_class, x.asset_type, x.market_cap_usd::numeric market_cap_usd
+      from jsonb_to_recordset(p_rows) as x(chain text, product_name text, token_symbol text, issuer_name text, asset_class text, asset_type text, market_cap_usd text)
+  )
+  delete from rwa_asset_snapshots t
+   where t.snapshot_date = p_snapshot and t.source = p_source
+     and not exists (select 1 from incoming i where i.chain = t.chain and i.product_name = t.product_name and i.token_symbol = t.token_symbol);
+  get diagnostics v_removed = row_count;
+
+  insert into rwa_asset_snapshots (snapshot_date, chain, product_name, token_symbol, issuer_name, asset_class, asset_type, market_cap_usd, source)
+  select p_snapshot, x.chain, x.product_name, coalesce(x.token_symbol, ''), x.issuer_name, x.asset_class, x.asset_type, x.market_cap_usd::numeric, p_source
+    from jsonb_to_recordset(p_rows) as x(chain text, product_name text, token_symbol text, issuer_name text, asset_class text, asset_type text, market_cap_usd text)
+  on conflict (snapshot_date, chain, product_name, token_symbol) do update set
+    issuer_name = excluded.issuer_name, asset_class = excluded.asset_class, asset_type = excluded.asset_type,
+    market_cap_usd = excluded.market_cap_usd, imported_at = now()
+  where (rwa_asset_snapshots.issuer_name, rwa_asset_snapshots.asset_class, rwa_asset_snapshots.asset_type, rwa_asset_snapshots.market_cap_usd)
+        is distinct from (excluded.issuer_name, excluded.asset_class, excluded.asset_type, excluded.market_cap_usd);
+  get diagnostics v_changed = row_count;
+
+  return jsonb_build_object('inserted_or_changed', v_changed, 'removed', v_removed,
+    'rows', (select count(*) from rwa_asset_snapshots where snapshot_date = p_snapshot),
+    'total_usd', (select coalesce(sum(market_cap_usd), 0)::text from rwa_asset_snapshots where snapshot_date = p_snapshot));
+end $$;
+
 alter table rwa_asset_snapshots enable row level security;
 revoke all on table rwa_asset_snapshots from public, anon, authenticated;
 grant select, insert, update on table rwa_asset_snapshots to service_role;
@@ -134,3 +190,6 @@ revoke all on function rwa_summary(date) from public, anon, authenticated;
 grant execute on function rwa_summary(date) to service_role;
 revoke all on function rwa_search(text, text, text, text, numeric, text, integer, integer, date) from public, anon, authenticated;
 grant execute on function rwa_search(text, text, text, text, numeric, text, integer, integer, date) to service_role;
+revoke all on function rwa_replace_snapshot(date, text, jsonb) from public, anon, authenticated;
+grant execute on function rwa_replace_snapshot(date, text, jsonb) to service_role;
+grant delete on table rwa_asset_snapshots to service_role;

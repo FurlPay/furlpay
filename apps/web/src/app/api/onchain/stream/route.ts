@@ -47,10 +47,11 @@ export async function GET(req: NextRequest) {
       const tick = async () => {
         try {
           const s = await liveSnapshot(false);
-          const sig = `${s.latestId ?? 0}|${s.state}`;
+          // Ledger rows, security events and chain events all move dataVersion.
+          const sig = `${s.latestId ?? 0}|${s.state}|${s.dataVersion}`;
           if (sig !== last) {
             last = sig;
-            send(`event: change\ndata: ${JSON.stringify({ latestId: s.latestId, state: s.state, at: s.generatedAt })}\n\n`);
+            send(`event: change\ndata: ${JSON.stringify({ latestId: s.latestId, state: s.state, version: s.dataVersion, at: s.generatedAt })}\n\n`);
             sinceBeat = 0;
             return;
           }

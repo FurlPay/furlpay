@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { fmtCount, fmtUsd } from "@/components/analytics/format";
 import { BrandLogo, chainName } from "@/components/onchain/BrandLogo";
+import { FreshnessChip } from "@/components/onchain/ui";
 import type { RwaSearch, RwaSummary } from "@/lib/rwa";
 
 // The tokenized real-world-asset index. Rendered on /analytics/rwa and, for
@@ -68,16 +69,26 @@ export default function RwaIndex({ variant = "page" }: { variant?: "page" | "sec
   const [summary, setSummary] = useState<RwaSummary | null>(null);
   const [error, setError] = useState<{ message: string; code: string } | null>(null);
   const [snapshot, setSnapshot] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  // Both /onchain and /analytics/rwa read the same API and the same latest
+  // snapshot, so they cannot disagree. The latest view re-checks every 60 s
+  // (visible tab only); a pinned historical snapshot never changes.
+  useEffect(() => {
+    if (snapshot) return;
+    const t = window.setInterval(() => document.visibilityState === "visible" && setTick((n) => n + 1), 60_000);
+    return () => window.clearInterval(t);
+  }, [snapshot]);
   useEffect(() => {
     const c = new AbortController();
-    setError(null);
+    if (tick === 0) setError(null);
     void getJson<RwaSummary>(`/api/ops/rwa?view=summary${snapshot ? `&snapshot=${snapshot}` : ""}`, c.signal).then((r) => {
       if (c.signal.aborted) return;
-      setSummary(r.data);
+      // A failed background re-check keeps the last good data on screen.
+      if (r.data || tick === 0) setSummary(r.data);
       setError(r.error ? { message: r.error, code: r.code ?? "error" } : null);
     });
     return () => c.abort();
-  }, [snapshot]);
+  }, [snapshot, tick]);
   const Heading = variant === "page" ? "h1" : "h2";
 
   return (
@@ -85,7 +96,10 @@ export default function RwaIndex({ variant = "page" }: { variant?: "page" | "sec
       <header className="flex flex-wrap items-end gap-3 pb-2">
         <div className="min-w-0 flex-1">
         <p className="text-[12px] font-medium uppercase tracking-wider text-[#00E599]">{variant === "page" ? "FurlPay Analytics" : "Operator view · internal data"}</p>
-        <Heading className={`mt-1 font-semibold tracking-tight ${variant === "page" ? "text-[26px]" : "text-[22px]"}`}>Tokenized Assets</Heading>
+        <div className="mt-1 flex items-center gap-2">
+          <Heading className={`font-semibold tracking-tight ${variant === "page" ? "text-[26px]" : "text-[22px]"}`}>Tokenized Assets</Heading>
+          {summary?.freshness && <FreshnessChip f={summary.freshness} />}
+        </div>
         <p className="mt-1 text-[14px] text-white/70">
           {
           summary

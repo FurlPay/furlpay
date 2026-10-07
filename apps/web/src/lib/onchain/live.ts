@@ -1,7 +1,7 @@
 import { sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
 import { alliumKeyConfigured } from "./allium";
 import { beamSecret } from "./beamAuth";
-import { shortRef } from "./dashboard";
+import { dataVersion, shortRef } from "./dashboard";
 
 // ---------------------------------------------------------------------------
 // Live read model for /onchain: the ingested chain feed, its freshness, and
@@ -45,6 +45,12 @@ export interface LiveSnapshot {
   freshness: { lastBlockAt: string | null; lastIngestAt: string | null; ingestLagMs: number | null; ageMs: number | null };
   health: { eventsTotal: number; deadLetters24h: number; deadLettersOpen: number; reconciliationRequired: number; reorgedTotal: number; lastRun: { kind: string; status: string; finishedAt: string | null; startedAt: string; inserted: number; markedReorged: number } | null } | null;
   latestId: number | null;
+  /** Signature of ledger/security/chain-event changes; the SSE stream sends it so clients refetch exactly when data changed. */
+  dataVersion: string;
+  /** Last-hour ingest stats per source (onchain_ingest_metrics). */
+  ingest1h: Record<string, { received: number; inserted: number; duplicates: number; reorgReplaced: number; lagMsAvg: number | null; lagMsMax: number | null }>;
+  /** Upstream source bookkeeping (onchain_source_status). */
+  sources: Record<string, { lastSuccessAt: string | null; lastErrorAt: string | null; lastError: string | null; lastDataAt: string | null }>;
   feed: FeedEvent[];
 }
 
@@ -166,6 +172,9 @@ async function buildLive(full: boolean, now: number): Promise<LiveSnapshot> {
     freshness: { lastBlockAt: null, lastIngestAt: null, ingestLagMs: null, ageMs: null },
     health: null,
     latestId: null,
+    dataVersion: await dataVersion(now).catch(() => "unknown"),
+    ingest1h: {},
+    sources: {},
     feed: [],
   };
   // Not connected (or no store) is the root state: report it without querying.
@@ -186,13 +195,33 @@ async function buildLive(full: boolean, now: number): Promise<LiveSnapshot> {
         ? { kind: String(run.kind), status: String(run.status), finishedAt: (run.finished_at as string | null) ?? null, startedAt: String(run.started_at), inserted: Number(run.inserted ?? 0), markedReorged: Number(run.marked_reorged ?? 0) }
         : null,
     };
-    const lastIngestAt = (h.last_observed_at as string | null) ?? null;
+    const rawSources = (h.sources ?? {}) as Record<string, Record<string, string | null>>;
+    const sources: LiveSnapshot["sources"] = Object.fromEntries(
+      // Upstream error text is operator-only: the public snapshot says WHEN a source failed, not why.
+      Object.entries(rawSources).map(([k, v]) => [k, { lastSuccessAt: v.last_success_at ?? null, lastErrorAt: v.last_error_at ?? null, lastError: full ? (v.last_error ?? null) : null, lastDataAt: v.last_data_at ?? null }])
+    );
+    const rawM = (h.metrics_1h ?? {}) as Record<string, Record<string, number | null>>;
+    const ingest1h: LiveSnapshot["ingest1h"] = Object.fromEntries(
+      Object.entries(rawM).map(([k, v]) => [k, { received: Number(v.received ?? 0), inserted: Number(v.inserted ?? 0), duplicates: Number(v.duplicates ?? 0), reorgReplaced: Number(v.reorg_replaced ?? 0), lagMsAvg: v.lag_ms_avg === null || v.lag_ms_avg === undefined ? null : Number(v.lag_ms_avg), lagMsMax: v.lag_ms_max === null || v.lag_ms_max === undefined ? null : Number(v.lag_ms_max) }])
+    );
+    // Evidence the pipeline is alive: newest ingested row, or a successful
+    // webhook delivery / reconciliation recorded in onchain_source_status
+    // (a healthy stream with nothing of ours in it is still healthy).
+    const evidence = [h.last_observed_at as string | null, sources.allium_beam?.lastSuccessAt, sources.allium_realtime_api?.lastSuccessAt].filter((x): x is string => Boolean(x)).sort();
+    const lastIngestAt = evidence.at(-1) ?? null;
+    const beam = sources.allium_beam;
+    const beamFailing = Boolean(beam?.lastErrorAt && (!beam.lastSuccessAt || beam.lastErrorAt > beam.lastSuccessAt));
     const lastBlockAt = (h.last_block_timestamp as string | null) ?? null;
     const newest = rows[0];
     return {
       ...base,
-      ...pipelineState({ configured, health, lastIngestAt, now }),
+      ...(() => {
+        const p = pipelineState({ configured, health, lastIngestAt, now });
+        return beamFailing && p.state === "live" ? { state: "degraded" as const, reason: full ? `Last webhook delivery failed (${beam?.lastError ?? "error"}).` : "Last webhook delivery failed." } : p;
+      })(),
       health,
+      sources,
+      ingest1h,
       freshness: {
         lastBlockAt,
         lastIngestAt,

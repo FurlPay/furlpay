@@ -61,6 +61,11 @@ create table if not exists onchain_events (
   ledger_ref              text,
   reconciliation_required boolean not null default false,
   reconciliation_note     text,
+  -- AML: the OFAC SDN screen of the counterparty at ingest (packages/compliance
+  -- screenWallet). A FLAG for operators: this read model never freezes or
+  -- moves anything.
+  risk_action        text not null default 'allow' check (risk_action in ('allow', 'review', 'block')),
+  risk_flags         jsonb not null default '[]'::jsonb,
   metadata           jsonb not null default '{}'::jsonb,
   observed_at        timestamptz not null default now(),
   created_at         timestamptz not null default now(),
@@ -152,6 +157,35 @@ create table if not exists onchain_reconciliation_runs (
 );
 create index if not exists onchain_reconciliation_runs_started_idx on onchain_reconciliation_runs (started_at desc);
 
+-- Observability, maintained INSIDE onchain_ingest (same transaction as the
+-- writes it counts): per UTC hour and source, how many events arrived, what
+-- happened to them, and ingest lag = observed_at - block_timestamp of new rows.
+create table if not exists onchain_ingest_metrics (
+  bucket        timestamptz not null,
+  source        text not null,
+  received      bigint not null default 0,
+  inserted      bigint not null default 0,
+  duplicates    bigint not null default 0,
+  promoted      bigint not null default 0,
+  reorg_replaced bigint not null default 0,
+  reinstated    bigint not null default 0,
+  lag_ms_sum    numeric not null default 0,
+  lag_ms_max    bigint not null default 0,
+  lag_n         bigint not null default 0,
+  primary key (bucket, source)
+);
+
+-- Per-upstream freshness, shared by every server instance: when a source last
+-- succeeded, last failed (and why), and the newest data time it delivered.
+create table if not exists onchain_source_status (
+  source         text primary key check (source ~ '^[a-z0-9_:.-]{2,64}$'),
+  last_success_at timestamptz,
+  last_error_at  timestamptz,
+  last_error     text,
+  last_data_at   timestamptz,
+  updated_at     timestamptz not null default now()
+);
+
 -- Entity labels. Only provider-verified labels are stored; no row = unknown.
 create table if not exists onchain_entity_labels (
   chain        text not null,
@@ -234,6 +268,9 @@ declare
   new_state text;
   v_inserted int := 0; v_dup int := 0; v_promoted int := 0; v_reorg int := 0; v_reinstated int := 0;
   t_min timestamptz; t_max timestamptz; ts timestamptz;
+  v_blocked text[] := '{}';
+  v_lag_sum numeric := 0; v_lag_max bigint := 0; v_lag_n int := 0; v_lag bigint;
+  v_source text;
 begin
   if jsonb_typeof(p_events) <> 'array' or jsonb_array_length(p_events) > 500 then
     raise exception 'onchain_ingest expects an array of at most 500 events';
@@ -242,19 +279,27 @@ begin
     k := lower(e->>'event_key');
     new_state := e->>'confirmation_state';
     ts := (e->>'block_timestamp')::timestamptz;
+    v_source := coalesce(v_source, e->>'source');
 
     insert into onchain_events (event_key, source, chain, tx_hash, block_number, block_hash, block_timestamp, log_index,
       from_address, to_address, asset_address, asset_symbol, asset_decimals, amount_raw, amount, amount_usd,
-      activity_type, direction, tracked_address, scope, user_id, confirmation_state, provider_event_id, metadata)
+      activity_type, direction, tracked_address, scope, user_id, confirmation_state, provider_event_id, metadata,
+      risk_action, risk_flags)
     values (k, e->>'source', e->>'chain', e->>'tx_hash', (e->>'block_number')::bigint, e->>'block_hash', ts,
       (e->>'log_index')::int, e->>'from_address', e->>'to_address', e->>'asset_address', e->>'asset_symbol',
       (e->>'asset_decimals')::int, (e->>'amount_raw')::numeric, (e->>'amount')::numeric, (e->>'amount_usd')::numeric,
       coalesce(e->>'activity_type', 'transfer'), e->>'direction', e->>'tracked_address', e->>'scope',
-      nullif(e->>'user_id', '')::uuid, new_state, e->>'provider_event_id', coalesce(e->'metadata', '{}'::jsonb))
+      nullif(e->>'user_id', '')::uuid, new_state, e->>'provider_event_id', coalesce(e->'metadata', '{}'::jsonb),
+      coalesce(e->>'risk_action', 'allow'), coalesce(e->'risk_flags', '[]'::jsonb))
     on conflict (event_key) do nothing;
 
     if found then
       v_inserted := v_inserted + 1;
+      -- The caller raises one security event per NEWLY inserted blocked event;
+      -- a redelivery is not new, so it can never raise a second one.
+      if coalesce(e->>'risk_action', 'allow') = 'block' then v_blocked := v_blocked || k; end if;
+      v_lag := greatest(0, (extract(epoch from (now() - ts)) * 1000)::bigint);
+      v_lag_sum := v_lag_sum + v_lag; v_lag_max := greatest(v_lag_max, v_lag); v_lag_n := v_lag_n + 1;
       t_min := least(coalesce(t_min, ts), ts); t_max := greatest(coalesce(t_max, ts), ts);
       continue;
     end if;
@@ -293,9 +338,38 @@ begin
   if t_min is not null then
     perform onchain_refresh_hourly(t_min, t_max);
   end if;
+
+  if jsonb_array_length(p_events) > 0 then
+    insert into onchain_ingest_metrics as m (bucket, source, received, inserted, duplicates, promoted, reorg_replaced, reinstated, lag_ms_sum, lag_ms_max, lag_n)
+    values (date_trunc('hour', now(), 'UTC'), coalesce(v_source, 'unknown'), jsonb_array_length(p_events), v_inserted, v_dup, v_promoted, v_reorg, v_reinstated, v_lag_sum, v_lag_max, v_lag_n)
+    on conflict (bucket, source) do update set
+      received = m.received + excluded.received, inserted = m.inserted + excluded.inserted,
+      duplicates = m.duplicates + excluded.duplicates, promoted = m.promoted + excluded.promoted,
+      reorg_replaced = m.reorg_replaced + excluded.reorg_replaced, reinstated = m.reinstated + excluded.reinstated,
+      lag_ms_sum = m.lag_ms_sum + excluded.lag_ms_sum, lag_ms_max = greatest(m.lag_ms_max, excluded.lag_ms_max),
+      lag_n = m.lag_n + excluded.lag_n;
+  end if;
+
   return jsonb_build_object('inserted', v_inserted, 'duplicates', v_dup, 'promoted', v_promoted,
-                            'reorg_replaced', v_reorg, 'reinstated', v_reinstated);
+                            'reorg_replaced', v_reorg, 'reinstated', v_reinstated, 'blocked_keys', to_jsonb(v_blocked));
 end $$;
+
+-- Freshness bookkeeping for an upstream source (webhook, reconciliation,
+-- market data, saved queries). p_ok=false records the error.
+create or replace function onchain_touch_source(p_source text, p_ok boolean, p_error text default null, p_data_at timestamptz default null)
+returns void
+language sql
+set search_path = public, pg_catalog
+as $$
+  insert into onchain_source_status as s (source, last_success_at, last_error_at, last_error, last_data_at, updated_at)
+  values (p_source, case when p_ok then now() end, case when not p_ok then now() end, case when not p_ok then left(p_error, 300) end, p_data_at, now())
+  on conflict (source) do update set
+    last_success_at = case when p_ok then now() else s.last_success_at end,
+    last_error_at = case when not p_ok then now() else s.last_error_at end,
+    last_error = case when not p_ok then left(p_error, 300) else s.last_error end,
+    last_data_at = greatest(s.last_data_at, p_data_at),
+    updated_at = now()
+$$;
 
 -- Reconciliation: the provider no longer returns an event inside its finality
 -- window. Mark it (never delete) and rebuild its hour.
@@ -365,7 +439,14 @@ as $$
     'dead_letters_24h', (select count(*) from onchain_dead_letters where received_at > now() - interval '24 hours'),
     'reconciliation_required', (select count(*) from onchain_events where reconciliation_required),
     'reorged_total', (select count(*) from onchain_events where confirmation_state = 'reorged'),
-    'last_run', (select to_jsonb(r) from onchain_reconciliation_runs r order by started_at desc limit 1)
+    'last_run', (select to_jsonb(r) from onchain_reconciliation_runs r order by started_at desc limit 1),
+    'metrics_1h', (select coalesce(jsonb_object_agg(source, jsonb_build_object(
+        'received', received, 'inserted', inserted, 'duplicates', duplicates, 'reorg_replaced', reorg_replaced,
+        'lag_ms_avg', case when lag_n > 0 then round(lag_ms_sum / lag_n) end, 'lag_ms_max', lag_ms_max)), '{}'::jsonb)
+      from (select source, sum(received) received, sum(inserted) inserted, sum(duplicates) duplicates, sum(reorg_replaced) reorg_replaced,
+                   sum(lag_ms_sum) lag_ms_sum, max(lag_ms_max) lag_ms_max, sum(lag_n) lag_n
+              from onchain_ingest_metrics where bucket >= date_trunc('hour', now(), 'UTC') - interval '1 hour' group by source) x),
+    'sources', (select coalesce(jsonb_object_agg(source, to_jsonb(s) - 'source'), '{}'::jsonb) from onchain_source_status s)
   )
 $$;
 
@@ -379,12 +460,15 @@ alter table onchain_ingest_checkpoints enable row level security;
 alter table onchain_reconciliation_runs enable row level security;
 alter table onchain_entity_labels enable row level security;
 alter table onchain_hourly enable row level security;
+alter table onchain_ingest_metrics enable row level security;
+alter table onchain_source_status enable row level security;
 
 do $$
 declare t text;
 begin
   foreach t in array array['onchain_events', 'onchain_event_revisions', 'onchain_webhook_nonces', 'onchain_dead_letters',
-                           'onchain_ingest_checkpoints', 'onchain_reconciliation_runs', 'onchain_entity_labels', 'onchain_hourly'] loop
+                           'onchain_ingest_checkpoints', 'onchain_reconciliation_runs', 'onchain_entity_labels', 'onchain_hourly',
+                           'onchain_ingest_metrics', 'onchain_source_status'] loop
     execute format('revoke all on table %I from public, anon, authenticated', t);
     execute format('grant select, insert, update on table %I to service_role', t);
   end loop;
@@ -397,7 +481,8 @@ declare f text;
 begin
   foreach f in array array[
     'onchain_refresh_hourly(timestamptz, timestamptz)', 'onchain_state_rank(text)', 'onchain_ingest(jsonb)',
-    'onchain_mark_reorged(text, text)', 'onchain_flag_ledger(text, text, text)', 'onchain_claim_nonce(text)', 'onchain_health()'
+    'onchain_mark_reorged(text, text)', 'onchain_flag_ledger(text, text, text)', 'onchain_claim_nonce(text)', 'onchain_health()',
+    'onchain_touch_source(text, boolean, text, timestamptz)'
   ] loop
     execute format('revoke all on function %s from public, anon, authenticated', f);
     execute format('grant execute on function %s to service_role', f);

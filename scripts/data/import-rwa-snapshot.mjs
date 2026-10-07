@@ -37,6 +37,12 @@ if (!asOf || !/^\d{4}-\d{2}-\d{2}$/.test(asOf) || new Date(`${asOf}T00:00:00Z`).
   console.error(`--as-of YYYY-MM-DD is required and must be a real date (the export has no date column; the file was last modified ${mtime} UTC).`);
   process.exit(2);
 }
+// A snapshot from the future would become "latest" and outrank every live
+// refresh until that date arrives.
+if (asOf > new Date().toISOString().slice(0, 10)) {
+  console.error(`--as-of ${asOf} is in the future (UTC today is ${new Date().toISOString().slice(0, 10)}).`);
+  process.exit(2);
+}
 const source = (flag("source") ?? "allium_tokenized_assets_export").slice(0, 120);
 
 const { rows, errors } = validateRows(parseCsv(readFileSync(file, "utf8")), { asOf, source });

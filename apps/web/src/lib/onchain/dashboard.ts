@@ -4,6 +4,7 @@ import { alliumKeyConfigured, alliumQuery, type Sourced } from "./allium";
 import { stablecoinMarket } from "./market";
 import { treasuryHoldings, type Holdings } from "./holdings";
 import { summarizeActivity, summarizeChains, type ChainActivity, type StablecoinActivity } from "./stablecoinActivity";
+import { DAY, MIN, classify, type SectionFreshness } from "./freshness";
 
 // ---------------------------------------------------------------------------
 // /onchain — the Onchain Intelligence dashboard. Three kinds of source, each
@@ -89,6 +90,8 @@ export interface OnchainDashboard {
   alliumChains: Sourced<ChainActivity[]>;
   corridors: Sourced<{ from: string; to: string; volumeUsd: number }[]>;
   holdings: Sourced<Holdings>;
+  /** Per-section freshness of the UPSTREAM data (lib/onchain/freshness.ts). */
+  freshness: Record<"ledger" | "risk" | "market" | "alliumDaily" | "alliumChains" | "corridors" | "holdings", SectionFreshness>;
 }
 
 const ROW_LIMIT = 20_000;
@@ -273,20 +276,50 @@ async function risk(range: AnalyticsRange): Promise<Section<RiskView>> {
 }
 
 const CACHE_MS = 60_000;
+const VERSION_MS = 2_000;
 const cache = new Map<string, { at: number; value: Promise<OnchainDashboard> }>();
+let versionMemo: { at: number; value: Promise<string> } | null = null;
 
 /**
- * One shared build per (range, chain) for 60 s, with concurrent callers
- * awaiting the same promise. The page is public, so this — not the per-IP
- * limiter — is what bounds ledger reads.
+ * A cheap signature of the event-driven sources: the newest ledger row, the
+ * newest security event and the newest ingested chain event. Three indexed
+ * "latest row" reads, at most once per 2 s per instance. When it changes, the
+ * cached dashboard is rebuilt — so a new payment, alert or chain transfer
+ * reaches every viewer within ~2 s instead of waiting out the 60 s cache.
  */
-export function onchainCached(range: AnalyticsRange, chain: ChainFilter, now = Date.now()): Promise<OnchainDashboard> {
-  const key = `${range.key}:${chain}`;
+export function dataVersion(now = Date.now()): Promise<string> {
+  if (versionMemo && now - versionMemo.at < VERSION_MS) return versionMemo.value;
+  const value = (async () => {
+    if (supabaseBackend !== "supabase") return "nostore";
+    const one = <T,>(table: string, q: string) => sbSelect<T>(table, q).then((r) => r[0] ?? null).catch(() => null);
+    const [tx, sec, ev] = await Promise.all([
+      one<{ created_at: string }>("ops_tx_events", "select=created_at&order=created_at.desc&limit=1"),
+      one<{ created_at: string }>("ops_security_events", "select=created_at&order=created_at.desc&limit=1"),
+      one<{ id: number }>("onchain_events", "select=id&order=id.desc&limit=1"),
+    ]);
+    return `${tx?.created_at ?? "-"}|${sec?.created_at ?? "-"}|${ev?.id ?? "-"}`;
+  })();
+  versionMemo = { at: now, value };
+  value.catch(() => (versionMemo = null));
+  return value;
+}
+
+/**
+ * One shared build per (range, chain, data version), at most 60 s old, with
+ * concurrent callers awaiting the same promise. The page is public, so this —
+ * not the per-IP limiter — is what bounds ledger reads: a burst of viewers
+ * costs one build per version change, not one per viewer.
+ */
+export async function onchainCached(range: AnalyticsRange, chain: ChainFilter, now = Date.now()): Promise<OnchainDashboard> {
+  const version = await dataVersion(now);
+  const key = `${range.key}:${chain}:${version}`;
   const hit = cache.get(key);
   if (hit && now - hit.at < CACHE_MS) return hit.value;
   const value = buildOnchainDashboard(range, chain);
   cache.set(key, { at: now, value });
   value.catch(() => cache.delete(key));
+  // Older versions are dead weight; keep the map small.
+  if (cache.size > 64) for (const k of [...cache.keys()].slice(0, cache.size - 64)) cache.delete(k);
   return value;
 }
 
@@ -300,8 +333,27 @@ export async function buildOnchainDashboard(range: AnalyticsRange, chain: ChainF
     alliumQuery("corridors"),
     treasuryHoldings(),
   ]);
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  const activity = daily.status === "ok" ? summarizeActivity(daily.data, daily.asOf) : null;
+  // A daily metric's data time is the END of its latest day.
+  const latestDayEnd = activity?.latest ? new Date(Date.parse(`${activity.latest.day}T00:00:00Z`) + DAY).toISOString() : null;
+  const notSet = (s: { status: string; reason?: string }) => s.status === "unavailable" && /is not set|not configured|No FurlPay-owned address/i.test(s.reason ?? "");
+  const store = supabaseBackend === "supabase";
+  const freshness: OnchainDashboard["freshness"] = {
+    // The ledger and security events ARE the source: read at request time,
+    // rebuilt whenever dataVersion changes.
+    ledger: classify({ kind: "event", healthyWithinMs: Infinity, source: LEDGER_SOURCE, cadence: "event-driven (~2 s)", configured: store, ok: l.status === "ok", asOf: nowIso, now, reason: l.status === "unavailable" ? l.reason : undefined }),
+    risk: classify({ kind: "event", healthyWithinMs: Infinity, source: RISK_SOURCE, cadence: "event-driven (~2 s)", configured: store, ok: r.status === "ok", asOf: nowIso, now, reason: r.status === "unavailable" ? r.reason : undefined }),
+    market: classify({ kind: "polled", cadenceMs: 30 * MIN, source: market.source, cadence: "every 30 min", configured: true, ok: market.status === "ok", asOf: market.status === "ok" ? market.asOf : null, now, reason: market.status === "unavailable" ? market.reason : undefined }),
+    alliumDaily: classify({ kind: "lagged", expectedLagMs: 3 * DAY, source: daily.source, cadence: "daily (Allium aggregates ~1-2 days behind)", configured: !notSet(daily), ok: daily.status === "ok", asOf: latestDayEnd, now, reason: daily.status === "unavailable" ? daily.reason : undefined }),
+    alliumChains: classify({ kind: "lagged", expectedLagMs: 3 * DAY, source: byChain.source, cadence: "daily (Allium aggregates ~1-2 days behind)", configured: !notSet(byChain), ok: byChain.status === "ok", asOf: latestDayEnd ?? (byChain.status === "ok" ? byChain.asOf : null), now, reason: byChain.status === "unavailable" ? byChain.reason : undefined }),
+    corridors: classify({ kind: "lagged", expectedLagMs: 3 * DAY, source: corridors.source, cadence: "daily", configured: !notSet(corridors), ok: corridors.status === "ok", asOf: corridors.status === "ok" ? corridors.asOf : null, now, reason: corridors.status === "unavailable" ? corridors.reason : undefined }),
+    holdings: classify({ kind: "polled", cadenceMs: 5 * MIN, source: holdings.source, cadence: "every 5 min", configured: !notSet(holdings), ok: holdings.status === "ok", asOf: holdings.status === "ok" ? holdings.asOf : null, now, reason: holdings.status === "unavailable" ? holdings.reason : undefined }),
+  };
   return {
-    generatedAt: new Date().toISOString(),
+    freshness,
+    generatedAt: nowIso,
     range: { key: range.key, from: iso(range.fromMs), to: iso(range.toMs), bucket: range.bucket, buckets: range.buckets.map(iso) },
     chain,
     ledger: l,
@@ -310,7 +362,7 @@ export async function buildOnchainDashboard(range: AnalyticsRange, chain: ChainF
     alliumConfigured: alliumKeyConfigured(),
     holdings,
     // asOf is the Allium run's queried_at: the provisional-day rule keys off it.
-    alliumDaily: daily.status === "ok" ? { ...daily, data: summarizeActivity(daily.data, daily.asOf) } : daily,
+    alliumDaily: daily.status === "ok" ? { ...daily, data: activity! } : daily,
     alliumChains: byChain.status === "ok" ? { ...byChain, data: summarizeChains(byChain.data) } : byChain,
     corridors:
       corridors.status === "ok"

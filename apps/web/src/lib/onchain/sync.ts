@@ -4,7 +4,7 @@ import { log } from "@/lib/log";
 import { raiseFinancialAlert } from "@/lib/ops/financialAlerts";
 import { alliumKeyConfigured } from "./allium";
 import { normalizeWalletItem, type Transfer } from "./normalize";
-import { persist, scopeTransfers, trackedAddresses, ZERO_COUNTS, type IngestCounts } from "./ingest";
+import { persist, scopeTransfers, touchSource, trackedAddresses, ZERO_COUNTS, type IngestCounts } from "./ingest";
 
 // ---------------------------------------------------------------------------
 // Backfill + reconciliation over Allium's Realtime API (verified against
@@ -169,6 +169,7 @@ export async function syncOnchain(kind: "backfill" | "reconcile", opts: { lookba
       errors: report.errors.slice(0, 20),
     }).catch((e) => log.error("onchain run record update failed", { error: (e as Error).message.slice(0, 160) }));
   }
+  await touchSource("allium_realtime_api", report.status === "ok" || report.status === "partial", { error: report.errors[0] });
   if (report.ledgerFlagged > 0) void raiseFinancialAlert("onchain_ledger_mismatch", { flagged: report.ledgerFlagged, runId: report.runId });
   return report;
 }

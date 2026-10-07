@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireCron } from "@/lib/cron/auth";
 import { cronHttpStatus, runJob } from "@/lib/cron/runner";
 import { syncOnchain } from "@/lib/onchain/sync";
+import { refreshRwaSnapshot } from "@/lib/rwaRefresh";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -29,6 +30,9 @@ export async function GET(req: NextRequest) {
       ctx.metric("marked_reorged", r.markedReorged);
       ctx.metric("ledger_flagged", r.ledgerFlagged);
       ctx.note(`onchain reconcile: ${r.status}${r.reason ? ` (${r.reason})` : ""}; ${r.addresses} addresses; ${r.errors.length} errors`);
+      // Tokenized assets: replace today's snapshot from the saved Allium query.
+      const rwa = await refreshRwaSnapshot();
+      ctx.note(`rwa refresh: ${rwa.status}${rwa.reason ? ` (${rwa.reason})` : `, ${rwa.rows} rows, ${rwa.changed} changed`}`);
       if (r.status === "failed") throw new Error(r.errors[0] ?? "onchain reconcile failed");
     },
     { budgetMs: 240_000 }

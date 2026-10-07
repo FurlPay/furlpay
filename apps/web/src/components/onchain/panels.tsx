@@ -9,7 +9,7 @@ import world from "@/components/analytics/worldDots.json";
 import { fmtCount, fmtUsd, relTime } from "@/components/analytics/format";
 import { CHAINS } from "./Shell";
 import { BrandLogo, chainName } from "./BrandLogo";
-import { ChainEventRow } from "./live";
+import { ChainEventRow, liveFreshness } from "./live";
 import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 import { Card, Change, Empty, GhostButton, Menu, NEON, PALETTE, RAIL_COLOR, SHORT_RAIL, Spark, TipBox, Unavailable, chainLabel, pct, railLabel } from "./ui";
 
@@ -88,6 +88,7 @@ export function PaymentVolume({ data, chain, setChain, rangeKey }: { data: Data;
     <Card
       id="payments"
       title="Payment Volume"
+      freshness={data.freshness?.ledger}
       source={data.ledger.source}
       action={
         <>
@@ -167,6 +168,7 @@ export function ChainDonut({ data }: { data: Data }) {
     <Card
       id="chains"
       title="Transactions by Chain"
+      freshness={data.freshness?.ledger}
       source={data.ledger.source}
       action={<Menu label="Metric" width={104} value={metric} onChange={setMetric} options={[["volume", "Volume"], ["count", "Transactions"]] as const} />}
     >
@@ -224,7 +226,7 @@ export function StablecoinFlows({ data }: { data: Data }) {
   const byChainMode = corr.status === "unavailable" && chains.length > 0;
   const source = byChainMode ? data.alliumChains.source : corr.source;
   return (
-    <Card title="Stablecoin Flows (Global)" source={source} action={<Menu label="Metric" width={96} value="volume" onChange={() => {}} options={[["volume", "Volume"]] as const} />}>
+    <Card title="Stablecoin Flows (Global)" source={source} freshness={byChainMode ? data.freshness?.alliumChains : data.freshness?.corridors} action={<Menu label="Metric" width={96} value="volume" onChange={() => {}} options={[["volume", "Volume"]] as const} />}>
       <div className={`grid flex-1 items-center gap-3 ${byChainMode ? "sm:grid-cols-[1fr_1.15fr]" : "sm:grid-cols-[1.9fr_1fr]"}`}>
         <div className="relative">
           <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(0,229,153,0.10),transparent_65%)]" />
@@ -312,7 +314,7 @@ export function Categories({ data }: { data: Data }) {
   const totalCount = rails.reduce((a, r) => a + r.count, 0);
   const rows = rails.map((r) => ({ ...r, s: metric === "volume" ? r.share : totalCount > 0 ? r.count / totalCount : 0 })).sort((a, b) => b.s - a.s);
   return (
-    <Card id="categories" title="Top Payment Categories" source={data.ledger.source} action={<Menu label="Metric" width={96} value={metric} onChange={setMetric} options={[["volume", "Volume"], ["count", "Count"]] as const} />}>
+    <Card id="categories" title="Top Payment Categories" source={data.ledger.source} freshness={data.freshness?.ledger} action={<Menu label="Metric" width={96} value={metric} onChange={setMetric} options={[["volume", "Volume"], ["count", "Count"]] as const} />}>
       {!L ? (
         <Unavailable reason={ledgerReason(data)} />
       ) : rows.length === 0 ? (
@@ -345,6 +347,7 @@ export function Counterparties({ data, query }: { data: Data; query: string }) {
     <Card
       id="counterparties"
       title="Counterparties & Entities"
+      freshness={data.freshness?.ledger}
       source={`${data.ledger.source}; entity labels need Allium`}
       action={rows.length > 6 && <GhostButton onClick={() => setAll((a) => !a)}>{all ? "Show less" : "View All"}</GhostButton>}
     >
@@ -388,7 +391,7 @@ export function Activity({ data, query, live, onOpen }: { data: Data; query: str
   const sourceMenu = <Menu label="Source" width={86} value={source} onChange={setPicked} options={[["chain", "Chain"], ["ledger", "Ledger"]] as const} />;
   if (source === "chain") {
     return (
-      <Card title="Real-time Activity" source="Allium (Beam stream + Realtime API) → onchain_events, tracked addresses only" action={sourceMenu}>
+      <Card title="Real-time Activity" source="Allium (Beam stream + Realtime API) → onchain_events, tracked addresses only" action={sourceMenu} freshness={live ? liveFreshness(live) : null}>
         {!live ? (
           <Empty text="Connecting to the live feed…" />
         ) : live.state === "offline" || live.state === "not_configured" ? (
@@ -409,6 +412,7 @@ export function Activity({ data, query, live, onOpen }: { data: Data; query: str
     <Card
       title="Real-time Activity"
       source={data.ledger.source}
+      freshness={data.freshness?.ledger}
       action={
         <>
           {sourceMenu}
@@ -463,7 +467,7 @@ export function Risk({ data }: { data: Data }) {
   const lowShare = R && R.total > 0 ? R.bySeverity.low / R.total : null;
   const C = 2 * Math.PI * 42;
   return (
-    <Card id="risk" title="Risk & Compliance" source={data.risk.source} action={<GhostButton href="/trust">View All</GhostButton>}>
+    <Card id="risk" title="Risk & Compliance" source={data.risk.source} freshness={data.freshness?.risk} action={<GhostButton href="/trust">View All</GhostButton>}>
       {!R ? (
         <Unavailable reason={data.risk.status === "unavailable" ? data.risk.reason : ""} />
       ) : (
@@ -541,6 +545,7 @@ export function Flow({ data, chain, setChain }: { data: Data; chain: string; set
   return (
     <Card
       title="Transaction Flow"
+      freshness={data.freshness?.ledger}
       source={`${data.ledger.source}: rail → destination chain`}
       action={
         <>
@@ -628,7 +633,7 @@ export function MarketInsights({ data }: { data: Data }) {
   );
 
   return (
-    <Card id="market" title="Stablecoin Market Insights" source={`${data.market.source} (supply)${data.alliumDaily.status === "ok" ? `; ${data.alliumDaily.source}` : ""}`} action={<GhostButton href="/markets">View All</GhostButton>}>
+    <Card id="market" title="Stablecoin Market Insights" freshness={data.freshness ? (tab === "supply" ? data.freshness.market : data.freshness.alliumDaily) : null} source={`${data.market.source} (supply)${data.alliumDaily.status === "ok" ? `; ${data.alliumDaily.source}` : ""}`} action={<GhostButton href="/markets">View All</GhostButton>}>
       <div className="grid flex-1 gap-3 sm:grid-cols-[0.78fr_1.22fr]">
         <div className="space-y-[7px]">
           {metric("Total Stablecoin Supply", M ? usdC(M.totalSupplyUsd) : null, M?.supplyChange30d ?? null)}

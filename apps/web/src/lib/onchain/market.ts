@@ -43,10 +43,13 @@ export interface StablecoinMarket {
   supplySeries: { date: string; value: number }[];
 }
 
-async function getJson(url: string): Promise<unknown> {
+/** Body plus the upstream Date header — kept through Next's data cache, so it
+ *  is the real fetch time of a cached response, not the time we read it. */
+async function getJson(url: string): Promise<{ body: unknown; fetchedAt: string | null }> {
   const res = await fetch(url, { signal: AbortSignal.timeout(TIMEOUT_MS), next: { revalidate: REVALIDATE_S } });
   if (!res.ok) throw new Error(`${SOURCE} responded ${res.status}`);
-  return res.json();
+  const d = Date.parse(res.headers.get("date") ?? "");
+  return { body: await res.json(), fetchedAt: Number.isFinite(d) ? new Date(d).toISOString() : null };
 }
 
 export function summarizeMarket(rawAssets: unknown, rawChart: unknown): StablecoinMarket {
@@ -89,11 +92,12 @@ export function summarizeMarket(rawAssets: unknown, rawChart: unknown): Stableco
 
 export async function stablecoinMarket(): Promise<Sourced<StablecoinMarket>> {
   try {
-    const [rawAssets, rawChart] = await Promise.all([
+    const [a, c] = await Promise.all([
       getJson("https://stablecoins.llama.fi/stablecoins?includePrices=true"),
       getJson("https://stablecoins.llama.fi/stablecoincharts/all"),
     ]);
-    return { status: "ok", data: summarizeMarket(rawAssets, rawChart), asOf: new Date().toISOString(), source: SOURCE };
+    const times = [a.fetchedAt, c.fetchedAt].filter((t): t is string => t !== null).sort();
+    return { status: "ok", data: summarizeMarket(a.body, c.body), asOf: times[0] ?? new Date().toISOString(), source: SOURCE };
   } catch (e) {
     const reason = e instanceof Error && e.name === "TimeoutError" ? `${SOURCE} did not answer within 10s.` : e instanceof z.ZodError ? `${SOURCE} changed its response shape.` : e instanceof Error ? e.message.slice(0, 160) : "request failed";
     return { status: "unavailable", reason, source: SOURCE };

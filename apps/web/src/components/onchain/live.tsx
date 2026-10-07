@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowDownLeft, ArrowUpRight, Check, Copy, ExternalLink, Repeat, X } from "lucide-react";
 import type { FeedEvent, LiveSnapshot, TxDetail } from "@/lib/onchain/live";
+import type { SectionFreshness } from "@/lib/onchain/freshness";
 import { fmtUsd, relTime } from "@/components/analytics/format";
 import { BrandLogo, chainName } from "./BrandLogo";
 
@@ -21,7 +22,7 @@ export function useOnchainLive(onChange?: () => void) {
   const [conn, setConn] = useState<ConnState>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [receivedAt, setReceivedAt] = useState<number | null>(null);
-  const lastId = useRef<number | null | undefined>(undefined);
+  const lastSig = useRef<string | undefined>(undefined);
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
 
@@ -33,8 +34,11 @@ export function useOnchainLive(onChange?: () => void) {
       setSnap(body.data);
       setReceivedAt(Date.now());
       setError(null);
-      if (lastId.current !== undefined && body.data.latestId !== lastId.current) onChangeRef.current?.();
-      lastId.current = body.data.latestId;
+      // Any upstream change (ledger row, security event, chain event) also
+      // refreshes the ledger-backed cards; an unchanged signature costs nothing.
+      const sig = `${body.data.latestId ?? 0}|${body.data.dataVersion}`;
+      if (lastSig.current !== undefined && sig !== lastSig.current) onChangeRef.current?.();
+      lastSig.current = sig;
     } catch {
       setError("Live feed unreachable.");
     }
@@ -121,6 +125,12 @@ export function LiveBadge({ snap, conn }: { snap: LiveSnapshot | null; conn: Con
         <span className="flex justify-between">Events stored <span className="text-white">{snap?.health ? snap.health.eventsTotal.toLocaleString("en-US") : "—"}</span></span>
         <span className="flex justify-between">Dead letters (24h) <span className="text-white">{snap?.health?.deadLetters24h ?? "—"}</span></span>
         <span className="flex justify-between">Last reconciliation <span className="text-white">{snap?.health?.lastRun ? `${snap.health.lastRun.status} · ${relTime(snap.health.lastRun.finishedAt ?? snap.health.lastRun.startedAt)}` : "never"}</span></span>
+        {snap?.ingest1h?.allium_beam && (
+          <>
+            <span className="flex justify-between">Ingest lag 1h (avg / max) <span className="text-white">{ago(snap.ingest1h.allium_beam.lagMsAvg)} / {ago(snap.ingest1h.allium_beam.lagMsMax)}</span></span>
+            <span className="flex justify-between">Webhook events 1h <span className="text-white">{snap.ingest1h.allium_beam.received} recv · {snap.ingest1h.allium_beam.duplicates} dup · {snap.ingest1h.allium_beam.reorgReplaced} reorg</span></span>
+          </>
+        )}
         <span className="flex justify-between">Browser link <span className="text-white">{conn === "open" ? "streaming" : conn}</span></span>
       </span>
     </span>
@@ -277,4 +287,17 @@ export function TxDrawer({ ev, onClose }: { ev: FeedEvent; onClose: () => void }
       </aside>
     </div>
   );
+}
+
+/** The chain feed's pipeline state on the dashboard-wide freshness scale. */
+export function liveFreshness(s: LiveSnapshot): SectionFreshness {
+  const state: SectionFreshness["state"] =
+    s.state === "live" ? "live" : s.state === "degraded" ? "delayed" : s.state === "not_configured" ? "not_connected" : s.state;
+  return {
+    state,
+    source: "Allium Beam webhook + Realtime API reconciliation",
+    asOf: s.freshness.lastBlockAt,
+    cadence: "event-driven (Beam P50 ~1-2 s per Allium; measured lag in the badge)",
+    reason: s.reason ?? undefined,
+  };
 }

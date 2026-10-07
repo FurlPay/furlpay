@@ -177,6 +177,38 @@ try {
   assert.equal(h.events_total, 2);
   ok("onchain_health reports");
 
+  // I-11 observability + AML flagging.
+  const blockedKey = "base:0x" + "b".repeat(64) + ":3";
+  const blocked = ev({ event_key: blockedKey, tx_hash: "0x" + "b".repeat(64), log_index: 3, risk_action: "block", risk_flags: ["ofac-sdn"] });
+  let br = await ingest([blocked]);
+  assert.deepEqual(br.blocked_keys, [blockedKey]);
+  br = await ingest([blocked]); // redelivery
+  assert.deepEqual(br.blocked_keys, []);
+  assert.equal((await row(blockedKey)).risk_action, "block");
+  const m = (await q("select sum(received)::int received, sum(inserted)::int inserted, sum(duplicates)::int duplicates from onchain_ingest_metrics where source = 'allium_beam'")).rows[0];
+  assert.ok(m.received > 0 && m.inserted > 0 && m.duplicates > 0, JSON.stringify(m));
+  const h2 = (await q("select onchain_health() h")).rows[0].h;
+  assert.ok(h2.metrics_1h.allium_beam.received > 0);
+  await q("select onchain_touch_source('allium_beam', true, null, '2026-10-06T10:15:00Z')");
+  await q("select onchain_touch_source('allium_beam', false, 'boom', null)");
+  await q("select onchain_touch_source('allium_beam', true, null, '2026-10-05T00:00:00Z')"); // older data must not move last_data_at back
+  const src = (await q("select onchain_health() h")).rows[0].h.sources.allium_beam;
+  assert.equal(src.last_error, "boom");
+  assert.equal(new Date(src.last_data_at).toISOString(), "2026-10-06T10:15:00.000Z");
+  for (const role of ["anon", "authenticated"]) {
+    const c = await pool.connect();
+    try {
+      await c.query(`set role ${role}`);
+      await assert.rejects(c.query("select * from onchain_ingest_metrics"), /permission denied/);
+      await assert.rejects(c.query("select * from onchain_source_status"), /permission denied/);
+      await assert.rejects(c.query("select onchain_touch_source('x', true)"), /permission denied/);
+      await c.query("reset role");
+    } finally {
+      c.release();
+    }
+  }
+  ok("I-11 metrics counted in-transaction; blocked counterparty reported once; source freshness monotonic; new tables service-role only");
+
   // I-10 throughput (local PG18, this machine — a measurement, not a production SLA).
   const mk = (i, hourOffset = 0) =>
     ev({

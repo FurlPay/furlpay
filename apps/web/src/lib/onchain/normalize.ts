@@ -111,6 +111,12 @@ const intOrNull = (v: unknown, max = Number.MAX_SAFE_INTEGER): number | null => 
 };
 const sym = (v: unknown) => (typeof v === "string" && v.trim() && v.length <= 32 ? v.trim() : null);
 
+const RAW_MAX = 8_000;
+function rawCopy(raw: unknown): Record<string, unknown> {
+  const s = JSON.stringify(raw);
+  return s.length <= RAW_MAX ? { raw: JSON.parse(s) } : { raw_truncated: true, raw_bytes: s.length };
+}
+
 export function eventKey(chain: string, txHash: string, logIndex: number | null, native?: { from: string; to: string; raw: string | null }): string {
   if (logIndex !== null) return `${chain}:${txHash}:${logIndex}`.toLowerCase();
   return `${chain}:${txHash}:native:${native?.from ?? ""}:${native?.to ?? ""}:${native?.raw ?? ""}`.toLowerCase();
@@ -181,7 +187,8 @@ export function normalizeBeamRecord(raw: unknown, opts: { chain?: string | null;
         // when the pipeline is configured is_zerolag (docs: guides/finality).
         confirmation_state: opts.zerolag ? "observed" : "confirmed",
         provider_event_id: typeof r.unique_id === "string" ? r.unique_id.slice(0, 200) : null,
-        metadata: {},
+        // The provider record as received (bounded), for audit and replay.
+        metadata: rawCopy(raw),
       },
     ],
   };

@@ -53,6 +53,23 @@ export const ALLIUM_QUERIES = {
       recipient_count: n,
     }),
   },
+  // Tokenized assets, same columns as the CSV export, so a daily refresh and
+  // the bootstrap file share one model. Cast market_cap_usd to varchar in the
+  // SQL to keep full precision (a JSON number is a float).
+  rwaAssets: {
+    env: "ALLIUM_RWA_QUERY_ID",
+    label: "tokenized assets",
+    columns: "product_name, token_symbol, chain, issuer_name, asset_class, asset_type, market_cap_usd",
+    row: z.object({
+      product_name: z.string().trim().min(1).max(200),
+      token_symbol: z.string().trim().max(64).nullish().transform((v) => v ?? ""),
+      chain: z.string().regex(/^[a-z0-9_-]{2,32}$/),
+      issuer_name: z.string().trim().min(1).max(200),
+      asset_class: z.string().regex(/^[a-z_]{2,40}$/),
+      asset_type: z.string().regex(/^[a-z0-9_]{2,60}$/),
+      market_cap_usd: z.union([z.string(), z.number().finite().nonnegative()]).transform((v) => String(v)),
+    }),
+  },
   stablecoinByChain: {
     env: "ALLIUM_STABLECOIN_CHAIN_QUERY_ID",
     label: "stablecoin volume by chain",

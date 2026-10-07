@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown, Info } from "lucide-react";
 import { PRODUCT_LABELS } from "@/lib/analytics/products";
 import { fmtChange } from "@/components/analytics/format";
+import type { Freshness, SectionFreshness } from "@/lib/onchain/freshness";
 
 // Shared primitives for /onchain. Formatting only: no value is derived or
 // defaulted here, and a missing number renders as "—".
@@ -16,7 +17,58 @@ export const railLabel = (r: string) => PRODUCT_LABELS[r as keyof typeof PRODUCT
 export const chainLabel = (c: string) => (c === "all" ? "All Chains" : c === "bsc" ? "BNB Chain" : c === "arbitrum" ? "Arbitrum One" : c.charAt(0).toUpperCase() + c.slice(1));
 export const pct = (r: number) => `${(r * 100).toFixed(1)}%`;
 
-export function Card({ title, id, action, source, children, className = "" }: { title: string; id?: string; action?: ReactNode; source?: string; children: ReactNode; className?: string }) {
+const FRESH: Record<Freshness, { label: string; cls: string; dot: string }> = {
+  live: { label: "Live", cls: "border-[#00E599]/35 text-[#00E599]", dot: "bg-[#00E599]" },
+  updating: { label: "Updating", cls: "border-[#38BDF8]/35 text-[#7DD3FC]", dot: "bg-[#38BDF8]" },
+  delayed: { label: "Delayed", cls: "border-[#F5B83D]/35 text-[#F5B83D]", dot: "bg-[#F5B83D]" },
+  stale: { label: "Stale", cls: "border-[#F5B83D]/35 text-[#F5B83D]", dot: "bg-[#F5B83D]" },
+  offline: { label: "Offline", cls: "border-[#FF4D6D]/35 text-[#FF8FA3]", dot: "bg-[#FF4D6D]" },
+  not_connected: { label: "Not connected", cls: "border-white/15 text-white/55", dot: "bg-white/40" },
+};
+
+function ago(iso: string | null): string {
+  if (!iso) return "unknown";
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return "unknown";
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  if (s < 90) return `${s}s ago`;
+  if (s < 5400) return `${Math.round(s / 60)}m ago`;
+  if (s < 172800) return `${Math.round(s / 3600)}h ago`;
+  return `${Math.round(s / 86400)}d ago`;
+}
+
+/**
+ * Upstream freshness of one section (lib/onchain/freshness.ts). The state
+ * comes from the server's view of the SOURCE, never from this tab's
+ * connection; hover/focus shows the source, cadence, data time and reason.
+ */
+export function FreshnessChip({ f, inline = false }: { f: SectionFreshness; inline?: boolean }) {
+  const s = FRESH[f.state];
+  return (
+    <span className="group relative inline-flex min-w-0" tabIndex={0} aria-label={`${s.label}: ${f.source}, ${f.cadence}, data ${ago(f.asOf)}${f.reason ? `. ${f.reason}` : ""}`}>
+      {inline ? (
+        <span className="flex min-w-0 items-center gap-1.5 text-[10.5px]">
+          <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${s.dot} ${f.state === "live" ? "animate-pulse" : ""}`} />
+          <span className={`font-medium ${s.cls.split(" ").filter((c) => c.startsWith("text-")).join(" ")}`}>{s.label}</span>
+          <span className="truncate text-white/40">· {f.state === "not_connected" ? f.cadence : `${f.cadence} · ${ago(f.asOf)}`}</span>
+        </span>
+      ) : (
+        <span className={`flex h-[20px] items-center gap-1 rounded-full border px-2 text-[10.5px] font-medium ${s.cls}`}>
+          <span className={`h-1.5 w-1.5 rounded-full ${s.dot} ${f.state === "live" ? "animate-pulse" : ""}`} />
+          {s.label}
+        </span>
+      )}
+      <span role="tooltip" className="pointer-events-none absolute left-0 top-6 z-50 hidden w-[260px] rounded-md border border-white/[0.12] bg-[#0D1415] px-2.5 py-2 text-[11px] text-white/75 shadow-xl shadow-black/60 group-hover:block group-focus:block">
+        <span className="block font-medium text-white">{f.source}</span>
+        <span className="block">Cadence: {f.cadence}</span>
+        <span className="block">Data as of: {f.asOf ? `${new Date(f.asOf).toISOString().replace("T", " ").slice(0, 16)} UTC (${ago(f.asOf)})` : "unknown"}</span>
+        {f.reason && <span className="mt-1 block text-[#F5B83D]">{f.reason}</span>}
+      </span>
+    </span>
+  );
+}
+
+export function Card({ title, id, action, source, freshness, children, className = "" }: { title: string; id?: string; action?: ReactNode; source?: string; freshness?: SectionFreshness | null; children: ReactNode; className?: string }) {
   return (
     <section id={id} className={`flex min-w-0 scroll-mt-16 flex-col rounded-[10px] border border-white/[0.075] bg-[#0A0F10] px-4 pb-3.5 pt-3.5 ${className}`}>
       <div className="mb-2.5 flex min-h-[28px] items-center gap-1.5">
@@ -31,6 +83,11 @@ export function Card({ title, id, action, source, children, className = "" }: { 
         )}
         <div className="ml-auto flex shrink-0 items-center gap-2">{action}</div>
       </div>
+      {freshness && (
+        <div className="-mt-1.5 mb-2 min-w-0">
+          <FreshnessChip f={freshness} inline />
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col">{children}</div>
     </section>
   );

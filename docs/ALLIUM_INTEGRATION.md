@@ -352,3 +352,31 @@ select chain,
 - **Changes:** changes compare against the average of up to 7 prior days, not the single previous day. Weekends dip.
 - **Senders:** `sender_count` is distinct per (chain, day, token), so summed it counts an address once per chain and token it used. It is labelled "senders (summed)", never as unique wallets.
 - **Corridors:** "Stablecoin Flows" shows the by-chain breakdown, with change against the 7-day average, until a corridor query is configured.
+
+## Real-time dashboard (per-section freshness)
+
+Every card on `/onchain` carries a freshness line computed on the server from its upstream (`lib/onchain/freshness.ts`). A card is never green because the page or the SSE connection is open.
+
+| Section | Source | Mechanism | Freshness label |
+|---|---|---|---|
+| KPIs, Payment Volume, Chains, Categories, Counterparties, Flow, ledger Activity | FurlPay ledger `ops_tx_events` | Event-driven. `dataVersion()` (newest ledger, security and chain-event rows, checked at most every 2 s per instance) keys the dashboard cache; the SSE stream signals the change and clients refetch. | Live (~2 s) |
+| Risk & Compliance | `ops_security_events` (includes OFAC hits raised at ingest) | Event-driven, same as above | Live |
+| Real-time Activity (chain) | Allium Beam webhook into `onchain_events`, plus Realtime API reconciliation | Push. Stored and visible on the next SSE tick (2 s). | Live / Delayed (degraded) / Stale / Offline |
+| Stablecoin Market supply | DefiLlama (keyless) | Polled, Next data cache 30 min. The data time is the upstream `Date` header. | Updating |
+| Daily volume, transactions, avg size; Stablecoin Flows by chain | Allium Explorer saved queries `LQ50l60RW267fBrQ8DoJ` and `zvPU0Sw05NnOqA4mJjFT` (`stablecoins.metrics.volume_daily`) | Warehouse table with a ~1-2 day aggregation lag, re-run when stale. These are not streamable. | Delayed |
+| Treasury Holdings | Allium Realtime API `wallet/balances` | Polled every 5 min | Updating |
+| Tokenized assets (admin) | CSV bootstrap, then Allium saved query `ALLIUM_RWA_QUERY_ID` | Daily refresh into today's snapshot (`rwa_replace_snapshot`). History is immutable. The UI re-checks every 60 s. | Snapshot (not connected) / Updating / Stale |
+
+**Measured, not assumed.**
+- `onchain_ingest_metrics` records ingest lag (`observed_at - block_timestamp`, average and max per hour and source), received, duplicate and reorg counts, inside the same transaction as the write.
+- `onchain_source_status` records the last success, last error and newest data time per source.
+- Both are shown in the header badge's tooltip. Upstream error text is visible to operators only.
+- Allium documents a Beam P50 of about 1-2 s. FurlPay adds an SSE tick of 2 s or less plus one refetch. Production end-to-end latency is unmeasured until Beam is connected.
+
+**Where this deliberately differs from the pasted "FURLPAY-ALLIUM-REALTIME-ARCH-2026-V2" spec:**
+- **Webhook signing:** headers are `X-Signature-256` / `X-Webhook-Nonce` / `X-Webhook-Timestamp` over `nonce.timestamp.raw_body`, as in Allium's Beam docs. The spec's `X-Allium-Signature` scheme is not documented.
+- **No financial effects from analytics:** the webhook never credits wallets and never writes `ops_tx_events`. Chain data is an observed read model; the ledger is authoritative.
+- **Fields:** no entity names, risk scores or jurisdiction are read from stream records, because no documented Beam schema carries them. AML is FurlPay's own OFAC SDN screen at ingest.
+- **Kafka:** Kafka topics (`allium.transfers.stablecoins.v1`) are not used. Allium's documented naming is `<chain>.<entity>`, and a Kafka consumer needs a long-running worker outside Vercel.
+- **Redis:** Redis is a best-effort fan-out key (`onchain:version`). Postgres is the source of truth because production Upstash is over its plan limit.
+- **Latency:** the spec's 660 ms waterfall is not a measurement. Measured lag is in `onchain_ingest_metrics`.
