@@ -91,19 +91,32 @@ const prov = new Map(
       ...(saved[u] ?? {}),
       until: 0,
       streak: 0,
+      inflight: 0,
     },
   ])
 );
 for (const p of prov.values()) p.span = Math.min(p.cap ?? MAX_SPAN, Math.max(p.span, 100));
-const saveStats = () => writeFileSync(statsFile, JSON.stringify(Object.fromEntries([...prov].map(([u, p]) => [u, { ...p, until: undefined, streak: undefined }])), null, 2));
-let rr = 0;
+const saveStats = () => writeFileSync(statsFile, JSON.stringify(Object.fromEntries([...prov].map(([u, p]) => [u, { ...p, until: undefined, streak: undefined, inflight: undefined }])), null, 2));
+const PER_PROVIDER = Number(arg("--per-provider", "3"));
+/** Least-loaded healthy provider, weighted by its own observed latency; null if all are busy or paused. */
 function pick() {
   const now = Date.now();
-  for (let i = 0; i < RPCS.length; i++) {
-    const p = prov.get(RPCS[rr++ % RPCS.length]);
-    if (p.until <= now) return p;
+  let best = null;
+  let bestScore = Infinity;
+  for (const p of prov.values()) {
+    if (p.until > now || p.inflight >= PER_PROVIDER) continue;
+    const lat = p.ok ? p.latencyMsTotal / p.ok : 1000;
+    const score = (p.inflight + 1) * lat;
+    if (score < bestScore) (best = p), (bestScore = score);
   }
-  return [...prov.values()].reduce((a, b) => (a.until <= b.until ? a : b));
+  return best;
+}
+async function pickWait() {
+  for (;;) {
+    const p = pick();
+    if (p) return p;
+    await new Promise((r) => setTimeout(r, 100));
+  }
 }
 const isRange = (m) => /range|too many|exceed|10000|results|response size|query returned more|block range|timeout|abort/i.test(m) && !/rate|429|too many requests/i.test(m);
 const isRate = (m) => /rate|429|too many requests|capacity|throttl/i.test(m);
@@ -113,6 +126,7 @@ async function call(p, method, params, timeoutMs = 60_000) {
   const t = setTimeout(() => c.abort(), timeoutMs);
   const t0 = Date.now();
   p.requests++;
+  p.inflight++;
   try {
     const r = await fetch(p.url, { method: "POST", signal: c.signal, headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }) });
     const text = await r.text();
@@ -149,6 +163,7 @@ async function call(p, method, params, timeoutMs = 60_000) {
     }
     throw Object.assign(new Error(m), { range: isRange(m), rate: isRate(m) });
   } finally {
+    p.inflight--;
     clearTimeout(t);
   }
 }
@@ -156,7 +171,7 @@ async function call(p, method, params, timeoutMs = 60_000) {
 async function rpc(method, params) {
   let last;
   for (let i = 0; i < 10; i++) {
-    const p = pick();
+    const p = await pickWait();
     try {
       return (await call(p, method, params)).result;
     } catch (e) {
@@ -210,7 +225,7 @@ export function hllCount(reg) {
 async function getLogsChunk(a, b) {
   // Returns logs for [a, b'] with b' <= b, using one provider's current span.
   for (let attempt = 0; ; attempt++) {
-    const p = pick();
+    const p = await pickWait();
     const end = Math.min(b, a + p.span - 1);
     try {
       const r = await call(p, "eth_getLogs", [{ address: USDC, topics: [TOPIC], fromBlock: hex(a), toBlock: hex(end) }]);
@@ -231,8 +246,16 @@ const progress = { events: 0, txs: 0, blocks: 0, retries: 0, failures: 0 };
 
 async function scanUnit(from, to) {
   const acc = { from, to, logs: 0, txs: 0, maxPerTx: 0, maxTx: null, mints: 0, mintRaw: 0n, burns: 0, burnRaw: 0n, regular: 0, regularRaw: 0n, zeroValue: 0, largest: null, smallestNonZero: null, firstLog: null, lastLog: null, rpcBytes: 0, calls: 0, retries: 0, hist: {}, providers: {} };
-  const seen = new Set();
-  const perTx = new Map();
+  // O(1) memory: logs are processed in (block, logIndex) order, so a duplicate
+  // is an equal key and a transaction's logs are one contiguous run (log
+  // indexes are assigned in transaction order within a block).
+  let lastKey = null; // [block, logIndex]
+  let runTx = null;
+  let runLen = 0;
+  const endRun = () => {
+    if (runTx !== null && runLen > acc.maxPerTx) [acc.maxPerTx, acc.maxTx] = [runLen, runTx];
+  };
+  acc.duplicatesSkipped = 0;
   const reg = Object.fromEntries(SKETCHES.map((k) => [k, new Uint8Array(HLL_M)]));
   let largest = -1n, smallest = -1n;
   let a = from;
@@ -243,16 +266,28 @@ async function scanUnit(from, to) {
     acc.rpcBytes += r.bytes;
     const host = new URL(r.provider.url).host;
     acc.providers[host] = (acc.providers[host] ?? 0) + 1;
-    for (const l of r.logs) {
-      const n = Number(BigInt(l.blockNumber));
+    const sorted = r.logs
+      .map((l) => [Number(BigInt(l.blockNumber)), Number(BigInt(l.logIndex)), l])
+      .sort((x, y) => x[0] - y[0] || x[1] - y[1]);
+    for (const [n, li, l] of sorted) {
       const t = (l.topics ?? []).map((x) => String(x).toLowerCase());
       if (l.removed) throw new Error(`removed log at ${n}`);
       if (String(l.address).toLowerCase() !== USDC || t[0] !== TOPIC || t.length !== 3 || n < a || n > r.end) throw new Error(`unexpected log at ${n} in ${a}..${r.end}`);
       const tx = String(l.transactionHash).toLowerCase();
-      const li = Number(BigInt(l.logIndex));
-      const id = `${CHAIN_ID}:${USDC}:${tx}:${li}`;
-      if (seen.has(id)) continue;
-      seen.add(id);
+      // Identity (chain, contract, block, logIndex) == (chain, contract, tx, logIndex) for canonical logs.
+      if (lastKey && (n < lastKey[0] || (n === lastKey[0] && li < lastKey[1]))) throw new Error(`log ${n}:${li} precedes ${lastKey[0]}:${lastKey[1]}`);
+      if (lastKey && n === lastKey[0] && li === lastKey[1]) {
+        acc.duplicatesSkipped++;
+        continue;
+      }
+      lastKey = [n, li];
+      if (tx !== runTx) {
+        endRun();
+        runTx = tx;
+        runLen = 0;
+        acc.txs++;
+      }
+      runLen++;
       const raw = BigInt(l.data === "0x" ? 0 : l.data);
       const from_ = `0x${t[1].slice(26)}`;
       const to_ = `0x${t[2].slice(26)}`;
@@ -267,7 +302,6 @@ async function scanUnit(from, to) {
         if (smallest < 0n || raw < smallest) (smallest = raw), (acc.smallestNonZero = { raw: raw.toString(), tx, block: n });
       }
       if (raw > largest) (largest = raw), (acc.largest = { raw: raw.toString(), tx, block: n });
-      perTx.set(tx, (perTx.get(tx) ?? 0) + 1);
       if (!acc.firstLog || n < acc.firstLog.block || (n === acc.firstLog.block && li < acc.firstLog.logIndex)) acc.firstLog = { block: n, tx, logIndex: li };
       if (!acc.lastLog || n > acc.lastLog.block || (n === acc.lastLog.block && li > acc.lastLog.logIndex)) acc.lastLog = { block: n, tx, logIndex: li };
       if (t[1] !== ZERO_T) (hllAdd(reg.addresses, from_), hllAdd(reg.senders, from_));
@@ -276,8 +310,7 @@ async function scanUnit(from, to) {
     }
     a = r.end + 1;
   }
-  acc.txs = perTx.size;
-  for (const [tx, c] of perTx) if (c > acc.maxPerTx) [acc.maxPerTx, acc.maxTx] = [c, tx];
+  endRun();
   const hdr = await rpc("eth_getBlockByNumber", [hex(to), false]);
   acc.lastBlockTime = new Date(Number(BigInt(hdr.timestamp)) * 1000).toISOString();
   return { acc: { ...acc, mintRaw: String(acc.mintRaw), burnRaw: String(acc.burnRaw), regularRaw: String(acc.regularRaw) }, reg };
