@@ -180,18 +180,68 @@ export function tokenAllowlist(chain: string): string[] | null {
 const RANGE_REFUSAL = /range|too many|limit|exceed|response size|more than|query returned|block count|timeout/i;
 
 /**
- * eth_getLogs over [from, to], splitting the range whenever the node refuses
- * it as too large. Any other refusal is thrown (and reported), never skipped.
+ * Largest eth_getLogs block span each endpoint has STATED it accepts
+ * ("…with up to a 10 block range", Alchemy Free, verified 2026-10-07). Learned
+ * from the first refusal, so later ranges go straight to exact chunks instead
+ * of paying for a cascade of refused halvings (every refused call is billed).
+ */
+const statedSpan = new Map<string, bigint>();
+const STATED_SPAN = /up to (?:a |an )?([\d,]+)[- ]block range|range (?:of|is limited to|limit(?:ed)? (?:of|to)) ([\d,]+) blocks|maximum (?:block )?range (?:of |is )?([\d,]+)/i;
+export function learnedSpan(url: string): bigint | null {
+  return statedSpan.get(url) ?? null;
+}
+export function resetLearnedSpans() {
+  statedSpan.clear();
+}
+const CHUNKS_PER_BATCH = 20;
+
+/**
+ * eth_getLogs over [from, to]. When the endpoint has stated its maximum span,
+ * the range is read in exact chunks of that span, batched; otherwise a range
+ * refusal halves the range. Any other refusal is thrown (and reported), never
+ * skipped. Every block is covered exactly once.
  */
 export async function getLogsAdaptive(url: string, filter: { address?: string[]; topics: (string | string[] | null)[] }, from: bigint, to: bigint): Promise<RpcLog[]> {
+  const span = statedSpan.get(url);
+  if (span && to - from + 1n > span) {
+    const chunks: [bigint, bigint][] = [];
+    for (let a = from; a <= to; a += span) chunks.push([a, a + span - 1n < to ? a + span - 1n : to]);
+    const out: RpcLog[] = [];
+    for (let i = 0; i < chunks.length; i += CHUNKS_PER_BATCH) {
+      const part = chunks.slice(i, i + CHUNKS_PER_BATCH);
+      const res = await nodeRpcBatch<RpcLog[]>(url, part.map(([a, b]) => ({ method: "eth_getLogs", params: [{ ...filter, fromBlock: hex(a), toBlock: hex(b) }] }))).catch(async (e) => {
+        // The stated span shrank (plan change) or batching is refused: fall back per chunk.
+        if (!(e instanceof JsonRpcError)) throw e;
+        const one: RpcLog[][] = [];
+        for (const [a, b] of part) one.push(await getLogsDirect(url, filter, a, b));
+        return one;
+      });
+      for (const logs of res) for (const l of logs) out.push(l);
+    }
+    return out;
+  }
+  return getLogsDirect(url, filter, from, to);
+}
+
+async function getLogsDirect(url: string, filter: { address?: string[]; topics: (string | string[] | null)[] }, from: bigint, to: bigint): Promise<RpcLog[]> {
   try {
     return await nodeRpc<RpcLog[]>(url, "eth_getLogs", [{ ...filter, fromBlock: hex(from), toBlock: hex(to) }]);
   } catch (e) {
     // A rate limit is not a range refusal: splitting would multiply the calls.
     if (e instanceof JsonRpcError && RANGE_REFUSAL.test(e.message) && !/rate/i.test(e.message) && to > from) {
+      const m = STATED_SPAN.exec(e.message);
+      const stated = m ? BigInt((m[1] ?? m[2] ?? m[3]).replace(/,/g, "")) : null;
+      if (stated && stated > 0n && stated < to - from + 1n && statedSpan.get(url) !== stated) {
+        statedSpan.set(url, stated);
+        indexerEvent("range_split", { from: Number(from), to: Number(to), learnedSpan: Number(stated), reason: e.message });
+        return getLogsAdaptive(url, filter, from, to);
+      }
       const mid = from + (to - from) / 2n;
       indexerEvent("range_split", { from: Number(from), to: Number(to), mid: Number(mid), reason: e.message });
-      return [...(await getLogsAdaptive(url, filter, from, mid)), ...(await getLogsAdaptive(url, filter, mid + 1n, to))];
+      const a = await getLogsDirect(url, filter, from, mid);
+      const b = await getLogsDirect(url, filter, mid + 1n, to);
+      for (const l of b) a.push(l);
+      return a;
     }
     throw e;
   }
@@ -291,6 +341,12 @@ export async function scanChain(chain: string, opts: { deadline: () => boolean; 
   if (supabaseBackend !== "supabase") return { ...report, status: "not_configured", reason: "No durable store (SUPABASE_URL)." };
   const expectedId = getChain(chain)?.chainId;
   if (!expectedId) return { ...report, status: "not_configured", reason: `${chain} is not in the chain registry.` };
+
+  // Nothing tracked on this chain: no RPC call at all (each pass would
+  // otherwise pay for chainId + two headers on a metered plan). When an
+  // address is added later, its first pass anchors at the finalized block.
+  const trackedHere = (await trackedAddresses()).filter((t) => (t.chains === "evm" || t.chains.includes(chain)) && /^0x[0-9a-f]{40}$/.test(t.address));
+  if (trackedHere.length === 0) return { ...report, reason: `No tracked addresses on ${chain}; nothing to scan (no RPC calls made).` };
 
   try {
     // 1. Pin the endpoint to the chain it claims to serve.

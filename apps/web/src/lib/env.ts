@@ -626,6 +626,8 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("ONCHAIN_NODE_TOKENS"),
       // Chains whose last 1/5 min of USDC logs the live panel scans per (cached) read.
       v("ONCHAIN_LIVE_WINDOW_CHAINS"),
+      // Network index bucket width: 60 | 300 | 900 | 3600 seconds (fewer header reads when wider).
+      v("ONCHAIN_ASSET_BUCKET_SECONDS"),
       // Optional independent provider per chain for the USDC network index: the
       // range's last block hash and supply must match it or the range is not committed.
       v("ETHEREUM_RPC_URL_SECONDARY"),

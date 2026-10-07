@@ -72,7 +72,80 @@ export interface MinuteBucket {
  * `blockTime(n)` gives the block's unix seconds. Duplicate (tx, logIndex)
  * pairs are counted once and reported; malformed logs are counted and skipped.
  */
-export function bucketize(logs: RpcLog[], contract: string, blockTime: (block: number) => number) {
+/**
+ * Bucket width in seconds (ONCHAIN_ASSET_BUCKET_SECONDS: 60, 300, 900 or
+ * 3600; default 60). Wider buckets need fewer header reads (see
+ * resolveBuckets), which matters on a metered RPC plan; history rolls up to
+ * hour/day either way.
+ */
+export function bucketSeconds(): number {
+  const v = Number(process.env.ONCHAIN_ASSET_BUCKET_SECONDS ?? "60");
+  return [60, 300, 900, 3600].includes(v) ? v : 60;
+}
+
+/**
+ * Exact time bucket for every block that has a log, reading as few headers as
+ * possible. Block timestamps never decrease, so if both ends of a block
+ * interval fall in the same bucket, every block between them does too; only
+ * intervals that straddle a boundary AND contain log blocks are split (one
+ * batched header read per level). Cost ≈ boundaries × log2(blocks) headers
+ * instead of one header per active block — no estimate, no interpolation.
+ * Headers read along the way are checked against the logs' block hashes.
+ */
+export async function resolveBuckets(
+  url: string,
+  lo: { n: bigint; ts: number; hash: string },
+  hi: { n: bigint; ts: number; hash: string },
+  logs: RpcLog[],
+  width: number,
+  own: Map<bigint, number> = new Map()
+): Promise<{ bucket: Map<bigint, number>; headersRead: number; mismatch: { block: bigint; log: string; header: string } | null }> {
+  const b = (t: number) => Math.floor(t / width) * width;
+  const blocks = [...new Set(logs.filter((l) => l.blockNumber).map((l) => BigInt(l.blockNumber!)))].sort((x, y) => (x < y ? -1 : x > y ? 1 : 0));
+  const logHash = new Map(logs.filter((l) => l.blockNumber && l.blockHash).map((l) => [BigInt(l.blockNumber!), String(l.blockHash).toLowerCase()]));
+  const known = new Map<bigint, number>([[lo.n, lo.ts], [hi.n, hi.ts], ...own]);
+  const bucket = new Map<bigint, number>();
+  for (const [n, t] of own) bucket.set(n, b(t));
+  let headersRead = 0;
+  // Intervals [a, c] with known ends, holding log blocks in (a, c].
+  let level: [bigint, bigint][] = [[lo.n, hi.n]];
+  while (level.length) {
+    const next: [bigint, bigint][] = [];
+    const want = new Set<bigint>();
+    for (const [a, c] of level) {
+      const inside = blocks.filter((n) => n > a && n <= c && !bucket.has(n));
+      if (!inside.length) continue;
+      if (b(known.get(a)!) === b(known.get(c)!)) {
+        for (const n of inside) bucket.set(n, b(known.get(c)!));
+        continue;
+      }
+      if (c - a <= 1n) {
+        bucket.set(c, b(known.get(c)!));
+        continue;
+      }
+      const mid = a + (c - a) / 2n;
+      if (!known.has(mid)) want.add(mid);
+      next.push([a, mid], [mid, c]);
+    }
+    if (want.size) {
+      const nums = [...want];
+      const hdrs = await nodeRpcBatch<Block | null>(url, nums.map((n) => ({ method: "eth_getBlockByNumber", params: [hex(n), false] })));
+      headersRead += nums.length;
+      for (let i = 0; i < nums.length; i++) {
+        const h = hdrs[i];
+        if (!h) throw new Error(`node did not return header ${nums[i]}`);
+        const lh = logHash.get(nums[i]);
+        if (lh && h.hash.toLowerCase() !== lh) return { bucket, headersRead, mismatch: { block: nums[i], log: lh, header: h.hash.toLowerCase() } };
+        known.set(nums[i], Number(BigInt(h.timestamp)));
+      }
+    }
+    level = next;
+  }
+  for (const n of blocks) if (!bucket.has(n)) throw new Error(`could not place block ${n} in a time bucket`);
+  return { bucket, headersRead, mismatch: null };
+}
+
+export function bucketize(logs: RpcLog[], contract: string, blockTime: (block: number) => number, width = 60) {
   const buckets = new Map<number, { t: number; tr: bigint; m: number; mr: bigint; b: number; br: bigint; fb: number; lb: number }>();
   const seen = new Set<string>();
   let duplicates = 0;
@@ -96,7 +169,7 @@ export function bucketize(logs: RpcLog[], contract: string, blockTime: (block: n
     }
     seen.add(id);
     const n = Number(BigInt(l.blockNumber));
-    const minute = Math.floor(blockTime(n) / 60) * 60;
+    const minute = Math.floor(blockTime(n) / width) * width;
     const raw = BigInt(l.data);
     const from = `0x${t[1].slice(26)}`;
     const to = `0x${t[2].slice(26)}`;
@@ -219,6 +292,7 @@ export async function scanAsset(chain: string, assetId: AssetId, opts: { deadlin
     }
 
     let cursor = BigInt(cur.last_block);
+    const width = bucketSeconds();
     report.cursorBefore = Number(cursor);
     const span = BigInt(Math.max(1, opts.rangeBlocks ?? DEFAULT_RANGE));
     let lastTime: string | null = null;
@@ -234,34 +308,21 @@ export async function scanAsset(chain: string, assetId: AssetId, opts: { deadlin
       const logs = await getLogsAdaptive(url, { address: [contract], topics: [TRANSFER_TOPIC] }, from, to);
       report.logs += logs.length;
 
-      // Headers: the parent (fork check), the range end, and every block with
-      // a log whose own timestamp is missing or zero.
-      const need = new Set<bigint>([cursor, to]);
-      for (const l of logs) if (!usableTimestamp(l.blockTimestamp) && l.blockNumber) need.add(BigInt(l.blockNumber));
-      const nums = [...need];
-      const headers = await nodeRpcBatch<Block | null>(url, nums.map((n) => ({ method: "eth_getBlockByNumber", params: [hex(n), false] })));
-      const byNum = new Map<bigint, Block>();
-      headers.forEach((b, i) => {
-        if (b) byNum.set(nums[i], b);
-      });
-      const parent = byNum.get(cursor);
-      const end = byNum.get(to);
+      // Headers: the parent (fork check) and the range end; then only the few
+      // headers needed to place each log block in its time bucket.
+      const [parent, end] = await nodeRpcBatch<Block | null>(url, [cursor, to].map((n) => ({ method: "eth_getBlockByNumber", params: [hex(n), false] })));
       if (!parent || !end) throw new Error(`node did not return header ${!parent ? cursor : to}`);
-      const ts = new Map<number, number>();
+      const own = new Map<bigint, number>();
       for (const l of logs) {
-        const n = Number(BigInt(l.blockNumber!));
-        if (ts.has(n)) continue;
-        const own = usableTimestamp(l.blockTimestamp);
-        const hdr = byNum.get(BigInt(n));
-        if (hdr && l.blockHash && hdr.hash.toLowerCase() !== String(l.blockHash).toLowerCase()) {
-          await issue(chain, assetId, "provider_disagreement", n, `log block hash ${String(l.blockHash).slice(0, 18)} differs from the header ${hdr.hash.slice(0, 18)} at finalized block ${n}`);
-          throw new Error(`inconsistent finalized block ${n} from the node`);
-        }
-        const sec = own ? Number(BigInt(own)) : hdr ? Number(BigInt(hdr.timestamp)) : NaN;
-        if (!Number.isFinite(sec) || sec <= 0) throw new Error(`no timestamp for block ${n}`);
-        ts.set(n, sec);
+        const t = usableTimestamp(l.blockTimestamp);
+        if (t && l.blockNumber) own.set(BigInt(l.blockNumber), Number(BigInt(t)));
       }
-      const agg = bucketize(logs, contract, (n) => ts.get(n)!);
+      const placed = await resolveBuckets(url, { n: cursor, ts: Number(BigInt(parent.timestamp)), hash: parent.hash }, { n: to, ts: Number(BigInt(end.timestamp)), hash: end.hash }, logs, width, own);
+      if (placed.mismatch) {
+        await issue(chain, assetId, "provider_disagreement", Number(placed.mismatch.block), `log block hash ${placed.mismatch.log.slice(0, 18)} differs from the header ${placed.mismatch.header.slice(0, 18)} at finalized block ${placed.mismatch.block}`);
+        throw new Error(`inconsistent finalized block ${placed.mismatch.block} from the node`);
+      }
+      const agg = bucketize(logs, contract, (n) => placed.bucket.get(BigInt(n))!, width);
       if (agg.duplicates > 0) await issue(chain, assetId, "duplicate_event", Number(to), `${agg.duplicates} duplicate (tx, logIndex) in blocks ${from}..${to}; counted once`);
       if (agg.malformed > 0) report.errors.push(`${agg.malformed} malformed log(s) skipped in ${from}..${to}`);
 
