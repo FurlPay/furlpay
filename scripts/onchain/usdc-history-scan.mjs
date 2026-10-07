@@ -40,6 +40,18 @@ const HLL_P = 14;
 const HLL_M = 1 << HLL_P;
 const SKETCHES = ["addresses", "senders", "receivers", "pairs"];
 
+// Keyless archive providers verified 2026-10-07 to return identical USDC log
+// counts at blocks 7M/12M/18M/22M/26M (several cap the block range; the cap
+// they state is adopted per provider).
+const DEFAULT_RPCS = [
+  "https://rpc.mevblocker.io",
+  "https://mainnet.gateway.tenderly.co",
+  "https://rpc.sentio.xyz/mainnet",
+  "https://eth-pokt.nodies.app",
+  "https://ethereum-mainnet.gateway.tatum.io",
+  "https://eth-mainnet.public.blastapi.io",
+  "https://ethereum.public.blockpi.network/v1/rpc/public",
+].join(",");
 const args = process.argv.slice(2);
 const arg = (k, d) => (args.includes(k) ? args[args.indexOf(k) + 1] : d);
 const OUT = arg("--out");
@@ -48,7 +60,7 @@ if (!OUT) {
   process.exit(2);
 }
 mkdirSync(join(OUT, "sketches"), { recursive: true });
-const RPCS = String(arg("--rpc", process.env.USDC_SCAN_RPCS ?? "https://rpc.mevblocker.io,https://mainnet.gateway.tenderly.co")).split(",").map((s) => s.trim()).filter(Boolean);
+const RPCS = String(arg("--rpc", process.env.USDC_SCAN_RPCS ?? DEFAULT_RPCS)).split(",").map((s) => s.trim()).filter(Boolean);
 if (RPCS.some((u) => /alchemy/i.test(u))) {
   console.error("this probe does not use Alchemy");
   process.exit(2);
@@ -75,12 +87,14 @@ const prov = new Map(
       lastSuccess: null,
       lastError: null,
       archive: null,
+      cap: null,
       ...(saved[u] ?? {}),
       until: 0,
       streak: 0,
     },
   ])
 );
+for (const p of prov.values()) p.span = Math.min(p.cap ?? MAX_SPAN, Math.max(p.span, 100));
 const saveStats = () => writeFileSync(statsFile, JSON.stringify(Object.fromEntries([...prov].map(([u, p]) => [u, { ...p, until: undefined, streak: undefined }])), null, 2));
 let rr = 0;
 function pick() {
@@ -126,6 +140,12 @@ async function call(p, method, params, timeoutMs = 60_000) {
     else {
       p.otherErrors++;
       p.until = Date.now() + Math.min(60_000, 500 * 2 ** Math.min(p.streak, 7));
+    }
+    // A provider that states its own range limit: adopt it as that provider's cap.
+    const cap = /(?:maximum allowed is|limit of|up to an?|max(?:imum)? (?:block )?range(?: is| of)?)\s*(\d{1,6})/i.exec(m);
+    if (cap && isRange(m)) {
+      p.cap = Math.max(1, Number(cap[1]));
+      p.span = Math.min(p.span, p.cap);
     }
     throw Object.assign(new Error(m), { range: isRange(m), rate: isRate(m) });
   } finally {
@@ -196,7 +216,7 @@ async function getLogsChunk(a, b) {
       const r = await call(p, "eth_getLogs", [{ address: USDC, topics: [TOPIC], fromBlock: hex(a), toBlock: hex(end) }]);
       const span = end - a + 1;
       if (span > p.maxOkSpan) p.maxOkSpan = span;
-      if (r.result.length < 2500 && p.span < MAX_SPAN) p.span = Math.min(MAX_SPAN, p.span * 2);
+      if (r.result.length < 2500 && p.span < (p.cap ?? MAX_SPAN)) p.span = Math.min(p.cap ?? MAX_SPAN, p.span * 2);
       return { logs: r.result, bytes: r.bytes, end, provider: p, retries: attempt };
     } catch (e) {
       // Range/size/timeout, or an unexplained error repeated: shrink this provider's range.
@@ -210,7 +230,7 @@ async function getLogsChunk(a, b) {
 const progress = { events: 0, txs: 0, blocks: 0, retries: 0, failures: 0 };
 
 async function scanUnit(from, to) {
-  const acc = { from, to, logs: 0, txs: 0, maxPerTx: 0, maxTx: null, mints: 0, mintRaw: 0n, burns: 0, burnRaw: 0n, regular: 0, regularRaw: 0n, zeroValue: 0, largest: null, smallestNonZero: null, firstLog: null, lastLog: null, rpcBytes: 0, calls: 0, retries: 0, hist: {} };
+  const acc = { from, to, logs: 0, txs: 0, maxPerTx: 0, maxTx: null, mints: 0, mintRaw: 0n, burns: 0, burnRaw: 0n, regular: 0, regularRaw: 0n, zeroValue: 0, largest: null, smallestNonZero: null, firstLog: null, lastLog: null, rpcBytes: 0, calls: 0, retries: 0, hist: {}, providers: {} };
   const seen = new Set();
   const perTx = new Map();
   const reg = Object.fromEntries(SKETCHES.map((k) => [k, new Uint8Array(HLL_M)]));
@@ -221,6 +241,8 @@ async function scanUnit(from, to) {
     acc.calls++;
     acc.retries += r.retries;
     acc.rpcBytes += r.bytes;
+    const host = new URL(r.provider.url).host;
+    acc.providers[host] = (acc.providers[host] ?? 0) + 1;
     for (const l of r.logs) {
       const n = Number(BigInt(l.blockNumber));
       const t = (l.topics ?? []).map((x) => String(x).toLowerCase());
