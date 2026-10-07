@@ -35,7 +35,7 @@
     "turbo": "2.10.4"
   },
   "overrides": {
-    "shell-quote": "1.9.0",
+    "shell-quote": "1.11.0",
     "ws": "^8.21.0",
     "undici": "^5.29.0",
     "serialize-javascript": "^6.0.2",
