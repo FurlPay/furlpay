@@ -48,6 +48,9 @@ export function UsdcNetworkPanel() {
   const T = data?.totals;
   const winLabel = win === 60 ? "last 1 min" : "last 5 min";
   const net = T ? Number(T.netSupplyChange) : 0;
+  /** At least one chain actually read live activity; otherwise activity metrics are unavailable, not zero. */
+  const act = Boolean(T && T.windowChains.length > 0);
+  const noAct = "no chain reads live activity";
   const states = data ? Object.values(data.health) : [];
   const liveCount = states.filter((s) => s.state === "LIVE").length;
   const issues = data ? data.chains.flatMap((c) => (data.health[c.chain]?.issues ?? []).map((i) => ({ ...i, chain: c.chain }))) : [];
@@ -69,7 +72,8 @@ export function UsdcNetworkPanel() {
           <span className="hidden items-center gap-1.5 text-[11px] text-white/50 sm:flex" aria-live="polite">
             <span className={`h-1.5 w-1.5 rounded-full ${live.error ? "bg-[#F5B83D]" : data ? "bg-[#00E599] motion-safe:animate-pulse" : "bg-white/30"}`} aria-hidden="true" />
             {live.error && data ? "Delayed · " : ""}
-            Updated {ago(live.lastOk)}
+            {/* The server's node read time, not when this browser fetched it (reads are shared and cached). */}
+            Node read {ago(data?.generatedAt ?? null)}
           </span>
           <span className="rounded border border-white/[0.12] px-1.5 py-0.5 text-[10.5px] font-semibold text-white/70" title="Every amount on this panel is in USDC units, not converted to USD.">
             Unit: USDC
@@ -104,17 +108,19 @@ export function UsdcNetworkPanel() {
           {/* Live summary */}
           <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-b border-white/[0.06] pb-3 sm:grid-cols-4 xl:grid-cols-8">
             <Metric k="supply" label="Native USDC supply" value={usdc(T!.supply)} exact={T!.supply} sub={`${T!.supplyChains.length} chains · exact`} />
-            <Metric k="netSupply" label="Net supply change" value={usdc(T!.netSupplyChange, { sign: true })} exact={T!.netSupplyChange} sub={winLabel} tone={net > 0 ? "pos" : net < 0 ? "neg" : undefined} />
-            <Metric k="volume" label="Transfer volume" value={usdc(T!.volume)} exact={T!.volume} sub={`${winLabel} · excl. mint/burn`} />
-            <Metric k="transfers" label="Transfers" value={int(T!.transfers)} sub={winLabel} />
-            <Metric k="minted" label="Minted" value={usdc(T!.mintVolume)} exact={T!.mintVolume} sub={winLabel} />
-            <Metric k="burned" label="Burned" value={usdc(T!.burnVolume)} exact={T!.burnVolume} sub={winLabel} />
-            <Metric k="senders" label="Unique senders" value={int(T!.uniqueSenders)} sub={`${int(T!.uniqueRecipients)} receivers · per chain`} />
-            <Metric k="eps" label="Events / sec" value={T!.eventsPerSecond === null ? "—" : T!.eventsPerSecond.toFixed(1)} sub={`${T!.windowChains.length} chains · ${liveCount}/${data.chains.length} live`} />
+            {/* No chain read live activity -> these are UNAVAILABLE, never 0. */}
+            <Metric k="netSupply" label="Net supply change" value={act ? usdc(T!.netSupplyChange, { sign: true }) : "Unavailable"} exact={act ? T!.netSupplyChange : null} sub={act ? winLabel : noAct} tone={act && net > 0 ? "pos" : act && net < 0 ? "neg" : undefined} />
+            <Metric k="volume" label="Transfer volume" value={act ? usdc(T!.volume) : "Unavailable"} exact={act ? T!.volume : null} sub={act ? `${winLabel} · excl. mint/burn` : noAct} />
+            <Metric k="transfers" label="Transfers" value={act ? int(T!.transfers) : "Unavailable"} sub={act ? winLabel : noAct} />
+            <Metric k="minted" label="Minted" value={act ? usdc(T!.mintVolume) : "Unavailable"} exact={act ? T!.mintVolume : null} sub={act ? winLabel : noAct} />
+            <Metric k="burned" label="Burned" value={act ? usdc(T!.burnVolume) : "Unavailable"} exact={act ? T!.burnVolume : null} sub={act ? winLabel : noAct} />
+            <Metric k="senders" label="Unique senders" value={act ? int(T!.uniqueSenders) : "Unavailable"} sub={act ? `${int(T!.uniqueRecipients)} receivers · per chain` : noAct} />
+            <Metric k="eps" label="Events / sec" value={act && T!.eventsPerSecond !== null ? T!.eventsPerSecond.toFixed(1) : "Unavailable"} sub={`${T!.windowChains.length} chains · ${liveCount}/${data.chains.length} live`} />
           </div>
           {T!.windowChains.length < T!.supplyChains.length && (
             <p className="mt-2 text-[11px] text-white/45">
-              Live activity covers {T!.windowChains.map(chainName).join(", ") || "no chain"}. Solana: supply, slots and tracked wallets are indexed from the node; network-wide Solana transfer enumeration requires a Geyser streaming source and is not counted.
+              Live activity covers {T!.windowChains.map(chainName).join(", ") || "no chain"}.{" "}
+              {data.chains.find((c) => c.chain !== "solana" && c.status === "ok" && !c.window)?.windowReason ?? ""} Solana: supply, slots and tracked wallets are indexed from the node; network-wide Solana transfer enumeration requires a Geyser streaming source and is not counted.
             </p>
           )}
 

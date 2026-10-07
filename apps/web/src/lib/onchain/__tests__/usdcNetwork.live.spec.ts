@@ -28,6 +28,7 @@ describe.skipIf(!LIVE)("USDC network reader, live mainnet, cross-checked", () =>
   it("every EVM chain: supply and the transfer window match an independent provider exactly", async () => {
     for (const [c, url] of Object.entries(PRIMARY)) vi.stubEnv(`${c.toUpperCase()}_RPC_URL`, url);
     vi.stubEnv("SOLANA_RPC_URL", "https://api.mainnet-beta.solana.com");
+    vi.stubEnv("ONCHAIN_LIVE_WINDOW_CHAINS", Object.keys(PRIMARY).join(","));
     const net = await usdcNetwork(60);
     for (const ch of net.chains) {
       const w = ch.window;

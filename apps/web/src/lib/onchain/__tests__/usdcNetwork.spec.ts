@@ -105,3 +105,34 @@ describe("usdcNetwork", () => {
     expect(n.totals.transfers).toBe(0);
   });
 });
+
+describe("live window is opt-in (RPC budget)", () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+  it("a chain not in ONCHAIN_LIVE_WINDOW_CHAINS gets head + supply but no log scan: window null with the reason, never zeros", async () => {
+    vi.stubEnv("ETHEREUM_RPC_URL", "http://eth.node");
+    for (const c of ["BASE", "ARBITRUM", "POLYGON", "SOLANA", "HELIUS"]) vi.stubEnv(`${c}_RPC_URL`, "");
+    vi.stubEnv("ONCHAIN_LIVE_WINDOW_CHAINS", "");
+    const methods: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_u: string, init: RequestInit) => {
+        const b = JSON.parse(String(init.body));
+        methods.push(b.method);
+        const result =
+          b.method === "eth_chainId" ? "0x1" : b.method === "eth_getBlockByNumber" ? { number: "0x10", hash: "0x" + "a".repeat(64), timestamp: "0x" + Math.floor(Date.now() / 1000).toString(16) } : b.params?.[0]?.data === "0x313ce567" ? "0x" + "6".padStart(64, "0") : "0x" + (5_000_000n).toString(16).padStart(64, "0");
+        return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }), { status: 200 });
+      })
+    );
+    const n = await usdcNetwork(60, Date.now() + 10 ** 10);
+    const eth = n.chains.find((c) => c.chain === "ethereum")!;
+    expect(eth.status).toBe("ok");
+    expect(eth.supply?.latest).toBe("5");
+    expect(eth.window).toBeNull();
+    expect(eth.windowReason).toMatch(/ONCHAIN_LIVE_WINDOW_CHAINS/);
+    expect(methods).not.toContain("eth_getLogs");
+    expect(n.totals.windowChains).toEqual([]);
+  });
+});

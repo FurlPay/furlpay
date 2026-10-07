@@ -97,12 +97,12 @@ export function ChainTable({ data, winLabel }: { data: UsdcNetwork; winLabel: st
                 <td className="py-2 pr-2 text-right font-semibold text-white" title={c.supply?.latest ?? undefined}>
                   <Flash value={c.supply?.latest}>{usdc(c.supply?.latest)}</Flash>
                 </td>
-                <td className="py-2 pr-2 text-right">{w ? <Flash value={w.transfers}>{int(w.transfers)}</Flash> : sol ? solNa : "—"}</td>
-                <td className="py-2 pr-2 text-right" title={w?.volume}>{w ? usdc(w.volume) : sol ? solNa : "—"}</td>
-                <td className="py-2 pr-2 text-right" title={w?.mintVolume}>{w ? usdc(w.mintVolume) : sol ? solNa : "—"}</td>
-                <td className="py-2 pr-2 text-right" title={w?.burnVolume}>{w ? usdc(w.burnVolume) : sol ? solNa : "—"}</td>
-                <td className="py-2 pr-2 text-right">{w ? int(w.uniqueSenders) : sol ? solNa : "—"}</td>
-                <td className="py-2 pr-2 text-right">{w ? int(w.uniqueRecipients) : sol ? solNa : "—"}</td>
+                <td className="py-2 pr-2 text-right">{w ? <Flash value={w.transfers}>{int(w.transfers)}</Flash> : c.windowReason ? solNa : "—"}</td>
+                <td className="py-2 pr-2 text-right" title={w?.volume}>{w ? usdc(w.volume) : c.windowReason ? solNa : "—"}</td>
+                <td className="py-2 pr-2 text-right" title={w?.mintVolume}>{w ? usdc(w.mintVolume) : c.windowReason ? solNa : "—"}</td>
+                <td className="py-2 pr-2 text-right" title={w?.burnVolume}>{w ? usdc(w.burnVolume) : c.windowReason ? solNa : "—"}</td>
+                <td className="py-2 pr-2 text-right">{w ? int(w.uniqueSenders) : c.windowReason ? solNa : "—"}</td>
+                <td className="py-2 pr-2 text-right">{w ? int(w.uniqueRecipients) : c.windowReason ? solNa : "—"}</td>
                 <td className="py-2 pr-2 text-right">{h?.blockProcessingMs != null ? `${int(h.blockProcessingMs)} ms` : "—"}</td>
                 <td className="py-2 pr-2 text-right">{c.rpcLatencyMs != null ? `${int(c.rpcLatencyMs)} ms` : "—"}</td>
                 <td className="py-2 text-right text-white/60">{ago(c.readAt, now)}</td>

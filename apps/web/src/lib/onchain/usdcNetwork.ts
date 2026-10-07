@@ -31,6 +31,18 @@ import { chainHealth, readIndexState, type ChainHealth } from "./usdcHealth";
 // ---------------------------------------------------------------------------
 
 export const USDC_CHAINS = ["ethereum", "base", "arbitrum", "polygon", "solana"] as const;
+
+/**
+ * Chains whose last 1/5 minutes of USDC logs are scanned from the RPC on each
+ * (cached) read. Explicit opt-in: on a metered RPC plan this is the most
+ * expensive call the page makes, so nothing scans unless an operator says so.
+ */
+export function liveWindowChains(): string[] {
+  return (process.env.ONCHAIN_LIVE_WINDOW_CHAINS ?? "")
+    .split(",")
+    .map((x) => x.trim().toLowerCase())
+    .filter(Boolean);
+}
 export const WINDOWS = [60, 300] as const;
 export type UsdcWindow = (typeof WINDOWS)[number];
 const MAX_WINDOW_BLOCKS = 2_000;
@@ -219,14 +231,19 @@ async function readEvm(chain: string, windowSeconds: number): Promise<UsdcChain>
       if (!/^0x[0-9a-f]{64}$/i.test(r)) throw new Error("totalSupply() returned a malformed word");
       return formatUnits(BigInt(r).toString(), decimals);
     };
-    const [supplyLatest, supplyFinal] = await Promise.all([supplyAt(head.number), fin ? supplyAt(fin.number).catch(() => null) : Promise.resolve(null)]);
+    // One supply read per chain per refresh (eth_call = 26 CU on Alchemy); the
+    // finalized supply is recorded by the indexer, not re-read per page view.
+    const supplyLatest = await supplyAt(head.number);
+    const supplyFinal: string | null = null;
     const headN = BigInt(head.number);
     const headTs = Number(BigInt(head.timestamp));
 
     // Block time measured from the node: the header 100 blocks back.
     let window: UsdcWindowStats | null = null;
     let windowReason: string | null = null;
-    try {
+    if (!liveWindowChains().includes(chain)) {
+      windowReason = "Live window off for this chain: scanning its logs on every page view would exhaust the RPC plan (Alchemy Free: 10-block eth_getLogs, 30M CU/month). Activity comes from the indexer; opt in with ONCHAIN_LIVE_WINDOW_CHAINS.";
+    } else try {
       const probeN = headN > 100n ? headN - 100n : 0n;
       const probe = await nodeRpc<Block>(url, "eth_getBlockByNumber", [`0x${probeN.toString(16)}`, false]);
       const msPerBlock = ((headTs - Number(BigInt(probe.timestamp))) * 1000) / Number(headN - probeN || 1n);
@@ -339,7 +356,7 @@ export function summarize(chains: UsdcChain[], windowSeconds: UsdcWindow): UsdcN
  * Shared, short-lived snapshot: every request on an instance within TTL_MS
  * reads the same node results, so N viewers cost one read per chain per TTL.
  */
-const TTL_MS = 8_000;
+const TTL_MS = 30_000;
 const cache = new Map<UsdcWindow, { at: number; p: Promise<UsdcNetwork> }>();
 export function usdcNetwork(windowSeconds: UsdcWindow, now = Date.now()): Promise<UsdcNetwork> {
   const hit = cache.get(windowSeconds);
