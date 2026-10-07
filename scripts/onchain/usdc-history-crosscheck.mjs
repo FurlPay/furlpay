@@ -4,12 +4,44 @@
 // and exact raw sums with the stored unit. A provider that dropped or added
 // logs shows up as a mismatch.
 //   node scripts/onchain/usdc-history-crosscheck.mjs --out <dir> [--n 12] [--rpc a,b]
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const args = process.argv.slice(2);
 const arg = (k, d) => (args.includes(k) ? args[args.indexOf(k) + 1] : d);
 const OUT = arg("--out");
+
+// FULL mode: `--compare <verifyDir>` checks a complete independent recount
+// (usdc-history-scan.mjs --verify-against <out>) unit by unit: every exact
+// field and the HLL sketch bytes must be identical.
+if (arg("--compare")) {
+  const load = (d) => new Map(readFileSync(join(d, "units.jsonl"), "utf8").split("\n").filter(Boolean).flatMap((l) => { try { const u = JSON.parse(l); return u.v === 2 ? [[u.from, u]] : []; } catch { return []; } }));
+  const A = load(OUT), B = load(arg("--compare"));
+  const plan = JSON.parse(readFileSync(join(OUT, "plan.json"), "utf8"));
+  const planB = JSON.parse(readFileSync(join(arg("--compare"), "plan.json"), "utf8"));
+  if (plan.toBlock !== planB.toBlock || plan.toBlockHash !== planB.toBlockHash || plan.deploymentBlock !== planB.deploymentBlock) {
+    console.log("boundary mismatch", plan, planB);
+    process.exit(1);
+  }
+  const fields = ["to", "logs", "txs", "maxPerTx", "maxTx", "mints", "mintRaw", "burns", "burnRaw", "regular", "regularRaw", "zeroValue", "duplicatesSkipped"];
+  const deep = (u) => JSON.stringify([u.largest?.raw, u.smallestNonZero?.raw, u.firstLog, u.lastLog, u.hist]);
+  let compared = 0, independent = 0, mismatches = 0, events = 0;
+  const missing = [];
+  for (const [f, a] of A) {
+    const b = B.get(f);
+    if (!b) { missing.push(f); continue; }
+    compared++;
+    events += a.logs;
+    if (b.independentOfOriginal) independent++;
+    const diff = fields.filter((k) => k !== "duplicatesSkipped" && String(a[k]) !== String(b[k]));
+    if (deep(a) !== deep(b)) diff.push("extremes/histogram");
+    const sa = join(OUT, "sketches", `${f}.bin`), sb = join(arg("--compare"), "sketches", `${f}.bin`);
+    if (existsSync(sa) && existsSync(sb) && !readFileSync(sa).equals(readFileSync(sb))) diff.push("hll-sketch");
+    if (diff.length) { mismatches++; console.log(`MISMATCH unit ${f}: ${diff.map((k) => `${k} ${JSON.stringify(a[k])} vs ${JSON.stringify(b[k])}`).join("; ")}`); }
+  }
+  console.log(JSON.stringify({ unitsInCensus: A.size, unitsCompared: compared, unitsMissingFromVerify: missing.length, unitsVerifiedOnDisjointProviders: independent, eventsCovered: events, mismatchingUnits: mismatches }, null, 2));
+  process.exit(mismatches || missing.length ? 1 : 0);
+}
 const N = Number(arg("--n", "12"));
 const RPCS = arg("--rpc", "https://rpc.mevblocker.io,https://mainnet.gateway.tenderly.co").split(",");
 const USDC = "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48";

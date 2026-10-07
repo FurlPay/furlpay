@@ -99,11 +99,12 @@ for (const p of prov.values()) p.span = Math.min(p.cap ?? MAX_SPAN, Math.max(p.s
 const saveStats = () => writeFileSync(statsFile, JSON.stringify(Object.fromEntries([...prov].map(([u, p]) => [u, { ...p, until: undefined, streak: undefined, inflight: undefined }])), null, 2));
 const PER_PROVIDER = Number(arg("--per-provider", "3"));
 /** Least-loaded healthy provider, weighted by its own observed latency; null if all are busy or paused. */
-function pick() {
+function pick(allowed = null) {
   const now = Date.now();
   let best = null;
   let bestScore = Infinity;
   for (const p of prov.values()) {
+    if (allowed && !allowed.has(new URL(p.url).host)) continue;
     if (p.until > now || p.inflight >= PER_PROVIDER) continue;
     const lat = p.ok ? p.latencyMsTotal / p.ok : 1000;
     const score = (p.inflight + 1) * lat;
@@ -111,9 +112,9 @@ function pick() {
   }
   return best;
 }
-async function pickWait() {
+async function pickWait(allowed = null) {
   for (;;) {
-    const p = pick();
+    const p = pick(allowed);
     if (p) return p;
     await new Promise((r) => setTimeout(r, 100));
   }
@@ -222,10 +223,10 @@ export function hllCount(reg) {
 }
 
 // ---------------------------------------------------------------- scanning
-async function getLogsChunk(a, b) {
+async function getLogsChunk(a, b, allowed = null) {
   // Returns logs for [a, b'] with b' <= b, using one provider's current span.
   for (let attempt = 0; ; attempt++) {
-    const p = await pickWait();
+    const p = await pickWait(allowed);
     const end = Math.min(b, a + p.span - 1);
     try {
       const r = await call(p, "eth_getLogs", [{ address: USDC, topics: [TOPIC], fromBlock: hex(a), toBlock: hex(end) }]);
@@ -244,7 +245,7 @@ async function getLogsChunk(a, b) {
 
 const progress = { events: 0, txs: 0, blocks: 0, retries: 0, failures: 0 };
 
-async function scanUnit(from, to) {
+async function scanUnit(from, to, allowed = null) {
   const acc = { from, to, logs: 0, txs: 0, maxPerTx: 0, maxTx: null, mints: 0, mintRaw: 0n, burns: 0, burnRaw: 0n, regular: 0, regularRaw: 0n, zeroValue: 0, largest: null, smallestNonZero: null, firstLog: null, lastLog: null, rpcBytes: 0, calls: 0, retries: 0, hist: {}, providers: {} };
   // O(1) memory: logs are processed in (block, logIndex) order, so a duplicate
   // is an equal key and a transaction's logs are one contiguous run (log
@@ -260,7 +261,7 @@ async function scanUnit(from, to) {
   let largest = -1n, smallest = -1n;
   let a = from;
   while (a <= to) {
-    const r = await getLogsChunk(a, to);
+    const r = await getLogsChunk(a, to, allowed);
     acc.calls++;
     acc.retries += r.retries;
     acc.rpcBytes += r.bytes;
@@ -316,8 +317,8 @@ async function scanUnit(from, to) {
   return { acc: { ...acc, mintRaw: String(acc.mintRaw), burnRaw: String(acc.burnRaw), regularRaw: String(acc.regularRaw) }, reg };
 }
 
-function loadUnits() {
-  const f = join(OUT, "units.jsonl");
+function loadUnits(dir = OUT) {
+  const f = join(dir, "units.jsonl");
   const m = new Map();
   if (!existsSync(f)) return m;
   for (const line of readFileSync(f, "utf8").split("\n")) {
@@ -335,6 +336,11 @@ function loadUnits() {
 async function run() {
   const planFile = join(OUT, "plan.json");
   let plan;
+  // VERIFY mode: recount every unit of another census on the SAME boundary,
+  // using only providers that did not serve that unit there.
+  const VERIFY = arg("--verify-against");
+  const original = VERIFY ? loadUnits(VERIFY) : null;
+  if (VERIFY && !existsSync(planFile)) writeFileSync(planFile, readFileSync(join(VERIFY, "plan.json")));
   if (existsSync(planFile)) plan = JSON.parse(readFileSync(planFile, "utf8"));
   else {
     const fin = arg("--to") ? await rpc("eth_getBlockByNumber", [hex(Number(arg("--to"))), false]) : await rpc("eth_getBlockByNumber", ["finalized", false]);
@@ -355,7 +361,15 @@ async function run() {
   }
   const done = loadUnits();
   const queue = [];
-  for (let f = plan.deploymentBlock; f <= plan.toBlock; f += plan.unit) if (!done.has(f)) queue.push([f, Math.min(plan.toBlock, f + plan.unit - 1)]);
+  for (let f = plan.deploymentBlock; f <= plan.toBlock; f += plan.unit) if (!done.has(f) && (!original || original.has(f))) queue.push([f, Math.min(plan.toBlock, f + plan.unit - 1)]);
+  // Units from the first census run predate per-unit provider records; that run used only these two.
+  const FIRST_RUN_HOSTS = ["rpc.mevblocker.io", "mainnet.gateway.tenderly.co"];
+  const allowedFor = (f) => {
+    if (!original) return null;
+    const used = new Set(Object.keys(original.get(f)?.providers ?? {}).length ? Object.keys(original.get(f).providers) : FIRST_RUN_HOSTS);
+    const free = new Set(RPCS.map((u) => new URL(u).host).filter((h) => !used.has(h)));
+    return free.size ? free : null;
+  };
   const totalBlocks = plan.toBlock - plan.deploymentBlock + 1;
   for (const u of done.values()) (progress.events += u.logs), (progress.txs += u.txs), (progress.blocks += u.to - u.from + 1);
   console.log(`plan ${plan.deploymentBlock}..${plan.toBlock} (${plan.boundary} ${plan.toBlockHash}); ${done.size} units done, ${queue.length} to go; providers: ${RPCS.join(", ")}; workers ${WORKERS}`);
@@ -374,7 +388,9 @@ async function run() {
       const [f, t] = queue.shift();
       for (let attempt = 0; ; attempt++) {
         try {
-          const { acc, reg } = await scanUnit(f, t);
+          const allowed = allowedFor(f);
+          const { acc, reg } = await scanUnit(f, t, allowed);
+          if (original) acc.independentOfOriginal = allowed !== null;
           writeFileSync(join(OUT, "sketches", `${f}.bin`), Buffer.concat(SKETCHES.map((k) => Buffer.from(reg[k]))));
           appendFileSync(join(OUT, "units.jsonl"), JSON.stringify({ v: 2, ...acc, at: new Date().toISOString() }) + "\n");
           progress.events += acc.logs;
