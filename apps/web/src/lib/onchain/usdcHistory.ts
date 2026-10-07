@@ -1,4 +1,4 @@
-import { sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
+import { SupabaseFunctionMissing, sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
 import { formatUnits } from "./normalize";
 
 // ---------------------------------------------------------------------------
@@ -162,7 +162,8 @@ export function summarizeHistory(range: HistoryRange, from: Date, to: Date, rows
 
 const TTL_MS = 30_000;
 const cache = new Map<HistoryRange, { at: number; p: Promise<UsdcHistory> }>();
-const missing = (e: unknown) => /does not exist|PGRST205|PGRST202|Could not find the (table|function)|42P01|42883/i.test((e as Error).message);
+// sbRpc signals a missing Postgres function with its own error type whose message is just the name.
+const missing = (e: unknown) => e instanceof SupabaseFunctionMissing || /does not exist|PGRST205|PGRST202|Could not find the (table|function)|42P01|42883/i.test((e as Error).message);
 
 export function usdcHistory(range: HistoryRange, now = Date.now()): Promise<UsdcHistory> {
   const hit = cache.get(range);

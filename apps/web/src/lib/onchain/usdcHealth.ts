@@ -1,4 +1,4 @@
-import { sbSelect, supabaseBackend } from "@/lib/supabase";
+import { SupabaseFunctionMissing, sbSelect, supabaseBackend } from "@/lib/supabase";
 import type { UsdcChain } from "./usdcNetwork";
 
 // ---------------------------------------------------------------------------
@@ -134,7 +134,7 @@ export function chainHealth(live: UsdcChain, store: { asset: IndexerRow | null; 
   return { ...base, state: "LIVE", reasons: [] };
 }
 
-const missing = (e: unknown) => /does not exist|PGRST205|Could not find the table|42P01|PGRST202|Could not find the function/i.test((e as Error).message);
+const missing = (e: unknown) => e instanceof SupabaseFunctionMissing || /does not exist|PGRST205|Could not find the table|42P01|PGRST202|Could not find the function/i.test((e as Error).message);
 
 /** Reads the stored index state for `asset`. Never throws; says why when unavailable. */
 export async function readIndexState(asset: string, chains: string[]) {

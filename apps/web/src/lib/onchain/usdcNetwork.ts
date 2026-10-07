@@ -356,7 +356,7 @@ export function summarize(chains: UsdcChain[], windowSeconds: UsdcWindow): UsdcN
  * Shared, short-lived snapshot: every request on an instance within TTL_MS
  * reads the same node results, so N viewers cost one read per chain per TTL.
  */
-const TTL_MS = 30_000;
+const TTL_MS = 15_000;
 const cache = new Map<UsdcWindow, { at: number; p: Promise<UsdcNetwork> }>();
 export function usdcNetwork(windowSeconds: UsdcWindow, now = Date.now()): Promise<UsdcNetwork> {
   const hit = cache.get(windowSeconds);
