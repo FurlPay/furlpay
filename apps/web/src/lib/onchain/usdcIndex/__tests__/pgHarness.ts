@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pg from "pg";
+import { createServer, type AddressInfo } from "node:net";
 
 // A throwaway embedded PostgreSQL with the REAL migration applied (twice, to
 // prove idempotence), plus a PostgREST stand-in for sbSelect/sbRpc that
@@ -10,7 +11,21 @@ import pg from "pg";
 
 export const MIGRATION = join(__dirname, "..", "..", "..", "..", "..", "..", "..", "supabase", "migrations", "0036_usdc_index.sql");
 
-export async function startPg(port: number) {
+/** A free localhost port (fixed ports collide with orphaned servers from aborted runs). */
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.unref();
+    srv.on("error", reject);
+    srv.listen(0, "127.0.0.1", () => {
+      const port = (srv.address() as AddressInfo).port;
+      srv.close(() => resolve(port));
+    });
+  });
+}
+
+export async function startPg(_preferred?: number) {
+  const port = await freePort();
   const dir = mkdtempSync(join(tmpdir(), "usdc-index-pg-"));
   const server = new EmbeddedPostgres({ databaseDir: dir, user: "postgres", password: "postgres", port, persistent: false, initdbFlags: ["--encoding=UTF8", "--locale=C"], onLog: () => {}, onError: () => {} });
   await server.initialise();

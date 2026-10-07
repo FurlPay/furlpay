@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recordAdminAccess, recordAdminDenied } from "@/lib/adminAudit";
-import { tokenFromRequest, verifySession, type Role, type SessionClaims } from "@/lib/session";
+import { tokenFromRequest, verifySessionState, type Role, type SessionClaims } from "@/lib/session";
 import { getAccountDurable, type UserAccount } from "@/lib/store";
 import { isAccountDeleted } from "@/lib/accountDeletion";
 import type { McpClaims } from "@/lib/mcp/oauth";
@@ -29,6 +29,9 @@ export type AuthResult =
 // Null means no bootstrap admin exists in this deployment.
 export const FOUNDER_ADMIN_EMAIL: string | null = adminBootstrapEmail();
 
+/** Methods that cannot change state; the only ones allowed while revocation is unknown. */
+const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 function isProductionDeployment(): boolean {
   return process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview";
 }
@@ -41,9 +44,22 @@ function normalizedEmail(email: string | undefined | null): string {
 export async function requireUser(req: NextRequest): Promise<AuthResult> {
   // durable: also consult the cross-instance revocation denylist — a token
   // revoked by logout/account-lock on another lambda must die here too.
-  const claims = await verifySession(tokenFromRequest(req), { durable: true });
+  const { claims, revocation } = await verifySessionState(tokenFromRequest(req), { durable: true });
   if (!claims?.sub) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  // Revocation could not be checked (KV unreachable), so a logged-out or
+  // stolen token is indistinguishable from a live one. Reads stay available;
+  // anything that changes state — money movement, credentials, settings — is
+  // refused until the denylist is readable again.
+  if (revocation === "unknown" && !READ_ONLY_METHODS.has(req.method)) {
+    return {
+      ok: false,
+      res: NextResponse.json(
+        { error: "session_check_unavailable", detail: "Please try again shortly.", retryAfterSeconds: 30 },
+        { status: 503, headers: { "Retry-After": "30" } }
+      ),
+    };
   }
   // A connector (MCP) access token is scoped, not a full session: it may only
   // reach the routes its consented scopes map to (default deny — see

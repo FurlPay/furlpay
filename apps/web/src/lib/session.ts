@@ -85,20 +85,29 @@ const revoked = (): Map<string, number> => (g.__revokedJtis ??= new Map());
 
 const revokedKey = (jti: string) => `session:revoked:${jti}`;
 
-export async function revokeSession(jti: string | undefined): Promise<void> {
-  if (!jti) return;
+/**
+ * Revoke one token by jti. Returns true when the revocation reached the
+ * cross-instance denylist, false when only this instance knows it (KV write
+ * failed). A caller that needs the revocation to hold everywhere — logout —
+ * falls back to a durable mechanism on false: the account's session epoch,
+ * which lives in Postgres. Never throws.
+ */
+export async function revokeSession(jti: string | undefined): Promise<boolean> {
+  if (!jti) return false;
   const now = Date.now();
   revoked().set(jti, now + TTL_SECONDS * 1000);
   // Sweep expired revocations so the set stays bounded.
   for (const [id, expiresAt] of revoked()) {
     if (expiresAt < now) revoked().delete(id);
   }
-  // Durable write LAST and best-effort: a kv outage must not turn logout into
-  // a 500 — the memory layer above already killed the token on this instance.
+  // Durable write LAST: a kv outage must not turn logout into a 500 — the
+  // memory layer above already killed the token on this instance, and the
+  // caller is told the revocation is NOT yet durable.
   try {
     await kvSet(revokedKey(jti), 1, TTL_SECONDS);
+    return true;
   } catch {
-    // Token still expires within TTL_SECONDS; nothing safe to do here.
+    return false;
   }
 }
 
@@ -156,7 +165,23 @@ export async function verifySession(
   token: string | undefined | null,
   opts?: { durable?: boolean }
 ): Promise<SessionClaims | null> {
-  if (!token) return null;
+  return (await verifySessionState(token, opts)).claims;
+}
+
+/**
+ * Revocation status of a verified token: "clear" (checked and not revoked, or
+ * no durable check asked for) or "unknown" (the cross-instance denylist could
+ * not be read — KV down). "unknown" is NOT "clear": a Redis outage must not
+ * sign everyone out, so the token is still returned, and the caller limits
+ * what it may do (requireUser: reads only; lib/authz.ts).
+ */
+export type RevocationState = "clear" | "unknown";
+
+export async function verifySessionState(
+  token: string | undefined | null,
+  opts?: { durable?: boolean }
+): Promise<{ claims: SessionClaims | null; revocation: RevocationState }> {
+  if (!token) return { claims: null, revocation: "clear" };
   try {
     const { payload } = await jwtVerify(token, secretKey(), {
       issuer: "furlpay",
@@ -164,19 +189,18 @@ export async function verifySession(
       algorithms: [ALG], // pin HS256 — never honour a header-chosen algorithm
     });
     const claims = payload as SessionClaims;
-    if (isRevoked(claims.jti)) return null;
+    if (isRevoked(claims.jti)) return { claims: null, revocation: "clear" };
     if (opts?.durable && claims.jti) {
-      // Fail-open on kv error: a Redis outage must not sign everyone out.
-      // The token still dies at its 1h expiry.
       try {
-        if ((await kvGet(revokedKey(claims.jti))) !== null) return null;
+        if ((await kvGet(revokedKey(claims.jti))) !== null) return { claims: null, revocation: "clear" };
       } catch {
-        /* kv unreachable — signature/expiry checks above still hold */
+        // kv unreachable: signature and expiry still hold, revocation is unknown.
+        return { claims, revocation: "unknown" };
       }
     }
-    return claims;
+    return { claims, revocation: "clear" };
   } catch {
-    return null;
+    return { claims: null, revocation: "clear" };
   }
 }
 

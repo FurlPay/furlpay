@@ -13,6 +13,8 @@ import { enqueueAudit } from "@/lib/auditDb";
 export type AuditEvent =
   | "auth.login"
   | "auth.logout"
+  | "auth.logout.epoch_fallback"
+  | "auth.logout.not_durable"
   | "auth.signup"
   | "auth.guest_login"
   | "auth.dev_session"
