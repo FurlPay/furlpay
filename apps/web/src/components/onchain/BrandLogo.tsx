@@ -29,6 +29,19 @@ const CHAIN_FILE: Record<string, { dir: "chains" | "coins"; file: string; name: 
   mantle: { dir: "coins", file: "mnt", name: "Mantle" },
   stellar: { dir: "coins", file: "xlm", name: "Stellar" },
   ton: { dir: "coins", file: "ton", name: "TON" },
+  xrp_ledger: { dir: "coins", file: "xrp", name: "XRP Ledger" },
+  sei: { dir: "coins", file: "sei", name: "Sei" },
+};
+
+/** Display names for chains whose id is not already readable (no logo asset implied). */
+const CHAIN_NAME: Record<string, string> = {
+  zksync: "ZKsync",
+  x_layer: "X Layer",
+  hyperevm: "HyperEVM",
+  robinhood: "Robinhood Chain",
+  ink: "Ink",
+  plume: "Plume",
+  unichain: "Unichain",
 };
 
 /** Wrapped / bridged tickers share the underlying asset's mark. */
@@ -39,7 +52,7 @@ function src(kind: "chain" | "token", id: string): { url: string; name: string }
     const key = id.toLowerCase();
     const hit = CHAIN_FILE[key];
     if (hit) return { url: `/logos/${hit.dir}/${hit.file}.svg`, name: hit.name };
-    return { url: `/logos/chains/${key.replace(/[^a-z0-9-]/g, "")}.svg`, name: key.charAt(0).toUpperCase() + key.slice(1) };
+    return { url: `/logos/chains/${key.replace(/[^a-z0-9-]/g, "")}.svg`, name: CHAIN_NAME[key] ?? key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, " ") };
   }
   const t = id.toUpperCase();
   const file = TOKEN_ALIAS[t] ?? t.toLowerCase().replace(/[^a-z0-9]/g, "");
