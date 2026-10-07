@@ -218,9 +218,14 @@ export function StablecoinFlows({ data }: { data: Data }) {
   const lines = corr.status === "ok" ? corr.data : [];
   const max = Math.max(1, ...lines.map((l) => l.volumeUsd));
   const nodes = new Set(lines.flatMap((l) => [l.from, l.to]));
+  const chains = data.alliumChains.status === "ok" ? data.alliumChains.data : [];
+  const latest = data.alliumDaily.status === "ok" ? data.alliumDaily.data.latest : null;
+  const latestDay = latest ? new Date(`${latest.day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : null;
+  const byChainMode = corr.status === "unavailable" && chains.length > 0;
+  const source = byChainMode ? data.alliumChains.source : corr.source;
   return (
-    <Card title="Stablecoin Flows (Global)" source={corr.source} action={<Menu label="Metric" width={96} value="volume" onChange={() => {}} options={[["volume", "Volume"]] as const} />}>
-      <div className="grid flex-1 items-center gap-3 sm:grid-cols-[1.9fr_1fr]">
+    <Card title="Stablecoin Flows (Global)" source={source} action={<Menu label="Metric" width={96} value="volume" onChange={() => {}} options={[["volume", "Volume"]] as const} />}>
+      <div className={`grid flex-1 items-center gap-3 ${byChainMode ? "sm:grid-cols-[1fr_1.15fr]" : "sm:grid-cols-[1.9fr_1fr]"}`}>
         <div className="relative">
           <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(0,229,153,0.10),transparent_65%)]" />
           <svg viewBox={`8 6 ${WORLD.width - 16} ${WORLD.height - 30}`} preserveAspectRatio="xMidYMid slice" className="relative h-[168px] w-full" role="img" aria-label="World map of stablecoin corridors">
@@ -242,6 +247,26 @@ export function StablecoinFlows({ data }: { data: Data }) {
           </svg>
         </div>
         <div className="min-w-0 self-start pt-1">
+          {byChainMode ? (
+            // No corridor query configured, but Allium's by-chain query is:
+            // show where stablecoins actually moved on the latest day.
+            <>
+              <p className="mb-2.5 text-[11.5px] text-white/65">
+                Top chains{latestDay ? ` · ${latestDay}` : ""} <span className="text-white/40">vs 7d avg</span>
+              </p>
+              <ul className="space-y-[9px] text-[12px]">
+                {chains.slice(0, 6).map((c) => (
+                  <li key={c.chain} className="grid grid-cols-[16px_minmax(0,1fr)_auto_50px] items-center gap-2" title={`${chainName(c.chain)}: ${usdC(c.volumeUsd)} (prior 7-day average ${usdC(c.prior7dAvgUsd)})${c.txCount !== null ? `, ${fmtCount(c.txCount)} txs` : ""}`}>
+                    <BrandLogo kind="chain" id={c.chain} size={16} />
+                    <span className="truncate text-white/90">{chainName(c.chain)}</span>
+                    <span className="text-right tabular-nums text-white">{usdC(c.volumeUsd)}</span>
+                    <span className="whitespace-nowrap text-right">{c.change !== null ? <Change ratio={c.change} className="text-[11px]" /> : null}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+          <>
           <p className="mb-2.5 text-[11.5px] text-white/65">Top Corridors</p>
           {corr.status === "unavailable" ? (
             <p className="text-[11.5px] leading-relaxed text-white/45">{corr.reason}</p>
@@ -259,6 +284,8 @@ export function StablecoinFlows({ data }: { data: Data }) {
                 </li>
               ))}
             </ul>
+          )}
+          </>
           )}
         </div>
       </div>
@@ -573,24 +600,22 @@ export function Flow({ data, chain, setChain }: { data: Data; chain: string; set
 
 // ── Market insights ─────────────────────────────────────────────────────────
 
-type Tab = "supply" | "transfers" | "addresses";
+type Tab = "supply" | "transfers" | "transactions";
 
 export function MarketInsights({ data }: { data: Data }) {
   const [tab, setTab] = useState<Tab>("supply");
   const M = data.market.status === "ok" ? data.market.data : null;
-  const daily = data.alliumDaily.status === "ok" ? data.alliumDaily.data : [];
-  const last = daily.at(-1);
-  const prev = daily.at(-2);
-  const r = (a?: number, b?: number) => (a !== undefined && b !== undefined && b > 0 ? (a - b) / b : null);
-  const avg = (d?: (typeof daily)[number]) => (d && d.transferCount > 0 ? d.transferVolumeUsd / d.transferCount : undefined);
+  const A = data.alliumDaily.status === "ok" ? data.alliumDaily.data : null;
+  const last = A?.latest ?? null;
   const alliumMissing = data.alliumDaily.status === "unavailable" ? data.alliumDaily.reason : null;
   const series =
     tab === "supply"
       ? (M?.supplySeries ?? null)
-      : data.alliumDaily.status === "ok"
-        ? daily.map((d) => ({ date: d.day, value: tab === "transfers" ? d.transferVolumeUsd : d.activeAddresses }))
+      : A
+        ? A.days.map((d) => ({ date: d.day, value: tab === "transfers" ? d.volumeUsd : d.txCount }))
         : null;
-  const money = tab !== "addresses";
+  const money = tab !== "transactions";
+  const dayLabel = last ? new Date(`${last.day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : null;
 
   const metric = (label: string, value: string | null, change: number | null) => (
     <div>
@@ -617,14 +642,20 @@ export function MarketInsights({ data }: { data: Data }) {
               ))}
             </ul>
           )}
-          {metric("Daily Transfer Volume", last ? usdC(last.transferVolumeUsd) : null, r(last?.transferVolumeUsd, prev?.transferVolumeUsd))}
-          {metric("Active Addresses", last ? fmtCount(last.activeAddresses, { compact: true }) : null, r(last?.activeAddresses, prev?.activeAddresses))}
-          {metric("Avg Transfer Size", avg(last) !== undefined ? fmtUsd(avg(last)!) : null, r(avg(last), avg(prev)))}
+          {metric(`Daily Transfer Volume${dayLabel ? ` · ${dayLabel}` : ""}`, last ? usdC(last.volumeUsd) : null, A?.change.volumeUsd ?? null)}
+          {metric("Transactions", last ? fmtCount(last.txCount, { compact: true }) : null, A?.change.txCount ?? null)}
+          {metric("Avg Transfer Size", last?.avgTransferUsd != null ? fmtUsd(last.avgTransferUsd) : null, A?.change.avgTransferUsd ?? null)}
+          {A && last && (
+            <p className="text-[10.5px] leading-snug text-white/45" title="sender_count is distinct per chain, day and token; summed, an address counts once per chain and token it used">
+              {A.latestProvisional && <span className="mr-1 rounded border border-[#F5B83D]/40 px-1 text-[#F5B83D]">provisional</span>}
+              vs prior {A.prior7dAvg?.days ?? 0}-day avg · {fmtCount(last.senderCount, { compact: true })} senders (summed) · 7d {usdC(A.windowTotals.volumeUsd)}
+            </p>
+          )}
           {alliumMissing && <p className="text-[10.5px] leading-snug text-white/40">Transfer metrics: {alliumMissing}</p>}
         </div>
         <div className="flex min-w-0 flex-col">
           <div className="mb-1.5 flex justify-end gap-1.5 text-[11.5px]" role="tablist">
-            {(["supply", "transfers", "addresses"] as Tab[]).map((t) => (
+            {(["supply", "transfers", "transactions"] as Tab[]).map((t) => (
               <button
                 key={t}
                 role="tab"
@@ -659,7 +690,7 @@ export function MarketInsights({ data }: { data: Data }) {
                   <Tooltip
                     cursor={{ stroke: "rgba(255,255,255,0.2)" }}
                     content={({ active, payload, label }) =>
-                      active && payload?.[0] ? <TipBox title={String(label)} rows={[{ label: tab === "supply" ? "Supply" : tab === "transfers" ? "Transfer volume" : "Active addresses", value: money ? fmtUsd(Number(payload[0].value), { compact: true }) : fmtCount(Number(payload[0].value)) }]} /> : null
+                      active && payload?.[0] ? <TipBox title={String(label)} rows={[{ label: tab === "supply" ? "Supply" : tab === "transfers" ? "Transfer volume" : "Transactions", value: money ? fmtUsd(Number(payload[0].value), { compact: true }) : fmtCount(Number(payload[0].value)) }]} /> : null
                     }
                   />
                   <Area type="monotone" dataKey="value" stroke={NEON} strokeWidth={1.8} fill="url(#onchain-area)" isAnimationActive={false} />

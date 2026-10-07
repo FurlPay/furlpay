@@ -149,13 +149,13 @@ describe("alliumQuery", () => {
       if (url.endsWith("/api/v1/explorer/query-runs?query_id=q_daily1"))
         return Response.json({ run_id: "r1", status: "success", completed_at: "2026-10-06T06:00:00Z" });
       if (url.endsWith("/api/v1/explorer/query-runs/r1/results"))
-        return Response.json({ data: [{ day: "2026-10-05", transfer_volume_usd: "1000.5", transfer_count: 10, active_addresses: 7 }], queried_at: "2026-10-06T06:00:00Z" });
+        return Response.json({ data: [{ day: "2026-10-05", tx_count: 30800000, transfer_count: "73000000", volume_usd: "226900000000.5", sender_count: 5280000, recipient_count: 8990000 }], queried_at: "2026-10-06T06:00:00Z" });
       throw new Error(`unexpected ${url}`);
     });
     vi.stubGlobal("fetch", f);
     const r = await alliumQuery("stablecoinDaily", NOW);
     expect(r.status).toBe("ok");
-    if (r.status === "ok") expect(r.data[0]).toEqual({ day: "2026-10-05", transfer_volume_usd: 1000.5, transfer_count: 10, active_addresses: 7 });
+    if (r.status === "ok") expect(r.data[0]).toEqual({ day: "2026-10-05", tx_count: 30800000, transfer_count: 73000000, volume_usd: 226900000000.5, sender_count: 5280000, recipient_count: 8990000 });
     expect(f).toHaveBeenCalledTimes(2); // fresh run: no re-run requested
   });
 

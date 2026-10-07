@@ -33,16 +33,35 @@ const STALE_MS = 26 * 3_600_000; // a daily query that missed one day is stale
 const RERUN_COOLDOWN_MS = 3_600_000;
 const MEMO_MS = 5 * 60_000;
 
+const n = z.coerce.number().finite().nonnegative();
+
+// Output contracts of the SAVED Explorer queries. Column names follow
+// stablecoins.metrics.volume_daily (one row per chain x day x token; clustered
+// on activity_date, chain), aggregated per day / per chain by the saved SQL.
+// Reference SQL is in docs/ALLIUM_INTEGRATION.md.
 export const ALLIUM_QUERIES = {
   stablecoinDaily: {
     env: "ALLIUM_STABLECOIN_DAILY_QUERY_ID",
     label: "stablecoin daily metrics",
-    columns: "day, transfer_volume_usd, transfer_count, active_addresses",
+    columns: "day, tx_count, transfer_count, volume_usd, sender_count, recipient_count",
     row: z.object({
       day: z.string().min(8),
-      transfer_volume_usd: z.coerce.number().finite().nonnegative(),
-      transfer_count: z.coerce.number().finite().nonnegative(),
-      active_addresses: z.coerce.number().finite().nonnegative(),
+      tx_count: n,
+      transfer_count: n,
+      volume_usd: n,
+      sender_count: n,
+      recipient_count: n,
+    }),
+  },
+  stablecoinByChain: {
+    env: "ALLIUM_STABLECOIN_CHAIN_QUERY_ID",
+    label: "stablecoin volume by chain",
+    columns: "chain, volume_usd_latest_day, volume_usd_prior_7d_avg [, tx_count_latest_day]",
+    row: z.object({
+      chain: z.string().regex(/^[a-z0-9_-]{2,32}$/),
+      volume_usd_latest_day: n,
+      volume_usd_prior_7d_avg: n,
+      tx_count_latest_day: n.nullish(),
     }),
   },
   corridors: {

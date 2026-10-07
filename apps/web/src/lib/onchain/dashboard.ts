@@ -3,6 +3,7 @@ import { bucketIndex, type AnalyticsRange } from "@/lib/analytics/range";
 import { alliumKeyConfigured, alliumQuery, type Sourced } from "./allium";
 import { stablecoinMarket } from "./market";
 import { treasuryHoldings, type Holdings } from "./holdings";
+import { summarizeActivity, summarizeChains, type ChainActivity, type StablecoinActivity } from "./stablecoinActivity";
 
 // ---------------------------------------------------------------------------
 // /onchain — the Onchain Intelligence dashboard. Three kinds of source, each
@@ -84,7 +85,8 @@ export interface OnchainDashboard {
   risk: Section<RiskView>;
   market: Sourced<import("./market").StablecoinMarket>;
   alliumConfigured: boolean;
-  alliumDaily: Sourced<{ day: string; transferVolumeUsd: number; transferCount: number; activeAddresses: number }[]>;
+  alliumDaily: Sourced<StablecoinActivity>;
+  alliumChains: Sourced<ChainActivity[]>;
   corridors: Sourced<{ from: string; to: string; volumeUsd: number }[]>;
   holdings: Sourced<Holdings>;
 }
@@ -289,11 +291,12 @@ export function onchainCached(range: AnalyticsRange, chain: ChainFilter, now = D
 }
 
 export async function buildOnchainDashboard(range: AnalyticsRange, chain: ChainFilter): Promise<OnchainDashboard> {
-  const [l, r, market, daily, corridors, holdings] = await Promise.all([
+  const [l, r, market, daily, byChain, corridors, holdings] = await Promise.all([
     ledger(range, chain),
     risk(range),
     stablecoinMarket(),
     alliumQuery("stablecoinDaily"),
+    alliumQuery("stablecoinByChain"),
     alliumQuery("corridors"),
     treasuryHoldings(),
   ]);
@@ -306,15 +309,9 @@ export async function buildOnchainDashboard(range: AnalyticsRange, chain: ChainF
     market,
     alliumConfigured: alliumKeyConfigured(),
     holdings,
-    alliumDaily:
-      daily.status === "ok"
-        ? {
-            ...daily,
-            data: daily.data
-              .map((d) => ({ day: d.day.slice(0, 10), transferVolumeUsd: d.transfer_volume_usd, transferCount: d.transfer_count, activeAddresses: d.active_addresses }))
-              .sort((a, b) => a.day.localeCompare(b.day)),
-          }
-        : daily,
+    // asOf is the Allium run's queried_at: the provisional-day rule keys off it.
+    alliumDaily: daily.status === "ok" ? { ...daily, data: summarizeActivity(daily.data, daily.asOf) } : daily,
+    alliumChains: byChain.status === "ok" ? { ...byChain, data: summarizeChains(byChain.data) } : byChain,
     corridors:
       corridors.status === "ok"
         ? { ...corridors, data: corridors.data.map((c) => ({ from: c.from_country, to: c.to_country, volumeUsd: c.volume_usd })).sort((a, b) => b.volumeUsd - a.volumeUsd).slice(0, 5) }

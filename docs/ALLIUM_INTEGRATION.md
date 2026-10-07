@@ -296,3 +296,59 @@ select token_symbol, count(*), sum(market_cap_usd) from rwa_asset_snapshots
 ```
 
 **Proof.** The import, aggregation, multi-snapshot and permission behaviour were verified on PostgreSQL 18 with the real export, using a local harness kept outside the repo.
+
+## Global stablecoin activity (saved Explorer queries)
+
+The Market Insights card and the Stablecoin Flows card read two saved queries over `stablecoins.metrics.volume_daily`. That table has one row per chain, day and token, and is clustered on `activity_date, chain`. The queries live in the FurlPay Allium org (2026-10-07) and are read with "fetch latest run". A run older than 26 hours triggers one re-run per hour per instance, at about 0.06 EU per run.
+
+**`ALLIUM_STABLECOIN_DAILY_QUERY_ID` = `LQ50l60RW267fBrQ8DoJ`**
+
+```sql
+with daily as (
+    -- one row per UTC day, all chains and stablecoins
+    select
+        activity_date::date as day,
+        sum(transfer_tx_count) as tx_count,
+        sum(transfer_count) as transfer_count,
+        sum(transfer_volume_usd) as volume_usd,
+        sum(sender_count) as sender_count,
+        sum(recipient_count) as recipient_count
+    from stablecoins.metrics.volume_daily
+    where activity_date >= dateadd(day, -8, current_date())
+      and activity_date < current_date()
+    group by 1
+)
+select * from daily order by day desc nulls last;
+```
+
+**`ALLIUM_STABLECOIN_CHAIN_QUERY_ID` = `zvPU0Sw05NnOqA4mJjFT`.** Check that it returns exactly these columns; if it doesn't, update it to this:
+
+```sql
+with
+-- daily: per-chain daily totals for the last 9 complete-or-partial days
+daily as (
+    select activity_date::date as day, chain,
+           sum(transfer_volume_usd) as volume_usd,
+           sum(transfer_tx_count) as tx_count
+      from stablecoins.metrics.volume_daily
+     where activity_date >= dateadd(day, -9, current_date())
+       and activity_date < current_date()
+     group by 1, 2
+),
+-- latest: the most recent day that has been aggregated (has transactions)
+latest as (select max(day) as d from daily where tx_count > 0)
+select chain,
+       sum(iff(day = (select d from latest), volume_usd, 0)) as volume_usd_latest_day,
+       sum(iff(day < (select d from latest) and day >= dateadd(day, -7, (select d from latest)), volume_usd, 0)) / 7 as volume_usd_prior_7d_avg,
+       sum(iff(day = (select d from latest), tx_count, 0)) as tx_count_latest_day
+  from daily
+ group by 1
+ order by 2 desc nulls last;
+```
+
+**Algorithm** (`lib/onchain/stablecoinActivity.ts`, unit-tested on the 2026-10-07 run's figures):
+- **Latest day:** the most recent day with transactions. Allium aggregates with a lag; on 2026-10-07 the latest complete day was 10-05. A day not yet aggregated is never shown as "no activity".
+- **Provisional:** the latest day is flagged provisional when the query ran less than 24 hours after that day ended. It is flagged, not hidden.
+- **Changes:** changes compare against the average of up to 7 prior days, not the single previous day. Weekends dip.
+- **Senders:** `sender_count` is distinct per (chain, day, token), so summed it counts an address once per chain and token it used. It is labelled "senders (summed)", never as unique wallets.
+- **Corridors:** "Stablecoin Flows" shows the by-chain breakdown, with change against the 7-day average, until a corridor query is configured.
