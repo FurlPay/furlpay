@@ -1,4 +1,6 @@
-import { sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
+import { SupabaseFunctionMissing, sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
+import { log } from "@/lib/log";
+import { scrub } from "./indexerLog";
 import { alliumKeyConfigured } from "./allium";
 import { nodeChains } from "./nodeIndexer";
 import { beamSecret } from "./beamAuth";
@@ -237,7 +239,12 @@ async function buildLive(full: boolean, now: number): Promise<LiveSnapshot> {
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "";
-    const reason = /onchain_health|PGRST202|does not exist|SupabaseFunctionMissing/i.test(msg) || e?.constructor?.name === "SupabaseFunctionMissing" ? "Migration 0032_onchain_ingestion.sql is not applied." : "Ingestion store unreachable.";
+    // The real cause goes to the server log (operators), never to the public response.
+    log.error("onchain live snapshot failed", { error: scrub(msg).slice(0, 300) });
+    const reason =
+      e instanceof SupabaseFunctionMissing || /onchain_health|PGRST202|PGRST205|does not exist|schema cache/i.test(msg)
+        ? "Migration 0032_onchain_ingestion.sql is not applied (or only partly)."
+        : "Ingestion store unreachable.";
     return { ...base, state: "offline", reason };
   }
 }
