@@ -80,7 +80,7 @@ const FAIL_CLOSED_BUCKETS: RegExp[] = [
   /^intents\.cctp$/,
   /^investing\.orders$/,
   /^travel\.(book|settle)$/,
-  /^x402\.(facilitator\.settle|policy\.settle)$/,
+  /^x402\.(facilitator\.settle|policy\.settle|checkout\.pay)$/,
   /^(giftcards|gifts\.vouchers)\.redeem$/,
   // Unauthenticated endpoints that SEND EMAIL (mail pumping scales with the
   // instance count exactly like SMS does)

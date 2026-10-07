@@ -15,6 +15,8 @@ export type AuditEvent =
   | "auth.logout"
   | "auth.logout.epoch_fallback"
   | "auth.logout.not_durable"
+  | "x402.checkout.paid"
+  | "x402.checkout.refused"
   | "auth.signup"
   | "auth.guest_login"
   | "auth.dev_session"

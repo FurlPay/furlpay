@@ -703,5 +703,7 @@ async function openX402Checkout(
 
   // Settlement + passkey signing happen on furlpay.com (the rpID origin), which
   // verifies the 402 against `resource` before it displays a recipient or amount.
-  await browser.tabs.create({ url: `${base}/developer?x402=${encodeURIComponent(params.toString())}` });
+  // /pay/x402 re-reads the 402 server-side and shows what the RESOURCE asks for;
+  // the link carries only the resource URL and the browser-verified origin.
+  await browser.tabs.create({ url: `${base}/pay/x402?${params.toString()}` });
 }

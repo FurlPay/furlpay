@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader, Pill } from "@/components/ui";
 
 const ENDPOINTS = [
@@ -31,6 +31,12 @@ const EVENTS = [
 ];
 
 export default function DeveloperPage() {
+  // Extension builds before the /pay/x402 checkout opened /developer?x402=...;
+  // forward those to the checkout instead of leaving the user on this page.
+  useEffect(() => {
+    const x = new URLSearchParams(window.location.search).get("x402");
+    if (x) window.location.replace(`/pay/x402?${new URLSearchParams({ x402: x }).toString()}`);
+  }, []);
   const [sandbox, setSandbox] = useState(true);
   const [log, setLog] = useState<string[]>([]);
   const apiKey = sandbox ? "sk_sandbox_furlpay_9f2c…a71b" : "sk_live_furlpay_••••••••";
