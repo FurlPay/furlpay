@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NETWORKS, units } from "../networks";
-import { readNetwork, readTransferRange } from "../network-reader";
-import { searchInput } from "../network-search";
+import { readNetwork, readTransferRange, SOLANA_MAINNET_GENESIS, verifyNetwork } from "../network-reader";
+import { searchInput, searchNetwork } from "../network-search";
 const network = NETWORKS[0];
 const hash = (n: number) => "0x" + n.toString(16).padStart(64, "0");
 const blocks = [1, 2, 3, 4].map((n) => ({ number: `0x${n}`, hash: hash(n), parentHash: hash(n - 1), timestamp: "0x" + Math.floor(Date.now() / 1000).toString(16) }));
@@ -53,5 +53,47 @@ describe("live transfer sample", () => {
     expect(searchInput.safeParse({ chain: "ethereum", q: "0x1234" }).success).toBe(false);
     expect(searchInput.safeParse({ chain: "https://evil.test", q: network.token }).success).toBe(false);
     expect(searchInput.safeParse({ chain: "solana", q: NETWORKS[4].token }).success).toBe(true);
+  });
+});
+
+describe("Solana network identity", () => {
+  const solana = NETWORKS.find((n) => n.id === "solana")!;
+  const answer = (result: unknown) => vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }))));
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("accepts the real 44-character mainnet-beta genesis hash a node returns", async () => {
+    // Value returned by api.mainnet-beta.solana.com getGenesisHash.
+    answer("5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d");
+    await expect(verifyNetwork(solana, AbortSignal.timeout(1000))).resolves.toBeUndefined();
+    expect(SOLANA_MAINNET_GENESIS).toHaveLength(44);
+  });
+  it("rejects the 32-character CAIP-2 reference and other clusters", async () => {
+    answer("5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp");
+    await expect(verifyNetwork(solana, AbortSignal.timeout(1000))).rejects.toThrow("Wrong network");
+    answer("EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG"); // devnet
+    await expect(verifyNetwork(solana, AbortSignal.timeout(1000))).rejects.toThrow("Wrong network");
+  });
+});
+
+describe("Solana address lookup", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  const rpc = (balance: number) =>
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init: RequestInit) => {
+      const { method } = JSON.parse(String(init.body));
+      const result = method === "getGenesisHash" ? SOLANA_MAINNET_GENESIS : { context: { slot: 454_601_080 }, value: balance };
+      return new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result }));
+    }));
+  const wallet = "9WzDXwBbmkg8ZTbNMqUxvQRAyrZzDsGYdLVL9zYtAWWM";
+
+  it("reports an exact balance below 2^53 lamports", async () => {
+    rpc(1_500_000_000);
+    const r = await searchNetwork({ chain: "solana", q: wallet });
+    expect(r.fields[0]).toEqual({ label: "SOL balance (confirmed)", value: "1.5" });
+  });
+  it("labels a balance above 2^53 lamports approximate instead of failing", async () => {
+    rpc(10_572_652_082_892_308);
+    const r = await searchNetwork({ chain: "solana", q: wallet });
+    expect(r.fields[0].label).toBe("SOL balance (confirmed, approximate)");
+    expect(r.fields[0].value.startsWith("≈ 10572652.")).toBe(true);
   });
 });

@@ -28,8 +28,10 @@ export async function searchNetwork(input: z.infer<typeof searchInput>): Promise
   let found = true;
   if (chain === "solana") {
     if (kind === "address") {
-      const value = z.object({ context: z.object({ slot: z.number().int().safe() }), value: z.number().int().nonnegative().safe() }).parse(await nodeRead(network, "getBalance", [q, { commitment: "confirmed" }], signal));
-      fields.push({ label: "SOL balance (confirmed)", value: units(String(value.value), 9) }, { label: "Context slot", value: String(value.context.slot) });
+      const value = z.object({ context: z.object({ slot: z.number().int().safe() }), value: z.number().int().nonnegative() }).parse(await nodeRead(network, "getBalance", [q, { commitment: "confirmed" }], signal));
+      // Above 2^53 lamports (~9M SOL) the JSON number has already lost precision: say so rather than fail or overstate it.
+      const exact = Number.isSafeInteger(value.value);
+      fields.push({ label: exact ? "SOL balance (confirmed)" : "SOL balance (confirmed, approximate)", value: `${exact ? "" : "≈ "}${units(BigInt(value.value).toString(), 9)}` }, { label: "Context slot", value: String(value.context.slot) });
     } else {
       const result = z.object({ value: z.array(z.object({ slot: z.number().int().safe(), err: z.unknown(), confirmationStatus: z.enum(["processed", "confirmed", "finalized"]).nullable() }).nullable()).length(1) }).parse(await nodeRead(network, "getSignatureStatuses", [[q], { searchTransactionHistory: true }], signal));
       const tx = result.value[0]; found = tx !== null;

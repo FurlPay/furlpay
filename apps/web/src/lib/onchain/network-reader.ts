@@ -12,6 +12,8 @@ const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523
 const ZERO = "0x" + "0".repeat(40);
 const hex = (n: bigint) => `0x${n.toString(16)}`;
 
+export const SOLANA_MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
+
 export function rpcEndpoint(network: Network): string {
   return process.env[network.env]?.trim() || network.publicRpc;
 }
@@ -45,8 +47,9 @@ export async function nodeRead(network: Network, method: string, params: unknown
 
 export async function verifyNetwork(network: Network, signal: AbortSignal) {
   if (network.chainId === null) {
-    // Mainnet-beta genesis identity, not a provider-selected cluster name.
-    if (await nodeRead(network, "getGenesisHash", [], signal) !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdp") throw new Error("Wrong network");
+    // Mainnet-beta genesis identity, not a provider-selected cluster name. The full
+    // 44-char hash: CAIP-2's "solana:5eykt4Us…KvdP" is a 32-char truncation of it.
+    if (await nodeRead(network, "getGenesisHash", [], signal) !== SOLANA_MAINNET_GENESIS) throw new Error("Wrong network");
   } else if (BigInt(quantity.parse(await nodeRead(network, "eth_chainId", [], signal))) !== BigInt(network.chainId)) {
     throw new Error("Wrong network");
   }
