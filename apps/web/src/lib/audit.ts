@@ -11,6 +11,9 @@ import { enqueueAudit } from "@/lib/auditDb";
 // ---------------------------------------------------------------------------
 
 export type AuditEvent =
+  // Merchant webhook endpoint changes (lib/payments/merchant/webhooks.ts).
+  | "merchant.webhook.set"
+  | "merchant.webhook.deleted"
   | "auth.login"
   | "auth.logout"
   | "auth.logout.epoch_fallback"

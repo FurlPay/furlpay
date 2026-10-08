@@ -48,18 +48,30 @@ function encKey(): Buffer {
 }
 
 function seal(secret: string, partnerId: string): string {
+  return sealWebhookSecret(secret, partnerId);
+}
+
+/** AES-256-GCM under FURLPAY_PARTNER_WEBHOOK_KEY, bound to `aad` (an owner id).
+ *  Shared by partner and merchant webhooks; distinct AADs mean one owner's
+ *  sealed secret can never be opened as another's. */
+export function sealWebhookSecret(secret: string, aad: string): string {
   const iv = randomBytes(12);
   const c = createCipheriv("aes-256-gcm", encKey(), iv);
-  c.setAAD(Buffer.from(partnerId, "utf8"));
+  c.setAAD(Buffer.from(aad, "utf8"));
   const ct = Buffer.concat([c.update(secret, "utf8"), c.final()]);
   return "v1:" + Buffer.concat([iv, c.getAuthTag(), ct]).toString("base64");
 }
 
 export function openWebhookSecret(cfg: PartnerRampConfig): string | null {
-  if (!cfg.webhookSecretEnc?.startsWith("v1:")) return null;
-  const buf = Buffer.from(cfg.webhookSecretEnc.slice(3), "base64");
+  return cfg.webhookSecretEnc ? openSealedWebhookSecret(cfg.webhookSecretEnc, cfg.partnerId) : null;
+}
+
+/** Inverse of sealWebhookSecret; null for anything not in the v1 format. Throws on a wrong AAD or tampering. */
+export function openSealedWebhookSecret(sealed: string, aad: string): string | null {
+  if (!sealed.startsWith("v1:")) return null;
+  const buf = Buffer.from(sealed.slice(3), "base64");
   const d = createDecipheriv("aes-256-gcm", encKey(), buf.subarray(0, 12));
-  d.setAAD(Buffer.from(cfg.partnerId, "utf8"));
+  d.setAAD(Buffer.from(aad, "utf8"));
   d.setAuthTag(buf.subarray(12, 28));
   return Buffer.concat([d.update(buf.subarray(28)), d.final()]).toString("utf8");
 }

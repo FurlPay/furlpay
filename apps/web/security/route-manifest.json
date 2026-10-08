@@ -1,13 +1,13 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 413,
+  "_total": 417,
   "_counts": {
     "ADMIN_ONLY": 40,
     "API_KEY_AUTHENTICATED": 10,
-    "AUTHENTICATED_USER": 167,
+    "AUTHENTICATED_USER": 169,
     "DEVELOPMENT_ONLY": 2,
-    "INTERNAL_ONLY": 12,
-    "PUBLIC_INTENTIONAL": 168,
+    "INTERNAL_ONLY": 13,
+    "PUBLIC_INTENTIONAL": 169,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -80,6 +80,7 @@
     "chain/usdc/supply": "PUBLIC_INTENTIONAL",
     "chat": "AUTHENTICATED_USER",
     "check": "PUBLIC_INTENTIONAL",
+    "checkout/merchant/[slug]": "PUBLIC_INTENTIONAL",
     "checkout/session": "PUBLIC_INTENTIONAL",
     "compliance": "PUBLIC_INTENTIONAL",
     "compliance/attestation/[tx]": "PUBLIC_INTENTIONAL",
@@ -114,6 +115,7 @@
     "cron/discord-welcome": "INTERNAL_ONLY",
     "cron/health": "INTERNAL_ONLY",
     "cron/market-brief": "INTERNAL_ONLY",
+    "cron/merchant-payments": "INTERNAL_ONLY",
     "cron/onchain-node": "INTERNAL_ONLY",
     "cron/usdc-index": "INTERNAL_ONLY",
     "cron/onchain-reconcile": "INTERNAL_ONLY",
@@ -184,6 +186,8 @@
     "membership/history": "AUTHENTICATED_USER",
     "membership/plans": "PUBLIC_INTENTIONAL",
     "membership/subscription": "AUTHENTICATED_USER",
+    "merchant/payments": "AUTHENTICATED_USER",
+    "merchant/webhook": "AUTHENTICATED_USER",
     "mpc/sign": "AUTHENTICATED_USER",
     "mpp/fx": "PUBLIC_INTENTIONAL",
     "newsletter/subscribe": "PUBLIC_INTENTIONAL",
