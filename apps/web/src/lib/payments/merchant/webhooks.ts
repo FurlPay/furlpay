@@ -72,7 +72,7 @@ export async function recentDeliveries(merchantId: string) {
 /** Re-queue one exhausted, undelivered event of THIS merchant for a fresh round of attempts. */
 export async function redeliver(merchantId: string, eventId: string): Promise<boolean> {
   requireStorage();
-  const rows = await sbUpdate<{ id: string }>(
+  const rows = await sbUpdate<{ id: string; attempts: number; next_attempt_at: string; last_error: string | null }>(
     "merchant_payment_outbox",
     `id=eq.${encodeURIComponent(eventId)}&merchant_id=eq.${encodeURIComponent(merchantId)}&delivered_at=is.null&attempts=gte.${MAX_ATTEMPTS}`,
     { attempts: 0, next_attempt_at: new Date().toISOString(), last_error: null }

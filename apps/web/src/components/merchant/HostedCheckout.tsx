@@ -4,6 +4,7 @@ import { useCallback,useEffect,useRef,useState } from "react";
 import { ArrowRight,Check,CheckCircle2,Clock3,Download,ExternalLink,LockKeyhole,Printer,RefreshCw,ShieldCheck,Wallet } from "lucide-react";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 import { useDiscoveredWallets } from "@/lib/wallet/mipd";
+import { assertChain } from "@/lib/wallet/connect";
 import { paymentChain,type PaymentChainId } from "@/lib/payments/merchant/registry";
 import { displayUsdc,parseUsdc } from "@/lib/payments/merchant/money";
 import { isPaid,type PublicIntent,type PublicLink } from "@/lib/payments/merchant/model";
@@ -62,12 +63,14 @@ export default function HostedCheckout({slug,embedded=false}:{slug:string;embedd
       const accounts=await provider.request({method:"eth_requestAccounts"}) as string[];
       if(!Array.isArray(accounts)||!/^0x[0-9a-fA-F]{40}$/.test(accounts[0]))throw new Error("Wallet did not provide a valid address.");
       await provider.request({method:"wallet_switchEthereumChain",params:[{chainId:`0x${network.chainId.toString(16)}`} ]});
-      if(BigInt(String(await provider.request({method:"eth_chainId"})))!==BigInt(network.chainId))throw new Error("Switch your wallet to the selected network.");
       if(Date.parse(fresh.intent.expiresAt)<=Date.now())throw new Error("The payment window has ended.");
       const units=BigInt(fresh.intent.charge)-BigInt(fresh.intent.received);
       const data=`0xa9059cbb${fresh.intent.recipient.slice(2).padStart(64,"0")}${units.toString(16).padStart(64,"0")}`;
       // transfer(), never approve(); wallet confirmation shows the exact token,
       // recipient and amount. Its response is NOT accepted as payment evidence.
+      // Live eth_chainId check immediately before the send (signing-path ratchet):
+      // the same token address and calldata on another chain must never be sent.
+      await assertChain({address:accounts[0],chainId:network.chainId,provider,rdns:"",name:""},network.chainId);
       await provider.request({method:"eth_sendTransaction",params:[{from:accounts[0],to:network.token,data,value:"0x0"}]});
       setBroadcast(true);
     }catch(e){setError(e instanceof Error?e.message:"Wallet request was not completed.");}finally{setBusy(false);}
