@@ -6,6 +6,7 @@ import { ArrowRight, RefreshCw, ShieldAlert } from "lucide-react";
 import { api, Badge, Notice } from "@/components/settlement/os/primitives";
 import type { Capability, CapabilityStatus, Health, OnboardingSummary } from "@/lib/compliance/overview";
 import { COMPLIANCE_MODULES, type ComplianceModuleId } from "@/lib/compliance/modules";
+import { MonitoringPanel, ReportsPanel } from "./ComplianceOps";
 
 export type Overview = {
   generatedAt: string;
@@ -132,7 +133,7 @@ export function ComplianceOverview() {
         ) : (
           <>
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
-              <Link className="os-btn os-btn-primary" href="/ops/compliance/reviews">
+              <Link className="os-btn os-btn-primary" href="/ops/compliance/cases">
                 Open review queue <ArrowRight size={15} />
               </Link>
               <Link className="os-btn" href="/ops/compliance/settings">
@@ -145,7 +146,7 @@ export function ComplianceOverview() {
               <Kpi label="Businesses (KYB)" value={fmt(o?.cases)} hint={o ? `${o.submitted} submitted for review${o.truncated ? " · first 500 shown" : ""}` : data.onboardingUnavailable ?? "—"} href="/ops/compliance/kyb" />
               <Kpi label="Active accounts" value={fmt(o?.active)} hint="Activated after every gate passed" href="/ops/compliance/kyb" />
               <Kpi label="USDC settled (30d)" value="—" hint={data.settlement.unavailable} />
-              <Kpi label="Open alerts" value={fmt(o?.openAlerts)} hint="Cases awaiting review + potential sanctions matches" href="/ops/compliance/reviews" />
+              <Kpi label="Open alerts" value={fmt(o?.openAlerts)} hint="Cases awaiting review + potential sanctions matches" href="/ops/compliance/cases" />
             </div>
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16, marginTop: 16 }}>
@@ -259,12 +260,12 @@ export function ComplianceModule({ id }: { id: ComplianceModuleId }) {
                 {id === "kyb" ? (
                   <>
                     <Kpi label="Cases" value={fmt(o.cases)} hint={`${o.submitted} submitted`} href="/ops/compliance/reviews?scope=all" />
-                    <Kpi label="Awaiting review" value={fmt(o.pendingReview)} hint="Open in the review queue" href="/ops/compliance/reviews" />
+                    <Kpi label="Awaiting review" value={fmt(o.pendingReview)} hint="Open in the review queue" href="/ops/compliance/cases" />
                     <Kpi label="Approved" value={fmt(o.approved)} hint={`${o.active} activated`} />
                   </>
                 ) : (
                   <>
-                    <Kpi label="Potential matches" value={fmt(o.screening.potentialMatch)} hint="Awaiting an officer's decision" href="/ops/compliance/reviews" />
+                    <Kpi label="Potential matches" value={fmt(o.screening.potentialMatch)} hint="Awaiting an officer's decision" href="/ops/compliance/cases" />
                     <Kpi label="Confirmed matches" value={fmt(o.screening.confirmedMatch)} hint="Onboarding blocked" />
                     <Kpi label="Screening unavailable" value={fmt(o.screening.failed)} hint="Never treated as clear" />
                   </>
@@ -273,15 +274,16 @@ export function ComplianceModule({ id }: { id: ComplianceModuleId }) {
             )}
             {(id === "kyb" || id === "aml") && !o && <Notice tone="warn">{data.onboardingUnavailable}</Notice>}
             {id === "reports" ? (
-              <Notice tone="info">No report exports are implemented yet. Review decisions are recorded in the audit log and on each case&apos;s history in the review queue.</Notice>
+              <ReportsPanel />
             ) : (
               <section className="os-card" style={{ padding: 18 }} aria-label="Capabilities">
                 <h2>{id === "settings" ? "Providers and capabilities" : "Status"}</h2>
                 <CapabilityList caps={caps} />
               </section>
             )}
+            {id === "monitoring" && <MonitoringPanel />}
             {(id === "kyb" || id === "aml") && (
-              <Link className="os-btn" href="/ops/compliance/reviews" style={{ marginTop: 16 }}>
+              <Link className="os-btn" href="/ops/compliance/cases" style={{ marginTop: 16 }}>
                 Open review queue <ArrowRight size={15} />
               </Link>
             )}

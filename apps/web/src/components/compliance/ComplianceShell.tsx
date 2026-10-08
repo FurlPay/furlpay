@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { AlertTriangle, BadgeCheck, Building2, FileText, Fingerprint, Gauge, Globe2, Inbox, LayoutDashboard, Menu, Scale, Settings2, ShieldAlert, X } from "lucide-react";
+import { AlertTriangle, BadgeCheck, ClipboardCheck, Building2, FileText, Fingerprint, Gauge, Globe2, Inbox, LayoutDashboard, Menu, Scale, Settings2, ShieldAlert, X } from "lucide-react";
 import Header from "@/components/settlement/os/Header";
 import { COMPLIANCE_MODULES, type ComplianceModuleId } from "@/lib/compliance/modules";
 
@@ -37,8 +37,11 @@ export default function ComplianceShell({ children }: { children: ReactNode }) {
             <Link href="/ops/compliance" aria-current={current("/ops/compliance")}>
               <LayoutDashboard size={18} /> Compliance Overview
             </Link>
-            <Link href="/ops/compliance/reviews" aria-current={current("/ops/compliance/reviews")}>
+            <Link href="/ops/compliance/cases" aria-current={current("/ops/compliance/cases")}>
               <Inbox size={18} /> Case Management
+            </Link>
+            <Link href="/ops/compliance/reviews" aria-current={current("/ops/compliance/reviews")}>
+              <ClipboardCheck size={18} /> Onboarding Reviews
             </Link>
             <hr />
             {COMPLIANCE_MODULES.map((m) => {
