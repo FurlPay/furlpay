@@ -1,3 +1,4 @@
+import { getDepositPolicy } from "@/lib/chains/depositConfirmation";
 /** Native USDC only. Sources checked 2026-10-08:
  * https://developers.circle.com/stablecoins/usdc-contract-addresses
  * https://docs.arc.io/arc/references/connect-to-arc
@@ -13,6 +14,13 @@ export const PAYMENT_CHAINS = [
   { id: "avalanche", name: "Avalanche", chainId: 43114, token: "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E", gas: "AVAX", confirmations: 1, explorer: "https://snowtrace.io", rpc: "https://api.avax.network/ext/bc/C/rpc", env: null, logo: "/logos/chains/avalanche.svg" },
 ] as const;
 export type PaymentChain = typeof PAYMENT_CHAINS[number];
+/** Collection follows the platform's reviewed deposit policy (lib/chains/depositConfirmation):
+ *  a chain with no policy is not collectable, and the depth is never lower than either table. */
+export function requiredConfirmations(id: string): number | null {
+  const policy = getDepositPolicy(id);
+  if (!policy) return null;
+  return Math.max(policy.minConfirmations, paymentChain(id).confirmations);
+}
 export type PaymentChainId = PaymentChain["id"];
 export function paymentChain(id: string): PaymentChain {
   const chain = PAYMENT_CHAINS.find(c => c.id === id);

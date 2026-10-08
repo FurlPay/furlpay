@@ -4,7 +4,7 @@ import { sbInsertIgnoreDuplicates, sbSelect, sbRpc, sbUpdate, supabaseBackend } 
 import { parseUsdc } from "./money";
 import { startBlock } from "./rpc";
 import type { LinkInput, MerchantIntent, MerchantLink } from "./model";
-import type { PaymentChainId } from "./registry";
+import { requiredConfirmations, type PaymentChainId } from "./registry";
 export class MerchantUnavailable extends Error {}
 export function requireStorage() { if(supabaseBackend !== "supabase") throw new MerchantUnavailable("Merchant payment storage is not configured"); }
 const eq = (v: string) => encodeURIComponent(v);
@@ -41,6 +41,8 @@ export async function getIntent(id: string, linkId: string) {
 }
 export async function reserveIntent(slug: string, id: string, chain: PaymentChainId) {
   requireStorage();
+  // No reviewed deposit policy → no collection on that chain (never a guessed depth).
+  if (requiredConfirmations(chain) === null) throw new MerchantUnavailable("rail_unavailable");
   // Existing environment RPC settings are reused; no client-provided endpoints.
   const block = await startBlock(chain);
   const reference = new PublicKey(randomBytes(32)).toBase58();
@@ -49,7 +51,7 @@ export async function reserveIntent(slug: string, id: string, chain: PaymentChai
 export async function availableChains(chains: PaymentChainId[], owner: string) {
   requireStorage();
   const rows = await sbSelect<{chain: PaymentChainId}>("merchant_payment_destinations",`select=chain&assigned_intent=is.null&merchant_id=eq.${eq(owner)}&limit=1000`);
-  return chains.filter(c=>rows.some(r=>r.chain===c));
+  return chains.filter(c=>requiredConfirmations(c)!==null && rows.some(r=>r.chain===c));
 }
 export async function paymentDetail(owner: string, id: string) {
   requireStorage();

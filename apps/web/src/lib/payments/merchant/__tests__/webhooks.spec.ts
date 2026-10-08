@@ -24,7 +24,7 @@ vi.mock("@/lib/property/safeFetch", () => ({
 }));
 
 import { openSealedWebhookSecret, sealWebhookSecret } from "@/lib/ramp/partnerConfig";
-import { BACKOFF_S, deliverDue, setEndpoint } from "../webhooks";
+import { BACKOFF_S, deliverDue, MAX_ATTEMPTS, redeliver, setEndpoint } from "../webhooks";
 
 const M = "6f1c2a7e-0000-4000-8000-000000000001";
 const row = (attempts = 1) => ({ id: "0b8d6c1e-0000-4000-8000-0000000000aa", merchant_id: M, intent_id: "x", type: "payment.succeeded", payload: { id: "pi_1", net_units: "992500000" }, created_at: "2026-10-09T00:00:00Z", attempts });
@@ -92,5 +92,17 @@ describe("outbox delivery", () => {
     const out = await deliverDue(20, transport as never);
     expect(out[0]).toMatchObject({ delivered: false, reason: "no_endpoint" });
     expect(transport).not.toHaveBeenCalled();
+  });
+});
+
+describe("redelivery", () => {
+  it("re-queues only this merchant's own exhausted, undelivered event", async () => {
+    await redeliver(M, row().id);
+    const { query, patch } = db.updates[0];
+    expect(query).toContain(`merchant_id=eq.${M}`);
+    expect(query).toContain(`id=eq.${row().id}`);
+    expect(query).toContain("delivered_at=is.null");
+    expect(query).toContain(`attempts=gte.${MAX_ATTEMPTS}`);
+    expect(patch).toMatchObject({ attempts: 0, last_error: null });
   });
 });

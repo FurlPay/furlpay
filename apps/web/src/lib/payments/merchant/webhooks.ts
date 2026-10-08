@@ -59,6 +59,27 @@ export async function deleteEndpoint(merchantId: string) {
   await sbDelete("merchant_webhook_endpoints", `merchant_id=eq.${encodeURIComponent(merchantId)}`);
 }
 
+/** The merchant's own recent events and their delivery state (never another merchant's). */
+export async function recentDeliveries(merchantId: string) {
+  requireStorage();
+  const rows = await sbSelect<{ id: string; type: string; created_at: string; attempts: number; delivered_at: string | null; last_error: string | null; next_attempt_at: string }>(
+    "merchant_payment_outbox",
+    `merchant_id=eq.${encodeURIComponent(merchantId)}&select=id,type,created_at,attempts,delivered_at,last_error,next_attempt_at&order=created_at.desc&limit=20`
+  );
+  return rows.map((r) => ({ ...r, state: r.delivered_at ? "delivered" : r.attempts >= MAX_ATTEMPTS ? "failed" : r.attempts > 0 ? "retrying" : "pending" }));
+}
+
+/** Re-queue one exhausted, undelivered event of THIS merchant for a fresh round of attempts. */
+export async function redeliver(merchantId: string, eventId: string): Promise<boolean> {
+  requireStorage();
+  const rows = await sbUpdate<{ id: string }>(
+    "merchant_payment_outbox",
+    `id=eq.${encodeURIComponent(eventId)}&merchant_id=eq.${encodeURIComponent(merchantId)}&delivered_at=is.null&attempts=gte.${MAX_ATTEMPTS}`,
+    { attempts: 0, next_attempt_at: new Date().toISOString(), last_error: null }
+  );
+  return rows.length === 1;
+}
+
 export type Delivery = { id: string; delivered: boolean; reason?: string };
 
 /** One delivery pass over due outbox events. Safe to run concurrently (claims use SKIP LOCKED + a lease). */

@@ -21,3 +21,5 @@ export async function GET(req:NextRequest) {
     return NextResponse.json({scanned,delayed,webhooks},{headers:{"Cache-Control":"no-store"}});
   } catch { return NextResponse.json({error:"Merchant scanner unavailable"},{status:503}); }
 }
+// The AWS scheduler POSTs (infra/aws/modules/env/scheduler.tf); Vercel Cron GETs.
+export const POST = GET;

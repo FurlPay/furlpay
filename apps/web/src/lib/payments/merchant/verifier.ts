@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { PublicKey } from "@solana/web3.js";
 import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { sbRpc, sbUpdate } from "@/lib/supabase";
-import { paymentChain } from "./registry";
+import { paymentChain, requiredConfirmations } from "./registry";
 import { address, blockSchema, hash, hex, rpc, verifyChain } from "./rpc";
 import type { MerchantIntent } from "./model";
 export const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
@@ -39,12 +40,14 @@ export async function scanIntent(original: MerchantIntent): Promise<MerchantInte
   await verifyChain(i.chain);
   if(i.chain === "solana") return scanSolana(i);
   const c = paymentChain(i.chain);
+  const depth = requiredConfirmations(i.chain);
+  if (depth === null) throw new Error("No deposit policy for this chain");
   const head = blockSchema.parse(await rpc(i.chain,"eth_getBlockByNumber",["latest",false]));
   if(Math.abs(Date.now()/1000-Number(BigInt(head.timestamp)))>120) throw new Error("Stale network head");
   const decimals = hex.parse(await rpc(i.chain,"eth_call",[{to:c.token,data:"0x313ce567"},"latest"]));
   if(BigInt(decimals)!==6n) throw new Error("Unexpected token precision");
   const from = BigInt(i.scan_block), latest = BigInt(head.number);
-  const safe = latest-BigInt(c.confirmations)+1n;
+  const safe = latest-BigInt(depth)+1n;
   if(from>latest) return expire(i);
   const end = from+499n<latest ? from+499n : latest;
   const logs = z.array(logSchema).max(200).parse(await rpc(i.chain,"eth_getLogs",[{address:c.token,topics:[TRANSFER,null,`0x${i.recipient.slice(2).padStart(64,"0")}`],fromBlock:`0x${from.toString(16)}`,toBlock:`0x${end.toString(16)}`} ]));
@@ -60,7 +63,7 @@ export async function scanIntent(original: MerchantIntent): Promise<MerchantInte
     const timestamp = Number(BigInt(block.timestamp))*1000;
     if(timestamp<Date.parse(i.created_at)-5000 || timestamp>Date.parse(i.expires_at)) return hold(i);
     const confirmations = Number(latest-BigInt(block.number)+1n);
-    if(confirmations<c.confirmations) {
+    if(confirmations<depth) {
       const updated=await sbUpdate<MerchantIntent>("merchant_payment_intents",`id=eq.${i.id}&status=in.(awaiting_payment,confirming)`,{status:"confirming",confirmations,transaction_hash:event.transactionHash});
       i=updated[0]??i; continue;
     }
@@ -80,14 +83,31 @@ async function expire(i: MerchantIntent) {
   return (await sbUpdate<MerchantIntent>("merchant_payment_intents",`id=eq.${i.id}&status=in.(awaiting_payment,confirming)`,{status:"expired"}))[0]??i;
 }
 const tokenBalance=z.object({accountIndex:z.number().int(),mint:z.string(),owner:z.string().optional(),uiTokenAmount:z.object({amount:z.string().regex(/^\d+$/),decimals:z.number()})});
+const TOKEN_PROGRAM=new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA");
+const ASSOCIATED_TOKEN_PROGRAM=new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
+/** The destination's native-USDC associated token account (where a plain transfer lands). */
+export function usdcTokenAccount(owner: string): string {
+  return PublicKey.findProgramAddressSync([new PublicKey(owner).toBuffer(),TOKEN_PROGRAM.toBuffer(),new PublicKey(paymentChain("solana").token).toBuffer()],ASSOCIATED_TOKEN_PROGRAM)[0].toBase58();
+}
+const sigList=z.array(z.object({signature:z.string(),err:z.unknown(),slot:z.number().int()})).max(50);
 async function scanSolana(i: MerchantIntent) {
-  const signatures=z.array(z.object({signature:z.string(),err:z.unknown(),slot:z.number().int()})).max(50).parse(await rpc("solana","getSignaturesForAddress",[i.reference,{limit:50,commitment:"finalized"}]));
+  // Solana Pay wallets include the intent's reference key; a payer who copies the
+  // dedicated address (or pays from an exchange) does not. The destination is
+  // single-use and bound to this intent, so transfers into its USDC token
+  // account are attributable too. Both lists, deduplicated, oldest first.
+  const [byRef,byAccount]=await Promise.all([
+    rpc("solana","getSignaturesForAddress",[i.reference,{limit:50,commitment:"finalized"}]).then(r=>sigList.parse(r)),
+    rpc("solana","getSignaturesForAddress",[usdcTokenAccount(i.recipient),{limit:50,commitment:"finalized"}]).then(r=>sigList.parse(r)),
+  ]);
+  const signatures=[...new Map([...byRef,...byAccount].map(s=>[s.signature,s])).values()].sort((a,b)=>b.slot-a.slot);
   for(const s of signatures.reverse()) {
     if(s.err || BigInt(s.slot)<BigInt(i.start_block)) continue;
     const raw=await rpc("solana","getTransaction",[s.signature,{encoding:"jsonParsed",commitment:"finalized",maxSupportedTransactionVersion:0}]);
     if(raw===null) continue;
     const tx=z.object({slot:z.number().int(),blockTime:z.number(),meta:z.object({err:z.unknown(),preTokenBalances:z.array(tokenBalance),postTokenBalances:z.array(tokenBalance)}),transaction:z.object({signatures:z.array(z.string()),message:z.object({accountKeys:z.array(z.object({pubkey:z.string(),signer:z.boolean()}))})})}).parse(raw);
-    if(tx.meta.err || !tx.transaction.signatures.includes(s.signature) || tx.slot!==s.slot || !tx.transaction.message.accountKeys.some(k=>k.pubkey===i.reference && !k.signer)) throw new Error("Invalid Solana reference");
+    if(tx.meta.err || !tx.transaction.signatures.includes(s.signature) || tx.slot!==s.slot) throw new Error("Invalid Solana transaction");
+    // The reference has no private key; if it ever appears as a signer, ignore the transaction.
+    if(tx.transaction.message.accountKeys.some(k=>k.pubkey===i.reference && k.signer)) continue;
     const time=tx.blockTime*1000;
     if(time<Date.parse(i.created_at)-5000 || time>Date.parse(i.expires_at)) return hold(i);
     const mint=paymentChain("solana").token;
