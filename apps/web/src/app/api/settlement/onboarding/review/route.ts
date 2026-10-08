@@ -8,6 +8,8 @@ import { getAccountDurable } from "@/lib/store";
 import { DOCUMENT_KINDS, DOCUMENTS, readiness, type OnboardingState } from "@/lib/settlement/onboarding";
 import { listStates, loadState, OnboardingUnavailable, Refusal, updateState } from "@/lib/settlement/onboardingStore";
 import { facts, onboardingView } from "@/lib/settlement/onboardingView";
+import { runScreening } from "@/lib/settlement/screening";
+import { appendHistory, decisionRecord, runRecord } from "@/lib/compliance/screeningHistory";
 
 // Compliance review of business onboarding cases. compliance_officer only —
 // requireRole checks the LIVE role grant (effectiveRoles), not the session
@@ -62,6 +64,7 @@ const postSchema = z.discriminatedUnion("action", [
   z.object({ action: z.literal("reject_document"), owner, documentId: z.string().uuid(), reason }).strict(),
   z.object({ action: z.literal("clear_screening"), owner, reason }).strict(),
   z.object({ action: z.literal("confirm_match"), owner, reason }).strict(),
+  z.object({ action: z.literal("rescreen"), owner, reason }).strict(),
   z.object({ action: z.literal("approve_case"), owner, reason: reason.optional() }).strict(),
   z.object({ action: z.literal("reject_case"), owner, reason }).strict(),
   z.object({ action: z.literal("request_changes"), owner, reason }).strict(),
@@ -81,8 +84,9 @@ export async function POST(req: NextRequest) {
   const at = new Date().toISOString();
   let event: Parameters<typeof audit>[0] = "settlement.onboarding.review_document_decided";
   try {
-    const saved = await updateState(body.owner, (s) => {
-      if (s.activation.status === "ACTIVE") throw new Refusal("This account is already active.", 409);
+    const saved = await updateState(body.owner, async (s) => {
+      // Decisions close at activation; re-screening an active account is continuous monitoring and stays open.
+      if (s.activation.status === "ACTIVE" && body.action !== "rescreen") throw new Refusal("This account is already active.", 409);
       const r = s.review ?? { status: "not_submitted" as const, history: [] };
       const log = (action: string, target?: string) => (s.review = { ...(s.review ?? r), history: [...(s.review ?? r).history, { at, by: reviewer, action, reason: "reason" in body ? body.reason : undefined, target }] });
       switch (body.action) {
@@ -102,8 +106,21 @@ export async function POST(req: NextRequest) {
         case "confirm_match": {
           if (s.screening?.status !== "potential_match") throw new Refusal("There is no potential match awaiting review.", 409);
           s.screening = { ...s.screening, status: body.action === "clear_screening" ? "cleared_by_review" : "confirmed_match", review: { by: reviewer, at, reason: body.reason } };
+          s.screeningHistory = appendHistory(s.screeningHistory, decisionRecord(body.action === "clear_screening" ? "FALSE_POSITIVE" : "CONFIRMED_MATCH", reviewer, body.reason, s.screening.requestKey, at));
           log(body.action);
           if (body.action === "confirm_match") s.review = { ...s.review!, status: "rejected", decidedAt: at, decidedBy: reviewer, reason: body.reason };
+          event = "settlement.onboarding.review_screening_decided";
+          return s;
+        }
+        case "rescreen": {
+          // Officer-requested re-screen: always reaches the provider (no reuse window).
+          const outcome = await runScreening(s, body.owner, Date.now(), { force: true });
+          if (!outcome) throw new Refusal("This case has no screened parties yet.", 409);
+          s.screeningHistory = appendHistory(s.screeningHistory, runRecord(outcome.result, "officer_request", reviewer));
+          s.screeningHistory = appendHistory(s.screeningHistory, decisionRecord("UNDER_REVIEW", reviewer, body.reason, outcome.result.requestKey, at));
+          s.screening = outcome.result;
+          if (outcome.result.status !== "clear") s.completed = s.completed.filter((x) => x !== "compliance");
+          log("rescreen");
           event = "settlement.onboarding.review_screening_decided";
           return s;
         }

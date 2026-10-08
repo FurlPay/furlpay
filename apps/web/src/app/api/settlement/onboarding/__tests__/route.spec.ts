@@ -439,6 +439,47 @@ describe("compliance review", () => {
   });
 });
 
+describe("screening history and re-screening", () => {
+  it("every run and decision is recorded; a failed run is UNAVAILABLE, never CLEAR", async () => {
+    await profile();
+    m.fail = true;
+    await act({ action: "screen" });
+    m.fail = false;
+    m.hits = [{ name: "NORTH WAY", matchScore: 0.87, sources: ["OFAC_SDN"] }];
+    await act({ action: "screen" });
+    as("officer-1");
+    await decide({ action: "clear_screening", owner: "owner-1", reason: "Different entity: name and country differ" });
+    const h = (await read(await QUEUE(json("GET", undefined, `${URL_}/review?owner=owner-1`)))).body.state.screeningHistory;
+    expect(h.map((r: { kind: string; disposition: string; trigger?: string }) => [r.kind, r.disposition, r.trigger ?? null])).toEqual([
+      ["run", "UNAVAILABLE", "initial"],
+      ["run", "POTENTIAL_MATCH", "retry"],
+      ["decision", "FALSE_POSITIVE", null],
+    ]);
+    expect(h[2]).toMatchObject({ by: "officer-1", reason: "Different entity: name and country differ" });
+  });
+
+  it("an officer re-screen always reaches the provider, needs a reason, and works after activation", async () => {
+    m.accounts["owner-1"].user.kycStatus = "verified";
+    await profile();
+    await act({ action: "screen" });
+    await finish();
+    await approveAll();
+    expect((await read(await act({ action: "activate" }))).body.state.activation.status).toBe("ACTIVE");
+    const before = m.calls;
+    as("officer-1");
+    expect((await decide({ action: "rescreen", owner: "owner-1" })).status).toBe(400); // reason required
+    const r = await read(await decide({ action: "rescreen", owner: "owner-1", reason: "Periodic review" }));
+    expect(r.status).toBe(200);
+    expect(m.calls).toBe(before + 3); // not reused despite identical inputs inside 24h
+    expect(r.body.state.screeningHistory.slice(-2).map((x: { disposition: string; trigger?: string }) => [x.disposition, x.trigger ?? null])).toEqual([
+      ["CLEAR", "officer_request"],
+      ["UNDER_REVIEW", null],
+    ]);
+    as("owner-1");
+    expect((await decide({ action: "rescreen", owner: "owner-1", reason: "self service" })).status).toBe(403);
+  });
+});
+
 describe("document access", () => {
   it("applicants cannot read documents back; officers can, and it is audited", async () => {
     await profile();

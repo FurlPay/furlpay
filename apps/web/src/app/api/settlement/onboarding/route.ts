@@ -9,6 +9,7 @@ import { BLOCKER_LABEL, EDITABLE_STEPS, STEP_SCHEMAS, STEPS, countryRisk, readin
 import { loadState, OnboardingUnavailable, Refusal, updateState } from "@/lib/settlement/onboardingStore";
 import { facts, identityProviderConfigured, onboardingView as view } from "@/lib/settlement/onboardingView";
 import { runScreening } from "@/lib/settlement/screening";
+import { appendHistory, runRecord } from "@/lib/compliance/screeningHistory";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
@@ -150,6 +151,8 @@ export async function POST(req: NextRequest) {
         if (!outcome) throw new Refusal("Complete business information, identity and business details before screening.", 409);
         if (outcome.reused) return state;
         // A compliance decision only survives when the screened inputs are unchanged (same request key).
+        const trigger = !state.screening ? "initial" : state.screening.status === "failed" ? "retry" : "profile_change";
+        state.screeningHistory = appendHistory(state.screeningHistory, runRecord(outcome.result, trigger, userId));
         state.screening = outcome.result;
         if (outcome.result.status !== "clear") state.completed = state.completed.filter((x) => x !== "compliance");
         if (outcome.result.status === "potential_match" && submitForReview(state, userId, "potential sanctions match")) {

@@ -54,7 +54,7 @@ export type ScreeningOutcome = { result: ScreeningResult; reused: boolean };
  * are unchanged and the result is recent and conclusive. Never throws for a
  * provider problem: that becomes status "failed".
  */
-export async function runScreening(state: OnboardingState, referenceId: string, now = Date.now()): Promise<ScreeningOutcome | null> {
+export async function runScreening(state: OnboardingState, referenceId: string, now = Date.now(), opts: { force?: boolean } = {}): Promise<ScreeningOutcome | null> {
   const subjects = screeningSubjects(state);
   if (!subjects) return null;
   let provider;
@@ -65,7 +65,8 @@ export async function runScreening(state: OnboardingState, referenceId: string, 
   }
   const key = requestKey(subjects, state.business?.country, provider.name);
   const prev = state.screening;
-  if (prev && prev.requestKey === key && prev.status !== "failed" && now - Date.parse(prev.screenedAt) < REUSE_MS) {
+  // force: an officer-requested re-screen always reaches the provider.
+  if (!opts.force && prev && prev.requestKey === key && prev.status !== "failed" && now - Date.parse(prev.screenedAt) < REUSE_MS) {
     return { result: prev, reused: true };
   }
   try {

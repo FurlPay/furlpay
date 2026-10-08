@@ -272,6 +272,8 @@ export type OnboardingState = {
   completed: StepId[];
   documents: DocumentRecord[];
   screening?: ScreeningResult;
+  /** Every screening run and screening decision, oldest first, bounded (lib/compliance/screeningHistory). */
+  screeningHistory?: import("@/lib/compliance/screeningHistory").ScreeningRecord[];
   /** Human compliance review of the case. Written only by a compliance officer (never the applicant). */
   review?: ComplianceReview;
   verification?: { provider: string; sessionId: string; startedAt: string };
