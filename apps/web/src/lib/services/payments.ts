@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { screenAddress } from "./compliance";
+import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { getChain, gasQuote } from "./chainRegistry";
 import { newTx, recordTransaction } from "@/lib/store";
 import { recordPaymentWithFee, reverseLedgerTx } from "@/lib/ledger";
@@ -423,12 +424,29 @@ async function screenReviewAndSettle(record: PaymentRecord, payer: string, actin
     }
   }
 
+  // The money-route screen (lib/compliance/addressScreening.ts) on both legs:
+  // OFAC plus, when configured, Circle's Compliance Engine; the stricter
+  // verdict wins and a configured Circle that errors blocks. This executor
+  // used to consult only the local OFAC list, so a counterparty Circle flags
+  // for review settled without a human (audit 2026-10-07; the transfer and
+  // checkout routes already used this screen).
+  const [payerAml, recipientAml] = await Promise.all([screenAddressRisk(payer, SETTLEMENT_CHAIN), screenAddressRisk(record.recipient, SETTLEMENT_CHAIN)]);
+  for (const [role, aml] of [["payer", payerAml], ["recipient", recipientAml]] as const) {
+    if (aml.action === "block") {
+      record.status = "blocked";
+      record.blockedReason = `${role}_failed_compliance_screen`;
+      audit("payment.blocked", actingUserId, { paymentId: record.id, reason: record.blockedReason });
+      return { ok: false, status: 403, error: record.blockedReason, record };
+    }
+  }
+  const amlReview = [payerAml, recipientAml].some((a) => a.action === "review" || a.risk === "high" || a.risk === "severe");
+
   record.payer = payer;
   record.payerUserId = actingUserId;
 
   // HITL gateway: pause (don't settle) if the payment crosses a regulatory
   // threshold; a human must approvePayment() before funds move on-chain.
-  const reviewReason = reviewReasonFor(record, screens.payer, screens.recipient);
+  const reviewReason = reviewReasonFor(record, screens.payer, screens.recipient) ?? (amlReview ? "elevated_counterparty_risk" : null);
   if (reviewReason) {
     record.status = "pending_review";
     record.reviewReason = reviewReason;
