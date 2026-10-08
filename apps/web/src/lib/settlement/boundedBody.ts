@@ -1,7 +1,7 @@
 export class BodyTooLarge extends Error {}
 
 /** Enforce the actual streamed size before parsing, even without Content-Length. */
-export async function readBoundedBody(source: Pick<Request, "body" | "headers">, limit: number): Promise<Uint8Array<ArrayBuffer>> {
+export async function readBoundedBody(source: Pick<Request, "body" | "headers">, limit: number): Promise<Uint8Array> {
   if (Number(source.headers.get("content-length")) > limit) throw new BodyTooLarge("Body too large");
   if (!source.body) return new Uint8Array();
   const reader = source.body.getReader();
