@@ -2,7 +2,7 @@
   "name": "furlpay-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Furlpay \u2014 the Stripe + Coinbase of stablecoins & fractional investing. Turborepo monorepo.",
+  "description": "Furlpay — the Stripe + Coinbase of stablecoins & fractional investing. Turborepo monorepo.",
   "workspaces": [
     "examples/*",
     "apps/web",
@@ -33,7 +33,7 @@
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "jsdom": "^26.1.0",
-    "turbo": "2.10.4"
+    "turbo": "2.11.2"
   },
   "overrides": {
     "shell-quote": "1.11.0",
