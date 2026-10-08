@@ -69,8 +69,8 @@ export async function syncOnboardingCases(rows: readonly { ownerId: string; stat
     );
     for (const c of open) {
       const o = outcomes.get(c.sourceKey)!;
-      await updateCase(c.id, (cur: ComplianceCase) => (isOpen(cur) ? resolveFromSource(cur, o.resolution, o.reason) : cur));
-      resolvedCount++;
+      const after = await updateCase(c.id, (cur: ComplianceCase) => (isOpen(cur) ? resolveFromSource(cur, o.resolution, o.reason) : cur));
+      if (after.version !== c.version) resolvedCount++; // count only cases this sync actually resolved
     }
   }
   return { opened, resolved: resolvedCount };

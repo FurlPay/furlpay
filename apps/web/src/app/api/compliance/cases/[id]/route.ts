@@ -93,15 +93,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!existing) return NextResponse.json({ error: "Case not found" }, { status: 404, headers });
     if (body.action === "assign" && body.assignee === existing.subjectId) return NextResponse.json({ error: "A case cannot be assigned to its own subject." }, { status: 422, headers });
     // A case about an onboarding decision is resolved BY that decision, so the
-    // case can never say resolved while the business is still waiting.
-    if (body.action === "resolve" && existing.refs.onboardingOwner && (existing.type === "kyb_review" || existing.type === "sanctions_match")) {
-      const s = await loadState(existing.refs.onboardingOwner);
-      if (existing.type === "kyb_review" && s.review?.status === "pending")
-        return NextResponse.json({ error: "Decide the onboarding review first (approve, reject or request changes) in Onboarding Reviews." }, { status: 409, headers });
-      if (existing.type === "sanctions_match" && s.screening?.requestKey === existing.refs.screeningKey && s.screening?.status === "potential_match")
-        return NextResponse.json({ error: "Clear or confirm the screening match first in Onboarding Reviews." }, { status: 409, headers });
-    }
-    const saved = await updateCase(id, (c) => applyAction(c, body as never, me));
+    // case can never say resolved while the business is still waiting. The
+    // source is re-read INSIDE the version-checked write: if the applicant
+    // re-submits between the check and the write, the retry sees it.
+    const saved = await updateCase(id, async (c) => {
+      if (body.action === "resolve" && c.refs.onboardingOwner && (c.type === "kyb_review" || c.type === "sanctions_match")) {
+        const src = await loadState(c.refs.onboardingOwner);
+        if (c.type === "kyb_review" && src.review?.status === "pending")
+          throw new CaseRefusal("Decide the onboarding review first (approve, reject or request changes) in Onboarding Reviews.", 409);
+        if (c.type === "sanctions_match" && src.screening?.requestKey === c.refs.screeningKey && src.screening?.status === "potential_match")
+          throw new CaseRefusal("Clear or confirm the screening match first in Onboarding Reviews.", 409);
+      }
+      return applyAction(c, body as never, me);
+    });
     audit("compliance.case_action", me, { caseId: id, action: body.action, status: saved.status, resolution: saved.resolution ?? undefined });
     return NextResponse.json({ case: saved, sla: slaState(saved), allowed: allowedActions(saved) }, { headers });
   } catch (e) {

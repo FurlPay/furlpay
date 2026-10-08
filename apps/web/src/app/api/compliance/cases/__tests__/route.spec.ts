@@ -165,6 +165,7 @@ describe("reports", () => {
     const csv = await r.text();
     expect(csv).toContain("structuring");
     expect(csv).not.toContain("@example.test");
-    expect(m.events.at(-1)).toMatchObject({ event: "compliance.report_exported", actor: "officer-1", fields: { type: "monitoring_alerts", rows: 2 } });
+    expect(r.headers.get("x-report-truncated")).toBe("false");
+    expect(m.events.at(-1)).toMatchObject({ event: "compliance.report_exported", actor: "officer-1", fields: { type: "monitoring_alerts", rows: 2, truncated: false } });
   });
 });

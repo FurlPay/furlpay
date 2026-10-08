@@ -28,21 +28,26 @@ export async function GET(req: NextRequest) {
   const range = { from: from ? `${from}T00:00:00.000Z` : undefined, to: to ? new Date(Date.parse(`${to}T00:00:00.000Z`) + 86_400_000).toISOString() : undefined };
   try {
     let csv: string;
+    let truncated = false;
     if (type === "sanctions_screening" || type === "kyb_reviews") {
       const states = await listStates(500);
+      truncated = states.length >= 500;
       csv = type === "sanctions_screening" ? screeningReport(states, range) : kybReport(states, range);
     } else {
       const cases = await listCases({ limit: 500 });
+      truncated = cases.length >= 500;
       csv = type === "cases" ? casesReport(cases, range) : type === "case_audit_trail" ? auditTrailReport(cases, range) : type === "monitoring_alerts" ? monitoringReport(cases, range) : investigatorReport(cases, range);
     }
     const rows = Math.max(0, csv.split("\r\n").length - 2);
-    audit("compliance.report_exported", me, { type, from: from ?? null, to: to ?? null, rows });
+    audit("compliance.report_exported", me, { type, from: from ?? null, to: to ?? null, rows, truncated });
     return new NextResponse(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
         "Content-Disposition": `attachment; filename="furlpay-${type}-${from ?? "all"}-${to ?? "now"}.csv"`,
         "Cache-Control": "no-store, private",
         "X-Content-Type-Options": "nosniff",
+        // The export reads at most 500 source records; say so rather than imply completeness.
+        "X-Report-Truncated": truncated ? "true" : "false",
       },
     });
   } catch (e) {
