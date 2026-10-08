@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Address } from "@/components/onchain/Address";
+import { assertChain, type Connection } from "@/lib/wallet/connect";
 
 // /pay/x402 — checkout for a resource that answered HTTP 402 (opened by the
 // FurlPay browser extension). Every term shown here is what the RESOURCE ITSELF
@@ -113,6 +114,9 @@ export default function X402Checkout({ search }: { search: string }) {
         primaryType: "TransferWithAuthorization",
         message: authorization,
       };
+      // A LIVE eth_chainId read immediately before signing: the switch above can
+      // be declined or raced, and the typed data binds the chain id.
+      await assertChain({ address: from, chainId: terms.chainId, provider: eth as Connection["provider"], rdns: "injected", name: "Browser wallet" }, terms.chainId);
       const signature = (await eth.request({ method: "eth_signTypedData_v4", params: [from, JSON.stringify(typed)] })) as string;
       const r = await fetch("/api/x402/checkout", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ resource: terms.resource, authorization, signature }) });
       const b = (await r.json().catch(() => null)) as { ok: true; data: Paid } | { ok: false; error?: { message?: string } } | null;
