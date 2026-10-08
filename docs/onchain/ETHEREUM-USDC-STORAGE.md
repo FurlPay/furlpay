@@ -1,8 +1,9 @@
 # Ethereum USDC index — storage
 
 Labels: **MEASURED** (a tool in this repo, recorded inputs), **PROJECTED**
-(arithmetic on measured values, formula shown), **PENDING** (needs the
-completed census; filled from [ETHEREUM-USDC-MEASUREMENT.md](ETHEREUM-USDC-MEASUREMENT.md)).
+(arithmetic on measured values, formula shown), **APPROXIMATE** (HyperLogLog,
+stated error). Lifetime counts come from the completed census,
+[ETHEREUM-USDC-MEASUREMENT.md](ETHEREUM-USDC-MEASUREMENT.md).
 
 ## 1. Bytes per event — MEASURED
 
@@ -38,27 +39,34 @@ Aggregate rows — MEASURED/derived from the column sizes in 0036:
 | hourly sketches (2 × 4,096 B, p=12), only within retention | 8 KiB |
 | daily sketches (2 × 16,384 B, p=14), kept | 32 KiB (before TOAST compression) |
 
-## 2. Event rate — MEASURED
+## 2. Event rate — MEASURED (lifetime census, ETHEREUM-USDC-MEASUREMENT.md)
 
-- Recent: **29,030 events in the hour ending 2026-10-07 14:21:11 UTC**
-  (live end-to-end run, finalized blocks) → 696,720 events/day.
-- 50-block sample (blocks to 26,140,753): 4,977 events → ~99.5 events/block.
-- Lifetime by year and the historical average: **PENDING** (census).
+- Lifetime: **390,926,854** Transfer events in 20,058,289 blocks
+  (deployment 6,082,465 → finalized 26,140,753): 132,572/day on average,
+  19.49 per block.
+- Recent (last 100,000 blocks): **622,786 events/day**, 86.89 per block
+  (227.3 M/year). 2026 to 7 Oct: 612,619/day.
+- By year: 2021 22.8 M · 2022 24.6 M · 2023 22.3 M · 2024 31.3 M ·
+  2025 108.9 M · 2026 (to 7 Oct) 171.5 M.
+- Unique addresses (APPROXIMATE, HLL ±0.81%): 41.8 M over the lifetime —
+  0.107 addresses per event.
 
 ## 3. Projections — PROJECTED
 
-Assumption stated, not hidden: the recent rate (696,720/day, 254.3 M/year) held
-flat. It is the 2026 rate; earlier years were lower (census by year, PENDING).
+Formula: events × measured bytes/event (section 1). Forward years assume the
+recent measured rate (622,786/day) held flat — 2025→2026 grew 3×, so treat
+these as a floor, not a forecast. The dictionary column adds 138.9 B per
+unique address at the lifetime ratio (0.107 addresses/event).
 
-| Events | spec (932 B) | compact (332 B) | **lean / 0036 (292 B)** | dict (213 B + addresses) |
+| Events | spec (932 B) | compact (332 B) | **lean / 0036 (292 B)** | lean + dictionary |
 |---|---|---|---|---|
-| 1 M | 0.93 GB | 0.33 GB | **0.29 GB** | 0.21 GB + dict |
-| 100 M | 93 GB | 33 GB | **29 GB** | 21 GB + dict |
-| 1 B | 932 GB | 332 GB | **292 GB** | 213 GB + dict |
-| 1 year (254 M) | 237 GB | 84 GB | **74 GB** | 54 GB + dict |
-| 3 years (763 M) | 711 GB | 253 GB | **223 GB** | 163 GB + dict |
-| 5 years (1.27 B) | 1,185 GB | 422 GB | **371 GB** | 271 GB + dict |
-| Full history | PENDING | PENDING | PENDING | PENDING |
+| 1 M | 0.9 GB | 0.3 GB | **0.3 GB** | 0.2 GB |
+| 100 M | 93.2 GB | 33.2 GB | **29.2 GB** | 22.8 GB |
+| 1 B | 932.0 GB | 331.6 GB | **292.1 GB** | 228.0 GB |
+| 1 year (227.3 M) | 211.9 GB | 75.4 GB | **66.4 GB** | 51.8 GB |
+| 3 years (681.9 M) | 635.6 GB | 226.1 GB | **199.2 GB** | 155.5 GB |
+| 5 years (1.14 B) | 1,059.3 GB | 376.9 GB | **332.0 GB** | 259.1 GB |
+| **Full history (390.9 M, MEASURED count)** | 364.3 GB | 129.6 GB | **114.2 GB** | 89.1 GB |
 
 Add ~20–30% for page fill, dead tuples between vacuums and index bloat on an
 insert-only table with rolling deletes (estimate, not measured). WAL is
@@ -67,10 +75,10 @@ it matters for write throughput and point-in-time-recovery retention, not
 steady-state size.
 
 The address dictionary pays when `unique_addresses / events < 0.51`
-(71 B saved per event vs 139 B per entry). Interim census ratio (blocks to
-11.9 M): 3.18 M / 12.36 M = 0.26 → ~35 B/event net saving (12%), at 40% lower
-insert throughput and a second write per new address. Not adopted: the
-production table holds a 30-day window, where the saving is ~0.2 GB.
+(71 B saved per event vs 139 B per entry). Measured lifetime ratio: 0.107 →
+56 B/event net saving, about 22% of full history (114.2 → 89.1 GB), at 40%
+lower insert throughput and a second write per new address. Not adopted for
+the 30-day window (saves ~1 GB); adopt it if retention is raised to years.
 
 ## 4. Retention decision
 
@@ -78,7 +86,7 @@ Production (migration 0036):
 
 | Data | Kept | Size |
 |---|---|---|
-| `usdc_transfers` raw events | **30 days** (`USDC_INDEX_RETENTION_DAYS`) | 20.9 M × 292 B ≈ **6.1 GB** (+ bloat ≈ 7.5 GB) |
+| `usdc_transfers` raw events | **30 days** (`USDC_INDEX_RETENTION_DAYS`) | 18.7 M × 292 B ≈ **5.5 GB** (+ bloat ≈ 7 GB) |
 | hourly rows (counts, sums, top-10) | forever | ≈ 2 KB × 8,760 ≈ 18 MB/year |
 | hourly sketches | 30 days | 720 × 8 KiB ≈ 5.9 MB |
 | daily rows + p=14 sketches | forever | ≈ 34 KB × 365 ≈ 12 MB/year |
@@ -97,18 +105,36 @@ How each dashboard need is served without full raw history:
 | audit | rows + digest | re-read the range from the chain, compare to the stored sha256 digest |
 
 Raw history beyond the window is **not deleted from anywhere authoritative**:
-it is on chain. Keeping it in Postgres is a cost decision (≈ 74 GB per year of
-data at the current rate, PROJECTED), reversible by raising
+it is on chain. Keeping it in Postgres is a cost decision (≈ 66 GB per year of
+data at the measured recent rate, PROJECTED), reversible by raising
 `USDC_INDEX_RETENTION_DAYS` before the backfill runs. Partitioning was not
 adopted for a 30-day window (daily delete of ~0.7 M rows); it becomes
 worthwhile (monthly range partitions, drop instead of delete) if retention is
 raised to a year or more.
 
-## 5. Benchmarks still owed
+## 5. Benchmarks — MEASURED
 
-- eth_getLogs at 1/2/4/8 workers: `npm run usdc:bench -- --rpc`, run after the
-  census so the two do not share provider rate limits. PENDING.
-- Live index throughput — MEASURED in the end-to-end test (keyless pool,
-  real PostgreSQL): 13,462 events / 150 blocks in 12.7 s (live) and 99,240
-  events / 1,000 blocks in 37.7 s (backfill), dominated by RPC; the database
-  side measured 40k+ inserts/s. Ethereum produces ~8 events/s.
+eth_getLogs throughput by worker count (`npm run usdc:bench -- --rpc`, 1,000
+finalized blocks 26,143,196–26,144,195, 65,731 events, mevblocker + tenderly,
+run after the census so they did not share rate limits). Three runs; the first
+had one throttled request at 4 workers (16 blocks/s) and is not representative.
+
+| Workers | blocks/s | events/s | avg latency | CPU (cores) | peak RSS |
+|---|---|---|---|---|---|
+| 1 | 56–104 | 3.7k–6.8k | 480–900 ms | 0.1 | 92 MB |
+| 2 | 125–144 | 8.2k–9.5k | 690–780 ms | 0.15–0.2 | 100–108 MB |
+| 4 | 335–352 | 22.0k–23.2k | 530–550 ms | 0.3–0.4 | 169 MB |
+| 8 | 583–630 | 38.3k–41.4k | 460–610 ms | 0.4–0.5 | 195–205 MB |
+
+Scaling is near-linear to 8 workers; the limit is provider rate limiting, not
+CPU or memory. Census sustained 9k–30k events/s over 11.7 h with 24 workers
+and 3 in flight per provider across 7 providers.
+
+Database side (section 1): 40–46k inserts/s on the lean schema; the indexer
+end-to-end run (keyless pool, real PostgreSQL) did 13,462 events / 150 blocks
+in 12.7 s live and 99,240 events / 1,000 blocks in 37.7 s backfill, RPC-bound.
+
+**Production configuration.** Live: one worker is ample — Ethereum produces
+~7–8 finalized events/s. Backfill: 8 workers, 3 in flight per provider (the
+rpcPool defaults); a full 30-day raw backfill (18.7 M events) is ~10–20 min of
+RPC at 8 workers, aggregates for full history ~3–6 h at the census rate.

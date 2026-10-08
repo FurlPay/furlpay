@@ -1,0 +1,12 @@
+{
+  "chainId": 1,
+  "contract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+  "topic": "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef",
+  "deploymentBlock": 6082465,
+  "toBlock": 26140753,
+  "toBlockHash": "0x6eba12bbbc8f4c5eabfb56e9939041878d5017176ae278cbf1e57a91be29b3ea",
+  "toBlockTime": "2026-10-07T13:17:11.000Z",
+  "boundary": "finalized",
+  "unit": 10000,
+  "createdAt": "2026-10-07T13:32:32.050Z"
+}
