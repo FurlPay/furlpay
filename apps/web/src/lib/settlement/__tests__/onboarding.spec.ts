@@ -53,9 +53,15 @@ describe("ownership", () => {
     expect(detailsSchema.safeParse(details([owner(1, "A", 50), owner(2, "a", 10)])).success).toBe(false);
     expect(detailsSchema.safeParse(details([owner(1, "A", 70), owner(2, "B", 20)])).success).toBe(true);
   });
-  it("blocks completion until beneficial owners reach 25%", () => {
-    const s: OnboardingState = { ...emptyState(), details: details([owner(1, "A", 10)]) as OnboardingState["details"] };
-    expect(stepBlockers(s, "details")).toHaveLength(1);
+  it("does not require a 25% owner, but always one controlling individual (FinCEN control prong)", () => {
+    const widelyHeld: OnboardingState = { ...emptyState(), details: details([owner(1, "A", 10)]) as OnboardingState["details"] };
+    expect(stepBlockers(widelyHeld, "details")).toEqual([]);
+    const corporateOnly = details([{ ...owner(1, "Holdco Ltd", 100), type: "corporate" as const }] as never);
+    expect(detailsSchema.safeParse(corporateOnly).success).toBe(false);
+    expect(stepBlockers({ ...emptyState(), details: corporateOnly as OnboardingState["details"] }, "details")).toHaveLength(1);
+  });
+  it("treats names differing only in case or spacing as the same owner", () => {
+    expect(detailsSchema.safeParse(details([owner(1, "Avery  Quinn", 50), owner(2, " avery quinn", 10)])).success).toBe(false);
   });
 });
 

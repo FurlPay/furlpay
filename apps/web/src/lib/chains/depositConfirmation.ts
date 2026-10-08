@@ -76,7 +76,10 @@ export const DEPOSIT_POLICIES: Record<string, DepositConfirmationPolicy> = {
 };
 
 export function getDepositPolicy(chain: string): DepositConfirmationPolicy | undefined {
-  return DEPOSIT_POLICIES[chain];
+  // Own properties only: "constructor"/"toString" would otherwise return an
+  // Object.prototype member whose minConfirmations is undefined, and
+  // `n < undefined` is false — canCreditDeposit would report a deposit safe.
+  return Object.hasOwn(DEPOSIT_POLICIES, chain) ? DEPOSIT_POLICIES[chain] : undefined;
 }
 
 export function canCreditDeposit(chain: string, currentConfirmations: number): { safe: boolean; reason: string; policy: DepositConfirmationPolicy | undefined } {

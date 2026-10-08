@@ -1,19 +1,29 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, useId, type ReactElement, type ReactNode } from "react";
 import { Check } from "lucide-react";
 
 // Shared Settlement OS primitives. Styling lives in app/settlement/os.css.
 
 export function Field({ label, optional, error, children, span, counter }: { label: string; optional?: boolean; error?: string; children: ReactNode; span?: boolean; counter?: string }) {
+  const errorId = useId();
+  // The control is marked invalid and points at its message, so screen readers
+  // announce the error with the field rather than only showing red text.
+  const control = isValidElement(children) && error
+    ? cloneElement(children as ReactElement<Record<string, unknown>>, { "aria-invalid": true, "aria-describedby": errorId })
+    : children;
   return (
     <label className={`os-field ${span ? "os-span" : ""}`} data-invalid={error ? "true" : undefined}>
       <span>
         {label} {optional && <em>(Optional)</em>}
       </span>
-      {children}
+      {control}
       {counter && <small className="os-counter">{counter}</small>}
-      {error && <small className="os-field-error">{error}</small>}
+      {error && (
+        <small className="os-field-error" id={errorId} role="alert">
+          {error}
+        </small>
+      )}
     </label>
   );
 }

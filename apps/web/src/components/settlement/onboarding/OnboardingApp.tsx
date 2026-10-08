@@ -7,10 +7,10 @@ import { Check, CircleHelp, Headphones, RefreshCw } from "lucide-react";
 import Header from "../os/Header";
 import { api, Notice } from "../os/primitives";
 import { STEP_META, STEPS, type StepId } from "@/lib/settlement/onboarding";
+import { onboardingPath } from "@/lib/settlement/routes";
 import type { OnboardingView } from "./types";
 import { BusinessStep, ComplianceStep, DetailsStep, IdentityStep, ReviewStep, SettlementStep, TreasuryStep } from "./steps";
 
-const slug = (s: StepId) => s;
 
 export default function OnboardingApp({ step }: { step: StepId | null }) {
   const router = useRouter();
@@ -32,11 +32,11 @@ export default function OnboardingApp({ step }: { step: StepId | null }) {
 
   // No step in the URL → resume where the user left off.
   useEffect(() => {
-    if (view && !step) router.replace(`/settlement/onboarding/${slug(view.resume)}`);
+    if (view && !step) router.replace(onboardingPath(view.resume));
   }, [view, step, router]);
   // A step whose prerequisites are incomplete is not reachable by URL either.
   useEffect(() => {
-    if (view && step && view.steps[step] === "BLOCKED") router.replace(`/settlement/onboarding/${slug(view.resume)}`);
+    if (view && step && view.steps[step] === "BLOCKED") router.replace(onboardingPath(view.resume));
   }, [view, step, router]);
   useEffect(() => {
     if (!toast) return;
@@ -44,7 +44,7 @@ export default function OnboardingApp({ step }: { step: StepId | null }) {
     return () => clearTimeout(t);
   }, [toast]);
 
-  const go = useCallback((s: StepId) => router.push(`/settlement/onboarding/${slug(s)}`), [router]);
+  const go = useCallback((s: StepId) => router.push(onboardingPath(s)), [router]);
   const current = step ?? view?.resume ?? "business";
 
   return (

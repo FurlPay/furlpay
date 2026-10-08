@@ -160,7 +160,11 @@ export const detailsSchema = z
       .min(1, "Add at least one owner")
       .max(20)
       .refine((o) => o.reduce((s, x) => s + x.percent, 0) <= 100.0001, "Ownership cannot exceed 100%")
-      .refine((o) => new Set(o.map((x) => x.name.toLowerCase())).size === o.length, "Each owner can be listed once"),
+      .refine((o) => new Set(o.map((x) => x.name.trim().toLowerCase().replace(/\s+/g, " "))).size === o.length, "Each owner can be listed once")
+      // FinCEN CDD control prong: one individual with significant control is always
+      // identified, even when no one owns 25% or more. A list of only corporate
+      // holders names no accountable person.
+      .refine((o) => o.some((x) => x.type === "individual"), "Add at least one individual who controls the business (e.g. CEO or director)"),
   })
   .strict();
 
@@ -300,8 +304,11 @@ export function stepBlockers(s: OnboardingState, step: StepId): string[] {
       return missing.map((k) => `Upload the ${DOCUMENTS[k].label}.`);
     }
     case "details": {
-      const total = (s.details?.owners ?? []).reduce((t, o) => t + o.percent, 0);
-      return total < UBO_THRESHOLD ? ["Declare the owners who together hold at least 25% of the business."] : [];
+      // FinCEN CDD rule: owners at or above UBO_THRESHOLD are declared when they
+      // exist, but a business with no such owner is legitimate. What is always
+      // required is one individual with significant control (control prong).
+      const owners = s.details?.owners ?? [];
+      return owners.some((o) => o.type === "individual") ? [] : ["Add at least one individual who controls the business (e.g. CEO or director)."];
     }
     case "compliance": {
       if (!s.screening) return ["Run sanctions screening."];

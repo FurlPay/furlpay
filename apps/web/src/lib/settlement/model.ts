@@ -8,6 +8,16 @@ export const NETWORKS = [
   "polygon",
 ] as const;
 export const ASSETS = ["USDC", "EURC", "USDT", "USD", "EUR", "GBP"] as const;
+/**
+ * Shown in the treasury UI as explicitly unavailable — never selectable, never
+ * stored. Avalanche: no settlement deposit detection is live for it. SOL/ETH:
+ * settlement holds stablecoins and fiat, not volatile native tokens.
+ */
+export const UNAVAILABLE_NETWORKS = [{ id: "avalanche", label: "Avalanche", reason: "Not available yet — FurlPay does not detect settlement deposits on Avalanche." }] as const;
+export const UNAVAILABLE_ASSETS = [
+  { id: "SOL", name: "Solana", reason: "Not a settlement asset — settlement holds stablecoins and fiat." },
+  { id: "ETH", name: "Ethereum", reason: "Not a settlement asset — settlement holds stablecoins and fiat." },
+] as const;
 export type Network = (typeof NETWORKS)[number];
 export type Asset = (typeof ASSETS)[number];
 

@@ -90,6 +90,24 @@ const securityHeaders = [
 // the first import of a workspace package.
 const standalone = process.env.NEXT_OUTPUT === "standalone";
 
+// Settlement OS URL aliases. A real 308 before rendering (a page-level
+// redirect streams as 200 behind app/loading.tsx). Mirrors STEP_ALIASES and
+// SETTLEMENT_REDIRECTS in src/lib/settlement/routes.ts — routes.spec.ts fails if
+// the two drift.
+const SETTLEMENT_REDIRECTS = [
+  ...Object.entries({
+    business: "business-information",
+    "verify-identity": "identity",
+    details: "business-details",
+    "compliance-risk": "compliance",
+    "treasury-setup": "treasury",
+    "settlement-configuration": "settlement",
+    "review-activate": "review",
+  }).map(([from, to]) => ({ source: `/settlement/onboarding/${from}`, destination: `/settlement/onboarding/${to}`, permanent: true })),
+  { source: "/settlement/rules", destination: "/settlement/treasury/rules", permanent: true },
+  { source: "/settlement/activity", destination: "/settlement/payments/transactions", permanent: true },
+];
+
 const nextConfig = {
   ...(standalone
     ? { output: "standalone", outputFileTracingRoot: require("path").join(__dirname, "../..") }
@@ -160,6 +178,7 @@ const nextConfig = {
       { source: "/telegram", destination: "https://t.me/FurlpayBot", permanent: false },
       { source: "/telegram/group", destination: "https://t.me/FurlPay", permanent: false },
       { source: "/telegram/channel", destination: "https://t.me/furlpayofficial", permanent: false },
+      ...SETTLEMENT_REDIRECTS,
     ];
   },
 };
@@ -188,3 +207,6 @@ module.exports = async () => {
   });
   return withBundleAnalyzer(withSerwist(nextConfig));
 };
+
+// Exposed for src/lib/settlement/__tests__/routes.spec.ts (drift check).
+module.exports.settlementRedirects = SETTLEMENT_REDIRECTS;

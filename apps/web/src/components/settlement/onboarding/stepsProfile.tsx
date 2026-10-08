@@ -16,7 +16,7 @@ import {
   UBO_THRESHOLD,
   countryName,
 } from "@/lib/settlement/onboarding";
-import { api, Choice, Field, Notice } from "../os/primitives";
+import { api, Badge, Choice, Field, Notice } from "../os/primitives";
 import type { OnboardingView } from "./types";
 import type { StepProps } from "./OnboardingApp";
 import { Layout, nextStep, prevStep, ProgressCard, RailList, StepActions, StepHeader, Upload, useStep } from "./shared";
@@ -446,7 +446,10 @@ export function DetailsStep(p: StepProps) {
                     <tr key={o.id}>
                       <td>{o.name}</td>
                       <td>{o.type === "individual" ? "Individual" : "Corporate"}</td>
-                      <td className="mono">{o.percent}%</td>
+                      <td className="mono">
+                        {o.percent}%{" "}
+                        {o.percent >= UBO_THRESHOLD && <Badge tone="muted">UBO</Badge>}
+                      </td>
                       <td>{o.role}</td>
                       <td style={{ position: "relative", width: 44 }}>
                         <button type="button" className="os-icon-btn" style={{ width: 30, height: 30, border: 0, background: "none" }} aria-label={`Actions for ${o.name}`} onClick={() => setMenu(menu === o.id ? null : o.id)}>
@@ -468,7 +471,7 @@ export function DetailsStep(p: StepProps) {
                 </tbody>
               </table>
             ) : (
-              <Notice tone="info">No owners declared yet. Add everyone who holds {UBO_THRESHOLD}% or more of the business.</Notice>
+              <Notice tone="info">No owners declared yet. Add everyone who holds {UBO_THRESHOLD}% or more of the business, and at least one individual who controls it (for example the CEO or a director), even if no one reaches {UBO_THRESHOLD}%.</Notice>
             )}
             {e.owners && <p className="os-field-error" style={{ marginTop: 8 }}>{e.owners}</p>}
             <button type="button" className="os-btn os-btn-sm" style={{ marginTop: 14, color: "var(--os-accent)", borderColor: "#00c88855" }} onClick={() => setEditing({ id: crypto.randomUUID(), name: "", type: "individual", percent: 0, role: "" })}>
@@ -520,7 +523,7 @@ export function DetailsStep(p: StepProps) {
               <div style={{ display: "grid", gap: 10, marginTop: 14 }}>
                 {[
                   { label: "Legal business name and registration", done: Boolean(b?.legalName && b.registrationNumber) },
-                  { label: `Ownership structure (≥ ${UBO_THRESHOLD}% owners)`, done: total >= UBO_THRESHOLD && total <= 100 },
+                  { label: `Owners ≥ ${UBO_THRESHOLD}% and one controlling individual`, done: d.owners.length > 0 && total <= 100 && d.owners.some((o) => o.type === "individual") },
                   { label: "Industry and business description", done: Boolean(b?.industry && d.description.trim()) },
                   { label: "Operational details", done: Boolean(d.employees && d.revenue && d.incorporationDate) },
                 ].map((r) => (
@@ -546,7 +549,8 @@ function OwnerDrawer({ owner, others, onSave, onClose }: { owner: Owner; others:
     if (!o.name.trim() || !o.role.trim()) return setError("Name and role are required.");
     if (!(o.percent >= 0 && o.percent <= 100)) return setError("Ownership must be between 0 and 100%.");
     if (o.percent > remaining) return setError(`Only ${remaining}% remains unallocated.`);
-    if (others.some((x) => x.name.trim().toLowerCase() === o.name.trim().toLowerCase())) return setError("This owner is already listed.");
+    const norm = (n: string) => n.trim().toLowerCase().replace(/\s+/g, " ");
+    if (others.some((x) => norm(x.name) === norm(o.name))) return setError("This owner is already listed.");
     onSave({ ...o, name: o.name.trim(), role: o.role.trim() });
   }
   return (

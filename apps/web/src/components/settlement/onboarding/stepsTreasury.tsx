@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ArrowRight, Bell, Building2, Check, Copy, Landmark, Plus, Route, Settings2, ShieldCheck, Split, Trash2, Wallet, Zap } from "lucide-react";
-import { ASSETS, NETWORKS, type Asset, type Network } from "@/lib/settlement/model";
+import { ASSETS, NETWORKS, UNAVAILABLE_ASSETS, UNAVAILABLE_NETWORKS, type Asset, type Network } from "@/lib/settlement/model";
 import { settlementSchema, treasurySchema } from "@/lib/settlement/onboarding";
 import { MAX_RULES, nextRulePercent, parsePercent, previewAmounts, summarize } from "@/lib/settlement/split";
 import { api, ASSET_NAME, AssetLogo, Badge, ChainLogo, chainName, Choice, Field, Notice, Toggle } from "../os/primitives";
@@ -123,6 +123,18 @@ export function TreasuryStep(p: StepProps) {
                       </div>
                     );
                   })}
+                  {UNAVAILABLE_NETWORKS.map((n) => (
+                    <div key={n.id} className="os-tile" aria-disabled="true" style={{ opacity: 0.6 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <ChainLogo chain={n.id} size={30} />
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontWeight: 600 }}>{n.label}</div>
+                          <small style={{ color: "var(--os-muted)" }}>Not available</small>
+                        </div>
+                      </div>
+                      <small style={{ display: "block", marginTop: 12, color: "var(--os-faint)" }}>{n.reason}</small>
+                    </div>
+                  ))}
                   <Link href="/profile" className="os-tile" style={{ borderStyle: "dashed", borderColor: "#00c88855", display: "flex", gap: 12, alignItems: "center" }}>
                     <Plus size={18} color="var(--os-accent)" />
                     <span>
@@ -154,6 +166,15 @@ export function TreasuryStep(p: StepProps) {
                         <small>{ASSET_NAME[a]}</small>
                       </span>
                       <Toggle checked={d.assets.includes(a)} onChange={() => s.set("assets", toggle(d.assets, a))} label={`Hold ${a}`} />
+                    </div>
+                  ))}
+                  {UNAVAILABLE_ASSETS.map((a) => (
+                    <div key={a.id} className="os-tile" aria-disabled="true" title={a.reason} style={{ display: "flex", alignItems: "center", gap: 12, opacity: 0.6 }}>
+                      <ChainLogo chain={a.id === "SOL" ? "solana" : "ethereum"} size={34} />
+                      <span style={{ flex: 1 }}>
+                        <strong style={{ marginTop: 0 }}>{a.id}</strong>
+                        <small>{a.reason}</small>
+                      </span>
                     </div>
                   ))}
                 </div>

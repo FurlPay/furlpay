@@ -17,7 +17,7 @@ test("@auth settlement onboarding: resume, validation and draft persistence", as
   await enter(page, request, context, "/settlement/onboarding");
   const observed = observe(page);
   await expect(page).toHaveURL(/\/settlement\/onboarding\/\w+/);
-  if (!page.url().endsWith("/business")) await page.goto("/settlement/onboarding/business");
+  if (!page.url().endsWith("/business-information")) await page.goto("/settlement/onboarding/business-information");
   await expect(page.getByRole("heading", { level: 1, name: "Business Information" })).toBeVisible();
   expect(await noOverflow(page)).toBe(true);
 
@@ -26,7 +26,7 @@ test("@auth settlement onboarding: resume, validation and draft persistence", as
   await legal.fill("");
   await page.getByRole("button", { name: /^Continue/ }).click();
   await expect(page.locator(".os-field-error").first()).toBeVisible();
-  await expect(page).toHaveURL(/\/business$/);
+  await expect(page).toHaveURL(/\/business-information$/);
 
   // "Save and continue later" keeps an unfinished form on the server.
   const name = `QA Business ${Date.now()}`;

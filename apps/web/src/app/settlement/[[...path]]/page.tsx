@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, permanentRedirect } from "next/navigation";
 import { Suspense } from "react";
 import SettlementWorkspace from "@/components/settlement/SettlementWorkspace";
-import { SETTLEMENT_SECTIONS } from "@/lib/settlement/routes";
+import { resolveSettlementPath } from "@/lib/settlement/routes";
 
 export const metadata: Metadata = {
   title: "Settlement OS · FurlPay",
@@ -10,11 +10,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const KNOWN = new Set<string>(SETTLEMENT_SECTIONS);
-
 export default async function SettlementPage({ params }: { params: Promise<{ path?: string[] }> }) {
   const { path = [] } = await params;
-  if (path.length > 2 || (path[0] && !KNOWN.has(path[0]))) notFound();
+  // Every URL is a real page, a redirect to one, or a 404 — never a silent fallback.
+  const r = resolveSettlementPath(path);
+  if (r.kind === "not_found") notFound();
+  if (r.kind === "redirect") permanentRedirect(r.to);
   return (
     <Suspense>
       <SettlementWorkspace path={path} />

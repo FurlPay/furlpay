@@ -218,6 +218,56 @@ describe("screening", () => {
   });
 });
 
+describe("state machine cannot be bypassed", () => {
+  it("each step's API refuses until every earlier step is complete", async () => {
+    // nothing done yet
+    for (const [step, data] of [["identity", identity], ["details", details], ["treasury", treasury], ["settlement", settlement([100])]] as const) {
+      expect((await read(await put(step, data))).status, step).toBe(409);
+    }
+    expect((await read(await act({ action: "complete", step: "compliance" }))).status).toBe(409);
+    expect((await read(await act({ action: "screen" }))).status).toBe(409);
+    await put("business", business);
+    // business done; still cannot jump to details, treasury or settlement
+    for (const [step, data] of [["details", details], ["treasury", treasury], ["settlement", settlement([100])]] as const) {
+      expect((await read(await put(step, data))).status, step).toBe(409);
+    }
+    const v = await view();
+    expect(v.state.completed).toEqual(["business"]);
+    expect(v.state.treasury).toBeUndefined();
+  });
+
+  it("client-supplied status fields are refused, not merged", async () => {
+    await put("business", business);
+    for (const extra of [{ completed: ["business", "identity", "details", "compliance", "treasury", "settlement"] }, { activation: { status: "ACTIVE" } }, { review: { status: "approved" } }, { screening: { status: "clear" } }]) {
+      const r = await read(await PUT(json("PUT", { step: "business", data: business, complete: true, ...extra })));
+      expect(r.status, JSON.stringify(extra)).toBe(400);
+    }
+    // inside the step data the schema is strict too
+    expect((await read(await put("business", { ...business, verified: true }))).status).toBe(422);
+    const v = await view();
+    expect(v.state.activation.status).not.toBe("ACTIVE");
+    expect(v.state.review?.status ?? "not_submitted").not.toBe("approved");
+  });
+
+  it("unknown or non-editable step identifiers are refused", async () => {
+    for (const step of ["review", "compliance", "constructor", "__proto__", "toString"]) {
+      expect((await read(await PUT(json("PUT", { step, data: {}, complete: true })))).status, step).toBe(400);
+    }
+    for (const action of ["approve", "verify_identity", "set_status"]) {
+      expect((await read(await act({ action }))).status, action).toBe(400);
+    }
+  });
+
+  it("activation cannot be forced: repeated or early requests stay blocked", async () => {
+    for (let i = 0; i < 3; i++) {
+      const r = await read(await act({ action: "activate" }));
+      expect(r.status).toBe(409);
+      expect(r.body.eligible).toBe(false);
+    }
+    expect((await view()).state.activation.status).toBe("REQUIRES_ACTION");
+  });
+});
+
 describe("activation", () => {
   it("blocked by identity, documents and review, with explicit codes", async () => {
     await profile();
