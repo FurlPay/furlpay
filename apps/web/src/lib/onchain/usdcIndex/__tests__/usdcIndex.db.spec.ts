@@ -248,3 +248,50 @@ describe("usdc index on PostgreSQL", () => {
     expect(STREAM).toBe(1);
   });
 });
+
+// Hourly / daily series (P4-6) over the rollups the indexer wrote above. Runs
+// after the indexing tests in this file, against the same real database.
+describe("usdc series endpoints on PostgreSQL", () => {
+  it("hourly and daily buckets add up exactly to the stored rollups and totals", async () => {
+    const { parseSeriesRange, usdcSeries } = await import("../view");
+    const span = (await q("select min(hour) lo, max(hour) hi, count(*)::int n from usdc_hourly")).rows[0];
+    expect(span.n).toBeGreaterThan(0);
+    const hourly = parseSeriesRange("hourly", new Date(span.lo).toISOString(), new Date(new Date(span.hi).getTime() + 3_600_000).toISOString());
+    if ("error" in hourly) throw new Error(hourly.error);
+    const hs = await usdcSeries("hourly", hourly.from, hourly.to);
+    expect(hs.available).toBe(true);
+    expect(hs.buckets).toHaveLength(span.n);
+    const db = (await q("select sum(transfers)::int t, sum(transfer_raw)::text tr, sum(mints)::int m, sum(burns)::int b from usdc_hourly")).rows[0];
+    expect(hs.buckets.reduce((s, x) => s + x.transfers, 0)).toBe(db.t);
+    expect(hs.buckets.reduce((s, x) => s + BigInt(x.transferRaw), 0n).toString()).toBe(db.tr);
+    expect(hs.buckets.reduce((s, x) => s + x.mints, 0)).toBe(db.m);
+    expect(hs.buckets.reduce((s, x) => s + x.burns, 0)).toBe(db.b);
+    // Ordered, hour-aligned, sketches decoded.
+    for (let i = 1; i < hs.buckets.length; i++) expect(hs.buckets[i].bucket > hs.buckets[i - 1].bucket).toBe(true);
+    const sketched = new Set((await q("select hour from usdc_hourly where senders_hll is not null")).rows.map((r) => new Date(r.hour).toISOString()));
+    for (const b of hs.buckets) {
+      expect(new Date(b.bucket).getUTCMinutes()).toBe(0);
+      expect(b.uniqueSenders.method).toBe("hll-p12");
+      // A count exactly where a sketch is stored; otherwise null with a note, never a guess.
+      if (sketched.has(b.bucket)) expect(b.uniqueSenders.count).toBeGreaterThan(0);
+      else expect(b.uniqueSenders).toMatchObject({ count: null, note: expect.any(String) });
+    }
+
+    const dspan = (await q("select min(day)::text lo, max(day)::text hi, count(*)::int n from usdc_daily")).rows[0];
+    const daily = parseSeriesRange("daily", dspan.lo, new Date(Date.parse(`${dspan.hi}T00:00:00Z`) + 86_400_000).toISOString());
+    if ("error" in daily) throw new Error(daily.error);
+    const ds = await usdcSeries("daily", daily.from, daily.to);
+    expect(ds.buckets).toHaveLength(dspan.n);
+    const tot = (await q("select (transfer_raw)::text tr from usdc_totals")).rows[0];
+    expect(ds.buckets.reduce((s, x) => s + BigInt(x.transferRaw), 0n).toString()).toBe(tot.tr);
+    expect(ds.buckets[0].uniqueSenders.method).toBe("hll-p14");
+  });
+
+  it("an empty range is an empty list, never zero-filled buckets", async () => {
+    const { usdcSeries } = await import("../view");
+    const far = new Date(Date.UTC(2020, 0, 1));
+    const s = await usdcSeries("hourly", far, new Date(far.getTime() + 24 * 3_600_000));
+    expect(s.buckets).toEqual([]);
+    expect(s.available).toBe(true);
+  });
+});

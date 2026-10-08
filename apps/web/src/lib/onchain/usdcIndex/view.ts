@@ -1,5 +1,6 @@
 import { SupabaseFunctionMissing, sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
 import { retentionDays, STREAM } from "./indexer";
+import { fromHex, hllCount, stdError } from "./hll";
 
 // Read model for the dashboard and the public API: ONE state row (heads,
 // cursor, supply, materialised windows, provider health) plus small reads of
@@ -115,4 +116,124 @@ export async function recentTransfers(seconds: number, sort: "recent" | "largest
 
 export async function addressActivity(address: string, limit: number) {
   return sbRpc<Record<string, unknown>>("usdc_address", { p_stream: STREAM, p_address: address.toLowerCase(), p_limit: limit });
+}
+
+// ---------------------------------------------------------------------------
+// Hourly / daily series (GET /api/onchain/token/usdc/metrics/{hourly,daily}).
+// Reads the indexer's own rollups (usdc_hourly / usdc_daily, migration 0036).
+// Amounts are integer base-unit strings plus a 6-decimal string, never floats.
+// Buckets with no row are OMITTED, never zero-filled: a missing hour can mean
+// "no activity" or "not indexed yet", and `coverage` says which range is real.
+// Unique senders/receivers per bucket are HLL estimates (p12 hourly, p14 daily).
+// ---------------------------------------------------------------------------
+
+export type SeriesGranularity = "hourly" | "daily";
+export const SERIES_LIMITS: Record<SeriesGranularity, { maxBuckets: number; defaultBuckets: number; ms: number; p: number }> = {
+  hourly: { maxBuckets: 168, defaultBuckets: 24, ms: 3_600_000, p: 12 },
+  daily: { maxBuckets: 366, defaultBuckets: 30, ms: 86_400_000, p: 14 },
+};
+
+const DECIMALS = 6n;
+/** "1234567" base units → "1.234567" (exact, no float). */
+export function toDecimal(raw: string): string {
+  const neg = raw.startsWith("-");
+  const digits = (neg ? raw.slice(1) : raw).split(".")[0].replace(/^0+(?=\d)/, "") || "0";
+  const padded = digits.padStart(Number(DECIMALS) + 1, "0");
+  const int = padded.slice(0, -Number(DECIMALS));
+  const frac = padded.slice(-Number(DECIMALS)).replace(/0+$/, "");
+  return `${neg ? "-" : ""}${int}${frac ? `.${frac}` : ""}`;
+}
+
+export interface SeriesBucket {
+  bucket: string;
+  transfers: number;
+  transferRaw: string;
+  transferAmount: string;
+  mints: number;
+  mintRaw: string;
+  burns: number;
+  burnRaw: string;
+  zeroValue: number;
+  blocks: { first: number; last: number };
+  uniqueSenders: { count: number | null; exact: false; method: string; stdError: number; note?: string };
+  uniqueReceivers: { count: number | null; exact: false; method: string; stdError: number; note?: string };
+}
+
+export interface SeriesView {
+  available: boolean;
+  reason: string | null;
+  granularity: SeriesGranularity;
+  from: string;
+  to: string;
+  buckets: SeriesBucket[];
+  coverage: { complete: boolean; historyFrom: string | null; indexedThrough: string | null };
+}
+
+export function parseSeriesRange(g: SeriesGranularity, fromRaw: string | null, toRaw: string | null, now = Date.now()): { from: Date; to: Date } | { error: string } {
+  const L = SERIES_LIMITS[g];
+  const floor = (t: number) => Math.floor(t / L.ms) * L.ms;
+  const parse = (v: string) => {
+    const iso = g === "daily" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? `${v}T00:00:00Z` : v;
+    if (!/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2}))?$/.test(iso)) return NaN;
+    return Date.parse(iso);
+  };
+  const to = toRaw ? parse(toRaw) : floor(now) + L.ms;
+  const from = fromRaw ? parse(fromRaw) : to - L.defaultBuckets * L.ms;
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return { error: "invalid_range: from/to must be ISO-8601 (daily also accepts YYYY-MM-DD)" };
+  const f = floor(from);
+  const t = Math.ceil(to / L.ms) * L.ms;
+  if (t <= f) return { error: "invalid_range: to must be after from" };
+  if ((t - f) / L.ms > L.maxBuckets) return { error: `invalid_range: at most ${L.maxBuckets} ${g === "hourly" ? "hours" : "days"} per request` };
+  return { from: new Date(f), to: new Date(t) };
+}
+
+function uniq(hex: unknown, p: number) {
+  const s = typeof hex === "string" ? fromHex(hex) : null;
+  const ok = s !== null && s.length === 1 << p;
+  return { count: ok ? hllCount(s) : null, exact: false as const, method: `hll-p${p}`, stdError: stdError(p), ...(ok ? {} : { note: "sketch not stored for this bucket" }) };
+}
+
+export async function usdcSeries(g: SeriesGranularity, from: Date, to: Date): Promise<SeriesView> {
+  const L = SERIES_LIMITS[g];
+  const base: SeriesView = { available: false, reason: null, granularity: g, from: from.toISOString(), to: to.toISOString(), buckets: [], coverage: { complete: false, historyFrom: null, indexedThrough: null } };
+  if (supabaseBackend !== "supabase") return { ...base, reason: "No durable store configured (SUPABASE_URL)." };
+  const table = g === "hourly" ? "usdc_hourly" : "usdc_daily";
+  const col = g === "hourly" ? "hour" : "day";
+  const lo = g === "hourly" ? from.toISOString() : from.toISOString().slice(0, 10);
+  const hi = g === "hourly" ? to.toISOString() : to.toISOString().slice(0, 10);
+  try {
+    const [rows, state] = await Promise.all([
+      sbSelect<Record<string, unknown>>(
+        table,
+        `select=${col},transfers,transfer_raw:transfer_raw::text,mints,mint_raw:mint_raw::text,burns,burn_raw:burn_raw::text,zero_value,first_block,last_block,senders_hll,receivers_hll&stream=eq.${STREAM}&${col}=gte.${encodeURIComponent(lo)}&${col}=lt.${encodeURIComponent(hi)}&order=${col}.asc&limit=${L.maxBuckets + 1}`
+      ),
+      usdcIndexView(),
+    ]);
+    const buckets: SeriesBucket[] = rows.map((r) => {
+      const transferRaw = String(r.transfer_raw ?? "0").split(".")[0];
+      return {
+        bucket: g === "hourly" ? new Date(String(r.hour)).toISOString() : String(r.day),
+        transfers: Number(r.transfers),
+        transferRaw,
+        transferAmount: toDecimal(transferRaw),
+        mints: Number(r.mints),
+        mintRaw: String(r.mint_raw ?? "0").split(".")[0],
+        burns: Number(r.burns),
+        burnRaw: String(r.burn_raw ?? "0").split(".")[0],
+        zeroValue: Number(r.zero_value),
+        blocks: { first: Number(r.first_block), last: Number(r.last_block) },
+        uniqueSenders: uniq(r.senders_hll, L.p),
+        uniqueReceivers: uniq(r.receivers_hll, L.p),
+      };
+    });
+    return {
+      ...base,
+      available: state.available,
+      reason: state.available ? null : state.reason,
+      buckets,
+      coverage: { complete: state.history.complete, historyFrom: state.history.liveFromTime, indexedThrough: state.indexed.time },
+    };
+  } catch (e) {
+    return { ...base, reason: missing(e) ? "USDC index tables are not migrated (apply migration 0036)." : `USDC index store unreachable: ${String((e as Error).message).slice(0, 120)}` };
+  }
 }
