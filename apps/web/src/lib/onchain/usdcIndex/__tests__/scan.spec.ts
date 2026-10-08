@@ -108,4 +108,13 @@ describe("provider pool", () => {
     delete process.env.USDC_INDEX_RPC_URLS;
     expect(poolUrls().every((u) => u.startsWith("https://") && !/alchemy/i.test(u))).toBe(true);
   });
+
+  it("puts a configured primary first, and still refuses Alchemy as primary", () => {
+    process.env.USDC_INDEX_PRIMARY_RPC_URL = "https://node.example.org/rpc";
+    expect(poolUrls()[0]).toBe("https://node.example.org/rpc");
+    expect(poolUrls().filter((u) => u === "https://node.example.org/rpc").length).toBe(1);
+    process.env.USDC_INDEX_PRIMARY_RPC_URL = "https://eth-mainnet.g.alchemy.com/v2/x";
+    expect(() => poolUrls()).toThrow(/Alchemy/);
+    delete process.env.USDC_INDEX_PRIMARY_RPC_URL;
+  });
 });

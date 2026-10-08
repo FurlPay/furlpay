@@ -41,6 +41,7 @@ interface Provider extends ProviderHealth {
   streak: number;
   head: number;
   headAt: number;
+  primary: boolean;
 }
 
 export class RpcError extends Error {
@@ -52,11 +53,19 @@ export class RpcError extends Error {
 const isRate = (m: string) => /rate|429|too many requests|capacity|throttl/i.test(m);
 const isRange = (m: string) => !isRate(m) && /range|too many|exceed|10000|results|response size|query returned more|block range|timeout|abort/i.test(m);
 
+/** Optional keyed/self-hosted primary (USDC_INDEX_PRIMARY_RPC_URL); the keyless pool stays as fallback. */
+export function primaryUrl(): string | null {
+  const v = process.env.USDC_INDEX_PRIMARY_RPC_URL?.trim();
+  return v ? v : null;
+}
+
 export function poolUrls(): string[] {
   const env = process.env.USDC_INDEX_RPC_URLS?.split(",").map((s) => s.trim()).filter(Boolean);
-  const urls = env && env.length ? env : DEFAULT_USDC_INDEX_RPCS;
+  const pool = env && env.length ? env : DEFAULT_USDC_INDEX_RPCS;
+  const primary = primaryUrl();
+  const urls = primary ? [primary, ...pool.filter((u) => u !== primary)] : pool;
   const bad = urls.filter((u) => /alchemy/i.test(u) || !/^https:\/\//.test(u));
-  if (bad.length) throw new Error("USDC_INDEX_RPC_URLS must list https URLs and must not use Alchemy");
+  if (bad.length) throw new Error("USDC_INDEX_RPC_URLS / USDC_INDEX_PRIMARY_RPC_URL must be https URLs and must not use Alchemy");
   return urls;
 }
 
@@ -81,6 +90,7 @@ export class RpcPool {
       streak: 0,
       head: 0,
       headAt: 0,
+      primary: url === primaryUrl(),
     }));
   }
 
@@ -104,8 +114,10 @@ export class RpcPool {
     let best: Provider | null = null;
     let score = Infinity;
     for (const p of this.providers) {
-      if (p.until > now || p.inflight >= PER_PROVIDER) continue;
-      const s = (p.inflight + 1) * (p.ok ? p.latencyTotal / p.ok : 1000);
+      if (p.until > now || p.inflight >= (p.primary ? PER_PROVIDER * 3 : PER_PROVIDER)) continue;
+      // The primary (keyed or self-hosted) is strongly preferred while healthy;
+      // the keyless providers carry what it cannot, and everything when it is paused.
+      const s = (p.inflight + 1) * (p.ok ? p.latencyTotal / p.ok : 1000) * (p.primary ? 0.2 : 1);
       if (s < score) (best = p), (score = s);
     }
     return best;

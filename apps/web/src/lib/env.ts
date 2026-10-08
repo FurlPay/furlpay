@@ -638,6 +638,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // separated; defaults to the census-verified list; Alchemy is refused)
       // and the raw-event retention window in days (default 30).
       v("USDC_INDEX_RPC_URLS"),
+      v("USDC_INDEX_PRIMARY_RPC_URL"),
       v("USDC_INDEX_RETENTION_DAYS"),
     ],
   },
