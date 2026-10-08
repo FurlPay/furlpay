@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart3,
   Check,
@@ -22,14 +22,14 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import type { DraftKind, WorkspaceRecord, WorkspaceSnapshot, Draft } from "@/lib/settlement/model";
+import type { Activity, DraftKind, WorkspaceRecord, WorkspaceSnapshot, Draft } from "@/lib/settlement/model";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 import Header from "./os/Header";
 import { api, Notice } from "./os/primitives";
 import DraftEditor, { DRAFT_LABELS } from "./DraftEditor";
 import { DraftDetail, DraftList } from "./DraftViews";
 import { Drawer } from "./ui";
-import Transactions from "./Transactions";
+import Transactions, { TransactionDetail } from "./Transactions";
 import { Balances, BatchPayouts, Conversion, Receive, VirtualAccounts } from "./TreasuryTools";
 import { Approvals, Compliance, DeveloperTools, Reconciliation, Reports, Settings } from "./ControlPanels";
 import OverviewDashboard, { type Approval, type RailRow } from "./OverviewDashboard";
@@ -125,12 +125,21 @@ export default function SettlementWorkspace({ path }: { path: string[] }) {
   const [record, setRecord] = useState<WorkspaceRecord | null>(null);
   const [toast, setToast] = useState("");
   const [nav, setNav] = useState(false);
+  const [searchedTx, setSearchedTx] = useState<Activity | null>(null);
+  const loadVersion = useRef(0);
+  const loadAbort = useRef<AbortController | null>(null);
 
   const load = useCallback(async () => {
+    const version = ++loadVersion.current;
+    loadAbort.current?.abort();
+    const ac = new AbortController(); loadAbort.current = ac;
     setSnapError("");
     try {
-      setSnapshot(await api<WorkspaceSnapshot>("/api/settlement/workspace"));
+      const next = await api<WorkspaceSnapshot>("/api/settlement/workspace", { signal: ac.signal });
+      if (version === loadVersion.current) setSnapshot(next);
     } catch (e) {
+      if (ac.signal.aborted || version !== loadVersion.current) return;
+      if ((e as { status?: number }).status === 401) setSnapshot(null);
       setSnapError(e instanceof Error ? e.message : "Workspace unavailable");
     }
   }, []);
@@ -162,14 +171,34 @@ export default function SettlementWorkspace({ path }: { path: string[] }) {
     }
   }, [params, view, router, pathname]);
   useEffect(() => setNav(false), [pathname]);
+  useEffect(() => () => { loadVersion.current++; loadAbort.current?.abort(); }, []);
+  useEffect(() => {
+    const tx = params.get("tx"), draft = params.get("draft");
+    const ac = new AbortController();
+    setSearchedTx(null);
+    if (tx) api<{ items: Activity[] }>(`/api/settlement/transactions?limit=50&q=${encodeURIComponent(tx)}`, { signal: ac.signal })
+      .then((r) => { if (!ac.signal.aborted) { const hit = r.items.find((t) => t.id === tx); hit ? setSearchedTx(hit) : setToast("Transaction not found on your account."); } })
+      .catch((e) => { if (!ac.signal.aborted) setToast(e.message); });
+    if (draft) api<{ record: WorkspaceRecord }>(`/api/settlement/workspace?id=${encodeURIComponent(draft)}`, { signal: ac.signal })
+      .then((r) => { if (!ac.signal.aborted) setRecord(r.record); })
+      .catch((e) => { if (!ac.signal.aborted) setToast(e.message); });
+    return () => ac.abort();
+  }, [params]);
+  function closeSearchDetail() {
+    setSearchedTx(null);
+    const next = new URLSearchParams(params.toString()); next.delete("tx");
+    router.replace(`${pathname}?${next}`, { scroll: false });
+  }
 
   async function saveDraft(draft: Draft, id: string) {
     const saved = (await api<{ record: WorkspaceRecord }>("/api/settlement/workspace", { method: "POST", body: JSON.stringify({ id, data: draft }) })).record;
+    loadVersion.current++; loadAbort.current?.abort();
     setSnapshot((cur) => (cur ? { ...cur, records: [saved, ...cur.records.filter((r) => r.id !== saved.id)] } : cur));
     setToast(`${DRAFT_LABELS[draft.kind]} draft saved to your account.`);
   }
   async function archive(item: WorkspaceRecord) {
     await api("/api/settlement/workspace", { method: "PATCH", body: JSON.stringify({ id: item.id }) });
+    loadVersion.current++; loadAbort.current?.abort();
     setSnapshot((cur) => (cur ? { ...cur, records: cur.records.map((r) => (r.id === item.id ? { ...r, archivedAt: new Date().toISOString() } : r)) } : cur));
     setRecord(null);
     setToast("Draft archived.");
@@ -184,7 +213,7 @@ export default function SettlementWorkspace({ path }: { path: string[] }) {
     if (!snapshot) return null;
     switch (view) {
       case "transactions":
-        return <Transactions rows={snapshot.transactions} />;
+        return <Transactions />;
       case "receive":
         return <Receive onMessage={setToast} />;
       case "balances":
@@ -306,6 +335,7 @@ export default function SettlementWorkspace({ path }: { path: string[] }) {
         </div>
       </div>
 
+      {searchedTx && <div className="settlement-app os-embedded"><TransactionDetail transaction={searchedTx} onClose={closeSearchDetail} /></div>}
       {editor && (
         <div className="settlement-app os-embedded">
           <Drawer title={`New ${DRAFT_LABELS[editor]}`} onClose={() => setEditor(null)}>

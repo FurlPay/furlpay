@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { ASSETS, NETWORKS } from "@/lib/settlement/model";
+import { api } from "./os/primitives";
 import { ArrowDownLeft, ArrowUpRight, Download, Search } from "lucide-react";
 import type { Activity } from "@/lib/settlement/model";
 import { csvDocument } from "@/lib/csv";
@@ -52,33 +55,51 @@ export function exportTransactions(rows: Activity[]) {
 }
 
 export default function Transactions({
-  rows,
   compact = false,
   onViewAll,
 }: {
-  rows: Activity[];
+  rows?: Activity[];
   compact?: boolean;
   onViewAll?: () => void;
 }) {
-  const [query, setQuery] = useState("");
-  const [status, setStatus] = useState("all");
-  const [direction, setDirection] = useState("all");
+  const params = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const query = params.get("q") ?? "";
+  const status = params.get("status") ?? "any";
+  const direction = params.get("direction") ?? "any";
   const [selected, setSelected] = useState<Activity | null>(null);
-  const [page, setPage] = useState(0);
-  const filtered = rows.filter(
-    (row) =>
-      (status === "all" || row.status === status) &&
-      (direction === "all" || row.direction === direction) &&
-      `${row.id} ${row.name} ${row.network} ${row.asset}`
-        .toLowerCase()
-        .includes(query.toLowerCase())
-  );
-  const count = compact ? 5 : 12;
-  const safePage = Math.min(
-    page,
-    Math.max(0, Math.ceil(filtered.length / count) - 1)
-  );
-  const visible = filtered.slice(safePage * count, (safePage + 1) * count);
+  const [result, setResult] = useState<{ items: Activity[]; total: number; nextCursor: string | null }>({ items: [], total: 0, nextCursor: null });
+  const [cursors, setCursors] = useState<string[]>([]);
+  const [busy, setBusy] = useState(true);
+  const [error, setError] = useState("");
+  const allowed = ["q", "status", "direction", "network", "asset", "category", "from", "to", "min", "max", "cursor"];
+  const request = new URLSearchParams([...params.entries()].filter(([k, v]) => allowed.includes(k) && v));
+  request.set("limit", compact ? "5" : "25");
+  const requestKey = request.toString();
+  useEffect(() => {
+    const ac = new AbortController();
+    setBusy(true); setError("");
+    const timer = setTimeout(() => {
+      api<typeof result>(`/api/settlement/transactions?${requestKey}`, { signal: ac.signal })
+        .then((r) => { if (!ac.signal.aborted) setResult(r); })
+        .catch((e) => { if (!ac.signal.aborted) { setError(e.message); setResult({ items: [], total: 0, nextCursor: null }); } })
+        .finally(() => { if (!ac.signal.aborted) setBusy(false); });
+    }, 200);
+    return () => { clearTimeout(timer); ac.abort(); };
+  }, [requestKey]);
+  function changeFilter(key: string, value: string) {
+    const next = new URLSearchParams(params.toString());
+    value ? next.set(key, value) : next.delete(key);
+    next.delete("cursor"); setCursors([]);
+    router.replace(`${pathname}?${next}`, { scroll: false });
+  }
+  function navigate(cursor: string) {
+    const next = new URLSearchParams(params.toString());
+    cursor ? next.set("cursor", cursor) : next.delete("cursor");
+    router.replace(`${pathname}?${next}`, { scroll: false });
+  }
+  const visible = result.items;
   return (
     <>
       <Panel
@@ -92,10 +113,11 @@ export default function Transactions({
           ) : (
             <button
               className="st-button st-small"
-              onClick={() => exportTransactions(filtered)}
+              disabled={busy || !visible.length}
+              onClick={() => exportTransactions(visible)}
             >
               <Download size={14} />
-              Export CSV
+              Export this page
             </button>
           )
         }
@@ -106,11 +128,10 @@ export default function Transactions({
               <Search size={16} />
               <input
                 aria-label="Search transactions"
-                placeholder="Search name, transaction ID or network…"
+                placeholder="Search counterparty, memo, reference or network…"
                 value={query}
                 onChange={(event) => {
-                  setQuery(event.target.value);
-                  setPage(0);
+                  changeFilter("q", event.target.value);
                 }}
               />
             </label>
@@ -118,11 +139,10 @@ export default function Transactions({
               aria-label="Filter transaction status"
               value={status}
               onChange={(event) => {
-                setStatus(event.target.value);
-                setPage(0);
+                changeFilter("status", event.target.value);
               }}
             >
-              <option value="all">All statuses</option>
+              <option value="any">All statuses</option>
               {["settled", "pending", "escrow", "declined"].map((value) => (
                 <option key={value} value={value}>
                   {humanize(value)}
@@ -133,17 +153,27 @@ export default function Transactions({
               aria-label="Filter transaction direction"
               value={direction}
               onChange={(event) => {
-                setDirection(event.target.value);
-                setPage(0);
+                changeFilter("direction", event.target.value);
               }}
             >
-              <option value="all">All directions</option>
+              <option value="any">All directions</option>
               <option value="in">Incoming</option>
               <option value="out">Outgoing</option>
             </select>
           </div>
         )}
-        {visible.length ? (
+        {!compact && <div className="st-table-tools" style={{ flexWrap: "wrap", alignItems: "end" }}>
+          <Field label="From"><input type="date" value={params.get("from") ?? ""} onChange={(e) => changeFilter("from", e.target.value)} /></Field>
+          <Field label="Through"><input type="date" value={params.get("to") ?? ""} onChange={(e) => changeFilter("to", e.target.value)} /></Field>
+          <Field label="Minimum USD"><input type="number" min="0" step="0.01" value={params.get("min") ?? ""} onChange={(e) => changeFilter("min", e.target.value)} /></Field>
+          <Field label="Maximum USD"><input type="number" min="0" step="0.01" value={params.get("max") ?? ""} onChange={(e) => changeFilter("max", e.target.value)} /></Field>
+          <Field label="Network"><select value={params.get("network") ?? ""} onChange={(e) => changeFilter("network", e.target.value)}><option value="">All networks</option>{[...NETWORKS, "account"].map((n) => <option key={n} value={n}>{humanize(n)}</option>)}</select></Field>
+          <Field label="Asset"><select value={params.get("asset") ?? ""} onChange={(e) => changeFilter("asset", e.target.value)}><option value="">All assets</option>{ASSETS.map((n) => <option key={n}>{n}</option>)}</select></Field>
+          <Field label="Category"><select value={params.get("category") ?? ""} onChange={(e) => changeFilter("category", e.target.value)}><option value="">All categories</option>{["transfer", "ramp", "swap", "card", "bill", "invest", "yield", "refund"].map((n) => <option key={n} value={n}>{humanize(n)}</option>)}</select></Field>
+          <button className="st-button st-small" onClick={() => { setCursors([]); router.replace(pathname, { scroll: false }); }}>Reset filters</button>
+        </div>}
+        {error && <p role="alert" className="st-error">{error}</p>}
+        {busy ? <p role="status" className="st-muted" style={{ padding: 20 }}>Loading transactions…</p> : visible.length ? (
           <div className="st-table-scroll">
             <table className="st-table">
               <thead>
@@ -238,32 +268,30 @@ export default function Transactions({
         ) : (
           <Empty
             title={
-              query || status !== "all" || direction !== "all"
+              query || status !== "any" || direction !== "any"
                 ? "No matching transactions"
                 : "Your activity starts here"
             }
             description="Incoming payments and payouts will appear here when they are recorded in your account."
           />
         )}
-        {!compact && filtered.length > 0 && (
+        {!compact && result.total > 0 && (
           <div className="st-pagination">
             <span>
-              {safePage * count + 1}–
-              {Math.min((safePage + 1) * count, filtered.length)} of{" "}
-              {filtered.length}
+              {visible.length} shown · {result.total} matches
             </span>
             <div>
               <button
                 className="st-button st-small"
-                disabled={safePage === 0}
-                onClick={() => setPage(safePage - 1)}
+                disabled={busy || !params.get("cursor")}
+                onClick={() => { navigate(cursors.at(-1) ?? ""); setCursors((c) => c.slice(0, -1)); }}
               >
                 Previous
               </button>
               <button
                 className="st-button st-small"
-                disabled={(safePage + 1) * count >= filtered.length}
-                onClick={() => setPage(safePage + 1)}
+                disabled={busy || !result.nextCursor}
+                onClick={() => { setCursors((c) => [...c, params.get("cursor") ?? ""]); navigate(result.nextCursor!); }}
               >
                 Next
               </button>
@@ -281,7 +309,7 @@ export default function Transactions({
   );
 }
 
-function TransactionDetail({
+export function TransactionDetail({
   transaction: tx,
   onClose,
 }: {

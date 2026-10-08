@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
@@ -11,6 +12,7 @@ import {
 import {
   archiveRecord,
   listRecords,
+  getRecord,
   RecordConflict,
   saveRecord,
 } from "@/lib/settlement/repository";
@@ -26,6 +28,16 @@ export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
   const { account } = auth;
+  const limited = await rateLimitOr429(req, "settlement.workspace.read", { limit: 120, windowMs: 60_000 }, account.user.id);
+  if (limited) return limited;
+  const id = req.nextUrl.searchParams.get("id");
+  if (id) {
+    if (!z.string().uuid().safeParse(id).success) return NextResponse.json({ error: "Invalid draft id" }, { status: 400, headers });
+    try {
+      const record = await getRecord(account.user.id, id);
+      return NextResponse.json(record ? { record } : { error: "Draft not found" }, { status: record ? 200 : 404, headers });
+    } catch { return NextResponse.json({ error: "Draft storage unavailable" }, { status: 503, headers }); }
+  }
   const balances: WorkspaceSnapshot["balances"] = [
     ...account.tokenBalances.map((row) => ({
       asset: row.token,

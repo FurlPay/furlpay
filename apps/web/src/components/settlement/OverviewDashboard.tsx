@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import {
@@ -87,7 +87,6 @@ export default function OverviewDashboard({
   onToast: (m: string) => void;
 }) {
   const router = useRouter();
-  const params = useSearchParams();
   const [range, setRange] = useState<Range>("24h");
   const [selected, setSelected] = useState<Activity | null>(null);
   const [drawer, setDrawer] = useState<Activity | null>(null);
@@ -97,21 +96,6 @@ export default function OverviewDashboard({
   const t24 = o?.activity["24h"];
   const latest = s?.transactions[0] ?? null;
   const shown = selected ?? latest;
-
-  // Deep link from global search: /settlement?tx=<id>
-  useEffect(() => {
-    const id = params.get("tx");
-    if (!id) return;
-    api<{ items: Activity[] }>(`/api/settlement/transactions?limit=1&q=${encodeURIComponent(id)}`)
-      .then((r) => {
-        const hit = r.items.find((x) => x.id === id) ?? r.items[0];
-        if (hit) {
-          setSelected(hit);
-          setDrawer(hit);
-        }
-      })
-      .catch(() => undefined);
-  }, [params]);
 
   const quick = [
     { label: "Receive USDC", icon: ArrowDownToLine, href: "/settlement/payments/receive" },

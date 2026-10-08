@@ -551,6 +551,50 @@ describe("screening history and re-screening", () => {
     as("owner-1");
     expect((await decide({ action: "rescreen", owner: "owner-1", reason: "self service" })).status).toBe(403);
   });
+
+  it("a match on re-screen suspends an active account; a provider outage does not", async () => {
+    m.accounts["owner-1"].user.kycStatus = "verified";
+    await profile();
+    await act({ action: "screen" });
+    await finish();
+    await approveAll();
+    expect((await read(await act({ action: "activate" }))).body.state.activation.status).toBe("ACTIVE");
+    as("officer-1");
+
+    m.fail = true;
+    const outage = await read(await decide({ action: "rescreen", owner: "owner-1", reason: "Periodic review" }));
+    expect(outage.body.state.screening.status).toBe("failed");
+    expect(outage.body.state.activation.status).toBe("ACTIVE");
+
+    m.fail = false;
+    m.hits = [{ name: "NORTH WAY", matchScore: 0.9, sources: ["OFAC_SDN"] }];
+    const hit = await read(await decide({ action: "rescreen", owner: "owner-1", reason: "List update" }));
+    expect(hit.body.state.activation).toMatchObject({ status: "REQUIRES_ACTION", codes: ["screening_pending_review"] });
+    expect(hit.body.state.review.status).toBe("pending");
+    // Activation is re-derived, so the account stays off until compliance clears the match.
+    as("owner-1");
+    expect((await act({ action: "activate" })).status).toBe(409);
+  });
+});
+
+describe("officer document decisions and drafts", () => {
+  it("rejecting a document sends identity back and reopens an approved case", async () => {
+    await profile();
+    await act({ action: "screen" });
+    await finish();
+    await approveAll();
+    as("officer-1");
+    const doc = (await read(await QUEUE(json("GET", undefined, `${URL_}/review?owner=owner-1`)))).body.state.documents[0];
+    const r = await read(await decide({ action: "reject_document", owner: "owner-1", documentId: doc.id, reason: "The scan is unreadable" }));
+    expect(r.body.state.completed).not.toContain("identity");
+    expect(r.body.state.review.status).toBe("changes_requested");
+  });
+
+  it("a saved draft is shape-checked: blanks are fine, foreign keys are refused", async () => {
+    expect((await put("business", { legalName: "", address: { city: "" } }, false)).status).toBe(200);
+    expect((await put("business", { legalName: "", security: { totpSecret: "x" } }, false)).status).toBe(400);
+    expect((await view()).state.drafts.business).toEqual({ legalName: "", address: { city: "" } });
+  });
 });
 
 describe("document access", () => {

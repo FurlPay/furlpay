@@ -30,11 +30,14 @@ function publicRecord(row: Row): WorkspaceRecord {
     archivedAt: row.archived_at,
   };
 }
-export async function listRecords(owner: string): Promise<WorkspaceRecord[]> {
+export async function listRecords(owner: string, search?: string): Promise<WorkspaceRecord[]> {
   configured();
+  // Quote PostgREST values before encoding; query punctuation cannot alter the owner predicate.
+  const literal = search?.replace(/[\\%_*]/g, (v) => `\\${v}`).replace(/"/g, '\\"');
+  const filter = literal ? `&or=${encodeURIComponent(`(${["name", "customer", "note", "address", "asset", "network", "amount", "dueDate", "startDate", "lines", "allocations"].map((k) => `payload->>${k}.ilike."*${literal}*"`).join(",")})`)}` : "";
   const rows = await sbSelect<Row>(
     TABLE,
-    `${ownerFilter(owner)}&order=created_at.desc,id.desc&limit=500`
+    `${ownerFilter(owner)}${filter}&order=created_at.desc,id.desc&limit=500`
   );
   return rows.map(publicRecord);
 }
@@ -65,6 +68,11 @@ export async function saveRecord(
   )
     throw new RecordConflict("This request ID belongs to a different draft");
   return publicRecord(row);
+}
+export async function getRecord(owner: string, id: string): Promise<WorkspaceRecord | null> {
+  configured();
+  const [row] = await sbSelect<Row>(TABLE, `${ownerFilter(owner)}&id=eq.${encodeURIComponent(id)}&limit=1`);
+  return row ? publicRecord(row) : null;
 }
 export async function archiveRecord(
   owner: string,

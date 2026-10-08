@@ -550,6 +550,15 @@ export const BLOCKER_LABEL: Record<BlockerCode, string> = {
   settlement_rules_invalid: "Settlement rules invalid",
 };
 
+/**
+ * Activation state for an active account whose re-screen found a match: it stops
+ * being active until compliance reviews the match. A provider outage never does this.
+ */
+export function suspended(status: "potential_match" | "confirmed_match", at = new Date().toISOString()): OnboardingState["activation"] {
+  const code: BlockerCode = status === "confirmed_match" ? "screening_blocked" : "screening_pending_review";
+  return { status: "REQUIRES_ACTION", at, codes: [code], blockers: [BLOCKER_LABEL[code]] };
+}
+
 /** Country-level risk from the FATF lists — the only risk signal the platform computes. */
 export function countryRisk(iso?: string) {
   if (!iso) return null;

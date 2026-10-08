@@ -84,14 +84,14 @@ const change = (cur: number | null, prev: number | null) => (cur === null || pre
 
 export function activity(txs: LedgerTx[], range: Range, now = Date.now()) {
   const { span, bucket } = SHAPE[range];
-  const end = Math.ceil(now / bucket) * bucket;
-  const start = end - span;
+  const end = now;
+  const start = Math.floor((now - span) / bucket) * bucket;
   const series: { t: string; usd: number }[] = [];
   for (let at = start; at < end; at += bucket) series.push({ t: new Date(at).toISOString(), usd: 0 });
   for (const t of txs) {
     if (!settled(t)) continue;
     const at = Date.parse(t.timestamp);
-    if (!(at >= start && at < end)) continue;
+    if (!(at >= now - span && at < end)) continue;
     const i = Math.floor((at - start) / bucket);
     series[i].usd = round2(series[i].usd + Math.abs(t.amountUsd));
   }
@@ -139,7 +139,7 @@ export function decodeCursor(raw: string | null): Cursor | null {
   if (!raw) return null;
   try {
     const c = JSON.parse(Buffer.from(raw, "base64url").toString("utf8")) as Cursor;
-    return typeof c.ts === "string" && typeof c.id === "string" ? c : null;
+    return c && typeof c.ts === "string" && /^\d{4}-\d{2}-\d{2}T/.test(c.ts) && Number.isFinite(Date.parse(c.ts)) && typeof c.id === "string" && c.id.length > 0 && c.id.length <= 200 ? c : null;
   } catch {
     return null;
   }
@@ -147,7 +147,7 @@ export function decodeCursor(raw: string | null): Cursor | null {
 
 /** Newest first; ties broken by id so the cursor is stable. */
 export function page<T extends LedgerTx>(rows: T[], cursor: Cursor | null, limit: number) {
-  const sorted = rows.slice().sort((a, b) => (b.timestamp === a.timestamp ? (b.id < a.id ? -1 : 1) : b.timestamp < a.timestamp ? -1 : 1));
+  const sorted = rows.slice().sort((a, b) => (b.timestamp === a.timestamp ? (b.id === a.id ? 0 : b.id < a.id ? -1 : 1) : b.timestamp < a.timestamp ? -1 : 1));
   const after = cursor ? sorted.filter((r) => r.timestamp < cursor.ts || (r.timestamp === cursor.ts && r.id < cursor.id)) : sorted;
   const items = after.slice(0, limit);
   const last = items[items.length - 1];

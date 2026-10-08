@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { filterRows, isMatch, MAX_TOLERANCE_CENTS, reconcile, RESULT_LABEL, type MatchFilter } from "@/lib/settlement/reconcile";
 import {
   ArrowUpRight,
   BookOpen,
@@ -300,27 +301,23 @@ export function Approvals({
   );
 }
 
-type MatchRow = {
-  id: string;
-  ledgerAmount: number | null;
-  statementAmount: number | null;
-  matched: boolean;
-  source: string;
-};
 export function Reconciliation({
   transactions,
 }: {
   transactions: Activity[];
 }) {
-  const [rows, setRows] = useState<MatchRow[] | null>(null);
+  const [statement, setStatement] = useState<Map<string, number> | null>(null);
   const [error, setError] = useState("");
   const [source, setSource] = useState("Bank statement");
   const [busy, setBusy] = useState(false);
+  const [tolerance, setTolerance] = useState("0.00");
+  const [filter, setFilter] = useState<MatchFilter>("all");
+  const [query, setQuery] = useState("");
   async function compare(file?: File) {
     if (!file) return;
     setBusy(true);
     setError("");
-    setRows(null);
+    setStatement(null);
     try {
       if (file.size > 100_000)
         throw new Error("Statement must be smaller than 100 KB");
@@ -333,42 +330,36 @@ export function Reconciliation({
         throw new Error(
           "Use columns transaction_id,amount_usd and 1–500 rows."
         );
-      const seen = new Set<string>();
-      const statement = new Map<string, number>();
+      const next = new Map<string, number>();
       for (const row of input) {
-        if (row.length !== 2 || !row[0] || seen.has(row[0]))
+        if (row.length !== 2 || !row[0] || next.has(row[0]))
           throw new Error(
             "Statement contains a malformed row or duplicate transaction ID."
           );
-        seen.add(row[0]);
-        statement.set(row[0], minorUnits(row[1]));
+        next.set(row[0], minorUnits(row[1]));
       }
-      const ledger = new Map(
-        transactions.map((tx) => [
-          tx.id,
-          Math.round(Math.abs(tx.amountUsd) * 100),
-        ])
-      );
-      const ids = new Set([...ledger.keys(), ...statement.keys()]);
-      setRows(
-        [...ids].map((id) => ({
-          id,
-          ledgerAmount: ledger.get(id) ?? null,
-          statementAmount: statement.get(id) ?? null,
-          matched:
-            ledger.has(id) &&
-            statement.has(id) &&
-            ledger.get(id) === statement.get(id),
-          source,
-        }))
-      );
+      setStatement(next);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not read statement");
     } finally {
       setBusy(false);
     }
   }
-  const matches = rows?.filter((row) => row.matched).length ?? 0;
+  const toleranceCents = (() => {
+    try {
+      const c = minorUnits(tolerance);
+      return c <= MAX_TOLERANCE_CENTS ? c : null;
+    } catch {
+      return null;
+    }
+  })();
+  const rows = useMemo(() => {
+    if (!statement || toleranceCents === null) return null;
+    const ledger = new Map(transactions.map((tx) => [tx.id, Math.round(Math.abs(tx.amountUsd) * 100)]));
+    return reconcile(ledger, statement, toleranceCents);
+  }, [statement, transactions, toleranceCents]);
+  const matches = rows?.filter(isMatch).length ?? 0;
+  const shown = rows ? filterRows(rows, filter, query) : [];
   return (
     <>
       <div className="st-reconcile-grid">
@@ -382,16 +373,12 @@ export function Reconciliation({
           {
             icon: Landmark,
             title: "Bank clearing",
-            value: rows?.some((r) => r.source === "Bank statement")
-              ? "Statement imported"
-              : "Import a statement",
+            value: statement && source === "Bank statement" ? "Statement imported" : "Import a statement",
           },
           {
             icon: CheckCheck,
             title: "ERP / accounting",
-            value: rows?.some((r) => r.source === "ERP export")
-              ? "Export imported"
-              : "Import an export",
+            value: statement && source === "ERP export" ? "Export imported" : "Import an export",
           },
         ].map(({ icon: Icon, title, value }) => (
           <Panel key={title}>
@@ -415,7 +402,7 @@ export function Reconciliation({
                 disabled={busy}
                 onChange={(event) => {
                   setSource(event.target.value);
-                  setRows(null);
+                  setStatement(null);
                 }}
               >
                 <option>Bank statement</option>
@@ -430,11 +417,25 @@ export function Reconciliation({
                 onChange={(event) => void compare(event.target.files?.[0])}
               />
             </Field>
+            <Field label="Amount tolerance (USD)">
+              <input
+                inputMode="decimal"
+                aria-invalid={toleranceCents === null}
+                value={tolerance}
+                onChange={(event) => setTolerance(event.target.value.trim())}
+              />
+            </Field>
           </div>
+          {toleranceCents === null && (
+            <p role="alert" className="st-error">
+              Enter a tolerance from 0.00 to {usd(MAX_TOLERANCE_CENTS / 100)}.
+            </p>
+          )}
           <p className="st-muted">
             Columns: transaction_id,amount_usd. Use non-negative USD amounts.
             Uploaded data stays in this browser session. A match is an
             amount-and-ID comparison, not certified four-way reconciliation.
+            Rows inside the tolerance are labelled, never counted as exact.
           </p>
           {error && (
             <p role="alert" className="st-error">
@@ -453,7 +454,7 @@ export function Reconciliation({
                   downloadFile(
                     "reconciliation.json",
                     JSON.stringify(
-                      { basis: "Local comparison only", source, rows },
+                      { basis: "Local comparison only", source, toleranceUsd: tolerance, rows },
                       null,
                       2
                     ),
@@ -470,40 +471,59 @@ export function Reconciliation({
       </Panel>
       {rows && (
         <Panel title="Comparison results">
-          <div className="st-table-scroll">
-            <table className="st-table">
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>FurlPay · USD</th>
-                  <th>{source} · USD</th>
-                  <th>Result</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map((row) => (
-                  <tr key={row.id}>
-                    <td>{row.id}</td>
-                    <td className="st-number">
-                      {row.ledgerAmount === null
-                        ? "Missing"
-                        : usd(row.ledgerAmount / 100)}
-                    </td>
-                    <td className="st-number">
-                      {row.statementAmount === null
-                        ? "Missing"
-                        : usd(row.statementAmount / 100)}
-                    </td>
-                    <td>
-                      <Badge tone={row.matched ? "green" : "amber"}>
-                        {row.matched ? "Matched" : "Review required"}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="st-table-tools">
+            <input
+              aria-label="Search references"
+              placeholder="Search transaction ID"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+            <select aria-label="Filter results" value={filter} onChange={(event) => setFilter(event.target.value as MatchFilter)}>
+              <option value="all">All rows</option>
+              <option value="exceptions">Exceptions only</option>
+              <option value="matched">Matched only</option>
+            </select>
           </div>
+          {shown.length ? (
+            <div className="st-table-scroll">
+              <table className="st-table">
+                <thead>
+                  <tr>
+                    <th>Reference</th>
+                    <th>FurlPay · USD</th>
+                    <th>{source} · USD</th>
+                    <th>Difference</th>
+                    <th>Result</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.id}</td>
+                      <td className="st-number">
+                        {row.ledgerAmount === null ? "Missing" : usd(row.ledgerAmount / 100)}
+                      </td>
+                      <td className="st-number">
+                        {row.statementAmount === null ? "Missing" : usd(row.statementAmount / 100)}
+                      </td>
+                      <td className="st-number">
+                        {row.difference === null || row.difference === 0
+                          ? "—"
+                          : `${row.difference > 0 ? "+" : "−"}${usd(Math.abs(row.difference) / 100)}`}
+                      </td>
+                      <td>
+                        <Badge tone={row.result === "matched" ? "green" : "amber"}>
+                          {RESULT_LABEL[row.result]}
+                        </Badge>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <Empty title="No rows match" description="Change the search or the result filter." />
+          )}
         </Panel>
       )}
     </>

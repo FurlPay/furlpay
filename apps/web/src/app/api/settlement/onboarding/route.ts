@@ -5,11 +5,12 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { audit } from "@/lib/audit";
 import { getIdentityProvider } from "@/lib/compliance/providers/factory";
-import { BLOCKER_LABEL, EDITABLE_STEPS, STEP_SCHEMAS, STEPS, countryRisk, readiness, stepBlockers, type OnboardingState, type StepId } from "@/lib/settlement/onboarding";
+import { BLOCKER_LABEL, EDITABLE_STEPS, STEP_SCHEMAS, STEPS, countryRisk, readiness, stepBlockers, suspended, type OnboardingState, type StepId } from "@/lib/settlement/onboarding";
 import { loadState, OnboardingUnavailable, Refusal, updateState } from "@/lib/settlement/onboardingStore";
 import { facts, identityProviderConfigured, onboardingView as view } from "@/lib/settlement/onboardingView";
 import { runScreening } from "@/lib/settlement/screening";
 import { appendHistory, runRecord } from "@/lib/compliance/screeningHistory";
+import { DRAFT_SCHEMAS } from "@/lib/settlement/onboardingDraft";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
@@ -58,24 +59,29 @@ export async function PUT(req: NextRequest) {
   if (body instanceof NextResponse) return body;
   const step = body.step as keyof typeof STEP_SCHEMAS;
   const parsed = STEP_SCHEMAS[step].safeParse(body.data);
+  // Unfinished input is still shape-checked: blank fields are allowed, arbitrary JSON is not.
+  const draft = DRAFT_SCHEMAS[step].safeParse(body.data);
   if (!parsed.success && body.complete) {
     return NextResponse.json({ error: "Please fix the highlighted fields.", fields: parsed.error.flatten() }, { status: 422, headers });
   }
-  if (!parsed.success && (typeof body.data !== "object" || body.data === null || Array.isArray(body.data))) {
+  if (!parsed.success && !draft.success) {
     return NextResponse.json({ error: "Invalid draft." }, { status: 400, headers });
   }
   let blockers: string[] = [];
   const events: [Parameters<typeof audit>[0], Record<string, unknown>][] = [];
   try {
     const saved = await updateState(userId, (state) => {
+      // The mutator re-runs after a write conflict: start each attempt clean.
+      events.length = 0;
+      blockers = [];
+      if (state.activation.status === "ACTIVE" && LOCKED_AFTER_ACTIVATION.includes(step)) {
+        throw new Refusal("Verified business details are locked after activation. Contact support to change them.", 409);
+      }
       if (state.completed.length === 0 && !state.business && !state.drafts) events.push(["settlement.onboarding.started", {}]);
       if (!parsed.success) {
         // "Save and continue later" with an unfinished form: kept as a draft only.
-        state.drafts = { ...state.drafts, [step]: body.data };
+        state.drafts = { ...state.drafts, [step]: draft.success ? draft.data : undefined };
         return state;
-      }
-      if (state.activation.status === "ACTIVE" && LOCKED_AFTER_ACTIVATION.includes(step)) {
-        throw new Refusal("Verified business details are locked after activation. Contact support to change them.", 409);
       }
       // Required steps cannot be bypassed: every earlier step must already be complete.
       const missing = STEPS.slice(0, STEPS.indexOf(step)).filter((x) => x !== "review" && !state.completed.includes(x));
@@ -155,6 +161,9 @@ export async function POST(req: NextRequest) {
         state.screeningHistory = appendHistory(state.screeningHistory, runRecord(outcome.result, trigger, userId));
         state.screening = outcome.result;
         if (outcome.result.status !== "clear" && outcome.result.status !== "cleared_by_review") state.completed = state.completed.filter((x) => x !== "compliance");
+        // A new or confirmed match suspends an active account. A provider outage
+        // ("failed") is recorded but does not switch off a verified business.
+        if (state.activation.status === "ACTIVE" && (outcome.result.status === "potential_match" || outcome.result.status === "confirmed_match")) state.activation = suspended(outcome.result.status);
         if (outcome.result.status === "potential_match" && submitForReview(state, userId, "potential sanctions match")) {
           audit("settlement.onboarding.review_requested", userId, { reason: "screening" });
         }

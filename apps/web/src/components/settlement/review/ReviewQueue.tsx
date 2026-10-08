@@ -31,6 +31,8 @@ const when = (iso?: string | null) => (iso ? new Date(iso).toLocaleString() : "â
 
 export default function ReviewQueue() {
   const [scope, setScope] = useState<"open" | "all">("open");
+  const [query, setQuery] = useState("");
+  const [screeningFilter, setScreeningFilter] = useState("");
   const [cases, setCases] = useState<CaseSummary[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<CaseDetail | null>(null);
@@ -58,10 +60,12 @@ export default function ReviewQueue() {
 
   useEffect(() => {
     if (!selected) return setDetail(null);
+    const ac = new AbortController();
     setDetail(null);
-    api<CaseDetail>(`/api/settlement/onboarding/review?owner=${encodeURIComponent(selected)}`)
-      .then(setDetail)
-      .catch((e) => setError(e instanceof Error ? e.message : "Case unavailable."));
+    api<CaseDetail>(`/api/settlement/onboarding/review?owner=${encodeURIComponent(selected)}`, { signal: ac.signal })
+      .then((r) => { if (!ac.signal.aborted) setDetail(r); })
+      .catch((e) => { if (!ac.signal.aborted) setError(e instanceof Error ? e.message : "Case unavailable."); });
+    return () => ac.abort();
   }, [selected]);
 
   async function decide(action: Action, documentId?: string) {
@@ -94,6 +98,7 @@ export default function ReviewQueue() {
   }
 
   const st = detail?.state;
+  const visible = cases?.filter((c) => (!screeningFilter || c.screening === screeningFilter) && [c.ownerId, c.business?.legalName, c.business?.country, countryName(c.business?.country), c.review, c.screening].join(" ").toLowerCase().includes(query.toLowerCase()));
   const readOnly = Boolean(detail?.self) || st?.activation.status === "ACTIVE";
 
   return (
@@ -117,16 +122,17 @@ export default function ReviewQueue() {
           </div>
         </div>
         {error && <Notice tone="error">{error}</Notice>}
+        <div className="st-table-tools" style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 16 }}><input className="os-input" aria-label="Search review cases" placeholder="Business, country, case ID or status" value={query} onChange={(e) => setQuery(e.target.value)} /><select className="os-select" aria-label="Screening status filter" value={screeningFilter} onChange={(e) => setScreeningFilter(e.target.value)}><option value="">All screening statuses</option>{["not_run", "clear", "potential_match", "cleared_by_review", "confirmed_match", "failed"].map((s) => <option key={s} value={s}>{label(s)}</option>)}</select></div>
 
         <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 360px) minmax(0, 1fr)", gap: 16, marginTop: 16 }} className="os-split-cols">
           <section className="os-card" style={{ padding: 0, overflow: "hidden" }} aria-label="Cases">
             {cases === null ? (
               <p style={{ padding: 16, color: "var(--os-muted)" }}>Loadingâ€¦</p>
-            ) : cases.length === 0 ? (
+            ) : visible?.length === 0 ? (
               <p style={{ padding: 16, color: "var(--os-muted)" }}>No cases {scope === "open" ? "awaiting review" : "recorded"}.</p>
             ) : (
               <div className="os-rows" style={{ gap: 0 }}>
-                {cases.map((c) => (
+                {visible?.map((c) => (
                   <button key={c.ownerId} type="button" className="os-row" aria-current={selected === c.ownerId} onClick={() => setSelected(c.ownerId)} style={{ borderRadius: 0, borderWidth: "0 0 1px", background: selected === c.ownerId ? "var(--os-sunk)" : undefined }}>
                     <span className="os-row-body">
                       <strong>{c.business?.legalName ?? "Unnamed business"}</strong>

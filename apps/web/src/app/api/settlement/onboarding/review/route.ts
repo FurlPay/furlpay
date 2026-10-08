@@ -5,7 +5,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { audit } from "@/lib/audit";
 import { getAccountDurable } from "@/lib/store";
-import { DOCUMENTS, readiness, requiredDocumentKinds, screeningIsFresh, type OnboardingState } from "@/lib/settlement/onboarding";
+import { DOCUMENTS, readiness, requiredDocumentKinds, screeningIsFresh, suspended, type OnboardingState } from "@/lib/settlement/onboarding";
 import { listStates, loadState, OnboardingUnavailable, Refusal, updateState } from "@/lib/settlement/onboardingStore";
 import { facts, onboardingView } from "@/lib/settlement/onboardingView";
 import { runScreening } from "@/lib/settlement/screening";
@@ -98,6 +98,11 @@ export async function POST(req: NextRequest) {
           doc.reviewedBy = reviewer;
           doc.reviewedAt = at;
           doc.reviewReason = body.reason;
+          if (body.action === "reject_document") {
+            // A rejected document sends identity back to the applicant; an approval covered the old file.
+            s.completed = s.completed.filter((x) => x !== "identity");
+            if (s.review?.status === "approved") s.review = { ...s.review, status: "changes_requested", reason: body.reason };
+          }
           log(body.action, doc.kind);
           event = "settlement.onboarding.review_document_decided";
           return s;
@@ -105,6 +110,8 @@ export async function POST(req: NextRequest) {
         case "clear_screening":
         case "confirm_match": {
           if (s.screening?.status !== "potential_match") throw new Refusal("There is no potential match awaiting review.", 409);
+          // A clearance is evidence about a recent result; an old one is re-screened first.
+          if (body.action === "clear_screening" && !screeningIsFresh(s.screening)) throw new Refusal("Screening has expired. Re-screen the case before clearing it.", 409);
           s.screening = { ...s.screening, status: body.action === "clear_screening" ? "cleared_by_review" : "confirmed_match", review: { by: reviewer, at, reason: body.reason } };
           s.screeningHistory = appendHistory(s.screeningHistory, decisionRecord(body.action === "clear_screening" ? "FALSE_POSITIVE" : "CONFIRMED_MATCH", reviewer, body.reason, s.screening.requestKey, at));
           log(body.action);
@@ -120,6 +127,9 @@ export async function POST(req: NextRequest) {
           s.screeningHistory = appendHistory(s.screeningHistory, decisionRecord("UNDER_REVIEW", reviewer, body.reason, outcome.result.requestKey, at));
           s.screening = outcome.result;
           if (outcome.result.status !== "clear" && outcome.result.status !== "cleared_by_review") s.completed = s.completed.filter((x) => x !== "compliance");
+          // A new candidate goes back to review; a match (new or confirmed) suspends an active account.
+          if (outcome.result.status === "potential_match" && s.review?.status !== "pending") s.review = { ...r, ...s.review, status: "pending", submittedAt: at };
+          if (s.activation.status === "ACTIVE" && (outcome.result.status === "potential_match" || outcome.result.status === "confirmed_match")) s.activation = suspended(outcome.result.status, at);
           log("rescreen");
           event = "settlement.onboarding.review_screening_decided";
           return s;

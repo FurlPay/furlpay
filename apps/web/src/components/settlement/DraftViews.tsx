@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { draftSearchText } from "@/lib/settlement/search";
 import { ArrowUpRight, ChevronRight, Download, FileText, GitFork, Link2, Plus, Search, Users } from "lucide-react";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 import { decimalAmount, invoiceTotals, recordAmount, type DraftKind, type WorkspaceRecord } from "@/lib/settlement/model";
@@ -28,7 +29,7 @@ export function DraftList({
     (row) =>
       row.data.kind === kind &&
       !!row.archivedAt === archived &&
-      row.data.name.toLowerCase().includes(query.toLowerCase())
+      `${row.id} ${draftSearchText(row.data)}`.includes(query.trim().toLowerCase())
   );
   const descriptions: Record<DraftKind, string> = {
     invoice:

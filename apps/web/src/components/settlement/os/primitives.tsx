@@ -121,6 +121,7 @@ export async function api<T>(url: string, init: RequestInit = {}): Promise<T> {
     credentials: "same-origin",
     cache: "no-store",
     ...init,
+    signal: init.signal ? AbortSignal.any([init.signal, AbortSignal.timeout(30_000)]) : AbortSignal.timeout(30_000),
     headers: init.body && !(init.body instanceof FormData) ? { "Content-Type": "application/json", ...init.headers } : init.headers,
   });
   const body = (await res.json().catch(() => null)) as (T & { error?: string; message?: string; detail?: string }) | null;
