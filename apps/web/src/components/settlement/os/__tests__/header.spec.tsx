@@ -26,6 +26,8 @@ const ROUTES: [string, string | null][] = [
   ["/settlement/reports", "Reconcile"],
   ["/settlement/developers", "Developers"],
   ["/ops/compliance/reviews", "Compliance"],
+  ["/ops/compliance", "Compliance"],
+  ["/ops/compliance/aml", "Compliance"],
   ["/settlement/settings", null],
   ["/settlement/onboarding/business", null],
 ];

@@ -33,7 +33,7 @@ const SECTION_TAB: Record<(typeof SETTLEMENT_SECTIONS)[number], AppTab | null> =
 export function navTabFor(pathname: string | null | undefined): AppTab | null {
   const p = (pathname ?? "").replace(/[?#].*$/, "").replace(/\/+$/, "") || "/";
   if (p === "/settlement") return "Overview";
-  if (p === "/ops/compliance/reviews" || p.startsWith("/ops/compliance/reviews/")) return "Compliance";
+  if (p === "/ops/compliance" || p.startsWith("/ops/compliance/")) return "Compliance";
   const m = /^\/settlement\/([^/]+)/.exec(p);
   if (!m || m[1] === "onboarding") return null;
   return Object.hasOwn(SECTION_TAB, m[1]) ? (SECTION_TAB as Record<string, AppTab | null>)[m[1]] : null;
