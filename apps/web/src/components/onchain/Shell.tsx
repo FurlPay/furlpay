@@ -2,32 +2,33 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import {
-  BarChart3,
-  Bell,
-  BookOpen,
-  Boxes,
-  ChartNoAxesCombined,
-  ChevronDown,
-  CircleDollarSign,
-  CreditCard,
-  FileText,
-  Globe2,
-  Landmark,
-  LayoutDashboard,
-  Network,
-  Plane,
-  Plug,
-  Search,
-  Settings,
-  ShieldAlert,
-  ShieldCheck,
-  Store,
-  Users,
-  Wallet,
-  Webhook,
-  type LucideIcon,
-} from "lucide-react";
+  IconAnalytics,
+  IconApi,
+  IconBell,
+  IconCard,
+  IconChainAnalytics,
+  IconCompliance,
+  IconCounterparties,
+  IconDocs,
+  IconIntegrations,
+  IconMenu,
+  IconMerchant,
+  IconOverview,
+  IconPayments,
+  IconProfile,
+  IconReports,
+  IconRisk,
+  IconSearch,
+  IconSettings,
+  IconStablecoinMarket,
+  IconTokenizedAssets,
+  IconTravel,
+  IconUsers,
+  IconWallet,
+  type FurlIcon,
+} from "@/components/furlicons";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 import type { RiskView } from "@/lib/onchain/dashboard";
 import { fmtCount } from "@/components/analytics/format";
@@ -38,20 +39,20 @@ export const RANGE_LABEL: Record<OnchainRange, string> = { "24h": "Last 24 hours
 export const CHAINS = ["all", "ethereum", "base", "arbitrum", "solana", "polygon", "optimism", "avalanche"] as const;
 
 /** Section anchors on this page, or real public pages. No dead links. */
-const NAV: { label: string; href: string; Icon: LucideIcon }[] = [
-  { label: "Overview", href: "#overview", Icon: LayoutDashboard },
-  { label: "Payments", href: "#payments", Icon: CircleDollarSign },
-  { label: "Wallets", href: "/dashboard", Icon: Wallet },
-  { label: "Cards", href: "/cards", Icon: CreditCard },
-  { label: "Travel", href: "/travel", Icon: Plane },
-  { label: "Users", href: "#overview", Icon: Users },
-  { label: "Merchants", href: "#categories", Icon: Store },
-  { label: "Compliance", href: "#risk", Icon: ShieldCheck },
-  { label: "Risk", href: "#risk", Icon: ShieldAlert },
-  { label: "Counterparties", href: "#counterparties", Icon: Network },
-  { label: "Chain Analytics", href: "#chains", Icon: Boxes },
-  { label: "Stablecoin Market", href: "#market", Icon: Globe2 },
-  { label: "Reports", href: "/reports", Icon: FileText },
+const NAV: { label: string; href: string; Icon: FurlIcon }[] = [
+  { label: "Overview", href: "#overview", Icon: IconOverview },
+  { label: "Payments", href: "#payments", Icon: IconPayments },
+  { label: "Wallets", href: "/dashboard", Icon: IconWallet },
+  { label: "Cards", href: "/cards", Icon: IconCard },
+  { label: "Travel", href: "/travel", Icon: IconTravel },
+  { label: "Users", href: "#overview", Icon: IconUsers },
+  { label: "Merchants", href: "#categories", Icon: IconMerchant },
+  { label: "Compliance", href: "#risk", Icon: IconCompliance },
+  { label: "Risk", href: "#risk", Icon: IconRisk },
+  { label: "Counterparties", href: "#counterparties", Icon: IconCounterparties },
+  { label: "Chain Analytics", href: "#chains", Icon: IconChainAnalytics },
+  { label: "Stablecoin Market", href: "#market", Icon: IconStablecoinMarket },
+  { label: "Reports", href: "/reports", Icon: IconReports },
 ];
 
 /** A plain ring glyph standing in for the Allium wordmark (not their trademarked logo). */
@@ -86,7 +87,7 @@ const initialOf = (me: Me | null | undefined) => (me?.initials || me?.name?.[0] 
 
 export function Sidebar({ active, onNavigate, alliumConfigured, operator = false }: { active: string; onNavigate?: () => void; alliumConfigured: boolean; operator?: boolean }) {
   // The Tokenized Assets section exists on the page only for the operator.
-  const nav = operator ? [...NAV.slice(0, 12), { label: "Tokenized Assets", href: "#rwa", Icon: Landmark }, ...NAV.slice(12)] : NAV;
+  const nav = operator ? [...NAV.slice(0, 12), { label: "Tokenized Assets", href: "#rwa", Icon: IconTokenizedAssets }, ...NAV.slice(12)] : NAV;
   const me = useMe();
   const row = "flex h-[35px] items-center gap-3 rounded-lg border px-3 text-[13px] transition-colors";
   return (
@@ -100,7 +101,7 @@ export function Sidebar({ active, onNavigate, alliumConfigured, operator = false
         onClick={onNavigate}
         className="mb-2 flex h-[36px] items-center gap-2.5 rounded-lg border border-[#00E599]/25 bg-[#00E599]/[0.10] px-3 text-[13px] font-medium text-white"
       >
-        <ChartNoAxesCombined className="h-4 w-4 text-[#00E599]" /> Analytics <ChevronDown className="ml-auto h-3.5 w-3.5 text-white/70" />
+        <IconAnalytics size={16} strokeWidth={1.7} className="text-[#00E599]" /> Analytics <ChevronDown className="ml-auto h-3.5 w-3.5 text-white/70" />
       </Link>
       <ul className="space-y-[1px]">
         {nav.map(({ label, href, Icon }) => {
@@ -113,7 +114,7 @@ export function Sidebar({ active, onNavigate, alliumConfigured, operator = false
                 aria-current={on ? "page" : undefined}
                 className={`${row} ${on ? "border-[#00E599]/20 bg-[#0E2A20] text-white" : "border-transparent text-[#D5DAD8] hover:bg-white/[0.04] hover:text-white"}`}
               >
-                <Icon className={`h-[17px] w-[17px] shrink-0 ${on ? "text-[#00E599]" : "text-white/85"}`} strokeWidth={1.7} /> {label}
+                <Icon size={17} strokeWidth={1.7} className={on ? "text-[#00E599]" : "text-white/85"} /> {label}
               </Link>
             </li>
           );
@@ -123,12 +124,12 @@ export function Sidebar({ active, onNavigate, alliumConfigured, operator = false
       <ul className="space-y-[1px]">
         <li>
           <Link href="/docs" onClick={onNavigate} className={`${row} border-transparent text-[#D5DAD8] hover:bg-white/[0.04] hover:text-white`}>
-            <Webhook className="h-[17px] w-[17px]" strokeWidth={1.7} /> API & Webhooks
+            <IconApi size={17} strokeWidth={1.7} /> API & Webhooks
           </Link>
         </li>
         <li>
           <Link href="/integrations" onClick={onNavigate} className={`${row} border-transparent text-[#D5DAD8] hover:bg-white/[0.04] hover:text-white`}>
-            <Plug className="h-[17px] w-[17px]" strokeWidth={1.7} /> Integrations
+            <IconIntegrations size={17} strokeWidth={1.7} /> Integrations
           </Link>
         </li>
       </ul>
@@ -150,12 +151,12 @@ export function Sidebar({ active, onNavigate, alliumConfigured, operator = false
         <ul className="space-y-[1px]">
           <li>
             <Link href="/docs" onClick={onNavigate} className={`${row} border-transparent text-[#D5DAD8] hover:bg-white/[0.04] hover:text-white`}>
-              <BookOpen className="h-[17px] w-[17px]" strokeWidth={1.7} /> Docs
+              <IconDocs size={17} strokeWidth={1.7} /> Docs
             </Link>
           </li>
           <li>
             <Link href="/profile" onClick={onNavigate} className={`${row} border-transparent text-[#D5DAD8] hover:bg-white/[0.04] hover:text-white`}>
-              <Settings className="h-[17px] w-[17px]" strokeWidth={1.7} /> Settings
+              <IconSettings size={17} strokeWidth={1.7} /> Settings
             </Link>
           </li>
         </ul>
@@ -228,10 +229,10 @@ export function TopNav({
   return (
     <header className="sticky top-0 z-40 flex h-[53px] items-center gap-3 border-b border-white/[0.07] bg-[#06090A]/95 px-4 backdrop-blur sm:px-[15px]">
       <button onClick={onMenu} aria-label="Open navigation" className="rounded-md p-1.5 text-white/75 hover:text-white xl:hidden">
-        <BarChart3 className="h-5 w-5" />
+        <IconMenu size={20} />
       </button>
       <label className="hidden h-[32px] w-full max-w-[454px] items-center gap-2 rounded-md border border-white/[0.11] bg-[#0A0F10] px-3 transition-colors focus-within:border-[#00E599]/50 md:flex">
-        <Search className="h-4 w-4 shrink-0 text-white/55" />
+        <IconSearch size={14} className="text-white/55" />
         <input
           ref={input}
           value={query}
@@ -254,7 +255,7 @@ export function TopNav({
         <span className="mx-1 hidden h-6 w-px bg-white/[0.1] sm:block" />
         <div ref={bellRef} className="relative">
           <button onClick={() => setBell((b) => !b)} aria-label={`Alerts${alerts ? `: ${alerts} flagged` : ""}`} aria-expanded={bell} className="relative rounded-lg p-2 text-white/85 hover:bg-white/[0.05]">
-            <Bell className="h-[18px] w-[18px]" />
+            <IconBell size={16} />
             {alerts > 0 && <span className="absolute right-[7px] top-[6px] h-2 w-2 rounded-full bg-[#FF3B5C] ring-2 ring-[#06090A]" />}
           </button>
           {bell && (
@@ -276,7 +277,7 @@ export function TopNav({
           )}
         </div>
         <Link href={me ? "/profile" : "/login?next=%2Fonchain"} aria-label={me ? "Your profile" : "Sign in"} className="flex h-[34px] w-[34px] items-center justify-center rounded-full bg-[#1A2224] text-[13px] font-semibold text-white ring-1 ring-white/10 hover:ring-white/30">
-          {me ? initialOf(me) : <Users className="h-4 w-4 text-white/85" />}
+          {me ? initialOf(me) : <IconProfile size={16} className="text-white/85" />}
         </Link>
       </div>
     </header>

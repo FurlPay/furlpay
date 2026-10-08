@@ -1,5 +1,6 @@
 "use client";
 
+import { IconIndex } from "@/components/furlicons";
 import type { UsdcIndexView } from "@/lib/onchain/usdcIndex/view";
 import { Address } from "./Address";
 import { BrandLogo } from "./BrandLogo";
@@ -80,7 +81,7 @@ export function UsdcIndexPanelView({ data, error, lastOk }: { data: UsdcIndexVie
   const w = (data?.windows ?? {}) as Record<string, Win>;
   const largest = w["1h"]?.top ?? w["24h"]?.top ?? [];
   return (
-    <Card
+    <Card icon={IconIndex}
       id="usdc-index"
       title="Ethereum USDC · finalized index"
       source="FurlPay's own index of native USDC Transfer events on Ethereum mainnet, read from archive RPC nodes (finalized blocks only). Counts and volumes are exact; unique senders/receivers over 24H and longer are HyperLogLog estimates."
@@ -90,7 +91,7 @@ export function UsdcIndexPanelView({ data, error, lastOk }: { data: UsdcIndexVie
       {!data ? (
         !error && <div className="h-[140px] animate-pulse rounded-lg border border-white/[0.06] bg-white/[0.02]" aria-busy="true" aria-label="Loading USDC index" />
       ) : !data.available ? (
-        <Unavailable reason={data.reason ?? "Unavailable."} />
+        <Unavailable reason={data.reason ?? "Unavailable."} icon={IconIndex} />
       ) : (
         <>
           <div className="mb-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11.5px] text-white/65">

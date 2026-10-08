@@ -1,5 +1,6 @@
 "use client";
 
+import { IconCrossChain, IconLink } from "@/components/furlicons";
 import { ArrowRight, Check, Circle } from "lucide-react";
 import type { CctpTransferView, CctpView } from "@/lib/onchain/cctpView";
 import { BrandLogo, chainName } from "./BrandLogo";
@@ -77,7 +78,7 @@ export function CctpPanel() {
 export function CctpPanelView({ data, error, lastOk }: { data: CctpView | null; error: string | null; lastOk: number | null }) {
   const total = data ? Object.values(data.byStatus).reduce((a, b) => a + b, 0) : 0;
   return (
-    <Card
+    <Card icon={IconCrossChain}
       id="cctp"
       title="Cross-chain USDC · Circle CCTP V2"
       source="FurlPay's index of CCTP V2 events from finalized blocks (TokenMessengerV2 / MessageTransmitterV2), Circle Iris attestations, and destination-chain verification."
@@ -87,7 +88,7 @@ export function CctpPanelView({ data, error, lastOk }: { data: CctpView | null; 
       {!data ? (
         !error && <div className="h-[120px] animate-pulse rounded-lg border border-white/[0.06] bg-white/[0.02]" aria-busy="true" aria-label="Loading CCTP" />
       ) : !data.available ? (
-        <Unavailable reason={data.reason ?? "Unavailable."} />
+        <Unavailable reason={data.reason ?? "Unavailable."} icon={IconLink} />
       ) : (
         <>
           <p className="mb-2 text-[11px] text-white/50">

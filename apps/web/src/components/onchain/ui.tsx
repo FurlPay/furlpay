@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Check, ChevronDown, Info } from "lucide-react";
+import { Check, ChevronDown } from "lucide-react";
+import { IconInfo, type FurlIcon } from "@/components/furlicons";
 import { PRODUCT_LABELS } from "@/lib/analytics/products";
 import { fmtChange } from "@/components/analytics/format";
 import type { Freshness, SectionFreshness } from "@/lib/onchain/freshness";
@@ -68,14 +69,15 @@ export function FreshnessChip({ f, inline = false }: { f: SectionFreshness; inli
   );
 }
 
-export function Card({ title, id, action, source, freshness, children, className = "" }: { title: string; id?: string; action?: ReactNode; source?: string; freshness?: SectionFreshness | null; children: ReactNode; className?: string }) {
+export function Card({ title, icon: Icon, id, action, source, freshness, children, className = "" }: { title: string; icon?: FurlIcon; id?: string; action?: ReactNode; source?: string; freshness?: SectionFreshness | null; children: ReactNode; className?: string }) {
   return (
     <section id={id} className={`flex min-w-0 scroll-mt-16 flex-col rounded-[10px] border border-white/[0.075] bg-[#0A0F10] px-4 pb-3.5 pt-3.5 ${className}`}>
       <div className="mb-2.5 flex min-h-[28px] items-center gap-1.5">
+        {Icon && <Icon size={16} className="text-white/60" />}
         <h2 className="truncate text-[15.5px] font-semibold tracking-[-0.01em] text-white">{title}</h2>
         {source && (
           <span className="group relative shrink-0" tabIndex={0} aria-label={`Source: ${source}`}>
-            <Info className="h-3.5 w-3.5 text-white/30 transition-colors group-hover:text-white/70 group-focus:text-white/70" />
+            <IconInfo size={14} className="text-white/30 transition-colors group-hover:text-white/70 group-focus:text-white/70" />
             <span role="tooltip" className="pointer-events-none absolute left-0 top-5 z-50 hidden w-max max-w-[280px] rounded-md border border-white/[0.12] bg-[#0D1415] px-2.5 py-1.5 text-[11px] text-white/80 shadow-xl shadow-black/60 group-hover:block group-focus:block">
               Source: {source}
             </span>
@@ -177,17 +179,25 @@ export function GhostButton({ children, onClick, href }: { children: ReactNode; 
   );
 }
 
-export function Unavailable({ reason }: { reason: string }) {
+export function Unavailable({ reason, icon: Icon = IconInfo }: { reason: string; icon?: FurlIcon }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-white/[0.09] px-4 py-5 text-center">
-      <p className="text-[12.5px] font-medium text-white/75">Not available</p>
+      <p className="flex items-center gap-1.5 text-[12.5px] font-medium text-white/75">
+        <Icon size={14} className="text-white/45" />
+        Not available
+      </p>
       <p className="max-w-[320px] text-[11.5px] text-white/45">{reason}</p>
     </div>
   );
 }
 
-export function Empty({ text }: { text: string }) {
-  return <p className="flex flex-1 items-center justify-center py-5 text-center text-[12.5px] text-white/45">{text}</p>;
+export function Empty({ text, icon: Icon }: { text: string; icon?: FurlIcon }) {
+  return (
+    <p className="flex flex-1 items-center justify-center gap-1.5 py-5 text-center text-[12.5px] text-white/45">
+      {Icon && <Icon size={14} className="text-white/35" />}
+      {text}
+    </p>
+  );
 }
 
 export function Change({ ratio, invert = false, className = "text-[13px]" }: { ratio: number | null; invert?: boolean; className?: string }) {

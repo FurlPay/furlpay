@@ -1,7 +1,7 @@
 "use client";
 
+import { IconBlock, IconBurn, IconEvents, IconHash, IconHistory, IconIntegrity, IconMint, IconNetwork, IconRanking, IconReceiver, IconRefresh, IconRpc, IconSender, IconSupplyChange, IconTransfer, IconTransfers, IconUsdc, type FurlIcon } from "@/components/furlicons";
 import { useState } from "react";
-import { RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import type { UsdcChain, UsdcWindow } from "@/lib/onchain/usdcNetwork";
 import type { HistoryRange } from "@/lib/onchain/usdcHistory";
 import { BrandLogo, chainName } from "./BrandLogo";
@@ -25,11 +25,28 @@ import { ago, Def, DEFINITIONS, Flash, int, Segmented, usdc } from "./usdcPanel/
 
 const txUrl = (c: UsdcChain, tx: string) => (c.explorer ? `${c.explorer.replace(/\/+$/, "").split("?")[0]}/tx/${tx}` : null);
 
+/** One icon per metric meaning, everywhere it appears (live row and history). */
+const METRIC_ICON: Record<string, FurlIcon> = {
+  supply: IconUsdc,
+  netSupply: IconSupplyChange,
+  volume: IconTransfer,
+  transfers: IconTransfers,
+  minted: IconMint,
+  burned: IconBurn,
+  senders: IconSender,
+  receivers: IconReceiver,
+  eps: IconEvents,
+};
+
 function Metric({ k, label, value, exact, sub, tone }: { k: string; label: string; value: string; exact?: string | null; sub: string; tone?: "pos" | "neg" }) {
+  const Icon = METRIC_ICON[k];
   return (
     <div className="min-w-0">
-      <p className="truncate text-[11px] text-white/55">
-        <Def k={k}>{label}</Def>
+      <p className="flex min-w-0 items-center gap-1 text-[11px] text-white/55">
+        {Icon && <Icon size={13} className="text-white/45" />}
+        <span className="truncate">
+          <Def k={k}>{label}</Def>
+        </span>
       </p>
       <p className={`truncate text-[17px] font-bold tabular-nums leading-tight ${tone === "pos" ? "text-[#00E599]" : tone === "neg" ? "text-[#FF8FA3]" : ""}`} title={exact ?? undefined}>
         <Flash value={value}>{value}</Flash>
@@ -64,7 +81,7 @@ export function UsdcNetworkPanel() {
   const H = hist.data;
 
   return (
-    <Card
+    <Card icon={IconNetwork}
       id="usdc"
       title="USDC Network"
       source="Each chain's own node (JSON-RPC), read live; history from FurlPay's stored network index (finalized blocks). Native Circle USDC only."
@@ -74,14 +91,16 @@ export function UsdcNetworkPanel() {
             <span className={`h-1.5 w-1.5 rounded-full ${live.error ? "bg-[#F5B83D]" : data ? "bg-[#00E599] motion-safe:animate-pulse" : "bg-white/30"}`} aria-hidden="true" />
             {live.error && data ? "Delayed · " : ""}
             {/* The server's node read time, not when this browser fetched it (reads are shared and cached). */}
+            <IconRpc size={12} className="text-white/45" />
             Node read {ago(data?.generatedAt ?? null)}
           </span>
-          <span className="rounded border border-white/[0.12] px-1.5 py-0.5 text-[10.5px] font-semibold text-white/70" title="Every amount on this panel is in USDC units, not converted to USD.">
+          <span className="inline-flex items-center gap-1 rounded border border-white/[0.12] px-1.5 py-0.5 text-[10.5px] font-semibold text-white/70" title="Every amount on this panel is in USDC units, not converted to USD.">
+            <IconUsdc size={11} className="text-[#2775CA]" />
             Unit: USDC
           </span>
           <Segmented label="Live window" value={String(win) as "60" | "300"} onChange={(v) => setWin(Number(v) as UsdcWindow)} options={[{ v: "60", l: "1m" }, { v: "300", l: "5m" }]} />
           <button type="button" onClick={() => void live.reload()} aria-label="Refresh USDC" className="rounded-md border border-white/[0.12] p-1.5 text-white/70 hover:text-white focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#00E599]">
-            <RefreshCw className={`h-3.5 w-3.5 ${live.loading ? "motion-safe:animate-spin" : ""}`} />
+            <IconRefresh size={14} className={live.loading ? "motion-safe:animate-spin" : ""} />
           </button>
         </>
       }
@@ -140,7 +159,10 @@ export function UsdcNetworkPanel() {
 
           {/* History + rankings */}
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <h3 className="text-[12.5px] font-semibold text-white/85">History · finalized index</h3>
+            <h3 className="flex items-center gap-1.5 text-[12.5px] font-semibold text-white/85">
+              <IconHistory size={14} className="text-white/55" />
+              History · finalized index
+            </h3>
             <Segmented
               label="History range"
               value={range}
@@ -169,7 +191,10 @@ export function UsdcNetworkPanel() {
               </div>
             </>
           )}
-          <h3 className="mb-2 mt-4 text-[12.5px] font-semibold text-white/85">Cross-chain ranking · {range.toUpperCase()}</h3>
+          <h3 className="mb-2 mt-4 flex items-center gap-1.5 text-[12.5px] font-semibold text-white/85">
+            <IconRanking size={14} className="text-white/55" />
+            Cross-chain ranking · {range.toUpperCase()}
+          </h3>
           {H && !H.available ? (
             <p className="text-[11.5px] text-white/50">Rankings need the stored index: {H.reason}</p>
           ) : (
@@ -180,12 +205,12 @@ export function UsdcNetworkPanel() {
           <div className="mt-4 rounded-lg border border-white/[0.07] px-3 py-2.5">
             {!data.index.available ? (
               <p className="flex items-start gap-2 text-[11.5px] text-white/60">
-                <TriangleAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#F5B83D]" aria-hidden="true" />
+                <IconIntegrity size={14} tone="warning" className="mt-0.5" />
                 <span>Integrity checks unavailable: {data.index.reason} They run on every indexed range once the index is stored.</span>
               </p>
             ) : issues.length === 0 ? (
               <p className="flex items-start gap-2 text-[11.5px] text-white/65">
-                <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#00E599]" aria-hidden="true" />
+                <IconIntegrity size={14} tone="success" className="mt-0.5" />
                 <span>
                   No open integrity issues. Checked on every indexed range: contiguous blocks, unchanged finalized parent, exact supply reconciliation, no negative or impossible amounts, no duplicate events, endpoint chain id.
                 </span>
@@ -193,7 +218,7 @@ export function UsdcNetworkPanel() {
             ) : (
               <>
                 <p className="mb-1.5 flex items-center gap-2 text-[12px] font-semibold text-[#F5B83D]">
-                  <TriangleAlert className="h-3.5 w-3.5" aria-hidden="true" /> {issues.length} open integrity issue{issues.length === 1 ? "" : "s"}
+                  <IconIntegrity size={14} tone="warning" /> {issues.length} open integrity issue{issues.length === 1 ? "" : "s"}
                 </p>
                 <ul className="space-y-1 text-[11px]">
                   {issues.slice(0, 8).map((i) => (
@@ -208,7 +233,10 @@ export function UsdcNetworkPanel() {
           </div>
 
           {/* Largest live transfers */}
-          <h3 className="mb-1.5 mt-4 text-[12.5px] font-semibold text-white/85">Largest USDC transfers · {winLabel}</h3>
+          <h3 className="mb-1.5 mt-4 flex items-center gap-1.5 text-[12.5px] font-semibold text-white/85">
+            <IconTransfer size={14} className="text-white/55" />
+            Largest USDC transfers · {winLabel}
+          </h3>
           {largest.length === 0 ? (
             <p className="text-[11.5px] text-white/45">No USDC transfers were read in this window.</p>
           ) : (
@@ -218,11 +246,11 @@ export function UsdcNetworkPanel() {
                 <thead>
                   <tr className="text-left text-white/45">
                     <th scope="col" className="py-1 font-medium">Chain</th>
-                    <th scope="col" className="py-1 font-medium">Block</th>
-                    <th scope="col" className="py-1 font-medium">From</th>
-                    <th scope="col" className="py-1 font-medium">To</th>
-                    <th scope="col" className="py-1 text-right font-medium">Amount (USDC)</th>
-                    <th scope="col" className="py-1 text-right font-medium">Tx</th>
+                    <th scope="col" className="py-1 font-medium"><span className="inline-flex items-center gap-1"><IconBlock size={12} />Block</span></th>
+                    <th scope="col" className="py-1 font-medium"><span className="inline-flex items-center gap-1"><IconSender size={12} />From</span></th>
+                    <th scope="col" className="py-1 font-medium"><span className="inline-flex items-center gap-1"><IconReceiver size={12} />To</span></th>
+                    <th scope="col" className="py-1 text-right font-medium"><span className="inline-flex items-center gap-1"><IconUsdc size={12} />Amount (USDC)</span></th>
+                    <th scope="col" className="py-1 text-right font-medium"><span className="inline-flex items-center gap-1"><IconHash size={12} />Tx</span></th>
                   </tr>
                 </thead>
                 <tbody>

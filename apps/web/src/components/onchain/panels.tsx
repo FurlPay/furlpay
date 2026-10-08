@@ -1,8 +1,9 @@
 "use client";
 
+import { IconActivity, IconApi, IconCctp, IconPayments, IconTransfer, IconTransfers, IconAverageSize, IconByChain, IconCategories, IconCounterparties, IconCritical, IconDailyVolume, IconFees, IconFlagged, IconMarketInsights, IconPaymentVolume, IconRecipients, IconRisk, IconRiskHigh, IconRiskLow, IconRiskMedium, IconSanctions, IconStablecoinFlows, IconSupply, IconTotalVolume, IconTransactionFlow, IconTransactions, IconUsers, IconWallet, type FurlIcon } from "@/components/furlicons";
 import { useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { ArrowLeftRight, Bot, CircleDollarSign, Download, Link2, Wallet, type LucideIcon } from "lucide-react";
+import { Download } from "lucide-react";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 import type { OnchainDashboard as Data, Kpi, TokenKey } from "@/lib/onchain/dashboard";
 import world from "@/components/analytics/worldDots.json";
@@ -17,7 +18,7 @@ import { Card, Change, Empty, GhostButton, Menu, NEON, PALETTE, RAIL_COLOR, SHOR
 // section; an unavailable section renders its reason in place of the chart.
 
 const TOKEN_COLORS: Record<TokenKey, string> = { USDC: "#2F80ED", USDT: "#10D9A0", BTC: "#F7931A", ETH: "#8B5CF6", SOL: "#EC4899", OTHER: "#6B7280" };
-const RAIL_ICON: Record<string, LucideIcon> = { x402: Bot, mpp: Bot, lifi: ArrowLeftRight, cctp: Link2, transfers: Wallet };
+const RAIL_ICON: Record<string, FurlIcon> = { x402: IconApi, mpp: IconPayments, lifi: IconTransfer, cctp: IconCctp, transfers: IconTransfers };
 const WORLD = world as unknown as { width: number; height: number; dots: [number, number][]; centroids: Record<string, [number, number]> };
 const usdC = (n: number) => fmtUsd(n, { compact: true });
 const axisUsd = (n: number) => (n === 0 ? "$0" : fmtUsd(n, { compact: true }).replace(".0", ""));
@@ -27,10 +28,11 @@ const matches = (q: string, ...xs: (string | null | undefined)[]) => !q || xs.so
 
 // ── KPIs ────────────────────────────────────────────────────────────────────
 
-function KpiCard({ label, kpi, format, color }: { label: string; kpi: Kpi | null; format: (n: number) => string; color: string }) {
+function KpiCard({ label, kpi, format, color, icon: Icon }: { label: string; kpi: Kpi | null; format: (n: number) => string; color: string; icon: FurlIcon }) {
   return (
     <div className="relative h-[105px] min-w-0 rounded-[10px] border border-white/[0.075] bg-[#0A0F10] px-[19px] pb-[14px] pt-[15px]">
-      <p className="truncate text-[13px] text-white/85">{label}</p>
+      <Icon size={18} className="absolute right-[14px] top-[15px] text-white/35" />
+      <p className="truncate pr-6 text-[13px] text-white/85">{label}</p>
       <p className="mt-[3px] truncate text-[24px] font-bold leading-tight tracking-[-0.01em] text-white">{kpi ? format(kpi.value) : "—"}</p>
       <div className="mt-[5px]">{kpi ? <Change ratio={kpi.change} /> : <span className="text-[12px] text-white/35">source unavailable</span>}</div>
       {kpi && (
@@ -46,16 +48,16 @@ export function KpiRow({ data }: { data: Data }) {
   const L = ledgerOf(data);
   return (
     <div className="grid grid-cols-1 gap-[14px] sm:grid-cols-2 lg:grid-cols-5">
-      <KpiCard label="Total Payment Volume" kpi={L?.kpis.volume ?? null} format={usdC} color="#10D9A0" />
-      <KpiCard label="Total Transactions" kpi={L?.kpis.transactions ?? null} format={(n) => fmtCount(n, { compact: true })} color="#2F80ED" />
-      <KpiCard label="Unique Paying Users" kpi={L?.kpis.users ?? null} format={(n) => fmtCount(n)} color="#9B5CF6" />
-      <KpiCard label="Active Recipients" kpi={L?.kpis.recipients ?? null} format={(n) => fmtCount(n)} color="#F5B83D" />
+      <KpiCard label="Total Payment Volume" icon={IconTotalVolume} kpi={L?.kpis.volume ?? null} format={usdC} color="#10D9A0" />
+      <KpiCard label="Total Transactions" icon={IconTransactions} kpi={L?.kpis.transactions ?? null} format={(n) => fmtCount(n, { compact: true })} color="#2F80ED" />
+      <KpiCard label="Unique Paying Users" icon={IconUsers} kpi={L?.kpis.users ?? null} format={(n) => fmtCount(n)} color="#9B5CF6" />
+      <KpiCard label="Active Recipients" icon={IconRecipients} kpi={L?.kpis.recipients ?? null} format={(n) => fmtCount(n)} color="#F5B83D" />
       {data.holdings.status === "ok" ? (
         // FurlPay-owned onchain holdings (Allium balances). A point-in-time
         // value: no period change, no series — nothing is made up for them.
-        <KpiCard label="Treasury Holdings" kpi={{ value: data.holdings.data.totalUsd, change: null, series: [] }} format={usdC} color="#10D9A0" />
+        <KpiCard label="Treasury Holdings" icon={IconWallet} kpi={{ value: data.holdings.data.totalUsd, change: null, series: [] }} format={usdC} color="#10D9A0" />
       ) : (
-        <KpiCard label="Fees Earned" kpi={L?.kpis.fees ?? null} format={usdC} color="#10D9A0" />
+        <KpiCard label="Fees Earned" icon={IconFees} kpi={L?.kpis.fees ?? null} format={usdC} color="#10D9A0" />
       )}
     </div>
   );
@@ -85,7 +87,7 @@ export function PaymentVolume({ data, chain, setChain, rangeKey }: { data: Data;
     URL.revokeObjectURL(url);
   };
   return (
-    <Card
+    <Card icon={IconPaymentVolume}
       id="payments"
       title="Payment Volume"
       freshness={data.freshness?.ledger}
@@ -120,7 +122,7 @@ export function PaymentVolume({ data, chain, setChain, rangeKey }: { data: Data;
             </ul>
           </div>
           {total === 0 ? (
-            <Empty text="No settled payments in this period." />
+            <Empty text="No settled payments in this period." icon={IconPaymentVolume} />
           ) : (
             <div className="-ml-2 mt-1 h-[118px] min-h-[118px] flex-1">
               <ResponsiveContainer width="100%" height="100%">
@@ -165,7 +167,7 @@ export function ChainDonut({ data }: { data: Data }) {
   const total = items.reduce((a, b) => a + b.value, 0);
   const fmt = (n: number) => (metric === "volume" ? usdC(n) : fmtCount(n, { compact: true }));
   return (
-    <Card
+    <Card icon={IconByChain}
       id="chains"
       title="Transactions by Chain"
       freshness={data.freshness?.ledger}
@@ -175,7 +177,7 @@ export function ChainDonut({ data }: { data: Data }) {
       {!L ? (
         <Unavailable reason={ledgerReason(data)} />
       ) : total === 0 ? (
-        <Empty text="No settled transactions to break down by chain yet." />
+        <Empty text="No settled transactions to break down by chain yet." icon={IconTransactions} />
       ) : (
         <div className="flex flex-1 flex-col items-center gap-4 sm:flex-row sm:gap-4">
           <div className="relative h-[150px] w-[150px] shrink-0">
@@ -226,7 +228,7 @@ export function StablecoinFlows({ data }: { data: Data }) {
   const byChainMode = corr.status === "unavailable" && chains.length > 0;
   const source = byChainMode ? data.alliumChains.source : corr.source;
   return (
-    <Card title="Stablecoin Flows (Global)" source={source} freshness={byChainMode ? data.freshness?.alliumChains : data.freshness?.corridors} action={<Menu label="Metric" width={96} value="volume" onChange={() => {}} options={[["volume", "Volume"]] as const} />}>
+    <Card icon={IconStablecoinFlows} title="Stablecoin Flows (Global)" source={source} freshness={byChainMode ? data.freshness?.alliumChains : data.freshness?.corridors} action={<Menu label="Metric" width={96} value="volume" onChange={() => {}} options={[["volume", "Volume"]] as const} />}>
       <div className={`grid flex-1 items-center gap-3 ${byChainMode ? "sm:grid-cols-[1fr_1.15fr]" : "sm:grid-cols-[1.9fr_1fr]"}`}>
         <div className="relative">
           <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(0,229,153,0.10),transparent_65%)]" />
@@ -298,11 +300,11 @@ export function StablecoinFlows({ data }: { data: Data }) {
 // ── Categories ──────────────────────────────────────────────────────────────
 
 function RailIcon({ rail }: { rail: string }) {
-  const Icon = RAIL_ICON[rail] ?? CircleDollarSign;
+  const Icon = RAIL_ICON[rail] ?? IconPayments;
   const color = RAIL_COLOR[rail] ?? "#6B7280";
   return (
     <span className="flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-md" style={{ background: `${color}26`, color }}>
-      <Icon className="h-3.5 w-3.5" />
+      <Icon size={14} />
     </span>
   );
 }
@@ -314,11 +316,11 @@ export function Categories({ data }: { data: Data }) {
   const totalCount = rails.reduce((a, r) => a + r.count, 0);
   const rows = rails.map((r) => ({ ...r, s: metric === "volume" ? r.share : totalCount > 0 ? r.count / totalCount : 0 })).sort((a, b) => b.s - a.s);
   return (
-    <Card id="categories" title="Top Payment Categories" source={data.ledger.source} freshness={data.freshness?.ledger} action={<Menu label="Metric" width={96} value={metric} onChange={setMetric} options={[["volume", "Volume"], ["count", "Count"]] as const} />}>
+    <Card icon={IconCategories} id="categories" title="Top Payment Categories" source={data.ledger.source} freshness={data.freshness?.ledger} action={<Menu label="Metric" width={96} value={metric} onChange={setMetric} options={[["volume", "Volume"], ["count", "Count"]] as const} />}>
       {!L ? (
         <Unavailable reason={ledgerReason(data)} />
       ) : rows.length === 0 ? (
-        <Empty text="No settled payments in this period." />
+        <Empty text="No settled payments in this period." icon={IconPaymentVolume} />
       ) : (
         <ul className="space-y-[13px] pt-1">
           {rows.slice(0, 6).map((r) => (
@@ -344,7 +346,7 @@ export function Counterparties({ data, query }: { data: Data; query: string }) {
   const L = ledgerOf(data);
   const rows = (L?.counterparties ?? []).filter((c) => matches(query, c.address, c.chain));
   return (
-    <Card
+    <Card icon={IconCounterparties}
       id="counterparties"
       title="Counterparties & Entities"
       freshness={data.freshness?.ledger}
@@ -354,7 +356,7 @@ export function Counterparties({ data, query }: { data: Data; query: string }) {
       {!L ? (
         <Unavailable reason={ledgerReason(data)} />
       ) : rows.length === 0 ? (
-        <Empty text={query ? `No recipient matches “${query}”.` : "No settled payments to a recipient address in this period."} />
+        <Empty text={query ? `No recipient matches “${query}”.` : "No settled payments to a recipient address in this period."} icon={IconRecipients} />
       ) : (
         <ul className={`text-[12.5px] ${all ? "max-h-[230px] overflow-y-auto pr-1" : ""}`}>
           {(all ? rows : rows.slice(0, 6)).map((c) => (
@@ -391,7 +393,7 @@ export function Activity({ data, query, live, onOpen }: { data: Data; query: str
   const sourceMenu = <Menu label="Source" width={86} value={source} onChange={setPicked} options={[["chain", "Chain"], ["ledger", "Ledger"]] as const} />;
   if (source === "chain") {
     return (
-      <Card title="Real-time Activity" source="Allium (Beam stream + Realtime API) → onchain_events, tracked addresses only" action={sourceMenu} freshness={live ? liveFreshness(live) : null}>
+      <Card icon={IconActivity} title="Real-time Activity" source="Allium (Beam stream + Realtime API) → onchain_events, tracked addresses only" action={sourceMenu} freshness={live ? liveFreshness(live) : null}>
         {!live ? (
           <Empty text="Connecting to the live feed…" />
         ) : live.state === "offline" || live.state === "not_configured" ? (
@@ -409,7 +411,7 @@ export function Activity({ data, query, live, onOpen }: { data: Data; query: str
     );
   }
   return (
-    <Card
+    <Card icon={IconActivity}
       title="Real-time Activity"
       source={data.ledger.source}
       freshness={data.freshness?.ledger}
@@ -423,7 +425,7 @@ export function Activity({ data, query, live, onOpen }: { data: Data; query: str
       {!L ? (
         <Unavailable reason={ledgerReason(data)} />
       ) : rows.length === 0 ? (
-        <Empty text={query ? `No transaction matches “${query}”.` : "No ledger events in this period."} />
+        <Empty text={query ? `No transaction matches “${query}”.` : "No ledger events in this period."} icon={IconActivity} />
       ) : (
         <ul className="text-[12.5px]">
           {rows.slice(0, 6).map((a, i) => (
@@ -467,7 +469,7 @@ export function Risk({ data }: { data: Data }) {
   const lowShare = R && R.total > 0 ? R.bySeverity.low / R.total : null;
   const C = 2 * Math.PI * 42;
   return (
-    <Card id="risk" title="Risk & Compliance" source={data.risk.source} freshness={data.freshness?.risk} action={<GhostButton href="/trust">View All</GhostButton>}>
+    <Card icon={IconRisk} id="risk" title="Risk & Compliance" source={data.risk.source} freshness={data.freshness?.risk} action={<GhostButton href="/trust">View All</GhostButton>}>
       {!R ? (
         <Unavailable reason={data.risk.status === "unavailable" ? data.risk.reason : ""} />
       ) : (
@@ -486,13 +488,13 @@ export function Risk({ data }: { data: Data }) {
             <ul className="w-full min-w-0 space-y-[9px] pr-0.5 text-[12px]">
               {(
                 [
-                  ["Low Risk", R.bySeverity.low, "#10D9A0"],
-                  ["Medium Risk", R.bySeverity.medium, "#F5C542"],
-                  ["High Risk", R.bySeverity.high, "#FF3B5C"],
+                  ["Low Risk", R.bySeverity.low, "#10D9A0", IconRiskLow],
+                  ["Medium Risk", R.bySeverity.medium, "#F5C542", IconRiskMedium],
+                  ["High Risk", R.bySeverity.high, "#FF3B5C", IconRiskHigh],
                 ] as const
-              ).map(([l, v, c]) => (
+              ).map(([l, v, c, Icon]) => (
                 <li key={l} className="flex items-center gap-2.5" title={`${fmtCount(v)} events`}>
-                  <span className="h-2 w-2 rounded-full" style={{ background: c }} />
+                  <Icon size={16} style={{ color: c }} />
                   <span className="text-white/85">{l}</span>
                   <span className="ml-auto tabular-nums text-white/90">{R.total > 0 ? pct(v / R.total) : "0.0%"}</span>
                 </li>
@@ -502,14 +504,17 @@ export function Risk({ data }: { data: Data }) {
           <div className="mt-3 grid grid-cols-3 gap-2.5">
             {(
               [
-                ["Flagged Events", R.flagged],
-                ["Sanctions Matches", R.sanctions],
-                ["Critical Alerts", R.critical],
+                ["Flagged Events", R.flagged, IconFlagged, "text-white/50"],
+                ["Sanctions Matches", R.sanctions, IconSanctions, "text-white/50"],
+                ["Critical Alerts", R.critical, IconCritical, "text-[#FF4D6D]"],
               ] as const
-            ).map(([l, k]) => (
+            ).map(([l, k, Icon, cls]) => (
               <div key={l} className="rounded-lg border border-white/[0.08] bg-white/[0.015] px-2.5 py-2">
                 <p className="text-[18px] font-bold leading-tight">{fmtCount(k.value)}</p>
-                <p className="truncate text-[10.5px] text-white/65">{l}</p>
+                <p className="flex min-w-0 items-center gap-1 text-[10.5px] text-white/65">
+                  <Icon size={12} className={cls} />
+                  <span className="truncate">{l}</span>
+                </p>
                 <Change ratio={k.change} invert className="text-[12px]" />
               </div>
             ))}
@@ -543,7 +548,7 @@ export function Flow({ data, chain, setChain }: { data: Data; chain: string; set
   const ls = layout(src), ld = layout(dst);
   const dim = (rail: string) => (type === "all" || type === rail ? 0.62 : 0.12);
   return (
-    <Card
+    <Card icon={IconTransactionFlow}
       title="Transaction Flow"
       freshness={data.freshness?.ledger}
       source={`${data.ledger.source}: rail → destination chain`}
@@ -557,7 +562,7 @@ export function Flow({ data, chain, setChain }: { data: Data; chain: string; set
       {!L ? (
         <Unavailable reason={ledgerReason(data)} />
       ) : total === 0 ? (
-        <Empty text="No settled volume to trace in this period." />
+        <Empty text="No settled volume to trace in this period." icon={IconTransactionFlow} />
       ) : (
         <>
           <div className="mb-1 flex justify-between text-[11px] text-white/60">
@@ -622,9 +627,12 @@ export function MarketInsights({ data }: { data: Data }) {
   const money = tab !== "transactions";
   const dayLabel = last ? new Date(`${last.day}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) : null;
 
-  const metric = (label: string, value: string | null, change: number | null) => (
+  const metric = (label: string, value: string | null, change: number | null, Icon?: FurlIcon) => (
     <div>
-      <p className="text-[11.5px] text-white/75">{label}</p>
+      <p className="flex items-center gap-1.5 text-[11.5px] text-white/75">
+        {Icon && <Icon size={14} className="text-white/45" />}
+        {label}
+      </p>
       <p className="flex items-baseline gap-3">
         <span className="text-[18px] font-bold">{value ?? "—"}</span>
         {value && <Change ratio={change} className="text-[12.5px]" />}
@@ -633,10 +641,10 @@ export function MarketInsights({ data }: { data: Data }) {
   );
 
   return (
-    <Card id="market" title="Stablecoin Market Insights" freshness={data.freshness ? (tab === "supply" ? data.freshness.market : data.freshness.alliumDaily) : null} source={`${data.market.source} (supply)${data.alliumDaily.status === "ok" ? `; ${data.alliumDaily.source}` : ""}`} action={<GhostButton href="/markets">View All</GhostButton>}>
+    <Card icon={IconMarketInsights} id="market" title="Stablecoin Market Insights" freshness={data.freshness ? (tab === "supply" ? data.freshness.market : data.freshness.alliumDaily) : null} source={`${data.market.source} (supply)${data.alliumDaily.status === "ok" ? `; ${data.alliumDaily.source}` : ""}`} action={<GhostButton href="/markets">View All</GhostButton>}>
       <div className="grid flex-1 gap-3 sm:grid-cols-[0.78fr_1.22fr]">
         <div className="space-y-[7px]">
-          {metric("Total Stablecoin Supply", M ? usdC(M.totalSupplyUsd) : null, M?.supplyChange30d ?? null)}
+          {metric("Total Stablecoin Supply", M ? usdC(M.totalSupplyUsd) : null, M?.supplyChange30d ?? null, IconSupply)}
           {M && M.topCoins.length > 0 && (
             <ul className="-mt-0.5 flex flex-wrap gap-x-2.5 gap-y-1 text-[11px] text-white/70" aria-label="Largest USD stablecoins by supply share">
               {M.topCoins.slice(0, 2).map((c) => (
@@ -647,9 +655,9 @@ export function MarketInsights({ data }: { data: Data }) {
               ))}
             </ul>
           )}
-          {metric(`Daily Transfer Volume${dayLabel ? ` · ${dayLabel}` : ""}`, last ? usdC(last.volumeUsd) : null, A?.change.volumeUsd ?? null)}
-          {metric("Transactions", last ? fmtCount(last.txCount, { compact: true }) : null, A?.change.txCount ?? null)}
-          {metric("Avg Transfer Size", last?.avgTransferUsd != null ? fmtUsd(last.avgTransferUsd) : null, A?.change.avgTransferUsd ?? null)}
+          {metric(`Daily Transfer Volume${dayLabel ? ` · ${dayLabel}` : ""}`, last ? usdC(last.volumeUsd) : null, A?.change.volumeUsd ?? null, IconDailyVolume)}
+          {metric("Transactions", last ? fmtCount(last.txCount, { compact: true }) : null, A?.change.txCount ?? null, IconTransactions)}
+          {metric("Avg Transfer Size", last?.avgTransferUsd != null ? fmtUsd(last.avgTransferUsd) : null, A?.change.avgTransferUsd ?? null, IconAverageSize)}
           {A && last && (
             <p className="text-[10.5px] leading-snug text-white/45" title="sender_count is distinct per chain, day and token; summed, an address counts once per chain and token it used">
               {A.latestProvisional && <span className="mr-1 rounded border border-[#F5B83D]/40 px-1 text-[#F5B83D]">provisional</span>}

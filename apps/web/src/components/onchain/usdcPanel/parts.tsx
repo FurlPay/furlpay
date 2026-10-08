@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Info } from "lucide-react";
+import { IconDegraded } from "@/components/furlicons";
 import type { ChainState } from "@/lib/onchain/usdcHealth";
 
 // Shared pieces for the USDC section. Formatting only: values arrive as exact
@@ -93,7 +94,11 @@ export function StateBadge({ state, reasons }: { state: ChainState; reasons: str
   const s = STATE_STYLE[state];
   return (
     <span className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[10.5px] font-semibold uppercase tracking-wide ${s.cls}`} title={reasons.join(" ") || s.label}>
-      <span className={`h-1.5 w-1.5 rounded-full ${s.dot} ${state === "LIVE" ? "motion-safe:animate-pulse" : ""}`} aria-hidden="true" />
+      {state === "DEGRADED" ? (
+        <IconDegraded size={11} />
+      ) : (
+        <span className={`h-1.5 w-1.5 rounded-full ${s.dot} ${state === "LIVE" ? "motion-safe:animate-pulse" : ""}`} aria-hidden="true" />
+      )}
       {s.label}
     </span>
   );
