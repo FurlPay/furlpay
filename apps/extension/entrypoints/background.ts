@@ -112,6 +112,8 @@ async function repaintBadge(): Promise<void> {
 
 export default defineBackground(() => {
   browser.runtime.onInstalled.addListener((details) => {
+    // Versions before 8 Oct 2026 persisted x402Log in storage.local; drop it.
+    void browser.storage.local.remove("x402Log").catch(() => undefined);
     browser.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
     void poll();
     if (details?.reason === "install") void track("extension_installed");
@@ -667,11 +669,13 @@ async function declineChallenge(challengeId: string): Promise<void> {
 
 async function onX402Detected(detection: X402Detection): Promise<void> {
   // Rolling log for the DevTools inspector and popup indicator, deduped by
-  // resource URL (a page retrying a 402 shouldn't flood the log).
-  const { x402Log } = await browser.storage.local.get("x402Log");
+  // resource URL (a page retrying a 402 shouldn't flood the log). It is a slice
+  // of the user's browsing history, so it lives in storage.session: memory-only,
+  // cleared when the browser closes, unreadable by content scripts.
+  const { x402Log } = await browser.storage.session.get("x402Log");
   const log: X402Detection[] = Array.isArray(x402Log) ? x402Log : [];
   const deduped = [detection, ...log.filter((d) => d.url !== detection.url)];
-  await browser.storage.local.set({ x402Log: deduped.slice(0, 50) });
+  await browser.storage.session.set({ x402Log: deduped.slice(0, 50) });
 }
 
 /** Opens the furlpay.com checkout for a detected 402.
