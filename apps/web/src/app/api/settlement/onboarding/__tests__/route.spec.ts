@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
 // End-to-end through the real route handlers and the development store. Only
@@ -48,6 +48,13 @@ import { GET as QUEUE, POST as DECIDE } from "../review/route";
 import { GET as OPEN_DOC } from "../review/document/route";
 import { resetDevelopmentStore } from "@/lib/settlement/onboardingStore";
 import { business, details, identity, REQUIRED_DOCS, settlement, treasury } from "@/lib/settlement/__tests__/fixtures";
+import { DOCUMENT_MAX_BYTES, SCREENING_MAX_AGE_MS } from "@/lib/settlement/onboarding";
+
+/** Move the wall clock past the screening window (timers stay real). */
+const dayLater = () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(Date.now() + SCREENING_MAX_AGE_MS + 60_000);
+};
 
 const URL_ = "https://furlpay.com/api/settlement/onboarding";
 const json = (method: string, body?: unknown, url = URL_) => new NextRequest(url, { method, ...(body ? { body: JSON.stringify(body), headers: { "content-type": "application/json" } } : {}) });
@@ -86,6 +93,8 @@ async function approveAll() {
   as("owner-1");
   return r;
 }
+
+afterEach(() => vi.useRealTimers());
 
 beforeEach(() => {
   resetDevelopmentStore();
@@ -129,6 +138,32 @@ describe("onboarding routes", () => {
     expect((await upload("incorporation", new Uint8Array([0x89, 0x50, 0x4e, 0x47]))).status).toBe(415);
   });
 
+  it("an entity cannot complete identity with individual (KYC) verification", async () => {
+    await put("business", business);
+    for (const k of REQUIRED_DOCS) await upload(k);
+    const r = await read(await put("identity", { ...identity, verification: "kyc" }));
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatch(/KYB/);
+    expect(r.body.state.completed).not.toContain("identity");
+  });
+  it("an upload without Content-Length stops reading at the cap", async () => {
+    // A chunked body with no length header: the route must stop pulling near
+    // 10 MB, not buffer the whole stream before checking the file size.
+    let pulled = 0;
+    const chunk = new Uint8Array(1024 * 1024);
+    const body = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (pulled >= 64 * 1024 * 1024) return c.close();
+        pulled += chunk.byteLength;
+        c.enqueue(chunk);
+      },
+    });
+    const req = new NextRequest(`${URL_}/documents`, { method: "POST", body, headers: { "content-type": "multipart/form-data; boundary=x" }, duplex: "half" } as RequestInit & { duplex: "half" });
+    expect(req.headers.get("content-length")).toBeNull();
+    expect((await UPLOAD(req)).status).toBe(413);
+    expect(pulled).toBeLessThan(DOCUMENT_MAX_BYTES + 6 * 1024 * 1024); // of 64 MB offered; streams read a chunk ahead
+    expect((await view()).state.documents).toEqual([]);
+  });
   it("removing a required document reopens identity", async () => {
     await profile();
     const doc = (await view()).state.documents[0];
@@ -436,6 +471,44 @@ describe("compliance review", () => {
     expect((await view()).state.review.status).toBe("approved");
     const edited = await read(await put("details", { ...details, description: "Analytics and consulting." }));
     expect(edited.body.state.review.status).toBe("pending");
+  });
+});
+
+describe("screening expiry", () => {
+  it("approval refuses an expired screening and identity that was sent back", async () => {
+    await profile();
+    await act({ action: "screen" });
+    as("officer-1");
+    const c = (await read(await QUEUE(json("GET", undefined, `${URL_}/review?owner=owner-1`)))).body;
+    for (const d of c.state.documents) await decide({ action: "approve_document", owner: "owner-1", documentId: d.id });
+    await decide({ action: "request_changes", owner: "owner-1", reason: "Confirm the representative's details" });
+    expect((await read(await decide({ action: "approve_case", owner: "owner-1" }))).body.error).toMatch(/profile is incomplete/);
+    as("owner-1");
+    expect((await read(await put("identity", identity))).status).toBe(200);
+
+    dayLater();
+    as("officer-1");
+    expect((await read(await decide({ action: "approve_case", owner: "owner-1" }))).body.error).toMatch(/expired/);
+    expect((await decide({ action: "rescreen", owner: "owner-1", reason: "Screening expired before approval" })).status).toBe(200);
+    expect((await decide({ action: "approve_case", owner: "owner-1" })).status).toBe(200);
+  });
+
+  it("a cleared false positive is not sent back to the queue when screening is refreshed", async () => {
+    await profile();
+    m.hits = [{ name: "NORTH WAY", matchScore: 0.87, sources: ["OFAC_SDN"] }];
+    await act({ action: "screen" });
+    as("officer-1");
+    expect((await decide({ action: "clear_screening", owner: "owner-1", reason: "Different entity: name and country differ" })).status).toBe(200);
+    as("owner-1");
+
+    dayLater();
+    expect((await read(await act({ action: "complete", step: "compliance" }))).body.error).toMatch(/expired/);
+    const calls = m.calls;
+    const r = await read(await act({ action: "screen" }));
+    expect(m.calls).toBeGreaterThan(calls); // the provider was asked again
+    expect(r.body.reused).toBe(false);
+    expect(r.body.state.screening).toMatchObject({ status: "cleared_by_review", review: { by: "officer-1" } });
+    expect((await act({ action: "complete", step: "compliance" })).status).toBe(200);
   });
 });
 

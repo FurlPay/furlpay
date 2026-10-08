@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { getScreeningProvider } from "@/lib/compliance/providers/factory";
-import type { OnboardingState, ScreeningResult } from "./onboarding";
+import { SCREENING_MAX_AGE_MS, screeningIsFresh, type OnboardingState, type ScreeningResult } from "./onboarding";
 
 // Sanctions screening for business onboarding. Server-only.
 //
@@ -34,7 +34,7 @@ export function requestKey(subjects: Subject[], country: string | undefined, pro
 }
 
 /** Results reused for the same inputs within this window; after it, screening runs again. */
-export const REUSE_MS = 24 * 60 * 60 * 1000;
+export const REUSE_MS = SCREENING_MAX_AGE_MS;
 export const SCREENING_TIMEOUT_MS = 10_000;
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -66,18 +66,26 @@ export async function runScreening(state: OnboardingState, referenceId: string, 
   const key = requestKey(subjects, state.business?.country, provider.name);
   const prev = state.screening;
   // force: an officer-requested re-screen always reaches the provider.
-  if (!opts.force && prev && prev.requestKey === key && prev.status !== "failed" && now - Date.parse(prev.screenedAt) < REUSE_MS) {
+  if (!opts.force && prev && prev.requestKey === key && prev.status !== "failed" && screeningIsFresh(prev, now)) {
     return { result: prev, reused: true };
   }
   try {
     const matches: ScreeningResult["matches"] = [];
+    const deadline = Date.now() + SCREENING_TIMEOUT_MS;
     for (const s of subjects) {
+      const remaining = deadline - Date.now();
+      if (remaining <= 0) throw new Error("Screening timed out");
       const r = await withTimeout(
         provider.screenSanctions({ name: s.name, entityType: s.entityType, dateOfBirth: s.dateOfBirth, country: state.business?.country, referenceId }),
-        SCREENING_TIMEOUT_MS
+        remaining
       );
       for (const h of r.hits) matches.push({ name: s.name, score: h.matchScore, source: h.sources.join(", ") });
     }
+    // An officer decision covers exactly the candidates it reviewed. A fresh run
+    // over the same inputs that returns the same candidates keeps that decision
+    // (otherwise every expiry would send a cleared false positive back to the
+    // queue); any new or changed candidate goes to review again.
+    const decided = prev && prev.requestKey === key && (prev.status === "cleared_by_review" || prev.status === "confirmed_match") && matches.length > 0 && matchSet(prev.matches) === matchSet(matches);
     return {
       reused: false,
       result: {
@@ -85,14 +93,17 @@ export async function runScreening(state: OnboardingState, referenceId: string, 
         list: provider.name === "furlpay" ? "OFAC SDN" : provider.name,
         names: subjects.length,
         matches,
-        status: matches.length ? "potential_match" : "clear",
+        status: decided ? prev.status : matches.length ? "potential_match" : "clear",
         requestKey: key,
+        ...(decided && prev.review ? { review: prev.review } : {}),
       },
     };
   } catch (e) {
     return { reused: false, result: failed(subjects.length, provider.name === "furlpay" ? "OFAC SDN" : provider.name, key, e) };
   }
 }
+
+const matchSet = (m: ScreeningResult["matches"]) => JSON.stringify(m.map((x) => [x.name, x.score, x.source]).sort());
 
 function failed(names: number, list: string, key: string, e: unknown): ScreeningResult {
   return {

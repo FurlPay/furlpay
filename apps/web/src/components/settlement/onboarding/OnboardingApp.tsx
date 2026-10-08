@@ -11,6 +11,7 @@ import { onboardingPath } from "@/lib/settlement/routes";
 import type { OnboardingView } from "./types";
 import { BusinessStep, ComplianceStep, DetailsStep, IdentityStep, ReviewStep, SettlementStep, TreasuryStep } from "./steps";
 
+const LOAD_TIMEOUT_MS = 20_000;
 
 export default function OnboardingApp({ step }: { step: StepId | null }) {
   const router = useRouter();
@@ -21,9 +22,11 @@ export default function OnboardingApp({ step }: { step: StepId | null }) {
   const load = useCallback(async () => {
     setError("");
     try {
-      setView(await api<OnboardingView>("/api/settlement/onboarding"));
+      // A cold start that never answers must end in an error with Retry, not an endless skeleton.
+      setView(await api<OnboardingView>("/api/settlement/onboarding", { signal: AbortSignal.timeout(LOAD_TIMEOUT_MS) }));
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Onboarding is unavailable.");
+      const timedOut = e instanceof DOMException && (e.name === "TimeoutError" || e.name === "AbortError");
+      setError(timedOut ? "Onboarding took too long to load. Retry in a moment." : e instanceof Error ? e.message : "Onboarding is unavailable.");
     }
   }, []);
   useEffect(() => {

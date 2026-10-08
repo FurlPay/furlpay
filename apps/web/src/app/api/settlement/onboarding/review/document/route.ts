@@ -23,7 +23,6 @@ export async function GET(req: NextRequest) {
     if (!doc) return NextResponse.json({ error: "Document not found" }, { status: 404 });
     const file = await readDocument(owner, doc);
     audit("settlement.onboarding.review_document_opened", auth.account.user.id, { owner, documentId: id, kind: doc.kind });
-    if (file.kind === "url") return NextResponse.redirect(file.url, { status: 302, headers: { "Cache-Control": "no-store" } });
     return new NextResponse(Buffer.from(file.bytes), {
       headers: {
         "Content-Type": doc.contentType,

@@ -5,7 +5,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { audit } from "@/lib/audit";
 import { getAccountDurable } from "@/lib/store";
-import { DOCUMENT_KINDS, DOCUMENTS, readiness, type OnboardingState } from "@/lib/settlement/onboarding";
+import { DOCUMENTS, readiness, requiredDocumentKinds, screeningIsFresh, type OnboardingState } from "@/lib/settlement/onboarding";
 import { listStates, loadState, OnboardingUnavailable, Refusal, updateState } from "@/lib/settlement/onboardingStore";
 import { facts, onboardingView } from "@/lib/settlement/onboardingView";
 import { runScreening } from "@/lib/settlement/screening";
@@ -119,17 +119,20 @@ export async function POST(req: NextRequest) {
           s.screeningHistory = appendHistory(s.screeningHistory, runRecord(outcome.result, "officer_request", reviewer));
           s.screeningHistory = appendHistory(s.screeningHistory, decisionRecord("UNDER_REVIEW", reviewer, body.reason, outcome.result.requestKey, at));
           s.screening = outcome.result;
-          if (outcome.result.status !== "clear") s.completed = s.completed.filter((x) => x !== "compliance");
+          if (outcome.result.status !== "clear" && outcome.result.status !== "cleared_by_review") s.completed = s.completed.filter((x) => x !== "compliance");
           log("rescreen");
           event = "settlement.onboarding.review_screening_decided";
           return s;
         }
         case "approve_case": {
           // Approval requires the evidence to be in order — the reviewer cannot approve past a gap.
-          const missing = DOCUMENT_KINDS.filter((k) => DOCUMENTS[k].required && !s.documents.some((d) => d.kind === k && d.review === "approved"));
+          // Same document policy as the identity step and activation (requiredDocumentKinds).
+          const missing = requiredDocumentKinds(s).filter((k) => !s.documents.some((d) => d.kind === k && d.review === "approved"));
           if (missing.length) throw new Refusal(`Approve the required documents first: ${missing.map((k) => DOCUMENTS[k].label).join(", ")}.`, 409);
           if (!s.screening || !["clear", "cleared_by_review"].includes(s.screening.status)) throw new Refusal("Sanctions screening must be clear (or cleared by review) before approval.", 409);
-          if (!s.completed.includes("business") || !s.completed.includes("details")) throw new Refusal("The business profile is incomplete.", 409);
+          if (!screeningIsFresh(s.screening)) throw new Refusal("Sanctions screening has expired. Re-screen before approving.", 409);
+          // After request_changes the applicant must re-confirm identity before the case can be approved.
+          if (!s.completed.includes("business") || !s.completed.includes("identity") || !s.completed.includes("details")) throw new Refusal("The business profile is incomplete.", 409);
           s.review = { ...r, ...s.review, status: "approved", decidedAt: at, decidedBy: reviewer, reason: body.reason };
           log("approve_case");
           event = "settlement.onboarding.review_approved";

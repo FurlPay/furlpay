@@ -154,7 +154,7 @@ export async function POST(req: NextRequest) {
         const trigger = !state.screening ? "initial" : state.screening.status === "failed" ? "retry" : "profile_change";
         state.screeningHistory = appendHistory(state.screeningHistory, runRecord(outcome.result, trigger, userId));
         state.screening = outcome.result;
-        if (outcome.result.status !== "clear") state.completed = state.completed.filter((x) => x !== "compliance");
+        if (outcome.result.status !== "clear" && outcome.result.status !== "cleared_by_review") state.completed = state.completed.filter((x) => x !== "compliance");
         if (outcome.result.status === "potential_match" && submitForReview(state, userId, "potential sanctions match")) {
           audit("settlement.onboarding.review_requested", userId, { reason: "screening" });
         }
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
       const o = outcome as Awaited<ReturnType<typeof runScreening>>;
       if (o && !o.reused) {
         audit("settlement.onboarding.screening_requested", userId, { names: o.result.names });
-        const e = o.result.status === "failed" ? "settlement.onboarding.screening_failed" : o.result.status === "potential_match" ? "settlement.onboarding.screening_blocked" : "settlement.onboarding.screening_completed";
+        const e = o.result.status === "failed" ? "settlement.onboarding.screening_failed" : o.result.status === "potential_match" || o.result.status === "confirmed_match" ? "settlement.onboarding.screening_blocked" : "settlement.onboarding.screening_completed";
         audit(e, userId, { names: o.result.names, matches: o.result.matches.length, list: o.result.list });
       }
       const v = view(saved, auth.account);

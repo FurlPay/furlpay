@@ -201,6 +201,8 @@ export function IdentityStep(p: StepProps) {
     }
   }
   const kyb = d.verification === "kyb";
+  // Individual (KYC) verification is only for sole traders; the server refuses it for an entity.
+  const kycAllowed = p.view.state.business?.type === "individual";
   return (
     <Layout
       main={
@@ -210,10 +212,11 @@ export function IdentityStep(p: StepProps) {
             <button role="tab" type="button" aria-selected={kyb} onClick={() => s.set("verification", "kyb")}>
               <Landmark size={17} /> Business Verification (KYB)
             </button>
-            <button role="tab" type="button" aria-selected={!kyb} onClick={() => s.set("verification", "kyc")}>
+            <button role="tab" type="button" aria-selected={!kyb} disabled={!kycAllowed && kyb} title={kycAllowed ? undefined : "Available for individual (sole trader) businesses only"} onClick={() => s.set("verification", "kyc")}>
               <UserRound size={17} /> Individual Verification (KYC)
             </button>
           </div>
+          {!kyb && !kycAllowed && <Notice tone="error">Individual verification is only available for sole traders. Choose Business Verification (KYB) for this business type.</Notice>}
           {p.view.storage === "none" && <Notice tone="error">Document storage is not configured on this deployment, so documents cannot be uploaded yet.</Notice>}
           {p.view.storage === "development" && <Notice tone="info">Development store: documents are kept in this server’s memory and are cleared when it restarts.</Notice>}
           {kyb && (

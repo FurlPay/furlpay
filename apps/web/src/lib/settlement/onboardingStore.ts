@@ -1,5 +1,6 @@
-import { sbInsertIgnoreDuplicates, sbSelect, sbUpdate, sbUpsert, supabaseBackend } from "@/lib/supabase";
-import { emptyState, type DocumentRecord, type OnboardingState } from "./onboarding";
+import { sbInsertIgnoreDuplicates, sbSelect, sbUpdate, supabaseBackend } from "@/lib/supabase";
+import { DOCUMENT_MAX_BYTES, emptyState, type DocumentRecord, type OnboardingState } from "./onboarding";
+import { readBoundedBody } from "./boundedBody";
 
 // Persistence for business onboarding.
 //
@@ -25,7 +26,7 @@ export function backend(env: Record<string, string | undefined> = process.env): 
   return env.NODE_ENV === "production" ? "none" : "development";
 }
 
-const g = globalThis as unknown as { __furlOnboarding?: Map<string, OnboardingState>; __furlOnboardingFiles?: Map<string, Uint8Array> };
+const g = globalThis as unknown as { __furlOnboarding?: Map<string, OnboardingState>; __furlOnboardingFiles?: Map<string, Uint8Array>; __furlOnboardingLocks?: Map<string, Promise<unknown>> };
 const memory = (g.__furlOnboarding ??= new Map());
 const memoryFiles = (g.__furlOnboardingFiles ??= new Map());
 
@@ -40,18 +41,6 @@ export async function loadState(userId: string): Promise<OnboardingState> {
   return row?.state ? { ...emptyState(), ...row.state } : emptyState();
 }
 
-export async function saveState(userId: string, state: OnboardingState): Promise<OnboardingState> {
-  const b = backend();
-  if (b === "none") throw new OnboardingUnavailable("Onboarding storage is not configured");
-  const next = { ...state, updatedAt: new Date().toISOString() };
-  if (b === "development") {
-    memory.set(userId, structuredClone(next));
-    return next;
-  }
-  await sbUpsert<Row>(TABLE, { owner_id: userId, state: next, updated_at: next.updatedAt });
-  return next;
-}
-
 /** A refusal raised inside an update: nothing is written, the caller answers with it. */
 export class Refusal extends Error {
   constructor(
@@ -63,14 +52,14 @@ export class Refusal extends Error {
   }
 }
 
-const locks = new Map<string, Promise<unknown>>();
+const locks = (g.__furlOnboardingLocks ??= new Map());
 
 /**
  * Read-modify-write without lost updates. Two concurrent requests (two document
  * uploads, a save racing a screening) must not overwrite each other.
  *   development: a per-user promise chain serialises updates in this process.
  *   supabase:    optimistic concurrency — the write only lands if the row still
- *                carries the `updatedAt` it was read with; otherwise re-read and
+ *                carries the unique revision it was read with; otherwise re-read and
  *                re-apply the mutation (bounded retries, then 503).
  * The mutator may throw Refusal to abort without writing.
  */
@@ -79,21 +68,32 @@ export async function updateState(userId: string, mutate: (s: OnboardingState) =
   if (b === "none") throw new OnboardingUnavailable("Onboarding storage is not configured");
   if (b === "development") {
     const prev = locks.get(userId) ?? Promise.resolve();
-    const run = prev.then(async () => saveState(userId, await mutate(structuredClone(memory.get(userId) ?? emptyState()))));
-    locks.set(userId, run.catch(() => undefined));
+    const run = prev.then(async () => {
+      const next = { ...(await mutate(structuredClone(memory.get(userId) ?? emptyState()))), revision: crypto.randomUUID(), updatedAt: new Date().toISOString() };
+      memory.set(userId, structuredClone(next));
+      return next;
+    });
+    const settled = run.then(() => undefined, () => undefined);
+    locks.set(userId, settled);
+    void settled.then(() => { if (locks.get(userId) === settled) locks.delete(userId); });
     return run;
   }
   for (let attempt = 0; attempt < 4; attempt++) {
     const [row] = await sbSelect<Row>(TABLE, `${owner(userId)}&limit=1`);
     const current = row?.state ? { ...emptyState(), ...row.state } : emptyState();
-    const next = { ...(await mutate(structuredClone(current))), updatedAt: new Date().toISOString() };
+    const next = { ...(await mutate(structuredClone(current))), revision: crypto.randomUUID(), updatedAt: new Date().toISOString() };
     if (!row) {
       await sbInsertIgnoreDuplicates<Row>(TABLE, { owner_id: userId, state: next, updated_at: next.updatedAt });
       const [check] = await sbSelect<Row>(TABLE, `${owner(userId)}&limit=1`);
-      if (check?.state?.updatedAt === next.updatedAt) return next;
+      if (check?.state?.revision === next.revision) return next;
       continue; // another request created the row first — re-read and re-apply
     }
-    const written = await sbUpdate<Row>(TABLE, `${owner(userId)}&state->>updatedAt=eq.${encodeURIComponent(row.state.updatedAt)}`, { state: next, updated_at: next.updatedAt });
+    // Legacy rows acquire a revision on their first write. Include the null
+    // revision predicate so a second writer cannot overwrite that upgrade.
+    const version = row.state.revision
+      ? `state->>revision=eq.${encodeURIComponent(row.state.revision)}`
+      : `state->>revision=is.null&state->>updatedAt=eq.${encodeURIComponent(row.state.updatedAt)}`;
+    const written = await sbUpdate<Row>(TABLE, `${owner(userId)}&${version}`, { state: next, updated_at: next.updatedAt });
     if (written.length === 1) return next;
   }
   throw new OnboardingUnavailable("Onboarding is being updated by another request. Try again.");
@@ -150,10 +150,10 @@ export async function listStates(limit = 200): Promise<{ ownerId: string; state:
 
 /**
  * A document's bytes, for an authorised compliance reviewer only (the caller
- * enforces the role). Production returns a short-lived signed URL rather than
- * proxying the file; development returns the bytes from memory.
+ * enforces the role). Always proxy the private bytes so sandbox and nosniff
+ * headers apply in production too; never expose a reusable storage URL.
  */
-export async function readDocument(userId: string, doc: DocumentRecord): Promise<{ kind: "bytes"; bytes: Uint8Array } | { kind: "url"; url: string }> {
+export async function readDocument(userId: string, doc: DocumentRecord): Promise<{ kind: "bytes"; bytes: Uint8Array }> {
   const b = backend();
   if (b === "none") throw new OnboardingUnavailable("Document storage is not configured");
   if (b === "development") {
@@ -161,15 +161,15 @@ export async function readDocument(userId: string, doc: DocumentRecord): Promise
     if (!bytes) throw new OnboardingUnavailable("Document not found in the development store");
     return { kind: "bytes", bytes };
   }
-  const res = await fetch(`${SB_URL}/storage/v1/object/sign/${BUCKET}/${objectPath(userId, doc)}`, {
-    method: "POST",
-    headers: { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ expiresIn: 60 }),
+  const res = await fetch(`${SB_URL}/storage/v1/object/authenticated/${BUCKET}/${objectPath(userId, doc)}`, {
+    headers: { apikey: SB_KEY!, Authorization: `Bearer ${SB_KEY}` },
+    signal: AbortSignal.timeout(15_000),
     cache: "no-store",
   });
-  if (!res.ok) throw new OnboardingUnavailable(`Document storage could not sign the file (${res.status})`);
-  const { signedURL } = (await res.json()) as { signedURL: string };
-  return { kind: "url", url: `${SB_URL}/storage/v1${signedURL}` };
+  if (!res.ok) throw new OnboardingUnavailable(`Document storage could not read the file (${res.status})`);
+  const bytes = await readBoundedBody(res, DOCUMENT_MAX_BYTES);
+  if (bytes.length !== doc.size) throw new OnboardingUnavailable("Stored document size does not match its record");
+  return { kind: "bytes", bytes };
 }
 
 /** Test seam: clears the development store. */

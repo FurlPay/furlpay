@@ -4,6 +4,7 @@ import { audit } from "@/lib/audit";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { DOCUMENT_KINDS, DOCUMENT_MAX_BYTES, DOCUMENT_TYPES, type DocumentKind, type DocumentRecord, type OnboardingState } from "@/lib/settlement/onboarding";
 import { loadState, OnboardingUnavailable, putDocument, Refusal, removeDocument, updateState } from "@/lib/settlement/onboardingStore";
+import { BodyTooLarge, readBoundedBody } from "@/lib/settlement/boundedBody";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
@@ -34,13 +35,14 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const limited = await rateLimitOr429(req, "settlement.onboarding.document", { limit: 20, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
-  const declared = Number(req.headers.get("content-length") ?? 0);
-  if (declared > DOCUMENT_MAX_BYTES + 64 * 1024) return fail("This file is larger than 10 MB.", 413);
-
+  // The cap is enforced on the bytes actually streamed: a chunked request has no
+  // Content-Length, and req.formData() alone would buffer it without limit.
   let form: FormData;
   try {
-    form = await req.formData();
-  } catch {
+    const raw = await readBoundedBody(req, DOCUMENT_MAX_BYTES + 64 * 1024);
+    form = await new Response(raw, { headers: { "Content-Type": req.headers.get("content-type") ?? "" } }).formData();
+  } catch (e) {
+    if (e instanceof BodyTooLarge) return fail("This file is larger than 10 MB.", 413);
     return fail("Upload a single file.", 400);
   }
   const kind = String(form.get("kind") ?? "");

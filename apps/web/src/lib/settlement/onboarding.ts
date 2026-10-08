@@ -159,6 +159,7 @@ export const detailsSchema = z
       .array(ownerSchema)
       .min(1, "Add at least one owner")
       .max(20)
+      .refine((o) => new Set(o.map((x) => x.id)).size === o.length, "Each owner must have a unique id")
       .refine((o) => o.reduce((s, x) => s + x.percent, 0) <= 100.0001, "Ownership cannot exceed 100%")
       .refine((o) => new Set(o.map((x) => x.name.trim().toLowerCase().replace(/\s+/g, " "))).size === o.length, "Each owner can be listed once")
       // FinCEN CDD control prong: one individual with significant control is always
@@ -170,8 +171,8 @@ export const detailsSchema = z
 
 export const treasurySchema = z
   .object({
-    networks: z.array(z.enum(NETWORKS)).min(1, "Enable at least one network").max(NETWORKS.length),
-    assets: z.array(z.enum(ASSETS)).min(1, "Enable at least one asset").max(ASSETS.length),
+    networks: z.array(z.enum(NETWORKS)).min(1, "Enable at least one network").max(NETWORKS.length).refine((v) => new Set(v).size === v.length, "Networks must be unique"),
+    assets: z.array(z.enum(ASSETS)).min(1, "Enable at least one asset").max(ASSETS.length).refine((v) => new Set(v).size === v.length, "Assets must be unique"),
     destination: z.enum(["treasury", "virtual_account", "split"]),
   })
   .strict();
@@ -200,6 +201,8 @@ export const settlementSchema = z
   })
   .strict()
   .superRefine((s, ctx) => {
+    if (new Set(s.rules.map((r) => r.id)).size !== s.rules.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["rules"], message: "Each rule must have a unique id." });
+    if (new Set(s.routing.map((r) => r.network)).size !== s.routing.length) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["routing"], message: "Each network can be listed once." });
     const total = s.rules.reduce((t, r) => t + r.percent, 0);
     if (total !== 100) ctx.addIssue({ code: z.ZodIssueCode.custom, path: ["rules"], message: `Your settlement rules must total 100% (currently ${total}%).` });
     const enabled = s.routing.filter((r) => r.enabled);
@@ -260,6 +263,8 @@ export type ComplianceReview = { status: ReviewStatus; submittedAt?: string; dec
 
 export type OnboardingState = {
   version: 1;
+  /** Server-generated token for compare-and-swap writes; timestamps are not unique. */
+  revision?: string;
   business?: z.infer<typeof businessSchema>;
   identity?: z.infer<typeof identitySchema>;
   details?: z.infer<typeof detailsSchema>;
@@ -298,11 +303,24 @@ export type Facts = {
 const has = (s: OnboardingState, kind: DocumentKind) => s.documents.some((d) => d.kind === kind && d.review !== "rejected");
 const approved = (s: OnboardingState, kind: DocumentKind) => s.documents.some((d) => d.kind === kind && d.review === "approved");
 
+/** The same policy gates upload completion, review approval and activation. */
+export function requiredDocumentKinds(s: OnboardingState): DocumentKind[] {
+  const individualKyc = s.business?.type === "individual" && s.identity?.verification === "kyc";
+  return DOCUMENT_KINDS.filter((k) => DOCUMENTS[k].required && (!individualKyc || DOCUMENTS[k].group === "identity"));
+}
+
+export const SCREENING_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export function screeningIsFresh(result: ScreeningResult, now = Date.now()): boolean {
+  const age = now - Date.parse(result.screenedAt);
+  return Number.isFinite(age) && age >= 0 && age < SCREENING_MAX_AGE_MS;
+}
+
 /** Server-side prerequisites for marking a step complete, beyond its schema. */
 export function stepBlockers(s: OnboardingState, step: StepId): string[] {
   switch (step) {
     case "identity": {
-      const missing = DOCUMENT_KINDS.filter((k) => DOCUMENTS[k].required && (s.identity?.verification === "kyc" ? DOCUMENTS[k].group === "identity" : true) && !has(s, k));
+      if (s.business?.type !== "individual" && s.identity?.verification === "kyc") return ["Choose business verification (KYB) for this business type."];
+      const missing = requiredDocumentKinds(s).filter((k) => !has(s, k));
       return missing.map((k) => `Upload the ${DOCUMENTS[k].label}.`);
     }
     case "details": {
@@ -317,7 +335,9 @@ export function stepBlockers(s: OnboardingState, step: StepId): string[] {
       switch (s.screening.status) {
         case "clear":
         case "cleared_by_review":
-          return [];
+          // Freshness gates approval and activation. Once active, re-screening is
+          // ongoing monitoring (RESCREEN_DAYS), not a reason to reopen onboarding.
+          return s.activation.status === "ACTIVE" || screeningIsFresh(s.screening) ? [] : ["Screening has expired. Run sanctions screening again."];
         case "failed":
           return ["Screening unavailable. Run screening again."];
         case "confirmed_match":
@@ -339,13 +359,13 @@ export function stepStatuses(s: OnboardingState): Record<StepId, StepStatus> {
   const out = {} as Record<StepId, StepStatus>;
   for (const step of STEPS) {
     const prior = STEPS.slice(0, ORDER(step)).filter((p) => p !== "review");
-    const priorDone = prior.every((p) => s.completed.includes(p));
+    const priorDone = prior.every((p) => out[p] === "COMPLETED");
     if (step === "review") {
       out[step] = s.activation.status === "ACTIVE" ? "COMPLETED" : priorDone ? (s.activation.status === "REQUIRES_ACTION" ? "REQUIRES_ACTION" : "IN_PROGRESS") : "BLOCKED";
       continue;
     }
-    if (s.completed.includes(step)) out[step] = stepBlockers(s, step).length ? "REQUIRES_ACTION" : "COMPLETED";
-    else if (!priorDone) out[step] = "BLOCKED";
+    if (!priorDone) out[step] = "BLOCKED";
+    else if (s.completed.includes(step)) out[step] = stepBlockers(s, step).length ? "REQUIRES_ACTION" : "COMPLETED";
     else if (step === "compliance" ? Boolean(s.screening) : Boolean((s as Record<string, unknown>)[step])) out[step] = "IN_PROGRESS";
     else out[step] = "NOT_STARTED";
   }
@@ -353,13 +373,15 @@ export function stepStatuses(s: OnboardingState): Record<StepId, StepStatus> {
 }
 
 export function progress(s: OnboardingState) {
-  const done = STEPS.filter((st) => (st === "review" ? s.activation.status === "ACTIVE" : s.completed.includes(st))).length;
+  const statuses = stepStatuses(s);
+  const done = STEPS.filter((st) => statuses[st] === "COMPLETED").length;
   return { done, total: STEPS.length, pct: Math.round((done / STEPS.length) * 100) };
 }
 
 /** The first step the user has not completed — where "resume" lands. */
 export function resumeStep(s: OnboardingState): StepId {
-  return STEPS.find((st) => st !== "review" && !s.completed.includes(st)) ?? "review";
+  const statuses = stepStatuses(s);
+  return STEPS.find((st) => st !== "review" && statuses[st] !== "COMPLETED") ?? "review";
 }
 
 export type BlockerCode =
@@ -373,6 +395,7 @@ export type BlockerCode =
   | "document_storage_unavailable"
   | "screening_not_run"
   | "screening_unavailable"
+  | "screening_expired"
   | "screening_pending_review"
   | "screening_blocked"
   | "compliance_review_pending"
@@ -390,7 +413,7 @@ export type Check = { id: string; label: string; met: boolean; detail: string; s
  * flags alone (settlement rules are re-validated against the schema).
  */
 export function readiness(s: OnboardingState, f: Facts): { ready: boolean; checks: Check[]; blockers: BlockerCode[] } {
-  const required = DOCUMENT_KINDS.filter((k) => DOCUMENTS[k].required);
+  const required = requiredDocumentKinds(s);
   const docs = required.map((k) => s.documents.find((d) => d.kind === k));
   const docCodes: BlockerCode[] = !f.documentStorage
     ? ["document_storage_unavailable"]
@@ -403,6 +426,7 @@ export function readiness(s: OnboardingState, f: Facts): { ready: boolean; check
           : [];
 
   const sc = s.screening?.status;
+  // A clear result is only evidence for SCREENING_MAX_AGE_MS: lists change daily.
   const screeningCodes: BlockerCode[] = !s.screening
     ? ["screening_not_run"]
     : sc === "failed"
@@ -411,20 +435,23 @@ export function readiness(s: OnboardingState, f: Facts): { ready: boolean; check
         ? ["screening_pending_review"]
         : sc === "confirmed_match"
           ? ["screening_blocked"]
-          : [];
+          : !screeningIsFresh(s.screening)
+            ? ["screening_expired"]
+            : [];
 
   const rv = s.review?.status ?? "not_submitted";
   const reviewCodes: BlockerCode[] = rv === "approved" ? [] : rv === "rejected" ? ["compliance_review_rejected"] : rv === "changes_requested" ? ["compliance_review_changes_requested"] : ["compliance_review_pending"];
 
-  const identityCodes: BlockerCode[] = f.kycStatus === "verified" ? [] : f.identityProvider ? ["identity_verification_pending"] : ["identity_verification_pending", "identity_provider_not_configured"];
+  const identityCodes: BlockerCode[] = f.kycStatus === "verified" && s.completed.includes("identity") && identitySchema.safeParse(s.identity).success && !(s.identity?.verification === "kyc" && s.business?.type !== "individual") ? [] : f.identityProvider ? ["identity_verification_pending"] : ["identity_verification_pending", "identity_provider_not_configured"];
 
   const settlementValid = s.settlement ? settlementSchema.safeParse(s.settlement).success : false;
   const settlementCodes: BlockerCode[] = !s.settlement || !s.completed.includes("settlement") ? ["settlement_not_configured"] : settlementValid ? [] : ["settlement_rules_invalid"];
 
   const businessCodes: BlockerCode[] = [
-    ...(s.completed.includes("business") && s.business ? [] : (["business_information_incomplete"] as BlockerCode[])),
-    ...(s.completed.includes("details") && s.details ? [] : (["business_details_incomplete"] as BlockerCode[])),
+    ...(s.completed.includes("business") && businessSchema.safeParse(s.business).success ? [] : (["business_information_incomplete"] as BlockerCode[])),
+    ...(s.completed.includes("details") && detailsSchema.safeParse(s.details).success ? [] : (["business_details_incomplete"] as BlockerCode[])),
   ];
+  const treasuryValid = s.completed.includes("treasury") && treasurySchema.safeParse(s.treasury).success;
 
   const st = (codes: BlockerCode[], blockedIf: BlockerCode[] = [], notConfiguredIf: BlockerCode[] = []): Check["status"] =>
     codes.length === 0 ? "complete" : codes.some((c) => blockedIf.includes(c)) ? "blocked" : codes.some((c) => notConfiguredIf.includes(c)) ? "not_configured" : "pending";
@@ -450,7 +477,7 @@ export function readiness(s: OnboardingState, f: Facts): { ready: boolean; check
       id: "screening",
       label: "Sanctions screening clear",
       met: screeningCodes.length === 0,
-      detail: !s.screening
+      detail: screeningCodes.includes("screening_expired") ? "Screening has expired. Run sanctions screening again." : !s.screening
         ? "Sanctions screening has not run."
         : sc === "failed"
           ? "Screening unavailable — the screening service did not respond."
@@ -483,10 +510,10 @@ export function readiness(s: OnboardingState, f: Facts): { ready: boolean; check
     {
       id: "treasury",
       label: "Treasury configured",
-      met: s.completed.includes("treasury") && Boolean(s.treasury),
+      met: treasuryValid,
       detail: s.treasury ? `${s.treasury.networks.length} networks · ${s.treasury.assets.length} assets.` : "Not configured.",
-      status: s.completed.includes("treasury") && s.treasury ? "complete" : "pending",
-      codes: s.completed.includes("treasury") && s.treasury ? [] : ["treasury_not_configured"],
+      status: treasuryValid ? "complete" : "pending",
+      codes: treasuryValid ? [] : ["treasury_not_configured"],
     },
     {
       id: "settlement",
@@ -512,6 +539,7 @@ export const BLOCKER_LABEL: Record<BlockerCode, string> = {
   document_storage_unavailable: "Document storage unavailable",
   screening_not_run: "Sanctions screening not run",
   screening_unavailable: "Screening unavailable",
+  screening_expired: "Sanctions screening expired",
   screening_pending_review: "Screening awaiting compliance review",
   screening_blocked: "Sanctions match confirmed",
   compliance_review_pending: "Awaiting compliance review",

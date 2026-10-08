@@ -5,9 +5,11 @@ import {
   progress,
   readiness,
   resumeStep,
+  SCREENING_MAX_AGE_MS,
   settlementSchema,
   stepBlockers,
   stepStatuses,
+  treasurySchema,
   type OnboardingState,
 } from "../onboarding";
 import * as fx from "./fixtures";
@@ -74,9 +76,31 @@ describe("state machine", () => {
     expect(progress(emptyState())).toEqual({ done: 0, total: 7, pct: 0 });
   });
   it("progress counts completed steps and activation, never a constant", () => {
-    const s = { ...emptyState(), completed: ["business", "identity", "details"] as OnboardingState["completed"] };
+    const s: OnboardingState = {
+      ...emptyState(),
+      completed: ["business", "identity", "details"],
+      business: fx.business as OnboardingState["business"],
+      identity: fx.identity as OnboardingState["identity"],
+      details: fx.details as OnboardingState["details"],
+      documents: REQUIRED_DOCS.map((kind, i) => ({ id: uuid(i), kind, name: kind, size: 1, contentType: "application/pdf" as const, uploadedAt: "", review: "received" as const })),
+    };
     expect(progress(s).pct).toBe(Math.round((3 / 7) * 100));
     expect(resumeStep(s)).toBe("compliance");
+  });
+  it("a completed flag whose prerequisites no longer hold is not progress", () => {
+    // Identity is flagged complete but its documents were rejected: it needs action,
+    // so it does not count and every later step is blocked behind it.
+    const s: OnboardingState = {
+      ...emptyState(),
+      completed: ["business", "identity", "details"],
+      business: fx.business as OnboardingState["business"],
+      identity: fx.identity as OnboardingState["identity"],
+      details: fx.details as OnboardingState["details"],
+      documents: REQUIRED_DOCS.map((kind, i) => ({ id: uuid(i), kind, name: kind, size: 1, contentType: "application/pdf" as const, uploadedAt: "", review: "rejected" as const })),
+    };
+    expect(stepStatuses(s)).toMatchObject({ business: "COMPLETED", identity: "REQUIRES_ACTION", details: "BLOCKED" });
+    expect(progress(s).done).toBe(1);
+    expect(resumeStep(s)).toBe("identity");
   });
   it("identity needs the required documents uploaded", () => {
     expect(stepBlockers(emptyState(), "identity").length).toBeGreaterThan(0);
@@ -100,7 +124,7 @@ describe("readiness", () => {
     treasury: fx.treasury as OnboardingState["treasury"],
     settlement: settlementSchema.parse(fx.settlement([80, 15, 5])),
     documents: docs,
-    screening: { screenedAt: "", list: "OFAC SDN", names: 3, matches: [], status: "clear" },
+    screening: { screenedAt: new Date().toISOString(), list: "OFAC SDN", names: 3, matches: [], status: "clear" },
     review: { status: "approved", decidedAt: "2026-10-08T00:00:00Z", decidedBy: "officer-1", history: [] },
   });
 
@@ -146,6 +170,45 @@ describe("readiness", () => {
     s.settlement = { ...s.settlement!, rules: s.settlement!.rules.slice(0, 2) }; // 95%
     expect(readiness(s, verified).blockers).toEqual(["settlement_rules_invalid"]);
     expect(readiness({ ...ready(), completed: ready().completed.filter((x) => x !== "settlement") }, verified).blockers).toEqual(["settlement_not_configured"]);
+  });
+  it("an expired screening blocks readiness and the compliance step, including an officer clearance", () => {
+    const stale = { ...ready().screening!, screenedAt: new Date(Date.now() - SCREENING_MAX_AGE_MS - 1000).toISOString() };
+    expect(readiness({ ...ready(), screening: stale }, verified).blockers).toEqual(["screening_expired"]);
+    expect(stepBlockers({ ...ready(), screening: stale }, "compliance")[0]).toMatch(/expired/);
+    expect(readiness({ ...ready(), screening: { ...stale, status: "cleared_by_review" } }, verified).blockers).toEqual(["screening_expired"]);
+    // An unparseable timestamp is not evidence of a recent screening.
+    expect(readiness({ ...ready(), screening: { ...stale, screenedAt: "" } }, verified).blockers).toEqual(["screening_expired"]);
+  });
+  it("an activated account does not fall back into onboarding when its screening ages", () => {
+    const stale = { ...ready().screening!, screenedAt: new Date(Date.now() - 2 * SCREENING_MAX_AGE_MS).toISOString() };
+    const active: OnboardingState = { ...ready(), screening: stale, activation: { status: "ACTIVE", at: stale.screenedAt } };
+    expect(Object.values(stepStatuses(active)).every((x) => x === "COMPLETED")).toBe(true);
+    expect(progress(active).pct).toBe(100);
+  });
+  it("a sole trader verified by KYC needs only identity documents; an entity cannot use KYC", () => {
+    const sole: OnboardingState = { ...ready(), business: { ...ready().business!, type: "individual" }, identity: { ...ready().identity!, verification: "kyc" }, documents: docs.filter((d) => d.kind === "id_front") };
+    expect(stepBlockers(sole, "identity")).toEqual([]);
+    expect(readiness(sole, verified)).toMatchObject({ ready: true, blockers: [] });
+    const company: OnboardingState = { ...ready(), identity: { ...ready().identity!, verification: "kyc" } };
+    expect(stepBlockers(company, "identity")[0]).toMatch(/KYB/);
+    expect(readiness(company, verified).blockers).toEqual(["identity_verification_pending"]);
+  });
+  it("re-validates stored profile and treasury rather than trusting completed flags", () => {
+    expect(readiness({ ...ready(), business: { ...ready().business!, legalName: "" } }, verified).blockers).toEqual(["business_information_incomplete"]);
+    expect(readiness({ ...ready(), treasury: { ...ready().treasury!, networks: [] } }, verified).blockers).toEqual(["treasury_not_configured"]);
+  });
+});
+
+describe("duplicate entries", () => {
+  it("owner ids, networks, assets, rule ids and routing networks must be unique", () => {
+    const o = fx.details.owners[0];
+    expect(detailsSchema.safeParse({ ...fx.details, owners: [o, { ...o, name: "Someone Else" }] }).success).toBe(false);
+    expect(treasurySchema.safeParse({ ...fx.treasury, networks: ["arbitrum", "arbitrum"] }).success).toBe(false);
+    expect(treasurySchema.safeParse({ ...fx.treasury, assets: ["USDC", "USDC"] }).success).toBe(false);
+    const s = fx.settlement([50, 50]);
+    expect(settlementSchema.safeParse(s).success).toBe(true);
+    expect(settlementSchema.safeParse({ ...s, rules: [s.rules[0], { ...s.rules[1], id: s.rules[0].id }] }).success).toBe(false);
+    expect(settlementSchema.safeParse({ ...s, routing: [...s.routing, { network: "arbitrum", enabled: true, primary: false }] }).success).toBe(false);
   });
 });
 

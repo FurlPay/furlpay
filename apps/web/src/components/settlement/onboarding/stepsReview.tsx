@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
 import { ArrowLeft, ArrowRight, BadgeCheck, CheckCircle2, CircleAlert, CircleDashed, CircleX, Minus, FileText, Lock, MessageSquare, ShieldCheck, UserRoundCheck, Wallet } from "lucide-react";
-import { BLOCKER_LABEL, BUSINESS_TYPES, countryName, DOCUMENTS, type Check, type StepId } from "@/lib/settlement/onboarding";
+import { BLOCKER_LABEL, BUSINESS_TYPES, countryName, DOCUMENTS, requiredDocumentKinds, type Check, type StepId } from "@/lib/settlement/onboarding";
 import { api, AssetLogo, Badge, ChainLogo, chainName, Notice } from "../os/primitives";
 import type { OnboardingView } from "./types";
 import type { StepProps } from "./OnboardingApp";
@@ -53,7 +53,9 @@ export function ReviewStep(p: StepProps) {
   const active = st.activation.status === "ACTIVE";
   const b = st.business;
   const kyb = st.documents.filter((d) => ["incorporation", "articles", "address"].includes(d.kind));
-  const kybStatus = kyb.length === 3 && kyb.every((d) => d.review === "approved") ? "Verified" : kyb.length ? "In review" : "Not submitted";
+  const required = requiredDocumentKinds(st);
+  const kybRequired = required.some((k) => DOCUMENTS[k].group === "business");
+  const kybStatus = !kybRequired ? "Not required" : kyb.length === 3 && kyb.every((d) => d.review === "approved") ? "Verified" : kyb.length ? "In review" : "Not submitted";
 
   async function activate() {
     if (busy) return;
@@ -225,7 +227,7 @@ export function ReviewStep(p: StepProps) {
                     <FileText size={18} color="var(--os-accent)" />
                     <span style={{ minWidth: 0 }}>
                       <strong style={{ marginTop: 0, fontSize: 12 }}>{DOCUMENTS[k].label}</strong>
-                      {d ? <Badge tone={reviewTone(d.review)}>{reviewLabel(d.review)}</Badge> : <small>{DOCUMENTS[k].required ? "Not uploaded" : "Optional"}</small>}
+                      {d ? <Badge tone={reviewTone(d.review)}>{reviewLabel(d.review)}</Badge> : <small>{required.includes(k) ? "Not uploaded" : "Optional"}</small>}
                     </span>
                   </div>
                 );
