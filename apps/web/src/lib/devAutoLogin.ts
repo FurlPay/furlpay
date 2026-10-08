@@ -7,14 +7,16 @@
 //     set in a developer's git-ignored apps/web/.env.local.
 // Edge-safe: no Node imports, so the middleware can call it.
 
+import { safeRedirectPath } from "./safeRedirect";
+
 type Env = Record<string, string | undefined>;
 
 export function devAutoLoginEnabled(env: Env = process.env): boolean {
   return env.NODE_ENV !== "production" && env.FURLPAY_DEV_AUTO_LOGIN === "1";
 }
 
-/** Same-origin path only. Anything else (absolute URL, "//host", "/\host") → "/". */
+/** Same-origin path only (lib/safeRedirect). Anything else → "/". The origin is
+ *  only used to resolve; the caller resolves the returned path against its own. */
 export function safeNextPath(raw: string | null | undefined): string {
-  if (!raw || !raw.startsWith("/") || raw.startsWith("//") || raw.startsWith("/\\")) return "/";
-  return raw.slice(0, 512);
+  return safeRedirectPath(raw, "https://furlpay.invalid", "/");
 }

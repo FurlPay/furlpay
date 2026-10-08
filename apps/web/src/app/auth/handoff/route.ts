@@ -1,4 +1,5 @@
 import { publicOrigin } from "@/lib/publicOrigin";
+import { safeRedirectUrl } from "@/lib/safeRedirect";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { kvGet, kvDel, kvSetNx } from "@/lib/kv";
@@ -18,25 +19,11 @@ import type { Role } from "@/lib/session";
 // after 60s regardless.
 
 /** Resolve `next` to a same-origin URL, or fall back to /travel — never bounce
- *  to an attacker's host just because they controlled `next`.
- *
- *  String-prefix checks are NOT enough here: the WHATWG URL parser strips ASCII
- *  tab/newline/CR and folds backslashes into slashes for http(s), so raw inputs
- *  that don't literally start with "//" ("/\\evil.com", "/<TAB>/evil.com")
- *  still resolve cross-origin. We instead resolve ONCE against the real origin,
- *  reject anything whose origin changed, and return the resolved URL object so
- *  the caller redirects to it verbatim — re-resolving an extracted path string
- *  (e.g. a normalized "//evil.com") would re-open the hole. */
+ *  to an attacker's host just because they controlled `next`. The rules (control
+ *  characters, backslashes, origin change, a resolved "//" path) live in
+ *  lib/safeRedirect; the resolved URL object is redirected to verbatim. */
 function safeNextUrl(raw: string | null, origin: string): URL {
-  const fallback = new URL("/travel", origin);
-  if (!raw) return fallback;
-  let u: URL;
-  try {
-    u = new URL(raw, origin);
-  } catch {
-    return fallback;
-  }
-  return u.origin === origin ? u : fallback;
+  return safeRedirectUrl(raw, origin, "/travel");
 }
 
 function fail(req: NextRequest, reason: string): NextResponse {
