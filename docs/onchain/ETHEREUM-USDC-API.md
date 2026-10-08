@@ -1,9 +1,11 @@
 # Ethereum USDC index — API design
 
-Status (2026-10-07): **implemented** — `metrics`, `transfers`,
-`address/:address` (they answer 503 / "not migrated" until migration 0036 is
-applied and the indexer has run). **Not yet implemented** — `metrics/hourly`,
-`metrics/daily`, `volume`, `transactions`, `addresses`; `tx/:hash` is served
+Status (2026-10-08): **implemented** — `metrics`, `metrics/hourly`,
+`metrics/daily`, `transfers`, `address/:address` (they answer 503 / "not
+migrated" until migration 0036 is applied and the indexer has run; hourly/daily
+omit empty buckets rather than zero-filling them). **Not yet implemented** —
+`volume`, `transactions`, `addresses` (need retained-event and ranking reads
+the indexer does not materialise yet); `tx/:hash` is served
 today by `/api/onchain/lookup` (node receipt + decoded transfers). Implemented
 routes differ from this design in one place: `metrics` returns the whole
 materialised window set in one response (`?window=` is not needed). They follow the
