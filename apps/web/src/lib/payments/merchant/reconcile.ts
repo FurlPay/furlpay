@@ -59,6 +59,8 @@ export async function checkReceipt(r: Receipt, intent: MerchantIntent): Promise<
 export async function reconcile(sinceMs = 7 * 86_400_000, chainLimit = 20) {
   const since = new Date(Date.now() - sinceMs).toISOString();
   const database = await sbRpc<number>("merchant_reconcile", { p_since: since });
+  // Liveness (0046): stuck confirmations, a stopped scanner, unreviewed holds.
+  const liveness = await sbRpc<number>("merchant_liveness", {});
   const receipts = await sbSelect<Receipt>("merchant_payment_receipts", `created_at=gte.${encodeURIComponent(since)}&order=created_at.desc&limit=${chainLimit}`);
   const ids = [...new Set(receipts.map(r => r.intent_id))];
   const intents = ids.length ? await sbSelect<MerchantIntent>("merchant_payment_intents", `id=in.(${ids.join(",")})&limit=${ids.length}`) : [];
@@ -72,5 +74,5 @@ export async function reconcile(sinceMs = 7 * 86_400_000, chainLimit = 20) {
     const created = await sbRpc<boolean>("merchant_reconciliation_alert", { p_intent: f.intent, p_kind: f.kind, p_detail: f.detail, p_severity: f.kind === "rpc_unavailable" ? "medium" : "high" });
     if (created) chain++;
   }
-  return { databaseAlerts: database, chainAlerts: chain, receiptsChecked: receipts.length, unavailable };
+  return { databaseAlerts: database, livenessAlerts: liveness, chainAlerts: chain, receiptsChecked: receipts.length, unavailable };
 }

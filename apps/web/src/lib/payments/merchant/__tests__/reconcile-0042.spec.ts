@@ -52,3 +52,41 @@ describe("merchant reconciliation (0042)", () => {
     await expect(db.query("select merchant_reconciliation_alert($1,'made_up','x','high')", [i])).rejects.toThrow();
   });
 });
+
+describe("liveness alerts (0046)", () => {
+  let live: PGlite;
+  beforeAll(async () => {
+    live = new PGlite();
+    await live.exec("create role anon; create role authenticated; create role service_role;");
+    for (const f of ["0009_payments_and_ledger.sql", "0040_stablecoin_payments.sql", "0041_merchant_webhooks.sql", "0042_payroll_and_merchant_extensions.sql", "0043_sui_collection.sql", "0044_payroll_contractor_self_service.sql", "0045_merchant_refunds.sql", "0046_merchant_liveness_alerts.sql"]) await live.exec(sql(f));
+  }, 30000);
+  afterAll(async () => { await live?.close(); });
+  const intent = async (status: string, createdAgo: string, checkedAgo: string, expiresIn = "1 hour") => {
+    const owner = randomUUID(), link = randomUUID(), id = randomUUID();
+    await live.query("insert into merchant_payment_links(id,merchant_id,merchant_name,slug,title,amount_units,fee_payer,chains,reusable,kind) values($1,$2,'M',$3,'T','1000000','merchant',array['base'],true,'link')", [link, owner, randomUUID()]);
+    await live.query(`insert into merchant_payment_intents(id,link_id,merchant_id,chain,recipient,reference,status,gross_units,fee_units,charge_units,net_units,start_block,scan_block,expires_at,created_at,last_checked_at)
+      values($1,$2,$3,'base','0xabc','r',$4,'1000000','7500','1000000','992500','1','1',now()+$5::interval,now()-$6::interval,now()-$7::interval)`, [id, link, owner, status, expiresIn, createdAgo, checkedAgo]);
+    return id;
+  };
+  const kinds = async (id: string) => (await live.query<{ kind: string }>("select kind from merchant_reconciliation_alerts where intent_id=$1 order by kind", [id])).rows.map(r => r.kind);
+  it("flags stuck confirmations, a stopped scanner and unreviewed holds, once each", async () => {
+    const stuck = await intent("confirming", "2 hours", "1 minute");
+    const stale = await intent("awaiting_payment", "30 minutes", "20 minutes");
+    const held = await intent("review", "2 days", "1 day");
+    const fine = await intent("awaiting_payment", "30 minutes", "1 minute");
+    const expired = await intent("awaiting_payment", "2 hours", "2 hours", "-1 minute");
+    expect((await live.query<{ n: number }>("select merchant_liveness() n")).rows[0].n).toBe(3);
+    expect(await kinds(stuck)).toEqual(["confirmation_delayed"]);
+    expect(await kinds(stale)).toEqual(["verification_stale"]);
+    expect(await kinds(held)).toEqual(["review_overdue"]);
+    expect(await kinds(fine)).toEqual([]);
+    expect(await kinds(expired)).toEqual([]);
+    expect((await live.query<{ n: number }>("select merchant_liveness() n")).rows[0].n).toBe(0);
+  });
+  it("does not nag about a held payment that has an operator decision", async () => {
+    const held = await intent("review", "2 days", "1 day");
+    await live.query("insert into merchant_review_notes(intent_id,author,decision,note) values($1,'ops','confirmed_hold','checked payer, holding')", [held]);
+    await live.query("select merchant_liveness()");
+    expect(await kinds(held)).toEqual([]);
+  });
+});
