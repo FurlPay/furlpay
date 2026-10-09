@@ -2,7 +2,7 @@ import { z } from "zod";
 import { sbRpc, sbSelect } from "@/lib/supabase";
 import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { parseUsdc } from "./money";
-import { paymentChain, requiredConfirmations, type PaymentChainId } from "./registry";
+import { isArcChain, paymentChain, requiredConfirmations, type PaymentChainId } from "./registry";
 import { requireStorage } from "./repository";
 import { blockSchema, hash, hex, rpc, verifyChain } from "./rpc";
 import { fetchSuiTransaction, usdcDelta } from "./sui";
@@ -100,7 +100,7 @@ export async function readRefundTransfer(chain: PaymentChainId, txHash: string, 
   const block = blockSchema.parse(await rpc(chain, "eth_getBlockByNumber", [receipt.blockNumber, false]));
   if (block.hash.toLowerCase() !== receipt.blockHash.toLowerCase()) throw new RefundRejected("That block was reorganized out; wait and retry");
   const time = Number(BigInt(block.timestamp)) * 1000;
-  if (chain === "arc") {
+  if (isArcChain(chain)) {
     // A custody provider may refund on Arc with a plain native send (system-emitter log only).
     const moves = arcCreditableTransfers(receipt.logs).filter(m => m.from === from.toLowerCase() && m.to === to.toLowerCase());
     if (moves.length !== 1) throw new RefundRejected(moves.length ? "That transaction contains several transfers to the refund address" : "That transaction has no USDC transfer from the payment address to the refund address");

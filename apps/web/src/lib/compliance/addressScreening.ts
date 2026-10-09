@@ -28,8 +28,8 @@ export async function screenAddressRisk(address: string, chain: string): Promise
   // Arc's USDC exposes the list that actually ENFORCES: isBlacklisted() on 0x3600. A blocked
   // address makes the transfer revert (one blocked payee reverts a whole batchPay), so it is a
   // block; an unanswerable check THROWS, and every caller treats a throw as "cannot screen".
-  if (chain === "arc") {
-    const arc = await screenArcAddress(address, async ({ to, data }) => String(await rpc("arc", "eth_call", [{ to, data }, "latest"])));
+  if (chain === "arc" || chain === "arc-testnet") {
+    const arc = await screenArcAddress(address, async ({ to, data }) => String(await rpc(chain, "eth_call", [{ to, data }, "latest"])));
     if (arc.status === "blocked") return { ...ofac, risk: "severe", score: 100, sanctioned: true, action: "block", categories: [...ofac.categories, "arc_usdc_blocklist"] };
     if (arc.status !== "clear") throw new Error(`Arc blocklist unavailable: ${arc.reason ?? "unknown"}`);
     ofac.categories = [...ofac.categories, "arc_usdc_blocklist_clear"];

@@ -2,7 +2,7 @@ import { z } from "zod";
 import { PublicKey } from "@solana/web3.js";
 import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { sbRpc, sbUpdate } from "@/lib/supabase";
-import { paymentChain, requiredConfirmations } from "./registry";
+import { isArcChain, paymentChain, requiredConfirmations } from "./registry";
 import { address, blockSchema, hash, hex, rpc, verifyChain } from "./rpc";
 import type { MerchantIntent } from "./model";
 import { fetchSuiTransaction, suiTransactionsTo, usdcDelta } from "./sui";
@@ -42,7 +42,7 @@ export async function scanIntent(original: MerchantIntent): Promise<MerchantInte
   await verifyChain(i.chain);
   if(i.chain === "solana") return scanSolana(i);
   if(i.chain === "sui") return scanSui(i);
-  if(i.chain === "arc") return scanArc(i);
+  if(isArcChain(i.chain)) return scanArc(i);
   const c = paymentChain(i.chain);
   const depth = requiredConfirmations(i.chain);
   if (depth === null) throw new Error("No deposit policy for this chain");
@@ -167,27 +167,27 @@ async function scanSui(i: MerchantIntent) {
  *  sub-micro-USDC dust is held for review rather than rounded. */
 export const arcReceiptSchema = z.object({status:hex,blockHash:hash,blockNumber:hex,transactionHash:hash,logs:z.array(logSchema)});
 async function scanArc(i: MerchantIntent) {
-  const c = paymentChain("arc");
-  const depth = requiredConfirmations("arc");
+  const c = paymentChain(i.chain);
+  const depth = requiredConfirmations(i.chain);
   if (depth === null) throw new Error("No deposit policy for this chain");
-  const head = blockSchema.parse(await rpc("arc","eth_getBlockByNumber",["latest",false]));
+  const head = blockSchema.parse(await rpc(i.chain,"eth_getBlockByNumber",["latest",false]));
   if(Math.abs(Date.now()/1000-Number(BigInt(head.timestamp)))>120) throw new Error("Stale network head");
-  const decimals = hex.parse(await rpc("arc","eth_call",[{to:c.token,data:"0x313ce567"},"latest"]));
+  const decimals = hex.parse(await rpc(i.chain,"eth_call",[{to:c.token,data:"0x313ce567"},"latest"]));
   if(BigInt(decimals)!==6n) throw new Error("Unexpected token precision");
   const from = BigInt(i.scan_block), latest = BigInt(head.number);
   const safe = latest-BigInt(depth)+1n;
   if(from>latest) return expire(i);
   const end = from+499n<latest ? from+499n : latest;
-  const logs = z.array(logSchema).max(400).parse(await rpc("arc","eth_getLogs",[{address:[ARC_SYSTEM_EMITTER,c.token],topics:[TRANSFER,null,`0x${i.recipient.slice(2).toLowerCase().padStart(64,"0")}`],fromBlock:`0x${from.toString(16)}`,toBlock:`0x${end.toString(16)}`}]));
+  const logs = z.array(logSchema).max(400).parse(await rpc(i.chain,"eth_getLogs",[{address:[ARC_SYSTEM_EMITTER,c.token],topics:[TRANSFER,null,`0x${i.recipient.slice(2).toLowerCase().padStart(64,"0")}`],fromBlock:`0x${from.toString(16)}`,toBlock:`0x${end.toString(16)}`}]));
   // One pass per transaction, in chain order; the receipt (not the log list) is the evidence.
   const ordered = logs.filter(l=>!l.removed).sort((a,b)=>Number(BigInt(a.blockNumber)-BigInt(b.blockNumber)) || Number(BigInt(a.logIndex)-BigInt(b.logIndex)));
   const txs = [...new Map(ordered.map(l=>[l.transactionHash.toLowerCase(),l])).values()];
   for(const listed of txs) {
-    const receipt = arcReceiptSchema.parse(await rpc("arc","eth_getTransactionReceipt",[listed.transactionHash]));
+    const receipt = arcReceiptSchema.parse(await rpc(i.chain,"eth_getTransactionReceipt",[listed.transactionHash]));
     if(BigInt(receipt.status)!==1n || receipt.transactionHash.toLowerCase()!==listed.transactionHash.toLowerCase() || receipt.blockHash!==listed.blockHash || receipt.blockNumber!==listed.blockNumber) throw new Error("Receipt mismatch");
     const movements = arcCreditableTransfers(receipt.logs).filter(m=>m.to===i.recipient.toLowerCase());
     if(!movements.length) continue;
-    const block = blockSchema.parse(await rpc("arc","eth_getBlockByNumber",[receipt.blockNumber,false]));
+    const block = blockSchema.parse(await rpc(i.chain,"eth_getBlockByNumber",[receipt.blockNumber,false]));
     if(block.hash!==receipt.blockHash) throw new Error("Chain reorganized");
     const timestamp = Number(BigInt(block.timestamp))*1000;
     if(timestamp<Date.parse(i.created_at)-5000 || timestamp>Date.parse(i.expires_at)) return hold(i);
@@ -201,7 +201,7 @@ async function scanArc(i: MerchantIntent) {
       if(m.dust!==0n) return hold(i);
       if(m.erc20Value<=0n || m.logIndex===undefined) continue;
       if(!await screen(i,m.from,receipt.blockNumber)) return hold(i);
-      if(blockSchema.parse(await rpc("arc","eth_getBlockByNumber",[receipt.blockNumber,false])).hash!==block.hash) throw new Error("Chain reorganized");
+      if(blockSchema.parse(await rpc(i.chain,"eth_getBlockByNumber",[receipt.blockNumber,false])).hash!==block.hash) throw new Error("Chain reorganized");
       i = await sbRpc<MerchantIntent>("merchant_payment_receive",{p_id:i.id,p_tx:receipt.transactionHash.toLowerCase(),p_log:Number(BigInt(m.logIndex)),p_amount:m.erc20Value.toString(),p_payer:m.from,p_block:BigInt(block.number).toString(),p_block_hash:block.hash,p_time:new Date(timestamp).toISOString(),p_confirmations:confirmations});
     }
   }

@@ -568,6 +568,10 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // Sui GraphQL endpoint for merchant collection (JSON-RPC was retired on
       // mainnet in July 2026). Unset => the public Foundation endpoint, rate limited.
       v("SUI_GRAPHQL_URL"),
+      // Arc testnet reader (comma-separated failover list) and the switch that lets a NON-production
+      // deployment collect on Arc testnet (lib/payments/merchant/registry.ts testnetCollectionEnabled).
+      v("ARC_TESTNET_RPC_URL"),
+      v("FURLPAY_TESTNET_COLLECTION"),
       v("SOLANA_DEVNET_RPC_URL"),
       v("HELIUS_RPC_URL"),
       v("ETHEREUM_SEPOLIA_RPC_URL"),

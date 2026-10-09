@@ -111,3 +111,28 @@ describe("Arc reconciliation reads the same stream", () => {
     expect((await checkReceipt(receipt, intent()))?.kind).toBe("amount_mismatch");
   });
 });
+
+describe("Arc testnet collection (ARC-P2-001)", () => {
+  it("is off by default and can never be enabled in production", async () => {
+    const { requiredConfirmations, testnetCollectionEnabled } = await import("../registry");
+    expect(requiredConfirmations("arc-testnet")).toBeNull();
+    expect(testnetCollectionEnabled({ FURLPAY_TESTNET_COLLECTION: "1" })).toBe(true);
+    expect(testnetCollectionEnabled({ FURLPAY_TESTNET_COLLECTION: "1", FURLPAY_ENV: "production" })).toBe(false);
+    expect(testnetCollectionEnabled({ FURLPAY_TESTNET_COLLECTION: "1", VERCEL_ENV: "production" })).toBe(false);
+    expect(testnetCollectionEnabled({})).toBe(false);
+    expect(requiredConfirmations("arc")).toBe(1); // mainnet unaffected
+  });
+  it("credits a native testnet payment through the testnet reader when enabled", async () => {
+    vi.stubEnv("FURLPAY_TESTNET_COLLECTION", "1");
+    try {
+      chain([log(SYSTEM, PAYER, RECIPIENT, NATIVE_25, "0x0")]);
+      await scanIntent(intent({ chain: "arc-testnet" }));
+      expect(h.rpc.mock.calls.every(c => c[0] === "arc-testnet")).toBe(true);
+      expect(h.sbRpc).toHaveBeenCalledWith("merchant_payment_receive", expect.objectContaining({ p_amount: "25000000" }));
+    } finally { vi.unstubAllEnvs(); }
+  });
+  it("refuses to scan a testnet intent when collection is disabled", async () => {
+    await expect(scanIntent(intent({ chain: "arc-testnet" }))).rejects.toThrow("No deposit policy");
+    expect(h.sbRpc).not.toHaveBeenCalled();
+  });
+});

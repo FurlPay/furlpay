@@ -26,7 +26,7 @@ import { verifyMessage } from "viem";
 import { pathToFileURL } from "node:url";
 
 export const PRODUCTION_PROJECT_REF = "iyarllmcednkbekweucd";
-export const SEEDABLE_CHAINS = ["arbitrum", "base", "arc", "polygon", "ethereum"];
+export const SEEDABLE_CHAINS = ["arbitrum", "base", "arc", "polygon", "ethereum", "arc-testnet"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Must equal lib/payments/merchant/destinationMessage.ts byte for byte (enforced by a test). */

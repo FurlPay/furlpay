@@ -66,6 +66,13 @@ export const DEPOSIT_POLICIES: Record<string, DepositConfirmationPolicy> = {
     expectedWaitMs: 800,
     boundedFinality: true,
   },
+  "arc-testnet": {
+    chain: "arc-testnet",
+    minConfirmations: 1, // Same Malachite BFT finality as mainnet
+    reorgMonitorDepth: 3,
+    expectedWaitMs: 800,
+    boundedFinality: true,
+  },
   sui: {
     chain: "sui",
     // A transaction in a checkpoint certified by >2/3 of validators cannot be

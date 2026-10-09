@@ -9,7 +9,7 @@ const sql = (f: string) => readFileSync(resolve(process.cwd(), `../../supabase/m
 beforeAll(async () => {
   db = new PGlite();
   await db.exec("create role anon; create role authenticated; create role service_role;");
-  for (const f of ["0009_payments_and_ledger.sql", "0040_stablecoin_payments.sql", "0041_merchant_webhooks.sql", "0042_payroll_and_merchant_extensions.sql", "0043_sui_collection.sql"]) await db.exec(sql(f));
+  for (const f of ["0009_payments_and_ledger.sql", "0040_stablecoin_payments.sql", "0041_merchant_webhooks.sql", "0042_payroll_and_merchant_extensions.sql", "0043_sui_collection.sql", "0044_payroll_contractor_self_service.sql", "0045_merchant_refunds.sql", "0046_merchant_liveness_alerts.sql", "0047_arc_testnet_collection.sql"]) await db.exec(sql(f));
 }, 30000);
 afterAll(async () => { await db?.close(); });
 const SUI = "0x9f63425709069336fec108bd4ba69a8f3d23e8ab237311f3ce58ae2bb0ed4d7f";
@@ -24,11 +24,14 @@ describe("Sui collection schema (0043)", () => {
     await expect(dest(randomUUID(), "base", SUI)).rejects.toThrow();
     await expect(dest(randomUUID(), "base", "0x" + "ab".repeat(20))).resolves.toBeTruthy();
     await expect(dest(randomUUID(), "aptos", SUI)).rejects.toThrow();
+    // 0047: Arc testnet uses EVM addresses.
+    await expect(dest(randomUUID(), "arc-testnet", "0x" + "ab".repeat(20))).resolves.toBeTruthy();
+    await expect(dest(randomUUID(), "arc-testnet", SUI)).rejects.toThrow();
   });
   it("reserves a Sui checkout and credits a verified receipt through the balanced journal", async () => {
     const owner = randomUUID(), slug = randomUUID(), intent = randomUUID();
     const address = "0x" + randomUUID().replaceAll("-", "").padEnd(64, "a");
-    await db.query("insert into merchant_payment_links(id,merchant_id,merchant_name,slug,title,amount_units,fee_payer,chains,reusable,kind) values($1,$2,'M',$3,'Order','1462500','merchant',array['arc','base','arbitrum','solana','polygon','ethereum','optimism','avalanche','sui'],true,'link')", [randomUUID(), owner, slug]);
+    await db.query("insert into merchant_payment_links(id,merchant_id,merchant_name,slug,title,amount_units,fee_payer,chains,reusable,kind) values($1,$2,'M',$3,'Order','1462500','merchant',array['arc','base','arbitrum','solana','polygon','ethereum','optimism','avalanche','sui','arc-testnet'],true,'link')", [randomUUID(), owner, slug]);
     await dest(owner, "sui", address);
     const r = await db.query<{ recipient: string }>("select recipient from merchant_checkout_reserve($1,$2,'sui','ref','331902700')", [intent, slug]);
     expect(r.rows[0].recipient).toBe(address);
