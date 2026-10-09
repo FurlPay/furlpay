@@ -3,13 +3,16 @@
 Hosted checkout (`/p/[slug]`), payment links, invoices and terminal requests
 that collect **native USDC** and credit merchants through the double-entry
 ledger. Code: `apps/web/src/lib/payments/merchant/`. Schema: migrations
-`0040_stablecoin_payments.sql` and `0041_merchant_webhooks.sql`.
+`0040_stablecoin_payments.sql`, `0041_merchant_webhooks.sql` and
+`0042_payroll_and_merchant_extensions.sql`.
 
 ## Money flow
 
 1. A merchant creates a link (`POST /api/merchant/payments`). Amounts are exact
-   USDC micro-units (6 dp, ≤ 1,000,000 USDC); the fee is 75 bps, rounded down,
-   paid by the merchant or the customer.
+   USDC micro-units (6 dp, ≤ 1,000,000 USDC); the fee is the merchant's tier
+   rate (starter 95, growth 75, scale 50, enterprise 35 bps; default growth),
+   rounded down, paid by the merchant or the customer. The rate is stamped on
+   the link, so a later tier change never reprices an open link.
 2. A payer opens `/p/<slug>` and picks a chain. `merchant_checkout_reserve`
    atomically assigns a **pre-provisioned, never-reused** collection address
    for that merchant and chain. No free address → `rail_unavailable` (503); there
@@ -70,14 +73,60 @@ to that address (no DNS rebinding); redirects are not followed. A webhook
 failure never touches the ledger. `GET /api/merchant/webhook` shows the last 20
 deliveries; `POST {redeliver:<id>}` re-queues an exhausted one.
 
+## Reconciliation and operations (0042)
+
+`/api/cron/merchant-reconcile` (every 10 min) checks three ways and records
+`merchant_reconciliation_alerts`; it never edits an intent or the ledger.
+
+- Intent vs receipts: a credited intent with no receipt, or whose receipts do
+  not sum to `received_units`.
+- Receipts vs ledger: a missing or unbalanced `mp:<chain>:<tx>:<log>` journal, or
+  one whose treasury debit differs from the receipt.
+- Receipts vs chain (last 20): EVM receipt still `status=1` in the recorded
+  block with the same USDC log and amount; Solana transaction finalized and
+  successful. A reader outage is a `medium` `rpc_unavailable`, never a failure.
+
+`/dashboard/operations` (admin or compliance; API `/api/merchant/operations`)
+lists held payments and open alerts, records decisions (`note`,
+`confirmed_hold`, `escalated`, `refund_requested`) and resolves alerts with a
+reason. Admins assign pricing tiers there. There is deliberately no action that
+credits, releases or refunds.
+
+## Payroll (0042)
+
+`/dashboard/payroll`; APIs under `/api/payouts/payroll/{contractors,batches,tax-summary}`.
+Non-custodial: FurlPay never holds payroll funds and posts nothing to the ledger.
+
+- Roster: contractors with a saved EVM payout address on arbitrum, base or
+  polygon (FurlPayRouter's chains). Batches take roster IDs only, never addresses.
+- Draft: every recipient screened (OFAC + Circle). Flagged or unscreenable →
+  the batch is `blocked` and cannot be submitted.
+- Fee quote, computed in `payroll_batch_create`: 35 bps of gross, minimum
+  1.50 USDC, plus 19 USDC × active contractors on the first batch of each month.
+  **Quotes only: billing is not connected.**
+- Submit: compare-and-set `draft → submitting`, one FurlPayRouter intent per
+  line (`createPayment`, idempotency key `payroll:<batch>:<line>`), then
+  `submitted`. Any failure returns the batch to `draft`. Production without
+  `FURLPAY_ROUTER_ADDRESS` answers 503. Intents live in the payment service's
+  memory today; signing requests are returned once, at submission.
+- 1099-NEC watch: totals of submitted batches per US contractor per year against
+  $600 (≤ 2025) / $2,000 (2026); 2027+ shows no threshold until the inflation
+  adjustment is published. No TINs are stored and nothing is filed.
+
+Not built: W-8BEN/W-9 collection (needs a decision on TIN storage and
+encryption), e-FIRA (issued by the Indian AD bank, not by FurlPay), bank
+virtual accounts (no BaaS partner).
+
 ## Production requirements
 
-- Migrations `0040` then `0041` applied (needs `0009` ledger; not applied in prod
+- Migrations `0040`, `0041`, then `0042` applied (link creation reads
+  `merchant_pricing`, so `0042` is required by this code) (needs `0009` ledger; not applied in prod
   as of 2026-10-09).
 - `FURLPAY_PARTNER_WEBHOOK_KEY` (base64, 32 bytes). Without it, endpoint setup
   and delivery fail closed (503 / `secret_unreadable`).
 - `CRON_SECRET` (Vercel) or `FURLPAY_CRON_SECRET` (AWS) for
-  `/api/cron/merchant-payments` (every 2 min). Unset → the cron refuses.
+  `/api/cron/merchant-payments` (every 2 min) and `/api/cron/merchant-reconcile`
+  (every 10 min). Unset → the crons refuse.
 - RPC URLs per chain (`ETHEREUM_RPC_URL`, `BASE_RPC_URL`, `ARBITRUM_RPC_URL`,
   `POLYGON_RPC_URL`, `SOLANA_RPC_URL`, `ARC_RPC_URL`); unset falls back to the
   public endpoint in `registry.ts`, which is rate limited.
@@ -87,7 +136,7 @@ deliveries; `POST {redeliver:<id>}` re-queues an exhausted one.
 
 ## Deploy order
 
-1. Apply `0040`, then `0041` (additive: new tables/columns/functions only).
+1. Apply `0040`, `0041`, then `0042` (additive: new tables/columns/functions only).
 2. Set `FURLPAY_PARTNER_WEBHOOK_KEY`; confirm cron secret and RPC URLs.
 3. Deploy the application.
 4. Provision and approve collection addresses for a pilot merchant; run one
