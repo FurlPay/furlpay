@@ -588,6 +588,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
     group: "Arc rail and x402 tuning",
     vars: [
       v("ARC_RAIL_LIVE"),
+      // Public address of the KMS key "furlpay-settlement" that signs Arc rail transfers
+      // (lib/chains/arcExecutionAdapter.ts arcSigner). Not a secret; the key stays in the KMS.
+      v("ARC_SETTLEMENT_ADDRESS"),
       v("ARC_MAINNET_ACTIVATED"),
       v("ARC_CONFIRMATIONS"),
       v("ARC_RECEIPT_TIMEOUT_MS"),

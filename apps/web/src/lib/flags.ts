@@ -132,10 +132,10 @@ export const FLAG_SPECS: Record<MoneyFlag, FlagSpec> = {
     // named explicitly because the Arc mainnet endpoint constant in this repo
     // is NOT independently verified (docs/arc/ARC_DEPENDENCIES.md §1).
     requires: ["FURLPAY_KMS_PROVIDER", "ARC_RPC_URL"],
-    unimplemented:
-      "No Arc signer is wired yet (arcSigner() returns null), and no FurlPay contract has been " +
-      "deployed to Arc testnet or mainnet. Enabling this flag today changes nothing: the adapter " +
-      "still refuses to register. See docs/arc/ARC_PRODUCTION_ACTIVATION.md.",
+    // ARC-P1-004: the signer is KMS-only (arcSigner, key id "furlpay-settlement", address
+    // ARC_SETTLEMENT_ADDRESS) and the rail is registered by railAdapterFor() when every condition
+    // holds. Direct USDC transfer() needs no FurlPay contract. Mainnet additionally requires
+    // ARC_MAINNET_ACTIVATED=1 — see docs/arc/ARC_PRODUCTION_ACTIVATION.md.
   },
   ONCHAIN_BALANCES_LIVE: {
     description: "Read wallet balances from chain RPCs rather than the internal ledger.",
