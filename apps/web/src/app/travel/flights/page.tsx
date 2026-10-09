@@ -10,8 +10,16 @@ import AirportCombobox, { airportLabel, type AirportValue } from "@/components/t
 import type { Airport } from "@/lib/travel/airportSearch";
 import PassengersPicker, { type Passengers } from "@/components/travel/flights/PassengersPicker";
 import FlightResultCard, { dur, money } from "@/components/travel/flights/FlightResultCard";
+import Select from "@/components/form/Select";
+import EmptyState, { EMPTY_ACTION_PRIMARY, EMPTY_ACTION_SECONDARY } from "@/components/travel/EmptyState";
 
 const CABINS: Flight["cabin"][] = ["Economy", "Premium", "Business", "First"];
+const CABIN_OPTIONS = CABINS.map((c) => ({ value: c, label: c === "Premium" ? "Premium economy" : c }));
+const STOP_OPTIONS = [
+  { value: "0", label: "Nonstop only" },
+  { value: "1", label: "Up to 1 stop" },
+  { value: "2", label: "Up to 2 stops" },
+];
 const TIME_WINDOWS = [
   { id: "night", label: "Night", hint: "00–05", from: 0, to: 5 },
   { id: "morning", label: "Morning", hint: "05–12", from: 5, to: 12 },
@@ -242,16 +250,8 @@ export default function FlightsPage() {
               </button>
             ))}
           </div>
-          <select value={cabin} onChange={(e) => setCabin(e.target.value as Flight["cabin"])} aria-label="Cabin class" className="rounded-[10px] border border-white/[0.08] bg-black/30 px-3 py-1.5 text-[12px] font-semibold text-white [&>option]:text-black">
-            {CABINS.map((c) => (
-              <option key={c} value={c}>{c === "Premium" ? "Premium economy" : c}</option>
-            ))}
-          </select>
-          <select value={maxConnections} onChange={(e) => setMaxConnections(Number(e.target.value) as 0 | 1 | 2)} aria-label="Maximum stops" className="rounded-[10px] border border-white/[0.08] bg-black/30 px-3 py-1.5 text-[12px] font-semibold text-white [&>option]:text-black">
-            <option value={0}>Nonstop only</option>
-            <option value={1}>Up to 1 stop</option>
-            <option value={2}>Up to 2 stops</option>
-          </select>
+          <Select ariaLabel="Cabin class" value={cabin} options={CABIN_OPTIONS} onValueChange={(v) => setCabin(v as Flight["cabin"])} className="!w-[172px]" />
+          <Select ariaLabel="Maximum stops" value={String(maxConnections)} options={STOP_OPTIONS} onValueChange={(v) => setMaxConnections(Number(v) as 0 | 1 | 2)} className="!w-[150px]" />
         </div>
 
         {/* Two rows below xl (airports / dates, travellers, search), one row from
@@ -322,19 +322,19 @@ export default function FlightsPage() {
         )}
 
         {result.kind === "unavailable" && (
-          <div className="rounded-2xl border border-white/[0.08] bg-[#090D0E] px-5 py-8 text-center">
-            <p className="text-[15px] font-semibold text-white">
-              {result.reason === "no_live_provider" ? "Live flight search isn't connected on this deployment" : "No airline returned an offer for this search"}
-            </p>
-            <p className="mx-auto mt-2 max-w-lg text-[13px] text-white/55">
-              {result.reason === "no_live_provider"
-                ? "We only show fares an airline actually quoted, so there is nothing to list until a live supplier is configured."
-                : "Try other dates, allow more stops, or a nearby airport. We never fill this page with estimated fares."}
-            </p>
-            <Link href="/travel/alerts" className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-semibold text-neon hover:underline">
-              <Bell className="h-3.5 w-3.5" aria-hidden /> Get an alert for this route
-            </Link>
-          </div>
+          <EmptyState
+            icon={<Plane className="h-5 w-5" />}
+            title={result.reason === "no_live_provider" ? "Live flight search isn't connected on this deployment" : "No airline returned an offer for this search"}
+            actions={
+              <Link href="/travel/alerts" className={EMPTY_ACTION_SECONDARY}>
+                <Bell className="h-3.5 w-3.5" aria-hidden /> Get an alert for this route
+              </Link>
+            }
+          >
+            {result.reason === "no_live_provider"
+              ? "We only show fares an airline actually quoted, so there is nothing to list until a live supplier is configured."
+              : "Try other dates, allow more stops, or a nearby airport. We never fill this page with estimated fares."}
+          </EmptyState>
         )}
 
         {result.kind === "ok" && (
@@ -447,10 +447,13 @@ export default function FlightsPage() {
 
               <div className="mt-3 space-y-3">
                 {visible.length === 0 ? (
-                  <div className="rounded-2xl border border-white/[0.08] bg-[#090D0E] px-5 py-8 text-center text-[13px] text-white/60">
-                    No offers match these filters.{" "}
-                    <button type="button" onClick={() => setFilters(NO_FILTERS())} className="font-semibold text-neon hover:underline">Clear filters</button>
-                  </div>
+                  <EmptyState
+                    icon={<SlidersHorizontal className="h-5 w-5" />}
+                    title="No offers match these filters"
+                    actions={<button type="button" onClick={() => setFilters(NO_FILTERS())} className={EMPTY_ACTION_PRIMARY}>Clear filters</button>}
+                  >
+                    The airlines did quote this route — your filters are hiding every offer.
+                  </EmptyState>
                 ) : (
                   visible.map((f) => <FlightResultCard key={f.id} flight={f} badges={badgesFor(f)} sandbox={result.sandbox} />)
                 )}

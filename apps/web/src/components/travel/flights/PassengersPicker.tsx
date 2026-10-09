@@ -94,7 +94,7 @@ export default function PassengersPicker({ value, onChange }: { value: Passenger
                   <select
                     value={age}
                     onChange={(e) => onChange({ ...value, childAges: value.childAges.map((a, j) => (j === i ? Number(e.target.value) : a)) })}
-                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[13px] text-white [&>option]:text-black"
+                    className="mt-1 w-full rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[13px] text-white"
                   >
                     {Array.from({ length: 18 }, (_, n) => (
                       <option key={n} value={n}>{n === 0 ? "Under 1" : n}</option>

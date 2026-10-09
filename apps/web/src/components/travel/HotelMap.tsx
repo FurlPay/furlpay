@@ -103,6 +103,13 @@ import { CategoryIcon, CloseIcon, SearchIcon } from "./map/icons";
 import { startTracking, type UserLocation, type LocationTracker } from "@/lib/hotels/userLocation";
 import { CompassConfidenceEstimator } from "@/lib/hotels/compassConfidence";
 import { HeadingFusion } from "@/lib/hotels/headingFusion";
+import Select from "@/components/form/Select";
+
+const MIN_STAR_OPTIONS = [
+  { value: "0", label: "Any" },
+  { value: "4", label: "4+" },
+  { value: "5", label: "5" },
+];
 
 // ---------------------------------------------------------------------------
 // The luxury hotel map.
@@ -2420,18 +2427,16 @@ function FilterPanel({
       </div>
 
       <div className="mt-4 flex items-center justify-between">
-        <label className="flex items-center gap-2 text-[12.5px] text-[#A4AAA9]">
-          Min stars
-          <select
-            value={minStars}
-            onChange={(e) => onMinStars(Number(e.target.value))}
-            className="rounded-lg border border-white/[0.10] bg-[#090D0E] px-2 py-1 text-[12.5px] text-[#F5F7F6]"
-          >
-            <option value={0}>Any</option>
-            <option value={4}>4+</option>
-            <option value={5}>5</option>
-          </select>
-        </label>
+        <div className="flex items-center gap-2 text-[12.5px] text-[#A4AAA9]">
+          <span id="hotel-map-min-stars">Min stars</span>
+          <Select
+            labelId="hotel-map-min-stars"
+            value={String(minStars)}
+            onValueChange={(v) => onMinStars(Number(v))}
+            options={MIN_STAR_OPTIONS}
+            className="!h-8 !w-[96px]"
+          />
+        </div>
         <button
           type="button"
           onClick={onReset}
