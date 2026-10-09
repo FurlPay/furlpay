@@ -33,6 +33,9 @@ export default function PartnershipSelect({ id, labelId, value, options, onValue
   const [active, setActive] = useState(0);
   const [placement, setPlacement] = useState<{ style: CSSProperties; side: "above" | "below" } | null>(null);
   const typeahead = useRef({ value: "", time: 0 });
+  // A touch on the list may move focus off the trigger before its click lands;
+  // that blur must not close the list out from under the tap.
+  const pressingMenu = useRef(false);
   const selected = options.findIndex(o => o.value === value);
   const close = useCallback(() => setOpen(false), []);
   const show = (last = false) => {
@@ -110,7 +113,7 @@ export default function PartnershipSelect({ id, labelId, value, options, onValue
       aria-haspopup="listbox" aria-expanded={open} aria-required={required} aria-invalid={invalid || undefined}
       aria-describedby={describedBy} aria-activedescendant={open ? `${id}-option-${active}` : undefined}
       onClick={() => open ? close() : show()}
-      onBlur={close}
+      onBlur={() => { if (!pressingMenu.current) close(); }}
       onKeyDown={event => {
         const key = event.key;
         if (key === "Tab") { close(); return; }
@@ -138,7 +141,15 @@ export default function PartnershipSelect({ id, labelId, value, options, onValue
     {mounted && host && createPortal(<div ref={menu} id={`${id}-list`} role="listbox" aria-labelledby={labelId}
       aria-hidden={!open || undefined} className="fp-listbox" data-open={open} data-side={placement?.side}
       style={placement?.style ?? { visibility: "hidden" }}
-      onPointerDown={event => { if (event.pointerType !== "touch") event.preventDefault(); }}>
+      onPointerDown={event => {
+        // Mouse/pen: keep focus on the trigger. Touch: leave the default so the
+        // list still scrolls, and let the blur guard keep it open.
+        if (event.pointerType !== "touch") { event.preventDefault(); return; }
+        pressingMenu.current = true;
+        const release = () => { window.setTimeout(() => { pressingMenu.current = false; }, 0); };
+        window.addEventListener("pointerup", release, { once: true, capture: true });
+        window.addEventListener("pointercancel", release, { once: true, capture: true });
+      }}>
       {options.map((option, index) => <div key={option.value} id={`${id}-option-${index}`} role="option" aria-selected={value === option.value}
         className="fp-option" data-index={index} data-active={active === index}
         onPointerMove={event => { if (event.pointerType === "mouse") setActive(index); }}

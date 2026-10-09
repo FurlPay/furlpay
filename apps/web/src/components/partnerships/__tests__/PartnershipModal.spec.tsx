@@ -7,8 +7,11 @@ vi.mock("next/dynamic", () => ({ default: () => () => null }));
 vi.mock("@/lib/analytics/vercelEvents", () => ({ trackEvent: vi.fn() }));
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.setAttribute("open", ""); };
+  vi.stubGlobal("ResizeObserver", class { observe() {} disconnect() {} });
+  // jsdom has no layout; give every box an on-screen rect so the list is positioned as in a browser.
+  vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({ x: 20, y: 100, left: 20, top: 100, right: 420, bottom: 146, width: 400, height: 46, toJSON: () => ({}) } as DOMRect);
 });
-afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 const mount = (initialInterest?: "developer-api") => {
   const close = vi.fn();
   render(<PartnershipModal open onClose={close} source="partners_hero" initialInterest={initialInterest} />);
@@ -17,7 +20,8 @@ const mount = (initialInterest?: "developer-api") => {
 const fill = () => {
   fireEvent.change(screen.getByLabelText(/Company \/ Project/), { target: { value: "Acme Labs" } });
   fireEvent.change(screen.getByLabelText(/Work email/), { target: { value: "ops@acme.example" } });
-  fireEvent.change(screen.getByRole("combobox", { name: "Contact method" }), { target: { value: "email" } });
+  fireEvent.click(screen.getByRole("combobox", { name: /^Contact method/ }));
+  fireEvent.click(screen.getByRole("option", { name: "Email" }));
 };
 const submit = () => fireEvent.click(screen.getByRole("button", { name: "Submit partnership inquiry" }));
 
@@ -48,7 +52,7 @@ describe("partnership modal regressions", () => {
     mount("developer-api"); fill(); submit();
     await screen.findByText("Storage unavailable");
     expect((screen.getByLabelText(/Company \/ Project/) as HTMLInputElement).value).toBe("Acme Labs");
-    expect((screen.getByLabelText(/Partnership interest/) as HTMLSelectElement).value).toBe("developer-api");
+    expect(screen.getByRole("combobox", { name: /^Partnership interest/ }).textContent).toContain("Developer & API integrations");
   });
   it("sends once during a pending request and focuses confirmed success", async () => {
     let resolve!: (v: unknown) => void;

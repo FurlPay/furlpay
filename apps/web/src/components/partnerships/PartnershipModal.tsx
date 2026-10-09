@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ArrowRight, AtSign, CheckCircle2, ChevronDown, Globe2, Linkedin, MessageCircle, Phone, Send, X } from "lucide-react";
+import { ArrowRight, AtSign, CheckCircle2, Globe2, Linkedin, MessageCircle, Phone, Send, X } from "lucide-react";
 import { CONTACT_METHODS, PARTNERSHIP_INTERESTS, validateInquiry, type ContactMethod, type PartnershipInterest } from "@/lib/partnerships/model";
 import { trackEvent } from "@/lib/analytics/vercelEvents";
+import PartnershipSelect from "./PartnershipSelect";
 
 // The "Let's build together" dialog. Accessible modal (labelled dialog, focus
 // trapped and restored, Escape, scroll lock), a form validated by the same
@@ -14,6 +15,8 @@ import { trackEvent } from "@/lib/analytics/vercelEvents";
 
 const PaymentsGlobe = dynamic(() => import("@/components/globe/PaymentsGlobe"), { ssr: false, loading: () => null });
 
+const CONTACT_OPTIONS = CONTACT_METHODS.map(m => ({ value: m.id, label: m.label }));
+const INTEREST_OPTIONS = PARTNERSHIP_INTERESTS.map(i => ({ value: i.id, label: i.title }));
 const CONTACT_ICON: Record<ContactMethod, typeof Send> = { telegram: Send, whatsapp: Phone, email: AtSign, linkedin: Linkedin, discord: MessageCircle, other: Globe2 };
 type Fields = { company: string; workEmail: string; contactMethod: ContactMethod; contactDetail: string; fullName: string; jobTitle: string; website: string; interest: PartnershipInterest | ""; message: string };
 const EMPTY: Fields = { company: "", workEmail: "", contactMethod: "telegram", contactDetail: "", fullName: "", jobTitle: "", website: "", interest: "", message: "" };
@@ -72,8 +75,11 @@ export default function PartnershipModal({ open, onClose, initialInterest, sourc
 
   if (!open) return null;
 
-  const set = <K extends keyof Fields>(k: K) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
-    const value = e.target.value as Fields[K];
+  const set = <K extends keyof Fields>(k: K) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setValue(k, e.target.value as Fields[K]);
+  // Picking the option that is already selected changes nothing — in
+  // particular it must not clear the contact detail the visitor typed.
+  const setValue = <K extends keyof Fields>(k: K, value: Fields[K]) => {
+    if (f[k] === value) return;
     setF(v => ({ ...v, [k]: value }));
     setConfirmDiscard(false);
     if (errors[k]) setErrors(({ [k]: _drop, ...rest }) => rest);
@@ -221,13 +227,10 @@ export default function PartnershipModal({ open, onClose, initialInterest, sourc
                 <div className="fp-field">
                   <span className="block text-[14px] font-medium" id={`${ids}-contact-label`}>Contact method{req}</span>
                   <div className="mt-2 grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2">
-                    <div className="relative">
-                      <MethodIcon size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--fp-primary-bright)]" aria-hidden="true" />
-                      <select {...fieldProps("contactMethod")} className="fp-input fp-select" style={{ paddingLeft: 36 }} aria-labelledby={`${ids}-contact-label`}>
-                        {CONTACT_METHODS.map(m => <option key={m.id} value={m.id}>{m.label}</option>)}
-                      </select>
-                      <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--fp-text-2)]" aria-hidden="true" />
-                    </div>
+                    <PartnershipSelect id={`${ids}-contactMethod`} labelId={`${ids}-contact-label`} value={f.contactMethod}
+                      options={CONTACT_OPTIONS} onValueChange={v => setValue("contactMethod", v as ContactMethod)}
+                      icon={<MethodIcon size={16} />} required disabled={submit.kind === "sending"}
+                      invalid={!!errors.contactMethod} describedBy={errors.contactMethod ? `${ids}-contactMethod-err` : undefined} />
                     <div>
                       <label htmlFor={`${ids}-contactDetail`} className="fp-sr-only">{method.label} contact detail</label>
                       <input {...fieldProps("contactDetail")} className="fp-input" placeholder={method.placeholder} title={method.placeholder} required={f.contactMethod !== "email"}
@@ -252,13 +255,12 @@ export default function PartnershipModal({ open, onClose, initialInterest, sourc
                   {err("website")}
                 </div>
                 <div className="fp-field sm:col-span-2">
-                  <label htmlFor={`${ids}-interest`}>Partnership interest{req}</label>
-                  <div className="relative mt-2">
-                    <select {...fieldProps("interest")} className={`fp-input fp-select ${f.interest ? "" : "text-[var(--fp-text-3)]"}`} required>
-                      <option value="" disabled>Select a partnership type</option>
-                      {PARTNERSHIP_INTERESTS.map(i => <option key={i.id} value={i.id}>{i.title}</option>)}
-                    </select>
-                    <ChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[var(--fp-text-2)]" aria-hidden="true" />
+                  <label id={`${ids}-interest-label`} htmlFor={`${ids}-interest`}>Partnership interest{req}</label>
+                  <div className="mt-2">
+                    <PartnershipSelect id={`${ids}-interest`} labelId={`${ids}-interest-label`} value={f.interest}
+                      options={INTEREST_OPTIONS} onValueChange={v => setValue("interest", v as PartnershipInterest)}
+                      placeholder="Select a partnership type" required disabled={submit.kind === "sending"}
+                      invalid={!!errors.interest} describedBy={errors.interest ? `${ids}-interest-err` : undefined} />
                   </div>
                   {err("interest")}
                 </div>
