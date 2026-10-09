@@ -29,6 +29,7 @@ export default function PartnershipModal({ open, onClose, initialInterest, sourc
   const dialogRef = useRef<HTMLDialogElement>(null);
   const discardRef = useRef<HTMLButtonElement>(null);
   const sending = useRef(false);
+  const pressedBackdrop = useRef(false);
   const returnFocus = useRef<HTMLElement | null>(null);
   const openedAt = useRef(0);
   const [f, setF] = useState<Fields>(EMPTY);
@@ -150,7 +151,12 @@ export default function PartnershipModal({ open, onClose, initialInterest, sourc
         aria-describedby={`${ids}-desc`}
         className="fp-modal-root fp-modal-shell"
         onCancel={e => { e.preventDefault(); requestClose(); }}
-        onClick={e => { if (e.target === e.currentTarget) requestClose(); }}
+        // Backdrop close only when the press AND the release are on the backdrop.
+        // A click whose down/up land on different elements is reported on their
+        // common ancestor — this dialog — e.g. dragging a text selection out of
+        // an input, or a tap whose list closed under it.
+        onPointerDown={e => { pressedBackdrop.current = e.target === e.currentTarget; }}
+        onClick={e => { if (e.target === e.currentTarget && pressedBackdrop.current) requestClose(); pressedBackdrop.current = false; }}
       >
       <div className="fp-dialog relative grid w-full overflow-hidden lg:grid-cols-[38fr_62fr]" style={{ maxHeight: "calc(100dvh - 32px)" }}>
         {/* ── Brand panel ─────────────────────────────────────────────── */}
@@ -226,7 +232,7 @@ export default function PartnershipModal({ open, onClose, initialInterest, sourc
                 </div>
                 <div className="fp-field">
                   <span className="block text-[14px] font-medium" id={`${ids}-contact-label`}>Contact method{req}</span>
-                  <div className="mt-2 grid grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] gap-2">
+                  <div className="mt-2 grid grid-cols-[minmax(0,168px)_minmax(0,1fr)] gap-2">
                     <PartnershipSelect id={`${ids}-contactMethod`} labelId={`${ids}-contact-label`} value={f.contactMethod}
                       options={CONTACT_OPTIONS} onValueChange={v => setValue("contactMethod", v as ContactMethod)}
                       icon={<MethodIcon size={16} />} required disabled={submit.kind === "sending"}

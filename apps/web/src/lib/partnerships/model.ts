@@ -25,12 +25,12 @@ export type PartnershipInterest = (typeof PARTNERSHIP_INTERESTS)[number]["id"];
 export const INTEREST_IDS = PARTNERSHIP_INTERESTS.map(i => i.id) as [PartnershipInterest, ...PartnershipInterest[]];
 
 export const CONTACT_METHODS = [
-  { id: "telegram", label: "Telegram", placeholder: "Enter Telegram username" },
-  { id: "whatsapp", label: "WhatsApp", placeholder: "Phone number with country code, e.g. +65 8123 4567" },
-  { id: "email", label: "Email", placeholder: "Leave blank to use your work email" },
-  { id: "linkedin", label: "LinkedIn", placeholder: "https://www.linkedin.com/in/your-profile" },
-  { id: "discord", label: "Discord", placeholder: "Enter Discord username" },
-  { id: "other", label: "Other", placeholder: "How should we reach you?" },
+  { id: "telegram", label: "Telegram", placeholder: "@username" },
+  { id: "whatsapp", label: "WhatsApp", placeholder: "+65 8123 4567" },
+  { id: "email", label: "Email", placeholder: "Uses your work email" },
+  { id: "linkedin", label: "LinkedIn", placeholder: "linkedin.com/in/you" },
+  { id: "discord", label: "Discord", placeholder: "Discord username" },
+  { id: "other", label: "Other", placeholder: "How to reach you" },
 ] as const;
 export type ContactMethod = (typeof CONTACT_METHODS)[number]["id"];
 export const CONTACT_IDS = CONTACT_METHODS.map(m => m.id) as [ContactMethod, ...ContactMethod[]];
