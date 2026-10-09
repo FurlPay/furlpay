@@ -55,9 +55,15 @@ export function verifySuiPersonalMessage(address: string, message: string, signa
   return nacl.sign.detached.verify(personalMessageDigest(new TextEncoder().encode(message)), signature, publicKey);
 }
 
-/** POST a GraphQL query with the same byte budget and timeout as the JSON-RPC reader. */
-export async function suiGraphql<T>(query: string, variables: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
-  const endpoint = process.env.SUI_GRAPHQL_URL?.trim() || SUI_GRAPHQL;
+/** Endpoints: SUI_GRAPHQL_URL (comma-separated, first preferred), then the public Foundation endpoint. */
+export function suiEndpoints(env: Record<string, string | undefined> = process.env): string[] {
+  const configured = (env.SUI_GRAPHQL_URL ?? "").split(",").map(u => u.trim()).filter(u => u.startsWith("https://"));
+  return [...new Set([...configured, SUI_GRAPHQL])];
+}
+const suiDown: Map<string, number> = ((globalThis as unknown as { __furlpaySuiDown?: Map<string, number> }).__furlpaySuiDown ??= new Map());
+const suiProven: Set<string> = ((globalThis as unknown as { __furlpaySuiProven?: Set<string> }).__furlpaySuiProven ??= new Set());
+
+async function suiPost<T>(endpoint: string, query: string, variables: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
   const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ query, variables }), cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!res.ok || !res.body) throw new Error("Network reader unavailable");
   const reader = res.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
@@ -68,9 +74,30 @@ export async function suiGraphql<T>(query: string, variables: Record<string, unk
   return body.data;
 }
 
+/** GraphQL with failover. Every endpoint proves it serves Sui MAINNET (chainIdentifier) before its
+ *  first answer is used; a wrong-network endpoint is never used again in this process. */
+export async function suiGraphql<T>(query: string, variables: Record<string, unknown>, schema: z.ZodType<T>): Promise<T> {
+  const now = Date.now(); const list = suiEndpoints();
+  const ordered = [...list.filter(e => (suiDown.get(e) ?? 0) <= now), ...list.filter(e => (suiDown.get(e) ?? 0) > now && suiDown.get(e) !== Infinity)];
+  let wrongNetwork = false;
+  for (const endpoint of ordered) {
+    try {
+      if (!suiProven.has(endpoint)) {
+        const { chainIdentifier } = await suiPost(endpoint, "{ chainIdentifier }", {}, z.object({ chainIdentifier: z.string() }));
+        if (chainIdentifier !== SUI_MAINNET_CHAIN_IDENTIFIER) { wrongNetwork = true; suiDown.set(endpoint, Infinity); continue; }
+        suiProven.add(endpoint);
+      }
+      const data = await suiPost(endpoint, query, variables, schema);
+      suiDown.delete(endpoint);
+      return data;
+    } catch { suiDown.set(endpoint, Date.now() + 30_000); }
+  }
+  throw new Error(wrongNetwork ? "Wrong Sui network" : "Network reader unavailable");
+}
+
 export async function verifySuiChain() {
-  const { chainIdentifier } = await suiGraphql("{ chainIdentifier }", {}, z.object({ chainIdentifier: z.string() }));
-  if (chainIdentifier !== SUI_MAINNET_CHAIN_IDENTIFIER) throw new Error("Wrong Sui network");
+  // suiGraphql proves the chain of whichever endpoint answers.
+  await suiGraphql("{ chainIdentifier }", {}, z.object({ chainIdentifier: z.string() }));
 }
 
 /** Next checkpoint after the current one; a destination reserved now cannot have been paid before it. */

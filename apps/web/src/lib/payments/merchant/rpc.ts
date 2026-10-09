@@ -5,9 +5,31 @@ export const hex = z.string().regex(/^0x[0-9a-f]+$/i);
 export const hash = z.string().regex(/^0x[0-9a-f]{64}$/i);
 export const address = z.string().regex(/^0x[0-9a-f]{40}$/i);
 export const blockSchema = z.object({ number: hex, hash, timestamp: hex });
-export async function rpc(chainId: PaymentChainId, method: string, params: unknown[]): Promise<unknown> {
+// ---------------------------------------------------------------------------
+// Payment-chain reader with failover.
+//
+// Endpoints per chain: the comma-separated list in the chain's env var (first is
+// preferred), then the public endpoint from the registry. A transport failure,
+// non-2xx, oversized or malformed answer, or JSON-RPC error moves to the next
+// endpoint; an endpoint that fails is skipped for COOLDOWN_MS (per process).
+//
+// Every endpoint must prove it serves the RIGHT chain before its first answer is
+// used (eth_chainId / Solana genesis hash), and the proof is cached per process.
+// Without this, failover could quietly read payments from a misconfigured URL on
+// another network after a single verifyChain() succeeded on a different endpoint.
+// ---------------------------------------------------------------------------
+const COOLDOWN_MS = 30_000;
+type EndpointState = { failures: number; until: number };
+const health: Map<string, EndpointState> = ((globalThis as unknown as { __furlpayRpcHealth?: Map<string, EndpointState> }).__furlpayRpcHealth ??= new Map());
+const verified: Set<string> = ((globalThis as unknown as { __furlpayRpcVerified?: Set<string> }).__furlpayRpcVerified ??= new Set());
+
+export function endpointsFor(chainId: PaymentChainId, env: Record<string, string | undefined> = process.env): string[] {
   const c = paymentChain(chainId);
-  const endpoint = (c.env && process.env[c.env]?.trim()) || c.rpc;
+  const configured = (c.env ? env[c.env] ?? "" : "").split(",").map(u => u.trim()).filter(u => /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(u + "/"));
+  return [...new Set([...configured, c.rpc])];
+}
+
+async function post(endpoint: string, method: string, params: unknown[]): Promise<unknown> {
   const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!res.ok || !res.body) throw new Error("Network reader unavailable");
   const reader = res.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
@@ -17,12 +39,60 @@ export async function rpc(chainId: PaymentChainId, method: string, params: unkno
   if(body.error || body.result === undefined) throw new Error("Network reader unavailable");
   return body.result;
 }
+
+const SOLANA_MAINNET_GENESIS = "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d";
+async function proveChain(chainId: PaymentChainId, endpoint: string) {
+  const key = `${chainId}|${endpoint}`;
+  if (verified.has(key)) return;
+  const c = paymentChain(chainId);
+  if (c.family === "solana") {
+    if (await post(endpoint, "getGenesisHash", []) !== SOLANA_MAINNET_GENESIS) throw new Error("Wrong Solana cluster");
+  } else if (c.family === "evm") {
+    if (BigInt(hex.parse(await post(endpoint, "eth_chainId", []))) !== BigInt(c.chainId as number)) throw new Error("Wrong network");
+  } else throw new Error("Not a JSON-RPC chain");
+  verified.add(key);
+}
+
+export async function rpc(chainId: PaymentChainId, method: string, params: unknown[]): Promise<unknown> {
+  const endpoints = endpointsFor(chainId);
+  const now = Date.now();
+  // Healthy endpoints first (in configured order), cooling-down ones as a last resort.
+  // Wrong-chain endpoints (until = Infinity) are never used again in this process.
+  const ordered = [...endpoints.filter(e => (health.get(e)?.until ?? 0) <= now), ...endpoints.filter(e => { const u = health.get(e)?.until ?? 0; return u > now && u !== Infinity; })];
+  let wrongChain: Error | null = null;
+  for (const endpoint of ordered) {
+    try {
+      await proveChain(chainId, endpoint);
+      const result = await post(endpoint, method, params);
+      health.delete(endpoint);
+      return result;
+    } catch (e) {
+      const h = health.get(endpoint) ?? { failures: 0, until: 0 };
+      // A wrong-chain endpoint is a configuration error: never use it, never "recover" it.
+      const isWrong = e instanceof Error && /Wrong (network|Solana cluster)/.test(e.message);
+      if (isWrong) wrongChain = e as Error;
+      health.set(endpoint, { failures: h.failures + 1, until: isWrong ? Infinity : Date.now() + COOLDOWN_MS });
+    }
+  }
+  // A misconfigured (wrong-chain) endpoint is reported even if others were merely down.
+  throw wrongChain ?? new Error("Network reader unavailable");
+}
+
+/** Per-endpoint health for operators (no secrets: query strings are stripped). */
+export function rpcHealth(chainId: PaymentChainId) {
+  const now = Date.now();
+  return endpointsFor(chainId).map(e => {
+    const h = health.get(e); const u = new URL(e);
+    return { endpoint: `${u.protocol}//${u.host}${u.pathname === "/" ? "" : "/…"}`, verified: verified.has(`${chainId}|${e}`), failures: h?.failures ?? 0, coolingDown: (h?.until ?? 0) > now };
+  });
+}
+
 export async function verifyChain(chain: PaymentChainId) {
   const c = paymentChain(chain);
   if(c.family === "sui") return verifySuiChain();
-  if(c.family === "solana") {
-    if(await rpc(chain,"getGenesisHash",[]) !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") throw new Error("Wrong Solana cluster");
-  } else if(BigInt(hex.parse(await rpc(chain,"eth_chainId",[]))) !== BigInt(c.chainId)) throw new Error("Wrong network");
+  // rpc() proves the chain of whichever endpoint answers; one round trip is enough here.
+  if(c.family === "solana") await rpc(chain,"getGenesisHash",[]);
+  else await rpc(chain,"eth_chainId",[]);
 }
 export async function startBlock(chain: PaymentChainId): Promise<string> {
   if(paymentChain(chain).family === "sui") return suiStartCheckpoint();
