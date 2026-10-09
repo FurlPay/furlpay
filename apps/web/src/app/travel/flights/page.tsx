@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeftRight, Bell, Info, Loader2, Plane, Search, SlidersHorizontal, X } from "lucide-react";
+import { ArrowLeftRight, Info, Loader2, Plane, Search, SlidersHorizontal, X } from "lucide-react";
 import { trackClient } from "@/lib/analytics/client";
 import type { Flight } from "@/lib/travel/data";
 import { rankFlights, WEIGHTS, type FlightSort } from "@/lib/travel/flightRanking";
@@ -11,7 +11,8 @@ import type { Airport } from "@/lib/travel/airportSearch";
 import PassengersPicker, { type Passengers } from "@/components/travel/flights/PassengersPicker";
 import FlightResultCard, { dur, money } from "@/components/travel/flights/FlightResultCard";
 import Select from "@/components/form/Select";
-import EmptyState, { EMPTY_ACTION_PRIMARY, EMPTY_ACTION_SECONDARY } from "@/components/travel/EmptyState";
+import EmptyState, { EMPTY_ACTION_PRIMARY } from "@/components/travel/EmptyState";
+import { reportSearchOutcome } from "@/lib/travel/searchTelemetry";
 
 const CABINS: Flight["cabin"][] = ["Economy", "Premium", "Business", "First"];
 const CABIN_OPTIONS = CABINS.map((c) => ({ value: c, label: c === "Premium" ? "Premium economy" : c }));
@@ -163,10 +164,18 @@ export default function FlightsPage() {
       });
       const body = await res.json().catch(() => ({}));
       // Show the server's human message; never a raw error code or status.
-      if (!res.ok) return setResult({ kind: "error", message: typeof body?.detail === "string" ? body.detail : "We couldn't search flights right now. Try again." });
-      if (body.source !== "duffel" || !body.results?.length) return setResult({ kind: "unavailable", reason: body.unavailableReason ?? "no_offers" });
+      if (!res.ok) {
+        reportSearchOutcome("flights", "failed");
+        return setResult({ kind: "error", message: typeof body?.detail === "string" ? body.detail : "We couldn't search flights right now. Try again." });
+      }
+      if (body.source !== "duffel" || !body.results?.length) {
+        reportSearchOutcome("flights", "unavailable", { reason: body.unavailableReason ?? "no_offers" });
+        return setResult({ kind: "unavailable", reason: body.unavailableReason ?? "no_offers" });
+      }
+      reportSearchOutcome("flights", "results", { count: body.results.length });
       setResult({ kind: "ok", flights: body.results, highlights: body.highlights ?? {}, sandbox: body.isLiveSearch === false, cached: !!body.cached });
     } catch {
+      reportSearchOutcome("flights", "failed");
       setResult({ kind: "error", message: "We couldn't reach flight search. Check your connection and try again." });
     } finally {
       inFlight.current = false;
@@ -325,11 +334,6 @@ export default function FlightsPage() {
           <EmptyState
             icon={<Plane className="h-5 w-5" />}
             title={result.reason === "no_live_provider" ? "Live flight search isn't connected on this deployment" : "No airline returned an offer for this search"}
-            actions={
-              <Link href="/travel/alerts" className={EMPTY_ACTION_SECONDARY}>
-                <Bell className="h-3.5 w-3.5" aria-hidden /> Get an alert for this route
-              </Link>
-            }
           >
             {result.reason === "no_live_provider"
               ? "We only show fares an airline actually quoted, so there is nothing to list until a live supplier is configured."

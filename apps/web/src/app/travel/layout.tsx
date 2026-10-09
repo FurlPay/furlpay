@@ -5,7 +5,7 @@ import TravelHeader from "@/components/travel/home/TravelHeader";
 export const metadata = {
   title: { default: "FurlPay Travels — Book Travel with USDC & Crypto", template: "%s — FurlPay Travels" },
   description:
-    "Book stays, flights, cars and experiences with USDC, SOL, BTC or 100+ cryptos. 2% cashback on every booking, settled via x402.",
+    "Plan stays, flights, cars and experiences and pay with USDC, SOL, BTC or other crypto. 2% USDC cashback once travel rewards launch.",
   alternates: { canonical: "/travel" },
   openGraph: {
     type: "website",
@@ -13,13 +13,13 @@ export const metadata = {
     siteName: "Furlpay",
     title: "FurlPay Travels — Book Travel with USDC & Crypto",
     description:
-      "Book stays, flights, cars and experiences with USDC, SOL, BTC or 100+ cryptos. 2% cashback on every booking.",
+      "Plan stays, flights, cars and experiences and pay with USDC, SOL, BTC or other crypto. 2% USDC cashback once travel rewards launch.",
     images: [{ url: "/og.png" }],
   },
   twitter: {
     card: "summary_large_image" as const,
     title: "FurlPay Travels — Book Travel with USDC & Crypto",
-    description: "Book stays, flights, cars and experiences with USDC and 100+ cryptos. 2% cashback.",
+    description: "Plan stays, flights, cars and experiences and pay with USDC or crypto.",
     images: ["/og.png"],
   },
 };

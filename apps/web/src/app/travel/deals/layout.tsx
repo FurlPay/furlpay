@@ -2,7 +2,7 @@ import { seoMetadata } from "@/lib/seo/meta";
 
 export const metadata = seoMetadata({
   title: "Crypto Travel Deals",
-  description: "Live deals on flights, hotels and experiences — pay in USDC and earn 2% cashback on every booking, settled on-chain.",
+  description: "Discounted travel rates, shown only when a provider publishes both the regular and the discounted price. Pay in USDC or crypto.",
   path: "/travel/deals",
 });
 

@@ -12,6 +12,7 @@ import type { Stay } from "@/lib/travel/data";
 import Select from "@/components/form/Select";
 import { CheckRow, ChipGroup, FilterPanel, FilterSection, RangeField } from "@/components/travel/Filters";
 import EmptyState, { EMPTY_ACTION_PRIMARY, EMPTY_ACTION_SECONDARY } from "@/components/travel/EmptyState";
+import { outcomeOf, reportSearchOutcome } from "@/lib/travel/searchTelemetry";
 
 type SortId = "price" | "-price" | "rating" | "stars";
 const SORTS: { value: SortId; label: string }[] = [
@@ -71,12 +72,14 @@ function StaysResults() {
         setNights(d.nights);
         setUnavailable(d.unavailableReason ?? null);
         setHasIndexed(Boolean(d.indexedAlternatives));
+        reportSearchOutcome("stays", outcomeOf(d.results.length, d.unavailableReason), { count: d.results.length, reason: d.unavailableReason });
       })
       // A network failure is not "no results". Conflating them tells someone
       // their search came back empty when in fact it never ran.
       .catch(() => {
         setStays([]);
         setFailed(true);
+        reportSearchOutcome("stays", "failed");
       })
       .finally(() => setLoading(false));
   }, [city, checkIn, checkOut, reloadKey]);
