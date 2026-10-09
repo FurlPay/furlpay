@@ -85,7 +85,8 @@ describe("createBatch", () => {
     const [fn, args] = h.sbRpc.mock.calls[0];
     expect(fn).toBe("payroll_batch_create");
     expect(args).toMatchObject({ p_merchant: OWNER, p_seats: 4, p_batch_bps: 35, p_batch_min_units: "1500000", p_seat_units: "19000000" });
-    expect(args.p_lines).toEqual([{ contractor_id: C1, name: "Ada", recipient: ADDR, amount_units: "2500000000", screening: "clear" }]);
+    // address_verified: the employer typed this address; its owner never proved it (0044).
+    expect(args.p_lines).toEqual([{ contractor_id: C1, name: "Ada", recipient: ADDR, amount_units: "2500000000", screening: "clear", address_verified: false }]);
   });
   it("marks a recipient blocked on review/block, and unavailable when screening fails", async () => {
     roster([contractor()]);

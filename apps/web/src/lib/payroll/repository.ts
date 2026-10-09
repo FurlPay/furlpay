@@ -13,7 +13,8 @@ import type { Batch, BatchInput, BatchLine, Contractor, ContractorInput, Contrac
 // so nothing here posts to the ledger or marks anyone paid.
 export class PayrollUnavailable extends Error {}
 export class PayrollConflict extends Error {}
-const CONTRACTOR_COLUMNS = "id,merchant_id,name,email,role,country,payout_chain,payout_address,default_amount_units,tax_status,tax_form,tin_last4,tax_signed_on,tax_expires_on,active,created_at,updated_at";
+// Never the invite token hash, the address proof or the sealed tax blob.
+export const CONTRACTOR_COLUMNS = "id,merchant_id,name,email,role,country,payout_chain,payout_address,default_amount_units,tax_status,tax_form,tin_last4,tax_signed_on,tax_expires_on,active,linked_at,address_verified_at,invite_expires_at,created_at,updated_at";
 export function requireStorage() { if (supabaseBackend !== "supabase") throw new PayrollUnavailable("Payroll storage is not configured"); }
 const eq = (v: string) => encodeURIComponent(v);
 
@@ -39,6 +40,12 @@ export async function createContractor(owner: string, input: ContractorInput) {
 
 export async function updateContractor(owner: string, input: ContractorPatch) {
   requireStorage();
+  if (input.payoutAddress !== undefined || input.payoutChain !== undefined || input.email !== undefined) {
+    // Once the contractor has linked their account, their identity and the address
+    // their own wallet proved are theirs to change, not the employer's.
+    const current = (await sbSelect<{ linked_user_id: string | null; address_verified_at: string | null }>("payroll_contractors", `select=linked_user_id,address_verified_at&id=eq.${eq(input.id)}&merchant_id=eq.${eq(owner)}&limit=1`))[0];
+    if (current?.linked_user_id || current?.address_verified_at) throw new PayrollConflict("This contractor manages their own email and payout address");
+  }
   // Whitelisted columns only; tax_status is not writable here (no form flow yet).
   const patch: Partial<Contractor> = { updated_at: new Date().toISOString() };
   if (input.name !== undefined) patch.name = input.name;
@@ -49,9 +56,9 @@ export async function updateContractor(owner: string, input: ContractorPatch) {
   if (input.payoutAddress !== undefined) patch.payout_address = input.payoutAddress;
   if (input.defaultAmount !== undefined) patch.default_amount_units = parseUsdc(input.defaultAmount).toString();
   if (input.active !== undefined) patch.active = input.active;
-  const row = (await sbUpdate<Contractor & { tax_sealed?: string }>("payroll_contractors", `id=eq.${eq(input.id)}&merchant_id=eq.${eq(owner)}`, patch))[0];
+  const row = (await sbUpdate<Contractor & { tax_sealed?: string; invite_token_hash?: string; address_proof?: string; linked_user_id?: string }>("payroll_contractors", `id=eq.${eq(input.id)}&merchant_id=eq.${eq(owner)}`, patch))[0];
   if (!row) return null;
-  const { tax_sealed: _sealed, ...visible } = row;
+  const { tax_sealed: _sealed, invite_token_hash: _invite, address_proof: _proof, linked_user_id: _user, ...visible } = row;
   return visible;
 }
 
@@ -89,7 +96,7 @@ export async function createBatch(owner: string, input: BatchInput) {
     if (!c.active) throw new PayrollConflict(`${c.name} is inactive`);
     if (c.payout_chain !== input.chain) throw new PayrollConflict(`${c.name} is paid on ${c.payout_chain}, not ${input.chain}`);
     const units = l.amount ? parseUsdc(l.amount) : BigInt(String(c.default_amount_units));
-    lines.push({ contractor_id: c.id, name: c.name, recipient: c.payout_address, amount_units: units.toString(), screening: await screenRecipient(c.payout_address, input.chain) });
+    lines.push({ contractor_id: c.id, name: c.name, recipient: c.payout_address, amount_units: units.toString(), screening: await screenRecipient(c.payout_address, input.chain), address_verified: Boolean(c.address_verified_at) });
   }
   const seats = await sbCount("payroll_contractors", `merchant_id=eq.${eq(owner)}&active=eq.true`);
   await sbRpc<Batch>("payroll_batch_create", {

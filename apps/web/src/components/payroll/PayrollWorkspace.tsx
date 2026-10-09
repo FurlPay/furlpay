@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Ban, Plus, RefreshCw, Send, ShieldAlert, ShieldCheck, Users } from "lucide-react";
+import { Ban, Plus, RefreshCw, Send, ShieldAlert, ShieldCheck, Upload, Users } from "lucide-react";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
-import { ChainMark, Dialog, request } from "@/components/merchant/shared";
+import { ChainMark, CopyButton, Dialog, request } from "@/components/merchant/shared";
 import SigningPanel from "./SigningPanel";
 import { displayUsdc, parseUsdc } from "@/lib/payments/merchant/money";
 import { quoteBatch } from "@/lib/payroll/pricing";
@@ -23,6 +23,7 @@ export default function PayrollWorkspace() {
   const [batches, setBatches] = useState<Batch[] | null>(null);
   const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false); const [drafting, setDrafting] = useState(false); const [taxFor, setTaxFor] = useState<Contractor | null>(null);
+  const [invited, setInvited] = useState<{ name: string; url: string; email: string; expiresAt: string } | null>(null); const [importing, setImporting] = useState(false);
   const [detail, setDetail] = useState<Detail | null>(null);
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -48,6 +49,11 @@ export default function PayrollWorkspace() {
     setNotice("");
     try { setDetail(await request(`/api/payouts/payroll/batches?id=${id}`)); } catch (e) { setNotice((e as Error).message); }
   }
+  async function invite(c: Contractor) {
+    setNotice("");
+    try { const out = await request<{ url: string; email: string; expiresAt: string }>(`/api/payouts/payroll/contractors/${c.id}/invite`, { method: "POST", body: "{}" }); setInvited({ name: c.name, ...out }); void load(); }
+    catch (e) { setNotice((e as Error).message); }
+  }
   async function toggle(c: Contractor) {
     setNotice("");
     try { await request("/api/payouts/payroll/contractors", { method: "PATCH", body: JSON.stringify({ id: c.id, active: !c.active }) }); void load(); }
@@ -58,7 +64,7 @@ export default function PayrollWorkspace() {
     <header className="mp-header"><Link className="mp-brand" href="/settlement"><FurlPayMark size={27} /><b>FurlPay</b><span>Business</span></Link><nav aria-label="Workspaces"><Link href="/settlement">Overview</Link><Link href="/dashboard/payments">Payments</Link><Link href="/dashboard/payroll" aria-current="page">Payroll</Link><Link href="/settlement/treasury">Treasury</Link></nav></header>
     <main className="mp-main" style={{ maxWidth: 1180, margin: "0 auto" }}>
       <div className="mp-page-heading"><div><span className="mp-eyebrow">GLOBAL PAYROLL</span><h1>Payroll</h1><p>Pay your team in USDC from your own wallet. Every recipient is screened before a batch can be submitted.</p></div>
-        <div className="mp-heading-actions"><button className="mp-button secondary" disabled={!contractors} onClick={() => setAdding(true)}><Plus size={16} />Add contractor</button><button className="mp-button primary" disabled={!active.length} onClick={() => setDrafting(true)}><Users size={16} />New payroll batch</button></div></div>
+        <div className="mp-heading-actions"><button className="mp-button secondary" disabled={!contractors} onClick={() => setImporting(true)}><Upload size={16} />Import CSV</button><button className="mp-button secondary" disabled={!contractors} onClick={() => setAdding(true)}><Plus size={16} />Add contractor</button><button className="mp-button primary" disabled={!active.length} onClick={() => setDrafting(true)}><Users size={16} />New payroll batch</button></div></div>
       {error && <div className="mp-error" role="alert"><p>{error}</p><button className="mp-button secondary" onClick={() => void load()}>Try again</button></div>}
       {notice && <p className="mp-error" role="alert">{notice}</p>}
       <div className="mp-metrics">
@@ -69,7 +75,7 @@ export default function PayrollWorkspace() {
       </div>
       <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Contractors</h2><span>{contractors?.length ?? 0} on roster</span></div><button aria-label="Refresh" className="mp-icon-button" disabled={loading} onClick={() => void load()}><RefreshCw size={16} className={loading ? "mp-spin" : ""} /></button></div>
         {!contractors ? <div className="mp-empty" role="status">{loading ? "Loading roster…" : "Roster unavailable."}</div> : contractors.length ? <div className="mp-table-scroll"><table><thead><tr><th>Name</th><th>Country</th><th>Network</th><th>Payout address</th><th>Default</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-          {contractors.map(c => <tr key={c.id}><td><strong>{c.name}</strong><small style={{ display: "block" }}>{c.role || c.email}</small></td><td>{c.country}</td><td><span className="mp-chain-cell"><ChainMark chain={c.payout_chain} size={18} />{c.payout_chain}</span></td><td><code>{c.payout_address.slice(0, 8)}…{c.payout_address.slice(-6)}</code></td><td className="mp-money">{displayUsdc(BigInt(String(c.default_amount_units)))}<small>USDC</small></td><td>{c.active ? "Active" : "Inactive"}<small style={{ display: "block" }}>{taxLabel(c)}</small></td><td><button className="mp-button secondary" onClick={() => setTaxFor(c)}>Tax form</button> <button className="mp-button secondary" onClick={() => void toggle(c)}>{c.active ? "Deactivate" : "Reactivate"}</button></td></tr>)}
+          {contractors.map(c => <tr key={c.id}><td><strong>{c.name}</strong><small style={{ display: "block" }}>{c.role || c.email}</small></td><td>{c.country}</td><td><span className="mp-chain-cell"><ChainMark chain={c.payout_chain} size={18} />{c.payout_chain}</span></td><td><code>{c.payout_address.slice(0, 8)}…{c.payout_address.slice(-6)}</code><small style={{ display: "block" }}>{c.address_verified_at ? "Proven by contractor" : c.linked_at ? "Joined · not yet proven" : "Entered by you"}</small></td><td className="mp-money">{displayUsdc(BigInt(String(c.default_amount_units)))}<small>USDC</small></td><td>{c.active ? "Active" : "Inactive"}<small style={{ display: "block" }}>{taxLabel(c)}</small></td><td>{!c.linked_at && c.active && <button className="mp-button secondary" onClick={() => void invite(c)}>Invite</button>} <button className="mp-button secondary" onClick={() => setTaxFor(c)}>Tax form</button> <button className="mp-button secondary" onClick={() => void toggle(c)}>{c.active ? "Deactivate" : "Reactivate"}</button></td></tr>)}
         </tbody></table></div> : <div className="mp-empty"><h3>No contractors yet</h3><p>Add the people you pay. Their payout address is saved here and every batch pays only these addresses.</p></div>}
       </section>
       <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Batches</h2><span>{batches?.length ?? 0} recent</span></div></div>
@@ -79,6 +85,12 @@ export default function PayrollWorkspace() {
         <footer className="mp-table-footer"><span>Fees are quotes recorded with each batch; billing is not connected yet.</span><span><ShieldCheck size={13} />Non-custodial: you sign every payment</span></footer>
       </section>
     </main>
+    {invited && <Dialog title={`Invite ${invited.name}`} onClose={() => setInvited(null)}><div className="mp-detail">
+      <p>Send this link to {invited.email}. They sign in with that email, then prove the wallet they want to be paid to; after that, only they can change it. The link works once and expires {new Date(invited.expiresAt).toLocaleDateString()}.</p>
+      <div className="mp-copy-address"><code>{invited.url}</code><CopyButton value={invited.url} label="Copy invite link" /></div>
+      <p className="mp-muted">FurlPay does not email it for you. Creating a new link cancels this one.</p>
+    </div></Dialog>}
+    {importing && <Dialog title="Import contractors" onClose={() => setImporting(false)}><ImportRoster onDone={() => { setImporting(false); void load(); }} /></Dialog>}
     {taxFor && <Dialog title={`Tax form for ${taxFor.name}`} onClose={() => setTaxFor(null)}><TaxForm contractor={taxFor} onSaved={() => { setTaxFor(null); void load(); }} /></Dialog>}
     {adding && <Dialog title="Add a contractor" onClose={() => setAdding(false)}><ContractorForm onSaved={() => { setAdding(false); void load(); }} /></Dialog>}
     {drafting && <Dialog title="New payroll batch" onClose={() => setDrafting(false)}><BatchForm roster={active} chargedCycles={new Set((batches ?? []).filter(b => BigInt(String(b.seat_fee_units)) > 0n).map(b => b.cycle))} onSaved={d => { setDrafting(false); setDetail(d); void load(); }} /></Dialog>}
@@ -192,4 +204,32 @@ function TaxForm({ contractor, onSaved }: { contractor: Contractor; onSaved: () 
     {error && <p className="mp-error" role="alert">{error}</p>}
     <button className="mp-button primary" disabled={busy || !f.attestation}>{busy ? "Saving…" : "Record tax form"}</button>
   </form>;
+}
+
+// CSV roster import: every row is validated server-side with the same rules as the form; any
+// invalid row imports nothing. Emails already on the roster are skipped, never overwritten.
+function ImportRoster({ onDone }: { onDone: () => void }) {
+  const [csv, setCsv] = useState(""); const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ imported: number; skipped: number; errors: { line: number; error: string }[] } | null>(null); const [error, setError] = useState("");
+  async function submit() {
+    setBusy(true); setError(""); setResult(null);
+    try {
+      const res = await fetch("/api/payouts/payroll/contractors/import", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ csv }) });
+      const data = await res.json();
+      if (res.status === 422 || res.ok) setResult(data); else throw new Error(data.error ?? "Import failed");
+    } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
+  }
+  return <div className="mp-detail">
+    <p>Columns: <code>name,email,country,payoutChain,payoutAddress,defaultAmount</code> and optional <code>role</code>. Up to 500 rows.</p>
+    <input type="file" accept=".csv,text/csv" aria-label="CSV file" onChange={e => { const f = e.target.files?.[0]; if (f) void f.text().then(setCsv); }} />
+    <textarea aria-label="CSV" rows={8} value={csv} onChange={e => setCsv(e.target.value)} placeholder="name,email,country,payoutChain,payoutAddress,defaultAmount,role" style={{ width: "100%", fontFamily: "monospace" }} />
+    {result && (result.errors.length
+      ? <div className="mp-error" role="alert"><p>Nothing was imported. Fix these rows:</p><ul>{result.errors.slice(0, 20).map(e => <li key={e.line}>Line {e.line}: {e.error}</li>)}</ul></div>
+      : <p role="status">Imported {result.imported}; skipped {result.skipped} already on your roster.</p>)}
+    {error && <p className="mp-error" role="alert">{error}</p>}
+    <div className="mp-heading-actions">
+      {result && !result.errors.length ? <button className="mp-button primary" onClick={onDone}>Done</button>
+        : <button className="mp-button primary" disabled={busy || !csv.trim()} onClick={() => void submit()}>{busy ? "Importing…" : "Validate and import"}</button>}
+    </div>
+  </div>;
 }

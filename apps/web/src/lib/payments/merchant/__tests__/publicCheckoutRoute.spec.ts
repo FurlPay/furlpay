@@ -24,7 +24,13 @@ describe("hosted merchant checkout routing", () => {
     expect(toLogin(await middleware(anon("/p/AbCdEfGhIjKlMnOpQrStUvWx")))).toBe(false);
   });
   // Private pages that merely start with "p", bare /p, and the merchant dashboard stay gated.
-  it.each(["/profile", "/portfolio", "/p", "/dashboard/payments"])("%s stays behind the login", async (path) => {
+  it.each(["/profile", "/portfolio", "/p", "/dashboard/payments", "/payroll/me", "/dashboard/payroll"])("%s stays behind the login", async (path) => {
     expect(toLogin(await middleware(anon(path)))).toBe(true);
+  });
+  // The invite page must survive a login round trip with its #t= fragment, so it is public;
+  // only its API is authenticated.
+  it("a contractor can open a payroll invite before signing in", async () => {
+    expect(toLogin(await middleware(anon("/payroll/join")))).toBe(false);
+    expect(toLogin(await middleware(anon("/payroll/joinx")))).toBe(true);
   });
 });
