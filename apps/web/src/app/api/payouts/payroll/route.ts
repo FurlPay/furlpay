@@ -3,6 +3,8 @@ import { createPayment } from "@/lib/services/payments";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { z } from "zod";
+import { listContractors } from "@/lib/payroll/repository";
+import { displayUsdc } from "@/lib/payments/merchant/money";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +14,9 @@ export const dynamic = "force-dynamic";
 // account that runs payroll also books the team's travel, so a remote-team
 // operator does both in one product.
 //
-// GET  → the caller's saved roster. Roster persistence is not implemented, so
-//        this is always empty — see below for why it no longer returns one.
+// GET  → the caller's saved roster (payroll_contractors, migration 0042; managed
+//        at /api/payouts/payroll/contractors). Storage not configured → empty,
+//        with persisted:false. Never a placeholder roster — see below.
 // POST → run payroll for the roster IN THE BODY; returns per-line intents plus
 //        totals. Money only moves once each intent's sign data is signed.
 //
@@ -44,7 +47,17 @@ const RunSchema = z.object({
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
-  return NextResponse.json({ roster: [], headcount: 0, monthlyUsd: 0, persisted: false });
+  let saved;
+  try { saved = await listContractors(auth.account.user.id); }
+  catch { return NextResponse.json({ roster: [], headcount: 0, monthlyUsd: 0, persisted: false }); }
+  const active = saved.filter((c) => c.active);
+  const monthlyUnits = active.reduce((s, c) => s + BigInt(String(c.default_amount_units)), 0n);
+  return NextResponse.json({
+    roster: active.map((c) => ({ id: c.id, name: c.name, role: c.role, address: c.payout_address, chain: c.payout_chain, amountUsdc: displayUsdc(BigInt(String(c.default_amount_units))) })),
+    headcount: active.length,
+    monthlyUsd: Number(displayUsdc(monthlyUnits)),
+    persisted: true,
+  });
 }
 
 export async function POST(req: NextRequest) {
