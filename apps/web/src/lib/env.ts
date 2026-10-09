@@ -510,6 +510,11 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("TELEGRAM_MARKET_CHAT_ID"),
       v("TELEGRAM_BOT_TOKEN"),
       v("TELEGRAM_CHANNEL_ID"),
+      // Telegram Mini App (/telegram): launch-data freshness and the public
+      // identifiers used to build t.me launch links. Not secrets.
+      v("TELEGRAM_AUTH_MAX_AGE_SECONDS"),
+      v("NEXT_PUBLIC_TELEGRAM_BOT_USERNAME"),
+      v("NEXT_PUBLIC_TELEGRAM_APP_SHORT_NAME"),
       v("IG_ACCESS_TOKEN"),
       v("IG_USER_ID"),
       v("CONTACT_INBOX"),

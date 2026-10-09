@@ -16,6 +16,10 @@ import { isAppFrame, isBare } from "@/lib/shellRoutes";
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
+  // The Telegram Mini App draws its own shell (Telegram safe areas, its own
+  // bottom navigation); the site chrome would duplicate it inside the webview.
+  if (pathname === "/telegram" || pathname.startsWith("/telegram/")) return <>{children}</>;
+
   if (!isAppFrame(pathname) && !isBare(pathname)) {
     return (
       <div className="min-h-screen bg-oled">

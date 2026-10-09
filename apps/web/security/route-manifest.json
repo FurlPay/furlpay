@@ -1,13 +1,13 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 415,
+  "_total": 418,
   "_counts": {
     "ADMIN_ONLY": 41,
     "API_KEY_AUTHENTICATED": 10,
-    "AUTHENTICATED_USER": 167,
+    "AUTHENTICATED_USER": 169,
     "DEVELOPMENT_ONLY": 2,
     "INTERNAL_ONLY": 12,
-    "PUBLIC_INTENTIONAL": 169,
+    "PUBLIC_INTENTIONAL": 170,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -48,6 +48,7 @@
     "auth/passkey/credentials": "AUTHENTICATED_USER",
     "auth/passkey/register": "AUTHENTICATED_USER",
     "auth/refresh": "AUTHENTICATED_USER",
+    "auth/telegram": "PUBLIC_INTENTIONAL",
     "auth/watch-token": "AUTHENTICATED_USER",
     "auth/session": "PUBLIC_INTENTIONAL",
     "auth/webauthn": "PUBLIC_INTENTIONAL",
@@ -185,6 +186,8 @@
     "membership/history": "AUTHENTICATED_USER",
     "membership/plans": "PUBLIC_INTENTIONAL",
     "membership/subscription": "AUTHENTICATED_USER",
+    "miniapp/account": "AUTHENTICATED_USER",
+    "miniapp/telegram-link": "AUTHENTICATED_USER",
     "mpc/sign": "AUTHENTICATED_USER",
     "mpp/fx": "PUBLIC_INTENTIONAL",
     "newsletter/subscribe": "PUBLIC_INTENTIONAL",

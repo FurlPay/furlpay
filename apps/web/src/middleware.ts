@@ -150,7 +150,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/markets",
   "/auth/handoff", // native-app → browser session handoff; auth IS the one-time code (redirects to /login otherwise)
   "/discord", // branded Discord links → external redirects (see next.config redirects)
-  "/telegram", // branded Telegram links → external redirects (see next.config redirects)
+  "/telegram", // public Mini App shell; account data stays behind requireUser APIs
   "/wallet", // FurlPay Wallet handle-reservation landing (pre-launch, public)
 ];
 const PUBLIC_API_PREFIXES = [

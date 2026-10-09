@@ -1,0 +1,1 @@
+export default function Loading() { return <div className="mini-screen"><div className="mini-panel mini-loading" role="status"><div /><div /><div /><span className="sr-only">Loading FurlPay…</span></div></div>; }
