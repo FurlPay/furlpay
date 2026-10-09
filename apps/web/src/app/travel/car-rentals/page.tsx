@@ -12,6 +12,7 @@ import type { CarRental, CarCategory } from "@/lib/travel/data";
 import Select from "@/components/form/Select";
 import { CheckRow, ChipGroup, FilterPanel, FilterSection, RangeField } from "@/components/travel/Filters";
 import EmptyState, { EMPTY_ACTION_PRIMARY } from "@/components/travel/EmptyState";
+import { outcomeOf, reportSearchOutcome } from "@/lib/travel/searchTelemetry";
 
 const CATEGORIES: Array<CarCategory | "Any"> = ["Any", "Economy", "Compact", "SUV", "Luxury", "Van"];
 type SortId = "price" | "-price" | "rating";
@@ -56,11 +57,13 @@ function CarsResults() {
         setCars(d.results);
         setDays(d.days);
         setUnavailable(d.unavailableReason ?? null);
+        reportSearchOutcome("cars", outcomeOf(d.results.length, d.unavailableReason), { count: d.results.length, reason: d.unavailableReason });
       })
       // A failed request is not "no cars": it never ran.
       .catch(() => {
         setCars([]);
         setFailed(true);
+        reportSearchOutcome("cars", "failed");
       })
       .finally(() => setLoading(false));
   }, [city, pickUp, dropOff, reloadKey]);

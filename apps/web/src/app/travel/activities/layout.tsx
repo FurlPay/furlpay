@@ -2,7 +2,7 @@ import { seoMetadata } from "@/lib/seo/meta";
 
 export const metadata = seoMetadata({
   title: "Tours & Activities",
-  description: "Book tours, attractions and experiences worldwide and pay with USDC or 100+ cryptos, with 2% cashback on every booking.",
+  description: "Tours, attractions and experiences you can pay for with USDC or crypto, listed only when a supplier can actually sell them.",
   path: "/travel/activities",
 });
 

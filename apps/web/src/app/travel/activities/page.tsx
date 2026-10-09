@@ -26,6 +26,7 @@ import { Spinner } from "@/components/ui";
 import ActivityCard from "@/components/travel/ActivityCard";
 import SkeletonCards from "@/components/travel/SkeletonCards";
 import EmptyState, { EMPTY_ACTION_PRIMARY, EMPTY_ACTION_SECONDARY } from "@/components/travel/EmptyState";
+import { outcomeOf, reportSearchOutcome } from "@/lib/travel/searchTelemetry";
 import { ACTIVITY_CATEGORIES, type Activity, type ActivityCategory } from "@/lib/travel/data";
 
 const CATEGORY_ICONS: Record<ActivityCategory, LucideIcon> = {
@@ -60,10 +61,12 @@ function ActivitiesResults() {
       .then((d) => {
         setActivities(d.results);
         setUnavailable(d.unavailableReason ?? null);
+        reportSearchOutcome("activities", outcomeOf(d.results.length, d.unavailableReason), { count: d.results.length, reason: d.unavailableReason });
       })
       .catch(() => {
         setActivities([]);
         setFailed(true);
+        reportSearchOutcome("activities", "failed");
       })
       .finally(() => setLoading(false));
   }, [city, reloadKey]);

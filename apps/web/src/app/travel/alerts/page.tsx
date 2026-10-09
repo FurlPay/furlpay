@@ -26,11 +26,21 @@ export default function PriceAlertsPage() {
   const [autoBook, setAutoBook] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  /** Set when the server refuses the feature (production: no price monitor yet). */
+  const [unavailable, setUnavailable] = useState<string | null>(null);
 
   const load = () =>
     fetch("/api/travel/alerts")
-      .then((r) => r.json())
-      .then((d) => setAlerts(d.alerts ?? []))
+      .then(async (r) => {
+        const d = await r.json().catch(() => ({}));
+        // 503 not_available: the route is switched off on this deployment. Say so
+        // up front instead of letting someone fill in a form that cannot work.
+        if (r.status === 503 && d?.error === "not_available") {
+          setUnavailable(typeof d.detail === "string" ? d.detail : "Price alerts are not available yet.");
+          return;
+        }
+        setAlerts(d.alerts ?? []);
+      })
       .catch(() => {});
   useEffect(() => {
     load();
@@ -87,8 +97,18 @@ export default function PriceAlertsPage() {
         the second the price lands. No credits, no vouchers, no 2am fare-watching.
       </p>
 
+      {unavailable && (
+        <div role="status" className="mt-6 rounded-card border border-amber-400/25 bg-amber-400/[0.06] px-5 py-4 text-sm text-amber-100">
+          <p className="font-semibold">{unavailable}</p>
+          <p className="mt-1 text-amber-100/70">
+            There is no price monitor behind alerts on this deployment, so we do not take any — nothing would watch the fare or book it.
+          </p>
+        </div>
+      )}
+
       {/* Create alert */}
       <form onSubmit={submit} className="mt-8 rounded-card border border-white/10 bg-charcoal p-5">
+        <fieldset disabled={!!unavailable} className="contents">
         <div className="mb-4 flex gap-2">
           {(["flight", "hotel"] as const).map((k) => (
             <button
@@ -182,6 +202,7 @@ export default function PriceAlertsPage() {
           Auto-book uses your saved traveler profile and a spending cap you approve once. Refunds on
           cancellation return as USDC cash to your wallet — never platform credit.
         </p>
+        </fieldset>
       </form>
 
       {/* Alert list */}
