@@ -153,6 +153,8 @@ const nextConfig = {
       // The partnership page lives at /partnerships. Exact match only, so the
       // logo assets under /partners/* are untouched.
       { source: "/partners", destination: "/partnerships", permanent: true },
+      // There is no staff page here any more; the old link lands on the public page.
+      { source: "/dashboard/partnerships", destination: "/partnerships", permanent: true },
       // Retired blog post — send any lingering links to the blog.
       { source: "/blog/i-decompiled-robinhood-redotpay-indmoney", destination: "/blog", permanent: true },
       // The hotel-map engineering post was retired in favour of the
