@@ -169,6 +169,18 @@ export interface CctpBurnBundle {
  * Async and able to throw: with no readable fee there is no honest ceiling to
  * set, so it refuses rather than reinstating a guess.
  */
+/** Exact USDC micro-units from a request amount (ARC-P6-002). Converts the number's own decimal
+ *  representation instead of multiplying a float; anything finer than 1 micro-USDC (or written in
+ *  exponent form) is REFUSED rather than silently rounded into the signed burn amount. */
+export function usdcAtomic(amount: number): bigint {
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid amount");
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(String(amount));
+  if (!m) throw new Error("invalid amount");
+  const fraction = m[2] ?? "";
+  if (fraction.length > USDC_DECIMALS) throw new Error(`amount has more than ${USDC_DECIMALS} decimal places`);
+  return BigInt(m[1]) * 10n ** BigInt(USDC_DECIMALS) + BigInt(fraction.padEnd(USDC_DECIMALS, "0"));
+}
+
 export async function buildBurnBundle(params: {
   sourceChain: Chain;
   destinationChain: Chain;
@@ -186,7 +198,7 @@ export async function buildBurnBundle(params: {
   }
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("invalid amount");
 
-  const amountAtomic = BigInt(Math.round(amount * 10 ** USDC_DECIMALS));
+  const amountAtomic = usdcAtomic(amount);
 
   // Circle's published fee for THIS corridor — never an assumed rate. Standard
   // transfers must pass maxFee 0, so only the fast path needs a ceiling.
