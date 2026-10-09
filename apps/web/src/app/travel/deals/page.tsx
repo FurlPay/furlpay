@@ -2,10 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Flame, Timer, BadgePercent, Gift } from "lucide-react";
+import { ChevronLeft, CloudOff, Flame, Timer, BadgePercent, Gift } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { Pill, Spinner } from "@/components/ui";
 import type { Deal } from "@/lib/travel/data";
+import EmptyState, { EMPTY_ACTION_PRIMARY, EMPTY_ACTION_SECONDARY } from "@/components/travel/EmptyState";
 
 // Flash-deal window resets every 6h so the countdown is always live.
 function nextWindowEnd(): number {
@@ -16,15 +17,23 @@ function nextWindowEnd(): number {
 export default function DealsPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [endsAt] = useState(nextWindowEnd);
 
   useEffect(() => {
+    setLoading(true);
+    setFailed(false);
     getJSON<{ deals: Deal[] }>("/api/travel/deals")
       .then((d) => setDeals(d.deals))
-      .catch(() => setDeals([]))
+      // A failed request is not "no deals".
+      .catch(() => {
+        setDeals([]);
+        setFailed(true);
+      })
       .finally(() => setLoading(false));
-  }, []);
+  }, [reloadKey]);
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(t);
@@ -74,8 +83,28 @@ export default function DealsPage() {
       <div className="mt-8">
         {loading ? (
           <Spinner />
+        ) : failed ? (
+          <EmptyState
+            role="alert"
+            icon={<CloudOff className="h-5 w-5" />}
+            title="Deals couldn't load"
+            actions={<button type="button" onClick={() => setReloadKey((k) => k + 1)} className={EMPTY_ACTION_PRIMARY}>Try again</button>}
+          >
+            Something went wrong reaching the deals service.
+          </EmptyState>
         ) : deals.length === 0 ? (
-          <p className="py-16 text-center text-sm text-textSecondary">No live deals right now — check back soon.</p>
+          <EmptyState
+            icon={<BadgePercent className="h-5 w-5" />}
+            title="No live deals right now"
+            actions={
+              <>
+                <Link href="/travel/alerts" className={EMPTY_ACTION_PRIMARY}>Set a price alert</Link>
+                <Link href="/travel?focus=search" className={EMPTY_ACTION_SECONDARY}>Search stays</Link>
+              </>
+            }
+          >
+            Deals appear here only when a provider publishes a real discounted rate. To watch a hotel city or route for a lower price, set a price alert.
+          </EmptyState>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[...deals]

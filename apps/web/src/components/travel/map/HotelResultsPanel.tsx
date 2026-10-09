@@ -6,6 +6,7 @@ import { RESULT_SORTS, distanceKm, sortResults, type ResultSort } from "@/lib/ho
 import type { MapRate } from "@/lib/hotels/mapPrices";
 import type { RatesStatus } from "./useMapRates";
 import HotelResultCard from "./HotelResultCard";
+import Select from "@/components/form/Select";
 
 // The results list beside the map.
 //
@@ -94,21 +95,17 @@ export default function HotelResultsPanel(props: HotelResultsPanelProps) {
           )}
           {props.hasStay && <RatesNote rates={props.rates} status={props.ratesStatus} />}
         </div>
-        <label className="flex shrink-0 items-center gap-2 text-[12px] text-[#A4AAA9]">
-          <span className="hidden sm:inline">Sort</span>
-          <select
+        <div className="flex shrink-0 items-center gap-2 text-[12px] text-[#A4AAA9]">
+          <span className="hidden sm:inline" aria-hidden>Sort</span>
+          <Select
+            ariaLabel="Sort hotels"
             value={sort}
-            onChange={(e) => onSort(e.target.value as ResultSort)}
-            aria-label="Sort hotels"
-            className="h-10 min-w-[150px] rounded-[10px] border border-white/[0.10] bg-[#090D0E] px-3 text-[13px] font-medium text-[#F5F7F6] focus:border-[#00E6A7]/60 focus:outline-none [&>option]:bg-[#090D0E]"
-          >
-            {RESULT_SORTS.map((s) => (
-              <option key={s.id} value={s.id} disabled={s.id === "distance" && !center}>
-                {s.label}
-              </option>
-            ))}
-          </select>
-        </label>
+            onValueChange={(v) => onSort(v as ResultSort)}
+            options={RESULT_SORTS.map((s) => ({ value: s.id, label: s.label, disabled: s.id === "distance" && !center }))}
+            className="!h-10 !w-[170px]"
+            minMenuWidth={200}
+          />
+        </div>
       </header>
 
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-4 lg:px-4">
