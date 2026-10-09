@@ -7,13 +7,14 @@ import { displayUsdc } from "@/lib/payments/merchant/money";
 import type { MerchantIntent } from "@/lib/payments/merchant/model";
 import type { ReconciliationAlert, ReviewNote } from "@/lib/payments/merchant/operations";
 import type { Refund } from "@/lib/payments/merchant/refunds";
+import type { ChainHealth } from "@/lib/payments/merchant/operations";
 import { ChainMark, CopyButton, request } from "./shared";
 import { registrationMessage } from "@/lib/payments/merchant/destinationMessage";
 
 // Operator console. Reads held payments and reconciliation alerts; records
 // decisions. It has no button that credits a merchant or moves funds — the
 // verifier is the only path to a credit, and refunds need the custody provider.
-type Snapshot = { held: MerchantIntent[]; alerts: ReconciliationAlert[]; notes: ReviewNote[]; pricing: { merchant_id: string; tier: string; processing_bps: number; set_at: string; note: string }[]; tiers: Record<string, number>; destinations: { merchantId: string; chain: string; free: number; used: number }[]; collectableChains: string[]; refunds: Refund[] };
+type Snapshot = { held: MerchantIntent[]; alerts: ReconciliationAlert[]; notes: ReviewNote[]; pricing: { merchant_id: string; tier: string; processing_bps: number; set_at: string; note: string }[]; tiers: Record<string, number>; destinations: { merchantId: string; chain: string; free: number; used: number }[]; collectableChains: string[]; refunds: Refund[]; chains: ChainHealth[] };
 const DECISIONS = [["note", "Note"], ["confirmed_hold", "Confirm hold"], ["escalated", "Escalate"], ["refund_requested", "Request refund (manual)"]] as const;
 
 export default function OperationsConsole() {
@@ -31,6 +32,14 @@ export default function OperationsConsole() {
       <div className="mp-page-heading"><div><span className="mp-eyebrow">MERCHANT PAYMENTS</span><h1>Operations</h1><p>Held payments and reconciliation findings. Decisions are recorded; funds move only through verified chain evidence.</p></div>
         <div className="mp-heading-actions"><button className="mp-button secondary" disabled={loading} onClick={() => void load()}><RefreshCw size={15} className={loading ? "mp-spin" : ""} />Refresh</button></div></div>
       {error && <p className="mp-error" role="alert">{error}</p>}{notice && <p className="mp-setup-notice" role="status">{notice}</p>}
+      <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Chain health</h2><span>Head age per collectable network; a head older than 2 minutes stops crediting</span></div></div>
+        {data?.chains.length ? <div className="mp-table-scroll"><table><thead><tr><th>Network</th><th>Status</th><th>Height</th><th>Head age</th><th>Endpoints</th></tr></thead><tbody>
+          {data.chains.map(c => <tr key={c.chain}><td><span className="mp-chain-cell"><ChainMark chain={c.chain} size={18} />{c.chain}</span></td>
+            <td>{!c.ok ? <><ShieldAlert size={14} /> Unreachable</> : (c.headAgeSeconds ?? 0) > 120 ? <><ShieldAlert size={14} /> Stale</> : "Live"}</td>
+            <td>{c.height ?? "—"}</td><td>{c.headAgeSeconds === null ? "—" : `${c.headAgeSeconds}s`}</td>
+            <td><small>{c.endpoints.map(e => `${e.endpoint}${e.verified ? " ✓" : ""}${e.coolingDown ? " (cooling down)" : ""}${e.failures ? ` ${e.failures} fail` : ""}`).join(" · ")}{c.error ? ` — ${c.error}` : ""}</small></td></tr>)}
+        </tbody></table></div> : <div className="mp-empty"><p>{data ? "No collectable networks." : "Loading…"}</p></div>}
+      </section>
       <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Held for review</h2><span>{data?.held.length ?? 0} payments</span></div></div>
         {data?.held.length ? <div className="mp-table-scroll"><table><thead><tr><th>Payment</th><th>Received</th><th>Network</th><th>Notes</th><th>Record decision</th></tr></thead><tbody>
           {data.held.map(i => <tr key={i.id}><td><code>{i.id.slice(0, 13)}</code><small style={{ display: "block" }}>merchant {i.merchant_id.slice(0, 8)}</small></td><td className="mp-money">{displayUsdc(i.received_units)}<small>of {displayUsdc(i.charge_units)}</small></td><td><span className="mp-chain-cell"><ChainMark chain={i.chain} size={18} />{i.chain}</span></td>

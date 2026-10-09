@@ -4,6 +4,7 @@ import { PRICING, type PricingTier } from "./money";
 import { requireStorage } from "./repository";
 import { destinationInventory, registerDestination } from "./destinations";
 import { approveRefund, completeRefund, pendingRefunds } from "./refunds";
+import { blockSchema, rpc, rpcHealth } from "./rpc";
 import { PAYMENT_CHAINS, requiredConfirmations, type PaymentChainId } from "./registry";
 import type { MerchantIntent } from "./model";
 
@@ -30,18 +31,33 @@ export type Operation = z.infer<typeof operationSchema>;
 export type ReviewNote = { id: number; intent_id: string; author: string; decision: string; note: string; created_at: string };
 export type ReconciliationAlert = { id: number; intent_id: string; kind: string; detail: string; severity: "high" | "medium"; resolved_at: string | null; resolved_by: string | null; resolution: string | null; created_at: string };
 
+export type ChainHealth = { chain: PaymentChainId; ok: boolean; height: string | null; headAgeSeconds: number | null; error?: string; endpoints: ReturnType<typeof rpcHealth> };
+/** ARC-P5-002: live head freshness per collectable EVM chain (Arc included), with per-endpoint failover state. */
+export async function chainHealth(): Promise<ChainHealth[]> {
+  const chains = PAYMENT_CHAINS.filter(c => c.family === "evm" && requiredConfirmations(c.id) !== null).map(c => c.id);
+  return Promise.all(chains.map(async (chain): Promise<ChainHealth> => {
+    try {
+      const b = blockSchema.parse(await rpc(chain, "eth_getBlockByNumber", ["latest", false]));
+      return { chain, ok: true, height: BigInt(b.number).toString(), headAgeSeconds: Math.max(0, Math.round(Date.now() / 1000 - Number(BigInt(b.timestamp)))), endpoints: rpcHealth(chain) };
+    } catch (e) {
+      return { chain, ok: false, height: null, headAgeSeconds: null, error: (e as Error).message.slice(0, 120), endpoints: rpcHealth(chain) };
+    }
+  }));
+}
+
 export async function operationsSnapshot() {
   requireStorage();
-  const [held, alerts, pricing, destinations, refunds] = await Promise.all([
+  const [held, alerts, pricing, destinations, refunds, chains] = await Promise.all([
     sbSelect<MerchantIntent>("merchant_payment_intents", "status=eq.review&order=created_at.desc&limit=100"),
     sbSelect<ReconciliationAlert>("merchant_reconciliation_alerts", "resolved_at=is.null&order=created_at.desc&limit=200"),
     sbSelect<{ merchant_id: string; tier: PricingTier; processing_bps: number; set_by: string; set_at: string; note: string }>("merchant_pricing", "order=set_at.desc&limit=500"),
     destinationInventory(),
     pendingRefunds(),
+    chainHealth(),
   ]);
   const ids = [...new Set([...held.map(i => i.id), ...alerts.map(a => a.intent_id)])];
   const notes = ids.length ? await sbSelect<ReviewNote>("merchant_review_notes", `intent_id=in.(${ids.join(",")})&order=created_at.desc&limit=500`) : [];
-  return { held, alerts, pricing, notes, tiers: PRICING, destinations, refunds, collectableChains: PAYMENT_CHAINS.filter(c => requiredConfirmations(c.id) !== null).map(c => c.id) };
+  return { held, alerts, pricing, notes, tiers: PRICING, destinations, refunds, chains, collectableChains: PAYMENT_CHAINS.filter(c => requiredConfirmations(c.id) !== null).map(c => c.id) };
 }
 
 export async function applyOperation(actor: string, op: Operation) {
