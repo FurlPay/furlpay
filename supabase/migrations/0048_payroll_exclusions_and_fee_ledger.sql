@@ -19,7 +19,19 @@
 --    the line is recorded and that fee is journaled in the SAME transaction:
 --      DR payroll:fee_treasury:<chain>  (asset, the router's feeTreasury)
 --      CR payroll:fees:<chain>          (revenue)
---    keyed by chain + tx + payment id, so a retry posts nothing twice.
+--    keyed by chain + tx + payment id, so a retry posts nothing twice. The fee
+--    must equal the fee in the employer's signed payload, and the batch is
+--    marked completed here, under its row lock, when no line is outstanding.
+--
+-- 3. payroll_fee_reconcile(since): read-only check that journals and executed
+--    lines agree. A reorg or a reverted execution is NOT auto-corrected; the app
+--    raises an alert and a reversal is an operator decision (ledger_post with
+--    p_reverses), the same policy as merchant reconciliation.
+--
+-- Recovery: everything is additive. To back out before any payroll executes,
+-- drop the three functions and payroll_batch_exclusions; executed_* columns
+-- and ledger rows written through these functions are append-only records and
+-- are corrected forward by reversal, never by deletion.
 begin;
 
 create table payroll_batch_exclusions (
@@ -65,12 +77,18 @@ returns boolean language plpgsql security definer set search_path=public as $$
 declare b payroll_batches; l payroll_batch_lines; cur text; treasury text; revenue text;
 begin
   if p_tx !~ '^0x[0-9a-f]{64}$' or p_block < 0 or p_fee < 0 or p_payment_id is null then raise exception 'invalid_execution'; end if;
-  select * into b from payroll_batches where id=p_batch;
+  -- Batch first, then line: the same lock order as every other writer.
+  select * into b from payroll_batches where id=p_batch for update;
   if not found then raise exception 'batch_missing'; end if;
-  -- Compare-and-set: a line is recorded (and its fee journaled) exactly once.
-  update payroll_batch_lines set executed_tx=p_tx, executed_block=p_block, executed_at=p_at
-    where id=p_line and batch_id=p_batch and executed_tx is null and payment_id=p_payment_id returning * into l;
-  if not found then return false; end if;
+  if b.status not in ('submitted','completed') then raise exception 'batch_not_submitted'; end if;
+  select * into l from payroll_batch_lines where id=p_line and batch_id=p_batch for update;
+  if not found then raise exception 'line_missing'; end if;
+  -- Recorded once: a retry, or a concurrent request that lost the race, changes nothing.
+  if l.executed_tx is not null or l.payment_id is distinct from p_payment_id then return false; end if;
+  if l.signature is null then raise exception 'line_unsigned'; end if;
+  -- The fee journaled is the fee the employer SIGNED, not whatever the caller says.
+  if (l.sign_data->'message'->>'fee') is distinct from p_fee::text then raise exception 'fee_mismatch'; end if;
+  update payroll_batch_lines set executed_tx=p_tx, executed_block=p_block, executed_at=p_at where id=l.id;
   if p_fee > 0 then
     cur:='USDC:'||b.chain||':6'; treasury:='payroll:fee_treasury:'||b.chain; revenue:='payroll:fees:'||b.chain;
     insert into ledger_accounts(id,code,name,type,currency) values
@@ -81,13 +99,46 @@ begin
       jsonb_build_array(jsonb_build_object('account_id',treasury,'side','debit','amount',p_fee),
                         jsonb_build_object('account_id',revenue,'side','credit','amount',p_fee)));
   end if;
+  -- Completion is decided here, under the batch lock, so two requests recording
+  -- different lines at once cannot both miss the last one. Partial stays submitted.
+  if b.status='submitted' and not exists(select 1 from payroll_batch_lines where batch_id=p_batch and executed_tx is null) then
+    update payroll_batches set status='completed' where id=p_batch;
+  end if;
   return true;
 end $$;
+
+-- Fee journal vs executed lines (read-only). Every executed line with a fee must
+-- have exactly its signed fee journaled under its key, and every payroll fee
+-- journal must belong to an executed line. Findings are alerted by the app.
+create function payroll_fee_reconcile(p_since timestamptz)
+returns table(batch_id uuid, line_id uuid, problem text) language sql stable security definer set search_path=public as $$
+  with lines as (
+    select l.batch_id, l.id line_id, 'payroll:'||b.chain||':'||l.executed_tx||':'||l.payment_id txn,
+           coalesce((l.sign_data->'message'->>'fee')::bigint,0) fee
+    from payroll_batch_lines l join payroll_batches b on b.id=l.batch_id
+    where l.executed_tx is not null and l.executed_at >= p_since
+  ), posted as (
+    select p.transaction_id txn, sum(case when p.side='debit' then p.amount else 0 end) debit
+    from ledger_postings p join ledger_transactions t on t.id=p.transaction_id
+    where t.id like 'payroll:%' and t.ts >= p_since - interval '1 day'
+    group by p.transaction_id
+  )
+  select l.batch_id, l.line_id, case when p.txn is null then 'fee_journal_missing' else 'fee_journal_amount_mismatch' end
+    from lines l left join posted p on p.txn=l.txn
+    where l.fee > 0 and (p.txn is null or p.debit <> l.fee)
+  union all
+  select null::uuid, null::uuid, 'fee_journal_without_execution: '||p.txn
+    from posted p where not exists (select 1 from lines l where l.txn=p.txn)
+      and not exists (select 1 from payroll_batch_lines x join payroll_batches y on y.id=x.batch_id
+                      where 'payroll:'||y.chain||':'||x.executed_tx||':'||x.payment_id = p.txn);
+$$;
 
 revoke all on function payroll_batch_exclude_unscreened(uuid,uuid,text,text,integer,bigint) from public,anon,authenticated;
 grant execute on function payroll_batch_exclude_unscreened(uuid,uuid,text,text,integer,bigint) to service_role;
 revoke all on function payroll_line_executed(uuid,uuid,text,bigint,text,bigint,timestamptz) from public,anon,authenticated;
 grant execute on function payroll_line_executed(uuid,uuid,text,bigint,text,bigint,timestamptz) to service_role;
+revoke all on function payroll_fee_reconcile(timestamptz) from public,anon,authenticated;
+grant execute on function payroll_fee_reconcile(timestamptz) to service_role;
 revoke all on table payroll_batch_exclusions from public,anon,authenticated;
 grant select, insert on table payroll_batch_exclusions to service_role;
 commit;

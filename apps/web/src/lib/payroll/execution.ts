@@ -1,12 +1,12 @@
 import { decodeEventLog, getAddress, toEventSelector } from "viem";
 import { ROUTER_ABI } from "./routerAbi";
 import { z } from "zod";
-import { sbRpc, sbUpdate } from "@/lib/supabase";
+import { sbRpc } from "@/lib/supabase";
 import { rpc, verifyChain, hash, hex } from "@/lib/payments/merchant/rpc";
 import { requiredConfirmations } from "@/lib/payments/merchant/registry";
 import { configuredRouter } from "@/lib/services/payments";
 import { batchDetail, PayrollConflict, requireStorage } from "./repository";
-import type { Batch, BatchLine } from "./model";
+import type { BatchLine } from "./model";
 import type { SignData } from "./signing";
 
 // Recording that a payroll batch was executed on FurlPayRouter.
@@ -77,12 +77,19 @@ export async function recordExecution(owner: string, batchId: string, txHash: st
     if (!event || !line.payment_id) continue;
     // Compare-and-set on executed_tx, and the fee the router sent to FurlPay's
     // treasury journaled in the same database transaction (migration 0048).
-    const recorded = await sbRpc<boolean>("payroll_line_executed", { p_batch: batch.id, p_line: line.id, p_tx: txHash.toLowerCase(), p_block: BigInt(receipt.blockNumber).toString(), p_payment_id: line.payment_id, p_fee: event.fee.toString(), p_at: executedAt });
+    let recorded: boolean;
+    try {
+      recorded = await sbRpc<boolean>("payroll_line_executed", { p_batch: batch.id, p_line: line.id, p_tx: txHash.toLowerCase(), p_block: BigInt(receipt.blockNumber).toString(), p_payment_id: line.payment_id, p_fee: event.fee.toString(), p_at: executedAt });
+    } catch (e) {
+      // The database's own checks (signed fee, signature present, batch state) are refusals, not outages.
+      const m = /fee_mismatch|line_unsigned|batch_not_submitted|line_missing/.exec(e instanceof Error ? e.message : "");
+      if (m) throw new PayrollConflict(`The database refused to record this line (${m[0]})`);
+      throw e;
+    }
     if (recorded) matched++;
   }
   if (matched === 0 && already < lines.length) throw new PayrollConflict("That transaction executed none of this batch's outstanding payments");
-  if (already + matched === lines.length) {
-    await sbUpdate<Batch>("payroll_batches", `id=eq.${batch.id}&status=eq.submitted`, { status: "completed" });
-  }
+  // `completed` is set by payroll_line_executed under the batch lock once no line
+  // is outstanding; a partially executed batch stays `submitted`.
   return { matched, executed: already + matched, total: lines.length, detail: await batchDetail(owner, batchId) };
 }

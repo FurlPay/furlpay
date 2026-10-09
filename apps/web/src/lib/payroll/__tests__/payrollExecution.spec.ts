@@ -38,7 +38,8 @@ describe("recording payroll execution from the chain", () => {
     expect(await recordExecution(OWNER, BATCH, TX)).toMatchObject({ matched: 1, executed: 1, total: 1 });
     // Line recorded and the router's fee journaled atomically (migration 0048), with the fee from the verified event.
     expect(h.sbRpc).toHaveBeenCalledWith("payroll_line_executed", expect.objectContaining({ p_batch: BATCH, p_line: line.id, p_tx: TX, p_block: "16", p_payment_id: "pay_1", p_fee: "8750000" }));
-    expect(h.sbUpdate).toHaveBeenCalledWith("payroll_batches", expect.stringContaining("status=eq.submitted"), { status: "completed" });
+    // Completion is the database's decision (under the batch lock), not this request's snapshot.
+    expect(h.sbUpdate).not.toHaveBeenCalled();
   });
   it.each([
     ["a reverted transaction", receipt({ status: "0x0" }), "reverted"],

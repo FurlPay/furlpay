@@ -55,24 +55,69 @@ describe("excluding flagged payroll recipients (0048)", () => {
   });
 });
 
+// A submitted batch whose lines carry the employer's signed payload (fee in micro-units).
+async function submitted(amounts: number[], fees: number[]) {
+  const b = await batch(amounts.map(() => "clear"), amounts);
+  await db.query("update payroll_batches set status='submitted', submitted_at=now() where id=$1", [b.id]);
+  const ids = (await db.query<{ id: string }>("select id from payroll_batch_lines where batch_id=$1 order by amount_units", [b.id])).rows.map(r => r.id);
+  for (const [i, id] of ids.entries()) {
+    await db.query("update payroll_batch_lines set payment_id=$2, sign_data=$3::jsonb, sign_deadline=now(), signature=$4, signer=$5, signed_at=now() where id=$1",
+      [id, `pay_${b.id.slice(0, 8)}_${i}`, JSON.stringify({ message: { fee: String(fees[i]) } }), "0x" + "11".repeat(65), addr(9)]);
+  }
+  return { ...b, lines: ids, pay: (i: number) => `pay_${b.id.slice(0, 8)}_${i}` };
+}
+const exec = (b: { id: string }, line: string, pay: string, fee: number, tx = "0x" + "ab".repeat(32)) =>
+  db.query<{ r: boolean }>("select payroll_line_executed($1,$2,$3,77,$4,$5,now()) r", [b.id, line, tx, pay, fee]);
+const status = async (id: string) => (await row(id)).status;
+const bal = async (a: string) => (await db.query<{ v: string }>("select ledger_account_balance($1)::text v", [a])).rows[0].v;
+
 describe("verified payroll execution journals the fee once (0048)", () => {
-  it("records the line and posts DR fee treasury / CR fee revenue, idempotently", async () => {
-    const b = await batch(["clear"], [1_000_000_000]);
-    const line = (await db.query<{ id: string }>("select id from payroll_batch_lines where batch_id=$1", [b.id])).rows[0].id;
-    await db.query("update payroll_batch_lines set payment_id='pay_1', sign_data='{}'::jsonb, sign_deadline=now(), signature=$2, signer=$3, signed_at=now() where id=$1", [line, "0x" + "11".repeat(65), addr(9)]);
-    const tx = "0x" + "ab".repeat(32);
-    const call = () => db.query<{ r: boolean }>("select payroll_line_executed($1,$2,$3,77,'pay_1',3500000,now()) r", [b.id, line, tx]);
-    expect((await call()).rows[0].r).toBe(true);
-    expect((await call()).rows[0].r).toBe(false); // retry: nothing recorded twice
-    const bal = async (a: string) => (await db.query<{ v: string }>("select ledger_account_balance($1)::text v", [a])).rows[0].v;
-    expect(await bal("payroll:fee_treasury:arc")).toBe("3500000");
-    expect(await bal("payroll:fees:arc")).toBe("3500000");
-    expect((await db.query<{ n: number }>("select count(*)::int n from ledger_transactions where id=$1", [`payroll:arc:${tx}:pay_1`])).rows[0].n).toBe(1);
+  it("records the line, posts DR fee treasury / CR fee revenue, and is idempotent", async () => {
+    const before = BigInt(await bal("payroll:fees:arc").catch(() => "0") ?? "0");
+    const b = await submitted([1_000_000_000], [3_500_000]);
+    const tx = "0x" + "a1".repeat(32);
+    expect((await exec(b, b.lines[0], b.pay(0), 3_500_000, tx)).rows[0].r).toBe(true);
+    expect((await exec(b, b.lines[0], b.pay(0), 3_500_000, tx)).rows[0].r).toBe(false); // retry: nothing twice
+    expect(BigInt(await bal("payroll:fees:arc")) - before).toBe(3_500_000n);
+    expect(await bal("payroll:fee_treasury:arc")).toBe(await bal("payroll:fees:arc")); // balanced
+    expect((await db.query<{ n: number }>("select count(*)::int n from ledger_transactions where id=$1", [`payroll:arc:${tx}:${b.pay(0)}`])).rows[0].n).toBe(1);
+    expect(await status(b.id)).toBe("completed");
   });
-  it("refuses a payment id that is not the line's", async () => {
-    const b = await batch(["clear"], [1_000_000_000]);
-    const line = (await db.query<{ id: string }>("select id from payroll_batch_lines where batch_id=$1", [b.id])).rows[0].id;
-    await db.query("update payroll_batch_lines set payment_id='pay_2', sign_data='{}'::jsonb, sign_deadline=now(), signature=$2, signer=$3, signed_at=now() where id=$1", [line, "0x" + "11".repeat(65), addr(9)]);
-    expect((await db.query<{ r: boolean }>("select payroll_line_executed($1,$2,$3,77,'someone_else',1,now()) r", [b.id, line, "0x" + "cd".repeat(32)])).rows[0].r).toBe(false);
+  it("journals only the fee the employer signed", async () => {
+    const b = await submitted([1_000_000_000], [3_500_000]);
+    await expect(exec(b, b.lines[0], b.pay(0), 9_999_999)).rejects.toThrow(/fee_mismatch/);
+    expect((await db.query<{ t: string | null }>("select executed_tx t from payroll_batch_lines where id=$1", [b.lines[0]])).rows[0].t).toBeNull();
+  });
+  it("refuses unsigned lines, unsubmitted batches and another line's payment id", async () => {
+    const b = await submitted([1_000_000_000], [3_500_000]);
+    expect((await exec(b, b.lines[0], "someone_else", 3_500_000)).rows[0].r).toBe(false);
+    await db.query("update payroll_batch_lines set signature=null, signer=null, signed_at=null where id=$1", [b.lines[0]]);
+    await expect(exec(b, b.lines[0], b.pay(0), 3_500_000)).rejects.toThrow(/line_unsigned/);
+    const d = await batch(["clear"], [1_000_000]);
+    const dl = (await db.query<{ id: string }>("select id from payroll_batch_lines where batch_id=$1", [d.id])).rows[0].id;
+    await expect(exec(d, dl, "x", 0)).rejects.toThrow(/batch_not_submitted/);
+  });
+  it("keeps a partially executed batch submitted; completes it only when the last line lands", async () => {
+    const b = await submitted([1_000_000_000, 2_000_000_000], [3_500_000, 7_000_000]);
+    await exec(b, b.lines[0], b.pay(0), 3_500_000, "0x" + "b1".repeat(32));
+    expect(await status(b.id)).toBe("submitted");
+    await exec(b, b.lines[1], b.pay(1), 7_000_000, "0x" + "b2".repeat(32));
+    expect(await status(b.id)).toBe("completed");
+  });
+});
+
+describe("payroll fee reconciliation (0048)", () => {
+  const findings = async () => (await db.query<{ batch_id: string | null; problem: string }>("select batch_id, problem from payroll_fee_reconcile(now() - interval '1 hour')")).rows;
+  it("is clean when every executed fee is journaled exactly", async () => {
+    expect(await findings()).toEqual([]);
+  });
+  it("finds an executed line whose journal is missing, and a journal with no execution", async () => {
+    const b = await submitted([1_000_000_000], [3_500_000]);
+    // Simulate a line recorded outside payroll_line_executed (e.g. an old code path).
+    await db.query("update payroll_batch_lines set executed_tx=$2, executed_block=1, executed_at=now() where id=$1", [b.lines[0], "0x" + "c1".repeat(32)]);
+    await db.query("select ledger_post('payroll:arc:0x' || repeat('d1',32) || ':ghost','orphan', $1::jsonb)", [JSON.stringify([{ account_id: "payroll:fee_treasury:arc", side: "debit", amount: 5 }, { account_id: "payroll:fees:arc", side: "credit", amount: 5 }])]);
+    const f = await findings();
+    expect(f).toContainEqual({ batch_id: b.id, problem: "fee_journal_missing" });
+    expect(f.some(x => x.problem.startsWith("fee_journal_without_execution:"))).toBe(true);
   });
 });
