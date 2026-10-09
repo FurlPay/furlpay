@@ -1,13 +1,13 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 429,
+  "_total": 431,
   "_counts": {
     "ADMIN_ONLY": 41,
     "API_KEY_AUTHENTICATED": 11,
-    "AUTHENTICATED_USER": 178,
+    "AUTHENTICATED_USER": 179,
     "DEVELOPMENT_ONLY": 2,
     "INTERNAL_ONLY": 14,
-    "PUBLIC_INTENTIONAL": 169,
+    "PUBLIC_INTENTIONAL": 170,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -81,6 +81,7 @@
     "chat": "AUTHENTICATED_USER",
     "check": "PUBLIC_INTENTIONAL",
     "checkout/merchant/[slug]": "PUBLIC_INTENTIONAL",
+    "checkout/merchant/[slug]/receipt": "PUBLIC_INTENTIONAL",
     "checkout/session": "PUBLIC_INTENTIONAL",
     "compliance": "PUBLIC_INTENTIONAL",
     "compliance/attestation/[tx]": "PUBLIC_INTENTIONAL",
@@ -190,6 +191,7 @@
     "merchant/payments": "AUTHENTICATED_USER",
     "merchant/operations": "ADMIN_ONLY",
     "merchant/refunds": "AUTHENTICATED_USER",
+    "merchant/payments/receipt": "AUTHENTICATED_USER",
     "merchant/webhook": "AUTHENTICATED_USER",
     "mpc/sign": "AUTHENTICATED_USER",
     "mpp/fx": "PUBLIC_INTENTIONAL",
