@@ -51,7 +51,8 @@ const PUBLIC_PAGES = new Set([
   "/talk-to-us",
   "/changelog",
   "/community",
-  "/partners",
+  "/partners", // redirects to /partnerships (next.config.js)
+  "/partnerships", // public partnership page + inquiry form
   "/use-cases",
   "/careers",
   "/ambassadors",

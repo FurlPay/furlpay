@@ -289,7 +289,7 @@ function Footer() {
               ["Trust & security", "/trust"],
               ["FURL token", "/token"],
               ["Use cases", "/use-cases"],
-              ["Partners", "/partners"],
+              ["Partners", "/partnerships"],
               ["Careers", "/careers"],
               ["Changelog", "/changelog"],
               ["Status", "/status"],

@@ -150,6 +150,9 @@ const nextConfig = {
         destination: "/reports/global-stablecoin-report-2026",
         permanent: true,
       },
+      // The partnership page lives at /partnerships. Exact match only, so the
+      // logo assets under /partners/* are untouched.
+      { source: "/partners", destination: "/partnerships", permanent: true },
       // Retired blog post — send any lingering links to the blog.
       { source: "/blog/i-decompiled-robinhood-redotpay-indmoney", destination: "/blog", permanent: true },
       // The hotel-map engineering post was retired in favour of the

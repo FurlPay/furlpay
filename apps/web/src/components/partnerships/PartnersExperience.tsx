@@ -62,7 +62,7 @@ export default function PartnersExperience() {
     setModal({ open: true, source, interest });
   }, []);
 
-  // Deep link: /partners#inquire (the navbar's Partners entry) opens the form.
+  // Deep link: /partnerships#inquire (the navbar's Partners entry) opens the form.
   useEffect(() => {
     const check = () => { if (window.location.hash === "#inquire") setModal({ open: true, source: "nav" }); };
     check();

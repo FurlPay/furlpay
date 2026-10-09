@@ -9,7 +9,7 @@ import { InquiriesUnavailable, submitInquiry } from "@/lib/partnerships/reposito
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
 
-// POST /api/partnerships/inquiries — the /partners "Let's build together" form.
+// POST /api/partnerships/inquiries — the /partnerships "Let's build together" form.
 //
 // PUBLIC on purpose (a prospective partner has no account), so: a tight per-IP
 // budget, a 16 KB body cap, the shared Zod schema plus per-method contact
