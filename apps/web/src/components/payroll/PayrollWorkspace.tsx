@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Ban, Download, Plus, RefreshCw, Send, ShieldAlert, ShieldCheck, Users } from "lucide-react";
+import { Ban, Plus, RefreshCw, Send, ShieldAlert, ShieldCheck, Users } from "lucide-react";
 import { FurlPayMark } from "@/components/trips/FurlPayLogo";
-import { ChainMark, Dialog, downloadJson, request } from "@/components/merchant/shared";
+import { ChainMark, Dialog, request } from "@/components/merchant/shared";
+import SigningPanel from "./SigningPanel";
 import { displayUsdc, parseUsdc } from "@/lib/payments/merchant/money";
 import { quoteBatch } from "@/lib/payroll/pricing";
 import type { Batch, BatchLine, Contractor, PayrollChain } from "@/lib/payroll/model";
@@ -11,9 +12,10 @@ import type { Batch, BatchLine, Contractor, PayrollChain } from "@/lib/payroll/m
 // Payroll workspace: saved roster → draft batch (fee quote + screening) →
 // submit, which returns one payment intent per line for the employer's own
 // wallet to sign. Nothing here moves money or marks anyone paid.
-const CHAINS: { id: PayrollChain; name: string }[] = [{ id: "base", name: "Base" }, { id: "arbitrum", name: "Arbitrum" }, { id: "polygon", name: "Polygon" }];
+// Arbitrum only: FurlPayRouter settles there, so that is where contractors receive.
+const CHAINS: { id: PayrollChain; name: string }[] = [{ id: "arbitrum", name: "Arbitrum" }];
 const STATUS: Record<Batch["status"], string> = { draft: "Draft", blocked: "Blocked by screening", submitting: "Submitting", submitted: "Awaiting signatures", cancelled: "Cancelled" };
-type Submitted = { batch: Batch; lines: { id: string; name: string; recipient: string; amountUnits: string; paymentId: string; signData: unknown }[] };
+type Detail = { batch: Batch; lines: BatchLine[]; executionAvailable?: boolean };
 const thisCycle = () => new Date().toISOString().slice(0, 7);
 
 export default function PayrollWorkspace() {
@@ -21,7 +23,7 @@ export default function PayrollWorkspace() {
   const [batches, setBatches] = useState<Batch[] | null>(null);
   const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [loading, setLoading] = useState(true);
   const [adding, setAdding] = useState(false); const [drafting, setDrafting] = useState(false);
-  const [detail, setDetail] = useState<{ batch: Batch; lines: BatchLine[] } | null>(null); const [submitted, setSubmitted] = useState<Submitted | null>(null);
+  const [detail, setDetail] = useState<Detail | null>(null);
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
@@ -33,11 +35,13 @@ export default function PayrollWorkspace() {
   const active = (contractors ?? []).filter(c => c.active);
   const monthly = active.reduce((s, c) => s + BigInt(String(c.default_amount_units)), 0n);
 
-  async function act(id: string, action: "submit" | "cancel") {
+  async function act(id: string, action: "submit" | "cancel" | "reissue") {
     setNotice("");
     try {
-      const out = await request<Submitted | { batch: Batch }>("/api/payouts/payroll/batches", { method: "PATCH", body: JSON.stringify({ id, action }) });
-      if ("lines" in out) setSubmitted(out); setDetail(null); void load();
+      await request("/api/payouts/payroll/batches", { method: "PATCH", body: JSON.stringify({ id, action }) });
+      // Signing requests live in the database: re-open the batch to resume from there.
+      if (action === "cancel") setDetail(null); else await open(id);
+      void load();
     } catch (e) { setNotice((e as Error).message); }
   }
   async function open(id: string) {
@@ -77,12 +81,7 @@ export default function PayrollWorkspace() {
     </main>
     {adding && <Dialog title="Add a contractor" onClose={() => setAdding(false)}><ContractorForm onSaved={() => { setAdding(false); void load(); }} /></Dialog>}
     {drafting && <Dialog title="New payroll batch" onClose={() => setDrafting(false)}><BatchForm roster={active} chargedCycles={new Set((batches ?? []).filter(b => BigInt(String(b.seat_fee_units)) > 0n).map(b => b.cycle))} onSaved={d => { setDrafting(false); setDetail(d); void load(); }} /></Dialog>}
-    {detail && <Dialog title={`Payroll ${detail.batch.cycle}`} onClose={() => setDetail(null)}><BatchDetail detail={detail} onAction={a => void act(detail.batch.id, a)} /></Dialog>}
-    {submitted && <Dialog title="Sign your payroll" onClose={() => setSubmitted(null)}><div className="mp-detail">
-      <p>{submitted.lines.length} payment intents were created. Nothing has moved: each intent must be signed by your wallet before it expires, and each settles on-chain through FurlPayRouter.</p>
-      <ul>{submitted.lines.map(l => <li key={l.id}><strong>{l.name}</strong> · {displayUsdc(BigInt(l.amountUnits))} USDC · <code>{l.paymentId}</code></li>)}</ul>
-      <button className="mp-button primary" onClick={() => downloadJson(submitted, `furlpay-payroll-${submitted.batch.cycle}.json`)}><Download size={15} />Download signing requests</button>
-    </div></Dialog>}
+    {detail && <Dialog title={`Payroll ${detail.batch.cycle}`} onClose={() => setDetail(null)}><BatchDetail detail={detail} onAction={a => void act(detail.batch.id, a)} onChanged={() => void open(detail.batch.id)} /></Dialog>}
   </div>;
 }
 
@@ -143,7 +142,7 @@ function BatchForm({ roster, chargedCycles, onSaved }: { roster: Contractor[]; c
   </form>;
 }
 
-function BatchDetail({ detail, onAction }: { detail: { batch: Batch; lines: BatchLine[] }; onAction: (a: "submit" | "cancel") => void }) {
+function BatchDetail({ detail, onAction, onChanged }: { detail: Detail; onAction: (a: "submit" | "cancel" | "reissue") => void; onChanged: () => void }) {
   const b = detail.batch;
   return <div className="mp-detail">
     <dl><div><dt>Status</dt><dd>{STATUS[b.status]}</dd></div><div><dt>Gross</dt><dd>{displayUsdc(BigInt(String(b.gross_units)))} USDC</dd></div><div><dt>Batch fee quote</dt><dd>{displayUsdc(BigInt(String(b.batch_fee_units)))} USDC</dd></div><div><dt>Seat fee quote</dt><dd>{displayUsdc(BigInt(String(b.seat_fee_units)))} USDC</dd></div><div><dt>Total quote</dt><dd>{displayUsdc(BigInt(String(b.total_quote_units)))} USDC</dd></div></dl>
@@ -152,7 +151,7 @@ function BatchDetail({ detail, onAction }: { detail: { batch: Batch; lines: Batc
     <div className="mp-heading-actions">
       {(b.status === "draft" || b.status === "blocked") && <button className="mp-button secondary" onClick={() => onAction("cancel")}><Ban size={15} />Cancel batch</button>}
       {b.status === "draft" && <button className="mp-button primary" onClick={() => onAction("submit")}><Send size={15} />Submit for signing</button>}
-      {b.status === "submitted" && <p><ShieldCheck size={14} /> Submitted {b.submitted_at ? new Date(b.submitted_at).toLocaleString() : ""}. Signing requests were returned at submission.</p>}
     </div>
+    {b.status === "submitted" && <SigningPanel detail={detail} onChanged={onChanged} onReissue={() => onAction("reissue")} />}
   </div>;
 }

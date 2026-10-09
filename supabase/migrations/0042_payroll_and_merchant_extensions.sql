@@ -6,6 +6,9 @@
 -- and settled by FurlPayRouter. FurlPay holds no employer funds, so nothing here
 -- posts to the ledger; settlement of each intent does that when it actually moves.
 -- Batch and seat fees are QUOTES recorded with the batch; billing is not connected.
+-- Payroll settles on Arbitrum only: lib/services/payments signs every intent for
+-- FurlPayRouter's settlement chain, so any other payout chain would be a label
+-- that does not match where the USDC actually lands.
 -- Amounts are USDC micro-units (6 dp) as bigint.
 begin;
 
@@ -15,10 +18,19 @@ create table payroll_contractors (
   email text not null check (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' and char_length(email) <= 200),
   role text not null default '' check (char_length(role) <= 80),
   country text not null check (country ~ '^[A-Z]{2}$'),
-  payout_chain text not null check (payout_chain in ('arbitrum','base','polygon')),
+  payout_chain text not null check (payout_chain = 'arbitrum'),
   payout_address text not null check (payout_address ~ '^0x[0-9a-fA-F]{40}$' and payout_address !~* '^0x0{40}$'),
   default_amount_units bigint not null check (default_amount_units > 0 and default_amount_units <= 1000000000000),
   tax_status text not null default 'unsubmitted' check (tax_status in ('unsubmitted','w8ben_signed','w9_signed','exempt')),
+  -- Signed form ON FILE (the employer holds the payee-signed W-9/W-8BEN); this
+  -- is not an e-signature system. TIN and address are sealed (AES-256-GCM,
+  -- FURLPAY_TAX_ENCRYPTION_KEY, AAD tax:<contractor id>); only the last 4 of the TIN are readable.
+  tax_form text check (tax_form in ('w9','w8ben')),
+  tax_sealed text check (tax_sealed ~ '^v1:'),
+  tin_last4 text check (tin_last4 ~ '^[0-9A-Za-z]{4}$'),
+  tax_signed_on date, tax_expires_on date, tax_recorded_by text, tax_recorded_at timestamptz,
+  check ((tax_form is null) = (tax_sealed is null) and (tax_form is null) = (tax_signed_on is null)),
+  check (tax_status not in ('w9_signed','w8ben_signed') or tax_form is not null),
   active boolean not null default true,
   created_at timestamptz not null default now(), updated_at timestamptz not null default now()
 );
@@ -27,8 +39,10 @@ create index payroll_contractors_merchant on payroll_contractors(merchant_id, cr
 create table payroll_batches (
   id uuid primary key, merchant_id uuid not null,
   cycle text not null check (cycle ~ '^[0-9]{4}-[0-9]{2}$'),
-  chain text not null check (chain in ('arbitrum','base','polygon')),
+  chain text not null check (chain = 'arbitrum'),
   status text not null check (status in ('draft','blocked','submitting','submitted','cancelled')),
+  -- The employer wallet that signed the first authorization; every line must match it.
+  payer_address text check (payer_address ~ '^0x[0-9a-fA-F]{40}$'),
   headcount integer not null check (headcount between 1 and 100),
   gross_units bigint not null check (gross_units > 0),
   batch_fee_units bigint not null check (batch_fee_units >= 0),
@@ -46,7 +60,15 @@ create table payroll_batch_lines (
   name text not null, recipient text not null check (recipient ~ '^0x[0-9a-fA-F]{40}$'),
   amount_units bigint not null check (amount_units > 0 and amount_units <= 1000000000000),
   screening text not null check (screening in ('clear','blocked','unavailable')),
-  payment_id text, created_at timestamptz not null default now()
+  payment_id text, created_at timestamptz not null default now(),
+  -- Durable signing: the exact EIP-712 payload issued at submission, so the
+  -- employer can resume after a refresh. A payload past its deadline is dead
+  -- on-chain (FurlPayRouter rejects it) and must be re-issued with a new nonce.
+  sign_data jsonb, sign_deadline timestamptz, issue_count integer not null default 0 check (issue_count between 0 and 50),
+  signature text check (signature ~ '^0x[0-9a-fA-F]{130}$'), signer text check (signer ~ '^0x[0-9a-fA-F]{40}$'), signed_at timestamptz,
+  check ((sign_data is null) = (sign_deadline is null)),
+  check ((signature is null) = (signer is null) and (signature is null) = (signed_at is null)),
+  check (signature is null or sign_data is not null)
 );
 create index payroll_batch_lines_batch on payroll_batch_lines(batch_id);
 

@@ -5,7 +5,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { IntegrationNotConfiguredError } from "@/lib/integrations";
 import { batchActionSchema, batchSchema } from "@/lib/payroll/model";
-import { batchDetail, cancelBatch, createBatch, listBatches, PayrollConflict, submitBatch } from "@/lib/payroll/repository";
+import { batchDetail, cancelBatch, createBatch, executionAvailable, listBatches, PayrollConflict, recordSignature, reissueExpired, submitBatch } from "@/lib/payroll/repository";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
 const fail = (e: unknown) => {
@@ -26,7 +26,11 @@ export async function GET(req: NextRequest) {
   const id = req.nextUrl.searchParams.get("id");
   if (id && !z.string().uuid().safeParse(id).success) return NextResponse.json({ error: "Invalid batch ID" }, { status: 400, headers });
   try {
-    if (id) { const detail = await batchDetail(auth.account.user.id, id); return NextResponse.json(detail ?? { error: "Batch not found" }, { status: detail ? 200 : 404, headers }); }
+    if (id) {
+      const detail = await batchDetail(auth.account.user.id, id);
+      // executionAvailable: false until a reviewed FurlPayRouter is deployed. Signatures are kept either way.
+      return NextResponse.json(detail ? { ...detail, executionAvailable: executionAvailable() } : { error: "Batch not found" }, { status: detail ? 200 : 404, headers });
+    }
     return NextResponse.json({ batches: await listBatches(auth.account.user.id) }, { headers });
   } catch (e) { return fail(e); }
 }
@@ -39,11 +43,20 @@ export async function POST(req: NextRequest) {
 }
 export async function PATCH(req: NextRequest) {
   const auth = await requireUser(req); if (!auth.ok) return auth.res;
-  const limited = await rateLimitOr429(req, "payroll.batches.action", { limit: 5, windowMs: 60_000 }, auth.account.user.id); if (limited) return limited;
   const input = await validateBody(req, batchActionSchema); if (input instanceof NextResponse) return input;
+  // Signing is one request per line (up to 100 per batch); submit/re-issue/cancel stay tight.
+  const limited = input.action === "sign"
+    ? await rateLimitOr429(req, "payroll.batches.sign", { limit: 240, windowMs: 60_000 }, auth.account.user.id)
+    : await rateLimitOr429(req, "payroll.batches.action", { limit: 5, windowMs: 60_000 }, auth.account.user.id);
+  if (limited) return limited;
   try {
-    if (input.action === "cancel") return NextResponse.json({ batch: await cancelBatch(auth.account.user.id, input.id) }, { headers });
-    const out = await submitBatch(auth.account.user.id, input.id, auth.account.user.id);
+    const owner = auth.account.user.id;
+    if (input.action === "cancel") return NextResponse.json({ batch: await cancelBatch(owner, input.id) }, { headers });
+    if (input.action === "sign") {
+      const line = await recordSignature(owner, input.id, input.lineId, input.signature as `0x${string}`);
+      return NextResponse.json(line ? { line } : { error: "Batch not found" }, { status: line ? 200 : 404, headers });
+    }
+    const out = input.action === "reissue" ? await reissueExpired(owner, input.id, owner) : await submitBatch(owner, input.id, owner);
     return NextResponse.json(out ?? { error: "Batch not found" }, { status: out ? 200 : 404, headers });
   } catch (e) { return fail(e); }
 }

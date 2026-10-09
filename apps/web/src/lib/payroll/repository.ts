@@ -3,6 +3,7 @@ import { parseUsdc } from "@/lib/payments/merchant/money";
 import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { createPayment } from "@/lib/services/payments";
 import { IntegrationNotConfiguredError } from "@/lib/integrations";
+import { recoverPayrollSigner, type SignData } from "./signing";
 import { PAYROLL_BATCH_BPS, PAYROLL_BATCH_MIN_UNITS, PAYROLL_SEAT_UNITS, unitsToUsd } from "./pricing";
 import type { Batch, BatchInput, BatchLine, Contractor, ContractorInput, ContractorPatch } from "./model";
 
@@ -102,6 +103,11 @@ export async function cancelBatch(owner: string, id: string) {
 
 /** Production without a deployed router cannot produce a signable intent. */
 export function routerConfigured() { return process.env.NODE_ENV !== "production" || Boolean(process.env.FURLPAY_ROUTER_ADDRESS); }
+/** On-chain execution needs a real router address in every environment (the dev placeholder is not an address). */
+export function executionAvailable() { return /^0x[0-9a-fA-F]{40}$/.test(process.env.FURLPAY_ROUTER_ADDRESS ?? ""); }
+
+type Issued = Awaited<ReturnType<typeof createPayment>>;
+const deadlineOf = (i: Issued) => new Date(Number(i.signData.message.deadline) * 1000).toISOString();
 
 export async function submitBatch(owner: string, id: string, userId: string) {
   requireStorage();
@@ -114,21 +120,67 @@ export async function submitBatch(owner: string, id: string, userId: string) {
     throw new PayrollConflict(current.batch.status === "blocked" ? "This batch has recipients that did not clear screening" : `This batch is ${current.batch.status}`);
   }
   const lines = await sbSelect<BatchLine>("payroll_batch_lines", `batch_id=eq.${eq(id)}&order=created_at.asc&limit=100`);
-  let intents;
+  let intents: Issued[];
   try {
     // Build every intent before recording any, so a failure leaves no half-submitted batch.
-    intents = await Promise.all(lines.map(l => createPayment({
-      amount: unitsToUsd(BigInt(String(l.amount_units))), sourceChain: claimed.chain, recipient: l.recipient, userId,
-      metadata: { kind: "payroll", batch: id, cycle: claimed.cycle, name: l.name }, idempotencyKey: `payroll:${id}:${l.id}`,
-    })));
+    intents = await Promise.all(lines.map(l => issue(claimed, l, userId, 0)));
   } catch (e) {
     await sbUpdate<Batch>("payroll_batches", `id=eq.${eq(id)}&status=eq.submitting`, { status: "draft" });
     throw e;
   }
-  await Promise.all(lines.map((l, i) => sbUpdate<BatchLine>("payroll_batch_lines", `id=eq.${eq(l.id)}&batch_id=eq.${eq(id)}`, { payment_id: intents[i].record.id })));
-  const batch = (await sbUpdate<Batch>("payroll_batches", `id=eq.${eq(id)}&status=eq.submitting`, { status: "submitted", submitted_at: new Date().toISOString() }))[0] ?? claimed;
-  return {
-    batch,
-    lines: lines.map((l, i) => ({ id: l.id, name: l.name, recipient: l.recipient, amountUnits: String(l.amount_units), paymentId: intents[i].record.id, feeUsdc: intents[i].record.feeUsdc, signData: intents[i].signData })),
-  };
+  // The signing payload is persisted with each line: a refresh or a dropped
+  // connection resumes from the database instead of losing it.
+  await Promise.all(lines.map((l, i) => sbUpdate<BatchLine>("payroll_batch_lines", `id=eq.${eq(l.id)}&batch_id=eq.${eq(id)}`, { payment_id: intents[i].record.id, sign_data: intents[i].signData, sign_deadline: deadlineOf(intents[i]), issue_count: 1 })));
+  await sbUpdate<Batch>("payroll_batches", `id=eq.${eq(id)}&status=eq.submitting`, { status: "submitted", submitted_at: new Date().toISOString() });
+  return batchDetail(owner, id);
+}
+
+function issue(batch: Batch, l: BatchLine, userId: string, n: number) {
+  return createPayment({
+    amount: unitsToUsd(BigInt(String(l.amount_units))), sourceChain: batch.chain, recipient: l.recipient, userId,
+    metadata: { kind: "payroll", batch: batch.id, cycle: batch.cycle, name: l.name },
+    // A re-issue needs a NEW intent (new nonce and deadline), so the key carries the issue number.
+    idempotencyKey: n === 0 ? `payroll:${batch.id}:${l.id}` : `payroll:${batch.id}:${l.id}:${n}`,
+  });
+}
+
+/** Re-issue every unsigned or expired line of a submitted batch whose deadline has passed. */
+export async function reissueExpired(owner: string, id: string, userId: string) {
+  requireStorage();
+  if (!routerConfigured()) throw new IntegrationNotConfiguredError("FurlPayRouter (FURLPAY_ROUTER_ADDRESS)");
+  const detail = await batchDetail(owner, id);
+  if (!detail) return null;
+  if (detail.batch.status !== "submitted") throw new PayrollConflict("Only submitted batches can be re-issued");
+  const now = Date.now();
+  const stale = detail.lines.filter(l => l.sign_deadline && Date.parse(l.sign_deadline) <= now);
+  if (!stale.length) throw new PayrollConflict("No signing request has expired yet");
+  const fresh = await Promise.all(stale.map(l => issue(detail.batch, l, userId, l.issue_count)));
+  // Compare-and-set on issue_count: two concurrent re-issues cannot both replace a line.
+  await Promise.all(stale.map((l, i) => sbUpdate<BatchLine>("payroll_batch_lines", `id=eq.${eq(l.id)}&batch_id=eq.${eq(id)}&issue_count=eq.${l.issue_count}`,
+    { payment_id: fresh[i].record.id, sign_data: fresh[i].signData, sign_deadline: deadlineOf(fresh[i]), issue_count: l.issue_count + 1, signature: null, signer: null, signed_at: null })));
+  return batchDetail(owner, id);
+}
+
+/** Record the employer's signature for one line after verifying it recovers to the signer the router will check. */
+export async function recordSignature(owner: string, batchId: string, lineId: string, signature: `0x${string}`) {
+  requireStorage();
+  const detail = await batchDetail(owner, batchId);
+  if (!detail) return null;
+  if (detail.batch.status !== "submitted") throw new PayrollConflict("This batch is not awaiting signatures");
+  const line = detail.lines.find(l => l.id === lineId);
+  if (!line?.sign_data || !line.sign_deadline) throw new PayrollConflict("This line has no signing request");
+  if (Date.parse(line.sign_deadline) <= Date.now()) throw new PayrollConflict("This signing request expired; re-issue it");
+  let signer: string;
+  try { signer = await recoverPayrollSigner(line.sign_data as SignData, signature); }
+  catch (e) { throw new PayrollConflict(e instanceof Error ? e.message : "Invalid signature"); }
+  const payer = detail.batch.payer_address;
+  if (payer && payer.toLowerCase() !== signer.toLowerCase()) throw new PayrollConflict(`Sign with the wallet that signed this batch (${payer})`);
+  if (!payer) {
+    const set = await sbUpdate<Batch>("payroll_batches", `id=eq.${eq(batchId)}&payer_address=is.null`, { payer_address: signer });
+    if (!set[0]) return recordSignature(owner, batchId, lineId, signature); // another line set it first: re-check
+  }
+  const updated = await sbUpdate<BatchLine>("payroll_batch_lines", `id=eq.${eq(lineId)}&batch_id=eq.${eq(batchId)}&issue_count=eq.${line.issue_count}`,
+    { signature, signer, signed_at: new Date().toISOString() });
+  if (!updated[0]) throw new PayrollConflict("This signing request was re-issued; sign the new one");
+  return updated[0];
 }
