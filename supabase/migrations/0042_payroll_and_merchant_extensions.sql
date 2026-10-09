@@ -97,10 +97,12 @@ create table merchant_pricing (
   set_by text not null, set_at timestamptz not null default now(), note text not null default ''
 );
 
--- Operator notes on intents held in `review`. Notes never change money or status.
+-- Operator notes on intents held in `review` (or any intent). Notes never change
+-- money or status: `refund_requested` records the request for the custody
+-- provider; refunds themselves are not implemented.
 create table merchant_review_notes (
   id bigserial primary key, intent_id uuid not null references merchant_payment_intents(id),
-  author text not null, decision text not null check (decision in ('note','confirmed_hold','escalated','cleared_for_release')),
+  author text not null, decision text not null check (decision in ('note','confirmed_hold','escalated','refund_requested')),
   note text not null check (char_length(note) between 5 and 2000), created_at timestamptz not null default now()
 );
 
@@ -109,7 +111,9 @@ create table merchant_reconciliation_alerts (
   id bigserial primary key, intent_id uuid not null references merchant_payment_intents(id),
   kind text not null check (kind in ('missing_receipt','amount_mismatch','receipt_failed','missing_ledger','unbalanced_ledger','rpc_unavailable')),
   detail text not null, severity text not null check (severity in ('high','medium')),
-  resolved_at timestamptz, created_at timestamptz not null default now()
+  resolved_at timestamptz, resolved_by text, resolution text check (char_length(resolution) <= 500),
+  created_at timestamptz not null default now(),
+  check ((resolved_at is null) = (resolved_by is null) and (resolved_at is null) = (resolution is null))
 );
 create unique index merchant_reconciliation_open on merchant_reconciliation_alerts(intent_id, kind) where resolved_at is null;
 

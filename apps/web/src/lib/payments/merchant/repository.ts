@@ -1,7 +1,7 @@
 import { randomBytes } from "crypto";
 import { PublicKey } from "@solana/web3.js";
 import { sbInsertIgnoreDuplicates, sbSelect, sbRpc, sbUpdate, supabaseBackend } from "@/lib/supabase";
-import { parseUsdc } from "./money";
+import { DEFAULT_TIER, parseUsdc, PRICING } from "./money";
 import { startBlock } from "./rpc";
 import type { LinkInput, MerchantIntent, MerchantLink } from "./model";
 import { requiredConfirmations, type PaymentChainId } from "./registry";
@@ -16,12 +16,19 @@ export async function listMerchant(owner: string) {
   ]);
   return { links, intents, limit: 500 };
 }
+/** The merchant's processing rate: the tier operations assigned (merchant_pricing, 0042), else the default tier.
+ *  Read at link creation and stored on the link, so a later tier change never reprices an open link. */
+export async function processingBps(owner: string): Promise<number> {
+  const row = (await sbSelect<{ processing_bps: number }>("merchant_pricing",`select=processing_bps&merchant_id=eq.${eq(owner)}&limit=1`))[0];
+  return row?.processing_bps ?? PRICING[DEFAULT_TIER];
+}
 export async function createLink(owner: string, merchantName: string, input: LinkInput) {
   requireStorage();
   const existing = (await sbSelect<MerchantLink>("merchant_payment_links",`id=eq.${eq(input.requestId)}&merchant_id=eq.${eq(owner)}&limit=1`))[0];
   if(existing) return existing;
   if(input.expiresAt && Date.parse(input.expiresAt) <= Date.now()) throw new MerchantUnavailable("Choose an expiration in the future");
-  const row: MerchantLink = { id: input.requestId, merchant_id:owner, merchant_name:merchantName.slice(0,120), slug:randomBytes(18).toString("base64url"), title:input.title,description:input.description,amount_units:parseUsdc(input.amount).toString(),processing_bps:75,fee_payer:input.feePayer,chains:input.chains,reusable:input.reusable,active:true,kind:input.kind,reference:input.reference,lines:input.lines,expires_at:input.expiresAt,created_at:new Date().toISOString() };
+  const bps = await processingBps(owner);
+  const row: MerchantLink = { id: input.requestId, merchant_id:owner, merchant_name:merchantName.slice(0,120), slug:randomBytes(18).toString("base64url"), title:input.title,description:input.description,amount_units:parseUsdc(input.amount).toString(),processing_bps:bps,fee_payer:input.feePayer,chains:input.chains,reusable:input.reusable,active:true,kind:input.kind,reference:input.reference,lines:input.lines,expires_at:input.expiresAt,created_at:new Date().toISOString() };
   await sbInsertIgnoreDuplicates("merchant_payment_links",row);
   const saved = (await sbSelect<MerchantLink>("merchant_payment_links",`id=eq.${eq(input.requestId)}&merchant_id=eq.${eq(owner)}&limit=1`))[0];
   if(!saved) throw new MerchantUnavailable("Request ID already in use");

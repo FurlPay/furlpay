@@ -1,5 +1,8 @@
 export const MAX_UNITS = 1_000_000n * 1_000_000n;
-export const PRICING = { starter: 95, growth: 75, scale: 50 } as const;
+export const PRICING = { starter: 95, growth: 75, scale: 50, enterprise: 35 } as const;
+export type PricingTier = keyof typeof PRICING;
+/** Merchants without an assigned tier (merchant_pricing, 0042) pay the growth rate. */
+export const DEFAULT_TIER: PricingTier = "growth";
 export function parseUsdc(value: string): bigint {
   if (!/^(0|[1-9]\d{0,6})(\.\d{1,6})?$/.test(value)) throw new Error("Enter an exact USDC amount with up to six decimals");
   const [whole, fraction = ""] = value.split(".");
