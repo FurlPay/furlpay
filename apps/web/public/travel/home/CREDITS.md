@@ -4,7 +4,6 @@ All photos from Unsplash (https://unsplash.com/license â€” free for commerc
 
 | File | Unsplash image |
 |---|---|
-| hero-santorini.jpg | https://unsplash.com/photos/santorini-greece-kYxgm42SQso (Oia at dusk) |
 | trip-japan.jpg | https://images.unsplash.com/photo-1526481280693-3bfa7568e0f3 |
 | planner-aurora.jpg | https://images.unsplash.com/photo-1531366936337-7c912a4589a7 |
 | collage-beach.jpg | https://images.unsplash.com/photo-1573790387438-4da905039392 |

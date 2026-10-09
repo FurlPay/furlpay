@@ -114,7 +114,7 @@ export default function TravelHeader() {
 
   return (
     <header className="sticky top-0 z-50 border-b border-white/[0.06] bg-[#030505]/80 backdrop-blur-xl">
-      <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-6 px-4 sm:px-6 lg:px-10">
+      <div className="mx-auto flex h-16 max-w-[1400px] items-center gap-3 px-4 sm:gap-6 sm:px-6 lg:px-10">
         <Link href="/travel" className="flex shrink-0 items-center gap-2 rounded-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-neon" aria-label="FurlPay Travels home">
           <span className="flex h-8 w-8 items-center justify-center rounded-[9px] bg-neon shadow-[0_0_18px_-4px_rgba(0,229,153,0.6)]">
             <svg viewBox="0 0 24 24" className="h-[18px] w-[18px] text-black" fill="none" stroke="currentColor" strokeWidth="3" aria-hidden>
@@ -122,7 +122,8 @@ export default function TravelHeader() {
             </svg>
           </span>
           <span className="text-[19px] font-bold tracking-tight text-white">Furlpay</span>
-          <span className="ml-1.5 text-[15px] font-semibold text-neon">Travels</span>
+          {/* Below 360px the word steps aside so the header fits without sideways scroll. */}
+          <span className="ml-1.5 hidden text-[15px] font-semibold text-neon min-[360px]:inline">Travels</span>
         </Link>
 
         <nav aria-label="Travel sections" className="hidden items-center gap-1 xl:flex">

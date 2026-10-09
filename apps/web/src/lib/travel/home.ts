@@ -12,7 +12,6 @@ import { DESTINATIONS, type Destination } from "@/lib/travel/data";
 const IMG = (name: string) => `/travel/home/${name}.jpg`;
 
 export const HOME_IMAGES = {
-  hero: IMG("hero-santorini"),
   planner: IMG("planner-aurora"),
   plannerCollage: [IMG("collage-beach"), IMG("collage-pagoda"), IMG("collage-rome")],
 } as const;
