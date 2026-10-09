@@ -4,7 +4,7 @@ import { randomBytes } from "node:crypto";
 const h = vi.hoisted(() => ({ sbSelect: vi.fn(), sbUpdate: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ ...h, sbRpc: vi.fn(), sbCount: vi.fn(), sbInsertIgnoreDuplicates: vi.fn(), supabaseBackend: "supabase" }));
 vi.mock("@/lib/compliance/addressScreening", () => ({ screenAddressRisk: vi.fn() }));
-vi.mock("@/lib/services/payments", () => ({ createPayment: vi.fn() }));
+vi.mock("@/lib/services/payments", () => ({ createPayment: vi.fn() , configuredRouter: (c: string) => process.env[`FURLPAY_ROUTER_ADDRESS_${c.toUpperCase()}`] || (c === "arbitrum" ? process.env.FURLPAY_ROUTER_ADDRESS : "") || null, routerEnvName: (c: string) => `FURLPAY_ROUTER_ADDRESS_${c.toUpperCase()}` }));
 
 import { openTax, recordTaxForm, sealTax, taxFormSchema, TaxKeyUnavailable, w8benExpiry } from "../taxForms";
 

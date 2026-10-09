@@ -12,10 +12,10 @@ import type { Batch, BatchLine, Contractor, PayrollChain } from "@/lib/payroll/m
 // Payroll workspace: saved roster → draft batch (fee quote + screening) →
 // submit, which returns one payment intent per line for the employer's own
 // wallet to sign. Nothing here moves money or marks anyone paid.
-// Arbitrum only: FurlPayRouter settles there, so that is where contractors receive.
-const CHAINS: { id: PayrollChain; name: string }[] = [{ id: "arbitrum", name: "Arbitrum" }];
-const STATUS: Record<Batch["status"], string> = { draft: "Draft", blocked: "Blocked by screening", submitting: "Submitting", submitted: "Awaiting signatures", cancelled: "Cancelled" };
-type Detail = { batch: Batch; lines: BatchLine[]; executionAvailable?: boolean };
+// A batch settles through the FurlPayRouter on its chain; contractors receive on that chain.
+const CHAINS: { id: PayrollChain; name: string }[] = [{ id: "arbitrum", name: "Arbitrum" }, { id: "base", name: "Base" }, { id: "arc", name: "Arc" }, { id: "polygon", name: "Polygon" }];
+const STATUS: Record<Batch["status"], string> = { draft: "Draft", blocked: "Blocked by screening", submitting: "Submitting", submitted: "Awaiting signatures", completed: "Paid on-chain", cancelled: "Cancelled" };
+type Detail = { batch: Batch; lines: BatchLine[]; executionAvailable?: boolean; router?: string | null; token?: string; chainId?: number };
 const thisCycle = () => new Date().toISOString().slice(0, 7);
 
 export default function PayrollWorkspace() {
@@ -153,7 +153,7 @@ function BatchDetail({ detail, onAction, onChanged }: { detail: Detail; onAction
       {(b.status === "draft" || b.status === "blocked") && <button className="mp-button secondary" onClick={() => onAction("cancel")}><Ban size={15} />Cancel batch</button>}
       {b.status === "draft" && <button className="mp-button primary" onClick={() => onAction("submit")}><Send size={15} />Submit for signing</button>}
     </div>
-    {b.status === "submitted" && <SigningPanel detail={detail} onChanged={onChanged} onReissue={() => onAction("reissue")} />}
+    {(b.status === "submitted" || b.status === "completed") && <SigningPanel detail={detail} onChanged={onChanged} onReissue={() => onAction("reissue")} />}
   </div>;
 }
 

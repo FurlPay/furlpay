@@ -1,11 +1,11 @@
 import { sbCount, sbInsertIgnoreDuplicates, sbRpc, sbSelect, sbUpdate, supabaseBackend } from "@/lib/supabase";
 import { parseUsdc } from "@/lib/payments/merchant/money";
 import { screenAddressRisk } from "@/lib/compliance/addressScreening";
-import { createPayment } from "@/lib/services/payments";
+import { configuredRouter, createPayment, routerEnvName } from "@/lib/services/payments";
 import { IntegrationNotConfiguredError } from "@/lib/integrations";
 import { recoverPayrollSigner, type SignData } from "./signing";
-import { PAYROLL_BATCH_BPS, PAYROLL_BATCH_MIN_UNITS, PAYROLL_SEAT_UNITS, unitsToUsd } from "./pricing";
-import type { Batch, BatchInput, BatchLine, Contractor, ContractorInput, ContractorPatch } from "./model";
+import { lineFee, PAYROLL_BATCH_BPS, PAYROLL_BATCH_MIN_UNITS, PAYROLL_SEAT_UNITS, unitsToUsd } from "./pricing";
+import type { Batch, BatchInput, BatchLine, Contractor, ContractorInput, ContractorPatch, PayrollChain } from "./model";
 
 // Saved payroll roster and batches (migration 0042). Payroll stays
 // non-custodial: submitting a batch mints one FurlPayRouter payment intent per
@@ -106,17 +106,20 @@ export async function cancelBatch(owner: string, id: string) {
   return rows[0];
 }
 
-/** Production without a deployed router cannot produce a signable intent. */
-export function routerConfigured() { return process.env.NODE_ENV !== "production" || Boolean(process.env.FURLPAY_ROUTER_ADDRESS); }
+/** Production without a deployed router on the batch's chain cannot produce a signable intent. */
+export function routerConfigured(chain: PayrollChain) { return process.env.NODE_ENV !== "production" || Boolean(configuredRouter(chain)); }
 /** On-chain execution needs a real router address in every environment (the dev placeholder is not an address). */
-export function executionAvailable() { return /^0x[0-9a-fA-F]{40}$/.test(process.env.FURLPAY_ROUTER_ADDRESS ?? ""); }
+export function executionAvailable(chain: PayrollChain) { return /^0x[0-9a-fA-F]{40}$/.test(configuredRouter(chain) ?? ""); }
+const routerMissing = (chain: PayrollChain) => new IntegrationNotConfiguredError(`FurlPayRouter on ${chain} (${routerEnvName(chain)})`);
 
 type Issued = Awaited<ReturnType<typeof createPayment>>;
 const deadlineOf = (i: Issued) => new Date(Number(i.signData.message.deadline) * 1000).toISOString();
 
 export async function submitBatch(owner: string, id: string, userId: string) {
   requireStorage();
-  if (!routerConfigured()) throw new IntegrationNotConfiguredError("FurlPayRouter (FURLPAY_ROUTER_ADDRESS)");
+  const pending = (await sbSelect<Batch>("payroll_batches", `select=id,chain&id=eq.${eq(id)}&merchant_id=eq.${eq(owner)}&limit=1`))[0];
+  if (!pending) return null;
+  if (!routerConfigured(pending.chain)) throw routerMissing(pending.chain);
   // Compare-and-set: exactly one request moves a draft forward.
   const claimed = (await sbUpdate<Batch>("payroll_batches", `id=eq.${eq(id)}&merchant_id=eq.${eq(owner)}&status=eq.draft`, { status: "submitting" }))[0];
   if (!claimed) {
@@ -141,8 +144,11 @@ export async function submitBatch(owner: string, id: string, userId: string) {
 }
 
 function issue(batch: Batch, l: BatchLine, userId: string, n: number) {
+  const pay = BigInt(String(l.amount_units));
+  const fee = lineFee(pay);
   return createPayment({
-    amount: unitsToUsd(BigInt(String(l.amount_units))), sourceChain: batch.chain, recipient: l.recipient, userId,
+    // The fee rides on top: the router debits pay + fee and the contractor receives exactly `pay`.
+    amount: unitsToUsd(pay), sourceChain: batch.chain, settlementChain: batch.chain, units: { amount: pay + fee, fee }, recipient: l.recipient, userId,
     metadata: { kind: "payroll", batch: batch.id, cycle: batch.cycle, name: l.name },
     // A re-issue needs a NEW intent (new nonce and deadline), so the key carries the issue number.
     idempotencyKey: n === 0 ? `payroll:${batch.id}:${l.id}` : `payroll:${batch.id}:${l.id}:${n}`,
@@ -152,12 +158,12 @@ function issue(batch: Batch, l: BatchLine, userId: string, n: number) {
 /** Re-issue every unsigned or expired line of a submitted batch whose deadline has passed. */
 export async function reissueExpired(owner: string, id: string, userId: string) {
   requireStorage();
-  if (!routerConfigured()) throw new IntegrationNotConfiguredError("FurlPayRouter (FURLPAY_ROUTER_ADDRESS)");
   const detail = await batchDetail(owner, id);
   if (!detail) return null;
+  if (!routerConfigured(detail.batch.chain)) throw routerMissing(detail.batch.chain);
   if (detail.batch.status !== "submitted") throw new PayrollConflict("Only submitted batches can be re-issued");
   const now = Date.now();
-  const stale = detail.lines.filter(l => l.sign_deadline && Date.parse(l.sign_deadline) <= now);
+  const stale = detail.lines.filter(l => !l.executed_tx && l.sign_deadline && Date.parse(l.sign_deadline) <= now);
   if (!stale.length) throw new PayrollConflict("No signing request has expired yet");
   const fresh = await Promise.all(stale.map(l => issue(detail.batch, l, userId, l.issue_count)));
   // Compare-and-set on issue_count: two concurrent re-issues cannot both replace a line.

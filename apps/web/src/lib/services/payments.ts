@@ -27,6 +27,11 @@ import { log } from "@/lib/log";
 export const FEE_RATE = 0.005; // 0.5%
 const EXPIRY_SECONDS = 900; // 15 min quote validity
 const SETTLEMENT_CHAIN = "arbitrum";
+/** Chains a FurlPayRouter can be configured on. The EIP-712 domain (chainId +
+ *  verifyingContract) is per chain: a signature made for one chain's router
+ *  can never execute on another's. */
+export const ROUTER_CHAINS = ["arbitrum", "arc", "base", "polygon"] as const;
+export type RouterChain = typeof ROUTER_CHAINS[number];
 const USDC_DECIMALS = 6;
 // Bound the in-memory stores (production: Postgres, where this is moot).
 const MAX_RECORDS = 10_000;
@@ -56,6 +61,9 @@ export interface PaymentRecord {
   status: PaymentStatus;
   amountUsdc: number;
   feeUsdc: number;
+  /** Exact micro-units when the caller supplied them (payroll); else derived from the USD numbers. */
+  amountUnits?: string;
+  feeUnits?: string;
   sourceChain: string;
   settlementChain: string;
   recipient: string;
@@ -189,6 +197,12 @@ export interface CreateParams {
   idempotencyKey?: string;
   /** Acting user (from session) — scopes idempotency and attribution. */
   userId: string;
+  /** Chain whose FurlPayRouter executes this authorization. Default: Arbitrum. */
+  settlementChain?: RouterChain;
+  /** Exact micro-unit terms (payroll). `amount` is what the router debits from
+   *  the payer; the recipient receives `amount - fee`. When absent, the
+   *  platform fee is taken out of `params.amount` as before. */
+  units?: { amount: bigint; fee: bigint };
 }
 
 /** The deployed FurlPayRouter the payer's wallet signs against.
@@ -200,19 +214,30 @@ export interface CreateParams {
  *  silently differs from the real contract's — exactly the kind of "looks
  *  settled, signed nothing" state a payments API must never produce. Dev and
  *  preview keep the placeholder so the flow stays clickable without a deploy. */
-function routerAddress(): string {
-  const configured = process.env.FURLPAY_ROUTER_ADDRESS;
+export function routerEnvName(chain: RouterChain): string {
+  return `FURLPAY_ROUTER_ADDRESS_${chain.toUpperCase()}`;
+}
+/** The configured router for a chain, or null. FURLPAY_ROUTER_ADDRESS is the
+ *  Arbitrum router only (its historical meaning); it is never assumed to exist
+ *  at the same address on another chain. */
+export function configuredRouter(chain: RouterChain): string | null {
+  const v = (process.env[routerEnvName(chain)] || (chain === "arbitrum" ? process.env.FURLPAY_ROUTER_ADDRESS : "") || "").trim();
+  return v || null;
+}
+function routerAddress(chain: RouterChain = SETTLEMENT_CHAIN): string {
+  const configured = configuredRouter(chain);
   if (configured) return configured;
   if (process.env.NODE_ENV === "production") {
-    throw new IntegrationNotConfiguredError("FurlPayRouter (FURLPAY_ROUTER_ADDRESS)");
+    throw new IntegrationNotConfiguredError(`FurlPayRouter on ${chain} (${routerEnvName(chain)})`);
   }
   return "0xFurlPayRouterPendingDeployment";
 }
 
 /** Build the create-intent response (quote + EIP-712 sign data) for a record. */
 async function buildCreateResponse(record: PaymentRecord, replayed: boolean) {
-  const chain = getChain(SETTLEMENT_CHAIN)!;
-  const router = routerAddress();
+  const settlement = (ROUTER_CHAINS as readonly string[]).includes(record.settlementChain) ? record.settlementChain as RouterChain : SETTLEMENT_CHAIN;
+  const chain = getChain(settlement)!;
+  const router = routerAddress(settlement);
   const gas = await gasQuote(chain);
   return {
     record,
@@ -238,8 +263,8 @@ async function buildCreateResponse(record: PaymentRecord, replayed: boolean) {
       message: {
         paymentId: record.id,
         recipient: record.recipient,
-        amount: atomic(record.amountUsdc),
-        fee: atomic(record.feeUsdc),
+        amount: record.amountUnits ?? atomic(record.amountUsdc),
+        fee: record.feeUnits ?? atomic(record.feeUsdc),
         nonce: record.nonce,
         deadline: Math.floor(Date.parse(record.expiresAt) / 1000),
       },
@@ -262,15 +287,24 @@ export async function createPayment(params: CreateParams) {
     }
   }
 
-  const fee = round(params.amount * FEE_RATE);
+  const settlementChain = params.settlementChain ?? SETTLEMENT_CHAIN;
+  if (!(ROUTER_CHAINS as readonly string[]).includes(settlementChain)) throw new Error("unsupported_settlement_chain");
+  if (params.units && (params.units.fee < 0n || params.units.amount <= params.units.fee || params.units.fee * 100n > params.units.amount)) {
+    // FurlPayRouter.MAX_FEE_BPS = 100: an authorization above 1% would revert on-chain.
+    throw new Error("invalid_payment_terms");
+  }
+  // Fail before minting a record when this chain has no router in production.
+  routerAddress(settlementChain);
+  const fee = params.units ? Number(params.units.fee) / 10 ** USDC_DECIMALS : round(params.amount * FEE_RATE);
   const now = Date.now();
   const record: PaymentRecord = {
     id: `pay_${crypto.randomBytes(12).toString("hex")}`,
     status: "pending_signature",
-    amountUsdc: params.amount,
+    amountUsdc: params.units ? Number(params.units.amount) / 10 ** USDC_DECIMALS : params.amount,
     feeUsdc: fee,
+    ...(params.units ? { amountUnits: params.units.amount.toString(), feeUnits: params.units.fee.toString() } : {}),
     sourceChain: params.sourceChain,
-    settlementChain: SETTLEMENT_CHAIN,
+    settlementChain,
     recipient: params.recipient,
     createdByUserId: params.userId,
     metadata: params.metadata,

@@ -59,7 +59,7 @@ describe("payroll batches (0042)", () => {
     await expect(create(randomUUID(), randomUUID(), [{ ...line("5000000"), recipient: "0xnope" }])).rejects.toThrow();
     await expect(create(randomUUID(), randomUUID(), [line("0")])).rejects.toThrow();
     await expect(db.query("select payroll_batch_create($1,$2,'2026-10','ethereum',$3,1,35,1500000,19000000)", [randomUUID(), randomUUID(), JSON.stringify([line("1")])])).rejects.toThrow();
-    await expect(db.query("select payroll_batch_create($1,$2,'2026-10','base',$3,1,35,1500000,19000000)", [randomUUID(), randomUUID(), JSON.stringify([line("1")])])).rejects.toThrow();
+    await expect(db.query("select payroll_batch_create($1,$2,'2026-10','solana',$3,1,35,1500000,19000000)", [randomUUID(), randomUUID(), JSON.stringify([line("1")])])).rejects.toThrow();
   });
   it("rejects the zero address and lower-case country codes on the roster", async () => {
     const ins = (a: string, country = "DE") => db.query("insert into payroll_contractors(id,merchant_id,name,email,country,payout_chain,payout_address,default_amount_units) values($1,$2,'A','a@b.co',$3,'arbitrum',$4,1000000)", [randomUUID(), randomUUID(), country, a]);

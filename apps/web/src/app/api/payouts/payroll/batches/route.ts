@@ -5,6 +5,9 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { IntegrationNotConfiguredError } from "@/lib/integrations";
 import { batchActionSchema, batchSchema } from "@/lib/payroll/model";
+import { recordExecution } from "@/lib/payroll/execution";
+import { configuredRouter } from "@/lib/services/payments";
+import { paymentChain } from "@/lib/payments/merchant/registry";
 import { batchDetail, cancelBatch, createBatch, executionAvailable, listBatches, PayrollConflict, recordSignature, reissueExpired, submitBatch } from "@/lib/payroll/repository";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
@@ -28,8 +31,10 @@ export async function GET(req: NextRequest) {
   try {
     if (id) {
       const detail = await batchDetail(auth.account.user.id, id);
-      // executionAvailable: false until a reviewed FurlPayRouter is deployed. Signatures are kept either way.
-      return NextResponse.json(detail ? { ...detail, executionAvailable: executionAvailable() } : { error: "Batch not found" }, { status: detail ? 200 : 404, headers });
+      // executionAvailable: false until a reviewed FurlPayRouter is deployed on the batch's chain. Signatures are kept either way.
+      if (!detail) return NextResponse.json({ error: "Batch not found" }, { status: 404, headers });
+      const c = paymentChain(detail.batch.chain);
+      return NextResponse.json({ ...detail, executionAvailable: executionAvailable(detail.batch.chain), router: configuredRouter(detail.batch.chain), token: c.token, chainId: c.chainId }, { headers });
     }
     return NextResponse.json({ batches: await listBatches(auth.account.user.id) }, { headers });
   } catch (e) { return fail(e); }
@@ -55,6 +60,10 @@ export async function PATCH(req: NextRequest) {
     if (input.action === "sign") {
       const line = await recordSignature(owner, input.id, input.lineId, input.signature as `0x${string}`);
       return NextResponse.json(line ? { line } : { error: "Batch not found" }, { status: line ? 200 : 404, headers });
+    }
+    if (input.action === "record_execution") {
+      const out = await recordExecution(owner, input.id, input.txHash);
+      return NextResponse.json(out ?? { error: "Batch not found" }, { status: out ? 200 : 404, headers });
     }
     const out = input.action === "reissue" ? await reissueExpired(owner, input.id, owner) : await submitBatch(owner, input.id, owner);
     return NextResponse.json(out ?? { error: "Batch not found" }, { status: out ? 200 : 404, headers });

@@ -5,7 +5,7 @@ const h = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/supabase", () => ({ sbSelect: h.sbSelect, sbUpdate: h.sbUpdate, sbRpc: h.sbRpc, sbCount: h.sbCount, sbInsertIgnoreDuplicates: vi.fn(), supabaseBackend: "supabase" }));
 vi.mock("@/lib/compliance/addressScreening", () => ({ screenAddressRisk: h.screen }));
-vi.mock("@/lib/services/payments", () => ({ createPayment: h.createPayment }));
+vi.mock("@/lib/services/payments", () => ({ createPayment: h.createPayment , configuredRouter: (c: string) => process.env[`FURLPAY_ROUTER_ADDRESS_${c.toUpperCase()}`] || (c === "arbitrum" ? process.env.FURLPAY_ROUTER_ADDRESS : "") || null, routerEnvName: (c: string) => `FURLPAY_ROUTER_ADDRESS_${c.toUpperCase()}` }));
 
 import { batchFee, quoteBatch, seatFee, unitsToUsd } from "../pricing";
 import { createBatch, PayrollConflict, submitBatch, updateContractor } from "../repository";
@@ -56,8 +56,9 @@ describe("payroll input validation", () => {
     expect(batchSchema.safeParse({ ...input, lines: [{ contractorId: C1, address: "0x" + "cd".repeat(20) }] }).success).toBe(false);
     expect(batchSchema.safeParse({ ...input, lines: [{ contractorId: C1 }, { contractorId: C1 }] }).success).toBe(false);
     expect(batchSchema.safeParse({ ...input, chain: "ethereum" }).success).toBe(false);
-    // FurlPayRouter settles on Arbitrum; any other payout chain would mislabel where funds land.
-    expect(batchSchema.safeParse({ ...input, chain: "base" }).success).toBe(false);
+    // Only chains a FurlPayRouter can be configured on.
+    expect(batchSchema.safeParse({ ...input, chain: "solana" }).success).toBe(false);
+    expect(batchSchema.safeParse({ ...input, chain: "arc" }).success).toBe(true);
     expect(batchSchema.safeParse({ ...input, cycle: "2026-13" }).success).toBe(false);
   });
   it("rejects zero addresses, unbounded amounts and unknown fields on contractors", () => {
@@ -117,7 +118,8 @@ describe("submitBatch", () => {
     const signData = { primaryType: "Payment", message: { deadline: 1_900_000_000 } };
     h.createPayment.mockResolvedValue({ record: { id: "pay_1", feeUsdc: 12.5 }, signData });
     await submitBatch(OWNER, BATCH, OWNER);
-    expect(h.createPayment).toHaveBeenCalledWith(expect.objectContaining({ amount: 2500, sourceChain: "arbitrum", recipient: ADDR, idempotencyKey: `payroll:${BATCH}:${line.id}` }));
+    // Settles on the batch's chain; the 0.35% fee rides on top so the contractor receives exactly 2,500.
+    expect(h.createPayment).toHaveBeenCalledWith(expect.objectContaining({ amount: 2500, settlementChain: "arbitrum", units: { amount: 2_508_750_000n, fee: 8_750_000n }, recipient: ADDR, idempotencyKey: `payroll:${BATCH}:${line.id}` }));
     // The signing payload is persisted with the line, so a refresh can resume it.
     expect(h.sbUpdate).toHaveBeenCalledWith("payroll_batch_lines", expect.stringContaining(line.id),
       { payment_id: "pay_1", sign_data: signData, sign_deadline: new Date(1_900_000_000_000).toISOString(), issue_count: 1 });

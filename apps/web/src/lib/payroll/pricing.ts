@@ -13,6 +13,13 @@ export function batchFee(grossUnits: bigint): bigint {
   return pct > PAYROLL_BATCH_MIN_UNITS ? pct : PAYROLL_BATCH_MIN_UNITS;
 }
 
+/** The fee collected ON-CHAIN with each payroll line: 35 bps, rounded down, paid by the employer on top of the line.
+ *  The batch minimum (1.50 USDC) and the seat fee are not collected on-chain: they stay quotes until billing exists. */
+export function lineFee(lineUnits: bigint): bigint {
+  if (lineUnits <= 0n) throw new RangeError("line must be positive");
+  return (lineUnits * BigInt(PAYROLL_BATCH_BPS)) / 10_000n;
+}
+
 /** The seat fee is due once per merchant per cycle: the first batch of the month carries it. */
 export function seatFee(activeContractors: number, alreadyChargedThisCycle: boolean): bigint {
   if (!Number.isInteger(activeContractors) || activeContractors < 0) throw new RangeError("invalid seat count");

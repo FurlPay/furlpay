@@ -6,9 +6,11 @@
 -- and settled by FurlPayRouter. FurlPay holds no employer funds, so nothing here
 -- posts to the ledger; settlement of each intent does that when it actually moves.
 -- Batch and seat fees are QUOTES recorded with the batch; billing is not connected.
--- Payroll settles on Arbitrum only: lib/services/payments signs every intent for
--- FurlPayRouter's settlement chain, so any other payout chain would be a label
--- that does not match where the USDC actually lands.
+-- A batch settles on ONE chain through that chain's FurlPayRouter: the EIP-712
+-- domain (chainId + verifyingContract) is per chain, and the contractor
+-- receives on the batch's chain. Router chains: arbitrum, arc, base, polygon.
+-- The per-line platform fee is added ON TOP (router debits line + fee, the
+-- contractor receives exactly the line amount).
 -- Amounts are USDC micro-units (6 dp) as bigint.
 begin;
 
@@ -18,7 +20,7 @@ create table payroll_contractors (
   email text not null check (email ~ '^[^@\s]+@[^@\s]+\.[^@\s]+$' and char_length(email) <= 200),
   role text not null default '' check (char_length(role) <= 80),
   country text not null check (country ~ '^[A-Z]{2}$'),
-  payout_chain text not null check (payout_chain = 'arbitrum'),
+  payout_chain text not null check (payout_chain in ('arbitrum','arc','base','polygon')),
   payout_address text not null check (payout_address ~ '^0x[0-9a-fA-F]{40}$' and payout_address !~* '^0x0{40}$'),
   default_amount_units bigint not null check (default_amount_units > 0 and default_amount_units <= 1000000000000),
   tax_status text not null default 'unsubmitted' check (tax_status in ('unsubmitted','w8ben_signed','w9_signed','exempt')),
@@ -39,8 +41,8 @@ create index payroll_contractors_merchant on payroll_contractors(merchant_id, cr
 create table payroll_batches (
   id uuid primary key, merchant_id uuid not null,
   cycle text not null check (cycle ~ '^[0-9]{4}-[0-9]{2}$'),
-  chain text not null check (chain = 'arbitrum'),
-  status text not null check (status in ('draft','blocked','submitting','submitted','cancelled')),
+  chain text not null check (chain in ('arbitrum','arc','base','polygon')),
+  status text not null check (status in ('draft','blocked','submitting','submitted','completed','cancelled')),
   -- The employer wallet that signed the first authorization; every line must match it.
   payer_address text check (payer_address ~ '^0x[0-9a-fA-F]{40}$'),
   headcount integer not null check (headcount between 1 and 100),
@@ -68,8 +70,15 @@ create table payroll_batch_lines (
   signature text check (signature ~ '^0x[0-9a-fA-F]{130}$'), signer text check (signer ~ '^0x[0-9a-fA-F]{40}$'), signed_at timestamptz,
   check ((sign_data is null) = (sign_deadline is null)),
   check ((signature is null) = (signer is null) and (signature is null) = (signed_at is null)),
-  check (signature is null or sign_data is not null)
+  check (signature is null or sign_data is not null),
+  -- Execution evidence, written only after the server re-read the receipt from
+  -- the chain and matched this line's PaymentExecuted event (never from a
+  -- client-supplied hash alone).
+  executed_tx text check (executed_tx ~ '^0x[0-9a-fA-F]{64}$'), executed_block bigint, executed_at timestamptz,
+  check ((executed_tx is null) = (executed_at is null) and (executed_tx is null) = (executed_block is null)),
+  check (executed_tx is null or signature is not null)
 );
+create unique index payroll_batch_lines_payment on payroll_batch_lines(payment_id) where payment_id is not null;
 create index payroll_batch_lines_batch on payroll_batch_lines(batch_id);
 
 -- One seat charge per merchant per calendar month, whichever batch comes first.

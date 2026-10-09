@@ -4,7 +4,7 @@ import { privateKeyToAccount } from "viem/accounts";
 const h = vi.hoisted(() => ({ sbSelect: vi.fn(), sbUpdate: vi.fn(), createPayment: vi.fn() }));
 vi.mock("@/lib/supabase", () => ({ sbSelect: h.sbSelect, sbUpdate: h.sbUpdate, sbRpc: vi.fn(), sbCount: vi.fn(), sbInsertIgnoreDuplicates: vi.fn(), supabaseBackend: "supabase" }));
 vi.mock("@/lib/compliance/addressScreening", () => ({ screenAddressRisk: vi.fn() }));
-vi.mock("@/lib/services/payments", () => ({ createPayment: h.createPayment }));
+vi.mock("@/lib/services/payments", () => ({ createPayment: h.createPayment , configuredRouter: (c: string) => process.env[`FURLPAY_ROUTER_ADDRESS_${c.toUpperCase()}`] || (c === "arbitrum" ? process.env.FURLPAY_ROUTER_ADDRESS : "") || null, routerEnvName: (c: string) => `FURLPAY_ROUTER_ADDRESS_${c.toUpperCase()}` }));
 
 import { assertRouterSignature, recoverPayrollSigner, type SignData } from "../signing";
 import { recordSignature, reissueExpired } from "../repository";
