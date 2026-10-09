@@ -113,6 +113,58 @@ create table merchant_reconciliation_alerts (
 );
 create unique index merchant_reconciliation_open on merchant_reconciliation_alerts(intent_id, kind) where resolved_at is null;
 
+-- Database legs of the reconciliation (intent vs receipts vs ledger). Read-only
+-- over money tables: it only records alerts, it never edits an intent or posts.
+-- The chain leg (is each receipt still in a successful, canonical transaction?)
+-- runs in the cron (lib/payments/merchant/reconcile.ts) and records through
+-- merchant_reconciliation_alert().
+create function merchant_reconciliation_alert(p_intent uuid, p_kind text, p_detail text, p_severity text)
+returns boolean language plpgsql security definer set search_path=public as $$
+declare got integer;
+begin
+  insert into merchant_reconciliation_alerts(intent_id,kind,detail,severity) values(p_intent,p_kind,left(p_detail,500),p_severity)
+    on conflict (intent_id,kind) where resolved_at is null do nothing;
+  get diagnostics got = row_count;
+  return got = 1;
+end $$;
+
+create function merchant_reconcile(p_since timestamptz)
+returns integer language plpgsql security definer set search_path=public as $$
+declare r record; n integer := 0;
+begin
+  for r in
+    select i.id, i.status, i.received_units::numeric received, coalesce(sum(x.amount_units::numeric),0) receipts, count(x.tx_hash) k
+    from merchant_payment_intents i left join merchant_payment_receipts x on x.intent_id=i.id
+    where i.created_at >= p_since and i.status in ('underpaid','paid','overpaid')
+    group by i.id
+  loop
+    if r.k = 0 then
+      if merchant_reconciliation_alert(r.id,'missing_receipt','Intent is '||r.status||' but has no recorded chain receipt','high') then n:=n+1; end if;
+    elsif r.receipts <> r.received then
+      if merchant_reconciliation_alert(r.id,'amount_mismatch','Receipts total '||r.receipts||' units; intent records '||r.received,'high') then n:=n+1; end if;
+    end if;
+  end loop;
+  for r in
+    select x.intent_id, 'mp:'||x.chain||':'||x.tx_hash||':'||x.log_index txn, t.id found,
+      coalesce(sum(p.amount) filter (where p.side='debit'),0) d, coalesce(sum(p.amount) filter (where p.side='credit'),0) c,
+      coalesce(sum(p.amount) filter (where p.side='debit' and p.account_id='mp:treasury:'||x.chain),0) treasury, x.amount_units::numeric amount
+    from merchant_payment_receipts x
+    left join ledger_transactions t on t.id='mp:'||x.chain||':'||x.tx_hash||':'||x.log_index
+    left join ledger_postings p on p.transaction_id=t.id
+    where x.created_at >= p_since
+    group by x.intent_id, x.chain, x.tx_hash, x.log_index, x.amount_units, t.id
+  loop
+    if r.found is null then
+      if merchant_reconciliation_alert(r.intent_id,'missing_ledger','No journal '||r.txn,'high') then n:=n+1; end if;
+    elsif r.d <> r.c then
+      if merchant_reconciliation_alert(r.intent_id,'unbalanced_ledger','Journal '||r.txn||' debits '||r.d||' credits '||r.c,'high') then n:=n+1; end if;
+    elsif r.treasury <> r.amount then
+      if merchant_reconciliation_alert(r.intent_id,'amount_mismatch','Journal '||r.txn||' moved '||r.treasury||' into treasury; receipt is '||r.amount,'high') then n:=n+1; end if;
+    end if;
+  end loop;
+  return n;
+end $$;
+
 alter table payroll_contractors enable row level security;
 alter table payroll_batches enable row level security;
 alter table payroll_batch_lines enable row level security;
@@ -125,4 +177,6 @@ grant all on payroll_contractors,payroll_batches,payroll_batch_lines,payroll_sea
 grant usage,select on sequence merchant_review_notes_id_seq, merchant_reconciliation_alerts_id_seq to service_role;
 revoke all on function payroll_batch_create(uuid,uuid,text,text,jsonb,integer,integer,bigint,bigint) from public,anon,authenticated;
 grant execute on function payroll_batch_create(uuid,uuid,text,text,jsonb,integer,integer,bigint,bigint) to service_role;
+revoke all on function merchant_reconciliation_alert(uuid,text,text,text), merchant_reconcile(timestamptz) from public,anon,authenticated;
+grant execute on function merchant_reconciliation_alert(uuid,text,text,text), merchant_reconcile(timestamptz) to service_role;
 commit;
