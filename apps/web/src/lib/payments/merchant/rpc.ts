@@ -29,13 +29,16 @@ export function endpointsFor(chainId: PaymentChainId, env: Record<string, string
   return [...new Set([...configured, c.rpc])];
 }
 
-async function post(endpoint: string, method: string, params: unknown[]): Promise<unknown> {
+async function postRaw(endpoint: string, method: string, params: unknown[]): Promise<{ result?: unknown; error?: unknown }> {
   const res = await fetch(endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }), cache: "no-store", signal: AbortSignal.timeout(8000) });
   if (!res.ok || !res.body) throw new Error("Network reader unavailable");
   const reader = res.body.getReader(); const chunks: Uint8Array[] = []; let size = 0;
   try { for (;;) { const {done,value} = await reader.read(); if(done) break; size+=value.length; if(size>2_000_000) throw new Error("Network read exceeded budget"); chunks.push(value); } }
   finally { await reader.cancel().catch(() => undefined); reader.releaseLock(); }
-  const body = z.object({ id: z.literal(1), result: z.unknown(), error: z.unknown().optional() }).parse(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+  return z.object({ id: z.literal(1), result: z.unknown(), error: z.unknown().optional() }).parse(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+}
+async function post(endpoint: string, method: string, params: unknown[]): Promise<unknown> {
+  const body = await postRaw(endpoint, method, params);
   if(body.error || body.result === undefined) throw new Error("Network reader unavailable");
   return body.result;
 }
@@ -102,4 +105,32 @@ export async function startBlock(chain: PaymentChainId): Promise<string> {
   if(Math.abs(Date.now()/1000 - Number(BigInt(b.timestamp)))>120) throw new Error("Network head is stale");
   // No payment can precede reservation of this never-reused destination.
   return (BigInt(b.number)+1n).toString();
+}
+
+/** For the wallet proxy (/api/chain/rpc): same failover and per-endpoint chain proof as rpc(), but a
+ *  JSON-RPC error from a PROVEN endpoint is the node's authoritative answer (e.g. a rejected
+ *  broadcast) and is returned to the caller, not retried elsewhere. */
+export async function proxyRpc(chainId: PaymentChainId, method: string, params: unknown[]): Promise<{ result: unknown } | { rpcError: string }> {
+  const endpoints = endpointsFor(chainId);
+  const now = Date.now();
+  const ordered = [...endpoints.filter(e => (health.get(e)?.until ?? 0) <= now), ...endpoints.filter(e => { const u = health.get(e)?.until ?? 0; return u > now && u !== Infinity; })];
+  let wrongChain: Error | null = null;
+  for (const endpoint of ordered) {
+    try {
+      await proveChain(chainId, endpoint);
+      const body = await postRaw(endpoint, method, params);
+      health.delete(endpoint);
+      if (body.error !== undefined) {
+        const message = z.object({ message: z.string() }).safeParse(body.error);
+        return { rpcError: message.success ? message.data.message : "The node rejected the call." };
+      }
+      return { result: body.result ?? null };
+    } catch (e) {
+      const isWrong = e instanceof Error && /Wrong (network|Solana cluster)/.test(e.message);
+      if (isWrong) wrongChain = e as Error;
+      const h = health.get(endpoint) ?? { failures: 0, until: 0 };
+      health.set(endpoint, { failures: h.failures + 1, until: isWrong ? Infinity : Date.now() + COOLDOWN_MS });
+    }
+  }
+  throw wrongChain ?? new Error("Network reader unavailable");
 }
