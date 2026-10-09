@@ -6,6 +6,8 @@
   "scripts": {
     "predev": "node scripts/sync-maplibre-worker.mjs",
     "dev": "next dev",
+    "merchant:seed-destinations": "node scripts/seed-pilot-destinations.mjs",
+    "merchant:check-env": "tsx scripts/check-merchant-env.mts",
     "prebuild": "node scripts/sync-maplibre-worker.mjs && node scripts/check-claims.mjs",
     "build": "next build",
     "start": "next start",

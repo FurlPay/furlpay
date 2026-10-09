@@ -390,6 +390,12 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // The payer's wallet signs EIP-712 data bound to this address; a live
       // deployment without it fails closed in services/payments.ts.
       v("FURLPAY_ROUTER_ADDRESS", true),
+      // Per-chain FurlPayRouter (lib/services/routerConfig.ts). The bare name above
+      // is Arbitrum's; a router is never assumed to exist on another chain.
+      v("FURLPAY_ROUTER_ADDRESS_ARBITRUM"),
+      v("FURLPAY_ROUTER_ADDRESS_ARC"),
+      v("FURLPAY_ROUTER_ADDRESS_BASE"),
+      v("FURLPAY_ROUTER_ADDRESS_POLYGON"),
       v("TREASURY_ADDRESS_BSC"),
     ],
   },

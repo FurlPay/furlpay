@@ -8,6 +8,8 @@ import { sendEmail } from "@/lib/email";
 import { mockAllowed, IntegrationNotConfiguredError } from "@/lib/integrations";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
+import { ROUTER_CHAINS, configuredRouter, routerEnvName, type RouterChain } from "./routerConfig";
+export { ROUTER_CHAINS, configuredRouter, routerEnvName, type RouterChain };
 
 // ---------------------------------------------------------------------------
 // Unified USDC payment service — the chain-native counterpart to the Stripe
@@ -27,11 +29,6 @@ import { log } from "@/lib/log";
 export const FEE_RATE = 0.005; // 0.5%
 const EXPIRY_SECONDS = 900; // 15 min quote validity
 const SETTLEMENT_CHAIN = "arbitrum";
-/** Chains a FurlPayRouter can be configured on. The EIP-712 domain (chainId +
- *  verifyingContract) is per chain: a signature made for one chain's router
- *  can never execute on another's. */
-export const ROUTER_CHAINS = ["arbitrum", "arc", "base", "polygon"] as const;
-export type RouterChain = typeof ROUTER_CHAINS[number];
 const USDC_DECIMALS = 6;
 // Bound the in-memory stores (production: Postgres, where this is moot).
 const MAX_RECORDS = 10_000;
@@ -214,16 +211,6 @@ export interface CreateParams {
  *  silently differs from the real contract's — exactly the kind of "looks
  *  settled, signed nothing" state a payments API must never produce. Dev and
  *  preview keep the placeholder so the flow stays clickable without a deploy. */
-export function routerEnvName(chain: RouterChain): string {
-  return `FURLPAY_ROUTER_ADDRESS_${chain.toUpperCase()}`;
-}
-/** The configured router for a chain, or null. FURLPAY_ROUTER_ADDRESS is the
- *  Arbitrum router only (its historical meaning); it is never assumed to exist
- *  at the same address on another chain. */
-export function configuredRouter(chain: RouterChain): string | null {
-  const v = (process.env[routerEnvName(chain)] || (chain === "arbitrum" ? process.env.FURLPAY_ROUTER_ADDRESS : "") || "").trim();
-  return v || null;
-}
 function routerAddress(chain: RouterChain = SETTLEMENT_CHAIN): string {
   const configured = configuredRouter(chain);
   if (configured) return configured;
@@ -295,12 +282,12 @@ export async function createPayment(params: CreateParams) {
   }
   // Fail before minting a record when this chain has no router in production.
   routerAddress(settlementChain);
-  const fee = params.units ? Number(params.units.fee) / 10 ** USDC_DECIMALS : round(params.amount * FEE_RATE);
+  const fee = params.units ? unitsToNumber(params.units.fee) : round(params.amount * FEE_RATE);
   const now = Date.now();
   const record: PaymentRecord = {
     id: `pay_${crypto.randomBytes(12).toString("hex")}`,
     status: "pending_signature",
-    amountUsdc: params.units ? Number(params.units.amount) / 10 ** USDC_DECIMALS : params.amount,
+    amountUsdc: params.units ? unitsToNumber(params.units.amount) : params.amount,
     feeUsdc: fee,
     ...(params.units ? { amountUnits: params.units.amount.toString(), feeUnits: params.units.fee.toString() } : {}),
     sourceChain: params.sourceChain,
@@ -656,6 +643,11 @@ export async function estimateFees(amount: number, sourceChain: string) {
     cardInterchangeComparisonUsd: cardFee,
     savingsVsCardsUsd: round(cardFee - fee - gas.transferCostUsd),
   };
+}
+
+/** Exact micro-units → the display number on the record, via the decimal string (no float division). */
+function unitsToNumber(units: bigint): number {
+  return Number(`${units / 1_000_000n}.${(units % 1_000_000n).toString().padStart(USDC_DECIMALS, "0")}`);
 }
 
 function atomic(usdc: number): string {
