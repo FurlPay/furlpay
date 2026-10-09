@@ -1,6 +1,7 @@
 import { createPublicClient, encodeFunctionData, getAddress, http, parseAbi, type Address, type Hex } from "viem";
 import { createKmsAccount, kmsAccountAvailable } from "@/lib/kmsAccount";
 import { log } from "@/lib/log";
+import { firstRpcUrl } from "@/lib/rpcEnv";
 import { financialEnvironment, flagEnabled } from "@/lib/flags";
 import type { RailAdapter, RailOutcome, RailSubmitRequest } from "@/lib/controlPlane/railAdapter";
 import {
@@ -86,10 +87,13 @@ function arcRpcUrl(network: ArcNetwork): string | null {
     network === "arc"
       ? process.env.ARC_RPC_URL
       : process.env.ARC_TESTNET_RPC_URL;
-  if (explicit && explicit.trim()) return explicit.trim();
-  // The published default. Usable for testnet; for mainnet the operator must
-  // set it explicitly, because ARC_DEPENDENCIES.md records that the mainnet
-  // endpoint constant in this repo is NOT independently verified.
+  // The first entry of a comma-separated failover list (lib/rpcEnv.ts): the signer
+  // proves the chain id of exactly the endpoint it submits through.
+  const first = firstRpcUrl(explicit);
+  if (first) return first;
+  // The published default for testnet. Mainnet must still be set explicitly:
+  // the endpoint is verified (ARC_DEPENDENCIES.md §1, 2026-10-09), but which
+  // provider carries real-money submissions is an operator decision.
   return network === "arc_testnet" ? ARC_RPC.testnet : null;
 }
 

@@ -1,4 +1,5 @@
 import { defineChain, fallback, http, type Chain, type Transport } from "viem";
+import { firstRpcUrl, rpcEndpointList } from "@/lib/rpcEnv";
 import { arbitrum, arbitrumSepolia, base, baseSepolia, polygon, mainnet } from "viem/chains";
 
 // Circle Arc. Defined here rather than imported from viem/chains because Arc
@@ -67,7 +68,7 @@ const RPC_ENV_PREFIX: Record<string, string> = {
  *  public default). */
 export function rpcUrl(network: string): string | undefined {
   const prefix = RPC_ENV_PREFIX[network];
-  return prefix ? process.env[`${prefix}_RPC_URL`] : undefined;
+  return prefix ? firstRpcUrl(process.env[`${prefix}_RPC_URL`]) : undefined;
 }
 
 /** Transport for a network: fallback(primary, secondary) when a fallback URL
@@ -79,8 +80,9 @@ export function rpcUrl(network: string): string | undefined {
  *  probe exists to see. */
 export function rpcUrls(network: string): string[] {
   const prefix = RPC_ENV_PREFIX[network];
+  // `_RPC_URL` may itself be a comma-separated list (lib/rpcEnv.ts).
   const configured = prefix
-    ? [process.env[`${prefix}_RPC_URL`], process.env[`${prefix}_RPC_URL_FALLBACK`]].filter((u): u is string => !!u)
+    ? [...new Set([...rpcEndpointList(process.env[`${prefix}_RPC_URL`]), ...rpcEndpointList(process.env[`${prefix}_RPC_URL_FALLBACK`])])]
     : [];
   if (configured.length) return configured;
   const def = EVM_CHAINS[network]?.rpcUrls.default.http[0];
@@ -89,8 +91,9 @@ export function rpcUrls(network: string): string[] {
 
 export function rpcTransport(network: string): Transport {
   const prefix = RPC_ENV_PREFIX[network];
-  const primary = prefix ? process.env[`${prefix}_RPC_URL`] : undefined;
-  const secondary = prefix ? process.env[`${prefix}_RPC_URL_FALLBACK`] : undefined;
-  if (primary && secondary) return fallback([http(primary), http(secondary)]);
-  return primary ? http(primary) : http();
+  const urls = prefix
+    ? [...new Set([...rpcEndpointList(process.env[`${prefix}_RPC_URL`]), ...rpcEndpointList(process.env[`${prefix}_RPC_URL_FALLBACK`])])]
+    : [];
+  if (urls.length > 1) return fallback(urls.map(u => http(u)));
+  return urls.length ? http(urls[0]) : http();
 }

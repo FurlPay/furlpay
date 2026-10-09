@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { rpcEndpointList } from "@/lib/rpcEnv";
 import { paymentChain, type PaymentChainId } from "./registry";
 import { suiStartCheckpoint, verifySuiChain } from "./sui";
 export const hex = z.string().regex(/^0x[0-9a-f]+$/i);
@@ -25,7 +26,7 @@ const verified: Set<string> = ((globalThis as unknown as { __furlpayRpcVerified?
 
 export function endpointsFor(chainId: PaymentChainId, env: Record<string, string | undefined> = process.env): string[] {
   const c = paymentChain(chainId);
-  const configured = (c.env ? env[c.env] ?? "" : "").split(",").map(u => u.trim()).filter(u => /^https:\/\//.test(u) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?\//.test(u + "/"));
+  const configured = rpcEndpointList(c.env ? env[c.env] : undefined);
   return [...new Set([...configured, c.rpc])];
 }
 
