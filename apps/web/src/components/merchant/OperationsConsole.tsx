@@ -6,12 +6,13 @@ import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 import { displayUsdc } from "@/lib/payments/merchant/money";
 import type { MerchantIntent } from "@/lib/payments/merchant/model";
 import type { ReconciliationAlert, ReviewNote } from "@/lib/payments/merchant/operations";
-import { ChainMark, request } from "./shared";
+import { ChainMark, CopyButton, request } from "./shared";
+import { registrationMessage } from "@/lib/payments/merchant/destinationMessage";
 
 // Operator console. Reads held payments and reconciliation alerts; records
 // decisions. It has no button that credits a merchant or moves funds — the
 // verifier is the only path to a credit, and refunds need the custody provider.
-type Snapshot = { held: MerchantIntent[]; alerts: ReconciliationAlert[]; notes: ReviewNote[]; pricing: { merchant_id: string; tier: string; processing_bps: number; set_at: string; note: string }[]; tiers: Record<string, number> };
+type Snapshot = { held: MerchantIntent[]; alerts: ReconciliationAlert[]; notes: ReviewNote[]; pricing: { merchant_id: string; tier: string; processing_bps: number; set_at: string; note: string }[]; tiers: Record<string, number>; destinations: { merchantId: string; chain: string; free: number; used: number }[]; collectableChains: string[] };
 const DECISIONS = [["note", "Note"], ["confirmed_hold", "Confirm hold"], ["escalated", "Escalate"], ["refund_requested", "Request refund (manual)"]] as const;
 
 export default function OperationsConsole() {
@@ -42,6 +43,12 @@ export default function OperationsConsole() {
             <td><NoteForm label="Resolve" onSubmit={note => post({ action: "resolve_alert", alertId: a.id, note }, "Alert resolved.")} /></td></tr>)}
         </tbody></table></div> : <div className="mp-empty"><p>No open alerts.</p></div>}
       </section>
+      <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Collection addresses</h2><span>Admins only · each address must prove control</span></div></div>
+        <DestinationForm chains={data?.collectableChains ?? []} onSubmit={body => post({ action: "register_destination", ...body }, "Address registered. Checkout can now use it.")} />
+        {data?.destinations.length ? <div className="mp-table-scroll"><table><thead><tr><th>Merchant</th><th>Network</th><th>Free</th><th>Used</th></tr></thead><tbody>
+          {data.destinations.map(d => <tr key={`${d.merchantId}:${d.chain}`}><td><code>{d.merchantId}</code></td><td><span className="mp-chain-cell"><ChainMark chain={d.chain} size={18} />{d.chain}</span></td><td>{d.free}</td><td>{d.used}</td></tr>)}
+        </tbody></table></div> : <div className="mp-empty"><p>No collection addresses yet: every checkout answers &ldquo;rail unavailable&rdquo;.</p></div>}
+      </section>
       <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Pricing tiers</h2><span>Admins only · applies to links created afterwards</span></div></div>
         <PricingForm tiers={data?.tiers ?? {}} onSubmit={(merchantId, tier, note) => post({ action: "set_pricing", merchantId, tier, note }, "Tier assigned.")} />
         {data?.pricing.length ? <div className="mp-table-scroll"><table><thead><tr><th>Merchant</th><th>Tier</th><th>Rate</th><th>Set</th><th>Note</th></tr></thead><tbody>
@@ -69,4 +76,22 @@ function PricingForm({ tiers, onSubmit }: { tiers: Record<string, number>; onSub
     <select aria-label="Tier" value={tier} onChange={e => setTier(e.target.value)}>{Object.entries(tiers).map(([t, bps]) => <option key={t} value={t}>{t} · {(bps / 100).toFixed(2)}%</option>)}</select>
     <input aria-label="Reason" required minLength={5} maxLength={500} placeholder="Reason (contract, volume)" value={note} onChange={e => setNote(e.target.value)} />
     <button className="mp-button primary">Assign tier</button></form>;
+}
+
+function DestinationForm({ chains, onSubmit }: { chains: string[]; onSubmit: (b: { merchantId: string; chain: string; address: string; custodyReference: string; signature: string }) => void }) {
+  const [f, setF] = useState({ merchantId: "", chain: "base", address: "", custodyReference: "", signature: "" });
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value.trim() });
+  const message = registrationMessage(f.merchantId, f.chain, f.address, f.custodyReference);
+  const ready = f.merchantId && f.address && f.custodyReference.length >= 3;
+  return <form style={{ display: "grid", gap: 8, padding: 16 }} onSubmit={e => { e.preventDefault(); onSubmit(f); }}>
+    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+      <input aria-label="Merchant ID" required pattern="[0-9a-fA-F-]{36}" placeholder="Merchant ID" value={f.merchantId} onChange={set("merchantId")} />
+      <select aria-label="Network" value={f.chain} onChange={set("chain")}>{chains.map(c => <option key={c} value={c}>{c}</option>)}</select>
+      <input aria-label="Address" required placeholder="Receiving address" value={f.address} onChange={set("address")} />
+      <input aria-label="Custody reference" required minLength={3} maxLength={200} placeholder="Custody provider wallet ID" value={f.custodyReference} onChange={set("custodyReference")} />
+    </div>
+    {ready && <><p>Have the custody provider sign this exact message with the address&apos;s key ({f.chain === "solana" ? "Ed25519, base58 signature" : "EIP-191 personal_sign"}):</p>
+      <div className="mp-copy-address"><pre style={{ whiteSpace: "pre-wrap" }}>{message}</pre><CopyButton value={message} label="Copy message" /></div></>}
+    <div style={{ display: "flex", gap: 6 }}><input aria-label="Signature" required style={{ flex: 1 }} placeholder="Signature" value={f.signature} onChange={set("signature")} /><button className="mp-button primary" disabled={!ready || !f.signature}>Register address</button></div>
+  </form>;
 }
