@@ -85,6 +85,7 @@ const FAIL_CLOSED_BUCKETS: RegExp[] = [
   // Unauthenticated endpoints that SEND EMAIL (mail pumping scales with the
   // instance count exactly like SMS does)
   /^content\.report_download$/,
+  /^partnerships\.inquiry$/,
   // Card secrets and credentials
   /^cards\.(reveal|pin\.(set|verify)|issue)$/,
   /^developer\.keys\.(create|rotate)$/,

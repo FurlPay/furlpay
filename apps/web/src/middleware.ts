@@ -187,6 +187,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
   "/api/mpp", // Machine Payments Protocol (Stripe/Tempo) — auth IS the payment
   "/api/contact", // public "Talk to us" lead capture
+  "/api/partnerships/inquiries", // public /partners inquiry form (rate-limited, Zod, bot traps)
   "/api/support/message", // public chat-bubble → support mailbox (IP rate-limited)
   // Tier-1 AI deflection for the public chat bubble. The route was written to
   // be public — IP rate limit of 15/min, secret redaction on the question and

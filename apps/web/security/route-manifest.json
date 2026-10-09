@@ -1,13 +1,13 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 413,
+  "_total": 415,
   "_counts": {
-    "ADMIN_ONLY": 40,
+    "ADMIN_ONLY": 41,
     "API_KEY_AUTHENTICATED": 10,
     "AUTHENTICATED_USER": 167,
     "DEVELOPMENT_ONLY": 2,
     "INTERNAL_ONLY": 12,
-    "PUBLIC_INTENTIONAL": 168,
+    "PUBLIC_INTENTIONAL": 169,
     "WEBHOOK_VERIFIED": 14
   },
   "routes": {
@@ -19,6 +19,7 @@
     "actions/pay/[orderId]": "WEBHOOK_VERIFIED",
     "actions/step-up/challenge": "AUTHENTICATED_USER",
     "actions/step-up/verify": "AUTHENTICATED_USER",
+    "admin/partnerships": "ADMIN_ONLY",
     "agents": "PUBLIC_INTENTIONAL",
     "agents/ap2": "PUBLIC_INTENTIONAL",
     "agents/keys": "PUBLIC_INTENTIONAL",
@@ -263,6 +264,7 @@
     "p2p/payment-methods/[id]": "AUTHENTICATED_USER",
     "p2p/quote": "PUBLIC_INTENTIONAL",
     "p2p/stats": "AUTHENTICATED_USER",
+    "partnerships/inquiries": "PUBLIC_INTENTIONAL",
     "passport": "AUTHENTICATED_USER",
     "passport/[id]": "AUTHENTICATED_USER",
     "passport/status": "AUTHENTICATED_USER",
