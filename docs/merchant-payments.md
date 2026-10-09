@@ -97,8 +97,10 @@ credits, releases or refunds.
 `/dashboard/payroll`; APIs under `/api/payouts/payroll/{contractors,batches,tax-summary}`.
 Non-custodial: FurlPay never holds payroll funds and posts nothing to the ledger.
 
-- Roster: contractors with a saved EVM payout address on arbitrum, base or
-  polygon (FurlPayRouter's chains). Batches take roster IDs only, never addresses.
+- Roster: contractors with a saved EVM payout address. **Arbitrum only**:
+  `createPayment` signs every intent for FurlPayRouter's settlement chain
+  (Arbitrum, chainId 42161), so any other "payout chain" would mislabel where
+  the USDC lands. Batches take roster IDs only, never addresses.
 - Draft: every recipient screened (OFAC + Circle). Flagged or unscreenable →
   the batch is `blocked` and cannot be submitted.
 - Fee quote, computed in `payroll_batch_create`: 35 bps of gross, minimum
@@ -107,15 +109,33 @@ Non-custodial: FurlPay never holds payroll funds and posts nothing to the ledger
 - Submit: compare-and-set `draft → submitting`, one FurlPayRouter intent per
   line (`createPayment`, idempotency key `payroll:<batch>:<line>`), then
   `submitted`. Any failure returns the batch to `draft`. Production without
-  `FURLPAY_ROUTER_ADDRESS` answers 503. Intents live in the payment service's
-  memory today; signing requests are returned once, at submission.
+  `FURLPAY_ROUTER_ADDRESS` answers 503.
+- Durable signing: each line stores its EIP-712 payload (`sign_data`,
+  `sign_deadline`), so the employer can resume after a refresh. Signatures are
+  checked off-chain exactly as `FurlPayRouter._execute` recovers them, and
+  refused where OpenZeppelin `ECDSA` would revert (high s, v not 27/28); the
+  first signer becomes the batch's `payer_address`. Requests expire after
+  15 minutes (`EXPIRY_SECONDS`); `PATCH {action:"reissue"}` mints fresh intents
+  (new nonce, idempotency key `payroll:<batch>:<line>:<n>`) for expired lines.
+- **Execution is not built.** `FurlPayRouter.batchPay` is callable by anyone
+  and pulls USDC from each signer, so the employer's own wallet can execute
+  (USDC `approve` to the router first), but no router is deployed and no
+  execute button exists. The payment service's settlement path is a mock that
+  refuses production (`settlement_unavailable`).
 - 1099-NEC watch: totals of submitted batches per US contractor per year against
   $600 (≤ 2025) / $2,000 (2026); 2027+ shows no threshold until the inflation
-  adjustment is published. No TINs are stored and nothing is filed.
+  adjustment is published. Nothing is filed.
+- Tax forms on file (`POST /api/payouts/payroll/contractors/[id]/tax`): the
+  employer records a payee-signed W-9 (US) or W-8BEN (non-US) it holds. TIN,
+  legal name and address are sealed (AES-256-GCM, `FURLPAY_TAX_ENCRYPTION_KEY`,
+  AAD `tax:<contractor id>`); only the TIN's last 4 are stored in the clear and
+  nothing returns the TIN. W-8BEN expiry = 31 Dec of the third year after
+  signing. This is **not** an electronic W-9: IRS rules require the payee to
+  e-sign under penalties of perjury inside the requester's system, which would
+  need a contractor-facing flow.
 
-Not built: W-8BEN/W-9 collection (needs a decision on TIN storage and
-encryption), e-FIRA (issued by the Indian AD bank, not by FurlPay), bank
-virtual accounts (no BaaS partner).
+Not built: e-FIRA (issued by the Indian AD bank, not by FurlPay), bank virtual
+accounts (no BaaS partner), payroll execution (above).
 
 ## Production requirements
 
@@ -131,8 +151,18 @@ virtual accounts (no BaaS partner).
   `POLYGON_RPC_URL`, `SOLANA_RPC_URL`, `ARC_RPC_URL`); unset falls back to the
   public endpoint in `registry.ts`, which is rate limited.
 - **Collection addresses**: rows in `merchant_payment_destinations` per merchant
-  and chain, controlled by the custody provider (`custody_reference`), approved
-  by operations. None exist today → every checkout answers `rail_unavailable`.
+  and chain, controlled by the custody provider (`custody_reference`). Register
+  them at `/dashboard/operations` (admin): the custody provider signs the
+  displayed message with the address's key (EIP-191 for EVM, Ed25519/base58 for
+  Solana) naming merchant, chain, address and reference; without a valid
+  signature nothing is inserted. FurlPay never generates collection addresses.
+  None exist today → every checkout answers `rail_unavailable`.
+- **FurlPayRouter**: the API signs for Arbitrum (`SETTLEMENT_CHAIN`), while
+  `packages/contracts/scripts/deploy-arc.ts` deploys to Arc. Setting
+  `FURLPAY_ROUTER_ADDRESS` to an Arc deployment would make every signature fail
+  on-chain (domain chainId mismatch). Choose the settlement chain, then deploy a
+  reviewed router there.
+- `FURLPAY_TAX_ENCRYPTION_KEY` (base64, 32 bytes) for tax-form intake.
 
 ## Deploy order
 
