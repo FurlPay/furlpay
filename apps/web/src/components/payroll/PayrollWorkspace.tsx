@@ -36,10 +36,10 @@ export default function PayrollWorkspace() {
   const active = (contractors ?? []).filter(c => c.active);
   const monthly = active.reduce((s, c) => s + BigInt(String(c.default_amount_units)), 0n);
 
-  async function act(id: string, action: "submit" | "cancel" | "reissue") {
+  async function act(id: string, action: BatchAction, note?: string) {
     setNotice("");
     try {
-      await request("/api/payouts/payroll/batches", { method: "PATCH", body: JSON.stringify({ id, action }) });
+      await request("/api/payouts/payroll/batches", { method: "PATCH", body: JSON.stringify(action === "exclude_unscreened" ? { id, action, note } : { id, action }) });
       // Signing requests live in the database: re-open the batch to resume from there.
       if (action === "cancel") setDetail(null); else await open(id);
       void load();
@@ -94,7 +94,7 @@ export default function PayrollWorkspace() {
     {taxFor && <Dialog title={`Tax form for ${taxFor.name}`} onClose={() => setTaxFor(null)}><TaxForm contractor={taxFor} onSaved={() => { setTaxFor(null); void load(); }} /></Dialog>}
     {adding && <Dialog title="Add a contractor" onClose={() => setAdding(false)}><ContractorForm onSaved={() => { setAdding(false); void load(); }} /></Dialog>}
     {drafting && <Dialog title="New payroll batch" onClose={() => setDrafting(false)}><BatchForm roster={active} chargedCycles={new Set((batches ?? []).filter(b => BigInt(String(b.seat_fee_units)) > 0n).map(b => b.cycle))} onSaved={d => { setDrafting(false); setDetail(d); void load(); }} /></Dialog>}
-    {detail && <Dialog title={`Payroll ${detail.batch.cycle}`} onClose={() => setDetail(null)}><BatchDetail detail={detail} onAction={a => void act(detail.batch.id, a)} onChanged={() => void open(detail.batch.id)} /></Dialog>}
+    {detail && <Dialog title={`Payroll ${detail.batch.cycle}`} onClose={() => setDetail(null)}><BatchDetail detail={detail} onAction={(a, n) => void act(detail.batch.id, a, n)} onChanged={() => void open(detail.batch.id)} /></Dialog>}
   </div>;
 }
 
@@ -155,14 +155,22 @@ function BatchForm({ roster, chargedCycles, onSaved }: { roster: Contractor[]; c
   </form>;
 }
 
-function BatchDetail({ detail, onAction, onChanged }: { detail: Detail; onAction: (a: "submit" | "cancel" | "reissue") => void; onChanged: () => void }) {
+type BatchAction = "submit" | "cancel" | "reissue" | "exclude_unscreened";
+function BatchDetail({ detail, onAction, onChanged }: { detail: Detail; onAction: (a: BatchAction, note?: string) => void; onChanged: () => void }) {
   const b = detail.batch;
+  const [note, setNote] = useState("");
+  const flagged = detail.lines.filter(l => l.screening !== "clear");
   return <div className="mp-detail">
     <dl><div><dt>Status</dt><dd>{STATUS[b.status]}</dd></div><div><dt>Gross</dt><dd>{displayUsdc(BigInt(String(b.gross_units)))} USDC</dd></div><div><dt>Batch fee quote</dt><dd>{displayUsdc(BigInt(String(b.batch_fee_units)))} USDC</dd></div><div><dt>Seat fee quote</dt><dd>{displayUsdc(BigInt(String(b.seat_fee_units)))} USDC</dd></div><div><dt>Total quote</dt><dd>{displayUsdc(BigInt(String(b.total_quote_units)))} USDC</dd></div></dl>
     <ul>{detail.lines.map(l => <li key={l.id}><strong>{l.name}</strong> · {displayUsdc(BigInt(String(l.amount_units)))} USDC · <code>{l.recipient.slice(0, 8)}…</code> · {l.screening === "clear" ? "Screening clear" : l.screening === "blocked" ? "Flagged by screening" : "Screening unavailable"}{l.payment_id && <> · <code>{l.payment_id}</code></>}</li>)}</ul>
-    {b.status === "blocked" && <p className="mp-error" role="alert">At least one recipient did not clear screening, so this batch cannot be submitted. Cancel it and create a new batch without that recipient, or contact support.</p>}
+    {b.status === "blocked" && <>
+      <p className="mp-error" role="alert">{flagged.length} recipient{flagged.length === 1 ? "" : "s"} did not clear screening, so this batch cannot be submitted as it is. You can exclude {flagged.length === 1 ? "that recipient" : "them"} and pay everyone else: the batch is repriced and returns to draft. Excluded recipients are recorded with your reason and are not paid by this batch; nothing clears them.</p>
+      <label>Reason for excluding {flagged.map(l => l.name).join(", ")}
+        <input value={note} onChange={e => setNote(e.target.value)} maxLength={500} placeholder="e.g. flagged by sanctions screening, under review" /></label>
+    </>}
     <div className="mp-heading-actions">
       {(b.status === "draft" || b.status === "blocked") && <button className="mp-button secondary" onClick={() => onAction("cancel")}><Ban size={15} />Cancel batch</button>}
+      {b.status === "blocked" && <button className="mp-button primary" disabled={note.trim().length < 3} onClick={() => onAction("exclude_unscreened", note.trim())}>Exclude flagged and continue</button>}
       {b.status === "draft" && <button className="mp-button primary" onClick={() => onAction("submit")}><Send size={15} />Submit for signing</button>}
     </div>
     {(b.status === "submitted" || b.status === "completed") && <SigningPanel detail={detail} onChanged={onChanged} onReissue={() => onAction("reissue")} />}

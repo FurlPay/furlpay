@@ -113,6 +113,16 @@ export async function cancelBatch(owner: string, id: string) {
   return rows[0];
 }
 
+/** Exclude every line of a BLOCKED batch that did not clear screening; the rest is repriced and returns to draft. */
+export async function excludeUnscreened(owner: string, id: string, note: string) {
+  requireStorage();
+  const current = await batchDetail(owner, id);
+  if (!current) return null;
+  if (current.batch.status !== "blocked") throw new PayrollConflict("Only a blocked batch has recipients to exclude");
+  await sbRpc<Batch>("payroll_batch_exclude_unscreened", { p_batch: id, p_merchant: owner, p_actor: owner, p_note: note, p_batch_bps: PAYROLL_BATCH_BPS, p_batch_min_units: PAYROLL_BATCH_MIN_UNITS.toString() });
+  return batchDetail(owner, id);
+}
+
 /** Production without a deployed router on the batch's chain cannot produce a signable intent. */
 export function routerConfigured(chain: PayrollChain) { return process.env.NODE_ENV !== "production" || Boolean(configuredRouter(chain)); }
 /** On-chain execution needs a real router address in every environment (the dev placeholder is not an address). */

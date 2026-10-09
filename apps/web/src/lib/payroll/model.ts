@@ -41,6 +41,8 @@ export const batchSchema = z.object({
 }).strict();
 export const batchActionSchema = z.discriminatedUnion("action", [
   z.object({ id: z.string().uuid(), action: z.enum(["submit", "cancel", "reissue"]) }).strict(),
+  // Remove the recipients that did not clear screening from a blocked batch; they are recorded, never cleared.
+  z.object({ id: z.string().uuid(), action: z.literal("exclude_unscreened"), note: z.string().trim().min(3).max(500) }).strict(),
   z.object({ id: z.string().uuid(), action: z.literal("record_execution"), txHash: z.string().regex(/^0x[0-9a-fA-F]{64}$/, "Enter the transaction hash") }).strict(),
   z.object({ id: z.string().uuid(), action: z.literal("sign"), lineId: z.string().uuid(), signature: z.string().regex(/^0x[0-9a-fA-F]{130}$/, "Signature must be 65 bytes") }).strict(),
 ]);

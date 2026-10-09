@@ -13,8 +13,9 @@ Every step below needs the owner's explicit approval at the time it is run.
 
 ## 1. Staging
 1. Apply, in order, in one maintenance window: `0040` → `0041` → `0042` → `0043`
-   → `0044` → `0045` → `0046`. All are additive (new tables, columns, functions,
-   widened checks). Note: untracked files named `0042_payroll_and_banking_workspace.sql`
+   → `0044` → `0045` → `0046` → `0047` → `0048`. All are additive (new tables, columns, functions,
+   widened checks). `0048` changes how a verified payroll line is recorded: deploy the
+   application together with it (the app calls `payroll_line_executed`). Note: untracked files named `0042_payroll_and_banking_workspace.sql`
    and `0043_payroll_provider_and_wallets.sql` exist in the shared main checkout;
    they must not be applied alongside these.
 2. Deploy the application as a preview, then `npm run deploy:prod` only for production.

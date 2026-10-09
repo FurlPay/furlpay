@@ -8,7 +8,7 @@ import { batchActionSchema, batchSchema } from "@/lib/payroll/model";
 import { recordExecution } from "@/lib/payroll/execution";
 import { configuredRouter } from "@/lib/services/payments";
 import { paymentChain } from "@/lib/payments/merchant/registry";
-import { batchDetail, cancelBatch, createBatch, executionAvailable, listBatches, PayrollConflict, recordSignature, reissueExpired, submitBatch } from "@/lib/payroll/repository";
+import { batchDetail, cancelBatch, createBatch, excludeUnscreened, executionAvailable, listBatches, PayrollConflict, recordSignature, reissueExpired, submitBatch } from "@/lib/payroll/repository";
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
 const fail = (e: unknown) => {
@@ -20,7 +20,8 @@ const fail = (e: unknown) => {
 // Payroll batches. POST creates a DRAFT with a fee quote (35 bps, min 1.50 USDC,
 // plus 19 USDC per active contractor once per month) and screens every
 // recipient; any recipient that is flagged, or that could not be screened,
-// blocks the whole batch. PATCH {action:"submit"} turns a draft into one payment
+// blocks the whole batch until the employer cancels it or excludes those
+// recipients (PATCH {action:"exclude_unscreened", note}). PATCH {action:"submit"} turns a draft into one payment
 // intent per line for the employer's wallet to sign; nothing moves until then.
 // Fees are quotes: billing is not connected.
 export async function GET(req: NextRequest) {
@@ -60,6 +61,10 @@ export async function PATCH(req: NextRequest) {
     if (input.action === "sign") {
       const line = await recordSignature(owner, input.id, input.lineId, input.signature as `0x${string}`);
       return NextResponse.json(line ? { line } : { error: "Batch not found" }, { status: line ? 200 : 404, headers });
+    }
+    if (input.action === "exclude_unscreened") {
+      const out = await excludeUnscreened(owner, input.id, input.note);
+      return NextResponse.json(out ?? { error: "Batch not found" }, { status: out ? 200 : 404, headers });
     }
     if (input.action === "record_execution") {
       const out = await recordExecution(owner, input.id, input.txHash);

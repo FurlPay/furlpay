@@ -1,7 +1,7 @@
 import { decodeEventLog, getAddress, toEventSelector } from "viem";
 import { ROUTER_ABI } from "./routerAbi";
 import { z } from "zod";
-import { sbUpdate } from "@/lib/supabase";
+import { sbRpc, sbUpdate } from "@/lib/supabase";
 import { rpc, verifyChain, hash, hex } from "@/lib/payments/merchant/rpc";
 import { requiredConfirmations } from "@/lib/payments/merchant/registry";
 import { configuredRouter } from "@/lib/services/payments";
@@ -73,10 +73,12 @@ export async function recordExecution(owner: string, batchId: string, txHash: st
   let matched = 0;
   for (const line of lines) {
     if (line.executed_tx) continue;
-    if (!events.some(e => matchesLine(e, line, batch.payer_address!))) continue;
-    // Compare-and-set on executed_tx: a line is recorded once.
-    const rows = await sbUpdate<BatchLine>("payroll_batch_lines", `id=eq.${line.id}&batch_id=eq.${batch.id}&executed_tx=is.null`, { executed_tx: txHash.toLowerCase(), executed_block: BigInt(receipt.blockNumber).toString(), executed_at: executedAt });
-    if (rows[0]) matched++;
+    const event = events.find(e => matchesLine(e, line, batch.payer_address!));
+    if (!event || !line.payment_id) continue;
+    // Compare-and-set on executed_tx, and the fee the router sent to FurlPay's
+    // treasury journaled in the same database transaction (migration 0048).
+    const recorded = await sbRpc<boolean>("payroll_line_executed", { p_batch: batch.id, p_line: line.id, p_tx: txHash.toLowerCase(), p_block: BigInt(receipt.blockNumber).toString(), p_payment_id: line.payment_id, p_fee: event.fee.toString(), p_at: executedAt });
+    if (recorded) matched++;
   }
   if (matched === 0 && already < lines.length) throw new PayrollConflict("That transaction executed none of this batch's outstanding payments");
   if (already + matched === lines.length) {
