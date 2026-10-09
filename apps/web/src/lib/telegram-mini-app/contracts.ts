@@ -10,6 +10,8 @@ export const MiniAccountSchema = z.object({
   cards: z.array(z.object({ id: z.string(), label: z.string(), last4: z.string().regex(/^\d{4}$/), network: z.enum(["Visa", "Mastercard"]), frozen: z.boolean(), dailyLimit: z.number() })),
   activity: z.array(z.object({ id: z.string(), title: z.string(), category: z.string(), amountUsd: z.number().finite(), direction: z.enum(["in", "out"]), timestamp: z.string(), status: z.enum(["settled", "pending", "escrow", "declined"]), asset: z.string().nullable(), chain: z.string().nullable() })),
   capabilities: z.object({ cards: z.boolean(), transfers: z.literal(false) }),
+  /** null = unknown (link storage unavailable); never guessed. */
+  telegram: z.object({ linked: z.boolean().nullable() }),
 });
 export type MiniAccount = z.infer<typeof MiniAccountSchema>;
 

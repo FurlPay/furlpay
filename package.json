@@ -28,7 +28,8 @@
     "usdc:storage": "node scripts/onchain/usdc-storage-measure.mjs",
     "usdc:bench": "node scripts/onchain/usdc-index-bench.mjs",
     "usdc:index:worker": "node scripts/onchain/usdc-index-worker.mjs",
-    "smoke:prod": "node scripts/smoke-prod.mjs"
+    "smoke:prod": "node scripts/smoke-prod.mjs",
+    "telegram:setup": "node scripts/telegram-bot-setup.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",

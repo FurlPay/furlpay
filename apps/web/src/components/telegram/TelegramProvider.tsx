@@ -13,7 +13,9 @@ type DataStatus = "loading" | "ready" | "anonymous" | "error";
 interface MiniContext {
   app: TelegramWebApp | null; telegramStatus: TelegramStatus; authError: string | null;
   account: MiniAccount | null; dataStatus: DataStatus; refresh(): Promise<void>;
-  link(): Promise<void>; signOut(): Promise<void>; retryAuth(): void; haptic(): void;
+  link(): Promise<void>; unlink(): Promise<void>; signOut(): Promise<void>; retryAuth(): void; haptic(): void;
+  /** Running inside a cross-site frame (Telegram Web). Lax session cookies are not sent there. */
+  embedded: boolean;
 }
 const Context = createContext<MiniContext | null>(null);
 export function useMiniApp() { const c = useContext(Context); if (!c) throw new Error("Mini app provider is required"); return c; }
@@ -34,6 +36,7 @@ export default function TelegramProvider({ children }: { children: React.ReactNo
   const [dataStatus, setDataStatus] = useState<DataStatus>("loading");
   const [booted, setBooted] = useState(false);
   const [offline, setOffline] = useState(false);
+  const [embedded, setEmbedded] = useState(false);
 
   const authenticate = useCallback((bridge: TelegramWebApp): Promise<void> => {
     if (authInFlight.current) return authInFlight.current;
@@ -71,6 +74,7 @@ export default function TelegramProvider({ children }: { children: React.ReactNo
 
   useEffect(() => {
     mounted.current = true;
+    try { setEmbedded(window.top !== window.self); } catch { setEmbedded(true); } // cross-origin top throws: framed
     const update = () => setOffline(!navigator.onLine);
     update(); window.addEventListener("online", update); window.addEventListener("offline", update);
     if (getTelegramWebApp()) initialize();
@@ -106,6 +110,13 @@ export default function TelegramProvider({ children }: { children: React.ReactNo
     if (!response.ok) throw new Error(body.error || "Account linking failed. Please try again.");
     setTelegramStatus("active"); await refreshSession();
   };
+  const unlink = async () => {
+    const response = await fetch("/api/miniapp/telegram-link", { method: "DELETE" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || "Couldn’t disconnect Telegram. Please try again.");
+    if (app) setTelegramStatus("link_required");
+    await refresh();
+  };
   const signOut = async () => {
     const response = await fetch("/api/auth/logout", { method: "POST" });
     if (!response.ok) throw new Error("Sign-out failed. Please try again.");
@@ -115,7 +126,7 @@ export default function TelegramProvider({ children }: { children: React.ReactNo
   };
 
   const haptic = useCallback(() => { if (app?.isVersionAtLeast("6.1")) app.HapticFeedback?.selectionChanged(); }, [app]);
-  return <Context.Provider value={{ app, account, dataStatus, refresh, telegramStatus, authError, link, signOut, retryAuth: () => { if (app) void authenticate(app); else void refreshSession(); }, haptic }}>
+  return <Context.Provider value={{ app, account, dataStatus, refresh, telegramStatus, authError, link, unlink, embedded, signOut, retryAuth: () => { if (app) void authenticate(app); else void refreshSession(); }, haptic }}>
     <div className="fp-mini" ref={root}>
       <Script id="telegram-webapp" src="https://telegram.org/js/telegram-web-app.js?64" strategy="afterInteractive" onReady={initialize} onError={() => { setBooted(true); if (/tgWebAppData=/.test(window.location.hash)) { setTelegramStatus("error"); setAuthError("Telegram could not connect. Close and reopen the mini app."); } }} />
       {offline && <div className="mini-offline" role="status">You’re offline. Reconnect to refresh your account.</div>}

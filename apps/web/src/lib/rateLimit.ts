@@ -57,7 +57,9 @@ export interface RateLimitResult {
 const FAIL_CLOSED_BUCKETS: RegExp[] = [
   // Authentication and step-up
   /^otp\./,
-  /^auth\.(passkey|webauthn|apple|google|native|handoff)/,
+  /^auth\.(passkey|webauthn|apple|google|native|handoff|telegram)/,
+  // Binding a Telegram identity to an account adds a sign-in method.
+  /^miniapp\.telegram-link$/,
   /^actions\.step_up\./,
   /^security\.mfa$/,
   /^wallet\.link\./,

@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateBody } from "@/lib/validate";
 import { publicOrigin } from "@/lib/publicOrigin";
-import { sbInsert, sbSelect, supabaseBackend } from "@/lib/supabase";
+import { sbDelete, sbInsert, sbSelect, supabaseBackend } from "@/lib/supabase";
+import { recentStepUp } from "@/lib/stepup";
 import { kvBackend } from "@/lib/kv";
 import { telegramAuthMaxAge, verifyTelegramInitData } from "./verify";
 
@@ -19,6 +20,30 @@ export async function verifiedTelegramRequest(req: NextRequest) {
   if (body instanceof NextResponse) return body;
   return verifyTelegramInitData(body.initData, process.env.TELEGRAM_BOT_TOKEN, telegramAuthMaxAge());
 }
+/**
+ * Changing which Telegram identity can sign in to an account needs proof the
+ * person controls the FurlPay account right now: a step-up (passkey or
+ * email/phone code) verified on THIS session within the last 5 minutes. A
+ * recent `auth_time` alone is not enough — it would let a session minted by
+ * Telegram itself, or a stolen cookie, re-bind the account. Guests never can.
+ */
+export const FRESH_AUTH_WINDOW_SECONDS = 300;
+export async function hasFreshFurlPayAuth(userId: string, claims: { guest?: boolean; jti?: string }): Promise<boolean> {
+  if (claims.guest) return false;
+  return recentStepUp(userId, claims.jti, FRESH_AUTH_WINDOW_SECONDS * 1000);
+}
+
+/** The Telegram user id linked to an account, or null. */
+export async function telegramLinkFor(userId: string): Promise<number | null> {
+  const rows = await sbSelect<{ telegram_id: number }>("telegram_account_links", `user_id=eq.${encodeURIComponent(userId)}&select=telegram_id&limit=1`);
+  return rows[0]?.telegram_id ?? null;
+}
+
+/** Remove the account's own link (never anyone else's: filtered by user_id). */
+export async function unlinkTelegramAccount(userId: string): Promise<void> {
+  await sbDelete("telegram_account_links", `user_id=eq.${encodeURIComponent(userId)}`);
+}
+
 export async function linkedTelegramAccount(telegramId: number): Promise<string | null> {
   const rows = await sbSelect<{ user_id: string }>("telegram_account_links", `telegram_id=eq.${telegramId}&select=user_id&limit=1`);
   return rows[0]?.user_id ?? null;

@@ -54,7 +54,9 @@ describe("rate limits during a store outage", () => {
   it("lists the sensitive buckets as fail-closed and leaves reads alone", () => {
     for (const b of ["otp.start", "otp.check", "auth.passkey.authenticate", "payments.create", "v1.payments.execute",
       "wallets.transfer", "transfers-gasless", "transfers.sponsored", "offramp", "account.fund", "cards.reveal",
-      "developer.keys.rotate", "p2p.orders.release", "x402.facilitator.settle"]) {
+      "developer.keys.rotate", "p2p.orders.release", "x402.facilitator.settle",
+      // Telegram Mini App sign-in and account linking
+      "auth.telegram", "miniapp.telegram-link"]) {
       expect(failsClosed(b), b).toBe(true);
     }
     for (const b of ["markets.table", "markets.symbol", "travel.search", "insights", "payments.history",
