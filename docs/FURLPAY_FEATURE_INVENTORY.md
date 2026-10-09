@@ -1,7 +1,7 @@
 # FurlPay feature inventory — merchant payments, payroll, banking
 
-State of branch `feat/sui-collection` (stacked on `feat/merchant-payments`) as of
-2026-10-09. Nothing here is deployed to production and no migration is applied
+State of branch `feat/sui-collection` (stacked on `feat/merchant-payments`) at
+`093e05c2`, 2026-10-09. Nothing here is deployed to production and no migration is applied
 to any hosted database. Design detail lives in `docs/merchant-payments.md`.
 
 Status key: **Tested** = implemented with automated tests run on this branch ·
@@ -20,11 +20,13 @@ Status key: **Tested** = implemented with automated tests run on this branch ·
 | Replay / duplicate protection | Tested | receipt PK `(chain, tx, log)`; cross-intent replay refused in SQL |
 | Under/overpayment, expiry | Tested | statuses `underpaid` / `overpaid` / `expired`; excess held in `mp:hold:<intent>` |
 | Wrong chain / wrong token | Tested | chainId / genesis hash / Sui chainIdentifier pinned; token contract or coin type matched exactly |
-| RPC failover / WebSocket detection | Not built | polling cron (2 min) + checkout polling; single RPC per chain with env override |
+| RPC failover | Tested | comma-separated endpoints per chain + public fallback; per-endpoint chain proof; 30 s circuit breaker (`rpcFailover.spec`) |
+| WebSocket detection | Not built | polling cron (2 min) + checkout polling |
+| Delayed/missing deposit alerts | Tested | migration 0046: `confirmation_delayed`, `verification_stale`, `review_overdue` |
 | Payment links, invoices, QR terminal, hosted checkout `/p/[slug]` | Tested | dashboard + public checkout; delta QR for the remaining amount |
 | Variable (payer-chosen) amounts | Not built | links are fixed-amount |
-| Refunds | Blocked | collection addresses are controlled by a custody provider not integrated; operators can only record `refund_requested` |
-| Receipts download | Partial | payment detail shows evidence; no PDF receipt |
+| Refunds | Tested (execution external) | 0045: ledger reservation, admin approval, completion only from the chain (EVM, Sui); trial balance 0 in every step. The custody provider sends; Solana completion not built |
+| PDF receipts | Tested | merchant and payer copies, paid/overpaid only; parsed back with pdf.js |
 | Reconciliation (intent ↔ receipts ↔ ledger ↔ chain) | Tested | cron every 10 min; alerts only, never edits money |
 | Pricing tiers 95/75/50/35 bps | Tested | admin-assigned; stamped on each link |
 
@@ -85,7 +87,8 @@ Status key: **Tested** = implemented with automated tests run on this branch ·
 ## Migrations (unapplied anywhere)
 
 `0040` collection subledger · `0041` webhooks · `0042` payroll, pricing, review
-notes, reconciliation · `0043` Sui · `0044` contractor self-service. Each is
+notes, reconciliation · `0043` Sui · `0044` contractor self-service · `0045`
+refunds · `0046` liveness alerts. Each is
 tested on PGlite and Postgres 18 (`~/.furlpay-verify/pg-harness`). Note: an
 untracked `0042_payroll_and_banking_workspace.sql` and `0043_…` from another
 session exist in the shared main checkout and collide with these numbers.
@@ -102,12 +105,12 @@ session exist in the shared main checkout and collide with these numbers.
 
 ## Test results (this branch, 2026-10-09)
 
-- `vitest run` (apps/web): **7,599 passed, 2 failed, 55 skipped** (507 files).
+- `vitest run` (apps/web): **7,635 passed, 2 failed, 55 skipped** (514 files) at `093e05c2`.
   Both failures pre-date this work: `releaseBranchGate.spec` (2 tests, also
   failing on production) and `nativeParity.spec` (Expo not installed here).
 - `tsc --noEmit` (TS 5.5.3): 0 errors. `eslint` on changed paths: 0 errors.
 - Production build (`turbo run build --filter=@furlpay/web...`, clean tree at
-  f3f6bd7d): 4/4 tasks, 467 pages.
+  093e05c2): 4/4 tasks, 467 pages. Full evidence: `docs/RELEASE_EVIDENCE.md`.
 - Contracts (`hardhat test`, router suites): 31 passing.
 - Postgres 18 harnesses: 0042 11/11, 0043 6/6, seed 9/9, 0040 17/17, 0041 9/9.
 - Payroll e2e on local node: 3/3. Sui live mainnet: 1/1 (opt-in).
