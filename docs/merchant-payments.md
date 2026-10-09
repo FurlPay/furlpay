@@ -97,10 +97,14 @@ credits, releases or refunds.
 `/dashboard/payroll`; APIs under `/api/payouts/payroll/{contractors,batches,tax-summary}`.
 Non-custodial: FurlPay never holds payroll funds and posts nothing to the ledger.
 
-- Roster: contractors with a saved EVM payout address. **Arbitrum only**:
-  `createPayment` signs every intent for FurlPayRouter's settlement chain
-  (Arbitrum, chainId 42161), so any other "payout chain" would mislabel where
-  the USDC lands. Batches take roster IDs only, never addresses.
+- Roster: contractors with a saved EVM payout address on arbitrum, arc, base
+  or polygon. A batch settles through the FurlPayRouter **on its own chain**:
+  each intent's EIP-712 domain carries that chain's id and router
+  (`FURLPAY_ROUTER_ADDRESS_<CHAIN>`; the bare `FURLPAY_ROUTER_ADDRESS` is
+  Arbitrum's only). Batches take roster IDs only, never addresses.
+- On-chain fee: 35 bps per line, **on top** — the router debits line + fee and
+  the contractor receives exactly the line amount. The batch minimum (1.50) and
+  seat fee are not collected on-chain; they stay quotes until billing exists.
 - Draft: every recipient screened (OFAC + Circle). Flagged or unscreenable →
   the batch is `blocked` and cannot be submitted.
 - Fee quote, computed in `payroll_batch_create`: 35 bps of gross, minimum
@@ -117,11 +121,19 @@ Non-custodial: FurlPay never holds payroll funds and posts nothing to the ledger
   first signer becomes the batch's `payer_address`. Requests expire after
   15 minutes (`EXPIRY_SECONDS`); `PATCH {action:"reissue"}` mints fresh intents
   (new nonce, idempotency key `payroll:<batch>:<line>:<n>`) for expired lines.
-- **Execution is not built.** `FurlPayRouter.batchPay` is callable by anyone
-  and pulls USDC from each signer, so the employer's own wallet can execute
-  (USDC `approve` to the router first), but no router is deployed and no
-  execute button exists. The payment service's settlement path is a mock that
-  refuses production (`settlement_unavailable`).
+- Execution (employer's wallet, no FurlPay relayer): once every outstanding
+  line is signed and unexpired, "Execute batch on-chain" approves **exactly**
+  the batch total to the chain's router and calls `batchPay`. The tx hash is
+  then sent as `PATCH {action:"record_execution"}`; the server marks a line
+  paid only after re-reading the receipt: success, `to` = configured router,
+  canonical block at deposit-policy depth, and a `PaymentExecuted` from that
+  router matching the line's paymentId, payer, recipient, amount, fee and
+  nonce. All lines paid → batch `completed`.
+- Proven locally: `payrollRouter.e2e.spec.ts` runs the app's own code against
+  the real FurlPayRouter + MockUSDC on a local node with chainId 42161
+  (`packages/contracts/hardhat.config.localpayroll.ts`,
+  `scripts/deploy-router-local.ts`): exact contractor amounts, exact treasury
+  fees, replayed authorizations revert, an unrelated tx is refused.
 - 1099-NEC watch: totals of submitted batches per US contractor per year against
   $600 (≤ 2025) / $2,000 (2026); 2027+ shows no threshold until the inflation
   adjustment is published. Nothing is filed.
@@ -135,7 +147,7 @@ Non-custodial: FurlPay never holds payroll funds and posts nothing to the ledger
   need a contractor-facing flow.
 
 Not built: e-FIRA (issued by the Indian AD bank, not by FurlPay), bank virtual
-accounts (no BaaS partner), payroll execution (above).
+accounts (no BaaS partner). No FurlPayRouter is deployed on any mainnet.
 
 ## Production requirements
 
@@ -157,11 +169,16 @@ accounts (no BaaS partner), payroll execution (above).
   Solana) naming merchant, chain, address and reference; without a valid
   signature nothing is inserted. FurlPay never generates collection addresses.
   None exist today → every checkout answers `rail_unavailable`.
-- **FurlPayRouter**: the API signs for Arbitrum (`SETTLEMENT_CHAIN`), while
-  `packages/contracts/scripts/deploy-arc.ts` deploys to Arc. Setting
-  `FURLPAY_ROUTER_ADDRESS` to an Arc deployment would make every signature fail
-  on-chain (domain chainId mismatch). Choose the settlement chain, then deploy a
-  reviewed router there.
+- **FurlPayRouter** per chain: an Arc router (`deploy-arc.ts`) goes in
+  `FURLPAY_ROUTER_ADDRESS_ARC`, never in the bare `FURLPAY_ROUTER_ADDRESS`
+  (Arbitrum). Non-payroll intents (`/api/payments/*`) still settle on Arbitrum.
+- Pre-flight: `npm run merchant:check-env` (in `apps/web`) decodes the keys,
+  checks each RPC's chainId, and requires each configured router to have
+  bytecode, report the chain's native USDC and not be paused.
+- Pilot addresses on local/staging only: `PILOT_DESTINATION_MNEMONIC=<yours>
+  npm run merchant:seed-destinations -- --merchant=<uuid> --count=5`. Derived
+  from a mnemonic you hold (never generated), signed like a console
+  registration, refuses the production project. These are MAINNET addresses.
 - `FURLPAY_TAX_ENCRYPTION_KEY` (base64, 32 bytes) for tax-form intake.
 
 ## Deploy order
