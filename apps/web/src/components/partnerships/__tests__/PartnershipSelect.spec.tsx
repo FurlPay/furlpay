@@ -87,20 +87,17 @@ describe("PartnershipSelect", () => {
     expect(isOpen()).toBe(false);
   });
 
-  it("a touch on an option survives the trigger losing focus", () => {
-    const onChange = vi.fn();
-    render(<Harness onChange={onChange} />);
-    fireEvent.click(trigger());
-    const option = screen.getByRole("option", { name: "Charlie" });
+  it.each(["touch", "mouse", "pen"])("a %s press on the list cannot take focus off the trigger", (pointerType) => {
+    // An uncancelled touch pointerdown makes the browser fire a compatibility
+    // mousedown after pointerup; that blurred the trigger and closed the list
+    // before the tap's click landed (found driving a 390px touch viewport).
     // jsdom lacks PointerEvent; carry pointerType on a plain event as a browser would.
-    const touch = new MouseEvent("pointerdown", { bubbles: true, cancelable: true });
-    Object.defineProperty(touch, "pointerType", { value: "touch" });
-    fireEvent(option, touch);
-    expect(touch.defaultPrevented).toBe(false);
-    fireEvent.blur(trigger());
-    expect(isOpen()).toBe(true);
-    fireEvent.click(option);
-    expect(onChange).toHaveBeenCalledWith("c");
+    render(<Harness />);
+    fireEvent.click(trigger());
+    const press = new MouseEvent("pointerdown", { bubbles: true, cancelable: true });
+    Object.defineProperty(press, "pointerType", { value: pointerType });
+    fireEvent(screen.getByRole("option", { name: "Charlie" }), press);
+    expect(press.defaultPrevented).toBe(true);
   });
 
   it("a plain blur (tabbing away) closes the list", () => {
@@ -108,6 +105,23 @@ describe("PartnershipSelect", () => {
     fireEvent.click(trigger());
     act(() => { fireEvent.blur(trigger()); });
     expect(isOpen()).toBe(false);
+  });
+});
+
+describe("partnership modal backdrop", () => {
+  it("closes on a press and release on the backdrop", () => {
+    const close = vi.fn();
+    render(<PartnershipModal open onClose={close} source="partners_hero" />);
+    const dialog = document.querySelector("dialog")!;
+    fireEvent.pointerDown(dialog); fireEvent.click(dialog);
+    expect(close).toHaveBeenCalledOnce();
+  });
+  it("ignores a click that only ENDS on the backdrop (press started inside)", () => {
+    const close = vi.fn();
+    render(<PartnershipModal open onClose={close} source="partners_hero" />);
+    fireEvent.pointerDown(screen.getByLabelText(/Company \/ Project/));
+    fireEvent.click(document.querySelector("dialog")!);
+    expect(close).not.toHaveBeenCalled();
   });
 });
 
