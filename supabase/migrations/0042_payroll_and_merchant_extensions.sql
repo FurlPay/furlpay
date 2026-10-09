@@ -75,7 +75,14 @@ begin
   select coalesce(sum((l->>'amount_units')::bigint),0), bool_or(l->>'screening' <> 'clear') into gross, blocked from jsonb_array_elements(p_lines) l;
   fee := greatest(gross * p_batch_bps / 10000, p_batch_min_units);
   insert into payroll_batches(id,merchant_id,cycle,chain,status,headcount,gross_units,batch_fee_units,seat_fee_units,total_quote_units)
-    values(p_id,p_merchant,p_cycle,p_chain,case when blocked then 'blocked' else 'draft' end,n,gross,fee,0,gross+fee) returning * into b;
+    values(p_id,p_merchant,p_cycle,p_chain,case when blocked then 'blocked' else 'draft' end,n,gross,fee,0,gross+fee)
+    on conflict (id) do nothing returning * into b;
+  if not found then
+    -- A concurrent retry of the same request committed first: return its batch.
+    select * into b from payroll_batches where id=p_id;
+    if b.merchant_id<>p_merchant then raise exception 'request_conflict'; end if;
+    return b;
+  end if;
   insert into payroll_batch_lines(batch_id,contractor_id,name,recipient,amount_units,screening)
     select p_id, nullif(l->>'contractor_id','')::uuid, l->>'name', l->>'recipient', (l->>'amount_units')::bigint, l->>'screening'
     from jsonb_array_elements(p_lines) l;
