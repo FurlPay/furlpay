@@ -7,7 +7,7 @@ import { displayUsdc } from "@/lib/payments/merchant/money";
 import type { MerchantIntent } from "@/lib/payments/merchant/model";
 import type { ReconciliationAlert, ReviewNote } from "@/lib/payments/merchant/operations";
 import type { Refund } from "@/lib/payments/merchant/refunds";
-import type { ChainHealth } from "@/lib/payments/merchant/operations";
+import type { ChainHealth } from "@/lib/payments/merchant/chainHealth";
 import { ChainMark, CopyButton, request } from "./shared";
 import { registrationMessage } from "@/lib/payments/merchant/destinationMessage";
 

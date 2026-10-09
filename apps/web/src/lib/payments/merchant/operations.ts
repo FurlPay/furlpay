@@ -4,7 +4,8 @@ import { PRICING, type PricingTier } from "./money";
 import { requireStorage } from "./repository";
 import { destinationInventory, registerDestination } from "./destinations";
 import { approveRefund, completeRefund, pendingRefunds } from "./refunds";
-import { blockSchema, rpc, rpcHealth } from "./rpc";
+import { chainHealth } from "./chainHealth";
+export { chainHealth, type ChainHealth } from "./chainHealth";
 import { PAYMENT_CHAINS, requiredConfirmations, type PaymentChainId } from "./registry";
 import type { MerchantIntent } from "./model";
 
@@ -30,20 +31,6 @@ export const operationSchema = z.discriminatedUnion("action", [
 export type Operation = z.infer<typeof operationSchema>;
 export type ReviewNote = { id: number; intent_id: string; author: string; decision: string; note: string; created_at: string };
 export type ReconciliationAlert = { id: number; intent_id: string; kind: string; detail: string; severity: "high" | "medium"; resolved_at: string | null; resolved_by: string | null; resolution: string | null; created_at: string };
-
-export type ChainHealth = { chain: PaymentChainId; ok: boolean; height: string | null; headAgeSeconds: number | null; error?: string; endpoints: ReturnType<typeof rpcHealth> };
-/** ARC-P5-002: live head freshness per collectable EVM chain (Arc included), with per-endpoint failover state. */
-export async function chainHealth(): Promise<ChainHealth[]> {
-  const chains = PAYMENT_CHAINS.filter(c => c.family === "evm" && requiredConfirmations(c.id) !== null).map(c => c.id);
-  return Promise.all(chains.map(async (chain): Promise<ChainHealth> => {
-    try {
-      const b = blockSchema.parse(await rpc(chain, "eth_getBlockByNumber", ["latest", false]));
-      return { chain, ok: true, height: BigInt(b.number).toString(), headAgeSeconds: Math.max(0, Math.round(Date.now() / 1000 - Number(BigInt(b.timestamp)))), endpoints: rpcHealth(chain) };
-    } catch (e) {
-      return { chain, ok: false, height: null, headAgeSeconds: null, error: (e as Error).message.slice(0, 120), endpoints: rpcHealth(chain) };
-    }
-  }));
-}
 
 export async function operationsSnapshot() {
   requireStorage();

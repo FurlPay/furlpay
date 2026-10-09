@@ -1,14 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@/lib/supabase", () => ({ sbSelect: vi.fn(), sbInsert: vi.fn(), sbUpdate: vi.fn(), sbUpsert: vi.fn(), sbRpc: vi.fn(), supabaseBackend: "supabase" }));
 
+const alerts = vi.hoisted(() => [] as { kind: string; dimensions?: Record<string, unknown> }[]);
+vi.mock("@/lib/alerts", () => ({ raiseAlert: vi.fn(async (a: { kind: string }) => { alerts.push(a); return {}; }) }));
+
 import { chainHealth } from "../operations";
+import { alertChainHealth } from "../chainHealth";
 
 // ARC-P5-002: operators see Arc head freshness and endpoint failover state, from the node itself.
 const g = globalThis as unknown as { __furlpayRpcHealth?: Map<string, unknown>; __furlpayRpcVerified?: Set<string> };
 const ARC = "https://arc-ops.example/rpc";
 let headAge = 3, arcDown = false;
 beforeEach(() => {
-  g.__furlpayRpcHealth?.clear(); g.__furlpayRpcVerified?.clear(); headAge = 3; arcDown = false;
+  g.__furlpayRpcHealth?.clear(); g.__furlpayRpcVerified?.clear(); headAge = 3; arcDown = false; alerts.length = 0;
   vi.stubEnv("ARC_RPC_URL", ARC);
   vi.stubGlobal("fetch", vi.fn(async (url: string, init: { body: string }) => {
     const r = JSON.parse(init.body);
@@ -39,5 +43,14 @@ describe("chain health (operations console)", () => {
   });
   it("leaves testnets out unless testnet collection is enabled", async () => {
     expect((await chainHealth()).some(c => c.chain === "arc-testnet")).toBe(false);
+  });
+  it("pages once per unhealthy chain: stale Arc head and unreachable Arc", async () => {
+    const arcAlerts = () => alerts.filter(a => a.dimensions?.chain === "arc").map(a => a.kind);
+    await alertChainHealth();
+    expect(arcAlerts()).toEqual([]);
+    headAge = 600; await alertChainHealth();
+    expect(arcAlerts()).toEqual(["merchant.chain_head_stale"]);
+    alerts.length = 0; arcDown = true; g.__furlpayRpcHealth?.clear(); await alertChainHealth();
+    expect(arcAlerts()).toEqual(["merchant.chain_unreachable"]);
   });
 });
