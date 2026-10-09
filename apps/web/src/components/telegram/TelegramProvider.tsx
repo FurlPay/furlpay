@@ -63,7 +63,7 @@ export default function TelegramProvider({ children }: { children: React.ReactNo
     initialized.current = true;
     const bridge = getTelegramWebApp();
     if (bridge && root.current) {
-      cleanup.current = mountTelegram(bridge, root.current);
+      cleanup.current = mountTelegram(bridge, root.current, () => router.push("/telegram/profile"));
       setApp(bridge);
       const start = telegramStartRoute(new URLSearchParams(bridge.initData).get("start_param"));
       if (start && window.location.pathname === "/telegram") router.replace(start);

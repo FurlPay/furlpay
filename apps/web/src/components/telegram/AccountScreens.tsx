@@ -22,9 +22,10 @@ export function HomeScreen() {
   </div>;
 }
 
-export function CardsScreen() {
+export function CardsScreen({ openDetails = false }: { openDetails?: boolean }) {
   const { account } = useMiniApp();
-  const [details, setDetails] = useState(false);
+  // /telegram/cards?detail=subscriptions (the discover "Subscriptions" tile) opens the explainer.
+  const [details, setDetails] = useState(openDetails);
   return <div className="mini-screen"><PageHeading eyebrow="FurlPay Cards" title="Made for everywhere." description="A card that feels as global as you do." /><CardCarousel /><section className="mini-panel mini-card-availability"><span className="mini-status-dot" /> In development<h2>Your next everyday essential.</h2><p>We’re building a card experience for your digital life. Card applications, issuing, and spending are not available yet.</p><div className="mini-two-actions"><Link href="/early-access" className="mini-primary">Get launch updates <ArrowRight size={17} /></Link><button className="mini-secondary" onClick={() => setDetails(true)}>How it works</button></div></section>
     {account?.cards.map(card => <section className="mini-panel" key={card.id}><div className="mini-between"><h2>{card.label}</h2><span className="mini-status">{card.frozen ? "Frozen" : "Issued"}</span></div><PaymentCard last4={card.last4} network={card.network} /><p>Daily spending limit: {money(card.dailyLimit)}</p><Link className="mini-secondary" href="/cards">Manage in FurlPay <ExternalLink size={16} /></Link></section>)}
     <div className="mini-feature-grid"><FeatureLink title="Card activity" description="See your recorded card spending." icon={Clock3} href="/telegram/activity?filter=card" /><FeatureLink title="Account security" description="Your controls, in one place." icon={ShieldCheck} color="violet" href="/telegram/profile" /></div><div className="mini-notice"><LockKeyhole size={18} /><span>Card previews contain no payment credentials. Fees, limits, supported assets, and eligibility will be published at launch.</span></div>

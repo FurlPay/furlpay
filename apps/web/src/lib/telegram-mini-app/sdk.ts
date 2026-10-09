@@ -20,6 +20,11 @@ export interface TelegramWebApp {
   BackButton: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void };
   MainButton: { setParams(params: { text: string; color: string; text_color: string; is_active: boolean; is_visible: boolean }): void; show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void };
   HapticFeedback?: { selectionChanged(): void };
+  /** Bot API 7.7+ */
+  disableVerticalSwipes?(): void;
+  enableVerticalSwipes?(): void;
+  /** Bot API 7.0+: the "Settings" item in Telegram's own Mini App menu. */
+  SettingsButton?: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void };
 }
 interface Insets { top: number; bottom: number; left: number; right: number }
 export function getTelegramWebApp(): TelegramWebApp | null {
@@ -27,7 +32,7 @@ export function getTelegramWebApp(): TelegramWebApp | null {
   const app = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
   return app?.initData && app.platform !== "unknown" ? app : null;
 }
-export function mountTelegram(app: TelegramWebApp, root: HTMLElement): () => void {
+export function mountTelegram(app: TelegramWebApp, root: HTMLElement, onSettings?: () => void): () => void {
   const sync = () => {
     root.dataset.telegramTheme = app.colorScheme;
     if (app.viewportStableHeight > 0) root.style.setProperty("--mini-viewport", `${app.viewportStableHeight}px`);
@@ -42,7 +47,17 @@ export function mountTelegram(app: TelegramWebApp, root: HTMLElement): () => voi
   app.ready(); app.expand();
   if (app.isVersionAtLeast("6.1")) { app.setHeaderColor("#080a0d"); app.setBackgroundColor("#080a0d"); }
   if (app.isVersionAtLeast("7.10")) app.setBottomBarColor?.("#0d1118");
+  // A long, scrolling app: without this, scrolling up from the top or swiping the
+  // card carousel can collapse the Mini App. Closing still works from the header.
+  if (app.isVersionAtLeast("7.7")) app.disableVerticalSwipes?.();
+  const settings = app.isVersionAtLeast("7.0") && onSettings ? app.SettingsButton : undefined;
+  if (settings && onSettings) { settings.onClick(onSettings); settings.show(); }
   const events = ["themeChanged", "viewportChanged", ...(app.isVersionAtLeast("8.0") ? ["safeAreaChanged", "contentSafeAreaChanged"] : [])];
   events.forEach(e => app.onEvent(e, sync));
-  return () => { events.forEach(e => app.offEvent(e, sync)); app.BackButton?.hide(); app.MainButton?.hide(); };
+  return () => {
+    events.forEach(e => app.offEvent(e, sync));
+    app.BackButton?.hide(); app.MainButton?.hide();
+    if (settings && onSettings) { settings.offClick(onSettings); settings.hide(); }
+    if (app.isVersionAtLeast("7.7")) app.enableVerticalSwipes?.();
+  };
 }

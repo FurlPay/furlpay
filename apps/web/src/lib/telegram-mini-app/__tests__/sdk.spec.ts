@@ -21,4 +21,24 @@ describe("official Telegram bridge lifecycle", () => {
     app.colorScheme = "light"; listeners.get("themeChanged")?.(); expect(root.dataset.telegramTheme).toBe("light");
     cleanup(); expect(listeners.size).toBe(0); expect(app.MainButton.hide).toHaveBeenCalledOnce();
   });
+
+  it("locks vertical swipes and wires the native Settings button, and undoes both on unmount", () => {
+    const base = { initData: "signed", platform: "ios", colorScheme: "dark", themeParams: {}, viewportStableHeight: 0, ready: vi.fn(), expand: vi.fn(), setHeaderColor: vi.fn(), setBackgroundColor: vi.fn(), setBottomBarColor: vi.fn(), onEvent: vi.fn(), offEvent: vi.fn(), BackButton: { hide: vi.fn() }, MainButton: { hide: vi.fn() } };
+    const settings = { show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn() };
+    const app = { ...base, isVersionAtLeast: () => true, disableVerticalSwipes: vi.fn(), enableVerticalSwipes: vi.fn(), SettingsButton: settings } as unknown as TelegramWebApp;
+    const open = vi.fn();
+    const cleanup = mountTelegram(app, document.createElement("div"), open);
+    expect(app.disableVerticalSwipes).toHaveBeenCalledOnce();
+    expect(settings.onClick).toHaveBeenCalledWith(open); expect(settings.show).toHaveBeenCalledOnce();
+    cleanup();
+    expect(settings.offClick).toHaveBeenCalledWith(open); expect(settings.hide).toHaveBeenCalledOnce();
+    expect(app.enableVerticalSwipes).toHaveBeenCalledOnce();
+  });
+
+  it("does not call 7.x APIs on an older client", () => {
+    const old = { initData: "signed", platform: "android", colorScheme: "dark", themeParams: {}, viewportStableHeight: 0, ready: vi.fn(), expand: vi.fn(), setHeaderColor: vi.fn(), setBackgroundColor: vi.fn(), onEvent: vi.fn(), offEvent: vi.fn(), BackButton: { hide: vi.fn() }, MainButton: { hide: vi.fn() }, isVersionAtLeast: (v: string) => v === "6.1", disableVerticalSwipes: vi.fn(), SettingsButton: { show: vi.fn(), hide: vi.fn(), onClick: vi.fn(), offClick: vi.fn() } } as unknown as TelegramWebApp;
+    mountTelegram(old, document.createElement("div"), vi.fn())();
+    expect(old.disableVerticalSwipes).not.toHaveBeenCalled();
+    expect(old.SettingsButton?.show).not.toHaveBeenCalled();
+  });
 });
