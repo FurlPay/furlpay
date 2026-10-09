@@ -22,7 +22,7 @@ export default function PayrollWorkspace() {
   const [contractors, setContractors] = useState<Contractor[] | null>(null);
   const [batches, setBatches] = useState<Batch[] | null>(null);
   const [error, setError] = useState(""); const [notice, setNotice] = useState(""); const [loading, setLoading] = useState(true);
-  const [adding, setAdding] = useState(false); const [drafting, setDrafting] = useState(false);
+  const [adding, setAdding] = useState(false); const [drafting, setDrafting] = useState(false); const [taxFor, setTaxFor] = useState<Contractor | null>(null);
   const [detail, setDetail] = useState<Detail | null>(null);
   const load = useCallback(async () => {
     setLoading(true); setError("");
@@ -69,7 +69,7 @@ export default function PayrollWorkspace() {
       </div>
       <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Contractors</h2><span>{contractors?.length ?? 0} on roster</span></div><button aria-label="Refresh" className="mp-icon-button" disabled={loading} onClick={() => void load()}><RefreshCw size={16} className={loading ? "mp-spin" : ""} /></button></div>
         {!contractors ? <div className="mp-empty" role="status">{loading ? "Loading roster…" : "Roster unavailable."}</div> : contractors.length ? <div className="mp-table-scroll"><table><thead><tr><th>Name</th><th>Country</th><th>Network</th><th>Payout address</th><th>Default</th><th>Status</th><th><span className="sr-only">Actions</span></th></tr></thead><tbody>
-          {contractors.map(c => <tr key={c.id}><td><strong>{c.name}</strong><small style={{ display: "block" }}>{c.role || c.email}</small></td><td>{c.country}</td><td><span className="mp-chain-cell"><ChainMark chain={c.payout_chain} size={18} />{c.payout_chain}</span></td><td><code>{c.payout_address.slice(0, 8)}…{c.payout_address.slice(-6)}</code></td><td className="mp-money">{displayUsdc(BigInt(String(c.default_amount_units)))}<small>USDC</small></td><td>{c.active ? "Active" : "Inactive"}</td><td><button className="mp-button secondary" onClick={() => void toggle(c)}>{c.active ? "Deactivate" : "Reactivate"}</button></td></tr>)}
+          {contractors.map(c => <tr key={c.id}><td><strong>{c.name}</strong><small style={{ display: "block" }}>{c.role || c.email}</small></td><td>{c.country}</td><td><span className="mp-chain-cell"><ChainMark chain={c.payout_chain} size={18} />{c.payout_chain}</span></td><td><code>{c.payout_address.slice(0, 8)}…{c.payout_address.slice(-6)}</code></td><td className="mp-money">{displayUsdc(BigInt(String(c.default_amount_units)))}<small>USDC</small></td><td>{c.active ? "Active" : "Inactive"}<small style={{ display: "block" }}>{taxLabel(c)}</small></td><td><button className="mp-button secondary" onClick={() => setTaxFor(c)}>Tax form</button> <button className="mp-button secondary" onClick={() => void toggle(c)}>{c.active ? "Deactivate" : "Reactivate"}</button></td></tr>)}
         </tbody></table></div> : <div className="mp-empty"><h3>No contractors yet</h3><p>Add the people you pay. Their payout address is saved here and every batch pays only these addresses.</p></div>}
       </section>
       <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Batches</h2><span>{batches?.length ?? 0} recent</span></div></div>
@@ -79,6 +79,7 @@ export default function PayrollWorkspace() {
         <footer className="mp-table-footer"><span>Fees are quotes recorded with each batch; billing is not connected yet.</span><span><ShieldCheck size={13} />Non-custodial: you sign every payment</span></footer>
       </section>
     </main>
+    {taxFor && <Dialog title={`Tax form for ${taxFor.name}`} onClose={() => setTaxFor(null)}><TaxForm contractor={taxFor} onSaved={() => { setTaxFor(null); void load(); }} /></Dialog>}
     {adding && <Dialog title="Add a contractor" onClose={() => setAdding(false)}><ContractorForm onSaved={() => { setAdding(false); void load(); }} /></Dialog>}
     {drafting && <Dialog title="New payroll batch" onClose={() => setDrafting(false)}><BatchForm roster={active} chargedCycles={new Set((batches ?? []).filter(b => BigInt(String(b.seat_fee_units)) > 0n).map(b => b.cycle))} onSaved={d => { setDrafting(false); setDetail(d); void load(); }} /></Dialog>}
     {detail && <Dialog title={`Payroll ${detail.batch.cycle}`} onClose={() => setDetail(null)}><BatchDetail detail={detail} onAction={a => void act(detail.batch.id, a)} onChanged={() => void open(detail.batch.id)} /></Dialog>}
@@ -154,4 +155,41 @@ function BatchDetail({ detail, onAction, onChanged }: { detail: Detail; onAction
     </div>
     {b.status === "submitted" && <SigningPanel detail={detail} onChanged={onChanged} onReissue={() => onAction("reissue")} />}
   </div>;
+}
+
+function taxLabel(c: Contractor) {
+  if (!c.tax_form) return "No tax form on file";
+  const expired = c.tax_expires_on && c.tax_expires_on < new Date().toISOString().slice(0, 10);
+  return `${c.tax_form === "w9" ? "W-9" : "W-8BEN"} on file · TIN …${c.tin_last4 ?? "none"}${c.tax_expires_on ? ` · ${expired ? "expired" : "valid through"} ${c.tax_expires_on}` : ""}`;
+}
+
+// Records a payee-signed form the employer already holds. The TIN is sealed server-side and never shown again.
+function TaxForm({ contractor, onSaved }: { contractor: Contractor; onSaved: () => void }) {
+  const us = contractor.country === "US";
+  const [f, setF] = useState({ legalName: contractor.name, tinType: us ? "ssn" : "foreign", tin: "", taxResidence: contractor.country, line1: "", city: "", region: "", postalCode: "", signedOn: "", attestation: false });
+  const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const set = (k: keyof typeof f) => (e: { target: { value: string } }) => setF({ ...f, [k]: e.target.value });
+  async function save(e: React.FormEvent) {
+    e.preventDefault(); setBusy(true); setError("");
+    const address = { line1: f.line1, city: f.city, country: contractor.country, ...(f.region ? { region: f.region } : {}), ...(f.postalCode ? { postalCode: f.postalCode } : {}) };
+    const body = us ? { form: "w9", tinType: f.tinType, tin: f.tin, legalName: f.legalName, address, signedOn: f.signedOn, attestation: f.attestation }
+      : { form: "w8ben", tinType: f.tinType, ...(f.tinType === "none" ? {} : { tin: f.tin }), taxResidence: f.taxResidence.toUpperCase(), legalName: f.legalName, address, signedOn: f.signedOn, attestation: f.attestation };
+    try { await request(`/api/payouts/payroll/contractors/${contractor.id}/tax`, { method: "POST", body: JSON.stringify(body) }); onSaved(); }
+    catch (err) { setError((err as Error).message); } finally { setBusy(false); }
+  }
+  return <form className="mp-detail" onSubmit={save}>
+    <p>{us ? "Form W-9 (US person)." : "Form W-8BEN (foreign individual). Valid through the last day of the third calendar year after signing."} Enter the details exactly as they appear on the form the contractor signed.</p>
+    <label>Legal name<input required maxLength={160} value={f.legalName} onChange={set("legalName")} /></label>
+    <label>TIN type<select value={f.tinType} onChange={set("tinType")}>{(us ? [["ssn", "SSN"], ["ein", "EIN"], ["itin", "ITIN"]] : [["foreign", "Foreign TIN"], ["itin", "US ITIN"], ["none", "None on form"]]).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+    {f.tinType !== "none" && <label>TIN<input required autoComplete="off" value={f.tin} onChange={set("tin")} /></label>}
+    {!us && <label>Country of tax residence<input required maxLength={2} value={f.taxResidence} onChange={set("taxResidence")} /></label>}
+    <label>Address<input required maxLength={120} value={f.line1} onChange={set("line1")} /></label>
+    <label>City<input required maxLength={80} value={f.city} onChange={set("city")} /></label>
+    <label>State / region<input maxLength={80} value={f.region} onChange={set("region")} /></label>
+    <label>Postal code<input maxLength={20} value={f.postalCode} onChange={set("postalCode")} /></label>
+    <label>Date signed on the form<input type="date" required value={f.signedOn} onChange={set("signedOn")} /></label>
+    <label><input type="checkbox" checked={f.attestation} onChange={e => setF({ ...f, attestation: e.target.checked })} /> I hold this form, signed by the contractor, and will keep it for IRS inspection.</label>
+    {error && <p className="mp-error" role="alert">{error}</p>}
+    <button className="mp-button primary" disabled={busy || !f.attestation}>{busy ? "Saving…" : "Record tax form"}</button>
+  </form>;
 }

@@ -13,12 +13,14 @@ import type { Batch, BatchInput, BatchLine, Contractor, ContractorInput, Contrac
 // so nothing here posts to the ledger or marks anyone paid.
 export class PayrollUnavailable extends Error {}
 export class PayrollConflict extends Error {}
+const CONTRACTOR_COLUMNS = "id,merchant_id,name,email,role,country,payout_chain,payout_address,default_amount_units,tax_status,tax_form,tin_last4,tax_signed_on,tax_expires_on,active,created_at,updated_at";
 export function requireStorage() { if (supabaseBackend !== "supabase") throw new PayrollUnavailable("Payroll storage is not configured"); }
 const eq = (v: string) => encodeURIComponent(v);
 
 export async function listContractors(owner: string) {
   requireStorage();
-  return sbSelect<Contractor>("payroll_contractors", `merchant_id=eq.${eq(owner)}&order=created_at.desc&limit=500`);
+  // Explicit columns: the sealed tax blob never leaves the server, even encrypted.
+  return sbSelect<Contractor>("payroll_contractors", `select=${CONTRACTOR_COLUMNS}&merchant_id=eq.${eq(owner)}&order=created_at.desc&limit=500`);
 }
 
 export async function createContractor(owner: string, input: ContractorInput) {
@@ -30,7 +32,7 @@ export async function createContractor(owner: string, input: ContractorInput) {
     tax_status: "unsubmitted", active: true, created_at: now, updated_at: now,
   };
   await sbInsertIgnoreDuplicates("payroll_contractors", row);
-  const saved = (await sbSelect<Contractor>("payroll_contractors", `id=eq.${eq(input.requestId)}&merchant_id=eq.${eq(owner)}&limit=1`))[0];
+  const saved = (await sbSelect<Contractor>("payroll_contractors", `select=${CONTRACTOR_COLUMNS}&id=eq.${eq(input.requestId)}&merchant_id=eq.${eq(owner)}&limit=1`))[0];
   if (!saved) throw new PayrollConflict("Request ID already in use");
   return saved;
 }
@@ -47,7 +49,10 @@ export async function updateContractor(owner: string, input: ContractorPatch) {
   if (input.payoutAddress !== undefined) patch.payout_address = input.payoutAddress;
   if (input.defaultAmount !== undefined) patch.default_amount_units = parseUsdc(input.defaultAmount).toString();
   if (input.active !== undefined) patch.active = input.active;
-  return (await sbUpdate<Contractor>("payroll_contractors", `id=eq.${eq(input.id)}&merchant_id=eq.${eq(owner)}`, patch))[0] ?? null;
+  const row = (await sbUpdate<Contractor & { tax_sealed?: string }>("payroll_contractors", `id=eq.${eq(input.id)}&merchant_id=eq.${eq(owner)}`, patch))[0];
+  if (!row) return null;
+  const { tax_sealed: _sealed, ...visible } = row;
+  return visible;
 }
 
 export async function listBatches(owner: string) {
