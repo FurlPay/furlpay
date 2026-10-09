@@ -4,7 +4,7 @@ import { useRouter } from "expo-router";
 import { getAddress, getKnownAddress, hasWallet } from "@/lib/wallet";
 import { useSecureScreen } from "@/lib/secureScreen";
 import { colors, spacing, type } from "@/lib/theme";
-import { Button, EmptyState, Screen } from "@/components/ui";
+import { Button, EmptyState, Screen, Segmented } from "@/components/ui";
 import { WalletQrCard } from "@/components/WalletQrCard";
 
 // ---------------------------------------------------------------------------
@@ -21,7 +21,10 @@ import { WalletQrCard } from "@/components/WalletQrCard";
 // account balance. The copy says so.
 // ---------------------------------------------------------------------------
 
-const NETWORK_LABEL = "Arbitrum One";
+// The device wallet is one EVM key, so the same address receives on Arbitrum and
+// on Arc. The label matters: it is what the sender is told to pick.
+const NETWORKS = ["arbitrum", "arc"] as const;
+const NETWORK_LABELS = { arbitrum: "Arbitrum One", arc: "Arc" } as const;
 const ASSET_LABEL = "USDC";
 
 type WalletState =
@@ -34,6 +37,8 @@ export default function Receive() {
   useSecureScreen("receive");
   const router = useRouter();
   const [state, setState] = useState<WalletState>({ kind: "loading" });
+  const [network, setNetwork] = useState<(typeof NETWORKS)[number]>("arbitrum");
+  const NETWORK_LABEL = NETWORK_LABELS[network];
 
   const load = useCallback(async () => {
     if (!(await hasWallet())) {
@@ -91,6 +96,7 @@ export default function Receive() {
   return (
     <Screen>
       <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+        <Segmented options={NETWORKS} value={network} onChange={setNetwork} labels={NETWORK_LABELS} />
         {/* Shareable QR + Save/Share + WhatsApp/Telegram/X — the receive card
             copied from the web (ScanToPay MyQrView), bound to the DEVICE-WALLET
             address, never safeAddress. */}
@@ -110,6 +116,14 @@ export default function Receive() {
           This address is controlled by the key on this device — FurlPay never holds it. Deposits
           here are yours on-chain and do not appear in your FurlPay account balance.
         </Text>
+        {network === "arc" ? (
+          <>
+            <Text style={[type.dim, styles.note]}>
+              On Arc, USDC is also the network fee — there is no separate gas token to hold.
+            </Text>
+            <Button title="Send USDC on Arc" variant="secondary" onPress={() => router.push("/arc-send")} style={{ alignSelf: "stretch" }} />
+          </>
+        ) : null}
       </ScrollView>
     </Screen>
   );
