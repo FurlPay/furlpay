@@ -90,6 +90,13 @@ describe("prepareArcSend", () => {
       await expect(arc.prepareArcSend({ chain: "arc", from: FROM, to, amount: "1" })).rejects.toMatchObject({ code: "invalid_recipient" });
     }
   });
+  it("turns a reverting simulation into a clear refusal before any signature", async () => {
+    rpc.estimateGas.mockRejectedValue(new Error("execution reverted: Blacklistable: account is blacklisted"));
+    await expect(arc.prepareArcSend({ chain: "arc", from: FROM, to: TO, amount: "1" })).rejects.toMatchObject({ code: "blocked_address" });
+    rpc.estimateGas.mockRejectedValue(new Error("execution reverted: ERC20: transfer amount exceeds balance"));
+    await expect(arc.prepareArcSend({ chain: "arc", from: FROM, to: TO, amount: "1" })).rejects.toMatchObject({ code: "simulation_failed" });
+    expect(wallet.signTransaction).not.toHaveBeenCalled();
+  });
   it("refuses a gas quote that is not a plain transfer", async () => {
     rpc.estimateGas.mockResolvedValue(5_000_000n);
     await expect(arc.prepareArcSend({ chain: "arc", from: FROM, to: TO, amount: "1" })).rejects.toMatchObject({ code: "gas_out_of_bounds" });

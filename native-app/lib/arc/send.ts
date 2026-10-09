@@ -52,7 +52,7 @@ const MAX_GAS = 200_000n;
 const TRANSFER = bytesToHex(keccak_256(new TextEncoder().encode("transfer(address,uint256)")).slice(0, 4));
 
 export class ArcSendError extends Error {
-  constructor(readonly code: "invalid_amount" | "invalid_recipient" | "insufficient_funds" | "gas_out_of_bounds" | "signer_mismatch" | "reverted", message: string) {
+  constructor(readonly code: "invalid_amount" | "invalid_recipient" | "insufficient_funds" | "gas_out_of_bounds" | "signer_mismatch" | "reverted" | "blocked_address" | "simulation_failed", message: string) {
     super(message);
     this.name = "ArcSendError";
   }
@@ -121,11 +121,17 @@ export async function prepareArcSend(input: { chain: ArcChain; from: string; to:
   const to = checkRecipient(input.to.trim(), from);
   const data = encodeUsdcTransfer(to, amount);
 
+  // estimateGas is the simulation: a transfer that would revert fails here, before any signature.
+  const simulate = estimateGas(chain, { from, to: ARC_USDC, data }).catch((e: unknown) => {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (/blacklist|blocklist|blocked/i.test(msg)) throw new ArcSendError("blocked_address", "USDC's issuer has blocked one of these addresses on Arc, so this transfer would fail. Nothing was sent.");
+    throw new ArcSendError("simulation_failed", `The network says this transfer would fail: ${msg}`);
+  });
   const [balance, nonce, caps, gasLimit] = await Promise.all([
     getBalance(chain, from),
     getTransactionCount(chain, from),
     getFeeCaps(chain),
-    estimateGas(chain, { from, to: ARC_USDC, data }),
+    simulate,
   ]);
   if (gasLimit <= 0n || gasLimit > MAX_GAS) throw new ArcSendError("gas_out_of_bounds", `The network quoted ${gasLimit} gas for a USDC transfer; refusing to sign.`);
 
