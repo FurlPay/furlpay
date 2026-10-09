@@ -4,6 +4,7 @@ import { checkUrl, pinnedFetch } from "@/lib/property/safeFetch";
 import { openSealedWebhookSecret, sealWebhookSecret } from "@/lib/ramp/partnerConfig";
 import { signPartnerPayload } from "@/lib/ramp/partnerWebhooks";
 import { requireStorage } from "./repository";
+import { raiseAlert } from "@/lib/alerts";
 
 // ---------------------------------------------------------------------------
 // Merchant webhooks: delivers the 0040 outbox (payment.succeeded, invoice.paid)
@@ -93,6 +94,37 @@ export async function sendTestEvent(merchantId: string, transport: typeof pinned
 export type Delivery = { id: string; delivered: boolean; reason?: string };
 
 /** One delivery pass over due outbox events. Safe to run concurrently (claims use SKIP LOCKED + a lease). */
+/**
+ * Operator alerts for delivery (P5). A merchant sees its own failed events; FurlPay
+ * did not. Two signals, both read-only:
+ *   exhausted  events that used every attempt in the last day, per merchant —
+ *              except `no_endpoint` (a merchant who never configured webhooks)
+ *   stalled    an event due more than 15 minutes ago that nobody claimed: the
+ *              dispatcher cron is not running, so EVERY merchant is affected
+ */
+export async function alertWebhookHealth(now = Date.now()) {
+  const day = new Date(now - 86_400_000).toISOString(), late = new Date(now - 15 * 60_000).toISOString();
+  const exhausted = await sbSelect<{ merchant_id: string; last_error: string | null }>("merchant_payment_outbox",
+    `delivered_at=is.null&attempts=gte.${MAX_ATTEMPTS}&last_error=neq.no_endpoint&created_at=gte.${encodeURIComponent(day)}&select=merchant_id,last_error&limit=500`);
+  const byMerchant = new Map<string, { n: number; reasons: Set<string> }>();
+  for (const r of exhausted) {
+    const m = byMerchant.get(r.merchant_id) ?? { n: 0, reasons: new Set<string>() };
+    m.n++; if (r.last_error) m.reasons.add(r.last_error); byMerchant.set(r.merchant_id, m);
+  }
+  for (const [merchant, m] of byMerchant) {
+    await raiseAlert({ kind: "merchant.webhook_exhausted", severity: "high", title: "Merchant webhooks undeliverable",
+      detail: `${m.n} event(s) used all ${MAX_ATTEMPTS} attempts in the last 24h (${[...m.reasons].slice(0, 3).join(", ")}). The merchant can re-send them from the dashboard.`,
+      dimensions: { merchant }, context: { events: m.n } });
+  }
+  const stalled = await sbSelect<{ id: string; next_attempt_at: string }>("merchant_payment_outbox",
+    `delivered_at=is.null&attempts=lt.${MAX_ATTEMPTS}&next_attempt_at=lt.${encodeURIComponent(late)}&select=id,next_attempt_at&order=next_attempt_at.asc&limit=1`);
+  if (stalled[0]) {
+    await raiseAlert({ kind: "merchant.webhook_dispatcher_stalled", severity: "critical", title: "Webhook dispatcher is not draining the outbox",
+      detail: `An event has been due since ${stalled[0].next_attempt_at} and was never claimed. Check the merchant-payments cron (it runs deliverDue every 2 minutes).`, dimensions: { scope: "outbox" } });
+  }
+  return { exhaustedMerchants: byMerchant.size, exhaustedEvents: exhausted.length, stalled: Boolean(stalled[0]) };
+}
+
 export async function deliverDue(limit = 20, transport: typeof pinnedFetch = pinnedFetch, now = () => Date.now()): Promise<Delivery[]> {
   requireStorage();
   const rows = await sbRpc<OutboxRow[]>("merchant_outbox_claim", { p_limit: limit, p_lease_seconds: LEASE_S, p_max_attempts: MAX_ATTEMPTS });
