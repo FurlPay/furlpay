@@ -24,7 +24,7 @@ vi.mock("@/lib/property/safeFetch", () => ({
 }));
 
 import { openSealedWebhookSecret, sealWebhookSecret } from "@/lib/ramp/partnerConfig";
-import { BACKOFF_S, deliverDue, MAX_ATTEMPTS, redeliver, setEndpoint } from "../webhooks";
+import { BACKOFF_S, deliverDue, MAX_ATTEMPTS, redeliver, sendTestEvent, setEndpoint } from "../webhooks";
 
 const M = "6f1c2a7e-0000-4000-8000-000000000001";
 const row = (attempts = 1) => ({ id: "0b8d6c1e-0000-4000-8000-0000000000aa", merchant_id: M, intent_id: "x", type: "payment.succeeded", payload: { id: "pi_1", net_units: "992500000" }, created_at: "2026-10-09T00:00:00Z", attempts });
@@ -104,5 +104,31 @@ describe("redelivery", () => {
     expect(query).toContain("delivered_at=is.null");
     expect(query).toContain(`attempts=gte.${MAX_ATTEMPTS}`);
     expect(patch).toMatchObject({ attempts: 0, last_error: null });
+  });
+});
+
+describe("endpoint test event", () => {
+  it("sends one correctly signed webhook.test event and records nothing", async () => {
+    const r = await setEndpoint(M, "https://hooks.example.com/furlpay");
+    if ("refused" in r) throw new Error(r.refused);
+    db.updates.length = 0;
+    const sent: { headers: Record<string, string>; body: string }[] = [];
+    const transport = vi.fn(async (_u: URL, _a: string, o: { headers: Record<string, string>; body?: string }) => (sent.push({ headers: o.headers, body: o.body! }), new Response("ok", { status: 200 })));
+    const out = await sendTestEvent(M, transport as never, () => Date.parse("2026-10-09T00:00:10Z"));
+    expect(out.delivered).toBe(true);
+    const { headers, body } = sent[0];
+    const [, t, v1] = /^t=(\d+),v1=([0-9a-f]{64})$/.exec(headers["x-furlpay-signature"])!;
+    expect(v1).toBe(createHmac("sha256", r.secret).update(`${t}.${body}`).digest("hex"));
+    expect(JSON.parse(body)).toMatchObject({ type: "webhook.test", data: { test: true } });
+    expect(JSON.parse(body).data).not.toHaveProperty("net_units");
+    expect(db.updates).toEqual([]);
+  });
+  it("reports a failing endpoint and still refuses private addresses", async () => {
+    await setEndpoint(M, "https://hooks.example.com/furlpay");
+    expect(await sendTestEvent(M, vi.fn(async () => new Response("no", { status: 500 })) as never)).toMatchObject({ delivered: false, reason: "http_500" });
+    db.endpoints.set(M, { ...db.endpoints.get(M)!, url: "https://10.0.0.5/hook" });
+    const transport = vi.fn();
+    expect(await sendTestEvent(M, transport as never)).toMatchObject({ delivered: false });
+    expect(transport).not.toHaveBeenCalled();
   });
 });

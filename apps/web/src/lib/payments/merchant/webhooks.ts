@@ -80,6 +80,16 @@ export async function redeliver(merchantId: string, eventId: string): Promise<bo
   return rows.length === 1;
 }
 
+/** Send one signed `webhook.test` event now, through exactly the production path (signature,
+ *  SSRF checks, pinned socket, timeout). Nothing is queued or recorded, and the payload says
+ *  `test: true` with no payment data, so a receiver can never mistake it for money. */
+export async function sendTestEvent(merchantId: string, transport: typeof pinnedFetch = pinnedFetch, now = () => Date.now()) {
+  requireStorage();
+  const id = crypto.randomUUID();
+  const out = await deliverOne({ id, merchant_id: merchantId, intent_id: "", type: "webhook.test", payload: { test: true, message: "FurlPay webhook test. No payment occurred." }, created_at: new Date(now()).toISOString(), attempts: 1 }, transport, now);
+  return { id, ...out };
+}
+
 export type Delivery = { id: string; delivered: boolean; reason?: string };
 
 /** One delivery pass over due outbox events. Safe to run concurrently (claims use SKIP LOCKED + a lease). */

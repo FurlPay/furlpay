@@ -4,7 +4,7 @@ import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { audit } from "@/lib/audit";
-import { deleteEndpoint, getEndpoint, recentDeliveries, redeliver, setEndpoint } from "@/lib/payments/merchant/webhooks";
+import { deleteEndpoint, getEndpoint, recentDeliveries, redeliver, sendTestEvent, setEndpoint } from "@/lib/payments/merchant/webhooks";
 
 export const dynamic = "force-dynamic";
 const headers = { "Cache-Control": "no-store" };
@@ -13,6 +13,7 @@ const unavailable = () => NextResponse.json({ error: "Merchant webhooks are unav
 // GET    /api/merchant/webhook  → { endpoint: { url, secretLast4, updatedAt } | null }
 // PUT    /api/merchant/webhook  { url } → { url, secret, secretLast4 } (secret shown ONCE; rotates)
 // POST   /api/merchant/webhook  { redeliver: <event id> } → re-queue one failed event
+// POST   /api/merchant/webhook  { test: true } → send one signed webhook.test event now (not queued)
 // DELETE /api/merchant/webhook
 // The merchant is always the signed-in account; no merchant id is accepted from the client.
 export async function GET(req: NextRequest) {
@@ -50,9 +51,13 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const limited = await rateLimitOr429(req, "merchant.webhook.write", { limit: 10, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
-  const body = await validateBody(req, z.object({ redeliver: z.string().uuid() }).strict());
+  const body = await validateBody(req, z.union([z.object({ redeliver: z.string().uuid() }).strict(), z.object({ test: z.literal(true) }).strict()]));
   if (body instanceof NextResponse) return body;
   try {
+    if ("test" in body) {
+      const out = await sendTestEvent(auth.account.user.id);
+      return NextResponse.json(out, { status: out.delivered ? 200 : 502, headers });
+    }
     const ok = await redeliver(auth.account.user.id, body.redeliver);
     return ok
       ? NextResponse.json({ requeued: true }, { headers })
