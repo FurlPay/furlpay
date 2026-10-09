@@ -24,6 +24,14 @@ type Schema = {
   scheduler_opened: Record<string, never>;
   /** Cal.com confirmed a new booking (embed event bookingSuccessfulV2). */
   founder_call_booked: Record<string, never>;
+  // Partnership page (/partners). Category and entry point only — never names,
+  // emails, contact handles or message text.
+  partnership_cta_click: { source: string };
+  partnership_modal_open: { source: string; interest: string };
+  partnership_interest_selected: { interest: string };
+  partnership_form_submit: { interest: string };
+  partnership_form_success: { interest: string; duplicate: boolean };
+  partnership_form_error: { reason: string };
 };
 
 export type AnalyticsEvent = keyof Schema;

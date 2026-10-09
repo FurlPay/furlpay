@@ -347,6 +347,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("GOOGLE_PLACES_API_KEY"),
       v("RESEND_API_KEY"),
       v("EMAIL_FROM"),
+      // Internal inbox told about each new /partners inquiry. Unset => the inquiry
+      // is still stored and its notification_state reads "not_configured".
+      v("PARTNERSHIPS_NOTIFY_EMAIL"),
       v("CDP_API_KEY_ID"),
       v("CDP_API_KEY_SECRET"),
       // Internal names for the same CDP key (lib/providers/rampEnv.ts); the
