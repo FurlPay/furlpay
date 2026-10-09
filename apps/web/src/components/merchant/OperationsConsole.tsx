@@ -6,13 +6,14 @@ import { FurlPayMark } from "@/components/trips/FurlPayLogo";
 import { displayUsdc } from "@/lib/payments/merchant/money";
 import type { MerchantIntent } from "@/lib/payments/merchant/model";
 import type { ReconciliationAlert, ReviewNote } from "@/lib/payments/merchant/operations";
+import type { Refund } from "@/lib/payments/merchant/refunds";
 import { ChainMark, CopyButton, request } from "./shared";
 import { registrationMessage } from "@/lib/payments/merchant/destinationMessage";
 
 // Operator console. Reads held payments and reconciliation alerts; records
 // decisions. It has no button that credits a merchant or moves funds — the
 // verifier is the only path to a credit, and refunds need the custody provider.
-type Snapshot = { held: MerchantIntent[]; alerts: ReconciliationAlert[]; notes: ReviewNote[]; pricing: { merchant_id: string; tier: string; processing_bps: number; set_at: string; note: string }[]; tiers: Record<string, number>; destinations: { merchantId: string; chain: string; free: number; used: number }[]; collectableChains: string[] };
+type Snapshot = { held: MerchantIntent[]; alerts: ReconciliationAlert[]; notes: ReviewNote[]; pricing: { merchant_id: string; tier: string; processing_bps: number; set_at: string; note: string }[]; tiers: Record<string, number>; destinations: { merchantId: string; chain: string; free: number; used: number }[]; collectableChains: string[]; refunds: Refund[] };
 const DECISIONS = [["note", "Note"], ["confirmed_hold", "Confirm hold"], ["escalated", "Escalate"], ["refund_requested", "Request refund (manual)"]] as const;
 
 export default function OperationsConsole() {
@@ -42,6 +43,13 @@ export default function OperationsConsole() {
           {data.alerts.map(a => <tr key={a.id}><td>{a.severity === "high" ? <><ShieldAlert size={14} /> High</> : "Medium"}</td><td>{a.kind}</td><td><code>{a.intent_id.slice(0, 13)}</code></td><td><small>{a.detail}</small></td>
             <td><NoteForm label="Resolve" onSubmit={note => post({ action: "resolve_alert", alertId: a.id, note }, "Alert resolved.")} /></td></tr>)}
         </tbody></table></div> : <div className="mp-empty"><p>No open alerts.</p></div>}
+      </section>
+      <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Refunds</h2><span>Approve, have the custody provider send, then record the transaction; it completes only when read on-chain</span></div></div>
+        {data?.refunds.length ? <div className="mp-table-scroll"><table><thead><tr><th>Refund</th><th>Amount</th><th>Network</th><th>To</th><th>Status</th><th>Action</th></tr></thead><tbody>
+          {data.refunds.map(r => <tr key={r.id}><td><code>{r.id.slice(0, 8)}</code><small style={{ display: "block" }}>{r.reason}</small></td><td className="mp-money">{displayUsdc(String(r.amount_units))}<small>USDC</small></td><td>{r.chain}</td><td><code>{r.to_address}</code></td><td>{r.status === "requested" ? "Requested" : "Approved — send via custody, then record"}</td>
+            <td>{r.status === "requested" ? <button className="mp-button secondary" onClick={() => void post({ action: "approve_refund", refundId: r.id }, "Refund approved. Send it from the custody provider, then record the transaction.")}>Approve</button>
+              : <TxForm onSubmit={txHash => post({ action: "complete_refund", refundId: r.id, txHash }, "Refund verified on-chain and settled.")} />}</td></tr>)}
+        </tbody></table></div> : <div className="mp-empty"><p>No refunds waiting.</p></div>}
       </section>
       <section className="mp-table-card"><div className="mp-table-heading"><div><h2>Collection addresses</h2><span>Admins only · each address must prove control</span></div></div>
         <DestinationForm chains={data?.collectableChains ?? []} onSubmit={body => post({ action: "register_destination", ...body }, "Address registered. Checkout can now use it.")} />
@@ -94,4 +102,9 @@ function DestinationForm({ chains, onSubmit }: { chains: string[]; onSubmit: (b:
       <div className="mp-copy-address"><pre style={{ whiteSpace: "pre-wrap" }}>{message}</pre><CopyButton value={message} label="Copy message" /></div></>}
     <div style={{ display: "flex", gap: 6 }}><input aria-label="Signature" required style={{ flex: 1 }} placeholder="Signature" value={f.signature} onChange={set("signature")} /><button className="mp-button primary" disabled={!ready || !f.signature}>Register address</button></div>
   </form>;
+}
+
+function TxForm({ onSubmit }: { onSubmit: (txHash: string) => void }) {
+  const [tx, setTx] = useState("");
+  return <form style={{ display: "flex", gap: 6 }} onSubmit={e => { e.preventDefault(); onSubmit(tx.trim()); }}><input aria-label="Refund transaction" required minLength={32} placeholder="Transaction hash / digest" value={tx} onChange={e => setTx(e.target.value)} /><button className="mp-button secondary">Verify</button></form>;
 }

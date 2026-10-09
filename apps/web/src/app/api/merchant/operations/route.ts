@@ -4,6 +4,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { applyOperation,operationSchema,operationsSnapshot } from "@/lib/payments/merchant/operations";
 import { DestinationRejected } from "@/lib/payments/merchant/destinations";
+import { RefundRejected } from "@/lib/payments/merchant/refunds";
 export const dynamic="force-dynamic";
 const headers={"Cache-Control":"no-store"};
 const unavailable=()=>NextResponse.json({error:"Merchant operations are unavailable. Configure storage and apply migration 0042."},{status:503,headers});
@@ -19,12 +20,13 @@ export async function POST(req:NextRequest) {
   const input=await validateBody(req,operationSchema); if(input instanceof NextResponse) return input;
   // Pricing and collection addresses change what merchants pay and where customers' money goes: admin only.
   // Notes and alert resolution: admin or compliance.
-  if(input.action==="set_pricing"||input.action==="register_destination") { auth=await requireRole(req,"admin"); if(!auth.ok) return auth.res; }
+  // Refund approval instructs the custody provider to send money; completion settles the ledger.
+  if(input.action==="set_pricing"||input.action==="register_destination"||input.action==="approve_refund"||input.action==="complete_refund") { auth=await requireRole(req,"admin"); if(!auth.ok) return auth.res; }
   try {
     const out=await applyOperation(auth.account.user.id,input);
     return NextResponse.json(out?{result:out}:{error:input.action==="note"?"Payment not found":"Alert not found or already resolved"},{status:out?200:404,headers});
   } catch(e) {
-    if(e instanceof DestinationRejected) return NextResponse.json({error:e.message},{status:422,headers});
+    if(e instanceof DestinationRejected||e instanceof RefundRejected) return NextResponse.json({error:e.message},{status:422,headers});
     return unavailable();
   }
 }

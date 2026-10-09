@@ -3,6 +3,7 @@ import { sbInsert, sbSelect, sbUpdate, sbUpsert } from "@/lib/supabase";
 import { PRICING, type PricingTier } from "./money";
 import { requireStorage } from "./repository";
 import { destinationInventory, registerDestination } from "./destinations";
+import { approveRefund, completeRefund, pendingRefunds } from "./refunds";
 import { PAYMENT_CHAINS, requiredConfirmations, type PaymentChainId } from "./registry";
 import type { MerchantIntent } from "./model";
 
@@ -21,6 +22,8 @@ export const operationSchema = z.discriminatedUnion("action", [
     address: z.string().trim().regex(/^(0x[0-9a-fA-F]{40}|0x[0-9a-f]{64}|[1-9A-HJ-NP-Za-km-z]{32,44})$/), custodyReference: z.string().trim().min(3).max(200),
     signature: z.string().trim().min(64).max(200),
   }).strict(),
+  z.object({ action: z.literal("approve_refund"), refundId: z.string().uuid() }).strict(),
+  z.object({ action: z.literal("complete_refund"), refundId: z.string().uuid(), txHash: z.string().trim().min(32).max(100) }).strict(),
   z.object({ action: z.literal("set_pricing"), merchantId: z.string().uuid(), tier: z.enum(Object.keys(PRICING) as [PricingTier, ...PricingTier[]]), note: z.string().trim().min(5).max(500) }).strict(),
 ]);
 export type Operation = z.infer<typeof operationSchema>;
@@ -29,15 +32,16 @@ export type ReconciliationAlert = { id: number; intent_id: string; kind: string;
 
 export async function operationsSnapshot() {
   requireStorage();
-  const [held, alerts, pricing, destinations] = await Promise.all([
+  const [held, alerts, pricing, destinations, refunds] = await Promise.all([
     sbSelect<MerchantIntent>("merchant_payment_intents", "status=eq.review&order=created_at.desc&limit=100"),
     sbSelect<ReconciliationAlert>("merchant_reconciliation_alerts", "resolved_at=is.null&order=created_at.desc&limit=200"),
     sbSelect<{ merchant_id: string; tier: PricingTier; processing_bps: number; set_by: string; set_at: string; note: string }>("merchant_pricing", "order=set_at.desc&limit=500"),
     destinationInventory(),
+    pendingRefunds(),
   ]);
   const ids = [...new Set([...held.map(i => i.id), ...alerts.map(a => a.intent_id)])];
   const notes = ids.length ? await sbSelect<ReviewNote>("merchant_review_notes", `intent_id=in.(${ids.join(",")})&order=created_at.desc&limit=500`) : [];
-  return { held, alerts, pricing, notes, tiers: PRICING, destinations, collectableChains: PAYMENT_CHAINS.filter(c => requiredConfirmations(c.id) !== null).map(c => c.id) };
+  return { held, alerts, pricing, notes, tiers: PRICING, destinations, refunds, collectableChains: PAYMENT_CHAINS.filter(c => requiredConfirmations(c.id) !== null).map(c => c.id) };
 }
 
 export async function applyOperation(actor: string, op: Operation) {
@@ -50,6 +54,11 @@ export async function applyOperation(actor: string, op: Operation) {
     }
     case "resolve_alert":
       return (await sbUpdate<ReconciliationAlert>("merchant_reconciliation_alerts", `id=eq.${op.alertId}&resolved_at=is.null`, { resolved_at: new Date().toISOString(), resolved_by: actor, resolution: op.note }))[0] ?? null;
+    case "approve_refund":
+      return approveRefund(actor, op.refundId);
+    case "complete_refund":
+      // Completes only from the chain's own record of the custody provider's transfer.
+      return completeRefund(op.refundId, op.txHash);
     case "register_destination":
       return registerDestination(op);
     case "set_pricing":
