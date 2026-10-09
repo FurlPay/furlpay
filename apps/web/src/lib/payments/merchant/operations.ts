@@ -18,7 +18,7 @@ export const operationSchema = z.discriminatedUnion("action", [
   z.object({
     action: z.literal("register_destination"), merchantId: z.string().uuid(),
     chain: z.enum(PAYMENT_CHAINS.map(c => c.id) as [PaymentChainId, ...PaymentChainId[]]),
-    address: z.string().trim().regex(/^(0x[0-9a-fA-F]{40}|[1-9A-HJ-NP-Za-km-z]{32,44})$/), custodyReference: z.string().trim().min(3).max(200),
+    address: z.string().trim().regex(/^(0x[0-9a-fA-F]{40}|0x[0-9a-f]{64}|[1-9A-HJ-NP-Za-km-z]{32,44})$/), custodyReference: z.string().trim().min(3).max(200),
     signature: z.string().trim().min(64).max(200),
   }).strict(),
   z.object({ action: z.literal("set_pricing"), merchantId: z.string().uuid(), tier: z.enum(Object.keys(PRICING) as [PricingTier, ...PricingTier[]]), note: z.string().trim().min(5).max(500) }).strict(),

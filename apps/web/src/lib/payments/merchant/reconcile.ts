@@ -3,6 +3,7 @@ import { sbRpc, sbSelect } from "@/lib/supabase";
 import { paymentChain, type PaymentChainId } from "./registry";
 import { hash, hex, rpc, verifyChain } from "./rpc";
 import { decodeTransfer, logSchema } from "./verifier";
+import { fetchSuiTransaction, usdcDelta } from "./sui";
 import type { MerchantIntent } from "./model";
 
 // Three-way reconciliation: chain receipt vs intent vs ledger. The intent and
@@ -23,7 +24,15 @@ export async function checkReceipt(r: Receipt, intent: MerchantIntent): Promise<
   const where = `${r.chain} ${r.tx_hash}:${r.log_index}`;
   try {
     await verifyChain(r.chain);
-    if (paymentChain(r.chain).chainId === null) {
+    if (paymentChain(r.chain).family === "sui") {
+      const tx = await fetchSuiTransaction(r.tx_hash);
+      if (!tx || tx.effects.status !== "SUCCESS") return { intent: r.intent_id, kind: "receipt_failed", detail: `${where} is not a successful Sui transaction` };
+      if (tx.effects.checkpoint?.digest !== r.block_hash) return { intent: r.intent_id, kind: "receipt_failed", detail: `${where} is in checkpoint ${tx.effects.checkpoint?.digest ?? "none"}, recorded ${r.block_hash}` };
+      const credited = usdcDelta(tx, intent.recipient);
+      if (credited.toString() !== r.amount_units) return { intent: r.intent_id, kind: "amount_mismatch", detail: `${where} credited ${credited} units; recorded ${r.amount_units}` };
+      return null;
+    }
+    if (paymentChain(r.chain).family === "solana") {
       const tx = z.object({ meta: z.object({ err: z.unknown() }) }).nullable().parse(await rpc(r.chain, "getTransaction", [r.tx_hash, { commitment: "finalized", maxSupportedTransactionVersion: 0, encoding: "jsonParsed" }]));
       if (!tx) return { intent: r.intent_id, kind: "receipt_failed", detail: `${where} is not a finalized transaction` };
       if (tx.meta.err !== null) return { intent: r.intent_id, kind: "receipt_failed", detail: `${where} failed on-chain` };

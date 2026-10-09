@@ -11,7 +11,7 @@ export async function request<T>(url:string,init?:RequestInit):Promise<T> {
 export function ChainMark({chain,size=24}:{chain:string;size?:number}) {
   const c=paymentChain(chain);
   // An unbranded Arc label is intentional: no invented substitute for a logo.
-  return c.logo ? <img src={c.logo} alt="" width={size} height={size} className="mp-chain-mark"/> : <span className="mp-arc-wordmark" style={{fontSize:size*.45}}>Arc</span>;
+  return c.logo ? <img src={c.logo} alt="" width={size} height={size} className="mp-chain-mark"/> : <span className="mp-arc-wordmark" style={{fontSize:size*.45}}>{c.name}</span>;
 }
 const labels:Record<PaymentStatus,string>={awaiting_payment:"Awaiting payment",confirming:"Confirming",underpaid:"Underpaid",paid:"Paid",overpaid:"Overpaid",expired:"Expired",review:"In review"};
 export function Status({status}:{status:PaymentStatus}) {return <span className="mp-status" data-status={status}><i/>{labels[status]}</span>;}

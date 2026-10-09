@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { paymentChain, type PaymentChainId } from "./registry";
+import { suiStartCheckpoint, verifySuiChain } from "./sui";
 export const hex = z.string().regex(/^0x[0-9a-f]+$/i);
 export const hash = z.string().regex(/^0x[0-9a-f]{64}$/i);
 export const address = z.string().regex(/^0x[0-9a-f]{40}$/i);
@@ -18,11 +19,13 @@ export async function rpc(chainId: PaymentChainId, method: string, params: unkno
 }
 export async function verifyChain(chain: PaymentChainId) {
   const c = paymentChain(chain);
-  if(c.chainId === null) {
+  if(c.family === "sui") return verifySuiChain();
+  if(c.family === "solana") {
     if(await rpc(chain,"getGenesisHash",[]) !== "5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d") throw new Error("Wrong Solana cluster");
   } else if(BigInt(hex.parse(await rpc(chain,"eth_chainId",[]))) !== BigInt(c.chainId)) throw new Error("Wrong network");
 }
 export async function startBlock(chain: PaymentChainId): Promise<string> {
+  if(paymentChain(chain).family === "sui") return suiStartCheckpoint();
   await verifyChain(chain);
   if(chain === "solana") return String(z.number().int().nonnegative().parse(await rpc(chain,"getSlot",[{commitment:"finalized"}])));
   const b = blockSchema.parse(await rpc(chain,"eth_getBlockByNumber",["latest",false]));

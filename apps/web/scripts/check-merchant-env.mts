@@ -12,6 +12,7 @@
 // ---------------------------------------------------------------------------
 import { paymentChain } from "../src/lib/payments/merchant/registry";
 import { ROUTER_CHAINS, configuredRouter, routerEnvName } from "../src/lib/services/routerConfig";
+import { verifySuiChain } from "../src/lib/payments/merchant/sui";
 
 type Row = { check: string; status: "ok" | "fail" | "warn"; detail: string; required: boolean };
 const rows: Row[] = [];
@@ -49,6 +50,12 @@ async function main() {
       add(`${c.env ?? id} RPC`, got === c.chainId ? (custom ? "ok" : "warn") : "fail", got === c.chainId ? (custom ? `chainId ${got}` : `unset; public fallback ${new URL(c.rpc).host} answers (rate limited)`) : `answers chainId ${got}, expected ${c.chainId}`, id === "arbitrum" || id === "arc");
     } catch (e) { add(`${c.env ?? id} RPC`, "fail", `unreachable: ${(e as Error).message.slice(0, 60)}`, id === "arbitrum" || id === "arc"); }
   }
+
+  // Sui collection reads GraphQL (JSON-RPC was retired on mainnet, July 2026).
+  try {
+    await verifySuiChain();
+    add("SUI_GRAPHQL_URL", env.SUI_GRAPHQL_URL ? "ok" : "warn", env.SUI_GRAPHQL_URL ? "Sui mainnet" : "unset; public graphql.mainnet.sui.io answers (rate limited)", false);
+  } catch (e) { add("SUI_GRAPHQL_URL", "fail", `not Sui mainnet or unreachable: ${(e as Error).message.slice(0, 60)}`, false); }
 
   let anyRouter = false;
   for (const chain of ROUTER_CHAINS) {

@@ -3,7 +3,8 @@ import { PublicKey } from "@solana/web3.js";
 import nacl from "tweetnacl";
 import bs58 from "bs58";
 import { sbInsert, sbSelect } from "@/lib/supabase";
-import { requiredConfirmations, type PaymentChainId } from "./registry";
+import { paymentChain, requiredConfirmations, type PaymentChainId } from "./registry";
+import { isSuiAddress, verifySuiPersonalMessage } from "./sui";
 import { requireStorage } from "./repository";
 import { registrationMessage } from "./destinationMessage";
 
@@ -21,6 +22,7 @@ export { registrationMessage };
 
 export async function provesControl(chain: PaymentChainId, address: string, message: string, signature: string): Promise<boolean> {
   try {
+    if (chain === "sui") return verifySuiPersonalMessage(address, message, signature);
     if (chain === "solana") return nacl.sign.detached.verify(new TextEncoder().encode(message), bs58.decode(signature), new PublicKey(address).toBytes());
     if (!/^0x[0-9a-fA-F]{130}$/.test(signature)) return false;
     return await verifyMessage({ address: address as `0x${string}`, message, signature: signature as `0x${string}` });
@@ -32,11 +34,14 @@ export class DestinationRejected extends Error {}
 export async function registerDestination(input: { merchantId: string; chain: PaymentChainId; address: string; custodyReference: string; signature: string }) {
   requireStorage();
   if (requiredConfirmations(input.chain) === null) throw new DestinationRejected(`${input.chain} has no reviewed deposit policy; it is not collected`);
-  const evm = /^0x[0-9a-fA-F]{40}$/.test(input.address);
-  if ((input.chain === "solana") === evm || /^0x0{40}$/i.test(input.address)) throw new DestinationRejected(`Not a valid ${input.chain} address`);
+  const family = paymentChain(input.chain).family;
+  const valid = family === "sui" ? isSuiAddress(input.address)
+    : family === "solana" ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(input.address)
+    : /^0x[0-9a-fA-F]{40}$/.test(input.address) && !/^0x0{40}$/i.test(input.address);
+  if (!valid) throw new DestinationRejected(`Not a valid ${input.chain} address`);
   const message = registrationMessage(input.merchantId, input.chain, input.address, input.custodyReference);
   if (!(await provesControl(input.chain, input.address, message, input.signature))) throw new DestinationRejected("The signature does not prove control of this address for this registration");
-  const taken = await sbSelect<{ id: string }>("merchant_payment_destinations", `select=id&chain=eq.${input.chain}&address=${input.chain === "solana" ? "eq" : "ilike"}.${encodeURIComponent(input.address)}&limit=1`);
+  const taken = await sbSelect<{ id: string }>("merchant_payment_destinations", `select=id&chain=eq.${input.chain}&address=${family === "evm" ? "ilike" : "eq"}.${encodeURIComponent(input.address)}&limit=1`);
   if (taken[0]) throw new DestinationRejected("This address is already registered");
   const [row] = await sbInsert("merchant_payment_destinations", {
     merchant_id: input.merchantId, chain: input.chain, address: input.address,

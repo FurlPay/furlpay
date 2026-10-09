@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { parseUsdc, feeSplit } from "./money";
-export const chainSchema = z.enum(["arc", "base", "arbitrum", "solana", "polygon", "ethereum", "optimism", "avalanche"]);
+export const chainSchema = z.enum(["arc", "base", "arbitrum", "solana", "polygon", "ethereum", "optimism", "avalanche", "sui"]);
 const amountSchema = z.string().max(20).refine(v => { try { return parseUsdc(v) > 0n; } catch { return false; } }, "Enter an amount above zero and at most 1,000,000 USDC (up to six decimals)");
 export const linkSchema = z.object({
   requestId: z.string().uuid(), title: z.string().trim().min(1).max(120), description: z.string().trim().max(500),
-  amount: amountSchema, chains: z.array(chainSchema).min(1).max(8).refine(v => new Set(v).size === v.length),
+  amount: amountSchema, chains: z.array(chainSchema).min(1).max(9).refine(v => new Set(v).size === v.length),
   reusable: z.boolean(), feePayer: z.enum(["merchant", "customer"]),
   expiresAt: z.string().datetime().nullable(), kind: z.enum(["link", "invoice", "terminal"]),
   reference: z.string().trim().max(80),

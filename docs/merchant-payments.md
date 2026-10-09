@@ -42,7 +42,19 @@ the custody provider that controls the collection addresses).
 
 Chains collected: Ethereum (12 conf), Polygon (128), Solana (finalized, 31),
 Base (1), Arbitrum (1), Arc (1, deterministic finality; chain 5042, USDC
-`0x3600…0000`). Optimism and Avalanche are in the registry but **not collected**
+`0x3600…0000`). Sui (1 certified checkpoint, final; native USDC
+`0xdba34672…f900e7::usdc::USDC`, metadata confirmed on-chain; migration `0043`).
+
+Sui specifics: reads go through GraphQL (`SUI_GRAPHQL_URL`, default the public
+Foundation endpoint) because Sui JSON-RPC was retired on mainnet in July 2026;
+the chain is pinned by `chainIdentifier`. A credit is the transaction's netted
+USDC balance change for the single-use destination, re-read by digest before
+crediting; the payer is the sender and only when the sender's own USDC went down
+(sponsored/pooled credits are held for review). Sui has no payment-request URI
+standard, so the checkout QR carries the bare address and the page states the
+amount. Destinations prove control with a Sui personal-message signature
+(Ed25519 only; secp256k1/r1, multisig and zkLogin are refused). Verified against
+mainnet: `SUI_LIVE=1 npx vitest run sui.live`. Optimism and Avalanche are in the registry but **not collected**
 until a deposit policy is reviewed for them.
 
 ## Webhooks

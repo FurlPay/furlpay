@@ -90,7 +90,7 @@ function DestinationForm({ chains, onSubmit }: { chains: string[]; onSubmit: (b:
       <input aria-label="Address" required placeholder="Receiving address" value={f.address} onChange={set("address")} />
       <input aria-label="Custody reference" required minLength={3} maxLength={200} placeholder="Custody provider wallet ID" value={f.custodyReference} onChange={set("custodyReference")} />
     </div>
-    {ready && <><p>Have the custody provider sign this exact message with the address&apos;s key ({f.chain === "solana" ? "Ed25519, base58 signature" : "EIP-191 signed message, hex"}):</p>
+    {ready && <><p>Have the custody provider sign this exact message with the address&apos;s key ({f.chain === "solana" ? "Ed25519, base58 signature" : f.chain === "sui" ? "Sui personal message, Ed25519 key, base64 serialized signature" : "EIP-191 signed message, hex"}):</p>
       <div className="mp-copy-address"><pre style={{ whiteSpace: "pre-wrap" }}>{message}</pre><CopyButton value={message} label="Copy message" /></div></>}
     <div style={{ display: "flex", gap: 6 }}><input aria-label="Signature" required style={{ flex: 1 }} placeholder="Signature" value={f.signature} onChange={set("signature")} /><button className="mp-button primary" disabled={!ready || !f.signature}>Register address</button></div>
   </form>;

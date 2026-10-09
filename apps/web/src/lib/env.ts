@@ -565,6 +565,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
     group: "Chain RPC endpoints",
     vars: [
       v("SOLANA_RPC_URL"),
+      // Sui GraphQL endpoint for merchant collection (JSON-RPC was retired on
+      // mainnet in July 2026). Unset => the public Foundation endpoint, rate limited.
+      v("SUI_GRAPHQL_URL"),
       v("SOLANA_DEVNET_RPC_URL"),
       v("HELIUS_RPC_URL"),
       v("ETHEREUM_SEPOLIA_RPC_URL"),

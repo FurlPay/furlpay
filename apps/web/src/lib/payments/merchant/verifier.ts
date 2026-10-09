@@ -5,6 +5,7 @@ import { sbRpc, sbUpdate } from "@/lib/supabase";
 import { paymentChain, requiredConfirmations } from "./registry";
 import { address, blockSchema, hash, hex, rpc, verifyChain } from "./rpc";
 import type { MerchantIntent } from "./model";
+import { fetchSuiTransaction, suiTransactionsTo, usdcDelta } from "./sui";
 export const TRANSFER = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 export const logSchema = z.object({address,topics:z.array(hash),data:hash,transactionHash:hash,blockNumber:hex,blockHash:hash,logIndex:hex,removed:z.boolean().optional()});
 type TransferLog = z.infer<typeof logSchema>;
@@ -25,7 +26,7 @@ async function screen(i: MerchantIntent, payer: string, block?: string) {
   const c = paymentChain(i.chain);
   for(const value of [payer,i.recipient]) {
     if((await screenAddressRisk(value,i.chain)).action!=="allow") return false;
-    if(c.chainId!==null) {
+    if(c.family==="evm") {
       // isBlacklisted(address), evaluated against a canonical block.
       const result = hex.parse(await rpc(i.chain,"eth_call",[{to:c.token,data:`0xfe575a87${value.slice(2).padStart(64,"0")}`},block ?? "latest"]));
       if(BigInt(result)!==0n) return false;
@@ -39,6 +40,7 @@ export async function scanIntent(original: MerchantIntent): Promise<MerchantInte
   await sbUpdate("merchant_payment_intents",`id=eq.${i.id}`,{last_checked_at:new Date().toISOString()});
   await verifyChain(i.chain);
   if(i.chain === "solana") return scanSolana(i);
+  if(i.chain === "sui") return scanSui(i);
   const c = paymentChain(i.chain);
   const depth = requiredConfirmations(i.chain);
   if (depth === null) throw new Error("No deposit policy for this chain");
@@ -121,5 +123,36 @@ async function scanSolana(i: MerchantIntent) {
     for(const payer of payers) if(!await screen(i,payer!)) return hold(i);
     i=await sbRpc<MerchantIntent>("merchant_payment_receive",{p_id:i.id,p_tx:s.signature,p_log:0,p_amount:amount.toString(),p_payer:payers[0],p_block:String(tx.slot),p_block_hash:s.signature,p_time:new Date(time).toISOString(),p_confirmations:31});
   }
+  return expire(i);
+}
+
+/** Sui: the destination is single-use, so every USDC credit to it after reservation belongs to this intent.
+ *  Evidence is the transaction's own balance changes (netted per owner and coin), re-read by digest before crediting. */
+async function scanSui(i: MerchantIntent) {
+  const from=BigInt(i.scan_block);
+  const txs=await suiTransactionsTo(i.recipient,from);
+  let highest=from-1n;
+  for(const listed of txs) {
+    const cp=listed.effects.checkpoint;
+    if(!cp || BigInt(cp.sequenceNumber)<BigInt(i.start_block)) continue;
+    if(BigInt(cp.sequenceNumber)>highest) highest=BigInt(cp.sequenceNumber);
+    if(listed.effects.status!=="SUCCESS") continue;
+    const amount=usdcDelta(listed,i.recipient);
+    if(amount<=0n) continue;
+    // Independent re-read by digest: same checkpoint, same status, same credit.
+    const tx=await fetchSuiTransaction(listed.digest);
+    if(!tx || tx.digest!==listed.digest || tx.effects.status!=="SUCCESS" || tx.effects.checkpoint?.digest!==cp.digest || usdcDelta(tx,i.recipient)!==amount) throw new Error("Sui transaction mismatch");
+    const time=Date.parse(tx.effects.timestamp ?? "");
+    if(!Number.isFinite(time)) throw new Error("Sui transaction has no timestamp");
+    if(time<Date.parse(i.created_at)-5000 || time>Date.parse(i.expires_at)) return hold(i);
+    // The payer is the sender, and only when the sender's own USDC went down: a credit
+    // from a pool, a sponsor or a shared object has no attributable payer, so it is reviewed.
+    const payer=tx.sender?.address;
+    if(!payer || usdcDelta(tx,payer)>=0n) return hold(i);
+    if(!await screen(i,payer)) return hold(i);
+    i = await sbRpc<MerchantIntent>("merchant_payment_receive",{p_id:i.id,p_tx:tx.digest,p_log:0,p_amount:amount.toString(),p_payer:payer,p_block:String(cp.sequenceNumber),p_block_hash:cp.digest,p_time:new Date(time).toISOString(),p_confirmations:1});
+  }
+  // Checkpoints are final: advance the cursor past everything read (compare-and-swap, as for EVM).
+  if(highest>=from) await sbUpdate("merchant_payment_intents",`id=eq.${i.id}&scan_block=eq.${i.scan_block}`,{scan_block:(highest+1n).toString()});
   return expire(i);
 }
