@@ -48,6 +48,13 @@ describe("reading a refund transfer from the chain", () => {
     h.suiTx.mockResolvedValue(tx([[SF, "-6000000"], [ST, "5000000"], ["0x" + "ee".repeat(32), "1000000"]]));
     await expect(readRefundTransfer("sui", "D", SF, ST)).rejects.toThrow("other parties");
   });
+  it("reads an Arc refund sent natively (system-emitter log only), at 6 dp", async () => {
+    const SYSTEM = "0xfffffffffffffffffffffffffffffffffffffffe";
+    chain(receipt([log({ address: SYSTEM, data: encodeAbiParameters([{ type: "uint256" }], [300_000_000n * 10n ** 12n]), logIndex: "0x5" })]));
+    expect(await readRefundTransfer("arc", TX, FROM, TO)).toMatchObject({ log: 5, amount: 300_000_000n });
+    chain(receipt([log({ address: SYSTEM, data: encodeAbiParameters([{ type: "uint256" }], [300_000_000n * 10n ** 12n + 7n]), logIndex: "0x5" })]));
+    await expect(readRefundTransfer("arc", TX, FROM, TO)).rejects.toThrow("whole number");
+  });
   it("refuses Solana completion explicitly rather than half-verifying it", async () => {
     await expect(readRefundTransfer("solana", "sig", "a", "b")).rejects.toThrow("not supported yet");
   });

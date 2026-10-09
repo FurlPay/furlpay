@@ -4,6 +4,7 @@ import { paymentChain, type PaymentChainId } from "./registry";
 import { hash, hex, rpc, verifyChain } from "./rpc";
 import { decodeTransfer, logSchema } from "./verifier";
 import { fetchSuiTransaction, usdcDelta } from "./sui";
+import { arcCreditableTransfers } from "@/lib/chains/arc";
 import type { MerchantIntent } from "./model";
 
 // Three-way reconciliation: chain receipt vs intent vs ledger. The intent and
@@ -43,6 +44,14 @@ export async function checkReceipt(r: Receipt, intent: MerchantIntent): Promise<
     const receipt = evmReceipt.parse(raw);
     if (BigInt(receipt.status) !== 1n) return { intent: r.intent_id, kind: "receipt_failed", detail: `${where} reverted` };
     if (receipt.blockHash.toLowerCase() !== r.block_hash.toLowerCase()) return { intent: r.intent_id, kind: "receipt_failed", detail: `${where} is now in block ${receipt.blockHash}, recorded ${r.block_hash}` };
+    if (r.chain === "arc") {
+      // ARC-P2-003: Arc receipts are keyed on the system-emitter log and may have no ERC-20 log at all.
+      const logs = receipt.logs.map(l => logSchema.safeParse(l)).flatMap(l => l.success ? [l.data] : []);
+      const m = arcCreditableTransfers(logs).find(x => x.logIndex !== undefined && BigInt(x.logIndex) === BigInt(r.log_index));
+      if (!m || m.to !== intent.recipient.toLowerCase()) return { intent: r.intent_id, kind: "receipt_failed", detail: `${where} no longer moves USDC to this payment's address` };
+      if (m.dust !== 0n || m.erc20Value.toString() !== r.amount_units) return { intent: r.intent_id, kind: "amount_mismatch", detail: `${where} moved ${m.erc20Value} units (+${m.dust} wei dust); recorded ${r.amount_units}` };
+      return null;
+    }
     const log = receipt.logs.map(l => logSchema.safeParse(l)).find(l => l.success && BigInt(l.data.logIndex) === BigInt(r.log_index));
     if (!log?.success) return { intent: r.intent_id, kind: "receipt_failed", detail: `${where} has no such log` };
     const transfer = decodeTransfer(intent, log.data);

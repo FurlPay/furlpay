@@ -7,6 +7,7 @@ import { requireStorage } from "./repository";
 import { blockSchema, hash, hex, rpc, verifyChain } from "./rpc";
 import { fetchSuiTransaction, usdcDelta } from "./sui";
 import { TRANSFER, logSchema } from "./verifier";
+import { arcCreditableTransfers } from "@/lib/chains/arc";
 import type { MerchantIntent } from "./model";
 
 // Merchant refunds (migration 0045). FurlPay reserves and accounts; the custody
@@ -93,16 +94,24 @@ export async function readRefundTransfer(chain: PaymentChainId, txHash: string, 
   const receipt = z.object({ status: hex, blockNumber: hex, blockHash: hash, logs: z.array(logSchema) }).nullable().parse(await rpc(chain, "eth_getTransactionReceipt", [txHash]));
   if (!receipt) throw new RefundRejected("That transaction is not on-chain yet; try again shortly");
   if (BigInt(receipt.status) !== 1n) throw new RefundRejected("That transaction reverted");
-  const pad = (a: string) => `0x${a.slice(2).toLowerCase().padStart(64, "0")}`;
-  const matches = receipt.logs.filter(l => !l.removed && l.address.toLowerCase() === c.token.toLowerCase() && l.topics.length === 3
-    && l.topics[0].toLowerCase() === TRANSFER && l.topics[1].toLowerCase() === pad(from) && l.topics[2].toLowerCase() === pad(to));
-  if (matches.length !== 1) throw new RefundRejected(matches.length ? "That transaction contains several transfers to the refund address" : "That transaction has no USDC transfer from the payment address to the refund address");
   const head = BigInt(hex.parse(await rpc(chain, "eth_blockNumber", [])));
   const depth = Number(head - BigInt(receipt.blockNumber) + 1n), needed = requiredConfirmations(chain) ?? 1;
   if (depth < needed) throw new RefundRejected(`Waiting for confirmations (${depth} of ${needed})`);
   const block = blockSchema.parse(await rpc(chain, "eth_getBlockByNumber", [receipt.blockNumber, false]));
   if (block.hash.toLowerCase() !== receipt.blockHash.toLowerCase()) throw new RefundRejected("That block was reorganized out; wait and retry");
-  return { log: Number(BigInt(matches[0].logIndex)), amount: BigInt(matches[0].data), from, to, block: BigInt(receipt.blockNumber).toString(), time: Number(BigInt(block.timestamp)) * 1000 };
+  const time = Number(BigInt(block.timestamp)) * 1000;
+  if (chain === "arc") {
+    // A custody provider may refund on Arc with a plain native send (system-emitter log only).
+    const moves = arcCreditableTransfers(receipt.logs).filter(m => m.from === from.toLowerCase() && m.to === to.toLowerCase());
+    if (moves.length !== 1) throw new RefundRejected(moves.length ? "That transaction contains several transfers to the refund address" : "That transaction has no USDC transfer from the payment address to the refund address");
+    if (moves[0].dust !== 0n || moves[0].logIndex === undefined) throw new RefundRejected("That transfer is not a whole number of USDC micro-units");
+    return { log: Number(BigInt(moves[0].logIndex)), amount: moves[0].erc20Value, from, to, block: BigInt(receipt.blockNumber).toString(), time };
+  }
+  const pad = (a: string) => `0x${a.slice(2).toLowerCase().padStart(64, "0")}`;
+  const matches = receipt.logs.filter(l => !l.removed && l.address.toLowerCase() === c.token.toLowerCase() && l.topics.length === 3
+    && l.topics[0].toLowerCase() === TRANSFER && l.topics[1].toLowerCase() === pad(from) && l.topics[2].toLowerCase() === pad(to));
+  if (matches.length !== 1) throw new RefundRejected(matches.length ? "That transaction contains several transfers to the refund address" : "That transaction has no USDC transfer from the payment address to the refund address");
+  return { log: Number(BigInt(matches[0].logIndex)), amount: BigInt(matches[0].data), from, to, block: BigInt(receipt.blockNumber).toString(), time };
 }
 
 export async function completeRefund(id: string, txHash: string) {
