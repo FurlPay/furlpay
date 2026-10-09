@@ -123,7 +123,9 @@ if (FORCED) {
     "\n  FURLPAY_DEPLOY_FORCE=1 — deploying WITHOUT a verified CI run (emergency procedure).\n" +
       `  ${record}\n` +
       "  Clean tree and pushed HEAD were verified; lint, types, route-security invariants and\n" +
-      "  the build were NOT. Follow up with a real CI run on this SHA, and run\n" +
+      "  the build were NOT. The release-branch restriction is skipped too" +
+      (release.ok ? ".\n" : ` — ${branch} is NOT the release branch (${release.reason}).\n`) +
+      "  Follow up with a real CI run on this SHA, and run\n" +
       "  npm run smoke:prod once the deployment is live.\n"
   );
   process.exit(0);
