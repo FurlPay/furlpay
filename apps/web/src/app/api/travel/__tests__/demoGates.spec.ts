@@ -9,6 +9,7 @@ import { POST as giftBuy } from "../gift-cards/route";
 import { POST as giftRedeem } from "../gift-cards/redeem/route";
 import { findOrCreateUserByIdentity } from "@/lib/store";
 import * as authz from "@/lib/authz";
+import * as rateLimit from "@/lib/rateLimit";
 import { getDestination } from "@/lib/travel/data";
 
 // Zero-mock audit: routes that only had GENERATED content (restaurants,
@@ -20,7 +21,7 @@ let ip = 0;
 const req = (url: string, init: RequestInit = {}) =>
   new NextRequest(`http://localhost${url}`, { ...init, headers: { "x-real-ip": `192.0.2.${(ip++ % 200) + 1}`, ...(init.headers ?? {}) } });
 
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 
 describe("production", () => {
   it("restaurant discovery answers 503 not_available, not generated venues", async () => {
@@ -53,6 +54,9 @@ describe("production", () => {
 
 describe("production: simulated booking is refused", () => {
   it("POST /api/travel/book answers 503 not_available; no trip, no confirmation", async () => {
+    // Isolate the booking capability gate. Production's missing global limiter
+    // now correctly refuses even sooner (covered by rateLimitMissingRedis.spec).
+    vi.spyOn(rateLimit, "rateLimitOr429").mockResolvedValue(null);
     vi.stubEnv("NODE_ENV", "production");
     const res = await book(
       req("/api/travel/book", {

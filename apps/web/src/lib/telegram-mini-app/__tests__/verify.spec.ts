@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { describe, expect, it } from "vitest";
-import { TelegramAuthError, verifyTelegramInitData } from "../verify";
+import { TELEGRAM_USER_ID_MAX, TelegramAuthError, verifyTelegramInitData } from "../verify";
 import { checkoutPath, TransferDraftSchema } from "../contracts";
 import { telegramLaunchUrl, telegramStartRoute } from "../config";
 
@@ -14,6 +14,10 @@ function signed(fields: Record<string, string> = {}) {
   return params.toString();
 }
 describe("Telegram verified identity", () => {
+  it("matches the database identity bound instead of allowing a later storage error", () => {
+    expect(verifyTelegramInitData(signed({ user: JSON.stringify({ id: TELEGRAM_USER_ID_MAX, first_name: "Test" }) }), token, 300, now).user.id).toBe(TELEGRAM_USER_ID_MAX);
+    expect(() => verifyTelegramInitData(signed({ user: JSON.stringify({ id: TELEGRAM_USER_ID_MAX + 1, first_name: "Test" }) }), token, 300, now)).toThrow(TelegramAuthError);
+  });
   it("accepts a signed fresh user and signs the optional signature field too", () => {
     expect(verifyTelegramInitData(signed({ signature: "synthetic-ed25519-field" }), token, 300, now).user.id).toBe(123456789);
   });

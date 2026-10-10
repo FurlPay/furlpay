@@ -10,8 +10,8 @@ import { trustedClientIp } from "./clientIp";
 //     (`rl:{name}:{window}`) — GLOBAL across serverless instances, which is
 //     what actually stops brute force and SMS pumping in production.
 //   - In-memory sliding window: dev/demo fallback, correct per instance.
-// Limiting must never take an endpoint down: a Redis error degrades to the
-// in-memory window (bounded per instance), never to no limit at all.
+// Sensitive buckets refuse requests when Redis is unavailable. Other buckets
+// degrade to a bounded in-memory window, never to no limit at all.
 // ---------------------------------------------------------------------------
 
 interface Bucket {
@@ -101,6 +101,12 @@ export function failsClosed(bucket: string): boolean {
 const STORE_UNAVAILABLE_RETRY_SECONDS = 30;
 
 export async function limit(key: string, opts: RateLimitOptions): Promise<RateLimitResult> {
+  // Missing credentials must be as restrictive as an unavailable Redis. Otherwise
+  // a production misconfiguration silently restores a separate budget per instance
+  // for sign-in, linking/unlinking and money movement.
+  if (kvBackend !== "redis" && process.env.NODE_ENV === "production" && failsClosed(key.split(":", 1)[0])) {
+    return { ok: false, remaining: 0, retryAfterSeconds: STORE_UNAVAILABLE_RETRY_SECONDS, storeUnavailable: true };
+  }
   if (kvBackend === "redis") {
     try {
       const windowSeconds = Math.max(1, Math.ceil(opts.windowMs / 1000));

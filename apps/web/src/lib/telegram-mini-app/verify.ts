@@ -1,7 +1,9 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
-const User = z.object({ id: z.number().int().positive().safe(), first_name: z.string().max(256), is_bot: z.boolean().optional() });
+// Telegram IDs have at most 52 significant bits; match the database CHECK in 0050.
+export const TELEGRAM_USER_ID_MAX = 4_503_599_627_370_495;
+const User = z.object({ id: z.number().int().positive().max(TELEGRAM_USER_ID_MAX), first_name: z.string().max(256), is_bot: z.boolean().optional() });
 export class TelegramAuthError extends Error {}
 
 export function telegramAuthMaxAge(): number {

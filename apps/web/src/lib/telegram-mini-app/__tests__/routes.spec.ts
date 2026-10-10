@@ -1,11 +1,11 @@
 import { createHmac } from "node:crypto";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
-const m = vi.hoisted(() => ({ select: vi.fn(), insert: vi.fn(), nx: vi.fn(), auth: vi.fn(), getAccount: vi.fn(), sign: vi.fn(), cookie: vi.fn(), stepup: vi.fn(), consume: vi.fn(), deleted: vi.fn(), del: vi.fn() }));
+const m = vi.hoisted(() => ({ select: vi.fn(), insert: vi.fn(), nx: vi.fn(), auth: vi.fn(), getAccount: vi.fn(), sign: vi.fn(), cookie: vi.fn(), stepup: vi.fn(), consume: vi.fn(), deleted: vi.fn(), del: vi.fn(), limit: vi.fn(), kvBackend: "redis" }));
 vi.mock("@/lib/supabase", () => ({ supabaseBackend: "supabase", sbSelect: m.select, sbInsert: m.insert, sbDelete: m.del }));
-vi.mock("@/lib/kv", () => ({ kvBackend: "redis", kvSetNx: m.nx }));
-vi.mock("@/lib/rateLimit", () => ({ rateLimitOr429: vi.fn(async () => null) }));
+vi.mock("@/lib/kv", () => ({ get kvBackend() { return m.kvBackend; }, kvSetNx: m.nx }));
+vi.mock("@/lib/rateLimit", () => ({ rateLimitOr429: m.limit }));
 vi.mock("@/lib/authz", () => ({ requireUser: m.auth }));
 vi.mock("@/lib/store", () => ({ getAccountDurable: m.getAccount }));
 vi.mock("@/lib/accountDeletion", () => ({ isAccountDeleted: m.deleted }));
@@ -18,8 +18,8 @@ import { POST as link, DELETE as unlink } from "@/app/api/miniapp/telegram-link/
 import { GET as account } from "@/app/api/miniapp/account/route";
 
 const token = "test-only:telegram-signing-key";
-function payload() {
-  const fields = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: 111, first_name: "Synthetic" }) });
+function payload(fieldsOverride: Record<string, string> = {}) {
+  const fields = new URLSearchParams({ auth_date: String(Math.floor(Date.now() / 1000)), user: JSON.stringify({ id: 111, first_name: "Synthetic" }), ...fieldsOverride });
   const secret = createHmac("sha256", "WebAppData").update(token).digest();
   fields.set("hash", createHmac("sha256", secret).update([...fields].sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => `${k}=${v}`).join("\n")).digest("hex"));
   return fields.toString();
@@ -30,9 +30,36 @@ function request(extra: Record<string, unknown> = {}, headers: Record<string, st
 const authorized = () => ({ ok: true, claims: { sub: "account-one", jti: "jti-one", auth_time: Math.floor(Date.now() / 1000) }, account: { user: { id: "account-one", name: "Test", kycStatus: "unverified", security: { accountLocked: false, totpSecret: "MUST-NOT-LEAK" } }, tokenBalances: [], transactions: [], cards: [{ id: "simulated", last4: "1234" }] } });
 beforeEach(() => {
   vi.clearAllMocks(); vi.stubEnv("TELEGRAM_BOT_TOKEN", token); vi.stubEnv("TELEGRAM_AUTH_MAX_AGE_SECONDS", "300"); vi.stubEnv("PUBLIC_API_ORIGIN", "https://furlpay.com");
+  m.limit.mockResolvedValue(null); m.kvBackend = "redis";
   m.select.mockResolvedValue([{ user_id: "account-one" }]); m.insert.mockResolvedValue([]); m.nx.mockResolvedValue(true); m.auth.mockResolvedValue(authorized()); m.getAccount.mockResolvedValue(authorized().account); m.sign.mockResolvedValue("server-cookie-only"); m.stepup.mockResolvedValue(true); m.deleted.mockResolvedValue(false); m.del.mockResolvedValue(undefined);
 });
+afterEach(() => vi.unstubAllEnvs());
 describe("Telegram session and linking boundaries", () => {
+  it.each([429, 503])("honors the %i limiter response before reading or mutating identity state", async status => {
+    m.limit.mockResolvedValue(NextResponse.json({ error: "blocked" }, { status }));
+    expect((await login(request())).status).toBe(status);
+    expect((await link(request())).status).toBe(status);
+    expect((await unlink(new NextRequest("https://furlpay.com/api/miniapp/telegram-link", { method: "DELETE" }))).status).toBe(status);
+    expect(m.limit).toHaveBeenCalledWith(expect.anything(), "auth.telegram", { limit: 10, windowMs: 60_000 });
+    expect(m.limit).toHaveBeenCalledWith(expect.anything(), "miniapp.telegram-link", { limit: 5, windowMs: 600_000 }, "account-one");
+    expect(m.select).not.toHaveBeenCalled(); expect(m.insert).not.toHaveBeenCalled(); expect(m.del).not.toHaveBeenCalled(); expect(m.sign).not.toHaveBeenCalled();
+  });
+  it.each([{ user: { id: 111, first_name: "Spoofed" } }, { initDataUnsafe: { user: { id: 111 } } }])("refuses unsigned client identity fields %j", async extra => {
+    expect((await login(request(extra))).status).toBe(400);
+    expect((await link(request(extra))).status).toBe(400);
+    expect(m.select).not.toHaveBeenCalled(); expect(m.insert).not.toHaveBeenCalled(); expect(m.sign).not.toHaveBeenCalled();
+  });
+  it("rejects expired correctly signed data before looking up an account", async () => {
+    const initData = payload({ auth_date: String(Math.floor(Date.now() / 1000) - 301) });
+    expect((await login(request({ initData }))).status).toBe(401);
+    expect((await link(request({ initData }))).status).toBe(401);
+    expect(m.select).not.toHaveBeenCalled(); expect(m.sign).not.toHaveBeenCalled();
+  });
+  it("refuses production identity issuance when the replay store is only memory", async () => {
+    vi.stubEnv("NODE_ENV", "production"); m.kvBackend = "memory";
+    expect((await login(request())).status).toBe(503);
+    expect(m.select).not.toHaveBeenCalled(); expect(m.sign).not.toHaveBeenCalled();
+  });
   it("mints the existing session only for the verified linked account and never exposes its token", async () => {
     const res = await login(request()); expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ status: "active", route: null });
