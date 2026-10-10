@@ -3,7 +3,7 @@ import { z } from "zod";
 import { validateBody } from "@/lib/validate";
 import { publicOrigin } from "@/lib/publicOrigin";
 import { sbDelete, sbInsert, sbSelect, supabaseBackend } from "@/lib/supabase";
-import { recentStepUp } from "@/lib/stepup";
+import { claimStepUp } from "@/lib/stepup";
 import { kvBackend } from "@/lib/kv";
 import { telegramAuthMaxAge, verifyTelegramInitData } from "./verify";
 
@@ -28,9 +28,9 @@ export async function verifiedTelegramRequest(req: NextRequest) {
  * Telegram itself, or a stolen cookie, re-bind the account. Guests never can.
  */
 export const FRESH_AUTH_WINDOW_SECONDS = 300;
-export async function hasFreshFurlPayAuth(userId: string, claims: { guest?: boolean; jti?: string }): Promise<boolean> {
+export async function claimFreshFurlPayAuth(userId: string, claims: { guest?: boolean; jti?: string }): Promise<boolean> {
   if (claims.guest) return false;
-  return recentStepUp(userId, claims.jti, FRESH_AUTH_WINDOW_SECONDS * 1000);
+  return claimStepUp(userId, claims.jti, FRESH_AUTH_WINDOW_SECONDS * 1000);
 }
 
 /** The Telegram user id linked to an account, or null. */

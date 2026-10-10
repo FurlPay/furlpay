@@ -4,6 +4,7 @@
  * people to paste a payment link it cannot open.
  */
 export const PAYMENT_LINKS_AVAILABLE = false;
+export const TELEGRAM_EMBED_CONTEXT_HEADER = "x-furlpay-telegram-embedded";
 
 /** Public navigation hints only. Never put an account, token or payment in a start parameter. */
 export const MINI_APP_ROUTES = {

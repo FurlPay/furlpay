@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getTelegramWebApp, mountTelegram, type TelegramWebApp } from "../sdk";
+import { clearTelegramLaunchFragment, getTelegramWebApp, mountTelegram, type TelegramWebApp } from "../sdk";
 
 afterEach(() => vi.unstubAllGlobals());
 describe("official Telegram bridge lifecycle", () => {
@@ -8,6 +8,12 @@ describe("official Telegram bridge lifecycle", () => {
     expect(getTelegramWebApp()).toBeNull();
     vi.stubGlobal("Telegram", { WebApp: { initData: "", platform: "unknown" } });
     expect(getTelegramWebApp()).toBeNull();
+  });
+  it("removes signed launch data from browser history after the bridge is ready", () => {
+    window.history.replaceState({ keep: true }, "", "/telegram/home?filter=card#tgWebAppData=signed&tgWebAppVersion=8.0");
+    clearTelegramLaunchFragment();
+    expect(window.location.pathname + window.location.search + window.location.hash).toBe("/telegram/home?filter=card");
+    expect(window.history.state).toEqual({ keep: true });
   });
   it("synchronizes safe areas, responds to changes and removes every listener", () => {
     const listeners = new Map<string, () => void>();

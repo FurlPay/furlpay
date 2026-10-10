@@ -14,8 +14,13 @@ import { kvGet, kvSet } from "@/lib/kv";
 // ---------------------------------------------------------------------------
 
 export const SESSION_COOKIE = "furlpay_session";
+/** Partitioned session storage used only by the Telegram Web embedded app. */
+export const TELEGRAM_SESSION_COOKIE = "furlpay_telegram_session";
+/** Non-authentication marker set only after a signed Telegram launch is verified. */
+export const TELEGRAM_EMBED_CONTEXT_COOKIE = "furlpay_telegram_context";
 const ALG = "HS256";
 const TTL_SECONDS = 60 * 60; // 1h access token
+const TELEGRAM_CONTEXT_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 const DEV_FALLBACK_SECRET = "furlpay_dev_session_secret_change_me_32bytes";
 
@@ -142,11 +147,24 @@ function isRevoked(jti: string | undefined): boolean {
  * SAME signed JWT and go through the same verifySession() path — the header
  * grants nothing a cookie wouldn't.
  */
-export function tokenFromRequest(req: {
+type SessionRequest = {
   cookies: { get(name: string): { value: string } | undefined };
   headers: { get(name: string): string | null };
-}): string | undefined {
+  nextUrl?: { pathname: string };
+};
+
+/** Cookie credentials only; bearer credentials are intentionally excluded. */
+export function sessionCookieFromRequest(req: SessionRequest): string | undefined {
   const cookie = req.cookies.get(SESSION_COOKIE)?.value;
+  if (cookie) return cookie;
+  // This is the same signed session, isolated by the browser's Telegram
+  // top-level-site partition. It must work across the app just like the
+  // first-party cookie, including middleware and account APIs.
+  return req.cookies.get(TELEGRAM_SESSION_COOKIE)?.value;
+}
+
+export function tokenFromRequest(req: SessionRequest): string | undefined {
+  const cookie = sessionCookieFromRequest(req);
   if (cookie) return cookie;
   const auth = req.headers.get("authorization");
   if (auth?.startsWith("Bearer ")) return auth.slice(7);
@@ -236,12 +254,53 @@ export function setSessionCookie(res: NextResponse, token: string): void {
   });
 }
 
+/** Set a Telegram Web session in a top-level-site partition, never as a global 3p cookie. */
+export function setTelegramSessionCookie(res: NextResponse, token: string): void {
+  res.cookies.set(TELEGRAM_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+    partitioned: true,
+    path: "/",
+    maxAge: TTL_SECONDS,
+  });
+}
+
+/** Remember embedded context without granting authentication. It is host-only and partitioned. */
+export function setTelegramEmbedContextCookie(res: NextResponse): void {
+  res.cookies.set(TELEGRAM_EMBED_CONTEXT_COOKIE, "1", {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+    partitioned: true,
+    path: "/api",
+    maxAge: TELEGRAM_CONTEXT_TTL_SECONDS,
+  });
+}
+
+/** Auth routes use this so normal web logins stay Lax while embedded Telegram logins stay partitioned. */
+export function setSessionCookieForRequest(req: SessionRequest, res: NextResponse, token: string): void {
+  if (req.cookies.get(TELEGRAM_EMBED_CONTEXT_COOKIE)?.value === "1" || req.cookies.get(TELEGRAM_SESSION_COOKIE)?.value) {
+    setTelegramSessionCookie(res, token);
+    return;
+  }
+  setSessionCookie(res, token);
+}
+
 /** Clear the session cookie (logout). Pair with revokeSession(claims.jti). */
 export function clearSessionCookie(res: NextResponse): void {
   res.cookies.set(SESSION_COOKIE, "", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
+  res.cookies.set(TELEGRAM_SESSION_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+    partitioned: true,
     path: "/",
     maxAge: 0,
   });

@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
-const m = vi.hoisted(() => ({ select: vi.fn(), insert: vi.fn(), nx: vi.fn(), auth: vi.fn(), getAccount: vi.fn(), sign: vi.fn(), cookie: vi.fn(), stepup: vi.fn(), consume: vi.fn(), deleted: vi.fn(), del: vi.fn(), limit: vi.fn(), kvBackend: "redis" }));
+const m = vi.hoisted(() => ({ select: vi.fn(), insert: vi.fn(), nx: vi.fn(), auth: vi.fn(), getAccount: vi.fn(), sign: vi.fn(), cookie: vi.fn(), stepup: vi.fn(), deleted: vi.fn(), del: vi.fn(), limit: vi.fn(), kvBackend: "redis" }));
 vi.mock("@/lib/supabase", () => ({ supabaseBackend: "supabase", sbSelect: m.select, sbInsert: m.insert, sbDelete: m.del }));
 vi.mock("@/lib/kv", () => ({ get kvBackend() { return m.kvBackend; }, kvSetNx: m.nx }));
 vi.mock("@/lib/rateLimit", () => ({ rateLimitOr429: m.limit }));
@@ -10,8 +10,16 @@ vi.mock("@/lib/authz", () => ({ requireUser: m.auth }));
 vi.mock("@/lib/store", () => ({ getAccountDurable: m.getAccount }));
 vi.mock("@/lib/accountDeletion", () => ({ isAccountDeleted: m.deleted }));
 vi.mock("@/lib/sessionEpoch", () => ({ currentEpoch: async () => 4 }));
-vi.mock("@/lib/session", () => ({ signSession: m.sign, setSessionCookie: m.cookie, tokenFromRequest: (r: NextRequest) => r.cookies.get("furlpay_session")?.value }));
-vi.mock("@/lib/stepup", () => ({ recentStepUp: m.stepup, consumeStepUp: m.consume }));
+vi.mock("@/lib/session", () => ({
+  signSession: m.sign,
+  setSessionCookie: m.cookie,
+  setSessionCookieForRequest: m.cookie,
+  setTelegramEmbedContextCookie: vi.fn(),
+  setTelegramSessionCookie: vi.fn(),
+  TELEGRAM_EMBED_CONTEXT_HEADER: "x-furlpay-telegram-embedded",
+  tokenFromRequest: (r: NextRequest) => r.cookies.get("furlpay_session")?.value,
+}));
+vi.mock("@/lib/stepup", () => ({ claimStepUp: m.stepup }));
 vi.mock("@/lib/cardIssuer", () => ({ cardIssuingLive: () => false }));
 import { POST as login } from "@/app/api/auth/telegram/route";
 import { POST as link, DELETE as unlink } from "@/app/api/miniapp/telegram-link/route";
@@ -69,6 +77,26 @@ describe("Telegram session and linking boundaries", () => {
   it("rejects replay after logout instead of issuing another session", async () => {
     m.nx.mockResolvedValue(false); expect((await login(request())).status).toBe(401); expect(m.sign).not.toHaveBeenCalled();
   });
+  it("claims an authenticated launch before returning active, so a cookie-free replay cannot mint a session", async () => {
+    const initData = payload();
+    m.nx.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const active = await login(request({ initData }, { cookie: "furlpay_session=existing" }));
+    expect(active.status).toBe(200);
+    expect(m.nx).toHaveBeenCalledTimes(1);
+    expect(m.sign).not.toHaveBeenCalled();
+
+    const replay = await login(request({ initData }));
+    expect(replay.status).toBe(401);
+    expect(m.nx).toHaveBeenCalledTimes(2);
+    expect(m.sign).not.toHaveBeenCalled();
+  });
+  it("sets the partitioned embedded-session context only after Telegram data verifies", async () => {
+    const res = await login(request({}, { "x-furlpay-telegram-embedded": "1" }));
+    expect(res.status).toBe(200);
+    const session = await import("@/lib/session");
+    expect(session.setTelegramEmbedContextCookie).toHaveBeenCalledWith(res);
+    expect(session.setTelegramSessionCookie).toHaveBeenCalledWith(res, "server-cookie-only");
+  });
   it("does not merge a new Telegram identity by name or unverified profile", async () => {
     m.select.mockResolvedValue([]); const res = await login(request()); expect(await res.json()).toEqual({ status: "link_required", name: "Synthetic" }); expect(m.sign).not.toHaveBeenCalled(); expect(m.insert).not.toHaveBeenCalled();
   });
@@ -83,8 +111,14 @@ describe("Telegram session and linking boundaries", () => {
     vi.stubEnv("TELEGRAM_BOT_TOKEN", ""); expect((await login(request())).status).toBe(503);
     vi.stubEnv("TELEGRAM_BOT_TOKEN", token); m.select.mockRejectedValue(new Error("database unavailable")); expect((await login(request())).status).toBe(503); expect(m.sign).not.toHaveBeenCalled();
   });
-  it("does not switch another signed-in FurlPay account", async () => {
-    m.auth.mockResolvedValue({ ...authorized(), account: { user: { id: "account-two" } } }); expect((await login(request({}, { cookie: "furlpay_session=existing" }))).status).toBe(409); expect(m.sign).not.toHaveBeenCalled();
+  it("does not switch another signed-in FurlPay account or leave its launch replayable", async () => {
+    const initData = payload();
+    m.auth.mockResolvedValue({ ...authorized(), account: { user: { id: "account-two" } } });
+    m.nx.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    expect((await login(request({ initData }, { cookie: "furlpay_session=existing" }))).status).toBe(409);
+    expect(m.nx).toHaveBeenCalledTimes(1);
+    expect((await login(request({ initData }))).status).toBe(401);
+    expect(m.sign).not.toHaveBeenCalled();
   });
   it("rejects locked and deleted accounts", async () => {
     m.getAccount.mockResolvedValue({ user: { security: { accountLocked: true } } }); expect((await login(request())).status).toBe(403);
@@ -92,17 +126,19 @@ describe("Telegram session and linking boundaries", () => {
   });
   it("requires FurlPay authentication and a session-bound step-up to link", async () => {
     m.auth.mockResolvedValue({ ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }); expect((await link(request())).status).toBe(401);
-    m.auth.mockResolvedValue(authorized()); m.stepup.mockResolvedValue(false); expect((await link(request())).status).toBe(403); expect(m.insert).not.toHaveBeenCalled();
+    m.select.mockResolvedValue([]); m.auth.mockResolvedValue(authorized()); m.stepup.mockResolvedValue(false); expect((await link(request())).status).toBe(403); expect(m.insert).not.toHaveBeenCalled();
   });
   it("does not overwrite another user's link or a concurrent unique-key winner", async () => {
     m.select.mockResolvedValue([{ user_id: "account-two" }]); expect((await link(request())).status).toBe(409); expect(m.insert).not.toHaveBeenCalled();
     m.select.mockResolvedValue([]); m.insert.mockRejectedValue({ status: 409 }); expect((await link(request())).status).toBe(409);
   });
-  it("links only verified Telegram and session user ids, consuming step-up", async () => {
+  it("links only verified Telegram and session user ids after atomically claiming step-up", async () => {
     m.select.mockResolvedValue([]); expect((await link(request())).status).toBe(200);
-    expect(m.insert).toHaveBeenCalledWith("telegram_account_links", { telegram_id: 111, user_id: "account-one" }); expect(m.consume).toHaveBeenCalledWith("account-one", "jti-one");
+    expect(m.stepup).toHaveBeenCalledWith("account-one", "jti-one", 300_000);
+    expect(m.insert).toHaveBeenCalledWith("telegram_account_links", { telegram_id: 111, user_id: "account-one" });
   });
   it("a fresh auth_time alone does not authorize linking; guests never can", async () => {
+    m.select.mockResolvedValue([]);
     m.stepup.mockResolvedValue(false);
     m.auth.mockResolvedValue({ ...authorized(), claims: { ...authorized().claims, auth_time: Math.floor(Date.now() / 1000) } });
     expect((await link(request())).status).toBe(403);
@@ -121,7 +157,7 @@ describe("Telegram session and linking boundaries", () => {
     const res = await del();
     expect(res.status).toBe(200); expect(await res.json()).toEqual({ status: "unlinked" });
     expect(m.del).toHaveBeenCalledWith("telegram_account_links", "user_id=eq.account-one");
-    expect(m.consume).toHaveBeenCalledWith("account-one", "jti-one");
+    expect(m.stepup).toHaveBeenCalledWith("account-one", "jti-one", 300_000);
   });
   it("an unlink storage failure is a 503, not a false success", async () => {
     m.del.mockRejectedValue(new Error("database unavailable"));

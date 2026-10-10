@@ -3,7 +3,7 @@ import { recordProductEvent } from "@/lib/analytics/events";
 import { NextRequest, NextResponse } from "next/server";
 import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { verifyGoogleCredential } from "@/lib/auth/google";
-import { signSession, setSessionCookie } from "@/lib/session";
+import { signSession, setSessionCookieForRequest } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { isMobileClient } from "@/lib/clientKind";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -96,7 +96,7 @@ export async function POST(req: NextRequest) {
     phoneVerified: !!account.user.phoneVerified,
     ...(isMobileClient(req) ? { token } : {}),
   });
-  setSessionCookie(res, token);
+  setSessionCookieForRequest(req, res, token);
   audit(created ? "auth.signup" : "auth.login", account.user.id, { provider: "google" });
   recordProductEvent(
     created

@@ -32,6 +32,13 @@ export function getTelegramWebApp(): TelegramWebApp | null {
   const app = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
   return app?.initData && app.platform !== "unknown" ? app : null;
 }
+
+/** Remove the signed launch payload from the address/history after the SDK captured it. */
+export function clearTelegramLaunchFragment(): void {
+  if (typeof window === "undefined" || !/tgWebAppData=/.test(window.location.hash)) return;
+  window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+}
+
 export function mountTelegram(app: TelegramWebApp, root: HTMLElement, onSettings?: () => void): () => void {
   const sync = () => {
     root.dataset.telegramTheme = app.colorScheme;

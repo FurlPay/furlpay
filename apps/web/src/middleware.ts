@@ -2,8 +2,8 @@ import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
 import { isFrozenRoute, featureGateResponse } from "@/lib/featureGate";
 import {
   canRefreshSession,
-  SESSION_COOKIE,
-  setSessionCookie,
+  sessionCookieFromRequest,
+  setSessionCookieForRequest,
   signSession,
   tokenFromRequest,
   verifySession,
@@ -325,7 +325,7 @@ export function crossSiteCookieForgery(req: NextRequest): boolean {
 const SLIDE_WINDOW_SECONDS = 15 * 60;
 
 async function maybeSlideSession(req: NextRequest, claims: SessionClaims | null, res: NextResponse) {
-  if (!claims?.exp || !req.cookies.get(SESSION_COOKIE)) return res;
+  if (!claims?.exp || !sessionCookieFromRequest(req)) return res;
   if ((claims as { mcp?: boolean }).mcp === true) return res;
   if (claims.exp - Date.now() / 1000 > SLIDE_WINDOW_SECONDS) return res;
   if (!canRefreshSession(claims)) return res;
@@ -336,7 +336,7 @@ async function maybeSlideSession(req: NextRequest, claims: SessionClaims | null,
     ...(claims.guest ? { guest: true } : {}),
     auth_time: claims.auth_time ?? claims.iat,
   });
-  setSessionCookie(res, fresh);
+  setSessionCookieForRequest(req, res, fresh);
   return res;
 }
 
@@ -474,7 +474,7 @@ export async function middleware(req: NextRequest, event?: NextFetchEvent) {
   if (
     isApi &&
     MUTATING_METHODS.has(req.method) &&
-    req.cookies.get(SESSION_COOKIE) &&
+    sessionCookieFromRequest(req) &&
     crossSiteCookieForgery(req)
   ) {
     return NextResponse.json({ error: "cross_origin_request_rejected" }, { status: 403 });

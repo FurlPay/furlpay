@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { requireUser } from "@/lib/authz";
-import { canRefreshSession, setSessionCookie, signSession, SESSION_MAX_AGE } from "@/lib/session";
+import { canRefreshSession, setSessionCookieForRequest, signSession, SESSION_MAX_AGE } from "@/lib/session";
 
 // POST /api/auth/refresh — slide a still-valid 1h session forward.
 //
@@ -53,6 +53,6 @@ export async function POST(req: NextRequest) {
     { refreshed: true, expiresIn: SESSION_MAX_AGE, ...(isMobileClient ? { token } : {}) },
     { headers: { "Cache-Control": "no-store" } }
   );
-  setSessionCookie(res, token);
+  setSessionCookieForRequest(req, res, token);
   return res;
 }

@@ -5,8 +5,8 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { useRouter } from "next/navigation";
 import { useSession } from "@/components/auth/SessionProvider";
 import { MiniAccountSchema, type MiniAccount } from "@/lib/telegram-mini-app/contracts";
-import { getTelegramWebApp, mountTelegram, type TelegramWebApp } from "@/lib/telegram-mini-app/sdk";
-import { telegramStartRoute } from "@/lib/telegram-mini-app/config";
+import { clearTelegramLaunchFragment, getTelegramWebApp, mountTelegram, type TelegramWebApp } from "@/lib/telegram-mini-app/sdk";
+import { TELEGRAM_EMBED_CONTEXT_HEADER, telegramStartRoute } from "@/lib/telegram-mini-app/config";
 
 type TelegramStatus = "browser" | "pending" | "active" | "link_required" | "error";
 type DataStatus = "loading" | "ready" | "anonymous" | "error";
@@ -43,7 +43,9 @@ export default function TelegramProvider({ children }: { children: React.ReactNo
     const attempt = async () => {
     setTelegramStatus("pending"); setAuthError(null);
     try {
-      const response = await fetch("/api/auth/telegram", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ initData: bridge.initData }), cache: "no-store" });
+      let embedded = false;
+      try { embedded = window.top !== window.self; } catch { embedded = true; }
+      const response = await fetch("/api/auth/telegram", { method: "POST", headers: { "Content-Type": "application/json", ...(embedded ? { [TELEGRAM_EMBED_CONTEXT_HEADER]: "1" } : {}) }, body: JSON.stringify({ initData: bridge.initData }), cache: "no-store" });
       const body = await response.json();
       if (!response.ok || !["active", "link_required"].includes(body.status)) throw new Error(body.error || "Telegram sign-in could not be completed.");
       if (!mounted.current) return;
@@ -63,6 +65,7 @@ export default function TelegramProvider({ children }: { children: React.ReactNo
     initialized.current = true;
     const bridge = getTelegramWebApp();
     if (bridge && root.current) {
+      clearTelegramLaunchFragment();
       cleanup.current = mountTelegram(bridge, root.current, () => router.push("/telegram/profile"));
       setApp(bridge);
       const start = telegramStartRoute(new URLSearchParams(bridge.initData).get("start_param"));

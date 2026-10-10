@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authz";
-import { consumeStepUp } from "@/lib/stepup";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import {
-  hasFreshFurlPayAuth,
+  claimFreshFurlPayAuth,
   linkedTelegramAccount,
   linkTelegramAccount,
   privateHeaders,
@@ -31,13 +30,15 @@ export async function POST(req: NextRequest) {
   try {
     const identity = await verifiedTelegramRequest(req);
     if (identity instanceof NextResponse) return identity;
-    if (!(await hasFreshFurlPayAuth(auth.account.user.id, auth.claims))) return NextResponse.json(REAUTH, { status: 403, headers: privateHeaders });
     const owner = await linkedTelegramAccount(identity.user.id);
     if (owner === auth.account.user.id) return NextResponse.json({ status: "linked" }, { headers: privateHeaders });
-    if (owner || !(await linkTelegramAccount(identity.user.id, auth.account.user.id))) {
+    if (owner) {
       return NextResponse.json({ error: "One of these accounts is already linked. Contact support to change the link." }, { status: 409, headers: privateHeaders });
     }
-    await consumeStepUp(auth.account.user.id, auth.claims.jti);
+    if (!(await claimFreshFurlPayAuth(auth.account.user.id, auth.claims))) return NextResponse.json(REAUTH, { status: 403, headers: privateHeaders });
+    if (!(await linkTelegramAccount(identity.user.id, auth.account.user.id))) {
+      return NextResponse.json({ error: "One of these accounts is already linked. Contact support to change the link." }, { status: 409, headers: privateHeaders });
+    }
     return NextResponse.json({ status: "linked" }, { headers: privateHeaders });
   } catch (error) {
     if (error instanceof TelegramAuthError) return NextResponse.json({ error: error.message }, { status: 401, headers: privateHeaders });
@@ -55,9 +56,8 @@ export async function DELETE(req: NextRequest) {
   const limited = await rateLimitOr429(req, "miniapp.telegram-link", { limit: 5, windowMs: 600_000 }, auth.account.user.id);
   if (limited) return limited;
   try {
-    if (!(await hasFreshFurlPayAuth(auth.account.user.id, auth.claims))) return NextResponse.json(REAUTH, { status: 403, headers: privateHeaders });
+    if (!(await claimFreshFurlPayAuth(auth.account.user.id, auth.claims))) return NextResponse.json(REAUTH, { status: 403, headers: privateHeaders });
     await unlinkTelegramAccount(auth.account.user.id);
-    await consumeStepUp(auth.account.user.id, auth.claims.jti);
     return NextResponse.json({ status: "unlinked" }, { headers: privateHeaders });
   } catch {
     return telegramUnavailable();
