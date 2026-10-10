@@ -1,0 +1,82 @@
+{
+  "name": "settlement_workspace_records",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0037_settlement_workspace.sql",
+    "line": 3,
+    "sha256": "22ebd1cc5b90fa5a0af1ad42114da63745417f9a50f3e9a2fe8711d70433d7d0"
+  },
+  "definition": "create table if not exists public.settlement_workspace_records (\n  owner_id text not null,\n  id uuid not null,\n  payload jsonb not null check (jsonb_typeof(payload) = 'object'),\n  created_at timestamptz not null default now(),\n  archived_at timestamptz,\n  primary key (owner_id, id),\n  constraint settlement_workspace_kind check (payload->>'kind' in ('invoice', 'link', 'payout', 'schedule', 'beneficiary', 'rule', 'checkout')),\n  constraint settlement_workspace_payload_size check (octet_length(payload::text) <= 102400)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0037_settlement_workspace.sql",
+      "line": 3,
+      "sha256": "22ebd1cc5b90fa5a0af1ad42114da63745417f9a50f3e9a2fe8711d70433d7d0",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0037_settlement_workspace.sql",
+      "line": 13,
+      "sha256": "33a7aee0a81a830b29d913efb8fa3fc98b6efbeb8e3eca26796dc9f3aed60b90",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0037_settlement_workspace.sql",
+      "line": 14,
+      "sha256": "fc22dd4615b4d5479aa0cd29051c2f849bfe8b3bc440a3f7e253310408e707d5",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0037_settlement_workspace.sql",
+      "line": 15,
+      "sha256": "627a139a6ca10014c313f9ba3ef0498dd94a017eb84efa267c60c7eb2b8a25fc",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0037_settlement_workspace.sql",
+      "line": 16,
+      "sha256": "e77c07ef3c24326664eb18dd1a7780e89cd9cbab776ba761f9c1b76c38e70c4f",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0037_settlement_workspace.sql",
+      "line": 17,
+      "sha256": "1b80a46125346084288b9703eb516933cec051289723bf6cafedb63cd4037676",
+      "kind": "comment on"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/settlement/repository.ts",
+      "line": 16
+    },
+    {
+      "file": "apps/web/src/lib/settlement/repository.ts",
+      "line": 38
+    },
+    {
+      "file": "apps/web/src/lib/settlement/repository.ts",
+      "line": 60
+    },
+    {
+      "file": "apps/web/src/lib/settlement/repository.ts",
+      "line": 74
+    },
+    {
+      "file": "apps/web/src/lib/settlement/repository.ts",
+      "line": 82
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0037_settlement_workspace.sql",
+        "line": 14,
+        "sha256": "fc22dd4615b4d5479aa0cd29051c2f849bfe8b3bc440a3f7e253310408e707d5"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

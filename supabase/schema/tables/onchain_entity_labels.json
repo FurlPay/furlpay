@@ -1,0 +1,43 @@
+{
+  "name": "onchain_entity_labels",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0032_onchain_ingestion.sql",
+    "line": 239,
+    "sha256": "e9192e86c401c39381ab5f4ccf436a8e7e46795e53b3836be7f9c478c49b0842"
+  },
+  "definition": "create table if not exists onchain_entity_labels (\n  chain        text not null,\n  address      text not null,\n  entity_name  text,\n  entity_type  text,\n  labels       jsonb not null default '[]'::jsonb,\n  source       text not null,\n  updated_at   timestamptz not null default now(),\n  primary key (chain, address)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 239,
+      "sha256": "e9192e86c401c39381ab5f4ccf436a8e7e46795e53b3836be7f9c478c49b0842",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 587,
+      "sha256": "974baa330d58f0507d52f2eb57b090487c8be641d8d2e508c7658e2bd165f2f1",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 593,
+      "sha256": "77a76e23c58d3878b9dd044bee3d715982a4b60c74ef1602634c1534c5c685e6",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 587,
+        "sha256": "974baa330d58f0507d52f2eb57b090487c8be641d8d2e508c7658e2bd165f2f1"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

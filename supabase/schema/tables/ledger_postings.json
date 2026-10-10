@@ -1,0 +1,100 @@
+{
+  "name": "ledger_postings",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0009_payments_and_ledger.sql",
+    "line": 144,
+    "sha256": "b54a268ccf86c4f586a41e386ad4baf5f9cefd517ae007e00550c0d0b4184876"
+  },
+  "definition": "create table if not exists ledger_postings (\n  id             bigserial primary key,\n  transaction_id text not null references ledger_transactions(id) on delete cascade,\n  account_id     text not null references ledger_accounts(id),\n  side           text not null check (side in ('debit','credit')),\n  -- Integer minor units, strictly positive. Direction lives in `side`, never in\n  -- the sign, so a negative amount is always a bug rather than a credit.\n  amount         bigint not null check (amount > 0),\n  created_at     timestamptz not null default now()\n);",
+  "dependencies": [
+    "ledger_accounts",
+    "ledger_transactions"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 144,
+      "sha256": "b54a268ccf86c4f586a41e386ad4baf5f9cefd517ae007e00550c0d0b4184876",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 155,
+      "sha256": "00a5aa6df929a4b547320568424de5dbd150eb8466d2aa450e9286ab8154eead",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 156,
+      "sha256": "1db5a2286633fd7c1af7904d5c10682e4c7a027283a3fb350d026532e5296f7c",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 160,
+      "sha256": "fdeb87dba05c4dba014bbb77afabe55434dc238055ee854d45dd102899d13213",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 167,
+      "sha256": "28d346d7bcc6d02e0f887a93839987d73c8ae76a56ae8b272e378e7cbe99227e",
+      "kind": "drop trigger"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 168,
+      "sha256": "24dd82e8f0f46403121418d61c48434472ad114bf9f83c86f55df644e25b0586",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 174,
+      "sha256": "16f8ffdff30656d772e183ce4c7d8b7af22568ed3560cbd16028e1932bc82f96",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 198,
+      "sha256": "41fe0d5b3041667d2473f9dd8b220aea0c5cecce8d1c71a4e4b9cd5713157a73",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 318,
+      "sha256": "8a0b7f4700b4a4a2976b59e02c8bacf25b8d6b95a8cd436821d26e13b9d340f5",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 47,
+      "sha256": "3b398bd867a7162a579762e3de1c0f5c1b04b187eb73486a16d71645d69d1316",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 64,
+      "sha256": "ccb689383174fa58572491467167b41804147f94927e41d81dc22e521e8671e4",
+      "kind": "procedural"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 64,
+      "sha256": "e9064942c78b91838b5bc5cf2c7433484c10e3257f90c65543ffadcf2bb4259a",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0016_rls_money_tables.sql",
+        "line": 47,
+        "sha256": "3b398bd867a7162a579762e3de1c0f5c1b04b187eb73486a16d71645d69d1316"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

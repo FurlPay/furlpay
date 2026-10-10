@@ -1,0 +1,43 @@
+{
+  "name": "usdc_index_issues",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0036_usdc_index.sql",
+    "line": 169,
+    "sha256": "827d11a7e351bd2e9ba94da3e7af20e3bc454f131676d9e5ce1978ddff5acc6a"
+  },
+  "definition": "create table if not exists usdc_index_issues (\n  id          bigserial primary key,\n  stream      smallint not null,\n  kind        text not null,\n  block       bigint,\n  detail      text not null,\n  created_at  timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 169,
+      "sha256": "827d11a7e351bd2e9ba94da3e7af20e3bc454f131676d9e5ce1978ddff5acc6a",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 186,
+      "sha256": "164dafa173f3d4f8e7b49375cae292723dd9983766fe8be6a901abc29ee79a09",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 213,
+      "sha256": "c3b7ec729cfdd93ee6035c1f7782557fba97363f3a9923a7795332752afe6b65",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 186,
+        "sha256": "164dafa173f3d4f8e7b49375cae292723dd9983766fe8be6a901abc29ee79a09"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

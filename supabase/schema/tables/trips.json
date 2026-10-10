@@ -1,0 +1,66 @@
+{
+  "name": "trips",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0002_durability.sql",
+    "line": 21,
+    "sha256": "20974bc4e134a18594baa1920bc03338709c4e88e48cb84b3657a2bcaf59a5b0"
+  },
+  "definition": "create table trips (\n  id             text primary key,\n  user_id        uuid references users (id) on delete cascade,\n  name           text not null,\n  city           text not null,\n  image          text not null default '',    -- tailwind gradient token\n  check_in       date not null,\n  check_out      date not null,\n  nights         smallint not null check (nights > 0),\n  guests         smallint not null check (guests > 0),\n  amount_usd     numeric(20, 2) not null check (amount_usd >= 0),\n  source         text not null check (source in ('travala', 'legacy')),\n  method         text not null,               -- human label of the payment method\n  status         text not null default 'confirmed'\n                 check (status in ('confirmed', 'pending', 'cancelled')),\n  tx_hash        text,\n  card_last4     text,\n  cashback_usd   numeric(20, 2) not null default 0,\n  refund_status  text,\n  ticket         jsonb,                        -- TicketCnft receipt (mint address etc.)\n  created_at     timestamptz not null default now()\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 21,
+      "sha256": "20974bc4e134a18594baa1920bc03338709c4e88e48cb84b3657a2bcaf59a5b0",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 43,
+      "sha256": "e6ba3e3a80d21ed4548410ef74190fabe65f913ef377952dd516b287f5c266b0",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 154,
+      "sha256": "6917120dc5d103efba27086cc14eb9a58881d309758c71756a9bc13e8d9d85a6",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/components/terminal/ExpensePanels.tsx",
+      "line": 216
+    },
+    {
+      "file": "apps/web/src/components/trips/BottomNavigation.tsx",
+      "line": 10
+    },
+    {
+      "file": "apps/web/src/components/trips/TripsApp.tsx",
+      "line": 22
+    },
+    {
+      "file": "apps/web/src/components/trips/TripsApp.tsx",
+      "line": 31
+    },
+    {
+      "file": "packages/cli/lib/commands.js",
+      "line": 553
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0002_durability.sql",
+        "line": 154,
+        "sha256": "6917120dc5d103efba27086cc14eb9a58881d309758c71756a9bc13e8d9d85a6"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "name": "dividend_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0006_corporate_actions.sql",
+    "line": 123,
+    "sha256": "34c76f5caa34458aab70684d9c4083069432b2ede38efe5913dedca0f95e7129"
+  },
+  "definition": "CREATE TABLE IF NOT EXISTS dividend_events (\n  id                   TEXT PRIMARY KEY,\n  user_id              UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  corporate_action_id  TEXT NOT NULL REFERENCES corporate_actions(id),\n  symbol               TEXT NOT NULL,\n  -- Position on the RECORD DATE, not today. Stored because today's holding\n  -- cannot reproduce it after any later trade.\n  shares_held          NUMERIC(20, 8) NOT NULL CHECK (shares_held >= 0),\n  amount_per_share     NUMERIC(20, 6) NOT NULL,\n  gross_amount         NUMERIC(20, 2) NOT NULL,\n  withholding_tax      NUMERIC(20, 2) NOT NULL DEFAULT 0,\n  net_amount           NUMERIC(20, 2) NOT NULL,\n  reinvested           BOOLEAN NOT NULL DEFAULT false,\n  drip_lot_id          TEXT REFERENCES trade_lots(id),\n  status               TEXT NOT NULL DEFAULT 'pending'\n                         CHECK (status IN ('announced', 'pending', 'paid', 'reinvested')),\n  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),\n\n  -- One payout per user per action; a retried job must not double-pay.\n  CONSTRAINT dividend_once_per_user UNIQUE (user_id, corporate_action_id)\n);",
+  "dependencies": [
+    "corporate_actions",
+    "trade_lots",
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 123,
+      "sha256": "34c76f5caa34458aab70684d9c4083069432b2ede38efe5913dedca0f95e7129",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 145,
+      "sha256": "4cd83360c2c628b76d0891a73f6698898efd1d969371ff0a0c58bb27d3d90248",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 162,
+      "sha256": "d64ae896065f8c3c090ae41171becac481f2dc7a787efb601f1c7ff4c2eb6328",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0017_schema_assertions.sql",
+      "line": 44,
+      "sha256": "9ec804cca8cc4725e6cdce2f563ba235edb8c5005967187919d9ff9e3b3fba5c",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0023_schema_assertions_v2.sql",
+      "line": 31,
+      "sha256": "cafc4d20baaf5c237a89072b89fa6b0b4b6e7b95842cde9b182c2ead40fc3572",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 246,
+      "sha256": "18348637e2cdb31366dd2a713a871b8df7f58b67a57e2e921cb706913ed3eeb5",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 578
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 579
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 611
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 618
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 619
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0006_corporate_actions.sql",
+        "line": 162,
+        "sha256": "d64ae896065f8c3c090ae41171becac481f2dc7a787efb601f1c7ff4c2eb6328"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "name": "trade_lots",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0006_corporate_actions.sql",
+    "line": 68,
+    "sha256": "31985ce2e5b4fcb6bf1ac3ac8ab03275fe6ef97b0f4a784c30c8a67bd907810a"
+  },
+  "definition": "CREATE TABLE IF NOT EXISTS trade_lots (\n  id                   TEXT PRIMARY KEY,\n  user_id              UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  symbol               TEXT NOT NULL,\n  -- Shares REMAINING in this lot; a partial sale reduces it.\n  quantity             NUMERIC(20, 8) NOT NULL CHECK (quantity >= 0),\n  -- Cost of the remaining quantity, not of the original purchase.\n  cost_basis           NUMERIC(20, 2) NOT NULL CHECK (cost_basis >= 0),\n  -- Drives FIFO ordering AND the short/long-term holding period.\n  acquired_at          TIMESTAMPTZ NOT NULL,\n  status               TEXT NOT NULL DEFAULT 'open'\n                         CHECK (status IN ('open', 'closed', 'split_adjusted')),\n  -- WHERE THIS LOT CAME FROM. First-class column, not an id-prefix convention,\n  -- because downstream systems must be able to tell a real fill from a\n  -- reconstructed one:\n  --   execution        a real order fill. acquired_at is observed fact.\n  --   backfill         synthesised from the legacy `holdings` aggregate during\n  --                    the 0006 rollout. acquired_at is an ESTIMATE and the\n  --                    blended basis cannot be decomposed into the real\n  --                    purchases, so holding period and FIFO order are\n  --                    approximations. Must never be reported as tax fact.\n  --   corporate_action created by a split/merger adjustment.\n  --   seed             demo/fixture data.\n  -- Tax reporting, support and audit all need this distinction; inferring it\n  -- from an id prefix is fragile and unqueryable.\n  provenance           TEXT NOT NULL DEFAULT 'execution'\n                         CHECK (provenance IN ('execution', 'backfill', 'corporate_action', 'seed')),\n  -- DEFERRABLE for the split path: applySplit() emits the superseded lot AND\n  -- its replacement in one write, and the replacement references the original.\n  -- See the note on corporate_actions.supersedes.\n  source_lot_id        TEXT REFERENCES trade_lots(id)\n                         DEFERRABLE INITIALLY DEFERRED,\n  corporate_action_id  TEXT REFERENCES corporate_actions(id),\n  order_id             TEXT,\n  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),\n\n  -- An open lot with no shares is a closed lot that forgot to say so; it would\n  -- pollute FIFO ordering forever.\n  CONSTRAINT open_lot_has_shares CHECK (status <> 'open' OR quantity > 0)\n);",
+  "dependencies": [
+    "corporate_actions",
+    "trade_lots",
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 68,
+      "sha256": "31985ce2e5b4fcb6bf1ac3ac8ab03275fe6ef97b0f4a784c30c8a67bd907810a",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 111,
+      "sha256": "f4d91967208cf41e5d55652d8de8e0b650bd0e4b502633257c1aab6c51293b64",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 116,
+      "sha256": "afb00c5d24576f3fab22ee1acb3e78b600c6529f0f3d032f465c4eff7aad5497",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 123,
+      "sha256": "34c76f5caa34458aab70684d9c4083069432b2ede38efe5913dedca0f95e7129",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 161,
+      "sha256": "3e4caeb7d836463266a87a69f96fd0c4671aff2dfcaead5110b6252623f2094f",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0007_reorganizations.sql",
+      "line": 23,
+      "sha256": "16e1ee0d047f818e8108bb59bd8dba299fc9c90ededcd5eea71878f87975a031",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0007_reorganizations.sql",
+      "line": 25,
+      "sha256": "ebe50941df32a413fc4556972eb1841f1016b72d3ffc6a847555dfac824e697b",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0007_reorganizations.sql",
+      "line": 37,
+      "sha256": "99f88d50f9beae0825ce6961cb2d55ba1c850f77d93daf42c64cb628a7a37fc9",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0007_reorganizations.sql",
+      "line": 40,
+      "sha256": "2c8e539e5841b1ea3e512e530ae0e071cb41ed22dba78f3d5c2d22137f61c5c7",
+      "kind": "comment on"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 372
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 373
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 986
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0006_corporate_actions.sql",
+        "line": 161,
+        "sha256": "3e4caeb7d836463266a87a69f96fd0c4671aff2dfcaead5110b6252623f2094f"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

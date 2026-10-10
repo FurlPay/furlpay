@@ -1,0 +1,134 @@
+{
+  "name": "notifications",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0011_notifications.sql",
+    "line": 38,
+    "sha256": "6c83304adcc3ef12eb7751010ca3f253d1ead38ec866d861ce485be77f8eefa8"
+  },
+  "definition": "create table notifications (\n  -- Application-generated (crypto.randomUUID), matching contacts/cards/bills\n  -- which are also app-assigned ids rather than database defaults.\n  id          text primary key,\n\n  -- References this schema's own users table, NOT auth.users — see the RLS note\n  -- above. Cascade so account deletion takes the notification history with it;\n  -- an erasure request that leaves \"your withdrawal failed\" behind has not\n  -- erased anything that matters.\n  user_id     uuid not null references users (id) on delete cascade,\n\n  -- Closed set. Grouped by the subsystem that emits them so a reader can tell\n  -- at a glance which surface owns a given type.\n  type        text not null check (type in (\n                -- Funding\n                'deposit_completed', 'deposit_failed',\n                'withdrawal_completed', 'withdrawal_failed',\n                -- Investing. `trade_action_required` is the one that exists\n                -- because the brokerage port models indeterminate submissions:\n                -- an order whose outcome the provider will not confirm is not a\n                -- success and not a failure, and the user has to be told that\n                -- rather than shown a guess.\n                'trade_submitted', 'trade_filled', 'trade_rejected',\n                'trade_action_required',\n                -- Spending\n                'card_transaction',\n                -- Travel\n                'booking_confirmed', 'booking_failed',\n                -- Account\n                'security_alert', 'kyc_update', 'price_alert',\n                'system_announcement'\n              )),\n\n  -- Rendered at write time, not at read time. Bounded so the table cannot\n  -- become blob storage, and non-empty after trimming so \" \" cannot become an\n  -- unreadable notification.\n  title       text not null check (length(btrim(title)) between 1 and 120),\n  message     text not null check (length(btrim(message)) between 1 and 500),\n\n  -- Where tapping the notification should land, as an app-relative path.\n  -- CONSTRAINED TO A RELATIVE PATH ON PURPOSE: this value is interpolated into\n  -- an href, and an absolute URL here would make the notification table an open\n  -- redirect vector reachable by anything that can write a row. Must start with\n  -- a single '/' and must not start with '//' (protocol-relative).\n  link        text check (link is null or (link ~ '^/[^/]' and length(link) <= 512)),\n\n  read_at     timestamptz,\n\n  -- Type-specific payload: order id, tx hash, amount, symbol. Must be an\n  -- OBJECT, not an array or scalar, and bounded — an unbounded blob would make\n  -- every notification list query unbounded too.\n  metadata    jsonb not null default '{}'::jsonb\n              check (jsonb_typeof(metadata) = 'object'\n                     and pg_column_size(metadata) <= 4096),\n\n  created_at  timestamptz not null default now()\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 17,
+      "sha256": "dfdc622f659ce2005a0fd6f4b5d0cce11ed9d0509cfc60ca08a0cb709629377d",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 38,
+      "sha256": "6c83304adcc3ef12eb7751010ca3f253d1ead38ec866d861ce485be77f8eefa8",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 98,
+      "sha256": "070b9797906f3db22ee8d868d149870d0909b391f4c3b9d7269ce02ac0b394f8",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 105,
+      "sha256": "c9366767756b7f99407e9f91b40b21892f78cd71cc40166189cf20256e0c0549",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 120,
+      "sha256": "f10f404d168b1fb7d2e3032d9590544893abcb8e0ee8c4675d632ead7cee4cf8",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 140,
+      "sha256": "8798fab32b36c11de7015caa13d0c76f121545ff72a524fab935b2acd00b98af",
+      "kind": "comment on"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 146,
+      "sha256": "bfd705068217bf8229d5a0290ba45b06dc37a34d4af50d57d681bbe4a8f83b43",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/components/profile/PreferencesSection.tsx",
+      "line": 48
+    },
+    {
+      "file": "apps/web/src/components/profile/PreferencesSection.tsx",
+      "line": 85
+    },
+    {
+      "file": "apps/web/src/components/profile/PreferencesSection.tsx",
+      "line": 117
+    },
+    {
+      "file": "apps/web/src/components/settlement/onboarding/stepsTreasury.tsx",
+      "line": 276
+    },
+    {
+      "file": "apps/web/src/components/settlement/onboarding/stepsTreasury.tsx",
+      "line": 308
+    },
+    {
+      "file": "apps/web/src/components/settlement/onboarding/stepsTreasury.tsx",
+      "line": 472
+    },
+    {
+      "file": "apps/web/src/components/settlement/onboarding/stepsTreasury.tsx",
+      "line": 488
+    },
+    {
+      "file": "apps/web/src/lib/services/notifications.ts",
+      "line": 183
+    },
+    {
+      "file": "apps/web/src/lib/services/notifications.ts",
+      "line": 241
+    },
+    {
+      "file": "apps/web/src/lib/services/notifications.ts",
+      "line": 242
+    },
+    {
+      "file": "apps/web/src/lib/services/notifications.ts",
+      "line": 251
+    },
+    {
+      "file": "apps/web/src/lib/services/notifications.ts",
+      "line": 252
+    },
+    {
+      "file": "apps/web/src/lib/services/notifications.ts",
+      "line": 261
+    },
+    {
+      "file": "apps/web/src/lib/services/notifications.ts",
+      "line": 262
+    },
+    {
+      "file": "apps/web/src/lib/services/notifications.ts",
+      "line": 314
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 66
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0011_notifications.sql",
+        "line": 146,
+        "sha256": "bfd705068217bf8229d5a0290ba45b06dc37a34d4af50d57d681bbe4a8f83b43"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

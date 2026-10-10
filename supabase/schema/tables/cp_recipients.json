@@ -1,0 +1,70 @@
+{
+  "name": "cp_recipients",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0021_recipient_attestation.sql",
+    "line": 39,
+    "sha256": "1c5b0d545fc241d775ee96d6b19caae33947da84647bad3b92311a8a031e74ba"
+  },
+  "definition": "create table if not exists cp_recipients (\n  -- CHOSEN BY THE TENANT, so the primary key MUST be composite.\n  --\n  -- This started as `id text primary key` and an integration test caught it:\n  -- with a global key, the first tenant to create `rcp_acme` permanently\n  -- prevents every other tenant from using that id, and the 23505 they receive\n  -- tells them the id is taken. That is two defects in one — a cross-tenant\n  -- namespace squat and an existence oracle over other tenants' recipient names\n  -- — in a table whose entire purpose is tenant-scoped trust.\n  --\n  -- Server-generated ids (`cpm_<uuid>`, as `cp_mandates` uses) would also avoid\n  -- it, but recipient ids are deliberately caller-chosen so an enterprise can\n  -- use its own supplier numbers. Given that, the tenant belongs in the key.\n  id                text not null,\n  organization_id   text not null references cp_organizations(id) on delete cascade,\n  display_name      text not null,\n  -- The domain FurlPay PROVED control of, never one copied from a request. Null\n  -- is the honest value for a recipient whose domain was never verified, and\n  -- `verifyRecipient` denies a domain-bearing payment against a null.\n  verified_domain   text,\n  status            text not null default 'PENDING'\n                      check (status in ('ACTIVE', 'BLOCKED', 'PENDING')),\n  mcc               text,\n  jurisdiction      text check (jurisdiction is null or jurisdiction ~ '^[A-Z]{2}$'),\n  first_seen_at     timestamptz not null default now(),\n  created_at        timestamptz not null default now(),\n  updated_at        timestamptz not null default now(),\n\n  -- Tenant first: it is the leading column of every lookup, and it is what\n  -- makes two tenants' identically-named recipients two different rows.\n  primary key (organization_id, id)\n);",
+  "dependencies": [
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 39,
+      "sha256": "1c5b0d545fc241d775ee96d6b19caae33947da84647bad3b92311a8a031e74ba",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 72,
+      "sha256": "238fd4d1bd50fbec0c4198bb3077aa1fa374c6304b8b8489a20c355fbfbc1904",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 73,
+      "sha256": "45d358e4ff2225a69e539bca124f833fd9e560dd61c5019863daea358177b6f2",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 78,
+      "sha256": "2178bbdfdb89612b44d7bfe00ad449f78f1e13a2a0d92f8ffc9d6a142975e6d7",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 139,
+      "sha256": "571c9c8f5ef4334666933deb16d055cff2f383564b61a95cef6c1562e17fb70e",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/recipientStore.ts",
+      "line": 105
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/recipientStore.ts",
+      "line": 106
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/recipientStore.ts",
+      "line": 237
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0021_recipient_attestation.sql",
+        "line": 139,
+        "sha256": "571c9c8f5ef4334666933deb16d055cff2f383564b61a95cef6c1562e17fb70e"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

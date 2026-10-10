@@ -1,0 +1,79 @@
+{
+  "name": "usdc_transfers",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0036_usdc_index.sql",
+    "line": 72,
+    "sha256": "5a22133fdb691966db8fa62368fec9dfcb35782fa0e26ff874943b9e07d126b3"
+  },
+  "definition": "create table if not exists usdc_transfers (\n  stream        smallint not null,\n  block_number  bigint not null,\n  log_index     integer not null check (log_index >= 0),\n  block_time    timestamptz not null,\n  tx_index      integer not null check (tx_index >= 0),\n  tx_hash       bytea not null check (length(tx_hash) = 32),\n  sender        bytea not null check (length(sender) = 20),\n  recipient     bytea not null check (length(recipient) = 20),\n  amount_raw    bigint not null check (amount_raw >= 0),   -- USDC supply < 2^63 base units; larger is refused, not truncated\n  kind          smallint not null check (kind in (0, 1, 2)), -- 0 transfer, 1 mint (from 0x0), 2 burn (to 0x0)\n  primary key (stream, block_number, log_index)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 72,
+      "sha256": "5a22133fdb691966db8fa62368fec9dfcb35782fa0e26ff874943b9e07d126b3",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 86,
+      "sha256": "9568229f9fee4cdded0721798cb873d7ad4e1fd6d8621348c15b8b7b0d8b1dc3",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 87,
+      "sha256": "1d2532f32d9b24ab4f8a04efd77cdc01bcef3bbd16a1a3ba744ac38c39cb648e",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 180,
+      "sha256": "61cf78f66fb061dbb99cf88887fcea32a98f18b113dfe76e958020d0533c4bdc",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 276,
+      "sha256": "711b6b1548044b116d97c258f04c48505e43b00487685b2e5eee94f9ba22f0bd",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 428,
+      "sha256": "bab846c3fe93db835312cffd48cda42c1612af50c5b73a1eef44bd22f340942b",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 448,
+      "sha256": "3dbf02382cc440d7d1d8615d1c5c9d0d0dc1f8cf486846ffab63f80e4f37f76b",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 467,
+      "sha256": "e9f1e719f1d3ed7922e01031bc169f68f618a23337f616e43bfa5d965a9feea9",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 481,
+      "sha256": "260ebbd371e399631a089eb751de3f5333be9e0e532e167398874224ac52f8f0",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 180,
+        "sha256": "61cf78f66fb061dbb99cf88887fcea32a98f18b113dfe76e958020d0533c4bdc"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

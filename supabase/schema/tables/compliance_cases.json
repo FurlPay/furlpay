@@ -1,0 +1,104 @@
+{
+  "name": "compliance_cases",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0039_compliance_cases.sql",
+    "line": 9,
+    "sha256": "551aded9bb8bf64a68b7e5634c62ad2a8283904fb222d3caf10ea3745d228db2"
+  },
+  "definition": "create table if not exists public.compliance_cases (\n  id uuid primary key,\n  source_key text not null unique check (length(source_key) between 3 and 300),\n  case_type text not null check (case_type in ('kyc_review','kyb_review','sanctions_match','pep_match','adverse_media','fraud','monitoring_alert','travel_rule','wallet_screening','settlement_hold')),\n  status text not null check (status in ('OPEN','TRIAGED','ASSIGNED','INVESTIGATING','ESCALATED','DECISION_PENDING','RESOLVED','CLOSED')),\n  severity text not null check (severity in ('low','medium','high','critical')),\n  subject_id text not null,\n  assignee text,\n  sla_due_at timestamptz not null,\n  data jsonb not null check (jsonb_typeof(data) = 'object'),\n  created_at timestamptz not null default now(),\n  updated_at timestamptz not null default now(),\n  version integer not null default 1 check (version >= 1),\n  constraint compliance_cases_data_size check (octet_length(data::text) <= 262144)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 9,
+      "sha256": "551aded9bb8bf64a68b7e5634c62ad2a8283904fb222d3caf10ea3745d228db2",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 24,
+      "sha256": "a8c13a57c0df88d94753ea103b408f0fe4279097dc8498ffae1eb6a2c981b066",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 25,
+      "sha256": "eaaeafcce4d9b19940a36de36044845c23f6ed8ed324a3b9cf1b4099aa3e0200",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 26,
+      "sha256": "786b07d452e965380d44dbad902303961c796d0eefa532cdccbb947b31e797ff",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 27,
+      "sha256": "1dbc3aa3f5d38fe63c88395106fbd6035469a03030e2064352dc31e83737e1c1",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 28,
+      "sha256": "ebac53323a376627ee050907485472685d227b33d444485775a4ef13a011ebe6",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 29,
+      "sha256": "53639a1efc139e5dc5f69f88d6443a11e5b9c9a697d111fcf8c4020d91b64ca6",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 30,
+      "sha256": "8be3085159db8b5f060aae30c83d422495ba9fe72e1ab54fe4342a9bdb58237e",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0039_compliance_cases.sql",
+      "line": 31,
+      "sha256": "7bcf18d10bb67516e87a79ae69cc283cc7938983a8d9473322f3f62fee50ff0d",
+      "kind": "comment on"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/compliance/caseStore.ts",
+      "line": 21
+    },
+    {
+      "file": "apps/web/src/lib/compliance/caseStore.ts",
+      "line": 63
+    },
+    {
+      "file": "apps/web/src/lib/compliance/caseStore.ts",
+      "line": 74
+    },
+    {
+      "file": "apps/web/src/lib/compliance/caseStore.ts",
+      "line": 100
+    },
+    {
+      "file": "apps/web/src/lib/compliance/caseStore.ts",
+      "line": 123
+    },
+    {
+      "file": "apps/web/src/lib/compliance/caseStore.ts",
+      "line": 152
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0039_compliance_cases.sql",
+        "line": 28,
+        "sha256": "ebac53323a376627ee050907485472685d227b33d444485775a4ef13a011ebe6"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

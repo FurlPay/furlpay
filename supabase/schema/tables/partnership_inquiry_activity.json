@@ -1,0 +1,72 @@
+{
+  "name": "partnership_inquiry_activity",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0049_partnership_inquiries.sql",
+    "line": 46,
+    "sha256": "a6740384bb823bab84855f83cfda126a68a63cafaeafb3b5e4cde5f0ade4fd14"
+  },
+  "definition": "create table partnership_inquiry_activity (\n  id bigint generated always as identity primary key,\n  inquiry_id uuid not null references partnership_inquiries(id) on delete cascade,\n  kind text not null check (kind in ('note','status')),\n  from_status text, to_status text,\n  note text check (char_length(note) between 1 and 2000),\n  actor text not null,\n  created_at timestamptz not null default now(),\n  check ((kind = 'status') = (to_status is not null)),\n  check (kind <> 'note' or note is not null)\n);",
+  "dependencies": [
+    "partnership_inquiries"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 46,
+      "sha256": "a6740384bb823bab84855f83cfda126a68a63cafaeafb3b5e4cde5f0ade4fd14",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 57,
+      "sha256": "843580aafacd2c3267f53e830b7d813e6a4b033ba3d66d27789c2ba3f80254e7",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 60,
+      "sha256": "d4a1396147d3839767b9bb7598a1814b4b64af20a0e928cef60359846b285738",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 61,
+      "sha256": "57284265c5051d733b34bd9747f75513f9f56c73649600073eaa64741d5a5ec7",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 63,
+      "sha256": "cd5daad3461f2b0759fb46b1da38bc794c4ca725ffbff68afd3d92d6b966203b",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 85,
+      "sha256": "fb3cbfa562fe526c22623552b8e531d5de73ac6cc55a0609fd70eef9402b1ed8",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/partnerships/repository.ts",
+      "line": 71
+    },
+    {
+      "file": "apps/web/src/lib/partnerships/repository.ts",
+      "line": 82
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0049_partnership_inquiries.sql",
+        "line": 60,
+        "sha256": "d4a1396147d3839767b9bb7598a1814b4b64af20a0e928cef60359846b285738"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -1,0 +1,98 @@
+{
+  "name": "partnership_inquiries",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0049_partnership_inquiries.sql",
+    "line": 20,
+    "sha256": "d2f2fc1ed2905b9790a7909fe330db172435d667162b4aa0367f33028eab6ae5"
+  },
+  "definition": "create table partnership_inquiries (\n  id uuid primary key default gen_random_uuid(),\n  company_name text not null check (char_length(company_name) between 2 and 120),\n  work_email text not null check (char_length(work_email) <= 254 and work_email ~ '^[^@\\s]+@[^@\\s]+\\.[^@\\s]{2,}$' and work_email = lower(work_email)),\n  contact_method text not null check (contact_method in ('telegram','whatsapp','email','linkedin','discord','other')),\n  contact_detail text not null check (char_length(contact_detail) between 2 and 300),\n  full_name text check (char_length(full_name) <= 120),\n  job_title text check (char_length(job_title) <= 120),\n  website text check (website is null or (char_length(website) <= 300 and website ~ '^https?://')),\n  partnership_interest text not null check (partnership_interest in (\n    'stablecoin-infrastructure','banking-infrastructure','card-issuing','wallet-custody','travel-commerce','ai-agent-payments',\n    'merchant-integrations','cross-border-settlement','developer-api','security-compliance','ecosystem-technology','strategic-business')),\n  additional_information text check (char_length(additional_information) <= 4000),\n  status text not null default 'new' check (status in ('new','reviewing','contacted','qualified','in_discussion','accepted','declined','closed')),\n  source_page text not null default 'direct' check (char_length(source_page) <= 60),\n  -- Whether the internal team was told: 'not_configured' means no email provider, never \"sent\".\n  notification_state text not null default 'pending' check (notification_state in ('pending','sent','not_configured','failed')),\n  notified_at timestamptz,\n  submitted_day date not null default (now() at time zone 'utc')::date,\n  created_at timestamptz not null default now(),\n  updated_at timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 20,
+      "sha256": "d2f2fc1ed2905b9790a7909fe330db172435d667162b4aa0367f33028eab6ae5",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 42,
+      "sha256": "ac4722e70c886d8b1fabd0644f626df3eb46201ac77f7d62f640fa8b5a84fcbe",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 43,
+      "sha256": "4566cf98862d4a1aaeb84bb40a9486c0050a71099162b5c65c7ae24ee6e99335",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 46,
+      "sha256": "a6740384bb823bab84855f83cfda126a68a63cafaeafb3b5e4cde5f0ade4fd14",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 59,
+      "sha256": "d1bf32e040ff3faefb0514a0ab966bcb3798ef8a1ab5b4c365ee809dc19ab921",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 61,
+      "sha256": "57284265c5051d733b34bd9747f75513f9f56c73649600073eaa64741d5a5ec7",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 62,
+      "sha256": "2b30f6eb5b6a9a17bb4f81480ebf70114b19faf061fe96a174209b0e5cae8617",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 65,
+      "sha256": "c2d16665617d72d04ad771067059506f7244e11966920f53eaa3841eb72141e0",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 85,
+      "sha256": "fb3cbfa562fe526c22623552b8e531d5de73ac6cc55a0609fd70eef9402b1ed8",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 97,
+      "sha256": "a3f35a9d7a027ba3423b0740e2f9adcbc8cb4320d75f471d2e3f1c4fb4035b09",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/partnerships/repository.ts",
+      "line": 49
+    },
+    {
+      "file": "apps/web/src/lib/partnerships/repository.ts",
+      "line": 64
+    },
+    {
+      "file": "apps/web/src/lib/partnerships/repository.ts",
+      "line": 69
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0049_partnership_inquiries.sql",
+        "line": 59,
+        "sha256": "d1bf32e040ff3faefb0514a0ab966bcb3798ef8a1ab5b4c365ee809dc19ab921"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

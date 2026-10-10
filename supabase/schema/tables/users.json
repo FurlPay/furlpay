@@ -1,0 +1,310 @@
+{
+  "name": "users",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0001_init.sql",
+    "line": 17,
+    "sha256": "dfdc622f659ce2005a0fd6f4b5d0cce11ed9d0509cfc60ca08a0cb709629377d"
+  },
+  "definition": "create table users (\n  id             uuid primary key,\n  name           text not null,\n  email          citext not null,\n  phone          text,                       -- E.164\n  phone_verified boolean not null default false,\n  auth_provider  text check (auth_provider in ('passkey', 'google', 'apple', 'phone', 'email')),\n  google_sub     text,\n  apple_sub      text,\n  safe_address   text not null,\n  kyc_status     text not null default 'unverified'\n                 check (kyc_status in ('verified', 'pending', 'unverified')),\n  kyc_tier       smallint not null default 0 check (kyc_tier between 0 and 3),\n  region         text not null default 'GLOBAL'\n                 check (region in ('EEA', 'US', 'IN', 'GLOBAL')),\n  tier           text not null default 'Standard'\n                 check (tier in ('Standard', 'Pro', 'Ultra')),\n  roles          text[] not null default '{user}',\n  security       jsonb not null default '{}'::jsonb,\n  notifications  jsonb not null default '{}'::jsonb,\n  created_at     timestamptz not null default now(),\n  updated_at     timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 17,
+      "sha256": "dfdc622f659ce2005a0fd6f4b5d0cce11ed9d0509cfc60ca08a0cb709629377d",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 43,
+      "sha256": "3426a8a2c717fbcb0265be5e509db2baf4d9d89f22a1f83ec3005a9061e74e3f",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 44,
+      "sha256": "9e99c95654b43aa9bff770926d3ca58ec1a65c48ccb4aef20f62ffa0a50b9f5d",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 45,
+      "sha256": "2d10febfd4d2136ce020b23e241beb730853eb59da51ebdae942e5d1f2e72da6",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 46,
+      "sha256": "5afef3f64fba3fd07564798b60d016704ff6a005f9c9fd8099719b145b947b8f",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 50,
+      "sha256": "6b9e19fc4463d1727631ed8322790f7795ddba4474b0b0adb15bb6757d8fdf2b",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 59,
+      "sha256": "7f5bf84cf19d536cd3931f5c48a3207408485621e59630bbe6655b1b7b6519f5",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 68,
+      "sha256": "31bd3eda5803b6e002464ca772e652c6c530b34c93effe0bc37f63d6a1708fe9",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 82,
+      "sha256": "d655786071d1ebf5977a73f86c0e94fc4c1627059796be21f60cc170411f738a",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 97,
+      "sha256": "6f191e70556a53ee33fadc5a4984cf1d16899b077644793d9a7b748205cfeeb2",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 111,
+      "sha256": "57a7defbf8f1c4125652f1f42fd2c026e03727c895753800ef5a96257f43c72e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 138,
+      "sha256": "b2792cd7c905774620fca8ce34ee9d98fb38223affffe833a9feb6d7594b201a",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 144,
+      "sha256": "ab7fb4f7ce4b263ba432d709123bdd7eccd801076979a3bd6192a1e590b14961",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 21,
+      "sha256": "20974bc4e134a18594baa1920bc03338709c4e88e48cb84b3657a2bcaf59a5b0",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 50,
+      "sha256": "be3c5614eba3cec8ec4d84127e0c739a4d94ad44db88e7a918200a64d7aa70dd",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0005_linked_wallets.sql",
+      "line": 16,
+      "sha256": "d1b18f49034715e6c8dcb1a2796d104dc9a6c0eee4cc0a01030eda0db6c45e0f",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 68,
+      "sha256": "31985ce2e5b4fcb6bf1ac3ac8ab03275fe6ef97b0f4a784c30c8a67bd907810a",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 123,
+      "sha256": "34c76f5caa34458aab70684d9c4083069432b2ede38efe5913dedca0f95e7129",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0007_reorganizations.sql",
+      "line": 65,
+      "sha256": "bdf9e8acdb8241718bc9941a0f63667f94e63b9855a753b4d6202408e1083192",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0007_reorganizations.sql",
+      "line": 68,
+      "sha256": "8c97c1a13042bad571b83a0e94ee5b26c168d5c968a73a0b27adf7538ae406d9",
+      "kind": "comment on"
+    },
+    {
+      "file": "supabase/migrations/0008_reorg_settlement.sql",
+      "line": 19,
+      "sha256": "24a8e381305b21703722115b2e743bb245ad92fdad56ea7c94ed11d560d21a19",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 24,
+      "sha256": "e19d70b1cdfcdeaa60a5d229a18300aa33cdeb962e15927ba0cb38a0d11359f0",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 38,
+      "sha256": "6c83304adcc3ef12eb7751010ca3f253d1ead38ec866d861ce485be77f8eefa8",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0026_cashback_accruals.sql",
+      "line": 29,
+      "sha256": "cf1c9862cd80c5059f94fe37434b967ef04f4991aa49073a39be348c8f5fd8c5",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 48,
+      "sha256": "b1d522117a4d68a6a20afb39a0997f264b8ea0fe1540e25914ae9cf5ef1f1dac",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 99,
+      "sha256": "9e325859e737989a9aa3e17ab403a7bf59217cbad42ec672bfe1dfca97984794",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 117,
+      "sha256": "f16f4a666719fab10db4d698b99238871ef920d0a683d96483a039b0cd5fe30b",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 137,
+      "sha256": "1ef6e8bfc568c6f8557bf8a299d91397b0edfd4f28ff09f5518d1e69cb14a134",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 98,
+      "sha256": "4916dbd168966fbb364f2482711b9e5e2ad5ee493466bb1f808dff1e1ed25651",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 139,
+      "sha256": "6e0bfd63ab7f082161560e1f6afd9b9e05b646b6b5e661098a12217620f22e80",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 158,
+      "sha256": "6419a6eb1eeb6daa37fadbb27a756eee63d190ddba44f82efbcf31540a734e31",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0029_usernames.sql",
+      "line": 26,
+      "sha256": "acf0d53058bbf5b724fbfdcc1e0e873821cc91f81afab49e2fda812a3bd8b8d8",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0029_usernames.sql",
+      "line": 28,
+      "sha256": "d4c267ec951add51e6e423ed124c5fe59b00402267d257cb247ba0d9217f15aa",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0029_usernames.sql",
+      "line": 29,
+      "sha256": "dbf8889e614c0fd2ddaa824cd486c69c2140dec05f24840050fee26e5a4aefb2",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0029_usernames.sql",
+      "line": 37,
+      "sha256": "0690f48c5f3275c7d47078df8f86a0faab8fc32a59083b6310a4a79fe8525004",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0029_usernames.sql",
+      "line": 43,
+      "sha256": "8b49454a10a39c5efe0febe1d90c5e2092d10132dab93d57d52ecdcecc76ea99",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 29,
+      "sha256": "0851e32c937215d5fb04c5a086b03f6220b457c290a52beeda809b880e6c374e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0050_telegram_account_links.sql",
+      "line": 2,
+      "sha256": "32478ee5759b96841fe47628ff84dae52c3896b2e487bd6c38f5389b82e846a5",
+      "kind": "create table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/app/api/compliance/overview/route.ts",
+      "line": 18
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 113
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 114
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 146
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 147
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 148
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 149
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 150
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 563
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 304
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 305
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 742
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 1056
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 1081
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 144,
+        "sha256": "ab7fb4f7ce4b263ba432d709123bdd7eccd801076979a3bd6192a1e590b14961"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

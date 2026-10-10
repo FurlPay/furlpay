@@ -1,0 +1,64 @@
+{
+  "name": "onchain_reconciliation_runs",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0032_onchain_ingestion.sql",
+    "line": 148,
+    "sha256": "0c8c3ab8cffab7e58054e6fd43fa05bd09bf412fe6ad608dc7ab852a2876b70b"
+  },
+  "definition": "create table if not exists onchain_reconciliation_runs (\n  id              bigserial primary key,\n  kind            text not null check (kind in ('backfill', 'reconcile')),\n  started_at      timestamptz not null default now(),\n  finished_at     timestamptz,\n  status          text not null default 'running' check (status in ('running', 'ok', 'partial', 'failed')),\n  addresses       integer not null default 0,\n  provider_events integer not null default 0,\n  inserted        integer not null default 0,\n  duplicates      integer not null default 0,\n  reorg_replaced  integer not null default 0,\n  marked_reorged  integer not null default 0,\n  ledger_flagged  integer not null default 0,\n  errors          jsonb not null default '[]'::jsonb\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 148,
+      "sha256": "0c8c3ab8cffab7e58054e6fd43fa05bd09bf412fe6ad608dc7ab852a2876b70b",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 163,
+      "sha256": "53cc1c669b4eadc1c15dd8e9abcba76db189a8b0fb691cc325a001a447211138",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 554,
+      "sha256": "41f1fa5b15984e93f617edb03102f33f22b43321d12a616fd8d63d6a15585505",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 586,
+      "sha256": "b385e76eeec4bae0e4e06d8eaefdf8a87984f72c3a098cb1d5fcb5c690d32967",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 593,
+      "sha256": "77a76e23c58d3878b9dd044bee3d715982a4b60c74ef1602634c1534c5c685e6",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/sync.ts",
+      "line": 125
+    },
+    {
+      "file": "apps/web/src/lib/onchain/sync.ts",
+      "line": 159
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 586,
+        "sha256": "b385e76eeec4bae0e4e06d8eaefdf8a87984f72c3a098cb1d5fcb5c690d32967"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

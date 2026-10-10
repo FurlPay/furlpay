@@ -1,0 +1,61 @@
+{
+  "name": "onchain_hourly",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0032_onchain_ingestion.sql",
+    "line": 255,
+    "sha256": "8ef806efabd59115598216476af77b7e5d857aad1d1502f97601262869193aae"
+  },
+  "definition": "create table if not exists onchain_hourly (\n  bucket        timestamptz not null,\n  chain         text not null,\n  asset_symbol  text not null,\n  activity_type text not null,\n  direction     text not null,\n  scope         text not null,\n  n             bigint not null,\n  volume_usd    numeric(30, 8) not null,\n  primary key (bucket, chain, asset_symbol, activity_type, direction, scope)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 255,
+      "sha256": "8ef806efabd59115598216476af77b7e5d857aad1d1502f97601262869193aae",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 266,
+      "sha256": "ce9352e4c4fb2f5bd4bd9f3f08b14c017b1b442be50ff183005a50cde578dbdb",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 268,
+      "sha256": "f6a293b0426099b97bbefe9eb499ba50ab4ae2b6c2fd03196720f5872a81ca04",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 588,
+      "sha256": "25c610efd862de3623edc48792bde6e88a3634ab91b93c08cc9e8913545c6470",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 593,
+      "sha256": "77a76e23c58d3878b9dd044bee3d715982a4b60c74ef1602634c1534c5c685e6",
+      "kind": "procedural"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 604,
+      "sha256": "ebe2bcae04d5cc9285487880761e3f4467631142a9b8a34e82f0f89200cf783c",
+      "kind": "grant delete"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 588,
+        "sha256": "25c610efd862de3623edc48792bde6e88a3634ab91b93c08cc9e8913545c6470"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

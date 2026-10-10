@@ -1,0 +1,72 @@
+{
+  "name": "cp_principals",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 64,
+    "sha256": "139e505ccc9c937a58ece89907e8af6f810bc177520d74918797fdd9569af0c8"
+  },
+  "definition": "create table if not exists cp_principals (\n  id              text primary key,\n  organization_id text not null references cp_organizations(id) on delete restrict,\n  -- Matches identity.ts's Principal.kind exactly. A value outside this set\n  -- means a code path we did not model reached the table.\n  kind            text not null check (kind in ('individual', 'entity')),\n  status          text not null default 'ACTIVE'\n                    check (status in ('ACTIVE', 'SUSPENDED', 'REVOKED', 'EXPIRED')),\n  verification    text not null default 'unverified'\n                    check (verification in ('unverified', 'pending', 'verified', 'rejected')),\n  created_at      timestamptz not null default now(),\n  updated_at      timestamptz not null default now(),\n  revoked_at      timestamptz\n);",
+  "dependencies": [
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 64,
+      "sha256": "139e505ccc9c937a58ece89907e8af6f810bc177520d74918797fdd9569af0c8",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 78,
+      "sha256": "f85813497c8b94287ef0fb7e902c230ce952e3534f826f2c210174805440ee68",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 101,
+      "sha256": "db0c4aaff148a6c23814018f1a8f71adad3478674e67d4ea7bffc09decdb64a7",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 119,
+      "sha256": "4dfb662d6fa07163d19f79fca7056aa87cf3dd056b0a6778bbe5deeb8deafd11",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 166,
+      "sha256": "7a684e14e31adf92c7ce39da041453b1647f5e0f4b25a6a6ce8c1db4bcfee50f",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 595,
+      "sha256": "29ecf26361652d2e31ae47ab5d71b7470428e8a880e5fb038a4e1470c21b4664",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 296
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 297
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 595,
+        "sha256": "29ecf26361652d2e31ae47ab5d71b7470428e8a880e5fb038a4e1470c21b4664"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

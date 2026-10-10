@@ -1,0 +1,62 @@
+{
+  "name": "fiat_balances",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0001_init.sql",
+    "line": 59,
+    "sha256": "7f5bf84cf19d536cd3931f5c48a3207408485621e59630bbe6655b1b7b6519f5"
+  },
+  "definition": "create table fiat_balances (\n  user_id       uuid not null references users (id) on delete cascade,\n  currency      text not null,               -- USD, EUR, GBP, INR\n  amount        numeric(20, 2) not null default 0 check (amount >= 0),\n  usd_value     numeric(20, 2) not null default 0,\n  local_details jsonb,                        -- iban / routing / account / swift\n  primary key (user_id, currency)\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 59,
+      "sha256": "7f5bf84cf19d536cd3931f5c48a3207408485621e59630bbe6655b1b7b6519f5",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 146,
+      "sha256": "7ffa958d744fda26ff15c1bfdc4b39038a323f54ff06a04649b4d05fc9fbf893",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0004_save_account_atomic.sql",
+      "line": 21,
+      "sha256": "b40f28114d85d155f907131ca35b8a9e5e7006e69ba1a40b6375c3c9edbb2475",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 77,
+      "sha256": "ad7fb05ac04bb22512734fa6a7a12228fa85ffa89531c917d5b2be8483a0a888",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 190,
+      "sha256": "c5ff1778c1903bd01c62c07b8aeb0f68837880815d9a0839eabef45d54f298da",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 860
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 146,
+        "sha256": "7ffa958d744fda26ff15c1bfdc4b39038a323f54ff06a04649b4d05fc9fbf893"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

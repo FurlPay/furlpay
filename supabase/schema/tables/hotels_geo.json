@@ -1,0 +1,91 @@
+{
+  "name": "hotels_geo",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0012_hotels_geo.sql",
+    "line": 27,
+    "sha256": "679fdc057c9012ffba52c93db24c333d783898cff4350bfebcc8e07e945b00ea"
+  },
+  "definition": "create table hotels_geo (\n  -- The OSM element id (\"osm_n123\", \"osm_w456\") IS the natural key: unique,\n  -- stable, and already how every other layer refers to a hotel. A surrogate\n  -- uuid would add a second identity for the same row with nothing to say.\n  osm_id        text primary key check (osm_id ~ '^osm_[nwr][0-9]+$'),\n\n  name          text not null check (length(btrim(name)) between 1 and 200),\n\n  -- Kept alongside the geography column, not derived from it. The raw pair is\n  -- what the API returns and what the client plots; `location` exists for the\n  -- index. Both are constrained so neither can drift into an impossible value.\n  latitude      double precision not null check (latitude between -90 and 90),\n  longitude     double precision not null check (longitude between -180 and 180),\n\n  -- geography(Point, 4326) rather than geometry: distance and radius queries\n  -- return metres on the spheroid without the caller picking a projection. A\n  -- hotel map is global, so a planar projection would be wrong somewhere.\n  location      geography(Point, 4326) not null,\n\n  city          text check (city is null or length(city) <= 120),\n  -- ISO 3166-1 alpha-2, as OSM's addr:country records it.\n  country_code  text check (country_code is null or country_code ~ '^[A-Za-z]{2}$'),\n\n  -- OSM `stars` is free text (\"5\", \"5S\", \"4.5\"); the ingest parses it and stores\n  -- only a value it could actually parse. NULL means \"not recorded\", which is\n  -- different from — and must never be rendered as — zero stars.\n  stars         numeric(2,1) check (stars is null or stars between 1 and 5),\n  -- OSM `stars=5S` (superior), the tier above plain 5.\n  stars_superior boolean not null default false,\n\n  -- tourism=hotel | resort | guest_house | hostel | apartment\n  hotel_type    text not null default 'hotel' check (length(hotel_type) <= 40),\n  brand         text check (brand is null or length(brand) <= 120),\n\n  -- H3 resolution 9 (~174m edge). Indexed so candidate lookup for\n  -- deduplication and clustering is a hash probe rather than a scan.\n  h3_cell       text not null check (h3_cell ~ '^[0-9a-f]{15}$'),\n\n  -- Derived categories ([\"ultra_luxury\",\"heritage_castles\"]). Recomputed by the\n  -- ingest from tags, never written by a request handler.\n  categories    jsonb not null default '[]'::jsonb\n                check (jsonb_typeof(categories) = 'array'\n                       and jsonb_array_length(categories) <= 16),\n\n  -- FurlPay L-Score, 0-100, computed WITHOUT a live rating (none can be stored).\n  -- Nullable because a property with no stars, brand or amenity tags has no\n  -- honest score — better absent than zero, which would sort as \"worst\".\n  l_score       numeric(4,1) check (l_score is null or l_score between 0 and 100),\n\n  -- Raw OSM tags, so a classification change can be recomputed from the\n  -- original evidence rather than requiring a full re-crawl. Capped so one\n  -- pathological element cannot bloat the table.\n  tags          jsonb not null default '{}'::jsonb\n                check (jsonb_typeof(tags) = 'object' and pg_column_size(tags) <= 8192),\n\n  -- Established supplier match. An ID only — never supplier content. NULL until\n  -- a HIGH-confidence match exists; anything weaker is not durable knowledge.\n  duffel_accommodation_id text\n                check (duffel_accommodation_id is null\n                       or length(duffel_accommodation_id) <= 64),\n  -- When the match was made, so it can be re-verified rather than trusted\n  -- forever.\n  duffel_matched_at timestamptz,\n\n  -- Provenance of the row itself.\n  osm_version   integer,\n  ingested_at   timestamptz not null default now(),\n  updated_at    timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 27,
+      "sha256": "679fdc057c9012ffba52c93db24c333d783898cff4350bfebcc8e07e945b00ea",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 99,
+      "sha256": "007ad0a0186d95eee4766daf51828b7def90223b9f77319acdfdb582494ea91b",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 102,
+      "sha256": "29df699d3a2f4cd1828a895b4484214761b3dac71cc959f7656e5ad3a4c80c91",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 105,
+      "sha256": "a290126944414ce51fc798070f3e0e3e4314666d460746bd8584bd892cc97c47",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 106,
+      "sha256": "2da1458afa193772e6a8c75efc9af84993f7c6d53b3c6ea06abb5db334842dd6",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 110,
+      "sha256": "98290708100e56ad74a41ddd353b3bd1ce7143f5094a15bf288057080266f72b",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 114,
+      "sha256": "657309cdee1aa6670b008dad0d4eafe51a8feca4d26d3fe56e51b2cbf577502c",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 117,
+      "sha256": "90d5e04c9a0357a69630755490a641f563954c404e9d808f751f32a00dd01f3d",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 123,
+      "sha256": "a73a57cc8751e531e4bb2d61a67727d856b2f9b95d241dd43691956714ff52aa",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 140,
+      "sha256": "44e5c19ba7d4fa871ebd29151947a24ca5477afe00c7dade6f529dd7c306853b",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0012_hotels_geo.sql",
+      "line": 144,
+      "sha256": "5e42ea4691555532c5a8eda4a407bfe024d206ae9fb3c3801015583583073cfa",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0012_hotels_geo.sql",
+        "line": 144,
+        "sha256": "5e42ea4691555532c5a8eda4a407bfe024d206ae9fb3c3801015583583073cfa"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

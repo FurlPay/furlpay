@@ -1,0 +1,87 @@
+{
+  "name": "cctp_transfer_evidence",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0035_cctp_v2.sql",
+    "line": 107,
+    "sha256": "292f314f02368ea513a9b82c7e277de1b0c781ce4c546cd2007732ec316d0696"
+  },
+  "definition": "create table if not exists cctp_transfer_evidence (\n  id           bigserial primary key,\n  transfer_id  bigint not null references cctp_transfers (id) on delete cascade,\n  kind         text not null,\n  detail       jsonb not null,\n  created_at   timestamptz not null default now()\n);",
+  "dependencies": [
+    "cctp_transfers"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 107,
+      "sha256": "292f314f02368ea513a9b82c7e277de1b0c781ce4c546cd2007732ec316d0696",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 114,
+      "sha256": "168d8990a62e3307bdbe0314a533b8190daf760b8e20d6ec9e7bd6aaaa3f12b8",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 123,
+      "sha256": "9104386d724333ac52e1166976bc00efa73e26b3355576b7108f31aeaf261079",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 162,
+      "sha256": "3761cd8f674e978a3dd680e7e25ddc5b3c1c03b96e79cdbb44616ccaab1d89e4",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 232,
+      "sha256": "ff11397cb52efb08a162a11fbc9706d06c7686557fa1b0af523b8ec0ac7383c0",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 280,
+      "sha256": "0af1c0b3ba5bc0a70a13b07039d2aa40193a1c6713911052dbe7eed70e47c92d",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 325,
+      "sha256": "932b92cde40cb5b72646db33d8d91b420ab233981c621fa92e9afef7d8facd2c",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 326,
+      "sha256": "383cb2cf3eebe732853a7fc9a29e193de1a4cfaf55b2ae1f4f6aa2cc97342c3c",
+      "kind": "procedural"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 350,
+      "sha256": "757b57cff3e10291d3ac5a2222ef75a854d0f90bc46be9d6ed279dbd8f29e95e",
+      "kind": "drop trigger"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 351,
+      "sha256": "8c4faf58ece6cefea4c79630cdfd863d50f9485ffc40074b606f19078ce2155d",
+      "kind": "create trigger"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0035_cctp_v2.sql",
+        "line": 325,
+        "sha256": "932b92cde40cb5b72646db33d8d91b420ab233981c621fa92e9afef7d8facd2c"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

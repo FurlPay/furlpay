@@ -1,0 +1,66 @@
+{
+  "name": "payment_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0009_payments_and_ledger.sql",
+    "line": 100,
+    "sha256": "24ee257bcc7ba0e9e8a9785f60734e65109a6b2c001ca9a1e203453681ae195d"
+  },
+  "definition": "create table if not exists payment_events (\n  id          bigserial primary key,\n  payment_id  text not null references payments(id) on delete cascade,\n  -- from_status is null for the creating event.\n  from_status text,\n  to_status   text not null,\n  actor_id    uuid,\n  reason      text,\n  metadata    jsonb not null default '{}'::jsonb,\n  created_at  timestamptz not null default now()\n);",
+  "dependencies": [
+    "payments"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 100,
+      "sha256": "24ee257bcc7ba0e9e8a9785f60734e65109a6b2c001ca9a1e203453681ae195d",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 112,
+      "sha256": "63289fa47b4fa490ea429c3ba04761fe0a57142d20350955e183afdbb090aa99",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 255,
+      "sha256": "4093ed26c2027bd4fdc8e6a658f97a814371bc9f781903bef50df18f12e7cc77",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 41,
+      "sha256": "09f1f5aa297d53a8f6c2a702b080408a2e0adb395978285a4f7f380aea1bb1de",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 64,
+      "sha256": "ccb689383174fa58572491467167b41804147f94927e41d81dc22e521e8671e4",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 104
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 176
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0016_rls_money_tables.sql",
+        "line": 41,
+        "sha256": "09f1f5aa297d53a8f6c2a702b080408a2e0adb395978285a4f7f380aea1bb1de"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

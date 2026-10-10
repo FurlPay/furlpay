@@ -1,0 +1,133 @@
+{
+  "name": "financial_transactions",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0014_financial_transactions.sql",
+    "line": 36,
+    "sha256": "8f6a99fdac808d1a0181b2da1578f70a52ecd2fb9b98046b18fbad3e6b4c2f9e"
+  },
+  "definition": "create table if not exists financial_transactions (\n  -- Immutable, ours, and minted before anything external is called. A provider\n  -- never mints our id: if it did, a request that timed out before the response\n  -- would leave us with a movement we cannot name or search for.\n  id                    text primary key,\n\n  flow_kind             text not null check (flow_kind in (\n                          'onramp','offramp','crypto_deposit','crypto_withdrawal',\n                          'fiat_deposit','fiat_withdrawal','internal_transfer',\n                          'card_authorization','refund','chargeback'\n                        )),\n\n  -- Mirrors lib/money/lifecycle.ts. Constrained here too: an unmodelled state\n  -- reaching this table means a code path nobody wrote a transition for.\n  state                 text not null check (state in (\n                          'CREATED','QUOTED','COMPLIANCE_REVIEW','MANUAL_REVIEW',\n                          'PAYMENT_PENDING','PAYMENT_CONFIRMED','SETTLEMENT_PENDING',\n                          'SETTLED','CRYPTO_PENDING','CRYPTO_CONFIRMED',\n                          'PROVIDER_PENDING','BANK_PENDING','COMPLETED','FAILED',\n                          'CANCELLED','REVERSED','REFUNDED','ABANDONED'\n                        )),\n\n  user_id               uuid not null,\n\n  -- Source and destination legs. Both sides are recorded even when one is\n  -- fiat and the other is on-chain, so a single row answers \"what did the\n  -- customer give up and what did they get\".\n  source_asset          text   not null,\n  source_amount_minor   bigint not null check (source_amount_minor > 0),\n  dest_asset            text   not null,\n  -- Nullable: at CREATED the destination amount is not yet quoted, and writing\n  -- a zero would be indistinguishable from a quote of nothing.\n  dest_amount_minor     bigint check (dest_amount_minor is null or dest_amount_minor > 0),\n\n  -- Fees, broken out so revenue never has to be inferred by subtraction.\n  fee_platform_minor    bigint not null default 0 check (fee_platform_minor >= 0),\n  fee_provider_minor    bigint not null default 0 check (fee_provider_minor >= 0),\n  fee_network_minor     bigint not null default 0 check (fee_network_minor >= 0),\n  -- Withheld amounts are owed to a tax authority, not to the customer.\n  tds_minor             bigint not null default 0 check (tds_minor >= 0),\n  gst_minor             bigint not null default 0 check (gst_minor >= 0),\n\n  -- Routing. `provider_id` is nullable because a transaction exists before a\n  -- provider is selected, and some flows (internal transfer) never have one.\n  provider_id           text,\n  payment_method        text,\n  country_code          text,\n\n  -- Evidence. lib/money/lifecycle.ts REQUIRED_EVIDENCE refuses a transition\n  -- into a state whose evidence is absent; these are where it is kept.\n  provider_ref          text,\n  bank_ref              text,\n  chain_tx_hash         text,\n  ledger_tx_id          text,\n  external_ref          text,\n\n  -- Risk / compliance decision AT THE TIME. Stored on the row rather than\n  -- looked up later, because a screening result is a point-in-time judgement\n  -- and re-running it a month on answers a different question.\n  compliance_decision   text check (compliance_decision in ('allow','review','block')),\n  compliance_reason     text,\n  risk_score            int check (risk_score is null or (risk_score between 0 and 100)),\n\n  -- Reconciliation, driven by the jobs in lib/reconciliation.ts.\n  reconciliation_status text not null default 'unreconciled'\n                          check (reconciliation_status in\n                            ('unreconciled','matched','mismatched','not_applicable')),\n  reconciled_at         timestamptz,\n\n  idempotency_key       text,\n  -- Who caused this. A movement with no actor cannot be investigated.\n  actor_id              uuid,\n  actor_kind            text not null default 'user'\n                          check (actor_kind in ('user','agent','operator','system','provider')),\n\n  -- When the customer's promise expires (a quote) or the flow is abandoned.\n  expires_at            timestamptz,\n  created_at            timestamptz not null default now(),\n  updated_at            timestamptz not null default now(),\n  settled_at            timestamptz,\n  completed_at          timestamptz\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 36,
+      "sha256": "8f6a99fdac808d1a0181b2da1578f70a52ecd2fb9b98046b18fbad3e6b4c2f9e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 122,
+      "sha256": "7739f82e221a864ed54af4ca5a1edbd8e4e3ca2928505169559d29cd79739aa1",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 129,
+      "sha256": "154e09ba50ebf30ab1b97f087145080a85e83dd6d6900176de491b59c2e0e9b4",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 135,
+      "sha256": "b39a241840995d3f4f08d66c8927f774b81e25f6334b2e20191ff4c320993da2",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 139,
+      "sha256": "cc824960f03b7ff943fe25155a18113f39713c0df03cd10555469090e0f4cc8d",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 140,
+      "sha256": "ca06511bd9e0929c9c25dc8c77a37717474b0c005373892c8a1096e479ceb0f6",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 142,
+      "sha256": "e4f6c25ba53ff16e6503d9755e2b22f50c33f70af3148166678ffc682ef24447",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 145,
+      "sha256": "7f24f5c92dbedc60a1629024f63beed09af2f6d037479934d57d1f9b3d457e5c",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 153,
+      "sha256": "da4ec6ef06aae7795a7f87be2b8abd3ee1a4a802ff9633c38668a0ad12f7db12",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 195,
+      "sha256": "a69e997184eadaec558d77407870a155fa4ac1d2d771c001aa08fb2da88d2397",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 262,
+      "sha256": "40c6debc5818b88c07f6c9eda45a8a25f86849b973b3903ba5deba789e877ac4",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 272,
+      "sha256": "ff6dc26fa4f289dcac02278b590e48033f78c888ff32d456df3e04542b89e95b",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 282,
+      "sha256": "5027dae155d9525e629d45d94c9f7d953efd3de037a6c710dbf962c407fc9f7f",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 292,
+      "sha256": "199c4f74868ba5fe423ac6a6c3921c6ada7230a01b0b7f5406a2382a2033de14",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 50,
+      "sha256": "fc84c49a8151dcd3dd5384b65750a64b69720478b00d53a6856dc24068b7469c",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 64,
+      "sha256": "ccb689383174fa58572491467167b41804147f94927e41d81dc22e521e8671e4",
+      "kind": "procedural"
+    },
+    {
+      "file": "supabase/migrations/0023_schema_assertions_v2.sql",
+      "line": 31,
+      "sha256": "cafc4d20baaf5c237a89072b89fa6b0b4b6e7b95842cde9b182c2ead40fc3572",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 246,
+      "sha256": "18348637e2cdb31366dd2a713a871b8df7f58b67a57e2e921cb706913ed3eeb5",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0016_rls_money_tables.sql",
+        "line": 50,
+        "sha256": "fc84c49a8151dcd3dd5384b65750a64b69720478b00d53a6856dc24068b7469c"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

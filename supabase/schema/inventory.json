@@ -1,0 +1,1208 @@
+{
+  "formatVersion": 1,
+  "scope": "public tables explicitly defined by this branch; extension tables are separate",
+  "tableCount": 92,
+  "migrations": [
+    "0001_init.sql",
+    "0002_durability.sql",
+    "0003_ops_event_ledger.sql",
+    "0004_save_account_atomic.sql",
+    "0005_linked_wallets.sql",
+    "0006_corporate_actions.sql",
+    "0007_reorganizations.sql",
+    "0008_reorg_settlement.sql",
+    "0009_payments_and_ledger.sql",
+    "0010_contacts.sql",
+    "0011_notifications.sql",
+    "0012_hotels_geo.sql",
+    "0013_places_accommodation.sql",
+    "0014_financial_transactions.sql",
+    "0015_universal_hotels.sql",
+    "0016_rls_money_tables.sql",
+    "0017_schema_assertions.sql",
+    "0018_revenue_events.sql",
+    "0019_content_leads.sql",
+    "0020_control_plane.sql",
+    "0021_recipient_attestation.sql",
+    "0022_webhook_events.sql",
+    "0023_schema_assertions_v2.sql",
+    "0024_webhook_claim_hash_guard.sql",
+    "0025_financial_effects.sql",
+    "0026_cashback_accruals.sql",
+    "0027_analytics.sql",
+    "0028_cross_platform_analytics.sql",
+    "0029_usernames.sql",
+    "0030_cp_approval_decisions.sql",
+    "0031_revoke_public_function_execute.sql",
+    "0032_onchain_ingestion.sql",
+    "0033_rwa_asset_snapshots.sql",
+    "0034_onchain_asset_index.sql",
+    "0035_cctp_v2.sql",
+    "0036_usdc_index.sql",
+    "0037_settlement_workspace.sql",
+    "0038_settlement_onboarding.sql",
+    "0039_compliance_cases.sql",
+    "0049_partnership_inquiries.sql",
+    "0050_telegram_account_links.sql"
+  ],
+  "missingVersions": [
+    "0040",
+    "0041",
+    "0042",
+    "0043",
+    "0044",
+    "0045",
+    "0046",
+    "0047",
+    "0048"
+  ],
+  "extensions": [
+    "citext",
+    "pg_trgm",
+    "postgis"
+  ],
+  "views": [
+    {
+      "name": "cp_indeterminate_executions",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 584,
+        "sha256": "de594a6dd0c8cf41fa22cb73e73deacb7f6f6ce6cecf7ebc8cc21a12e29dc7ad"
+      }
+    },
+    {
+      "name": "cp_recipient_settled",
+      "definedIn": {
+        "file": "supabase/migrations/0021_recipient_attestation.sql",
+        "line": 131,
+        "sha256": "51b354150856d390446872e37af6d1796e80f88f58e643928eeccebb830d2b89"
+      }
+    },
+    {
+      "name": "cp_settled_without_approval",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 575,
+        "sha256": "d2f7c1e93aae6976a33527bf11aa780e3761ed2803e9abfc1cb50055e0d43faf"
+      }
+    },
+    {
+      "name": "cp_settled_without_evidence",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 567,
+        "sha256": "d0d8f169d1d2a0ed0929cc44e488559ee5c1217476a9021a39e758f281dbd857"
+      }
+    },
+    {
+      "name": "ftx_awaiting_review",
+      "definedIn": {
+        "file": "supabase/migrations/0014_financial_transactions.sql",
+        "line": 292,
+        "sha256": "199c4f74868ba5fe423ac6a6c3921c6ada7230a01b0b7f5406a2382a2033de14"
+      }
+    },
+    {
+      "name": "ftx_completed_without_evidence",
+      "definedIn": {
+        "file": "supabase/migrations/0014_financial_transactions.sql",
+        "line": 272,
+        "sha256": "ff6dc26fa4f289dcac02278b590e48033f78c888ff32d456df3e04542b89e95b"
+      }
+    },
+    {
+      "name": "ftx_settled_without_ledger",
+      "definedIn": {
+        "file": "supabase/migrations/0014_financial_transactions.sql",
+        "line": 262,
+        "sha256": "40c6debc5818b88c07f6c9eda45a8a25f86849b973b3903ba5deba789e877ac4"
+      }
+    },
+    {
+      "name": "ftx_stale_in_flight",
+      "definedIn": {
+        "file": "supabase/migrations/0014_financial_transactions.sql",
+        "line": 282,
+        "sha256": "5027dae155d9525e629d45d94c9f7d953efd3de037a6c710dbf962c407fc9f7f"
+      }
+    },
+    {
+      "name": "ledger_imbalance",
+      "definedIn": {
+        "file": "supabase/migrations/0009_payments_and_ledger.sql",
+        "line": 318,
+        "sha256": "8a0b7f4700b4a4a2976b59e02c8bacf25b8d6b95a8cd436821d26e13b9d340f5"
+      }
+    },
+    {
+      "name": "payments_missing_ledger",
+      "definedIn": {
+        "file": "supabase/migrations/0009_payments_and_ledger.sql",
+        "line": 327,
+        "sha256": "997791632cdba3d149d1efea6b44991fc3d3ce118ddbc80bfc3ef575c027aefe"
+      }
+    },
+    {
+      "name": "rwa_assets_latest",
+      "definedIn": {
+        "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+        "line": 44,
+        "sha256": "93636b855a044fbf00d3857eef4253f42451eb71541e4433fc99f433feb4ff9a"
+      }
+    }
+  ],
+  "tables": [
+    {
+      "name": "analytics_events",
+      "definedIn": {
+        "file": "supabase/migrations/0027_analytics.sql",
+        "line": 27,
+        "sha256": "4607ea8a1fd028ec946c238cd66296d50cfd7a916638e015d6e9d8a9b2754d7e"
+      },
+      "dependencies": [],
+      "file": "tables/analytics_events.json"
+    },
+    {
+      "name": "audit_log",
+      "definedIn": {
+        "file": "supabase/migrations/0002_durability.sql",
+        "line": 79,
+        "sha256": "76a8c7801bd12fbe4959228f3e43ce798e6ce4f08da59cd068089729e1069331"
+      },
+      "dependencies": [],
+      "file": "tables/audit_log.json"
+    },
+    {
+      "name": "bills",
+      "definedIn": {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 97,
+        "sha256": "6f191e70556a53ee33fadc5a4984cf1d16899b077644793d9a7b748205cfeeb2"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/bills.json"
+    },
+    {
+      "name": "cards",
+      "definedIn": {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 82,
+        "sha256": "d655786071d1ebf5977a73f86c0e94fc4c1627059796be21f60cc170411f738a"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/cards.json"
+    },
+    {
+      "name": "cashback_accruals",
+      "definedIn": {
+        "file": "supabase/migrations/0026_cashback_accruals.sql",
+        "line": 29,
+        "sha256": "cf1c9862cd80c5059f94fe37434b967ef04f4991aa49073a39be348c8f5fd8c5"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/cashback_accruals.json"
+    },
+    {
+      "name": "cctp_events",
+      "definedIn": {
+        "file": "supabase/migrations/0035_cctp_v2.sql",
+        "line": 30,
+        "sha256": "dd103a14a3b1157fae46f4d31cbf358c50594a845042981ce2ee6df91d268504"
+      },
+      "dependencies": [],
+      "file": "tables/cctp_events.json"
+    },
+    {
+      "name": "cctp_transfer_evidence",
+      "definedIn": {
+        "file": "supabase/migrations/0035_cctp_v2.sql",
+        "line": 107,
+        "sha256": "292f314f02368ea513a9b82c7e277de1b0c781ce4c546cd2007732ec316d0696"
+      },
+      "dependencies": [
+        "cctp_transfers"
+      ],
+      "file": "tables/cctp_transfer_evidence.json"
+    },
+    {
+      "name": "cctp_transfers",
+      "definedIn": {
+        "file": "supabase/migrations/0035_cctp_v2.sql",
+        "line": 46,
+        "sha256": "291b32d7a4f7e64f8e303f668cb4320b0b30789304e461abafa7e6c2ba6357ae"
+      },
+      "dependencies": [
+        "cctp_events",
+        "cctp_transfers"
+      ],
+      "file": "tables/cctp_transfers.json"
+    },
+    {
+      "name": "compliance_cases",
+      "definedIn": {
+        "file": "supabase/migrations/0039_compliance_cases.sql",
+        "line": 9,
+        "sha256": "551aded9bb8bf64a68b7e5634c62ad2a8283904fb222d3caf10ea3745d228db2"
+      },
+      "dependencies": [],
+      "file": "tables/compliance_cases.json"
+    },
+    {
+      "name": "contacts",
+      "definedIn": {
+        "file": "supabase/migrations/0010_contacts.sql",
+        "line": 24,
+        "sha256": "e19d70b1cdfcdeaa60a5d229a18300aa33cdeb962e15927ba0cb38a0d11359f0"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/contacts.json"
+    },
+    {
+      "name": "content_interactions",
+      "definedIn": {
+        "file": "supabase/migrations/0019_content_leads.sql",
+        "line": 85,
+        "sha256": "2314f085e374a599e5e9d166622303fe4a41492dc86219944bd638cea0b8caeb"
+      },
+      "dependencies": [],
+      "file": "tables/content_interactions.json"
+    },
+    {
+      "name": "content_leads",
+      "definedIn": {
+        "file": "supabase/migrations/0019_content_leads.sql",
+        "line": 30,
+        "sha256": "cb2e1b511612cb68bd6dc09f8a63f671a30ae503d6cc821f3d0a1b88651af964"
+      },
+      "dependencies": [],
+      "file": "tables/content_leads.json"
+    },
+    {
+      "name": "corporate_actions",
+      "definedIn": {
+        "file": "supabase/migrations/0006_corporate_actions.sql",
+        "line": 21,
+        "sha256": "68b3722d8436e6f28540d18ac4ba560e3d20a83b4782d9cd64c4cfede214c828"
+      },
+      "dependencies": [
+        "corporate_actions"
+      ],
+      "file": "tables/corporate_actions.json"
+    },
+    {
+      "name": "cp_agent_sessions",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 140,
+        "sha256": "a04c8440cb771962893fc44081dc68da315476bdce3e75100256987d6131c16e"
+      },
+      "dependencies": [
+        "cp_agents",
+        "cp_organizations"
+      ],
+      "file": "tables/cp_agent_sessions.json"
+    },
+    {
+      "name": "cp_agents",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 119,
+        "sha256": "4dfb662d6fa07163d19f79fca7056aa87cf3dd056b0a6778bbe5deeb8deafd11"
+      },
+      "dependencies": [
+        "cp_operators",
+        "cp_organizations",
+        "cp_principals"
+      ],
+      "file": "tables/cp_agents.json"
+    },
+    {
+      "name": "cp_approvals",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 296,
+        "sha256": "e884b584b90137ee25b1d0d6cce40eab492554c6eeb8d002c2e11f24abbb332e"
+      },
+      "dependencies": [
+        "cp_authorizations",
+        "cp_organizations"
+      ],
+      "file": "tables/cp_approvals.json"
+    },
+    {
+      "name": "cp_authorizations",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 232,
+        "sha256": "652b45da667782435f3228c274f08097fad5d605ad1265f8caf033a4da9d065d"
+      },
+      "dependencies": [
+        "cp_mandates",
+        "cp_organizations"
+      ],
+      "file": "tables/cp_authorizations.json"
+    },
+    {
+      "name": "cp_delegations",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 101,
+        "sha256": "db0c4aaff148a6c23814018f1a8f71adad3478674e67d4ea7bffc09decdb64a7"
+      },
+      "dependencies": [
+        "cp_operators",
+        "cp_organizations",
+        "cp_principals"
+      ],
+      "file": "tables/cp_delegations.json"
+    },
+    {
+      "name": "cp_evidence_records",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 373,
+        "sha256": "baa0e47f902ace8f9050d9ad987bfd68cfe75b9e020f9696aca539430fda85e4"
+      },
+      "dependencies": [
+        "cp_authorizations",
+        "cp_organizations"
+      ],
+      "file": "tables/cp_evidence_records.json"
+    },
+    {
+      "name": "cp_execution_attempts",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 325,
+        "sha256": "d98adf73c62d95bf1882768415bc65aa7b411745eaffff0906e6bc61e11a3763"
+      },
+      "dependencies": [
+        "cp_authorizations",
+        "cp_organizations"
+      ],
+      "file": "tables/cp_execution_attempts.json"
+    },
+    {
+      "name": "cp_mandates",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 166,
+        "sha256": "7a684e14e31adf92c7ce39da041453b1647f5e0f4b25a6a6ce8c1db4bcfee50f"
+      },
+      "dependencies": [
+        "cp_organizations",
+        "cp_principals"
+      ],
+      "file": "tables/cp_mandates.json"
+    },
+    {
+      "name": "cp_operators",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 80,
+        "sha256": "620b47c92dd864a6d43c9a6e8657388f61ddbd404ebc4c0ed9a2ea480a3fc9f2"
+      },
+      "dependencies": [
+        "cp_organizations"
+      ],
+      "file": "tables/cp_operators.json"
+    },
+    {
+      "name": "cp_organizations",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 44,
+        "sha256": "c523a904e6a80efcf4f2cdea63371bd4459538730021cc325775bc95ff381400"
+      },
+      "dependencies": [],
+      "file": "tables/cp_organizations.json"
+    },
+    {
+      "name": "cp_principals",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 64,
+        "sha256": "139e505ccc9c937a58ece89907e8af6f810bc177520d74918797fdd9569af0c8"
+      },
+      "dependencies": [
+        "cp_organizations"
+      ],
+      "file": "tables/cp_principals.json"
+    },
+    {
+      "name": "cp_recipient_destinations",
+      "definedIn": {
+        "file": "supabase/migrations/0021_recipient_attestation.sql",
+        "line": 78,
+        "sha256": "2178bbdfdb89612b44d7bfe00ad449f78f1e13a2a0d92f8ffc9d6a142975e6d7"
+      },
+      "dependencies": [
+        "cp_organizations",
+        "cp_recipients"
+      ],
+      "file": "tables/cp_recipient_destinations.json"
+    },
+    {
+      "name": "cp_recipients",
+      "definedIn": {
+        "file": "supabase/migrations/0021_recipient_attestation.sql",
+        "line": 39,
+        "sha256": "1c5b0d545fc241d775ee96d6b19caae33947da84647bad3b92311a8a031e74ba"
+      },
+      "dependencies": [
+        "cp_organizations"
+      ],
+      "file": "tables/cp_recipients.json"
+    },
+    {
+      "name": "cp_revocations",
+      "definedIn": {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 207,
+        "sha256": "63742aef60b46a014de67ae0cd05db81509bd386508ac2f620b05e088e649fa1"
+      },
+      "dependencies": [
+        "cp_organizations"
+      ],
+      "file": "tables/cp_revocations.json"
+    },
+    {
+      "name": "delistings",
+      "definedIn": {
+        "file": "supabase/migrations/0007_reorganizations.sql",
+        "line": 46,
+        "sha256": "15539d08de575bc68ad9f41d27288b115b16f1c71a6d0a80beaa8b6844bbe0d0"
+      },
+      "dependencies": [
+        "corporate_actions"
+      ],
+      "file": "tables/delistings.json"
+    },
+    {
+      "name": "deposits",
+      "definedIn": {
+        "file": "supabase/migrations/0002_durability.sql",
+        "line": 50,
+        "sha256": "be3c5614eba3cec8ec4d84127e0c739a4d94ad44db88e7a918200a64d7aa70dd"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/deposits.json"
+    },
+    {
+      "name": "dividend_events",
+      "definedIn": {
+        "file": "supabase/migrations/0006_corporate_actions.sql",
+        "line": 123,
+        "sha256": "34c76f5caa34458aab70684d9c4083069432b2ede38efe5913dedca0f95e7129"
+      },
+      "dependencies": [
+        "corporate_actions",
+        "trade_lots",
+        "users"
+      ],
+      "file": "tables/dividend_events.json"
+    },
+    {
+      "name": "fiat_balances",
+      "definedIn": {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 59,
+        "sha256": "7f5bf84cf19d536cd3931f5c48a3207408485621e59630bbe6655b1b7b6519f5"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/fiat_balances.json"
+    },
+    {
+      "name": "financial_transaction_events",
+      "definedIn": {
+        "file": "supabase/migrations/0014_financial_transactions.sql",
+        "line": 153,
+        "sha256": "da4ec6ef06aae7795a7f87be2b8abd3ee1a4a802ff9633c38668a0ad12f7db12"
+      },
+      "dependencies": [
+        "financial_transactions"
+      ],
+      "file": "tables/financial_transaction_events.json"
+    },
+    {
+      "name": "financial_transactions",
+      "definedIn": {
+        "file": "supabase/migrations/0014_financial_transactions.sql",
+        "line": 36,
+        "sha256": "8f6a99fdac808d1a0181b2da1578f70a52ecd2fb9b98046b18fbad3e6b4c2f9e"
+      },
+      "dependencies": [],
+      "file": "tables/financial_transactions.json"
+    },
+    {
+      "name": "holdings",
+      "definedIn": {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 68,
+        "sha256": "31bd3eda5803b6e002464ca772e652c6c530b34c93effe0bc37f63d6a1708fe9"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/holdings.json"
+    },
+    {
+      "name": "hotels_geo",
+      "definedIn": {
+        "file": "supabase/migrations/0012_hotels_geo.sql",
+        "line": 27,
+        "sha256": "679fdc057c9012ffba52c93db24c333d783898cff4350bfebcc8e07e945b00ea"
+      },
+      "dependencies": [],
+      "file": "tables/hotels_geo.json"
+    },
+    {
+      "name": "ledger_accounts",
+      "definedIn": {
+        "file": "supabase/migrations/0009_payments_and_ledger.sql",
+        "line": 117,
+        "sha256": "155e380a753158df6a56d5e7e235f5ebb23a4c68acc4b0b8971bdc2e157c90e4"
+      },
+      "dependencies": [],
+      "file": "tables/ledger_accounts.json"
+    },
+    {
+      "name": "ledger_postings",
+      "definedIn": {
+        "file": "supabase/migrations/0009_payments_and_ledger.sql",
+        "line": 144,
+        "sha256": "b54a268ccf86c4f586a41e386ad4baf5f9cefd517ae007e00550c0d0b4184876"
+      },
+      "dependencies": [
+        "ledger_accounts",
+        "ledger_transactions"
+      ],
+      "file": "tables/ledger_postings.json"
+    },
+    {
+      "name": "ledger_transactions",
+      "definedIn": {
+        "file": "supabase/migrations/0009_payments_and_ledger.sql",
+        "line": 128,
+        "sha256": "00eef68bf290e5af53ba176eed3b45e6a1437424209f13a6502d4eaaab2e5f9d"
+      },
+      "dependencies": [
+        "ledger_transactions"
+      ],
+      "file": "tables/ledger_transactions.json"
+    },
+    {
+      "name": "linked_wallets",
+      "definedIn": {
+        "file": "supabase/migrations/0005_linked_wallets.sql",
+        "line": 16,
+        "sha256": "d1b18f49034715e6c8dcb1a2796d104dc9a6c0eee4cc0a01030eda0db6c45e0f"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/linked_wallets.json"
+    },
+    {
+      "name": "notifications",
+      "definedIn": {
+        "file": "supabase/migrations/0011_notifications.sql",
+        "line": 38,
+        "sha256": "6c83304adcc3ef12eb7751010ca3f253d1ead38ec866d861ce485be77f8eefa8"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/notifications.json"
+    },
+    {
+      "name": "onchain_asset_commits",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 50,
+        "sha256": "964078dea5bc0f730aaa9955ecb64eaf35085b6d1a351f5ca7691fed7366159c"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_asset_commits.json"
+    },
+    {
+      "name": "onchain_asset_cursors",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 36,
+        "sha256": "27d98364b27d22f0e7a45309f8e531485e43502014414aabdebb562f368fbe88"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_asset_cursors.json"
+    },
+    {
+      "name": "onchain_asset_minutes",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 74,
+        "sha256": "ec7affef9d8a69c4436c0f1cba1869fac61b5eef5a8da7db468521e3ab988c00"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_asset_minutes.json"
+    },
+    {
+      "name": "onchain_dead_letters",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 125,
+        "sha256": "0ace5563cf5617f4cfdf6ff096e6e3f8f2625fd820ecb9cf7463a3c9baa19785"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_dead_letters.json"
+    },
+    {
+      "name": "onchain_entity_labels",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 239,
+        "sha256": "e9192e86c401c39381ab5f4ccf436a8e7e46795e53b3836be7f9c478c49b0842"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_entity_labels.json"
+    },
+    {
+      "name": "onchain_event_revisions",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 94,
+        "sha256": "87a338b7863ba289b9c826b3312ef866d9be109f66a160de73fbfae5502ea90e"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_event_revisions.json"
+    },
+    {
+      "name": "onchain_events",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 29,
+        "sha256": "0851e32c937215d5fb04c5a086b03f6220b457c290a52beeda809b880e6c374e"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/onchain_events.json"
+    },
+    {
+      "name": "onchain_hourly",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 255,
+        "sha256": "8ef806efabd59115598216476af77b7e5d857aad1d1502f97601262869193aae"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_hourly.json"
+    },
+    {
+      "name": "onchain_indexer_status",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 123,
+        "sha256": "54600daad9b88f0c5301b927f52c0539dee95d47717d28cd51d3e1616e4a225c"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_indexer_status.json"
+    },
+    {
+      "name": "onchain_ingest_checkpoints",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 138,
+        "sha256": "bcabbe38fbbc59e291a140f3e924c1434df40968e0ddefa5183adfd03a741fd7"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_ingest_checkpoints.json"
+    },
+    {
+      "name": "onchain_ingest_metrics",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 168,
+        "sha256": "1ea4310b9c166ffbef94ca8697662ba70e31717515996d4af10841b8f1c71534"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_ingest_metrics.json"
+    },
+    {
+      "name": "onchain_integrity_issues",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 104,
+        "sha256": "3bc7d433a0d91b21293a439575dc12ca28ee3a04ee877904f7293980ad2f6582"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_integrity_issues.json"
+    },
+    {
+      "name": "onchain_node_cursors",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 202,
+        "sha256": "1c9490d44ade99db3fdd570ff077327e51bfe2810aef8205c98b44eb8a56739e"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_node_cursors.json"
+    },
+    {
+      "name": "onchain_reconciliation_runs",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 148,
+        "sha256": "0c8c3ab8cffab7e58054e6fd43fa05bd09bf412fe6ad608dc7ab852a2876b70b"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_reconciliation_runs.json"
+    },
+    {
+      "name": "onchain_solana_token_accounts",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 158,
+        "sha256": "345c9d8d147a716c0fdb7a8554c8b9b18c16f0faa7ca196eb18491762e2719c2"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_solana_token_accounts.json"
+    },
+    {
+      "name": "onchain_source_status",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 186,
+        "sha256": "0ce76f2a28f9d0ff611cd7d02b5c76d76d4cade0c3a78db49cc9994cb7878aca"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_source_status.json"
+    },
+    {
+      "name": "onchain_supply_snapshots",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 90,
+        "sha256": "1cb3d46636f4fb8d21c8d004a2fc41761e685ff91da22c1ac91ea1b834ad9c8a"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_supply_snapshots.json"
+    },
+    {
+      "name": "onchain_tracked_addresses",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 148,
+        "sha256": "afdc111a647a97ea299c0a034726268741214ee8bf1b5ed12368d8edbc76cf61"
+      },
+      "dependencies": [
+        "onchain_tracked_wallets"
+      ],
+      "file": "tables/onchain_tracked_addresses.json"
+    },
+    {
+      "name": "onchain_tracked_wallets",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 141,
+        "sha256": "6a740a45a7b76c2ed151f260085f8df516a341915a71397dd24e269a66ff5731"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_tracked_wallets.json"
+    },
+    {
+      "name": "onchain_wallet_balances",
+      "definedIn": {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 171,
+        "sha256": "37f8f3de7524199181bec6fea82a37c268deeb2846839f923366000fb3916920"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_wallet_balances.json"
+    },
+    {
+      "name": "onchain_webhook_nonces",
+      "definedIn": {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 116,
+        "sha256": "66479eb8c7d85d9a8ba7add0fd68b552aa7964b3bb00c747921897900e3d747a"
+      },
+      "dependencies": [],
+      "file": "tables/onchain_webhook_nonces.json"
+    },
+    {
+      "name": "ops_security_events",
+      "definedIn": {
+        "file": "supabase/migrations/0003_ops_event_ledger.sql",
+        "line": 31,
+        "sha256": "948ee49a3994548d116f8331bb03c49dfc61833df6616e8eb9308d25963e7906"
+      },
+      "dependencies": [],
+      "file": "tables/ops_security_events.json"
+    },
+    {
+      "name": "ops_tx_events",
+      "definedIn": {
+        "file": "supabase/migrations/0003_ops_event_ledger.sql",
+        "line": 9,
+        "sha256": "277833f41aefbc6db1a102d744923c9508c4dc36ed392746f9c6231cc3c22f4c"
+      },
+      "dependencies": [],
+      "file": "tables/ops_tx_events.json"
+    },
+    {
+      "name": "partnership_inquiries",
+      "definedIn": {
+        "file": "supabase/migrations/0049_partnership_inquiries.sql",
+        "line": 20,
+        "sha256": "d2f2fc1ed2905b9790a7909fe330db172435d667162b4aa0367f33028eab6ae5"
+      },
+      "dependencies": [],
+      "file": "tables/partnership_inquiries.json"
+    },
+    {
+      "name": "partnership_inquiry_activity",
+      "definedIn": {
+        "file": "supabase/migrations/0049_partnership_inquiries.sql",
+        "line": 46,
+        "sha256": "a6740384bb823bab84855f83cfda126a68a63cafaeafb3b5e4cde5f0ade4fd14"
+      },
+      "dependencies": [
+        "partnership_inquiries"
+      ],
+      "file": "tables/partnership_inquiry_activity.json"
+    },
+    {
+      "name": "payment_events",
+      "definedIn": {
+        "file": "supabase/migrations/0009_payments_and_ledger.sql",
+        "line": 100,
+        "sha256": "24ee257bcc7ba0e9e8a9785f60734e65109a6b2c001ca9a1e203453681ae195d"
+      },
+      "dependencies": [
+        "payments"
+      ],
+      "file": "tables/payment_events.json"
+    },
+    {
+      "name": "payments",
+      "definedIn": {
+        "file": "supabase/migrations/0009_payments_and_ledger.sql",
+        "line": 37,
+        "sha256": "69d1acfbf1ad99f999df548790f5bd0427ac4f7742cf6048d91a0b0bcb5131fc"
+      },
+      "dependencies": [],
+      "file": "tables/payments.json"
+    },
+    {
+      "name": "places_accommodation",
+      "definedIn": {
+        "file": "supabase/migrations/0013_places_accommodation.sql",
+        "line": 51,
+        "sha256": "99f0fe120c8a07c50f6588a4b45b2573e8a796d4cc8e8191b9dd71594f22a6b4"
+      },
+      "dependencies": [],
+      "file": "tables/places_accommodation.json"
+    },
+    {
+      "name": "reorg_events",
+      "definedIn": {
+        "file": "supabase/migrations/0008_reorg_settlement.sql",
+        "line": 19,
+        "sha256": "24a8e381305b21703722115b2e743bb245ad92fdad56ea7c94ed11d560d21a19"
+      },
+      "dependencies": [
+        "corporate_actions",
+        "users"
+      ],
+      "file": "tables/reorg_events.json"
+    },
+    {
+      "name": "revenue_events",
+      "definedIn": {
+        "file": "supabase/migrations/0018_revenue_events.sql",
+        "line": 39,
+        "sha256": "d6216e0b574c20f1818d12c9750343e9dc8462579bac20ac9f3861db70158162"
+      },
+      "dependencies": [],
+      "file": "tables/revenue_events.json"
+    },
+    {
+      "name": "rwa_asset_snapshots",
+      "definedIn": {
+        "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+        "line": 21,
+        "sha256": "64fa2050e176091a83b8ff9702310390800fb25932441d9b2ae392baf540f928"
+      },
+      "dependencies": [],
+      "file": "tables/rwa_asset_snapshots.json"
+    },
+    {
+      "name": "settlement_onboarding",
+      "definedIn": {
+        "file": "supabase/migrations/0038_settlement_onboarding.sql",
+        "line": 6,
+        "sha256": "ec31ebd3b11bda725280fe571e66571abb1a55284be098bb96c75505db00f741"
+      },
+      "dependencies": [],
+      "file": "tables/settlement_onboarding.json"
+    },
+    {
+      "name": "settlement_workspace_records",
+      "definedIn": {
+        "file": "supabase/migrations/0037_settlement_workspace.sql",
+        "line": 3,
+        "sha256": "22ebd1cc5b90fa5a0af1ad42114da63745417f9a50f3e9a2fe8711d70433d7d0"
+      },
+      "dependencies": [],
+      "file": "tables/settlement_workspace_records.json"
+    },
+    {
+      "name": "symbol_mappings",
+      "definedIn": {
+        "file": "supabase/migrations/0006_corporate_actions.sql",
+        "line": 150,
+        "sha256": "b2368ce10a1aba874ccc9505ab20db1a70e28d8fcf0d91286127898cf8e78f76"
+      },
+      "dependencies": [
+        "corporate_actions"
+      ],
+      "file": "tables/symbol_mappings.json"
+    },
+    {
+      "name": "telegram_account_links",
+      "definedIn": {
+        "file": "supabase/migrations/0050_telegram_account_links.sql",
+        "line": 2,
+        "sha256": "32478ee5759b96841fe47628ff84dae52c3896b2e487bd6c38f5389b82e846a5"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/telegram_account_links.json"
+    },
+    {
+      "name": "token_balances",
+      "definedIn": {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 50,
+        "sha256": "6b9e19fc4463d1727631ed8322790f7795ddba4474b0b0adb15bb6757d8fdf2b"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/token_balances.json"
+    },
+    {
+      "name": "trade_lots",
+      "definedIn": {
+        "file": "supabase/migrations/0006_corporate_actions.sql",
+        "line": 68,
+        "sha256": "31985ce2e5b4fcb6bf1ac3ac8ab03275fe6ef97b0f4a784c30c8a67bd907810a"
+      },
+      "dependencies": [
+        "corporate_actions",
+        "trade_lots",
+        "users"
+      ],
+      "file": "tables/trade_lots.json"
+    },
+    {
+      "name": "transactions",
+      "definedIn": {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 111,
+        "sha256": "57a7defbf8f1c4125652f1f42fd2c026e03727c895753800ef5a96257f43c72e"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/transactions.json"
+    },
+    {
+      "name": "trips",
+      "definedIn": {
+        "file": "supabase/migrations/0002_durability.sql",
+        "line": 21,
+        "sha256": "20974bc4e134a18594baa1920bc03338709c4e88e48cb84b3657a2bcaf59a5b0"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/trips.json"
+    },
+    {
+      "name": "universal_hotels",
+      "definedIn": {
+        "file": "supabase/migrations/0015_universal_hotels.sql",
+        "line": 23,
+        "sha256": "eccf7f4859f924d75d4be87284950ff078ac3815cedbd603d00ad0e8cb8a97fe"
+      },
+      "dependencies": [],
+      "file": "tables/universal_hotels.json"
+    },
+    {
+      "name": "usdc_backfill_units",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 157,
+        "sha256": "c1639fcbdec3ed4d41e6fcdf502a147c4bbe52f036eeaa184e3a12d06ef63d27"
+      },
+      "dependencies": [],
+      "file": "tables/usdc_backfill_units.json"
+    },
+    {
+      "name": "usdc_daily",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 107,
+        "sha256": "a39d58ff042cb60c2d17a36cb81fbab83b4fd730c53ab349fbe635fc477690f9"
+      },
+      "dependencies": [],
+      "file": "tables/usdc_daily.json"
+    },
+    {
+      "name": "usdc_hourly",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 89,
+        "sha256": "5f5e8edbb601d9eb657d55065906cb16a4fdb380801d9899caa64e6d205f6be9"
+      },
+      "dependencies": [],
+      "file": "tables/usdc_hourly.json"
+    },
+    {
+      "name": "usdc_index_issues",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 169,
+        "sha256": "827d11a7e351bd2e9ba94da3e7af20e3bc454f131676d9e5ce1978ddff5acc6a"
+      },
+      "dependencies": [],
+      "file": "tables/usdc_index_issues.json"
+    },
+    {
+      "name": "usdc_index_state",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 48,
+        "sha256": "fb82b307859eee82c3003b5049042c37337c754e871813e26f648535bcf61f82"
+      },
+      "dependencies": [
+        "usdc_index_streams"
+      ],
+      "file": "tables/usdc_index_state.json"
+    },
+    {
+      "name": "usdc_index_streams",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 32,
+        "sha256": "0b3bc2765c9ce2504efb93890fbbea7fad7a755039a95aacac9d2999a20cebce"
+      },
+      "dependencies": [],
+      "file": "tables/usdc_index_streams.json"
+    },
+    {
+      "name": "usdc_ranges",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 141,
+        "sha256": "2de04ee68e550d57f34450ebc4e1a08a78adb43ff548534662c46adfdf1ee151"
+      },
+      "dependencies": [],
+      "file": "tables/usdc_ranges.json"
+    },
+    {
+      "name": "usdc_totals",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 125,
+        "sha256": "5fdbb290a02d4690769c56b10748ce8fac688a85090192785bc42fa156fc0938"
+      },
+      "dependencies": [],
+      "file": "tables/usdc_totals.json"
+    },
+    {
+      "name": "usdc_transfers",
+      "definedIn": {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 72,
+        "sha256": "5a22133fdb691966db8fa62368fec9dfcb35782fa0e26ff874943b9e07d126b3"
+      },
+      "dependencies": [],
+      "file": "tables/usdc_transfers.json"
+    },
+    {
+      "name": "user_devices",
+      "definedIn": {
+        "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+        "line": 98,
+        "sha256": "4916dbd168966fbb364f2482711b9e5e2ad5ee493466bb1f808dff1e1ed25651"
+      },
+      "dependencies": [
+        "users"
+      ],
+      "file": "tables/user_devices.json"
+    },
+    {
+      "name": "users",
+      "definedIn": {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 17,
+        "sha256": "dfdc622f659ce2005a0fd6f4b5d0cce11ed9d0509cfc60ca08a0cb709629377d"
+      },
+      "dependencies": [],
+      "file": "tables/users.json"
+    },
+    {
+      "name": "webhook_events",
+      "definedIn": {
+        "file": "supabase/migrations/0022_webhook_events.sql",
+        "line": 28,
+        "sha256": "5c194885f4ab99121c606dc30d3844412ff482f98eb6979ad04b85b90022a09c"
+      },
+      "dependencies": [],
+      "file": "tables/webhook_events.json"
+    }
+  ],
+  "missingDefinitions": [],
+  "unresolvedCalls": [
+    {
+      "expression": "table",
+      "file": "apps/web/src/lib/onchain/dashboard.ts",
+      "line": 294
+    },
+    {
+      "expression": "table",
+      "file": "apps/web/src/lib/onchain/usdcIndex/view.ts",
+      "line": 206
+    },
+    {
+      "expression": "table",
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 821
+    },
+    {
+      "expression": "table",
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 824
+    },
+    {
+      "expression": "table",
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 834
+    }
+  ]
+}

@@ -1,0 +1,90 @@
+{
+  "name": "token_balances",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0001_init.sql",
+    "line": 50,
+    "sha256": "6b9e19fc4463d1727631ed8322790f7795ddba4474b0b0adb15bb6757d8fdf2b"
+  },
+  "definition": "create table token_balances (\n  user_id   uuid not null references users (id) on delete cascade,\n  token     text not null,\n  chain     text not null,\n  amount    numeric(38, 18) not null default 0 check (amount >= 0),\n  usd_value numeric(20, 2)  not null default 0,\n  primary key (user_id, token, chain)\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 50,
+      "sha256": "6b9e19fc4463d1727631ed8322790f7795ddba4474b0b0adb15bb6757d8fdf2b",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 145,
+      "sha256": "489af8eb27c2396c1c90985d47603dc7ecb3046c7214aa1a1c93d516c89bf548",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 94,
+      "sha256": "caa2c9e275f5d9d8a49c603219aa447373b13c2ab2210a7ef950dff3d360eebf",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0004_save_account_atomic.sql",
+      "line": 21,
+      "sha256": "b40f28114d85d155f907131ca35b8a9e5e7006e69ba1a40b6375c3c9edbb2475",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 77,
+      "sha256": "ad7fb05ac04bb22512734fa6a7a12228fa85ffa89531c917d5b2be8483a0a888",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 64,
+      "sha256": "e9064942c78b91838b5bc5cf2c7433484c10e3257f90c65543ffadcf2bb4259a",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 190,
+      "sha256": "c5ff1778c1903bd01c62c07b8aeb0f68837880815d9a0839eabef45d54f298da",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 726
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 727
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 840
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 841
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 844
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 145,
+        "sha256": "489af8eb27c2396c1c90985d47603dc7ecb3046c7214aa1a1c93d516c89bf548"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

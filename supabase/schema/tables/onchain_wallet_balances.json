@@ -1,0 +1,52 @@
+{
+  "name": "onchain_wallet_balances",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0034_onchain_asset_index.sql",
+    "line": 171,
+    "sha256": "37f8f3de7524199181bec6fea82a37c268deeb2846839f923366000fb3916920"
+  },
+  "definition": "create table if not exists onchain_wallet_balances (\n  chain        text not null,\n  account      text not null,\n  owner        text not null,\n  asset        text not null,\n  amount_raw   numeric(78,0) not null check (amount_raw >= 0),\n  decimals     smallint not null,\n  at_block     bigint not null,\n  observed_at  timestamptz not null default now(),\n  primary key (chain, account)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 171,
+      "sha256": "37f8f3de7524199181bec6fea82a37c268deeb2846839f923366000fb3916920",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 392,
+      "sha256": "0cd50a3cedd2617bab453f60433cc02de799a98c77657d0da3e87ce62d721210",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 394,
+      "sha256": "9b7f1f1fd903c47e2edd5aea0d4cc20cb226b46113363a9e37cbad6838bda530",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/solanaNodeIndexer.ts",
+      "line": 131
+    },
+    {
+      "file": "apps/web/src/lib/onchain/solanaNodeIndexer.ts",
+      "line": 132
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 392,
+        "sha256": "0cd50a3cedd2617bab453f60433cc02de799a98c77657d0da3e87ce62d721210"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

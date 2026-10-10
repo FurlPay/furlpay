@@ -1,0 +1,54 @@
+{
+  "name": "onchain_indexer_status",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0034_onchain_asset_index.sql",
+    "line": 123,
+    "sha256": "54600daad9b88f0c5301b927f52c0539dee95d47717d28cd51d3e1616e4a225c"
+  },
+  "definition": "create table if not exists onchain_indexer_status (\n  indexer          text not null check (indexer in ('asset', 'wallet')),\n  chain            text not null,\n  asset            text not null default '',\n  head_block       bigint,\n  head_time        timestamptz,\n  finalized_block  bigint,\n  indexed_block    bigint,\n  indexed_time     timestamptz,\n  last_ok_at       timestamptz,\n  last_error_at    timestamptz,\n  last_error       text,\n  last_duration_ms integer,\n  detail           jsonb not null default '{}'::jsonb,\n  updated_at       timestamptz not null default now(),\n  primary key (indexer, chain, asset)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 123,
+      "sha256": "54600daad9b88f0c5301b927f52c0539dee95d47717d28cd51d3e1616e4a225c",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 354,
+      "sha256": "8080e75043dd3bead370bf8040119ff6933f20337c8d3ed580abc7709ffa099d",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 388,
+      "sha256": "be8d00c311fa3314d06c49f0d99f946dce6ee634c436d862247830554183ae43",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 394,
+      "sha256": "9b7f1f1fd903c47e2edd5aea0d4cc20cb226b46113363a9e37cbad6838bda530",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/usdcHealth.ts",
+      "line": 144
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 388,
+        "sha256": "be8d00c311fa3314d06c49f0d99f946dce6ee634c436d862247830554183ae43"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

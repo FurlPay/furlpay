@@ -1,0 +1,84 @@
+{
+  "name": "corporate_actions",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0006_corporate_actions.sql",
+    "line": 21,
+    "sha256": "68b3722d8436e6f28540d18ac4ba560e3d20a83b4782d9cd64c4cfede214c828"
+  },
+  "definition": "CREATE TABLE IF NOT EXISTS corporate_actions (\n  id                TEXT PRIMARY KEY,\n  symbol            TEXT NOT NULL,\n  type              TEXT NOT NULL CHECK (type IN (\n                      'cash_dividend', 'stock_dividend', 'stock_split', 'reverse_split',\n                      'symbol_change', 'merger', 'acquisition', 'spin_off',\n                      'rights_issue', 'delisting')),\n  effective_date    DATE NOT NULL,\n  announcement_date DATE,\n  record_date       DATE,\n  payment_date      DATE,\n  -- New-for-old ratio: 2-for-1 split = 2, 1-for-10 reverse = 0.1.\n  ratio             NUMERIC(20, 8),\n  amount_per_share  NUMERIC(20, 6),\n  new_symbol        TEXT,\n  version           INTEGER NOT NULL DEFAULT 1,\n  source            TEXT NOT NULL DEFAULT 'manual',\n  confidence        TEXT NOT NULL DEFAULT 'confirmed'\n                      CHECK (confidence IN ('announced', 'confirmed', 'corrected')),\n  -- DEFERRABLE: a correction and the row it supersedes can arrive in the same\n  -- ingest batch. FK triggers are AFTER-ROW and normally fire at end of\n  -- statement, so a single multi-row INSERT usually works — but that is\n  -- incidental behaviour, not a guarantee, and it breaks the moment the writer\n  -- chunks the batch. Deferring to COMMIT makes order irrelevant by contract.\n  supersedes        TEXT REFERENCES corporate_actions(id)\n                      DEFERRABLE INITIALLY DEFERRED,\n  metadata          JSONB NOT NULL DEFAULT '{}'::jsonb,\n  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),\n\n  -- A split with no ratio, or a dividend with no amount, would silently\n  -- corrupt every position it touched. Reject at the storage layer.\n  CONSTRAINT split_needs_ratio CHECK (\n    type NOT IN ('stock_split', 'reverse_split') OR (ratio IS NOT NULL AND ratio > 0)),\n  CONSTRAINT dividend_needs_amount CHECK (\n    type <> 'cash_dividend' OR (amount_per_share IS NOT NULL AND amount_per_share >= 0)),\n  CONSTRAINT rename_needs_target CHECK (\n    type NOT IN ('symbol_change', 'merger', 'acquisition') OR new_symbol IS NOT NULL)\n);",
+  "dependencies": [
+    "corporate_actions"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 21,
+      "sha256": "68b3722d8436e6f28540d18ac4ba560e3d20a83b4782d9cd64c4cfede214c828",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 60,
+      "sha256": "ae8fda86154da1aa24ab2ea95280ba914b01921f656a892bb5c6e46d9b8149bc",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 68,
+      "sha256": "31985ce2e5b4fcb6bf1ac3ac8ab03275fe6ef97b0f4a784c30c8a67bd907810a",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 123,
+      "sha256": "34c76f5caa34458aab70684d9c4083069432b2ede38efe5913dedca0f95e7129",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 150,
+      "sha256": "b2368ce10a1aba874ccc9505ab20db1a70e28d8fcf0d91286127898cf8e78f76",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 160,
+      "sha256": "86033e4d82c8ff47d1503f5f32c87a0a5bfaacbb1b2282f84e161ed313a5e809",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0007_reorganizations.sql",
+      "line": 46,
+      "sha256": "15539d08de575bc68ad9f41d27288b115b16f1c71a6d0a80beaa8b6844bbe0d0",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0008_reorg_settlement.sql",
+      "line": 19,
+      "sha256": "24a8e381305b21703722115b2e743bb245ad92fdad56ea7c94ed11d560d21a19",
+      "kind": "create table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 481
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 546
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0006_corporate_actions.sql",
+        "line": 160,
+        "sha256": "86033e4d82c8ff47d1503f5f32c87a0a5bfaacbb1b2282f84e161ed313a5e809"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

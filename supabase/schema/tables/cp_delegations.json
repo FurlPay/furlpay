@@ -1,0 +1,62 @@
+{
+  "name": "cp_delegations",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 101,
+    "sha256": "db0c4aaff148a6c23814018f1a8f71adad3478674e67d4ea7bffc09decdb64a7"
+  },
+  "definition": "create table if not exists cp_delegations (\n  id              text primary key,\n  organization_id text not null references cp_organizations(id) on delete restrict,\n  principal_id    text not null references cp_principals(id) on delete restrict,\n  operator_id     text not null references cp_operators(id) on delete restrict,\n  -- The human or system account this was granted on behalf of. The IdP subject.\n  on_behalf_of    text not null,\n  status          text not null default 'ACTIVE'\n                    check (status in ('ACTIVE', 'SUSPENDED', 'REVOKED', 'EXPIRED')),\n  scope           jsonb not null default '{}'::jsonb,\n  issued_at       timestamptz not null default now(),\n  expires_at      timestamptz,\n  revoked_at      timestamptz,\n  revoked_reason  text\n);",
+  "dependencies": [
+    "cp_operators",
+    "cp_organizations",
+    "cp_principals"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 101,
+      "sha256": "db0c4aaff148a6c23814018f1a8f71adad3478674e67d4ea7bffc09decdb64a7",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 116,
+      "sha256": "acc60cf6fb13f21405c8ab4633dce90cebf4f5d55c43a7895d2547b10c5885b6",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 117,
+      "sha256": "9300aeab94aeca9cfcd5ae938e1349f6e03ef38ba6697e18ca4006df6d0c8f17",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 597,
+      "sha256": "5fbae72df3a159f937f45ef97dc8e43e4f4081e5582217fdf0663effa95da251",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 308
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 309
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 597,
+        "sha256": "5fbae72df3a159f937f45ef97dc8e43e4f4081e5582217fdf0663effa95da251"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

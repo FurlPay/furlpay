@@ -1,0 +1,130 @@
+{
+  "name": "cp_organizations",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 44,
+    "sha256": "c523a904e6a80efcf4f2cdea63371bd4459538730021cc325775bc95ff381400"
+  },
+  "definition": "create table if not exists cp_organizations (\n  id            text primary key,\n  name          text not null,\n  -- THE TENANCY ANCHOR. An authenticated API key carries a `userId`; this is\n  -- what maps it to exactly one organization. Unique, so a credential can never\n  -- resolve to two tenants and a route can never have to choose between them —\n  -- which is the shape most cross-tenant reads take.\n  owner_user_id text not null,\n  -- \"sandbox\" may resolve an unverified principal; \"live\" may not. Enforced in\n  -- the application (resolveAuthority's requireVerifiedPrincipal), recorded\n  -- here so an operator can see which posture a tenant is under.\n  environment   text not null default 'sandbox'\n                  check (environment in ('sandbox', 'live')),\n  status        text not null default 'ACTIVE'\n                  check (status in ('ACTIVE', 'SUSPENDED', 'REVOKED')),\n  created_at    timestamptz not null default now(),\n  updated_at    timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 44,
+      "sha256": "c523a904e6a80efcf4f2cdea63371bd4459538730021cc325775bc95ff381400",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 62,
+      "sha256": "260ef644764d75a053fbd8ce470745f2803a05a543388b001bf3b24d87579033",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 64,
+      "sha256": "139e505ccc9c937a58ece89907e8af6f810bc177520d74918797fdd9569af0c8",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 80,
+      "sha256": "620b47c92dd864a6d43c9a6e8657388f61ddbd404ebc4c0ed9a2ea480a3fc9f2",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 101,
+      "sha256": "db0c4aaff148a6c23814018f1a8f71adad3478674e67d4ea7bffc09decdb64a7",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 119,
+      "sha256": "4dfb662d6fa07163d19f79fca7056aa87cf3dd056b0a6778bbe5deeb8deafd11",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 140,
+      "sha256": "a04c8440cb771962893fc44081dc68da315476bdce3e75100256987d6131c16e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 166,
+      "sha256": "7a684e14e31adf92c7ce39da041453b1647f5e0f4b25a6a6ce8c1db4bcfee50f",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 207,
+      "sha256": "63742aef60b46a014de67ae0cd05db81509bd386508ac2f620b05e088e649fa1",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 232,
+      "sha256": "652b45da667782435f3228c274f08097fad5d605ad1265f8caf033a4da9d065d",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 296,
+      "sha256": "e884b584b90137ee25b1d0d6cce40eab492554c6eeb8d002c2e11f24abbb332e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 325,
+      "sha256": "d98adf73c62d95bf1882768415bc65aa7b411745eaffff0906e6bc61e11a3763",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 373,
+      "sha256": "baa0e47f902ace8f9050d9ad987bfd68cfe75b9e020f9696aca539430fda85e4",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 594,
+      "sha256": "a0780b518ce0a5adde859c7fc7059c81ccf12e1f30e6ee06402b63f2af9bcdb0",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 39,
+      "sha256": "1c5b0d545fc241d775ee96d6b19caae33947da84647bad3b92311a8a031e74ba",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 78,
+      "sha256": "2178bbdfdb89612b44d7bfe00ad449f78f1e13a2a0d92f8ffc9d6a142975e6d7",
+      "kind": "create table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/tenancy.ts",
+      "line": 107
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/tenancy.ts",
+      "line": 108
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 594,
+        "sha256": "a0780b518ce0a5adde859c7fc7059c81ccf12e1f30e6ee06402b63f2af9bcdb0"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

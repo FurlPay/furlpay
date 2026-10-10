@@ -1,0 +1,58 @@
+{
+  "name": "usdc_totals",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0036_usdc_index.sql",
+    "line": 125,
+    "sha256": "5fdbb290a02d4690769c56b10748ce8fac688a85090192785bc42fa156fc0938"
+  },
+  "definition": "create table if not exists usdc_totals (\n  stream        smallint primary key,\n  events        bigint not null default 0,\n  transfers     bigint not null default 0,\n  transfer_raw  numeric(78,0) not null default 0,\n  mints         bigint not null default 0,\n  mint_raw      numeric(78,0) not null default 0,\n  burns         bigint not null default 0,\n  burn_raw      numeric(78,0) not null default 0,\n  zero_value    bigint not null default 0,\n  tx_count      bigint not null default 0,\n  senders_hll   bytea check (senders_hll is null or length(senders_hll) = 16384),\n  receivers_hll bytea check (receivers_hll is null or length(receivers_hll) = 16384),\n  updated_at    timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 125,
+      "sha256": "5fdbb290a02d4690769c56b10748ce8fac688a85090192785bc42fa156fc0938",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 183,
+      "sha256": "957ad347d67d2195a6c89b25cbf59d1dd1f5ce86b018aac55c23306a080950f3",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 221,
+      "sha256": "7d7f140f70434890e442bc58c7a5a724552505dd27655f4fecd5501dd9e451cd",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 276,
+      "sha256": "711b6b1548044b116d97c258f04c48505e43b00487685b2e5eee94f9ba22f0bd",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/usdcIndex/indexer.ts",
+      "line": 329
+    },
+    {
+      "file": "apps/web/src/lib/onchain/usdcIndex/indexer.ts",
+      "line": 337
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 183,
+        "sha256": "957ad347d67d2195a6c89b25cbf59d1dd1f5ce86b018aac55c23306a080950f3"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

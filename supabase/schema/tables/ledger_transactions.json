@@ -1,0 +1,99 @@
+{
+  "name": "ledger_transactions",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0009_payments_and_ledger.sql",
+    "line": 128,
+    "sha256": "00eef68bf290e5af53ba176eed3b45e6a1437424209f13a6502d4eaaab2e5f9d"
+  },
+  "definition": "create table if not exists ledger_transactions (\n  id         text primary key,\n  ts         timestamptz not null default now(),\n  memo       text not null,\n  -- Set when this transaction reverses another. History is never edited; a\n  -- correction is a new, compensating transaction pointing back at its target.\n  reverses   text references ledger_transactions(id),\n  created_at timestamptz not null default now()\n);",
+  "dependencies": [
+    "ledger_transactions"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 128,
+      "sha256": "00eef68bf290e5af53ba176eed3b45e6a1437424209f13a6502d4eaaab2e5f9d",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 141,
+      "sha256": "1336e2ccea50a4b89a2b583d56dfe0ab2ec5b0132213e061d8d3916ace6c65f2",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 144,
+      "sha256": "b54a268ccf86c4f586a41e386ad4baf5f9cefd517ae007e00550c0d0b4184876",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 198,
+      "sha256": "41fe0d5b3041667d2473f9dd8b220aea0c5cecce8d1c71a4e4b9cd5713157a73",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 327,
+      "sha256": "997791632cdba3d149d1efea6b44991fc3d3ce118ddbc80bfc3ef575c027aefe",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 46,
+      "sha256": "e14d68bd0973126d9e3456b5749bc53f1c584b073a491801edd1d7e89c5e11ab",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 64,
+      "sha256": "ccb689383174fa58572491467167b41804147f94927e41d81dc22e521e8671e4",
+      "kind": "procedural"
+    },
+    {
+      "file": "supabase/migrations/0023_schema_assertions_v2.sql",
+      "line": 31,
+      "sha256": "cafc4d20baaf5c237a89072b89fa6b0b4b6e7b95842cde9b182c2ead40fc3572",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 44,
+      "sha256": "fb3bd6ef2d8d762e9458b9ce96c4068cf803f847ad860a3309bde18750522708",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 46,
+      "sha256": "c8af47894a93c44053143b7d4f87af379e4f9c64e24de49557c80e2fd064cc0c",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 64,
+      "sha256": "e9064942c78b91838b5bc5cf2c7433484c10e3257f90c65543ffadcf2bb4259a",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 246,
+      "sha256": "18348637e2cdb31366dd2a713a871b8df7f58b67a57e2e921cb706913ed3eeb5",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0016_rls_money_tables.sql",
+        "line": 46,
+        "sha256": "e14d68bd0973126d9e3456b5749bc53f1c584b073a491801edd1d7e89c5e11ab"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

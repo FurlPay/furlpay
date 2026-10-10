@@ -200,6 +200,11 @@ export const ENV_REGISTRY: EnvGroup[] = [
     vars: [v("SUPABASE_URL"), v("SUPABASE_SERVICE_ROLE_KEY"), v("RESEARCH_PDF_BUCKET")],
   },
   {
+    // Optional local operator tooling only; never configure on production.
+    group: "Staging schema review (local only)",
+    vars: [v("STAGING_DATABASE_URL")],
+  },
+  {
     group: "Auth providers",
     vars: [
       v("GOOGLE_CLIENT_ID"),

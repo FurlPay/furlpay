@@ -1,0 +1,85 @@
+{
+  "name": "webhook_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0022_webhook_events.sql",
+    "line": 28,
+    "sha256": "5c194885f4ab99121c606dc30d3844412ff482f98eb6979ad04b85b90022a09c"
+  },
+  "definition": "create table if not exists webhook_events (\n  id                    uuid primary key default gen_random_uuid(),\n  provider              text not null,\n  provider_event_id     text not null,\n  event_type            text,\n  -- Hash only. The raw body is never persisted; this is enough to detect a\n  -- \"same id, different payload\" replay without holding sensitive data at rest.\n  payload_hash          text not null,\n  status                text not null default 'received'\n                          check (status in ('received','processing','processed','failed')),\n  attempt_count         integer not null default 0,\n  received_at           timestamptz not null default now(),\n  processing_started_at timestamptz,\n  processed_at          timestamptz,\n  last_error            text,\n  created_at            timestamptz not null default now(),\n  unique (provider, provider_event_id)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0022_webhook_events.sql",
+      "line": 28,
+      "sha256": "5c194885f4ab99121c606dc30d3844412ff482f98eb6979ad04b85b90022a09c",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0022_webhook_events.sql",
+      "line": 49,
+      "sha256": "9c07beacdd7f0b59ff9bb683172d9455f91cb43cbe0574650eff9f0126013c46",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0022_webhook_events.sql",
+      "line": 52,
+      "sha256": "817b54722fe50b23aace463505eb77b60c6b0ad903742b545e99079c0e223b87",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0022_webhook_events.sql",
+      "line": 61,
+      "sha256": "f547c5edeb278f62168229150ae284e103ee72d19ebb1b9a7438fda70ffdc807",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0022_webhook_events.sql",
+      "line": 121,
+      "sha256": "147f380fd48568bd982fcfc6a60da73f7c2e726aec1ba64ee83d55a1d4c7e7ee",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0022_webhook_events.sql",
+      "line": 138,
+      "sha256": "99d06bd31265e026aa29ff713eb2487e167ddbabbab887062bb16cf192f33dd8",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0023_schema_assertions_v2.sql",
+      "line": 31,
+      "sha256": "cafc4d20baaf5c237a89072b89fa6b0b4b6e7b95842cde9b182c2ead40fc3572",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0024_webhook_claim_hash_guard.sql",
+      "line": 23,
+      "sha256": "3415c54d7ba64041b390c750887410a62fa381222d1841ea3d373627b0348257",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 64,
+      "sha256": "e9064942c78b91838b5bc5cf2c7433484c10e3257f90c65543ffadcf2bb4259a",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 246,
+      "sha256": "18348637e2cdb31366dd2a713a871b8df7f58b67a57e2e921cb706913ed3eeb5",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0022_webhook_events.sql",
+        "line": 52,
+        "sha256": "817b54722fe50b23aace463505eb77b60c6b0ad903742b545e99079c0e223b87"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

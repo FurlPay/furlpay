@@ -1,0 +1,63 @@
+{
+  "name": "cp_execution_attempts",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 325,
+    "sha256": "d98adf73c62d95bf1882768415bc65aa7b411745eaffff0906e6bc61e11a3763"
+  },
+  "definition": "create table if not exists cp_execution_attempts (\n  id                bigserial primary key,\n  organization_id   text not null references cp_organizations(id) on delete restrict,\n  authorization_id  text not null references cp_authorizations(id) on delete restrict,\n  attempt           integer not null check (attempt > 0),\n  rail_id           text not null,\n  rail_quote_id     text,\n  rail_ref          text,\n\n  -- SettlementState from rails.ts. INDETERMINATE is a first-class value because\n  -- \"failed\" and \"succeeded, response lost\" are different facts and treating\n  -- them alike is how a recipient gets paid twice.\n  state             text not null check (state in\n                      ('SUBMITTED', 'PENDING', 'ESCROWED', 'SETTLED', 'FAILED', 'INDETERMINATE')),\n  settlement_ref    text,\n  fee_atomic        numeric(78,0) check (fee_atomic >= 0),\n  confirmations     integer,\n  required_confirmations integer,\n  failure_reason    text,\n  rail_status       text,\n\n  -- The signing plane's answer. Reference only: no key, no signature.\n  execution_token_id text,\n  signing_backend    text,\n  signing_key_id     text,\n  hardware_backed    boolean,\n\n  -- Set once the balanced ledger transaction exists.\n  ledger_tx_id      text,\n\n  started_at        timestamptz not null default now(),\n  finished_at       timestamptz,\n  constraint cp_exec_attempt_uniq unique (authorization_id, attempt)\n);",
+  "dependencies": [
+    "cp_authorizations",
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 325,
+      "sha256": "d98adf73c62d95bf1882768415bc65aa7b411745eaffff0906e6bc61e11a3763",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 359,
+      "sha256": "14051363444dc7e8e0a1ce4a4c12699109f3d74ce5d7829345e56e16acdbec71",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 361,
+      "sha256": "c7a1eeea97c18068bd0c0d53363547c661ae5a4e5db3393d8645a2b40c2a37ab",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 584,
+      "sha256": "de594a6dd0c8cf41fa22cb73e73deacb7f6f6ce6cecf7ebc8cc21a12e29dc7ad",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 604,
+      "sha256": "0d2f81a2780203cb946d70bfcfb8ba64101cc7a8e1d4fbfe76dc981a70b45be5",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 667
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 604,
+        "sha256": "0d2f81a2780203cb946d70bfcfb8ba64101cc7a8e1d4fbfe76dc981a70b45be5"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

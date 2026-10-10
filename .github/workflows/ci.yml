@@ -161,6 +161,10 @@ jobs:
           if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then BASE=HEAD~1; fi
           node scripts/db/check-migrations.mjs --base "$BASE"
           node --test scripts/db/check-migrations.test.mjs
+      - name: Generated table inventory and staging probe guards
+        run: |
+          node scripts/db/inventory.mjs --check
+          node --test scripts/db/inventory.test.mjs scripts/db/probe-schema.test.mjs
       - name: Financial effects on real PostgreSQL (T-W1/T-W2/T-W3/T-L2, 20 repetitions)
         env:
           DATABASE_URL: postgres://postgres:ci@localhost:5432/furlpay_test

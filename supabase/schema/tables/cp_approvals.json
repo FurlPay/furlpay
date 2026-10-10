@@ -1,0 +1,95 @@
+{
+  "name": "cp_approvals",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 296,
+    "sha256": "e884b584b90137ee25b1d0d6cce40eab492554c6eeb8d002c2e11f24abbb332e"
+  },
+  "definition": "create table if not exists cp_approvals (\n  id                text primary key,\n  organization_id   text not null references cp_organizations(id) on delete restrict,\n  authorization_id  text not null references cp_authorizations(id) on delete restrict,\n  approver_role     text not null,\n  -- Set only when a human actually acted. NULL while pending, which is what the\n  -- lifecycle's record-level guard reads to refuse execution.\n  approved_by       text,\n  approved_at       timestamptz,\n  denied_by         text,\n  denied_at         timestamptz,\n  -- Fail-closed by constraint as well as by type: there is no ALLOW to store.\n  on_timeout        text not null default 'HOLD' check (on_timeout in ('HOLD', 'DENY')),\n  timeout_seconds   integer not null check (timeout_seconds > 0),\n  requested_at      timestamptz not null default now(),\n  -- Hash of the step-up evidence, never the evidence itself.\n  evidence_hash     text,\n  constraint cp_approvals_not_both check (not (approved_at is not null and denied_at is not null))\n);",
+  "dependencies": [
+    "cp_authorizations",
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 296,
+      "sha256": "e884b584b90137ee25b1d0d6cce40eab492554c6eeb8d002c2e11f24abbb332e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 315,
+      "sha256": "4f03b5afa68c890970b0d8b1f62d058b519a5a95bdfd4d120cbc9d7b07ae652a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 316,
+      "sha256": "3b0fd2d96111c4379314e70729e6fe9dbe33abbc2ddf0aad06b047c35777800c",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 442,
+      "sha256": "6d562f51e78a276235de75c147f54c2dfc17dd2d2f0ea0dc6412d30fd205dd13",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 575,
+      "sha256": "d2f7c1e93aae6976a33527bf11aa780e3761ed2803e9abfc1cb50055e0d43faf",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 603,
+      "sha256": "4e0b23263ce90f0b8a9f53025184c8c6fe3d5b7cac173b0a6635b46a740d3e49",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0030_cp_approval_decisions.sql",
+      "line": 35,
+      "sha256": "a1ceb370f6caa558fcb87ef8e22be8a2ed3f057101cff515004e768f9fd1f3bb",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 738
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 739
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 752
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 753
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 876
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 877
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 603,
+        "sha256": "4e0b23263ce90f0b8a9f53025184c8c6fe3d5b7cac173b0a6635b46a740d3e49"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

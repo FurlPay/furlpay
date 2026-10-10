@@ -1,0 +1,57 @@
+{
+  "name": "cashback_accruals",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0026_cashback_accruals.sql",
+    "line": 29,
+    "sha256": "cf1c9862cd80c5059f94fe37434b967ef04f4991aa49073a39be348c8f5fd8c5"
+  },
+  "definition": "create table if not exists cashback_accruals (\n  id                text primary key,\n  user_id           uuid not null references users (id) on delete cascade,\n  -- The spend this accrual came from (e.g. a card authorisation id). One\n  -- accrual per spend per user, enforced here rather than in application code.\n  source_ref        text not null,\n  amount_minor      bigint not null check (amount_minor > 0),\n  currency          text not null default 'USD' check (currency = 'USD'),\n  accrued_at        timestamptz not null default now(),\n  claimed_at        timestamptz,\n  claim_effect_key  text,\n  constraint cashback_accrual_once_per_source unique (user_id, source_ref),\n  constraint cashback_claim_consistent check ((claimed_at is null) = (claim_effect_key is null))\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0026_cashback_accruals.sql",
+      "line": 29,
+      "sha256": "cf1c9862cd80c5059f94fe37434b967ef04f4991aa49073a39be348c8f5fd8c5",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0026_cashback_accruals.sql",
+      "line": 44,
+      "sha256": "7242c3ad7ea3ee26a4faf5ec2f1e7332aeea1943bf4fdbb93043c3965b562886",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0026_cashback_accruals.sql",
+      "line": 47,
+      "sha256": "7fbbffb0c15da7bd389c2afa598c22b50706d3c7d5d6435571d88f5004b3393d",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0026_cashback_accruals.sql",
+      "line": 51,
+      "sha256": "a1c215572601a04fadecee6060125a6070e1b0b59424ba2d9eed2b9bbb8e4a32",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0026_cashback_accruals.sql",
+      "line": 79,
+      "sha256": "a0853cea0a11d3ce9190b277701a819b2e061c2793863e954c6e20d27032f1dc",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0026_cashback_accruals.sql",
+        "line": 47,
+        "sha256": "7fbbffb0c15da7bd389c2afa598c22b50706d3c7d5d6435571d88f5004b3393d"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}
