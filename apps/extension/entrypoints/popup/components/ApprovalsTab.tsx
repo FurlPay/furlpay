@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Icon, IconName } from "@/components/icons";
+import { Icon, type IconName } from "@/components/icons";
 import { assessChallenge, clockLabel, dayLabel, mccLabel, txStatusMeta } from "@/lib/market";
 import type { PasskeyList, PendingChallenge, Transaction } from "@/lib/types";
 import {

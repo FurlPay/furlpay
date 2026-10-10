@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { Icon, IconName, LogoMark, Wordmark } from "@/components/icons";
+import { Icon, type IconName, LogoMark, Wordmark } from "@/components/icons";
 import type { PendingChallenge } from "@/lib/types";
 import ActivityTab from "./components/ActivityTab";
 import ApprovalsTab from "./components/ApprovalsTab";
@@ -12,7 +12,7 @@ import { Onboarding, useOnboarding } from "./components/Onboarding";
 import SettingsTab from "./components/SettingsTab";
 import SignedOut from "./components/SignedOut";
 import WalletTab from "./components/WalletTab";
-import { SessionState, SkeletonPage, Tab, openSite, send } from "./components/shared";
+import { type SessionState, SkeletonPage, type Tab, openSite, send } from "./components/shared";
 
 // FurlPay popup — the daily surface of the On-Chain Financial OS.
 // Wallet / Activity / Approve / Earn / Settings. All data flows through the

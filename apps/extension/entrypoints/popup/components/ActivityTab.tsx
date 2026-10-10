@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { IconName } from "@/components/icons";
+import type { IconName } from "@/components/icons";
 import { clockLabel, dayLabel, txStatusMeta } from "@/lib/market";
 import type { Transaction } from "@/lib/types";
 import { EmptyState, ErrorPanel, MerchantAvatar, SkeletonPage, send, usd } from "./shared";

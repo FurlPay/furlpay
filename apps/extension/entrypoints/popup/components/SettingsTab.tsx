@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/icons";
 import type { Entitlements, PasskeyList } from "@/lib/types";
 import {
-  SessionState,
+  type SessionState,
   SettingsTile,
   StoredToggle,
   deviceLabel,

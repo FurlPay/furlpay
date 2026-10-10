@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Icon, IconName } from "@/components/icons";
+import { Icon, type IconName } from "@/components/icons";
 import { monogram, monogramColor } from "@/lib/market";
 import type { BgRequest, BgResponse } from "@/lib/types";
 
