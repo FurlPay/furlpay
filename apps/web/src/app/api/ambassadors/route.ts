@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail, creatorWelcome } from "@/lib/email";
 import { optionalUser, requireUser } from "@/lib/authz";
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "ambassadors", { limit: 5, windowMs: 600_000 });
   if (limited) return limited;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   const name = str(body.name);
   const email = str(body.email);
   const platform = str(body.platform);
@@ -135,7 +136,7 @@ export async function PATCH(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const email = str(req.nextUrl.searchParams.get("email")) || str((await req.clone().json().catch(() => ({}))).email);
+  const email = str(req.nextUrl.searchParams.get("email")) || str((await readJsonBody(req.clone()).catch(() => ({}))).email);
   if (!email || !EMAIL_RE.test(email)) {
     return NextResponse.json({ ok: false, error: "A valid ?email= is required." }, { status: 400 });
   }
@@ -154,7 +155,7 @@ export async function PATCH(req: NextRequest) {
   const limited = await rateLimitOr429(req, "ambassadors.patch", { limit: 15, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
 
   // Validate each field before applying anything.
   const patch: Partial<CreatorApplication> = {};

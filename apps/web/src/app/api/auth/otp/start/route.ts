@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { startOtp, otpIsLive } from "@/lib/auth/otp";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -15,7 +16,7 @@ const Body = z.object({
 
 // POST /api/auth/otp/start — send a one-time passcode to a phone (or email).
 export async function POST(req: NextRequest) {
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  const parsed = Body.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }

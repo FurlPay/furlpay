@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { planIntent } from "@/lib/services/intentRouter";
 import { newTx, recordTransaction } from "@/lib/store";
 import { IntentSchema, parse } from "@/lib/schemas";
@@ -12,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const parsed = parse(IntentSchema, await req.json().catch(() => ({})));
+  const parsed = parse(IntentSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const body = parsed.data;
 

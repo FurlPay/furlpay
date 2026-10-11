@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { generateAuthenticationOptions } from "@simplewebauthn/server";
 import { requireUser } from "@/lib/authz";
 import { RP_ID, getCredentials } from "@/lib/webauthn";
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const user = auth.account.user;
 
-  const { challengeId } = await req.json().catch(() => ({}));
+  const { challengeId } = await readJsonBody(req).catch(() => ({}));
   if (typeof challengeId !== "string" || !challengeId) {
     return NextResponse.json({ error: "challengeId required" }, { status: 400 });
   }

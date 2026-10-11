@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { requireUser } from "@/lib/authz";
 import { getCredentials, removeCredential } from "@/lib/webauthn";
 
@@ -37,7 +38,7 @@ export async function DELETE(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const user = auth.account.user;
 
-  const { credentialId } = await req.json().catch(() => ({}) as { credentialId?: string });
+  const { credentialId } = await readJsonBody(req).catch(() => ({}) as { credentialId?: string });
   if (typeof credentialId !== "string" || !credentialId) {
     return NextResponse.json({ error: "credentialId required" }, { status: 400 });
   }

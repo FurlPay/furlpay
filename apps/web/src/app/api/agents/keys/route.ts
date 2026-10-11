@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { listAgentKeyIds, registerAgentKey } from "@/lib/agentTrustGate";
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "agents.keys", { limit: 10, windowMs: 600_000 });
   if (limited) return limited;
 
-  const parsed = RegisterBody.safeParse(await req.json().catch(() => null));
+  const parsed = RegisterBody.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success || !parsed.data.publicKeyPem.includes("BEGIN PUBLIC KEY")) {
     return NextResponse.json({ error: "publicKeyPem (SPKI PEM) required" }, { status: 400 });
   }
@@ -113,7 +114,7 @@ export async function DELETE(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const account = auth.account;
 
-  const parsed = RevokeBody.safeParse(await req.json().catch(() => null));
+  const parsed = RevokeBody.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) return NextResponse.json({ error: "keyId required" }, { status: 400 });
 
   const revoked = await revokeAgentKey(account.user.id, parsed.data.keyId);

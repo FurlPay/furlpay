@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
@@ -110,7 +111,7 @@ export async function POST(req: NextRequest) {
   );
   if (limited) return limited;
 
-  const parsed = parse(ScheduleSchema, await req.json().catch(() => ({})));
+  const parsed = parse(ScheduleSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
   // Scope the key per user so one client's key can't replay (or conflict with)

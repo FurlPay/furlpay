@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readTextBody } from "@/lib/validate";
 import { z } from "zod";
 import { captureHold, createHold, listHolds, releaseHold } from "@/lib/services/escrow";
 import { getAccountDurable, newTx, recordTransaction, getDevelopmentDemoAccount } from "@/lib/store";
@@ -66,7 +67,7 @@ const Body = z.discriminatedUnion("action", [
 // registered under an account act ON that account and are policy-gated
 // (per-tx limit, daily budget, category allowlist) via agentPolicy.
 export async function POST(req: NextRequest) {
-  const raw = await req.text();
+  const raw = await readTextBody(req);
   let agentKeyId: string | null;
   try {
     agentKeyId = await verifyAgentSignature(req, raw);

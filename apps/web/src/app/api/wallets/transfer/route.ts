@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import crypto from "crypto";
 import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { requiresStepUp, verifyTotp } from "@furlpay/security";
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "wallets.transfer", { limit: 30, windowMs: 60_000 }, account.user.id);
   if (limited) return limited;
 
-  const parsed = parse(TransferSchema, await req.json().catch(() => ({})));
+  const parsed = parse(TransferSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
   // Scope the idempotency key per user so one client's key can't replay (or

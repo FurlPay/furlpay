@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { randomUUID } from "crypto";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -60,7 +61,7 @@ export async function POST(req: NextRequest) {
   );
   if (limited) return limited;
 
-  const parsed = parse(DocumentScanInitSchema, await req.json().catch(() => ({})));
+  const parsed = parse(DocumentScanInitSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { issuingCountry, documentType } = parsed.data;
 

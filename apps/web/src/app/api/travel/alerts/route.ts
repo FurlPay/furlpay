@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { demoOnlyUnavailable } from "@/lib/demoGate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
@@ -22,7 +23,7 @@ export async function POST(req: NextRequest) {
 
   let body: any;
   try {
-    body = await req.json();
+    body = await readJsonBody(req);
   } catch {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }

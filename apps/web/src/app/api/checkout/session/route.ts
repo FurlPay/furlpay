@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { FURL_DECIMALS } from "@/lib/token/furl";
 import { screenAddressRisk } from "@/lib/compliance/addressScreening";
@@ -102,7 +103,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const parsed = parse(CheckoutSchema, await req.json().catch(() => ({})));
+  const parsed = parse(CheckoutSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { amount, currency = "USD", token = "USDC", wallet } = parsed.data;
 

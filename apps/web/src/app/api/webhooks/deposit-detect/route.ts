@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readTextBody } from "@/lib/validate";
 import crypto from "crypto";
 import type { Chain } from "@furlpay/types";
 import { claimDepositNotification, recordDepositEvent } from "@/lib/services/deposits";
@@ -108,7 +109,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "rate_limited" }, { status: 429 });
   }
 
-  const rawBody = await req.text();
+  const rawBody = await readTextBody(req);
   if (!verifySignature(rawBody, req)) {
     return NextResponse.json({ error: "Unauthorized signature" }, { status: 401 });
   }

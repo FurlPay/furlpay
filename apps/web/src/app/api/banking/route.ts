@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { requireUser } from "@/lib/authz";
 import { BankingSchema, parse } from "@/lib/schemas";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -70,7 +71,7 @@ export async function POST(req: NextRequest) {
   );
   if (limited) return limited;
 
-  const parsed = parse(BankingSchema, await req.json().catch(() => ({})));
+  const parsed = parse(BankingSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
   return NextResponse.json(

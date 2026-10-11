@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { pushConfigured, removeSubscription, saveSubscription, vapidPublicKey } from "@/lib/push";
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const parsed = SubscriptionSchema.safeParse(await req.json().catch(() => null));
+  const parsed = SubscriptionSchema.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid push subscription" }, { status: 400 });
   }
@@ -41,7 +42,7 @@ export async function DELETE(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const { endpoint } = await req.json().catch(() => ({}));
+  const { endpoint } = await readJsonBody(req).catch(() => ({}));
   if (typeof endpoint !== "string" || !endpoint) {
     return NextResponse.json({ error: "endpoint required" }, { status: 400 });
   }

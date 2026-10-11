@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { verifyAuthenticationResponse } from "@simplewebauthn/server";
 import { requireUser } from "@/lib/authz";
 import { EXPECTED_ORIGINS, EXPECTED_RPIDS, getCredentials, updateCounter } from "@/lib/webauthn";
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const user = auth.account.user;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   const { challengeId, decision, assertion } = body ?? {};
   if (typeof challengeId !== "string" || (decision !== "approved" && decision !== "declined")) {
     return NextResponse.json({ error: "challengeId and decision required" }, { status: 400 });

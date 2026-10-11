@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 export const dynamic = "force-dynamic";
 import { optionalUser, requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
   });
   if (limited) return limited;
 
-  const body = (await req.json().catch(() => null)) as { symbol?: unknown } | null;
+  const body = (await readJsonBody(req).catch(() => null)) as { symbol?: unknown } | null;
   const result = await addToWatchlist(auth.account.user.id, body?.symbol);
   if (!result.ok) {
     return NextResponse.json(
@@ -79,7 +80,7 @@ export async function DELETE(req: NextRequest) {
 
   // The symbol may come in the body (fetch with a JSON payload) or the query
   // string (a plain DELETE). Accept both rather than making the caller guess.
-  const body = (await req.json().catch(() => null)) as { symbol?: unknown } | null;
+  const body = (await readJsonBody(req).catch(() => null)) as { symbol?: unknown } | null;
   const symbol = body?.symbol ?? req.nextUrl.searchParams.get("symbol");
 
   const result = await removeFromWatchlist(auth.account.user.id, symbol);

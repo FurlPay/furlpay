@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { approvePayment, rejectPayment, listPaymentsForReview } from "@/lib/services/payments";
 import { requireRole } from "@/lib/authz";
 
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
   const approver = auth.account.user.id;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   const paymentId = typeof body.paymentId === "string" ? body.paymentId : "";
   const decision = body.decision === "reject" ? "reject" : body.decision === "approve" ? "approve" : "";
   const reason = typeof body.reason === "string" ? body.reason.slice(0, 500) : undefined;

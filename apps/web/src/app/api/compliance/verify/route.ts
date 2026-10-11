@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { recordProductEvent } from "@/lib/analytics/events";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const userId = auth.account.user.id;
-  const parsed = Body.safeParse(await req.json());
+  const parsed = Body.safeParse(await readJsonBody(req));
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid request", details: parsed.error.errors },

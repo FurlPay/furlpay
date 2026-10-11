@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import crypto from "crypto";
 import { db } from "@/lib/store";
 import { RP_ID, RP_NAME } from "@/lib/webauthn";
@@ -14,7 +15,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "auth.webauthn", { limit: 20, windowMs: 60_000 });
   if (limited) return limited;
 
-  const { action, credential } = await req.json();
+  const { action, credential } = await readJsonBody(req);
 
   if (action === "register" || action === "login") {
     if (!credential) {

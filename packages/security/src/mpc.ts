@@ -8,7 +8,20 @@ import crypto from "crypto";
 // to co-sign unless the off-chain policy gate passed — so a client-side exploit
 // cannot move funds on its own (the anti-Gnosis-Pay lesson).
 // MOCK: models the collaborative signature; real impl calls the MPC provider.
+//
+// The "signature" below is an HMAC digest padded to 65 bytes. It is not an
+// ECDSA signature, nothing can verify it on-chain, and the shares are fixed
+// strings — it is NOT MPC (audit F-21). Nothing in the web app, the mobile app
+// or the SDKs calls it today. So that nothing can start to, both functions
+// refuse to run in production: a mock that looks like a signer must never be
+// mistaken for one.
 // ---------------------------------------------------------------------------
+
+function refuseInProduction(fn: string): void {
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(`@furlpay/security ${fn} is a mock signing model and is disabled in production`);
+  }
+}
 
 export interface PartialSignature {
   share: "A" | "B";
@@ -28,6 +41,7 @@ export interface MpcSignResult {
 
 /** Client produces its partial signature from the passkey-bound share. */
 export function clientPartialSign(payloadHash: string, passkeyProof: string): PartialSignature {
+  refuseInProduction("clientPartialSign");
   const value = crypto.createHmac("sha256", "shareA:" + passkeyProof).update(payloadHash).digest("hex");
   return { share: "A", value };
 }
@@ -41,6 +55,7 @@ export function serverCoSign(
   clientPartial: PartialSignature,
   policy: PolicyDecisionLike
 ): MpcSignResult {
+  refuseInProduction("serverCoSign");
   if (!policy.approved) {
     throw new Error(`MPC co-sign refused by policy engine: ${policy.reasons?.[0] ?? "not approved"}`);
   }

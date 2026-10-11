@@ -41,6 +41,20 @@ test("MPC co-signs when policy approves", () => {
   assert.match(res.signature, /^0x[0-9a-f]{130}$/);
 });
 
+test("mock MPC refuses to run in production (audit F-21)", () => {
+  const prev = process.env.NODE_ENV;
+  process.env.NODE_ENV = "production";
+  try {
+    assert.throws(() => s.clientPartialSign("0xhash", "proof"), /disabled in production/);
+    assert.throws(
+      () => s.serverCoSign("0xhash", { share: "A", value: "x" }, { approved: true }),
+      /disabled in production/
+    );
+  } finally {
+    process.env.NODE_ENV = prev;
+  }
+});
+
 test("risk engine blocks automation and allows clean device", () => {
   assert.strictEqual(s.assessRisk({ automation: true }).action, "block");
   assert.strictEqual(s.assessRisk({}).action, "allow");

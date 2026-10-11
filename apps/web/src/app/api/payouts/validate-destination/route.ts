@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { PAYOUT_RAILS, checkRailDestination, railStatus, type PayoutRail } from "@/lib/payouts/rails";
@@ -39,7 +40,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "payouts.validate", { limit: 60, windowMs: 60_000 });
   if (limited) return limited;
 
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  const parsed = Body.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
       { ok: false, reason: "invalid_request", detail: "Provide rail, network and destination." },

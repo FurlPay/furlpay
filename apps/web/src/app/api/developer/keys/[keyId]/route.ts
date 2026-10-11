@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/authz";
@@ -57,7 +58,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ keyId: st
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const parsed = PatchBody.safeParse(await req.json().catch(() => null));
+  const parsed = PatchBody.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
       { error: "invalid_request", detail: parsed.error.flatten().fieldErrors },
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ keyId: str
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const parsed = RotateBody.safeParse(await req.json().catch(() => null));
+  const parsed = RotateBody.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
       { error: "invalid_request", detail: parsed.error.flatten().fieldErrors },

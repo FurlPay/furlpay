@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { runCopilot, type ChatMessage } from "@/lib/copilot";
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
 
   let body: { messages?: ChatMessage[] };
   try {
-    body = await req.json();
+    body = await readJsonBody(req);
   } catch {
     return NextResponse.json({ error: "invalid_json" }, { status: 400 });
   }

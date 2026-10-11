@@ -10,6 +10,19 @@ export const MAX_MONEY_AMOUNT = 1_000_000;
 export const MAX_ORDER_QUANTITY = 1_000_000;
 const MoneyAmount = z.number().finite().positive().max(MAX_MONEY_AMOUNT);
 
+// Device signals are client-reported risk inputs (lib/fingerprint.ts, the
+// behavior tracker), never trusted on their own and never stored. They were
+// `z.record(z.any())` — any depth, any size, any type (audit F-8). Bounded now:
+// identifier keys, primitive values, short primitive arrays and ONE level of
+// nesting for the `behavior` summary. Enough for every field the collectors
+// send; not enough to smuggle an arbitrary document through a money route.
+const SignalPrimitive = z.union([z.string().max(2048), z.number().finite(), z.boolean(), z.null()]);
+const SignalKey = z.string().regex(/^[A-Za-z][A-Za-z0-9_]{0,63}$/);
+const SignalLeaf = z.union([SignalPrimitive, z.array(SignalPrimitive).max(64)]);
+const boundedRecord = <T extends z.ZodTypeAny>(value: T, maxKeys: number) =>
+  z.record(SignalKey, value).refine((o) => Object.keys(o).length <= maxKeys, { message: `at most ${maxKeys} keys` });
+export const DeviceSignalsSchema = boundedRecord(z.union([SignalLeaf, boundedRecord(SignalLeaf, 64)]), 96);
+
 export const TransferSchema = z.object({
   safeAddress: z.string().optional(),
   destination: z.string().min(4),
@@ -19,7 +32,7 @@ export const TransferSchema = z.object({
   signature: z.string().min(1),
   mfaCode: z.string().optional(),
   biometricProof: z.string().optional(),
-  deviceSignals: z.record(z.any()).optional(),
+  deviceSignals: DeviceSignalsSchema.optional(),
 });
 
 export const OrderSchema = z.object({

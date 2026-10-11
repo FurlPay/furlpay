@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import { parse } from "@/lib/schemas";
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "swag.redeem", { limit: 5, windowMs: 60_000 });
   if (limited) return limited;
 
-  const parsed = parse(RedeemSchema, await req.json().catch(() => ({})));
+  const parsed = parse(RedeemSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const d = parsed.data;
 

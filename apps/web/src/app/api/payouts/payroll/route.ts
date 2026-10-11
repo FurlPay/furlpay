@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { createPayment } from "@/lib/services/payments";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "payouts.payroll", { limit: 5, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const parsed = RunSchema.safeParse(await req.json().catch(() => ({})));
+  const parsed = RunSchema.safeParse(await readJsonBody(req).catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "invalid_body" }, { status: 400 });
   }

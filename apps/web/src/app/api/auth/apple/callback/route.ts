@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFormBody } from "@/lib/validate";
 export const dynamic = "force-dynamic";
 import { verifyAppleIdentityToken } from "@/lib/auth/apple";
 import { findOrCreateUserByIdentityDurable } from "@/lib/store";
@@ -33,7 +34,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "auth.apple.callback", { limit: 20, windowMs: 60_000 });
   if (limited) return limited;
 
-  const form = await req.formData().catch(() => null);
+  const form = await readFormBody(req).catch(() => null);
   const idToken = String(form?.get("id_token") ?? "");
   // Echo `state` back to the app so it can reject a deep link that didn't come
   // from the flow it started (login CSRF). Opaque to us; length-capped so a

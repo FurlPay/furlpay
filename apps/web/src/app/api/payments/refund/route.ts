@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { parse } from "@/lib/schemas";
 import { refundPayment } from "@/lib/services/payments";
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireRole(req, "compliance_officer");
   if (!auth.ok) return auth.res;
 
-  const parsed = parse(RefundSchema, await req.json().catch(() => ({})));
+  const parsed = parse(RefundSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
   const result = await refundPayment(parsed.data.paymentId, auth.account.user.id);

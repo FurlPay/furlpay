@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readTextBody } from "@/lib/validate";
 import { constructEvent } from "@furlpay/compliance";
 import { findAccountByCard, newTx, recordTransaction } from "@/lib/store";
 import { evaluateSpend } from "@/lib/services/policyEngine";
@@ -107,7 +108,7 @@ function decline(auth: InboundAuthorization, reason: string) {
 
 export async function POST(req: NextRequest) {
   const started = Date.now();
-  const body = await req.text();
+  const body = await readTextBody(req);
 
   const secret = endpointSecret(process.env.FURLPAY_CARDAUTH_ENDPOINT_SECRET, "whsec_sandbox_cardauth");
   if (!secret) {

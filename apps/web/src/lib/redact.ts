@@ -21,6 +21,11 @@
 // a code is dead in 30s anyway).
 // ---------------------------------------------------------------------------
 
+// "private key", "priv key", "privkey", "secret key", "signing key", "pk"
+// followed by an optional separator, then 64 hex digits (optionally 0x).
+const LABELLED_HEX_KEY =
+  /((?:\b(?:private|priv|secret|signing)[\s_-]*key|\bprivkey|\bpk)\b\s*(?:is|=|:)?\s*)(?:0x)?[0-9a-fA-F]{64}(?![0-9a-fA-F])/gi;
+
 export interface RedactionResult {
   text: string;
   /** How many secrets were replaced — callers can tell the user we did it. */
@@ -114,6 +119,16 @@ export function redactSecrets(input: string): RedactionResult {
       return line;
     })
     .join("\n");
+
+  // Labelled private keys (audit F-42). Bare 0x… hex stays untouched — a
+  // 32-byte private key and a tx hash are indistinguishable, and hashes are
+  // what support needs. A run the writer has LABELLED as a key is not
+  // ambiguous: "private key: 0x…", "privkey=…", "secret key …". Keep the
+  // label so the agent can see what was shared.
+  text = text.replace(LABELLED_HEX_KEY, (_m, label: string) => {
+    redactions++;
+    return `${label}[private key removed — move funds to a new wallet; this key is compromised]`;
+  });
 
   // Prefixed API tokens.
   for (const pattern of TOKEN_PATTERNS) {

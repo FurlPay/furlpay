@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { readTextBody } from "@/lib/validate";
 import crypto from "crypto";
 import { tryBegin, markProcessed, markFailed } from "@/lib/webhookGuard";
 import { suppressEmail } from "@/lib/email";
@@ -43,7 +44,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "webhook_not_configured" }, { status: 503 });
   }
 
-  const payload = await req.text();
+  const payload = await readTextBody(req);
   if (!verifySvixSignature(payload, req, secret)) {
     return NextResponse.json({ error: "Signature verification failed" }, { status: 401 });
   }

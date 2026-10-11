@@ -3,6 +3,7 @@
 // ---------------------------------------------------------------------------
 
 import { NextRequest, NextResponse } from "next/server";
+import { readTextBody } from "@/lib/validate";
 import { ComplyAdvantageProvider } from "@/lib/compliance/providers/complyAdvantage";
 import { kvSet } from "@/lib/kv";
 import { log } from "@/lib/log";
@@ -12,7 +13,7 @@ const ca = new ComplyAdvantageProvider();
 
 export async function POST(req: NextRequest) {
   try {
-    const rawBody = await req.text();
+    const rawBody = await readTextBody(req);
     const signature = req.headers.get("complyadvantage-signature") ?? req.headers.get("x-signature") ?? "";
 
     if (!signature) {

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { requireUser } from "@/lib/authz";
 import { audit } from "@/lib/audit";
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "ambassadors.follow", { limit: 20, windowMs: 600_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   const followerEmail = auth.account.user.email.toLowerCase();
   const followeeEmail = str(body.followeeEmail).toLowerCase();
 

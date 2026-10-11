@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { findPropertyById } from "@/lib/travel/propertySource";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 export const dynamic = "force-dynamic";
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
   );
   if (gate) return gate;
 
-  const parsed = BookBody.safeParse(await req.json().catch(() => null));
+  const parsed = BookBody.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) {
     return NextResponse.json(
       { error: "invalid_booking", detail: parsed.error.issues[0]?.message ?? "invalid body" },

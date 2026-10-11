@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { newTx, recordTransaction } from "@/lib/store";
 import { selectVault, buildWithdrawBundle, earnIsLive } from "@/lib/services/morpho";
 import { withdrawFromPosition } from "@/lib/services/earn";
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: false, error: "earn_unavailable" }, { status: 503 });
   }
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   const amountUsd = Number(body?.amountUsd);
   // AGENTS rule 1: money amounts get .positive() AND an upper bound.
   if (!Number.isFinite(amountUsd) || amountUsd <= 0 || amountUsd > MAX_EARN_USD_PER_TX) {

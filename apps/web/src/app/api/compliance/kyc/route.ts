@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { getIdentityProvider } from "@/lib/compliance/providers/factory";
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "compliance.kyc", { limit: 10, windowMs: 60_000 });
   if (limited) return limited;
 
-  const parsed = KycBody.safeParse(await req.json());
+  const parsed = KycBody.safeParse(await readJsonBody(req));
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid request", details: parsed.error.errors },

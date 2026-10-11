@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readTextBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { kvDel, kvGet, kvSet, kvSetNx } from "@/lib/kv";
 import { verifyFurlBridgeWebhook, WebhookSignatureError } from "@/lib/ramp/webhookVerify";
@@ -38,7 +39,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "webhook.furlbridge", { limit: 100, windowMs: 60_000 });
   if (limited) return limited;
 
-  const rawBody = await req.text();
+  const rawBody = await readTextBody(req);
   if (rawBody.length > 100_000) {
     return NextResponse.json({ error: "payload_too_large" }, { status: 413 });
   }

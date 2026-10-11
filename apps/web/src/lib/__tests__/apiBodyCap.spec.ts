@@ -125,21 +125,74 @@ describe("API request bodies are bounded before routing", () => {
     expect(mw).toMatch(/isApi\s*&&\s*MUTATING_METHODS\.has\(req\.method\)/);
   });
 
-  it("records how many handlers still parse a body without validateBody", () => {
-    // NOT a failure — it is the measurement that justified fixing this in
-    // middleware instead of per route. If this count ever reaches zero the
-    // middleware guard becomes defence in depth rather than the primary bound,
-    // which is a strictly better place to be.
-    const raw = routeFiles().filter((f) => {
-      const src = readFileSync(f, "utf8");
-      return /await\s+req\.json\(\)/.test(src) && !/validateBody/.test(src);
-    });
-    // Assert the shape of the problem, not a brittle exact number.
-    expect(raw.length).toBeGreaterThan(0);
-    expect(raw.length).toBeLessThan(routeFiles().length);
+  it("no route handler parses a body with an unbounded req.json() / req.text()", () => {
+    // This was a measurement: 59 route files called `await req.json()`, which
+    // buffers the whole body before anything can check its size. The
+    // middleware guard only sees Content-Length, so a chunked upload that
+    // declares none went straight through to an unbounded read (audit F-10,
+    // F-38). Every one now reads through readJsonBody/validateBody, which stop
+    // the stream at the cap. Keep it at zero.
+    // Code only: comments that explain the old bug mention req.json() by name.
+    const code = (f: string) =>
+      readFileSync(f, "utf8")
+        .replace(/\/\*[\s\S]*?\*\//g, "")
+        .replace(/^\s*\/\/.*$/gm, "");
+    const unbounded = routeFiles()
+      .filter((f) => /\breq(\.clone\(\))?\.(json|text|arrayBuffer|formData)\(\)/.test(code(f)))
+      .map((f) => relative(API_DIR, f).split(sep).join("/"));
+    expect(unbounded).toEqual([]);
+  });
+});
 
-    const relative_ = raw.map((f) => relative(API_DIR, f).split(sep).join("/"));
-    expect(relative_).toContain("x402/facilitator/settle/route.ts");
-    expect(relative_).toContain("x402/facilitator/verify/route.ts");
+describe("the bounded readers stop a body that declares no length", () => {
+  const chunked = (total: number) => {
+    let sent = 0;
+    const chunk = new TextEncoder().encode(" ".repeat(16 * 1024));
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (sent >= total) return c.close();
+        sent += chunk.byteLength;
+        c.enqueue(chunk);
+      },
+    });
+    const req = new Request("https://furlpay.com/api/x", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: stream,
+      duplex: "half",
+    } as RequestInit);
+    return { req, sent: () => sent };
+  };
+
+  it("readJsonBody rejects past the cap and stops reading", async () => {
+    const { readJsonBody, BodyTooLarge } = await import("@/lib/validate");
+    const { req, sent } = chunked(5_000_000);
+    expect(req.headers.get("content-length")).toBeNull();
+    await expect(readJsonBody(req)).rejects.toBeInstanceOf(BodyTooLarge);
+    expect(sent()).toBeLessThan(100 * 1024 + 3 * 16 * 1024);
+  });
+
+  it("validateBody answers 413 without buffering the whole stream", async () => {
+    const { validateBody } = await import("@/lib/validate");
+    const { z } = await import("zod");
+    const { req, sent } = chunked(5_000_000);
+    const res = await validateBody(req, z.object({}));
+    expect((res as Response).status).toBe(413);
+    expect(sent()).toBeLessThan(100 * 1024 + 3 * 16 * 1024);
+  });
+
+  it("readJsonBody keeps req.json() semantics for valid, invalid and empty bodies", async () => {
+    const { readJsonBody } = await import("@/lib/validate");
+    const mk = (body: string) => new Request("https://furlpay.com/api/x", { method: "POST", body });
+    await expect(readJsonBody(mk('{"a":1}'))).resolves.toEqual({ a: 1 });
+    await expect(readJsonBody(mk("{nope"))).rejects.toBeInstanceOf(SyntaxError);
+    await expect(readJsonBody(mk(""))).rejects.toBeInstanceOf(SyntaxError);
+  });
+
+  it("a lying Content-Length smaller than the body does not raise the cap", async () => {
+    const { readJsonBody, BodyTooLarge } = await import("@/lib/validate");
+    const big = JSON.stringify({ pad: "x".repeat(200 * 1024) });
+    const req = new Request("https://furlpay.com/api/x", { method: "POST", body: big, headers: { "content-length": "10" } });
+    await expect(readJsonBody(req)).rejects.toBeInstanceOf(BodyTooLarge);
   });
 });

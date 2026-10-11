@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { parse } from "@/lib/schemas";
 import { debitAccount } from "@/lib/services/account";
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "account.spend", { limit: 30, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const parsed = parse(SpendSchema, await req.json().catch(() => ({})));
+  const parsed = parse(SpendSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { amountUsd, memo, purpose } = parsed.data;
 

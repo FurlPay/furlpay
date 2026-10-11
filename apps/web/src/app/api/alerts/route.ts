@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -57,7 +58,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "alerts.create", { limit: 20, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const parsed = parse(CreateAlertSchema, await req.json().catch(() => ({})));
+  const parsed = parse(CreateAlertSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { symbol, direction, targetPrice, frequency, note } = parsed.data;
 

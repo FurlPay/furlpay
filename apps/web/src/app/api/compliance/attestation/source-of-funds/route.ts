@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { isAddress, type Address, type Hex } from "viem";
 import {
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
   const denied = requireOperator(req);
   if (denied) return denied;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   let subject: string | undefined = body.subject;
   let evidenceHash: string | undefined = body.evidenceHash;
   let expiry: number | undefined = body.expiry;
