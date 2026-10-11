@@ -24,7 +24,7 @@ clear:
 |---|---|---|
 | Preview isolation (`lib/dataPlane.ts`) | None | Data routes answer 503 until the preview scope has its own database and Redis and sets `FURLPAY_DATA_PLANE=isolated`. Pages still render. **This is intended**, and it will look like breakage on the first preview after merge. |
 | Payment listings scoped to the caller | `GET /api/payments/history` now needs a valid session at the handler and returns only the caller's payments; `GET /api/v1/payments` returns only the key owner's. A client that relied on seeing all payments will see fewer. | Same |
-| Account-lock link reachable without a session | The link in security emails works for a signed-out user | Same |
+| Account-lock link reachable without a session | Opening the link in a security email shows a confirmation page; pressing its button locks the account. Opening alone, by a person or a mail scanner, changes nothing. | Same |
 | Three packages removed, five declared | None at runtime; a clean install now resolves the packages the code imports | Same |
 | Nine variables removed from `.env.example` | None; nothing read them | None |
 | Six components removed | None; nothing imported them | None |
@@ -56,11 +56,53 @@ Unchanged from the consolidation record, with one addition at the start:
 3. Confirm CI is green on the head of #113; merge #113 into `extension-redesign`.
 4. `npm run deploy:prod` from a clean checkout of `extension-redesign`.
 5. `npm run smoke:prod`.
-6. Re-probe `/api/rails`, `/api/x402/fx`, `/p/<slug>`, `/api/checkout/merchant/<slug>`, Telegram sign-in, and the account-lock link while signed out (expect "Invalid or expired lock link" from the handler, not "Unauthorized" from the middleware).
+6. Re-probe `/api/rails`, `/api/x402/fx`, `/p/<slug>`, `/api/checkout/merchant/<slug>`, Telegram sign-in, and the account-lock link while signed out (expect the handler's "invalid or has expired" page, not "Unauthorized" from the middleware).
 7. Update the dated evidence in `apps/web/src/lib/productionStatus.ts`.
 
 Merging into `extension-redesign` does not deploy: Vercel's production branch
 is `main`, and production is updated by `npm run deploy:prod`.
+
+## Release checklist
+
+Status against the acceptance criteria raised in review. VERIFIED means a test
+or a command on this branch shows it; anything else says what is missing.
+
+| Area | Criterion | Status | Evidence |
+|---|---|---|---|
+| Isolation | Production credentials in a preview are never used | VERIFIED (code) | `dataPlane.spec.ts`: hostile scope combinations in preview and development |
+| Isolation | Missing isolated configuration fails closed | VERIFIED (code) | Withheld credentials resolve to no database and a refusing key-value store |
+| Isolation | No direct credential reader bypasses the guard | VERIFIED (code) | Property, bracket and destructured reads checked across `apps/web/src` |
+| Isolation | Private PDF signed URLs cannot be minted from a blocked preview | VERIFIED (code) | No request is made |
+| Isolation | The remote preview scope holds no production credentials | **NOT DONE** | Needs you: remove them on Vercel |
+| Authorization | Cross-account payment listing is denied | VERIFIED | `paymentTenantIsolation.spec.ts` |
+| Authorization | Cross-account detail is denied | PARTIAL | Session and key routes scoped; `/api/payments/{id}` is readable by id holders by design, ids verified unguessable |
+| Authorization | API-key scope and ownership enforced | VERIFIED | Same suite |
+| Authorization | Unauthenticated callers fail safely | VERIFIED | Same suite |
+| Lock link | Invalid and expired tokens rejected | VERIFIED | `lockLink.spec.ts` |
+| Lock link | Repeated or concurrent requests cannot bypass controls | VERIFIED | Same |
+| Lock link | Automated prefetch does not lock | VERIFIED | GETs change nothing |
+| Lock link | Rate limit; token not logged | VERIFIED | Rate limit tested; token absent from the audit record |
+| Release | Required checks ran on the final commit | **NOT DONE** | GitHub Actions is billing-locked; only local runs exist |
+| Release | Clean install and production build succeed | PARTIAL | `next build` passes locally on an existing install; a clean `npm ci` was not run (3 GB free disk) |
+| Release | Migrations contiguous and deployment-compatible | PARTIAL | Contiguous and additive; production's applied set is unknown |
+| Release | Preview smoke tests target the latest deployment | VERIFIED | Run against the preview built from the PR head |
+
+## Revert safety
+
+Each commit reverts on its own, but not every revert is safe:
+
+| Commit | Safe to revert alone? |
+|---|---|
+| `77bfa851`, `ea8e4e9e`, `b26505d8` (isolation) | **No.** Reverting lets previews use production data again. Fix the preview configuration instead. |
+| `653c69be` (payment listings) | **No.** Reverting restores the cross-account disclosure. |
+| `6a40c440` (lock link reachable) | Yes, but it re-breaks the link for signed-out users. Revert `7bcd0cc6` first only together with it. |
+| `7bcd0cc6` (confirm then POST) | **No**, unless `6a40c440` is reverted with it: alone it restores a locking GET reachable by scanners. |
+| `9a507536`, `50f13f48`, `3bef57f4`, `82990e4a`, docs | Yes. |
+
+The last known-good production deployment is `dpl_BA3wFtwBWXb68AbRMsmPbM2kmjGk`
+(`d3d7422e`). Rolling back to it restores the payment-listing disclosure that
+already exists there today; it does not make anything worse than the current
+production state.
 
 ## Rollback
 
@@ -69,6 +111,7 @@ is `main`, and production is updated by `npm run deploy:prod`.
 - **One change only:** each cleanup change is a single commit and reverts
   cleanly on its own with `git revert <sha>`:
   `77bfa851` isolation, `653c69be` payment listings, `6a40c440` lock link,
+  `7bcd0cc6` lock link confirm-then-POST, `ea8e4e9e` and `b26505d8` isolation hardening,
   `9a507536` attribution rules, `50f13f48` environment, `3bef57f4`
   dependencies, `82990e4a` removed components.
 - **Database:** nothing to roll back; this branch adds no migration.

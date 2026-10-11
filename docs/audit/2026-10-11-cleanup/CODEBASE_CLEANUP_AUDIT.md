@@ -32,7 +32,7 @@ BLOCKED (needs an external action or a decision).
 | P0-1 | Preview deployments used the production database and Redis. | The Vercel preview scope holds `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`. Six modules built clients from the raw variables: `lib/supabase.ts`, `lib/kv.ts`, `lib/locks.ts`, `lib/settlement/onboardingStore.ts`, `lib/services/notifications.ts`, and `lib/research/storage.ts` (found in review after the first pass: it takes `env` as a parameter, which the first version of the test did not match). | `lib/dataPlane.ts`: a non-production Vercel deployment gets no durable credentials unless its scope sets `FURLPAY_DATA_PLANE=isolated`, and never a Supabase URL naming a production project. All six modules read through it. Boot logs why. | `dataPlane.spec.ts`, 16 tests, including one that fails if any other file reads the credentials by any property or bracket access. | FIXED in code (`77bfa851`). Remote scope unchanged: BLOCKED on you. |
 | P0-2 | Any signed-in user could read every account's payments. | `GET /api/payments/history` had no guard of its own and called `listPayments(limit)`, which returned all records with payer address and metadata. | `listPayments` requires an owner; the route resolves the user. | `routeExposure.spec.ts`. | FIXED (`653c69be`) |
 | P0-3 | Any API key with `payments:read` could read every account's payments. | `GET /api/v1/payments` called the same unscoped function. | Scoped to the key's owner. | `routeExposure.spec.ts`. | FIXED (`653c69be`) |
-| P0-4 | The emailed "lock my account" link returned 401 to anyone not signed in. | `GET /api/security/lock` is session-less by design (HMAC in the URL) but was not in the middleware's public prefixes. Production answered `{"error":"Unauthorized"}`. | Added to the public prefixes. The route keeps its HMAC check and rate limit. | `routeExposure.spec.ts` asserts it is reachable and its five sibling routes are not. | FIXED (`6a40c440`). Review requested: this widens exposure of one route on purpose. |
+| P0-4 | The emailed "lock my account" link returned 401 to anyone not signed in. Reaching it then exposed a locking GET to mail scanners; it now confirms on GET and locks on POST (`7bcd0cc6`). | `GET /api/security/lock` is session-less by design (HMAC in the URL) but was not in the middleware's public prefixes. Production answered `{"error":"Unauthorized"}`. | Added to the public prefixes. The route keeps its HMAC check and rate limit. | `routeExposure.spec.ts` asserts it is reachable and its five sibling routes are not. | FIXED (`6a40c440`). Review requested: this widens exposure of one route on purpose. |
 
 Exposure of P0-2 and P0-3 was bounded by the payment store being in-process
 memory on each serverless instance, so a caller saw only payments created on
@@ -165,17 +165,48 @@ preview scope does **not** contain today. They are configuration facts, not
 code guarantees. If production secrets are added to the preview scope, only
 the first row still protects you.
 
+## Review follow-up (second pass)
+
+An external review of PR #114 raised four points. Each was acted on.
+
+| Point | Action | Commit |
+|---|---|---|
+| A seventh credential reader, `lib/research/storage.ts`, bypassed the guard | Routed through `resolveDataPlane`; the bypass check now matches any property, bracket or destructured read | `ea8e4e9e`, `b26505d8` |
+| A declaration of isolation is not proof of isolation | A preview whose Redis host is listed in `PROD_KV_HOSTS` is refused even when it declares isolation, alongside the existing production Supabase check; every hostile scope combination is tested | `b26505d8` |
+| Only two payment routes were tested for cross-account access | Two-account suite through the real service and handlers: own records only by id and content, unauthenticated and under-scoped callers refused, query parameters naming the other account ignored, payment ids checked to be 96 random bits | `b26505d8` |
+| A state-changing GET reachable without a session is fired by mail scanners | GET now only shows a confirmation page; the lock happens on POST from its button; no-store, no-referrer, noindex and a same-origin form CSP; tests for scanner GETs, replay, concurrency, account substitution, extended expiry, expired and tampered tokens, rate limit | `7bcd0cc6` |
+
+Not adopted: making the lock token single-use. Locking is idempotent and only
+narrows access, so a replay achieves nothing a first use did not, and a
+consumed-token store would be one more dependency that can fail closed
+against the person trying to secure their account.
+
+Payment routes reviewed for ownership and found already scoped: ramp orders
+(list and by id), the `/v1` control-plane payment routes (organization
+tenancy), merchant refunds and receipts, payroll batches, settlement
+transactions, payment create, execute and batch. `GET /api/payments/{id}` and
+its receipt are deliberately readable by whoever holds the id (the payment link
+holder is not the payer); that is safe only because ids are unguessable, which
+the new suite checks.
+
 ## Test verification
 
-Run on this branch, in `apps/web` unless noted.
+Run on the final commit of this branch, in `apps/web` unless noted.
 
 | Command | Result |
 |---|---|
 | `npx tsc --noEmit` | exit 0 |
 | `npx next lint` | 0 errors, 1 warning (`HostedCheckout.tsx` hook dependencies, pre-existing) |
 | `node scripts/check-claims.mjs` | no unqualified production claims |
-| `npx vitest run` | 536 files passed, 11 skipped; 7,992 tests passed, 55 skipped, 0 failed |
+| `node scripts/check-route-security.mjs` | 251 mutating routes, 0 FAIL, 0 WARN |
+| `npx vitest run` | 538 files passed, 11 skipped; 8,040 tests passed, 55 skipped, 0 failed |
 | `FURLPAY_DEV_AUTO_LOGIN=1 npx playwright test` (desktop and mobile) | 106 passed, 0 failed |
+| `npm run build` (claims check, then `next build`) | compiled successfully; exit 0 |
+| `npm audit --omit=dev` (root), with the CI allowlist logic | 9 high, 0 critical; all 9 are on the reviewed allowlist, so the CI gate would pass |
+| `npx jest` (`native-app`) | 122 suites; 1,951 passed, 1 skipped, 0 failed |
+| `cargo test --offline` (`sdks/rust`) | 3 passed, 0 failed |
+| `go vet ./... && go build ./...` (`sdks/go`) | clean; the Go SDK has no test files |
+| `python -m compileall` (`sdks/python`) | compiles; the Python SDK has no tests in the repository |
 | `node scripts/gen-llms.mjs --check` | matches |
 | `node scripts/aws/check-env-contract.mjs` (root) | OK, 24 variables |
 | `node scripts/db/check-migrations.mjs --base origin/extension-redesign` (root) | 50 migrations, contiguous, none modified |
@@ -185,14 +216,17 @@ changed: workspace package suites (485 passed), Hardhat contracts (68 passing,
 2 pending), database tooling tests (12 passed), the opt-in Sui mainnet read
 (1 passed).
 
-Baseline before this branch: 7,965 passed, 55 skipped. After: 7,992 passed, 55
-skipped. The 27 additional tests are the four new specs.
+Baseline before this branch: 7,965 passed, 55 skipped. After: 8,040 passed, 55
+skipped. The 75 additional tests are the six new specs.
 
-**Not run:** `next build` locally (the Vercel preview build is the build
-check); Expo, Android, iOS and Wear OS tests; Go, Python and Rust SDK tests;
-`npm audit`; any test against a deployed environment or a real network other
-than the read-only Sui check. The 55 skipped tests are opt-in suites that need
-a database or a live network.
+**Not run:** Android (no JDK on the build machine), iOS and Wear OS builds;
+Snyk (account quota exhausted); any test against a deployed environment or a
+real network other than the read-only Sui check. The 55 skipped tests are
+opt-in suites that need a database or a live network.
+
+**GitHub Actions has not run on any commit of this branch.** Every job ends in
+two to four seconds with the billing message. The results above are local runs
+on one Windows machine. They are not a substitute for CI on the merge commit.
 
 ## Measured before and after
 
@@ -210,4 +244,4 @@ a database or a live network.
 | Attribution matches in tracked files | 0 | 0 |
 | Pull request descriptions with the footer | 51 | 0 |
 | Commits with the trailer | 465 | 465 |
-| Unit tests passing | 7,965 | 7,992 |
+| Unit tests passing | 7,965 | 8,040 |
