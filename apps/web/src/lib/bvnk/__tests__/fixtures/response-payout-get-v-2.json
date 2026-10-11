@@ -1,0 +1,49 @@
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "method": "SEPA_CT",
+  "reference": "PAYOUT-2024-001",
+  "status": "PROCESSING",
+  "type": "payment:payout:fiat",
+  "direction": "OUT",
+  "fees": {
+    "customerFee": {
+      "amount": 5,
+      "currency": "EUR"
+    },
+    "processingFee": {
+      "amount": 10,
+      "currency": "EUR"
+    }
+  },
+  "originator": {
+    "amount": 1000.5,
+    "currency": "EUR",
+    "walletId": "wallet-123",
+    "customerId": "d063635e-0f83-4e47-a1f3-fc9484df1509"
+  },
+  "beneficiary": {
+    "remittanceInformation": "Payment for services",
+    "amount": 985.5,
+    "currency": "EUR",
+    "entity": {
+      "type": "INDIVIDUAL",
+      "firstName": "John",
+      "lastName": "Doe",
+      "relationshipType": "THIRD_PARTY"
+    },
+    "bankAccount": {
+      "accountNumber": "IE29 AIBK 9311 5212 3456 78",
+      "accountType": "CHECKING",
+      "bank": {
+        "identificationCode": "AIBKIE2D",
+        "country": "IE"
+      }
+    }
+  },
+  "createdAt": "2024-01-15T10:30:00Z",
+  "updatedAt": "2024-01-15T10:35:00Z",
+  "metadata": {
+    "source": "api",
+    "merchantId": "merchant-123"
+  }
+}

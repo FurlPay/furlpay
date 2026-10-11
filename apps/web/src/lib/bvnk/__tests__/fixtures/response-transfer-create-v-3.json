@@ -1,0 +1,49 @@
+{
+  "id": "d4a904e0-b040-4132-a6d3-ed7d03cdfce7",
+  "reference": "treasury-123",
+  "type": "payment:transfer",
+  "status": "PENDING_QUOTE_ACCEPTANCE",
+  "metadata": {},
+  "fees": {
+    "processingFee": {
+      "amount": 0.1,
+      "currency": "USD"
+    }
+  },
+  "originator": {
+    "amount": 10.5,
+    "currency": "USD",
+    "walletId": "a:25072267284363:kd3mRMO:1",
+    "entity": {
+      "legalName": "Acme Corp",
+      "type": "COMPANY"
+    }
+  },
+  "beneficiary": {
+    "amount": 9.52,
+    "currency": "EUR",
+    "walletId": "a:25072267284363:kd3mRMO:2",
+    "entity": {
+      "legalName": "Globex Trading",
+      "type": "COMPANY"
+    }
+  },
+  "conversion": {
+    "type": "QUOTE",
+    "spread": {
+      "percentage": 0.01,
+      "amount": 0.105,
+      "currency": "USD"
+    },
+    "allInRate": 0.9066,
+    "baseRate": 0.8976,
+    "validityDuration": "PT20S",
+    "expiresAt": "2025-07-30T10:30:20Z",
+    "digest": "a1b2c3d4e5f6"
+  },
+  "expiresAt": "2025-07-31T10:00:00Z",
+  "createdAt": "2025-07-30T10:00:00Z",
+  "updatedAt": "2025-07-30T10:00:00Z",
+  "trackingDetails": [],
+  "method": "BOOK"
+}

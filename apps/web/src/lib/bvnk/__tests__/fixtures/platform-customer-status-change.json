@@ -1,0 +1,27 @@
+{
+  "event": "platform:accounts:customer:status-change",
+  "eventId": "0193ba8c-74f4-7bd3-a2fb-00e43851577c",
+  "timestamp": "2024-12-12T11:06:27.444216650Z",
+  "data": {
+    "id": "3f1d6b2a-0c48-4f7e-9a51-2b6d8e0f4c31",
+    "status": "VERIFIED",
+    "customerType": "COMPANY",
+    "requiredActions": [
+      {
+        "type": "DATA",
+        "code": "COMPANY_REGISTRATION_NUMBER",
+        "category": "COMPANY_DETAILS",
+        "description": "Company registration number is required",
+        "status": "REQUIRED",
+        "target": {
+          "kind": "AGREEMENT",
+          "assignedAgreementId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+          "urn": "string",
+          "version": "string",
+          "title": "string",
+          "locale": "string"
+        }
+      }
+    ]
+  }
+}

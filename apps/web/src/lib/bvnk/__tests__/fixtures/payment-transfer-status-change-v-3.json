@@ -1,0 +1,67 @@
+{
+  "event": "payment:v3:transfer:status-change",
+  "eventId": "019e261c-61b2-7ace-a81a-9f4e68440ffb",
+  "timestamp": "2026-05-14T10:51:03.512874Z",
+  "data": {
+    "id": "d4a904e0-b040-4132-a6d3-ed7d03cdfce7",
+    "reference": "treasury-123",
+    "type": "payment:v3:transfer:status-change",
+    "status": "COMPLETED",
+    "method": "BOOK",
+    "direction": "OUT",
+    "fees": {
+      "processingFee": {
+        "amount": 100.5,
+        "currency": "EUR"
+      }
+    },
+    "originator": {
+      "amount": 10.5,
+      "currency": "USD",
+      "walletId": "a:25072267284363:kd3mRMO:1",
+      "entity": {
+        "type": "INDIVIDUAL",
+        "firstName": "string",
+        "lastName": "string"
+      }
+    },
+    "beneficiary": {
+      "amount": 10.5,
+      "currency": "USD",
+      "walletId": "a:25072267284363:kd3mRMO:1",
+      "entity": {
+        "type": "INDIVIDUAL",
+        "firstName": "string",
+        "lastName": "string"
+      }
+    },
+    "conversion": {
+      "type": "QUOTE",
+      "spread": {
+        "percentage": 0.01,
+        "amount": 0.105,
+        "currency": "USD"
+      },
+      "allInRate": 0.9066,
+      "baseRate": 0.8976,
+      "validityDuration": "PT20S",
+      "expiresAt": "2024-07-29T15:51:28.071Z",
+      "digest": "string"
+    },
+    "metadata": {
+      "merchantId": "merchant-123"
+    },
+    "createdAt": "2026-05-14T10:50:54.770714Z",
+    "updatedAt": "2026-05-14T10:51:03.512874Z",
+    "expiresAt": "2024-07-29T15:51:28.071Z",
+    "trackingDetails": [
+      {
+        "externalTransactionId": "123e4567-e89b-12d3-a456-426614174000",
+        "imad": "20260304ABCDXXXX012345",
+        "omad": "20260304QMQP021000080",
+        "traceNumber": 21000080123456,
+        "uetr": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    ]
+  }
+}

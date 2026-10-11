@@ -1,14 +1,14 @@
 {
   "_doc": "Every FurlPay API handler classified by authentication model. CI (routeManifest.spec.ts) enforces this file as policy, not documentation: it fails if a route is unclassified, stale, duplicated, if these totals drift, OR if a route's implementation contradicts its classification — an AUTHENTICATED_USER/ADMIN_ONLY route that calls no guard, or a public reader with no rate limit. Rules live in lib/security/routeManifestValidator.ts.",
-  "_total": 439,
+  "_total": 441,
   "_counts": {
     "ADMIN_ONLY": 42,
     "API_KEY_AUTHENTICATED": 11,
     "AUTHENTICATED_USER": 184,
     "DEVELOPMENT_ONLY": 2,
-    "INTERNAL_ONLY": 15,
+    "INTERNAL_ONLY": 16,
     "PUBLIC_INTENTIONAL": 171,
-    "WEBHOOK_VERIFIED": 14
+    "WEBHOOK_VERIFIED": 15
   },
   "routes": {
     "account": "AUTHENTICATED_USER",
@@ -115,6 +115,7 @@
     "control-plane/approvals": "AUTHENTICATED_USER",
     "control-plane/approvals/[id]": "AUTHENTICATED_USER",
     "credit": "AUTHENTICATED_USER",
+    "cron/bvnk-reconcile": "INTERNAL_ONLY",
     "cron/discord-welcome": "INTERNAL_ONLY",
     "cron/health": "INTERNAL_ONLY",
     "cron/market-brief": "INTERNAL_ONLY",
@@ -427,6 +428,7 @@
     "wallets/circle/transfer": "AUTHENTICATED_USER",
     "wallets/transfer": "AUTHENTICATED_USER",
     "webhooks/allium": "WEBHOOK_VERIFIED",
+    "webhooks/bvnk": "WEBHOOK_VERIFIED",
     "webhooks/card-auth": "WEBHOOK_VERIFIED",
     "webhooks/complyadvantage": "WEBHOOK_VERIFIED",
     "webhooks/deposit-detect": "WEBHOOK_VERIFIED",

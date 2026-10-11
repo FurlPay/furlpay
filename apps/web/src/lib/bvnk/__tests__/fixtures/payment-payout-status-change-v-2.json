@@ -1,0 +1,84 @@
+{
+  "event": "payment:v2:payout:status-change",
+  "eventId": "0193ba8c-74f4-7bd3-a2fb-00e43851577c",
+  "timestamp": "2024-12-12T11:06:27.444216650Z",
+  "data": {
+    "id": "f5a879ec-9dcd-11f0-95d7-89347b196078",
+    "type": "payment:v2:payout:status-change",
+    "method": "SEPA_INST",
+    "createdAt": "2025-09-30T07:20:36.380343Z",
+    "direction": "OUT",
+    "updatedAt": "2025-09-30T07:20:36.385497Z",
+    "status": "PROCESSING",
+    "fees": {
+      "processingFee": {
+        "amount": 100.5,
+        "currency": "EUR"
+      },
+      "customerFee": {
+        "amount": 100.5,
+        "currency": "EUR"
+      }
+    },
+    "originator": {
+      "amount": 7,
+      "customerId": "ac7ce72f-8271-44b5-93ce-d1865f27b0bb",
+      "entity": {
+        "type": "INDIVIDUAL",
+        "legalName": "3Com"
+      },
+      "currency": "EUR",
+      "walletId": "a:23112847683858:B4jXNDk:1"
+    },
+    "beneficiary": {
+      "amount": 7,
+      "entity": {
+        "type": "INDIVIDUAL",
+        "address": {
+          "city": "New York",
+          "region": "NY",
+          "country": "US",
+          "postCode": "10001",
+          "addressLine1": "123 Business Park",
+          "addressLine2": "Suite 456",
+          "fullAddress": "123 Main St, Apt 4B, London, London, 12345, GB"
+        },
+        "firstName": "John",
+        "lastName": "Doe",
+        "dateOfBirth": "1990-09-30",
+        "relationshipType": "SELF_OWNED"
+      },
+      "currency": "EUR",
+      "bankAccount": {
+        "accountNumber": "GB93SAPY60838220490275",
+        "bank": {
+          "nid": "12345345",
+          "address": {
+            "city": "New York",
+            "region": "NY",
+            "country": "US",
+            "postCode": "10001",
+            "addressLine1": "123 Business Park",
+            "addressLine2": "Suite 456",
+            "fullAddress": "123 Main St, Apt 4B, London, London, 12345, GB"
+          },
+          "identificationCode": "SYPLMTM2XXX"
+        }
+      },
+      "remittanceInformation": "FIRST TEST SUCCESSFUL",
+      "customerId": "c8d25fbf-cead-4fea-875c-a5413f078c26"
+    },
+    "metadata": {
+      "merchantId": "merchant-123"
+    },
+    "trackingDetails": [
+      {
+        "externalTransactionId": "123e4567-e89b-12d3-a456-426614174000",
+        "imad": "20260304ABCDXXXX012345",
+        "omad": "20260304QMQP021000080",
+        "traceNumber": 21000080123456,
+        "uetr": "550e8400-e29b-41d4-a716-446655440000"
+      }
+    ]
+  }
+}
