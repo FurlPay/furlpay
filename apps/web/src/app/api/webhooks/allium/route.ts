@@ -6,6 +6,7 @@ import { deadLetter, persist, scopeTransfers, touchSource } from "@/lib/onchain/
 import { sbRpc, sbSelect, supabaseBackend } from "@/lib/supabase";
 import { limit, rateLimitIdentity } from "@/lib/rateLimit";
 import { log } from "@/lib/log";
+import { BodyTooLarge, readBoundedBody } from "@/lib/settlement/boundedBody";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export const dynamic = "force-dynamic";
 //
 // Nothing here moves money or touches the ledger.
 
+// Must match the exception for this path in middleware.ts (LARGE_BODY_ROUTES).
 const MAX_BODY = 1_000_000;
 const MAX_DECODED = 8_000_000;
 const MAX_RECORDS = 500;
@@ -41,10 +43,17 @@ export async function POST(req: Request) {
 
   const ctype = (req.headers.get("content-type") ?? "").toLowerCase();
   if (!ctype.startsWith("application/json")) return json({ error: "unsupported_media_type" }, 415);
-  const declared = Number(req.headers.get("content-length") ?? "0");
-  if (declared > MAX_BODY) return json({ error: "payload_too_large" }, 413);
-  const raw = Buffer.from(await req.arrayBuffer());
-  if (raw.length > MAX_BODY) return json({ error: "payload_too_large" }, 413);
+  // Streamed with a running byte count: a chunked body, or one with a false
+  // Content-Length, is cut off at MAX_BODY instead of being buffered whole
+  // before the size is known. This runs before authentication, so the cap is
+  // what bounds an anonymous caller's memory use.
+  let raw: Buffer;
+  try {
+    raw = Buffer.from(await readBoundedBody(req, MAX_BODY));
+  } catch (e) {
+    if (e instanceof BodyTooLarge) return json({ error: "payload_too_large" }, 413);
+    throw e;
+  }
 
   const auth = verifyBeam(req.headers, raw);
   if (!auth.ok) {

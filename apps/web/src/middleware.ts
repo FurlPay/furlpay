@@ -295,6 +295,18 @@ const BASELINE = { limit: 150, windowMs: 60_000 };
  */
 const MAX_API_BODY_BYTES = 100 * 1024;
 
+/**
+ * Reviewed exceptions to MAX_API_BODY_BYTES, by EXACT path. Each route must
+ * authenticate the body by signature and stream it with its own byte cap
+ * (lib/settlement/boundedBody.ts) at no more than the limit given here.
+ *
+ *   /api/webhooks/allium   Allium Beam multi-record deliveries (up to 500
+ *                          records, documented as 1 MB); HMAC-verified.
+ */
+const LARGE_BODY_ROUTES: Readonly<Record<string, number>> = {
+  "/api/webhooks/allium": 1_000_000,
+};
+
 // CSRF backstop for cookie-authenticated mutating requests. SameSite=Lax on
 // the session cookie is the primary defense (browsers won't attach it to
 // cross-site POSTs); this Origin check catches what Lax can't — older
@@ -458,11 +470,12 @@ export async function middleware(req: NextRequest, event?: NextFetchEvent) {
   // cheaply and the adversarial case correctly.
   if (isApi && MUTATING_METHODS.has(req.method)) {
     const declared = Number(req.headers.get("content-length") ?? 0);
-    if (Number.isFinite(declared) && declared > MAX_API_BODY_BYTES) {
+    const cap = Object.hasOwn(LARGE_BODY_ROUTES, pathname) ? LARGE_BODY_ROUTES[pathname] : MAX_API_BODY_BYTES;
+    if (Number.isFinite(declared) && declared > cap) {
       return NextResponse.json(
         {
           error: "payload_too_large",
-          message: `Request body exceeds the ${MAX_API_BODY_BYTES} byte limit.`,
+          message: `Request body exceeds the ${cap} byte limit.`,
         },
         { status: 413 }
       );

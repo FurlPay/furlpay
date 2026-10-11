@@ -70,7 +70,7 @@ describe("API request bodies are bounded before routing", () => {
     // names BASELINE_EXEMPT_PREFIXES, and including it would make this assertion
     // test the wrong code.
     const start = mw.indexOf("Body-size backstop");
-    const end = mw.indexOf("declared > MAX_API_BODY_BYTES");
+    const end = mw.indexOf("declared > cap");
     expect(start).toBeGreaterThan(-1);
     expect(end).toBeGreaterThan(start);
     const guard = mw.slice(start, end);
@@ -84,9 +84,23 @@ describe("API request bodies are bounded before routing", () => {
     expect(guard).toMatch(/isApi\s*&&\s*MUTATING_METHODS\.has\(req\.method\)/);
   });
 
+  it("allows a larger cap only for exact paths listed and reviewed in LARGE_BODY_ROUTES", () => {
+    const mw = middlewareSource();
+    // The one sanctioned way to raise the cap: an exact path, a number, and a
+    // comment saying why. Not a prefix, and never removing the check.
+    const start = mw.indexOf("const LARGE_BODY_ROUTES");
+    expect(start).toBeGreaterThan(-1);
+    const table = mw.slice(start, mw.indexOf("};", start));
+    const entries = [...table.matchAll(/^\s*"([^"]+)":\s*([\d_]+),/gm)].map((m) => [m[1], Number(m[2].replace(/_/g, ""))]);
+    // Reviewed list. Adding a route here is a security decision; update this test with it.
+    expect(entries).toEqual([["/api/webhooks/allium", 1_000_000]]);
+    // Looked up by exact key, not by prefix.
+    expect(mw).toMatch(/Object\.hasOwn\(LARGE_BODY_ROUTES,\s*pathname\)/);
+  });
+
   it("the guard runs BEFORE the rate limiter, so an oversized body is cheap to refuse", () => {
     const mw = middlewareSource();
-    const capAt = mw.indexOf("MAX_API_BODY_BYTES)");
+    const capAt = mw.indexOf("declared > cap");
     const rateAt = mw.indexOf("api-baseline:");
     expect(capAt).toBeGreaterThan(-1);
     expect(rateAt).toBeGreaterThan(-1);

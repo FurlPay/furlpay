@@ -166,6 +166,41 @@ describe("POST /api/webhooks/allium", () => {
     expect((await POST(big)).status).toBe(413);
   });
 
+  it("caps a chunked body by streamed size, without a Content-Length to trust", async () => {
+    // 2 MB in 64 KiB chunks and no Content-Length: the old arrayBuffer() read
+    // buffered all of it before checking. The bounded reader stops at 1 MB.
+    let sent = 0;
+    const chunk = new Uint8Array(64 * 1024).fill(0x20);
+    const stream = new ReadableStream<Uint8Array>({
+      pull(c) {
+        if (sent >= 2_000_000) return c.close();
+        sent += chunk.byteLength;
+        c.enqueue(chunk);
+      },
+    });
+    const r = new Request("https://furlpay.com/api/webhooks/allium", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: stream,
+      duplex: "half",
+    } as RequestInit);
+    expect((await POST(r)).status).toBe(413);
+    // It stopped reading shortly after the cap rather than draining the stream.
+    expect(sent).toBeLessThan(1_000_000 + 3 * chunk.byteLength);
+  });
+
+  it("is the one reviewed exception to the 100 KiB API body gate, at the same 1 MB cap", async () => {
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const mw = readFileSync(join(process.cwd(), "src", "middleware.ts"), "utf8");
+    const route = readFileSync(join(process.cwd(), "src", "app", "api", "webhooks", "allium", "route.ts"), "utf8");
+    const block = mw.slice(mw.indexOf("const LARGE_BODY_ROUTES"), mw.indexOf("};", mw.indexOf("const LARGE_BODY_ROUTES")));
+    expect([...block.matchAll(/^\s*"(\/api[^"]+)":/gm)].map((m) => m[1])).toEqual(["/api/webhooks/allium"]);
+    const mwCap = Number(/"\/api\/webhooks\/allium":\s*([\d_]+)/.exec(block)![1].replace(/_/g, ""));
+    const routeCap = Number(/const MAX_BODY = ([\d_]+);/.exec(route)![1].replace(/_/g, ""));
+    expect(mwCap).toBe(routeCap);
+  });
+
   it("five deliveries of one event produce five idempotent ingest calls with the SAME key — and never touch money", async () => {
     for (let i = 0; i < 5; i++) await POST(req(record()));
     const keys = calls.filter((c) => c.target === "onchain_ingest").map((c) => (c.arg as { p_events: { event_key: string }[] }).p_events[0].event_key);
