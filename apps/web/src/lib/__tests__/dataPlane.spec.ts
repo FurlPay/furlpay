@@ -125,6 +125,35 @@ describe("a blocked preview has no backends", () => {
   });
 });
 
+describe("private PDF storage follows the same rule", () => {
+  const bucket = { RESEARCH_PDF_BUCKET: "research" };
+
+  it("is unconfigured in a preview holding the production credentials, and makes no request", async () => {
+    const { storageConfigured, signedPdfUrl } = await import("@/lib/research/storage");
+    const env = { ...creds(PROD_DB), ...bucket, VERCEL_ENV: "preview", NODE_ENV: "production" } as unknown as NodeJS.ProcessEnv;
+    expect(storageConfigured(env)).toBe(false);
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    try {
+      expect(await signedPdfUrl("reports/2026.pdf", env)).toEqual({ ok: false, reason: "not_configured" });
+      expect(fetchSpy).not.toHaveBeenCalled();
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("is unconfigured in a preview that has not declared isolation, whatever database it names", async () => {
+    const { storageConfigured } = await import("@/lib/research/storage");
+    expect(storageConfigured({ ...creds(OTHER_DB), ...bucket, VERCEL_ENV: "preview" } as unknown as NodeJS.ProcessEnv)).toBe(false);
+  });
+
+  it("stays configured on the production deployment and in an isolated preview", async () => {
+    const { storageConfigured } = await import("@/lib/research/storage");
+    expect(storageConfigured({ ...creds(PROD_DB), ...bucket, VERCEL_ENV: "production" } as unknown as NodeJS.ProcessEnv)).toBe(true);
+    expect(storageConfigured({ ...creds(OTHER_DB), ...bucket, VERCEL_ENV: "preview", FURLPAY_DATA_PLANE: "isolated" } as unknown as NodeJS.ProcessEnv)).toBe(true);
+  });
+});
+
 describe("no backend bypasses the guard", () => {
   // The guard only works if nothing reads the credentials directly. Reporting
   // code may check PRESENCE of a variable; nothing may build a client from it.
@@ -133,8 +162,15 @@ describe("no backend bypasses the guard", () => {
     "src/lib/env.ts", // presence report
     "src/lib/ops/overview.ts", // presence report (booleans)
     "src/app/api/ops/readiness/route.ts", // presence report
+    "src/lib/bootConfig.ts", // boot-time presence check
   ]);
-  const NAMES = /process\.env\.(SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|UPSTASH_REDIS_REST_URL|UPSTASH_REDIS_REST_TOKEN|KV_REST_API_URL|KV_REST_API_TOKEN)\b/;
+  // ANY property or bracket read of the names, not only `process.env.NAME`: a
+  // module that takes `env = process.env` as a parameter and reads
+  // `env.SUPABASE_URL` bypasses the guard just the same. The first version of
+  // this pattern matched only the `process.env.` form and missed exactly that
+  // in lib/research/storage.ts. A name inside a message string is not a read
+  // and does not match.
+  const NAMES = /(?:\.|\[\s*["'])(SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|UPSTASH_REDIS_REST_URL|UPSTASH_REDIS_REST_TOKEN|KV_REST_API_URL|KV_REST_API_TOKEN)\b/;
 
   function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {

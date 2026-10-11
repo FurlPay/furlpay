@@ -29,7 +29,7 @@ BLOCKED (needs an external action or a decision).
 
 | ID | Finding | Evidence | Change | Verification | Status |
 |---|---|---|---|---|---|
-| P0-1 | Preview deployments used the production database and Redis. | The Vercel preview scope holds `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`. Five modules built clients from the raw variables: `lib/supabase.ts`, `lib/kv.ts`, `lib/locks.ts`, `lib/settlement/onboardingStore.ts`, `lib/services/notifications.ts`. | `lib/dataPlane.ts`: a non-production Vercel deployment gets no durable credentials unless its scope sets `FURLPAY_DATA_PLANE=isolated`, and never a Supabase URL naming a production project. All five modules read through it. Boot logs why. | `dataPlane.spec.ts`, 13 tests, including one that fails if any other file reads the credentials directly. | FIXED in code (`77bfa851`). Remote scope unchanged: BLOCKED on you. |
+| P0-1 | Preview deployments used the production database and Redis. | The Vercel preview scope holds `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `KV_REST_API_URL`, `KV_REST_API_TOKEN`. Six modules built clients from the raw variables: `lib/supabase.ts`, `lib/kv.ts`, `lib/locks.ts`, `lib/settlement/onboardingStore.ts`, `lib/services/notifications.ts`, and `lib/research/storage.ts` (found in review after the first pass: it takes `env` as a parameter, which the first version of the test did not match). | `lib/dataPlane.ts`: a non-production Vercel deployment gets no durable credentials unless its scope sets `FURLPAY_DATA_PLANE=isolated`, and never a Supabase URL naming a production project. All six modules read through it. Boot logs why. | `dataPlane.spec.ts`, 16 tests, including one that fails if any other file reads the credentials by any property or bracket access. | FIXED in code (`77bfa851`). Remote scope unchanged: BLOCKED on you. |
 | P0-2 | Any signed-in user could read every account's payments. | `GET /api/payments/history` had no guard of its own and called `listPayments(limit)`, which returned all records with payer address and metadata. | `listPayments` requires an owner; the route resolves the user. | `routeExposure.spec.ts`. | FIXED (`653c69be`) |
 | P0-3 | Any API key with `payments:read` could read every account's payments. | `GET /api/v1/payments` called the same unscoped function. | Scoped to the key's owner. | `routeExposure.spec.ts`. | FIXED (`653c69be`) |
 | P0-4 | The emailed "lock my account" link returned 401 to anyone not signed in. | `GET /api/security/lock` is session-less by design (HMAC in the URL) but was not in the middleware's public prefixes. Production answered `{"error":"Unauthorized"}`. | Added to the public prefixes. The route keeps its HMAC check and rate limit. | `routeExposure.spec.ts` asserts it is reachable and its five sibling routes are not. | FIXED (`6a40c440`). Review requested: this widens exposure of one route on purpose. |
@@ -174,7 +174,7 @@ Run on this branch, in `apps/web` unless noted.
 | `npx tsc --noEmit` | exit 0 |
 | `npx next lint` | 0 errors, 1 warning (`HostedCheckout.tsx` hook dependencies, pre-existing) |
 | `node scripts/check-claims.mjs` | no unqualified production claims |
-| `npx vitest run` | 536 files passed, 11 skipped; 7,989 tests passed, 55 skipped, 0 failed |
+| `npx vitest run` | 536 files passed, 11 skipped; 7,992 tests passed, 55 skipped, 0 failed |
 | `FURLPAY_DEV_AUTO_LOGIN=1 npx playwright test` (desktop and mobile) | 106 passed, 0 failed |
 | `node scripts/gen-llms.mjs --check` | matches |
 | `node scripts/aws/check-env-contract.mjs` (root) | OK, 24 variables |
@@ -185,8 +185,8 @@ changed: workspace package suites (485 passed), Hardhat contracts (68 passing,
 2 pending), database tooling tests (12 passed), the opt-in Sui mainnet read
 (1 passed).
 
-Baseline before this branch: 7,965 passed, 55 skipped. After: 7,989 passed, 55
-skipped. The 24 additional tests are the four new specs.
+Baseline before this branch: 7,965 passed, 55 skipped. After: 7,992 passed, 55
+skipped. The 27 additional tests are the four new specs.
 
 **Not run:** `next build` locally (the Vercel preview build is the build
 check); Expo, Android, iOS and Wear OS tests; Go, Python and Rust SDK tests;
@@ -205,9 +205,9 @@ a database or a live network.
 | Packages imported by `apps/web` but undeclared | 5 | 0 |
 | Documented variables read by nothing | 9 | 0 |
 | Read-but-undocumented variables | 58 | 42 |
-| Modules building a database or Redis client from raw variables | 5 | 0 |
+| Modules building a database or Redis client from raw variables | 6 | 0 |
 | Routes public in the manifest, session-gated, unreviewed | 28 | 0 |
 | Attribution matches in tracked files | 0 | 0 |
 | Pull request descriptions with the footer | 51 | 0 |
 | Commits with the trailer | 465 | 465 |
-| Unit tests passing | 7,965 | 7,989 |
+| Unit tests passing | 7,965 | 7,992 |
