@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { findResource } from "@/lib/x402Registry";
 import { acceptedRequirements } from "@/lib/x402";
+import { quoteSecretConfigured, x402NotConfigured } from "@/lib/x402QuoteSecret";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,11 @@ export async function GET(req: NextRequest) {
   const resource = req.nextUrl.searchParams.get("resource");
   if (!resource) return NextResponse.json({ error: "missing_resource_param" }, { status: 400 });
   const method = req.nextUrl.searchParams.get("method") || "GET";
+
+  // Each requirement carries an HMAC binding keyed with X402_QUOTE_SECRET.
+  // Without it, production would throw inside acceptedRequirements and answer
+  // 500; answer the same structured 503 the quote routes give instead.
+  if (!quoteSecretConfigured()) return x402NotConfigured();
 
   const entry = findResource(resource, method);
   if (!entry) return NextResponse.json({ error: "resource_not_registered" }, { status: 404 });
