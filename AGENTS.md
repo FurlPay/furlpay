@@ -51,3 +51,13 @@ success for that exact SHA (`apps/web/scripts/check-deploy-gate.mjs`).
 Multiple agent sessions may commit to `extension-redesign` concurrently.
 Run `git log --oneline -3` and `git status` before editing; commit and push
 small logical units promptly.
+
+## Commits and pull requests
+
+No tool attribution, anywhere. Do not add `Co-Authored-By:` trailers naming an
+AI assistant, "Generated with ..." footers, or similar boilerplate to commit
+messages, pull request descriptions, issues, comments or files.
+`.claude/settings.json` turns the default trailers off; `attribution.spec.ts`
+fails if one appears in a tracked file or in a commit after `e452cb98`.
+User-facing disclosure labels in the product ("AI-generated summary") are not
+attribution and stay.
