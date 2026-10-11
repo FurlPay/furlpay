@@ -152,3 +152,12 @@ describe("quote acceptance window", () => {
     }
   });
 });
+
+describe("signing across retries", () => {
+  it("signs every retry afresh (new nonce), so a retried read is never a replayed signature", async () => {
+    const { client, calls } = setup([json(503, {}), json(200, doc("transfer-read-v-3"))]);
+    await client.getTransfer(TID);
+    const auths = calls.map((c) => (c.init.headers as Record<string, string>).Authorization);
+    expect(auths[0]).not.toBe(auths[1]);
+  });
+});

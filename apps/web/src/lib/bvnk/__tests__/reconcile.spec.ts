@@ -3,7 +3,10 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const h = vi.hoisted(() => ({ rows: [] as Record<string, string>[], rpc: vi.fn() }));
-vi.mock("@/lib/supabase", () => ({ supabaseBackend: "supabase", sbSelect: vi.fn(async () => h.rows), sbRpc: h.rpc }));
+const sel = vi.hoisted(() => ({ queries: [] as string[] }));
+vi.mock("@/lib/supabase", () => ({ supabaseBackend: "supabase", sbSelect: vi.fn(async (_t: string, q: string) => { sel.queries.push(q); return h.rows; }), sbRpc: h.rpc }));
+const alerts = vi.hoisted(() => ({ raise: vi.fn(async () => undefined) }));
+vi.mock("@/lib/ops/financialAlerts", () => ({ raiseFinancialAlert: alerts.raise }));
 
 import { reconcileOpenBvnkRecords } from "../reconcile";
 import { BvnkNotConfigured } from "../config";
@@ -17,6 +20,8 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 beforeEach(() => {
   h.rows = [];
   h.rpc.mockReset().mockResolvedValue("updated");
+  alerts.raise.mockClear();
+  sel.queries.length = 0;
 });
 
 describe("BVNK reconciliation", () => {
@@ -28,7 +33,9 @@ describe("BVNK reconciliation", () => {
     ];
     const fetch = vi.fn(async (url: string) => (url.includes("/transfers/") ? json(200, doc("transfer-read-v-3")) : json(200, doc("payout-get-v-2"))));
     const r = await reconcileOpenBvnkRecords({ deps: { fetch: fetch as unknown as typeof globalThis.fetch, env: ENV, sleep: async () => {} } });
-    expect(r).toEqual({ checked: 2, updated: 2, unchanged: 0, notFound: 0, failed: 0 });
+    expect(r).toEqual({ checked: 2, updated: 2, unchanged: 0, conflicts: 0, notFound: 0, failed: 0 });
+    // Least recently reconciled first, so a long-open record cannot starve the rest.
+    expect(sel.queries[0]).toContain("order=reconciled_at.asc.nullsfirst");
     expect(fetch).toHaveBeenCalledTimes(2);
     expect(fetch.mock.calls.every(([, init]) => (init as RequestInit).method === "GET")).toBe(true);
     expect(h.rpc.mock.calls.map((c) => c[1].p.source)).toEqual(["api", "api"]);
@@ -42,13 +49,32 @@ describe("BVNK reconciliation", () => {
     const fetch = vi.fn(async (url: string) => (url.includes("/transfers/") ? json(404, {}) : json(500, {})));
     const r = await reconcileOpenBvnkRecords({ deps: { fetch: fetch as unknown as typeof globalThis.fetch, env: ENV, sleep: async () => {} } });
     expect(r).toMatchObject({ checked: 2, notFound: 1, failed: 1, updated: 0 });
-    expect(h.rpc).not.toHaveBeenCalled();
+    // The 404 is recorded as an exception; the 500 records nothing.
+    expect(h.rpc.mock.calls.map((c) => c[0])).toEqual(["bvnk_record_missing"]);
+    expect(alerts.raise).toHaveBeenCalledWith("bvnk_provider_discrepancy", expect.objectContaining({ reason: "missing_at_provider" }));
   });
 
   it("does nothing without BVNK credentials", async () => {
     h.rows = [{ kind: "transfer", provider_id: TID, direction: "OUT", status: "PROCESSING", provider_updated_at: "2026-01-01T00:00:00Z" }];
     const fetch = vi.fn();
     await expect(reconcileOpenBvnkRecords({ deps: { fetch: fetch as unknown as typeof globalThis.fetch, env: {} as NodeJS.ProcessEnv } })).rejects.toBeInstanceOf(BvnkNotConfigured);
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("counts and alerts a provider answer that contradicts a final status", async () => {
+    h.rows = [{ kind: "transfer", provider_id: TID, direction: "OUT", status: "PROCESSING", provider_updated_at: "2026-01-01T00:00:00Z" }];
+    h.rpc.mockResolvedValueOnce("conflict");
+    const fetch = vi.fn(async () => json(200, doc("transfer-read-v-3")));
+    const r = await reconcileOpenBvnkRecords({ deps: { fetch: fetch as unknown as typeof globalThis.fetch, env: ENV, sleep: async () => {} } });
+    expect(r.conflicts).toBe(1);
+    expect(alerts.raise).toHaveBeenCalledWith("bvnk_provider_discrepancy", expect.objectContaining({ source: "api" }));
+  });
+
+  it("stops when the job's time budget is spent", async () => {
+    h.rows = [{ kind: "transfer", provider_id: TID, direction: "OUT", status: "PROCESSING", provider_updated_at: "2026-01-01T00:00:00Z" }];
+    const fetch = vi.fn();
+    const r = await reconcileOpenBvnkRecords({ expired: () => true, deps: { fetch: fetch as unknown as typeof globalThis.fetch, env: ENV } });
+    expect(r.checked).toBe(0);
     expect(fetch).not.toHaveBeenCalled();
   });
 });

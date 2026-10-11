@@ -2,7 +2,8 @@ import { sbSelect } from "@/lib/supabase";
 import { bvnkClient, BvnkApiError, type ClientDeps } from "./client";
 import { bvnkApiConfig } from "./config";
 import { decimalString } from "./amount";
-import { isTerminal, recordFromTransfer, upsertBvnkRecord, type BvnkRecordRow } from "./records";
+import { isTerminal, markBvnkRecordMissing, recordFromTransfer, upsertBvnkRecord, type BvnkRecordRow } from "./records";
+import { raiseFinancialAlert } from "@/lib/ops/financialAlerts";
 
 // Reconciliation: re-read every open transfer and payout from BVNK's API and
 // record the authoritative state (source 'api'). Webhooks are notifications;
@@ -12,7 +13,7 @@ import { isTerminal, recordFromTransfer, upsertBvnkRecord, type BvnkRecordRow } 
 const STALE_AFTER_MS = 10 * 60_000;
 const PER_PASS = 50;
 
-export type ReconcileResult = { checked: number; updated: number; unchanged: number; notFound: number; failed: number };
+export type ReconcileResult = { checked: number; updated: number; unchanged: number; conflicts: number; notFound: number; failed: number };
 
 export async function reconcileOpenBvnkRecords(opts: { now?: number; expired?: () => boolean; deps?: ClientDeps } = {}): Promise<ReconcileResult> {
   const now = opts.now ?? Date.now();
@@ -21,10 +22,14 @@ export async function reconcileOpenBvnkRecords(opts: { now?: number; expired?: (
   bvnkApiConfig(opts.deps?.env ?? process.env);
   const client = bvnkClient(opts.deps);
   const before = new Date(now - STALE_AFTER_MS).toISOString();
+  // Least recently checked first (never-checked before everything), so a
+  // record that stays open for days cannot starve the others: each pass moves
+  // the ones it checked to the back of the queue (reconciled_at is set by the
+  // database on every API report and every 404).
   const open = await sbSelect<BvnkRecordRow>("bvnk_records",
-    `select=kind,provider_id,direction,status,provider_updated_at&kind=in.(transfer,payout)&provider_updated_at=lt.${encodeURIComponent(before)}&order=provider_updated_at.asc&limit=${PER_PASS * 4}`);
+    `select=kind,provider_id,direction,status,provider_updated_at&kind=in.(transfer,payout)&provider_updated_at=lt.${encodeURIComponent(before)}&order=reconciled_at.asc.nullsfirst&limit=${PER_PASS * 4}`);
   const todo = open.filter((r) => !isTerminal(r.kind, r.status)).slice(0, PER_PASS);
-  const out: ReconcileResult = { checked: 0, updated: 0, unchanged: 0, notFound: 0, failed: 0 };
+  const out: ReconcileResult = { checked: 0, updated: 0, unchanged: 0, conflicts: 0, notFound: 0, failed: 0 };
   for (const r of todo) {
     if (opts.expired?.()) break;
     out.checked++;
@@ -41,10 +46,18 @@ export async function reconcileOpenBvnkRecords(opts: { now?: number; expired?: (
           provider_updated_at: p.updatedAt, source: "api",
         };
       }
-      (await upsertBvnkRecord(row)) === "stale" ? out.unchanged++ : out.updated++;
+      const result = await upsertBvnkRecord(row);
+      if (result === "conflict") {
+        out.conflicts++;
+        void raiseFinancialAlert("bvnk_provider_discrepancy", { kind: r.kind, providerId: r.provider_id, stored: r.status, reported: row.status, source: "api" });
+      } else if (result === "stale") out.unchanged++;
+      else out.updated++;
     } catch (e) {
-      if (e instanceof BvnkApiError && e.httpStatus === 404) out.notFound++;
-      else out.failed++;
+      if (e instanceof BvnkApiError && e.httpStatus === 404) {
+        out.notFound++;
+        await markBvnkRecordMissing(r).catch(() => undefined);
+        void raiseFinancialAlert("bvnk_provider_discrepancy", { kind: r.kind, providerId: r.provider_id, reason: "missing_at_provider" });
+      } else out.failed++;
     }
   }
   return out;

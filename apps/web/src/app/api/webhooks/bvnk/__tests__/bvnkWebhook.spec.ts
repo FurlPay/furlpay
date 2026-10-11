@@ -13,7 +13,8 @@ const h = vi.hoisted(() => ({
   storeDown: false,
 }));
 vi.mock("@/lib/supabase", () => ({ supabaseBackend: "supabase", sbRpc: h.rpc, sbSelect: vi.fn(), sbUpdate: vi.fn() }));
-vi.mock("@/lib/ops/financialAlerts", () => ({ raiseFinancialAlert: vi.fn(async () => undefined) }));
+const alerts = vi.hoisted(() => ({ raise: vi.fn(async () => undefined) }));
+vi.mock("@/lib/ops/financialAlerts", () => ({ raiseFinancialAlert: alerts.raise }));
 vi.mock("@/lib/webhookEvents", async (orig) => {
   const real = await orig<typeof import("@/lib/webhookEvents")>();
   return {
@@ -47,6 +48,7 @@ beforeEach(() => {
   h.claims.clear();
   h.storeDown = false;
   h.rpc.mockReset().mockResolvedValue("inserted");
+  alerts.raise.mockClear();
 });
 
 describe("POST /api/webhooks/bvnk", () => {
@@ -117,6 +119,21 @@ describe("POST /api/webhooks/bvnk", () => {
     const res = await post(fresh("payment-payout-status-change-v-2"));
     expect(res.status).toBe(200);
     expect((await res.json()).outcome).toBe("stale");
+  });
+
+  it("acknowledges a report that contradicts a final status (recorded as an exception) and alerts", async () => {
+    h.rpc.mockResolvedValueOnce("conflict");
+    const res = await post(fresh("payment-transfer-status-change-v-3"));
+    expect(res.status).toBe(200);
+    expect((await res.json()).outcome).toBe("conflict");
+    expect(alerts.raise).toHaveBeenCalledWith("bvnk_provider_discrepancy", expect.objectContaining({ kind: "transfer", source: "webhook" }));
+  });
+
+  it("alerts on a reused eventId with a different body (possible forgery)", async () => {
+    const a = fresh("payment-payout-status-change-v-2");
+    await post(a);
+    await post(JSON.stringify({ ...JSON.parse(a), data: { ...JSON.parse(a).data, status: "FAILED" } }));
+    expect(alerts.raise).toHaveBeenCalledWith("webhook_payload_mismatch", expect.objectContaining({ provider: "bvnk" }));
   });
 
   it("refuses with 422 (not retried) a signed event that is stale, off-contract or has a bad amount", async () => {

@@ -35,6 +35,7 @@ export const FINANCIAL_ALERTS = {
   cron_dlq: { route: "page", severity: "high", title: "Scheduled job dead-lettered" },
   recipient_lookup_failed: { route: "ticket", severity: "medium", title: "Deposit recipient lookup failed (provider will retry)" },
   onchain_ledger_mismatch: { route: "ticket", severity: "high", title: "On-chain activity disagrees with the ledger (reconciliation required)" },
+  bvnk_provider_discrepancy: { route: "ticket", severity: "high", title: "BVNK report contradicts a recorded final status, conflicts at the same time, or is missing at BVNK" },
   kms_signing_refused: { route: "ticket", severity: "medium", title: "KMS refused to sign" },
   rpc_failure: { route: "ticket", severity: "medium", title: "Chain RPC failures above threshold" },
   kyc_provider_failure: { route: "ticket", severity: "medium", title: "KYC provider failures above threshold" },

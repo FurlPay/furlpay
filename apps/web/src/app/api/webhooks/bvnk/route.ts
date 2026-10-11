@@ -6,6 +6,7 @@ import { bvnkWebhookSecret } from "@/lib/bvnk/config";
 import { BvnkEventInvalid, parseBvnkEvent, verifyBvnkSignature } from "@/lib/bvnk/webhook";
 import { recordFromEvent, upsertBvnkRecord } from "@/lib/bvnk/records";
 import { BvnkAmountError } from "@/lib/bvnk/amount";
+import { raiseFinancialAlert } from "@/lib/ops/financialAlerts";
 
 export const dynamic = "force-dynamic";
 
@@ -63,7 +64,7 @@ export async function POST(req: NextRequest) {
     throw e;
   }
 
-  const outcome = await withDurableWebhook<"recorded" | "stale" | "unhandled" | "duplicate" | "mismatch" | "unavailable">({
+  const outcome = await withDurableWebhook<"recorded" | "stale" | "conflict" | "unhandled" | "duplicate" | "mismatch" | "unavailable">({
     provider: "bvnk",
     eventId: parsed.event.eventId,
     eventType: parsed.event.event,
@@ -73,7 +74,14 @@ export async function POST(req: NextRequest) {
     onUnavailable: () => "unavailable",
     handler: async () => {
       if (!row) return "unhandled";
-      return (await upsertBvnkRecord(row)) === "stale" ? "stale" : "recorded";
+      const result = await upsertBvnkRecord(row);
+      if (result === "conflict") {
+        // Accepted and durably recorded as an exception; retrying cannot
+        // change the answer, so this acknowledges (200) and alerts a person.
+        void raiseFinancialAlert("bvnk_provider_discrepancy", { kind: row.kind, providerId: row.provider_id, reported: row.status, eventId: parsed.event.eventId, source: "webhook" });
+        return "conflict";
+      }
+      return result === "stale" ? "stale" : "recorded";
     },
   }).catch((e: Error) => {
     log.error("bvnk webhook processing failed", { event: parsed.event.event, error: e.message.slice(0, 200) });

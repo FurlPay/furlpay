@@ -48,8 +48,19 @@ published definitions. Nothing is sandbox-verified: there are no credentials.
 
 - **No balance is ever changed by a webhook.** `bvnk_records` is a record of
   what BVNK reported; nothing posts to the ledger or authorises a payment.
-- **Order:** an older or equal `updatedAt` never overwrites a newer one (SQL
-  compare in `bvnk_record_upsert`).
+- **Order and finality** (`bvnk_record_upsert`, row-locked): an older report
+  is ignored; a report with the same `updatedAt` but a different status is a
+  contradiction recorded in `bvnk_exceptions`; once a record is final
+  (pay-in `COMPLETED`; payout `COMPLETED/EXPIRED/CANCELLED/FAILED/RETURNED`;
+  transfer `COMPLETED/FAILED/EXPIRED`; wallet `TERMINATED`) no report moves it,
+  however new, except a completed payout becoming `RETURNED`. Refused reports
+  are recorded as exceptions and alerted (`bvnk_provider_discrepancy`).
+- **Inbox:** delivery state lives in `webhook_events` (0022): atomic claim,
+  explicit states (received, processing, processed, failed), attempt count, and a
+  15-minute lease after which an abandoned attempt is reclaimed. Processing is a
+  single row-locked upsert, well inside BVNK's 10-second delivery timeout, so it
+  runs before the acknowledgement: a 200 is sent only after the report is
+  durably recorded.
 - **Replay:** durable claim on `eventId` (0022) with a payload hash, so a
   reused id with a different body is refused (409) and alerted. Events older
   than seven days or dated in the future are refused.
@@ -70,6 +81,35 @@ published definitions. Nothing is sandbox-verified: there are no credentials.
 - **Custody:** every BVNK-held balance is custodial. Self-custody (the
   employer's and contractors' own wallets) and BVNK-managed balances stay
   separate types; nothing here presents one as the other.
+
+## Reconciliation
+
+`/api/cron/bvnk-reconcile` (not scheduled) asks BVNK's API about every open
+transfer and payout not updated for ten minutes, least recently checked first,
+50 per pass, inside the cron runner's lock and time budget. The API's answer is
+applied through the same `bvnk_record_upsert`, so it cannot overrule a final
+status either; a contradiction becomes an exception. A record BVNK answers 404
+for is recorded once as `missing_at_provider`. Provider failures are counted
+and retried next pass. No balance or ledger entry is touched.
+
+## Monitoring
+
+- `bvnk_provider_discrepancy` (financial alert, ticket): final-status
+  contradiction, same-time conflict, or record missing at BVNK.
+- `webhook_payload_mismatch` (page): an eventId reused with a different body.
+- Webhook rejections are logged with a reason (never the body); 5xx responses
+  feed the existing `webhook_5xx_rate` alert; the cron runner records every
+  reconciliation run and its counters (checked, updated, unchanged, conflicts,
+  notFound, failed).
+- Open exceptions: `select * from bvnk_exceptions where resolved_at is null`.
+
+## Sandbox validation suite
+
+`apps/web/src/lib/bvnk/__tests__/sandbox.live.spec.ts` is skipped unless
+`BVNK_SANDBOX_LIVE=1`. With sandbox credentials it checks the environment is
+the sandbox, authenticates with Hawk, lists and reads wallets in the documented
+shape, optionally dry-runs a conversion between two sandbox wallets, and
+confirms money movement stays refused. It creates nothing and moves nothing.
 
 ## Sandbox plan (when credentials exist)
 

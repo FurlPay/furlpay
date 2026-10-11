@@ -33,3 +33,24 @@ describe("Hawk request signing", () => {
     expect(seen.size).toBeGreaterThan(495);
   });
 });
+
+describe("Hawk canonicalisation edge cases", () => {
+  it("signs the query string exactly as sent (encoding and order preserved)", () => {
+    const h = hawkHeaderFor({ id: "i", key: "k" }, "GET", "https://api.sandbox.bvnk.com/ledger/v2/wallets?q=currency%3AUSD%20AND%20status%3AACTIVE&pageNumber=0", 1_700_000_000_000, "Nonce1");
+    const mac = hawkMac("k", { ts: 1700000000, nonce: "Nonce1", method: "GET", resource: "/ledger/v2/wallets?q=currency%3AUSD%20AND%20status%3AACTIVE&pageNumber=0", host: "api.sandbox.bvnk.com", port: 443 });
+    expect(h).toContain(`mac="${mac}"`);
+  });
+
+  it("uses an explicit port when the URL has one, and the scheme default otherwise", () => {
+    const explicit = hawkHeaderFor({ id: "i", key: "k" }, "GET", "https://api.bvnk.com:8443/x", 0, "AAAAAA");
+    expect(explicit).toContain(`mac="${hawkMac("k", { ts: 0, nonce: "AAAAAA", method: "GET", resource: "/x", host: "api.bvnk.com", port: 8443 })}"`);
+  });
+
+  it("signs with the client's clock in whole seconds", () => {
+    expect(hawkHeaderFor({ id: "i", key: "k" }, "GET", "https://api.bvnk.com/x", 1_700_000_000_999, "AAAAAA")).toContain('ts="1700000000"');
+  });
+
+  it("never puts the key in the header", () => {
+    expect(hawkHeaderFor({ id: "i", key: "super-secret-key" }, "GET", "https://api.bvnk.com/x")).not.toContain("super-secret-key");
+  });
+});
