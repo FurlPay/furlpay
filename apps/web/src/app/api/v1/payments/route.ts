@@ -26,7 +26,9 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const limit = Math.min(Number(req.nextUrl.searchParams.get("limit")) || 50, 200);
-  const payments = listPayments(limit);
+  // Scoped to the account that owns the key. `payments:read` is permission to
+  // read that account's payments, not every account's.
+  const payments = listPayments(auth.record.userId, limit);
 
   return NextResponse.json(
     {
