@@ -70,6 +70,12 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // "production" for preview branches too — inferring from it would mark a
       // preview as a place real money may move. See lib/flags.ts.
       v("FURLPAY_ENV"),
+      // Preview isolation (lib/dataPlane.ts). A non-production Vercel
+      // deployment gets no database or key-value credentials unless its scope
+      // sets FURLPAY_DATA_PLANE=isolated, and never a production Supabase
+      // project. PROD_PROJECT_REFS extends the built-in production list.
+      v("FURLPAY_DATA_PLANE"),
+      v("PROD_PROJECT_REFS"),
       v("BLOCKAID_API_KEY"),
     ],
   },

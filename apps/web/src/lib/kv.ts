@@ -13,8 +13,12 @@
 // Values are JSON. TTLs are enforced by Redis (EX) or checked on read.
 // ---------------------------------------------------------------------------
 
-const REST_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-const REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+import { dataPlane } from "./dataPlane";
+
+// Read through lib/dataPlane.ts: a preview deployment without its own data
+// plane gets no credentials here, so it cannot spend the production Redis quota.
+const REST_URL = dataPlane.kvUrl;
+const REST_TOKEN = dataPlane.kvToken;
 
 export const kvBackend: "redis" | "memory" = REST_URL && REST_TOKEN ? "redis" : "memory";
 

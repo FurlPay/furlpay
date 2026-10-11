@@ -4,6 +4,7 @@
 
 import crypto from "crypto";
 import { kvBackend, kvSetNx, kvGet, kvDel } from "./kv";
+import { dataPlane } from "./dataPlane";
 
 const KEY = (name: string) => `lock:${name}`;
 
@@ -27,8 +28,8 @@ export async function releaseLock(name: string, token: string): Promise<void> {
   if (kvBackend === "redis") {
     const script =
       'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end';
-    const url = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
-    const auth = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
+    const url = dataPlane.kvUrl;
+    const auth = dataPlane.kvToken;
     await fetch(url!, {
       method: "POST",
       headers: { Authorization: `Bearer ${auth}`, "Content-Type": "application/json" },

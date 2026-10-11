@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { sbInsert, sbSelect, sbUpdate, supabaseBackend } from "@/lib/supabase";
 import { log } from "@/lib/log";
+import { dataPlane } from "@/lib/dataPlane";
 
 // ---------------------------------------------------------------------------
 // In-app notification history (schema: supabase/migrations/0011_notifications.sql).
@@ -203,12 +204,12 @@ export async function listNotifications(
 export async function unreadCount(userId: string): Promise<number> {
   if (!backendReady()) return 0;
   const res = await fetch(
-    `${process.env.SUPABASE_URL}/rest/v1/notifications` +
+    `${dataPlane.supabaseUrl}/rest/v1/notifications` +
       `?user_id=eq.${encodeURIComponent(userId)}&read_at=is.null&select=id&limit=1`,
     {
       headers: {
-        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY!,
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+        apikey: dataPlane.supabaseKey!,
+        Authorization: `Bearer ${dataPlane.supabaseKey}`,
         // head+exact gives the count in Content-Range without a body.
         Prefer: "count=exact",
         Range: "0-0",
