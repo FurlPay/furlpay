@@ -7,8 +7,11 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 // POST /api/compliance/travel-rule — FATF Travel Rule (Notabene / TRUST).
 // body: { amountUsd, originator, beneficiary, provider? }
 //
-// Public compute endpoint (a VASP checks whether a transfer crosses the Travel
-// Rule threshold before it commits). The body previously reached
+// Compute endpoint (a VASP checks whether a transfer crosses the Travel Rule
+// threshold before it commits). The handler has no auth check of its own, but
+// the path is NOT in the middleware's public prefixes, so a session is required
+// in practice. It computes a payload only; nothing is sent to any provider.
+// The body previously reached
 // applyTravelRule() completely unvalidated — a non-numeric amount or a
 // non-object counterparty propagated straight into compliance logic whose
 // output is a regulatory determination. Shape it here instead.
