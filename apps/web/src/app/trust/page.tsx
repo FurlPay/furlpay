@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-// LandingChrome, not MarketingBar: this page carries the security argument, and
+// The landing page's own header: this page carries the security argument, and
 // arriving at it from an ad or a search result should not feel like leaving the
-// site. MarketingBar is seven flat links with no dropdowns, no ⌘K and — below
-// 768px — no navigation at all, since its nav is `hidden md:flex` with no
-// hamburger behind it. Same header as the landing page, same way out of it.
+// site. Same header as the landing page, same way out of it.
 import LandingChrome from "@/components/landing/LandingChrome";
 import { Hero, Section } from "@/components/marketing/blocks";
 import FaqSection from "@/components/marketing/FaqSection";
