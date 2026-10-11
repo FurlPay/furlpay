@@ -98,7 +98,9 @@ export default function ConfigurationPage() {
           { name: "Travel", type: "DUFFEL_API_KEY, TRIPADVISOR_API_KEY, GOOGLE_PLACES_API_KEY", required: false, desc: "Inventory and content. A test-mode booking key is refused in production." },
           { name: "Markets", type: "ALPACA_*", required: false, desc: "Brokerage and market data." },
           { name: "Payments (Stripe)", type: "STRIPE_*", required: false, desc: "Optional Stripe payment intents and webhook." },
-          { name: "Payroll provider", type: "PAYROLL_PROVIDER_*", required: false, desc: "Deployment-owned adapter for bank accounts and tax documents." },
+          { name: "Payroll", type: "FURLPAY_ROUTER_ADDRESS_*, FURLPAY_TAX_ENCRYPTION_KEY", required: false, desc: "Router address per network and the key that seals tax records." },
+          { name: "Merchant collection", type: "SUI_GRAPHQL_URL, FURLPAY_TESTNET_COLLECTION", required: false, desc: "Sui reads, and testnet collection outside production only." },
+          { name: "On-chain data", type: "ALLIUM_*, ONCHAIN_*, USDC_INDEX_*", required: false, desc: "Ingestion and index settings for the on-chain dashboards." },
           { name: "Telegram", type: "TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET", required: false, desc: "Mini App sign-in and bot webhook." },
           { name: "Community bots", type: "DISCORD_*", required: false, desc: "Market brief, price cards and member welcome jobs." },
         ]}
@@ -122,14 +124,21 @@ export default function ConfigurationPage() {
       <ParameterTable
         params={[
           { name: "0001 – 0030", type: "platform", required: true, desc: "Accounts, durability, ledger, payments, notifications, hotels, webhook events, analytics, usernames, control-plane approvals." },
+          { name: "0031 – 0036", type: "platform", required: true, desc: "Function-execute revocation, on-chain ingestion, asset snapshots and index, CCTP records, USDC index." },
           { name: "0037", type: "settlement", required: false, desc: "Settlement workspace draft records." },
           { name: "0038", type: "settlement", required: false, desc: "Business onboarding state and the private document bucket." },
           { name: "0039", type: "compliance", required: false, desc: "Compliance cases." },
           { name: "0040", type: "payments", required: false, desc: "Merchant payment links, destinations, intents, receipts, events and the webhook outbox." },
           { name: "0041", type: "payments", required: false, desc: "Merchant webhook endpoints and the delivery claim function." },
-          { name: "0042", type: "payroll", required: false, desc: "Contractors, pay runs, router deployments, virtual account requests, documents." },
-          { name: "0043", type: "payroll", required: false, desc: "Provider events and contractor wallet linking." },
-          { name: "0044", type: "telegram", required: false, desc: "Telegram account links." },
+          { name: "0042", type: "payroll, payments", required: false, desc: "Payroll rosters and runs, merchant pricing tiers, operator notes, reconciliation alerts." },
+          { name: "0043", type: "payments", required: false, desc: "Sui collection: widens the network checks and accepts Sui addresses." },
+          { name: "0044", type: "payroll", required: false, desc: "Contractor invitations, account linking, wallet-proven payout addresses." },
+          { name: "0045", type: "payments", required: false, desc: "Merchant refunds." },
+          { name: "0046", type: "payments", required: false, desc: "Liveness alerts for collection." },
+          { name: "0047", type: "payments", required: false, desc: "Arc testnet collection, booked to separate testnet ledger accounts." },
+          { name: "0048", type: "payroll", required: false, desc: "Excluding flagged recipients; journaling the payroll fee." },
+          { name: "0049", type: "site", required: false, desc: "Partnership inquiries." },
+          { name: "0050", type: "telegram", required: false, desc: "Telegram account links." },
         ]}
       />
 
@@ -145,14 +154,21 @@ export default function ConfigurationPage() {
           { name: "/api/cron/market-brief", type: "daily, scheduled", required: false, desc: "Posts the market brief to Discord and Telegram." },
           { name: "/api/cron/price-cards", type: "daily, scheduled", required: false, desc: "Posts price cards to Discord." },
           { name: "/api/cron/discord-welcome", type: "daily, scheduled", required: false, desc: "Greets new community members." },
-          { name: "/api/cron/merchant-payments", type: "not scheduled", required: false, desc: "Rescans open checkouts and delivers merchant webhooks. Must be scheduled by the deployment." },
+          { name: "/api/cron/settlement-safety", type: "daily, scheduled", required: true, desc: "Settlement circuit-breaker checks." },
+          { name: "/api/cron/onchain-reconcile", type: "daily, scheduled", required: false, desc: "Reconciles on-chain ingestion." },
+          { name: "/api/cron/merchant-payments", type: "every 2 minutes, scheduled", required: false, desc: "Rescans open checkouts and delivers merchant webhooks." },
+          { name: "/api/cron/merchant-reconcile", type: "every 10 minutes, scheduled", required: false, desc: "Merchant and payroll reconciliation; raises alerts only." },
+          { name: "/api/cron/onchain-node", type: "not scheduled", required: false, desc: "On-chain node ingestion." },
+          { name: "/api/cron/usdc-index", type: "not scheduled", required: false, desc: "USDC index maintenance." },
           { name: "/api/cron/ramp-maintenance", type: "not scheduled", required: false, desc: "Expires stale ramp orders and retries partner callbacks. Needs to run every few minutes." },
           { name: "/api/cron/price-alerts", type: "not scheduled", required: false, desc: "Evaluates user price alerts." },
         ]}
       />
       <P>
-        &quot;Scheduled&quot; means the job is listed in <Code>apps/web/vercel.json</Code>. The
-        others exist as endpoints and need an external scheduler.
+        &quot;Scheduled&quot; means the job is listed in <Code>apps/web/vercel.json</Code>, which has
+        nine entries. The others exist as endpoints and need an external scheduler. Schedules more
+        frequent than daily depend on the hosting plan; the AWS deployment schedules the same jobs
+        with EventBridge.
       </P>
 
       <H2 id="local">Running locally</H2>

@@ -283,9 +283,7 @@ export default function IntroductionPage() {
       <P>
         FurlPay does not currently offer production card issuing, local bank account issuance,
         fiat on-ramp or off-ramp payouts, or live stock and ETF order execution. Travel booking is
-        also not available with production inventory. The batch payout route currently constructs
-        independent intent records only in development; production persistence and settlement are
-        unavailable. Related pages describe integration designs or development work; they are not
+        also not available with production inventory. Related pages describe integration designs or development work; they are not
         offers to provide those services today.
       </P>
       <P>

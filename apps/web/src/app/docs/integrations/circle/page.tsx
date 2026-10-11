@@ -86,9 +86,9 @@ export default function CirclePage() {
       <H2 id="issuer">USDC contracts and the issuer blocklist</H2>
       <P>
         Payment, payroll and on-chain reads use Circle-issued native USDC addresses, checked against
-        Circle&apos;s published contract list. USDC routes also read the issuer&apos;s on-chain
-        blocklist for the exact network before crediting or preparing a payment. An address the
-        issuer has blocked is refused with <Code>usdc_issuer_blocked</Code>.
+        Circle&apos;s published contract list. When a merchant payment is verified, the payer and the
+        destination are also checked against the USDC contract&apos;s on-chain blocklist. A payment
+        involving a blocked address is held for review rather than credited.
       </P>
 
       <H2 id="paymaster">Paymaster (not enabled)</H2>

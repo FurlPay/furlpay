@@ -51,7 +51,7 @@ export default function ApiRoutesPage() {
           { method: "POST", path: "/api/payments/execute", desc: "Submit the user's signature to the configured payment flow" },
           { method: "GET", path: "/api/payments/[id]", desc: "Read the payment's current status" },
           { method: "POST", path: "/api/payments/refund", desc: "Request a refund where the payment and rail support it" },
-          { method: "POST", path: "/api/payouts/batch", desc: "Create up to 100 independent USDC payment intents; production persistence is not configured and the route returns 503" },
+          { method: "POST", path: "/api/payments/batch", desc: "Create up to 100 payment intents for the signed-in user; each returns its own signing data" },
         ]}
       />
       <P>
@@ -61,10 +61,10 @@ export default function ApiRoutesPage() {
         alone does not satisfy that requirement.
       </P>
       <P>
-        <Code>POST /api/payouts/batch</Code> is a development-stage intent-construction route, not
-        a live mass-payout service. It accepts up to 100 Arbitrum USDC recipients as independent
-        lines; the batch is not atomic, and production returns <Code>503</Code> until durable intent
-        persistence is implemented. A created line still requires separate signing and settlement.
+        <Code>POST /api/payments/batch</Code> constructs up to 100 payment intents in one call. It
+        is not a live mass-payout service: every line still has to be signed by the payer&apos;s
+        wallet and settled through a configured router, and production settlement is gated like any
+        other payment intent.
       </P>
       <UL>
         <LI>A created payment ID is not a transaction hash.</LI>
@@ -132,8 +132,8 @@ export default function ApiRoutesPage() {
         rows={[
           { method: "—", path: "/api/merchant/payments, /api/checkout/merchant/[slug]", desc: "Payment links, invoices and hosted checkout — see Merchant Payments" },
           { method: "—", path: "/api/merchant/webhook", desc: "Merchant webhook endpoint — see Webhook Events" },
-          { method: "—", path: "/api/merchant/payroll, /api/payouts/payroll/*", desc: "Contractor roster and pay runs — see Payroll & Payouts" },
-          { method: "—", path: "/api/banking/virtual-accounts", desc: "Account requests only; nothing is issued without a provider — see Payroll & Payouts" },
+          { method: "—", path: "/api/merchant/refunds, /api/merchant/operations", desc: "Refund requests and the operator console — see Merchant Payments" },
+          { method: "—", path: "/api/payouts/payroll/*", desc: "Contractor roster, self-service and pay runs — see Payroll & Payouts" },
           { method: "—", path: "/api/settlement/*", desc: "Workspace drafts and business onboarding — see Settlement Workspace" },
           { method: "—", path: "/api/compliance/*", desc: "Screening, cases, monitoring and reports — see Screening & Cases" },
           { method: "—", path: "/api/wallets/circle/*", desc: "Circle user-controlled wallets — see Circle" },

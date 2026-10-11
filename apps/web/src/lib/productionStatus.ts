@@ -187,15 +187,15 @@ export const CAPABILITIES: readonly CapabilityRecord[] = [
     status: "pending",
     evidence:
       "On 11 Oct 2026, furlpay.com returned the site 404 page for GET /api/checkout/merchant/{slug} and redirected /p/{slug} to sign-in, so the hosted checkout was not in the production build.",
-    gate: "Deploy the merchant payment release, apply migrations 0040 and 0041, provision collection destinations per merchant and network, and schedule the payment scanner.",
+    gate: "Deploy the merchant payment release, apply migrations 0040 to 0047, and register collection addresses through a custody provider; none is integrated.",
   },
   {
     id: "payroll",
     label: "Contractor payroll",
     status: "pending",
     evidence:
-      "Pay-run execution requires an enabled row in payroll_router_deployments; this repository records none, and no PAYROLL_PROVIDER credential is provisioned for tax documents.",
-    gate: "A reviewed router deployment per network, migrations 0042 and 0043, and a contracted banking and tax provider.",
+      "Submitting a pay run in production requires a FurlPayRouter address for the network; no FURLPAY_ROUTER_ADDRESS variable was present in the production environment on 11 Oct 2026.",
+    gate: "A reviewed and deployed router per network, and migrations 0042, 0044 and 0048.",
   },
   {
     id: "settlement-workspace",
@@ -226,7 +226,7 @@ export const CAPABILITIES: readonly CapabilityRecord[] = [
     status: "pending",
     evidence:
       "On 11 Oct 2026, /telegram served 200 but POST /api/auth/telegram returned 503 temporarily_unavailable, so Telegram sign-in could not complete.",
-    gate: "Restore key-value store availability and confirm the bot token, webhook secret and migration 0044 in production.",
+    gate: "Restore key-value store availability, then confirm sign-in end to end with migration 0050 applied.",
   },
   {
     id: "mobile",

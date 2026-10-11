@@ -8,148 +8,136 @@ export default function PayrollPage() {
     <article>
       <DocTitle eyebrow="Payments">Contractor payroll and payouts</DocTitle>
       <Lead>
-        Payroll lets an employer keep a contractor roster, draft a pay run in USDC and authorise it
-        from their own wallet. FurlPay prepares the typed data, checks every participant and reads
-        the result back from the chain. FurlPay never holds the employer&apos;s funds or signs the
-        transfer.
+        Payroll lets an employer keep a contractor roster, draft a monthly pay run in USDC and
+        authorise each line from their own wallet. FurlPay screens recipients, issues the data to
+        sign and reads the result back from the chain. Payroll is non-custodial: FurlPay never holds
+        the payroll funds and never signs the transfer.
       </Lead>
 
-      <Callout type="warning" title="Execution is not enabled by default">
-        Rosters, drafts and the signing flow are implemented. Executing a run additionally needs an
-        approved payment-router deployment recorded by operations for the chosen network; none is
-        recorded in this repository. Until one exists, preparing a run returns a refusal and the
-        draft stays saved. Tax documents and bank accounts need a contracted provider, which FurlPay
-        does not currently have.
+      <Callout type="warning" title="Status: implemented, execution blocked by an external dependency">
+        Rosters, drafts, screening, signing and contractor self-service are implemented and tested.
+        On-chain execution needs a reviewed <Code>FurlPayRouter</Code> contract deployed on the
+        run&apos;s network and its address configured. No router address is configured in
+        production, so production cannot issue a signable pay run. The router contract has not been
+        independently audited.
       </Callout>
 
       <H2 id="roster">Contractor roster</H2>
-      <P>Each contractor record holds:</P>
+      <P>Each contractor record holds a name, email, optional role, two-letter country code, payout network, payout wallet address and a default amount in USDC.</P>
       <UL>
-        <LI>name, email and two-letter country code;</LI>
-        <LI>payout network and wallet address (validated for that network);</LI>
-        <LI>monthly amount in USDC (up to 1,000,000);</LI>
-        <LI>tax form type: <Code>W9</Code>, <Code>W8BEN</Code> or <Code>W8BENE</Code>;</LI>
-        <LI>tax status: <Code>pending</Code>, <Code>verified</Code>, <Code>expired</Code> or <Code>review</Code>.</LI>
+        <LI><b>Networks:</b> Arbitrum, Arc, Base and Polygon. Payout addresses are EVM addresses.</LI>
+        <LI><b>CSV import:</b> validation is all-or-nothing. Any invalid row imports nothing and every error is listed. Emails already on the roster are skipped, never overwritten.</LI>
+        <LI><b>Recipients come from the roster.</b> A pay run can only pay addresses the employer saved beforehand, never an address supplied in the run request.</LI>
       </UL>
-      <P>
-        An employer can send a contractor an invitation link, valid for seven days, so the
-        contractor can confirm their own payout wallet instead of the employer typing it. Only a
-        hash of the invitation token is stored.
-      </P>
+
+      <H3 id="self-service">Contractor self-service</H3>
+      <UL>
+        <LI>The employer sends an invitation: a single-use link valid for seven days. Only a hash of the token is stored, and the token travels in the URL fragment so it does not reach server logs.</LI>
+        <LI>The contractor accepts while signed in with the same email as the roster entry. That links their account.</LI>
+        <LI>The contractor sets their own payout address by signing a registration message with that address (EIP-191). The address is screened first; a flagged address or a screening outage keeps the current address.</LI>
+        <LI>Once a contractor has linked their account, their identity and the address their wallet proved can no longer be changed by the employer.</LI>
+      </UL>
 
       <H2 id="run">A pay run, step by step</H2>
-      <H3 id="draft">1. Draft</H3>
+      <H3 id="draft">1. Draft and screen</H3>
       <P>
-        A run names a pay cycle, one network and 1 to 100 contractors. The quote is the sum of the
-        selected monthly amounts plus a processing fee of 35 basis points per line. A run may total
-        at most 1,000,000 USDC. The response also carries a seat quote of 19 USD per active
-        contractor; that figure is a quote shown in the workspace and is not charged by this flow.
+        A run names a cycle (<Code>YYYY-MM</Code>), one network and 1 to 100 roster lines. Creating
+        it screens every recipient. If any recipient is flagged, or could not be screened, the whole
+        run is <Code>blocked</Code> until the employer cancels it or excludes those recipients with a
+        written note. Excluded recipients are recorded, never cleared.
       </P>
 
-      <H3 id="prepare">2. Prepare</H3>
-      <P>The employer supplies the wallet that will pay. Before returning anything to sign, the server checks that:</P>
-      <UL>
-        <LI>every selected contractor is active, has a <Code>verified</Code> tax status and unchanged payout details;</LI>
-        <LI>the network has an enabled router deployment, and the bytecode at that address still matches the recorded code hash;</LI>
-        <LI>the router reports the expected USDC token and fee treasury, and is not paused;</LI>
-        <LI>the payer, the router, the fee treasury and every recipient pass address screening and the USDC issuer blocklist.</LI>
-      </UL>
+      <H3 id="submit">2. Submit</H3>
       <P>
-        If all checks pass, the run becomes <Code>prepared</Code> with a 15-minute deadline and the
-        response contains EIP-712 typed data (domain <Code>FurlPayRouter</Code>, version 1) for the
-        employer&apos;s wallet. A failed or unavailable screen blocks signing.
+        Submitting turns the draft into one payment intent per line, with EIP-712 data for the
+        employer&apos;s wallet. Exactly one request can move a draft forward. In production this
+        step is refused when no router address is configured for the network.
       </P>
 
-      <H3 id="sign">3. Sign and submit</H3>
+      <H3 id="sign">3. Sign</H3>
       <P>
-        The employer&apos;s wallet signs the authorisations and submits one <Code>batchPay</Code>{" "}
-        transaction to the router. This is atomic: either every line pays or none does. Atomic
-        payroll is limited to EVM networks; a Solana run is refused because it needs a separate
-        execution rail that is not built.
+        The employer signs each line. The server checks every signature off-chain the same way the
+        router will: the EIP-712 digest must recover to the payer, and malleable signatures are
+        refused, so a stored signature is one the router can execute.
       </P>
 
-      <H3 id="verify">4. Verify</H3>
+      <H3 id="execute">4. Execute and record</H3>
       <P>
-        The employer reports the transaction hash. The server fetches the receipt and requires one{" "}
-        <Code>PaymentExecuted</Code> event per line with the exact recipient, amount, fee and nonce,
-        emitted by the approved router. It waits for the network&apos;s confirmation depth and
-        checks that the block falls inside the authorisation window. Only then is the run marked{" "}
-        <Code>settled</Code>.
+        The employer&apos;s wallet submits the batch to the router. The transaction hash the browser
+        reports is treated only as a pointer. A line is marked executed only after the server
+        re-reads the receipt and finds a <Code>PaymentExecuted</Code> event from the configured
+        router whose payment ID, payer, recipient, amount, fee and nonce match what was signed, at
+        the network&apos;s required depth, in a block that is still canonical. A partially executed
+        run stays <Code>submitted</Code>; it is never reported as paid.
       </P>
       <ParameterTable
         params={[
-          { name: "draft", type: "status", required: true, desc: "Saved; nothing has been signed." },
-          { name: "prepared", type: "status", required: true, desc: "Checks passed; typed data issued; deadline running." },
-          { name: "submitted", type: "status", required: true, desc: "A transaction was reported and is awaiting confirmation." },
-          { name: "settled", type: "status", required: true, desc: "Every line was found in a confirmed receipt." },
-          { name: "review", type: "status", required: true, desc: "The run needs manual review, for example the approved router changed." },
-          { name: "expired", type: "status", required: true, desc: "The authorisation deadline passed." },
+          { name: "draft", type: "status", required: true, desc: "Saved and screened; nothing issued to sign." },
+          { name: "blocked", type: "status", required: true, desc: "At least one recipient was flagged or could not be screened." },
+          { name: "submitting", type: "status", required: true, desc: "Intents are being issued." },
+          { name: "submitted", type: "status", required: true, desc: "Intents issued; lines are being signed or executed." },
+          { name: "completed", type: "status", required: true, desc: "Every line was found executed on-chain." },
+          { name: "cancelled", type: "status", required: true, desc: "Cancelled by the employer." },
         ]}
       />
+
+      <H2 id="pricing">Fees</H2>
+      <UL>
+        <LI><b>Collected on-chain:</b> 35 basis points per line, rounded down, paid by the employer on top of the line.</LI>
+        <LI><b>Quoted only:</b> a batch minimum of 1.50 USDC and a seat fee of 19 USDC per active contractor, once per month. Billing is not connected, so these are recorded as quotes and charge nobody.</LI>
+      </UL>
+
+      <H2 id="tax">Tax records</H2>
+      <P>
+        An employer can record that they hold a payee-signed W-9 or W-8BEN. This is a record, not
+        an e-signature system. The tax ID, legal name and address are encrypted at rest; only the
+        last four characters of the tax ID are stored in the clear, and no API response decrypts
+        them.
+      </P>
+      <P>
+        The tax summary is a 1099-NEC threshold watch for US contractors, totalling what was sent in
+        submitted runs per calendar year. It cannot confirm what settled, it files nothing with any
+        tax authority, and it is not tax advice.
+      </P>
+
+      <H2 id="reconciliation">Reconciliation</H2>
+      <P>
+        A scheduled job checks that every executed line&apos;s fee is journaled exactly once,
+        re-reads recently executed lines from the chain, and reports runs that have been partially
+        executed for more than a day. Findings become alerts. Nothing is corrected automatically:
+        reversing a journal is an operator decision.
+      </P>
 
       <H2 id="api">API</H2>
       <EndpointTable
         rows={[
-          { method: "GET", path: "/api/merchant/payroll", desc: "Roster, runs, documents and pricing for the signed-in employer" },
-          { method: "POST", path: "/api/merchant/payroll", desc: "{ action: \"contractor\" | \"batch\" } — add a contractor or draft a run" },
-          { method: "PATCH", path: "/api/merchant/payroll", desc: "{ action: \"archive\" | \"prepare\" | \"verify\" }" },
-          { method: "GET / POST", path: "/api/payouts/payroll/contractors", desc: "List or add contractors" },
-          { method: "POST", path: "/api/payouts/payroll/contractors/invite", desc: "Create a seven-day wallet-link invitation" },
-          { method: "GET / PATCH", path: "/api/payouts/payroll/contractors/me", desc: "Contractor side: view or link the payout wallet" },
-          { method: "GET / POST", path: "/api/payouts/payroll/batches", desc: "List or draft runs" },
-          { method: "GET / POST", path: "/api/payouts/payroll/documents", desc: "List or request tax and remittance documents" },
-          { method: "POST", path: "/api/webhooks/payroll-provider", desc: "Signed status events from the deployment's banking and tax provider" },
+          { method: "GET / POST / PATCH", path: "/api/payouts/payroll/contractors", desc: "List, add or update roster entries" },
+          { method: "POST", path: "/api/payouts/payroll/contractors/import", desc: "CSV roster import, all-or-nothing" },
+          { method: "POST", path: "/api/payouts/payroll/contractors/{id}/invite", desc: "Create a seven-day single-use invitation" },
+          { method: "POST", path: "/api/payouts/payroll/contractors/{id}/tax", desc: "Record a W-9 or W-8BEN the employer holds" },
+          { method: "POST", path: "/api/payouts/payroll/invite", desc: "Contractor side: preview or accept an invitation" },
+          { method: "GET / PATCH", path: "/api/payouts/payroll/me", desc: "Contractor side: own profiles; set the payout address with a signature" },
+          { method: "GET / POST / PATCH", path: "/api/payouts/payroll/batches", desc: "List runs; create a draft; submit, sign, cancel, reissue, exclude unscreened, record execution" },
+          { method: "GET", path: "/api/payouts/payroll/tax-summary?year=", desc: "1099-NEC threshold watch" },
+          { method: "GET / POST", path: "/api/payouts/payroll", desc: "Saved roster; run payroll for a roster in the request body" },
         ]}
       />
-      <P>All employer routes require a signed-in session and are rate limited per account.</P>
-
-      <H2 id="documents">Tax and remittance documents</H2>
-      <P>
-        A document request (<Code>W9</Code>, <Code>W8BEN</Code>, <Code>W8BENE</Code> or{" "}
-        <Code>FIRA</Code>) is forwarded to a provider adapter that the deployment owns. FurlPay does
-        not generate tax forms or remittance certificates itself. A FIRA request is only accepted
-        for a contractor in India, with an invoice reference, against a run that has already
-        settled.
-      </P>
-      <P>
-        The provider&apos;s acknowledgement never verifies a form or issues a document by itself.
-        Status changes arrive later through the signed provider webhook. With no provider
-        configured, document requests return <Code>503</Code>.
-      </P>
-
-      <H2 id="provider">Provider adapter contract</H2>
-      <UL>
-        <LI><Code>PAYROLL_PROVIDER_URL</Code> — HTTPS base URL. Requests are <Code>POST {"{url}"}/requests</Code> with a bearer key and an <Code>Idempotency-Key</Code> header.</LI>
-        <LI><Code>PAYROLL_PROVIDER_API_KEY</Code> — bearer credential for outbound requests.</LI>
-        <LI><Code>PAYROLL_PROVIDER_WEBHOOK_SECRET</Code> — at least 32 characters. Inbound events must carry <Code>X-FurlPay-Timestamp</Code> and <Code>X-FurlPay-Signature</Code>, where the signature is hex HMAC-SHA256 of <Code>timestamp + &quot;.&quot; + raw body</Code>. Events older than five minutes are rejected.</LI>
-      </UL>
-
-      <H2 id="virtual-accounts">Virtual bank accounts</H2>
-      <P>
-        <Code>/api/banking/virtual-accounts</Code> records a request for a USD, EUR, GBP, INR or AED
-        account for a verified business. A request is not an account: it stays{" "}
-        <Code>requested</Code> until the configured provider reports it active, and the response
-        states <Code>issuance: &quot;provider_required&quot;</Code> when no provider is configured.
-        FurlPay does not issue bank accounts and never displays invented account details.
-      </P>
-
-      <H2 id="batch-intents">Batch payout intents</H2>
-      <P>
-        <Code>POST /api/payouts/batch</Code> is a different, older flow. It creates up to 100
-        independent USDC payment intents on Arbitrum in one call. It is not an atomic transfer: each
-        line must be signed and settled on its own. Every recipient is screened first, and no intent
-        is created unless all recipients are allowed. In production this route depends on the
-        payment rail being configured.
-      </P>
+      <P>All routes require a signed-in session and are rate limited per account. The contractor invitation page is <Code>/payroll/join</Code>.</P>
 
       <H2 id="setup">Setup</H2>
       <UL>
-        <LI>Supabase configured, with migrations <Code>0040</Code>, <Code>0042_payroll_and_banking_workspace</Code> and <Code>0043_payroll_provider_and_wallets</Code> applied.</LI>
-        <LI><Code>FURLPAY_BENEFICIARY_ENCRYPTION_KEY</Code> for encrypted contractor contact storage.</LI>
-        <LI>A reviewed router deployment inserted into <Code>payroll_router_deployments</Code> (network, router address, runtime code hash, fee treasury, enabled). The router contract in this repository has not been independently audited.</LI>
-        <LI>Node endpoints for each payroll network, as for merchant payments.</LI>
-        <LI>The three <Code>PAYROLL_PROVIDER_*</Code> variables, once a banking and tax provider is contracted.</LI>
+        <LI>Supabase configured, with migrations <Code>0042_payroll_and_merchant_extensions</Code>, <Code>0044_payroll_contractor_self_service</Code> and <Code>0048_payroll_exclusions_and_fee_ledger</Code> applied.</LI>
+        <LI>A router address per network: <Code>FURLPAY_ROUTER_ADDRESS_ARBITRUM</Code>, <Code>_ARC</Code>, <Code>_BASE</Code>, <Code>_POLYGON</Code>. The unsuffixed <Code>FURLPAY_ROUTER_ADDRESS</Code> is read for Arbitrum only; a router is never assumed to exist at the same address on another network.</LI>
+        <LI><Code>FURLPAY_TAX_ENCRYPTION_KEY</Code> for sealed tax records.</LI>
+        <LI>Node endpoints for each payroll network.</LI>
+        <LI>The <Code>merchant-reconcile</Code> scheduled job, which also runs payroll reconciliation.</LI>
       </UL>
+
+      <Callout type="info" title="Not offered">
+        FurlPay does not issue bank accounts, generate tax forms, file tax returns or pay
+        contractors in local currency. Payroll moves USDC from the employer&apos;s wallet to
+        contractor wallets and nothing else.
+      </Callout>
 
       <DocPager pathname="/docs/payments/payroll" />
     </article>

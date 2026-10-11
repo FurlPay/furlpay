@@ -36,8 +36,8 @@ export const DOCS_NAV: DocSection[] = [
     label: "Payments",
     icon: Banknote,
     items: [
-      { title: "Merchant Payments", href: "/docs/payments/merchant-payments", desc: "USDC payment links, invoices and hosted checkout verified on-chain; requires provisioned destinations and the payment migration.", badge: "new" },
-      { title: "Payroll & Payouts", href: "/docs/payments/payroll", desc: "Contractor roster and wallet-signed USDC pay runs; execution requires an approved router deployment and a contracted provider for documents.", badge: "new" },
+      { title: "Merchant Payments", href: "/docs/payments/merchant-payments", desc: "USDC payment links, invoices, hosted checkout, refunds and reconciliation; collection needs addresses registered by a custody provider.", badge: "new" },
+      { title: "Payroll & Payouts", href: "/docs/payments/payroll", desc: "Contractor roster, self-service and wallet-signed USDC pay runs; execution requires a deployed router on the run's network.", badge: "new" },
       { title: "Agentic Payments (x402)", href: "/docs/payments/agentic-x402", desc: "x402 endpoint currently returns 503 controls_unavailable; production x402 and MPP settlement are also gated.", badge: "updated" },
       { title: "Agent Trust & Mandates (TAP)", href: "/docs/payments/agent-trust", desc: "Developer library patterns for agent identity, signed mandates and scoped capabilities; these do not enable production settlement.", badge: "updated" },
       { title: "CCTP Cross-Chain", href: "/docs/payments/cctp", desc: "Client-signed Circle CCTP V2 transaction construction; check network and rail status before signing.", badge: "updated" },
@@ -66,9 +66,9 @@ export const DOCS_NAV: DocSection[] = [
     items: [
       { title: "Claude Connector", href: "/docs/integrations/claude-connector", desc: "Connect FurlPay to Claude over MCP with scoped account tools; prepared actions do not guarantee production settlement.", badge: "updated" },
       { title: "AI Assistants", href: "/docs/integrations/ai-assistants", desc: "FurlPay MCP connectivity and human-approved agent actions; live payment execution depends on rail status." },
-      { title: "Circle", href: "/docs/integrations/circle", desc: "Circle user-controlled wallets, Compliance Engine screening, CCTP V2 and the USDC issuer blocklist; each needs its own credentials.", badge: "new" },
+      { title: "Circle", href: "/docs/integrations/circle", desc: "Circle user-controlled wallets, Compliance Engine screening and CCTP V2; each needs its own credentials.", badge: "new" },
       { title: "Ramp Providers", href: "/docs/integrations/ramps", desc: "Coinbase and Transak adapters for buying and selling crypto; FurlPay does not operate an on-ramp or off-ramp.", badge: "new" },
-      { title: "Telegram Mini App", href: "/docs/integrations/telegram", desc: "Sign in to an existing FurlPay account from Telegram; read-only view of balances and activity.", badge: "new" },
+      { title: "Telegram Mini App", href: "/docs/integrations/telegram", desc: "Sign in to an existing FurlPay account from Telegram, link or unlink it, and view balances and activity; it cannot send a payment.", badge: "new" },
       { title: "Stripe Crypto", href: "/docs/integrations/stripe-crypto", desc: "Optional Stripe PaymentIntent and webhook integration; provider approval and deployment configuration required." },
       { title: "Persona KYC", href: "/docs/integrations/persona-kyc", desc: "Persona webhook integration; user verification availability depends on provider setup and region." },
     ],

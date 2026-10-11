@@ -34,8 +34,10 @@ described as available.
 - AI agent payment execution — MCP, agent keys and spend policies work, but an
   agent cannot complete a payment while settlement is unconfigured
 - Merchant payment links, invoices and hosted checkout — not in the production
-  build on 11 October 2026; needs migrations and provisioned destinations
-- Contractor payroll — needs an approved router deployment and a provider
+  build on 11 October 2026; needs migrations and collection addresses from a
+  custody provider, and none is integrated
+- Contractor payroll — needs a reviewed router contract deployed on the pay
+  run network
 - Settlement workspace and business onboarding — production state not verified
 - Circle user-controlled wallets — needs Circle Wallets credentials
 - Telegram Mini App — the page loads; sign-in returned 503 on 11 October 2026
@@ -122,9 +124,9 @@ move money.
 - Architecture — Configuration & Setup: https://furlpay.com/docs/architecture/configuration
   Environment variables by area, money flags, database migrations and scheduled jobs a deployment needs.
 - Payments — Merchant Payments: https://furlpay.com/docs/payments/merchant-payments
-  USDC payment links, invoices and hosted checkout verified on-chain; requires provisioned destinations and the payment migration.
+  USDC payment links, invoices, hosted checkout, refunds and reconciliation; collection needs addresses registered by a custody provider.
 - Payments — Payroll & Payouts: https://furlpay.com/docs/payments/payroll
-  Contractor roster and wallet-signed USDC pay runs; execution requires an approved router deployment and a contracted provider for documents.
+  Contractor roster, self-service and wallet-signed USDC pay runs; execution requires a deployed router on the run's network.
 - Payments — Agentic Payments (x402): https://furlpay.com/docs/payments/agentic-x402
   x402 endpoint currently returns 503 controls_unavailable; production x402 and MPP settlement are also gated.
 - Payments — Agent Trust & Mandates (TAP): https://furlpay.com/docs/payments/agent-trust
@@ -146,11 +148,11 @@ move money.
 - Integrations — AI Assistants: https://furlpay.com/docs/integrations/ai-assistants
   FurlPay MCP connectivity and human-approved agent actions; live payment execution depends on rail status.
 - Integrations — Circle: https://furlpay.com/docs/integrations/circle
-  Circle user-controlled wallets, Compliance Engine screening, CCTP V2 and the USDC issuer blocklist; each needs its own credentials.
+  Circle user-controlled wallets, Compliance Engine screening and CCTP V2; each needs its own credentials.
 - Integrations — Ramp Providers: https://furlpay.com/docs/integrations/ramps
   Coinbase and Transak adapters for buying and selling crypto; FurlPay does not operate an on-ramp or off-ramp.
 - Integrations — Telegram Mini App: https://furlpay.com/docs/integrations/telegram
-  Sign in to an existing FurlPay account from Telegram; read-only view of balances and activity.
+  Sign in to an existing FurlPay account from Telegram, link or unlink it, and view balances and activity; it cannot send a payment.
 - Integrations — Stripe Crypto: https://furlpay.com/docs/integrations/stripe-crypto
   Optional Stripe PaymentIntent and webhook integration; provider approval and deployment configuration required.
 - Integrations — Persona KYC: https://furlpay.com/docs/integrations/persona-kyc

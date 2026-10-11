@@ -15,17 +15,16 @@ export default function ScreeningPage() {
       </Lead>
 
       <H2 id="address-screening">Wallet address screening</H2>
-      <P>Money routes call one address screen. It layers up to three checks, and the strictest result wins:</P>
+      <P>Money routes call one address screen. It layers two checks, and the strictest result wins. Merchant payment verification adds a third:</P>
       <ParameterTable
         params={[
           { name: "Sanctions list", type: "always", required: true, desc: "A bundled OFAC SDN snapshot, checked locally with no external call. A match blocks." },
           { name: "Circle Compliance Engine", type: "when configured", required: false, desc: "A second, independent opinion on Ethereum, Polygon, Arbitrum, Avalanche, OP Mainnet and Solana. Circle does not screen Base, so Base addresses get the sanctions check only." },
-          { name: "USDC issuer blocklist", type: "USDC routes", required: false, desc: "Reads the issuer's on-chain blocklist for the address on the exact network. Used by merchant payments, payroll, batch payouts and Circle wallet transfers." },
+          { name: "USDC issuer blocklist", type: "USDC routes", required: false, desc: "Reads the USDC contract's on-chain blocklist for the payer and the destination on the payment's network. Used when a merchant payment is verified, and by the Arc compliance checks." },
         ]}
       />
       <UL>
-        <LI><b>Fail closed.</b> Once Circle is configured, a network error, a non-2xx response or an unexpected response shape is a block. An unreachable node during the issuer check is reported as <Code>screening_unavailable</Code> and blocks.</LI>
-        <LI><b>Distinct reasons.</b> An issuer freeze is recorded as <Code>usdc_issuer_blocked</Code>, separate from a sanctions match, so the two are never confused in an audit.</LI>
+        <LI><b>Fail closed.</b> Once Circle is configured, a network error, a non-2xx response or an unexpected response shape is a block. A screening outage never clears an address: payroll blocks the line and merchant verification holds the payment.</LI>
         <LI><b>Review means stop.</b> Where a route has no review queue, a <Code>review</Code> result refuses the action rather than letting it through.</LI>
       </UL>
       <Callout type="info" title="Sanctions data freshness">
@@ -101,11 +100,13 @@ export default function ScreeningPage() {
       </P>
 
       <H2 id="travel-rule">Travel rule</H2>
-      <P>Two separate pieces exist, and neither one authorises a payment:</P>
-      <UL>
-        <LI><Code>POST /api/compliance/travel-rule</Code> is a compute endpoint for signed-in callers. Given an amount and two counterparties, it returns the payload a transfer of that size would need. It sends nothing to any provider.</LI>
-        <LI>A Notabene Transact v2 transport adapter can submit a complete transfer envelope when the deployment has Notabene OAuth credentials, an API audience, an entity DID and an approved regional endpoint. It identifies parties by DID and deliberately does not accept or log raw personal data. No payment route calls it automatically.</LI>
-      </UL>
+      <P>
+        <Code>POST /api/compliance/travel-rule</Code> is a compute endpoint for signed-in callers.
+        Given an amount and two counterparties, it returns the payload a transfer of that size would
+        need. It sends nothing to any provider and does not authorise a payment. No travel-rule
+        messaging provider is integrated: exchanging originator and beneficiary data with another
+        institution is not implemented.
+      </P>
 
       <H2 id="api">API</H2>
       <EndpointTable
@@ -128,9 +129,7 @@ export default function ScreeningPage() {
         <LI><Code>CIRCLE_COMPLIANCE_API_KEY</Code> — enables the Circle Compliance Engine layer. Unset means the sanctions list is the only address layer.</LI>
         <LI><Code>COMPLIANCE_SCREENING_PROVIDER</Code> and, for ComplyAdvantage, <Code>COMPLYADVANTAGE_API_KEY</Code> and <Code>COMPLYADVANTAGE_WEBHOOK_SECRET</Code>.</LI>
         <LI><Code>COMPLIANCE_IDENTITY_PROVIDER</Code> with the Persona or Sumsub credentials. See <a href="/docs/integrations/persona-kyc" className="text-neon hover:underline">Persona KYC</a>.</LI>
-        <LI>Node endpoints for the issuer blocklist check on each network.</LI>
         <LI>Migration <Code>0039_compliance_cases</Code> for durable cases.</LI>
-        <LI><Code>NOTABENE_CLIENT_ID</Code>, <Code>NOTABENE_CLIENT_SECRET</Code>, <Code>NOTABENE_ENTITY_DID</Code>, <Code>NOTABENE_API_URL</Code>, <Code>NOTABENE_AUTH_URL</Code> and <Code>NOTABENE_API_AUDIENCE</Code> for the travel-rule transport.</LI>
       </UL>
 
       <Callout type="warning" title="Software controls are not a compliance programme">

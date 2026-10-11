@@ -31,7 +31,8 @@ export default function TelegramPage() {
       <UL>
         <LI>Telegram passes the Mini App a signed launch string. The server verifies it with the bot token (HMAC-SHA256), rejects duplicate or malformed fields, rejects bots, and requires the launch to be recent (default 300 seconds, configurable from 30 to 600).</LI>
         <LI>If the Telegram user is not linked to a FurlPay account, the response is <Code>link_required</Code> and no session is created.</LI>
-        <LI>If it is linked, the server issues the normal FurlPay session cookie. Each launch can create at most one session; reusing a launch string is refused.</LI>
+        <LI>If it is linked, the server issues the normal FurlPay session cookie. A signed launch is a one-use credential: it is recorded when used, including when the browser already holds a session, and a second attempt to create a session from it is refused.</LI>
+        <LI>Inside Telegram&apos;s embedded browser the session cookie is issued with attributes suited to an embedded context. Remembering that context does not grant authentication.</LI>
         <LI>Locked or deleted accounts are refused. If a different FurlPay account is already signed in, the response is <Code>409</Code> and the user must sign out first.</LI>
       </UL>
 
@@ -40,14 +41,20 @@ export default function TelegramPage() {
         Linking proves the person controls both identities. The user must be signed in to FurlPay
         and must have completed a fresh step-up (passkey, or email or phone code) within the last
         five minutes; guest sessions cannot link. A Telegram account can be linked to one FurlPay
-        account, and changing a link goes through support.
+        account. Neither side can be claimed twice, even by concurrent requests.
+      </P>
+      <P>
+        The signed-in account can remove its own link. Unlinking needs the same fresh authentication,
+        so a stolen session cannot quietly detach the owner&apos;s sign-in method. Sessions already
+        issued are not revoked by unlinking; signing out of FurlPay does that.
       </P>
 
       <H2 id="api">API</H2>
       <EndpointTable
         rows={[
           { method: "POST", path: "/api/auth/telegram", desc: "Verify a launch and sign in; returns active or link_required" },
-          { method: "POST", path: "/api/miniapp/telegram-link", desc: "Link the verified Telegram user to the signed-in account (step-up required)" },
+          { method: "POST", path: "/api/miniapp/telegram-link", desc: "Link the verified Telegram user to the signed-in account (fresh authentication required)" },
+          { method: "DELETE", path: "/api/miniapp/telegram-link", desc: "Remove the signed-in account's own link (fresh authentication required)" },
           { method: "GET", path: "/api/miniapp/account", desc: "Narrow account view: profile name, verification state, balances, last 200 activity rows, capabilities" },
           { method: "POST", path: "/api/telegram/webhook", desc: "Bot updates from Telegram, authenticated by the secret-token header" },
         ]}
@@ -68,10 +75,23 @@ export default function TelegramPage() {
         ]}
       />
       <UL>
-        <LI>Migration <Code>0044_telegram_account_links</Code> stores identity links only.</LI>
+        <LI>Migration <Code>0050_telegram_account_links</Code> stores identity links only.</LI>
         <LI>It reuses <Code>FURLPAY_SESSION_SECRET</Code>, the Supabase credentials and the Upstash Redis credentials. There is no second auth store.</LI>
-        <LI>In BotFather, set the Mini App URL to <Code>https://&lt;your-domain&gt;/telegram</Code>.</LI>
+        <LI>In BotFather, set the Mini App URL to <Code>https://&lt;your-domain&gt;/telegram</Code>. <Code>npm run telegram:setup</Code> is an operator command that configures the bot; <Code>TELEGRAM_MINI_APP_URL</Code> is read by that command only, not by the app.</LI>
       </UL>
+
+      <H2 id="troubleshooting">Troubleshooting</H2>
+      <ParameterTable
+        params={[
+          { name: "503 temporarily_unavailable", type: "sign-in", required: true, desc: "The rate limiter could not reach its key-value store and refused the request. Sign-in is rate limited before anything else runs, and in production it fails closed without that store." },
+          { name: "503 Telegram sign-in is temporarily unavailable", type: "sign-in", required: true, desc: "The bot token is missing, the database is not configured, or the production key-value store is not available." },
+          { name: "401 Invalid or expired Telegram session", type: "sign-in", required: true, desc: "The launch string failed verification or is older than the freshness window. Close and reopen the Mini App." },
+          { name: "401 This launch was already used", type: "sign-in", required: true, desc: "The launch string has already created a session. Close and reopen the Mini App." },
+          { name: "403 Invalid request origin", type: "sign-in", required: true, desc: "The request did not come from the deployment's own origin." },
+          { name: "409", type: "sign-in / link", required: true, desc: "A different FurlPay account is signed in, or one of the two accounts is already linked." },
+          { name: "401 on the webhook", type: "bot", required: true, desc: "The secret-token header does not match TELEGRAM_WEBHOOK_SECRET." },
+        ]}
+      />
 
       <DocPager pathname="/docs/integrations/telegram" />
     </article>
