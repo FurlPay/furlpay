@@ -138,7 +138,11 @@ test.describe("@auth cross-user isolation", () => {
     // 404 before `author` was ever looked at, which would prove nothing about
     // whether the field is honoured. It also avoids creating another ticket —
     // the create budget is 5/10min per IP and shared with support-ticket.spec.ts.
-    const marker = `E2E impersonation probe ${Date.now()}`;
+    // Base 36, not a raw Date.now(): message bodies pass through lib/redact.ts,
+    // which masks any Luhn-valid 13-19 digit run as a card number. One in ten
+    // millisecond timestamps is Luhn-valid, so a decimal marker rendered as
+    // "[card ****1234]" and this test failed at random.
+    const marker = `E2E impersonation probe ${Date.now().toString(36)}`;
     const res = await pageA.request.post(`/api/support/tickets/${ticketA}/messages`, {
       data: { body: marker, author: "agent" },
     });
