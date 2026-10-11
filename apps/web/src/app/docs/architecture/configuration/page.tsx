@@ -150,7 +150,7 @@ export default function ConfigurationPage() {
       <ParameterTable
         params={[
           { name: "/api/cron/reconcile", type: "daily, scheduled", required: true, desc: "Ledger reconciliation." },
-          { name: "/api/cron/health", type: "daily, scheduled", required: true, desc: "Health checks and alerts." },
+          { name: "/api/cron/health", type: "daily, scheduled", required: true, desc: "Provider and scheduler health, including a live read against the key-value store; raises alerts." },
           { name: "/api/cron/market-brief", type: "daily, scheduled", required: false, desc: "Posts the market brief to Discord and Telegram." },
           { name: "/api/cron/price-cards", type: "daily, scheduled", required: false, desc: "Posts price cards to Discord." },
           { name: "/api/cron/discord-welcome", type: "daily, scheduled", required: false, desc: "Greets new community members." },
