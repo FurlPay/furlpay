@@ -145,6 +145,9 @@ export class Ap2Error extends Error {
       | "category_not_allowed"
       | "cart_intent_mismatch"
       | "total_mismatch"
+      | "invalid_amount"
+      | "invalid_nonce"
+      | "validity_too_long"
       | "replayed",
     message: string,
   ) {
@@ -164,15 +167,85 @@ export async function verifySignature<T extends IntentMandate | CartMandate>(
   return signed.payload;
 }
 
+export type NonceKind = "cart" | "intent";
+
+/**
+ * Single-use nonce guard.
+ *
+ * `claim` is the one that matters: an atomic set-if-absent that returns true
+ * only for the first caller, across every process that shares the store.
+ * `has` followed by `add` is two steps — correct inside one process, a replay
+ * window across serverless instances, where each has its own memory. A store
+ * that offers `claim` is always used through it; `has`/`add` remain for
+ * single-process callers.
+ */
 export interface NonceStore {
-  has(nonce: string): boolean;
-  add(nonce: string): void;
+  has(nonce: string): boolean | Promise<boolean>;
+  add(nonce: string): void | Promise<void>;
+  /** Atomically consume `nonce`; true iff this caller is first. `expiresAt`
+   *  (unix ms) is the earliest moment the record may be forgotten. */
+  claim?(kind: NonceKind, nonce: string, expiresAt: number): Promise<boolean>;
 }
 
-/** A default in-memory single-use nonce store (swap for Redis in production). */
+/**
+ * In-memory single-use nonce store. Correct in ONE process only: on serverless
+ * every instance has its own Set, so a mandate replayed against a different
+ * instance is accepted again. Production callers must pass a durable store
+ * that implements `claim`.
+ */
 export function memoryNonceStore(): NonceStore {
   const seen = new Set<string>();
-  return { has: (n) => seen.has(n), add: (n) => void seen.add(n) };
+  return {
+    has: (n) => seen.has(n),
+    add: (n) => void seen.add(n),
+    claim: async (kind, n) => {
+      const key = `${kind}:${n}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    },
+  };
+}
+
+// ---- exact amounts -----------------------------------------------------------
+
+/** Precision every amount is compared at. Six places covers the stablecoins
+ *  (USDC/USDT/EURC) and every ISO 4217 fiat currency. */
+export const AMOUNT_DECIMALS = 6;
+/** Largest amount accepted anywhere in a mandate (in currency units). */
+export const MAX_MANDATE_AMOUNT = 1_000_000_000;
+
+/**
+ * Convert a JSON number to integer atomic units, exactly, or refuse.
+ *
+ * Mandate amounts arrive as JSON numbers. Comparing them as floats is how
+ * 0.1 + 0.2 ends up "greater than" 0.3, and how an epsilon of 1e-9 lets a cart
+ * exceed the limit it was signed under. Here a value must be finite, within
+ * range, and carry no more than `decimals` places — `toFixed` with two guard
+ * digits exposes anything finer, which is refused rather than rounded, so
+ * rounding can never be the step that authorizes more than was signed for.
+ */
+export function toAtomicUnits(value: unknown, decimals: number = AMOUNT_DECIMALS, field = "amount"): bigint {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new Ap2Error("invalid_amount", `${field} must be a finite number`);
+  }
+  if (value < 0 || value > MAX_MANDATE_AMOUNT) {
+    throw new Ap2Error("invalid_amount", `${field} out of range`);
+  }
+  const fixed = value.toFixed(decimals + 2);
+  const [whole, frac = ""] = fixed.split(".");
+  if (frac.slice(decimals) !== "00") {
+    throw new Ap2Error("invalid_amount", `${field} has more than ${decimals} decimal places`);
+  }
+  return BigInt(whole + frac.slice(0, decimals));
+}
+
+const NONCE = /^[A-Za-z0-9._:-]{8,200}$/;
+function requireNonce(nonce: unknown, which: string): string {
+  if (typeof nonce !== "string" || !NONCE.test(nonce)) {
+    throw new Ap2Error("invalid_nonce", `${which} nonce must be 8-200 characters of [A-Za-z0-9._:-]`);
+  }
+  return nonce;
 }
 
 export interface AuthorizeParams {
@@ -186,6 +259,13 @@ export interface AuthorizeParams {
   cartSignerPublicKey: string;
   /** Optional replay guard over cart + intent nonces. */
   nonceStore?: NonceStore;
+  /**
+   * Refuse intents valid for longer than this (ms from now). A durable nonce
+   * store forgets a record at the mandate's expiry; a caller whose store has a
+   * retention ceiling sets this to that ceiling so no mandate can outlive the
+   * record that makes it single-use.
+   */
+  maxValidityMs?: number;
   now?: number;
 }
 
@@ -212,14 +292,34 @@ export async function authorizeCart(p: AuthorizeParams): Promise<AuthorizedCart>
   }
 
   // Expiry.
-  if (intent.constraints.expiresAt <= now) {
+  const expiresAt = intent.constraints.expiresAt;
+  if (typeof expiresAt !== "number" || !Number.isFinite(expiresAt) || expiresAt <= now) {
     throw new Ap2Error("expired", "intent mandate has expired");
   }
+  if (p.maxValidityMs !== undefined && expiresAt - now > p.maxValidityMs) {
+    throw new Ap2Error("validity_too_long", "intent mandate is valid for longer than this verifier accepts");
+  }
 
-  // Integrity: cart total must equal the sum of line items.
-  const lineSum = round(cart.items.reduce((s, i) => s + i.amount, 0));
-  if (Math.abs(lineSum - cart.total) > 0.01) {
-    throw new Ap2Error("total_mismatch", `cart total ${cart.total} != line sum ${lineSum}`);
+  const cartNonce = requireNonce(cart.nonce, "cart");
+  const intentNonce = requireNonce(intent.nonce, "intent");
+
+  // Integrity: cart total must equal the sum of line items — exactly, in
+  // integer atomic units. The old check rounded the float sum to cents and
+  // then allowed a further 0.01 of slack, so a total could exceed its own lines.
+  if (!Array.isArray(cart.items) || cart.items.length === 0) {
+    throw new Ap2Error("total_mismatch", "cart has no line items");
+  }
+  const total = toAtomicUnits(cart.total, AMOUNT_DECIMALS, "cart total");
+  if (total === 0n) throw new Ap2Error("invalid_amount", "cart total must be positive");
+  let lineSum = 0n;
+  for (const [i, item] of cart.items.entries()) {
+    lineSum += toAtomicUnits(item?.amount, AMOUNT_DECIMALS, `line ${i} amount`);
+    if (!Number.isInteger(item?.quantity) || item.quantity < 1) {
+      throw new Ap2Error("invalid_amount", `line ${i} quantity must be a positive integer`);
+    }
+  }
+  if (lineSum !== total) {
+    throw new Ap2Error("total_mismatch", `cart total ${cart.total} != line sum`);
   }
 
   // Currency.
@@ -227,8 +327,9 @@ export async function authorizeCart(p: AuthorizeParams): Promise<AuthorizedCart>
     throw new Ap2Error("currency_mismatch", "cart currency not authorized by intent");
   }
 
-  // Amount ceiling.
-  if (cart.total > intent.constraints.maxAmount + 1e-9) {
+  // Amount ceiling, compared exactly. No epsilon: an epsilon is an amount the
+  // user did not sign for.
+  if (total > toAtomicUnits(intent.constraints.maxAmount, AMOUNT_DECIMALS, "intent maxAmount")) {
     throw new Ap2Error("over_limit", `cart total ${cart.total} exceeds max ${intent.constraints.maxAmount}`);
   }
 
@@ -244,14 +345,25 @@ export async function authorizeCart(p: AuthorizeParams): Promise<AuthorizedCart>
     throw new Ap2Error("category_not_allowed", `category ${cart.category} not in allowlist`);
   }
 
-  // Replay guard (single-use nonces on both mandates).
-  if (p.nonceStore) {
-    if (p.nonceStore.has(cart.nonce)) throw new Ap2Error("replayed", "cart nonce already used");
-    if (intent.constraints.singleUse && p.nonceStore.has(intent.nonce)) {
+  // Replay guard (single-use nonces on both mandates). Runs LAST, after every
+  // check that can reject, so a refused cart never consumes a nonce.
+  const store = p.nonceStore;
+  if (store?.claim) {
+    // Atomic claims. The cart is claimed first: if the intent claim then
+    // fails, the cart nonce stays burned — a refusal, never a second payment.
+    if (!(await store.claim("cart", cartNonce, expiresAt))) {
+      throw new Ap2Error("replayed", "cart nonce already used");
+    }
+    if (intent.constraints.singleUse && !(await store.claim("intent", intentNonce, expiresAt))) {
       throw new Ap2Error("replayed", "single-use intent mandate already consumed");
     }
-    p.nonceStore.add(cart.nonce);
-    if (intent.constraints.singleUse) p.nonceStore.add(intent.nonce);
+  } else if (store) {
+    if (await store.has(cartNonce)) throw new Ap2Error("replayed", "cart nonce already used");
+    if (intent.constraints.singleUse && (await store.has(intentNonce))) {
+      throw new Ap2Error("replayed", "single-use intent mandate already consumed");
+    }
+    await store.add(cartNonce);
+    if (intent.constraints.singleUse) await store.add(intentNonce);
   }
 
   return { cart, intent, amount: cart.total, currency: cart.currency, merchant: cart.merchant };
@@ -285,7 +397,9 @@ export interface BridgeOptions {
  */
 export function toX402Settlement(authorized: AuthorizedCart, opts: BridgeOptions): X402Settlement {
   const decimals = opts.decimals ?? 6;
-  const atomic = BigInt(Math.round(authorized.amount * 10 ** decimals)).toString();
+  // Exact conversion; an amount finer than the token's precision is refused,
+  // not rounded (Math.round(x * 10**d) could round a signed amount upward).
+  const atomic = toAtomicUnits(authorized.amount, decimals, "amount").toString();
   return {
     scheme: "exact",
     network: opts.network ?? "arbitrum",
@@ -314,8 +428,4 @@ export function toFurlPayPayment(authorized: AuthorizedCart, opts: { recipient: 
       merchant: authorized.merchant,
     },
   };
-}
-
-function round(n: number): number {
-  return Math.round(n * 100) / 100;
 }
