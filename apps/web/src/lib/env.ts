@@ -77,6 +77,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // project. PROD_PROJECT_REFS extends the built-in production list.
       v("FURLPAY_DATA_PLANE"),
       v("PROD_PROJECT_REFS"),
+      v("PROD_KV_HOSTS"),
       v("BLOCKAID_API_KEY"),
     ],
   },

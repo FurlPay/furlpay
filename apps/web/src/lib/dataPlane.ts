@@ -15,7 +15,8 @@
 //   FURLPAY_DATA_PLANE=isolated
 //
 // and, declared or not, it never gets a Supabase URL that names a production
-// project. Withheld credentials make `supabaseBackend` "none" and `kvBackend`
+// project, nor a key-value host listed in PROD_KV_HOSTS. The declaration is a
+// statement of intent; the identity checks are what refuse a wrong resource. Withheld credentials make `supabaseBackend` "none" and `kvBackend`
 // "memory"; a production build then refuses its in-memory fallbacks
 // (lib/kv.ts assertDurableBackend, the storage guards), so data routes answer
 // 503. That is the intended outcome: a preview with no data plane of its own
@@ -38,7 +39,9 @@ export type DataPlaneBlock =
   /** A non-production Vercel deployment that has not declared its own data plane. */
   | "preview_not_isolated"
   /** A non-production deployment whose Supabase URL names a production project. */
-  | "production_database_in_preview";
+  | "production_database_in_preview"
+  /** A non-production deployment whose key-value store host is a declared production host. */
+  | "production_kv_in_preview";
 
 export interface DataPlane {
   supabaseUrl: string | undefined;
@@ -66,6 +69,23 @@ export function isProductionSupabaseUrl(url: string | undefined, env: Env = proc
   return productionRefs(env).includes(ref);
 }
 
+/**
+ * True when `url` points at a key-value host declared as production in
+ * PROD_KV_HOSTS (comma-separated hostnames). There is no built-in list: a Redis
+ * hostname is not derivable from anything in this repository, so the operator
+ * names it. Hostnames are not secrets.
+ */
+export function isProductionKvUrl(url: string | undefined, env: Env = process.env): boolean {
+  if (!url) return false;
+  const hosts = (env.PROD_KV_HOSTS ?? "").split(",").map((h) => h.trim().toLowerCase()).filter(Boolean);
+  if (!hosts.length) return false;
+  try {
+    return hosts.includes(new URL(url).hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+}
+
 /** A deployment on Vercel that is not the production one. */
 export function isNonProductionVercelDeployment(env: Env = process.env): boolean {
   return env.VERCEL_ENV === "preview" || env.VERCEL_ENV === "development";
@@ -82,6 +102,7 @@ export function resolveDataPlane(env: Env = process.env): DataPlane {
     // Checked first and unconditionally: declaring isolation cannot make a
     // production database acceptable in a preview.
     if (isProductionSupabaseUrl(supabaseUrl, env)) return withheld("production_database_in_preview");
+    if (isProductionKvUrl(kvUrl, env)) return withheld("production_kv_in_preview");
     if ((env.FURLPAY_DATA_PLANE ?? "").trim().toLowerCase() !== "isolated") return withheld("preview_not_isolated");
   }
   return { supabaseUrl, supabaseKey, kvUrl, kvToken, blocked: null };
@@ -97,4 +118,7 @@ export const DATA_PLANE_BLOCK_DETAIL: Record<DataPlaneBlock, string> = {
   production_database_in_preview:
     "This is a non-production Vercel deployment whose SUPABASE_URL names a production project. Durable credentials are withheld. " +
     "Remove the production database credentials from the preview scope.",
+  production_kv_in_preview:
+    "This is a non-production Vercel deployment whose key-value store host is listed in PROD_KV_HOSTS. Durable credentials are withheld. " +
+    "Remove the production Redis credentials from the preview scope.",
 };

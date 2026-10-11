@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { isProductionSupabaseUrl, resolveDataPlane, PRODUCTION_SUPABASE_REFS } from "@/lib/dataPlane";
+import { isProductionKvUrl, isProductionSupabaseUrl, resolveDataPlane, PRODUCTION_SUPABASE_REFS } from "@/lib/dataPlane";
 
 /*
  * On 11 Oct 2026 the Vercel preview scope carried the production Supabase and
@@ -86,6 +86,71 @@ describe("isProductionSupabaseUrl", () => {
   it("extends the production list from PROD_PROJECT_REFS", () => {
     expect(isProductionSupabaseUrl(OTHER_DB, { PROD_PROJECT_REFS: "aaa, previewprojectref" })).toBe(true);
   });
+});
+
+describe("production key-value store in a preview", () => {
+  const PROD_KV = "https://prod-store-12345.upstash.io";
+  const hosts = { PROD_KV_HOSTS: "other.upstash.io, PROD-STORE-12345.upstash.io" };
+  const base = { SUPABASE_URL: OTHER_DB, SUPABASE_SERVICE_ROLE_KEY: "k", KV_REST_API_TOKEN: "t" };
+
+  it("is refused even when the preview declares isolation", () => {
+    const p = resolveDataPlane({ ...base, ...hosts, KV_REST_API_URL: PROD_KV, VERCEL_ENV: "preview", FURLPAY_DATA_PLANE: "isolated" });
+    expect(p.blocked).toBe("production_kv_in_preview");
+    // Everything goes, not only Redis: the scope is misconfigured.
+    expect(p).toMatchObject({ supabaseUrl: undefined, supabaseKey: undefined, kvUrl: undefined, kvToken: undefined });
+  });
+
+  it("is refused under the Upstash variable name too", () => {
+    const p = resolveDataPlane({ ...base, ...hosts, UPSTASH_REDIS_REST_URL: PROD_KV, UPSTASH_REDIS_REST_TOKEN: "t", KV_REST_API_TOKEN: undefined, VERCEL_ENV: "preview", FURLPAY_DATA_PLANE: "isolated" });
+    expect(p.blocked).toBe("production_kv_in_preview");
+  });
+
+  it("is allowed on the production deployment, where it belongs", () => {
+    expect(resolveDataPlane({ ...base, ...hosts, KV_REST_API_URL: PROD_KV, VERCEL_ENV: "production" }).blocked).toBeNull();
+  });
+
+  it("lets an isolated preview use a different store", () => {
+    const p = resolveDataPlane({ ...base, ...hosts, KV_REST_API_URL: "https://preview-store.upstash.io", VERCEL_ENV: "preview", FURLPAY_DATA_PLANE: "isolated" });
+    expect(p.blocked).toBeNull();
+    expect(p.kvUrl).toBe("https://preview-store.upstash.io");
+  });
+
+  it("matches the host exactly, not a substring or a path", () => {
+    const env = { PROD_KV_HOSTS: "prod-store-12345.upstash.io" };
+    expect(isProductionKvUrl("https://prod-store-12345.upstash.io/", env)).toBe(true);
+    expect(isProductionKvUrl("https://not-prod-store-12345.upstash.io", env)).toBe(false);
+    expect(isProductionKvUrl("https://preview.upstash.io/prod-store-12345.upstash.io", env)).toBe(false);
+    expect(isProductionKvUrl("not a url", env)).toBe(false);
+    expect(isProductionKvUrl(undefined, env)).toBe(false);
+    // With no hosts declared the check cannot fire; the isolation flag is then the only rule.
+    expect(isProductionKvUrl("https://prod-store-12345.upstash.io", {})).toBe(false);
+  });
+});
+
+describe("hostile preview configurations", () => {
+  // Every combination a misconfigured scope could present. None may yield a
+  // production credential.
+  const cases: [string, Record<string, string | undefined>][] = [
+    ["production credentials, nothing declared", { ...creds(PROD_DB) }],
+    ["production credentials, isolation claimed", { ...creds(PROD_DB), FURLPAY_DATA_PLANE: "isolated" }],
+    ["production credentials, isolation claimed in other casing", { ...creds(PROD_DB), FURLPAY_DATA_PLANE: "ISOLATED" }],
+    ["production database with a trailing path", { ...creds(`${PROD_DB}/rest/v1/`), FURLPAY_DATA_PLANE: "isolated" }],
+    ["production database in upper case", { ...creds(PROD_DB.toUpperCase().replace("HTTPS", "https")), FURLPAY_DATA_PLANE: "isolated" }],
+    ["FURLPAY_ENV says development", { ...creds(PROD_DB), FURLPAY_ENV: "development", FURLPAY_DATA_PLANE: "isolated" }],
+    ["NODE_ENV says development", { ...creds(PROD_DB), NODE_ENV: "development", FURLPAY_DATA_PLANE: "isolated" }],
+  ];
+  for (const scope of ["preview", "development"]) {
+    for (const [name, env] of cases) {
+      it(`${scope}: ${name}`, () => {
+        const p = resolveDataPlane({ ...env, VERCEL_ENV: scope });
+        expect(p.blocked).not.toBeNull();
+        expect(p.supabaseUrl).toBeUndefined();
+        expect(p.supabaseKey).toBeUndefined();
+        expect(p.kvUrl).toBeUndefined();
+        expect(p.kvToken).toBeUndefined();
+      });
+    }
+  }
 });
 
 describe("a blocked preview has no backends", () => {
@@ -182,10 +247,27 @@ describe("no backend bypasses the guard", () => {
     return out;
   }
 
+  // Destructuring reads the same variables without a property access:
+  //   const { SUPABASE_URL } = process.env;   const { KV_REST_API_URL: url } = env;
+  const DESTRUCTURED = /\{[^{}]*\b(SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY|UPSTASH_REDIS_REST_URL|UPSTASH_REDIS_REST_TOKEN|KV_REST_API_URL|KV_REST_API_TOKEN)\b[^{}]*\}\s*=\s*(?:process\.)?env\b/;
+
+  it("recognises the read forms it is meant to catch", () => {
+    for (const src of ["process.env.SUPABASE_URL", "env.SUPABASE_SERVICE_ROLE_KEY", 'process.env["KV_REST_API_URL"]', "e['UPSTASH_REDIS_REST_TOKEN']", "cfg.env.KV_REST_API_TOKEN"]) expect(NAMES.test(src), src).toBe(true);
+    for (const src of ["const { SUPABASE_URL } = process.env;", "const { KV_REST_API_URL: url, x } = env;", "let {a, SUPABASE_SERVICE_ROLE_KEY} = process.env"]) expect(DESTRUCTURED.test(src), src).toBe(true);
+    // A name in a message is not a read.
+    for (const src of ['"No durable store (SUPABASE_URL)."', "// set KV_REST_API_URL in Vercel", 'v("SUPABASE_URL")']) {
+      expect(NAMES.test(src), src).toBe(false);
+      expect(DESTRUCTURED.test(src), src).toBe(false);
+    }
+  });
+
   it("only lib/dataPlane.ts and presence reports read the durable credentials", () => {
     const root = join(process.cwd(), "src");
     const offenders = walk(root)
-      .filter((f) => NAMES.test(readFileSync(f, "utf8")))
+      .filter((f) => {
+        const src = readFileSync(f, "utf8");
+        return NAMES.test(src) || DESTRUCTURED.test(src);
+      })
       .map((f) => "src" + f.slice(root.length).replace(/\\/g, "/"))
       .filter((f) => !ALLOWED.has(f));
     expect(offenders, "these files read database or key-value credentials directly instead of through lib/dataPlane.ts").toEqual([]);
