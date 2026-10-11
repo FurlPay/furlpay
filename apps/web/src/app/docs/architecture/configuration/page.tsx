@@ -70,6 +70,7 @@ export default function ConfigurationPage() {
           { name: "UPSTASH_REDIS_REST_URL / _TOKEN", type: "secret", required: true, desc: "Durable key-value store: challenges, rate limits, webhook de-duplication, locks, operational controls. KV_REST_API_URL and _TOKEN are also honoured." },
           { name: "FURLPAY_ADMIN_EMAIL", type: "config", required: true, desc: "The only account allowed to hold the admin role." },
           { name: "CRON_SECRET / FURLPAY_CRON_SECRET", type: "secret", required: true, desc: "Scheduled-job credentials. With neither set, every cron request is refused." },
+          { name: "FURLPAY_DATA_PLANE", type: "config", required: false, desc: "Preview isolation. A Vercel deployment that is not production gets no database or key-value credentials unless its scope sets this to \"isolated\", and never a production database. Leave unset in production." },
           { name: "PUBLIC_API_ORIGIN / FURLPAY_TRUSTED_PROXY_HOPS", type: "config", required: false, desc: "Needed only behind a reverse proxy other than Vercel." },
         ]}
       />
