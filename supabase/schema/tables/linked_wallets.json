@@ -1,0 +1,76 @@
+{
+  "name": "linked_wallets",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0005_linked_wallets.sql",
+    "line": 16,
+    "sha256": "d1b18f49034715e6c8dcb1a2796d104dc9a6c0eee4cc0a01030eda0db6c45e0f"
+  },
+  "definition": "create table linked_wallets (\n  -- The normalized (lowercased) EVM address IS the uniqueness key. Casing can\n  -- never bypass it because callers pass the lowercased form; the CHECK also\n  -- rejects empty strings, non-hex, wrong-length and the zero address at the\n  -- database level, so even a direct service-role insert cannot corrupt it.\n  address_norm text primary key\n               check (address_norm ~ '^0x[0-9a-f]{40}$'\n                      and address_norm <> '0x0000000000000000000000000000000000000000'),\n  user_id      uuid not null references users (id) on delete cascade,\n  address      text not null check (address ~ '^0x[0-9a-fA-F]{40}$'), -- EIP-55 display\n  chain_family text not null default 'evm' check (chain_family in ('evm')),\n  method       text not null default 'eip191' check (method in ('eip191')),\n  proof_nonce  text not null,                 -- the signed challenge nonce (audit; not a secret)\n  status       text not null default 'active' check (status in ('active')),\n  linked_at    timestamptz not null default now()\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0005_linked_wallets.sql",
+      "line": 16,
+      "sha256": "d1b18f49034715e6c8dcb1a2796d104dc9a6c0eee4cc0a01030eda0db6c45e0f",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0005_linked_wallets.sql",
+      "line": 35,
+      "sha256": "c8f7b942897e43d07bdc9ad1b39a4c6f419803c616207e96545a7048a355b87d",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0005_linked_wallets.sql",
+      "line": 37,
+      "sha256": "754c811a0ecf0926751d092644b16c77de1ddb54e4c62ed9dae2ce7fd305ea44",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0005_linked_wallets.sql",
+      "line": 47,
+      "sha256": "0bfd6b7520578bf591f7899117e7f5bacd2fcb3d13dcb6ff0e935151f9b77d37",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0005_linked_wallets.sql",
+      "line": 83,
+      "sha256": "ae284d3a07d8090bed672b82ae3d449b9cf0c67ae54253fb4908f2baff9af42c",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 137,
+      "sha256": "1ef6e8bfc568c6f8557bf8a299d91397b0edfd4f28ff09f5518d1e69cb14a134",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/linkedWalletStore.ts",
+      "line": 123
+    },
+    {
+      "file": "apps/web/src/lib/linkedWalletStore.ts",
+      "line": 124
+    },
+    {
+      "file": "apps/web/src/lib/onchain/ingest.ts",
+      "line": 210
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0005_linked_wallets.sql",
+        "line": 37,
+        "sha256": "754c811a0ecf0926751d092644b16c77de1ddb54e4c62ed9dae2ce7fd305ea44"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

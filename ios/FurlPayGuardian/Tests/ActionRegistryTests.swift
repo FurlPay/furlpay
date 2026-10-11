@@ -29,8 +29,9 @@ struct ActionRegistryTests {
         method: String? = "POST",
         body: [String: JSONValue]?,
         amountUsd: Double? = nil
-    ) -> Confirmation {
-        Confirmation(
+    ) -> FurlPayGuardian.Confirmation {
+        // Module-qualified: Swift Testing also exports a `Confirmation`.
+        FurlPayGuardian.Confirmation(
             action: action, endpoint: endpoint, method: method,
             body: body, summary: "test", amountUsd: amountUsd
         )

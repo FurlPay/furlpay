@@ -2,7 +2,7 @@
   "name": "furlpay-monorepo",
   "version": "0.1.0",
   "private": true,
-  "description": "Furlpay \u2014 the Stripe + Coinbase of stablecoins & fractional investing. Turborepo monorepo.",
+  "description": "Furlpay — the Stripe + Coinbase of stablecoins & fractional investing. Turborepo monorepo.",
   "workspaces": [
     "examples/*",
     "apps/web",
@@ -21,15 +21,23 @@
     "test": "npm run build --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/furlpay-node && npm test --workspace @furlpay/compliance && npm test --workspace @furlpay/security && npm test --workspace @furlpay/ledger && npm test --workspace @furlpay/gateway && npm test --workspace @furlpay/control-plane",
     "cli": "node packages/cli/bin/furlpay.js",
     "predeploy": "node apps/web/scripts/check-deploy-gate.mjs",
-    "deploy:prod": "npm run predeploy && npx vercel deploy --prod --yes"
+    "deploy:prod": "npm run predeploy && npx vercel deploy --prod --yes",
+    "usdc:probe": "node scripts/onchain/usdc-history-scan.mjs",
+    "usdc:probe:report": "node scripts/onchain/usdc-history-scan.mjs --report",
+    "usdc:probe:crosscheck": "node scripts/onchain/usdc-history-crosscheck.mjs",
+    "usdc:storage": "node scripts/onchain/usdc-storage-measure.mjs",
+    "usdc:bench": "node scripts/onchain/usdc-index-bench.mjs",
+    "usdc:index:worker": "node scripts/onchain/usdc-index-worker.mjs",
+    "smoke:prod": "node scripts/smoke-prod.mjs",
+    "telegram:setup": "node scripts/telegram-bot-setup.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
     "jsdom": "^26.1.0",
-    "turbo": "2.10.4"
+    "turbo": "2.11.2"
   },
   "overrides": {
-    "shell-quote": "1.9.0",
+    "shell-quote": "1.11.0",
     "ws": "^8.21.0",
     "undici": "^5.29.0",
     "serialize-javascript": "^6.0.2",

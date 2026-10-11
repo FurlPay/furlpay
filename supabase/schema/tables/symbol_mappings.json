@@ -1,0 +1,39 @@
+{
+  "name": "symbol_mappings",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0006_corporate_actions.sql",
+    "line": 150,
+    "sha256": "b2368ce10a1aba874ccc9505ab20db1a70e28d8fcf0d91286127898cf8e78f76"
+  },
+  "definition": "CREATE TABLE IF NOT EXISTS symbol_mappings (\n  old_symbol           TEXT NOT NULL,\n  new_symbol           TEXT NOT NULL,\n  effective_date       DATE NOT NULL,\n  corporate_action_id  TEXT REFERENCES corporate_actions(id),\n  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),\n  PRIMARY KEY (old_symbol, effective_date)\n);",
+  "dependencies": [
+    "corporate_actions"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 150,
+      "sha256": "b2368ce10a1aba874ccc9505ab20db1a70e28d8fcf0d91286127898cf8e78f76",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 163,
+      "sha256": "8f544b2a59a6f7bc112650683f435df87345e65df7dc3a1f949842a57140c65f",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0006_corporate_actions.sql",
+        "line": 163,
+        "sha256": "8f544b2a59a6f7bc112650683f435df87345e65df7dc3a1f949842a57140c65f"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

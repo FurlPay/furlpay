@@ -1,0 +1,186 @@
+/* Report download dialog. Same palette and type as /wallet (wallet.css):
+   panel, border and muted text tokens, Inter, JetBrains Mono eyebrows. */
+
+.report-dl {
+  --accent: #00c888;
+  --accent-hover: #1ee6a3;
+  --foreground: #e7efea;
+  --muted: #93a09a;
+  --border: #24302a;
+  --panel: #121a16;
+  --field: #0c120f;
+  --notice: #f0b29b;
+
+  width: min(calc(100vw - 32px), 480px);
+  max-height: calc(100dvh - 32px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--panel);
+  color: var(--foreground);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  box-shadow: 0 30px 80px -20px rgb(0 0 0 / 0.7);
+}
+
+.report-dl[open] {
+  animation: report-dl-in 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.report-dl::backdrop {
+  background: rgb(3 8 6 / 0.55);
+  backdrop-filter: blur(4px);
+}
+
+@keyframes report-dl-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+/* Phones: a bottom sheet with safe margins, so the keyboard pushes the sheet
+   up rather than covering the button or the error. */
+@media (max-width: 639px) {
+  .report-dl {
+    width: 100%;
+    max-width: 100%;
+    margin: auto 0 0;
+    border-radius: 20px 20px 0 0;
+    border-bottom: 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-dl[open] {
+    animation: none;
+  }
+}
+
+.report-dl .eyebrow {
+  font: 600 11px/1 "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.report-dl .field {
+  width: 100%;
+  height: 52px;
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--field);
+  color: var(--foreground);
+  font-size: 16px; /* 16px stops iOS zooming the page on focus */
+  transition: border-color 150ms ease, box-shadow 150ms ease;
+}
+.report-dl .field::placeholder {
+  color: #5f6b65;
+}
+.report-dl .field:hover {
+  border-color: #33423a;
+}
+.report-dl .field:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgb(0 200 136 / 0.18);
+}
+/* After :hover and :focus-visible, and one class heavier, so the notice
+   colour holds while the reader corrects the address. */
+.report-dl .field.field[aria-invalid="true"] {
+  border-color: rgb(240 178 155 / 0.6);
+}
+.report-dl .field.field[aria-invalid="true"]:focus-visible {
+  box-shadow: 0 0 0 3px rgb(240 178 155 / 0.15);
+}
+.report-dl .field:read-only {
+  opacity: 0.7;
+}
+
+.report-dl .primary {
+  display: inline-flex;
+  width: 100%;
+  height: 52px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: #04120c;
+  font-size: 16px;
+  font-weight: 600;
+  transition: background-color 150ms ease, transform 150ms ease;
+}
+.report-dl .primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+}
+.report-dl .primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.report-dl .primary:disabled {
+  cursor: progress;
+  opacity: 0.85;
+}
+
+.report-dl .primary:focus-visible,
+.report-dl .quiet:focus-visible,
+.report-dl .close:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.report-dl .quiet {
+  border-radius: 10px;
+  padding: 10px 16px;
+  color: var(--muted);
+  font-size: 15px;
+  font-weight: 500;
+  transition: color 150ms ease;
+}
+.report-dl .quiet:hover {
+  color: var(--foreground);
+}
+
+.report-dl .close {
+  display: inline-flex;
+  height: 36px;
+  width: 36px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  color: var(--muted);
+  transition: color 150ms ease, background-color 150ms ease;
+}
+.report-dl .close:hover {
+  color: var(--foreground);
+  background: rgb(255 255 255 / 0.05);
+}
+
+.report-dl .done-mark {
+  display: inline-flex;
+  height: 48px;
+  width: 48px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  background: rgb(0 200 136 / 0.12);
+  color: var(--accent);
+}
+
+.report-dl .swap {
+  animation: report-dl-swap 200ms ease-out;
+}
+@keyframes report-dl-swap {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-dl .swap {
+    animation: none;
+  }
+}

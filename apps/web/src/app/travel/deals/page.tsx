@@ -2,38 +2,43 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, Flame, Timer, BadgePercent, Gift } from "lucide-react";
+import { ChevronLeft, CloudOff, BadgePercent, Gift } from "lucide-react";
 import { getJSON } from "@/lib/api";
 import { Pill, Spinner } from "@/components/ui";
 import type { Deal } from "@/lib/travel/data";
+import EmptyState, { EMPTY_ACTION_PRIMARY, EMPTY_ACTION_SECONDARY } from "@/components/travel/EmptyState";
+import { outcomeOf, reportSearchOutcome } from "@/lib/travel/searchTelemetry";
 
-// Flash-deal window resets every 6h so the countdown is always live.
-function nextWindowEnd(): number {
-  const SIX_H = 6 * 3600 * 1000;
-  return Math.ceil(Date.now() / SIX_H) * SIX_H;
-}
+// No countdown, "flash sale" badge or "limited time" copy: a Deal carries no
+// expiry from any provider, so any timer here would be invented urgency (it
+// used to reset every 6 hours whatever the deals were). If a supplier ever
+// supplies a real expiry, show THAT timestamp per deal, never a page clock.
 
 export default function DealsPage() {
   const [deals, setDeals] = useState<Deal[]>([]);
   const [loading, setLoading] = useState(true);
-  const [now, setNow] = useState(Date.now());
-  const [endsAt] = useState(nextWindowEnd);
+  const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  /** "no_live_rate_provider" while no supplier publishes discounted rates. */
+  const [unavailable, setUnavailable] = useState<string | null>(null);
 
   useEffect(() => {
-    getJSON<{ deals: Deal[] }>("/api/travel/deals")
-      .then((d) => setDeals(d.deals))
-      .catch(() => setDeals([]))
+    setLoading(true);
+    setFailed(false);
+    getJSON<{ deals: Deal[]; unavailableReason?: string }>("/api/travel/deals")
+      .then((d) => {
+        setDeals(d.deals);
+        setUnavailable(d.unavailableReason ?? null);
+        reportSearchOutcome("deals", outcomeOf(d.deals.length, d.unavailableReason), { count: d.deals.length, reason: d.unavailableReason });
+      })
+      // A failed request is not "no deals".
+      .catch(() => {
+        setDeals([]);
+        setFailed(true);
+        reportSearchOutcome("deals", "failed");
+      })
       .finally(() => setLoading(false));
-  }, []);
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const remaining = Math.max(0, Math.floor((endsAt - now) / 1000));
-  const hh = String(Math.floor(remaining / 3600)).padStart(2, "0");
-  const mm = String(Math.floor((remaining % 3600) / 60)).padStart(2, "0");
-  const ss = String(remaining % 60).padStart(2, "0");
+  }, [reloadKey]);
 
   const best = deals.length ? Math.max(...deals.map((d) => d.discountPct)) : 0;
 
@@ -44,38 +49,47 @@ export default function DealsPage() {
       </Link>
 
       {/* Hero */}
-      <div className="rounded-card border border-white/10 bg-gradient-to-br from-rose-500/[0.14] via-charcoal to-amber-500/[0.10] p-6 sm:p-8">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <Pill tone="accent">Flash sale</Pill>
-              {best > 0 && <Pill tone="gain">Up to {best}% off</Pill>}
-            </div>
-            <h1 className="flex items-center gap-2 text-3xl font-bold tracking-tight text-white">
-              <Flame className="h-7 w-7 text-accent" /> Featured deals
-            </h1>
-            <p className="mt-2 max-w-lg text-sm text-textSecondary">
-              Hand-picked stays with limited-time discounts. Prices locked at checkout for 15 minutes — pay with USDC,
-              SOL or BTC and still earn 2% cashback on the discounted price.
-            </p>
-          </div>
-          <div className="rounded-card border border-white/10 bg-black/40 px-5 py-4 text-center">
-            <p className="flex items-center justify-center gap-1 text-[11px] uppercase tracking-wider text-textSecondary">
-              <Timer className="h-3.5 w-3.5" /> Deals refresh in
-            </p>
-            <p className="mt-1 font-mono text-3xl font-bold text-accent">
-              {hh}:{mm}:{ss}
-            </p>
-          </div>
+      <div className="rounded-card border border-white/10 bg-gradient-to-br from-rose-500/[0.10] via-charcoal to-amber-500/[0.08] p-6 sm:p-8">
+        <div className="flex flex-wrap items-center gap-2">
+          {best > 0 && <Pill tone="gain">Up to {best}% off</Pill>}
         </div>
+        <h1 className="mt-2 flex items-center gap-2 text-3xl font-bold tracking-tight text-white">
+          <BadgePercent className="h-7 w-7 text-accent" aria-hidden /> Travel deals
+        </h1>
+        <p className="mt-2 max-w-xl text-sm text-textSecondary">
+          Discounted stay rates, shown only when a provider publishes both the regular and the discounted price.
+          Checkout quotes are valid for 15 minutes and the server re-prices before you pay. Pay with USDC, SOL or BTC.
+        </p>
       </div>
 
       {/* Deal grid */}
       <div className="mt-8">
         {loading ? (
           <Spinner />
+        ) : failed ? (
+          <EmptyState
+            role="alert"
+            icon={<CloudOff className="h-5 w-5" />}
+            title="Deals couldn't load"
+            actions={<button type="button" onClick={() => setReloadKey((k) => k + 1)} className={EMPTY_ACTION_PRIMARY}>Try again</button>}
+          >
+            Something went wrong reaching the deals service.
+          </EmptyState>
         ) : deals.length === 0 ? (
-          <p className="py-16 text-center text-sm text-textSecondary">No live deals right now — check back soon.</p>
+          <EmptyState
+            icon={<BadgePercent className="h-5 w-5" />}
+            title={unavailable === "no_live_rate_provider" ? "Deals aren't connected yet" : "No live deals right now"}
+            actions={
+              <>
+                <Link href="/travel?focus=search" className={EMPTY_ACTION_PRIMARY}>Search stays</Link>
+                <Link href="/travel/destinations" className={EMPTY_ACTION_SECONDARY}>Browse destinations</Link>
+              </>
+            }
+          >
+            {unavailable === "no_live_rate_provider"
+              ? "A deal needs a live regular rate and a live discounted rate from a provider. No rate provider is connected, so there is nothing honest to show — rather than invented discounts."
+              : "Deals appear here only when a provider publishes a real discounted rate."}
+          </EmptyState>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {[...deals]
@@ -114,7 +128,7 @@ export default function DealsPage() {
                         <p className="pb-0.5 text-[11px] text-textSecondary">/night</p>
                       </div>
                       <p className="mt-2 text-[11px] font-semibold text-emerald-400">
-                        + 2% back in USDC · 15-minute checkout quote
+                        15-minute checkout quote
                       </p>
                     </div>
                   </Link>

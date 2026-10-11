@@ -1,0 +1,85 @@
+{
+  "name": "places_accommodation",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0013_places_accommodation.sql",
+    "line": 51,
+    "sha256": "99f0fe120c8a07c50f6588a4b45b2573e8a796d4cc8e8191b9dd71594f22a6b4"
+  },
+  "definition": "create table places_accommodation (\n  -- The one value with no expiry. Opaque, stable, and Google's own identity for\n  -- the place, which makes it the deduplication key: the same hotel found in\n  -- four overlapping grid cells is one row, not four.\n  place_id      text primary key check (length(place_id) between 8 and 512),\n\n  -- --- expiring content ----------------------------------------------------\n  name          text not null check (length(btrim(name)) between 1 and 300),\n\n  latitude      double precision not null check (latitude between -90 and 90),\n  longitude     double precision not null check (longitude between -180 and 180),\n  -- geography, not geometry, for the same reason as 0012: a global map has no\n  -- single projection that is correct everywhere, and radius queries should\n  -- come back in metres without the caller choosing one.\n  location      geography(Point, 4326) not null,\n\n  -- Google's own vocabulary, kept verbatim. Reclassification then never needs a\n  -- re-crawl — the evidence for the decision is still here.\n  google_types  jsonb not null default '[]'::jsonb\n                check (jsonb_typeof(google_types) = 'array'\n                       and jsonb_array_length(google_types) <= 32),\n  primary_type  text check (primary_type is null or length(primary_type) <= 64),\n\n  -- FurlPay's normalized taxonomy, derived ONLY from google_types. Never from\n  -- the property's name: \"Villa Rotana\" is a hotel.\n  property_type text not null default 'other_accommodation'\n                -- Kept in step with PropertyType in lib/hotels/placesStore.ts.\n                -- `private_room` is separate from `villa` on purpose: a room in\n                -- someone's home and a whole cottage are not the same product,\n                -- and collapsing them mislabelled 1,922 properties.\n                check (property_type in (\n                  'hotel','resort','villa','private_room','bed_and_breakfast',\n                  'guest_house','hostel','motel','extended_stay',\n                  'other_accommodation')),\n\n  formatted_address text check (formatted_address is null or length(formatted_address) <= 500),\n  city          text check (city is null or length(city) <= 160),\n  region        text check (region is null or length(region) <= 160),\n  country       text check (country is null or length(country) <= 120),\n  country_code  text check (country_code is null or country_code ~ '^[A-Za-z]{2}$'),\n  postal_code   text check (postal_code is null or length(postal_code) <= 32),\n\n  -- OPERATIONAL | CLOSED_TEMPORARILY | CLOSED_PERMANENTLY. A permanently closed\n  -- hotel must never be presented as bookable, so this drives a read filter\n  -- rather than sitting in the payload as decoration.\n  business_status text check (business_status is null or length(business_status) <= 32),\n\n  -- --- provenance and lifecycle --------------------------------------------\n  -- Which discovery cell first returned it. Makes coverage auditable: \"why is\n  -- there nothing in Sharjah\" is answerable by looking at what ran.\n  discovered_in text check (discovered_in is null or length(discovered_in) <= 120),\n  discovered_at timestamptz not null default now(),\n\n  -- When the expiring columns above were last read from Google.\n  content_fetched_at timestamptz not null default now(),\n  -- ...and when they stop being servable. Enforced in the read path, and the\n  -- default keeps a row that was inserted without one from living forever.\n  content_expires_at timestamptz not null default (now() + interval '30 days'),\n\n  updated_at    timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 51,
+      "sha256": "99f0fe120c8a07c50f6588a4b45b2573e8a796d4cc8e8191b9dd71594f22a6b4",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 114,
+      "sha256": "9c1a2f063373a5fd2506c51516e7c332bad1759c293da8b336e3d099c6e07749",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 117,
+      "sha256": "e04c34d7bf299eb6dd54469738b4b3b7ca8628e215310a0b4fc3c00b91e0968a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 118,
+      "sha256": "33faedb901bc1db00a46da90aed2c7868e2c5f0a46574262ed372df2a5e3a18f",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 119,
+      "sha256": "4644f6887add6cedc97ed219107fe7189272f4779aa4f3fb03d1db99eeb932ba",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 122,
+      "sha256": "fc35a16f88ee9c424dda81bd3a0cd0ed123c45da104556944c1ad6653951a8a3",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 126,
+      "sha256": "5c9acb3e736658aef7fdecca0dd8460d2324425c6f3c10bb00ae26be2ec6520a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 130,
+      "sha256": "06d4629d18bf8524911c8aeef1c3052d481380705c9016134ebbe4a990228a32",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 148,
+      "sha256": "3435a9afaf7eeb814110743de60a471b69ad14895b41efea4943dc3231146146",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0013_places_accommodation.sql",
+      "line": 152,
+      "sha256": "dc709893e22552b657438178e147599329cf5eaf46d29d42d9fa6e894ff45516",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0013_places_accommodation.sql",
+        "line": 152,
+        "sha256": "dc709893e22552b657438178e147599329cf5eaf46d29d42d9fa6e894ff45516"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

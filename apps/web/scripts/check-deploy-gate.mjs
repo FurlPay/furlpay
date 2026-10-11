@@ -36,6 +36,8 @@
 // ---------------------------------------------------------------------------
 
 import { execFileSync } from "node:child_process";
+import { appendFileSync } from "node:fs";
+import { join } from "node:path";
 import { checkReleaseBranch } from "./releaseBranch.mjs";
 
 const WORKFLOW = "CI";
@@ -50,15 +52,17 @@ function fail(message, remedy) {
   process.exit(1);
 }
 
-if (process.env.FURLPAY_DEPLOY_FORCE === "1") {
-  console.warn(
-    "\n  FURLPAY_DEPLOY_FORCE=1 — deploying WITHOUT a verified CI run.\n" +
-      "  Nothing has checked that this commit lints, type-checks, passes the route-security\n" +
-      "  invariants, or builds — and the release-branch restriction is skipped too, so this\n" +
-      "  may be shipping a branch nobody reviews. Use only for an incident hotfix, and follow\n" +
-      "  up with a real run.\n"
+// A forced deploy is an emergency procedure, not a shortcut (audit 2026-10-07,
+// P1-3): it needs a written reason, and it still requires a clean tree and a
+// pushed HEAD so what ships is a commit anyone can reproduce. Only the CI
+// verification and the release-branch restriction are skipped.
+const FORCED = process.env.FURLPAY_DEPLOY_FORCE === "1";
+const FORCE_REASON = (process.env.FURLPAY_DEPLOY_FORCE_REASON ?? "").trim();
+if (FORCED && FORCE_REASON.length < 15) {
+  fail(
+    "FURLPAY_DEPLOY_FORCE=1 needs FURLPAY_DEPLOY_FORCE_REASON (at least 15 characters)",
+    'Say why CI cannot gate this deploy, e.g. FURLPAY_DEPLOY_FORCE_REASON="incident: KV plan-limit outage; Actions billing-locked".'
   );
-  process.exit(0);
 }
 
 // ── 1. Clean tree ──────────────────────────────────────────────────────────
@@ -81,7 +85,7 @@ const branch = git("rev-parse", "--abbrev-ref", "HEAD");
 // green FEATURE branch satisfied every other condition and shipped. The commit
 // really was green — it just was not a commit anyone intended to release.
 const release = checkReleaseBranch(branch);
-if (!release.ok) fail(release.reason, release.remedy);
+if (!release.ok && !FORCED) fail(release.reason, release.remedy);
 
 // ── 2. Pushed ──────────────────────────────────────────────────────────────
 let remoteSha = "";
@@ -99,6 +103,32 @@ if (remoteSha !== sha) {
     `HEAD (${sha.slice(0, 8)}) is not what origin/${branch} points at (${remoteSha.slice(0, 8)})`,
     "Push first — CI cannot have run against a commit the remote has never seen."
   );
+}
+
+if (FORCED) {
+  const who = (() => {
+    try {
+      return git("config", "user.email") || "unknown";
+    } catch {
+      return "unknown";
+    }
+  })();
+  const record = `${new Date().toISOString()} forced deploy of ${sha} (${branch}) by ${who}: ${FORCE_REASON}`;
+  try {
+    appendFileSync(join(git("rev-parse", "--git-common-dir"), "furlpay-forced-deploys.log"), record + "\n");
+  } catch {
+    /* the console line below is the record of last resort */
+  }
+  console.warn(
+    "\n  FURLPAY_DEPLOY_FORCE=1 — deploying WITHOUT a verified CI run (emergency procedure).\n" +
+      `  ${record}\n` +
+      "  Clean tree and pushed HEAD were verified; lint, types, route-security invariants and\n" +
+      "  the build were NOT. The release-branch restriction is skipped too" +
+      (release.ok ? ".\n" : ` — ${branch} is NOT the release branch (${release.reason}).\n`) +
+      "  Follow up with a real CI run on this SHA, and run\n" +
+      "  npm run smoke:prod once the deployment is live.\n"
+  );
+  process.exit(0);
 }
 
 // ── 3. A green CI run for THIS sha ─────────────────────────────────────────

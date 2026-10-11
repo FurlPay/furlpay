@@ -182,6 +182,53 @@ export const CAPABILITIES: readonly CapabilityRecord[] = [
     evidence: "BANKING_LIVE is marked unimplemented in the flag registry.",
   },
   {
+    id: "merchant-payments",
+    label: "Merchant payment links and checkout",
+    status: "pending",
+    evidence:
+      "On 11 Oct 2026, furlpay.com returned the site 404 page for GET /api/checkout/merchant/{slug} and redirected /p/{slug} to sign-in, so the hosted checkout was not in the production build.",
+    gate: "Deploy the merchant payment release, apply migrations 0040 to 0047, and register collection addresses through a custody provider; none is integrated.",
+  },
+  {
+    id: "payroll",
+    label: "Contractor payroll",
+    status: "pending",
+    evidence:
+      "Submitting a pay run in production requires a FurlPayRouter address for the network; no FURLPAY_ROUTER_ADDRESS variable was present in the production environment on 11 Oct 2026.",
+    gate: "A reviewed and deployed router per network, and migrations 0042, 0044 and 0048.",
+  },
+  {
+    id: "settlement-workspace",
+    label: "Settlement workspace and business onboarding",
+    status: "pending",
+    evidence:
+      "On 11 Oct 2026, /settlement redirected an unauthenticated request to sign-in; the authenticated workspace, its storage and migrations 0037 to 0039 were not observed.",
+    gate: "Record an authenticated production check of the workspace and onboarding storage, with an identity provider configured and a compliance officer granted.",
+  },
+  {
+    id: "circle-wallets",
+    label: "Circle user-controlled wallets",
+    status: "pending",
+    evidence:
+      "The wallet routes return 503 unless CIRCLE_W3S_API_KEY and CIRCLE_W3S_APP_ID are both set; their presence in production was not observed.",
+    gate: "Circle Wallets production credentials and an observed completed wallet-creation challenge.",
+  },
+  {
+    id: "ramps",
+    label: "Buying and selling crypto",
+    status: "roadmap",
+    evidence:
+      "ONRAMP_LIVE and OFFRAMP_LIVE are marked unimplemented in the flag registry; no provider capability row has reached contract status live.",
+  },
+  {
+    id: "telegram-mini-app",
+    label: "Telegram Mini App",
+    status: "pending",
+    evidence:
+      "On 11 Oct 2026, /telegram served 200 but POST /api/auth/telegram returned 503 temporarily_unavailable, so Telegram sign-in could not complete.",
+    gate: "Restore key-value store availability, then confirm sign-in end to end with migration 0050 applied.",
+  },
+  {
     id: "mobile",
     label: "Mobile apps",
     status: "pending",

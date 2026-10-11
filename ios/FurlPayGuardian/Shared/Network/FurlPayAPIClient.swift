@@ -181,9 +181,9 @@ public actor FurlPayAPIClient {
     // screen mid-use — which is what the RN and Android clients each added a
     // refresh to avoid.
     //
-    // Single-flight comes free here: this is an actor, so a burst of parallel
-    // requests serialises on `refreshIfExpiring` and everyone after the first
-    // re-reads a token that is no longer near expiry and returns immediately.
+    // Actors are reentrant across network awaits. Coalesce refreshes explicitly
+    // and commit them only if the same session is still in the keychain.
+    private var refreshTask: (generation: UInt64, task: Task<Void, Never>)?
 
     /// `exp` (in seconds) from a JWT without verifying it. The server verifies
     /// properly; this only needs a clock to schedule the swap.
@@ -201,10 +201,22 @@ public actor FurlPayAPIClient {
         return Date(timeIntervalSince1970: exp)
     }
 
-    private func refreshIfExpiring() async {
-        guard let token = await tokenStore.get(), let exp = Self.expiry(of: token) else { return }
+    private func refreshIfExpiring(_ snapshot: KeychainTokenStore.SessionSnapshot) async {
+        guard let token = snapshot.token, let exp = Self.expiry(of: token) else { return }
         guard exp.timeIntervalSinceNow <= Self.refreshMargin else { return }
 
+        if let flight = refreshTask, flight.generation == snapshot.generation {
+            await flight.task.value
+            return
+        }
+        let task = Task { await self.performRefresh(snapshot) }
+        refreshTask = (snapshot.generation, task)
+        await task.value
+        if refreshTask?.generation == snapshot.generation { refreshTask = nil }
+    }
+
+    private func performRefresh(_ snapshot: KeychainTokenStore.SessionSnapshot) async {
+        guard let token = snapshot.token else { return }
         var request = URLRequest(url: baseURL.appendingPathComponent("auth/refresh"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Accept")
@@ -220,7 +232,7 @@ public actor FurlPayAPIClient {
               let refreshed = try? decoder.decode(RefreshResponse.self, from: data),
               let newToken = refreshed.token
         else { return }
-        try? await tokenStore.save(newToken)
+        _ = try? await tokenStore.replaceIfCurrent(snapshot, with: newToken)
     }
 
     // MARK: Request plumbing
@@ -235,6 +247,11 @@ public actor FurlPayAPIClient {
             ?? ""
     }
 
+    private struct PreparedRequest {
+        let request: URLRequest
+        let session: KeychainTokenStore.SessionSnapshot?
+    }
+
     private func makeRequest(
         _ method: String,
         _ path: String,
@@ -242,9 +259,10 @@ public actor FurlPayAPIClient {
         body: (Encodable & Sendable)? = nil,
         authenticated: Bool = true,
         idempotencyKey: String? = nil
-    ) async throws -> URLRequest {
+    ) async throws -> PreparedRequest {
+        let original = authenticated ? await tokenStore.snapshot() : nil
         // Swap an about-to-expire token BEFORE using it (no-op with >10 min left).
-        if authenticated { await refreshIfExpiring() }
+        if let original { await refreshIfExpiring(original) }
 
         var components = URLComponents(
             url: baseURL.appendingPathComponent(path),
@@ -261,8 +279,12 @@ public actor FurlPayAPIClient {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(clientHeader, forHTTPHeaderField: "X-Furlpay-Client")
 
-        if authenticated {
-            guard let token = await tokenStore.get() else { throw APIError.notAuthenticated }
+        var snapshot: KeychainTokenStore.SessionSnapshot?
+        if let original {
+            let current = await tokenStore.snapshot()
+            guard current.generation == original.generation else { throw APIError.cancelled }
+            guard let token = current.token else { throw APIError.notAuthenticated }
+            snapshot = current
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         }
         if let idempotencyKey {
@@ -272,10 +294,19 @@ public actor FurlPayAPIClient {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
             request.httpBody = try encoder.encode(AnyEncodable(body))
         }
-        return request
+        return PreparedRequest(request: request, session: snapshot)
     }
 
-    private func send<T: Decodable & Sendable>(_ request: URLRequest, as _: T.Type) async throws -> T {
+    private func validateSession(_ snapshot: KeychainTokenStore.SessionSnapshot?) async throws {
+        if let snapshot {
+            let current = await tokenStore.snapshot()
+            guard current.generation == snapshot.generation else { throw APIError.cancelled }
+        }
+    }
+
+    private func send<T: Decodable & Sendable>(_ prepared: PreparedRequest, as _: T.Type) async throws -> T {
+        try await validateSession(prepared.session)
+        let request = prepared.request
         let data: Data
         let response: URLResponse
         do {
@@ -286,11 +317,15 @@ public actor FurlPayAPIClient {
             throw APIError.transport(error.localizedDescription)
         }
 
+        // A response from a previous login must not repopulate account state.
+        try await validateSession(prepared.session)
         guard let http = response as? HTTPURLResponse else {
             throw APIError.transport("Malformed response.")
         }
         guard (200..<300).contains(http.statusCode) else {
-            if http.statusCode == 401 {
+            if http.statusCode == 401,
+               let snapshot = prepared.session,
+               await tokenStore.clearIfCurrent(snapshot) {
                 // Clearing the token is necessary but was never sufficient: the
                 // UI stayed signed in, the repositories kept the previous
                 // session's balances, the assistant kept a transcript holding
@@ -298,7 +333,6 @@ public actor FurlPayAPIClient {
                 // token. The handler performs the same teardown as an explicit
                 // sign-out — a session the server has rejected is as over as
                 // one the user ended.
-                await tokenStore.clear()
                 // Single-flight: a screen that fires six parallel requests gets
                 // six 401s, and six concurrent teardowns would race on the same
                 // observable state.
@@ -348,6 +382,12 @@ public actor FurlPayAPIClient {
             authenticated: false
         )
         return try await send(request, as: OtpCheckResponse.self).token
+    }
+
+    /// Mint the watch's scoped token from this (phone) session (SEC-P2-004).
+    public func watchToken() async throws -> String {
+        let request = try await makeRequest("POST", "auth/watch-token")
+        return try await send(request, as: WatchTokenResponse.self).token
     }
 
     // MARK: - Wallets, cards, transactions
@@ -985,7 +1025,7 @@ public actor FurlPayAPIClient {
     ) async throws {
         guard Self.applePayTopUpEnabled else { throw APIError.applePayUnavailable }
 
-        var request = try await makeRequest(
+        let request = try await makeRequest(
             "POST", "topup/apple-pay",
             body: ApplePayTopUpRequest(
                 paymentData: tokenData.base64EncodedString(),
@@ -993,11 +1033,9 @@ public actor FurlPayAPIClient {
                 displayName: displayName,
                 amountUsd: amountUsd,
                 idempotencyKey: idempotencyKey
-            )
+            ),
+            idempotencyKey: idempotencyKey
         )
-        // Sent as a header too: the server should dedupe before it parses a
-        // body, and a retried POST must never capture twice.
-        request.setValue(idempotencyKey, forHTTPHeaderField: "Idempotency-Key")
         _ = try await send(request, as: EmptyResponse.self)
     }
 

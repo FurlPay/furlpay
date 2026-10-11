@@ -71,5 +71,5 @@ export async function POST(req: NextRequest) {
     );
 
     return NextResponse.json({ ok: true, amount, token: packet.token, packet: packetView(packet, userId) });
-  }, { principal: userId });
+  }, { principal: userId, request: body });
 }

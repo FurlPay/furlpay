@@ -1,0 +1,80 @@
+{
+  "name": "onchain_asset_cursors",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0034_onchain_asset_index.sql",
+    "line": 36,
+    "sha256": "27d98364b27d22f0e7a45309f8e531485e43502014414aabdebb562f368fbe88"
+  },
+  "definition": "create table if not exists onchain_asset_cursors (\n  chain            text not null check (chain ~ '^[a-z0-9_-]{2,32}$'),\n  asset            text not null check (asset ~ '^[a-z0-9._-]{2,32}$'),\n  contract         text not null,\n  chain_id         bigint not null check (chain_id > 0),\n  started_block    bigint not null check (started_block >= 0),\n  last_block       bigint not null check (last_block >= started_block),\n  last_block_hash  text not null,\n  last_block_time  timestamptz not null,\n  last_supply_raw  numeric(78,0) check (last_supply_raw >= 0),\n  updated_at       timestamptz not null default now(),\n  primary key (chain, asset)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 36,
+      "sha256": "27d98364b27d22f0e7a45309f8e531485e43502014414aabdebb562f368fbe88",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 198,
+      "sha256": "08e877ac412e5c33e9016ff2b1d96af90e553c592b63d30cf0dad1d8c341d853",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 226,
+      "sha256": "ac0a837971f22dfbddff07854bab4aa9253195cbffae17a604d2b319c5c039c4",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 383,
+      "sha256": "9eb2f08bb57c0c0ea1eee8bc5c96146668d4f771811f4bfae64756205373e8a8",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 394,
+      "sha256": "9b7f1f1fd903c47e2edd5aea0d4cc20cb226b46113363a9e37cbad6838bda530",
+      "kind": "procedural"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 162,
+      "sha256": "3761cd8f674e978a3dd680e7e25ddc5b3c1c03b96e79cdbb44616ccaab1d89e4",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 300,
+      "sha256": "2c83405ef61e77a6f313c4843e51afd540b9deb5593e5758017caa3bdf223159",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/assetIndexer.ts",
+      "line": 268
+    },
+    {
+      "file": "apps/web/src/lib/onchain/cctp.ts",
+      "line": 188
+    },
+    {
+      "file": "apps/web/src/lib/onchain/usdcHistory.ts",
+      "line": 191
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 383,
+        "sha256": "9eb2f08bb57c0c0ea1eee8bc5c96146668d4f771811f4bfae64756205373e8a8"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

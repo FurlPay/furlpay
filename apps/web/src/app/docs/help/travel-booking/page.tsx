@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DocTitle, Lead, H2, P, Callout, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
@@ -21,7 +22,7 @@ export default function TravelBookingHelp() {
       <H2 id="discovery">Hotel discovery</H2>
       <P>
         You can explore the hotel discovery map at{" "}
-        <a href="/hotels/map" className="text-neon hover:underline">furlpay.com/hotels/map</a>.
+        <Link href="/hotels/map" className="text-neon hover:underline">furlpay.com/hotels/map</Link>.
         Discovery results do not confirm live room inventory, a final rate or a reservation.
       </P>
 

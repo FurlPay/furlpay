@@ -80,9 +80,30 @@ const config: Config = {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-12px)" },
         },
+        "fade-up": {
+          "0%": { opacity: "0", transform: "translateY(6px)" },
+          "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        // /travel hero (HeroMotion.tsx): photo cross-fade and slow zoom.
+        "hero-fade": {
+          "0%": { opacity: "0" },
+          "100%": { opacity: "1" },
+        },
+        "ken-burns": {
+          "0%": { transform: "scale(1.02)" },
+          "100%": { transform: "scale(1.1)" },
+        },
+        shimmer: {
+          "0%": { backgroundPosition: "-200% 0" },
+          "100%": { backgroundPosition: "200% 0" },
+        },
       },
       animation: {
         float: "float 6s ease-in-out infinite",
+        "fade-up": "fade-up 0.35s ease-out both",
+        "hero-fade": "hero-fade 1.2s ease-in-out both",
+        "ken-burns": "ken-burns 9s ease-out both",
+        shimmer: "shimmer 1.6s linear infinite",
       },
     },
   },

@@ -478,6 +478,11 @@ data class OtpCheckRequest(
 @Serializable
 data class OtpCheckResponse(val verified: Boolean = false, val token: String? = null)
 
+// POST /api/auth/watch-token: the watch's scoped credential (read-only plus
+// card freeze), minted from the phone session. Never the phone's own token.
+@Serializable
+data class WatchTokenResponse(val token: String)
+
 // GET /api/profile — only the fields this app needs. The route returns more,
 // and every extra field decoded here is one more thing to keep in sync with a
 // response the watch never reads.

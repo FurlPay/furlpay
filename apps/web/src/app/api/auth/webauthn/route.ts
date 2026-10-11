@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { db } from "@/lib/store";
 import { RP_ID, RP_NAME } from "@/lib/webauthn";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
+import { setSessionCookieForRequest, signSession } from "@/lib/session";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
 // POST /api/auth/webauthn — sandbox/demo passkey login that issues a real signed
@@ -49,12 +49,7 @@ export async function POST(req: NextRequest) {
       safeAddress: demo.user.safeAddress,
       newAccount: action === "register",
     });
-    res.cookies.set(SESSION_COOKIE, token, {
-      httpOnly: true,
-      sameSite: "lax",
-      path: "/",
-      maxAge: SESSION_MAX_AGE,
-    });
+    setSessionCookieForRequest(req, res, token);
     return res;
   }
 

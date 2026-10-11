@@ -1,0 +1,80 @@
+{
+  "name": "settlement_onboarding",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0038_settlement_onboarding.sql",
+    "line": 6,
+    "sha256": "ec31ebd3b11bda725280fe571e66571abb1a55284be098bb96c75505db00f741"
+  },
+  "definition": "create table if not exists public.settlement_onboarding (\n  owner_id text primary key,\n  state jsonb not null check (jsonb_typeof(state) = 'object'),\n  updated_at timestamptz not null default now(),\n  constraint settlement_onboarding_size check (octet_length(state::text) <= 262144)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0038_settlement_onboarding.sql",
+      "line": 6,
+      "sha256": "ec31ebd3b11bda725280fe571e66571abb1a55284be098bb96c75505db00f741",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0038_settlement_onboarding.sql",
+      "line": 12,
+      "sha256": "e989584638171ff0fe94793c8d32acbc9aff957048bacab823e59e75c3341278",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0038_settlement_onboarding.sql",
+      "line": 13,
+      "sha256": "8f1b8e70b966cce4d21ff4472641472747066d90832b9dc95a019a73cfb3bed5",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0038_settlement_onboarding.sql",
+      "line": 14,
+      "sha256": "12b73b7cbc92f5b1ea7bee2dd91b316ed55fda2981dba60c08df64cfcf1f3c25",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0038_settlement_onboarding.sql",
+      "line": 15,
+      "sha256": "6fccd5faf7c5657eda3353b01fa6d6ab2b18052d356468b7fc1595e20beb9f98",
+      "kind": "comment on"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/settlement/onboardingStore.ts",
+      "line": 18
+    },
+    {
+      "file": "apps/web/src/lib/settlement/onboardingStore.ts",
+      "line": 40
+    },
+    {
+      "file": "apps/web/src/lib/settlement/onboardingStore.ts",
+      "line": 82
+    },
+    {
+      "file": "apps/web/src/lib/settlement/onboardingStore.ts",
+      "line": 87
+    },
+    {
+      "file": "apps/web/src/lib/settlement/onboardingStore.ts",
+      "line": 96
+    },
+    {
+      "file": "apps/web/src/lib/settlement/onboardingStore.ts",
+      "line": 147
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0038_settlement_onboarding.sql",
+        "line": 12,
+        "sha256": "e989584638171ff0fe94793c8d32acbc9aff957048bacab823e59e75c3341278"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

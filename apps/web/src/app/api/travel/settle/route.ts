@@ -114,6 +114,11 @@ export async function POST(req: NextRequest) {
     expectedTo: PAY_TO,
     expectedAtomic,
     expectedFrom: payer,
+    // Bind the proof to THIS booking (finding FP-SET-15): a transfer mined
+    // before the trip existed cannot be its payment, whatever the KV claim
+    // below remembers. 120s of slack for clock skew between our createdAt and
+    // the chain's block timestamp.
+    notBefore: Math.floor(Date.parse(trip.createdAt) / 1000) - 120,
   });
 
   if (!proof.ok) {

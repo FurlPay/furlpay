@@ -1,0 +1,184 @@
+{
+  "name": "cards",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0001_init.sql",
+    "line": 82,
+    "sha256": "d655786071d1ebf5977a73f86c0e94fc4c1627059796be21f60cc170411f738a"
+  },
+  "definition": "create table cards (\n  id                  text primary key,\n  user_id             uuid not null references users (id) on delete cascade,\n  kind                text not null check (kind in ('virtual', 'physical')),\n  label               text not null,\n  last4               text not null,\n  network             text not null check (network in ('Visa', 'Mastercard')),\n  frozen              boolean not null default false,\n  gradient            jsonb not null default '[]'::jsonb,\n  limits              jsonb not null default '{}'::jsonb,  -- perPurchase / daily / dailySpent\n  channels            jsonb not null default '{}'::jsonb,  -- online / offline / atm\n  settlement_currency text not null default 'USD'\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 82,
+      "sha256": "d655786071d1ebf5977a73f86c0e94fc4c1627059796be21f60cc170411f738a",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 95,
+      "sha256": "ce21bc636965a4dfd87cfd60a4c05759dc975457fc7247af0aca819cb10dd44d",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 148,
+      "sha256": "29085ee064db584b10d102ba7b0ad1c9e5828b4d80c88913ea4c650432c17941",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0004_save_account_atomic.sql",
+      "line": 21,
+      "sha256": "b40f28114d85d155f907131ca35b8a9e5e7006e69ba1a40b6375c3c9edbb2475",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 24,
+      "sha256": "e19d70b1cdfcdeaa60a5d229a18300aa33cdeb962e15927ba0cb38a0d11359f0",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 77,
+      "sha256": "ad7fb05ac04bb22512734fa6a7a12228fa85ffa89531c917d5b2be8483a0a888",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 38,
+      "sha256": "6c83304adcc3ef12eb7751010ca3f253d1ead38ec866d861ce485be77f8eefa8",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 190,
+      "sha256": "c5ff1778c1903bd01c62c07b8aeb0f68837880815d9a0839eabef45d54f298da",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/app/api/early-access/route.ts",
+      "line": 20
+    },
+    {
+      "file": "apps/web/src/app/docs/architecture/api-routes/page.tsx",
+      "line": 46
+    },
+    {
+      "file": "apps/web/src/app/research/page.tsx",
+      "line": 59
+    },
+    {
+      "file": "apps/web/src/app/support/TicketPanel.tsx",
+      "line": 12
+    },
+    {
+      "file": "apps/web/src/app/support/new/page.tsx",
+      "line": 35
+    },
+    {
+      "file": "apps/web/src/app/support/new/page.tsx",
+      "line": 59
+    },
+    {
+      "file": "apps/web/src/app/telegram/[screen]/page.tsx",
+      "line": 9
+    },
+    {
+      "file": "apps/web/src/components/landing/ApiPlayground.tsx",
+      "line": 58
+    },
+    {
+      "file": "apps/web/src/components/marketing/EarlyAccessSignup.tsx",
+      "line": 11
+    },
+    {
+      "file": "apps/web/src/components/research/ResearchCards.tsx",
+      "line": 137
+    },
+    {
+      "file": "apps/web/src/components/research/ResearchCards.tsx",
+      "line": 200
+    },
+    {
+      "file": "apps/web/src/components/trips/BottomNavigation.tsx",
+      "line": 12
+    },
+    {
+      "file": "apps/web/src/lib/appConfig.ts",
+      "line": 12
+    },
+    {
+      "file": "apps/web/src/lib/discordServer/community.ts",
+      "line": 247
+    },
+    {
+      "file": "apps/web/src/lib/docs/search.ts",
+      "line": 169
+    },
+    {
+      "file": "apps/web/src/lib/mcp/tools.ts",
+      "line": 267
+    },
+    {
+      "file": "apps/web/src/lib/ops/overview.ts",
+      "line": 195
+    },
+    {
+      "file": "apps/web/src/lib/productionStatus.ts",
+      "line": 170
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 887
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 1087
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 1088
+    },
+    {
+      "file": "apps/web/src/lib/support.ts",
+      "line": 20
+    },
+    {
+      "file": "apps/web/src/lib/support/kb.ts",
+      "line": 58
+    },
+    {
+      "file": "apps/web/src/lib/support/kb.ts",
+      "line": 67
+    },
+    {
+      "file": "apps/web/src/lib/support/kb.ts",
+      "line": 76
+    },
+    {
+      "file": "packages/cli/bin/furlpay.js",
+      "line": 129
+    },
+    {
+      "file": "packages/cli/lib/commands.js",
+      "line": 765
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 148,
+        "sha256": "29085ee064db584b10d102ba7b0ad1c9e5828b4d80c88913ea4c650432c17941"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

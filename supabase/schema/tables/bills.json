@@ -1,0 +1,96 @@
+{
+  "name": "bills",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0001_init.sql",
+    "line": 97,
+    "sha256": "6f191e70556a53ee33fadc5a4984cf1d16899b077644793d9a7b748205cfeeb2"
+  },
+  "definition": "create table bills (\n  id          text primary key,\n  user_id     uuid not null references users (id) on delete cascade,\n  provider    text not null,\n  category    text not null\n              check (category in ('utility', 'credit-card', 'mortgage', 'loan', 'telecom')),\n  balance_due numeric(20, 2) not null default 0,\n  due_date    date not null,\n  autopay     boolean not null default false\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 97,
+      "sha256": "6f191e70556a53ee33fadc5a4984cf1d16899b077644793d9a7b748205cfeeb2",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 107,
+      "sha256": "b6ac036d46177397260d6bdecd43b0878bba4fe025b2dd9a806a541216800776",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 149,
+      "sha256": "0ab32ed89b077e9948f330353b9b380101362fb5248bde5d145eac71eff178f5",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0004_save_account_atomic.sql",
+      "line": 21,
+      "sha256": "b40f28114d85d155f907131ca35b8a9e5e7006e69ba1a40b6375c3c9edbb2475",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 24,
+      "sha256": "e19d70b1cdfcdeaa60a5d229a18300aa33cdeb962e15927ba0cb38a0d11359f0",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 77,
+      "sha256": "ad7fb05ac04bb22512734fa6a7a12228fa85ffa89531c917d5b2be8483a0a888",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 38,
+      "sha256": "6c83304adcc3ef12eb7751010ca3f253d1ead38ec866d861ce485be77f8eefa8",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 190,
+      "sha256": "c5ff1778c1903bd01c62c07b8aeb0f68837880815d9a0839eabef45d54f298da",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/app/bills/page.tsx",
+      "line": 16
+    },
+    {
+      "file": "apps/web/src/app/bills/page.tsx",
+      "line": 37
+    },
+    {
+      "file": "apps/web/src/app/bills/page.tsx",
+      "line": 39
+    },
+    {
+      "file": "apps/web/src/app/bills/page.tsx",
+      "line": 44
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 905
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 149,
+        "sha256": "0ab32ed89b077e9948f330353b9b380101362fb5248bde5d145eac71eff178f5"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

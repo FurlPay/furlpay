@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
-import { quoteFx } from "@/lib/services/fx";
+import { isSupportedFxCurrency, quoteFx } from "@/lib/services/fx";
+import { quoteSecretConfigured, x402NotConfigured } from "@/lib/x402QuoteSecret";
 import {
   buildChallenge,
   verifyMppPayment,
@@ -50,9 +51,15 @@ export async function GET(req: NextRequest) {
   if (!Number.isFinite(amount) || amount <= 0 || amount > 1e9) {
     return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
   }
+  // Refuse a pair we cannot price before charging for it (see /api/x402/fx).
+  if (!isSupportedFxCurrency(from) || !isSupportedFxCurrency(to)) {
+    return NextResponse.json({ error: "Unsupported currency", from, to }, { status: 400 });
+  }
 
   const paused = await assertRailActive("mpp");
   if (paused) return paused;
+  // Same binding secret as x402; no default in production.
+  if (!quoteSecretConfigured()) return x402NotConfigured();
 
   const authorization = req.headers.get("authorization");
   if (!authorization) return challenge402(realm, from, to);

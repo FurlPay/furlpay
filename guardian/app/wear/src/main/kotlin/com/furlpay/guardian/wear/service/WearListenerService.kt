@@ -44,6 +44,11 @@ class WearListenerService : WearableListenerService() {
             // WearableListenerService callbacks run on a background thread;
             // blocking briefly here is the documented pattern.
             runBlocking {
+                // Data Layer is app-namespaced, but snapshots can still be
+                // stale or originate from a node that is no longer paired.
+                // Accepting only currently-connected nodes gives display data
+                // the same source proof as the offline session token.
+                if (path != SyncProtocol.DATA_AUTH_TOKEN && !services.pairedNodes.isConnectedNode(sourceNodeId)) return@runBlocking
                 when (path) {
                     SyncProtocol.DATA_AUTH_TOKEN -> {
                         // GATED. This is the only payload that is a CREDENTIAL
@@ -105,6 +110,8 @@ class WearListenerService : WearableListenerService() {
     }
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
+        val services = applicationContext.wearServices
+        if (!runBlocking { services.pairedNodes.isConnectedNode(messageEvent.sourceNodeId) }) return
         when (messageEvent.path) {
             // Phone's alarm rung fired — buzz the wrist with the same ladder.
             SyncProtocol.MSG_ALARM -> {

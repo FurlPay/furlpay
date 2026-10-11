@@ -175,3 +175,18 @@ export const leadCaptureSchema = z.object({
 });
 
 export type LeadCaptureInput = z.infer<typeof leadCaptureSchema>;
+
+/**
+ * Report downloads ask for an email and nothing else. The profile fields a
+ * webinar registration collects are optional here, and an update never blanks
+ * ones an earlier submission recorded (upsertLead keeps them).
+ */
+export const reportLeadSchema = leadCaptureSchema.partial({
+  firstName: true,
+  lastName: true,
+  company: true,
+  jobTitle: true,
+  country: true,
+});
+
+export type ReportLeadInput = z.infer<typeof reportLeadSchema>;

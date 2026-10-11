@@ -26,30 +26,30 @@ struct GuardianScoreTests {
 
     @Test("Too little history returns nothing rather than a guess")
     func refusesThinData() {
-        #expect(ComputeGuardianScore(closes: [1, 2, 3], timeframe: "1D") == nil)
-        #expect(ComputeGuardianScore(closes: [], timeframe: "1D") == nil)
+        #expect(ComputeGuardianScore.callAsFunction(closes: [1, 2, 3], timeframe: "1D") == nil)
+        #expect(ComputeGuardianScore.callAsFunction(closes: [], timeframe: "1D") == nil)
         // 7 bars is one below the minimum.
-        #expect(ComputeGuardianScore(closes: rising(7), timeframe: "1D") == nil)
-        #expect(ComputeGuardianScore(closes: rising(8), timeframe: "1D") != nil)
+        #expect(ComputeGuardianScore.callAsFunction(closes: rising(7), timeframe: "1D") == nil)
+        #expect(ComputeGuardianScore.callAsFunction(closes: rising(8), timeframe: "1D") != nil)
     }
 
     @Test("Non-positive closes are rejected — a zero price is bad data, not a signal")
     func rejectsBadPrices() {
         var closes = rising(12)
         closes[5] = 0
-        #expect(ComputeGuardianScore(closes: closes, timeframe: "1D") == nil)
+        #expect(ComputeGuardianScore.callAsFunction(closes: closes, timeframe: "1D") == nil)
 
         closes[5] = -3
-        #expect(ComputeGuardianScore(closes: closes, timeframe: "1D") == nil)
+        #expect(ComputeGuardianScore.callAsFunction(closes: closes, timeframe: "1D") == nil)
     }
 
     @Test("A steadily rising series scores buy; a falling one scores sell")
     func directionality() throws {
-        let up = try #require(ComputeGuardianScore(closes: rising(30), timeframe: "1M"))
+        let up = try #require(ComputeGuardianScore.callAsFunction(closes: rising(30), timeframe: "1M"))
         #expect(up.stance == .buy)
         #expect(up.score > 62)
 
-        let down = try #require(ComputeGuardianScore(closes: falling(30), timeframe: "1M"))
+        let down = try #require(ComputeGuardianScore.callAsFunction(closes: falling(30), timeframe: "1M"))
         #expect(down.stance == .sell)
         #expect(down.score < 38)
     }
@@ -59,16 +59,16 @@ struct GuardianScoreTests {
         let explosive = (0..<40).map { 1.0 * pow(2.0, Double($0)) }
         let collapse = (0..<40).map { 1_000_000.0 * pow(0.5, Double($0)) }
 
-        let high = try #require(ComputeGuardianScore(closes: explosive, timeframe: "1M"))
-        let low = try #require(ComputeGuardianScore(closes: collapse, timeframe: "1M"))
+        let high = try #require(ComputeGuardianScore.callAsFunction(closes: explosive, timeframe: "1M"))
+        let low = try #require(ComputeGuardianScore.callAsFunction(closes: collapse, timeframe: "1M"))
         #expect((5...95).contains(high.score))
         #expect((5...95).contains(low.score))
     }
 
     @Test("Confidence stays within 40...92 and is damped on short series")
     func confidenceBounds() throws {
-        let short = try #require(ComputeGuardianScore(closes: rising(8), timeframe: "1D"))
-        let long = try #require(ComputeGuardianScore(closes: rising(40), timeframe: "1M"))
+        let short = try #require(ComputeGuardianScore.callAsFunction(closes: rising(8), timeframe: "1D"))
+        let long = try #require(ComputeGuardianScore.callAsFunction(closes: rising(40), timeframe: "1M"))
 
         #expect((40...92).contains(short.confidence))
         #expect((40...92).contains(long.confidence))
@@ -78,7 +78,7 @@ struct GuardianScoreTests {
 
     @Test("Every score carries its reasoning")
     func alwaysExplains() throws {
-        let score = try #require(ComputeGuardianScore(closes: rising(20), timeframe: "1M"))
+        let score = try #require(ComputeGuardianScore.callAsFunction(closes: rising(20), timeframe: "1M"))
         #expect(score.reasons.count == 4)
         #expect(score.reasons.allSatisfy { !$0.isEmpty })
         // The timeframe label is echoed back so the copy matches the chip.
@@ -90,11 +90,11 @@ struct GuardianScoreTests {
         let flat = Array(repeating: 100.0, count: 20)
         // A flat series has zero returns, so momentum is 0 and it is not above
         // its own average — still a valid input.
-        let calm = try #require(ComputeGuardianScore(closes: flat, timeframe: "1D"))
+        let calm = try #require(ComputeGuardianScore.callAsFunction(closes: flat, timeframe: "1D"))
         #expect(calm.risk == .low)
 
         let choppy = (0..<20).map { $0.isMultiple(of: 2) ? 100.0 : 130.0 }
-        let wild = try #require(ComputeGuardianScore(closes: choppy, timeframe: "1D"))
+        let wild = try #require(ComputeGuardianScore.callAsFunction(closes: choppy, timeframe: "1D"))
         #expect(wild.risk == .high)
     }
 }

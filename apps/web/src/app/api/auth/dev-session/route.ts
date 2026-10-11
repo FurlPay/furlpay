@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { currentEpoch } from "@/lib/sessionEpoch";
 import { db } from "@/lib/store";
-import { signSession, setSessionCookie } from "@/lib/session";
+import { signSession, setSessionCookieForRequest } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { devAutoLoginEnabled, safeNextPath } from "@/lib/devAutoLogin";
@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     sepoch: await currentEpoch(demo.user.id),
   });
   const res = NextResponse.redirect(new URL(safeNextPath(req.nextUrl.searchParams.get("next")), publicOrigin(req)));
-  setSessionCookie(res, token);
+  setSessionCookieForRequest(req, res, token);
   audit("auth.dev_session", demo.user.id);
   return res;
 }

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { z } from "zod";
 import { requireOpsAdmin, opsOk, opsError } from "@/lib/ops/respond";
 import { validateBody } from "@/lib/validate";
+import { claimStepUp } from "@/lib/stepup";
 import { controlSnapshot, setRailPause, setGlobalPause, RAILS, type Rail } from "@/lib/ops/controls";
 
 export const dynamic = "force-dynamic";
@@ -43,6 +44,17 @@ export async function POST(req: NextRequest) {
   }
 
   const actor = auth.account.user.id;
+
+  // Resuming OPENS money flow, so it needs a fresh step-up (OTP/passkey) on
+  // this session, consumed here so one step-up cannot be replayed into a
+  // second resume. Pausing deliberately does not: stopping money in an
+  // incident must never wait on re-authentication. (Finding FP-SET-10. The
+  // settlement circuit breaker's own halts are not cleared here at all — only
+  // through /api/ops/settlement-safety's approval workflow.)
+  if (body.paused === false && !(await claimStepUp(actor, auth.claims.jti))) {
+    return opsError("step_up_required", "Re-authenticate (OTP or passkey) before resuming a paused control.", 403);
+  }
+
   const state =
     body.scope === "global"
       ? await setGlobalPause(body.paused, actor, body.reason)

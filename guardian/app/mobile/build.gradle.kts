@@ -131,7 +131,12 @@ android {
             dimension = "environment"
             // No suffix — this is the id the Play listing owns.
             resValue("string", "app_name", "FurlPay Guardian")
-            buildConfigField("String", "API_BASE_URL", "\"https://api.furlpay.com/api/\"")
+            // furlpay.com, NOT api.furlpay.com: that planned AWS host has never
+            // resolved (NXDOMAIN, 2026-10-05), so every prod build was unable to
+            // reach any server. Must equal app/wear's prod value and
+            // native-app/app.config.js PRODUCTION_API_BASE (+ trailing slash).
+            // Pinned by core/network ReleaseApiBaseTest.
+            buildConfigField("String", "API_BASE_URL", "\"https://furlpay.com/api/\"")
             buildConfigField("String", "FURLPAY_ENV", "\"prod\"")
         }
     }

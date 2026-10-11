@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { requireUser } from "@/lib/authz";
-import { canRefreshSession, setSessionCookie, signSession, SESSION_MAX_AGE } from "@/lib/session";
+import { canRefreshSession, setSessionCookieForRequest, signSession, SESSION_MAX_AGE } from "@/lib/session";
 
 // POST /api/auth/refresh — slide a still-valid 1h session forward.
 //
@@ -19,7 +19,7 @@ import { canRefreshSession, setSessionCookie, signSession, SESSION_MAX_AGE } fro
 // refresh_token grant at /api/oauth/token).
 
 export async function POST(req: NextRequest) {
-  const auth = await requireUser(req);
+  const auth = await requireUser(req, { allowUnknownRevocation: true });
   if (!auth.ok) return auth.res;
   const { claims } = auth;
 
@@ -30,6 +30,12 @@ export async function POST(req: NextRequest) {
   }
 
   const token = await signSession({
+    // SAME jti (SEC-P2-002). A fresh jti per refresh let a revoked session slide
+    // into a token the denylist had never heard of: during a kv outage the
+    // revocation check fails open, so a logged-out or stolen token could be
+    // refreshed into an unrevoked one that lived 30 days, even after kv came
+    // back. The jti now names the session, and one revocation ends all of it.
+    jti: claims.jti,
     sub: claims.sub,
     ...(claims.safe ? { safe: claims.safe } : {}),
     ...(claims.roles ? { roles: claims.roles } : {}),
@@ -47,6 +53,6 @@ export async function POST(req: NextRequest) {
     { refreshed: true, expiresIn: SESSION_MAX_AGE, ...(isMobileClient ? { token } : {}) },
     { headers: { "Cache-Control": "no-store" } }
   );
-  setSessionCookie(res, token);
+  setSessionCookieForRequest(req, res, token);
   return res;
 }

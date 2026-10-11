@@ -1,0 +1,119 @@
+{
+  "name": "cp_evidence_records",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 373,
+    "sha256": "baa0e47f902ace8f9050d9ad987bfd68cfe75b9e020f9696aca539430fda85e4"
+  },
+  "definition": "create table if not exists cp_evidence_records (\n  id                 text primary key,\n  organization_id    text not null references cp_organizations(id) on delete restrict,\n  authorization_id   text not null references cp_authorizations(id) on delete restrict,\n  sequence           bigint not null check (sequence > 0),\n  leaf_hash          text not null check (leaf_hash ~ '^[0-9a-f]{64}$'),\n  -- NULL only for the first record of an organization.\n  previous_leaf_hash text check (previous_leaf_hash ~ '^[0-9a-f]{64}$'),\n  -- The canonical bundle the leaf hash commits to. Recomputing the hash over\n  -- this is the whole tamper check, so it is stored verbatim.\n  bundle             jsonb not null,\n  -- Set once a batch root has been published somewhere we cannot reach.\n  merkle_root        text check (merkle_root ~ '^[0-9a-f]{64}$'),\n  anchored_at        timestamptz,\n  anchor_ref         text,\n  created_at         timestamptz not null default now(),\n  constraint cp_evidence_seq_uniq unique (organization_id, sequence)\n);",
+  "dependencies": [
+    "cp_authorizations",
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 373,
+      "sha256": "baa0e47f902ace8f9050d9ad987bfd68cfe75b9e020f9696aca539430fda85e4",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 391,
+      "sha256": "133642910e73f72d2c7310f39016bc6c635425d2192145a6b04fd0bcfd7b7232",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 392,
+      "sha256": "8b82ea032834a4f808d656c2aa887893dac53b8ca20da5e1306046fb58d3e8ad",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 397,
+      "sha256": "fa1a4309b7d4ae2bcbab93923b7e274093576d9bfd154da55a9f17a0d6c83ca6",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 404,
+      "sha256": "f539f7b4d760cd02cf17b5dbfcb7feb85ee253058555a0222d5dfdc5907c9d9a",
+      "kind": "drop trigger"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 405,
+      "sha256": "44030d17ae4de075ce2a65483fbb0bc0066dfb1d070a266d6c5f6cc3ad928f11",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 442,
+      "sha256": "6d562f51e78a276235de75c147f54c2dfc17dd2d2f0ea0dc6412d30fd205dd13",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 543,
+      "sha256": "5b033007136cbcad1378ab2f90d55f806e0e77b2d9dc1bae90a6ad01c551e09f",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 567,
+      "sha256": "d0d8f169d1d2a0ed0929cc44e488559ee5c1217476a9021a39e758f281dbd857",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 605,
+      "sha256": "06a7289c79ceb5fc6dce098154e892b4574cdaac7fb67d8cc62cd51712dd7145",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0030_cp_approval_decisions.sql",
+      "line": 35,
+      "sha256": "a1ceb370f6caa558fcb87ef8e22be8a2ed3f057101cff515004e768f9fd1f3bb",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 618
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 619
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 632
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 633
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 781
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 782
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 605,
+        "sha256": "06a7289c79ceb5fc6dce098154e892b4574cdaac7fb67d8cc62cd51712dd7145"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -15,7 +15,7 @@ import {
   setChallenge,
   takeChallenge,
 } from "@/lib/webauthn";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
+import { setSessionCookieForRequest, signSession } from "@/lib/session";
 import { isMobileClient } from "@/lib/clientKind";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
@@ -146,6 +146,6 @@ export async function POST(req: NextRequest) {
     verified: true,
     ...(isMobileClient(req) ? { token } : {}),
   });
-  res.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: SESSION_MAX_AGE });
+  setSessionCookieForRequest(req, res, token);
   return res;
 }

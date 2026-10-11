@@ -1,5 +1,7 @@
 import { screenWallet, type AmlScreenResult } from "@furlpay/compliance";
 import { screenAddressCircle } from "@/lib/services/circleCompliance";
+import { screenArcAddress } from "@/lib/chains/arcCompliance";
+import { rpc } from "@/lib/payments/merchant/rpc";
 
 // ---------------------------------------------------------------------------
 // The one wallet-address screen money routes call.
@@ -21,6 +23,17 @@ const RANK: Record<AmlScreenResult["action"], number> = { allow: 0, review: 1, b
 export async function screenAddressRisk(address: string, chain: string): Promise<AmlScreenResult> {
   const ofac = screenWallet(address);
   if (ofac.action === "block") return ofac;
+
+  // ARC-P2-004. Circle Compliance has no Arc mapping, which left Arc screening at OFAC only.
+  // Arc's USDC exposes the list that actually ENFORCES: isBlacklisted() on 0x3600. A blocked
+  // address makes the transfer revert (one blocked payee reverts a whole batchPay), so it is a
+  // block; an unanswerable check THROWS, and every caller treats a throw as "cannot screen".
+  if (chain === "arc" || chain === "arc-testnet") {
+    const arc = await screenArcAddress(address, async ({ to, data }) => String(await rpc(chain, "eth_call", [{ to, data }, "latest"])));
+    if (arc.status === "blocked") return { ...ofac, risk: "severe", score: 100, sanctioned: true, action: "block", categories: [...ofac.categories, "arc_usdc_blocklist"] };
+    if (arc.status !== "clear") throw new Error(`Arc blocklist unavailable: ${arc.reason ?? "unknown"}`);
+    ofac.categories = [...ofac.categories, "arc_usdc_blocklist_clear"];
+  }
 
   const circle = await screenAddressCircle(address, chain);
   if (!circle) return ofac;

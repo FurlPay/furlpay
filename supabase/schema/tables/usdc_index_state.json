@@ -1,0 +1,70 @@
+{
+  "name": "usdc_index_state",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0036_usdc_index.sql",
+    "line": 48,
+    "sha256": "fb82b307859eee82c3003b5049042c37337c754e871813e26f648535bcf61f82"
+  },
+  "definition": "create table if not exists usdc_index_state (\n  stream                smallint primary key references usdc_index_streams (stream),\n  state                 text not null default 'BACKFILLING'\n                        check (state in ('BACKFILLING', 'CATCHING_UP', 'LIVE', 'DEGRADED', 'PAUSED', 'ERROR')),\n  live_from_block       bigint not null,\n  live_from_time        timestamptz not null,      -- block time of the anchor; windows starting before it need history\n  cursor_block          bigint not null,\n  cursor_hash           bytea not null check (length(cursor_hash) = 32),\n  cursor_time           timestamptz not null,\n  backfill_through      bigint not null,           -- contiguous history from deploy_block - 1\n  head_block            bigint,\n  head_time             timestamptz,\n  finalized_block       bigint,\n  finalized_time        timestamptz,\n  supply_raw            numeric(78,0),\n  supply_block          bigint,\n  windows               jsonb not null default '{}'::jsonb,\n  windows_at            timestamptz,\n  rpc                   jsonb not null default '{}'::jsonb,\n  last_success          timestamptz,\n  last_error            text,\n  updated_at            timestamptz not null default now()\n);",
+  "dependencies": [
+    "usdc_index_streams"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 48,
+      "sha256": "fb82b307859eee82c3003b5049042c37337c754e871813e26f648535bcf61f82",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 179,
+      "sha256": "564c479301e09abd658370e711f0407267fcebfd735e6bd92329a53dcdc7ca54",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 221,
+      "sha256": "7d7f140f70434890e442bc58c7a5a724552505dd27655f4fecd5501dd9e451cd",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 276,
+      "sha256": "711b6b1548044b116d97c258f04c48505e43b00487685b2e5eee94f9ba22f0bd",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 406,
+      "sha256": "ea72d536fe8788315d6bb8293bdd78b94e22d458d92a9ceeca0303623b046f26",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/usdcIndex/indexer.ts",
+      "line": 69
+    },
+    {
+      "file": "apps/web/src/lib/onchain/usdcIndex/view.ts",
+      "line": 57
+    },
+    {
+      "file": "apps/web/src/lib/onchain/usdcIndex/view.ts",
+      "line": 58
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 179,
+        "sha256": "564c479301e09abd658370e711f0407267fcebfd735e6bd92329a53dcdc7ca54"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

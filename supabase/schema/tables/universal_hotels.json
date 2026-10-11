@@ -1,0 +1,103 @@
+{
+  "name": "universal_hotels",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0015_universal_hotels.sql",
+    "line": 23,
+    "sha256": "eccf7f4859f924d75d4be87284950ff078ac3815cedbd603d00ad0e8cb8a97fe"
+  },
+  "definition": "create table if not exists public.universal_hotels (\n  id                  text primary key,\n  name                text not null check (length(btrim(name)) between 1 and 300),\n\n  -- Coordinates are stored as plain columns AND as a geography point. The\n  -- columns are what the API returns; `location` is what the index and\n  -- ST_AsMVTGeom read. The trigger below keeps them in agreement so an ingest\n  -- bug cannot store a point that disagrees with its own lat/lng.\n  latitude            double precision not null check (latitude between -90 and 90),\n  longitude           double precision not null check (longitude between -180 and 180),\n  location            geography(Point, 4326) not null,\n  -- H3 resolution 9 (~174m edge). Matches lib/hotels/h3.ts DEDUPE_RESOLUTION;\n  -- if that constant moves, this CHECK and every stored cell must move with it.\n  h3_cell             text not null check (h3_cell ~ '^[0-9a-f]{15}$'),\n\n  property_type       text not null default 'hotel'\n                      check (property_type in ('hotel','resort','villa','private_room',\n                                               'bed_and_breakfast','guest_house','hostel',\n                                               'motel','extended_stay','other_accommodation')),\n  stars               numeric(2,1) check (stars is null or stars between 1 and 5),\n  -- Luxury score, 0-100. Nullable on purpose: \"not scored yet\" and \"scored\n  -- zero\" are different facts, and the tile query orders by it NULLS LAST.\n  l_score             numeric(4,1) check (l_score is null or l_score between 0 and 100),\n\n  city                text check (length(city) <= 160),\n  country_code        text not null check (country_code ~ '^[A-Z]{2}$'),\n\n  -- Direct booking engine, when one has been identified from a property's own\n  -- public booking widget. `pms_provider` is a closed set so a typo becomes an\n  -- error rather than an orphan category.\n  pms_provider        text check (pms_provider is null or pms_provider in\n                                  ('synxis','travelclick','cloudbeds','mews',\n                                   'siteminder','dedge','direct_custom')),\n  direct_booking_url  text check (direct_booking_url is null or length(direct_booking_url) <= 1024),\n\n  -- External identities. Each is the id this property carries in that source;\n  -- none is required, and a row may accumulate more of them over time as the\n  -- consensus step merges sources.\n  trip_hotel_id       text check (trip_hotel_id is null or length(trip_hotel_id) <= 64),\n  osm_id              text check (osm_id is null or length(osm_id) <= 64),\n  google_place_id     text check (google_place_id is null or length(google_place_id) <= 256),\n  overture_id         text check (overture_id is null or length(overture_id) <= 128),\n\n  -- True only once a direct USDC settlement path has been VERIFIED for this\n  -- property. Defaults false: an unverified property must never render as\n  -- payable, because the badge is a promise to the traveller.\n  x402_supported      boolean not null default false,\n\n  created_at          timestamptz not null default now(),\n  updated_at          timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 23,
+      "sha256": "eccf7f4859f924d75d4be87284950ff078ac3815cedbd603d00ad0e8cb8a97fe",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 79,
+      "sha256": "bee328ffea1fff899a374fb9dec3bce692542b8eec9821dbedcf3e6b9dc806c0",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 81,
+      "sha256": "1ec55d295f84792aec2f6a0c697d97d58b5a62b268e5671c8e92361e6da2f6d6",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 83,
+      "sha256": "0807b04984dae2ac80ff705fc5734c86ed07c7c09fe5831d72aa746631fee832",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 85,
+      "sha256": "145b7ff08a12bea90c08906912620fe5fc29975daaf756016de88938e7250324",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 89,
+      "sha256": "650aabb69dfccc1f4ee9bc13eae891790679dd68aec400d5caa7cd8395e86fa4",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 91,
+      "sha256": "70530815d948b2f80ae36c5949d4994400e4239aeb1e2bc96490ea254a5f218a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 93,
+      "sha256": "2565711e75cd940e86ef4d3e37c51990c3fee6ca98d586c784955bfe9c72a765",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 95,
+      "sha256": "4d2c99599b0caa993935e1ce7dfc88626458d2cf3e3cce38b2b15962f3f25a0d",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 97,
+      "sha256": "fa6f84c9aad25be04976ef167a6c3f800bf7fa993fa8f8287c360388b2a65c46",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 111,
+      "sha256": "78596a903653b037d3ccde0091792c02deee3912d98870c73e4c97c2c219c0c3",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 115,
+      "sha256": "d93bbb59567e1c132b685913dfb81bdda42ad8ee0f87d320e5d57e32d0fdb71c",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0015_universal_hotels.sql",
+      "line": 134,
+      "sha256": "c2b7a9874be01f0d638e8c7193df55e87564443e88bd9e79cce68fdc36fc0da6",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0015_universal_hotels.sql",
+        "line": 115,
+        "sha256": "d93bbb59567e1c132b685913dfb81bdda42ad8ee0f87d320e5d57e32d0fdb71c"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

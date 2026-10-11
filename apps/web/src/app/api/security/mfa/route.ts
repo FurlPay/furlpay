@@ -8,7 +8,7 @@ import { audit } from "@/lib/audit";
 import { validateBody } from "@/lib/validate";
 import { consumeRecoveryCode, generateRecoveryCodes } from "@/lib/mfaRecovery";
 import { bumpSessionEpoch } from "@/lib/sessionEpoch";
-import { setSessionCookie, signSession, type Role } from "@/lib/session";
+import { setSessionCookieForRequest, signSession, type Role } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -45,6 +45,7 @@ type Security = { totpSecret: string; totpEnabled: boolean; totpRecoveryCodes?: 
  * may keep sliding via /api/auth/refresh.
  */
 async function bumpAndReissue(
+  req: NextRequest,
   res: NextResponse,
   claims: { jti?: string; auth_time?: number },
   user: { id: string; safeAddress: string; roles: Role[] }
@@ -58,7 +59,7 @@ async function bumpAndReissue(
     auth_time: claims.auth_time,
     sepoch: epoch,
   });
-  setSessionCookie(res, token);
+  setSessionCookieForRequest(req, res, token);
 }
 
 /**
@@ -208,7 +209,7 @@ export async function POST(req: NextRequest) {
     // if it was the owner, the tab they are using continues because we re-issue
     // its cookie below.
     const res = NextResponse.json({ success: true, totpEnabled: false, sessionsEnded: true });
-    await bumpAndReissue(res, auth.claims, user);
+    await bumpAndReissue(req, res, auth.claims, user);
 
     audit("auth.mfa_disabled", user.id, { via: proof.via, sessionsRevoked: true });
     return res;

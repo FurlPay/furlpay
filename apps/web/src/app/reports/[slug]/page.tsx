@@ -20,6 +20,7 @@ import {
   resolveRelatedWebinars,
   type ReportBlock,
 } from "@/lib/content";
+import { DEDICATED_REPORT_PAGES } from "@/lib/content/dedicatedPages";
 
 // /reports/[slug]
 //
@@ -27,8 +28,14 @@ import {
 // false — so a draft slug is a real 404 at routing time, not a soft 404 that
 // Google indexes, and the publishing pipeline is not guessable.
 
+// A report with its own route folder (DEDICATED_REPORT_PAGES) is not
+// prerendered here: in a production build this route's HTML for the same path
+// was served instead of the dedicated page (next dev routes to the dedicated
+// page, so only a deployed build showed it).
 export function generateStaticParams() {
-  return publishedReports().map((r) => ({ slug: r.slug }));
+  return publishedReports()
+    .filter((r) => !DEDICATED_REPORT_PAGES.has(r.slug))
+    .map((r) => ({ slug: r.slug }));
 }
 
 export const dynamicParams = false;
@@ -304,9 +311,36 @@ export default async function ReportPage(props: { params: Promise<{ slug: string
                       <LeadCaptureForm kind="report" slug={report.slug} submitLabel={cta.label} />
                     </div>
                   </>
+                ) : cta.kind === "download" && report.pdfPath ? (
+                  // Ungated WITH a public file: link it. Without this the PDF
+                  // existed at its URL but nothing on the page pointed to it,
+                  // so a reader could not find the full report.
+                  <>
+                    <h2 className="text-[15px] font-bold tracking-tight">Read the full report</h2>
+                    <p className="mt-1.5 text-[13px] leading-relaxed text-textSecondary">
+                      Free to read and download{report.pageCount ? ` (${report.pageCount}-page PDF)` : ""}.
+                    </p>
+                    <div className="mt-5 flex flex-wrap gap-3">
+                      <a
+                        href={report.pdfPath}
+                        target="_blank"
+                        rel="noopener"
+                        className="inline-flex items-center justify-center rounded-full bg-neon px-5 py-2.5 text-[14px] font-semibold text-black transition-opacity hover:opacity-90"
+                      >
+                        Read the PDF
+                      </a>
+                      <a
+                        href={report.pdfPath}
+                        download
+                        className="inline-flex items-center justify-center rounded-full border border-white/15 px-5 py-2.5 text-[14px] font-semibold text-textPrimary transition-colors hover:border-neon/60"
+                      >
+                        {cta.label}
+                      </a>
+                    </div>
+                  </>
                 ) : (
-                  // Ungated: no form, no friction. A gate on content we are
-                  // happy to give away is a tax on the reader for nothing.
+                  // Ungated, no file: no form, no friction. A gate on content
+                  // we are happy to give away is a tax on the reader for nothing.
                   <p className="text-[13px] leading-relaxed text-textSecondary">
                     This report is open to read on this page.
                   </p>

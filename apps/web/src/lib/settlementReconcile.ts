@@ -31,7 +31,8 @@ import { requiredConfirmations } from "@/lib/x402";
 export type ChainCheck = (
   tx: string,
   network: string,
-) => Promise<{ found: boolean; confirmed: boolean; confirmations: number } | null>;
+  expected?: SettlementRecord["expectedTransfer"],
+) => Promise<{ found: boolean; confirmed: boolean; confirmations: number; receiptVerified?: boolean } | null>;
 
 export interface ReconcileResult {
   network: string;
@@ -63,9 +64,21 @@ export async function reconcileNetwork(
       out.stillPending.push(tx); // terminal until a human resolves it
       continue;
     }
+    // Records created before expectedTransfer was persisted cannot prove that
+    // the receipt represents the authorization we accepted. Do not release a
+    // resource based on a legacy status poll; make it operator-actionable.
+    if (!rec.expectedTransfer) {
+      await recordSettlement({
+        ...rec,
+        status: "abandoned",
+        abandonedReason: "legacy settlement record lacks the expected transfer needed for receipt verification",
+      });
+      out.abandoned.push(tx);
+      continue;
+    }
     let r: Awaited<ReturnType<ChainCheck>>;
     try {
-      r = await check(tx, network);
+      r = await check(tx, network, rec.expectedTransfer);
     } catch {
       out.errors++;
       out.stillPending.push(tx);
@@ -76,7 +89,14 @@ export async function reconcileNetwork(
       out.stillPending.push(tx);
       continue;
     }
-    if (r.found && r.confirmed && r.confirmations >= requiredConfirmations(rec.amountAtomic)) {
+    if (r.found && r.confirmed && r.receiptVerified !== true) {
+      await recordSettlement({
+        ...rec,
+        status: "abandoned",
+        abandonedReason: "on-chain receipt does not match the authorized transfer",
+      });
+      out.abandoned.push(tx);
+    } else if (r.found && r.confirmed && r.confirmations >= requiredConfirmations(rec.amountAtomic)) {
       await recordSettlement({ ...rec, status: "confirmed" });
       out.confirmed.push(tx);
     } else if (r.found && !r.confirmed) {
@@ -91,10 +111,16 @@ export async function reconcileNetwork(
   }
 
   for (const tx of await recentConfirmedSettlements(network, now - REORG_LOOKBACK_MS)) {
+    const rec = await getSettlement(tx);
+    if (!rec) continue; // an expired record leaves a stale index, not a reorg
+    if (!rec.expectedTransfer) {
+      out.reorged.push(tx);
+      continue;
+    }
     out.checked++;
     let r: Awaited<ReturnType<ChainCheck>>;
     try {
-      r = await check(tx, network);
+      r = await check(tx, network, rec.expectedTransfer);
     } catch {
       out.errors++;
       continue;
@@ -103,7 +129,7 @@ export async function reconcileNetwork(
       out.errors++;
       continue;
     }
-    if (!r.found || !r.confirmed) out.reorged.push(tx);
+    if (!r.found || !r.confirmed || r.receiptVerified !== true) out.reorged.push(tx);
   }
 
   if (out.reorged.length) {

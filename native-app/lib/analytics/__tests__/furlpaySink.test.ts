@@ -1,4 +1,4 @@
-import { CONTRACT_EVENTS_SENT, MAX_QUEUE, NATIVE_EVENT_MAP, createFurlpaySink, type SinkDeps } from "../furlpaySink";
+import { CONTRACT_EVENTS_SENT, MAX_QUEUE, NATIVE_EVENT_MAP, createFurlpaySink, tokenSubject, type SinkDeps } from "../furlpaySink";
 
 // The Android/iOS FurlPay sink: explicit mapping, offline queue, upload.
 
@@ -106,5 +106,49 @@ describe("offline queue", () => {
     const { sink, fetchImpl } = setup();
     sink.identify("usr_x", { email: "a@b.c" });
     expect(fetchImpl).not.toHaveBeenCalled();
+  });
+});
+
+// Audit 7 Oct 2026, P2-1: the queue survived sign-out and was uploaded with
+// whatever token was current, so account A's events were attributed to B.
+describe("account isolation", () => {
+  const jwt = (sub: string) => `h.${Buffer.from(JSON.stringify({ sub })).toString("base64url")}.s`;
+
+  it("tokenSubject reads the sub claim, and null for junk", async () => {
+    expect(tokenSubject(jwt("usr_a"))).toBe("usr_a");
+    expect(tokenSubject(null)).toBeNull();
+    expect(tokenSubject("not-a-jwt")).toBeNull();
+  });
+
+  it("never uploads account A's events under account B's session", async () => {
+    let token = jwt("usr_a");
+    const { sink, fetchImpl, queue, settle } = setup({ getToken: async () => token });
+    sink.track("send_submitted", { chain: "base", token: "USDC", bucket: "10_100" }, ctx);
+    await settle();
+    expect(queue()[0]).toMatchObject({ owner: "usr_a" });
+    token = jwt("usr_b"); // A signed out without a flush, B signed in
+    const r = await sink.upload();
+    expect(r.sent).toBe(0);
+    expect(r.dropped).toBe(1);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("uploads events recorded before sign-in with the session that follows", async () => {
+    let token: string | null = null;
+    const { sink, fetchImpl, settle } = setup({ getToken: async () => token });
+    sink.track("app_opened", { source: "cold" }, ctx);
+    await settle();
+    token = jwt("usr_a");
+    expect((await sink.upload()).sent).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("clear() empties the queue (sign-out)", async () => {
+    const { sink, queue, settle } = setup();
+    sink.track("app_opened", { source: "cold" }, ctx);
+    await settle();
+    expect(queue().length).toBe(1);
+    await sink.clear();
+    expect(queue().length).toBe(0);
   });
 });

@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
   // another account's request.
   return withIdempotency(req.headers.get("Idempotency-Key"), "cards.issue", async () =>
     issueCard(account, body.cardType)
-  , { principal: account.user.id });
+  , { principal: account.user.id, request: body });
 }
 
 function issueCard(account: UserAccount, cardType: "virtual" | "physical"): NextResponse {

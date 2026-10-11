@@ -266,6 +266,124 @@ export function tokenSetOverlap(a: string, b: string): number {
   return shared / Math.min(A.size, B.size);
 }
 
+// ── Character-level evidence ───────────────────────────────────────────────
+//
+// Whole-string Jaro-Winkler was the original character signal, and on its own
+// it flagged nearly every applicant: the prefix bonus rewards any shared
+// opening ("jordan lee" vs "jordanian muslim brotherhood" = 0.84) regardless of
+// what follows, and on short strings a single dropped letter still scores 0.9+
+// ("acme" vs "ace" = 0.93). Against 19,000 entries that produced review-level
+// candidates for ordinary business names, which made screening unusable without
+// making it any stricter. The fixes below keep every true-positive family the
+// tests pin (transliteration, reordering, decoration, aliases, suffix drift).
+
+/** Tokens this short carry too little signal for fuzzy matching: exact only. */
+const SHORT_TOKEN = 4;
+/**
+ * Below this, a fuzzy token pair is not evidence. Unrelated words of ordinary
+ * length routinely score 0.82–0.86 ("rossi"/"russia", "sofia"/"social");
+ * transliteration and suffix variants score above it ("zumor"/"zomor" 0.88,
+ * "zawahri"/"zawahiri" 0.97). Phonetic keys cover the vowel-shift families.
+ */
+const TOKEN_MATCH = 0.87;
+
+function tokenSimilarity(x: string, y: string): number {
+  if (x === y) return 1;
+  if (Math.min(x.length, y.length) <= SHORT_TOKEN) return 0;
+  const jw = jaroWinkler(x, y);
+  return jw >= TOKEN_MATCH ? jw : 0;
+}
+
+/**
+ * Character evidence for two normalised names.
+ *
+ *   - Token-aligned: every token of the shorter name is paired with its best
+ *     counterpart in the longer one and the pair scores are averaged by token
+ *     length, so a strong match on one token cannot carry an unrelated rest.
+ *   - A single token fuzzily matching one part of a longer name is weak
+ *     evidence ("northwind" vs "north wood industry") and is discounted. Exact
+ *     shared tokens are unaffected — tokenSetOverlap still scores them fully.
+ */
+export function stringSimilarity(a: string, b: string, weightOf: (token: string) => number = (t) => t.length): number {
+  if (!a || !b) return 0;
+  if (a === b) return 1;
+  const ta = a.split(" ");
+  const tb = b.split(" ");
+  // How well the APPLICANT's name (a) is explained by the candidate (b): every
+  // applicant token is paired with its best candidate token, weighted by how
+  // distinctive the token is. Extra tokens on the list side (patronymics,
+  // middle names) do not dilute; extra applicant tokens that match nothing do.
+  let weighted = 0;
+  let weight = 0;
+  for (const t of ta) {
+    let best = 0;
+    for (const u of tb) best = Math.max(best, tokenSimilarity(t, u));
+    const w = weightOf(t);
+    weighted += best * w;
+    weight += w;
+  }
+  let aligned = weight ? weighted / weight : 0;
+  if (ta.length === 1 && tb.length > 1 && !tb.includes(ta[0])) aligned *= 0.85;
+  return aligned;
+}
+
+/**
+ * Token rarity across the watchlist (inverse document frequency). "Company",
+ * "trading", "payments", "logistics" each appear on hundreds of SDN entries, so
+ * sharing one says almost nothing; sharing a rare token says a lot. Computed
+ * once per list instance.
+ */
+const IDF_CACHE = new WeakMap<readonly WatchlistName[], (token: string) => number>();
+export function tokenWeights(watchlist: readonly WatchlistName[]): (token: string) => number {
+  const cached = IDF_CACHE.get(watchlist);
+  if (cached) return cached;
+  const df = new Map<string, number>();
+  for (const entry of watchlist) {
+    const seen = new Set<string>();
+    for (const name of [entry.primaryName, ...(entry.aliases ?? [])]) for (const t of nameTokens(name)) seen.add(t);
+    for (const t of seen) df.set(t, (df.get(t) ?? 0) + 1);
+  }
+  const n = Math.max(1, watchlist.length);
+  const fn = (token: string) => Math.log(1 + n / (1 + (df.get(token) ?? 0)));
+  IDF_CACHE.set(watchlist, fn);
+  return fn;
+}
+
+/**
+ * Exact-token evidence. Either the applicant's name is (rarity-weighted)
+ * covered by the candidate's tokens, or a multi-token candidate is wholly
+ * contained in the applicant's name ("Ivan Petrov" inside "Ivan Sergeyevich
+ * Petrov"). A single-token candidate contained in a longer applicant name
+ * ("SOFIA" in "Sofia Rossi") only counts for the share of the name it explains.
+ */
+export function weightedOverlap(applicant: string, candidate: string, weightOf: (token: string) => number): number {
+  const A = [...new Set(nameTokens(applicant))];
+  const B = new Set(nameTokens(candidate));
+  if (A.length === 0 || B.size === 0) return 0;
+  let covered = 0;
+  let total = 0;
+  for (const t of A) {
+    const w = weightOf(t);
+    total += w;
+    if (B.has(t)) covered += w;
+  }
+  const coverage = total ? covered / total : 0;
+  const contained = B.size >= 2 && [...B].every((t) => A.includes(t)) ? 1 : 0;
+  return Math.max(coverage, contained);
+}
+
+/**
+ * A phonetic key is only evidence when it has enough consonants to be
+ * distinctive. "Acme" and "AQIM" both reduce to "akm" — a three-letter key
+ * collides with hundreds of entries. Multi-token names, or keys of five or more
+ * characters, keep phonetic matching (the Mohammed/Muhammad family).
+ */
+export function informativePhonetic(raw: string): boolean {
+  const tokens = nameTokens(raw);
+  if (tokens.length >= 2) return true;
+  return phoneticKey(tokens[0] ?? "").length >= 5;
+}
+
 // ── Scoring ────────────────────────────────────────────────────────────────
 
 /**
@@ -282,14 +400,15 @@ export function tokenSetOverlap(a: string, b: string): number {
 function scoreAgainstName(
   input: NameScreenInput,
   candidateName: string,
-  entry: WatchlistName
+  entry: WatchlistName,
+  weightOf: (token: string) => number = (t) => t.length
 ): { score: number; signals: NameMatchSignals } {
   const a = normalizeName(input.name);
   const b = normalizeName(candidateName);
 
-  const similarity = jaroWinkler(a, b);
-  const tokenOverlap = tokenSetOverlap(input.name, candidateName);
-  const phonetic = a.length > 0 && phoneticNameKey(input.name) === phoneticNameKey(candidateName);
+  const similarity = stringSimilarity(a, b, weightOf);
+  const tokenOverlap = weightedOverlap(input.name, candidateName, weightOf);
+  const phonetic = a.length > 0 && informativePhonetic(input.name) && phoneticNameKey(input.name) === phoneticNameKey(candidateName);
 
   const dobAgrees = !!input.dateOfBirth && !!entry.dateOfBirth && input.dateOfBirth === entry.dateOfBirth;
   const countryAgrees =
@@ -328,13 +447,14 @@ export function screenName(
   }
 
   const candidates: NameMatchCandidate[] = [];
+  const weightOf = tokenWeights(watchlist);
 
   for (const entry of watchlist) {
     // Every published spelling is a separate chance to match; the best wins.
     const names = [entry.primaryName, ...(entry.aliases ?? [])].filter(Boolean);
     let best: { score: number; signals: NameMatchSignals } | null = null;
     for (const name of names) {
-      const scored = scoreAgainstName(input, name, entry);
+      const scored = scoreAgainstName(input, name, entry, weightOf);
       if (!best || scored.score > best.score) best = scored;
     }
     if (best && best.score >= thresholds.review) {

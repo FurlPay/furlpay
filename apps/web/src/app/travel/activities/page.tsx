@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   ChevronLeft,
+  CloudOff,
+  SearchX,
+  Ticket,
   MapPin,
   Search,
   Sparkles,
@@ -22,6 +25,8 @@ import { sendJSON } from "@/lib/api";
 import { Spinner } from "@/components/ui";
 import ActivityCard from "@/components/travel/ActivityCard";
 import SkeletonCards from "@/components/travel/SkeletonCards";
+import EmptyState, { EMPTY_ACTION_PRIMARY, EMPTY_ACTION_SECONDARY } from "@/components/travel/EmptyState";
+import { outcomeOf, reportSearchOutcome } from "@/lib/travel/searchTelemetry";
 import { ACTIVITY_CATEGORIES, type Activity, type ActivityCategory } from "@/lib/travel/data";
 
 const CATEGORY_ICONS: Record<ActivityCategory, LucideIcon> = {
@@ -44,14 +49,27 @@ function ActivitiesResults() {
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [category, setCategory] = useState<ActivityCategory | "All">("All");
+  /** "no_provider_integrated" until a real activities supplier is wired. */
+  const [unavailable, setUnavailable] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setLoading(true);
-    sendJSON<{ results: Activity[] }>("/api/travel/search", { type: "activities", city })
-      .then((d) => setActivities(d.results))
-      .catch(() => setActivities([]))
+    setFailed(false);
+    sendJSON<{ results: Activity[]; unavailableReason?: string }>("/api/travel/search", { type: "activities", city })
+      .then((d) => {
+        setActivities(d.results);
+        setUnavailable(d.unavailableReason ?? null);
+        reportSearchOutcome("activities", outcomeOf(d.results.length, d.unavailableReason), { count: d.results.length, reason: d.unavailableReason });
+      })
+      .catch(() => {
+        setActivities([]);
+        setFailed(true);
+        reportSearchOutcome("activities", "failed");
+      })
       .finally(() => setLoading(false));
-  }, [city]);
+  }, [city, reloadKey]);
 
   const filtered = useMemo(
     () => (category === "All" ? activities : activities.filter((a) => a.category === category)),
@@ -124,8 +142,38 @@ function ActivitiesResults() {
       <div className="mt-6">
         {loading ? (
           <SkeletonCards count={6} imageH="h-32" />
+        ) : failed ? (
+          <EmptyState
+            role="alert"
+            icon={<CloudOff className="h-5 w-5" />}
+            title="Search couldn't run"
+            actions={<button type="button" onClick={() => setReloadKey((k) => k + 1)} className={EMPTY_ACTION_PRIMARY}>Try again</button>}
+          >
+            Something went wrong reaching the search service.
+          </EmptyState>
+        ) : unavailable ? (
+          // Not the category: no activities supplier is connected, so there is
+          // nothing real to list for any category or city.
+          <EmptyState
+            icon={<Ticket className="h-5 w-5" />}
+            title="Bookable activities aren't connected yet"
+            actions={
+              <>
+                <Link href="/travel/guides" className={EMPTY_ACTION_PRIMARY}>Read destination guides</Link>
+                <Link href="/travel/itineraries" className={EMPTY_ACTION_SECONDARY}>Browse itineraries</Link>
+              </>
+            }
+          >
+            We only list tours and tickets a supplier can actually sell, and none is integrated yet — so we show nothing rather than made-up prices.
+          </EmptyState>
         ) : filtered.length === 0 ? (
-          <p className="py-16 text-center text-sm text-textSecondary">No experiences in this category yet.</p>
+          <EmptyState
+            icon={<SearchX className="h-5 w-5" />}
+            title={category === "All" ? "No experiences found" : `No ${category.toLowerCase()} experiences here`}
+            actions={category !== "All" ? <button type="button" onClick={() => setCategory("All")} className={EMPTY_ACTION_PRIMARY}>Show all categories</button> : undefined}
+          >
+            {city ? `Nothing matched in ${city}. Try another city above.` : "Search a city above to see what you can book there."}
+          </EmptyState>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {filtered.map((a) => (

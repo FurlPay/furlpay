@@ -4,6 +4,7 @@ import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import type { Hex } from "viem";
 import { resolveEscrow, readEscrowEntry, guardStatus, GuardNotConfiguredError } from "@/lib/complianceGuard";
+import { SettlementHaltedError } from "@/lib/settlementSafety";
 import { requireOperator } from "@/lib/complianceOperator";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ act
   } catch (e) {
     if (e instanceof GuardNotConfiguredError) {
       return NextResponse.json({ error: e.message, status: guardStatus() }, { status: 503 });
+    }
+    // Refused by the settlement circuit breaker BEFORE anything was signed.
+    if (e instanceof SettlementHaltedError) {
+      return NextResponse.json({ error: "settlement_halted", scope: e.scope }, { status: 503 });
     }
     // The relayer/RPC error stays in the server log; the caller gets a code.
     console.error(`[compliance/escrow] ${action} failed:`, (e as Error).message);

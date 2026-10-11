@@ -110,7 +110,7 @@ export default function LandingNav({ onOpenPalette }: { onOpenPalette: () => voi
               <button
                 aria-expanded={openGroup === group.label}
                 aria-haspopup="true"
-                className="flex items-center gap-1 rounded-lg px-3 py-2 text-[14px] text-textSecondary transition-colors hover:text-white"
+                className="flex items-center gap-1 rounded-lg px-2 py-2 text-[14px] text-textSecondary xl:px-3 transition-colors hover:text-white"
                 onClick={() => setOpenGroup((cur) => (cur === group.label ? null : group.label))}
                 type="button"
               >
@@ -163,7 +163,7 @@ export default function LandingNav({ onOpenPalette }: { onOpenPalette: () => voi
         <div className="flex shrink-0 items-center gap-2">
           <button
             aria-label="Search — press Command or Control plus K"
-            className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-textMuted transition-colors hover:border-white/20 hover:text-white md:flex"
+            className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-2.5 py-1.5 text-[12px] text-textMuted transition-colors hover:border-white/20 hover:text-white md:flex lg:hidden xl:flex"
             onClick={onOpenPalette}
             type="button"
           >
@@ -185,9 +185,12 @@ export default function LandingNav({ onOpenPalette }: { onOpenPalette: () => voi
               one is for a visitor who wants a person, the other for a user who
               already has an account and only needs the door. Ordered by how
               likely a first-time reader is to want them, left to right. */}
+          {/* 1024–1279px: the five groups and four actions do not fit (200px of
+              horizontal overflow at 1024), so Talk to us and the ⌘K hint step
+              aside there; both stay reachable (mobile menu, ⌘K itself). */}
           <Link
             href="/talk-to-us"
-            className="btn-outline hidden px-4 py-2 text-[14px] sm:inline-flex sm:items-center"
+            className="btn-outline hidden px-4 py-2 text-[14px] sm:inline-flex sm:items-center lg:hidden xl:inline-flex"
           >
             Talk to us
           </Link>

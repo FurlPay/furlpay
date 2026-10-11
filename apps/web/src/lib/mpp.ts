@@ -13,6 +13,7 @@ import { recordSettlement } from "@/lib/x402SettlementStore";
 import { recordX402Revenue } from "@/lib/revenue/x402";
 import type { FacilitatorRequest } from "@/lib/x402Facilitator";
 import { log } from "@/lib/log";
+import { quoteSecret } from "@/lib/x402QuoteSecret";
 
 // ---------------------------------------------------------------------------
 // Machine Payments Protocol (MPP) adapter — the second 402 dialect.
@@ -49,7 +50,8 @@ const liveMode = signatureEnforced;
 
 function challengeSecret(): Buffer {
   // Shared with x402's quote binding — one trust boundary for both dialects.
-  return Buffer.from(process.env.X402_QUOTE_SECRET || "x402_dev_quote_secret_change_me");
+  // No default: production requires X402_QUOTE_SECRET (lib/x402QuoteSecret.ts).
+  return quoteSecret();
 }
 
 // ── base64url (no padding) ────────────────────────────────────────────────
@@ -265,6 +267,13 @@ export async function verifyMppPayment(opts: {
       extra: { name: "USD Coin", version: "2", quoteId: ch.id, expiresAt: Math.floor(Date.parse(ch.expires) / 1000), binding: ch.id },
     },
   };
+  const expectedTransfer = {
+    token: expected.request.asset,
+    from: auth.from,
+    to: auth.to,
+    valueAtomic: expected.request.maxAmountRequired,
+    nonce: auth.nonce,
+  };
 
   try {
     const submission = await settler(facReq, auth.from, required);
@@ -277,6 +286,7 @@ export async function verifyMppPayment(opts: {
       payer: auth.from,
       payTo: PAY_TO,
       amountAtomic: expected.request.maxAmountRequired,
+      expectedTransfer,
       resource: realm,
       settledAt: new Date().toISOString(),
       status: "confirmed",
@@ -301,6 +311,7 @@ export async function verifyMppPayment(opts: {
         payer: auth.from,
         payTo: PAY_TO,
         amountAtomic: expected.request.maxAmountRequired,
+        expectedTransfer,
         resource: realm,
         settledAt: new Date().toISOString(),
         status: "pending",

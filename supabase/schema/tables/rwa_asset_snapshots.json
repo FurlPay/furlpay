@@ -1,0 +1,97 @@
+{
+  "name": "rwa_asset_snapshots",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+    "line": 21,
+    "sha256": "64fa2050e176091a83b8ff9702310390800fb25932441d9b2ae392baf540f928"
+  },
+  "definition": "create table if not exists rwa_asset_snapshots (\n  snapshot_date  date not null,\n  chain          text not null check (chain ~ '^[a-z0-9_-]{2,32}$'),\n  product_name   text not null check (length(product_name) between 1 and 200),\n  token_symbol   text not null default '' check (length(token_symbol) <= 64),\n  issuer_name    text not null check (length(issuer_name) between 1 and 200),\n  asset_class    text not null check (asset_class ~ '^[a-z_]{2,40}$'),\n  asset_type     text not null check (asset_type ~ '^[a-z0-9_]{2,60}$'),\n  -- Exact decimal as exported (the source column is a float; stored as the\n  -- exported decimal string, never re-rounded).\n  market_cap_usd numeric(30, 8) not null check (market_cap_usd >= 0),\n  source         text not null,\n  imported_at    timestamptz not null default now(),\n  primary key (snapshot_date, chain, product_name, token_symbol)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 21,
+      "sha256": "64fa2050e176091a83b8ff9702310390800fb25932441d9b2ae392baf540f928",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 37,
+      "sha256": "41761fe3259784ed17599c3ff8bbbbf141986a2151e977d6bda41dd207fdab37",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 38,
+      "sha256": "dfbf5256a50ff4390c286e6edc53e049a3ab28cb5b7bf50ac297e381332507c8",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 39,
+      "sha256": "15040d53541e3a2d2b1813c608e7c5fbbe60c38e4b87c96b57aeb2aca0dda6dd",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 44,
+      "sha256": "93636b855a044fbf00d3857eef4253f42451eb71541e4433fc99f433feb4ff9a",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 53,
+      "sha256": "a0ca6be148689d1758364076b24b5537cb2411e9d433e10afdaec030b406ddcf",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 96,
+      "sha256": "40c9750d26bde0b1596f34cf4c9ce7090435ab75e9cf7b01c8a0c80899cab656",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 140,
+      "sha256": "392675c6be5402f242e126d04c7f404ab926a85aeeec3b91e022cb41178c32a8",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 184,
+      "sha256": "898ed635c29929e9866fcc62f6a25b8477e3a7ecb065521a6a1611c0c00db745",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 185,
+      "sha256": "fc7f2019169068126dcd98df635387d5480cac561d7fbe69bfe2858dbb4161f4",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 186,
+      "sha256": "a01d26a17a9aa450f47dc85f6f84753b67f8a4e7b689361287be2674fbc0ef9c",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+      "line": 195,
+      "sha256": "59459cbf437a09ced9204c01457948a5c41365dd8b8734edae864e210a160088",
+      "kind": "grant delete"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0033_rwa_asset_snapshots.sql",
+        "line": 184,
+        "sha256": "898ed635c29929e9866fcc62f6a25b8477e3a7ecb065521a6a1611c0c00db745"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

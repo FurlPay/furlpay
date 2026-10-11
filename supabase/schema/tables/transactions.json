@@ -1,0 +1,124 @@
+{
+  "name": "transactions",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0001_init.sql",
+    "line": 111,
+    "sha256": "57a7defbf8f1c4125652f1f42fd2c026e03727c895753800ef5a96257f43c72e"
+  },
+  "definition": "create table transactions (\n  id         text primary key,\n  user_id    uuid not null references users (id) on delete cascade,\n  category   text not null\n             check (category in ('card', 'transfer', 'swap', 'invest', 'bill', 'ramp', 'yield')),\n  direction  text not null check (direction in ('in', 'out')),\n  title      text not null,\n  subtitle   text not null default '',\n  amount_usd numeric(20, 2) not null,\n  token      text,\n  chain      text,\n  card_id    text,\n  ts         timestamptz not null default now(),\n  status     text not null check (status in ('settled', 'pending', 'escrow', 'declined'))\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 111,
+      "sha256": "57a7defbf8f1c4125652f1f42fd2c026e03727c895753800ef5a96257f43c72e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 127,
+      "sha256": "7b8d389d18934934aa4910ec5a1a7c26b432fbbdef47fd6b093532c000f7267d",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 150,
+      "sha256": "8768a545de60575dada59153ec0320ccab6e62c866bfa1f0306231396e007e60",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 94,
+      "sha256": "caa2c9e275f5d9d8a49c603219aa447373b13c2ab2210a7ef950dff3d360eebf",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/app/analytics/funnels/page.tsx",
+      "line": 10
+    },
+    {
+      "file": "apps/web/src/app/analytics/products/page.tsx",
+      "line": 10
+    },
+    {
+      "file": "apps/web/src/app/analytics/transactions/page.tsx",
+      "line": 10
+    },
+    {
+      "file": "apps/web/src/components/analytics/panels.tsx",
+      "line": 280
+    },
+    {
+      "file": "apps/web/src/components/onchain/panels.tsx",
+      "line": 613
+    },
+    {
+      "file": "apps/web/src/components/onchain/panels.tsx",
+      "line": 627
+    },
+    {
+      "file": "apps/web/src/components/onchain/panels.tsx",
+      "line": 671
+    },
+    {
+      "file": "apps/web/src/components/settlement/SettlementWorkspace.tsx",
+      "line": 47
+    },
+    {
+      "file": "apps/web/src/components/settlement/SettlementWorkspace.tsx",
+      "line": 55
+    },
+    {
+      "file": "apps/web/src/components/settlement/SettlementWorkspace.tsx",
+      "line": 215
+    },
+    {
+      "file": "apps/web/src/lib/compliance/reports.ts",
+      "line": 46
+    },
+    {
+      "file": "apps/web/src/lib/notify.ts",
+      "line": 45
+    },
+    {
+      "file": "apps/web/src/lib/notify.ts",
+      "line": 46
+    },
+    {
+      "file": "apps/web/src/lib/settlement/routes.ts",
+      "line": 81
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 810
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 922
+    },
+    {
+      "file": "packages/cli/lib/commands.js",
+      "line": 653
+    },
+    {
+      "file": "packages/cli/lib/completion.js",
+      "line": 20
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 150,
+        "sha256": "8768a545de60575dada59153ec0320ccab6e62c866bfa1f0306231396e007e60"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

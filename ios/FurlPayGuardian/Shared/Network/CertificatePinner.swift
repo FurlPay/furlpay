@@ -192,10 +192,9 @@ public enum CertificatePinner {
     /// System validation runs FIRST. Pinning is an additional constraint on top
     /// of expiry, hostname and revocation checks — never a replacement for them.
     static func isTrusted(_ trust: SecTrust, host: String) -> Bool {
-        guard isPinned(host: host) else { return true }
-
         var error: CFError?
         guard SecTrustEvaluateWithError(trust, &error) else { return false }
+        guard isPinned(host: host) else { return true }
 
         guard let chain = SecTrustCopyCertificateChain(trust) as? [SecCertificate] else {
             return false
@@ -226,6 +225,13 @@ public final class PinnedSessionDelegate: NSObject, URLSessionDelegate, Sendable
               let trust = challenge.protectionSpace.serverTrust else {
             // Not a server-trust challenge (proxy auth, client certs) — let the
             // system handle it rather than cancelling something unrelated.
+            completionHandler(.performDefaultHandling, nil)
+            return
+        }
+
+        // Unpinned hosts still require ordinary system certificate validation.
+        // Never supply a trust credential merely because a host is not ours.
+        guard CertificatePinner.isPinned(host: challenge.protectionSpace.host) else {
             completionHandler(.performDefaultHandling, nil)
             return
         }

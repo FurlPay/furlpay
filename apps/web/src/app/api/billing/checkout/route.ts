@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
   const idempotencyKey = req.headers.get("Idempotency-Key");
   return withIdempotency(idempotencyKey, "billing.checkout", async () =>
     startCheckout(account, body.plan, tier, publicOrigin(req), idempotencyKey)
-  , { principal: account.user.id });
+  , { principal: account.user.id, request: body });
 }
 
 async function startCheckout(

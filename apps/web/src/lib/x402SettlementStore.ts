@@ -30,12 +30,27 @@ export const PENDING_TIMEOUT_MS = 30 * 60_000; // 30 minutes
 
 export type SettlementStatus = "confirmed" | "pending" | "replaced" | "abandoned";
 
+/**
+ * The exact EIP-3009 effect we must find in the receipt before a pending
+ * settlement can become confirmed. `valueAtomic` stays a decimal string so
+ * the durable JSON record does not lose precision.
+ */
+export interface SettlementExpectedTransfer {
+  token: string;
+  from: string;
+  to: string;
+  valueAtomic: string;
+  nonce: string;
+}
+
 export interface SettlementRecord {
   transaction: string;
   network: string;
   payer: string;
   payTo: string;
   amountAtomic: string;
+  /** Persisted at submission time; recovery must never infer this from a receipt. */
+  expectedTransfer: SettlementExpectedTransfer;
   resource: string;
   settledAt: string;
   /**

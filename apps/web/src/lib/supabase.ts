@@ -11,8 +11,12 @@
 // memory until its accessors are switched over (see supabase/README.md).
 // ---------------------------------------------------------------------------
 
-const SB_URL = process.env.SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+import { dataPlane } from "@/lib/dataPlane";
+
+// Read through lib/dataPlane.ts: a preview deployment without its own data
+// plane gets no credentials here, so it cannot reach the production database.
+const SB_URL = dataPlane.supabaseUrl;
+const SB_KEY = dataPlane.supabaseKey;
 
 /** "supabase" when credentials are present, else "none" (in-memory store). */
 export const supabaseBackend: "supabase" | "none" = SB_URL && SB_KEY ? "supabase" : "none";

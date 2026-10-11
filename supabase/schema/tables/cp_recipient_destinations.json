@@ -1,0 +1,73 @@
+{
+  "name": "cp_recipient_destinations",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0021_recipient_attestation.sql",
+    "line": 78,
+    "sha256": "2178bbdfdb89612b44d7bfe00ad449f78f1e13a2a0d92f8ffc9d6a142975e6d7"
+  },
+  "definition": "create table if not exists cp_recipient_destinations (\n  id                 bigserial primary key,\n  organization_id    text not null references cp_organizations(id) on delete cascade,\n  recipient_id       text not null,\n  network_id         text not null,\n  asset              text not null,\n  -- Lowercased/normalised form. Every comparison uses this column.\n  address_canonical  text not null,\n  -- As the attester wrote it (EIP-55 case preserved). Display only.\n  address_display    text not null,\n  method             text not null check (method in\n                       ('domain_signature', 'well_known', 'human_confirmed',\n                        'penny_drop', 'provider_supplied')),\n  -- Who actually made the claim: the signing domain, the provider name, the\n  -- user id that confirmed it. \"Attested\" with no source is not checkable.\n  provenance         text,\n  attested_at        timestamptz not null default now(),\n  -- Absent = no expiry. Present and past = the check denies; a stale attestation\n  -- fails closed rather than coasting on a check made a year ago.\n  expires_at         timestamptz,\n  revoked_at         timestamptz,\n  revoked_reason     text,\n  revoked_by         text,\n  created_at         timestamptz not null default now(),\n\n  constraint cp_dest_recipient_fk\n    foreign key (organization_id, recipient_id)\n    references cp_recipients (organization_id, id) on delete cascade,\n  -- An expiry before the attestation was made describes nothing.\n  constraint cp_dest_expiry_after_attest\n    check (expires_at is null or expires_at > attested_at)\n);",
+  "dependencies": [
+    "cp_organizations",
+    "cp_recipients"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 78,
+      "sha256": "2178bbdfdb89612b44d7bfe00ad449f78f1e13a2a0d92f8ffc9d6a142975e6d7",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 116,
+      "sha256": "dcd1e4ec5afc606ebeaec3962aca4f00c40516d69422ff093c25655d783dd69c",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 120,
+      "sha256": "7d52c4ed0be00f615c5d7bfac4bae7dd816c24928a8453f6422796093d6865a3",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 140,
+      "sha256": "6064e0e459b6d8bb717eed93e6cb3aeb95b6c6217bfa15a5d31f9650b7d3309a",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/recipientStore.ts",
+      "line": 113
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/recipientStore.ts",
+      "line": 114
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/recipientStore.ts",
+      "line": 287
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/recipientStore.ts",
+      "line": 321
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/recipientStore.ts",
+      "line": 322
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0021_recipient_attestation.sql",
+        "line": 140,
+        "sha256": "6064e0e459b6d8bb717eed93e6cb3aeb95b6c6217bfa15a5d31f9650b7d3309a"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

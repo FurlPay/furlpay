@@ -1,0 +1,165 @@
+{
+  "name": "cp_authorizations",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 232,
+    "sha256": "652b45da667782435f3228c274f08097fad5d605ad1265f8caf033a4da9d065d"
+  },
+  "definition": "create table if not exists cp_authorizations (\n  id                    text primary key,\n  organization_id       text not null references cp_organizations(id) on delete restrict,\n  mandate_id            text not null references cp_mandates(id) on delete restrict,\n  principal_id          text not null,\n  delegation_id         text not null,\n  operator_id           text not null,\n  agent_id              text not null,\n  session_id            text,\n\n  -- PaymentPhase from lifecycle.ts. The FSM is the authority on legal\n  -- transitions; this constraint only refuses a value it never produces.\n  phase                 text not null check (phase in\n                          ('AUTHORIZED', 'PENDING_APPROVAL', 'APPROVED', 'DENIED',\n                           'EXPIRED', 'HOLD', 'EXECUTING', 'SETTLED', 'FAILED', 'REVERSED')),\n  verdict               text not null check (verdict in ('ALLOW', 'HOLD', 'DENY')),\n  approval_required     boolean not null default false,\n\n  -- Money: integer atomic units, asset named explicitly. See the header for why\n  -- this is NUMERIC(78,0) and not BIGINT.\n  amount_atomic         numeric(78,0) not null check (amount_atomic > 0),\n  asset                 text not null,\n  currency              text not null,\n  network_id            text not null,\n  rail_id               text not null,\n\n  recipient_id          text not null,\n  -- Canonical destination the rail must be given, as recipient.ts resolved it.\n  recipient_destination text,\n  merchant_domain       text,\n  -- x402/MPP only: the resource this payment is bound to (SR1).\n  resource              text,\n\n  policy_version        text not null,\n  -- Every policy consulted, with its version. A later edit must not be able to\n  -- make a past decision look like it followed rules that did not exist yet.\n  evaluated_policies    jsonb not null default '[]'::jsonb,\n  primary_reason        text,\n  -- The full PolicyCheck[] — which checks ran and what each answered.\n  checks                jsonb not null default '[]'::jsonb,\n  drift_score           integer not null default 0,\n  drift_signals         jsonb not null default '[]'::jsonb,\n\n  -- Hash of the exact payload execution is permitted to submit. Binding\n  -- execution to this is what stops the approved thing and the executed thing\n  -- diverging.\n  payload_hash          text check (payload_hash ~ '^[0-9a-f]{64}$'),\n  idempotency_key       text,\n\n  decided_at            timestamptz not null default now(),\n  expires_at            timestamptz not null,\n  created_at            timestamptz not null default now(),\n  updated_at            timestamptz not null default now()\n);",
+  "dependencies": [
+    "cp_mandates",
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 232,
+      "sha256": "652b45da667782435f3228c274f08097fad5d605ad1265f8caf033a4da9d065d",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 286,
+      "sha256": "936d37950dcc9cb6a9da5600e670b30f069e29e0ef25d774f1e564af05f290b9",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 287,
+      "sha256": "30a47c02173e20ef7b94cb9b4d1aac23b217bebdb4a5d2940e98ea98dfc2b335",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 289,
+      "sha256": "1b366eeb3ddf82a2ff86a8e1454d062c0d0d902e1efa65964deaad4ecaa68252",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 293,
+      "sha256": "11aaa532fc10b48d880906da1fbb9ddf9a726901ad2d0e8a1a454902551f3143",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 296,
+      "sha256": "e884b584b90137ee25b1d0d6cce40eab492554c6eeb8d002c2e11f24abbb332e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 325,
+      "sha256": "d98adf73c62d95bf1882768415bc65aa7b411745eaffff0906e6bc61e11a3763",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 373,
+      "sha256": "baa0e47f902ace8f9050d9ad987bfd68cfe75b9e020f9696aca539430fda85e4",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 442,
+      "sha256": "6d562f51e78a276235de75c147f54c2dfc17dd2d2f0ea0dc6412d30fd205dd13",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 567,
+      "sha256": "d0d8f169d1d2a0ed0929cc44e488559ee5c1217476a9021a39e758f281dbd857",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 575,
+      "sha256": "d2f7c1e93aae6976a33527bf11aa780e3761ed2803e9abfc1cb50055e0d43faf",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 602,
+      "sha256": "505f21f6ea34fba2a99349504ef54c2af98a0318cffae8f1d2357c8e33893afd",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 131,
+      "sha256": "51b354150856d390446872e37af6d1796e80f88f58e643928eeccebb830d2b89",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0023_schema_assertions_v2.sql",
+      "line": 31,
+      "sha256": "cafc4d20baaf5c237a89072b89fa6b0b4b6e7b95842cde9b182c2ead40fc3572",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 246,
+      "sha256": "18348637e2cdb31366dd2a713a871b8df7f58b67a57e2e921cb706913ed3eeb5",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0030_cp_approval_decisions.sql",
+      "line": 35,
+      "sha256": "a1ceb370f6caa558fcb87ef8e22be8a2ed3f057101cff515004e768f9fd1f3bb",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 557
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 558
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 571
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 572
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 592
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 593
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 707
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 708
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 768
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 769
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 602,
+        "sha256": "505f21f6ea34fba2a99349504ef54c2af98a0318cffae8f1d2357c8e33893afd"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

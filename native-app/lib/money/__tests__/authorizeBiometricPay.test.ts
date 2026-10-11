@@ -22,6 +22,7 @@ jest.mock("@/lib/biometricPay", () => ({
 
 jest.mock("@/lib/security/tamperDetection", () => ({
   isDeviceCompromised: jest.fn(() => false),
+  isIntegrityUnknown: jest.fn(() => false),
 }));
 
 jest.mock("@/lib/security/riskPolicy", () => ({

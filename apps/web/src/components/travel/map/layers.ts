@@ -48,6 +48,68 @@ export const LYR_PROPERTY_LABEL = "hm-property-label";
 export const LYR_PROPERTY_NAME = "hm-property-name";
 export const LYR_OSM = "hm-osm";
 export const LYR_LEADERS = "hm-leaders-line";
+/** The per-night price pill above a hotel that holds a live rate. */
+export const LYR_PRICE = "hm-price";
+/** The SDF pill image the price layer stretches around its text. */
+export const PRICE_PILL_IMAGE = "hm-price-pill";
+/** Density view of the same features — hidden until the reader turns it on. */
+export const LYR_HEATMAP = "hm-heatmap";
+
+/** Everything drawn as an individual marker, hidden while Density is on so the
+ *  heat reads clearly. The heatmap reads the same source, so nothing refetches. */
+export const MARKER_LAYERS = [
+  LYR_LEADERS,
+  LYR_PULSE,
+  LYR_OSM,
+  LYR_PROPERTY,
+  LYR_PHOTO,
+  LYR_CLUSTER,
+  LYR_PROPERTY_LABEL,
+  LYR_PROPERTY_NAME,
+  LYR_PRICE,
+  LYR_CLUSTER_LABEL,
+];
+
+/**
+ * A pill drawn as a SIGNED DISTANCE FIELD, so one image can be recoloured per
+ * feature by `icon-color` — which accepts feature-state, unlike `icon-image`.
+ * That is what lets hover and selection turn a price emerald on the GPU
+ * without a second layer or a source rebuild.
+ *
+ * Encoding follows MapLibre's SDF convention (TinySDF): alpha 191 is the edge,
+ * falling 255/8 per pixel outward. Stretch zones are the straight middle, so
+ * `icon-text-fit` widens the pill around "$1,204" without distorting the ends.
+ */
+export function pricePillImage(): { width: number; height: number; data: Uint8Array; options: Record<string, unknown> } {
+  const W = 56, H = 36, R = 10, PAD = 8; // pill 40x20 inside an 8px SDF buffer
+  const data = new Uint8Array(W * H * 4);
+  const x0 = PAD, y0 = PAD, x1 = W - PAD, y1 = H - PAD;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      // Signed distance from the pixel centre to a rounded rectangle.
+      const px = x + 0.5, py = y + 0.5;
+      const qx = Math.max(x0 + R - px, 0, px - (x1 - R));
+      const qy = Math.max(y0 + R - py, 0, py - (y1 - R));
+      const outside = Math.hypot(qx, qy) - R;
+      const a = Math.max(0, Math.min(255, Math.round(191 - (outside * 255) / 8)));
+      const i = (y * W + x) * 4;
+      data[i] = data[i + 1] = data[i + 2] = 255;
+      data[i + 3] = a;
+    }
+  }
+  return {
+    width: W,
+    height: H,
+    data,
+    options: {
+      sdf: true,
+      pixelRatio: 2,
+      stretchX: [[PAD + R, W - PAD - R]],
+      stretchY: [[PAD + R - 1, PAD + R + 1]],
+      content: [PAD + 4, PAD + 2, W - PAD - 4, H - PAD - 2],
+    },
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Universal registry vector tiles (migration 0015 + /api/travel/hotels/tiles).
@@ -157,6 +219,9 @@ export function vectorLayerSpecs(): Array<Record<string, unknown>> {
 
 /** Layers that answer a hover, topmost first. */
 export const INTERACTIVE_LAYERS = [
+  // A price is the most specific thing on the map and sits above its pin, so
+  // pointing at it means that hotel.
+  LYR_PRICE,
   LYR_CLUSTER,
   LYR_PHOTO,
   LYR_PROPERTY,
@@ -183,11 +248,16 @@ const BANDS = [
   // however confident they look in a mockup. Those take the dark label; only
   // coral is deep enough to carry white. The fills themselves are exactly the
   // specified palette, so nothing was re-toned to dodge the problem.
-  { max: 5, r: 19, bg: "#72C83F", fg: "#1F2937" },
-  { max: 15, r: 21, bg: "#72C83F", fg: "#1F2937" },
-  { max: 50, r: 23, bg: "#F4B51B", fg: "#1F2937" },
-  { max: 120, r: 25, bg: "#F0862B", fg: "#1F2937" },
-  { max: Infinity, r: 27, bg: "#E85D32", fg: "#FFFFFF" },
+  //
+  // DARK THEME (FurlPay Travels). Clusters are quiet emerald discs rather than
+  // traffic-light bubbles: the fill deepens with the count and the numeral is
+  // FurlPay green, which clears the 3:1 floor on every band (asserted in
+  // __tests__/layers.spec.ts by measured contrast, not by hex).
+  { max: 5, r: 19, bg: "#0C2A23", fg: "#00E6A7" },
+  { max: 15, r: 21, bg: "#0D3128", fg: "#00E6A7" },
+  { max: 50, r: 23, bg: "#0E392E", fg: "#00E6A7" },
+  { max: 120, r: 25, bg: "#104235", fg: "#00E6A7" },
+  { max: Infinity, r: 27, bg: "#124C3D", fg: "#5CF5C8" },
 ] as const;
 
 /**
@@ -299,6 +369,11 @@ export interface FeatureProps {
   labelRank: number;
   /** 1 when the position was never confirmed — drives the dashed ring. */
   approx: number;
+  /**
+   * The per-night price label ("$142"), or "" when there is no live,
+   * unexpired rate for the reader's dates. Never a guess: see mapPrices.ts.
+   */
+  price: string;
 }
 
 export interface BuiltFeatures {
@@ -394,7 +469,9 @@ export function buildFeatures(
   map: MapLibreMap,
   /** The property the reader has opened, if any. Its name outranks every other
    *  label so a chosen property never loses its name to a neighbour. */
-  selectedId: string | null = null
+  selectedId: string | null = null,
+  /** id -> price label, for hotels holding a live rate for the reader's stay. */
+  prices: ReadonlyMap<string, string> = new Map()
 ): BuiltFeatures {
   const project = (ll: [number, number]) => map.project(ll);
   const unproject = (p: [number, number]) => map.unproject(p);
@@ -432,6 +509,8 @@ export function buildFeatures(
         radius: band.r,
         count: c.count,
         approx: 0,
+        // A cluster has no single rate; the destination card prices its members.
+        price: "",
         // A cluster is many properties; there is no single photograph that
         // honestly represents it, and picking one would advertise whichever
         // hotel happened to sort first.
@@ -477,6 +556,7 @@ export function buildFeatures(
         name: p.name ?? "",
         categoryLabel: categoryLabelFor(p),
         labelRank: labelRankFor(p, selectedId),
+        price: prices.get(p.id) ?? "",
       },
     });
     // The listing and the hover card both need the TRUE position, not the
@@ -493,7 +573,9 @@ export function buildFeatures(
 }
 
 /** MapLibre feature ids must be numeric for feature-state to work. */
-function hashId(id: string): number {
+/** Stable numeric feature id for a point's string id. Exported so the results
+ *  list can light the marker for a card through feature-state. */
+export function hashId(id: string): number {
   let h = 2166136261;
   for (let i = 0; i < id.length; i++) {
     h ^= id.charCodeAt(i);
@@ -528,6 +610,34 @@ export function layerSpecs(): LayerSpecification[] {
 
   return [
     {
+      // ── DENSITY ───────────────────────────────────────────────────────
+      // MapLibre's native heatmap over the SAME features the markers use. The
+      // weight is a count, nothing more: an individual hotel weighs 1 and a
+      // cluster weighs the number of properties it really holds. No rating or
+      // price goes in — most points carry neither, and weighting by a field
+      // half the data lacks would draw a map of missing data.
+      id: LYR_HEATMAP,
+      type: "heatmap",
+      source: SRC_POINTS,
+      layout: { visibility: "none" },
+      paint: {
+        "heatmap-weight": ["case", ["==", ["get", "kind"], "cluster"], ["min", ["get", "count"], 40], 1],
+        "heatmap-intensity": ["interpolate", ["linear"], ["zoom"], 2, 0.6, 9, 1.2, 15, 2],
+        "heatmap-radius": ["interpolate", ["linear"], ["zoom"], 2, 14, 9, 22, 15, 34],
+        "heatmap-opacity": 0.85,
+        "heatmap-color": [
+          "interpolate",
+          ["linear"],
+          ["heatmap-density"],
+          0, "rgba(0,0,0,0)",
+          0.15, "rgba(0,120,90,0.25)",
+          0.4, "rgba(0,180,130,0.55)",
+          0.7, "rgba(0,230,167,0.8)",
+          1, "rgba(200,255,236,0.95)",
+        ],
+      },
+    },
+    {
       id: LYR_LEADERS,
       type: "line",
       source: SRC_LEADERS,
@@ -549,7 +659,7 @@ export function layerSpecs(): LayerSpecification[] {
       source: SRC_PULSE,
       paint: {
         "circle-radius": 0,
-        "circle-color": "#1B7A4E",
+        "circle-color": "#00E6A7",
         "circle-opacity": 0,
       },
     },
@@ -563,7 +673,7 @@ export function layerSpecs(): LayerSpecification[] {
         "circle-radius-transition": { duration: HOVER_MS, delay: 0 },
         "circle-color": ["get", "color"],
         "circle-stroke-width": 1.5,
-        "circle-stroke-color": ["case", hovered, "#1B7A4E", "#94A3B8"],
+        "circle-stroke-color": ["case", hovered, "#00E6A7", "#94A3B8"],
         "circle-stroke-color-transition": { duration: HOVER_MS, delay: 0 },
         "circle-opacity": 0.95,
       },
@@ -647,8 +757,10 @@ export function layerSpecs(): LayerSpecification[] {
         "circle-radius": ["*", ["get", "radius"], ["case", hovered, 1.1, 1]],
         "circle-radius-transition": { duration: HOVER_MS, delay: 0 },
         "circle-color": ["get", "color"],
-        "circle-stroke-width": 2.5,
-        "circle-stroke-color": "rgba(255,255,255,0.9)",
+        "circle-stroke-width": 1.5,
+        // Emerald ring, brighter on hover: the cluster reads as a FurlPay
+        // control on the dark basemap without a glow.
+        "circle-stroke-color": ["case", hovered, "#00E6A7", "rgba(0,230,167,0.65)"],
       },
     },
     {
@@ -735,10 +847,58 @@ export function layerSpecs(): LayerSpecification[] {
         // A halo rather than a drawn pill: legible over terrain, water and
         // roads without putting an opaque rectangle on the cartography, which
         // is what makes a label feel part of the map instead of on top of it.
-        "text-color": "#0F172A",
-        "text-halo-color": "#FFFFFF",
+        // Light names on a dark halo for the dark basemap.
+        "text-color": "#F5F7F6",
+        "text-halo-color": "rgba(5,9,9,0.92)",
         "text-halo-width": 1.6,
         "text-halo-blur": 0.3,
+      },
+    },
+    {
+      // ── PRICES ────────────────────────────────────────────────────────
+      // Only hotels holding a live, unexpired rate for the reader's dates have
+      // a non-empty `price` (mapPrices.ts) — everything else draws no pill.
+      // Individual hotels only, from zoom 11: below that the map is clusters,
+      // and a cluster has no single rate.
+      //
+      // Collision ON, unlike the pin layers: thirty pills in a dense street
+      // would stack into an unreadable block. The nearest-ranked survive
+      // (symbol-sort-key), and a dropped pill leaves its pin and its card
+      // price intact.
+      id: LYR_PRICE,
+      type: "symbol",
+      source: SRC_POINTS,
+      filter: [
+        "all",
+        ["in", ["get", "kind"], ["literal", ["property", "osm"]]],
+        ["!=", ["get", "price"], ""],
+      ],
+      minzoom: 11,
+      layout: {
+        "text-field": ["get", "price"],
+        "text-font": ["Noto Sans Bold"],
+        "text-size": 12,
+        "text-anchor": "bottom",
+        "text-offset": [0, -1.75],
+        "icon-image": PRICE_PILL_IMAGE,
+        "icon-text-fit": "both",
+        // The pill is fitted around the TEXT, so it follows text-offset; it
+        // must not carry an anchor or offset of its own.
+        "icon-text-fit-padding": [3, 7, 3, 7],
+        "text-allow-overlap": false,
+        "icon-allow-overlap": false,
+        "symbol-sort-key": ["get", "labelRank"],
+        "text-padding": 2,
+      },
+      paint: {
+        "icon-color": [
+          "case",
+          ["any", hovered, ["boolean", ["feature-state", "selected"], false]],
+          "#00E6A7",
+          "#F5F7F6",
+        ],
+        "icon-color-transition": { duration: HOVER_MS, delay: 0 },
+        "text-color": "#030505",
       },
     },
     {

@@ -1,0 +1,63 @@
+{
+  "name": "user_devices",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+    "line": 98,
+    "sha256": "4916dbd168966fbb364f2482711b9e5e2ad5ee493466bb1f808dff1e1ed25651"
+  },
+  "definition": "create table if not exists user_devices (\n  installation_id uuid primary key,\n  user_id         uuid not null references users (id) on delete cascade,\n  platform        text not null check (platform in ('web', 'chrome_extension', 'android', 'ios')),\n  app_version     text check (app_version is null or app_version ~ '^[0-9]{1,4}(\\.[0-9]{1,4}){0,3}([-+][0-9A-Za-z.]{1,20})?$'),\n  build_number    text check (build_number is null or build_number ~ '^[0-9A-Za-z.]{1,20}$'),\n  first_seen_at   timestamptz not null default now(),\n  last_seen_at    timestamptz not null default now(),\n  revoked_at      timestamptz\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 98,
+      "sha256": "4916dbd168966fbb364f2482711b9e5e2ad5ee493466bb1f808dff1e1ed25651",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 108,
+      "sha256": "d7e2045207b4a9ae7ae6515e6f739688584ec8f39b91d9444a6c8d93880e5245",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 110,
+      "sha256": "e6c0fc8a52a6b40b60318648d3a53bb9db9a971c45d91e069316d7d754b9b651",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 111,
+      "sha256": "c2842b367d7c65d26e87f89d0caeb8df2bcbffd25f8eba12c5a20e5a9569b585",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 112,
+      "sha256": "20dc24f3e97c23c04d0f67bfc42aca2fe0f18d6d989d3b38e0d10a0ad96c383e",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 118,
+      "sha256": "df0a3c1a8af929750bb3487f252e6ad84c14b4c409e5a8fa000daad9bf56400a",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+        "line": 110,
+        "sha256": "e6c0fc8a52a6b40b60318648d3a53bb9db9a971c45d91e069316d7d754b9b651"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

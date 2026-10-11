@@ -98,7 +98,7 @@ struct SpendingSummaryTests {
             SpendingPeriod.today.wireName: SpendingWindow(totalUsd: 42, transactionCount: 7),
         ])
         #expect(spending.window(.today).totalUsd == 42)
-        #expect(s.window(.thisMonth).totalUsd == 300)
+        #expect(spending.window(.thisMonth).totalUsd == 300)
     }
 
     @Test("The empty summary is all zeroes and does not crash")

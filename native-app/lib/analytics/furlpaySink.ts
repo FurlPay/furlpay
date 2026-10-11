@@ -73,9 +73,30 @@ const BATCH = 50;
 interface Queued {
   event: Record<string, unknown>;
   attempts: number;
+  /** The signed-in user (token `sub`) when the event was recorded; null before sign-in. */
+  owner?: string | null;
 }
 
-export function createFurlpaySink(deps: SinkDeps): AnalyticsSink & { upload(): Promise<{ sent: number; kept: number; dropped: number }> } {
+/**
+ * The `sub` of a session JWT, read without verifying it (the server verifies;
+ * this only keeps one account's queued events from being uploaded under
+ * another account's session). null for no token or an unreadable one.
+ */
+export function tokenSubject(token: string | null): string | null {
+  if (!token) return null;
+  const part = token.split(".")[1];
+  if (!part) return null;
+  try {
+    const b64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
+    const json = typeof atob === "function" ? atob(b64) : Buffer.from(b64, "base64").toString("binary");
+    const sub = (JSON.parse(json) as { sub?: unknown }).sub;
+    return typeof sub === "string" && sub.length > 0 && sub.length <= 128 ? sub : null;
+  } catch {
+    return null;
+  }
+}
+
+export function createFurlpaySink(deps: SinkDeps): AnalyticsSink & { upload(): Promise<{ sent: number; kept: number; dropped: number }>; clear(): Promise<void> } {
   const sessionId = deps.uuid(); // one app run; never the user id
   let installation: Promise<string> | null = null;
   let chain: Promise<unknown> = Promise.resolve();
@@ -121,8 +142,9 @@ export function createFurlpaySink(deps: SinkDeps): AnalyticsSink & { upload(): P
         ...(mapped.screen ? { screen: mapped.screen } : {}),
         metadata: mapped.metadata,
       };
+      const owner = tokenSubject(await deps.getToken().catch(() => null));
       const q = await read();
-      q.push({ event, attempts: 0 });
+      q.push({ event, attempts: 0, owner });
       await write(q);
     });
 
@@ -130,7 +152,14 @@ export function createFurlpaySink(deps: SinkDeps): AnalyticsSink & { upload(): P
     serial(async () => {
       const now = deps.now();
       const stored = await read();
-      const fresh = stored.filter((x) => now - Date.parse(String(x.event.timestamp)) < MAX_AGE_MS && x.attempts < MAX_ATTEMPTS);
+      const token = await deps.getToken().catch(() => null);
+      const current = tokenSubject(token);
+      // An event recorded under ANOTHER account never goes up under this
+      // session (it would be attributed to the wrong user server-side). Events
+      // recorded before any sign-in (owner null) belong to this device's session.
+      const fresh = stored.filter(
+        (x) => now - Date.parse(String(x.event.timestamp)) < MAX_AGE_MS && x.attempts < MAX_ATTEMPTS && (x.owner == null || x.owner === current)
+      );
       let dropped = stored.length - fresh.length;
       if (!fresh.length) {
         await write([]);
@@ -140,7 +169,6 @@ export function createFurlpaySink(deps: SinkDeps): AnalyticsSink & { upload(): P
       const rest = fresh.slice(BATCH);
       let done = false;
       try {
-        const token = await deps.getToken();
         const res = await deps.fetchImpl(`${deps.apiBase}/analytics/events/batch`, {
           method: "POST",
           headers: { "content-type": "application/json", "x-furlpay-client": `mobile-${deps.platform}`, ...(token ? { authorization: `Bearer ${token}` } : {}) },
@@ -171,5 +199,7 @@ export function createFurlpaySink(deps: SinkDeps): AnalyticsSink & { upload(): P
     flush: async () => {
       await upload();
     },
+    /** Drop every queued event (sign-out: the next account must not inherit them). */
+    clear: () => serial(() => write([])),
   };
 }

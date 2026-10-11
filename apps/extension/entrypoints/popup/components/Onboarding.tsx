@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Icon, IconName } from "@/components/icons";
+import { Icon, type IconName } from "@/components/icons";
 
 // FurlPay first-time onboarding — shown once on install.
 // 3-step carousel: Pay (x402), Approve (3DS2), Save (fee scanner).

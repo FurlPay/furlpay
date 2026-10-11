@@ -7,6 +7,7 @@ import { recordSettlement } from "@/lib/x402SettlementStore";
 import { recordX402Revenue } from "@/lib/revenue/x402";
 import type { FacilitatorRequest } from "@/lib/x402Facilitator";
 import { log } from "@/lib/log";
+import { quoteSecret } from "@/lib/x402QuoteSecret";
 
 /** Live mode enforces both EIP-3009 signature recovery and real on-chain
  *  settlement; mock mode (default) keeps structural checks + a deterministic
@@ -109,8 +110,9 @@ const MAX_HEADER_BYTES = 8192; // web-layer: cap header size before parsing
 // authorization on-chain once validBefore passes, so 24h is a safe ceiling.
 const REPLAY_CLAIM_TTL_SECONDS = 86_400;
 
+// No default: production requires X402_QUOTE_SECRET (see lib/x402QuoteSecret.ts).
 function secret(): Buffer {
-  return Buffer.from(process.env.X402_QUOTE_SECRET || "x402_dev_quote_secret_change_me");
+  return quoteSecret();
 }
 
 /** Atomically claim a single-use token across all instances (Redis SET NX).
@@ -536,6 +538,13 @@ export async function verifyPayment(opts: {
 
   const assetAddress = asset === "XSGD" ? XSGD_ASSET : USDC_ASSET;
   const domainName = asset === "XSGD" ? "XSGD" : "USD Coin";
+  const expectedTransfer = {
+    token: assetAddress,
+    from: auth.from,
+    to: auth.to,
+    valueAtomic: expectedAmount,
+    nonce: auth.nonce,
+  };
 
   // ── cryptographic authorization (live mode) ──
   // Recover the EIP-3009 signer and require it to equal `from`. Without this
@@ -590,6 +599,7 @@ export async function verifyPayment(opts: {
         payer: auth.from,
         payTo: PAY_TO,
         amountAtomic: expectedAmount,
+        expectedTransfer,
         resource,
         settledAt: new Date().toISOString(),
         status: "confirmed",
@@ -625,6 +635,7 @@ export async function verifyPayment(opts: {
           payer: auth.from,
           payTo: PAY_TO,
           amountAtomic: expectedAmount,
+          expectedTransfer,
           resource,
           settledAt: new Date().toISOString(),
           status: "pending",

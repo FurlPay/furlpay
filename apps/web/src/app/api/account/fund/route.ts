@@ -7,6 +7,8 @@ import { getAccountDurable, getDevelopmentDemoAccount } from "@/lib/store";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
+import { financialEnvironment } from "@/lib/flags";
+import { EVM_CHAINS } from "@/lib/x402Chains";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +59,19 @@ export async function POST(req: NextRequest) {
   // check is what makes "money in" actually mean money into our account.
   if ((body.paymentRequirements.payTo || "").toLowerCase() !== PAY_TO.toLowerCase()) {
     return NextResponse.json({ funded: false, error: "wrong_recipient" }, { status: 400 });
+  }
+
+  // Real balance only from real money (SEC-P1-001). The facilitator also
+  // settles testnets (Arbitrum Sepolia USDC is on its allowlist), and faucet
+  // USDC is free: in production a testnet payment to our treasury would have
+  // credited spendable USD. Refused BEFORE settle(), so no testnet
+  // authorization is ever submitted on this path. Staging/development keep
+  // testnets for testing.
+  if (financialEnvironment() === "production") {
+    const chain = EVM_CHAINS[String(body.paymentRequirements.network ?? "")];
+    if (!chain || chain.testnet) {
+      return NextResponse.json({ funded: false, error: "network_not_accepted" }, { status: 400 });
+    }
   }
 
   // Resolve WHO gets credited before settling, so we never take funds we can't

@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       return NextResponse.json({ ok: false, error: (e as Error).message }, { status: 409 });
     }
-  }, { principal: userId });
+  }, { principal: userId, request: body });
 }
 
 // DELETE /api/membership/change — withdraw a scheduled move. The active plan

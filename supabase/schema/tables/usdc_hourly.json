@@ -1,0 +1,70 @@
+{
+  "name": "usdc_hourly",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0036_usdc_index.sql",
+    "line": 89,
+    "sha256": "5f5e8edbb601d9eb657d55065906cb16a4fdb380801d9899caa64e6d205f6be9"
+  },
+  "definition": "create table if not exists usdc_hourly (\n  stream        smallint not null,\n  hour          timestamptz not null check (date_trunc('hour', hour, 'UTC') = hour),\n  transfers     bigint not null default 0,\n  transfer_raw  numeric(78,0) not null default 0,\n  mints         bigint not null default 0,\n  mint_raw      numeric(78,0) not null default 0,\n  burns         bigint not null default 0,\n  burn_raw      numeric(78,0) not null default 0,\n  zero_value    bigint not null default 0,\n  first_block   bigint not null,\n  last_block    bigint not null,\n  top           jsonb not null default '[]'::jsonb,       -- [[amount_raw, block, log_index, tx, from, to, kind], ...] ≤ 10, amount desc\n  senders_hll   bytea check (senders_hll is null or length(senders_hll) = 4096),\n  receivers_hll bytea check (receivers_hll is null or length(receivers_hll) = 4096),\n  primary key (stream, hour)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 89,
+      "sha256": "5f5e8edbb601d9eb657d55065906cb16a4fdb380801d9899caa64e6d205f6be9",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 181,
+      "sha256": "b37edc27e2c1ac4eedb2351e23390f10a41a17e429f81b9ad427ff2585e7a102",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 276,
+      "sha256": "711b6b1548044b116d97c258f04c48505e43b00487685b2e5eee94f9ba22f0bd",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 428,
+      "sha256": "bab846c3fe93db835312cffd48cda42c1612af50c5b73a1eef44bd22f340942b",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 448,
+      "sha256": "3dbf02382cc440d7d1d8615d1c5c9d0d0dc1f8cf486846ffab63f80e4f37f76b",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 467,
+      "sha256": "e9f1e719f1d3ed7922e01031bc169f68f618a23337f616e43bfa5d965a9feea9",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/usdcIndex/indexer.ts",
+      "line": 318
+    },
+    {
+      "file": "apps/web/src/lib/onchain/usdcIndex/view.ts",
+      "line": 200
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 181,
+        "sha256": "b37edc27e2c1ac4eedb2351e23390f10a41a17e429f81b9ad427ff2585e7a102"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

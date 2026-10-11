@@ -1,0 +1,160 @@
+{
+  "name": "analytics_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0027_analytics.sql",
+    "line": 27,
+    "sha256": "4607ea8a1fd028ec946c238cd66296d50cfd7a916638e015d6e9d8a9b2754d7e"
+  },
+  "definition": "create table if not exists analytics_events (\n  event_id    text primary key check (length(event_id) between 8 and 160),\n  event_name  text not null check (event_name in (\n                'signup_started', 'signup_completed', 'login', 'logout',\n                'kyc_started', 'kyc_completed', 'wallet_linked', 'cashback_claimed')),\n  user_id     uuid,\n  subject     text check (subject is null or subject ~ '^[0-9a-f]{64}$'),\n  source      text not null default 'server' check (source in ('server')),\n  route       text check (route is null or length(route) <= 120),\n  metadata    jsonb not null default '{}'::jsonb check (pg_column_size(metadata) <= 1024),\n  created_at  timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 27,
+      "sha256": "4607ea8a1fd028ec946c238cd66296d50cfd7a916638e015d6e9d8a9b2754d7e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 40,
+      "sha256": "93026e3235de28552fadec5a76bcee9a7811d4b3919ea8880212e0541176ad16",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 42,
+      "sha256": "720b49b7ce8568dab13029fe94cfaca33c146d265a793cc92e0694729467dfff",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 43,
+      "sha256": "7eed602f5bbcba5047daeb2a37692bc671f3ff1867d831cf3538a46ace5893ae",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 44,
+      "sha256": "d03de68cb0901782d9d1c05a45eff61c524c73e3e04a3ab621443324aa2b9c23",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 158,
+      "sha256": "3d0249933c33077da9c2ef0b90a5961ed8cf37a21ffe7c7e6fe394e63fd87861",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 175,
+      "sha256": "395e9a92f54675e092b0a8ab618c237bde93195dbd41564fead83e0bbeb1a044",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 32,
+      "sha256": "a2ebc42ee237a8a3349ba420915f944d952a4dea75ecaa9723af10efc149c559",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 33,
+      "sha256": "a33021f96ccf04528af88dd6f08dde5606586695e26617f8b89af38190b5ec2c",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 34,
+      "sha256": "c9d8bd4d8894f997879366971d2014f282bf0664ed2736ad04d2d96df56f44fc",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 35,
+      "sha256": "f101fe9096584fdef192dc1eab92acf1a234cf5256adc8fb55c9148197ff9bdd",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 36,
+      "sha256": "32908048e6d6e51c25ff3c1b301d7e99ddda2f76add6c3ebbd8262f36233c928",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 37,
+      "sha256": "41d75f395e2fecce1cf992677665ad6137866df916ea85745435563d36241543",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 38,
+      "sha256": "2f1654ac50d310ea66d279c975e8bcbc60ee9b3b0668ec4167d07354bf466eee",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 39,
+      "sha256": "89613690cf23b15ee38a91942bba3675691c9fb640cd269063b60c759c7c61b5",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 41,
+      "sha256": "4da3efffd641e99b46d29a7e6867bff5dc4ccbe17f48539455194f9c4a793886",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 59,
+      "sha256": "b0d04950eea9b7438fbcc628c014f7eb4319898d908d1ef02d8d51e5186abf64",
+      "kind": "update analytics_events"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 61,
+      "sha256": "548a12c6913f7b0573b1c7eefa20b888018a6ef7bc1d7d8121f3290dff5bd5a3",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 93,
+      "sha256": "ecf6b2049a4a1b80fbcdb63d20c08907b9c50c9d010a612e77e8b0f2577d1e2a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 139,
+      "sha256": "6e0bfd63ab7f082161560e1f6afd9b9e05b646b6b5e661098a12217620f22e80",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0028_cross_platform_analytics.sql",
+      "line": 158,
+      "sha256": "6419a6eb1eeb6daa37fadbb27a756eee63d190ddba44f82efbcf31540a734e31",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/analytics/events.ts",
+      "line": 100
+    },
+    {
+      "file": "apps/web/src/lib/analytics/ingest.ts",
+      "line": 106
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0027_analytics.sql",
+        "line": 42,
+        "sha256": "720b49b7ce8568dab13029fe94cfaca33c146d265a793cc92e0694729467dfff"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

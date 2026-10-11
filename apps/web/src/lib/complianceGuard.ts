@@ -12,6 +12,8 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrum } from "viem/chains";
+import { financialEnvironment, flagEnabled } from "@/lib/flags";
+import { beforeBroadcast } from "@/lib/settlementGuard";
 
 // ---------------------------------------------------------------------------
 // complianceGuard — server-side client for the on-chain programmable-compliance
@@ -108,6 +110,13 @@ function publicClient(): PublicClient {
 }
 
 function walletFor(keyEnv: string): { client: WalletClient; account: ReturnType<typeof privateKeyToAccount> } {
+  // A raw private key in process env is refused in production, the same rule
+  // lib/x402Settler.ts and lib/kms.ts enforce for the fee-payer. This module
+  // has no KMS path, so in production these writes are unavailable (503) until
+  // one exists — rather than signing with key material the app can read.
+  if (financialEnvironment() === "production") {
+    throw new GuardNotConfiguredError(`${keyEnv} (raw keys are refused in production; a KMS signer is required)`);
+  }
   const key = env(keyEnv);
   if (!key) throw new GuardNotConfiguredError(keyEnv);
   const account = privateKeyToAccount((key.startsWith("0x") ? key : `0x${key}`) as Hex);
@@ -216,6 +225,23 @@ export async function readEscrowEntry(txId: Hex) {
 
 // --- Writes -----------------------------------------------------------------
 
+/**
+ * The gate for writes that MOVE FUNDS (wrapper settlement, tranche
+ * settlement, escrow release/refund). Before this they reached writeContract
+ * with no circuit breaker, no ops pause, no chain-identity check and no
+ * ONCHAIN_SETTLEMENT_LIVE flag — a second settlement path beside the
+ * x402 settler, outside every control added to it (finding FP-SET-11).
+ * Now: the same flag rule as the settler, then the same beforeBroadcast
+ * (chain health, ops global pause, durable fail-closed halt state).
+ */
+async function assertMoneyWriteAllowed(): Promise<void> {
+  const environment = financialEnvironment();
+  if (environment !== "development" && !flagEnabled("ONCHAIN_SETTLEMENT_LIVE")) {
+    throw new GuardNotConfiguredError("ONCHAIN_SETTLEMENT_LIVE is off on this deployment");
+  }
+  await beforeBroadcast("arbitrum");
+}
+
 async function send(hash: Hex): Promise<{ txHash: Hex; blockNumber: number; status: "success" | "reverted" }> {
   const receipt = await publicClient().waitForTransactionReceipt({ hash });
   return { txHash: hash, blockNumber: Number(receipt.blockNumber), status: receipt.status };
@@ -231,6 +257,7 @@ export async function settleWithPolicy(params: {
   const { policyWrapper } = getGuardAddresses();
   if (!policyWrapper) throw new GuardNotConfiguredError("FURLPAY_POLICY_WRAPPER_ADDRESS");
   const { client, account } = walletFor("FURLPAY_RELAYER_PRIVATE_KEY");
+  await assertMoneyWriteAllowed();
   const hash = await client.writeContract({
     account,
     chain: arbitrum,
@@ -254,6 +281,7 @@ export async function settleTranche(params: {
   const { policyWrapper } = getGuardAddresses();
   if (!policyWrapper) throw new GuardNotConfiguredError("FURLPAY_POLICY_WRAPPER_ADDRESS");
   const { client, account } = walletFor("FURLPAY_RELAYER_PRIVATE_KEY");
+  await assertMoneyWriteAllowed();
   const hash = await client.writeContract({
     account,
     chain: arbitrum,
@@ -292,6 +320,7 @@ export async function resolveEscrow(txId: Hex, action: "release" | "refund") {
   const { complianceEscrow } = getGuardAddresses();
   if (!complianceEscrow) throw new GuardNotConfiguredError("FURLPAY_COMPLIANCE_ESCROW_ADDRESS");
   const { client, account } = walletFor("FURLPAY_RELAYER_PRIVATE_KEY");
+  await assertMoneyWriteAllowed();
   const hash = await client.writeContract({
     account,
     chain: arbitrum,

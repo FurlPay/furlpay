@@ -426,6 +426,84 @@ textarea:focus-visible,
   border-radius: 6px;
 }
 
+/* ---- Native select menus ---------------------------------------------------
+   Where a native <select> remains (inside popovers, admin tools, forms outside
+   travel), its option list is drawn by the OS. Windows and Linux browsers
+   paint it from these colours; without them the list came up white on the
+   dark theme, and a scattering of `[&>option]:text-black` patches made that
+   look deliberate. macOS and mobile use their own dark pickers under
+   `color-scheme: dark`. Low specificity on purpose: a per-option class still
+   wins. Interactive surfaces in travel use components/form/Select instead. */
+select {
+  color-scheme: dark;
+}
+select option,
+select optgroup {
+  background-color: #0b100e;
+  color: #f4f6f5;
+}
+select option:checked {
+  background-color: #12372a;
+}
+select option:disabled {
+  color: #6b7370;
+}
+
+/* ---- Range sliders -----------------------------------------------------------
+   `.range-neon`: a slim track that fills in brand green up to the thumb
+   (--range-fill, set inline as a percentage), and a thumb with a visible
+   keyboard focus ring. One look for every price / distance slider. */
+.range-neon {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 20px;
+  background: transparent;
+  cursor: pointer;
+}
+.range-neon::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(to right, #00e599 0 var(--range-fill, 50%), rgb(255 255 255 / 0.12) var(--range-fill, 50%) 100%);
+}
+.range-neon::-moz-range-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.12);
+}
+.range-neon::-moz-range-progress {
+  height: 4px;
+  border-radius: 999px;
+  background: #00e599;
+}
+.range-neon::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 16px;
+  height: 16px;
+  margin-top: -6px;
+  border-radius: 999px;
+  background: #00e599;
+  border: 2px solid #030505;
+  box-shadow: 0 0 0 1px rgb(0 229 153 / 0.5);
+  transition: box-shadow var(--dur-fast) var(--ease-out);
+}
+.range-neon::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: #00e599;
+  border: 2px solid #030505;
+}
+.range-neon:focus-visible {
+  outline: none;
+}
+.range-neon:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 4px rgb(0 229 153 / 0.3);
+}
+.range-neon:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 4px rgb(0 229 153 / 0.3);
+}
+
 /* ---- Scroll reveal -------------------------------------------------------
    Opacity/transform transition toggled by an IntersectionObserver. It is a
    transition rather than an animation so the global prefers-reduced-motion

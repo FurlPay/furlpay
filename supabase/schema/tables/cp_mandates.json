@@ -1,0 +1,109 @@
+{
+  "name": "cp_mandates",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 166,
+    "sha256": "7a684e14e31adf92c7ce39da041453b1647f5e0f4b25a6a6ce8c1db4bcfee50f"
+  },
+  "definition": "create table if not exists cp_mandates (\n  id                text primary key,\n  organization_id   text not null references cp_organizations(id) on delete restrict,\n  principal_id      text not null references cp_principals(id) on delete restrict,\n  -- Agent id or DID. Compared against the resolved chain at decision time.\n  delegated_to      text not null,\n  authority_scope   jsonb not null,\n  -- SHA-256 of the canonical signing payload. 64 lowercase hex.\n  payload_hash      text not null check (payload_hash ~ '^[0-9a-f]{64}$'),\n  credential_format text check (credential_format in\n                      ('internal-ed25519', 'ap2-sd-jwt', 'ap2-ed25519', 'vc-jwt')),\n  credential_token  text,\n  credential_key_id text,\n  -- Single-use replay guard. Unique per organization so two tenants cannot\n  -- collide, and so a replayed nonce is a constraint violation rather than a\n  -- check somebody remembered to write.\n  nonce             text not null,\n  single_use        boolean not null default false,\n  policy_version    text not null,\n  status            text not null default 'ACTIVE'\n                      check (status in ('ACTIVE', 'REVOKED', 'EXPIRED', 'CONSUMED')),\n  issued_at         timestamptz not null default now(),\n  not_before        timestamptz,\n  expires_at        timestamptz not null,\n  revoked_at        timestamptz,\n  revoked_reason    text,\n  created_at        timestamptz not null default now(),\n  updated_at        timestamptz not null default now(),\n  constraint cp_mandates_expiry_after_issue check (expires_at > issued_at)\n);",
+  "dependencies": [
+    "cp_organizations",
+    "cp_principals"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 166,
+      "sha256": "7a684e14e31adf92c7ce39da041453b1647f5e0f4b25a6a6ce8c1db4bcfee50f",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 196,
+      "sha256": "dbbd8b07e4f70072831b7b1aea457969f1823d5a6e537c467c6e5110910735e4",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 197,
+      "sha256": "b7e718843611c35046ddc7a78cb587b766ab4863fd4321260360446b577781a1",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 198,
+      "sha256": "b64434c833750bbe537d53672c3e56e7f7f511bd20c8de5590a5f1695ae1bdfd",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 201,
+      "sha256": "99249a9185e9d042f1b752e9c2ad4da5402f12b01dd50576d11605fd046913c0",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 232,
+      "sha256": "652b45da667782435f3228c274f08097fad5d605ad1265f8caf033a4da9d065d",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 600,
+      "sha256": "0671cd45851e531befe7291ec8587794d1b03f66182d1c4a617c81ec78eebd90",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0021_recipient_attestation.sql",
+      "line": 39,
+      "sha256": "1c5b0d545fc241d775ee96d6b19caae33947da84647bad3b92311a8a031e74ba",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0023_schema_assertions_v2.sql",
+      "line": 31,
+      "sha256": "cafc4d20baaf5c237a89072b89fa6b0b4b6e7b95842cde9b182c2ead40fc3572",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 246,
+      "sha256": "18348637e2cdb31366dd2a713a871b8df7f58b67a57e2e921cb706913ed3eeb5",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 352
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 379
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 380
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 400
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 401
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 600,
+        "sha256": "0671cd45851e531befe7291ec8587794d1b03f66182d1c4a617c81ec78eebd90"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

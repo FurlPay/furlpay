@@ -1,0 +1,57 @@
+{
+  "name": "deposits",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0002_durability.sql",
+    "line": 50,
+    "sha256": "be3c5614eba3cec8ec4d84127e0c739a4d94ad44db88e7a918200a64d7aa70dd"
+  },
+  "definition": "create table deposits (\n  tx_hash                text primary key,\n  order_id               text not null unique,  -- FP{timestamp}{rand} human reference\n  user_id                uuid references users (id) on delete set null,\n  token                  text not null,\n  chain                  text not null,\n  amount                 numeric(38, 18) not null check (amount > 0),\n  from_address           text not null,\n  to_address             text not null,\n  status                 text not null default 'pending'\n                         check (status in ('pending', 'processing', 'success')),\n  confirmations          integer not null default 0,\n  required_confirmations integer not null,\n  credited               boolean not null default false,\n  created_at             timestamptz not null default now(),\n  updated_at             timestamptz not null default now()\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 50,
+      "sha256": "be3c5614eba3cec8ec4d84127e0c739a4d94ad44db88e7a918200a64d7aa70dd",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 67,
+      "sha256": "cf4240d5eae7e9483a5a7bc009fa7bb66d445c9f7155d51007f00d7422c35a5e",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 68,
+      "sha256": "1790b0bfd61649a0cd696ea5964b9011276bd812b11e845691b1917e48180f9f",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 70,
+      "sha256": "ed50d8ff893c7915281814c54a6680e7f52835d988017bb02cc84aaf6a707ac5",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0002_durability.sql",
+      "line": 155,
+      "sha256": "b460f0ea5c73818acb3f941d863f2343046956fe24aae63c6de07a4718bc16af",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0002_durability.sql",
+        "line": 155,
+        "sha256": "b460f0ea5c73818acb3f941d863f2343046956fe24aae63c6de07a4718bc16af"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

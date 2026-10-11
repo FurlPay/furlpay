@@ -30,11 +30,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     refundTransactionHash: record.refundTransactionHash ?? null,
     chain: chain.name,
     chainId: chain.chainId,
-    payer: record.payer,
+    // Unauthenticated, like GET /api/payments/:id: the link holder is not the
+    // payer (see publicPaymentView). The payer identity and the merchant's
+    // free-form metadata (order references, customer details) are not part of
+    // a public receipt (SEC-P3-003).
     recipient: record.recipient,
     amountUsdc: record.amountUsdc.toFixed(2),
     feeUsdc: record.feeUsdc.toFixed(2),
     settledAt: record.settledAt,
-    metadata: record.metadata ?? {},
   });
 }

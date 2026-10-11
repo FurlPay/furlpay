@@ -1,0 +1,60 @@
+{
+  "name": "onchain_dead_letters",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0032_onchain_ingestion.sql",
+    "line": 125,
+    "sha256": "0ace5563cf5617f4cfdf6ff096e6e3f8f2625fd820ecb9cf7463a3c9baa19785"
+  },
+  "definition": "create table if not exists onchain_dead_letters (\n  id           bigserial primary key,\n  source       text not null,\n  reason       text not null,\n  payload_hash text not null,\n  payload      jsonb,\n  received_at  timestamptz not null default now(),\n  resolved_at  timestamptz,\n  unique (source, payload_hash)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 125,
+      "sha256": "0ace5563cf5617f4cfdf6ff096e6e3f8f2625fd820ecb9cf7463a3c9baa19785",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 135,
+      "sha256": "09d314dfd20cb6c428da4c32657362155e0d6100ff34ade9853cc84687b90c25",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 554,
+      "sha256": "41f1fa5b15984e93f617edb03102f33f22b43321d12a616fd8d63d6a15585505",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 584,
+      "sha256": "a5b78c904b3488ef0064277955cd72191e6a0a4156dcafde572ff03cc5d2f031",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 593,
+      "sha256": "77a76e23c58d3878b9dd044bee3d715982a4b60c74ef1602634c1534c5c685e6",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/ingest.ts",
+      "line": 197
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 584,
+        "sha256": "a5b78c904b3488ef0064277955cd72191e6a0a4156dcafde572ff03cc5d2f031"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

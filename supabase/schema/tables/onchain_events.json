@@ -1,0 +1,228 @@
+{
+  "name": "onchain_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0032_onchain_ingestion.sql",
+    "line": 29,
+    "sha256": "0851e32c937215d5fb04c5a086b03f6220b457c290a52beeda809b880e6c374e"
+  },
+  "definition": "create table if not exists onchain_events (\n  id                 bigserial primary key,\n  event_key          text not null unique check (event_key = lower(event_key) and length(event_key) between 10 and 300),\n  source             text not null check (source in ('allium_beam', 'allium_realtime_api', 'reconcile', 'node_rpc')),\n  chain              text not null check (chain ~ '^[a-z0-9_-]{2,32}$'),\n  tx_hash            text not null check (length(tx_hash) between 8 and 128),\n  block_number       bigint check (block_number >= 0),\n  block_hash         text,\n  block_timestamp    timestamptz not null,\n  log_index          integer,\n  from_address       text,\n  to_address         text,\n  asset_address      text,\n  asset_symbol       text,\n  asset_decimals     integer check (asset_decimals between 0 and 255),\n  -- Exact integer base units (uint256 fits in 78 digits) and the exact decimal\n  -- amount from the provider's *_str field. Never floats.\n  amount_raw         numeric(78, 0) check (amount_raw >= 0),\n  amount             numeric check (amount >= 0),\n  -- Provider-reported USD value (Allium usd_amount). Display/analytics only.\n  amount_usd         numeric(30, 8) check (amount_usd >= 0),\n  activity_type      text not null default 'transfer',\n  -- Relative to the tracked address: 'in', 'out' or 'self'.\n  direction          text not null check (direction in ('in', 'out', 'self')),\n  tracked_address    text not null,\n  scope              text not null check (scope in ('user', 'treasury', 'watch')),\n  user_id            uuid references users (id) on delete set null,\n  confirmation_state text not null check (confirmation_state in ('observed', 'confirmed', 'finalized', 'reorged')),\n  revision           integer not null default 1,\n  provider_event_id  text,\n  -- Ledger correlation (ops_tx_events.id) and a flag when the chain and the\n  -- ledger disagree. Set by reconciliation; never acted on automatically.\n  ledger_ref              text,\n  reconciliation_required boolean not null default false,\n  reconciliation_note     text,\n  -- AML: the OFAC SDN screen of the counterparty at ingest (packages/compliance\n  -- screenWallet). A FLAG for operators: this read model never freezes or\n  -- moves anything.\n  risk_action        text not null default 'allow' check (risk_action in ('allow', 'review', 'block')),\n  risk_flags         jsonb not null default '[]'::jsonb,\n  -- True when the reorg was PROVEN against a finalized canonical block (the\n  -- transaction is absent from the chain a FurlPay-configured node serves at\n  -- a finalized height). Such an event can never be reinstated by a later\n  -- delivery of the same (orphaned) block: finality is final.\n  reorg_final        boolean not null default false,\n  metadata           jsonb not null default '{}'::jsonb,\n  observed_at        timestamptz not null default now(),\n  created_at         timestamptz not null default now(),\n  updated_at         timestamptz not null default now()\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 29,
+      "sha256": "0851e32c937215d5fb04c5a086b03f6220b457c290a52beeda809b880e6c374e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 80,
+      "sha256": "fc498d2b0004bd0c774758e7640902c9c22bad35b3942aa07fa3793de83ac0d4",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 81,
+      "sha256": "a561619cab631e55f56f395b78887a6a365ae13e6b2eb37b32bce1ded070fa6f",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 82,
+      "sha256": "667016c4f219a25d0d3cad3eb3c0e6fea32f70c8ad2ce6e10c0155ea15f22d39",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 83,
+      "sha256": "52fa4c4f6c12e76d33b3c4af593fd3024e871e812d3d554ac8e24b759e110d6c",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 84,
+      "sha256": "1aa6e77c949cb5a37dad6aa6da30c86bd5ddab4c0924837451959832521108f2",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 85,
+      "sha256": "ef5498049f60ca4af2c3a86a9179cdb3048a93c9ad875e2857766895662c6d25",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 86,
+      "sha256": "89ae57cb49d9a3b6e713a574d04f3f17bff1267aa86fb2676129ff2021198bbb",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 87,
+      "sha256": "8208d5eeb0b4622021bc7cfa3fed33524c72a11cb9c3b1e04d5bb03305d0496c",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 88,
+      "sha256": "033170ca3306f70e3fd7c312963decd55c9870fcc08d617de19d31cc2cf80f93",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 89,
+      "sha256": "67a25b029de1ac94fc4cdaae96984beb51a5c3daf43e316ff48bf9be4d23ba89",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 90,
+      "sha256": "6fbd0c91ce8af70c50e629b929e0dbf2e9ef0d433da4062689c1cdf223bf6df2",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 219,
+      "sha256": "db698db23e8f77283bc35d15f8defc8c719be1123edd0a21299b084611666efc",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 220,
+      "sha256": "d8e9f1fe30f5c9568b6affe5502370962c61e35c2f48652084d70a8951559002",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 221,
+      "sha256": "4dfab45b4c8d2b8243f59db5d73d654dcfdb2b556bb45fe92799f78f2e67747e",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 222,
+      "sha256": "438c9b67714c254702ac06f8ea131a4c170e06287fd967738ad0da1bfb4d6559",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 223,
+      "sha256": "7c5c2272a26fd6129aa6b5be53900dbad87b4e3053953746ba3be146c44430aa",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 225,
+      "sha256": "d9a416b13101e5ea32669a6d90d5f9580e026684bbd23b473a8b7689e7490257",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 226,
+      "sha256": "5ca62ea82578bf3084aa6fe896613f3310629cab206941f4388f4e5f37e8ce99",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 268,
+      "sha256": "f6a293b0426099b97bbefe9eb499ba50ab4ae2b6c2fd03196720f5872a81ca04",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 309,
+      "sha256": "e0357bca1512a4d963365aa3cfcdf13c9cdea3b7be4d0c2c5daf6757b072137c",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 463,
+      "sha256": "471a24d85b75b5b1c4c00bd79dac2711bef87456a45f170ae9b2c26e1bd255ab",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 489,
+      "sha256": "f26f28606be38a46329d3b4da1d97cfa2627215c24169ee483968614352e6079",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 554,
+      "sha256": "41f1fa5b15984e93f617edb03102f33f22b43321d12a616fd8d63d6a15585505",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 581,
+      "sha256": "e70e19c78a27f9139343ce49f6a69c6ee92f38b51ea864a28e33933bffb5830d",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 593,
+      "sha256": "77a76e23c58d3878b9dd044bee3d715982a4b60c74ef1602634c1534c5c685e6",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/dashboard.ts",
+      "line": 298
+    },
+    {
+      "file": "apps/web/src/lib/onchain/live.ts",
+      "line": 190
+    },
+    {
+      "file": "apps/web/src/lib/onchain/live.ts",
+      "line": 284
+    },
+    {
+      "file": "apps/web/src/lib/onchain/live.ts",
+      "line": 305
+    },
+    {
+      "file": "apps/web/src/lib/onchain/live.ts",
+      "line": 313
+    },
+    {
+      "file": "apps/web/src/lib/onchain/nodeIndexer.ts",
+      "line": 449
+    },
+    {
+      "file": "apps/web/src/lib/onchain/nodeIndexer.ts",
+      "line": 450
+    },
+    {
+      "file": "apps/web/src/lib/onchain/solanaNodeIndexer.ts",
+      "line": 295
+    },
+    {
+      "file": "apps/web/src/lib/onchain/solanaNodeIndexer.ts",
+      "line": 296
+    },
+    {
+      "file": "apps/web/src/lib/onchain/sync.ts",
+      "line": 223
+    },
+    {
+      "file": "apps/web/src/lib/onchain/sync.ts",
+      "line": 224
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 581,
+        "sha256": "e70e19c78a27f9139343ce49f6a69c6ee92f38b51ea864a28e33933bffb5830d"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

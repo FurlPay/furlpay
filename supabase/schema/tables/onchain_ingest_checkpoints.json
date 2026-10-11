@@ -1,0 +1,52 @@
+{
+  "name": "onchain_ingest_checkpoints",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0032_onchain_ingestion.sql",
+    "line": 138,
+    "sha256": "bcabbe38fbbc59e291a140f3e924c1434df40968e0ddefa5183adfd03a741fd7"
+  },
+  "definition": "create table if not exists onchain_ingest_checkpoints (\n  chain        text not null,\n  address      text not null,\n  last_run_at  timestamptz,\n  last_status  text,\n  last_error   text,\n  events_seen  bigint not null default 0,\n  primary key (chain, address)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 138,
+      "sha256": "bcabbe38fbbc59e291a140f3e924c1434df40968e0ddefa5183adfd03a741fd7",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 585,
+      "sha256": "8baf7af97c8d01f263af0d02263e923427158beb1de634c710fdf3a34ae01c5c",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 593,
+      "sha256": "77a76e23c58d3878b9dd044bee3d715982a4b60c74ef1602634c1534c5c685e6",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/sync.ts",
+      "line": 213
+    },
+    {
+      "file": "apps/web/src/lib/onchain/sync.ts",
+      "line": 214
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 585,
+        "sha256": "8baf7af97c8d01f263af0d02263e923427158beb1de634c710fdf3a34ae01c5c"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -1,0 +1,163 @@
+{
+  "name": "cctp_transfers",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0035_cctp_v2.sql",
+    "line": 46,
+    "sha256": "291b32d7a4f7e64f8e303f668cb4320b0b30789304e461abafa7e6c2ba6357ae"
+  },
+  "definition": "create table if not exists cctp_transfers (\n  id                          bigserial primary key,\n  cctp_version                smallint not null default 2,\n  source_domain               integer not null check (source_domain >= 0),\n  destination_domain          integer check (destination_domain >= 0),\n  nonce                       text check (nonce ~ '^0x[0-9a-f]{64}$'),\n  source_chain                text,\n  destination_chain           text,\n  -- source leg (null when only the destination was indexed)\n  source_event_id             text unique references cctp_events (event_id),\n  source_tx_hash              text,\n  source_block_number         bigint,\n  source_log_index            integer,\n  source_block_time           timestamptz,\n  burn_token                  text,\n  depositor                   text,\n  amount_raw                  numeric(78,0) check (amount_raw >= 0),\n  mint_recipient              text,\n  max_fee_raw                 numeric(78,0),\n  min_finality_threshold      integer,\n  -- attestation (Circle Iris)\n  attestation_status          text,\n  executed_fee_raw            numeric(78,0),\n  finality_threshold_executed integer,\n  attestation_attempts        integer not null default 0,\n  attestation_next_at         timestamptz not null default now(),\n  attestation_checked_at      timestamptz,\n  -- destination leg\n  destination_event_id        text unique references cctp_events (event_id),\n  destination_tx_hash         text,\n  destination_block_number    bigint,\n  destination_log_index       integer,\n  destination_block_time      timestamptz,\n  minted_raw                  numeric(78,0),\n  mint_fee_raw                numeric(78,0),\n  destination_method          text check (destination_method in ('mint_event', 'used_nonce')),\n  destination_checked_at      timestamptz,\n  -- verification flags (each is a fact about what was independently checked)\n  source_verified             boolean not null default false,\n  message_verified            boolean not null default false,\n  destination_verified        boolean not null default false,\n  finality_verified           boolean not null default false,\n  status                      text not null check (status in ('burn_confirmed', 'attestation_pending', 'attestation_complete', 'destination_verified', 'finalized', 'mismatch', 'merged')),\n  status_reason               text,\n  -- 'merged': an inbound-only row that turned out to be the destination leg of\n  -- an indexed burn. Kept (with its evidence) and pointed at the survivor.\n  merged_into                 bigint references cctp_transfers (id),\n  created_at                  timestamptz not null default now(),\n  updated_at                  timestamptz not null default now()\n);",
+  "dependencies": [
+    "cctp_events",
+    "cctp_transfers"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 46,
+      "sha256": "291b32d7a4f7e64f8e303f668cb4320b0b30789304e461abafa7e6c2ba6357ae",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 96,
+      "sha256": "24cbafa5cebe005665baa42ed2697df3c7e18cadeefb8d8552626268dea5b9a9",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 97,
+      "sha256": "52bcd71e944cebdcc1601f649662df3d22154e642c375d592a9c4ec4fbb9ffdf",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 98,
+      "sha256": "78ae91ac5ef625f2bc7ea165001bb4430becc0e4e3b1aafea09e5c593cf8fc04",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 99,
+      "sha256": "c055491f22ed89c1f242ec792a05857e0ce65f0110394413a2a78b73f121ee04",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 100,
+      "sha256": "a8e56b0d96917a45c8330124c01d5625085e646e605192fea8f4993a5b207efa",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 101,
+      "sha256": "f283d0f977702f3c9eb7586e69e5523b77659847107439dff0a5cbefc50d263b",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 102,
+      "sha256": "6e6359b8693f3fa78fea55fda8ddd8ea1db4273130b9f8fd3b7665e802b917f4",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 103,
+      "sha256": "4bfc5e1a1a6d59a02edfbf80140d6a7c1ff2527b30d95200d85b9c49839441ea",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 104,
+      "sha256": "875a0ceeb86b977a543d248a5a2f222c53b27c20a820be83fedf356ed5997559",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 105,
+      "sha256": "050433e956c5b490d10bd3928de0c977c1b252b737e6b1e041a6e7aa4b556a9a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 107,
+      "sha256": "292f314f02368ea513a9b82c7e277de1b0c781ce4c546cd2007732ec316d0696",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 123,
+      "sha256": "9104386d724333ac52e1166976bc00efa73e26b3355576b7108f31aeaf261079",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 162,
+      "sha256": "3761cd8f674e978a3dd680e7e25ddc5b3c1c03b96e79cdbb44616ccaab1d89e4",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 232,
+      "sha256": "ff11397cb52efb08a162a11fbc9706d06c7686557fa1b0af523b8ec0ac7383c0",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 280,
+      "sha256": "0af1c0b3ba5bc0a70a13b07039d2aa40193a1c6713911052dbe7eed70e47c92d",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 300,
+      "sha256": "2c83405ef61e77a6f313c4843e51afd540b9deb5593e5758017caa3bdf223159",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 324,
+      "sha256": "c20c1f9e425e9259d40949f404e9abca85da3f9ce2418aa1db8e06cdcb840fc8",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0035_cctp_v2.sql",
+      "line": 326,
+      "sha256": "383cb2cf3eebe732853a7fc9a29e193de1a4cfaf55b2ae1f4f6aa2cc97342c3c",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/cctp.ts",
+      "line": 356
+    },
+    {
+      "file": "apps/web/src/lib/onchain/cctp.ts",
+      "line": 357
+    },
+    {
+      "file": "apps/web/src/lib/onchain/cctp.ts",
+      "line": 414
+    },
+    {
+      "file": "apps/web/src/lib/onchain/cctp.ts",
+      "line": 415
+    },
+    {
+      "file": "apps/web/src/lib/onchain/cctpView.ts",
+      "line": 111
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0035_cctp_v2.sql",
+        "line": 324,
+        "sha256": "c20c1f9e425e9259d40949f404e9abca85da3f9ce2418aa1db8e06cdcb840fc8"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -72,6 +72,13 @@ function orderedEndpoints(): readonly string[] {
   return [preferredEndpoint, ...ENDPOINTS.filter((e) => e !== preferredEndpoint)];
 }
 
+/** Shared with other Overpass readers (nearby places), so they reuse the same
+ *  known-good-first hint rather than rediscovering a dead primary. */
+export { orderedEndpoints as orderedOverpassEndpoints };
+export function rememberOverpassEndpoint(endpoint: string): void {
+  if ((ENDPOINTS as readonly string[]).includes(endpoint)) preferredEndpoint = endpoint;
+}
+
 /** Overpass is a shared free service with no SLA. Keep requests few and small,
  *  cache hard, and never retry aggressively — the polite-use policy is the
  *  price of the data being free. */

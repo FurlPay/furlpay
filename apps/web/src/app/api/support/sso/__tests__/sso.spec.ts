@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { resolveSameOrigin } from "@/lib/safeRedirect";
 
 // ---------------------------------------------------------------------------
 // The dormant Zendesk SSO handoff.
@@ -82,34 +83,36 @@ describe("the credential never reaches a URL or a cache", () => {
 });
 
 describe("return_to cannot leave the configured Zendesk host", () => {
-  // Mirrors the route's guard exactly. Kept in sync by the assertion below.
-  const guard = (raw: string, sub = "furlpay") =>
-    raw.startsWith("/") && !raw.startsWith("//") ? `https://${sub}.zendesk.com${raw}` : "";
+  // The route resolves return_to through lib/safeRedirect against the Zendesk
+  // origin; these exercise that same function, not a copy of it.
+  const Z = "https://furlpay.zendesk.com";
+  const guard = (raw: string) => resolveSameOrigin(raw, Z)?.href ?? "";
 
-  it("matches the guard actually implemented in the route", () => {
-    expect(ROUTE).toMatch(/rawReturn\.startsWith\("\/"\) && !rawReturn\.startsWith\("\/\/"\)/);
+  it("the route uses the shared resolver, not a hand-rolled prefix check", () => {
+    expect(ROUTE).toContain('import { resolveSameOrigin } from "@/lib/safeRedirect"');
+    expect(ROUTE).toMatch(/resolveSameOrigin\(req\.nextUrl\.searchParams\.get\("return_to"\), zendeskOrigin\)/);
+    expect(ROUTE).not.toMatch(/startsWith\("\/\/"\)/);
   });
 
   it.each([
     ["//evil.com", ""],
     ["///evil.com", ""],
+    ["/\\evil.com", ""],
+    ["/\t/evil.com", ""],
+    ["/..//evil.com", ""],
     ["https://evil.com", ""],
     ["http://evil.com", ""],
     ["javascript:alert(1)", ""],
     ["data:text/html,<script>alert(1)</script>", ""],
     ["", ""],
-  ])("drops %s", (raw, expected) => {
+  ])("drops %j", (raw, expected) => {
     expect(guard(raw)).toBe(expected);
   });
 
   it.each([
     "/hc/en-us",
     "/hc/en-us/requests/new",
-    // These are accepted, and must still resolve to the configured host — the
-    // destination origin is ours to choose, never the caller's.
-    "/\\evil.com",
     "/%2f%2fevil.com",
-    "/..//evil.com",
     "/redirect?url=https://evil.com",
   ])("keeps %s on the configured host", (raw) => {
     const out = guard(raw);

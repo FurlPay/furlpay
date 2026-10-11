@@ -34,4 +34,25 @@ regexes = [
   # Native USDC's contract address on Arbitrum One: a public on-chain
   # constant, flagged as generic-api-key in settlementSafety.spec.ts (88ddff0).
   '''0xaf88d065e77c8cC2239327C5EDb3A432268e5831''',
+  # Native USDC on Base: public on-chain constant (chaintracker daily.test.ts).
+  '''0x833589fcd6edb6e08f4c7c32d4f71b54bda02913''',
+  # Circle CCTP contracts, published in Circle's docs (chaintracker registry.ts
+  # and fixtures): V2 TokenMessenger and TokenMinter, the domain-28 (EDGE)
+  # TokenMessenger override, the V1 TokenMessenger, and the Solana V2 program.
+  '''0x28b5a0e9c621a5badaa536219b3a228c8168cf5d''',
+  '''0xfd78ee919681417d192449715b2594ab58f5d002''',
+  '''0x98706a006bc632df31cadfcbd43f38887ce2ca5c''',
+  '''0xbd3fa81b58ba92a82136038b25adec70fefe78b5''',
+  '''CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe''',
+  # Associated token account derived by @solana/spl-token for a test owner
+  # (native-app spl.test.ts): a public address, not a key.
+  '''guwpTEa7UoAknrS4xeASP5iA5iqEsDfhGT2GXwDnTZS''',
+  # Test-fixture UUIDs in circleWallets.spec.ts: a token id and an
+  # idempotency key. Made up; never configured anywhere.
+  '''36b6931a-873a-56a8-8a27-b706b17104ee''',
+  '''9f1c0f7e-1111-4222-8333-944455556666''',
+  # Plain identifiers the generic rule mistakes for keys: a credential-format
+  # name (control-plane mandate.ts) and an OpenZeppelin ERC-20 error name.
+  '''internal-ed25519''',
+  '''ERC20InsufficientAllowance''',
 ]

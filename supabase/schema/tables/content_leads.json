@@ -1,0 +1,72 @@
+{
+  "name": "content_leads",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0019_content_leads.sql",
+    "line": 30,
+    "sha256": "cb2e1b511612cb68bd6dc09f8a63f671a30ae503d6cc821f3d0a1b88651af964"
+  },
+  "definition": "CREATE TABLE IF NOT EXISTS content_leads (\n  -- Normalised (trimmed, lowercased) email. The identity, so a repeat\n  -- submission updates rather than duplicates.\n  email                 text        PRIMARY KEY,\n\n  first_name            text        NOT NULL,\n  last_name             text        NOT NULL,\n  company               text        NOT NULL,\n  job_title             text        NOT NULL,\n  country               text        NOT NULL,\n  phone                 text        NULL,\n  interests             text[]      NULL,\n\n  -- Internal segmentation hint from a consumer-domain list. NOT a claim about\n  -- the person, and never used to reject or gate anything. See\n  -- lib/leads/types.ts classifyEmail for the stated limitations.\n  email_type            text        NOT NULL DEFAULT 'unknown',\n\n  -- How we first met them. Never overwritten on a later submission.\n  first_source          text        NOT NULL,\n\n  consent_at            timestamptz NOT NULL,\n  consent_version       text        NOT NULL,\n  consent_ip            text        NOT NULL,\n\n  marketing_consent     boolean     NOT NULL DEFAULT false,\n  marketing_consent_at  timestamptz NULL,\n\n  created_at            timestamptz NOT NULL DEFAULT now(),\n  updated_at            timestamptz NOT NULL DEFAULT now(),\n\n  CONSTRAINT lead_source_known CHECK (\n    first_source IN ('report_download','webinar_registration')\n  ),\n  CONSTRAINT lead_email_type_known CHECK (\n    email_type IN ('business','consumer','unknown')\n  ),\n  -- A marketing opt-in must carry the moment it was given. Without that\n  -- timestamp the permission is unprovable, which in a dispute is the same as\n  -- not having it.\n  CONSTRAINT lead_marketing_consent_dated CHECK (\n    marketing_consent = false OR marketing_consent_at IS NOT NULL\n  )\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 30,
+      "sha256": "cb2e1b511612cb68bd6dc09f8a63f671a30ae503d6cc821f3d0a1b88651af964",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 75,
+      "sha256": "f0746c22ac2c07c3e5fcd95f6b32077e56853eca1571343b6d61cdcf111cfcd8",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 78,
+      "sha256": "f6a7c551cf9e330fd7643aad61e6f175f7f12c8d5e1d1eb9155d193a95a91d3a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 81,
+      "sha256": "c3223de2ed818d351be0d4c3396aabd09623f677600f852eab1ee7d08a4c92ca",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 119,
+      "sha256": "bff72e880bc0d218eb11f5e9e6a40f99917ab4d98efbb45a314ae7fc4b5c34be",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/leads/store.ts",
+      "line": 28
+    },
+    {
+      "file": "apps/web/src/lib/leads/store.ts",
+      "line": 108
+    },
+    {
+      "file": "apps/web/src/lib/leads/store.ts",
+      "line": 179
+    },
+    {
+      "file": "apps/web/src/lib/leads/store.ts",
+      "line": 245
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0019_content_leads.sql",
+        "line": 119,
+        "sha256": "bff72e880bc0d218eb11f5e9e6a40f99917ab4d98efbb45a314ae7fc4b5c34be"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

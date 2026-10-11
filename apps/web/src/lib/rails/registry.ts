@@ -1,5 +1,5 @@
 import type { Rail } from "@/lib/ops/controls";
-import { publicRailStatuses } from "@/lib/ops/overview";
+import { publicRailStatusReport } from "@/lib/ops/overview";
 import { maxSwapUsd, maxCctpUsd, maxTransferUsd } from "@/lib/moneyLimits";
 
 // ---------------------------------------------------------------------------
@@ -112,7 +112,16 @@ export function railDescriptors(): RailDescriptor[] {
 }
 
 /** Descriptors merged with live pause/health status — the public rail map. */
+/**
+ * Every rail's descriptor with its live operational status. The descriptors
+ * are static facts and always answer; the status says UNKNOWN for a rail whose
+ * controls could not be read, and `controlsAvailable` says so for the whole set.
+ */
 export async function railsSnapshot() {
-  const statuses = await publicRailStatuses();
-  return railDescriptors().map((d) => ({ ...d, status: statuses[d.rail] }));
+  const { statuses, controlsAvailable, reason } = await publicRailStatusReport();
+  return {
+    rails: railDescriptors().map((d) => ({ ...d, status: statuses[d.rail] })),
+    controlsAvailable,
+    reason,
+  };
 }

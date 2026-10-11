@@ -1,7 +1,7 @@
 import { currentEpoch } from "@/lib/sessionEpoch";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/store";
-import { signSession, setSessionCookie } from "@/lib/session";
+import { signSession, setSessionCookieForRequest } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
   // /api/auth/otp/check. Web keeps the HttpOnly cookie only.
   const isMobileClient = (req.headers.get("x-furlpay-client") ?? "").startsWith("mobile");
   const res = NextResponse.json({ verified: true, guest: true, ...(isMobileClient ? { token } : {}) });
-  setSessionCookie(res, token);
+  setSessionCookieForRequest(req, res, token);
   audit("auth.guest_login", demo.user.id);
   return res;
 }

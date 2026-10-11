@@ -1,0 +1,137 @@
+# FurlPay Telegram Mini App — deployment guide
+
+Branch `feat/telegram-mini-app` (from the production line `release/partners-on-prod`). Nothing here is deployed to production or configured in BotFather yet.
+
+## A. Architecture
+
+One Next.js app (`apps/web`, Vercel project `web`, `https://furlpay.com`) with two entry points:
+
+- **Website** — unchanged. The homepage hero has an *Open in Telegram* pill (`components/telegram/OpenInTelegram.tsx`) shown only when the bot username is configured, plus a *Preview* link to `/telegram` that always works in a browser.
+- **Mini App** — `https://furlpay.com/telegram` (`app/telegram/*`), opened by @FurlpayBot. Screens: `/telegram` (discover), `/telegram/{home,cards,pay,activity,wallet,profile,travel}`.
+
+Shared backend, nothing duplicated: the Mini App signs into the **existing** FurlPay session (`signSession` cookie, revocation epoch, account lock/deletion checks) and reads the account through `GET /api/miniapp/account`, a narrow whitelisted view of the same account the website uses. The only new table is `telegram_account_links` (identity link only, migration `0050`).
+
+```
+Telegram client ──initData──▶ POST /api/auth/telegram ──HMAC verify──▶ linked? ──▶ FurlPay session cookie
+                                                           │ no
+                                                           ▼
+                        user signs in to FurlPay (fresh login) ──▶ POST /api/miniapp/telegram-link
+```
+
+## B. Prerequisites
+
+- Bot **@FurlpayBot** (exists: public profile "Furlpay — Stablecoin payments, travel & investing"; already served by `POST /api/telegram/webhook`).
+- Its token in Vercel production as `TELEGRAM_BOT_TOKEN` (already used by the market-brief bot). Telegram signs Mini App launch data with the token of the bot that launched it, so the Main Mini App must be configured on this same bot.
+- Migration `supabase/migrations/0050_telegram_account_links.sql` applied to production (needs authorization).
+- A working rate-limit/KV store: in production the auth route refuses (503) without Redis, and a launch can mint only one session (`kvSetNx` replay guard).
+
+## C. Local development
+
+```bash
+cd apps/web
+npm run dev            # then open http://localhost:3000/telegram
+```
+
+In a normal browser the app runs in **browser mode**: no Telegram identity, the account screens ask you to sign in with FurlPay. That is the real behaviour for a browser, not a simulation of Telegram. A real Telegram launch needs an HTTPS URL Telegram can reach (a Vercel preview, or a tunnel) set as a test bot's Mini App URL, with that test bot's token in `TELEGRAM_BOT_TOKEN`. Never point a test bot at production.
+
+## D. Environment variables
+
+| Variable | Class | Purpose | Local | Production | Where |
+|---|---|---|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | server secret | Verifies launch data (HMAC key derivation); existing bot features | for a real launch only | **yes** | Vercel env (Production) |
+| `TELEGRAM_WEBHOOK_SECRET` | server secret | Existing webhook header check (unchanged) | no | yes (existing) | Vercel env |
+| `TELEGRAM_AUTH_MAX_AGE_SECONDS` | server config | Launch-data freshness, 30–600 s, default 300 | no | optional | Vercel env |
+| `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | public | Builds `https://t.me/<bot>?startapp=…`; validated (`…bot`, 5–32 chars) | no | yes, `FurlpayBot` | Vercel env (build-time) |
+| `TELEGRAM_MINI_APP_URL` | operator CLI | URL the menu button opens (`npm run telegram:setup -- menu`); approved origin only | no | for setup | your shell, not Vercel |
+| `NEXT_PUBLIC_TELEGRAM_APP_SHORT_NAME` | public | Only for a *named* Mini App (`t.me/<bot>/<short>`); blank for the Main Mini App | no | no | Vercel env |
+| `FURLPAY_SESSION_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `UPSTASH_REDIS_REST_*` | server secret | Existing session, database and KV — reused | as today | existing | Vercel env |
+
+Verify without printing values: `npx vercel env ls production | grep -E "TELEGRAM|SUPABASE|UPSTASH"` (lists names and environments only). Never prefix a secret with `NEXT_PUBLIC_`.
+
+## E. BotFather configuration (manual)
+
+1. `/mybots` → @FurlpayBot → **Bot Settings → Configure Mini App → Enable Mini App**, URL `https://furlpay.com/telegram`. This is the Main Mini App: launch link `https://t.me/FurlpayBot?startapp`.
+2. **Menu Button** → set URL `https://furlpay.com/telegram`, title `Open FurlPay`.
+3. Profile: name *FurlPay*, description and about text, profile photo (brand mark). Keep the existing commands.
+4. Then set `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=FurlpayBot` in Vercel production and redeploy, so the website shows *Open in Telegram*.
+
+Deep links use only fixed routing hints: `https://t.me/FurlpayBot?startapp=<route>`, where `<route>` is one of `home, cards, pay, activity, profile, wallet, travel, discover` (`lib/telegram-mini-app/config.ts`). Anything else is ignored. Never put a token, account or payment detail in a start parameter.
+
+## F. Deployment
+
+Unchanged workflow (see `docs/production/ROLLBACK_RUNBOOK.md`): a Vercel build of the branch, promoted by the owner. `/telegram/*` gets its own headers (`next.config.js`): CSP allowing `https://telegram.org` scripts and framing only by `web.telegram.org` / `webk` / `webz`, `Referrer-Policy: no-referrer`, `Cache-Control: private, no-store`. Every other route keeps `frame-ancestors 'none'`.
+
+**Behaviour change:** `furlpay.com/telegram` used to be a 307 to `t.me/FurlpayBot`. It is now the Mini App; the short link moved to `furlpay.com/telegram/bot`. Old shared links now open the browser preview, which links to Telegram once the username is set.
+
+## G. Website integration
+
+`OpenInTelegram` reads the link from `telegramLaunchUrl()` (one place). No link is rendered until the username is configured, so no placeholder URL is ever published. The browser preview never requires Telegram.
+
+## H. Authentication and account linking
+
+- `POST /api/auth/telegram` (public, 10/min/IP): same-origin check; raw `initData` only (never `initDataUnsafe`); Telegram's HMAC-SHA256 (`WebAppData` key) with a timing-safe compare; duplicate/unknown keys rejected; `auth_date` within `TELEGRAM_AUTH_MAX_AGE_SECONDS` (≤30 s clock skew); bots rejected; each launch hash usable once.
+- Linked → existing account checks (locked, deleted) → normal FurlPay session cookie (`amr: ["telegram"]`). A different signed-in account → 409, never silently switched.
+- Not linked → `link_required`. Linking (`POST /api/miniapp/telegram-link`) needs a signed-in FurlPay session **and** a step-up (passkey or email/phone code) verified on that same session within 5 minutes; guests never qualify, and a recent `auth_time` alone does not count. Plain INSERT with unique constraints on both ids, so one Telegram account can never claim a second FurlPay account or vice versa, even concurrently. No matching by username, email or display name.
+- Unlinking (`DELETE /api/miniapp/telegram-link`, *Disconnect Telegram* on the Profile screen) removes only the signed-in account's own link and needs the same step-up. Existing sessions end with the normal FurlPay sign-out.
+- Rate limits: sign-in 10/min/IP and linking 5/10 min/user, both **fail-closed** — if the rate-limit store is down they refuse (503) instead of degrading.
+- `GET /api/miniapp/account` returns an explicit allowlist and `telegram.linked` (true/false, or `null` when link storage is unavailable). It never returns the Telegram id, the FurlPay user id, security settings or card numbers.
+- Money: `capabilities.transfers` is always `false`; the Pay screen only reviews a draft and the native MainButton only opens that review. Cards are listed only when `cardIssuingLive()`.
+
+## E2. Bot setup CLI (`scripts/telegram-bot-setup.mjs`)
+
+Read-only by default, idempotent with `--apply`, refuses any bot other than @FurlpayBot, accepts only `https://furlpay.com` (add `--allow-origin=<origin>` for a test bot on a preview), redacts the token from all output, and **never** calls `setWebhook`/`deleteWebhook`.
+
+```bash
+read -rs TELEGRAM_BOT_TOKEN && export TELEGRAM_BOT_TOKEN   # paste, Enter — not echoed, not in history
+export TELEGRAM_MINI_APP_URL=https://furlpay.com/telegram
+npm run telegram:setup                      # status: bot, menu button, commands, webhook health
+npm run telegram:setup -- menu              # dry run of the menu-button change
+npm run telegram:setup -- menu --apply      # web_app "Open FurlPay" → TELEGRAM_MINI_APP_URL
+npm run telegram:setup -- commands --apply  # publish the 11 commands the webhook handles
+unset TELEGRAM_BOT_TOKEN
+```
+
+## E3. Token rotation
+
+1. BotFather → `/revoke` → @FurlpayBot. The old token stops working immediately.
+2. Vercel → `web` → Settings → Environment Variables → `TELEGRAM_BOT_TOKEN` (Production) → paste the new value there only.
+3. Redeploy production (env changes need a redeploy). Until then, anything that *sends* with the token (market brief, bot replies that call the API) and Mini App sign-in fail; the webhook keeps receiving updates — its secret (`TELEGRAM_WEBHOOK_SECRET`) is separate and unchanged.
+4. Run `npm run telegram:setup` (status) with the new token to confirm `@FurlpayBot` and the webhook.
+
+## E4. Environments (checked 2026-10-09, names only)
+
+| Variable | Production | Preview | Development |
+|---|---|---|---|
+| `TELEGRAM_BOT_TOKEN` | set | **not set** → Mini App sign-in on previews is 503 (fail-closed) | not set |
+| `TELEGRAM_WEBHOOK_SECRET` | set | not set | not set |
+| `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` | **not set** | not set | not set |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | set | set (target not verifiable — values are secret) | set |
+| `KV_REST_API_*` | set | **same store as Production** | — |
+| `FURLPAY_SESSION_SECRET` | set | set (separate entry) | set |
+
+To test real Telegram sign-in on a preview, use a separate **test bot** and add its token to the Preview environment only — never copy the production token into Preview. Confirm Preview's `SUPABASE_URL` is the staging project before linking test accounts.
+
+## I. Troubleshooting
+
+- **Telegram Web (web.telegram.org) asks to sign in again.** Telegram Web runs the Mini App in a cross-site iframe, where browsers do not send the FurlPay session cookie (`SameSite=Lax`). This is deliberate — the cookie is not weakened to `SameSite=None` for the whole site. The app shows a note there; the Telegram mobile and desktop apps (top-level webview) are unaffected.
+
+
+| Symptom | Likely cause |
+|---|---|
+| Mini App opens a blank/blocked frame in Telegram Web | `frame-ancestors` header missing — check `curl -I https://furlpay.com/telegram` |
+| "Telegram sign-in is temporarily unavailable" (503) | `TELEGRAM_BOT_TOKEN` unset, Supabase not configured, or KV not Redis/down |
+| "Invalid or expired Telegram session" (401) | Token belongs to a different bot than the launcher, launch older than the max age, or tampered data |
+| "This launch was already used" | Replay guard: close and reopen the Mini App |
+| Website shows no *Open in Telegram* | `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME` unset or invalid; it is read at build time, so redeploy |
+| Webhook updates rejected | `TELEGRAM_WEBHOOK_SECRET` differs from the `secret_token` given to `setWebhook` |
+
+## J. Release checklist
+
+- [ ] Migration 0050 applied to production (authorized)
+- [ ] Rate-limit store healthy (`npm run smoke:prod` readiness PASS)
+- [ ] BotFather: Main Mini App + menu button → `https://furlpay.com/telegram`
+- [ ] `NEXT_PUBLIC_TELEGRAM_BOT_USERNAME=FurlpayBot` set; redeployed
+- [ ] On a real phone: open @FurlpayBot → menu button → app loads, theme and safe areas correct, Back button works
+- [ ] New user sees *link required*; after FurlPay sign-in, linking succeeds; reopening signs straight in
+- [ ] A second FurlPay account cannot link the same Telegram account (409)
+- [ ] `furlpay.com/telegram/bot` still reaches the bot chat

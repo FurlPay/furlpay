@@ -40,6 +40,8 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Webhook processing failed";
     log.error("ComplyAdvantage webhook handler failed", { error: msg });
-    return NextResponse.json({ error: msg }, { status: 400 });
+    // Signature/configuration/parser details help an attacker tune requests and
+    // must not be reflected from an unauthenticated endpoint.
+    return NextResponse.json({ error: "invalid_webhook" }, { status: 400 });
   }
 }

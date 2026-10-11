@@ -310,3 +310,56 @@ test("getOfacSdnSnapshot and getOfacSdnList return the same data before any fetc
   const list = c.getOfacSdnList();
   assert.strictEqual(snapshot, list);
 });
+
+// ── false-positive regressions (2026-10-08) ───────────────────────────────
+//
+// The matcher used to flag almost every applicant: whole-string Jaro-Winkler
+// rewarded shared prefixes ("Jordan Lee" vs "JORDANIAN MUSLIM BROTHERHOOD"),
+// three-letter phonetic keys collided ("Acme" = "AQIM" = "akm"), and a single
+// shared token matched 100% when the list entry was one word ("Sofia Rossi" vs
+// "SOFIA"). These names are ordinary, invented business and personal names.
+
+test("ordinary business and personal names clear against the full SDN list", () => {
+  for (const name of [
+    "Acme Corporation",
+    "Northwind Analytics Ltd",
+    "Jordan Lee",
+    "Avery Quinn",
+    "Stripe Payments Europe Ltd",
+    "Blue Bottle Coffee",
+    "Emily Chen",
+    "John Smith",
+    "Priya Sharma",
+    "Contoso Pharmaceuticals",
+    "Fabrikam Logistics BV",
+    "Wayne Enterprises",
+    "Tan Wei Ming",
+    "Sofia Rossi",
+  ]) {
+    const r = screen({ name });
+    assert.strictEqual(r.decision, "allow", `${name} should clear; top candidate ${r.candidates[0]?.signals.matchedOn} ${r.candidates[0]?.score}`);
+  }
+});
+
+test("a short phonetic key is not evidence on its own", () => {
+  assert.strictEqual(c.informativePhonetic("Acme"), false);
+  assert.strictEqual(c.informativePhonetic("Mohammed Ali"), true);
+  assert.strictEqual(c.informativePhonetic("Khristoforov"), true);
+});
+
+test("a one-word list entry does not fully match a longer applicant name", () => {
+  const entry = { entryId: "T-1", primaryName: "SOFIA", listSource: "TEST" };
+  const r = c.screenName({ name: "Sofia Rossi" }, [entry], { block: 0.92, review: 0.78 });
+  assert.strictEqual(r.decision, "allow");
+});
+
+test("an applicant adding a middle name still matches the listed person", () => {
+  const entry = { entryId: "T-2", primaryName: "PETROV, Ivan", listSource: "TEST" };
+  const r = c.screenName({ name: "Ivan Sergeyevich Petrov" }, [entry]);
+  assert.notStrictEqual(r.decision, "allow");
+});
+
+test("unrelated words of similar spelling are not fuzzy token matches", () => {
+  assert.strictEqual(c.stringSimilarity("sofia rossi", "social russia"), 0);
+  assert.ok(c.stringSimilarity("abboud zumor", "abboud zomor") > 0.9);
+});

@@ -20,9 +20,17 @@ import {
   type PropertyFamily,
 } from "@/lib/hotels/curated";
 import { haversineMeters, jaroWinkler, normalizeName } from "@/lib/hotels/h3";
+import { parseRadius, withinRadius } from "@/lib/hotels/radius";
+import { inArea, parseArea } from "@/lib/hotels/drawArea";
+import { noteOsmResult, osmCoolingDown } from "@/lib/travel/osmBreaker";
 import { LUXURY_MAP_CATEGORIES, type LuxuryCategoryId } from "@/lib/hotels/luxuryTiers";
 
 export const dynamic = "force-dynamic";
+
+/** How long a map request waits for OpenStreetMap before answering without
+ *  it. Overpass answers a cached or light query well inside this; a slow one
+ *  keeps running and lands in the cache for the next request. */
+const OSM_WAIT_MS = 5_000;
 
 // GET /api/travel/hotels/map — hotels inside a viewport.
 //
@@ -176,6 +184,13 @@ export interface MapResponse {
    * of the two it is.
    */
   osmFilteredOut: boolean;
+  /** True when OSM was asked but answered after the route stopped waiting:
+   *  the layer is still loading into the cache, not missing and not down. */
+  osmDeferred: boolean;
+  /** The circle this answer was narrowed to, when it was a radius search. */
+  radius: { latitude: number; longitude: number; km: number } | null;
+  /** Set when the answer was narrowed to a drawn area. */
+  area: { vertices: number } | null;
   dataset: ReturnType<typeof curatedStats>;
   googleDataset: ReturnType<typeof datasetStats>;
   fetchedAt: string;
@@ -414,8 +429,22 @@ export async function GET(req: NextRequest) {
   const zoomRaw = Number(sp.get("z"));
   const zoom = Number.isFinite(zoomRaw) ? Math.min(20, Math.max(0, zoomRaw)) : 3;
 
+  // --- radius search ----------------------------------------------------------
+  //
+  // `near=lat,lng&radiusKm=N` narrows every source to a circle, server-side.
+  // The client sends the circle's bounding box as `bbox`, so the sources are
+  // asked about the right area; this then keeps only what is truly inside.
+  // Curated properties are listed individually in a radius search (never
+  // clustered): a cluster's count would include members outside the circle.
+  const radius = parseRadius(sp.get("near"), sp.get("radiusKm"));
+  // A drawn area (`area=lng,lat;...`) works the same way, and both may apply.
+  // parseArea rejects anything unbounded, oversized or self-crossing.
+  const area = parseArea(sp.get("area"));
+  const inCircle = <T extends { latitude: number; longitude: number }>(p: T) =>
+    (!radius || withinRadius(p, radius)) && (!area || inArea(p, area));
+
   // --- curated layer: always answers, at any zoom ---------------------------
-  const curated = curatedInBBox(box, filter);
+  const curated = curatedInBBox(box, filter).filter(inCircle);
 
   // --- OSM layer: only where Overpass can be asked ---------------------------
   //
@@ -460,16 +489,59 @@ export async function GET(req: NextRequest) {
   const GOOGLE_QUOTA = 300;
   const googleCoversIt = googleCandidates.length >= GOOGLE_DENSE_ENOUGH;
 
-  const osm =
-    osmWanted && !filtersCurated && !googleCoversIt
-      ? await osmHotelsInBBox(box, filter.minStars ?? 0)
-      : null;
-  // null from a call we made is an upstream failure; null because we never
-  // called is not. Collapsing the two would let a wide zoom read as an outage.
-  // Only an attempted call can fail. Skipping Overpass because Google already
-  // covers the viewport is not an outage and must not be reported as one.
+  // --- bounded wait --------------------------------------------------------
+  //
+  // MEASURED: a Tokyo viewport at zoom 12 answered in 31.3 s, all of it this
+  // await, to return 8 curated hotels that were ready in milliseconds; the
+  // worst case is every endpoint's 20 s budget in turn. So the route waits at
+  // most OSM_WAIT_MS and then answers with what it has. The lookup is NOT
+  // cancelled: it keeps running and fills its 6-hour cache (osmHotels.ts), so
+  // the next request for this area — "Search this area", a small pan — gets
+  // the OSM layer instantly. `osmDeferred` tells the client the layer is
+  // still coming, which is different from "no OSM hotels" and from an outage.
+  //
+  // THE CACHE CANNOT BE RELIED ON TO CARRY IT. On Vercel the function is
+  // frozen once the response is sent, and the cache is KV, which production
+  // refuses to back with memory — so a deferred lookup may never land. The
+  // client therefore follows a deferred answer with ONE `osm=wait` request for
+  // the same view, which waits for the lookup like the route always used to.
+  // First paint stays fast; the OSM layer arrives when Overpass answers.
+  const osmWaitFull = sp.get("osm") === "wait";
   const osmAttempted = osmWanted && !filtersCurated && !googleCoversIt;
-  const osmUnavailable = osmAttempted && osm === null;
+  let osm: Awaited<ReturnType<typeof osmHotelsInBBox>> = null;
+  let osmDeferred = false;
+  // Breaker open: Overpass failed moments ago. Do not ask, do not wait; the
+  // answer is "OSM layer unavailable" (osm stays null, not deferred).
+  if (osmAttempted && osmCoolingDown()) {
+    osm = null;
+  } else if (osmAttempted && osmWaitFull) {
+    osm = await osmHotelsInBBox(box, filter.minStars ?? 0);
+    noteOsmResult(osm);
+  } else if (osmAttempted) {
+    const lookup = osmHotelsInBBox(box, filter.minStars ?? 0);
+    const LATE = Symbol("late");
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const raced = await Promise.race([
+      lookup,
+      new Promise<typeof LATE>((resolve) => {
+        timer = setTimeout(() => resolve(LATE), OSM_WAIT_MS);
+      }),
+    ]);
+    clearTimeout(timer);
+    if (raced === LATE) {
+      osmDeferred = true;
+      // Finishes in the background where the platform allows; its outcome
+      // still feeds the breaker on this instance.
+      lookup.then(noteOsmResult, () => noteOsmResult(null));
+    } else {
+      osm = raced;
+      noteOsmResult(osm);
+    }
+  }
+  // null from a call we made is an upstream failure; null because we never
+  // called — or stopped waiting — is not. Collapsing them would let a slow
+  // upstream or a wide zoom read as an outage.
+  const osmUnavailable = osmAttempted && !osmDeferred && osm === null;
 
   const { points: osmPoints, corroborated } = dedupe(curated, osm);
 
@@ -509,7 +581,7 @@ export async function GET(req: NextRequest) {
   }
 
   // --- assemble --------------------------------------------------------------
-  const { clusters, singles } = clusterPoints(curated, zoom);
+  const { clusters, singles } = clusterPoints(curated, radius || area ? Math.max(zoom, CLUSTER_MAX_ZOOM) : zoom);
 
   const curatedPoints = singles.map((p) => curatedToPoint(p, corroborated.has(p.id)));
 
@@ -521,7 +593,7 @@ export async function GET(req: NextRequest) {
   // lib/places/liveAugment.ts. It appears in these two maps only because the
   // union demands exhaustiveness.
   const RANK: Record<MapPointSource, number> = { curated: 0, google: 1, osm: 2, registry: 3, "google-live": 4 };
-  const all = [...curatedPoints, ...googlePoints, ...osmPoints].sort((a, b) => {
+  const all = [...curatedPoints, ...googlePoints, ...osmPoints].filter(inCircle).sort((a, b) => {
     if (a.source !== b.source) return RANK[a.source] - RANK[b.source];
     // Within a source, the most significant first, so a cap keeps the
     // properties a reader is most likely to be looking for.
@@ -577,7 +649,10 @@ export async function GET(req: NextRequest) {
     truncated: all.length - points.length,
     osmZoomIn,
     osmUnavailable,
+    osmDeferred,
     osmFilteredOut: osmWanted && filtersCurated,
+    radius: radius ? { latitude: radius.center.latitude, longitude: radius.center.longitude, km: radius.km } : null,
+    area: area ? { vertices: area.length } : null,
     dataset: curatedStats(),
     // Freshness of the Google layer, so the UI can say why coverage thinned if
     // the dataset ages out rather than silently drawing fewer pins.

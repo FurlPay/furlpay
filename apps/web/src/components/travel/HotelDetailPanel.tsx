@@ -3,6 +3,49 @@
 import { useEffect, useRef, useState } from "react";
 import type { HotelDetailResponse } from "@/app/api/travel/hotels/detail/route";
 import SaveButton, { useSavedIds } from "./map/SaveButton";
+import HotelNearby from "./map/HotelNearby";
+import type { NearbyPoi } from "./map/useTravelOverlays";
+
+const noopPois = () => {};
+import { formatMoney, isShowablePrice, nightsOf, type MapRate, type StayContext } from "@/lib/hotels/mapPrices";
+
+/** The rate block above the booking button: the live price for the reader's
+ *  stay, or an honest line about why there is none. */
+function DetailRate({ rate, stay }: { rate?: MapRate; stay: StayContext | null }) {
+  if (!stay) {
+    return <p className="mb-3 text-[12.5px] text-[#A4AAA9]">Add your dates in the toolbar to see live nightly rates on the map.</p>;
+  }
+  const nights = nightsOf(stay);
+  if (rate && isShowablePrice(rate, Date.now())) {
+    return (
+      <div className="mb-3 flex items-end justify-between">
+        <div>
+          <p className="text-[22px] font-bold leading-none text-[#F5F7F6]">
+            {formatMoney(rate.perNightAmount, rate.currency)}
+            <span className="ml-1 text-[12px] font-medium text-[#A4AAA9]">/night</span>
+          </p>
+          {rate.totalAmount !== undefined && (
+            <p className="mt-1 text-[12px] text-[#A4AAA9]">
+              {formatMoney(rate.totalAmount, rate.currency)} total · {nights} {nights === 1 ? "night" : "nights"} · {stay.adults} {stay.adults === 1 ? "adult" : "adults"}
+            </p>
+          )}
+        </div>
+        <span className="rounded-full bg-[rgba(0,230,167,0.10)] px-2 py-0.5 text-[10.5px] font-semibold text-[#00E6A7]">Live rate</span>
+      </div>
+    );
+  }
+  const text =
+    !rate || rate.state === "not_checked"
+      ? "Not priced yet — rates are checked for the hotels nearest the map centre."
+      : rate.state === "loading"
+        ? "Checking the live rate…"
+        : rate.state === "sandbox"
+          ? "Only a test-mode rate exists for this hotel — it is not bookable."
+          : rate.state === "unavailable"
+            ? "Our booking supplier has no rate for this hotel on your dates."
+            : "The live rate couldn't be checked right now.";
+  return <p className="mb-3 text-[12.5px] text-[#A4AAA9]">{text}</p>;
+}
 
 // ---------------------------------------------------------------------------
 // Hotel detail panel.
@@ -40,6 +83,8 @@ export interface DetailTarget {
    * property whose ID was in the dataset the whole time.
    */
   placeId?: string;
+  /** Where the map point came from, so the empty state names the right source. */
+  source?: string;
 }
 
 type State =
@@ -52,9 +97,18 @@ type State =
 export default function HotelDetailPanel({
   target,
   onClose,
+  stay = null,
+  rate,
+  onNearbyPois,
 }: {
   target: DetailTarget | null;
   onClose: () => void;
+  /** The reader's stay, carried into the booking link. */
+  stay?: StayContext | null;
+  /** The live rate the map holds for this hotel and stay, if any. */
+  rate?: MapRate;
+  /** Draw (or clear, with []) the hotel's nearby places on the map. */
+  onNearbyPois?: (pois: NearbyPoi[]) => void;
 }) {
   const [state, setState] = useState<State>({ kind: "idle" });
   const [photoIndex, setPhotoIndex] = useState(0);
@@ -89,7 +143,7 @@ export default function HotelDetailPanel({
       try {
         const res = await fetch(`/api/travel/hotels/detail?${params}`, { signal: ac.signal });
         if (res.status === 503) {
-          setState({ kind: "error", message: "Hotel detail is not configured" });
+          setState({ kind: "error", message: "Photos and reviews aren't available on this deployment." });
           return;
         }
         if (!res.ok) throw new Error(`detail ${res.status}`);
@@ -128,8 +182,10 @@ export default function HotelDetailPanel({
     <aside
       role="dialog"
       aria-label={`Details for ${target.name}`}
-      className="absolute right-0 top-0 z-30 flex h-full w-full max-w-[380px] flex-col border-l border-white/10 bg-[#0f1016] shadow-2xl sm:w-[380px]"
-      style={{ animation: "hmSlide 180ms ease-out" }}
+      // Desktop: a column DOCKED beside the map (in flow, not over it) — the
+      // Places content must stay off the map surface. Phones: a bottom sheet.
+      className="fixed inset-x-0 bottom-0 z-50 flex max-h-[82dvh] w-full flex-col rounded-t-[22px] border-t border-white/[0.10] bg-[#090D0E] shadow-[0_-20px_60px_rgba(0,0,0,0.5)] lg:static lg:z-auto lg:max-h-none lg:w-[400px] lg:shrink-0 lg:rounded-none lg:border-l lg:border-t-0 lg:shadow-none"
+      style={{ animation: "hmSlide 200ms ease-out" }}
     >
       <header className="flex items-start gap-2 border-b border-white/10 p-4">
         <div className="min-w-0 flex-1">
@@ -178,8 +234,9 @@ export default function HotelDetailPanel({
 
         {state.kind === "empty" && (
           <p className="p-4 text-[13px] leading-relaxed text-white/60">
-            No matching place found. The hotel is on the map because OpenStreetMap has it;
-            Google simply has no listing under this name here.
+            {target.source === "osm"
+              ? "No matching place found. The hotel is on the map because OpenStreetMap has it; Google simply has no listing under this name here."
+              : "Google returned no listing for this hotel here, so there are no photos or reviews to show. Rates are still available through the button below."}
           </p>
         )}
 
@@ -306,7 +363,34 @@ export default function HotelDetailPanel({
             </div>
           </>
         )}
+
+        {/* Airports and nearby places come from our own data and OpenStreetMap,
+            not Google, so they show whether or not Places answered. */}
+        <HotelNearby
+          hotelId={target.id}
+          latitude={target.latitude}
+          longitude={target.longitude}
+          onPois={onNearbyPois ?? noopPois}
+        />
       </div>
+
+      {/* The one primary action: the live stays search for the hotel's city,
+          carrying the reader's dates — the existing booking path. */}
+      {target.city && (
+        <div className="border-t border-white/[0.08] p-4">
+          <DetailRate rate={rate} stay={stay} />
+          <a
+            href={`/travel/stays?${new URLSearchParams({ city: target.city, ...(stay ? { checkIn: stay.checkIn, checkOut: stay.checkOut, adults: String(stay.adults) } : {}) })}`}
+            className="flex h-[46px] w-full items-center justify-center gap-2 rounded-[11px] bg-[#00E6A7] text-[14px] font-bold text-[#030505] transition hover:bg-[#00F0B0] active:scale-[0.985] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            Check rates &amp; book in {target.city}
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M5 12h14M13 6l6 6-6 6" />
+            </svg>
+          </a>
+          <p className="mt-2 text-center text-[11px] text-white/45">Live rates come from our booking supplier at search time.</p>
+        </div>
+      )}
 
       {/* Required whenever Places content is displayed off a Google map. */}
       {place && (

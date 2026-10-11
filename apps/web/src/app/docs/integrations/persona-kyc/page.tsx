@@ -34,10 +34,10 @@ export default function PersonaKycPage() {
 
       <H2 id="deployment">Deployment requirements</H2>
       <UL>
-        <LI>Configure the Persona account and server-side credentials through the deployment's approved secret-management process.</LI>
+        <LI>Configure the Persona account and server-side credentials through the deployment&apos;s approved secret-management process.</LI>
         <LI>Register the exact production webhook URL with Persona and use the matching webhook secret.</LI>
         <LI>Exercise inquiry binding, duplicate delivery, failure and out-of-order events in a non-production environment first.</LI>
-        <LI>Do not treat a webhook acknowledgement as proof that a user passed verification; inspect the account's recorded status.</LI>
+        <LI>Do not treat a webhook acknowledgement as proof that a user passed verification; inspect the account&apos;s recorded status.</LI>
       </UL>
 
       <H2 id="user-guidance">User-facing guidance</H2>

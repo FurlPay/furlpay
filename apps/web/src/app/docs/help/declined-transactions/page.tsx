@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DocTitle, Lead, H2, P, Callout, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
@@ -23,7 +24,7 @@ export default function DeclinesHelp() {
         Check the payment&apos;s current status and the selected rail. A payment intent or prepared
         signing request is not a settled payment. If the status is unavailable, pending beyond the
         period shown by the rail, or inconsistent with the transaction on-chain, contact{" "}
-        <a href="/support" className="text-neon hover:underline">FurlPay Support</a> with the
+        <Link href="/support" className="text-neon hover:underline">FurlPay Support</Link> with the
         payment ID and public transaction hash, if one exists.
       </P>
 

@@ -240,3 +240,70 @@ describe("POST /api/auth/otp/check — account lifecycle + session", () => {
     expect((await res.json()).token).toBeUndefined();
   });
 });
+
+// A capitalised address must verify. /otp/start used to store the code under
+// the address exactly as typed while /otp/check looked it up canonicalised, so
+// "John@Example.com" (what phone keyboards produce) always got "No pending code".
+// Found by the e2e suite, whose fixture email is "e2e-userA-…".
+describe("OTP routes — one canonical destination for start and check", () => {
+  const req = (path: string, body: unknown, ip = `10.9.0.${Math.floor(Math.random() * 250)}`) =>
+    new NextRequest(`https://furlpay.com/api/auth/otp/${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": ip },
+      body: JSON.stringify(body),
+    });
+
+  it("a mixed-case email verifies through the routes (Resend path)", async () => {
+    const typed = `Mixed.Case-${Date.now()}@Example.COM`;
+    expect((await otpStartPOST(req("start", { to: typed, channel: "email" }))).status).toBe(200);
+    const code = extractCode(lastEmail!);
+    const res = await otpCheckPOST(req("check", { to: typed, code, channel: "email", login: true }));
+    expect(res.status).toBe(200);
+    expect((await res.json()).verified).toBe(true);
+  });
+
+  it("the code is delivered to the canonical mailbox", async () => {
+    const typed = `Deliver-${Date.now()}@Example.COM`;
+    await otpStartPOST(req("start", { to: typed, channel: "email" }));
+    expect(lastEmail!.to).toBe(typed.toLowerCase());
+  });
+
+  it("capitalisations of one mailbox share one rate-limit budget", async () => {
+    // The per-destination limit is 5 per 10 minutes, keyed on IP + destination.
+    // Before the fix each capitalisation was a separate destination.
+    const base = `budget-${Date.now()}@example.com`;
+    const ip = "10.9.9.9";
+    const variants = [base, base.toUpperCase(), `B${base.slice(1)}`, base, base.toUpperCase(), base];
+    const statuses: number[] = [];
+    for (const v of variants) statuses.push((await otpStartPOST(req("start", { to: v, channel: "email" }, ip))).status);
+    expect(statuses).toContain(429);
+  });
+});
+
+// The case the e2e suite actually hit: the MOCK store (no RESEND_API_KEY, the
+// dev / e2e configuration) keyed pending codes on the raw address, so a
+// capitalised email could never verify there. The Resend path normalises in
+// its own key and was not affected.
+describe("OTP routes — mock store (dev / e2e) with a capitalised email", () => {
+  it("start returns a devCode and check verifies it for the same typed address", async () => {
+    delete process.env.RESEND_API_KEY;
+    const typed = `e2e-userA-${Date.now()}@example.test`;
+    const start = await otpStartPOST(
+      new NextRequest("https://furlpay.com/api/auth/otp/start", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.8.0.1" },
+        body: JSON.stringify({ to: typed, channel: "email" }),
+      }),
+    );
+    const { devCode } = (await start.json()) as { devCode?: string };
+    expect(devCode).toMatch(/^\d{6}$/);
+    const check = await otpCheckPOST(
+      new NextRequest("https://furlpay.com/api/auth/otp/check", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-forwarded-for": "10.8.0.1" },
+        body: JSON.stringify({ to: typed, code: devCode, channel: "email", login: true }),
+      }),
+    );
+    expect(check.status).toBe(200);
+  });
+});

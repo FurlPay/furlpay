@@ -1,6 +1,6 @@
 {
   "schema": "furlpay-findings/1",
-  "generated": "2026-10-03",
+  "generated": "2026-10-03 (round 3: adversarial double-settlement / race audit)",
   "scope": "EVM settlement path (x402 settler and its callers), ops emergency controls, browser extension message boundary, Elements/Liquid exposure",
   "sources_searched": {
     "Savant": "no report found in the repository",
@@ -107,34 +107,47 @@
       "confidence": "high",
       "validation": "confirmed",
       "classification": "Operational / reconciliation gap",
-      "remediation": "Sorted-set indexes maintained in recordSettlement; reconcileNetwork() pass; recovery blocked while any are unresolved.",
+      "remediation": "Sorted-set indexes maintained in recordSettlement; reconcileNetwork() pass; recovery blocked while any are unresolved. Round 2: scheduled sweep (lib/settlementSweep.ts, GET /api/cron/settlement-safety, requireCron + runJob lock/budget/record), daily Vercel cron as backstop, external scheduler supported via FURLPAY_CRON_SECRET.",
       "owner": "engineering",
-      "status": "fixed (pending deploy); reconciler not yet scheduled",
-      "regression_test": "settlementSafety.spec.ts: reconciliation block (4 tests)",
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementSafety.spec.ts reconciliation block; settlementHardening.spec.ts 'scheduled sweep' block",
       "fix_commit": "this change set",
       "retest": "pass",
-      "residual_risk": "Reconciler runs only on recovery actions until wired to a cron (founder/ops decision). Records written before the index existed are not indexed."
+      "residual_risk": "Vercel cron is daily: a backstop, not a monitor. Sub-hourly cadence needs an external scheduler (founder/ops decision). Records written before the index existed are not indexed.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Scheduled sweep added."
+        }
+      ]
     },
     {
       "id": "FP-SET-06",
       "title": "Single-RPC deployments cannot detect provider disagreement",
-      "severity": "PN",
+      "severity": "P3",
       "original_severity": null,
       "source": "manual review",
       "component": "Deployment configuration (<NET>_RPC_URL_FALLBACK)",
       "description": "With one provider, a consistently lying or forked RPC is undetectable. Whether production has a fallback configured could not be verified from the repository.",
       "preconditions": "Only one RPC configured for a settlement network.",
-      "evidence": "Production env not inspected.",
-      "confidence": "low",
-      "validation": "awaiting validation: list production env var names (not values) for *_RPC_URL_FALLBACK",
+      "evidence": "vercel env ls production (names only), 2026-10-03",
+      "confidence": "high",
+      "validation": "confirmed: production defines no ARBITRUM_RPC_URL or fallback, so the settler would use viem's single public endpoint",
       "classification": "CWE-1188 (insecure default) if confirmed",
-      "remediation": "Configure an independent second provider per settlement network. The probe reports `rpc_unverified` until then.",
-      "owner": "founder/ops",
-      "status": "awaiting validation",
+      "remediation": "Configure an independent second provider per settlement network. The probe reports `rpc_unverified` until then. Round 2: evaluateRpcIndependence() reports two configured URLs on one domain as rpc_not_independent.",
+      "owner": "founder/ops: configure ARBITRUM_RPC_URL and ARBITRUM_RPC_URL_FALLBACK from two different providers before enabling settlement",
+      "status": "open: configuration",
       "regression_test": "settlementSafety.spec.ts: 'a single provider is reported as unverified'",
       "fix_commit": null,
       "retest": null,
-      "residual_risk": "As described."
+      "residual_risk": "As described.",
+      "production_exposure": "none today (settlement off in production); applies the moment ONCHAIN_SETTLEMENT_LIVE is enabled",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "PN -> P3: validated against production env names."
+        }
+      ]
     },
     {
       "id": "FP-SET-07",
@@ -146,13 +159,20 @@
       "description": "The allowlist pins token addresses but not their implementation. FP-SET-04's receipt check covers misbehaviour after an upgrade; watching the FiatToken proxy Upgraded event would give earlier warning.",
       "confidence": "medium",
       "validation": "hardening recommendation",
-      "remediation": "Watch the proxy implementation slot / Upgraded events; halt on change pending review.",
+      "remediation": "lib/settlementTokenMonitor.ts pins implementation, proxy admin and owner per token; checks paused. Implementation/admin change -> critical halt; owner change -> high halt; paused or unreadable -> degrade. Run by the scheduled sweep and by every recovery check. A test fails if an allowlisted mainnet asset has no pin.",
       "owner": "engineering",
-      "status": "open",
-      "regression_test": null,
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementHardening.spec.ts 'FP-SET-07' block",
       "fix_commit": null,
       "retest": null,
-      "residual_risk": "Covered after the fact by FP-SET-04."
+      "residual_risk": "Detection latency = sweep cadence (daily unless an external scheduler is configured). A legitimate issuer upgrade halts the network until a reviewed commit updates the pin. FiatToken role holders below owner (pauser, blacklister, masterMinter) are not pinned.",
+      "evidence": "On-chain read 2026-10-03: all four pinned tokens (USDC arbitrum/base/polygon, XSGD arbitrum) use ZeppelinOS AdminUpgradeabilityProxy slots; EIP-1967 slots are empty. owner()/paused() readable on all four.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Implemented."
+        }
+      ]
     },
     {
       "id": "FP-SET-08",
@@ -161,35 +181,57 @@
       "original_severity": null,
       "source": "manual review",
       "component": "apps/web/src/app/api/transfers/gasless/route.ts",
-      "description": "On SettlementPendingError the gasless route writes a tx event (recordTxEvent) but not a SettlementRecord, so the reconciler and the recovery gate do not see its unresolved transactions.",
+      "description": "On SettlementPendingError the gasless route writes a tx event (recordTxEvent) but not a SettlementRecord, so the reconciler and the recovery gate do not see its unresolved transactions. Round 2 evidence: the route's 202 response pointed clients at /api/x402/settlement/[tx], which returns 404 settlement_not_found for any tx not in the store, so a pending gasless transfer could never be polled.",
       "confidence": "high",
       "validation": "confirmed by code inspection",
       "classification": "Reconciliation gap",
-      "remediation": "Also call recordSettlement with status pending in that branch.",
+      "remediation": "Gasless records confirmed and pending outcomes in the settlement store (indexed); a breaker refusal returns 503 settlement_halted instead of 502 + rail DEGRADED.",
       "owner": "engineering",
-      "status": "open",
-      "regression_test": null,
-      "fix_commit": null,
-      "retest": null,
-      "residual_risk": "A disputed gasless tx would not block recovery."
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementPaths.spec.ts 'FP-SET-08' block (route-level, real store)",
+      "fix_commit": "round-2 commit",
+      "retest": "pass; mutation (pending record removed) fails the test",
+      "residual_risk": "A disputed gasless tx would not block recovery.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Fixed."
+        }
+      ]
     },
     {
       "id": "FP-SET-09",
-      "title": "Single admin identity makes dual-approval recovery impossible",
-      "severity": "P4",
-      "original_severity": null,
+      "title": "No production admin, and a single admin identity cannot satisfy dual approval",
+      "severity": "P2",
+      "original_severity": "P4 (round 1)",
       "source": "manual review",
       "component": "lib/authz.ts (FURLPAY_ADMIN_EMAIL), lib/settlementSafety.ts",
-      "description": "Critical incidents require two distinct approvers; only one account can hold the admin role. Critical halts therefore cannot be resumed. This fails closed; it is an operational constraint, not a vulnerability.",
+      "description": "Round 1: critical recovery needs two distinct approvers and only one account can hold the admin role. Round 2: production defines no FURLPAY_ADMIN_EMAIL at all, so NO account holds the admin role. Manual halt, ops pause/resume and breaker recovery are all unreachable in production. Automatic halts (when enforced) and the env kill switch still work.",
       "confidence": "high",
       "validation": "confirmed",
-      "remediation": "Founder decision: add a second admin identity, or explicitly accept single-operator recovery (not implemented).",
-      "owner": "founder",
-      "status": "open: decision required",
-      "regression_test": "settlementSafety.spec.ts: '15. a critical incident needs two distinct approvers'",
+      "remediation": "Second distinct approver: SETTLEMENT_RECOVERY_APPROVER_EMAILS (max 5, canonicalised; malformed dropped; over the cap = none). Listed accounts may ONLY read breaker state and POST approve; they cannot halt, mitigate or reach any other admin route. Non-guest session, an atomic step-up claim per approval, and distinctness from the mitigator and other approvers still apply. The existing compliance_officer grant could not serve, because issuing it needs two admins. Unset = no extra approvers, so critical recovery stays fail-closed. Round 5: each approval emits ops.settlement_safety_approval (actor, scope, incident, count, required; no evidence text).",
+      "owner": "founder: set FURLPAY_ADMIN_EMAIL and SETTLEMENT_RECOVERY_APPROVER_EMAILS (a different person) in production",
+      "status": "mechanism fixed (pending deploy); production configuration required",
+      "regression_test": "settlementApprovers.spec.ts (12 tests: full admin+approver recovery; approver read-only + approve-only; unlisted/guest refused; step-up required; unset list fail-closed; step-up replay refused; concurrent approvals cannot resume early; case-variant duplicates = one approver; per-approval audit with actor, without evidence text)",
       "fix_commit": null,
-      "retest": null,
-      "residual_risk": "Operational lock-out after a critical incident."
+      "retest": "8/8 pass; mutation (approve-only guard removed) fails the halt/mitigate test",
+      "residual_risk": "Operational lock-out after a critical incident.",
+      "rationale_for_severity": "Raised from P4: the containment controls an operator would use in an incident are unavailable in production, not merely awkward. Not P1: settlement itself is off in production today.",
+      "production_exposure": "yes (controls unavailable); settlement not live",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "P4 -> P2 after production env check."
+        },
+        {
+          "date": "2026-10-03",
+          "note": "Round 4: approver mechanism implemented; configuration still absent in production."
+        },
+        {
+          "date": "2026-10-03",
+          "note": "Round 5: replay/concurrency/audit coverage added; per-approval audit event added."
+        }
+      ]
     },
     {
       "id": "FP-SET-10",
@@ -202,13 +244,19 @@
       "confidence": "high",
       "validation": "confirmed",
       "classification": "CWE-308 (single-factor for a critical function)",
-      "remediation": "Require recentStepUp on resume; consider routing resume through the breaker's approval workflow.",
+      "remediation": "Resume (paused=false) on /api/ops/controls requires a fresh step-up claimed atomically (claimStepUp). Pausing does not require step-up, by design.",
       "owner": "engineering",
-      "status": "open",
-      "regression_test": null,
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementHardening.spec.ts 'FP-SET-10' block",
       "fix_commit": null,
-      "retest": null,
-      "residual_risk": "A hijacked admin session can resume a paused rail (but cannot clear a breaker halt)."
+      "retest": "pass",
+      "residual_risk": "Resume is still single-operator (no second approver), unlike breaker recovery.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Fixed."
+        }
+      ]
     },
     {
       "id": "FP-EXT-01",
@@ -247,6 +295,390 @@
       "fix_commit": null,
       "retest": null,
       "residual_risk": "Counterparty exposure, if any, is outside FurlPay's control."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-SET-11",
+      "title": "Compliance-guard wrapper/escrow writes bypassed every settlement control",
+      "severity": "P2",
+      "source": "manual review",
+      "component": "apps/web/src/lib/complianceGuard.ts via /api/x402/policy/settle and /api/compliance/escrow/[action]",
+      "money_path": "PolicyWrapper settleWithPolicy / settleTranche; ComplianceEscrow release / refund (Arbitrum)",
+      "description": "A second settlement path beside createEvmSettler: payer-signed EIP-3009 authorizations submitted through the PolicyWrapper, and escrow release/refund, signed with FURLPAY_RELAYER_PRIVATE_KEY from process env. No circuit breaker, no ops pause, no chain-identity check, no ONCHAIN_SETTLEMENT_LIVE flag, and a raw key allowed in production.",
+      "preconditions": "Operator credential (requireOperator) and the wrapper/escrow addresses plus relayer key configured.",
+      "evidence": "grep of writeContract call sites; complianceGuard.walletFor",
+      "confidence": "high",
+      "validation": "confirmed by code inspection",
+      "classification": "CWE-693; CWE-321-adjacent (raw key in app env)",
+      "rationale_for_severity": "Bypass of the settlement containment controls and of the KMS-only custody rule; needs an operator credential and configuration that production does not have today.",
+      "production_exposure": "none today (no relayer key or wrapper address in production env)",
+      "remediation": "Money-moving writes call assertMoneyWriteAllowed(): ONCHAIN_SETTLEMENT_LIVE outside development, then beforeBroadcast('arbitrum'). walletFor refuses raw keys in production. Routes map a halt to 503 settlement_halted.",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementPaths.spec.ts 'FP-SET-11' block",
+      "fix_commit": "round-2 commit",
+      "retest": "pass; mutation (gate removed) fails the test",
+      "residual_risk": "Wrapper receipts are not event-verified the way afterReceipt verifies direct EIP-3009 (different event surface). recordSoF attestations (no funds) are not breaker-gated. In production the feature is unavailable until a KMS signer exists."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-SET-12",
+      "title": "Step-up check-then-consume allowed one re-authentication to authorize concurrent actions",
+      "severity": "P3",
+      "source": "manual review",
+      "component": "apps/web/src/lib/stepup.ts (recentStepUp + consumeStepUp); /api/ops/settlement-safety; /api/ops/controls",
+      "description": "recentStepUp() then consumeStepUp() is check-then-delete. Concurrent requests on one session could each pass on a single step-up, e.g. two approvals or two resumes.",
+      "confidence": "high",
+      "validation": "confirmed (concurrency test fails without the fix)",
+      "classification": "CWE-367",
+      "remediation": "claimStepUp(): SET NX keyed to the step-up's timestamp, then delete. Used by breaker mitigate/approve and controls resume.",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "regression_test": "settlementHardening.spec.ts 'step-up claims are single-use under concurrency'",
+      "fix_commit": "round-2 commit",
+      "retest": "pass; mutation (NX removed) fails the test",
+      "residual_risk": "Other routes still use recentStepUp/consumeStepUp (account deletion, offramp, beneficiary); review separately."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-SET-13",
+      "title": "User-signed transaction relays are outside the breaker (by design)",
+      "severity": "P4",
+      "source": "manual review",
+      "component": "/api/chain/rpc (eth_sendRawTransaction relay), /api/mpc/sign (returns signatures, no broadcast), lib/chains/evmAdapter.broadcastTransaction (no callers)",
+      "description": "These move the user's own funds under the user's own key. The breaker governs what FurlPay signs and pays gas for; it does not and should not gate a user's wallet. Recorded so the boundary is explicit.",
+      "confidence": "high",
+      "validation": "confirmed",
+      "remediation": "None. Remove evmAdapter.broadcastTransaction if it stays unused.",
+      "owner": "engineering",
+      "status": "accepted (by design)",
+      "regression_test": null,
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "During a chain incident FurlPay still relays user-signed transactions."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-SET-14",
+      "title": "x402 paywall mock path returns a generated tx hash with ok:true",
+      "severity": "P4",
+      "source": "manual review",
+      "component": "apps/web/src/lib/x402.ts (after the live branch)",
+      "description": "When x402LiveMode() is false the paywall returns a random txHash as a successful settlement. x402LiveMode = signatureEnforced(), which lib/x402Enforcement.ts forces on in production (X402_ENFORCE_SIGNATURE cannot disable it there), so the path is unreachable in production.",
+      "confidence": "high",
+      "validation": "confirmed by code inspection; covered by x402Enforcement.spec",
+      "remediation": "None required. Keep x402Enforcement.spec as the guard.",
+      "owner": "engineering",
+      "status": "accepted",
+      "regression_test": "x402Enforcement.spec.ts",
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "A staging deployment without enforcement returns simulated successes, by design."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 2."
+        }
+      ],
+      "id": "FP-REV-01",
+      "title": "Review notes on uncommitted /api/payouts/batch (another session's work)",
+      "severity": "PN",
+      "source": "manual review",
+      "component": "apps/web/src/app/api/payouts/batch/route.ts (untracked, not part of any commit)",
+      "description": "Authenticated (requireUser) and rate-limited; creates pending_signature payment intents only, so no broadcast or settlement bypass. Notes for its owner, unvalidated: (1) response field estimatedGasSavingsVsSwiftUsd assumes $25 per SWIFT payment, an invented figure in an API response; (2) intents are created with Promise.all, so one failing line leaves earlier lines created (non-atomic batch); (3) body read with req.json() + safeParse bypasses validateBody's 100KB cap; (4) audit log records recipient addresses; (5) no KYC tier/feature check, unlike other money routes; (6) route is unclassified in security/route-manifest.json (fails routeManifest.spec). Correct classification: USER.",
+      "confidence": "medium",
+      "validation": "awaiting owner review",
+      "remediation": "Owner to address before committing.",
+      "owner": "the session that authored payouts/batch",
+      "status": "awaiting validation",
+      "regression_test": null,
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "Not deployed; untracked."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        }
+      ],
+      "id": "FP-SET-15",
+      "title": "Travel payment proof not bound to the booking: one payment could confirm a later booking",
+      "severity": "P2",
+      "source": "manual review (round 3)",
+      "component": "apps/web/src/lib/travel/settlementProof.ts verifyUsdcPayment; apps/web/src/app/api/travel/settle/route.ts",
+      "money_path": "on-chain USDC payment proof -> booking confirmed",
+      "description": "verifyUsdcPayment bound a proof to payer, recipient and minimum amount, never to time. The only replay guard was a KV claim (travel:settle:proof:<network>:<tx>) with a 30-day TTL. After the claim expired, or if the key was evicted, the same old payment verified again and confirmed a second booking of equal or lower price.",
+      "preconditions": "A user with one past payment to PAY_TO; booking creation live; claim expired or evicted.",
+      "exploit": "Pay once for booking A; settle A. After 30 days (or Redis key loss), create booking B priced <= A; POST /api/travel/settle with A's txHash -> confirmed without payment.",
+      "invariant": "One on-chain payment funds at most one booking.",
+      "production_exposure": "none today: /api/travel/book returns 503 in production (demoOnlyUnavailable) and trips are an in-memory per-instance Map",
+      "rationale_for_severity": "A real payment-replay design flaw (P1-shaped once bookings are live), currently unreachable in production.",
+      "remediation": "verifyUsdcPayment takes notBefore; the tx's block timestamp must be >= booking createdAt - 120s. An unreadable block -> rpc_unavailable (retryable); a NaN bound -> refused.",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "confidence": "high",
+      "validation": "confirmed by code inspection; regression tests",
+      "regression_test": "travelSettlementProof.spec.ts 'binding to the booking's creation time' (4 tests)",
+      "fix_commit": "round-3 commit",
+      "retest": "67/67 travel proof + route specs pass",
+      "residual_risk": "Two bookings created before one payment, with prices <= the payment, remain distinguishable only by the KV claim (still SET NX, 30-day TTL)."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        }
+      ],
+      "id": "FP-SET-16",
+      "title": "Legacy /api/payments: concurrent execute double-posts to the ledger; concurrent refund double-reverses",
+      "severity": "P3",
+      "source": "manual review (round 3)",
+      "component": "apps/web/src/lib/services/payments.ts executePayment / approvePayment / settle / refundPayment",
+      "money_path": "payment intent -> ledger posting (recordPaymentWithFee) -> settled; settled -> reverseLedgerTx -> refunded",
+      "description": "settle() awaited recordPaymentWithFee BEFORE setting status = 'settled'. Two requests on one payment both passed the pending_signature check and both posted. executePayment also wrote record.payer/payerUserId before settling, so the second caller overwrote who paid. refundPayment had the same shape; there the durable ledger's partial unique index on ledger_transactions.reverses refuses the second reversal, but the in-memory mirror did not.",
+      "preconditions": "Non-production (settle and refund return 503 in production); two concurrent requests on one payment id on one instance.",
+      "invariant": "A payment posts to the ledger at most once; a refund reverses at most once.",
+      "production_exposure": "none: mockAllowed()/NODE_ENV gates return 503 in production before any posting",
+      "rationale_for_severity": "Real double-posting race, demonstrated by test, but unreachable in production. It would be P1 if this mock path were wired to a live rail unchanged.",
+      "remediation": "In-flight claim (per-process Set) taken synchronously before any field is written or any await; released in finally. Same for approve and refund. A cross-instance rail must use a durable compare-and-set (as /api/v1/payments does).",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "confidence": "high",
+      "validation": "reproduced: both race tests fail on the original code (second request reaches the ledger) and pass with the fix",
+      "regression_test": "paymentsConcurrency.spec.ts (4 tests)",
+      "fix_commit": "round-3 commit",
+      "retest": "pass",
+      "residual_risk": "Per-process only, by design; this store is not durable and not used in production."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        },
+        {
+          "date": "2026-10-03",
+          "note": "Round 5: corrected exposure. Earlier text said published 0.3.0 had the bug; npm has only 0.2.0, without this module."
+        }
+      ],
+      "id": "FP-SET-17",
+      "title": "x402-guard releaseProvenUnsettled() reported success when its release script refused",
+      "severity": "P3",
+      "source": "manual review (round 3)",
+      "component": "packages/x402-guard/src/redis.ts RedisMandateSpendStore.releaseProvenUnsettled (published @furlpay/x402-guard 0.3.0)",
+      "money_path": "agent mandate budget reservation -> release on proven non-settlement",
+      "description": "HMGET (read reservation) and EVAL (release) are separate round trips. The Lua scripts are atomic and correctly refuse once the nonce is 'settled' (or already released), but the method returned true regardless of the script result. If a late SUCCESS committed between the read and the script, the caller was told a SETTLED payment had been released, and could treat a paid authorization as unpaid and charge again. The budget itself was never double-credited (the script guards that).",
+      "preconditions": "A consumer of the package calls release while a settlement commit lands concurrently.",
+      "invariant": "release reports true only if the budget was actually returned.",
+      "production_exposure": "none: npm latest is 0.2.0 (2026-07-04), which ships only dist/index.js with no redis module and no releaseProvenUnsettled. The affected code exists only in unpublished repo version 0.3.0.",
+      "remediation": "Return Number(EVAL result) === 1 for both bucket and rolling paths.",
+      "owner": "founder: approve publishing 0.3.0 (first release containing the redis store, fix included)",
+      "status": "fixed in source; never published (no consumer exposure)",
+      "confidence": "high",
+      "validation": "interleaving injected between HMGET and EVAL; mutant (old return true) fails both new tests",
+      "regression_test": "packages/x402-guard/test/mandate-spend.test.mjs (2 new interleaving tests)",
+      "fix_commit": "round-3 commit",
+      "retest": "node --test: 114 pass, 0 fail, 5 skipped",
+      "residual_risk": "Published 0.3.0 still has the old behaviour until a release."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        }
+      ],
+      "id": "FP-SET-18",
+      "title": "Dividend settlement: credit effectKey covers the action SET, so a lease-expiry overlap could pay a shared action twice",
+      "severity": "P3",
+      "source": "manual review (round 3)",
+      "component": "apps/web/src/app/api/investing/dividends/settle/route.ts",
+      "description": "Protected by a per-user withLock (30s lease) and an effectKey on the cash credit hashed over the sorted set of corporate actions paid. If the lease expired mid-run and a new action appeared, a second run with a different action set gets a different key, and an action common to both would be credited twice.",
+      "preconditions": "Lock lease expiry during a run (slow quote fetches) plus a newly ingested corporate action in the window; investing live.",
+      "production_exposure": "none today (investing not live)",
+      "confidence": "medium",
+      "validation": "suspected; not reproduced",
+      "remediation": "Key the credit per corporate action (one effect per action) or extend the lease with a heartbeat.",
+      "owner": "engineering",
+      "status": "open (suspected)",
+      "regression_test": null,
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "As described."
+    },
+    {
+      "original_severity": null,
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 3."
+        },
+        {
+          "date": "2026-10-03",
+          "note": "Round 6: HTML escaping fixed; auth/points still open."
+        }
+      ],
+      "id": "FP-WEB-01",
+      "title": "Swag redemption is unauthenticated, unchecked against any points balance, and interpolates user input into email HTML",
+      "severity": "P3",
+      "source": "manual review (round 3)",
+      "component": "apps/web/src/app/api/swag/redeem/route.ts",
+      "description": "Public route (rate-limited 5/min/IP). No points balance is checked, so any request is a 'redemption'. Fulfilment is a human reading an email, which also contains name/email/address interpolated unescaped into HTML (HTML injection into the internal inbox). Not a settlement path.",
+      "production_exposure": "yes (route is public)",
+      "confidence": "high",
+      "validation": "confirmed by code inspection",
+      "remediation": "Fixed: every user-supplied field in the notification HTML is escaped (swagEmailEscape.spec; fails on the original route). Open: requiring auth and debiting points needs a points ledger that does not exist; fulfilment remains a manual human check.",
+      "owner": "engineering",
+      "status": "partially fixed (pending deploy): HTML injection fixed; unauthenticated redemption with no points check still open",
+      "regression_test": "src/app/api/swag/redeem/__tests__/swagEmailEscape.spec.ts",
+      "fix_commit": null,
+      "retest": null,
+      "residual_risk": "Spam/phishing into the swag inbox; free swag if a human ships without checking."
+    },
+    {
+      "id": "FP-AUTH-01",
+      "title": "OTP start stored the code under the email as typed; OTP check looked it up canonicalised",
+      "severity": "P3",
+      "original_severity": null,
+      "source": "e2e failure investigation (round 5)",
+      "component": "apps/web/src/app/api/auth/otp/start/route.ts",
+      "description": "start passed the raw address to startOtp and to the per-destination rate limit; check canonicalises before lookup. Mock store (dev/e2e, keyed raw): a capitalised email could never verify ('No pending code'), which is the support-security e2e failure (fixture email e2e-userA-...). Resend path (production): verification still worked because its key normalises, but each capitalisation of one mailbox got its own 5-per-10-minute send budget, and mail went to the raw-cased address.",
+      "preconditions": "Email OTP with any capital letter.",
+      "production_exposure": "rate-limit budget multiplied per capitalisation (OTP email volume to one mailbox); login unaffected on the Resend path",
+      "rationale_for_severity": "Limited-impact abuse-control weakness in production plus a dev/e2e login defect; no auth bypass.",
+      "remediation": "Canonicalise once at the top of start (same form check uses) and use it for the rate limit, the stored code and analytics.",
+      "confidence": "high",
+      "validation": "reproduced: 3 new tests fail on the original route (mock-path verify, canonical delivery, shared budget) and pass with the fix",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "regression_test": "otpAuth.spec.ts (3 new tests)",
+      "fix_commit": "round-5 commit",
+      "retest": "17/17; e2e support-security passes locally",
+      "residual_risk": "None known.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened in round 5."
+        }
+      ]
+    },
+    {
+      "id": "FP-REL-01",
+      "title": "PR #93 would have taken the public 87-page report offline",
+      "severity": "P3",
+      "original_severity": null,
+      "source": "release review (round 6)",
+      "component": "apps/web/src/lib/content/data.ts; apps/web/public/reports; apps/web/next.config.js",
+      "description": "In PR #93 the report entry was status review (publishedReports() filters it out, so /reports/global-stablecoin-report-2026 404s), referenced the older 50-page private file (sha 441219ab...) via privatePdf, and production has no RESEARCH_PDF_BUCKET (downloads would 503). The public PDF had been deleted, and /research/global-stablecoin-report-2026 (200 in production) would fall into /research/[desk] and 404.",
+      "production_exposure": "none (not deployed); would have been an outage of a public, shared URL",
+      "remediation": "Founder decision: public, as live today. Catalog entry published with pdfPath to the verified 87-page file (sha256 1597d054...401d, 16,353,216 bytes, 87 pages; byte-identical to production), gated false, no privatePdf, no invented version. Tests that encoded 'nothing published' updated to assert exactly this report is published and that genuine drafts stay hidden. Permanent redirect /research/<slug> -> /reports/<slug>.",
+      "confidence": "high",
+      "validation": "verified: hash, size and page count pinned in research.spec; canonical page resolves with a download CTA; redirect asserted",
+      "owner": "engineering",
+      "status": "fixed (pending deploy)",
+      "regression_test": "research.spec.ts (PDF pin, published state, redirect, canonical page); content.spec.ts (drafts behind the filter)",
+      "fix_commit": "round-6 commit",
+      "retest": "61/61 report/content specs; claims linter clean",
+      "residual_risk": "The catalog still carries the 50-page edition's metrics and findings, valid for the shared Parts I-III; Parts IV-VI have no catalog summary.",
+      "history": [
+        {
+          "date": "2026-10-03",
+          "note": "Opened and fixed in round 6."
+        }
+      ]
     }
-  ]
+  ],
+  "production_state": {
+    "verified": "2026-10-03 via `vercel ls`/`vercel inspect` and `vercel env ls production` (names only)",
+    "deployment": "dpl_5behwnngnFKr6hLaJGXfBniptBNo = commit ea2ee50; 88ddff0 and later are NOT deployed",
+    "settlement_env_present": [
+      "KV_REST_API_URL",
+      "KV_REST_API_TOKEN",
+      "CRON_SECRET",
+      "FURLPAY_CRON_SECRET",
+      "SOLANA_RPC_URL"
+    ],
+    "settlement_env_absent": [
+      "ONCHAIN_SETTLEMENT_LIVE",
+      "FURLPAY_KMS_PROVIDER",
+      "FACILITATOR_EVM_ADDRESS",
+      "ARBITRUM_RPC_URL",
+      "ARBITRUM_RPC_URL_FALLBACK",
+      "FURLPAY_RELAYER_PRIVATE_KEY",
+      "FURLPAY_POLICY_WRAPPER_ADDRESS",
+      "FURLPAY_ADMIN_EMAIL",
+      "SETTLEMENT_SAFETY_AUTOHALT"
+    ],
+    "consequence": "EVM settlement and compliance-guard writes cannot run in production today; no settlement finding is production-exposed. No account holds the admin role in production."
+  },
+  "audit_round3": {
+    "question": "Any remaining P0/P1 on the settlement path?",
+    "answer": "No confirmed P0 or P1 in the audited scope. Every concurrency defect found (FP-SET-15..18) is unreachable in production today, because the paths are gated off there. Two are fixed with reproduction tests; one is fixed in package source pending release; one is suspected and open.",
+    "verified_strong": [
+      "/api/v1/payments execute: atomic phase compare-and-set (PostgREST conditional UPDATE), CI-tested against real PostgreSQL with 10/100/500 workers",
+      "x402 settler paths: single-use EIP-3009 nonce claim (SET NX) + on-chain nonce enforcement by USDC + epoch-fenced breaker",
+      "ledger reversals: partial unique index on ledger_transactions.reverses; durable write precedes the in-memory mirror",
+      "travel settle: SET NX claim per tx hash + (round 3) block-time binding",
+      "dividends: per-user lock + effectKey on the credit"
+    ],
+    "not_tested": [
+      "real-chain reorg/replacement behaviour (mocks only)",
+      "cross-instance races on in-memory stores (per-process by construction, non-production)",
+      "smart contracts (packages/contracts, PolicyWrapper/Escrow): not audited in this round",
+      "external providers (Circle, Coinbase ramps, brokerage) beyond their adapters"
+    ]
+  },
+  "ci_round4": {
+    "web-and-node": "TS2307 fixed in 4a41dfc; round 4 installs native-app deps (npm ci --ignore-scripts) so nativeParity.spec can load",
+    "mobile": "releaseConfig.test.ts assumed the gitignored google-services.json exists; round 4 adds withGoogleServices() (placeholder only when absent, removed in finally)",
+    "e2e": "CSP violations came from @vercel/analytics loading its DEBUG script under next dev; round 4 renders <Analytics/> in production builds only. Production CSP unchanged, not loosened. The support-security OTP fixture failure is separate and not addressed.",
+    "snyk": "external blocker: private-test quota exhausted; not a passing scan",
+    "verified_on_d42dfec": "mobile PASS (releaseConfig fix), p0-regression PASS, web-and-node: all 386 test files / 6615 tests PASS incl. nativeParity; e2e: no CSP violations remain",
+    "control-plane": "web-and-node then failed at `node --test \"test/*.test.js\"`: a quoted glob only Node 21+ expands; CI runs Node 20. Script now uses an unquoted glob (sh expands on Linux, Node expands on Windows/21+). 307/307 locally both ways.",
+    "android-guardian": "./gradlew Permission denied: committed as 100644; set to 100755.",
+    "ios-guardian": "workflow selects /Applications/Xcode_26.app, absent on the macos-15-arm64 runner image. Not changed: the available Xcode version cannot be verified from here. Owner: whoever maintains native-pr.yml.",
+    "e2e_remaining": "cardVisual keyboard test (element not found) and support-security OTP fixture (No pending code). UI/auth fixtures, not settlement. Not addressed."
+  },
+  "ci_round5": {
+    "head_before": "691315a",
+    "android-guardian": "PASS on 691315a (run 37114794929) after the gradlew mode fix",
+    "web-and-node": "PASS on 691315a (run 37114794937): typecheck, lint, 6615 tests, build, control-plane, real-PostgreSQL concurrency",
+    "e2e": "691315a: 63 passed / 3 failed / 1 flaky. Round 5: support-security = FP-AUTH-01 (product bug, fixed); cardVisual mobile = test raced the fail-closed refusal (no platform authenticator on the emulated device); assertion now records every label and also asserts the card never opened. support-ticket = flaky (passed on retry; passed locally). Local: 3 specs x 2 projects = 40/40.",
+    "ios-guardian": "Xcode_26.app absent on macos-15-arm64 20260907.0337 (authoritative image readme: 26.0.1, 26.1.1, 26.2, 26.3; default 16.4). native-pr.yml and mobile-release.yml now use ios-guardian.yml's selection (highest installed >= 26, hard fail otherwise). Note: ios/ has only an XcodeGen project.yml, so native-pr's build step skips by design.",
+    "snyk": "external blocker: 'You have used your limit of private tests' on 691315a. Newest successes are 2026-08-15 'No manifest changes detected' (no scan performed); no usable result for this PR, which changes a manifest."
+  }
 }

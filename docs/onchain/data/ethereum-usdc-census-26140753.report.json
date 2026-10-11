@@ -1,0 +1,199 @@
+{
+  "network": "Ethereum mainnet (chain id 1)",
+  "contract": "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+  "deploymentBlock": 6082465,
+  "boundary": {
+    "block": 26140753,
+    "hash": "0x6eba12bbbc8f4c5eabfb56e9939041878d5017176ae278cbf1e57a91be29b3ea",
+    "time": "2026-10-07T13:17:11.000Z",
+    "kind": "finalized"
+  },
+  "complete": true,
+  "unitsDone": "2006/2006",
+  "blocksScanned": 20058289,
+  "contiguousThrough": 26140753,
+  "remainingBlocks": 0,
+  "firstTransfer": {
+    "block": 6307510,
+    "tx": "0xdc6bb2a1aff2dbb2613113984b5fbd560e582c0a4369149402d7ea83b0f5983e",
+    "logIndex": 70,
+    "time": "2018-09-10T18:26:41.000Z"
+  },
+  "latestTransfer": {
+    "block": 26140753,
+    "tx": "0xcbc49741bfa7aed596dfb849e0b96274ded877d8d941595cfb07426efa4610b5",
+    "logIndex": 622,
+    "time": "2026-10-07T13:17:11.000Z"
+  },
+  "EXACT": {
+    "transferEvents": "390,926,854",
+    "uniqueTransactions": "222,626,568",
+    "avgEventsPerTransaction": "1.7560",
+    "maxEventsInOneTransaction": {
+      "count": 1287,
+      "tx": "0x9079946d6d45eca6614ce8b24251a04e3f1c72d7912c460c5a79ad14296c9f15"
+    },
+    "mintEvents": "2,004,442",
+    "mintVolumeUsdc": "748,561,446,251.026168",
+    "burnEvents": "1,235,494",
+    "burnVolumeUsdc": "699,416,242,308.954589",
+    "regularTransferEvents": "387,686,918",
+    "regularTransferVolumeUsdc": "34,728,257,401,780.923156",
+    "allEventsVolumeUsdc": "36,176,235,090,340.903913",
+    "averageEventUsdc": "92,539.652163",
+    "zeroValueEvents": "21,665,427",
+    "largestTransfer": {
+      "usdc": "1,779,000,000.263006",
+      "tx": "0x09f0c36b09d51f7207109132e3600a3fe928d3eb51fc28e25d92722e0421669d",
+      "block": 15356930
+    },
+    "smallestNonZeroTransfer": {
+      "usdc": "0.000001",
+      "tx": "0x3dcdeee181b7e4701be9ca78721fb5f4a2ff86dfd250d83a8da82a05a28321ae",
+      "block": 6415753
+    },
+    "medianTransfer": {
+      "interval": "[134.217728, 268.435456) USDC"
+    },
+    "eventsByYear": {
+      "2018": 49373,
+      "2019": 1091899,
+      "2020": 8395205,
+      "2021": 22762170,
+      "2022": 24593338,
+      "2023": 22326843,
+      "2024": 31320433,
+      "2025": 108854307,
+      "2026": 171533286
+    }
+  },
+  "ESTIMATED_HLL_p14_stderr_0_81pct": {
+    "unique_addresses": "41,840,342",
+    "unique_senders": "34,037,664",
+    "unique_receivers": "41,784,573",
+    "unique_pairs": "105,570,555"
+  },
+  "rates": {
+    "historicalEventsPerDay": 132572,
+    "historicalEventsPerBlock": "19.49",
+    "recentEventsPerDay_last10units": 622786,
+    "recentEventsPerBlock_last10units": "86.89"
+  },
+  "rpcJsonBytes": {
+    "total": 247858298779,
+    "perEvent": "634.0"
+  },
+  "providers": {
+    "https://rpc.mevblocker.io": {
+      "url": "https://rpc.mevblocker.io",
+      "span": 64,
+      "maxOkSpan": 10000,
+      "requests": 27765,
+      "ok": 21697,
+      "rangeErrors": 1302,
+      "rateLimited": 4741,
+      "otherErrors": 24,
+      "latencyMsTotal": 20885238,
+      "lastSuccess": "2026-10-08T00:57:46.312Z",
+      "lastError": "2026-10-08T00:57:18.982Z query returned more than 10000 results. Try with this block range [0x18E4469, 0x18E4497].",
+      "archive": true,
+      "cap": null
+    },
+    "https://mainnet.gateway.tenderly.co": {
+      "url": "https://mainnet.gateway.tenderly.co",
+      "span": 64,
+      "maxOkSpan": 10000,
+      "requests": 18441,
+      "ok": 13849,
+      "rangeErrors": 3,
+      "rateLimited": 3866,
+      "otherErrors": 723,
+      "latencyMsTotal": 12353845,
+      "lastSuccess": "2026-10-08T00:42:37.376Z",
+      "lastError": "2026-10-08T00:55:53.604Z HTTP 429 too many requests",
+      "archive": true,
+      "cap": null
+    },
+    "https://rpc.sentio.xyz/mainnet": {
+      "url": "https://rpc.sentio.xyz/mainnet",
+      "span": 32,
+      "maxOkSpan": 992,
+      "requests": 60468,
+      "ok": 36321,
+      "rangeErrors": 24140,
+      "rateLimited": 0,
+      "otherErrors": 7,
+      "latencyMsTotal": 24433171,
+      "lastSuccess": "2026-10-08T00:57:54.713Z",
+      "lastError": "2026-10-08T00:57:49.913Z too many results: the result count exceeds the limit, please narrow the query block range",
+      "archive": null,
+      "cap": null
+    },
+    "https://eth-pokt.nodies.app": {
+      "url": "https://eth-pokt.nodies.app",
+      "span": 50,
+      "maxOkSpan": 50,
+      "requests": 10608,
+      "ok": 10024,
+      "rangeErrors": 29,
+      "rateLimited": 549,
+      "otherErrors": 6,
+      "latencyMsTotal": 9742044,
+      "lastSuccess": "2026-10-08T00:57:43.058Z",
+      "lastError": "2026-10-08T00:52:46.093Z HTTP 429 too many requests",
+      "archive": null,
+      "cap": 50
+    },
+    "https://ethereum-mainnet.gateway.tatum.io": {
+      "url": "https://ethereum-mainnet.gateway.tatum.io",
+      "span": 100,
+      "maxOkSpan": 100,
+      "requests": 1807,
+      "ok": 703,
+      "rangeErrors": 6,
+      "rateLimited": 1089,
+      "otherErrors": 9,
+      "latencyMsTotal": 1944260,
+      "lastSuccess": "2026-10-08T00:54:27.574Z",
+      "lastError": "2026-10-08T00:54:36.245Z HTTP 429 too many requests",
+      "archive": null,
+      "cap": 100
+    },
+    "https://eth-mainnet.public.blastapi.io": {
+      "url": "https://eth-mainnet.public.blastapi.io",
+      "span": 10,
+      "maxOkSpan": 10,
+      "requests": 102754,
+      "ok": 102734,
+      "rangeErrors": 8,
+      "rateLimited": 2,
+      "otherErrors": 9,
+      "latencyMsTotal": 32716761,
+      "lastSuccess": "2026-10-08T01:00:06.577Z",
+      "lastError": "2026-10-08T00:31:46.994Z fetch failed",
+      "archive": null,
+      "cap": 10
+    },
+    "https://ethereum.public.blockpi.network/v1/rpc/public": {
+      "url": "https://ethereum.public.blockpi.network/v1/rpc/public",
+      "span": 1,
+      "maxOkSpan": 4000,
+      "requests": 1510,
+      "ok": 1199,
+      "rangeErrors": 27,
+      "rateLimited": 0,
+      "otherErrors": 272,
+      "latencyMsTotal": 22762769,
+      "lastSuccess": "2026-10-08T00:54:10.091Z",
+      "lastError": "2026-10-08T00:55:41.589Z request timed out",
+      "archive": null,
+      "cap": null
+    }
+  },
+  "supplyCheck": {
+    "atBlock": 26140753,
+    "totalSupplyOnChainUsdc": "49,145,203,942.071579",
+    "mintedMinusBurnedUsdc": "49,145,203,942.071579",
+    "exact": true
+  }
+}

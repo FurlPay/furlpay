@@ -13,10 +13,12 @@ export const dynamic = "force-dynamic";
 // only then discovering there is no bundler to submit it to would be the worst
 // possible ordering. Ask first, sign second.
 //
-// Public and read-only: it returns configuration PRESENCE (booleans and the
-// names of missing env vars), never any address or secret. Rate-limited because
-// the middleware baseline only covers mutating methods, so an unauthenticated
-// GET has no backstop of its own.
+// Read-only: it returns configuration PRESENCE (booleans and the names of
+// missing env vars), never any address or secret. The handler has no auth
+// check of its own, but the path is NOT in the middleware's public prefixes,
+// so in practice a session is required (an anonymous request gets 401 there).
+// Rate-limited as well because the middleware baseline only covers mutating
+// methods.
 export async function GET(req: NextRequest) {
   const limited = await rateLimitOr429(req, "transfers.sponsored", { limit: 60, windowMs: 60_000 });
   if (limited) return limited;
@@ -34,9 +36,14 @@ export async function GET(req: NextRequest) {
         : {
             scheme: "eip3009-transfer-with-authorization",
             path: "/api/transfers/gasless",
+            // This names the alternative rail; it does not say that rail is up.
+            // The relayer is a separately configured capability (the status
+            // registry records it as not configured in production), so the
+            // caller is pointed at the rail map rather than promised a transfer.
             detail:
-              "Sponsored transfers are available today: FurlPay's relayer pays the gas " +
-              "and the user signs an EIP-3009 authorization. No delegation required.",
+              "The relayed EIP-3009 rail needs no delegation: the user signs a transfer " +
+              "authorization and a relayer pays the gas. Check the `transfers` entry in " +
+              "GET /api/rails before using it; it is available only when that rail reports healthy.",
           },
     },
     { headers: { "cache-control": "no-store" } }

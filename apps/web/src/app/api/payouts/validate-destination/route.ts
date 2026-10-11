@@ -12,10 +12,12 @@ export const dynamic = "force-dynamic";
 // Validates a payout destination WITHOUT saving it. This is the endpoint the
 // Add Wallet flow calls before it will let anyone press Confirm.
 //
-// It is deliberately unauthenticated and side-effect free: it stores nothing,
-// reads no account state, and tells the caller only what is already true of
-// the string they typed. That makes it safe to call on every blur, and it
-// keeps address checking available before a user has finished onboarding.
+// The handler is deliberately free of account checks and side effects: it
+// stores nothing, reads no account state, and tells the caller only what is
+// already true of the string they typed. That makes it safe to call on every
+// blur. It is not anonymous, though: the path is NOT in the middleware's public
+// prefixes, so the caller needs a session (which a user who is still
+// onboarding already has).
 //
 // It does NOT confirm ownership. A destination that validates here is
 // well-formed and correctly paired with its network — nothing more. Proving

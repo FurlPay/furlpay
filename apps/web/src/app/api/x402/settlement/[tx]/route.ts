@@ -29,11 +29,44 @@ export async function GET(req: NextRequest, props: { params: Promise<{ tx: strin
   }
 
   if (settlement.status === "pending") {
-    const onChain = await checkSettlementOnChain(settlement.transaction, settlement.network);
-    if (onChain?.confirmed && onChain.confirmations >= requiredConfirmations(settlement.amountAtomic)) {
+    if (!settlement.expectedTransfer) {
+      const abandoned = {
+        ...settlement,
+        status: "abandoned" as const,
+        abandonedReason: "legacy settlement record lacks the expected transfer needed for receipt verification",
+      };
+      await recordSettlement(abandoned);
+      return NextResponse.json({ settled: false, pending: false, abandoned: true, settlement: abandoned }, { status: 409 });
+    }
+
+    const onChain = await checkSettlementOnChain(settlement.transaction, settlement.network, settlement.expectedTransfer)
+      .catch(() => null);
+    // An unavailable RPC is not evidence that the payment was dropped, even
+    // when the pending timeout has elapsed. Preserve it for reconciliation.
+    if (!onChain) {
+      return NextResponse.json(
+        { settled: false, pending: true, settlement, error: "settlement_check_unavailable" },
+        { status: 503 },
+      );
+    }
+    if (onChain.found && onChain.confirmed && onChain.receiptVerified === true && onChain.confirmations >= requiredConfirmations(settlement.amountAtomic)) {
       const confirmed = { ...settlement, status: "confirmed" as const };
       await recordSettlement(confirmed);
       return NextResponse.json({ settled: true, settlement: confirmed });
+    }
+
+    if (onChain.found && onChain.confirmed && onChain.receiptVerified !== true) {
+      const abandoned = {
+        ...settlement,
+        status: "abandoned" as const,
+        abandonedReason: "on-chain receipt does not match the authorized transfer",
+      };
+      await recordSettlement(abandoned);
+      log.error("x402 settlement receipt mismatch during recovery", {
+        tx: abandoned.transaction,
+        network: abandoned.network,
+      });
+      return NextResponse.json({ settled: false, pending: false, abandoned: true, settlement: abandoned }, { status: 409 });
     }
 
     // A PENDING SETTLEMENT NEEDS AN END STATE.

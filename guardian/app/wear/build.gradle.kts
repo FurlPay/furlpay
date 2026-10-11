@@ -106,7 +106,8 @@ android {
         }
         create("prod") {
             dimension = "environment"
-            buildConfigField("String", "API_BASE_URL", "\"https://api.furlpay.com/api/\"")
+            // Same production host as app/mobile (see the comment there).
+            buildConfigField("String", "API_BASE_URL", "\"https://furlpay.com/api/\"")
             buildConfigField("String", "FURLPAY_ENV", "\"prod\"")
         }
     }

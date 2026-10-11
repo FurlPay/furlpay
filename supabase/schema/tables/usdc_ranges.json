@@ -1,0 +1,67 @@
+{
+  "name": "usdc_ranges",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0036_usdc_index.sql",
+    "line": 141,
+    "sha256": "2de04ee68e550d57f34450ebc4e1a08a78adb43ff548534662c46adfdf1ee151"
+  },
+  "definition": "create table if not exists usdc_ranges (\n  stream        smallint not null,\n  from_block    bigint not null,\n  to_block      bigint not null check (to_block >= from_block),\n  to_hash       bytea,\n  kind          text not null check (kind in ('live', 'backfill')),\n  events        integer not null check (events >= 0),\n  tx_count      integer not null check (tx_count >= 0),\n  raw_stored    boolean not null,\n  digest        bytea not null check (length(digest) = 32),\n  providers     jsonb not null default '{}'::jsonb,\n  committed_at  timestamptz not null default now(),\n  primary key (stream, from_block)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 141,
+      "sha256": "2de04ee68e550d57f34450ebc4e1a08a78adb43ff548534662c46adfdf1ee151",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 155,
+      "sha256": "362c1a2dcf322274a6291ec477edd8cb7ae562eb35f7185b461d0f36160b2fd7",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 184,
+      "sha256": "1bcb45c7745f4ea72e8b149b02d61c4e5272c4d2a83831309be993fa887220a3",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 276,
+      "sha256": "711b6b1548044b116d97c258f04c48505e43b00487685b2e5eee94f9ba22f0bd",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 526,
+      "sha256": "72bd93648a17d90e4686358ad776e613c93c64071d412852afe97347bcfe4784",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 529,
+      "sha256": "f48842b31418475e836e45fca5f8118d0b30caea24a6bf25b43288d119a28b79",
+      "kind": "drop trigger"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 530,
+      "sha256": "6c0ae68aaab705d9b5384e66fe937e82689b004fdebcfef59f3a19cdb5eb7957",
+      "kind": "create trigger"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 184,
+        "sha256": "1bcb45c7745f4ea72e8b149b02d61c4e5272c4d2a83831309be993fa887220a3"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -1,0 +1,152 @@
+{
+  "name": "ops_tx_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0003_ops_event_ledger.sql",
+    "line": 9,
+    "sha256": "277833f41aefbc6db1a102d744923c9508c4dc36ed392746f9c6231cc3c22f4c"
+  },
+  "definition": "create table ops_tx_events (\n  id           text primary key,\n  rail         text not null check (rail in ('x402', 'mpp', 'lifi', 'cctp', 'transfers')),\n  state        text not null check (state in ('prepared', 'settled', 'pending', 'failed', 'rejected')),\n  substate     text,\n  amount_usd   numeric(20, 2),\n  fee_usd      numeric(20, 2),\n  token        text,\n  source_chain text,\n  dest_chain   text,\n  payer        text,\n  recipient    text,\n  tx_hash      text,\n  user_id      uuid,\n  created_at   timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 9,
+      "sha256": "277833f41aefbc6db1a102d744923c9508c4dc36ed392746f9c6231cc3c22f4c",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 26,
+      "sha256": "e5269c2acef680ff35ae725e05a852fb79c50f57ace0de411da5710fa71c81c5",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 27,
+      "sha256": "f1bb5824a25151c3f8087a5d26f740c8324492a873846c9804c4c971b372f067",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 28,
+      "sha256": "dc686a538d36806b9be8395952d7e8db059240bd65376274ff5fd383d826a73c",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 29,
+      "sha256": "7d5a0087bef634add3a67169ef0790a00a5f05d5addf1c9dd6808f3ee3863926",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 54,
+      "sha256": "40b4fa75a96650cc91e23eb4bd824cda94c9a63fb846d0190587d124422f8e90",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 84,
+      "sha256": "b3af34286cf2cf6c19be6e5bd7f68109a33baf9774fa53555a91ff742e40ba11",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 81,
+      "sha256": "d719a7739332ac9a32b4536f48075aae01425821a49df511eb2f8bef110016e4",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 99,
+      "sha256": "9e325859e737989a9aa3e17ab403a7bf59217cbad42ec672bfe1dfca97984794",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0027_analytics.sql",
+      "line": 137,
+      "sha256": "1ef6e8bfc568c6f8557bf8a299d91397b0edfd4f28ff09f5518d1e69cb14a134",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 29,
+      "sha256": "0851e32c937215d5fb04c5a086b03f6220b457c290a52beeda809b880e6c374e",
+      "kind": "create table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/app/api/ops/health/route.ts",
+      "line": 85
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 292
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 293
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 507
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 511
+    },
+    {
+      "file": "apps/web/src/lib/analytics/ingest.ts",
+      "line": 44
+    },
+    {
+      "file": "apps/web/src/lib/health/readiness.ts",
+      "line": 45
+    },
+    {
+      "file": "apps/web/src/lib/onchain/dashboard.ts",
+      "line": 253
+    },
+    {
+      "file": "apps/web/src/lib/onchain/dashboard.ts",
+      "line": 254
+    },
+    {
+      "file": "apps/web/src/lib/onchain/dashboard.ts",
+      "line": 296
+    },
+    {
+      "file": "apps/web/src/lib/onchain/sync.ts",
+      "line": 246
+    },
+    {
+      "file": "apps/web/src/lib/onchain/sync.ts",
+      "line": 247
+    },
+    {
+      "file": "apps/web/src/lib/ops/events.ts",
+      "line": 130
+    },
+    {
+      "file": "apps/web/src/lib/ops/events.ts",
+      "line": 220
+    },
+    {
+      "file": "apps/web/src/lib/ops/events.ts",
+      "line": 221
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0003_ops_event_ledger.sql",
+        "line": 84,
+        "sha256": "b3af34286cf2cf6c19be6e5bd7f68109a33baf9774fa53555a91ff742e40ba11"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

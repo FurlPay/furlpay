@@ -1,0 +1,90 @@
+{
+  "name": "ops_security_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0003_ops_event_ledger.sql",
+    "line": 31,
+    "sha256": "948ee49a3994548d116f8331bb03c49dfc61833df6616e8eb9308d25963e7906"
+  },
+  "definition": "create table ops_security_events (\n  id           text primary key,\n  kind         text not null,\n  rail         text not null check (rail in ('x402', 'mpp', 'lifi', 'cctp', 'transfers')),\n  severity     text not null check (severity in ('info', 'low', 'medium', 'high', 'critical')),\n  detail       text not null,\n  actor        text,\n  acknowledged boolean not null default false,\n  created_at   timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 31,
+      "sha256": "948ee49a3994548d116f8331bb03c49dfc61833df6616e8eb9308d25963e7906",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 42,
+      "sha256": "5cbc7cb33b9752712373b19326770cc6046341c220f0da25348963f2e9e3e787",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 43,
+      "sha256": "889db830c7d5219205a99dc114b6b0ec99d4ea06393dc8e1bff825448eb6be5b",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 44,
+      "sha256": "e6804f432aa40059a23dcddc873acd0aabf1f6bbbd33a41d69eb463d7ccdaf81",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 80,
+      "sha256": "7ec66e34fca2e3be643316776e35ba1353b70be4879b7630a4a23bfc4846a9e9",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0003_ops_event_ledger.sql",
+      "line": 85,
+      "sha256": "01ea29edcb28bf0d0db3412ea67278b9a485d161f43b655fb47c9cc695ef1dd3",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 498
+    },
+    {
+      "file": "apps/web/src/lib/analytics/dashboard.ts",
+      "line": 499
+    },
+    {
+      "file": "apps/web/src/lib/onchain/dashboard.ts",
+      "line": 269
+    },
+    {
+      "file": "apps/web/src/lib/onchain/dashboard.ts",
+      "line": 297
+    },
+    {
+      "file": "apps/web/src/lib/ops/events.ts",
+      "line": 150
+    },
+    {
+      "file": "apps/web/src/lib/ops/events.ts",
+      "line": 235
+    },
+    {
+      "file": "apps/web/src/lib/ops/events.ts",
+      "line": 236
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0003_ops_event_ledger.sql",
+        "line": 85,
+        "sha256": "01ea29edcb28bf0d0db3412ea67278b9a485d161f43b655fb47c9cc695ef1dd3"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -1,0 +1,77 @@
+{
+  "name": "reorg_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0008_reorg_settlement.sql",
+    "line": 19,
+    "sha256": "24a8e381305b21703722115b2e743bb245ad92fdad56ea7c94ed11d560d21a19"
+  },
+  "definition": "CREATE TABLE IF NOT EXISTS reorg_events (\n  id                   TEXT PRIMARY KEY,\n  user_id              UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,\n  corporate_action_id  TEXT NOT NULL REFERENCES corporate_actions(id),\n  symbol               TEXT NOT NULL,\n  type                 TEXT NOT NULL CHECK (type IN ('merger', 'acquisition', 'spin_off', 'delisting')),\n  -- Cash paid to the holder by this settlement (0 for a cash-in-lieu-only\n  -- spin-off is still recorded, so the run is provably idempotent).\n  cash_proceeds        NUMERIC(20, 2) NOT NULL DEFAULT 0,\n  -- Gain or loss realized by the cash leg. A stock-for-stock merger that only\n  -- paid a fractional cash-in-lieu still realizes on that sliver.\n  realized_gain        NUMERIC(20, 2) NOT NULL DEFAULT 0,\n  status               TEXT NOT NULL DEFAULT 'settled'\n                         CHECK (status IN ('settled', 'reversed')),\n  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),\n\n  -- The idempotency guarantee, identical in spirit to dividend_once_per_user:\n  -- one settlement per user per action. Two concurrent runs both reading an\n  -- empty settled-set will both attempt the insert; the database rejects the\n  -- loser instead of paying twice.\n  CONSTRAINT reorg_once_per_user UNIQUE (user_id, corporate_action_id)\n);",
+  "dependencies": [
+    "corporate_actions",
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0008_reorg_settlement.sql",
+      "line": 19,
+      "sha256": "24a8e381305b21703722115b2e743bb245ad92fdad56ea7c94ed11d560d21a19",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0008_reorg_settlement.sql",
+      "line": 42,
+      "sha256": "7197f457f9d2d84f8721101f4caf81222b728839d29abdd1c1056f6c05aee4b2",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0008_reorg_settlement.sql",
+      "line": 45,
+      "sha256": "67febb53730a0651ee645e40091b7420a497142653a50c6ffe4947249cd40148",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0017_schema_assertions.sql",
+      "line": 44,
+      "sha256": "9ec804cca8cc4725e6cdce2f563ba235edb8c5005967187919d9ff9e3b3fba5c",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0023_schema_assertions_v2.sql",
+      "line": 31,
+      "sha256": "cafc4d20baaf5c237a89072b89fa6b0b4b6e7b95842cde9b182c2ead40fc3572",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 246,
+      "sha256": "18348637e2cdb31366dd2a713a871b8df7f58b67a57e2e921cb706913ed3eeb5",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 668
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 669
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 693
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0008_reorg_settlement.sql",
+        "line": 45,
+        "sha256": "67febb53730a0651ee645e40091b7420a497142653a50c6ffe4947249cd40148"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

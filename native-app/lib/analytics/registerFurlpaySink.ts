@@ -5,12 +5,12 @@ import { AppState, Platform } from "react-native";
 import { API_BASE, getToken } from "@/lib/api";
 import { registerSink } from "./index";
 import { createFurlpaySink } from "./furlpaySink";
+import { setActiveAnalyticsSink } from "./activeSink";
 
 // Wires the FurlPay API sink with the real platform dependencies. Called once
 // from the root layout. Uploads every 60s while the app is in the foreground
 // and once when it goes to the background; never at launch-critical moments.
 let registered = false;
-
 export function registerFurlpaySink(): void {
   if (registered || (Platform.OS !== "android" && Platform.OS !== "ios")) return;
   registered = true;
@@ -27,6 +27,7 @@ export function registerFurlpaySink(): void {
     uuid: () => Crypto.randomUUID(),
     now: () => Date.now(),
   });
+  setActiveAnalyticsSink(sink);
   registerSink(sink);
   setInterval(() => {
     if (AppState.currentState === "active") void sink.upload().catch(() => undefined);

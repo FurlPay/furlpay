@@ -97,7 +97,10 @@ export async function afterReceipt(
   throw new SettlementHaltedError(networkScope(network), `receipt_mismatch on ${tx}`, undefined, tx);
 }
 
-async function applyFindings(scope: ReturnType<typeof networkScope>, findings: Finding[], correlationId?: string): Promise<void> {
+/** Apply blocking findings to a scope: a halt finding trips HALTED, otherwise
+ *  DEGRADED. Shared by the pre-broadcast gate and the scheduled sweep so both
+ *  follow one policy. Respects shadow mode (autoTrip). */
+export async function applyFindings(scope: ReturnType<typeof networkScope>, findings: Finding[], correlationId?: string): Promise<void> {
   const halt = findings.find((f) => f.action === "halt");
   const f = halt ?? findings[0];
   await autoTrip({

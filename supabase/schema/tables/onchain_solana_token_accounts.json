@@ -1,0 +1,66 @@
+{
+  "name": "onchain_solana_token_accounts",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0034_onchain_asset_index.sql",
+    "line": 158,
+    "sha256": "345c9d8d147a716c0fdb7a8554c8b9b18c16f0faa7ca196eb18491762e2719c2"
+  },
+  "definition": "create table if not exists onchain_solana_token_accounts (\n  account        text primary key check (account ~ '^[1-9A-HJ-NP-Za-km-z]{32,44}$'),\n  owner          text not null check (owner ~ '^[1-9A-HJ-NP-Za-km-z]{32,44}$'),\n  mint           text not null,\n  program        text not null,\n  first_seen_at  timestamptz not null default now(),\n  last_seen_at   timestamptz not null default now(),\n  -- Set when the owner's token-account list stopped returning it (closed or\n  -- transferred). Still scanned for 7 days so its last transfers are not lost.\n  gone_at        timestamptz\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 158,
+      "sha256": "345c9d8d147a716c0fdb7a8554c8b9b18c16f0faa7ca196eb18491762e2719c2",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 169,
+      "sha256": "7e04745a2a10275a22df7fc84f20fe3fae30647e2b992613eefa47914f257111",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 391,
+      "sha256": "9418c1b8593ec38d870eb0abb328588f831fcc584af17797c342cfd357ffc79f",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 394,
+      "sha256": "9b7f1f1fd903c47e2edd5aea0d4cc20cb226b46113363a9e37cbad6838bda530",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/solanaNodeIndexer.ts",
+      "line": 110
+    },
+    {
+      "file": "apps/web/src/lib/onchain/solanaNodeIndexer.ts",
+      "line": 111
+    },
+    {
+      "file": "apps/web/src/lib/onchain/solanaNodeIndexer.ts",
+      "line": 128
+    },
+    {
+      "file": "apps/web/src/lib/onchain/solanaNodeIndexer.ts",
+      "line": 136
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 391,
+        "sha256": "9418c1b8593ec38d870eb0abb328588f831fcc584af17797c342cfd357ffc79f"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

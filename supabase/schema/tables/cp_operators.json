@@ -1,0 +1,66 @@
+{
+  "name": "cp_operators",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 80,
+    "sha256": "620b47c92dd864a6d43c9a6e8657388f61ddbd404ebc4c0ed9a2ea480a3fc9f2"
+  },
+  "definition": "create table if not exists cp_operators (\n  id              text primary key,\n  organization_id text not null references cp_organizations(id) on delete restrict,\n  name            text not null,\n  -- A domain the operator PROVED control of. Never taken from a request.\n  domain          text,\n  status          text not null default 'ACTIVE'\n                    check (status in ('ACTIVE', 'SUSPENDED', 'REVOKED', 'EXPIRED')),\n  created_at      timestamptz not null default now(),\n  updated_at      timestamptz not null default now()\n);",
+  "dependencies": [
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 80,
+      "sha256": "620b47c92dd864a6d43c9a6e8657388f61ddbd404ebc4c0ed9a2ea480a3fc9f2",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 91,
+      "sha256": "4d5613c6c1f690e6de4661d173f9aa2740524ccf9ad67936eba1ef937e5a91e0",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 101,
+      "sha256": "db0c4aaff148a6c23814018f1a8f71adad3478674e67d4ea7bffc09decdb64a7",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 119,
+      "sha256": "4dfb662d6fa07163d19f79fca7056aa87cf3dd056b0a6778bbe5deeb8deafd11",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 596,
+      "sha256": "372e2afb40efbe1e461c5a8881867bc8dac62ebdede3ac16d320c97bf7f7e3e3",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 300
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 301
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 596,
+        "sha256": "372e2afb40efbe1e461c5a8881867bc8dac62ebdede3ac16d320c97bf7f7e3e3"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

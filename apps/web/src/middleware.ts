@@ -2,8 +2,8 @@ import { NextRequest, NextResponse, type NextFetchEvent } from "next/server";
 import { isFrozenRoute, featureGateResponse } from "@/lib/featureGate";
 import {
   canRefreshSession,
-  SESSION_COOKIE,
-  setSessionCookie,
+  sessionCookieFromRequest,
+  setSessionCookieForRequest,
   signSession,
   tokenFromRequest,
   verifySession,
@@ -51,11 +51,15 @@ const PUBLIC_PAGES = new Set([
   "/talk-to-us",
   "/changelog",
   "/community",
-  "/partners",
+  "/partners", // redirects to /partnerships (next.config.js)
+  "/partnerships", // public partnership page + inquiry form
   "/use-cases",
   "/careers",
   "/ambassadors",
   "/ambassadors/dashboard", // per-creator dashboard, reached via emailed ?email= link
+  // Payroll invite: the token is in the URL fragment, which a login redirect
+  // would drop. The page keeps it and calls an authenticated API (401 → /login).
+  "/payroll/join",
   "/payouts",
   "/status",
   "/press",
@@ -94,6 +98,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/docs",
   "/blog",
   "/.well-known", // OAuth 2.1 discovery metadata (RFC 8414 / 9728) + assetlinks
+  "/p/", // hosted merchant checkout: payers are anonymous; the page reads only the public link/intent views
   "/l/", // verified app links: redirect to the same path (app/l/[...path]); the target gates itself
 
   "/investing/insights", // FurlPay Research portal — public content, like /blog
@@ -135,9 +140,13 @@ const PUBLIC_PAGE_PREFIXES = [
   "/newsletter", // subscribe / manage preferences (public)
   "/early-access", // early-access signup landing (public)
   "/developer", // public developer portal + Agent Console demo
-  "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
+  // Shareable checkout links (/pay/x402…), unauthenticated by design. WITH the
+  // trailing slash: a bare "/pay" prefix also matched /payroll/*, /payments and
+  // /paynow, silently making every "pay…" page public.
+  "/pay/",
   "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
   "/trips", // FurlPay Trips product page — marketing composition, no user data
+  "/onchain", // Onchain Intelligence — public aggregates from /api/onchain (no user ids, truncated addresses)
   // Market data is public: /api/markets* already serves every quote, stat and
   // chart anonymously (rate-limited per IP), so gating the PAGE only stopped
   // people READING published prices — it protected nothing. The one
@@ -148,7 +157,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/markets",
   "/auth/handoff", // native-app → browser session handoff; auth IS the one-time code (redirects to /login otherwise)
   "/discord", // branded Discord links → external redirects (see next.config redirects)
-  "/telegram", // branded Telegram links → external redirects (see next.config redirects)
+  "/telegram", // public Mini App shell; account data stays behind requireUser APIs
   "/wallet", // FurlPay Wallet handle-reservation landing (pre-launch, public)
 ];
 const PUBLIC_API_PREFIXES = [
@@ -186,6 +195,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/x402", // agentic pay-per-call APIs — auth IS the payment (HTTP 402)
   "/api/mpp", // Machine Payments Protocol (Stripe/Tempo) — auth IS the payment
   "/api/contact", // public "Talk to us" lead capture
+  "/api/partnerships/inquiries", // public /partners inquiry form (rate-limited, Zod, bot traps)
   "/api/support/message", // public chat-bubble → support mailbox (IP rate-limited)
   // Tier-1 AI deflection for the public chat bubble. The route was written to
   // be public — IP rate limit of 15/min, secret redaction on the question and
@@ -244,8 +254,15 @@ const PUBLIC_API_PREFIXES = [
   // as an open RPC proxy.
   "/api/token",
   "/api/rails", // public payment-rail map — protocol, chains, fees, live status
+  "/api/onchain", // public /onchain aggregates — IP rate-limited, one shared 60 s build per (range, chain)
   "/api/docs/feedback", // anonymous docs page feedback counters (IP rate-limited)
   "/api/transfers/gasless", // Smart Gas: GET quote is public; POST enforces its own session via requireUser
+  // One-click "lock my account" link from security emails (lib/lockLink.ts).
+  // Session-less BY DESIGN: it is for the victim of a takeover, who cannot sign
+  // in. Auth is the HMAC over (userId, expiry) in the URL, checked in constant
+  // time; the route is rate-limited and can only restrict an account. Until
+  // this entry existed the middleware answered 401 to exactly that person.
+  "/api/security/lock",
   "/api/payments/fees", // public fee estimator — merchants compare vs card interchange
   "/api/discord", // Discord interactions — auth IS the Ed25519 signature (401 otherwise)
   "/api/check", // public FurlPay Wallet handle availability check (IP rate-limited)
@@ -277,6 +294,18 @@ const BASELINE = { limit: 150, windowMs: 60_000 };
  * must not pull in a module that reaches for Node APIs.
  */
 const MAX_API_BODY_BYTES = 100 * 1024;
+
+/**
+ * Reviewed exceptions to MAX_API_BODY_BYTES, by EXACT path. Each route must
+ * authenticate the body by signature and stream it with its own byte cap
+ * (lib/settlement/boundedBody.ts) at no more than the limit given here.
+ *
+ *   /api/webhooks/allium   Allium Beam multi-record deliveries (up to 500
+ *                          records, documented as 1 MB); HMAC-verified.
+ */
+const LARGE_BODY_ROUTES: Readonly<Record<string, number>> = {
+  "/api/webhooks/allium": 1_000_000,
+};
 
 // CSRF backstop for cookie-authenticated mutating requests. SameSite=Lax on
 // the session cookie is the primary defense (browsers won't attach it to
@@ -321,7 +350,7 @@ export function crossSiteCookieForgery(req: NextRequest): boolean {
 const SLIDE_WINDOW_SECONDS = 15 * 60;
 
 async function maybeSlideSession(req: NextRequest, claims: SessionClaims | null, res: NextResponse) {
-  if (!claims?.exp || !req.cookies.get(SESSION_COOKIE)) return res;
+  if (!claims?.exp || !sessionCookieFromRequest(req)) return res;
   if ((claims as { mcp?: boolean }).mcp === true) return res;
   if (claims.exp - Date.now() / 1000 > SLIDE_WINDOW_SECONDS) return res;
   if (!canRefreshSession(claims)) return res;
@@ -332,7 +361,7 @@ async function maybeSlideSession(req: NextRequest, claims: SessionClaims | null,
     ...(claims.guest ? { guest: true } : {}),
     auth_time: claims.auth_time ?? claims.iat,
   });
-  setSessionCookie(res, fresh);
+  setSessionCookieForRequest(req, res, fresh);
   return res;
 }
 
@@ -441,11 +470,12 @@ export async function middleware(req: NextRequest, event?: NextFetchEvent) {
   // cheaply and the adversarial case correctly.
   if (isApi && MUTATING_METHODS.has(req.method)) {
     const declared = Number(req.headers.get("content-length") ?? 0);
-    if (Number.isFinite(declared) && declared > MAX_API_BODY_BYTES) {
+    const cap = Object.hasOwn(LARGE_BODY_ROUTES, pathname) ? LARGE_BODY_ROUTES[pathname] : MAX_API_BODY_BYTES;
+    if (Number.isFinite(declared) && declared > cap) {
       return NextResponse.json(
         {
           error: "payload_too_large",
-          message: `Request body exceeds the ${MAX_API_BODY_BYTES} byte limit.`,
+          message: `Request body exceeds the ${cap} byte limit.`,
         },
         { status: 413 }
       );
@@ -470,7 +500,7 @@ export async function middleware(req: NextRequest, event?: NextFetchEvent) {
   if (
     isApi &&
     MUTATING_METHODS.has(req.method) &&
-    req.cookies.get(SESSION_COOKIE) &&
+    sessionCookieFromRequest(req) &&
     crossSiteCookieForgery(req)
   ) {
     return NextResponse.json({ error: "cross_origin_request_rejected" }, { status: 403 });

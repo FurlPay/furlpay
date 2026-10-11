@@ -4,7 +4,7 @@
 
 # Furlpay
 
-**The on-chain financial operating system for stablecoin payments, global travel, cards, and agentic commerce.**
+**Stablecoin payment infrastructure, merchant checkout and agent payment tooling.**
 
 [furlpay.com](https://furlpay.com) · [Docs](https://furlpay.com/docs) · [Developer platform](https://furlpay.com/developers) · [Security](SECURITY.md)
 
@@ -120,19 +120,48 @@ and live KYC.
 
 ## Overview
 
-Furlpay unifies four products into one app:
+The repository contains code for four product areas. Code existing here is not
+the same as a service being offered; the status table below says which is which.
 
-- Spend: stablecoin Visa cards (USDC/EURC) backed by a self-custodial Safe
-  smart account, with a real-time policy engine and on-chain pre-authorization
-  escrow.
-- Bank: multi-currency accounts with local details (IBAN, routing, sort code,
-  UPI) and mid-market FX off-ramps via Wise-style rails.
-- Invest: fractional US stocks and ETFs (Alpaca-style order semantics).
+- Pay: USDC payment APIs, merchant payment links and hosted checkout,
+  contractor payroll, cross-chain transfers and agent payment protocols.
 - Build: SDKs, a CLI, embeddable UI widgets, an Account Kit, an OpenAPI spec,
   and a Model Context Protocol server for AI agents.
+- Spend and Bank (not offered): card and bank-account code paths exist behind
+  flags that cannot be enabled, because no card issuer or banking partner is
+  contracted.
+- Invest (not enabled): order code exists; orders are not routed to a brokerage.
 
-Underneath, a shared compliance package enforces MiCA and GENIUS stablecoin
-routing, KYC and AML screening, and the FATF Travel Rule.
+A shared compliance package provides sanctions screening, jurisdiction rules
+and travel-rule payload computation. These are software controls, not a
+licence.
+
+### Production status (checked 11 October 2026)
+
+The source of truth is `apps/web/src/lib/productionStatus.ts`; the public
+version is [furlpay.com/docs](https://furlpay.com/docs). A capability is
+"production verified" only when a production response was observed.
+
+| Capability | Status |
+|---|---|
+| Web platform, passkey sign-in, docs, SDKs | Production verified |
+| Payment fee estimates, client-signed payment and bridge construction | Production verified |
+| Market data, hotel discovery map | Production verified |
+| x402 challenges, rail status (`/api/rails`) | Blocked by external dependency: the key-value store is over its plan limit, so these answer 503 |
+| x402 / MPP settlement, gasless transfers, agent payment execution | Implemented, disabled: no production signer or relayer |
+| Merchant payment links, hosted checkout, refunds, reconciliation | Implemented, not production verified: needs migrations 0040–0047 and a custody provider for collection addresses |
+| Sui and Arc collection | Implemented, not production verified |
+| Contractor payroll | Blocked by external dependency: no router contract deployed |
+| Settlement workspace, business onboarding, compliance cases | Implemented, not production verified |
+| Circle user-controlled wallets | Implemented, disabled: no Circle Wallets credentials in production |
+| Telegram Mini App | Partially implemented in production: the page loads, sign-in answers 503 until the key-value store is restored |
+| Travel booking, stock and ETF orders | Implemented, disabled |
+| Fiat on-ramp and off-ramp | Blocked by external dependency: no provider contract is live |
+| Card issuing, bank accounts, credit, bill pay, rewards | Not implemented |
+| Mobile and desktop apps | Implemented, not distributed |
+
+Deployment setup (credentials, flags, migrations, scheduled jobs) is documented
+at [furlpay.com/docs/architecture/configuration](https://furlpay.com/docs/architecture/configuration).
 
 ---
 

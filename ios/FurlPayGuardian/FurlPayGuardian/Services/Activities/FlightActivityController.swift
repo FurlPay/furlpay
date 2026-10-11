@@ -116,16 +116,20 @@ public final class FlightActivityController {
     public func update(_ pass: BoardingPass, now: Date = .now) async {
         #if canImport(ActivityKit)
         guard #available(iOS 16.2, *) else { return }
-        guard let activity = Activity<FlightActivityAttributes>.activities
-            .first(where: { $0.attributes.passId == pass.id })
-        else { return }
-
-        await activity.update(
-            ActivityContent(
-                state: .init(pass: pass, at: now),
-                staleDate: pass.arrivesAt.addingTimeInterval(15 * 60)
+        // A loop, not `.first(where:)`: a closure formed here is main-actor
+        // isolated, so the Activity it returns joins the actor's region and
+        // Swift 6 refuses to send it into the nonisolated `update`. The loop
+        // variable stays disconnected, the same way `stop()` uses it.
+        for activity in Activity<FlightActivityAttributes>.activities {
+            guard activity.attributes.passId == pass.id else { continue }
+            await activity.update(
+                ActivityContent(
+                    state: .init(pass: pass, at: now),
+                    staleDate: pass.arrivesAt.addingTimeInterval(15 * 60)
+                )
             )
-        )
+            return
+        }
         #endif
     }
 
@@ -144,8 +148,15 @@ public final class FlightActivityController {
     private func endAll() {
         #if canImport(ActivityKit)
         guard #available(iOS 16.2, *) else { return }
-        for activity in Activity<FlightActivityAttributes>.activities {
-            Task { await activity.end(nil, dismissalPolicy: .immediate) }
+        // Snapshot NOW, before start() requests the replacement: a task that
+        // read the list later would end the new activity too. Detached, because
+        // a Task inheriting @MainActor would pull the activities into the
+        // actor's region and then send them back out to `end`.
+        let running = Activity<FlightActivityAttributes>.activities
+        Task.detached {
+            for activity in running {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
         }
         #endif
         trackedPassId = nil

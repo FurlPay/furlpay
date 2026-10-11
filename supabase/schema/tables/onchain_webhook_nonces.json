@@ -1,0 +1,66 @@
+{
+  "name": "onchain_webhook_nonces",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0032_onchain_ingestion.sql",
+    "line": 116,
+    "sha256": "66479eb8c7d85d9a8ba7add0fd68b552aa7964b3bb00c747921897900e3d747a"
+  },
+  "definition": "create table if not exists onchain_webhook_nonces (\n  nonce       text primary key check (nonce ~ '^[0-9a-f-]{36}$'),\n  received_at timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 116,
+      "sha256": "66479eb8c7d85d9a8ba7add0fd68b552aa7964b3bb00c747921897900e3d747a",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 120,
+      "sha256": "d5f01f9927f46d6525b421d613631340a9cc0ab618a6f22c1646b771689c2ee6",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 508,
+      "sha256": "08762aed60d2d9037cc5e50b2069f7193246cfe7ec20e84475ce4ad54eb5c42d",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 583,
+      "sha256": "6cbe5b8ddc76a37753cbe4f06f543c8f4d98a3736550b3e67af860327afd3860",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 593,
+      "sha256": "77a76e23c58d3878b9dd044bee3d715982a4b60c74ef1602634c1534c5c685e6",
+      "kind": "procedural"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 604,
+      "sha256": "ebe2bcae04d5cc9285487880761e3f4467631142a9b8a34e82f0f89200cf783c",
+      "kind": "grant delete"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/app/api/webhooks/allium/route.ts",
+      "line": 76
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 583,
+        "sha256": "6cbe5b8ddc76a37753cbe4f06f543c8f4d98a3736550b3e67af860327afd3860"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

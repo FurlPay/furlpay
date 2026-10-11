@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { recordAdminAccess, recordAdminDenied } from "@/lib/adminAudit";
-import { tokenFromRequest, verifySession, type Role, type SessionClaims } from "@/lib/session";
+import { tokenFromRequest, verifySessionState, type Role, type SessionClaims } from "@/lib/session";
 import { getAccountDurable, type UserAccount } from "@/lib/store";
 import { isAccountDeleted } from "@/lib/accountDeletion";
 import type { McpClaims } from "@/lib/mcp/oauth";
 import { mcpDenialFor } from "@/lib/mcp/routeScopes";
+import { watchDenialFor } from "@/lib/watchScope";
 import { audit } from "@/lib/audit";
 import { EPOCH_OUTDATED, REVOCATION_HEADER, epochMatches } from "@/lib/sessionEpoch";
 import { effectiveRoles } from "@/lib/compliance/roleGrants";
@@ -29,6 +30,9 @@ export type AuthResult =
 // Null means no bootstrap admin exists in this deployment.
 export const FOUNDER_ADMIN_EMAIL: string | null = adminBootstrapEmail();
 
+/** Methods that cannot change state; the only ones allowed while revocation is unknown. */
+const READ_ONLY_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
 function isProductionDeployment(): boolean {
   return process.env.NODE_ENV === "production" && process.env.VERCEL_ENV !== "preview";
 }
@@ -38,12 +42,22 @@ function normalizedEmail(email: string | undefined | null): string {
 }
 
 /** Resolve the acting user from the session cookie. 401 when absent/stale. */
-export async function requireUser(req: NextRequest): Promise<AuthResult> {
+export async function requireUser(req: NextRequest, opts: { allowUnknownRevocation?: boolean } = {}): Promise<AuthResult> {
   // durable: also consult the cross-instance revocation denylist — a token
   // revoked by logout/account-lock on another lambda must die here too.
-  const claims = await verifySession(tokenFromRequest(req), { durable: true });
+  const { claims, revocation } = await verifySessionState(tokenFromRequest(req), { durable: true, allowWatch: true });
   if (!claims?.sub) {
     return { ok: false, res: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+  }
+  // A Wear OS watch token is read-only plus card freeze (lib/watchScope.ts,
+  // default deny). Checked before anything else so no route sees it as a
+  // full session.
+  if (claims.watch === true) {
+    const denial = watchDenialFor(req.method, req.nextUrl.pathname);
+    if (denial) {
+      audit("watch.scope_denied", claims.sub, { method: req.method, path: req.nextUrl.pathname });
+      return { ok: false, res: denial };
+    }
   }
   // A connector (MCP) access token is scoped, not a full session: it may only
   // reach the routes its consented scopes map to (default deny — see
@@ -97,6 +111,22 @@ export async function requireUser(req: NextRequest): Promise<AuthResult> {
       res: NextResponse.json(
         { error: "Session ended — sign in again" },
         { status: 401, headers: { [REVOCATION_HEADER]: EPOCH_OUTDATED } }
+      ),
+    };
+  }
+  // Revocation could not be checked (KV unreachable), so a logged-out or
+  // stolen token is indistinguishable from a live one. Reads stay available;
+  // anything that changes state — money movement, credentials, settings — is
+  // refused until the denylist is readable again. Runs LAST: a logout during
+  // the outage bumped the Postgres epoch above, which answers 401, not 503.
+  // allowUnknownRevocation: only /api/auth/refresh — a refreshed token keeps
+  // its jti, so it stays revocable, and it still cannot write while unknown.
+  if (revocation === "unknown" && !READ_ONLY_METHODS.has(req.method) && !opts.allowUnknownRevocation) {
+    return {
+      ok: false,
+      res: NextResponse.json(
+        { error: "session_check_unavailable", detail: "Please try again shortly.", retryAfterSeconds: 30 },
+        { status: 503, headers: { "Retry-After": "30" } }
       ),
     };
   }
@@ -172,6 +202,25 @@ export async function requireRole(req: NextRequest, role: Role): Promise<AuthRes
     recordAdminAccess(uid, req.method, path);
   }
   return auth;
+}
+
+/**
+ * For PUBLIC routes that show operators more detail: is the caller the admin?
+ * The same tests as requireRole("admin") — live grant, bootstrap email, no
+ * guest session in production — but a "no" is not an access attempt on an
+ * admin route, so it records no denial (a public page polled by every
+ * signed-in user would otherwise flood the security log). A "yes" is audited
+ * as an admin read, exactly like requireRole.
+ */
+export async function isOperator(req: NextRequest): Promise<boolean> {
+  if (!tokenFromRequest(req)) return false;
+  const auth = await requireUser(req);
+  if (!auth.ok) return false;
+  if (auth.claims.guest && isProductionDeployment()) return false;
+  const roles = await effectiveRoles(auth.account);
+  if (!roles.includes("admin") || !isBootstrapAdminEmail(auth.account.user.email)) return false;
+  recordAdminAccess(auth.account.user.id, req.method, req.nextUrl.pathname);
+  return true;
 }
 
 /** requireUser + check that the user holds AT LEAST ONE of the specified roles. */

@@ -1,5 +1,7 @@
-import { createPublicClient, http, parseAbi, type Address, type Hex } from "viem";
+import { createPublicClient, encodeFunctionData, getAddress, http, parseAbi, type Address, type Hex } from "viem";
+import { createKmsAccount, kmsAccountAvailable } from "@/lib/kmsAccount";
 import { log } from "@/lib/log";
+import { firstRpcUrl } from "@/lib/rpcEnv";
 import { financialEnvironment, flagEnabled } from "@/lib/flags";
 import type { RailAdapter, RailOutcome, RailSubmitRequest } from "@/lib/controlPlane/railAdapter";
 import {
@@ -12,6 +14,9 @@ import {
   ArcPrecisionError,
   classifyArcTransferFailure,
   isPermanentArcFailure,
+  assertArcFeeFloor,
+  assertArcValueTransfer,
+  ARC_MIN_BASE_FEE_WEI,
 } from "@/lib/chains/arc";
 
 // ---------------------------------------------------------------------------
@@ -82,10 +87,13 @@ function arcRpcUrl(network: ArcNetwork): string | null {
     network === "arc"
       ? process.env.ARC_RPC_URL
       : process.env.ARC_TESTNET_RPC_URL;
-  if (explicit && explicit.trim()) return explicit.trim();
-  // The published default. Usable for testnet; for mainnet the operator must
-  // set it explicitly, because ARC_DEPENDENCIES.md records that the mainnet
-  // endpoint constant in this repo is NOT independently verified.
+  // The first entry of a comma-separated failover list (lib/rpcEnv.ts): the signer
+  // proves the chain id of exactly the endpoint it submits through.
+  const first = firstRpcUrl(explicit);
+  if (first) return first;
+  // The published default for testnet. Mainnet must still be set explicitly:
+  // the endpoint is verified (ARC_DEPENDENCIES.md §1, 2026-10-09), but which
+  // provider carries real-money submissions is an operator decision.
   return network === "arc_testnet" ? ARC_RPC.testnet : null;
 }
 
@@ -151,10 +159,42 @@ export interface ArcSigner {
  * `x402Settler.ts` already establishes that a raw key is refused in production,
  * and a second, weaker path here would quietly become the one that gets used.
  */
-export function arcSigner(): ArcSigner | null {
-  // Wired to the same KMS the x402 settler requires. Until that exists there is
-  // no Arc signer, and saying so is the whole point.
-  return null;
+export function arcSigner(env: Record<string, string | undefined> = process.env): ArcSigner | null {
+  // ARC-P1-004. The same KMS boundary the x402 settler uses (lib/kmsAccount.ts): the key never
+  // enters this process, only digests are sent to the provider, and the "furlpay-settlement" key
+  // id is restricted to the settlement purpose inside the provider. No KMS => null => the rail
+  // stays unregistered (503). There is no raw-key branch, in any environment.
+  if (!kmsAccountAvailable()) return null;
+  const address = (env.ARC_SETTLEMENT_ADDRESS ?? "").trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
+    log.error("a KMS is configured but ARC_SETTLEMENT_ADDRESS is missing or malformed");
+    return null;
+  }
+  const account = createKmsAccount({ keyId: "furlpay-settlement", purpose: "settlement", address: address as Hex });
+  if (!account) return null;
+  return {
+    address: getAddress(address),
+    async submitTransfer({ network, rpcUrl, token, to, amountErc20, gasLimit }) {
+      assertArcValueTransfer(to, amountErc20, "Arc settlement");
+      if (amountErc20 <= 0n) throw new Error("Arc settlement: amount must be positive");
+      if (gasLimit <= 0n || gasLimit > ARC_GAS_CEILING) throw new Error("Arc settlement: gas limit out of bounds");
+      const client = createPublicClient({ transport: http(rpcUrl, { timeout: 10_000 }) });
+      const chainId = arcChainId(network);
+      // The endpoint must prove the chain before anything is signed for it.
+      const actual = await client.getChainId();
+      if (actual !== chainId) throw new ArcChainMismatchError(chainId, actual, rpcUrl);
+      const [nonce, block] = await Promise.all([client.getTransactionCount({ address: account.address, blockTag: "pending" }), client.getBlock({ blockTag: "latest" })]);
+      // Arc drops (no receipt, ever) a transaction below its 20 gwei base-fee floor: never sign one.
+      const base = block.baseFeePerGas ?? ARC_MIN_BASE_FEE_WEI;
+      const maxFeePerGas = assertArcFeeFloor((base > ARC_MIN_BASE_FEE_WEI ? base : ARC_MIN_BASE_FEE_WEI) * 2n, "Arc settlement");
+      const serializedTransaction = await account.signTransaction({
+        chainId, type: "eip1559", to: getAddress(token), value: 0n, nonce, gas: gasLimit,
+        maxFeePerGas, maxPriorityFeePerGas: 0n,
+        data: encodeFunctionData({ abi: parseAbi(["function transfer(address,uint256) returns (bool)"]), functionName: "transfer", args: [getAddress(to), amountErc20] }),
+      });
+      return client.sendRawTransaction({ serializedTransaction });
+    },
+  };
 }
 
 export interface ArcAdapterDeps {

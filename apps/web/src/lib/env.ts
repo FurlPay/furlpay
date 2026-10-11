@@ -35,6 +35,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // "true" behind CloudFront (Terraform sets it): origin verification is
       // mandatory and admin page checks call the local port. Unset elsewhere.
       v("ORIGIN_VERIFY_REQUIRED"),
+      v("ORIGIN_VERIFY_SECRET"),
       // "off" disables client analytics ingestion (503); unset = on.
       v("FURLPAY_ANALYTICS_INGEST"),
       // Behind CloudFront: the public origin (https://host). Unset = Vercel.
@@ -70,6 +71,13 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // "production" for preview branches too — inferring from it would mark a
       // preview as a place real money may move. See lib/flags.ts.
       v("FURLPAY_ENV"),
+      // Preview isolation (lib/dataPlane.ts). A non-production Vercel
+      // deployment gets no database or key-value credentials unless its scope
+      // sets FURLPAY_DATA_PLANE=isolated, and never a production Supabase
+      // project. PROD_PROJECT_REFS extends the built-in production list.
+      v("FURLPAY_DATA_PLANE"),
+      v("PROD_PROJECT_REFS"),
+      v("PROD_KV_HOSTS"),
       v("BLOCKAID_API_KEY"),
     ],
   },
@@ -95,6 +103,7 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // auto-halts, default thresholds, velocity cap off.
       v("SETTLEMENT_SAFETY_AUTOHALT"),
       v("SETTLEMENT_RECOVERY_MIN_APPROVERS"),
+      v("SETTLEMENT_RECOVERY_APPROVER_EMAILS"),
       v("SETTLEMENT_MAX_HEAD_AGE_S"),
       v("SETTLEMENT_MAX_PROVIDER_LAG_BLOCKS"),
       v("SETTLEMENT_MAX_PER_HOUR"),
@@ -146,6 +155,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // AES-256-GCM key (base64, 32 bytes) sealing partner webhook signing
       // secrets (lib/ramp/partnerConfig.ts). Unset => partners cannot set a callback.
       v("FURLPAY_PARTNER_WEBHOOK_KEY"),
+      // AES-256-GCM key (base64, 32 bytes) sealing payroll TINs, legal names and
+      // addresses from W-9/W-8BEN forms (lib/payroll/taxForms.ts). Unset => 503.
+      v("FURLPAY_TAX_ENCRYPTION_KEY"),
       // Cannot be enabled: no lender and no biller network is contracted
       // (flags.ts `unimplemented`). Registered so the names exist.
       v("CREDIT_LIVE"),
@@ -197,6 +209,11 @@ export const ENV_REGISTRY: EnvGroup[] = [
   {
     group: "Database (Supabase)",
     vars: [v("SUPABASE_URL"), v("SUPABASE_SERVICE_ROLE_KEY"), v("RESEARCH_PDF_BUCKET")],
+  },
+  {
+    // Optional local operator tooling only; never configure on production.
+    group: "Staging schema review (local only)",
+    vars: [v("STAGING_DATABASE_URL")],
   },
   {
     group: "Auth providers",
@@ -343,6 +360,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("GOOGLE_PLACES_API_KEY"),
       v("RESEND_API_KEY"),
       v("EMAIL_FROM"),
+      // Internal inbox told about each new /partners inquiry. Unset => the inquiry
+      // is still stored and its notification_state reads "not_configured".
+      v("PARTNERSHIPS_NOTIFY_EMAIL"),
       v("CDP_API_KEY_ID"),
       v("CDP_API_KEY_SECRET"),
       // Internal names for the same CDP key (lib/providers/rampEnv.ts); the
@@ -386,6 +406,12 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // The payer's wallet signs EIP-712 data bound to this address; a live
       // deployment without it fails closed in services/payments.ts.
       v("FURLPAY_ROUTER_ADDRESS", true),
+      // Per-chain FurlPayRouter (lib/services/routerConfig.ts). The bare name above
+      // is Arbitrum's; a router is never assumed to exist on another chain.
+      v("FURLPAY_ROUTER_ADDRESS_ARBITRUM"),
+      v("FURLPAY_ROUTER_ADDRESS_ARC"),
+      v("FURLPAY_ROUTER_ADDRESS_BASE"),
+      v("FURLPAY_ROUTER_ADDRESS_POLYGON"),
       v("TREASURY_ADDRESS_BSC"),
     ],
   },
@@ -506,6 +532,11 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("TELEGRAM_MARKET_CHAT_ID"),
       v("TELEGRAM_BOT_TOKEN"),
       v("TELEGRAM_CHANNEL_ID"),
+      // Telegram Mini App (/telegram): launch-data freshness and the public
+      // identifiers used to build t.me launch links. Not secrets.
+      v("TELEGRAM_AUTH_MAX_AGE_SECONDS"),
+      v("NEXT_PUBLIC_TELEGRAM_BOT_USERNAME"),
+      v("NEXT_PUBLIC_TELEGRAM_APP_SHORT_NAME"),
       v("IG_ACCESS_TOKEN"),
       v("IG_USER_ID"),
       v("CONTACT_INBOX"),
@@ -536,7 +567,6 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // Cron routes accept either name; production must set one.
       v("CRON_SECRET"),
       v("FURLPAY_CRON_SECRET"),
-      v("FURLPAY_WEBHOOK_SECRET"),
       v("COMPLYADVANTAGE_WEBHOOK_SECRET"),
       // MPC signing proxy (lib/signing via the server). The private key is a
       // Turnkey API credential, never a wallet key.
@@ -555,6 +585,12 @@ export const ENV_REGISTRY: EnvGroup[] = [
     group: "Chain RPC endpoints",
     vars: [
       v("SOLANA_RPC_URL"),
+      // Sui GraphQL endpoint for merchant collection (JSON-RPC was retired on
+      // mainnet in July 2026). Unset => the public Foundation endpoint, rate limited.
+      v("SUI_GRAPHQL_URL"),
+      // Lets a NON-production deployment collect on Arc testnet (lib/payments/merchant/registry.ts
+      // testnetCollectionEnabled). ARC_TESTNET_RPC_URL (below) accepts a comma-separated failover list.
+      v("FURLPAY_TESTNET_COLLECTION"),
       v("SOLANA_DEVNET_RPC_URL"),
       v("HELIUS_RPC_URL"),
       v("ETHEREUM_SEPOLIA_RPC_URL"),
@@ -571,6 +607,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
     group: "Arc rail and x402 tuning",
     vars: [
       v("ARC_RAIL_LIVE"),
+      // Public address of the KMS key "furlpay-settlement" that signs Arc rail transfers
+      // (lib/chains/arcExecutionAdapter.ts arcSigner). Not a secret; the key stays in the KMS.
+      v("ARC_SETTLEMENT_ADDRESS"),
       v("ARC_MAINNET_ACTIVATED"),
       v("ARC_CONFIRMATIONS"),
       v("ARC_RECEIPT_TIMEOUT_MS"),
@@ -599,6 +638,46 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("FURLPAY_DISCORD_ADMINS"),
       v("EMAIL_REPLY_TO"),
       v("FURLPAY_VERIFY_DOMAIN"),
+    ],
+  },
+  {
+    // /onchain. Explorer API key plus the ids of two SAVED queries whose output
+    // columns match the contract in lib/onchain/allium.ts. Unset = those cards
+    // say "not connected"; nothing is substituted.
+    group: "Allium (blockchain data)",
+    // Ingestion (docs/ALLIUM_INTEGRATION.md): the Beam webhook HMAC key (the
+    // same value as the Allium org secret named in the sink's hash_key; >= 32
+    // chars, unset = webhook refuses everything), "1" when the pipeline runs
+    // is_zerolag (events arrive pre-finality), extra addresses to track, and an
+    // optional allowlist narrowing the chains Allium reports as supported.
+    vars: [
+      v("ALLIUM_API_KEY"),
+      v("ALLIUM_STABLECOIN_DAILY_QUERY_ID"),
+      v("ALLIUM_CORRIDOR_QUERY_ID"),
+      v("ALLIUM_STABLECOIN_CHAIN_QUERY_ID"),
+      v("ALLIUM_RWA_QUERY_ID"),
+      v("ALLIUM_BEAM_WEBHOOK_SECRET"),
+      v("ALLIUM_BEAM_ZEROLAG"),
+      v("ONCHAIN_WATCH_ADDRESSES"),
+      v("ONCHAIN_SYNC_CHAINS"),
+      v("ONCHAIN_NODE_CHAINS"),
+      v("ONCHAIN_NODE_TOKENS"),
+      // Chains whose last 1/5 min of USDC logs the live panel scans per (cached) read.
+      v("ONCHAIN_LIVE_WINDOW_CHAINS"),
+      // Network index bucket width: 60 | 300 | 900 | 3600 seconds (fewer header reads when wider).
+      v("ONCHAIN_ASSET_BUCKET_SECONDS"),
+      // Optional independent provider per chain for the USDC network index: the
+      // range's last block hash and supply must match it or the range is not committed.
+      v("ETHEREUM_RPC_URL_SECONDARY"),
+      v("BASE_RPC_URL_SECONDARY"),
+      v("ARBITRUM_RPC_URL_SECONDARY"),
+      v("POLYGON_RPC_URL_SECONDARY"),
+      // Ethereum USDC index (migration 0036): keyless archive RPC pool (comma
+      // separated; defaults to the census-verified list; Alchemy is refused)
+      // and the raw-event retention window in days (default 30).
+      v("USDC_INDEX_RPC_URLS"),
+      v("USDC_INDEX_PRIMARY_RPC_URL"),
+      v("USDC_INDEX_RETENTION_DAYS"),
     ],
   },
   {

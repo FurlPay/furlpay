@@ -1,0 +1,68 @@
+{
+  "name": "content_interactions",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0019_content_leads.sql",
+    "line": 85,
+    "sha256": "2314f085e374a599e5e9d166622303fe4a41492dc86219944bd638cea0b8caeb"
+  },
+  "definition": "CREATE TABLE IF NOT EXISTS content_interactions (\n  id            uuid        PRIMARY KEY,\n  -- Not a FK: an interaction is a fact that happened, and it must survive a\n  -- lead being erased under a deletion request. Erasure removes the person;\n  -- the aggregate \"a report was downloaded\" is not personal data once the\n  -- address is gone.\n  lead_email    text        NOT NULL,\n  event_type    text        NOT NULL,\n  content_type  text        NOT NULL,\n  -- The public slug, never an internal id.\n  content_id    text        NOT NULL,\n  created_at    timestamptz NOT NULL DEFAULT now(),\n\n  CONSTRAINT interaction_type_known CHECK (\n    event_type IN ('report_download','webinar_registration')\n  ),\n  CONSTRAINT interaction_content_type_known CHECK (\n    content_type IN ('report','webinar')\n  )\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 85,
+      "sha256": "2314f085e374a599e5e9d166622303fe4a41492dc86219944bd638cea0b8caeb",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 106,
+      "sha256": "c916d07c462b3418786fa19dbf5df1be313bc001d776357bb07989913ebfbe86",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 108,
+      "sha256": "f8197a54faa92d9aa70ccd1b43308effeb6a3d309b2e653c06883ff3c5800940",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 111,
+      "sha256": "f9aa9c2b0737cc4f831bc2111a59794d08145213d7a2115e1962a4c1481c70fe",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0019_content_leads.sql",
+      "line": 120,
+      "sha256": "22f1740066b1c4f4d24a731c39f7461a8307d8ddc34f60d8fd84e8c134aad0ef",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/leads/store.ts",
+      "line": 29
+    },
+    {
+      "file": "apps/web/src/lib/leads/store.ts",
+      "line": 220
+    },
+    {
+      "file": "apps/web/src/lib/leads/store.ts",
+      "line": 256
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0019_content_leads.sql",
+        "line": 120,
+        "sha256": "22f1740066b1c4f4d24a731c39f7461a8307d8ddc34f60d8fd84e8c134aad0ef"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

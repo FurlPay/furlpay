@@ -33,7 +33,7 @@ export async function validateBody<T>(
   } catch {
     return NextResponse.json({ error: "Unreadable request body" }, { status: 400 });
   }
-  if (text.length > maxBytes) {
+  if (new TextEncoder().encode(text).byteLength > maxBytes) {
     return NextResponse.json({ error: "Payload too large" }, { status: 413 });
   }
 

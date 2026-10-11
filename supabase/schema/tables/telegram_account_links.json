@@ -1,0 +1,74 @@
+{
+  "name": "telegram_account_links",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0050_telegram_account_links.sql",
+    "line": 2,
+    "sha256": "32478ee5759b96841fe47628ff84dae52c3896b2e487bd6c38f5389b82e846a5"
+  },
+  "definition": "create table if not exists public.telegram_account_links (\n  telegram_id bigint primary key check (telegram_id > 0 and telegram_id <= 4503599627370495),\n  user_id uuid not null unique references public.users(id) on delete cascade,\n  created_at timestamptz not null default now()\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0050_telegram_account_links.sql",
+      "line": 2,
+      "sha256": "32478ee5759b96841fe47628ff84dae52c3896b2e487bd6c38f5389b82e846a5",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0050_telegram_account_links.sql",
+      "line": 7,
+      "sha256": "3ab0dead0dcf2d4d1ebc0e5e5d09bf0b303aa82eb4a344e823440f73616ddc2e",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0050_telegram_account_links.sql",
+      "line": 8,
+      "sha256": "033d8b6bcd3ade35758373dcf9b6011866366e1124704ea2b925c3a1fbf706cc",
+      "kind": "revoke all"
+    },
+    {
+      "file": "supabase/migrations/0050_telegram_account_links.sql",
+      "line": 9,
+      "sha256": "1cebf59d2598c03c4973b0d6afdc9122a07269d367936483f296e42885957df1",
+      "kind": "grant select,"
+    },
+    {
+      "file": "supabase/migrations/0050_telegram_account_links.sql",
+      "line": 10,
+      "sha256": "ca0ae6716aba86a14a7c994d098aeed45a6d4d904b280a680512ac2a673e1d4c",
+      "kind": "comment on"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/telegram-mini-app/auth.ts",
+      "line": 38
+    },
+    {
+      "file": "apps/web/src/lib/telegram-mini-app/auth.ts",
+      "line": 44
+    },
+    {
+      "file": "apps/web/src/lib/telegram-mini-app/auth.ts",
+      "line": 48
+    },
+    {
+      "file": "apps/web/src/lib/telegram-mini-app/auth.ts",
+      "line": 53
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0050_telegram_account_links.sql",
+        "line": 7,
+        "sha256": "3ab0dead0dcf2d4d1ebc0e5e5d09bf0b303aa82eb4a344e823440f73616ddc2e"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

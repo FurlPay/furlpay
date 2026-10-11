@@ -620,13 +620,17 @@ export class RedisMandateSpendStore {
     if (!fields || !fields[2]) return false;
     const [budget, amount, nonce, ledger, member] = fields;
 
+    // Report what the SCRIPT did, not that we asked. The HMGET above and the
+    // EVAL below are separate round trips: a late SUCCESS can commit (nonce →
+    // 'settled') between them, and the script then correctly refuses with 0.
+    // Returning true regardless told the caller a SETTLED payment had been
+    // released — the caller then treats a paid authorization as unpaid, which
+    // is how a payer gets charged twice.
     if (ledger && member) {
-      await this.client.command(["EVAL", RELEASE_SPEND_ROLLING, 3, nonce!, ledger, key, member]);
-      return true;
+      return Number(await this.client.command(["EVAL", RELEASE_SPEND_ROLLING, 3, nonce!, ledger, key, member])) === 1;
     }
     if (!budget || !amount) return false;
-    await this.client.command(["EVAL", RELEASE_SPEND, 3, nonce!, budget, key, amount]);
-    return true;
+    return Number(await this.client.command(["EVAL", RELEASE_SPEND, 3, nonce!, budget, key, amount])) === 1;
   }
 }
 

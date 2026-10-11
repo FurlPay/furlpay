@@ -5,7 +5,7 @@ import { z } from "zod";
 import { checkOtp } from "@/lib/auth/otp";
 import { findOrCreateUserByIdentityDurable, updateUser } from "@/lib/store";
 import { canonicalEmail, isPlausibleEmail } from "@/lib/identity";
-import { signSession, setSessionCookie } from "@/lib/session";
+import { signSession, setSessionCookieForRequest } from "@/lib/session";
 import { audit } from "@/lib/audit";
 import { recordStepUp } from "@/lib/stepup";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
     void recordStepUp(account.user.id, jti, "otp").catch(() => {});
   }
   const res = NextResponse.json(body);
-  if (login && token) setSessionCookie(res, token);
+  if (login && token) setSessionCookieForRequest(req, res, token);
   // Phone-only signups have no email address yet — the welcome goes out only
   // for the email-OTP path, where the address is the verified identity itself.
   if (created && channel === "email") {

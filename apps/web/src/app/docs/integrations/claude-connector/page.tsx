@@ -137,7 +137,7 @@ export default function ClaudeConnectorPage() {
           settlement still depends on rail status and the route&apos;s confirmation flow.
         </LI>
         <LI>
-          <b>API route checks apply.</b> The connector calls FurlPay's API as the signed-in account
+          <b>API route checks apply.</b> The connector calls FurlPay&apos;s API as the signed-in account
           and is subject to route validation, authorization and rate limits.
         </LI>
         <LI>
@@ -149,7 +149,7 @@ export default function ClaudeConnectorPage() {
       <H2 id="disconnect">Disconnect and revoke</H2>
       <P>
         Remove the connector in Claude (<b>Settings → Connectors → FurlPay → Remove</b>). To revoke
-        authorization from FurlPay, use the account's connected-app or security controls if shown,
+        authorization from FurlPay, use the account&apos;s connected-app or security controls if shown,
         or contact support. Do not assume removing a client-side connector instantly revokes every
         previously issued token.
       </P>

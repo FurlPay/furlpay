@@ -70,37 +70,38 @@ export const REPORTS: Report[] = [
   // ── FurlPay Global Stablecoin Report 2026 ──────────────────────────────
   //
   // Every figure, label and reference below is transcribed from the PDF
-  // (50 pages, data to 2 October 2026, sha256 below). Evidence labels are the
+  // (87-page edition, data to 2 October 2026; public file sha256 1597d054…401d, 16,353,216 bytes). Evidence labels are the
   // report's own (its page 03 grading; page 49 layer table). Sources carry
   // the titles and dates the report gives — it lists no URLs, so none are
   // added here.
   //
-  // STATUS: "review". Not public until an editor approves it. One item to
-  // settle first: the report's page 48 says FurlPay's capabilities "were not
-  // provided" and marks every module "To be confirmed".
+  // STATUS: published (founder decision, 2026-10-03), matching production.
+  // The report marks FurlPay's own capabilities "To be confirmed"; the
+  // disclaimer below says so on the page.
   {
     slug: "global-stablecoin-report-2026",
-    status: "review",
+    status: "published",
     title: "FurlPay Global Stablecoin Report 2026",
     subtitle: "Stablecoins for a global economy: market data, 23 market profiles, networks, regulation and outlook",
     description:
-      "Fifty pages on where stablecoins actually move money. Supply, issuers, USDC and USDT, card-network settlement, cross-border flows, 23 market profiles and regulation, with every major figure labelled by source type.",
+      "Eighty-seven pages on where stablecoins and digital accounts move money. Supply, issuers, USDC and USDT, card-network settlement, cross-border flows, 23 market profiles, regulation, market structure and risk, fiat rails and licences, and the digital banks that issue IBANs, with every major figure labelled by source type.",
     category: "Stablecoins",
     tags: ["USDC", "USDT", "GENIUS Act", "cross-border", "Visa", "Mastercard", "x402", "Arc", "Singapore", "India", "Brazil"],
     publishedAt: "2026-10-02",
     authors: ["FurlPay Research"],
-    pageCount: 50,
+    pageCount: 87,
     desk: "stablecoin-markets",
     cadence: "annual",
     reportingPeriod: "January 2025 – 2 October 2026",
-    version: "1.0",
-    gated: true,
-    privatePdf: {
-      objectKey: "global-stablecoin-report-2026/v1.0.pdf",
-      bytes: 29_815_276,
-      sha256: "441219ab3739cabd01bc63a5f6cbc1c5bf0da5bb536b55714f741430e0de2d03",
-      version: "1.0",
-    },
+    // The 87-page PDF states no version number, so none is invented here.
+    // Public, as served in production since 2026-10-03 (founder decision):
+    // the file lives under /public and needs no storage or email gate.
+    pdfPath: "/reports/global-stablecoin-report-2026.pdf",
+    // The printed-report mockup (transparent PNG), as on the report page.
+    coverImage: "/reports/global-stablecoin-report-2026-cover.png",
+    coverWidth: 1024,
+    coverHeight: 1536,
+    gated: false,
     featured: true,
     executiveSummary:
       "The thesis under test, “USDC is becoming an important settlement layer for global payments”, is supported in specific, bounded places: card-network settlement, crypto-linked card spend, institutional mint and redeem, and agent micropayments. It is not yet true for mass consumer or emerging-market retail flows. Verdict: true for institutional and network settlement; partly true for card-funded consumer spend; not yet true for mass remittances and emerging-market retail, where USDT dominates.",

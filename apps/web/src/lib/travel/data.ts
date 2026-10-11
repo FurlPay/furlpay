@@ -265,6 +265,7 @@ export const CITY_COORDS: Record<string, { lat: number; lng: number }> = {
   "Swiss Alps": { lat: 46.0207, lng: 7.7491 }, "Costa Rica": { lat: 9.9281, lng: -84.0907 },
   Kerala: { lat: 9.9312, lng: 76.2673 }, Petra: { lat: 30.3285, lng: 35.4444 },
   Patagonia: { lat: -50.3379, lng: -72.2648 },
+  Paris: { lat: 48.8566, lng: 2.3522 }, Singapore: { lat: 1.3521, lng: 103.8198 },
 };
 
 /**
@@ -398,10 +399,54 @@ export interface Flight {
   durationMin: number;
   stops: number;
   cabin: "Economy" | "Premium" | "Business" | "First";
+  /** The offer's total amount. Historically named priceUsd; for live offers
+   *  the unit is `currency`, which may not be USD — render with the currency. */
   priceUsd: number;
+  /** Human summary of the bags the airline says are included. */
   baggage: string;
   /** Brand-compliant SVG airline logo (Duffel assets CDN). */
   logoUrl?: string;
+
+  // ── Detail fields (live Duffel offers). Optional so every existing client
+  //    of this shape — extension, CLI, MCP — keeps working unchanged. ──────
+  /** ISO 4217 code of priceUsd. */
+  currency?: string;
+  /** Bags per passenger as stated by the airline; undefined = not stated. */
+  bags?: { checked: number; carryOn: number };
+  /** Offer conditions; undefined = the airline did not say. */
+  refundable?: boolean;
+  changeable?: boolean;
+  /** When the airline stops honouring this price. */
+  expiresAt?: string;
+  /** Outbound and (for a return trip) inbound legs. */
+  legs?: FlightLeg[];
+  /** Ranking output (lib/travel/flightRanking.ts), 0-100. */
+  score?: number;
+}
+
+export interface FlightSegment {
+  carrier: string;
+  carrierCode: string;
+  flightNumber: string;
+  from: string;
+  to: string;
+  departAt: string;
+  arriveAt: string;
+  durationMin: number;
+  aircraft?: string;
+  operatedBy?: string;
+}
+
+export interface FlightLeg {
+  from: string;
+  to: string;
+  departAt: string;
+  arriveAt: string;
+  durationMin: number;
+  stops: number;
+  segments: FlightSegment[];
+  /** Connection time at each intermediate airport, in minutes. */
+  layovers: Array<{ airport: string; minutes: number }>;
 }
 
 const CARRIERS: Array<[string, string]> = [
@@ -892,6 +937,26 @@ const RAW_DESTINATIONS: Array<Omit<Destination, "photo">> = [
     overview: "Cruise Alleppey's backwaters on a kettuvallam houseboat, wake up in Munnar's tea estates, and finish with a beach week in Varkala. India's gentlest introduction.",
     tips: ["Book houseboats direct at the jetty for less", "Munnar mornings are cold — pack a layer", "Toddy shops serve the best fish curry", "UPI works everywhere; cards mostly do"],
     weather: [32, 32, 33, 33, 31, 29, 29, 29, 30, 30, 31, 32],
+  },
+  {
+    slug: "paris", name: "Paris", country: "France", category: "historical",
+    tagline: "Boulevards, bistros and the Seine at blue hour.",
+    gradient: "from-rose-500/40 to-indigo-700/40", heroEmoji: "🗼",
+    bestTime: "Apr–Jun · Sep–Oct", avgHotelUsd: 260, avgFlightUsd: 640,
+    visa: "Schengen: visa-free ≤90 days in 180 for many passports", currency: "EUR · €",
+    overview: "Walk the Marais and Saint-Germain, queue early for the Louvre and Musée d'Orsay, and end the day with a Seine-side picnic. The Métro covers everything; contactless cards work on the gates.",
+    tips: ["Book Louvre and Eiffel summit tickets online", "The Louvre closes on Tuesdays — plan around it", "Navigo Easy card saves on Métro rides", "Lunch formules beat dinner prices"],
+    weather: [7, 8, 12, 16, 20, 23, 25, 25, 21, 16, 11, 8],
+  },
+  {
+    slug: "singapore", name: "Singapore", country: "Singapore", category: "cities",
+    tagline: "Hawker food, garden skylines and a city that runs like clockwork.",
+    gradient: "from-cyan-500/40 to-emerald-700/40", heroEmoji: "🌆",
+    bestTime: "Feb–Apr", avgHotelUsd: 230, avgFlightUsd: 780,
+    visa: "Visa-free for most passports · SG Arrival Card required", currency: "SGD · S$",
+    overview: "Eat your way through Maxwell and Lau Pa Sat, catch the Supertree light show at Gardens by the Bay, and use contactless cards straight on the MRT. Equatorial heat year-round — plan outdoor time for mornings.",
+    tips: ["Submit the SG Arrival Card within 3 days of arrival", "Contactless bank cards work on MRT and buses", "Hawker centres: chope a seat with a tissue packet", "Garden Rhapsody shows run at 7:45pm and 8:45pm"],
+    weather: [30, 31, 32, 32, 32, 31, 31, 31, 31, 31, 31, 30],
   },
 ];
 

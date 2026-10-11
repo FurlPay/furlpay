@@ -392,7 +392,7 @@ export default function DestinationCard({
     <aside
       role="dialog"
       aria-label={`${cluster.label} destination overview`}
-      className="dc-card pointer-events-auto absolute left-3 z-40 flex w-[400px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-[20px] bg-white shadow-[0_4px_6px_-1px_rgba(15,23,42,0.05),0_10px_15px_-3px_rgba(15,23,42,0.08),0_20px_50px_-5px_rgba(15,23,42,0.12)]"
+      className="dc-card pointer-events-auto absolute left-3 z-40 flex w-[400px] max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded-[20px] bg-[#090D0E] shadow-[0_4px_6px_-1px_rgba(0,0,0,0.05),0_10px_15px_-3px_rgba(0,0,0,0.08),0_20px_50px_-5px_rgba(0,0,0,0.12)]"
       style={{ top }}
     >
       {/* --- close button --------------------------------------------------- */}
@@ -474,7 +474,7 @@ export default function DestinationCard({
         style={{ maxHeight: `calc(100vh - ${top + 160 + 24}px)` }}
       >
         {/* --- statistics row ------------------------------------------------ */}
-        <div className="grid grid-cols-4 gap-2 border-b border-[#F1F5F9] px-4 py-3.5">
+        <div className="grid grid-cols-4 gap-2 border-b border-white/[0.06] px-4 py-3.5">
           <StatBox
             icon={<HotelIcon className="h-[18px] w-[18px]" />}
             value={cluster.families.hotels.toLocaleString()}
@@ -511,7 +511,7 @@ export default function DestinationCard({
             }
             value={
               pricesPending ? (
-                <span className="inline-block h-3 w-10 animate-pulse rounded bg-[#E2E8F0]" />
+                <span className="inline-block h-3 w-10 animate-pulse rounded bg-white/[0.08]" />
               ) : cheapest?.perNight !== undefined ? (
                 `From $${Math.round(cheapest.perNight).toLocaleString()}`
               ) : (
@@ -525,7 +525,7 @@ export default function DestinationCard({
         {/* --- top properties ------------------------------------------------ */}
         <div className="px-4 pb-3 pt-3">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] font-bold text-[#1E293B]">Top Properties</p>
+            <p className="text-[13px] font-bold text-[#E6EAE8]">Top Properties</p>
             {cluster.count > members.length && (
               <button
                 type="button"
@@ -552,11 +552,11 @@ export default function DestinationCard({
         </div>
 
         {/* --- top restaurants ------------------------------------------------ */}
-        <div className="border-t border-[#F1F5F9] px-4 pb-3 pt-3">
+        <div className="border-t border-white/[0.06] px-4 pb-3 pt-3">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] font-bold text-[#1E293B]">Top Restaurants</p>
+            <p className="text-[13px] font-bold text-[#E6EAE8]">Top Restaurants</p>
             {restaurants.kind === "ready" && restaurants.places.length > 3 && (
-              <span className="text-[11px] text-[#94A3B8]">
+              <span className="text-[11px] text-[#6E7675]">
                 {restaurants.places.length} nearby
               </span>
             )}
@@ -566,18 +566,18 @@ export default function DestinationCard({
             <div className="mt-2.5 grid grid-cols-3 gap-2.5" aria-busy>
               {[0, 1, 2].map((i) => (
                 <div key={i}>
-                  <div className="h-[72px] animate-pulse rounded-xl bg-[#F1F5F9]" />
-                  <div className="mt-1.5 h-2.5 w-3/4 animate-pulse rounded bg-[#F1F5F9]" />
+                  <div className="h-[72px] animate-pulse rounded-xl bg-white/[0.05]" />
+                  <div className="mt-1.5 h-2.5 w-3/4 animate-pulse rounded bg-white/[0.05]" />
                 </div>
               ))}
             </div>
           ) : restaurants.kind === "unavailable" ? (
             // Says WHY, and does not pretend the area has no restaurants.
-            <p className="mt-2 text-[11.5px] leading-snug text-[#94A3B8]">
+            <p className="mt-2 text-[11.5px] leading-snug text-[#6E7675]">
               {restaurants.reason}
             </p>
           ) : restaurants.places.length === 0 ? (
-            <p className="mt-2 text-[11.5px] text-[#94A3B8]">
+            <p className="mt-2 text-[11.5px] text-[#6E7675]">
               Google returned no restaurants inside this area.
             </p>
           ) : (
@@ -589,7 +589,7 @@ export default function DestinationCard({
               </div>
               {/* Google requires attribution wherever Places content renders. */}
               {restaurants.attribution && (
-                <p className="mt-2 text-[9px] leading-none text-[#CBD5E1]">
+                <p className="mt-2 text-[9px] leading-none text-[#4F5655]">
                   {restaurants.attribution}
                 </p>
               )}
@@ -598,13 +598,13 @@ export default function DestinationCard({
         </div>
 
         {/* --- availability check -------------------------------------------- */}
-        <div className="border-t border-[#F1F5F9] px-4 pb-4 pt-3">
-          <p className="text-[13px] font-bold text-[#1E293B]">Availability Check</p>
+        <div className="border-t border-white/[0.06] px-4 pb-4 pt-3">
+          <p className="text-[13px] font-bold text-[#E6EAE8]">Availability Check</p>
           <div className="mt-2.5 flex items-end gap-2">
             <label className="flex-1">
-              <span className="text-[10.5px] font-medium text-[#94A3B8]">Check in</span>
-              <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-2 text-[12px] text-[#0F172A]">
-                <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+              <span className="text-[10.5px] font-medium text-[#6E7675]">Check in</span>
+              <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-white/[0.10] bg-[#090D0E] px-2.5 py-2 text-[12px] text-[#F5F7F6]">
+                <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-[#6E7675]" />
                 <input
                   type="date"
                   value={checkIn}
@@ -618,9 +618,9 @@ export default function DestinationCard({
               </div>
             </label>
             <label className="flex-1">
-              <span className="text-[10.5px] font-medium text-[#94A3B8]">Check out</span>
-              <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-2 text-[12px] text-[#0F172A]">
-                <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+              <span className="text-[10.5px] font-medium text-[#6E7675]">Check out</span>
+              <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-white/[0.10] bg-[#090D0E] px-2.5 py-2 text-[12px] text-[#F5F7F6]">
+                <CalendarIcon className="h-3.5 w-3.5 shrink-0 text-[#6E7675]" />
                 <input
                   type="date"
                   value={checkOut}
@@ -631,9 +631,9 @@ export default function DestinationCard({
               </div>
             </label>
             <label className="w-[72px] shrink-0">
-              <span className="text-[10.5px] font-medium text-[#94A3B8]">Guests</span>
-              <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-[#E2E8F0] bg-white px-2.5 py-2 text-[12px] text-[#0F172A]">
-                <GuestsIcon className="h-3.5 w-3.5 shrink-0 text-[#94A3B8]" />
+              <span className="text-[10.5px] font-medium text-[#6E7675]">Guests</span>
+              <div className="mt-1 flex items-center gap-1.5 rounded-lg border border-white/[0.10] bg-[#090D0E] px-2.5 py-2 text-[12px] text-[#F5F7F6]">
+                <GuestsIcon className="h-3.5 w-3.5 shrink-0 text-[#6E7675]" />
                 <select
                   value={guests}
                   onChange={(e) => setGuests(Number(e.target.value))}
@@ -679,9 +679,9 @@ function StatBox({
 }) {
   return (
     <div className="flex flex-col items-center gap-1">
-      <span className="text-[#334155]">{icon}</span>
-      <span className="text-[15px] font-bold leading-none text-[#0F172A]">{value}</span>
-      <span className="text-[11px] leading-none text-[#94A3B8]">{label}</span>
+      <span className="text-[#C9CFCD]">{icon}</span>
+      <span className="text-[15px] font-bold leading-none text-[#F5F7F6]">{value}</span>
+      <span className="text-[11px] leading-none text-[#6E7675]">{label}</span>
     </div>
   );
 }
@@ -715,7 +715,7 @@ function PropertyCardWithPrice({
       onClick={onOpen}
       className="group min-w-0 text-left transition-transform duration-200 hover:-translate-y-0.5"
     >
-      <div className="h-[100px] overflow-hidden rounded-xl bg-[#F1F5F9]">
+      <div className="h-[100px] overflow-hidden rounded-xl bg-white/[0.05]">
         {image.url ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -738,19 +738,19 @@ function PropertyCardWithPrice({
         )}
       </div>
 
-      <p className="mt-1.5 truncate text-[11.5px] font-semibold leading-tight text-[#0F172A]">
+      <p className="mt-1.5 truncate text-[11.5px] font-semibold leading-tight text-[#F5F7F6]">
         {member.name}
       </p>
 
-      <p className="mt-0.5 flex items-center gap-1 truncate text-[10.5px] text-[#64748B]">
+      <p className="mt-0.5 flex items-center gap-1 truncate text-[10.5px] text-[#A4AAA9]">
         {score !== undefined && (
           <>
             <StarIcon className="h-3 w-3 shrink-0 text-[#F4B400]" />
-            <span className="font-semibold text-[#0F172A]">{score.toFixed(1)}</span>
+            <span className="font-semibold text-[#F5F7F6]">{score.toFixed(1)}</span>
           </>
         )}
         {typeLabel && (
-          <span className="truncate rounded bg-[#F1F5F9] px-1 py-0.5 text-[9.5px] font-medium text-[#64748B]">
+          <span className="truncate rounded bg-white/[0.05] px-1 py-0.5 text-[9.5px] font-medium text-[#A4AAA9]">
             {typeLabel}
           </span>
         )}
@@ -764,15 +764,15 @@ function PropertyCardWithPrice({
           debugging, without putting the distinction in front of the reader. */}
       <div className="mt-1 text-[12px]">
         {price.state === "loading" || price.state === "idle" ? (
-          <span className="inline-block h-3 w-12 animate-pulse rounded bg-[#E2E8F0]" />
+          <span className="inline-block h-3 w-12 animate-pulse rounded bg-white/[0.08]" />
         ) : price.state === "available" && price.perNight !== undefined ? (
-          <span className="font-bold text-[#0F172A]">
+          <span className="font-bold text-[#F5F7F6]">
             ${Math.round(price.perNight).toLocaleString()}
-            <span className="font-normal text-[#94A3B8]"> / night</span>
+            <span className="font-normal text-[#6E7675]"> / night</span>
           </span>
         ) : (
           <span
-            className="text-[10.5px] font-medium text-[#94A3B8]"
+            className="text-[10.5px] font-medium text-[#6E7675]"
             title={
               price.state === "sandbox"
                 ? "A sandbox rate was returned; only live rates are shown as prices."
@@ -803,7 +803,7 @@ function RestaurantCard({ place }: { place: GooglePlace }) {
       rel="noopener noreferrer"
       className="group min-w-0 text-left transition-transform duration-200 hover:-translate-y-0.5"
     >
-      <div className="h-[72px] overflow-hidden rounded-xl bg-[#F1F5F9]">
+      <div className="h-[72px] overflow-hidden rounded-xl bg-white/[0.05]">
         {photo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -813,29 +813,29 @@ function RestaurantCard({ place }: { place: GooglePlace }) {
             loading="lazy"
           />
         ) : (
-          <span className="flex h-full w-full items-center justify-center text-[#CBD5E1]" aria-hidden>
+          <span className="flex h-full w-full items-center justify-center text-[#4F5655]" aria-hidden>
             <DiningIcon className="h-5 w-5" />
           </span>
         )}
       </div>
 
-      <p className="mt-1.5 truncate text-[11.5px] font-semibold leading-tight text-[#0F172A]">
+      <p className="mt-1.5 truncate text-[11.5px] font-semibold leading-tight text-[#F5F7F6]">
         {place.name}
       </p>
 
-      <p className="mt-0.5 flex items-center gap-1 truncate text-[10.5px] text-[#64748B]">
+      <p className="mt-0.5 flex items-center gap-1 truncate text-[10.5px] text-[#A4AAA9]">
         {place.rating !== undefined && (
           <>
             <StarIcon className="h-3 w-3 shrink-0 text-[#F4B400]" />
-            <span className="font-semibold text-[#0F172A]">{place.rating.toFixed(1)}</span>
+            <span className="font-semibold text-[#F5F7F6]">{place.rating.toFixed(1)}</span>
           </>
         )}
         {/* Only rendered when Google actually banded the venue. */}
-        {band && <span className="shrink-0 font-medium text-[#64748B]">{band}</span>}
+        {band && <span className="shrink-0 font-medium text-[#A4AAA9]">{band}</span>}
       </p>
 
       {cuisine && (
-        <span className="mt-0.5 inline-block truncate rounded bg-[#F1F5F9] px-1 py-0.5 text-[9.5px] font-medium text-[#64748B]">
+        <span className="mt-0.5 inline-block truncate rounded bg-white/[0.05] px-1 py-0.5 text-[9.5px] font-medium text-[#A4AAA9]">
           {cuisine}
         </span>
       )}

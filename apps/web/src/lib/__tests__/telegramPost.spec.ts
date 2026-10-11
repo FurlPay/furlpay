@@ -10,7 +10,8 @@ import { looksLikeBotToken, postToTelegram, redactTelegramUrl, TEXT_LIMIT } from
 // exists for — `sendToChat` returns a bare boolean and erases both.
 // ---------------------------------------------------------------------------
 
-const TOKEN = "8643629065:AAEsLNz3bRD1e8aF-yn3xeQ48m-KXPLDKWM";
+// Synthetic, never a real credential (a live token was committed here before; it must be revoked).
+const TOKEN = "123456789:AAHsyntheticTestTokenNotARealBot0000";
 const CHAT = "-1003799112431";
 
 const okResponse = (id = 42) =>

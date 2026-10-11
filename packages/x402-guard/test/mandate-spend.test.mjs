@@ -182,3 +182,58 @@ test("refuses an amount past Lua's exact-integer ceiling", async () => {
     /exact-integer ceiling/
   );
 });
+
+test("release reports FALSE when a late SUCCESS commits between its read and its script", async () => {
+  // The interleaving the sequential tests above cannot reach: the release has
+  // already read the reservation (HMGET) when the settlement commits. The Lua
+  // script then correctly refuses (nonce is 'settled'), and the method must say
+  // so. It used to return true regardless, telling the caller a SETTLED payment
+  // had been released, which leads a caller to treat a paid authorization as
+  // unpaid and charge the payer again.
+  const redis = new FakeRedis();
+  const committer = new RedisMandateSpendStore(redis);
+  let reservationId;
+  let injected = false;
+  const racing = {
+    async command(args) {
+      const out = await redis.command(args);
+      if (!injected && args[0] === "HMGET") {
+        injected = true;
+        await committer.commit(reservationId); // the late SUCCESS lands here
+      }
+      return out;
+    },
+  };
+  const store = new RedisMandateSpendStore(racing);
+  await committer.openWindow(P.mandateId, P.window, 100n);
+  reservationId = (await committer.reserveSpend(P)).reservationId;
+
+  assert.equal(await store.releaseProvenUnsettled(reservationId), false);
+  assert.equal(await committer.remaining(P.mandateId, P.window), 75n);
+});
+
+test("two interleaved releases: exactly one reports true, and the budget is returned once", async () => {
+  const redis = new FakeRedis();
+  const base = new RedisMandateSpendStore(redis);
+  await base.openWindow(P.mandateId, P.window, 100n);
+  const { reservationId } = await base.reserveSpend(P);
+  // Hold both releases after their HMGET so both scripts run on the same state.
+  let waiting = 0;
+  let release;
+  const gate = new Promise((r) => (release = r));
+  const held = {
+    async command(args) {
+      const out = await redis.command(args);
+      if (args[0] === "HMGET") {
+        if (++waiting === 2) release();
+        await gate;
+      }
+      return out;
+    },
+  };
+  const a = new RedisMandateSpendStore(held);
+  const b = new RedisMandateSpendStore(held);
+  const results = await Promise.all([a.releaseProvenUnsettled(reservationId), b.releaseProvenUnsettled(reservationId)]);
+  assert.deepEqual(results.sort(), [false, true]);
+  assert.equal(await base.remaining(P.mandateId, P.window), 100n);
+});

@@ -85,5 +85,5 @@ export async function POST(req: NextRequest) {
       { ok: true, packet: packetView(created.packet, userId), code: created.packet.code },
       { status: 201 },
     );
-  }, { principal: userId });
+  }, { principal: userId, request: body });
 }

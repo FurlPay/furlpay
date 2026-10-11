@@ -14,8 +14,13 @@ import { kvGet, kvSet } from "@/lib/kv";
 // ---------------------------------------------------------------------------
 
 export const SESSION_COOKIE = "furlpay_session";
+/** Partitioned session storage used only by the Telegram Web embedded app. */
+export const TELEGRAM_SESSION_COOKIE = "furlpay_telegram_session";
+/** Non-authentication marker set only after a signed Telegram launch is verified. */
+export const TELEGRAM_EMBED_CONTEXT_COOKIE = "furlpay_telegram_context";
 const ALG = "HS256";
 const TTL_SECONDS = 60 * 60; // 1h access token
+const TELEGRAM_CONTEXT_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 const DEV_FALLBACK_SECRET = "furlpay_dev_session_secret_change_me_32bytes";
 
@@ -54,6 +59,14 @@ export interface SessionClaims extends JWTPayload {
    * treated as 1, so the rollout does not sign anyone out.
    */
   sepoch?: number;
+  /**
+   * A Wear OS watch token (SEC-P2-004): read-only plus card freeze, minted by
+   * /api/auth/watch-token from a full phone session. It shares that session's
+   * jti and epoch, so the phone's logout and "log out everywhere" end it too.
+   * verifySession() refuses it unless the caller opts in; only requireUser()
+   * does, and requireUser() confines it to lib/watchScope.ts.
+   */
+  watch?: boolean;
 }
 
 /** How long a session may keep sliding via /api/auth/refresh before the user
@@ -85,20 +98,34 @@ const revoked = (): Map<string, number> => (g.__revokedJtis ??= new Map());
 
 const revokedKey = (jti: string) => `session:revoked:${jti}`;
 
-export async function revokeSession(jti: string | undefined): Promise<void> {
-  if (!jti) return;
+// A jti names a SESSION, not one token: /api/auth/refresh re-mints with the
+// same jti (SEC-P2-002), so a revocation must outlive every token the session
+// can still slide into, i.e. the 30-day refresh ceiling, not one token's 1h.
+const REVOCATION_TTL_SECONDS = 30 * 24 * 3600; // = MAX_SESSION_LIFETIME_SECONDS
+
+/**
+ * Revoke a session by jti, in memory and durably.
+ *
+ * Returns whether the DURABLE write succeeded. When it did not (kv outage),
+ * the caller must fall back to a revocation that survives one: logout bumps
+ * the account's session epoch, which lives in the account store, not kv.
+ */
+export async function revokeSession(jti: string | undefined): Promise<boolean> {
+  if (!jti) return true;
   const now = Date.now();
-  revoked().set(jti, now + TTL_SECONDS * 1000);
+  revoked().set(jti, now + REVOCATION_TTL_SECONDS * 1000);
   // Sweep expired revocations so the set stays bounded.
   for (const [id, expiresAt] of revoked()) {
     if (expiresAt < now) revoked().delete(id);
   }
-  // Durable write LAST and best-effort: a kv outage must not turn logout into
-  // a 500 — the memory layer above already killed the token on this instance.
+  // Durable write LAST: a kv outage must not turn logout into a 500. The
+  // memory layer above already killed the session on this instance; the
+  // caller handles the cross-instance part when this returns false.
   try {
-    await kvSet(revokedKey(jti), 1, TTL_SECONDS);
+    await kvSet(revokedKey(jti), 1, REVOCATION_TTL_SECONDS);
+    return true;
   } catch {
-    // Token still expires within TTL_SECONDS; nothing safe to do here.
+    return false;
   }
 }
 
@@ -120,11 +147,24 @@ function isRevoked(jti: string | undefined): boolean {
  * SAME signed JWT and go through the same verifySession() path — the header
  * grants nothing a cookie wouldn't.
  */
-export function tokenFromRequest(req: {
+type SessionRequest = {
   cookies: { get(name: string): { value: string } | undefined };
   headers: { get(name: string): string | null };
-}): string | undefined {
+  nextUrl?: { pathname: string };
+};
+
+/** Cookie credentials only; bearer credentials are intentionally excluded. */
+export function sessionCookieFromRequest(req: SessionRequest): string | undefined {
   const cookie = req.cookies.get(SESSION_COOKIE)?.value;
+  if (cookie) return cookie;
+  // This is the same signed session, isolated by the browser's Telegram
+  // top-level-site partition. It must work across the app just like the
+  // first-party cookie, including middleware and account APIs.
+  return req.cookies.get(TELEGRAM_SESSION_COOKIE)?.value;
+}
+
+export function tokenFromRequest(req: SessionRequest): string | undefined {
+  const cookie = sessionCookieFromRequest(req);
   if (cookie) return cookie;
   const auth = req.headers.get("authorization");
   if (auth?.startsWith("Bearer ")) return auth.slice(7);
@@ -154,9 +194,25 @@ export async function signSession(claims: SessionClaims): Promise<string> {
  */
 export async function verifySession(
   token: string | undefined | null,
-  opts?: { durable?: boolean }
+  opts?: { durable?: boolean; allowWatch?: boolean }
 ): Promise<SessionClaims | null> {
-  if (!token) return null;
+  return (await verifySessionState(token, opts)).claims;
+}
+
+/**
+ * Revocation status of a verified token: "clear" (checked and not revoked, or
+ * no durable check asked for) or "unknown" (the cross-instance denylist could
+ * not be read — KV down). "unknown" is NOT "clear": a Redis outage must not
+ * sign everyone out, so the token is still returned, and the caller limits
+ * what it may do (requireUser: reads only; lib/authz.ts).
+ */
+export type RevocationState = "clear" | "unknown";
+
+export async function verifySessionState(
+  token: string | undefined | null,
+  opts?: { durable?: boolean; allowWatch?: boolean }
+): Promise<{ claims: SessionClaims | null; revocation: RevocationState }> {
+  if (!token) return { claims: null, revocation: "clear" };
   try {
     const { payload } = await jwtVerify(token, secretKey(), {
       issuer: "furlpay",
@@ -164,19 +220,22 @@ export async function verifySession(
       algorithms: [ALG], // pin HS256 — never honour a header-chosen algorithm
     });
     const claims = payload as SessionClaims;
-    if (isRevoked(claims.jti)) return null;
+    // Default deny for watch tokens: every direct verifySession() caller
+    // (middleware, logout, handoff, OAuth, the MCP connector) treats a watch
+    // token as no session at all, so it can never be exchanged for a full one.
+    if (claims.watch === true && !opts?.allowWatch) return { claims: null, revocation: "clear" };
+    if (isRevoked(claims.jti)) return { claims: null, revocation: "clear" };
     if (opts?.durable && claims.jti) {
-      // Fail-open on kv error: a Redis outage must not sign everyone out.
-      // The token still dies at its 1h expiry.
       try {
-        if ((await kvGet(revokedKey(claims.jti))) !== null) return null;
+        if ((await kvGet(revokedKey(claims.jti))) !== null) return { claims: null, revocation: "clear" };
       } catch {
-        /* kv unreachable — signature/expiry checks above still hold */
+        // kv unreachable: signature and expiry still hold, revocation is unknown.
+        return { claims, revocation: "unknown" };
       }
     }
-    return claims;
+    return { claims, revocation: "clear" };
   } catch {
-    return null;
+    return { claims: null, revocation: "clear" };
   }
 }
 
@@ -195,12 +254,53 @@ export function setSessionCookie(res: NextResponse, token: string): void {
   });
 }
 
+/** Set a Telegram Web session in a top-level-site partition, never as a global 3p cookie. */
+export function setTelegramSessionCookie(res: NextResponse, token: string): void {
+  res.cookies.set(TELEGRAM_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+    partitioned: true,
+    path: "/",
+    maxAge: TTL_SECONDS,
+  });
+}
+
+/** Remember embedded context without granting authentication. It is host-only and partitioned. */
+export function setTelegramEmbedContextCookie(res: NextResponse): void {
+  res.cookies.set(TELEGRAM_EMBED_CONTEXT_COOKIE, "1", {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+    partitioned: true,
+    path: "/api",
+    maxAge: TELEGRAM_CONTEXT_TTL_SECONDS,
+  });
+}
+
+/** Auth routes use this so normal web logins stay Lax while embedded Telegram logins stay partitioned. */
+export function setSessionCookieForRequest(req: SessionRequest, res: NextResponse, token: string): void {
+  if (req.cookies.get(TELEGRAM_EMBED_CONTEXT_COOKIE)?.value === "1" || req.cookies.get(TELEGRAM_SESSION_COOKIE)?.value) {
+    setTelegramSessionCookie(res, token);
+    return;
+  }
+  setSessionCookie(res, token);
+}
+
 /** Clear the session cookie (logout). Pair with revokeSession(claims.jti). */
 export function clearSessionCookie(res: NextResponse): void {
   res.cookies.set(SESSION_COOKIE, "", {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: 0,
+  });
+  res.cookies.set(TELEGRAM_SESSION_COOKIE, "", {
+    httpOnly: true,
+    sameSite: "none",
+    secure: true,
+    partitioned: true,
     path: "/",
     maxAge: 0,
   });

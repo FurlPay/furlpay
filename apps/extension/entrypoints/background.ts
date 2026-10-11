@@ -15,6 +15,7 @@ import { BADGE_BALANCE_KEY, badgeTextFor } from "@/lib/badge";
 // definition of each rather than a copy that can drift.
 import {
   allowedOrigins as allowedOriginsOf,
+  ALLOWED_ORIGINS_KEY,
   originGranted as originGrantedIn,
   rememberOrigin as rememberOriginIn,
   senderOrigin,
@@ -111,6 +112,8 @@ async function repaintBadge(): Promise<void> {
 
 export default defineBackground(() => {
   browser.runtime.onInstalled.addListener((details) => {
+    // Versions before 8 Oct 2026 persisted x402Log in storage.local; drop it.
+    void browser.storage.local.remove("x402Log").catch(() => undefined);
     browser.alarms.create(POLL_ALARM, { periodInMinutes: 1 });
     void poll();
     if (details?.reason === "install") void track("extension_installed");
@@ -346,7 +349,15 @@ export default defineBackground(() => {
         ).then(sendResponse);
         return true;
       case "LOGOUT":
-        void toResponse(apiFetch("/api/auth/logout", { method: "POST" })).then(sendResponse);
+        // Grants, display snapshots, and notification de-duplication belong to
+        // the signed-in account. Leaving any of them behind lets the next
+        // account on this browser inherit a dapp's wallet-connect consent.
+        void toResponse(
+          apiFetch("/api/auth/logout", { method: "POST" }).then(async (result) => {
+            await clearAccountState();
+            return result;
+          })
+        ).then(sendResponse);
         return true;
       case "GET_PASSKEYS":
         void toResponse(apiFetch<PasskeyList>("/api/auth/passkey/credentials")).then(sendResponse);
@@ -391,10 +402,18 @@ export default defineBackground(() => {
         sendResponse({ ok: true, data: null });
         return false;
       }
-      case "X402_DETECTED":
-        void onX402Detected(message.detection);
+      case "X402_DETECTED": {
+        // The isolated-world relay is fed by window.postMessage, so validate
+        // again at the worker boundary before storing page-controlled data.
+        const detected = sanitizeDetection(message.detection);
+        if (!detected) {
+          sendResponse({ ok: false, error: "Invalid x402 detection." });
+          return false;
+        }
+        void onX402Detected(detected);
         sendResponse({ ok: true, data: null });
         return false;
+      }
       case "OPEN_X402_CHECKOUT":
         // `sender` carries the real page origin — the only part of this flow the
         // page cannot forge. See openX402Checkout.
@@ -519,6 +538,18 @@ async function sessionState(): Promise<{ authenticated: boolean; name?: string; 
   }
 }
 
+async function clearAccountState(): Promise<void> {
+  for (const [, pending] of pendingConnects) {
+    pending.respond({ ok: false, error: "Signed out before the connection request was completed." });
+  }
+  pendingConnects.clear();
+  await Promise.all([
+    browser.storage.session.remove(["cachedOverview", "cachedChallenges"]),
+    browser.storage.local.remove([ALLOWED_ORIGINS_KEY, NOTIFIED_KEY, DEPOSITS_KEY]),
+    action().setBadgeText({ text: "" }),
+  ]).catch(() => undefined);
+}
+
 /** Refresh badge (net worth across all assets) and surface any new 3DS challenges. */
 async function poll(): Promise<void> {
   try {
@@ -638,11 +669,13 @@ async function declineChallenge(challengeId: string): Promise<void> {
 
 async function onX402Detected(detection: X402Detection): Promise<void> {
   // Rolling log for the DevTools inspector and popup indicator, deduped by
-  // resource URL (a page retrying a 402 shouldn't flood the log).
-  const { x402Log } = await browser.storage.local.get("x402Log");
+  // resource URL (a page retrying a 402 shouldn't flood the log). It is a slice
+  // of the user's browsing history, so it lives in storage.session: memory-only,
+  // cleared when the browser closes, unreadable by content scripts.
+  const { x402Log } = await browser.storage.session.get("x402Log");
   const log: X402Detection[] = Array.isArray(x402Log) ? x402Log : [];
   const deduped = [detection, ...log.filter((d) => d.url !== detection.url)];
-  await browser.storage.local.set({ x402Log: deduped.slice(0, 50) });
+  await browser.storage.session.set({ x402Log: deduped.slice(0, 50) });
 }
 
 /** Opens the furlpay.com checkout for a detected 402.
@@ -674,5 +707,7 @@ async function openX402Checkout(
 
   // Settlement + passkey signing happen on furlpay.com (the rpID origin), which
   // verifies the 402 against `resource` before it displays a recipient or amount.
-  await browser.tabs.create({ url: `${base}/developer?x402=${encodeURIComponent(params.toString())}` });
+  // /pay/x402 re-reads the 402 server-side and shows what the RESOURCE asks for;
+  // the link carries only the resource URL and the browser-verified origin.
+  await browser.tabs.create({ url: `${base}/pay/x402?${params.toString()}` });
 }

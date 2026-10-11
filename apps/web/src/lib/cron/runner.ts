@@ -174,7 +174,7 @@ export async function runJob(
   body: JobBody,
   opts: { budgetMs?: number } = {}
 ): Promise<RunOutcome> {
-  const runId = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  const runId = `${Date.now().toString(36)}_${crypto.randomUUID().slice(0, 8)}`;
   const budgetMs = opts.budgetMs ?? DEFAULT_BUDGET_MS;
   const env = runEnv();
 

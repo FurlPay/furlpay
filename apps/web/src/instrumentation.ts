@@ -2,9 +2,11 @@
 //
 // Boot-time configuration that must be present for the process to be safe to
 // serve traffic is checked here, so a misconfigured production deployment
-// refuses to start instead of starting in a weaker mode. Today that is the
-// admin identity: without FURLPAY_ADMIN_EMAIL there is no fallback admin
-// (lib/adminIdentity.ts), and production must not boot guessing.
+// refuses to start instead of starting in a weaker mode: session secret,
+// database, KV, edge trust, placeholder secrets, a malformed admin email.
+// A MISSING admin email is not fatal: there is no fallback admin
+// (lib/adminIdentity.ts), so the site runs with administration disabled and
+// says so here, instead of taking payments and every public page down.
 //
 // Skipped during `next build` (NEXT_PHASE=phase-production-build): the build
 // environment is not the runtime environment and must not need runtime secrets.
@@ -15,11 +17,18 @@ export async function register(): Promise<void> {
 
   const { assertBootConfig } = await import("./lib/bootConfig");
   try {
-    assertBootConfig();
+    // Non-fatal findings (today: no admin configured) are logged as errors so
+    // they surface in log drains and alerting, but the site keeps serving.
+    for (const w of assertBootConfig().warnings) console.error(`[boot] WARNING: ${w}`);
   } catch (e) {
     console.error(`[boot] refusing to start: ${(e as Error).message}`);
     process.exit(1);
   }
+
+  // A preview that was refused the durable data plane says so once at boot,
+  // so a 503 from every data route has an explanation in the logs.
+  const { dataPlane, DATA_PLANE_BLOCK_DETAIL } = await import("./lib/dataPlane");
+  if (dataPlane.blocked) console.error(`[boot] WARNING: data plane withheld (${dataPlane.blocked}). ${DATA_PLANE_BLOCK_DETAIL[dataPlane.blocked]}`);
 }
 
 // Unhandled server errors, for the admin dashboard (lib/analytics/telemetry.ts).

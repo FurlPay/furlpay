@@ -66,6 +66,22 @@ export const DEPOSIT_POLICIES: Record<string, DepositConfirmationPolicy> = {
     expectedWaitMs: 800,
     boundedFinality: true,
   },
+  "arc-testnet": {
+    chain: "arc-testnet",
+    minConfirmations: 1, // Same Malachite BFT finality as mainnet
+    reorgMonitorDepth: 3,
+    expectedWaitMs: 800,
+    boundedFinality: true,
+  },
+  sui: {
+    chain: "sui",
+    // A transaction in a checkpoint certified by >2/3 of validators cannot be
+    // reverted (docs.sui.io transaction lifecycle): inclusion is final.
+    minConfirmations: 1,
+    reorgMonitorDepth: 1,
+    expectedWaitMs: 500,
+    boundedFinality: true,
+  },
   tempo: {
     chain: "tempo",
     minConfirmations: 1, // Sub-second settlement
@@ -76,7 +92,10 @@ export const DEPOSIT_POLICIES: Record<string, DepositConfirmationPolicy> = {
 };
 
 export function getDepositPolicy(chain: string): DepositConfirmationPolicy | undefined {
-  return DEPOSIT_POLICIES[chain];
+  // Own properties only: "constructor"/"toString" would otherwise return an
+  // Object.prototype member whose minConfirmations is undefined, and
+  // `n < undefined` is false — canCreditDeposit would report a deposit safe.
+  return Object.hasOwn(DEPOSIT_POLICIES, chain) ? DEPOSIT_POLICIES[chain] : undefined;
 }
 
 export function canCreditDeposit(chain: string, currentConfirmations: number): { safe: boolean; reason: string; policy: DepositConfirmationPolicy | undefined } {

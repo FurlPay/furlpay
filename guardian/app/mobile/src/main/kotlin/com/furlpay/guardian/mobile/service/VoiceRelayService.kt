@@ -30,6 +30,10 @@ class VoiceRelayService : WearableListenerService() {
 
     override fun onMessageReceived(messageEvent: MessageEvent) {
         val services = applicationContext.mobileServices
+        // Voice, refresh, and alarm acknowledgements all have effects beyond
+        // display. Reject nodes Play Services does not currently recognize as
+        // a paired peer before parsing or dispatching their payload.
+        if (!runBlocking { services.pairedNodes.isConnectedNode(messageEvent.sourceNodeId) }) return
         when (messageEvent.path) {
             SyncProtocol.MSG_VOICE_COMMAND -> {
                 val command = runCatching {

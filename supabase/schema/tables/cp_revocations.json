@@ -1,0 +1,64 @@
+{
+  "name": "cp_revocations",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 207,
+    "sha256": "63742aef60b46a014de67ae0cd05db81509bd386508ac2f620b05e088e649fa1"
+  },
+  "definition": "create table if not exists cp_revocations (\n  id              bigserial primary key,\n  organization_id text not null references cp_organizations(id) on delete restrict,\n  -- RevocationSubjectKind from revocation.ts. Kind + id together, never id\n  -- alone: two kinds legitimately share an id namespace, and matching on the\n  -- bare id would revoke an agent because a mandate with the same suffix was.\n  subject_kind    text not null check (subject_kind in\n                    ('organization', 'principal', 'delegation', 'operator',\n                     'agent', 'session', 'mandate', 'credential', 'recipient')),\n  subject_id      text not null,\n  reason          text not null,\n  revoked_by      text not null,\n  revoked_at      timestamptz not null default now()\n);",
+  "dependencies": [
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 207,
+      "sha256": "63742aef60b46a014de67ae0cd05db81509bd386508ac2f620b05e088e649fa1",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 221,
+      "sha256": "08cc13d20c2ad0c92af2a51342e9dbb2b5bffe0cb713028b24ddf4965924b342",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 224,
+      "sha256": "357bc6afd756424db62ea7bbfab58ffc2b1064869084887404d0753ac4af3082",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 601,
+      "sha256": "fe91012076a5c4a7d38b631d813423f39e8d136a9157f57b28cd72aedb0560b2",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 427
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 428
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 450
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 601,
+        "sha256": "fe91012076a5c4a7d38b631d813423f39e8d136a9157f57b28cd72aedb0560b2"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

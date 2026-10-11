@@ -1,0 +1,71 @@
+{
+  "note": "Existing repository definitions on feat/sui-collection, not imported or applied. Reconcile with staging before integration.",
+  "migrations": [
+    {
+      "file": "supabase/migrations/0040_stablecoin_payments.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": [
+        "merchant_payment_links",
+        "merchant_payment_destinations",
+        "merchant_payment_intents",
+        "merchant_payment_receipts",
+        "merchant_payment_events",
+        "merchant_payment_outbox"
+      ]
+    },
+    {
+      "file": "supabase/migrations/0041_merchant_webhooks.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": [
+        "merchant_webhook_endpoints"
+      ]
+    },
+    {
+      "file": "supabase/migrations/0042_payroll_and_merchant_extensions.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": [
+        "payroll_contractors",
+        "payroll_batches",
+        "payroll_batch_lines",
+        "payroll_seat_charges",
+        "merchant_pricing",
+        "merchant_review_notes",
+        "merchant_reconciliation_alerts"
+      ]
+    },
+    {
+      "file": "supabase/migrations/0043_sui_collection.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": []
+    },
+    {
+      "file": "supabase/migrations/0044_payroll_contractor_self_service.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": []
+    },
+    {
+      "file": "supabase/migrations/0045_merchant_refunds.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": [
+        "merchant_refunds"
+      ]
+    },
+    {
+      "file": "supabase/migrations/0046_merchant_liveness_alerts.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": []
+    },
+    {
+      "file": "supabase/migrations/0047_arc_testnet_collection.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": []
+    },
+    {
+      "file": "supabase/migrations/0048_payroll_exclusions_and_fee_ledger.sql",
+      "sourceCommit": "63ea251ec284826bf83a56b31690b0dda25db338",
+      "tables": [
+        "payroll_batch_exclusions"
+      ]
+    }
+  ]
+}

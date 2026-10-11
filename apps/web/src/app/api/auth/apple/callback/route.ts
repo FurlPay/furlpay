@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { verifyAppleIdentityToken } from "@/lib/auth/apple";
 import { findOrCreateUserByIdentityDurable } from "@/lib/store";
-import { mintNativeCode } from "@/lib/nativeSession";
+import { CODE_CHALLENGE, mintNativeCode } from "@/lib/nativeSession";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { audit } from "@/lib/audit";
 
@@ -17,6 +17,18 @@ import { audit } from "@/lib/audit";
 //
 // The session JWT itself is never placed in that URL — see lib/nativeSession.ts
 // for why (URLs leak; the JWT is spend authority).
+//
+// PKCE BINDING (audit P1-2, 2026-10-05). The app opens Apple with
+//   state = "<random>.<code_challenge>"   and   nonce = "<code_challenge>"
+// where code_challenge = base64url(SHA-256(code_verifier)). This route:
+//   - refuses a state that carries no well-formed challenge (pkce_required);
+//   - requires the id_token's nonce to EQUAL that challenge, so an id_token
+//     from a different sign-in (another device, another tab, a replay) cannot
+//     be posted against this session's state;
+//   - binds the minted code to the challenge, so only the holder of the
+//     verifier can redeem it at /api/auth/native/exchange.
+const STATE = /^([A-Za-z0-9-]{16,64})\.([A-Za-z0-9_-]{43})$/;
+
 export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "auth.apple.callback", { limit: 20, windowMs: 60_000 });
   if (limited) return limited;
@@ -39,11 +51,15 @@ export async function POST(req: NextRequest) {
     /* name is a nicety, never a blocker */
   }
 
+  const pkce = STATE.exec(state);
+  const codeChallenge = pkce?.[2];
+  if (!codeChallenge || !CODE_CHALLENGE.test(codeChallenge)) return fail(req, "pkce_required", state);
+
   if (!idToken) return fail(req, "missing_id_token", state);
 
   let identity;
   try {
-    identity = await verifyAppleIdentityToken(idToken, name);
+    identity = await verifyAppleIdentityToken(idToken, name, { expectedNonce: codeChallenge });
   } catch {
     return fail(req, "invalid_apple_token", state);
   }
@@ -60,6 +76,7 @@ export async function POST(req: NextRequest) {
     safe: account.user.safeAddress,
     roles: account.user.roles,
     provider: "apple",
+    codeChallenge,
   });
   audit("auth.handoff_minted", account.user.id, { provider: "apple", direction: "web_to_native" });
 

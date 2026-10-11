@@ -1,0 +1,104 @@
+{
+  "name": "revenue_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0018_revenue_events.sql",
+    "line": 39,
+    "sha256": "d6216e0b574c20f1818d12c9750343e9dc8462579bac20ac9f3861db70158162"
+  },
+  "definition": "CREATE TABLE IF NOT EXISTS revenue_events (\n  -- Deterministic idempotency key, e.g. \"subscription_charge:cs_test_abc123\".\n  id                text        PRIMARY KEY,\n  created_at        timestamptz NOT NULL DEFAULT now(),\n\n  user_id           text        NULL,\n  organization_id   text        NULL,\n\n  source            text        NOT NULL,\n  engine            text        NOT NULL,\n  status            text        NOT NULL,\n\n  -- Asset id from lib/money (e.g. \"USD\", \"USDC.base\"), and the settlement\n  -- chain for on-chain assets. Null chain means fiat.\n  asset             text        NOT NULL,\n  chain             text        NULL,\n\n  -- What FurlPay keeps. Negative ONLY on a reversal.\n  fee_minor         numeric(78,0) NOT NULL,\n  -- Gross amount that moved. NULL when the concept does not apply (a flat\n  -- subscription charge has no underlying volume, and storing 0 there would\n  -- put a zero into the take-rate denominator).\n  volume_minor      numeric(78,0) NULL,\n  fee_bps           integer     NULL,\n\n  external_ref      text        NULL,\n  metadata          jsonb       NOT NULL DEFAULT '{}'::jsonb,\n\n  CONSTRAINT revenue_engine_known CHECK (\n    engine IN ('transaction','subscription','api','protocol','card','stablecoin','custody','aum')\n  ),\n  CONSTRAINT revenue_status_known CHECK (\n    status IN ('pending','realized','reversed','voided','simulated')\n  ),\n  -- A non-reversal can never carry a negative fee. This is the database\n  -- refusing to hold a row that would quietly reduce reported revenue.\n  CONSTRAINT revenue_sign_matches_status CHECK (\n    status = 'reversed' OR fee_minor >= 0\n  ),\n  -- A fee larger than the volume it was taken from is a unit mix-up (major\n  -- units where minor were meant) every time.\n  CONSTRAINT revenue_fee_within_volume CHECK (\n    volume_minor IS NULL OR volume_minor < 0 OR fee_minor <= volume_minor\n  )\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 39,
+      "sha256": "d6216e0b574c20f1818d12c9750343e9dc8462579bac20ac9f3861db70158162",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 86,
+      "sha256": "13ed03ed886e853963b31e0e64f0f8827dea1c30d988a9bc84eff420db499a8f",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 90,
+      "sha256": "1b44cc9aab8d909f7b177fd152769332eec7ce65b14353c8d8a9267337fbc92b",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 92,
+      "sha256": "ac8fc688bd8477d108c66182e6cb2afae6e6a2e8ace1847f244c7219492ff0f8",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 96,
+      "sha256": "dde939d860e3b5f43b870c14e3f32a11171564b86747e1640a55bffd11e0a1b7",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 101,
+      "sha256": "333ad71fb5a5bdffc871cfb44335e47d4133e29f9419bae8f13f3973846cd5de",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 106,
+      "sha256": "95234edff859f1d0166cd79fc859df96894e71e9e90628f9ef7e89b1b9cb51e0",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 113,
+      "sha256": "2643dab68069f29993f264e2c82835047e6c45df1bb740f8c6ab8d68f5aa4c6b",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 122,
+      "sha256": "20f8c960967201d0b1398220c2611057f53c82da06f753d2d59136c9dc015a4a",
+      "kind": "drop trigger"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 123,
+      "sha256": "d50dbda05afa158afde61d992ab0a02103f0adf9a9805ebc5e29b1be54fabf81",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0018_revenue_events.sql",
+      "line": 132,
+      "sha256": "db990502d5e605940ffbab56a461ae3da2df0df34c9e5057001b463728e3b30b",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/revenue/store.ts",
+      "line": 32
+    },
+    {
+      "file": "apps/web/src/lib/revenue/store.ts",
+      "line": 137
+    },
+    {
+      "file": "apps/web/src/lib/revenue/store.ts",
+      "line": 174
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0018_revenue_events.sql",
+        "line": 132,
+        "sha256": "db990502d5e605940ffbab56a461ae3da2df0df34c9e5057001b463728e3b30b"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

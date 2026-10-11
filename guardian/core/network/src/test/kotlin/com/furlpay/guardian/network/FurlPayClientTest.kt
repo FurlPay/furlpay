@@ -126,4 +126,14 @@ class FurlPayClientTest {
         assertNotNull(server.takeRequest().getHeader("X-Correlation-Id"))
         assertFalse(fired)
     }
+
+    @Test
+    fun `a refresh or stale 401 cannot overwrite or clear a newer session`() = runTest {
+        val store = InMemoryTokenStore("old-session")
+        store.update("new-session")
+
+        assertFalse(store.replaceIfCurrent("old-session", "refreshed-old"))
+        assertFalse(store.clearIfCurrent("old-session"))
+        assertEquals("new-session", store.token())
+    }
 }

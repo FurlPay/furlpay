@@ -433,6 +433,9 @@ export interface ArcTransferLogLike {
   address: string;
   topics: readonly string[];
   data: string;
+  /** Present on receipt logs; carried through so a credit can be keyed to one log. */
+  logIndex?: string;
+  removed?: boolean;
 }
 
 /** One underlying USDC movement, already de-duplicated across both streams. */
@@ -448,6 +451,9 @@ export interface ArcCreditableTransfer {
   /** True when this movement ALSO produced a 6dp ERC-20 log, i.e. it went
    *  through `transfer()` rather than being a plain native send. */
   viaErc20Interface: boolean;
+  /** logIndex of the SYSTEM-EMITTER log: the one stable key for this movement
+   *  whichever interface moved it (undefined when the input log had none). */
+  logIndex?: string;
 }
 
 /**
@@ -465,8 +471,9 @@ export interface ArcCreditableTransfer {
 export function arcCreditableTransfers(
   logs: readonly ArcTransferLogLike[]
 ): ArcCreditableTransfer[] {
+  // A log removed by a reorg is not a movement.
   const isTransfer = (l: ArcTransferLogLike) =>
-    l.topics[0]?.toLowerCase() === ARC_TRANSFER_TOPIC && l.topics.length >= 3;
+    !l.removed && l.topics[0]?.toLowerCase() === ARC_TRANSFER_TOPIC && l.topics.length >= 3;
 
   const party = (topic: string) => `0x${topic.slice(-40)}`.toLowerCase();
 
@@ -500,6 +507,7 @@ export function arcCreditableTransfers(
       erc20Value: toErc20Units(nativeValue),
       dust: erc20Remainder(nativeValue),
       viaErc20Interface: Boolean(pair),
+      logIndex: log.logIndex,
     });
   }
 

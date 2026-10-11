@@ -1,0 +1,67 @@
+{
+  "name": "usdc_backfill_units",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0036_usdc_index.sql",
+    "line": 157,
+    "sha256": "c1639fcbdec3ed4d41e6fcdf502a147c4bbe52f036eeaa184e3a12d06ef63d27"
+  },
+  "definition": "create table if not exists usdc_backfill_units (\n  stream        smallint not null,\n  from_block    bigint not null,\n  to_block      bigint not null check (to_block >= from_block),\n  status        text not null default 'pending' check (status in ('pending', 'claimed', 'done', 'failed')),\n  attempts      integer not null default 0,\n  claimed_at    timestamptz,\n  last_error    text,\n  primary key (stream, from_block)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 157,
+      "sha256": "c1639fcbdec3ed4d41e6fcdf502a147c4bbe52f036eeaa184e3a12d06ef63d27",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 167,
+      "sha256": "a15a5e54f76330ce1608ab91acb96af3c9bdc85e9e8d95ff9279686f98e0ba20",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 185,
+      "sha256": "d99a2ac9fd1e2feefc32bd63819ae1066b3bb697c10f5733f78312312486dcc3",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 221,
+      "sha256": "7d7f140f70434890e442bc58c7a5a724552505dd27655f4fecd5501dd9e451cd",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 245,
+      "sha256": "07a00baa9d92dc9cf5313beed4c63e5cd03bdad682578e60cbec7bff831ddbc8",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 262,
+      "sha256": "d90333175f08aec63154a50fc19a655501f7d3d2de0f1bc87dd617618a3c1d15",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0036_usdc_index.sql",
+      "line": 276,
+      "sha256": "711b6b1548044b116d97c258f04c48505e43b00487685b2e5eee94f9ba22f0bd",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0036_usdc_index.sql",
+        "line": 185,
+        "sha256": "d99a2ac9fd1e2feefc32bd63819ae1066b3bb697c10f5733f78312312486dcc3"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

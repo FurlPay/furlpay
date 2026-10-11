@@ -4,7 +4,7 @@
 // Heuristics only, read-only, shadow-DOM isolated; never touches page forms.
 // Money math + total-selection logic live in @/lib/fees (unit-tested).
 
-import { AmountCandidate, CHECKOUT_HINTS, compareFees, extractAmounts, pickTotal } from "@/lib/fees";
+import { type AmountCandidate, CHECKOUT_HINTS, compareFees, extractAmounts, pickTotal } from "@/lib/fees";
 
 export default defineContentScript({
   // http(s) only — never chrome://, chrome-extension://, about:, file://

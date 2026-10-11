@@ -1,4 +1,4 @@
-import { kvGet, kvSet, kvDel } from "@/lib/kv";
+import { kvGet, kvSet, kvDel, kvSetNx } from "@/lib/kv";
 
 // ---------------------------------------------------------------------------
 // Server-enforced, SESSION-BOUND step-up authentication.
@@ -27,12 +27,16 @@ const DEFAULT_MAX_AGE_MS = 10 * 60_000; // "recent" = within 10 minutes
 interface StepUpRecord {
   method: StepUpMethod;
   at: number; // epoch ms
+  // Identifies THIS step-up for claimStepUp. `at` alone did not: two step-ups
+  // recorded in the same millisecond shared a claim key, so the second was
+  // refused as a replay. Absent on records written before it was added.
+  id?: string;
 }
 
 /** Record that this SESSION (jti) just completed a strong re-auth. */
 export async function recordStepUp(userId: string, jti: string, method: StepUpMethod): Promise<void> {
   if (!jti) return;
-  await kvSet(KEY(userId, jti), { method, at: Date.now() } satisfies StepUpRecord, RECORD_TTL_S);
+  await kvSet(KEY(userId, jti), { method, at: Date.now(), id: crypto.randomUUID() } satisfies StepUpRecord, RECORD_TTL_S);
 }
 
 /** True if THIS session has a step-up within `maxAgeMs`. Server-authoritative. */
@@ -40,6 +44,23 @@ export async function recentStepUp(userId: string, jti: string | undefined, maxA
   if (!jti) return false;
   const rec = await kvGet<StepUpRecord>(KEY(userId, jti));
   return Boolean(rec && typeof rec.at === "number" && Date.now() - rec.at <= maxAgeMs);
+}
+
+/**
+ * Atomically claim THIS session's recent step-up for one privileged action.
+ * True for exactly one caller per step-up: recentStepUp() + consumeStepUp() is
+ * check-then-delete, so two concurrent requests could both pass on a single
+ * re-authentication. The claim is a SET NX keyed to the step-up's own id
+ * (its timestamp for records that predate ids); the record is then deleted so
+ * it cannot be reused at all.
+ */
+export async function claimStepUp(userId: string, jti: string | undefined, maxAgeMs = DEFAULT_MAX_AGE_MS): Promise<boolean> {
+  if (!jti) return false;
+  const rec = await kvGet<StepUpRecord>(KEY(userId, jti));
+  if (!rec || typeof rec.at !== "number" || Date.now() - rec.at > maxAgeMs) return false;
+  const won = await kvSetNx(`${KEY(userId, jti)}:claimed:${rec.id ?? rec.at}`, 1, RECORD_TTL_S);
+  if (won) await kvDel(KEY(userId, jti)).catch(() => {});
+  return won;
 }
 
 /** Consume the step-up (single-use) after the guarded action succeeds. */

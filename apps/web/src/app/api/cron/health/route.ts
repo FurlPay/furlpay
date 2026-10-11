@@ -7,8 +7,11 @@ import { cronHttpStatus, isJobHealthy, runJob } from "@/lib/cron/runner";
 import { raiseAlert } from "@/lib/alerts";
 import { getBrokerageOrNull } from "@/lib/brokerage";
 import { evmRpcFor, solanaRpc } from "@/lib/onchain/balances";
-import { kvBackend } from "@/lib/kv";
+import { kvBackend, kvErrorCategory, kvGet } from "@/lib/kv";
 import { flagState } from "@/lib/flags";
+
+/** Read-only sentinel: the probe never writes, so it costs one command and cannot collide with real state. */
+const KV_PROBE_KEY = "health:kv-probe";
 
 // GET /api/cron/health — provider reachability, and the watchdog on the
 // scheduler itself.
@@ -35,6 +38,39 @@ export async function GET(req: NextRequest) {
   if (!auth.ok) return auth.res;
 
   const checks: { id: string; ok: boolean; detail: string; latencyMs?: number }[] = [];
+
+  // ---- Durable state, LIVE ---------------------------------------------
+  // Deliberately OUTSIDE runJob. runJob takes its lock in KV first, so when
+  // KV refuses commands (a plan limit, a revoked token, an outage) it returns
+  // "job not run" before any check below executes — the health job goes quiet
+  // at exactly the moment it has something to say. `kvBackend === "redis"`
+  // only proves the credentials are present, not that a command succeeds.
+  // raiseAlert tolerates a failing KV (counting and history are best-effort),
+  // so this is the one alert that can still leave the building.
+  if (kvBackend === "redis") {
+    const started = Date.now();
+    try {
+      await kvGet(KV_PROBE_KEY);
+      checks.push({ id: "kv:live", ok: true, latencyMs: Date.now() - started, detail: "A read against durable KV succeeded." });
+    } catch (e) {
+      const category = kvErrorCategory(e);
+      checks.push({
+        id: "kv:live",
+        ok: false,
+        latencyMs: Date.now() - started,
+        detail: `Durable KV refused a read [${category}]. Rate limits, rail controls and scheduled jobs that depend on it are failing closed.`,
+      });
+      await raiseAlert({
+        kind: "infra.kv_unavailable",
+        severity: "critical",
+        title: "Durable KV is refusing commands",
+        detail:
+          `A read against durable KV failed with category "${category}". Rail status, x402 controls, ` +
+          "rate-limited sign-in and every scheduled job that locks through KV are unavailable until it recovers.",
+        dimensions: { category },
+      });
+    }
+  }
 
   const outcome = await runJob("ops.health", async (ctx) => {
     // ---- Scheduler watchdog -------------------------------------------

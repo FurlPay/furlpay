@@ -1,0 +1,61 @@
+{
+  "name": "onchain_asset_minutes",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0034_onchain_asset_index.sql",
+    "line": 74,
+    "sha256": "ec7affef9d8a69c4436c0f1cba1869fac61b5eef5a8da7db468521e3ab988c00"
+  },
+  "definition": "create table if not exists onchain_asset_minutes (\n  chain         text not null,\n  asset         text not null,\n  bucket        timestamptz not null check (bucket = date_trunc('minute', bucket)),\n  transfers     bigint not null default 0 check (transfers >= 0),\n  transfer_raw  numeric(78,0) not null default 0 check (transfer_raw >= 0),\n  mints         bigint not null default 0 check (mints >= 0),\n  mint_raw      numeric(78,0) not null default 0 check (mint_raw >= 0),\n  burns         bigint not null default 0 check (burns >= 0),\n  burn_raw      numeric(78,0) not null default 0 check (burn_raw >= 0),\n  first_block   bigint not null,\n  last_block    bigint not null,\n  primary key (chain, asset, bucket)\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 74,
+      "sha256": "ec7affef9d8a69c4436c0f1cba1869fac61b5eef5a8da7db468521e3ab988c00",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 88,
+      "sha256": "15edb5619316481c6b2f44e577ba2758fa1460b12e79a5c3eb96195a9da3037d",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 226,
+      "sha256": "ac0a837971f22dfbddff07854bab4aa9253195cbffae17a604d2b319c5c039c4",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 313,
+      "sha256": "16128cb2f2758db8cb633afc525f7c736b943c70af81445d26c92c0593e25aa2",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 385,
+      "sha256": "be32cd5f31804be420357098022f3fb29df4994121483bc7030abe93536dc375",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 394,
+      "sha256": "9b7f1f1fd903c47e2edd5aea0d4cc20cb226b46113363a9e37cbad6838bda530",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 385,
+        "sha256": "be32cd5f31804be420357098022f3fb29df4994121483bc7030abe93536dc375"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

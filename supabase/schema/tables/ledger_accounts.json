@@ -1,0 +1,74 @@
+{
+  "name": "ledger_accounts",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0009_payments_and_ledger.sql",
+    "line": 117,
+    "sha256": "155e380a753158df6a56d5e7e235f5ebb23a4c68acc4b0b8971bdc2e157c90e4"
+  },
+  "definition": "create table if not exists ledger_accounts (\n  id         text primary key,\n  code       text not null,\n  name       text not null,\n  type       text not null check (type in ('asset','liability','equity','revenue','expense')),\n  currency   text not null,\n  created_at timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 117,
+      "sha256": "155e380a753158df6a56d5e7e235f5ebb23a4c68acc4b0b8971bdc2e157c90e4",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 126,
+      "sha256": "4ae766f414909ba417d00228c5cbccba7672c83558a494bb2add44f6f3977437",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 144,
+      "sha256": "b54a268ccf86c4f586a41e386ad4baf5f9cefd517ae007e00550c0d0b4184876",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 174,
+      "sha256": "16f8ffdff30656d772e183ce4c7d8b7af22568ed3560cbd16028e1932bc82f96",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 45,
+      "sha256": "894dbc100610eb5a13ec365cd91d9e7d57cdb44b7726d1f371b5117a50cffdbb",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 64,
+      "sha256": "ccb689383174fa58572491467167b41804147f94927e41d81dc22e521e8671e4",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 202
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 203
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 206
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0016_rls_money_tables.sql",
+        "line": 45,
+        "sha256": "894dbc100610eb5a13ec365cd91d9e7d57cdb44b7726d1f371b5117a50cffdbb"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

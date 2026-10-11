@@ -1,6 +1,6 @@
 import { assessRisk, type RiskAssessment, type RiskSignals } from "@/lib/security/riskEngine";
 import { requireAuthFor, type RiskAction } from "@/lib/security/riskPolicy";
-import { isDeviceCompromised } from "@/lib/security/tamperDetection";
+import { isDeviceCompromised, isIntegrityUnknown } from "@/lib/security/tamperDetection";
 import {
   authorizePaymentWithFingerprint,
   isFingerprintPaySupported,
@@ -106,8 +106,13 @@ export async function authorizeMoneyMove(input: AuthorizeInput): Promise<Authori
   const assessment = assessRisk({
     action: input.action,
     amountUsd: input.amountUsd,
-    deviceCompromised: isDeviceCompromised(),
     ...(input.signals ?? {}),
+    // Device integrity comes from tamper detection and is applied AFTER the
+    // caller's signals so a caller can only ADD doubt, never clear it: this
+    // spread used to come last, letting a `deviceCompromised: false` override
+    // the detector. Detection not running → integrity unknown → STEP_UP.
+    deviceCompromised: isDeviceCompromised() || input.signals?.deviceCompromised === true,
+    integrityUnknown: isIntegrityUnknown() || input.signals?.integrityUnknown === true,
   });
 
   // --- BLOCK: never reaches the network -----------------------------------

@@ -17,10 +17,9 @@
  * A display handle from the email local part.
  *
  * Derived from real data and deterministic — the same account always shows the
- * same handle. It is NOT a username: the account record has no handle field
- * (lib/accountApi.ts `setUsername` throws NotWiredError and explains that it
- * needs a column, a uniqueness constraint and a rename policy first), so
- * nothing built on this may imply the name can be claimed or reserved.
+ * same display handle. It is not a reserved username: usernames are claimed
+ * through /api/profile/username and backed by migration 0029. This fallback
+ * must never be used to resolve a payment recipient.
  */
 export function deriveHandle(email: string | null | undefined): string | null {
   if (!email) return null;

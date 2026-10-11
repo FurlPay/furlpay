@@ -214,9 +214,7 @@ public struct TopUpView: View {
     @ViewBuilder
     private var payButton: some View {
         if ApplePay.isAvailable {
-            PayWithApplePayButton(.topUp) {
-                ApplePay.request(amountUsd: amount)
-            } onPaymentAuthorizationChange: { phase in
+            PayWithApplePayButton(.topUp, request: ApplePay.request(amountUsd: amount)) { phase in
                 handle(phase)
             }
             .payWithApplePayButtonStyle(.white)
@@ -225,9 +223,7 @@ public struct TopUpView: View {
         } else if ApplePay.needsCardSetup {
             // The device can pay; the user just has no card. `.setUp` opens
             // Wallet rather than pretending a payment is possible.
-            PayWithApplePayButton(.setUp) {
-                ApplePay.request(amountUsd: amount)
-            } onPaymentAuthorizationChange: { _ in }
+            PayWithApplePayButton(.setUp, request: ApplePay.request(amountUsd: amount)) { _ in }
             .payWithApplePayButtonStyle(.white)
             .frame(height: 50)
 

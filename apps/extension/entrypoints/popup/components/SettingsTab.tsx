@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "@/components/icons";
 import type { Entitlements, PasskeyList } from "@/lib/types";
 import {
-  SessionState,
+  type SessionState,
   SettingsTile,
   StoredToggle,
   deviceLabel,
@@ -248,7 +248,7 @@ function DeveloperPanel() {
 
   useEffect(() => {
     import("@/lib/api").then(({ getBaseUrl }) => getBaseUrl().then(setBase));
-    browser.storage.local.get("x402Log").then(({ x402Log }) => {
+    browser.storage.session.get("x402Log").then(({ x402Log }) => {
       if (Array.isArray(x402Log)) setX402Count(x402Log.length);
     });
   }, []);

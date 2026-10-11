@@ -18,8 +18,18 @@ import { canonicalEmail } from "@/lib/identity";
 //                                        where the seed is a convenience).
 //   - unset, NODE_ENV === "production" → null: NOBODY is the bootstrap admin.
 //                                        Preview deployments land here too.
-//   - production (not a Vercel preview) with it unset → assertAdminConfig()
-//     throws, and instrumentation.ts refuses to boot the server.
+//   - production (not a Vercel preview) with it unset → the server BOOTS with
+//     administration disabled, logs that loudly at boot, and reports it in
+//     /api/ops/readiness. Admin-only routes have no admin to grant.
+//   - set but malformed → assertAdminConfig() throws and the server refuses
+//     to boot: an explicit wrong value is a mistake to stop on, not a mode.
+//
+// WHY A MISSING ADMIN NO LONGER STOPS THE BOOT (2026-10-02). The takeover is
+// closed by the null identity above — tested independently in
+// adminFallback.spec ("nobody is the bootstrap admin", "an OTP login for the
+// old fallback email creates a plain, empty, unprivileged account"). The boot
+// exit added no access control on top of that; it converted a missing
+// OPERATOR setting into a total outage of the public site, payments included.
 // ---------------------------------------------------------------------------
 
 /** Local-development-only bootstrap identity (the seeded demo account). Never
@@ -58,14 +68,26 @@ export function adminBootstrapEmail(env: Env = process.env): string | null {
   return DEVELOPMENT_BOOTSTRAP_EMAIL;
 }
 
-/** Boot-time check. Throws in a production runtime without an explicit admin. */
-export function assertAdminConfig(env: Env = process.env): void {
-  if (isProductionRuntime(env) && !(env.FURLPAY_ADMIN_EMAIL ?? "").trim()) {
-    throw new AdminConfigError(
-      "FURLPAY_ADMIN_EMAIL must be set in production. There is no fallback admin identity."
-    );
+export type AdminConfigStatus = "configured" | "disabled_not_configured" | "development_seed";
+
+/**
+ * Boot-time check. Throws ONLY for a malformed configured value. Returns the
+ * mode so the boot hook can say, loudly, that production is running without
+ * an administrator. It never returns or substitutes an address.
+ */
+export function assertAdminConfig(env: Env = process.env): AdminConfigStatus {
+  adminBootstrapEmail(env); // throws AdminConfigError when set but malformed
+  if ((env.FURLPAY_ADMIN_EMAIL ?? "").trim()) return "configured";
+  return env.NODE_ENV === "production" ? "disabled_not_configured" : "development_seed";
+}
+
+/** For health/readiness: whether bootstrap administration is available. Never throws. */
+export function adminConfigStatus(env: Env = process.env): AdminConfigStatus | "invalid" {
+  try {
+    return assertAdminConfig(env);
+  } catch {
+    return "invalid";
   }
-  adminBootstrapEmail(env); // validates the shape when set
 }
 
 /** True when `email` is the configured bootstrap admin. Null-safe: when no

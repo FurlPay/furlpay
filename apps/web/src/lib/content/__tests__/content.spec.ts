@@ -68,35 +68,39 @@ function webinar(over: Partial<Webinar> = {}): Webinar {
 }
 
 describe("drafts never reach the public surface", () => {
-  it("ships no published content today", () => {
-    // FurlPay has not published research or a webinar. If this ever fails,
-    // something was published — check it is real before relaxing the test.
-    expect(publishedReports()).toEqual([]);
+  // Exactly one item is published: the 2026 stablecoin report (founder
+  // decision, 2026-10-03, matching production). Everything else stays behind
+  // the filter, and these tests use a GENUINE draft, never index [0].
+  const draftReport = REPORTS.find((r) => !isPubliclyVisible(r))!;
+  const draftWebinar = WEBINARS.find((w) => !isPubliclyVisible(w))!;
+
+  it("publishes exactly the 2026 stablecoin report and no webinar", () => {
+    // If this ever fails, something else was published: check it is real
+    // before changing the list.
+    expect(publishedReports().map((r) => r.slug)).toEqual(["global-stablecoin-report-2026"]);
     expect(publishedWebinars()).toEqual([]);
   });
 
-  it("still has fixtures behind the filter", () => {
-    // Guards the guard: if the fixtures vanished, the assertions above would
-    // pass vacuously and prove nothing about filtering.
-    expect(REPORTS.length).toBeGreaterThan(0);
-    expect(WEBINARS.length).toBeGreaterThan(0);
-    // Not public = any pre-publication state (draft, review, approved). The
-    // 2026 stablecoin report sits in "review" until an editor approves it.
-    expect(REPORTS.every((r) => !isPubliclyVisible(r))).toBe(true);
+  it("still has drafts behind the filter", () => {
+    // Guards the guard: without a real draft the assertions below would pass
+    // vacuously and prove nothing about filtering.
+    expect(draftReport).toBeDefined();
+    expect(draftWebinar).toBeDefined();
+    expect(REPORTS.filter((r) => isPubliclyVisible(r)).map((r) => r.slug)).toEqual(["global-stablecoin-report-2026"]);
     expect(WEBINARS.every((w) => !isPubliclyVisible(w))).toBe(true);
   });
 
   it("refuses to resolve a draft by slug", () => {
     // This is what the detail route calls. A draft must 404, not render.
-    expect(getPublishedReport(REPORTS[0].slug)).toBeUndefined();
-    expect(getPublishedWebinar(WEBINARS[0].slug)).toBeUndefined();
+    expect(getPublishedReport(draftReport.slug)).toBeUndefined();
+    expect(getPublishedWebinar(draftWebinar.slug)).toBeUndefined();
   });
 
   it("drops drafts from related content instead of linking to them", () => {
     // A published item may reference a draft; the link must disappear rather
     // than 404 the reader.
-    expect(resolveRelatedReports([REPORTS[0].slug])).toEqual([]);
-    expect(resolveRelatedWebinars([WEBINARS[0].slug])).toEqual([]);
+    expect(resolveRelatedReports([draftReport.slug])).toEqual([]);
+    expect(resolveRelatedWebinars([draftWebinar.slug])).toEqual([]);
   });
 
   it("drops unknown slugs from related content", () => {
@@ -105,8 +109,8 @@ describe("drafts never reach the public surface", () => {
     expect(resolveRelatedReports(undefined)).toEqual([]);
   });
 
-  it("has no featured item while nothing is published", () => {
-    expect(featuredReport()).toBeUndefined();
+  it("features only published content", () => {
+    expect(featuredReport()?.slug).toBe("global-stablecoin-report-2026");
     expect(featuredWebinar()).toBeUndefined();
   });
 });

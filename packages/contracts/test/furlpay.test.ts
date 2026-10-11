@@ -218,52 +218,66 @@ describe("Furlpay contracts", () => {
       await f.escrow
         .connect(f.payer)
         .createBooking(bookingId, USDC("300"), f.provider.address, checkIn, cancelBy);
-      return { ...f, checkIn, cancelBy };
+      // Bookings are addressed by the traveler-bound key (SEC-P3-004).
+      const key = await f.escrow.bookingKey(f.payer.address, bookingId);
+      return { ...f, checkIn, cancelBy, key };
     }
 
-    it("funds a booking, escrows USDC and mints the receipt NFT", async () => {
-      const { usdc, escrow, receipt, payer } = await fundedBooking();
+    it("funds a booking, escrows USDC and mints the receipt NFT (token id = key)", async () => {
+      const { usdc, escrow, receipt, payer, key } = await fundedBooking();
       expect(await usdc.balanceOf(await escrow.getAddress())).to.equal(USDC("300"));
-      expect(await receipt.ownerOf(BigInt(bookingId))).to.equal(payer.address);
+      expect(await receipt.ownerOf(BigInt(key))).to.equal(payer.address);
     });
 
     it("oracle check-in releases funds to the provider", async () => {
-      const { usdc, escrow, provider, oracle } = await fundedBooking();
-      await expect(escrow.connect(oracle).confirmCheckIn(bookingId))
+      const { usdc, escrow, provider, oracle, checkIn, key } = await fundedBooking();
+      await time.increaseTo(checkIn);
+      await expect(escrow.connect(oracle).confirmCheckIn(key))
         .to.emit(escrow, "BookingReleased");
       expect(await usdc.balanceOf(provider.address)).to.equal(USDC("300"));
     });
 
+    it("the oracle cannot release before check-in, so the cancellation window holds (SEC-P2-003)", async () => {
+      const { usdc, escrow, oracle, payer, checkIn, key } = await fundedBooking();
+      await expect(escrow.connect(oracle).confirmCheckIn(key))
+        .to.be.revertedWithCustomError(escrow, "CheckInNotReached")
+        .withArgs(checkIn);
+      // The traveler can still cancel and is refunded in full.
+      const before = await usdc.balanceOf(payer.address);
+      await escrow.connect(payer).cancel(key);
+      expect(await usdc.balanceOf(payer.address)).to.equal(before + USDC("300"));
+    });
+
     it("non-oracle cannot confirm check-in", async () => {
-      const { escrow, merchant } = await fundedBooking();
-      await expect(escrow.connect(merchant).confirmCheckIn(bookingId))
+      const { escrow, merchant, key } = await fundedBooking();
+      await expect(escrow.connect(merchant).confirmCheckIn(key))
         .to.be.revertedWithCustomError(escrow, "NotOracle");
     });
 
     it("traveler refund inside the cancellation window", async () => {
-      const { usdc, escrow, payer } = await fundedBooking();
+      const { usdc, escrow, payer, key } = await fundedBooking();
       const before = await usdc.balanceOf(payer.address);
-      await escrow.connect(payer).cancel(bookingId);
+      await escrow.connect(payer).cancel(key);
       expect((await usdc.balanceOf(payer.address)) - before).to.equal(USDC("300"));
     });
 
     it("refund rejected after the cancellation deadline", async () => {
-      const { escrow, payer, cancelBy } = await fundedBooking();
+      const { escrow, payer, cancelBy, key } = await fundedBooking();
       await time.increaseTo(cancelBy + 1);
-      await expect(escrow.connect(payer).cancel(bookingId))
+      await expect(escrow.connect(payer).cancel(key))
         .to.be.revertedWithCustomError(escrow, "CancellationWindowClosed");
     });
 
     it("permissionless release after the grace period protects the provider", async () => {
-      const { usdc, escrow, provider, merchant, checkIn } = await fundedBooking();
-      await expect(escrow.connect(merchant).releaseAfterGrace(bookingId))
+      const { usdc, escrow, provider, merchant, checkIn, key } = await fundedBooking();
+      await expect(escrow.connect(merchant).releaseAfterGrace(key))
         .to.be.revertedWithCustomError(escrow, "GracePeriodNotReached");
       await time.increaseTo(checkIn + 7 * 24 * 3600 + 1);
-      await escrow.connect(merchant).releaseAfterGrace(bookingId);
+      await escrow.connect(merchant).releaseAfterGrace(key);
       expect(await usdc.balanceOf(provider.address)).to.equal(USDC("300"));
     });
 
-    it("double-funding the same bookingId is rejected", async () => {
+    it("double-funding the same bookingId by the same traveler is rejected", async () => {
       const f = await fundedBooking();
       await f.usdc.connect(f.payer).approve(await f.escrow.getAddress(), USDC("300"));
       await expect(
@@ -271,6 +285,58 @@ describe("Furlpay contracts", () => {
           .connect(f.payer)
           .createBooking(bookingId, USDC("300"), f.provider.address, f.checkIn, f.cancelBy)
       ).to.be.revertedWithCustomError(f.escrow, "BookingExists");
+    });
+
+    describe("front-running a booking id (SEC-P3-004)", () => {
+      async function attackerFirst() {
+        const f = await loadFixture(deployFixture);
+        const attacker = f.merchant;
+        await f.usdc.mint(attacker.address, USDC("1"));
+        const now = await time.latest();
+        const checkIn = now + 7 * 24 * 3600;
+        const cancelBy = now + 5 * 24 * 3600;
+        // 1-2. The attacker saw the traveler's pending bookingId and funds it first, with 1 unit.
+        await f.usdc.connect(attacker).approve(await f.escrow.getAddress(), 1n);
+        await f.escrow.connect(attacker).createBooking(bookingId, 1n, attacker.address, checkIn, cancelBy);
+        return { ...f, attacker, checkIn, cancelBy };
+      }
+
+      it("the traveler's booking still goes through under their own key", async () => {
+        const f = await attackerFirst();
+        // 3-4. The legitimate traveler creates and funds the booking.
+        await f.usdc.connect(f.payer).approve(await f.escrow.getAddress(), USDC("300"));
+        await expect(
+          f.escrow.connect(f.payer).createBooking(bookingId, USDC("300"), f.provider.address, f.checkIn, f.cancelBy)
+        ).to.emit(f.escrow, "BookingFunded");
+        const travelerKey = await f.escrow.bookingKey(f.payer.address, bookingId);
+        const attackerKey = await f.escrow.bookingKey(f.attacker.address, bookingId);
+        expect(travelerKey).to.not.equal(attackerKey);
+        const b = await f.escrow.bookings(travelerKey);
+        expect(b.traveler).to.equal(f.payer.address);
+        expect(b.provider).to.equal(f.provider.address);
+        expect(b.amount).to.equal(USDC("300"));
+      });
+
+      it("the receipt NFT for the traveler's booking goes to the traveler, not the attacker", async () => {
+        const f = await attackerFirst();
+        await f.usdc.connect(f.payer).approve(await f.escrow.getAddress(), USDC("300"));
+        await f.escrow.connect(f.payer).createBooking(bookingId, USDC("300"), f.provider.address, f.checkIn, f.cancelBy);
+        const travelerKey = await f.escrow.bookingKey(f.payer.address, bookingId);
+        expect(await f.receipt.ownerOf(BigInt(travelerKey))).to.equal(f.payer.address);
+      });
+
+      it("the attacker cannot cancel, or redirect, the traveler's booking", async () => {
+        const f = await attackerFirst();
+        await f.usdc.connect(f.payer).approve(await f.escrow.getAddress(), USDC("300"));
+        await f.escrow.connect(f.payer).createBooking(bookingId, USDC("300"), f.provider.address, f.checkIn, f.cancelBy);
+        const travelerKey = await f.escrow.bookingKey(f.payer.address, bookingId);
+        // 5. Interference attempts.
+        await expect(f.escrow.connect(f.attacker).cancel(travelerKey)).to.be.revertedWithCustomError(f.escrow, "NotTraveler");
+        // Cancelling its own squat refunds only the attacker's 1 unit; the traveler's escrow is untouched.
+        const attackerKey = await f.escrow.bookingKey(f.attacker.address, bookingId);
+        await f.escrow.connect(f.attacker).cancel(attackerKey);
+        expect(await f.usdc.balanceOf(await f.escrow.getAddress())).to.equal(USDC("300"));
+      });
     });
   });
 

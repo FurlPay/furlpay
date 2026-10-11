@@ -9,6 +9,7 @@ import {
   passkeyErrorMessage,
 } from "@/lib/passkey";
 import { postJSON } from "@/lib/api";
+import { safeRedirectPath } from "@/lib/safeRedirect";
 import { useOnline } from "@/lib/offline";
 import GoogleSignInButton from "@/components/GoogleSignInButton";
 import AppleSignInButton from "@/components/AppleSignInButton";
@@ -38,9 +39,10 @@ export default function LoginPage() {
   function enterApp(msg = "Unlocked", delay = 500) {
     setStatus(msg);
     // Middleware sends users here as /login?next=<protected page> — return them
-    // there after auth. Same-origin paths only, so the param can't open-redirect.
+    // there after auth. Resolved against this origin (lib/safeRedirect): a prefix
+    // check let "/\evil.com" and "/<TAB>/evil.com" through to another host.
     const next = new URLSearchParams(window.location.search).get("next");
-    const dest = next && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+    const dest = safeRedirectPath(next, window.location.origin, "/dashboard");
     setTimeout(() => router.replace(dest), delay);
   }
 

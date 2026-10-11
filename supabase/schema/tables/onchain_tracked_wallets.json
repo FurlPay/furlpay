@@ -1,0 +1,70 @@
+{
+  "name": "onchain_tracked_wallets",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0034_onchain_asset_index.sql",
+    "line": 141,
+    "sha256": "6a740a45a7b76c2ed151f260085f8df516a341915a71397dd24e269a66ff5731"
+  },
+  "definition": "create table if not exists onchain_tracked_wallets (\n  id          uuid primary key default gen_random_uuid(),\n  label       text not null check (length(label) between 1 and 80),\n  scope       text not null check (scope in ('treasury', 'watch')),\n  active      boolean not null default true,\n  created_at  timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 141,
+      "sha256": "6a740a45a7b76c2ed151f260085f8df516a341915a71397dd24e269a66ff5731",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 148,
+      "sha256": "afdc111a647a97ea299c0a034726268741214ee8bf1b5ed12368d8edbc76cf61",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 389,
+      "sha256": "cde34b6f77541e6a9c5381ba80ceaa7f5e36701b62238e807a0250be70bfa56f",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 394,
+      "sha256": "9b7f1f1fd903c47e2edd5aea0d4cc20cb226b46113363a9e37cbad6838bda530",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/app/api/ops/onchain/wallets/route.ts",
+      "line": 52
+    },
+    {
+      "file": "apps/web/src/app/api/ops/onchain/wallets/route.ts",
+      "line": 68
+    },
+    {
+      "file": "apps/web/src/app/api/ops/onchain/wallets/route.ts",
+      "line": 80
+    },
+    {
+      "file": "apps/web/src/app/api/ops/onchain/wallets/route.ts",
+      "line": 84
+    },
+    {
+      "file": "apps/web/src/lib/onchain/ingest.ts",
+      "line": 87
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 389,
+        "sha256": "cde34b6f77541e6a9c5381ba80ceaa7f5e36701b62238e807a0250be70bfa56f"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { rateLimitOr429 } from "@/lib/rateLimit";
-import { quoteFx } from "@/lib/services/fx";
+import { isSupportedFxCurrency, quoteFx } from "@/lib/services/fx";
+import { quoteSecretConfigured, x402NotConfigured } from "@/lib/x402QuoteSecret";
 import {
   X402_VERSION,
   HEADER_V2_RECEIPT,
@@ -57,13 +58,25 @@ export async function GET(req: NextRequest) {
   if (!Number.isFinite(amount) || amount <= 0 || amount > 1e9) {
     return NextResponse.json({ error: "Invalid amount" }, { status: 400 });
   }
-
-  // Emergency control: a paused x402 rail stops issuing quotes and settling.
-  const paused = await assertRailActive("x402");
-  if (paused) return withNoStore(paused);
+  // Refuse a pair we cannot price BEFORE quoting it: otherwise an agent could
+  // pay for "USD->XYZ" and only then hit the pricing error.
+  if (!isSupportedFxCurrency(from) || !isSupportedFxCurrency(to)) {
+    return withNoStore(
+      NextResponse.json({ error: "Unsupported currency", from, to }, { status: 400 })
+    );
+  }
 
   // v1 (X-PAYMENT) or v2 (PAYMENT-SIGNATURE) — either is accepted.
   const hasPayment = !!readPaymentHeader(req.headers);
+
+  // Emergency control: a paused x402 rail stops issuing quotes and settling.
+  // An UNREADABLE pause state stops it too (structured 503, see controls.ts).
+  const paused = await assertRailActive("x402");
+  if (paused) return withNoStore(paused);
+
+  // No quote can be signed or verified without the binding secret, and there
+  // is deliberately no default for it in production (lib/x402QuoteSecret.ts).
+  if (!quoteSecretConfigured()) return withNoStore(x402NotConfigured());
   const result = await verifyPayment({
     headers: req.headers,
     resource,

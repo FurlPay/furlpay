@@ -133,7 +133,19 @@ describe("the gate actually uses it", () => {
   });
 
   it("fails the deploy on a refusal", () => {
-    expect(GATE).toMatch(/if \(!release\.ok\) fail\(release\.reason, release\.remedy\)/);
+    // b0f56671 (audit P1-3) made a FORCED deploy — written reason, clean tree,
+    // pushed HEAD, logged — the one thing allowed past the branch restriction.
+    // Every unforced refusal must still stop the deploy, and nothing else may
+    // bypass it.
+    expect(GATE).toMatch(/if \(!release\.ok && !FORCED\) fail\(release\.reason, release\.remedy\)/);
+    expect(GATE.match(/!release\.ok/g)).toHaveLength(1);
+    expect(GATE).toMatch(/const FORCED = process\.env\.FURLPAY_DEPLOY_FORCE === "1";/);
+  });
+
+  it("only a forced deploy WITH a written reason can skip the branch check", () => {
+    expect(GATE).toMatch(/if \(FORCED && FORCE_REASON\.length < 15\) \{\s*fail\(/);
+    // The reason check runs before the branch check can be skipped.
+    expect(GATE.indexOf("FORCE_REASON.length < 15")).toBeLessThan(GATE.indexOf("checkReleaseBranch(branch)"));
   });
 
   it("checks the branch BEFORE the network calls", () => {

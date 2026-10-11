@@ -1,0 +1,75 @@
+{
+  "name": "financial_transaction_events",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0014_financial_transactions.sql",
+    "line": 153,
+    "sha256": "da4ec6ef06aae7795a7f87be2b8abd3ee1a4a802ff9633c38668a0ad12f7db12"
+  },
+  "definition": "create table if not exists financial_transaction_events (\n  id             bigserial primary key,\n  transaction_id text not null references financial_transactions(id) on delete cascade,\n  from_state     text,\n  to_state       text not null,\n  actor_id       uuid,\n  actor_kind     text not null default 'system',\n  reason         text,\n  -- Evidence presented FOR THIS TRANSITION, so \"what did we know when we\n  -- marked this settled\" is answerable without reconstructing it.\n  evidence       jsonb not null default '{}'::jsonb,\n  created_at     timestamptz not null default now()\n);",
+  "dependencies": [
+    "financial_transactions"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 153,
+      "sha256": "da4ec6ef06aae7795a7f87be2b8abd3ee1a4a802ff9633c38668a0ad12f7db12",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 167,
+      "sha256": "e77d3b26f12d6580fe7ba98c66a6844e9abed306213a1721ff6a418890e6d5bc",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 169,
+      "sha256": "7554d2191d0178f978e124e58e2b34c19e8f6c4f58ac7693aad0b2066185a117",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 176,
+      "sha256": "7fa17f1fea34b0272ec9ed0db380eadf6f8c1bdc67c7fa5430872f1f4fcf626f",
+      "kind": "drop trigger"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 177,
+      "sha256": "949e5d77a45e16cf9dc5c5bdafeaec7569588223cc8f75238bf163ef4c69eef5",
+      "kind": "create trigger"
+    },
+    {
+      "file": "supabase/migrations/0014_financial_transactions.sql",
+      "line": 195,
+      "sha256": "a69e997184eadaec558d77407870a155fa4ac1d2d771c001aa08fb2da88d2397",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 51,
+      "sha256": "eb230ca7f361cb9ea8db84762c39c019acffc1b7ba26b515fb611624bb1552bc",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 64,
+      "sha256": "ccb689383174fa58572491467167b41804147f94927e41d81dc22e521e8671e4",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0016_rls_money_tables.sql",
+        "line": 51,
+        "sha256": "eb230ca7f361cb9ea8db84762c39c019acffc1b7ba26b515fb611624bb1552bc"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

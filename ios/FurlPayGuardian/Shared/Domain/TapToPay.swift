@@ -195,6 +195,8 @@ public enum TapToPayError: Error, Equatable, Sendable {
 public protocol TapToPayProviding: Sendable {
     /// The PSP's own view of whether this merchant can transact right now:
     /// onboarding complete, region supported, terminal configuration loaded.
+    /// Preparing the reader must also validate entitlement via Apple's public
+    /// API and map a missing entitlement to `.unavailable(.notEntitled)`.
     func availability() async -> TapToPayAvailability
 
     /// Presents Apple's terms-and-conditions sheet. Accepted once per merchant

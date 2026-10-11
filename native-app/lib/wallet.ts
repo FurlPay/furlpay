@@ -633,6 +633,43 @@ export interface GaslessQuote {
   fee: { usd: number; sponsored: boolean; detail: string };
   maxPerTransferUsd: number;
   live: boolean;
+  /** Unix seconds the quote was issued / stops being signable. */
+  quotedAt?: number;
+  expiresAt?: number;
+}
+
+/** Longest quote lifetime we accept, whatever the server claims. */
+const MAX_QUOTE_TTL_SECONDS = 300;
+
+/**
+ * May the app sign an EIP-3009 authorization against this quote?
+ *
+ * Audit P3-5 (2026-10-05): the app used to sign first and look at the result
+ * after — so against a deployment that was not settling (mock mode, no relayer)
+ * it still produced a valid, on-chain-spendable 10-minute authorization, handed
+ * it to the server, and showed "simulated". A signature is the user's money;
+ * it is produced only when the server has said, in a fresh quote, that it will
+ * actually settle. Every doubt refuses: `live` must be the boolean `true`, and
+ * the quote must carry an expiry that is in the future and not implausibly far.
+ */
+export function quoteSignability(
+  quote: Partial<GaslessQuote> | null | undefined,
+  nowSec: number
+): { ok: true } | { ok: false; detail: string } {
+  if (!quote || quote.live !== true) {
+    return { ok: false, detail: "Gasless transfers are not live on this server, so nothing was signed." };
+  }
+  const exp = quote.expiresAt;
+  if (typeof exp !== "number" || !Number.isFinite(exp)) {
+    return { ok: false, detail: "The transfer quote has no expiry, so nothing was signed. Please try again." };
+  }
+  if (exp <= nowSec) {
+    return { ok: false, detail: "The transfer quote expired before signing. Nothing was signed — please try again." };
+  }
+  if (exp - nowSec > MAX_QUOTE_TTL_SECONDS) {
+    return { ok: false, detail: "The transfer quote's expiry is not plausible, so nothing was signed." };
+  }
+  return { ok: true };
 }
 
 export type GaslessResult =
@@ -671,9 +708,17 @@ export async function sendGasless(to: string, amountUsd: string): Promise<Gasles
     throw new UntrustedQuoteError(`Refusing to sign: expected USDC, quote says ${quote.asset.symbol}.`);
   }
 
+  // BEFORE any prompt or key read: no live, fresh quote → no signature.
+  const signable = quoteSignability(quote, Math.floor(Date.now() / 1000));
+  if (!signable.ok) return { kind: "unavailable", detail: signable.detail };
+
   const from = await getAddress(); // biometric gate #1 (address read)
 
   const now = Math.floor(Date.now() / 1000);
+  // Re-checked AFTER the biometric prompt, which can take as long as the user
+  // likes: a quote that expired while the sheet was up is not signed.
+  const stillSignable = quoteSignability(quote, now);
+  if (!stillSignable.ok) return { kind: "unavailable", detail: stillSignable.detail };
   const authorization: Authorization = {
     from,
     to,

@@ -1,0 +1,94 @@
+{
+  "name": "contacts",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0010_contacts.sql",
+    "line": 24,
+    "sha256": "e19d70b1cdfcdeaa60a5d229a18300aa33cdeb962e15927ba0cb38a0d11359f0"
+  },
+  "definition": "create table contacts (\n  -- Application-generated (crypto.randomUUID), matching cards/bills which are\n  -- also text ids assigned by the app rather than database defaults.\n  id           text primary key,\n  user_id      uuid not null references users (id) on delete cascade,\n\n  -- Display name. Bounded so a contact list cannot be used as blob storage, and\n  -- non-empty after trimming so \" \" cannot become an unnameable contact.\n  name         text not null check (length(btrim(name)) between 1 and 64),\n\n  -- Avatar colour from the app's palette. Hex-constrained because it is\n  -- interpolated into a style attribute; anything else is a rendering bug at\n  -- best.\n  avatar_color text not null check (avatar_color ~ '^#[0-9a-fA-F]{6}$'),\n\n  -- [{ id, address, chain, label?, isDefault, lastUsedAt? }, …]\n  -- Must be an ARRAY (not an object or scalar) and is capped: an unbounded list\n  -- would make every account load unbounded too.\n  addresses    jsonb not null default '[]'::jsonb\n               check (jsonb_typeof(addresses) = 'array'\n                      and jsonb_array_length(addresses) <= 20),\n\n  is_favorite  boolean not null default false,\n  created_at   timestamptz not null default now(),\n  updated_at   timestamptz not null default now()\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 24,
+      "sha256": "e19d70b1cdfcdeaa60a5d229a18300aa33cdeb962e15927ba0cb38a0d11359f0",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 52,
+      "sha256": "ada4b1d35f9dca0383421df58e85e173ecf8efd68f21651eecfba3327d9bf04a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 57,
+      "sha256": "7bd7acd1afe612c69df6d3fb1689507f7c92f88d358e5166d78c2c42d684c722",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 59,
+      "sha256": "fd57318344df95ede6d9725286c31dd0d8ff9854ba4de5b1e723b5a7e054e2f9",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 77,
+      "sha256": "ad7fb05ac04bb22512734fa6a7a12228fa85ffa89531c917d5b2be8483a0a888",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0011_notifications.sql",
+      "line": 38,
+      "sha256": "6c83304adcc3ef12eb7751010ca3f253d1ead38ec866d861ce485be77f8eefa8",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 190,
+      "sha256": "c5ff1778c1903bd01c62c07b8aeb0f68837880815d9a0839eabef45d54f298da",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 335
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 336
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 930
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 931
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 948
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 951
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0010_contacts.sql",
+        "line": 59,
+        "sha256": "fd57318344df95ede6d9725286c31dd0d8ff9854ba4de5b1e723b5a7e054e2f9"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

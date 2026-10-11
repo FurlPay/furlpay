@@ -12,6 +12,119 @@ export type SearchDoc = {
 };
 
 export const SEARCH_INDEX: SearchDoc[] = [
+  // ---- Business payments, compliance and setup (added Oct 2026) -----------
+  {
+    title: "Merchant payments: links, invoices, checkout",
+    section: "Payments",
+    href: "/docs/payments/merchant-payments",
+    snippet: "USDC payment links, invoices and terminal requests with a hosted checkout, refunds and reconciliation; paid only after on-chain verification.",
+    keywords: ["payment link", "payment links", "invoice", "invoices", "hosted checkout", "checkout", "terminal", "qr", "qr code", "merchant", "accept usdc", "/api/merchant/payments", "/api/checkout/merchant", "/p/", "payment status", "underpaid", "overpaid", "confirmations", "eip-681", "solana pay", "75 bps", "processing fee"],
+  },
+  {
+    title: "Merchant payment setup",
+    section: "Payments",
+    href: "/docs/payments/merchant-payments#setup",
+    snippet: "Migrations 0040 to 0047, collection addresses registered with proof of control, node endpoints and the two scheduled jobs.",
+    keywords: ["merchant_payment_destinations", "migration 0040", "destinations", "503 checkout", "scanner", "/api/cron/merchant-payments", "/api/cron/merchant-reconcile", "sui", "SUI_GRAPHQL_URL", "arc", "refund", "refunds", "receipt", "proof of control", "BASE_RPC_URL", "ARBITRUM_RPC_URL"],
+  },
+  {
+    title: "Contractor payroll and payouts",
+    section: "Payments",
+    href: "/docs/payments/payroll",
+    snippet: "Contractor roster, self-service and wallet-signed USDC pay runs through FurlPayRouter; execution needs a deployed router.",
+    keywords: ["payroll", "contractor", "contractors", "pay run", "batch pay", "batchPay", "eip-712", "router", "w9", "w8ben", "w-8ben", "1099", "tax form", "csv import", "invite", "/payroll/join", "/api/payouts/payroll", "FURLPAY_ROUTER_ADDRESS", "35 bps", "payout", "mass payout"],
+  },
+  {
+    title: "Settlement workspace",
+    section: "Business",
+    href: "/docs/settlement/workspace",
+    snippet: "Business console for payments, payouts, treasury, compliance and reconciliation; saved records are drafts that do not move money.",
+    keywords: ["settlement", "workspace", "settlement os", "treasury", "reconcile", "reconciliation", "drafts", "split rules", "beneficiary", "/settlement", "/api/settlement/workspace", "/api/settlement/transactions"],
+  },
+  {
+    title: "Business onboarding (KYB)",
+    section: "Business",
+    href: "/docs/settlement/workspace#onboarding",
+    snippet: "Seven server-controlled steps with document upload, sanctions screening, officer review and activation blockers.",
+    keywords: ["onboarding", "kyb", "know your business", "business verification", "documents", "certificate of incorporation", "activation", "blockers", "/api/settlement/onboarding", "compliance_officer", "review queue"],
+  },
+  {
+    title: "Wallet address screening",
+    section: "Legal & Compliance",
+    href: "/docs/compliance/screening#address-screening",
+    snippet: "Built-in sanctions list and optional Circle Compliance Engine; the strictest result wins and outages never clear an address.",
+    keywords: ["screening", "sanctions", "ofac", "sdn", "aml", "address screening", "blacklist", "blocklist", "fail closed", "screening_unavailable", "/api/compliance/screen"],
+  },
+  {
+    title: "Transaction monitoring rules",
+    section: "Legal & Compliance",
+    href: "/docs/compliance/screening#monitoring",
+    snippet: "Deterministic rules over the account ledger: high value, velocity, structuring and repeated failures. Three declared rules are disabled.",
+    keywords: ["monitoring", "transaction monitoring", "velocity", "structuring", "high value", "alerts", "rules", "/api/compliance/monitoring"],
+  },
+  {
+    title: "Compliance cases and reports",
+    section: "Legal & Compliance",
+    href: "/docs/compliance/screening#cases",
+    snippet: "Case queue with types, statuses, response-time targets and redacted CSV exports; officers only.",
+    keywords: ["case", "cases", "case management", "sla", "escalation", "audit trail", "csv", "reports", "/api/compliance/cases", "/api/compliance/reports", "investigator"],
+  },
+  {
+    title: "Travel rule",
+    section: "Legal & Compliance",
+    href: "/docs/compliance/screening#travel-rule",
+    snippet: "A compute endpoint only; no travel-rule messaging provider is integrated and it does not authorise a payment.",
+    keywords: ["travel rule", "fatf", "vasp", "/api/compliance/travel-rule"],
+  },
+  {
+    title: "Circle wallets, compliance and USDC",
+    section: "Integrations",
+    href: "/docs/integrations/circle",
+    snippet: "User-controlled MPC wallets, Compliance Engine screening and CCTP V2; each needs its own credentials.",
+    keywords: ["circle", "w3s", "user-controlled wallets", "mpc wallet", "pin", "challenge", "/api/wallets/circle", "CIRCLE_W3S_API_KEY", "CIRCLE_W3S_APP_ID", "CIRCLE_COMPLIANCE_API_KEY", "compliance engine", "usdc", "paymaster", "eip-7702"],
+  },
+  {
+    title: "Ramp providers (buy and sell crypto)",
+    section: "Integrations",
+    href: "/docs/integrations/ramps",
+    snippet: "Coinbase and Transak adapters; FurlPay does not operate an on-ramp or off-ramp and no provider row is live.",
+    keywords: ["onramp", "on-ramp", "offramp", "off-ramp", "buy crypto", "sell crypto", "coinbase", "cdp", "transak", "echo", "furlgateway", "furlbridge", "furlpayout", "/api/onramp/session", "/api/offramp/session", "/api/ramp/orders", "beneficiary", "capability matrix", "ONRAMP_LIVE", "OFFRAMP_LIVE"],
+  },
+  {
+    title: "Telegram Mini App",
+    section: "Integrations",
+    href: "/docs/integrations/telegram",
+    snippet: "Sign in to an existing FurlPay account from Telegram; read-only balances and activity, linking and unlinking need fresh authentication.",
+    keywords: ["telegram", "mini app", "miniapp", "bot", "initdata", "botfather", "/api/auth/telegram", "/api/miniapp/account", "/api/miniapp/telegram-link", "TELEGRAM_BOT_TOKEN", "link_required"],
+  },
+  {
+    title: "Configuration and setup",
+    section: "Architecture",
+    href: "/docs/architecture/configuration",
+    snippet: "Environment variables by area, the three gating layers, money flags, migrations and scheduled jobs.",
+    keywords: ["configuration", "environment variables", "env", ".env.example", "setup", "deploy", "INTEGRATION_MODE", "FURLPAY_ENV", "supabase", "upstash", "redis", "kv", "controls_unavailable", "plan_limit"],
+  },
+  {
+    title: "Money flags",
+    section: "Architecture",
+    href: "/docs/architecture/configuration#flags",
+    snippet: "Per-capability switches, default off; a flag marked not implemented cannot be turned on by an environment variable.",
+    keywords: ["flags", "feature flags", "money flags", "BROKERAGE_LIVE", "CARD_ISSUING_LIVE", "BANKING_LIVE", "ONCHAIN_SETTLEMENT_LIVE", "kill switch", "FURLPAY_MONEY_KILL_SWITCH", "/api/ops/readiness", "unimplemented"],
+  },
+  {
+    title: "Database migrations",
+    section: "Architecture",
+    href: "/docs/architecture/configuration#migrations",
+    snippet: "Numbered SQL files applied in order; 0037 to 0050 add settlement, compliance cases, merchant payments, Sui, refunds, payroll and Telegram links.",
+    keywords: ["migration", "migrations", "supabase/migrations", "0040", "0041", "0042", "0043", "0044", "0045", "0046", "0047", "0048", "0049", "0050", "schema", "database"],
+  },
+  {
+    title: "Scheduled jobs",
+    section: "Architecture",
+    href: "/docs/architecture/configuration#cron",
+    snippet: "Cron authentication and which jobs are scheduled by default versus needing an external scheduler.",
+    keywords: ["cron", "scheduled jobs", "CRON_SECRET", "x-furlpay-cron-key", "vercel.json", "reconcile", "ramp-maintenance", "merchant-payments", "scheduler"],
+  },
   // ---- Agentic Commerce (agent-trust + travels) --------------------------
   {
     title: "For AI Agents — quickstart",
@@ -294,13 +407,6 @@ export const SEARCH_INDEX: SearchDoc[] = [
     href: "/docs/quickstart#fee-quote",
     snippet: "Request a public fee estimate before implementing a payment flow.",
     keywords: ["fee estimate", "payments API", "quote", "checkout", "stablecoin payment"],
-  },
-  {
-    title: "Batch payouts",
-    section: "Quickstart",
-    href: "/docs#not-live",
-    snippet: "Batch payouts are unavailable in production; no public batch payout API endpoint is available.",
-    keywords: ["batch payout", "mass payouts", "batch USDC", "contractor payout"],
   },
   {
     title: "Webhook signature verification",

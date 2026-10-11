@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import { screenAddress } from "./compliance";
+import { screenAddressRisk } from "@/lib/compliance/addressScreening";
 import { getChain, gasQuote } from "./chainRegistry";
 import { newTx, recordTransaction } from "@/lib/store";
 import { recordPaymentWithFee, reverseLedgerTx } from "@/lib/ledger";
@@ -7,6 +8,8 @@ import { sendEmail } from "@/lib/email";
 import { mockAllowed, IntegrationNotConfiguredError } from "@/lib/integrations";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
+import { ROUTER_CHAINS, configuredRouter, routerEnvName, type RouterChain } from "./routerConfig";
+export { ROUTER_CHAINS, configuredRouter, routerEnvName, type RouterChain };
 
 // ---------------------------------------------------------------------------
 // Unified USDC payment service — the chain-native counterpart to the Stripe
@@ -55,6 +58,9 @@ export interface PaymentRecord {
   status: PaymentStatus;
   amountUsdc: number;
   feeUsdc: number;
+  /** Exact micro-units when the caller supplied them (payroll); else derived from the USD numbers. */
+  amountUnits?: string;
+  feeUnits?: string;
   sourceChain: string;
   settlementChain: string;
   recipient: string;
@@ -92,6 +98,25 @@ const g = globalThis as unknown as {
   __furlpayIdem?: Map<string, string>;
 };
 const payments = g.__furlpayPayments ?? (g.__furlpayPayments = new Map());
+
+// Payments with a settlement or refund in progress on THIS instance.
+// settle()/refund await the ledger before setting the terminal status, so
+// without a claim taken synchronously before that await, two concurrent
+// requests both passed the status check and both posted (finding FP-SET-16).
+// Per-process by construction, like the Map above: this store is the
+// non-production path (settle and refund refuse in production), and a
+// cross-instance rail needs a durable compare-and-set, as /api/v1/payments has.
+const inFlight: Set<string> =
+  (globalThis as unknown as { __furlpayPaymentInFlight?: Set<string> }).__furlpayPaymentInFlight ??
+  ((globalThis as unknown as { __furlpayPaymentInFlight?: Set<string> }).__furlpayPaymentInFlight = new Set());
+function claimInFlight(key: string): boolean {
+  if (inFlight.has(key)) return false;
+  inFlight.add(key);
+  return true;
+}
+function releaseInFlight(key: string): void {
+  inFlight.delete(key);
+}
 // Idempotency-Key → paymentId, SCOPED PER USER (`${userId}:${key}`): two
 // tenants supplying the same key must never resolve to each other's intent.
 // Under retry storms the same (user, key) resolves to the same payment intent
@@ -154,8 +179,20 @@ export function getPayment(id: string): PaymentRecord | undefined {
   return p;
 }
 
-export function listPayments(limit = 50): PaymentRecord[] {
+/**
+ * One account's payments, newest first: the ones it created and the ones its
+ * signed authorization paid.
+ *
+ * The owner is REQUIRED and has no default. This used to take only a limit and
+ * return every account's records, and both callers (the session history route
+ * and the API-key /v1 route) handed that list to whoever asked — including the
+ * payer address and the merchant's free-form metadata. A list function that
+ * cannot be called without saying whose list it is cannot leak that way again.
+ */
+export function listPayments(ownerUserId: string, limit = 50): PaymentRecord[] {
+  if (!ownerUserId) return [];
   return [...payments.values()]
+    .filter((p) => p.createdByUserId === ownerUserId || p.payerUserId === ownerUserId)
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .slice(0, limit);
 }
@@ -169,6 +206,12 @@ export interface CreateParams {
   idempotencyKey?: string;
   /** Acting user (from session) — scopes idempotency and attribution. */
   userId: string;
+  /** Chain whose FurlPayRouter executes this authorization. Default: Arbitrum. */
+  settlementChain?: RouterChain;
+  /** Exact micro-unit terms (payroll). `amount` is what the router debits from
+   *  the payer; the recipient receives `amount - fee`. When absent, the
+   *  platform fee is taken out of `params.amount` as before. */
+  units?: { amount: bigint; fee: bigint };
 }
 
 /** The deployed FurlPayRouter the payer's wallet signs against.
@@ -180,19 +223,20 @@ export interface CreateParams {
  *  silently differs from the real contract's — exactly the kind of "looks
  *  settled, signed nothing" state a payments API must never produce. Dev and
  *  preview keep the placeholder so the flow stays clickable without a deploy. */
-function routerAddress(): string {
-  const configured = process.env.FURLPAY_ROUTER_ADDRESS;
+function routerAddress(chain: RouterChain = SETTLEMENT_CHAIN): string {
+  const configured = configuredRouter(chain);
   if (configured) return configured;
   if (process.env.NODE_ENV === "production") {
-    throw new IntegrationNotConfiguredError("FurlPayRouter (FURLPAY_ROUTER_ADDRESS)");
+    throw new IntegrationNotConfiguredError(`FurlPayRouter on ${chain} (${routerEnvName(chain)})`);
   }
   return "0xFurlPayRouterPendingDeployment";
 }
 
 /** Build the create-intent response (quote + EIP-712 sign data) for a record. */
 async function buildCreateResponse(record: PaymentRecord, replayed: boolean) {
-  const chain = getChain(SETTLEMENT_CHAIN)!;
-  const router = routerAddress();
+  const settlement = (ROUTER_CHAINS as readonly string[]).includes(record.settlementChain) ? record.settlementChain as RouterChain : SETTLEMENT_CHAIN;
+  const chain = getChain(settlement)!;
+  const router = routerAddress(settlement);
   const gas = await gasQuote(chain);
   return {
     record,
@@ -218,8 +262,8 @@ async function buildCreateResponse(record: PaymentRecord, replayed: boolean) {
       message: {
         paymentId: record.id,
         recipient: record.recipient,
-        amount: atomic(record.amountUsdc),
-        fee: atomic(record.feeUsdc),
+        amount: record.amountUnits ?? atomic(record.amountUsdc),
+        fee: record.feeUnits ?? atomic(record.feeUsdc),
         nonce: record.nonce,
         deadline: Math.floor(Date.parse(record.expiresAt) / 1000),
       },
@@ -242,15 +286,24 @@ export async function createPayment(params: CreateParams) {
     }
   }
 
-  const fee = round(params.amount * FEE_RATE);
+  const settlementChain = params.settlementChain ?? SETTLEMENT_CHAIN;
+  if (!(ROUTER_CHAINS as readonly string[]).includes(settlementChain)) throw new Error("unsupported_settlement_chain");
+  if (params.units && (params.units.fee < 0n || params.units.amount <= params.units.fee || params.units.fee * 100n > params.units.amount)) {
+    // FurlPayRouter.MAX_FEE_BPS = 100: an authorization above 1% would revert on-chain.
+    throw new Error("invalid_payment_terms");
+  }
+  // Fail before minting a record when this chain has no router in production.
+  routerAddress(settlementChain);
+  const fee = params.units ? unitsToNumber(params.units.fee) : round(params.amount * FEE_RATE);
   const now = Date.now();
   const record: PaymentRecord = {
     id: `pay_${crypto.randomBytes(12).toString("hex")}`,
     status: "pending_signature",
-    amountUsdc: params.amount,
+    amountUsdc: params.units ? unitsToNumber(params.units.amount) : params.amount,
     feeUsdc: fee,
+    ...(params.units ? { amountUnits: params.units.amount.toString(), feeUnits: params.units.fee.toString() } : {}),
     sourceChain: params.sourceChain,
-    settlementChain: SETTLEMENT_CHAIN,
+    settlementChain,
     recipient: params.recipient,
     createdByUserId: params.userId,
     metadata: params.metadata,
@@ -378,6 +431,17 @@ export async function executePayment(
     return { ok: false, status: 409, error: `payment_already_${record.status}` };
   if (!/^0x[0-9a-fA-F]{64,}$/.test(signature))
     return { ok: false, status: 400, error: "invalid_signature" };
+  // Claimed BEFORE any field is written: a second execute arriving while this
+  // one awaits the ledger must neither settle again nor overwrite the payer.
+  if (!claimInFlight(record.id)) return { ok: false, status: 409, error: "payment_in_flight", record };
+  try {
+    return await screenReviewAndSettle(record, payer, actingUserId);
+  } finally {
+    releaseInFlight(record.id);
+  }
+}
+
+async function screenReviewAndSettle(record: PaymentRecord, payer: string, actingUserId: string): Promise<ExecuteResult> {
 
   // OFAC screening on both legs before anything touches the chain.
   const screens: Record<"payer" | "recipient", ReturnType<typeof screenAddress>> = {
@@ -393,12 +457,29 @@ export async function executePayment(
     }
   }
 
+  // The money-route screen (lib/compliance/addressScreening.ts) on both legs:
+  // OFAC plus, when configured, Circle's Compliance Engine; the stricter
+  // verdict wins and a configured Circle that errors blocks. This executor
+  // used to consult only the local OFAC list, so a counterparty Circle flags
+  // for review settled without a human (audit 2026-10-07; the transfer and
+  // checkout routes already used this screen).
+  const [payerAml, recipientAml] = await Promise.all([screenAddressRisk(payer, SETTLEMENT_CHAIN), screenAddressRisk(record.recipient, SETTLEMENT_CHAIN)]);
+  for (const [role, aml] of [["payer", payerAml], ["recipient", recipientAml]] as const) {
+    if (aml.action === "block") {
+      record.status = "blocked";
+      record.blockedReason = `${role}_failed_compliance_screen`;
+      audit("payment.blocked", actingUserId, { paymentId: record.id, reason: record.blockedReason });
+      return { ok: false, status: 403, error: record.blockedReason, record };
+    }
+  }
+  const amlReview = [payerAml, recipientAml].some((a) => a.action === "review" || a.risk === "high" || a.risk === "severe");
+
   record.payer = payer;
   record.payerUserId = actingUserId;
 
   // HITL gateway: pause (don't settle) if the payment crosses a regulatory
   // threshold; a human must approvePayment() before funds move on-chain.
-  const reviewReason = reviewReasonFor(record, screens.payer, screens.recipient);
+  const reviewReason = reviewReasonFor(record, screens.payer, screens.recipient) ?? (amlReview ? "elevated_counterparty_risk" : null);
   if (reviewReason) {
     record.status = "pending_review";
     record.reviewReason = reviewReason;
@@ -426,9 +507,15 @@ export async function approvePayment(id: string, approverUserId: string): Promis
     return { ok: false, status: 403, error: "reviewer_cannot_approve_own_payment", record };
   }
 
-  record.reviewedAt = new Date().toISOString();
-  record.reviewedBy = approverUserId;
-  const result = await settle(record);
+  if (!claimInFlight(record.id)) return { ok: false, status: 409, error: "payment_in_flight", record };
+  let result: ExecuteResult;
+  try {
+    record.reviewedAt = new Date().toISOString();
+    record.reviewedBy = approverUserId;
+    result = await settle(record);
+  } finally {
+    releaseInFlight(record.id);
+  }
   if (result.ok) {
     audit("payment.review_approved", approverUserId, { paymentId: record.id });
   }
@@ -500,6 +587,18 @@ export async function refundPayment(id: string, actingUserId: string): Promise<E
   if (record.status !== "settled")
     return { ok: false, status: 409, error: "only_settled_payments_refundable" };
 
+  // Same in-flight claim as execute, so two concurrent refunds cannot both
+  // reach the reversal (the durable ledger's unique index on `reverses` also
+  // refuses the second, but the in-memory mirror alone would not).
+  if (!claimInFlight(`refund:${record.id}`)) return { ok: false, status: 409, error: "refund_in_flight", record };
+  try {
+    return await reverseAndRecordRefund(record, actingUserId);
+  } finally {
+    releaseInFlight(`refund:${record.id}`);
+  }
+}
+
+async function reverseAndRecordRefund(record: PaymentRecord, actingUserId: string): Promise<ExecuteResult> {
   const userId = record.payerUserId ?? record.createdByUserId;
 
   // Reverse the settlement's balanced ledger entry (compensating transaction,
@@ -556,6 +655,11 @@ export async function estimateFees(amount: number, sourceChain: string) {
     cardInterchangeComparisonUsd: cardFee,
     savingsVsCardsUsd: round(cardFee - fee - gas.transferCostUsd),
   };
+}
+
+/** Exact micro-units → the display number on the record, via the decimal string (no float division). */
+function unitsToNumber(units: bigint): number {
+  return Number(`${units / 1_000_000n}.${(units % 1_000_000n).toString().padStart(USDC_DECIMALS, "0")}`);
 }
 
 function atomic(usdc: number): string {

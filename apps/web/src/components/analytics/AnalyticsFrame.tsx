@@ -16,6 +16,7 @@ import {
   LifeBuoy,
   Menu,
   MessagesSquare,
+  Landmark,
   Package,
   Search,
   Ticket,
@@ -77,6 +78,7 @@ export const SECTIONS = [
   { label: "Products", href: "/analytics/products", Icon: Package },
   { label: "Funnels", href: "/analytics/funnels", Icon: Filter },
   { label: "Geography", href: "/analytics/geography", Icon: Globe },
+  { label: "Tokenized Assets", href: "/analytics/rwa", Icon: Landmark },
   { label: "Realtime", href: "/analytics/realtime", Icon: Activity },
   { label: "System Health", href: "/analytics/system-health", Icon: HeartPulse },
 ] as const;

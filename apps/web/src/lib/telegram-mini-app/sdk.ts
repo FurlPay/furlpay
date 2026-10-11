@@ -1,0 +1,70 @@
+/** Narrow, documented official WebApp bridge. No server identity is taken from initDataUnsafe. */
+export interface TelegramWebApp {
+  initData: string;
+  version: string;
+  platform: string;
+  colorScheme: string;
+  themeParams: { button_color?: string; link_color?: string };
+  viewportHeight: number;
+  viewportStableHeight: number;
+  safeAreaInset?: Insets;
+  contentSafeAreaInset?: Insets;
+  ready(): void;
+  expand(): void;
+  isVersionAtLeast(version: string): boolean;
+  setHeaderColor(color: string): void;
+  setBackgroundColor(color: string): void;
+  setBottomBarColor?(color: string): void;
+  onEvent(event: string, callback: () => void): void;
+  offEvent(event: string, callback: () => void): void;
+  BackButton: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void };
+  MainButton: { setParams(params: { text: string; color: string; text_color: string; is_active: boolean; is_visible: boolean }): void; show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void };
+  HapticFeedback?: { selectionChanged(): void };
+  /** Bot API 7.7+ */
+  disableVerticalSwipes?(): void;
+  enableVerticalSwipes?(): void;
+  /** Bot API 7.0+: the "Settings" item in Telegram's own Mini App menu. */
+  SettingsButton?: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void };
+}
+interface Insets { top: number; bottom: number; left: number; right: number }
+export function getTelegramWebApp(): TelegramWebApp | null {
+  if (typeof window === "undefined") return null;
+  const app = (window as Window & { Telegram?: { WebApp?: TelegramWebApp } }).Telegram?.WebApp;
+  return app?.initData && app.platform !== "unknown" ? app : null;
+}
+
+/** Remove the signed launch payload from the address/history after the SDK captured it. */
+export function clearTelegramLaunchFragment(): void {
+  if (typeof window === "undefined" || !/tgWebAppData=/.test(window.location.hash)) return;
+  window.history.replaceState(window.history.state, "", `${window.location.pathname}${window.location.search}`);
+}
+
+export function mountTelegram(app: TelegramWebApp, root: HTMLElement, onSettings?: () => void): () => void {
+  const sync = () => {
+    root.dataset.telegramTheme = app.colorScheme;
+    if (app.viewportStableHeight > 0) root.style.setProperty("--mini-viewport", `${app.viewportStableHeight}px`);
+    for (const side of ["top", "bottom", "left", "right"] as const) {
+      const inset = Math.max(0, app.safeAreaInset?.[side] ?? 0) + Math.max(0, app.contentSafeAreaInset?.[side] ?? 0);
+      root.style.setProperty(`--mini-safe-${side}`, `${inset}px`);
+    }
+    const accent = app.themeParams.link_color;
+    if (accent && /^#[0-9a-f]{6}$/i.test(accent)) root.style.setProperty("--mini-telegram-accent", accent);
+  };
+  sync();
+  app.ready(); app.expand();
+  if (app.isVersionAtLeast("6.1")) { app.setHeaderColor("#080a0d"); app.setBackgroundColor("#080a0d"); }
+  if (app.isVersionAtLeast("7.10")) app.setBottomBarColor?.("#0d1118");
+  // A long, scrolling app: without this, scrolling up from the top or swiping the
+  // card carousel can collapse the Mini App. Closing still works from the header.
+  if (app.isVersionAtLeast("7.7")) app.disableVerticalSwipes?.();
+  const settings = app.isVersionAtLeast("7.0") && onSettings ? app.SettingsButton : undefined;
+  if (settings && onSettings) { settings.onClick(onSettings); settings.show(); }
+  const events = ["themeChanged", "viewportChanged", ...(app.isVersionAtLeast("8.0") ? ["safeAreaChanged", "contentSafeAreaChanged"] : [])];
+  events.forEach(e => app.onEvent(e, sync));
+  return () => {
+    events.forEach(e => app.offEvent(e, sync));
+    app.BackButton?.hide(); app.MainButton?.hide();
+    if (settings && onSettings) { settings.offClick(onSettings); settings.hide(); }
+    if (app.isVersionAtLeast("7.7")) app.enableVerticalSwipes?.();
+  };
+}

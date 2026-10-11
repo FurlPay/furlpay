@@ -56,6 +56,15 @@ export function isExtensionPage(sender: MessageSender, extensionBase: string): b
   return sameExtension(parse(sender.url), extensionBase);
 }
 
+/** Content scripts are registered only for HTTPS pages. Require that browser
+ * supplied URL here too, rather than treating every non-extension sender as a
+ * content script. A missing, malformed, opaque, or cleartext URL has no
+ * authority to drive even the deliberately small content-script message set. */
+function isHttpsContentScript(sender: MessageSender): boolean {
+  const url = parse(sender.url);
+  return url?.protocol === "https:" && url.hostname.length > 0;
+}
+
 /** Decide whether `type` may be handled for this sender. Fails closed: an
  *  unknown sender id, a missing or unparseable URL, or a non-string type is
  *  refused. */
@@ -73,5 +82,5 @@ export function messageAllowed(
     return sameExtension(url, extensionBase) && url!.pathname === CONNECT_PROMPT_PATH;
   }
   if (isExtensionPage(sender, extensionBase)) return true;
-  return CONTENT_SCRIPT_MESSAGES.has(type);
+  return isHttpsContentScript(sender) && CONTENT_SCRIPT_MESSAGES.has(type);
 }

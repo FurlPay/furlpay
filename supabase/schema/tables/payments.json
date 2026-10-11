@@ -1,0 +1,200 @@
+{
+  "name": "payments",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0009_payments_and_ledger.sql",
+    "line": 37,
+    "sha256": "69d1acfbf1ad99f999df548790f5bd0427ac4f7742cf6048d91a0b0bcb5131fc"
+  },
+  "definition": "create table if not exists payments (\n  id                    text primary key,\n  created_by_user_id    uuid not null,\n  -- Status is the state machine in services/payments.ts. Constrained here too:\n  -- an unknown status reaching the table means a code path we did not model.\n  status                text not null check (status in (\n                          'pending_signature','pending_review','settled',\n                          'refunded','expired','blocked'\n                        )),\n  amount_usdc           numeric(38,18) not null check (amount_usdc > 0),\n  source_chain          text not null,\n  recipient             text not null,\n  payer                 text,\n  memo                  text,\n\n  -- Settlement\n  transaction_hash      text,\n  settlement_chain      text,\n  settled_at            timestamptz,\n\n  -- Refund\n  refund_transaction_hash text,\n  refunded_at           timestamptz,\n\n  -- Compliance (HITL)\n  blocked_reason        text,\n  review_reason         text,\n  review_requested_at   timestamptz,\n  reviewed_at           timestamptz,\n  reviewed_by           uuid,\n\n  -- Link to the balanced ledger transaction that recorded this settlement.\n  ledger_tx_id          text,\n\n  idempotency_key       text,\n  expires_at            timestamptz not null,\n  created_at            timestamptz not null default now(),\n  updated_at            timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 37,
+      "sha256": "69d1acfbf1ad99f999df548790f5bd0427ac4f7742cf6048d91a0b0bcb5131fc",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 80,
+      "sha256": "259728a619a6e515b2598ba0ed5b777c870e940cd8326bce18d5da9ba060ab52",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 86,
+      "sha256": "276f97a208eec38b656a27bfb4aa0dd346f0c5d1d680989456523b1a625f5e9d",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 90,
+      "sha256": "3b034ea51637a81982788c4f8ee53c46ed1004602cf8e14d774f710be5274476",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 92,
+      "sha256": "8c07e05f0ec61f46c6850407f4f17794032e670368098cf16a12eca39315c67a",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 100,
+      "sha256": "24ee257bcc7ba0e9e8a9785f60734e65109a6b2c001ca9a1e203453681ae195d",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 255,
+      "sha256": "4093ed26c2027bd4fdc8e6a658f97a814371bc9f781903bef50df18f12e7cc77",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0009_payments_and_ledger.sql",
+      "line": 327,
+      "sha256": "997791632cdba3d149d1efea6b44991fc3d3ce118ddbc80bfc3ef575c027aefe",
+      "kind": "create or"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 40,
+      "sha256": "fe761a4b02a2eb191e378016cb4bf15dc3301fa2d75e7fa4ea39d38de2230279",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0016_rls_money_tables.sql",
+      "line": 64,
+      "sha256": "ccb689383174fa58572491467167b41804147f94927e41d81dc22e521e8671e4",
+      "kind": "procedural"
+    },
+    {
+      "file": "supabase/migrations/0023_schema_assertions_v2.sql",
+      "line": 31,
+      "sha256": "cafc4d20baaf5c237a89072b89fa6b0b4b6e7b95842cde9b182c2ead40fc3572",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 246,
+      "sha256": "18348637e2cdb31366dd2a713a871b8df7f58b67a57e2e921cb706913ed3eeb5",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0049_partnership_inquiries.sql",
+      "line": 20,
+      "sha256": "d2f2fc1ed2905b9790a7909fe330db172435d667162b4aa0367f33028eab6ae5",
+      "kind": "create table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/app/api/early-access/route.ts",
+      "line": 20
+    },
+    {
+      "file": "apps/web/src/app/docs/architecture/api-routes/page.tsx",
+      "line": 92
+    },
+    {
+      "file": "apps/web/src/app/docs/tokens/furl/page.tsx",
+      "line": 75
+    },
+    {
+      "file": "apps/web/src/components/landing/ApiPlayground.tsx",
+      "line": 33
+    },
+    {
+      "file": "apps/web/src/components/marketing/EarlyAccessSignup.tsx",
+      "line": 12
+    },
+    {
+      "file": "apps/web/src/components/onchain/OnchainDashboard.tsx",
+      "line": 28
+    },
+    {
+      "file": "apps/web/src/components/onchain/panels.tsx",
+      "line": 91
+    },
+    {
+      "file": "apps/web/src/components/portfolio/AnalyticsCards.tsx",
+      "line": 203
+    },
+    {
+      "file": "apps/web/src/components/settlement/SettlementWorkspace.tsx",
+      "line": 54
+    },
+    {
+      "file": "apps/web/src/lib/discord.ts",
+      "line": 145
+    },
+    {
+      "file": "apps/web/src/lib/discordServer/community.ts",
+      "line": 242
+    },
+    {
+      "file": "apps/web/src/lib/integrations/frameworks.ts",
+      "line": 251
+    },
+    {
+      "file": "apps/web/src/lib/integrations/frameworks.ts",
+      "line": 273
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 103
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 118
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 137
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 138
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 148
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 149
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 170
+    },
+    {
+      "file": "apps/web/src/lib/paymentsDb.ts",
+      "line": 171
+    },
+    {
+      "file": "apps/web/src/lib/payouts/discord/handler.ts",
+      "line": 115
+    },
+    {
+      "file": "apps/web/src/lib/settlement/routes.ts",
+      "line": 2
+    },
+    {
+      "file": "packages/cli/lib/commands.js",
+      "line": 761
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0016_rls_money_tables.sql",
+        "line": 40,
+        "sha256": "fe761a4b02a2eb191e378016cb4bf15dc3301fa2d75e7fa4ea39d38de2230279"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

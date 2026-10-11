@@ -3,8 +3,17 @@
 //   (agentKeyId || NODE_ENV !== "production" ? getAccountDurable(DEMO_USER_ID) : undefined)
 // which could attribute a hold to the demo account in prod. It is now dev-only.
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { randomUUID } from "node:crypto";
+
+// Production requires a durable KV; with none, the revocation denylist cannot be
+// read and requireUser rightly refuses state changes (session_check_unavailable).
+// This file is about escrow attribution, so give it what a healthy production
+// KV gives: a readable, empty denylist.
+vi.mock("@/lib/kv", async (orig) => ({
+  ...(await orig<typeof import("@/lib/kv")>()),
+  kvGet: vi.fn(async () => null),
+}));
 import { NextRequest } from "next/server";
 import { GET as escrowGET, POST as escrowPOST } from "@/app/api/escrow/route";
 import { signSession } from "@/lib/session";

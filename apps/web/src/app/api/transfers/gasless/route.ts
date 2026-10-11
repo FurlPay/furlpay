@@ -13,6 +13,8 @@ import { NETWORK, USDC_ASSET, X402_VERSION, requiredConfirmations } from "@/lib/
 import { verifyAuthorizationSignature } from "@/lib/x402Signature";
 import { defaultSettler, SettlementPendingError } from "@/lib/x402Settler";
 import type { FacilitatorRequest } from "@/lib/x402Facilitator";
+import { recordSettlement } from "@/lib/x402SettlementStore";
+import { SettlementHaltedError } from "@/lib/settlementSafety";
 import { maxTransferUsd } from "@/lib/moneyLimits";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +41,9 @@ export const dynamic = "force-dynamic";
 
 const GASLESS_FEE_USD = 0;
 
+/** Seconds a quote may be acted on; the app refuses to sign past `expiresAt`. */
+const GASLESS_QUOTE_TTL_SECONDS = 60;
+
 // GET /api/transfers/gasless — Smart Gas quote. Everything the client needs
 // to render a send screen with no native-token mention.
 export async function GET() {
@@ -53,9 +58,19 @@ export async function GET() {
   //
   // INTEGRATION_MODE only says mocks are forbidden. The relayer is what
   // actually submits, so ask for the relayer.
-  const relayerReady = defaultSettler() !== null;
+  //
+  // ...and ALSO the mode (audit P3-5, 2026-10-05). The POST below settles
+  // on-chain only when BOTH hold; with a relayer in mock mode it answers
+  // `simulated` — after the app has already signed a real, 10-minute EIP-3009
+  // authorization and handed it over. The app now signs only against
+  // `live === true` and an unexpired quote, so `live` must mean exactly "this
+  // POST will settle", and the quote carries an expiry.
+  const relayerReady = process.env.INTEGRATION_MODE === "live" && defaultSettler() !== null;
+  const quotedAt = Math.floor(Date.now() / 1000);
   return NextResponse.json(
     {
+      quotedAt,
+      expiresAt: quotedAt + GASLESS_QUOTE_TTL_SECONDS,
       network: NETWORK,
       asset: { symbol: "USDC", address: USDC_ASSET, decimals: 6 },
       fee: { usd: GASLESS_FEE_USD, sponsored: true, detail: "Gas is paid by Furlpay's relayer. You only sign — no ETH needed." },
@@ -175,8 +190,31 @@ export async function POST(req: NextRequest) {
 
     const required = requiredConfirmations(a.value);
     const started = Date.now();
+    // Every outcome that reached the chain goes into the settlement store, the
+    // same one the facilitator writes. Before this, gasless wrote only a tx
+    // event: a PENDING transfer pointed the client at
+    // /api/x402/settlement/[tx], which 404'd for it forever, and the reconciler
+    // and the recovery gate could not see it (finding FP-SET-08).
+    const settlementRecord = (transaction: string, status: "confirmed" | "pending") => ({
+      transaction,
+      network: NETWORK,
+      payer: a.from,
+      payTo: a.to,
+      amountAtomic: a.value,
+      expectedTransfer: {
+        token: USDC_ASSET,
+        from: a.from,
+        to: a.to,
+        valueAtomic: a.value,
+        nonce: a.nonce,
+      },
+      resource: "furlpay:transfers:gasless",
+      settledAt: new Date().toISOString(),
+      status,
+    });
     try {
       const submission = await settler(facReq, a.from, required);
+      await recordSettlement(settlementRecord(submission.transaction, "confirmed"));
       await recordTxEvent({ rail: "transfers", state: "settled", substate: "GASLESS_SETTLED", amountUsd, feeUsd: GASLESS_FEE_USD, token: "USDC", payer: a.from, recipient: a.to, txHash: submission.transaction, userId: auth.account.user.id });
       await recordRailHealth("transfers", "HEALTHY", undefined, Date.now() - started);
       return NextResponse.json({
@@ -187,7 +225,13 @@ export async function POST(req: NextRequest) {
         fee: { usd: GASLESS_FEE_USD, sponsored: true },
       });
     } catch (e) {
+      // Refused by the settlement circuit breaker before anything was signed:
+      // nothing was sent, and this is a deliberate halt, not rail degradation.
+      if (e instanceof SettlementHaltedError) {
+        return NextResponse.json({ error: "settlement_halted", scope: e.scope }, { status: 503 });
+      }
       if (e instanceof SettlementPendingError) {
+        await recordSettlement(settlementRecord(e.transaction, "pending"));
         await recordTxEvent({ rail: "transfers", state: "pending", substate: "GASLESS_PENDING", amountUsd, token: "USDC", payer: a.from, recipient: a.to, txHash: e.transaction, userId: auth.account.user.id });
         return NextResponse.json(
           { ok: false, pending: { transaction: e.transaction, statusPath: `/api/x402/settlement/${e.transaction}` } },

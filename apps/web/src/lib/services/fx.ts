@@ -131,6 +131,17 @@ async function liveRate(from: string, to: string): Promise<{ rate: number; date?
   }
 }
 
+/**
+ * True when this service can price the currency at all — it has a reference
+ * mid-rate for it, which is the fallback when the live provider is down.
+ * Routes check BOTH sides of a pair before charging for a quote: referenceRate
+ * throws for anything else, and on a paid route that throw used to land after
+ * the payment was verified.
+ */
+export function isSupportedFxCurrency(code: string): boolean {
+  return Object.prototype.hasOwnProperty.call(REFERENCE_MID, code);
+}
+
 function referenceRate(from: string, to: string): number {
   const rf = REFERENCE_MID[from];
   const rt = REFERENCE_MID[to];

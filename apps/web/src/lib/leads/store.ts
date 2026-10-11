@@ -10,6 +10,7 @@ import {
   type Lead,
   type LeadCaptureInput,
   type LeadSource,
+  type ReportLeadInput,
 } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -133,7 +134,7 @@ export interface UpsertResult {
  * someone is a fact about the past.
  */
 export async function upsertLead(
-  input: LeadCaptureInput,
+  input: LeadCaptureInput | ReportLeadInput,
   source: LeadSource,
   consentIp: string,
 ): Promise<UpsertResult> {
@@ -145,11 +146,14 @@ export async function upsertLead(
 
   const lead: Lead = {
     email,
-    firstName: input.firstName,
-    lastName: input.lastName,
-    company: input.company,
-    jobTitle: input.jobTitle,
-    country: input.country,
+    // An email-only submission (a report download) leaves these out; it must
+    // not blank what an earlier, fuller submission recorded. The columns are
+    // NOT NULL, so a first contact with no profile is stored as "".
+    firstName: input.firstName ?? existing?.firstName ?? "",
+    lastName: input.lastName ?? existing?.lastName ?? "",
+    company: input.company ?? existing?.company ?? "",
+    jobTitle: input.jobTitle ?? existing?.jobTitle ?? "",
+    country: input.country ?? existing?.country ?? "",
     phone: input.phone ?? existing?.phone,
     interests: input.interests?.length ? input.interests : existing?.interests,
     emailType: classifyEmail(email),

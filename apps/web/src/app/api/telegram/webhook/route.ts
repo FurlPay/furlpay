@@ -1,5 +1,16 @@
+import { createHash, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { handleUpdate, type TgUpdate } from "@/lib/telegram";
+
+// Constant-time: `!==` on the secret leaked how many leading characters
+// matched (SEC-P3-001). Hashing first gives equal-length inputs, so neither a
+// mismatch nor a length difference shows up in timing.
+function secretMatches(presented: string | null, secret: string): boolean {
+  if (!presented) return false;
+  const a = createHash("sha256").update(presented).digest();
+  const b = createHash("sha256").update(secret).digest();
+  return timingSafeEqual(a, b);
+}
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +22,7 @@ export const dynamic = "force-dynamic";
 // (Telegram executes the returned method — one round trip, no token needed).
 export async function POST(req: NextRequest) {
   const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!secret || req.headers.get("x-telegram-bot-api-secret-token") !== secret) {
+  if (!secret || !secretMatches(req.headers.get("x-telegram-bot-api-secret-token"), secret)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

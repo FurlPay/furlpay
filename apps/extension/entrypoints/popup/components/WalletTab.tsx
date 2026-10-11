@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { encode as qrEncode } from "uqr";
-import { Icon, IconName } from "@/components/icons";
+import { Icon, type IconName } from "@/components/icons";
 import {
   CHAIN_LABELS,
   RANGES,
   RANGE_PERIOD_LABEL,
-  Range,
+  type Range,
   blendSeries,
   changePct,
   normalizeCloses,

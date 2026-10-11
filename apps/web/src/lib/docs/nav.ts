@@ -1,4 +1,4 @@
-import { Banknote, Coins, Layers, LifeBuoy, Puzzle, Rocket, Scale, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Banknote, Building2, Coins, Layers, LifeBuoy, Puzzle, Rocket, Scale, ShieldCheck, type LucideIcon } from "lucide-react";
 
 // Sidebar structure for the developer documentation portal (furlpay.app/docs).
 // `desc` feeds /llms.txt (public/llms.txt) and per-page SEO; `badge` renders in
@@ -29,18 +29,28 @@ export const DOCS_NAV: DocSection[] = [
       { title: "Webhook Events", href: "/docs/architecture/webhooks", desc: "Provider-specific inbound webhooks and signed merchant payment-event delivery.", badge: "updated" },
       { title: "Error Codes", href: "/docs/architecture/errors", desc: "Error response shapes, HTTP status conventions, and how to handle unavailable rail controls.", badge: "updated" },
       { title: "Rate Limits", href: "/docs/architecture/rate-limits", desc: "The baseline per-IP budget, per-route limits, and how to handle 429 responses.", badge: "new" },
+      { title: "Configuration & Setup", href: "/docs/architecture/configuration", desc: "Environment variables by area, money flags, database migrations and scheduled jobs a deployment needs.", badge: "new" },
     ],
   },
   {
     label: "Payments",
     icon: Banknote,
     items: [
+      { title: "Merchant Payments", href: "/docs/payments/merchant-payments", desc: "USDC payment links, invoices, hosted checkout, refunds and reconciliation; collection needs addresses registered by a custody provider.", badge: "new" },
+      { title: "Payroll & Payouts", href: "/docs/payments/payroll", desc: "Contractor roster, self-service and wallet-signed USDC pay runs; execution requires a deployed router on the run's network.", badge: "new" },
       { title: "Agentic Payments (x402)", href: "/docs/payments/agentic-x402", desc: "x402 endpoint currently returns 503 controls_unavailable; production x402 and MPP settlement are also gated.", badge: "updated" },
       { title: "Agent Trust & Mandates (TAP)", href: "/docs/payments/agent-trust", desc: "Developer library patterns for agent identity, signed mandates and scoped capabilities; these do not enable production settlement.", badge: "updated" },
       { title: "CCTP Cross-Chain", href: "/docs/payments/cctp", desc: "Client-signed Circle CCTP V2 transaction construction; check network and rail status before signing.", badge: "updated" },
       { title: "LI.FI Swaps", href: "/docs/payments/lifi-swaps", desc: "Quote LI.FI routes and prepare wallet-signed swaps; a quote is not an executed swap.", badge: "updated" },
       { title: "FurlPay Travels (Travel MCP)", href: "/docs/payments/travels-mcp", desc: "Development integration for agent-assisted travel; production inventory, booking and payment are unavailable.", badge: "updated" },
       { title: "Solana Actions & Blinks", href: "/docs/payments/solana-actions", desc: "Solana Actions transaction construction; verify asset configuration and wallet signature requirements before use." },
+    ],
+  },
+  {
+    label: "Business",
+    icon: Building2,
+    items: [
+      { title: "Settlement Workspace", href: "/docs/settlement/workspace", desc: "Business console and seven-step onboarding with document review and screening; workspace records are drafts and do not move money.", badge: "new" },
     ],
   },
   {
@@ -56,6 +66,9 @@ export const DOCS_NAV: DocSection[] = [
     items: [
       { title: "Claude Connector", href: "/docs/integrations/claude-connector", desc: "Connect FurlPay to Claude over MCP with scoped account tools; prepared actions do not guarantee production settlement.", badge: "updated" },
       { title: "AI Assistants", href: "/docs/integrations/ai-assistants", desc: "FurlPay MCP connectivity and human-approved agent actions; live payment execution depends on rail status." },
+      { title: "Circle", href: "/docs/integrations/circle", desc: "Circle user-controlled wallets, Compliance Engine screening and CCTP V2; each needs its own credentials.", badge: "new" },
+      { title: "Ramp Providers", href: "/docs/integrations/ramps", desc: "Coinbase and Transak adapters for buying and selling crypto; FurlPay does not operate an on-ramp or off-ramp.", badge: "new" },
+      { title: "Telegram Mini App", href: "/docs/integrations/telegram", desc: "Sign in to an existing FurlPay account from Telegram, link or unlink it, and view balances and activity; it cannot send a payment.", badge: "new" },
       { title: "Stripe Crypto", href: "/docs/integrations/stripe-crypto", desc: "Optional Stripe PaymentIntent and webhook integration; provider approval and deployment configuration required." },
       { title: "Persona KYC", href: "/docs/integrations/persona-kyc", desc: "Persona webhook integration; user verification availability depends on provider setup and region." },
     ],
@@ -63,7 +76,10 @@ export const DOCS_NAV: DocSection[] = [
   {
     label: "Legal & Compliance",
     icon: Scale,
-    items: [{ title: "Regulatory status", href: "/docs/compliance/mica", desc: "Jurisdiction and licensing boundaries; no authorization or regulated-service availability is implied." }],
+    items: [
+      { title: "Regulatory status", href: "/docs/compliance/mica", desc: "Jurisdiction and licensing boundaries; no authorization or regulated-service availability is implied." },
+      { title: "Screening & Cases", href: "/docs/compliance/screening", desc: "Address and name screening, transaction monitoring rules, compliance case management and report exports.", badge: "new" },
+    ],
   },
   {
     label: "Security & Crypto",

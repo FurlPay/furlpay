@@ -1,0 +1,60 @@
+{
+  "name": "onchain_integrity_issues",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0034_onchain_asset_index.sql",
+    "line": 104,
+    "sha256": "3bc7d433a0d91b21293a439575dc12ca28ee3a04ee877904f7293980ad2f6582"
+  },
+  "definition": "create table if not exists onchain_integrity_issues (\n  id           bigserial primary key,\n  chain        text not null,\n  asset        text not null default '',\n  kind         text not null check (kind in (\n                 'block_gap', 'checkpoint_regression', 'reorg_inconsistency', 'negative_supply',\n                 'impossible_value', 'supply_mismatch', 'provider_disagreement', 'duplicate_event',\n                 'indexer_lag', 'rpc_failure')),\n  block        bigint,\n  detail       text not null,\n  occurrences  integer not null default 1,\n  first_seen   timestamptz not null default now(),\n  last_seen    timestamptz not null default now(),\n  resolved_at  timestamptz\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 104,
+      "sha256": "3bc7d433a0d91b21293a439575dc12ca28ee3a04ee877904f7293980ad2f6582",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 120,
+      "sha256": "bf3d20884e6a2b408a1cd37a6e57d44d93310d585767ee81cbaa79e2dedeb8d3",
+      "kind": "create unique"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 185,
+      "sha256": "1cde119490997e0a42a035dc27123f303a90e3382757b0c7a289629eaa292a56",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 387,
+      "sha256": "4c691e9b9f1b7ebb4a1100ddae1475bc8c997c4a57db46048b90803ccbba5393",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0034_onchain_asset_index.sql",
+      "line": 394,
+      "sha256": "9b7f1f1fd903c47e2edd5aea0d4cc20cb226b46113363a9e37cbad6838bda530",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/usdcHealth.ts",
+      "line": 145
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0034_onchain_asset_index.sql",
+        "line": 387,
+        "sha256": "4c691e9b9f1b7ebb4a1100ddae1475bc8c997c4a57db46048b90803ccbba5393"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

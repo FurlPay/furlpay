@@ -25,7 +25,10 @@ test.describe.configure({ mode: "serial" });
 
 test.describe("@auth ticket lifecycle", () => {
   let ticketId = "";
-  const subject = `E2E deposit not credited ${Date.now()}`;
+  // Decimal timestamps can pass Luhn and are correctly redacted as card PANs.
+  // Keep fixture identifiers short so this lifecycle test does not depend on
+  // whether the current millisecond happens to pass the redaction checksum.
+  const subject = `E2E deposit not credited ${Date.now().toString(36)}`;
 
   // ONE context for the whole flow. The default `page` fixture builds a fresh
   // context per test, which discards the session cookie — the later cases then
@@ -86,7 +89,7 @@ test.describe("@auth ticket lifecycle", () => {
     await expect(page).toHaveURL(new RegExp(`/support/${ticketId}$`));
 
     // --- reply ----------------------------------------------------------
-    const reply = `E2E reply ${Date.now()}`;
+    const reply = `E2E reply ${Date.now().toString(36)}`;
     const composer = page.getByLabel("Add a reply");
     await composer.fill(reply);
     await composer.press("Enter");

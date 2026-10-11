@@ -83,6 +83,10 @@ branded background.
   it sends the user's existing furlpay.com session cookie with API requests
   to furlpay.com (first party). No browsing history, no page content, no
   location, no keystrokes are collected or transmitted.
+- **Kept on the device only:** the URLs of up to 50 pages that answered
+  HTTP 402 (the x402 detection log shown in the popup and DevTools panel).
+  It is held in session storage — in memory, cleared when the browser
+  closes — and is never sent anywhere.
 - Data is **not** sold, **not** used for unrelated purposes, **not** given
   to third parties → certify all three compliance statements.
 - Aug 1 2026 rules: all data use is disclosed above; no prediction-market
@@ -92,7 +96,7 @@ branded background.
 
 | Permission | Justification |
 |---|---|
-| `storage` | Cache UI preferences and the x402 detection log locally |
+| `storage` | Cache UI preferences; hold the x402 detection log in session storage (memory only, cleared when the browser closes) |
 | `notifications` | Alert the user when a card payment awaits biometric approval |
 | `sidePanel` | Hosts the travel booking assistant |
 | `alarms` | Poll balance/pending approvals once per minute (MV3 workers are ephemeral) |

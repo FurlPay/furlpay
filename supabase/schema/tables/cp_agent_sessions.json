@@ -1,0 +1,55 @@
+{
+  "name": "cp_agent_sessions",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0020_control_plane.sql",
+    "line": 140,
+    "sha256": "a04c8440cb771962893fc44081dc68da315476bdce3e75100256987d6131c16e"
+  },
+  "definition": "create table if not exists cp_agent_sessions (\n  id              text primary key,\n  organization_id text not null references cp_organizations(id) on delete restrict,\n  agent_id        text not null references cp_agents(id) on delete restrict,\n  status          text not null default 'ACTIVE'\n                    check (status in ('ACTIVE', 'SUSPENDED', 'REVOKED', 'EXPIRED')),\n  -- RuntimeAttestation.kind. Drives policy, not just telemetry: a scope may\n  -- require 'tee' and refuse a 'key_only' session.\n  attestation_kind text not null default 'key_only'\n                    check (attestation_kind in ('tee', 'passkey', 'key_only', 'none')),\n  -- Enclave measurement or credential id. Evidence, not a secret.\n  attestation_ref text,\n  scope           jsonb,\n  started_at      timestamptz not null default now(),\n  expires_at      timestamptz,\n  revoked_at      timestamptz\n);",
+  "dependencies": [
+    "cp_agents",
+    "cp_organizations"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 140,
+      "sha256": "a04c8440cb771962893fc44081dc68da315476bdce3e75100256987d6131c16e",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 157,
+      "sha256": "37eb4e7e05326fd0903c283ae8287c27885bc2a212962d2eb0c07a6896b9d650",
+      "kind": "create index"
+    },
+    {
+      "file": "supabase/migrations/0020_control_plane.sql",
+      "line": 599,
+      "sha256": "df1919bdabcaf0ace29849a4b638335d09371f658913ccc47daa9cde5460593e",
+      "kind": "alter table"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 316
+    },
+    {
+      "file": "apps/web/src/lib/controlPlane/store.ts",
+      "line": 317
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0020_control_plane.sql",
+        "line": 599,
+        "sha256": "df1919bdabcaf0ace29849a4b638335d09371f658913ccc47daa9cde5460593e"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

@@ -321,25 +321,25 @@ export default function HotelMapHoverCard({
         {/* --- header ------------------------------------------------------- */}
         {/* A faint wash behind the header separates the destination's identity
             from the photograph below it without drawing a rule. */}
-        <div className="flex items-center gap-3 rounded-t-[19px] bg-gradient-to-b from-[#F0F4FF] to-white px-4 pb-3 pt-4">
-          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-[#F1F5F9] ring-2 ring-white shadow-sm">
+        <div className="flex items-center gap-3 rounded-t-[19px] bg-gradient-to-b from-[#0D1314] to-[#090D0E] px-4 pb-3 pt-4">
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-full bg-white/[0.05] ring-2 ring-white shadow-sm">
             {heroImage.url ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={heroImage.url} alt="" className="h-full w-full object-cover" loading="lazy" />
             ) : (
-              <span className="flex h-full w-full items-center justify-center text-[#94A3B8]">
+              <span className="flex h-full w-full items-center justify-center text-[#6E7675]">
                 <HotelIcon />
               </span>
             )}
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[17px] font-bold leading-tight text-[#0F172A]">{title}</p>
-            <p className="mt-0.5 truncate text-[13px] text-[#64748B]">{subtitle}</p>
+            <p className="truncate text-[17px] font-bold leading-tight text-[#F5F7F6]">{title}</p>
+            <p className="mt-0.5 truncate text-[13px] text-[#A4AAA9]">{subtitle}</p>
           </div>
           {/* The rating pill renders only when Google actually has a rating.
               There is no default and no placeholder star. */}
           {rating !== undefined && (
-            <span className="flex shrink-0 items-center gap-1 rounded-full border border-[#D4DEFF] bg-white px-2.5 py-1 text-[13px] font-bold text-[#0F172A] shadow-sm">
+            <span className="flex shrink-0 items-center gap-1 rounded-full border border-[#D4DEFF] bg-[#090D0E] px-2.5 py-1 text-[13px] font-bold text-[#F5F7F6] shadow-sm">
               <StarIcon className="h-3.5 w-3.5 shrink-0 text-[#F4B400]" /> {rating.toFixed(1)}
             </span>
           )}
@@ -349,7 +349,7 @@ export default function HotelMapHoverCard({
         </div>
 
         {/* --- hero --------------------------------------------------------- */}
-        <div className="relative mx-4 h-[160px] overflow-hidden rounded-2xl bg-[#F1F5F9]">
+        <div className="relative mx-4 h-[160px] overflow-hidden rounded-2xl bg-white/[0.05]">
           {heroImage.url ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -368,7 +368,7 @@ export default function HotelMapHoverCard({
               )}
             </>
           ) : (
-            <div className="flex h-full items-center justify-center text-[12.5px] text-[#94A3B8]">
+            <div className="flex h-full items-center justify-center text-[12.5px] text-[#6E7675]">
               {state === "loading"
                 ? "Loading photography…"
                 : state === "rate-limited"
@@ -383,7 +383,7 @@ export default function HotelMapHoverCard({
         </div>
 
         {/* --- statistics ---------------------------------------------------- */}
-          <div className="mt-4 grid grid-cols-4 gap-2 border-b border-[#F1F5F9] px-4 pb-4">
+          <div className="mt-4 grid grid-cols-4 gap-2 border-b border-white/[0.06] px-4 pb-4">
             <Stat icon={<HotelIcon />} value={target.cluster.families.hotels} label="Hotels" />
             <Stat icon={<ResortIcon />} value={target.cluster.families.resorts} label="Resorts" />
             <Stat icon={<VillaIcon />} value={target.cluster.families.villas} label="Villas" />
@@ -401,7 +401,7 @@ export default function HotelMapHoverCard({
         {/* --- top properties ------------------------------------------------ */}
         <div className="px-4 pb-4 pt-3">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] font-bold text-[#1E293B]">
+            <p className="text-[13px] font-bold text-[#E6EAE8]">
               Top Properties
             </p>
             {target.kind === "cluster" && target.cluster.count > members.length && (
@@ -492,7 +492,7 @@ function PropertyPreview({
       {/* rounded-t-[19px] rather than 20: the hero sits INSIDE a 20px card with
           a 1px border, so matching the outer radius exactly leaves a hairline of
           border showing through at the corners. */}
-      <div className="relative h-[180px] overflow-hidden rounded-t-[19px] bg-[#F1F5F9]">
+      <div className="relative h-[180px] overflow-hidden rounded-t-[19px] bg-white/[0.05]">
         {image.url ? (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -518,7 +518,7 @@ function PropertyPreview({
             )}
           </>
         ) : (
-          <div className="flex h-full flex-col items-center justify-center gap-1.5 text-[#94A3B8]">
+          <div className="flex h-full flex-col items-center justify-center gap-1.5 text-[#6E7675]">
             <HotelIcon className="h-7 w-7" />
             <span className="px-4 text-center text-[11.5px]">
               {state === "loading"
@@ -546,7 +546,7 @@ function PropertyPreview({
               city: point.city,
               country: point.country,
             }}
-            className="border-white/60 bg-white/90 text-[#64748B] shadow-sm backdrop-blur hover:bg-white hover:text-[#0F172A]"
+            className="border-white/60 bg-[#090D0E]/90 text-[#A4AAA9] shadow-sm backdrop-blur hover:bg-[#090D0E] hover:text-white"
           />
         </div>
       </div>
@@ -555,7 +555,7 @@ function PropertyPreview({
       <div className="px-4 pb-3.5 pt-3">
         {/* Two lines then ellipsis. Hotel names run long, and a preview that
             grows to fit one starts covering the map it is describing. */}
-        <p className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.01em] text-[#0F172A]">
+        <p className="line-clamp-2 text-[15px] font-semibold leading-snug tracking-[-0.01em] text-[#F5F7F6]">
           {point.name}
         </p>
 
@@ -563,22 +563,22 @@ function PropertyPreview({
           {score !== undefined && (
             <span className="flex shrink-0 items-center gap-1" title={scoreNote ?? undefined}>
               <StarIcon className="h-4 w-4 shrink-0 text-[#F4B400]" />
-              <span className="font-semibold text-[#0F172A]">{score.toFixed(1)}</span>
+              <span className="font-semibold text-[#F5F7F6]">{score.toFixed(1)}</span>
               {/* The review count is the tell that this is an average rather
                   than a classification, so it rides beside the number. */}
               {stars === undefined && point.ratingCount ? (
-                <span className="text-[11px] text-[#94A3B8]">
+                <span className="text-[11px] text-[#6E7675]">
                   ({point.ratingCount.toLocaleString()})
                 </span>
               ) : null}
             </span>
           )}
-          {score !== undefined && typeLabel ? <span className="text-[#CBD5E1]">·</span> : null}
-          {typeLabel ? <span className="truncate text-[#64748B]">{typeLabel}</span> : null}
+          {score !== undefined && typeLabel ? <span className="text-[#4F5655]">·</span> : null}
+          {typeLabel ? <span className="truncate text-[#A4AAA9]">{typeLabel}</span> : null}
         </div>
 
         {location ? (
-          <p className="mt-1 truncate text-[12px] text-[#94A3B8]">{location}</p>
+          <p className="mt-1 truncate text-[12px] text-[#6E7675]">{location}</p>
         ) : null}
 
         {/* NO PRICE SLOT, deliberately. Duffel runs in test mode on this
@@ -586,9 +586,9 @@ function PropertyPreview({
             price is the single thing that would make the whole surface
             untrustworthy. Omitted rather than filled with a placeholder. */}
 
-        <div className="mt-2.5 flex items-center justify-between border-t border-[#F1F5F9] pt-2.5">
+        <div className="mt-2.5 flex items-center justify-between border-t border-white/[0.06] pt-2.5">
           <span
-            className="truncate text-[11.5px] font-medium text-[#94A3B8]"
+            className="truncate text-[11.5px] font-medium text-[#6E7675]"
             title={
               point.precision === "exact"
                 ? "Position verified against Google Places"
@@ -613,7 +613,7 @@ function PropertyPreview({
           <button
             type="button"
             onClick={onOpen}
-            className="flex shrink-0 items-center gap-1 rounded-full bg-[#ECF7F1] px-2.5 py-1 text-[12px] font-semibold text-[#1B7A4E] transition-colors hover:bg-[#DCEFE5]"
+            className="flex shrink-0 items-center gap-1 rounded-full bg-[rgba(0,230,167,0.10)] px-2.5 py-1 text-[12px] font-semibold text-[#1B7A4E] transition-colors hover:bg-[#DCEFE5]"
           >
             View details
             <ArrowRightIcon />
@@ -642,9 +642,9 @@ function Stat({
 }) {
   return (
     <div className="flex flex-col items-center gap-1" title={title}>
-      <span className="text-[#334155]">{icon}</span>
-      <span className="text-[15px] font-bold leading-none text-[#0F172A]">{value}</span>
-      <span className="text-[11px] leading-none text-[#94A3B8]">{label}</span>
+      <span className="text-[#C9CFCD]">{icon}</span>
+      <span className="text-[15px] font-bold leading-none text-[#F5F7F6]">{value}</span>
+      <span className="text-[11px] leading-none text-[#6E7675]">{label}</span>
     </div>
   );
 }
@@ -667,7 +667,7 @@ function PropertyCard({
       className="group min-w-0 text-left transition-transform duration-200 hover:-translate-y-0.5"
     >
       <div
-        className={`overflow-hidden rounded-xl bg-[#F1F5F9] ${wide ? "h-[140px]" : "h-[120px]"}`}
+        className={`overflow-hidden rounded-xl bg-white/[0.05] ${wide ? "h-[140px]" : "h-[120px]"}`}
       >
         {image.url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -695,20 +695,20 @@ function PropertyCard({
         )}
       </div>
 
-      <p className="mt-1.5 truncate text-[12px] font-semibold text-[#0F172A]">{member.name}</p>
+      <p className="mt-1.5 truncate text-[12px] font-semibold text-[#F5F7F6]">{member.name}</p>
 
-      <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-[#64748B]">
+      <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] text-[#A4AAA9]">
         {/* Google's rating when it exists, otherwise the recorded star class.
             Two different measurements, so they are never blended into one. */}
         {preview?.rating !== undefined ? (
           <>
             <StarIcon className="h-3.5 w-3.5 shrink-0 text-[#F4B400]" />
-            <span className="font-semibold text-[#0F172A]">{preview.rating.toFixed(1)}</span>
+            <span className="font-semibold text-[#F5F7F6]">{preview.rating.toFixed(1)}</span>
           </>
         ) : member.stars ? (
           <>
             <StarIcon className="h-3.5 w-3.5 shrink-0 text-[#F4B400]" />
-            <span className="font-semibold text-[#0F172A]">{member.stars}.0</span>
+            <span className="font-semibold text-[#F5F7F6]">{member.stars}.0</span>
           </>
         ) : null}
         <span className="truncate">{member.propertyType}</span>
@@ -716,7 +716,7 @@ function PropertyCard({
 
       {/* The price slot. Deliberately not a number: this deployment's Duffel key
           is a test key, so any rate it returns is a sandbox figure. */}
-      <p className="mt-1 truncate text-[11px] font-medium text-[#94A3B8]">
+      <p className="mt-1 truncate text-[11px] font-medium text-[#6E7675]">
         {member.precision === "exact" ? "Position confirmed" : "Approximate position"}
       </p>
     </button>

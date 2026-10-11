@@ -90,6 +90,24 @@ const securityHeaders = [
 // the first import of a workspace package.
 const standalone = process.env.NEXT_OUTPUT === "standalone";
 
+// Settlement OS URL aliases. A real 308 before rendering (a page-level
+// redirect streams as 200 behind app/loading.tsx). Mirrors STEP_ALIASES and
+// SETTLEMENT_REDIRECTS in src/lib/settlement/routes.ts — routes.spec.ts fails if
+// the two drift.
+const SETTLEMENT_REDIRECTS = [
+  ...Object.entries({
+    business: "business-information",
+    "verify-identity": "identity",
+    details: "business-details",
+    "compliance-risk": "compliance",
+    "treasury-setup": "treasury",
+    "settlement-configuration": "settlement",
+    "review-activate": "review",
+  }).map(([from, to]) => ({ source: `/settlement/onboarding/${from}`, destination: `/settlement/onboarding/${to}`, permanent: true })),
+  { source: "/settlement/rules", destination: "/settlement/treasury/rules", permanent: true },
+  { source: "/settlement/activity", destination: "/settlement/payments/transactions", permanent: true },
+];
+
 const nextConfig = {
   ...(standalone
     ? { output: "standalone", outputFileTracingRoot: require("path").join(__dirname, "../..") }
@@ -119,10 +137,45 @@ const nextConfig = {
     "@furlpay/control-plane",
   ],
   async headers() {
-    return [{ source: "/:path*", headers: securityHeaders }];
+    return [
+      { source: "/:path*", headers: securityHeaders },
+      {
+        // The Telegram Mini App only: it must load Telegram's official bridge
+        // script and be framable by Telegram Web. Every other route keeps the
+        // site-wide script policy and frame-ancestors 'none'.
+        source: "/telegram/:path*",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: csp
+              .replace("https://js.stripe.com", "https://telegram.org https://js.stripe.com")
+              .replace("frame-ancestors 'none'", "frame-ancestors https://web.telegram.org https://webk.telegram.org https://webz.telegram.org"),
+          },
+          // CSP frame-ancestors wins in modern webviews; SAMEORIGIN is the
+          // conservative fallback for clients that only read X-Frame-Options.
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Referrer-Policy", value: "no-referrer" },
+          { key: "Cache-Control", value: "private, no-store" },
+        ],
+      },
+    ];
   },
   async redirects() {
     return [
+      // The 2026 stablecoin report was served at /research/<slug> in
+      // production before the research library moved reports to
+      // /reports/<slug>. That path now belongs to /research/[desk] and would
+      // 404, so the shared link is sent to the canonical page.
+      {
+        source: "/research/global-stablecoin-report-2026",
+        destination: "/reports/global-stablecoin-report-2026",
+        permanent: true,
+      },
+      // The partnership page lives at /partnerships. Exact match only, so the
+      // logo assets under /partners/* are untouched.
+      { source: "/partners", destination: "/partnerships", permanent: true },
+      // There is no staff page here any more; the old link lands on the public page.
+      { source: "/dashboard/partnerships", destination: "/partnerships", permanent: true },
       // Retired blog post — send any lingering links to the blog.
       { source: "/blog/i-decompiled-robinhood-redotpay-indmoney", destination: "/blog", permanent: true },
       // The hotel-map engineering post was retired in favour of the
@@ -148,9 +201,11 @@ const nextConfig = {
       // so the short link can be repointed at next year's edition.
       { source: "/token2049", destination: "/events/token2049-singapore-2026", permanent: false },
       // Branded Telegram links.
-      { source: "/telegram", destination: "https://t.me/FurlpayBot", permanent: false },
+      // /telegram is now the Mini App itself; the bot short link moved to /telegram/bot.
+      { source: "/telegram/bot", destination: "https://t.me/FurlpayBot", permanent: false },
       { source: "/telegram/group", destination: "https://t.me/FurlPay", permanent: false },
       { source: "/telegram/channel", destination: "https://t.me/furlpayofficial", permanent: false },
+      ...SETTLEMENT_REDIRECTS,
     ];
   },
 };
@@ -179,3 +234,6 @@ module.exports = async () => {
   });
   return withBundleAnalyzer(withSerwist(nextConfig));
 };
+
+// Exposed for src/lib/settlement/__tests__/routes.spec.ts (drift check).
+module.exports.settlementRedirects = SETTLEMENT_REDIRECTS;

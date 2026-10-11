@@ -19,6 +19,7 @@ import com.furlpay.guardian.network.dto.OrderRequest
 import com.furlpay.guardian.network.dto.OrderResponse
 import com.furlpay.guardian.network.dto.OtpCheckRequest
 import com.furlpay.guardian.network.dto.OtpCheckResponse
+import com.furlpay.guardian.network.dto.WatchTokenResponse
 import com.furlpay.guardian.network.dto.OtpStartRequest
 import com.furlpay.guardian.network.dto.PortfolioResponse
 import com.furlpay.guardian.network.dto.ProfileResponse
@@ -135,6 +136,10 @@ interface FurlPayApi {
 
     @POST("auth/otp/check")
     suspend fun otpCheck(@Body body: OtpCheckRequest): OtpCheckResponse
+
+    /** Mint the watch's scoped token from this (phone) session. */
+    @POST("auth/watch-token")
+    suspend fun watchToken(): WatchTokenResponse
 
     /**
      * Registry-dispatched action. ONLY [ActionDispatcher] may call this — the

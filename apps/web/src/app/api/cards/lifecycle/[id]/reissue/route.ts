@@ -78,5 +78,5 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       const msg = (e as Error).message;
       return NextResponse.json({ ok: false, error: msg }, { status: msg.includes("not found") ? 404 : 409 });
     }
-  }, { principal: account.user.id });
+  }, { principal: account.user.id, request: body });
 }

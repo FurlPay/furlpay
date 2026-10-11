@@ -85,13 +85,52 @@ function buildEnv() {
   return "dev";
 }
 
-/** Backend for an environment. These hostnames are the `api_base_url` outputs
- *  of infra/aws/envs/<env> — if one changes there, it changes here. */
+/**
+ * The ONE backend a release build may talk to.
+ *
+ * This was `https://api.furlpay.com/api` — the planned AWS hostname — and that
+ * name has never resolved (NXDOMAIN, checked 2026-10-05; the AWS environments
+ * in infra/aws were never applied). Every build made from this file therefore
+ * shipped an app that could not reach any server. furlpay.com is where the API
+ * actually runs. When the AWS stack is live and api.furlpay.com resolves AND
+ * serves this API, change it here, in ios/FurlPayGuardian/Config/Prod.xcconfig
+ * and in guardian/app/{mobile,wear}/build.gradle.kts together.
+ */
+const PRODUCTION_API_BASE = "https://furlpay.com/api";
+const API_BASE_ENV_KEY = "EXPO_PUBLIC_API_BASE";
+
+/** Backend for an environment. dev/staging are the planned AWS hostnames
+ *  (infra/aws/envs/<env>); they do not resolve yet, so a non-prod build needs
+ *  EXPO_PUBLIC_API_BASE pointed at a reachable backend (a laptop, a preview). */
 const API_BASE_BY_ENV = {
   dev: "https://api-dev.furlpay.com/api",
   staging: "https://api-staging.furlpay.com/api",
-  prod: "https://api.furlpay.com/api",
+  prod: PRODUCTION_API_BASE,
 };
+
+/**
+ * Release builds: the resolved API base must be exactly PRODUCTION_API_BASE.
+ *
+ * Exact equality, not a pattern: an allow-pattern ("anything under
+ * furlpay.com") would admit api-staging.furlpay.com, a Vercel preview alias or a
+ * typo'd path. Throws with the offending host named (a URL, never a secret).
+ */
+function assertReleaseApiBase(apiBase) {
+  let u;
+  try {
+    u = new URL(apiBase);
+  } catch {
+    throw new Error(`\n  Release build API base is not a URL: ${apiBase}\n`);
+  }
+  if (apiBase !== PRODUCTION_API_BASE || u.protocol !== "https:") {
+    throw new Error(
+      `\n  Release build would talk to ${apiBase}, not the production backend ` +
+        `(${PRODUCTION_API_BASE}). Localhost, LAN, preview, staging and dev hosts ` +
+        `are refused in a release.\n`
+    );
+  }
+  return apiBase;
+}
 
 const ENV_SUFFIX = { dev: ".dev", staging: ".staging", prod: "" };
 const ENV_LABEL = { dev: "FurlPay Dev", staging: "FurlPay Staging", prod: "FurlPay" };
@@ -119,6 +158,58 @@ const REQUIRED_AUTH_ENV_IOS = [
   "EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID",
   "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID",
 ];
+
+// ---------------------------------------------------------------------------
+// freeRASP (lib/security/tamperDetection.ts) build-time configuration.
+//
+// THE BUG THIS REPLACES: tamperDetection.ts hardcoded packageName
+// "com.furlpay.mobile" (the app is com.furlpay.app), certificateHashes
+// ["TODO_CERT_HASH"] and appTeamId "YOUR_TEAM_ID", with isProd: true. freeRASP
+// compares the running app's package and signing certificate against those
+// values, so a genuine install either reported appIntegrity (every money move
+// BLOCKED for every user) or the SDK refused the config and the error was
+// swallowed (no protection, silently).
+//
+// The identity now comes from the same resolution that names the build (the
+// suffixed applicationId / bundleIdentifier) and the signing material from the
+// build environment:
+//
+//   FURLPAY_FREERASP_CERT_HASHES  comma-separated SHA-256 of the APP SIGNING
+//                                 certificate(s) — the Play App Signing key, as
+//                                 shown in Play Console (colon hex) or base64.
+//                                 Not the upload key: Play re-signs the bundle.
+//   FURLPAY_APPLE_TEAM_ID         10-character Apple Developer Team ID.
+//
+// Neither is a secret (both are public properties of a signed app). A release
+// without them fails the build: a placeholder here is exactly the original bug.
+// ---------------------------------------------------------------------------
+
+const FREERASP_HASHES_ENV = "FURLPAY_FREERASP_CERT_HASHES";
+const APPLE_TEAM_ENV = "FURLPAY_APPLE_TEAM_ID";
+
+/** One certificate digest → the base64 SHA-256 freeRASP expects, or null. */
+function normalizeCertHash(raw) {
+  const v = String(raw || "").trim();
+  const hex = v.replace(/:/g, "");
+  if (/^[0-9a-fA-F]{64}$/.test(hex)) return Buffer.from(hex, "hex").toString("base64");
+  if (/^[A-Za-z0-9+/]{43}=$/.test(v) && Buffer.from(v, "base64").length === 32) return v;
+  return null;
+}
+
+/** Parsed hashes, or { invalid } naming how many entries were malformed. */
+function freeraspCertHashes(env) {
+  const entries = String(env[FREERASP_HASHES_ENV] || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const hashes = entries.map(normalizeCertHash);
+  return { hashes: hashes.filter(Boolean), invalid: hashes.filter((h) => !h).length };
+}
+
+function appleTeamId(env) {
+  const v = String(env[APPLE_TEAM_ENV] || "").trim();
+  return /^[A-Z0-9]{10}$/.test(v) ? v : null;
+}
 
 function resolveGoogleServices() {
   // 1. EAS file secret — the value is a path on the build worker.
@@ -154,6 +245,21 @@ module.exports = ({ config }) => {
   if (!googleServices && platform !== "ios") {
     fatal.push("GOOGLE_SERVICES_JSON (EAS file secret) or ./google-services.json");
   }
+  // Tamper detection is NOT waivable either: without the real signing identity
+  // freeRASP either blocks every genuine install or does nothing.
+  const rasp = freeraspCertHashes(process.env);
+  if (platform !== "ios") {
+    if (rasp.invalid) {
+      fatal.push(`${FREERASP_HASHES_ENV} (${rasp.invalid} entr${rasp.invalid === 1 ? "y is" : "ies are"} not a SHA-256 digest)`);
+    } else if (!rasp.hashes.length) {
+      fatal.push(`${FREERASP_HASHES_ENV} (Play App Signing certificate SHA-256)`);
+    }
+  }
+  const teamId = appleTeamId(process.env);
+  if (platform === "ios" && !teamId) {
+    fatal.push(`${APPLE_TEAM_ENV} (10-character Apple Team ID)`);
+  }
+
   const requiredAuth =
     platform === "ios" ? REQUIRED_AUTH_ENV_IOS : REQUIRED_AUTH_ENV_ANDROID;
   for (const key of requiredAuth) {
@@ -185,6 +291,8 @@ module.exports = ({ config }) => {
         "      --name GOOGLE_SERVICES_JSON --value ./google-services.json",
         "    eas secret:create --scope project --name EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID --value <id>",
         "    eas secret:create --scope project --name EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID --value <id>",
+        `    eas secret:create --scope project --name ${FREERASP_HASHES_ENV} --value <Play App Signing SHA-256>`,
+        `    eas secret:create --scope project --name ${APPLE_TEAM_ENV} --value <TEAMID>   (iOS)`,
         "",
         "  Or, if federated sign-in is intentionally not provisioned yet, build with",
         "  FURLPAY_ALLOW_NO_GOOGLE=1 (the Google/Apple buttons hide themselves).",
@@ -223,15 +331,30 @@ module.exports = ({ config }) => {
   // at a laptop (`http://192.168.1.5:3000/api`) is a real workflow. But a
   // RELEASE may not do that: shipping a store build aimed at anything other
   // than the production backend is the failure this whole block exists for.
-  const override = process.env.EXPO_PUBLIC_API_BASE;
-  if (release && override && override !== API_BASE_BY_ENV.prod) {
+  // A release must ALSO resolve to the prod environment. build-android.sh used
+  // to set FURLPAY_RELEASE_BUILD=1 without FURLPAY_ENV, so buildEnv() fell
+  // through to "dev" and the signed AAB was built against the dev backend, a
+  // ".dev" applicationId and the dev display name. Refuse rather than guess.
+  if (release && env !== "prod") {
+    throw new Error(
+      `\n  Release build resolved environment "${env}", not "prod". Set ` +
+        `FURLPAY_ENV=prod (eas.json production profile and build-android.sh do).\n`
+    );
+  }
+  // Computed key on purpose: babel-preset-expo inlines a literal
+  // `process.env.EXPO_PUBLIC_*` read at transform time, which froze this
+  // override to whatever value existed when the file was first transformed (seen
+  // under Jest). The release guard must read the value of THIS build.
+  const override = process.env[API_BASE_ENV_KEY];
+  if (release && override && override !== PRODUCTION_API_BASE) {
     throw new Error(
       `\n  Release build has EXPO_PUBLIC_API_BASE=${override}, which is not the ` +
-        `production backend (${API_BASE_BY_ENV.prod}).\n  Unset it, or build a ` +
+        `production backend (${PRODUCTION_API_BASE}).\n  Unset it, or build a ` +
         `preview/development profile instead.\n`
     );
   }
   const apiBase = override || API_BASE_BY_ENV[env];
+  if (release) assertReleaseApiBase(apiBase);
 
   // lib/api.ts reads process.env.EXPO_PUBLIC_API_BASE, which Expo inlines at
   // bundle time from whatever is set when the bundler runs. Setting it here
@@ -253,6 +376,18 @@ module.exports = ({ config }) => {
   config.ios = {
     ...config.ios,
     bundleIdentifier: `${config.ios?.bundleIdentifier ?? "com.furlpay.app"}${suffix}`,
+  };
+
+  // Read by lib/security/tamperDetection.ts. The identity is the RESOLVED one
+  // (suffix included), so a staging build is checked against what it actually
+  // is. isProd only for a release: freeRASP's dev mode relaxes the checks that
+  // a debugger or a dev-client build would otherwise trip on every launch.
+  config.extra.freerasp = {
+    packageName: config.android.package,
+    appBundleId: config.ios.bundleIdentifier,
+    certificateHashes: rasp.hashes,
+    appTeamId: teamId,
+    isProd: release && env === "prod",
   };
 
   // APNs environment. expo-notifications writes `aps-environment` from its
@@ -281,3 +416,7 @@ module.exports = ({ config }) => {
 
   return config;
 };
+
+// Exposed for lib/__tests__/releaseConfig.test.ts.
+module.exports.PRODUCTION_API_BASE = PRODUCTION_API_BASE;
+module.exports.assertReleaseApiBase = assertReleaseApiBase;

@@ -100,6 +100,16 @@ export const PRIVILEGES = [
     })),
   ]),
   { what: "service_role can SELECT analytics_events", sql: "select has_table_privilege('service_role', 'public.analytics_events', 'SELECT') v", expect: true },
+  // 0031 (SEC-P2-005): PostgREST publishes every function anon/authenticated
+  // can execute at /rest/v1/rpc/<name>. Extension-owned functions excluded.
+  ...["anon", "authenticated"].map((role) => ({
+    what: `${role} can EXECUTE no public function (0031)`,
+    sql: `select count(*)::int v from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = 'public'
+             and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+             and has_function_privilege('${role}', p.oid, 'EXECUTE')`,
+    expect: 0,
+  })),
 ];
 
 async function privilegeChecks(c) {

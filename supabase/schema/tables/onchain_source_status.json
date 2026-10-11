@@ -1,0 +1,55 @@
+{
+  "name": "onchain_source_status",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0032_onchain_ingestion.sql",
+    "line": 186,
+    "sha256": "0ce76f2a28f9d0ff611cd7d02b5c76d76d4cade0c3a78db49cc9994cb7878aca"
+  },
+  "definition": "create table if not exists onchain_source_status (\n  source         text primary key check (source ~ '^[a-z0-9_:.-]{2,64}$'),\n  last_success_at timestamptz,\n  last_error_at  timestamptz,\n  last_error     text,\n  last_data_at   timestamptz,\n  updated_at     timestamptz not null default now()\n);",
+  "dependencies": [],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 186,
+      "sha256": "0ce76f2a28f9d0ff611cd7d02b5c76d76d4cade0c3a78db49cc9994cb7878aca",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 442,
+      "sha256": "14030f460959df679078fd98870be8aea126585de4d62c8710efea050eee21a3",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 554,
+      "sha256": "41f1fa5b15984e93f617edb03102f33f22b43321d12a616fd8d63d6a15585505",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 590,
+      "sha256": "9152230cf211ffeabca1a8e1edbea67bddbc1ade9bafbf334f85a886e32f58fb",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0032_onchain_ingestion.sql",
+      "line": 593,
+      "sha256": "77a76e23c58d3878b9dd044bee3d715982a4b60c74ef1602634c1534c5c685e6",
+      "kind": "procedural"
+    }
+  ],
+  "applicationReferences": [],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0032_onchain_ingestion.sql",
+        "line": 590,
+        "sha256": "9152230cf211ffeabca1a8e1edbea67bddbc1ade9bafbf334f85a886e32f58fb"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

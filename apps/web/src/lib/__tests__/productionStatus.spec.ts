@@ -55,13 +55,21 @@ describe("production status registry", () => {
       "cards",
       "mobile",
       "desktop",
+      "merchant-payments",
+      "payroll",
+      "settlement-workspace",
+      "circle-wallets",
+      "ramps",
+      "telegram-mini-app",
     ]) {
       expect(isLive(id), `${id} must not be advertised as live`).toBe(false);
     }
   });
 
   it("keeps the genuinely live surface live", () => {
-    for (const id of ["web", "passkeys", "developer-platform", "x402-challenge", "payment-apis"]) {
+    // x402-challenge is deliberately absent: production answered 503
+    // controls_unavailable on 11 Oct 2026, and the registry records that.
+    for (const id of ["web", "passkeys", "developer-platform", "payment-apis"]) {
       expect(isLive(id), `${id} should be live`).toBe(true);
     }
   });

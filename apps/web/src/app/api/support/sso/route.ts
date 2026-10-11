@@ -3,6 +3,7 @@ import { createHmac, randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
+import { resolveSameOrigin } from "@/lib/safeRedirect";
 
 // GET /api/support/sso[?return_to=/hc/...] — Zendesk JWT SSO handoff.
 //
@@ -64,13 +65,12 @@ export async function GET(req: NextRequest) {
   }
   const user = auth.account.user;
 
-  // return_to must be a PATH on the Zendesk host — anything absolute is an
-  // open-redirect vector and is dropped.
-  const rawReturn = req.nextUrl.searchParams.get("return_to") ?? "";
-  const returnTo =
-    rawReturn.startsWith("/") && !rawReturn.startsWith("//")
-      ? `https://${subdomain}.zendesk.com${rawReturn}`
-      : "";
+  // return_to must be a PATH on the Zendesk host — anything else is an
+  // open-redirect vector and is dropped (lib/safeRedirect resolves it against
+  // the Zendesk origin and refuses control characters, backslashes and "//").
+  const zendeskOrigin = `https://${subdomain}.zendesk.com`;
+  const resolvedReturn = resolveSameOrigin(req.nextUrl.searchParams.get("return_to"), zendeskOrigin);
+  const returnTo = resolvedReturn ? resolvedReturn.href : "";
 
   const jwt = signZendeskJwt({ id: user.id, name: user.name, email: user.email }, secret);
 

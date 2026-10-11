@@ -1,5 +1,16 @@
 import { log } from "@/lib/log";
-import { CITY_COORDS, Flight, Stay, StayType, CarRental, CarCategory, carModelPhoto, nights as nightsBetween } from "./data";
+import {
+  CITY_COORDS,
+  Flight,
+  FlightLeg,
+  FlightSegment,
+  Stay,
+  StayType,
+  CarRental,
+  CarCategory,
+  carModelPhoto,
+  nights as nightsBetween,
+} from "./data";
 
 // Live flight search via Duffel (mid-2026 the one self-serve top-tier supplier:
 // Amadeus Self-Service sunsets 2026-07-17, Kiwi Tequila is closed to new
@@ -103,71 +114,195 @@ function duffelKey(): string | null {
   return key;
 }
 
+// ── Flights ──────────────────────────────────────────────────────────────────
+
+export interface FlightSearchRequest {
+  from: string;
+  to: string;
+  departDate: string;
+  /** Present → a return trip (two slices). */
+  returnDate?: string;
+  adults?: number;
+  /** Duffel requires an age for every passenger under 18. */
+  childAges?: number[];
+  cabin?: Flight["cabin"];
+  /** Duffel `max_connections` per slice: 0 = nonstop only. Default 1. */
+  maxConnections?: 0 | 1 | 2;
+}
+
+function legOf(slice: any): FlightLeg {
+  const segs: any[] = Array.isArray(slice?.segments) ? slice.segments : [];
+  const segments: FlightSegment[] = segs.map((s) => ({
+    carrier: String(s?.marketing_carrier?.name ?? s?.operating_carrier?.name ?? "Airline"),
+    carrierCode: String(s?.marketing_carrier?.iata_code ?? ""),
+    flightNumber: `${s?.marketing_carrier?.iata_code ?? ""}${s?.marketing_carrier_flight_number ?? ""}`,
+    from: String(s?.origin?.iata_code ?? ""),
+    to: String(s?.destination?.iata_code ?? ""),
+    departAt: String(s?.departing_at ?? ""),
+    arriveAt: String(s?.arriving_at ?? ""),
+    durationMin: iso8601Minutes(s?.duration) || minutesBetween(s?.departing_at, s?.arriving_at),
+    aircraft: s?.aircraft?.name || undefined,
+    operatedBy:
+      s?.operating_carrier?.name && s?.operating_carrier?.name !== s?.marketing_carrier?.name ? String(s.operating_carrier.name) : undefined,
+  }));
+  // Connection time = next departure − this arrival. Both are LOCAL times at
+  // the SAME airport, so the subtraction is valid (unlike across timezones).
+  const layovers = segments.slice(0, -1).map((s, i) => ({ airport: s.to, minutes: minutesBetween(s.arriveAt, segments[i + 1].departAt) }));
+  const first = segments[0];
+  const last = segments[segments.length - 1];
+  return {
+    from: first?.from ?? String(slice?.origin?.iata_code ?? ""),
+    to: last?.to ?? String(slice?.destination?.iata_code ?? ""),
+    departAt: first?.departAt ?? "",
+    arriveAt: last?.arriveAt ?? "",
+    durationMin:
+      iso8601Minutes(slice?.duration) || segments.reduce((n, s) => n + s.durationMin, 0) + layovers.reduce((n, l) => n + l.minutes, 0),
+    stops: Math.max(0, segments.length - 1),
+    segments,
+    layovers,
+  };
+}
+
+/** Bags the airline states for the FIRST passenger on the first segment.
+ *  undefined when the offer says nothing — never a guess. */
+function bagsOf(o: any): Flight["bags"] {
+  const list: any[] = o?.slices?.[0]?.segments?.[0]?.passengers?.[0]?.baggages;
+  if (!Array.isArray(list)) return undefined;
+  const sum = (t: string) => list.filter((b) => b?.type === t).reduce((n, b) => n + (Number(b?.quantity) || 0), 0);
+  return { checked: sum("checked"), carryOn: sum("carry_on") };
+}
+
+function bagsLabel(b: Flight["bags"]): string {
+  if (!b) return "Bags not stated by airline";
+  const parts = [];
+  if (b.carryOn) parts.push(`${b.carryOn} carry-on`);
+  if (b.checked) parts.push(`${b.checked} checked`);
+  return parts.length ? parts.join(" + ") : "No bags included";
+}
+
+function allowed(cond: any): boolean | undefined {
+  return typeof cond?.allowed === "boolean" ? cond.allowed : undefined;
+}
+
+/** Map one Duffel offer onto Flight. Pure; exported for tests. */
+export function mapDuffelOffer(o: any, cabin: Flight["cabin"] = "Economy"): Flight | null {
+  const legs = (Array.isArray(o?.slices) ? o.slices : []).map(legOf).filter((l: FlightLeg) => l.segments.length);
+  const amount = Number(o?.total_amount);
+  if (!o?.id || !legs.length || !Number.isFinite(amount) || amount <= 0) return null;
+  const out = legs[0];
+  const bags = bagsOf(o);
+  return {
+    id: String(o.id),
+    carrier: String(o?.owner?.name ?? out.segments[0].carrier),
+    carrierCode: String(o?.owner?.iata_code ?? out.segments[0].carrierCode),
+    from: out.from,
+    to: out.to,
+    date: out.departAt.slice(0, 10),
+    departTime: hhmm(out.departAt),
+    arriveTime: hhmm(out.arriveAt),
+    // Whole trip: both legs on a return.
+    durationMin: legs.reduce((n: number, l: FlightLeg) => n + l.durationMin, 0),
+    stops: Math.max(...legs.map((l: FlightLeg) => l.stops)),
+    cabin,
+    logoUrl: o?.owner?.logo_symbol_url ?? undefined,
+    priceUsd: Math.round(amount * 100) / 100,
+    currency: typeof o?.total_currency === "string" ? o.total_currency : undefined,
+    baggage: bagsLabel(bags),
+    bags,
+    refundable: allowed(o?.conditions?.refund_before_departure),
+    changeable: allowed(o?.conditions?.change_before_departure),
+    expiresAt: typeof o?.expires_at === "string" ? o.expires_at : undefined,
+    legs,
+  };
+}
+
+/** Why a flight search produced no offers — the UI says different things for
+ *  "nothing to search with", "airlines had nothing" and "the supplier failed". */
+export type FlightSearchOutcome =
+  | { ok: true; offers: Flight[]; skipped: number }
+  | { ok: false; reason: "no_provider" | "supplier_error" | "timeout" };
+
+/** Our own deadline for the whole offer request. Duffel's supplier_timeout
+ *  (15 s) bounds each airline; this bounds Duffel itself. */
+const FLIGHT_SEARCH_DEADLINE_MS = 25_000;
+
+/**
+ * Offer request with every offer returned (no price-sort-and-truncate: the
+ * caller ranks the full set). Return trips are two slices; children are
+ * passengers with an age, as Duffel requires.
+ */
+export async function runDuffelFlightSearch(req: FlightSearchRequest): Promise<FlightSearchOutcome> {
+  const apiKey = duffelKey();
+  if (!apiKey) return { ok: false, reason: "no_provider" };
+  if (!req.from || !req.to || !req.departDate) return { ok: true, offers: [], skipped: 0 };
+  const cabin = req.cabin ?? "Economy";
+  const from = req.from.toUpperCase();
+  const to = req.to.toUpperCase();
+  const slices = [{ origin: from, destination: to, departure_date: req.departDate }];
+  if (req.returnDate) slices.push({ origin: to, destination: from, departure_date: req.returnDate });
+  const passengers = [
+    ...Array.from({ length: Math.max(1, Math.min(req.adults ?? 1, 9)) }, () => ({ type: "adult" as const })),
+    ...(req.childAges ?? []).slice(0, 8).map((age) => ({ age: Math.max(0, Math.min(17, Math.round(age))) })),
+  ];
+  try {
+    // supplier_timeout: Duffel's documented range is 2-60 s (default 20 s).
+    // 15 s keeps a slow airline from holding the whole page.
+    const res = await fetch(`${BASE}/air/offer_requests?return_offers=true&supplier_timeout=15000`, {
+      method: "POST",
+      headers: DUFFEL_HEADERS(apiKey),
+      body: JSON.stringify({
+        data: {
+          slices,
+          passengers,
+          cabin_class: CABIN_MAP[cabin] ?? "economy",
+          max_connections: req.maxConnections ?? 1,
+        },
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(FLIGHT_SEARCH_DEADLINE_MS),
+    });
+    if (!res.ok) {
+      log.warn("duffel.flights.http", { status: res.status });
+      return { ok: false, reason: "supplier_error" };
+    }
+    const json: any = await res.json();
+    const offers: unknown[] = Array.isArray(json?.data?.offers) ? json.data.offers : [];
+    // One malformed offer must not take down the rest: map each in
+    // isolation, skip what cannot be priced or placed, and count it.
+    const mapped: Flight[] = [];
+    let skipped = 0;
+    for (const o of offers) {
+      try {
+        const f = mapDuffelOffer(o, cabin);
+        if (f) mapped.push(f);
+        else skipped++;
+      } catch {
+        skipped++;
+      }
+    }
+    if (skipped) log.warn("duffel.flights.skipped_offers", { skipped, total: offers.length });
+    return { ok: true, offers: mapped, skipped };
+  } catch (e) {
+    const timedOut = (e as Error)?.name === "TimeoutError" || (e as Error)?.name === "AbortError";
+    log.warn("duffel.flights.failed", { reason: timedOut ? "timeout" : "network", error: (e as Error).message });
+    return { ok: false, reason: timedOut ? "timeout" : "supplier_error" };
+  }
+}
+
+/** Offers, or null for any non-result — the shape older callers expect. */
+export async function searchDuffelFlightOffers(req: FlightSearchRequest): Promise<Flight[] | null> {
+  const r = await runDuffelFlightSearch(req);
+  return r.ok && r.offers.length ? r.offers : null;
+}
+
+/** One-way, one adult — the original signature, kept for existing callers. */
 export async function searchDuffelFlights(
   from: string,
   to: string,
   date: string,
   cabin: Flight["cabin"] = "Economy",
 ): Promise<Flight[] | null> {
-  const apiKey = duffelKey();
-  if (!apiKey || !from || !to || !date) return null;
-  try {
-    const res = await fetch(`${BASE}/air/offer_requests?return_offers=true`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Duffel-Version": "v2",
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        data: {
-          slices: [{ origin: from.toUpperCase(), destination: to.toUpperCase(), departure_date: date }],
-          passengers: [{ type: "adult" }],
-          cabin_class: CABIN_MAP[cabin] ?? "economy",
-        },
-      }),
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const json: any = await res.json();
-    const offers: any[] = json?.data?.offers ?? [];
-    if (!offers.length) return null;
-    return offers
-      .map((o): Flight => {
-        const slice = o?.slices?.[0] ?? {};
-        const segments: any[] = slice.segments ?? [];
-        const first = segments[0] ?? {};
-        const last = segments[segments.length - 1] ?? {};
-        const stops = Math.max(0, segments.length - 1);
-        const durationMin =
-          iso8601Minutes(slice.duration) ||
-          segments.reduce((sum, s) => sum + iso8601Minutes(s?.duration), 0) ||
-          minutesBetween(first.departing_at, last.arriving_at);
-        return {
-          id: String(o.id ?? ""),
-          carrier: String(o.owner?.name ?? "Airline"),
-          carrierCode: String(o.owner?.iata_code ?? "XX"),
-          from: from.toUpperCase().slice(0, 3),
-          to: to.toUpperCase().slice(0, 3),
-          date: String(first.departing_at ?? date).slice(0, 10),
-          departTime: hhmm(first.departing_at),
-          arriveTime: hhmm(last.arriving_at),
-          durationMin,
-          stops,
-          cabin,
-          logoUrl: o.owner?.logo_symbol_url ?? undefined,
-          // Duffel prices in the offer currency; test mode may not be USD —
-          // we surface the numeric amount as-is (display layer owns FX).
-          priceUsd: Math.round(Number(o.total_amount ?? 0) * 100) / 100,
-          baggage: stops === 0 ? "1 carry-on + 1 checked" : "1 carry-on",
-        };
-      })
-      .sort((a, b) => a.priceUsd - b.priceUsd)
-      .slice(0, 10);
-  } catch {
-    return null;
-  }
+  return searchDuffelFlightOffers({ from, to, departDate: date, cabin });
 }
 
 // ── Duffel Stays: live hotels with real property photos ─────────────────────

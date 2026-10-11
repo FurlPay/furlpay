@@ -1,0 +1,72 @@
+{
+  "name": "holdings",
+  "schema": "public",
+  "definedIn": {
+    "file": "supabase/migrations/0001_init.sql",
+    "line": 68,
+    "sha256": "31bd3eda5803b6e002464ca772e652c6c530b34c93effe0bc37f63d6a1708fe9"
+  },
+  "definition": "create table holdings (\n  user_id      uuid not null references users (id) on delete cascade,\n  symbol       text not null,\n  name         text not null,\n  shares       numeric(20, 8) not null default 0,\n  price        numeric(20, 2) not null default 0,\n  change_pct   numeric(8, 4)  not null default 0,\n  market_value numeric(20, 2) not null default 0,\n  cost_basis   numeric(20, 2) not null default 0,\n  primary key (user_id, symbol)\n);",
+  "dependencies": [
+    "users"
+  ],
+  "schemaStatements": [
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 68,
+      "sha256": "31bd3eda5803b6e002464ca772e652c6c530b34c93effe0bc37f63d6a1708fe9",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0001_init.sql",
+      "line": 147,
+      "sha256": "210a1356bc753f580d2261fcf057a7ea12f7a9c4e2024ca22b56b819a83a23f8",
+      "kind": "alter table"
+    },
+    {
+      "file": "supabase/migrations/0004_save_account_atomic.sql",
+      "line": 21,
+      "sha256": "b40f28114d85d155f907131ca35b8a9e5e7006e69ba1a40b6375c3c9edbb2475",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0006_corporate_actions.sql",
+      "line": 68,
+      "sha256": "31985ce2e5b4fcb6bf1ac3ac8ab03275fe6ef97b0f4a784c30c8a67bd907810a",
+      "kind": "create table"
+    },
+    {
+      "file": "supabase/migrations/0010_contacts.sql",
+      "line": 77,
+      "sha256": "ad7fb05ac04bb22512734fa6a7a12228fa85ffa89531c917d5b2be8483a0a888",
+      "kind": "function"
+    },
+    {
+      "file": "supabase/migrations/0025_financial_effects.sql",
+      "line": 190,
+      "sha256": "c5ff1778c1903bd01c62c07b8aeb0f68837880815d9a0839eabef45d54f298da",
+      "kind": "function"
+    }
+  ],
+  "applicationReferences": [
+    {
+      "file": "apps/web/src/lib/onchain/dashboard.ts",
+      "line": 94
+    },
+    {
+      "file": "apps/web/src/lib/storeDb.ts",
+      "line": 872
+    }
+  ],
+  "rls": {
+    "enable": [
+      {
+        "file": "supabase/migrations/0001_init.sql",
+        "line": 147,
+        "sha256": "210a1356bc753f580d2261fcf057a7ea12f7a9c4e2024ca22b56b819a83a23f8"
+      }
+    ],
+    "disable": [],
+    "policies": []
+  }
+}

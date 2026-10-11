@@ -383,6 +383,14 @@ export async function settle(request: AnyFacilitatorRequest, settler?: Settler):
 
   const nonce = req.paymentPayload.payload.authorization.nonce;
   const amountAtomic = req.paymentPayload.payload.authorization.value;
+  const authorization = req.paymentPayload.payload.authorization;
+  const expectedTransfer = {
+    token: req.paymentRequirements.asset,
+    from: authorization.from,
+    to: authorization.to,
+    valueAtomic: amountAtomic,
+    nonce: authorization.nonce,
+  };
   const required = requiredConfirmations(amountAtomic);
 
   // Atomic claim across all instances — a replayed nonce loses the SET NX and
@@ -444,6 +452,7 @@ export async function settle(request: AnyFacilitatorRequest, settler?: Settler):
       payer: v.payer!,
       payTo: req.paymentRequirements.payTo,
       amountAtomic,
+      expectedTransfer,
       resource: req.paymentRequirements.resource,
       settledAt: new Date().toISOString(),
       status: "confirmed",
@@ -467,6 +476,7 @@ export async function settle(request: AnyFacilitatorRequest, settler?: Settler):
         payer: v.payer!,
         payTo: req.paymentRequirements.payTo,
         amountAtomic,
+        expectedTransfer,
         resource: req.paymentRequirements.resource,
         settledAt: new Date().toISOString(),
         status: "pending",

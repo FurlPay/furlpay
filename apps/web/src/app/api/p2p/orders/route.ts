@@ -100,5 +100,5 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json({ ok: true, order: orderView(order, userId) }, { status: 201 });
-  }, { principal: userId });
+  }, { principal: userId, request: body });
 }

@@ -38,6 +38,8 @@ const MIGRATIONS = join(__dirname, "..", "..", "..", "..", "..", "..", "supabase
 type Pool = import("pg").Pool;
 let pool: Pool;
 let server: { stop(): Promise<void> };
+let tearingDown = false;
+const unexpectedPoolErrors: (Error & { code?: string })[] = [];
 
 const ORG = "org_concurrency";
 
@@ -114,6 +116,16 @@ beforeAll(async () => {
     // fighting over one advisory lock produces plenty.
     max: 40,
   });
+  // An idle client that loses its connection re-emits the error on the pool;
+  // with no listener that is an unhandled error and the run fails even though
+  // every test passed. Exactly one case is expected: 57P01 ("terminating
+  // connection due to administrator command") while afterAll stops the server
+  // and a client's own shutdown is still in flight. Anything else, or 57P01
+  // outside teardown, is recorded and fails the suite in afterAll.
+  pool.on("error", (e: Error & { code?: string }) => {
+    if (tearingDown && e.code === "57P01") return;
+    unexpectedPoolErrors.push(e);
+  });
 
   const client = await pool.connect();
   try {
@@ -163,8 +175,12 @@ beforeAll(async () => {
 }, 300_000);
 
 afterAll(async () => {
+  tearingDown = true;
   await pool?.end();
   await server?.stop();
+  if (unexpectedPoolErrors.length) {
+    throw new Error(`unexpected pool errors: ${unexpectedPoolErrors.map((e) => `${e.code ?? "?"} ${e.message}`).join("; ")}`);
+  }
 });
 
 const maybe = ENABLED ? describe : describe.skip;

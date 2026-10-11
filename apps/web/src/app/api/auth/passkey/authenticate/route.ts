@@ -14,7 +14,7 @@ import {
   putCeremonyChallenge,
   updateCounter,
 } from "@/lib/webauthn";
-import { SESSION_COOKIE, SESSION_MAX_AGE, signSession } from "@/lib/session";
+import { setSessionCookieForRequest, signSession } from "@/lib/session";
 import { recordStepUp } from "@/lib/stepup";
 import { isMobileClient } from "@/lib/clientKind";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
     verified: true,
     ...(isMobileClient(req) ? { token } : {}),
   });
-  res.cookies.set(SESSION_COOKIE, token, { httpOnly: true, sameSite: "lax", path: "/", maxAge: SESSION_MAX_AGE });
+  setSessionCookieForRequest(req, res, token);
   return res;
 }
 

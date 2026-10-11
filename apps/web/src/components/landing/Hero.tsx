@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
+import OpenInTelegram from "@/components/telegram/OpenInTelegram";
 
 // Six chips, each backed by something that exists: four first-party SDKs in
 // sdks/{node,python,go,rust}, the REST surface documented at
@@ -87,6 +88,7 @@ export default function Hero() {
             View docs
             <span aria-hidden>→</span>
           </Link>
+          <OpenInTelegram />
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-2">
             {STACK.map((item) => (

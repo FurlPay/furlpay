@@ -1,0 +1,180 @@
+import { randomBytes } from "crypto";
+import { sbDelete, sbRpc, sbSelect, sbUpdate, sbUpsert } from "@/lib/supabase";
+import { checkUrl, pinnedFetch } from "@/lib/property/safeFetch";
+import { openSealedWebhookSecret, sealWebhookSecret } from "@/lib/ramp/partnerConfig";
+import { signPartnerPayload } from "@/lib/ramp/partnerWebhooks";
+import { requireStorage } from "./repository";
+import { raiseAlert } from "@/lib/alerts";
+
+// ---------------------------------------------------------------------------
+// Merchant webhooks: delivers the 0040 outbox (payment.succeeded, invoice.paid)
+// to the merchant's HTTPS endpoint (migration 0041).
+//
+//   POST <url>                       Content-Type: application/json
+//   X-FurlPay-Event-Id: <outbox id>  (same on every retry: dedupe on it)
+//   X-FurlPay-Attempt: <n>
+//   X-FurlPay-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, `${t}.${body}`)>
+//
+// Same signature scheme and SSRF posture as partner webhooks
+// (lib/ramp/partnerWebhooks.ts): https only, the host is resolved and checked
+// against private/loopback/metadata ranges and the socket pinned to that
+// address, redirects not followed. At-least-once; 5 attempts at 1 min, 10 min,
+// 1 h, 6 h. The ledger, not the webhook, is the source of truth.
+// ---------------------------------------------------------------------------
+
+export const MAX_ATTEMPTS = 5;
+export const BACKOFF_S = [60, 600, 3_600, 21_600];
+const LEASE_S = 120;
+const aad = (merchantId: string) => `merchant:${merchantId}`;
+
+type Endpoint = { merchant_id: string; url: string; secret_enc: string; secret_last4: string; created_at?: string; updated_at?: string };
+export type OutboxRow = { id: string; merchant_id: string; intent_id: string; type: string; payload: Record<string, unknown>; created_at: string; attempts: number };
+
+/** A public view of the endpoint: never the secret. */
+export async function getEndpoint(merchantId: string) {
+  requireStorage();
+  const [row] = await sbSelect<Endpoint>("merchant_webhook_endpoints", `merchant_id=eq.${encodeURIComponent(merchantId)}&limit=1`);
+  return row ? { url: row.url, secretLast4: row.secret_last4, updatedAt: row.updated_at ?? null } : null;
+}
+
+/** Creates or replaces the endpoint and rotates the secret. The plaintext secret is returned ONCE. */
+export async function setEndpoint(merchantId: string, url: string): Promise<{ url: string; secret: string; secretLast4: string } | { refused: string }> {
+  requireStorage();
+  const parsed = new URL(url);
+  if (parsed.protocol !== "https:") return { refused: "Webhook URLs must use https." };
+  const check = await checkUrl(url);
+  if (!check.ok) return { refused: "That URL resolves to an address FurlPay will not call (private, local or unresolvable)." };
+  const secret = `whsec_${randomBytes(24).toString("base64url")}`;
+  await sbUpsert<Endpoint>("merchant_webhook_endpoints", {
+    merchant_id: merchantId,
+    url: parsed.toString(),
+    secret_enc: sealWebhookSecret(secret, aad(merchantId)),
+    secret_last4: secret.slice(-4),
+    updated_at: new Date().toISOString(),
+  });
+  return { url: parsed.toString(), secret, secretLast4: secret.slice(-4) };
+}
+
+export async function deleteEndpoint(merchantId: string) {
+  requireStorage();
+  await sbDelete("merchant_webhook_endpoints", `merchant_id=eq.${encodeURIComponent(merchantId)}`);
+}
+
+/** The merchant's own recent events and their delivery state (never another merchant's). */
+export async function recentDeliveries(merchantId: string) {
+  requireStorage();
+  const rows = await sbSelect<{ id: string; type: string; created_at: string; attempts: number; delivered_at: string | null; last_error: string | null; next_attempt_at: string }>(
+    "merchant_payment_outbox",
+    `merchant_id=eq.${encodeURIComponent(merchantId)}&select=id,type,created_at,attempts,delivered_at,last_error,next_attempt_at&order=created_at.desc&limit=20`
+  );
+  return rows.map((r) => ({ ...r, state: r.delivered_at ? "delivered" : r.attempts >= MAX_ATTEMPTS ? "failed" : r.attempts > 0 ? "retrying" : "pending" }));
+}
+
+/** Re-queue one exhausted, undelivered event of THIS merchant for a fresh round of attempts. */
+export async function redeliver(merchantId: string, eventId: string): Promise<boolean> {
+  requireStorage();
+  const rows = await sbUpdate<{ id: string; attempts: number; next_attempt_at: string; last_error: string | null }>(
+    "merchant_payment_outbox",
+    `id=eq.${encodeURIComponent(eventId)}&merchant_id=eq.${encodeURIComponent(merchantId)}&delivered_at=is.null&attempts=gte.${MAX_ATTEMPTS}`,
+    { attempts: 0, next_attempt_at: new Date().toISOString(), last_error: null }
+  );
+  return rows.length === 1;
+}
+
+/** Send one signed `webhook.test` event now, through exactly the production path (signature,
+ *  SSRF checks, pinned socket, timeout). Nothing is queued or recorded, and the payload says
+ *  `test: true` with no payment data, so a receiver can never mistake it for money. */
+export async function sendTestEvent(merchantId: string, transport: typeof pinnedFetch = pinnedFetch, now = () => Date.now()) {
+  requireStorage();
+  const id = crypto.randomUUID();
+  const out = await deliverOne({ id, merchant_id: merchantId, intent_id: "", type: "webhook.test", payload: { test: true, message: "FurlPay webhook test. No payment occurred." }, created_at: new Date(now()).toISOString(), attempts: 1 }, transport, now);
+  return { id, ...out };
+}
+
+export type Delivery = { id: string; delivered: boolean; reason?: string };
+
+/** One delivery pass over due outbox events. Safe to run concurrently (claims use SKIP LOCKED + a lease). */
+/**
+ * Operator alerts for delivery (P5). A merchant sees its own failed events; FurlPay
+ * did not. Two signals, both read-only:
+ *   exhausted  events that used every attempt in the last day, per merchant —
+ *              except `no_endpoint` (a merchant who never configured webhooks)
+ *   stalled    an event due more than 15 minutes ago that nobody claimed: the
+ *              dispatcher cron is not running, so EVERY merchant is affected
+ */
+export async function alertWebhookHealth(now = Date.now()) {
+  const day = new Date(now - 86_400_000).toISOString(), late = new Date(now - 15 * 60_000).toISOString();
+  const exhausted = await sbSelect<{ merchant_id: string; last_error: string | null }>("merchant_payment_outbox",
+    `delivered_at=is.null&attempts=gte.${MAX_ATTEMPTS}&last_error=neq.no_endpoint&created_at=gte.${encodeURIComponent(day)}&select=merchant_id,last_error&limit=500`);
+  const byMerchant = new Map<string, { n: number; reasons: Set<string> }>();
+  for (const r of exhausted) {
+    const m = byMerchant.get(r.merchant_id) ?? { n: 0, reasons: new Set<string>() };
+    m.n++; if (r.last_error) m.reasons.add(r.last_error); byMerchant.set(r.merchant_id, m);
+  }
+  for (const [merchant, m] of byMerchant) {
+    await raiseAlert({ kind: "merchant.webhook_exhausted", severity: "high", title: "Merchant webhooks undeliverable",
+      detail: `${m.n} event(s) used all ${MAX_ATTEMPTS} attempts in the last 24h (${[...m.reasons].slice(0, 3).join(", ")}). The merchant can re-send them from the dashboard.`,
+      dimensions: { merchant }, context: { events: m.n } });
+  }
+  const stalled = await sbSelect<{ id: string; next_attempt_at: string }>("merchant_payment_outbox",
+    `delivered_at=is.null&attempts=lt.${MAX_ATTEMPTS}&next_attempt_at=lt.${encodeURIComponent(late)}&select=id,next_attempt_at&order=next_attempt_at.asc&limit=1`);
+  if (stalled[0]) {
+    await raiseAlert({ kind: "merchant.webhook_dispatcher_stalled", severity: "critical", title: "Webhook dispatcher is not draining the outbox",
+      detail: `An event has been due since ${stalled[0].next_attempt_at} and was never claimed. Check the merchant-payments cron (it runs deliverDue every 2 minutes).`, dimensions: { scope: "outbox" } });
+  }
+  return { exhaustedMerchants: byMerchant.size, exhaustedEvents: exhausted.length, stalled: Boolean(stalled[0]) };
+}
+
+export async function deliverDue(limit = 20, transport: typeof pinnedFetch = pinnedFetch, now = () => Date.now()): Promise<Delivery[]> {
+  requireStorage();
+  const rows = await sbRpc<OutboxRow[]>("merchant_outbox_claim", { p_limit: limit, p_lease_seconds: LEASE_S, p_max_attempts: MAX_ATTEMPTS });
+  const out: Delivery[] = [];
+  for (const row of rows ?? []) {
+    const result = await deliverOne(row, transport, now);
+    out.push({ id: row.id, ...result });
+    if (result.delivered) {
+      await sbUpdate("merchant_payment_outbox", `id=eq.${row.id}&delivered_at=is.null`, { delivered_at: new Date(now()).toISOString(), last_error: null });
+    } else {
+      // attempts was already incremented by the claim.
+      const wait = BACKOFF_S[Math.min(row.attempts - 1, BACKOFF_S.length - 1)];
+      await sbUpdate("merchant_payment_outbox", `id=eq.${row.id}&delivered_at=is.null`, { last_error: result.reason ?? "failed", next_attempt_at: new Date(now() + wait * 1000).toISOString() });
+    }
+  }
+  return out;
+}
+
+export async function deliverOne(row: OutboxRow, transport: typeof pinnedFetch, now: () => number): Promise<{ delivered: boolean; reason?: string }> {
+  const [endpoint] = await sbSelect<Endpoint>("merchant_webhook_endpoints", `merchant_id=eq.${encodeURIComponent(row.merchant_id)}&limit=1`);
+  if (!endpoint) return { delivered: false, reason: "no_endpoint" };
+  let secret: string | null;
+  try {
+    secret = openSealedWebhookSecret(endpoint.secret_enc, aad(row.merchant_id));
+  } catch {
+    return { delivered: false, reason: "secret_unreadable" };
+  }
+  if (!secret) return { delivered: false, reason: "secret_unreadable" };
+  const url = new URL(endpoint.url);
+  if (url.protocol !== "https:") return { delivered: false, reason: "https_required" };
+  const check = await checkUrl(endpoint.url);
+  if (!check.ok || !check.address) return { delivered: false, reason: check.reason ?? "url_refused" };
+  const body = JSON.stringify({ id: row.id, type: row.type, created: row.created_at, data: row.payload });
+  try {
+    const res = await transport(url, check.address, {
+      method: "POST",
+      body,
+      timeoutMs: 5_000,
+      headers: {
+        "content-type": "application/json",
+        "content-length": String(Buffer.byteLength(body)),
+        "user-agent": "FurlPay-Webhooks/1",
+        "x-furlpay-event-id": row.id,
+        "x-furlpay-attempt": String(row.attempts),
+        "x-furlpay-signature": signPartnerPayload(secret, body, Math.floor(now() / 1000)),
+      },
+    });
+    await res.body?.cancel().catch(() => {});
+    return res.status >= 200 && res.status < 300 ? { delivered: true } : { delivered: false, reason: `http_${res.status}` };
+  } catch (e) {
+    return { delivered: false, reason: (e as Error).name === "TimeoutError" ? "timeout" : "transport_error" };
+  }
+}

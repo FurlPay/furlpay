@@ -3,6 +3,9 @@
 import { useState } from "react";
 import { Globe, ShieldCheck, ShieldAlert, ShieldQuestion, FileWarning, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { SUPPORTED_COUNTRIES, type EntryRequirement, type VisaStatus } from "@/lib/travel/entryRequirements";
+import Select from "@/components/form/Select";
+
+const COUNTRY_OPTIONS = SUPPORTED_COUNTRIES.map((c) => ({ value: c.iso, label: c.name }));
 
 // Client widget for the Visa & Immigration Center and the checkout panel. Posts
 // to /api/travel/entry-requirements and renders the assessment. The data is
@@ -93,32 +96,14 @@ export default function EntryRequirementsCheck({
       </div>
 
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <label className="text-xs font-semibold text-textSecondary">
-          Your nationality
-          <select
-            value={nationality}
-            onChange={(e) => setNationality(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white focus:border-neon focus:outline-none"
-          >
-            <option value="">Select…</option>
-            {SUPPORTED_COUNTRIES.map((c) => (
-              <option key={c.iso} value={c.iso}>{c.name}</option>
-            ))}
-          </select>
-        </label>
-        <label className="text-xs font-semibold text-textSecondary">
-          Destination
-          <select
-            value={destination}
-            onChange={(e) => setDestination(e.target.value)}
-            className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-3 py-2.5 text-sm text-white focus:border-neon focus:outline-none"
-          >
-            <option value="">Select…</option>
-            {SUPPORTED_COUNTRIES.map((c) => (
-              <option key={c.iso} value={c.iso}>{c.name}</option>
-            ))}
-          </select>
-        </label>
+        <div className="text-xs font-semibold text-textSecondary">
+          <span id="entry-nationality">Your nationality</span>
+          <Select labelId="entry-nationality" size="md" value={nationality} onValueChange={setNationality} options={COUNTRY_OPTIONS} placeholder="Select a country" className="mt-1" />
+        </div>
+        <div className="text-xs font-semibold text-textSecondary">
+          <span id="entry-destination">Destination</span>
+          <Select labelId="entry-destination" size="md" value={destination} onValueChange={setDestination} options={COUNTRY_OPTIONS} placeholder="Select a country" className="mt-1" />
+        </div>
         <label className="text-xs font-semibold text-textSecondary">
           Passport expiry <span className="font-normal">(optional)</span>
           <input

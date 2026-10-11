@@ -155,6 +155,15 @@ describe("buildFeatures", () => {
     expect(built.points.features[0].properties.approx).toBe(1);
   });
 
+  it("carries a price label only for hotels that hold one, never for clusters", () => {
+    const p = point();
+    const built = buildFeatures([cluster()], [p], stubMap(), null, new Map([[p.id, "$142"]]));
+    const byKind = Object.fromEntries(built.points.features.map((f) => [f.properties.kind, f.properties.price]));
+    expect(byKind.property).toBe("$142");
+    expect(byKind.cluster).toBe("");
+    expect(buildFeatures([], [p], stubMap()).points.features[0].properties.price).toBe("");
+  });
+
   it("handles an empty viewport without throwing", () => {
     const built = buildFeatures([], [], stubMap());
     expect(built.points.features).toEqual([]);
