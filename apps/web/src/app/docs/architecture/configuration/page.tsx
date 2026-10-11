@@ -159,6 +159,7 @@ export default function ConfigurationPage() {
           { name: "/api/cron/onchain-reconcile", type: "daily, scheduled", required: false, desc: "Reconciles on-chain ingestion." },
           { name: "/api/cron/merchant-payments", type: "every 2 minutes, scheduled", required: false, desc: "Rescans open checkouts and delivers merchant webhooks." },
           { name: "/api/cron/merchant-reconcile", type: "every 10 minutes, scheduled", required: false, desc: "Merchant and payroll reconciliation; raises alerts only." },
+          { name: "/api/cron/payroll-schedules", type: "daily, scheduled", required: false, desc: "Prepares the draft batch for each recurring payroll schedule that is due (migration 0051). Never pays: the employer reviews, submits and signs each draft." },
           { name: "/api/cron/onchain-node", type: "not scheduled", required: false, desc: "On-chain node ingestion." },
           { name: "/api/cron/usdc-index", type: "not scheduled", required: false, desc: "USDC index maintenance." },
           { name: "/api/cron/ramp-maintenance", type: "not scheduled", required: false, desc: "Expires stale ramp orders and retries partner callbacks. Needs to run every few minutes." },
