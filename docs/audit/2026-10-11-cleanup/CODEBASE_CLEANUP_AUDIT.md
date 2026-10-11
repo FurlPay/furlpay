@@ -176,6 +176,9 @@ An external review of PR #114 raised four points. Each was acted on.
 | Only two payment routes were tested for cross-account access | Two-account suite through the real service and handlers: own records only by id and content, unauthenticated and under-scoped callers refused, query parameters naming the other account ignored, payment ids checked to be 96 random bits | `b26505d8` |
 | A state-changing GET reachable without a session is fired by mail scanners | GET now only shows a confirmation page; the lock happens on POST from its button; no-store, no-referrer, noindex and a same-origin form CSP; tests for scanner GETs, replay, concurrency, account substitution, extended expiry, expired and tampered tokens, rate limit | `7bcd0cc6` |
 
+| Hard-coded secret fallbacks (found while documenting variables) | `/api/compliance/credential` signed and verified KYC credentials with a literal key whenever `FURLPAY_CREDENTIAL_SECRET` was unset, which it is in production, so credentials could be forged. Production now refuses without a real secret. A repository-wide search found one other literal fallback (Stripe), already guarded in production. | `05eb8e20` |
+| Undocumented variables | 39 of the remaining 42 documented; the other 3 appear only in code samples | `cbc06eec` |
+
 Not adopted: making the lock token single-use. Locking is idempotent and only
 narrows access, so a replay achieves nothing a first use did not, and a
 consumed-token store would be one more dependency that can fail closed
@@ -238,7 +241,7 @@ on one Windows machine. They are not a substitute for CI on the merge commit.
 | Dependencies declared by `apps/web` that nothing imports | 4 | 0 |
 | Packages imported by `apps/web` but undeclared | 5 | 0 |
 | Documented variables read by nothing | 9 | 0 |
-| Read-but-undocumented variables | 58 | 42 |
+| Read-but-undocumented variables | 58 | 3 (code samples only) |
 | Modules building a database or Redis client from raw variables | 6 | 0 |
 | Routes public in the manifest, session-gated, unreviewed | 28 | 0 |
 | Attribution matches in tracked files | 0 | 0 |
