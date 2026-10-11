@@ -13,6 +13,12 @@ export default function LifiSwapsPage() {
         so the swap is non-custodial end to end.
       </Lead>
 
+      <Callout type="warning" title="A quote is not an executed swap">
+        Route availability varies by asset, network, provider and deployment. Check{" "}
+        <Code>/api/rails</Code> before showing an executable action. FurlPay prepares the route;
+        the user&apos;s wallet must sign and submit it, and the destination transaction must confirm.
+      </Callout>
+
       <H2 id="how">How a swap works</H2>
       <UL>
         <LI>You ask for a route: from-token, to-token, chains, amount.</LI>

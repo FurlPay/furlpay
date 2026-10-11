@@ -23,7 +23,7 @@ export default function PrivacyHelp() {
       <H2 id="what-we-dont">What we deliberately do not store</H2>
       <UL>
         <LI><b>Passwords</b> — none exist. Sign-in is one-time codes and passkeys.</LI>
-        <LI><b>Your private keys or recovery phrases</b> — FurlPay is non-custodial for on-chain assets; keys stay on your device.</LI>
+        <LI><b>Your recovery phrase</b> — FurlPay never asks you to provide one. The web wallet-signing path can use a remote signing service; see the <Link href="/docs/security/mpc-webauthn" className="text-neon">signing disclosure</Link> for the custody model.</LI>
         <LI>
           <b>Secrets pasted into support tickets</b> — card numbers, recovery phrases, and API
           keys are stripped automatically before a ticket is stored or emailed, keeping only safe
@@ -42,16 +42,9 @@ export default function PrivacyHelp() {
         <LI><b>Access / export:</b> request a copy of your data via a Support Center ticket in the KYC category.</LI>
         <LI><b>Rectification:</b> profile fields are self-service; verified-identity fields change via a KYC re-submission.</LI>
         <LI>
-          <b>Deletion:</b> self-service, in <b>Profile → Delete account</b> (in the Android app or on
-          the web — no app install required). You re-authenticate, confirm, and the account is erased
-          immediately: profile and contact details, passkeys and linked sign-ins, balances, cards,
-          bills, transaction history, trips, support conversations, agent keys and push registrations.
-          Two categories survive, and the confirmation screen says so before you confirm: settled
-          on-chain deposit records (kept as the permanent record of funds that moved, with your account
-          detached from them) and the security/compliance audit trail (kept for fraud prevention,
-          dispute resolution and auditing — it records that actions happened, not who you are). Where
-          financial record-keeping obligations apply, they override deletion for the records they
-          cover. Full detail:{" "}
+          <b>Deletion:</b> the web account settings include a deletion flow that requires re-authentication.
+          Some records may be retained or pseudonymized where required for security, disputes or legal
+          record-keeping. Review the{" "}
           <Link href="/legal/account-deletion" className="text-accent underline">
             Delete your FurlPay account
           </Link>

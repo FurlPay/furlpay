@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Code, Callout, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/help/x402-basics");
@@ -7,57 +6,69 @@ export const metadata = docMeta("/docs/help/x402-basics");
 export default function X402BasicsHelp() {
   return (
     <article>
-      <DocTitle eyebrow="Help Center">x402 Monetization Basics</DocTitle>
+      <DocTitle eyebrow="Help Center">x402 monetization basics</DocTitle>
       <Lead>
-        x402 lets you charge per request for anything served over HTTP — an API, a dataset, a
-        model endpoint — and lets AI agents pay for it without an account, an API key, or a
-        subscription.
+        x402 is a protocol for requesting payment per HTTP request. FurlPay&apos;s endpoint returned
+        <Code>503 controls_unavailable</Code> with reason <Code>plan_limit</Code> on 11 October 2026.
+        Production settlement is also in development.
       </Lead>
 
-      <H2 id="idea">The idea in one paragraph</H2>
+      <Callout type="warning" title="FurlPay x402 is currently unavailable">
+        The endpoint is not currently issuing challenges, and the default facilitator is not enabled
+        for production settlement. You can develop an integration or connect a facilitator you
+        operate or have separately contracted. Check <Code>/api/rails</Code> and the x402 endpoint
+        before offering a paid resource; if either reports an error, treat the rail as unavailable.
+      </Callout>
+
+      <H2 id="idea">How the protocol works</H2>
       <P>
-        HTTP has always had a status code <Code>402 Payment Required</Code>; x402 finally gives it
-        a protocol. Your endpoint answers an unpaid request with a 402 carrying a price quote. The
-        caller — typically an AI agent — signs a USDC payment authorization and retries with it
-        attached. A facilitator settles the payment on-chain, and your endpoint releases the
-        response. No signup, no invoicing, no key management: paying <em>is</em> the
-        authentication.
+        An unpaid request can receive <Code>402 Payment Required</Code> with payment requirements.
+        The caller signs a compatible payment authorization and retries with it attached. A
+        configured facilitator verifies and settles the payment before the endpoint releases the
+        paid response. A challenge by itself does not authorize access to paid data.
       </P>
 
-      <H2 id="versions">Two protocol dialects, handled for you</H2>
+      <H2 id="versions">Protocol versions</H2>
       <P>
-        x402 v1 carries payment data in <Code>X-PAYMENT</Code> headers and the 402 body; v2 (since
-        December 2025) moved to <Code>PAYMENT-SIGNATURE</Code> / <Code>PAYMENT-REQUIRED</Code>{" "}
-        headers with different shapes. FurlPay&apos;s tooling speaks both at once and answers in
-        whichever dialect the caller used — you never configure a version.
+        x402 clients and services may use different header and payload formats. FurlPay&apos;s
+        integration guide documents the supported request formats and its separate production
+        settlement status. Check the protocol guide before choosing a client or facilitator.
       </P>
 
-      <H2 id="start">Monetize an endpoint in three commands</H2>
-      <CodeBlock lang="bash">{`npm install @furlpay/gateway
-npx @furlpay/gateway secret        # generates your quote secret
-npx @furlpay/gateway expose http://localhost:8000 \\
-  --price 0.01 --pay-to 0xYourWallet --network base`}</CodeBlock>
+      <H2 id="gateway">Self-hosted gateway package</H2>
       <P>
-        That reverse proxy paywalls an API you cannot even modify. For code-level integration
-        (Next.js routes, Express middleware), see the package docs on{" "}
-        <a href="https://www.npmjs.com/package/@furlpay/gateway" className="text-neon">npm</a>.
+        The open-source <Code>@furlpay/gateway</Code> package can protect an API you operate.
+        Configure the resource price, destination wallet and quote secret, then choose an
+        available facilitator. The package can also be used with a facilitator you operate or
+        contract separately; FurlPay&apos;s default facilitator is not currently enabled for
+        production settlement.
+      </P>
+      <P>
+        See the current{" "}
+        <a href="https://www.npmjs.com/package/@furlpay/gateway" className="text-neon hover:underline">
+          package documentation on npm
+        </a>{" "}
+        for installation and framework-specific examples.
       </P>
 
-      <H2 id="protections">What the gateway protects you from</H2>
+      <H2 id="protections">What a production integration must verify</H2>
       <UL>
-        <LI>Replay: one payment unlocks one response, exactly once — even under concurrent retries.</LI>
-        <LI>Substitution: a payment quoted for a cheap endpoint cannot unlock an expensive one, or a different request body at the same price.</LI>
-        <LI>Underpayment, expired quotes, wrong-network payments, and facilitator outages all fail closed.</LI>
+        <LI>Bind the payment requirements to the exact resource, method, amount, asset and network.</LI>
+        <LI>Reject expired authorizations, replayed nonces, underpayment and a wrong recipient.</LI>
+        <LI>Release paid content only after the configured facilitator confirms settlement.</LI>
+        <LI>Use shared replay protection when deploying multiple gateway instances.</LI>
       </UL>
 
-      <Callout type="info" title="Where the money goes">
-        Payments settle as USDC to the wallet you set in <Code>payTo</Code> — directly, on-chain.
-        FurlPay never custodies your revenue.
+      <Callout type="info" title="Confirm the settlement recipient">
+        After the selected facilitator confirms settlement, funds go to the wallet configured as
+        <Code>payTo</Code>. Verify the recipient, network, asset and settlement transaction before
+        releasing the protected resource.
       </Callout>
 
       <P>
-        Full protocol documentation:{" "}
-        <Link href="/docs/payments/agentic-x402" className="text-neon">Agentic Payments (x402)</Link>.
+        For FurlPay&apos;s request and settlement status, read{" "}
+        <a href="/docs/payments/agentic-x402" className="text-neon hover:underline">Agentic Payments (x402)</a>{" "}
+        and the <a href="/docs" className="text-neon hover:underline">service availability overview</a>.
       </P>
 
       <DocPager pathname="/docs/help/x402-basics" />

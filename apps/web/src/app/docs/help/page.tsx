@@ -30,7 +30,7 @@ export default function HelpCenterPage() {
       ],
     },
     {
-      title: "Virtual Cards",
+      title: "Card availability",
       hrefs: [
         "/docs/help/managing-cards",
         "/docs/help/freeze-unfreeze",
@@ -42,7 +42,7 @@ export default function HelpCenterPage() {
       hrefs: ["/docs/help/sdk-integration", "/docs/help/x402-basics"],
     },
     {
-      title: "Travel",
+      title: "Travel availability",
       hrefs: ["/docs/help/travel-booking", "/docs/help/travel-refunds"],
     },
   ];
@@ -51,10 +51,10 @@ export default function HelpCenterPage() {
     <article>
       <DocTitle eyebrow="Help Center">Help Center</DocTitle>
       <Lead>
-        Self-service answers for FurlPay accounts. If an article does not solve it, open a ticket
-        from the <Link href="/support" className="text-neon">Support Center</Link> — replies go to
-        your account email — or ask the co-pilot in the app, which can check transaction status,
-        card state and KYC progress directly.
+        Self-service guidance for account security, payment status and product availability. Some
+        older feature guides now explain that a service is still in development. Check the{" "}
+        <Link href="/docs" className="text-neon">service availability overview</Link> before using
+        any payment, card, banking or travel flow.
       </Lead>
 
       {groups.map((g) => (
@@ -82,8 +82,8 @@ export default function HelpCenterPage() {
       <H2 id="still-stuck">Still stuck?</H2>
       <P>
         Open a ticket at <Link href="/support" className="text-neon">furlpay.com/support</Link>.
-        Never include your full card number, recovery phrase, or API keys in a ticket — support
-        will never ask for them, and our systems strip them automatically if pasted.
+        Never include a recovery phrase, private key, one-time code or API secret. Support will
+        never need those credentials.
       </P>
 
       <DocPager pathname="/docs/help" />

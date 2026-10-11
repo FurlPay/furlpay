@@ -8,9 +8,9 @@ export default function AuthenticationPage() {
     <article>
       <DocTitle eyebrow="Architecture">Authentication</DocTitle>
       <Lead>
-        Three ways in, depending on who is calling: passkey sessions for humans, signed requests for
-        registered agents, and x402 payments for anonymous agents — where the payment itself is the
-        authentication.
+        Human sessions use account authentication, registered agents can use owned signing keys
+        and policies, and MCP clients use scoped authorization. The x402 protocol is public, but
+        FurlPay&apos;s endpoint currently returns 503 and production settlement is gated separately.
       </Lead>
 
       <H2 id="sessions">Human sessions</H2>
@@ -40,25 +40,29 @@ export default function AuthenticationPage() {
       <P>
         An agent registered via <Code>POST /api/agents/keys</Code> holds its own Ed25519 key bound to
         your account with a spend policy. Requests are signed with RFC 9421 HTTP Message Signatures
-        (<Code>Signature-Input</Code> + <Code>Content-Digest</Code>), and the policy — per-transaction
-        limit, daily budget, category allowlist — is enforced server-side on every spend. See{" "}
+        (<Code>Signature-Input</Code> + <Code>Content-Digest</Code>). FurlPay endpoints that use
+        agent spend authorization can enforce the key&apos;s per-transaction limit, daily budget and
+        category allowlist. See{" "}
         <a href="/docs/payments/agent-trust" className="text-neon hover:underline">Agent Trust &amp; Mandates</a>.
       </P>
 
-      <H2 id="x402">Anonymous agents: payment is the auth</H2>
+      <H2 id="x402">Public x402 endpoint status</H2>
       <P>
-        Pay-per-call endpoints need no account and no API key. The signed EIP-3009 authorization in the{" "}
-        <Code>X-PAYMENT</Code> header proves control of the paying wallet cryptographically — a stronger
-        claim than a bearer key, scoped to exactly one payment:
+        The x402 protocol can issue a payment challenge without an account or API key. FurlPay&apos;s
+        x402 endpoint returned <Code>503 controls_unavailable</Code> with reason <Code>plan_limit</Code>
+        on 11 October 2026. If the endpoint becomes available, a challenge still does not guarantee
+        settlement or delivery of a paid resource:
       </P>
       <CodeBlock lang="bash">{`curl "https://furlpay.com/api/x402/fx?from=USD&to=EUR&amount=100"
-# -> 402 with a quote. Sign it, retry with X-PAYMENT, get the resource.`}</CodeBlock>
+# current production response: 503 when rail controls are unavailable
+# do not assume a 402 challenge or successful settlement`}</CodeBlock>
 
       <H2 id="keys">API keys</H2>
       <P>
-        The SDK quickstart uses <Code>sk_test_…</Code> keys against the sandbox. Production API-key
-        issuance ships with the developer dashboard; server-side sessions and x402 cover every current
-        production surface.
+        API-key formats and authentication requirements vary by route. A developer credential
+        does not enable a disabled payment rail and should not be assumed to replace a user session
+        where the route requires one. Keep secret credentials server-side and follow the
+        authentication contract for the endpoint you call.
       </P>
 
       <Callout type="warning" title="Never send credentials in query strings">

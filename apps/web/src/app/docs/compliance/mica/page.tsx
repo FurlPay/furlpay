@@ -1,4 +1,4 @@
-import { DocTitle, Lead, H2, P, UL, LI, Code, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, Code, Callout, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/compliance/mica");
@@ -6,56 +6,59 @@ export const metadata = docMeta("/docs/compliance/mica");
 export default function MicaPage() {
   return (
     <article>
-      <DocTitle eyebrow="Legal &amp; Compliance">MiCA Roadmap</DocTitle>
+      <DocTitle eyebrow="Legal &amp; Compliance">Regulatory and service status</DocTitle>
       <Lead>
-        Furlpay is built compliance-first. Licensing is sequenced by jurisdiction, with a shared KYC and
-        Travel Rule spine so obligations resolve automatically per user and per transfer.
+        This page summarizes documentation and integration boundaries. It does not claim that FurlPay
+        holds a financial-services licence, is an authorized crypto-asset service provider, or can
+        provide regulated services in a particular jurisdiction.
       </Lead>
+
+      <Callout type="warning" title="No licensing or availability representation">
+        A roadmap, compliance code or provider integration does not establish regulatory authorization.
+        Confirm FurlPay&apos;s status and the availability of a specific service directly before relying
+        on it. This page is not legal advice.
+      </Callout>
 
       <H2 id="eu">EU — MiCA</H2>
       <P>
-        Under the EU <b>Markets in Crypto-Assets</b> (MiCA) regime, the stablecoins Furlpay settles in are
-        treated as e-money tokens (EMTs) and asset-referenced tokens (ARTs). The roadmap targets a CASP
-        authorization plus EMT issuer partnerships so EURC and USDC balances are fully in-scope.
+        FurlPay does not represent that it is MiCA-authorized, has passporting rights, or provides a
+        MiCA-regulated service. Check the applicable regulator register and obtain jurisdiction-specific
+        legal advice before offering a product to EU customers.
       </P>
-      <UL>
-        <LI>CASP (Crypto-Asset Service Provider) authorization in an EU member state.</LI>
-        <LI>EMT/ART reserve and disclosure alignment with issuing partners.</LI>
-        <LI>Passporting across the EEA once authorized.</LI>
-      </UL>
 
       <H2 id="us">US — GENIUS Act</H2>
       <P>
-        In the United States, the <b>GENIUS Act</b> federal stablecoin framework governs permitted issuers
-        and reserve requirements. Furlpay integrates with compliant issuers and applies the corresponding
-        holding and disclosure rules to US users.
+        FurlPay does not claim to be a stablecoin issuer or to provide a regulated US payment service
+        under a federal or state authorization. Asset and service availability must be confirmed for the
+        specific deployment and user.
       </P>
 
       <H2 id="uk">UK — FCA</H2>
       <P>
-        UK activity follows <b>FCA regulations</b>, including registration and the cryptoasset financial
-        promotions regime. Marketing surfaces and in-app copy are gated to meet the promotions rules for UK
-        residents.
+        This documentation does not assert FCA registration, authorization or approval of FurlPay or its
+        products. Do not interpret access to the website or an API as permission to use a regulated
+        service in the UK.
       </P>
 
-      <H2 id="kyc">Identity — Sumsub</H2>
+      <H2 id="kyc">Identity checks</H2>
       <P>
-        Onboarding runs on a tiered, reusable KYC/KYB model via the <Code>Sumsub</Code> integration. A
-        user verifies once; the resolved tier then unlocks limits and products across jurisdictions without
-        re-collecting documents.
+        Provider-backed identity checks are available only where configured for the account and region.
+        The Persona webhook guide documents an integration surface; it does not promise that onboarding
+        is enabled for every user. FurlPay does not document a live Sumsub service here.
       </P>
 
-      <H2 id="travel-rule">Travel Rule — TRUST</H2>
+      <H2 id="travel-rule">Travel Rule data</H2>
       <P>
-        Cross-VASP transfers carry originator and beneficiary information under the FATF <b>Travel Rule</b>,
-        exchanged over the <Code>TRUST</Code> network. The compliance package attaches the required data to
-        qualifying transfers automatically.
+        FurlPay does not claim that qualifying transfers are automatically exchanged through the
+        <Code>TRUST</Code> network or another Travel Rule provider. Whether a transfer can be made and
+        what information is required depend on the service, counterparties and jurisdiction.
       </P>
 
-      <Callout title="Jurisdiction resolver">
-        The <Code>packages/compliance</Code> jurisdiction resolver maps a user&apos;s residency and the
-        counterparty to the applicable ruleset (MiCA, GENIUS Act, FCA) at request time — so route handlers
-        stay jurisdiction-agnostic.
+      <Callout title="Before integrating">
+        Confirm the service is shown as available in the{" "}
+        <a href="/docs" className="text-neon hover:underline">service overview</a>, check the current
+        <Code>/api/rails</Code> response for payment services, and get legal advice for your own
+        obligations. If status cannot be verified, treat the service as unavailable.
       </Callout>
 
       <DocPager pathname="/docs/compliance/mica" />

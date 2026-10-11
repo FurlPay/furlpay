@@ -20,60 +20,61 @@ export default function AgentsQuickstartPage() {
     <article>
       <DocTitle eyebrow="Getting Started">For AI Agents</DocTitle>
       <Lead>
-        Give an AI agent a wallet in five minutes — and the guardrails to trust it with one. Furlpay is
-        agent-native end to end: an MCP server for Claude and Cursor, LangChain / LlamaIndex tools,
-        x402 pay-per-call rails, and TAP-style user mandates so an agent can only ever spend what its
-        human signed off.
+        Connect an AI agent to FurlPay through MCP and scoped tools, then apply identity and spend
+        controls to the actions it prepares. Agent connectivity is available; payment settlement
+        still depends on the status of the selected production rail and the user&apos;s approval.
       </Lead>
+
+      <Callout type="warning" title="Agent access does not enable settlement">
+        The MCP transport, agent keys and spend policies are separate from payment execution.
+        Production x402, MPP and gasless settlement are currently in development. On 11 October
+        2026, x402 returned 503 because operational controls were unavailable. A challenge, mandate
+        or payment intent does not mean funds have moved. Check <Code>/api/rails</Code>{" "}
+        before exposing a money-moving tool; if it cannot return a status, treat the rail as unavailable.
+      </Callout>
 
       <H2 id="model">The mental model</H2>
       <DepGraph
-        caption="Capability comes from tools; permission comes from the user's key. The agent holds neither your card nor your balance."
+        caption="Tools expose only scoped capabilities; the user retains control of payment authorization. Completion depends on an enabled rail."
         layers={[
-          { label: "Agent", nodes: [{ name: "Claude / Cursor / LangChain", sub: "calls tools, signs intents" }] },
-          { label: "Trust", accent: true, nodes: [{ name: "mandate + budget", sub: "user-signed cap · MCC · expiry" }] },
-          { label: "Rails", nodes: [{ name: "x402 / USDC", sub: "pay-per-call, no account" }, { name: "single-use VCN", sub: "MCC-locked Visa credential" }] },
+          { label: "Agent", nodes: [{ name: "MCP / framework tools", sub: "read data or prepare an action" }] },
+          { label: "Trust", accent: true, nodes: [{ name: "owned key + policy", sub: "user-controlled limits and categories" }] },
+          { label: "Payment", nodes: [{ name: "approval", sub: "user confirms the action" }, { name: "enabled rail", sub: "availability checked at runtime" }] },
         ]}
       />
 
       <H2 id="mcp">Path 1 — MCP (Claude, Cursor, any MCP client)</H2>
       <P>
-        Two servers, one config block. <Code>@furlpay/mcp-server</Code> exposes the full API (balances,
-        checkouts, transfers, investing); <Code>@furlpay/travel-mcp</Code> adds autonomous travel booking
-        with live flight inventory:
+        FurlPay exposes an MCP endpoint at <Code>/api/mcp</Code>. The tools presented to a client
+        depend on the scopes the user grants. The connector can read authorized data and prepare
+        financial actions for approval; it cannot bypass the payment rail or make an unavailable
+        service live:
       </P>
-      <CodeBlock lang="json">{`{
-  "mcpServers": {
-    "furlpay": {
-      "command": "npx", "args": ["-y", "@furlpay/mcp-server"],
-      "env": { "FURLPAY_API_KEY": "fp_live_sk_..." }
-    },
-    "furlpay-travels": {
-      "command": "npx", "args": ["-y", "@furlpay/travel-mcp"],
-      "env": { "DUFFEL_API_KEY": "duffel_test_..." }   // omit everything for offline demo mode
-    }
-  }
-}`}</CodeBlock>
+      <CodeBlock lang="text">{"https://furlpay.com/api/mcp"}</CodeBlock>
       <P>
-        Restart your client and ask: <i>&quot;find me a hotel in Mexico City under $200/night and hold it
-        with a single-use card.&quot;</i> The agent searches, budget-checks, and authorizes — you approve
-        the mandate.
+        For Claude setup and the exact read-only and prepare-only tools, see the{" "}
+        <a href="/docs/integrations/claude-connector" className="text-neon hover:underline">
+          Claude connector guide
+        </a>
+        . Travel MCP examples are integration previews; production travel booking is not currently
+        available.
       </P>
 
       <H2 id="langchain">Path 2 — LangChain / LlamaIndex</H2>
-      <CodeBlock lang="python">{`# pip install furlpay-langchain   (or furlpay-llamaindex)
-from furlpay_langchain import get_furlpay_tools
-
-tools = get_furlpay_tools()   # 12 tools: pay, invest, transfer, swap + x402 pay_for_resource
-agent = create_tool_calling_agent(llm, tools, prompt)
-# set_agent_budget caps autonomous spend before the first tool call`}</CodeBlock>
-
-      <H2 id="x402">Path 3 — x402: the agent pays for what it uses</H2>
       <P>
-        No account, no API key, no card on file. The agent hits a metered endpoint, receives{" "}
-        <Code>402 Payment Required</Code> with a signed quote, pays in USDC and retries. Full protocol on
-        the <a href="/docs/payments/agentic-x402" className="text-neon hover:underline">x402 page</a>;
-        selling your own API this way is one wrapper:
+        Framework adapters may expose FurlPay tools to an agent, but the tool set and available
+        operations depend on the integration and user&apos;s permissions. Treat read, prepare and
+        execute as different capabilities; never assume a tool can complete a production payment.
+      </P>
+
+      <H2 id="x402">Path 3 — x402: metered HTTP requests</H2>
+      <P>
+        x402 lets an API return <Code>402 Payment Required</Code> with a payment challenge. The
+        FurlPay x402 endpoint currently returns 503 because operational controls are unavailable,
+        and production settlement is also in development. Agents cannot rely on completing paid
+        requests through FurlPay. Read the{" "}
+        <a href="/docs/payments/agentic-x402" className="text-neon hover:underline">x402 guide</a>{" "}
+        for the protocol shape and check <Code>/api/rails</Code> before use:
       </P>
       <CodeBlock lang="typescript">{`import { withX402 } from "@furlpay/x402";
 
@@ -82,10 +83,11 @@ export const GET = withX402(
   { payTo: "0xYourAddress", network: "base", amount: "10000" }
 );`}</CodeBlock>
 
-      <H2 id="mandate">The 5-minute mandate</H2>
+      <H2 id="mandate">Illustrative user-signed spend mandate</H2>
       <P>
         Budgets cap <i>how much</i>; mandates prove <i>who allowed what</i>. The user signs once, the
-        agent signs each intent, and the rail verifies the chain before issuing any credential:
+        agent signs each intent, and an integrating service can verify the chain. This example is a
+        library pattern only; it does not enable FurlPay production travel or payment settlement.
       </P>
       <CodeBlock lang="typescript">{`import { AgentTrust, generateKeypair, issueMandate, createBookingToken } from "@furlpay/agent-trust";
 
@@ -114,10 +116,11 @@ const mandateToken = createBookingToken({
       </P>
 
       <Callout title="Why builders pick Furlpay for agents">
-        Open source (MIT) with the whole surface inspectable · one API spanning payments, banking, cards
-        and investing · x402 member-standard rails (Linux Foundation) · TAP-aligned mandates shipping
-        today, not on a roadmap. Start with <Code>furlpay-examples</Code> on GitHub — every stack,
-        clone-and-run.
+        FurlPay provides an inspectable API, MCP connectivity and owned agent spend controls. Card
+        issuing, banking, brokerage execution, travel booking and production agent settlement are
+        not currently available live products. See the{" "}
+        <a href="/docs" className="text-neon hover:underline">service availability overview</a>{" "}
+        before choosing a flow.
       </Callout>
 
       <DocPager pathname="/docs/agents" />

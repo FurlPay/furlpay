@@ -1,4 +1,15 @@
-import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, CodeTabs, Callout, DocPager } from "@/components/docs/prose";
+import {
+  DocTitle,
+  Lead,
+  H2,
+  P,
+  UL,
+  LI,
+  Code,
+  CodeBlock,
+  Callout,
+  DocPager,
+} from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/quickstart");
@@ -6,91 +17,94 @@ export const metadata = docMeta("/docs/quickstart");
 export default function QuickstartPage() {
   return (
     <article>
-      <DocTitle eyebrow="Getting Started">Quickstart</DocTitle>
-      <Lead>Go from an empty folder to a live, webhook-driven integration in under five minutes.</Lead>
+      <DocTitle eyebrow="Getting Started">Developer quickstart</DocTitle>
+      <Lead>
+        Start with a read-only rail check and fee quote. Then build against the route contract for
+        the specific payment flow you need.
+      </Lead>
 
-      <H2 id="cli">1. Install the CLI</H2>
-      <P>
-        The <Code>@furlpay/cli</Code> scaffolds projects, tails logs and forwards webhooks. Run it with
-        <Code>npx</Code> or install it globally.
-      </P>
-      <CodeBlock lang="bash">{`npm i -g @furlpay/cli
-
-furlpay login          # opens a browser to authorize the CLI
-furlpay init my-app    # scaffold a Next.js + @furlpay/node project`}</CodeBlock>
-
-      <H2 id="server">2. Make your first call</H2>
-      <CodeTabs
-        tabs={[
-          {
-            label: "TypeScript",
-            code: `import { Furlpay } from '@furlpay/node';
-
-const client = new Furlpay(process.env.FURLPAY_SECRET_KEY!);
-
-const order = await client.investing.order({
-  symbol: 'AAPL',
-  side: 'buy',
-  notional: 25_00, // $25.00 in minor units — fractional via Alpaca
-});`,
-          },
-          {
-            label: "Python",
-            code: `from furlpay import Furlpay
-
-client = Furlpay(os.environ["FURLPAY_SECRET_KEY"])
-
-order = client.investing.order(
-    symbol="AAPL",
-    side="buy",
-    notional=25_00,  # $25.00 in minor units - fractional via Alpaca
-)`,
-          },
-          {
-            label: "cURL",
-            code: `curl https://furlpay.com/api/investing/orders \\
-  -H "Authorization: Bearer $FURLPAY_SECRET_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"symbol":"AAPL","side":"buy","notional":2500}'`,
-          },
-        ]}
-      />
-
-      <H2 id="listen">3. Forward webhooks with <Code>furlpay listen</Code></H2>
-      <P>
-        During development, forward live events to your local server. The CLI prints a signing secret so
-        you can verify payloads.
-      </P>
-      <CodeBlock lang="bash">{`furlpay listen --forward-to localhost:3000/api/webhooks/furlpay
-
-# ready — forwarding events
-# whsec_… (use this to verify signatures)`}</CodeBlock>
-
-      <H2 id="elements">4. Drop in the checkout widget</H2>
-      <P>
-        Add stablecoin checkout to any React app with the <Code>FurlpayCheckoutButton</Code> Element from
-        <Code>@furlpay/react</Code>.
-      </P>
-      <CodeBlock lang="tsx">{`import { FurlpayCheckoutButton } from '@furlpay/react';
-
-<FurlpayCheckoutButton
-  amount={49_99}
-  currency="USDC"
-  onSuccess={(tx) => console.log('settled', tx.id)}
-/>;`}</CodeBlock>
-
-      <Callout title="Verify every webhook">
-        Always check the <Code>Furlpay-Signature</Code> header before trusting an event. See{" "}
-        <a href="/docs/architecture/api-routes#webhooks" className="text-neon hover:underline">
-          API Routes → Webhooks
-        </a>{" "}
-        for the HMAC verification snippet.
+      <Callout type="warning" title="A quote is not a payment">
+        FurlPay&apos;s payment APIs can prepare quotes, intents and wallet-signable data. Production
+        settlement is a separate capability and is not generally enabled. Never tell a customer
+        that a payment completed until you have a confirmed settlement status and transaction
+        reference.
       </Callout>
 
+      <H2 id="rail-status">1. Check current rail status</H2>
+      <P>
+        The public rail registry lists protocols, assets, networks, limits and operational status.
+        Check it before you integrate and again before you submit a payment:
+      </P>
+      <CodeBlock lang="bash">{"curl --fail-with-body https://furlpay.com/api/rails"}</CodeBlock>
+      <P>
+        Continue only when the selected rail reports a usable status. If the endpoint returns an
+        error or cannot provide fresh status, treat availability as unknown and stop the payment
+        flow. A test or live API credential does not turn on an unconfigured rail.
+      </P>
+
+      <H2 id="fee-quote">2. Request a fee estimate</H2>
+      <P>
+        The fee-estimate endpoint is public and read-only. Its <Code>amount</Code> parameter is in
+        USD, not minor units:
+      </P>
+      <CodeBlock lang="bash">{"curl \"https://furlpay.com/api/payments/fees/estimate?amount=150&sourceChain=arbitrum\""}</CodeBlock>
+      <P>
+        The response is an estimate, not a locked conversion quote or promise that a payment can
+        settle. Recheck the fee and rail status immediately before presenting a payment to a user.
+      </P>
+
+      <H2 id="create">3. Build the payment flow</H2>
+      <P>
+        The authenticated <Code>POST /api/payments/create</Code> route validates the request and
+        returns an intent with EIP-712 signing data. The connected user&apos;s wallet signs that
+        data. It may return <Code>503 service_unavailable</Code> when required production
+        configuration is missing.
+      </P>
+      <P>
+        <Code>POST /api/payments/execute</Code> accepts the signature and attempts the next step.
+        A successful HTTP response or a created intent by itself is not proof of an on-chain
+        transfer. Poll the payment status and verify the returned transaction reference. Review
+        authentication, schemas, status codes and idempotency in the{" "}
+        <a href="/docs/architecture/api-routes" className="text-neon hover:underline">
+          API Routes reference
+        </a>
+        .
+      </P>
+
+      <H2 id="choose-integration">Choose your integration</H2>
       <UL>
-        <LI>Explore every endpoint in <a href="/docs/architecture/api-routes" className="text-neon hover:underline">API Routes</a>.</LI>
-        <LI>Understand the repo in <a href="/docs/architecture/monorepo" className="text-neon hover:underline">Monorepo</a>.</LI>
+        <LI>
+          <a href="/docs/payments/agentic-x402" className="text-neon hover:underline">x402 and MPP</a>{" "}
+          — HTTP payment challenges for metered API access; production settlement status is separate.
+        </LI>
+        <LI>
+          <a href="/docs/payments/cctp" className="text-neon hover:underline">Circle CCTP</a> — build
+          non-custodial cross-chain USDC transactions.
+        </LI>
+        <LI>
+          <a href="/docs/payments/lifi-swaps" className="text-neon hover:underline">LI.FI</a> — quote
+          routes and prepare wallet-signed swaps.
+        </LI>
+        <LI>
+          <a href="/docs/agents" className="text-neon hover:underline">Agent integrations</a> — MCP,
+          scoped access and spend controls.
+        </LI>
       </UL>
+
+      <H2 id="keys">Credentials and safety</H2>
+      <UL>
+        <LI>Keep secret credentials on your server; never embed them in browser code or a mobile bundle.</LI>
+        <LI>Use the credential type and authentication method documented for each route.</LI>
+        <LI>Use an <Code>Idempotency-Key</Code> where the route supports it so retries do not create duplicate intents.</LI>
+        <LI>Verify webhook signatures over the raw request body before processing an event.</LI>
+        <LI>Never treat a sandbox response, demo inventory or generated signing data as proof of a production payment.</LI>
+      </UL>
+
+      <Callout title="Next">
+        Read the <a href="/docs/architecture/api-routes" className="text-neon hover:underline">API Routes</a>{" "}
+        and <a href="/docs/architecture/errors" className="text-neon hover:underline">Error Codes</a>{" "}
+        references, then confirm availability at <Code>/api/rails</Code>.
+      </Callout>
 
       <DocPager pathname="/docs/quickstart" />
     </article>

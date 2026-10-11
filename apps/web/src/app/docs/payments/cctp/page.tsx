@@ -13,6 +13,13 @@ export default function CctpPage() {
         funds never touch our keys.
       </Lead>
 
+      <Callout type="warning" title="Check the rail before signing">
+        This is a client-signed flow: FurlPay builds transaction data and your wallet submits it.
+        Availability depends on the deployment, supported network pair and current rail status.
+        Check <Code>/api/rails</Code> before asking a user to sign. A prepared burn is not a completed
+        transfer; the destination mint must also be confirmed.
+      </Callout>
+
       <H2 id="flow">How a transfer works</H2>
       <Mermaid
         caption="CCTP V2: burn on the source chain, attest off-chain via Iris, mint on the destination."

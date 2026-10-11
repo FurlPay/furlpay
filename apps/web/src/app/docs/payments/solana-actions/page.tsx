@@ -20,9 +20,16 @@ export default function SolanaActionsPage() {
     <article>
       <DocTitle eyebrow="Payments">Solana Actions &amp; Blinks</DocTitle>
       <Lead>
-        Turn any Furlpay checkout into a shareable link that unfurls into a signable payment widget — a{" "}
-        <b>Blink</b> — on X, Discord, or any Blink-aware client. Built on the Solana Actions specification.
+        Build a Solana Actions response that a compatible client can render as a signable payment
+        widget — a <b>Blink</b>. The API can construct transaction data; the wallet holder reviews,
+        signs and submits it.
       </Lead>
+
+      <Callout type="warning" title="Transaction construction is not settlement">
+        A generated transaction is not proof of a confirmed payment or merchant order. Confirm the
+        asset, amount, recipient and order status, then verify the chain result. FURL pricing is
+        returned only when configured; do not assume it is an available payment asset.
+      </Callout>
 
       <H2 id="endpoints">Endpoints</H2>
       <EndpointTable

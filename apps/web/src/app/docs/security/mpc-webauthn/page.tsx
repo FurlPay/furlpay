@@ -8,9 +8,9 @@ export default function SecurityPage() {
     <article>
       <DocTitle eyebrow="Security &amp; Crypto">Signing &amp; WebAuthn</DocTitle>
       <Lead>
-        Two signing paths with two different custody models, a signing policy enforced independently in
-        three places, and phishing-resistant passkey authentication. This page states which path is
-        custodial, because the answer decides how much you should be willing to hold with us.
+        The web application uses passkeys for authentication and a remote signing service for some
+        wallet actions. Passkey authentication is not the same as user-held wallet keys or threshold
+        signing. This page describes the current web path and its limits.
       </Lead>
 
       <Callout title="Correction: this page previously described 2-of-2 MPC">
@@ -21,12 +21,10 @@ export default function SecurityPage() {
         <Code>docs/CUSTODY-DISCLOSURE.md</Code> in the repository records the correction in full.
       </Callout>
 
-      <H2 id="paths">Two signing paths</H2>
+      <H2 id="paths">Signing model in the web application</H2>
       <P>
-        <b>Mobile app — self-custodial.</b> A BIP-39 seed is generated on the device and stored in
-        biometric-gated secure storage (Android Keystore / iOS Keychain). It is never transmitted, and
-        Furlpay cannot reconstruct it. Lose the device and every backup, and the funds are gone — that is
-        the real cost of self-custody, and we do not soften it.
+        Mobile client source exists in the repository, but FurlPay does not currently distribute a
+        production mobile app. Do not treat unreleased client code as an available self-custody product.
       </P>
       <P>
         <b>Web app — custodial.</b> Signing runs through <Code>/api/mpc/sign</Code> to a secure enclave
@@ -42,7 +40,7 @@ export default function SecurityPage() {
         the address-recovery check is not Turnkey checking Turnkey.
       </P>
 
-      <H2 id="policy">What actually is 2-of-2: the policy path</H2>
+      <H2 id="policy">Policy checks are not threshold signing</H2>
       <P>
         The property with genuine independence is <b>authorisation</b>, not key material. A signature
         request must survive three gates, each able to refuse without opening the others:
@@ -107,33 +105,24 @@ export default function SecurityPage() {
 
       <H2 id="agentic">Agentic payment security (x402)</H2>
       <P>
-        Furlpay&apos;s x402 endpoints let AI agents pay per request — where the payment <i>is</i> the auth,
-        so payment verification is the entire security boundary. Our verifier is hardened against the four
-        attack classes documented in 2026 research (arXiv 2605.11781 / 2605.30998):
+        Production x402 is currently unavailable: on 11 October 2026 the endpoint returned{" "}
+        <Code>503 controls_unavailable</Code> with reason <Code>plan_limit</Code>. Settlement is
+        also in development, so an issued challenge is not proof that a payment can complete or a
+        paid response will be delivered. Check the rail status and the{" "}
+        <a href="/docs/payments/agentic-x402" className="text-neon hover:underline">x402 guide</a>{" "}
+        before integrating.
       </P>
       <UL>
-        <LI><b>Authorization</b> — every field (amount, recipient, network) is checked server-side; the client&apos;s copy of the quote is never trusted.</LI>
-        <LI><b>Binding</b> — each quote carries an HMAC over <Code>(resource, method, amount, expiry)</Code>, so a payment for one endpoint can&apos;t unlock another.</LI>
-        <LI><b>Replay</b> — quote IDs and EIP-3009 nonces are single-use with a short expiry window.</LI>
-        <LI><b>Web-layer</b> — the <Code>X-PAYMENT</Code> header is size-capped and strictly parsed; malformed input returns 400, never a free resource.</LI>
+        <LI>Validate the challenge fields and pay-to address before presenting a wallet signature request.</LI>
+        <LI>Release a paid resource only after the configured facilitator confirms settlement.</LI>
+        <LI>Do not treat a prepared authorization, challenge or pending status as a completed payment.</LI>
       </UL>
 
-      <H2 id="fraud">Real-time fraud — Sardine</H2>
-      <P>
-        Every transfer is scored by <Code>Sardine</Code> using device intelligence and biometric
-        behavioural signals. High-risk actions trigger step-up MFA before the MPC co-signature is requested.
-      </P>
-
-      <H2 id="exploits">Gnosis Pay-class exploit prevention</H2>
-      <P>
-        Card and allowance flows are designed to prevent Gnosis Pay-style drain exploits: no unbounded
-        approvals, per-authorization spend caps enforced at signing time, and settlement reconciled through
-        the double-entry ledger so nothing moves without a matching entry.
-      </P>
-
-      <Callout title="Defense in depth">
-        MPC removes single-key risk, HSM policy constrains signing, WebAuthn stops phishing, and Sardine
-        gates behaviour — an attacker must defeat all four, not one.
+      <Callout title="Production boundary">
+        FurlPay-operated settlement is not currently enabled. External security audits for the
+        settlement contracts are also pending; see the{" "}
+        <a href="/docs/security/posture" className="text-neon hover:underline">security posture</a>{" "}
+        page for the current audit statement.
       </Callout>
 
       <DocPager pathname="/docs/security/mpc-webauthn" />

@@ -20,31 +20,40 @@ export default function TravelsMcpPage() {
     <article>
       <DocTitle eyebrow="Payments">FurlPay Travels (Travel MCP)</DocTitle>
       <Lead>
-        <Code>@furlpay/travel-mcp</Code> lets an AI agent <b>search, budget-check, pay and book travel
-        autonomously</b> — live flight inventory, hotels, and two payment rails (gasless USDC over
-        x402, or a single-use MCC-locked Visa virtual card), gated by user-signed mandates. It runs as an
-        MCP server for Claude, Cursor and any MCP client, or as a typed library.
+        <Code>@furlpay/travel-mcp</Code> is an integration preview for agent-assisted travel search,
+        policy checks and booking authorization. Production travel inventory and booking are not
+        currently available. The package and examples must not be treated as a live travel or card
+        service.
       </Lead>
+
+      <Callout type="warning" title="Production travel booking is unavailable">
+        The production travel provider is not configured. Search examples may use demo data or
+        provider test credentials, and payment credentials described below are examples only. Do
+        not present demo inventory as bookable, collect payment for a trip, or promise a refund
+        based on this integration guide. Check the{" "}
+        <a href="/docs" className="text-neon hover:underline">service availability overview</a>{" "}
+        and <Code>/api/rails</Code> before offering travel.
+      </Callout>
 
       <H2 id="composition">What it composes</H2>
       <DepGraph
-        caption="Search (Duffel live flights + Travala hotels) → trust gate (agent-trust mandates) → pay (x402/USDC on Base, or single-use Visa VCN) → book."
+        caption="Development flow: sample search → policy and mandate checks → a proposed payment authorization. Production inventory, payment and booking are not enabled."
         layers={[
-          { label: "1 · Search", nodes: [{ name: "Duffel", sub: "NDC/GDS/LCC · production key not configured yet" }, { name: "Travala", sub: "2.2M+ hotels · crypto-native" }] },
+          { label: "1 · Search", nodes: [{ name: "Provider adapter", sub: "test or demo inventory only" }] },
           { label: "2 · Trust", accent: true, nodes: [{ name: "MandateVerifier", sub: "@furlpay/agent-trust booking token" }] },
-          { label: "3 · Pay", nodes: [{ name: "x402 / USDC on Base", sub: "≈$0.01 · 10% cbBTC rebate" }, { name: "Visa VCN", sub: "single-use · MCC-locked" }] },
-          { label: "4 · Book", nodes: [{ name: "confirm / cancel", sub: "passkey step-up in a real flow" }] },
+          { label: "3 · Pay", nodes: [{ name: "x402 / USDC", sub: "settlement rail not enabled" }, { name: "Virtual card", sub: "no production card program" }] },
+          { label: "4 · Book", nodes: [{ name: "confirm / cancel", sub: "preview flow only" }] },
         ]}
       />
 
       <H2 id="tools">The MCP toolset</H2>
       <UL>
-        <LI><Code>travel_search_stays</Code> — hotels for a city + date range (Travala inventory, price caps).</LI>
-        <LI><Code>travel_search_flights</Code> — live real-time offers via Duffel when <Code>DUFFEL_API_KEY</Code> is set (cheapest-first, cabin classes); deterministic demo inventory otherwise.</LI>
-        <LI><Code>travel_set_agent_budget</Code> — cap an agent&apos;s USDC travel spend before it books.</LI>
-        <LI><Code>travel_authorize_booking</Code> — issue the payment credential: <Code>source: &quot;travala&quot;</Code> → x402 proof settled in USDC on Base; <Code>source: &quot;legacy&quot;</Code> → single-use Visa VCN locked to a travel MCC (7011 lodging, 4511 airlines, 7512 car rental).</LI>
-        <LI><Code>travel_confirm_booking</Code> / <Code>travel_cancel_booking</Code> — booking lifecycle; cancel voids the authorization.</LI>
-        <LI><Code>travel_list_rebates</Code> — Travala pays a 10% cbBTC developer rebate on MCP-driven bookings, split 7% developer / 3% treasury.</LI>
+        <LI><Code>travel_search_stays</Code> — search adapter; production inventory is unavailable.</LI>
+        <LI><Code>travel_search_flights</Code> — provider test or demo results only; a test offer is not bookable inventory.</LI>
+        <LI><Code>travel_set_agent_budget</Code> — define a software-side budget for a development flow; it does not enable payment.</LI>
+        <LI><Code>travel_authorize_booking</Code> — construct a sample authorization; it does not issue a live card or settle USDC.</LI>
+        <LI><Code>travel_confirm_booking</Code> / <Code>travel_cancel_booking</Code> — exercise the package lifecycle in development; not a live partner booking or cancellation.</LI>
+        <LI><Code>travel_list_rebates</Code> — development interface only; no production rebate or payout is promised.</LI>
       </UL>
 
       <H2 id="config">Run it</H2>
@@ -62,9 +71,9 @@ export default function TravelsMcpPage() {
   }
 }`}</CodeBlock>
       <P>
-        Every key is optional — with none set, search and payment simulate deterministically so the whole
-        loop runs offline. With just a free <Code>duffel_test_</Code> token, flight search returns live
-        API data.
+        Configure only test credentials for development. Without a production travel provider,
+        responses are test or demo data and must not be shown as live availability. A provider test
+        token does not authorize a real booking or payment.
       </P>
 
       <H2 id="trusted">Trusted-agent mode</H2>
@@ -118,23 +127,10 @@ const booking = await travel.authorizeBooking({
         scopes and the mandate/capability chain above.
       </P>
 
-      <H2 id="duffel">Why Duffel for flights (mid-2026)</H2>
-      <UL>
-        <LI>Amadeus <b>Self-Service portal shut down July 17, 2026</b> — self-service keys are dead; Enterprise only.</LI>
-        <LI>Kiwi&apos;s Tequila API is <b>closed to new partners</b>; Expedia Rapid and Booking.com Demand gate access behind case-by-case commercial review.</LI>
-        <LI>Duffel is the one top-tier supplier that is genuinely self-serve: free-forever test mode, transparent ~$3/order production pricing, NDC + GDS + LCC content from 300+ airlines (FurlPay&apos;s production Duffel key is not configured yet, so none of it is live here), plus brand-compliant SVG airline logos in every offer (<Code>owner.logo_symbol_url</Code>).</LI>
-      </UL>
-      <P>
-        The Furlpay web app uses the same integration: <Code>POST /api/travel/search</Code> returns{" "}
-        <Code>source: &quot;duffel&quot;</Code> offers when the key is configured, with automatic fallback
-        to demo inventory so search never breaks.
-      </P>
-
-      <Callout title="Why an agent should never hold your card">
-        The 2026 World Cup drove a 36% surge in travel-booking fraud. FurlPay Travels&apos; answer: the
-        agent never touches a primary balance — it presents a signed, single-booking mandate token and
-        receives a credential that can only spend the exact amount at the exact merchant category, once.
-        <Code>npm i @furlpay/travel-mcp</Code>
+      <Callout title="Before you build against this package">
+        The mandate and budget code can be used to prototype controls, but production travel search,
+        booking, card issuance and payment settlement are separate integrations and are not enabled
+        today. Recheck the service status before launching a customer-facing flow.
       </Callout>
 
       <DocPager pathname="/docs/payments/travels-mcp" />

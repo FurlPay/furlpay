@@ -7,72 +7,53 @@ export const metadata = docMeta("/docs/help/getting-started");
 export default function GettingStartedHelp() {
   return (
     <article>
-      <DocTitle eyebrow="Help Center">Getting Started with FurlPay</DocTitle>
+      <DocTitle eyebrow="Help Center">Getting started with FurlPay</DocTitle>
       <Lead>
-        Three steps from zero to your first stablecoin payment: create the account, secure it with
-        a passkey, and add money. Ten minutes end to end.
+        Create an account, secure it with a passkey, then review which FurlPay services are
+        currently available before connecting a wallet or building a payment flow.
       </Lead>
 
-      <H2 id="create-account">1. Create your account</H2>
+      <H2 id="create-account">1. Create or access your account</H2>
       <P>
-        Go to <Link href="/signup" className="text-neon">furlpay.com/signup</Link> and pick a
-        sign-in method:
-      </P>
-      <UL>
-        <LI><b>Email code</b> — we send a one-time code; no password exists to be stolen.</LI>
-        <LI><b>Google or Apple</b> — one tap, using the account already on your device.</LI>
-        <LI><b>Phone</b> — a one-time SMS code to an E.164 number.</LI>
-      </UL>
-      <P>
-        FurlPay has no passwords anywhere. Every method above is a one-time proof, and the session
-        it creates expires on its own.
+        Start at <Link href="/signup" className="text-neon">furlpay.com/signup</Link>. Use one of
+        the sign-in methods shown on the page for your account and region. Do not share a one-time
+        code, session cookie or recovery phrase with anyone.
       </P>
 
-      <H2 id="passkey">2. Add a passkey (do this first)</H2>
+      <H2 id="passkey">2. Secure account access</H2>
       <P>
-        In <b>Settings → Security</b>, enroll a passkey. Your device generates a hardware-backed
-        key: fingerprint or face unlocks it, and it never leaves the device. After enrollment you
-        can sign in with one touch, and money movement gets a biometric confirmation step. The
-        details live in{" "}
-        <Link href="/docs/help/passkeys-biometrics" className="text-neon">Passkeys &amp; Biometrics</Link>.
+        Where available, add a passkey under <b>Settings → Security</b>. A passkey uses your
+        device&apos;s authentication prompt to prove account access. Read{" "}
+        <Link href="/docs/help/passkeys-biometrics" className="text-neon">Passkeys &amp; Biometrics</Link>{" "}
+        for enrollment and recovery guidance.
       </P>
 
-      <H2 id="add-money">3. Add money</H2>
-      <P>From the dashboard, tap <b>Add money</b>. Three rails:</P>
+      <H2 id="services">3. Review available services</H2>
+      <P>
+        The <Link href="/docs" className="text-neon">service availability overview</Link> describes
+        what FurlPay currently offers and what is still in development. FurlPay does not currently
+        provide production card issuing, local bank accounts, fiat payouts, live stock order
+        execution or travel booking.
+      </P>
+
+      <H2 id="payments">4. Before starting a payment</H2>
       <UL>
-        <LI>
-          <b>Crypto deposit</b> — a QR code and address for USDC/USDT on your chosen network.
-          Send from any wallet or exchange; the balance updates when the transfer confirms
-          on-chain, usually within minutes.
-        </LI>
-        <LI>
-          <b>Bank transfer</b> — virtual account details (IBAN, ACH routing, or local
-          equivalents) that credit your stablecoin balance.
-        </LI>
-        <LI>
-          <b>Card</b> — buy USDC directly with a debit card through the onramp.
-        </LI>
+        <LI>Read the current status from <Code>/api/rails</Code> for the selected payment rail.</LI>
+        <LI>Confirm the asset, network, recipient, amount and fees before signing anything.</LI>
+        <LI>Do not treat a quote, payment ID or signing request as proof that funds moved.</LI>
+        <LI>Wait for a confirmed settlement status and transaction reference.</LI>
       </UL>
-      <Callout type="info" title="Pick the network your sender supports">
-        USDC on Arbitrum and USDC on Base are different deposit addresses. Match the network your
-        exchange or wallet sends on — the deposit screen labels each one.
+
+      <Callout type="warning" title="Do not send funds to an unverified address">
+        Use a receive address only when the signed-in FurlPay product explicitly shows it for your
+        account, asset and network. If no address is shown, do not send funds to FurlPay.
       </Callout>
 
-      <H2 id="first-send">4. Make your first payment</H2>
+      <H2 id="verification">Identity checks</H2>
       <P>
-        Tap <b>Send</b>, paste the recipient address (a <Code>0x…</Code> EVM address or a Solana
-        address), enter the amount, and confirm with your fingerprint. See{" "}
-        <Link href="/docs/help/transaction-statuses" className="text-neon">Transaction Statuses</Link>{" "}
-        for what happens after you hit confirm, and{" "}
-        <Link href="/docs/help/gasless-transfers" className="text-neon">Gasless Transfers</Link> for
-        why there is no gas fee to worry about.
-      </P>
-
-      <H2 id="verification">Verification limits</H2>
-      <P>
-        A fresh account starts at verification tier 0, which is enough to explore and hold small
-        balances. Higher limits require identity verification — see the{" "}
-        <Link href="/docs/help/kyc-verification" className="text-neon">KYC Verification guide</Link>.
+        Verification requirements and availability vary by account, provider and region. Follow
+        only the instructions shown in your signed-in account. FurlPay will not ask you to email a
+        recovery phrase or private key.
       </P>
 
       <DocPager pathname="/docs/help/getting-started" />
