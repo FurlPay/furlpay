@@ -35,6 +35,7 @@
         "apps/web/src/lib/auth/otp.ts",
         "apps/web/src/lib/authz.ts",
         "apps/web/src/lib/compliance/caseStore.ts",
+        "apps/web/src/lib/compliance/credentialSecret.ts",
         "apps/web/src/lib/demoGate.ts",
         "apps/web/src/lib/devAutoLogin.ts",
         "apps/web/src/lib/discord.ts",
@@ -236,8 +237,7 @@
         "apps/web/src/lib/bootConfig.ts",
         "apps/web/src/lib/dataPlane.ts",
         "apps/web/src/lib/env.ts",
-        "apps/web/src/lib/ops/overview.ts",
-        "apps/web/src/lib/research/storage.ts"
+        "apps/web/src/lib/ops/overview.ts"
       ]
     },
     {
@@ -251,8 +251,7 @@
         "apps/web/src/app/api/ops/readiness/route.ts",
         "apps/web/src/lib/bootConfig.ts",
         "apps/web/src/lib/dataPlane.ts",
-        "apps/web/src/lib/env.ts",
-        "apps/web/src/lib/research/storage.ts"
+        "apps/web/src/lib/env.ts"
       ]
     },
     {
