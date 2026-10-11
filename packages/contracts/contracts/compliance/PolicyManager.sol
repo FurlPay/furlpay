@@ -17,11 +17,21 @@ contract PolicyManager is Ownable2Step {
     ///      the aggregate outcome is order-independent.
     IComplianceCheck[] public checks;
 
+    /// @notice Upper bound on registered checks (audit F-6). `evaluate` makes
+    ///         one external call per check on every payment; an unbounded list
+    ///         lets a mistaken or compromised owner push the loop past the block
+    ///         gas limit and halt every compliance-gated settlement. A real
+    ///         policy set (sanctions, source of funds, attestation, travel rule)
+    ///         is a handful of modules, so 16 leaves wide headroom.
+    uint256 public constant MAX_CHECKS = 16;
+
     event CheckAdded(address indexed check, uint256 index);
     event CheckRemoved(address indexed check, uint256 index);
 
     error IndexOutOfBounds(uint256 index);
     error ZeroAddress();
+    error TooManyChecks(uint256 max);
+    error DuplicateCheck(address check);
 
     constructor(address owner_) Ownable(owner_) {}
 
@@ -32,6 +42,12 @@ contract PolicyManager is Ownable2Step {
     /// @notice Append a compliance check to the policy set.
     function addCheck(IComplianceCheck check) external onlyOwner {
         if (address(check) == address(0)) revert ZeroAddress();
+        uint256 len = checks.length;
+        if (len >= MAX_CHECKS) revert TooManyChecks(MAX_CHECKS);
+        // A duplicate only doubles the gas of every evaluation; refuse it.
+        for (uint256 i = 0; i < len; i++) {
+            if (checks[i] == check) revert DuplicateCheck(address(check));
+        }
         checks.push(check);
         emit CheckAdded(address(check), checks.length - 1);
     }

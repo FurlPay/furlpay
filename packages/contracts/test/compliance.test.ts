@@ -296,4 +296,48 @@ describe("Programmable compliance guardrail", () => {
       ).to.be.revertedWithCustomError(attestations, "NotAttestor");
     });
   });
+describe("PolicyManager bounds (audit F-6)", () => {
+    async function freshManager() {
+      const [owner, outsider] = await ethers.getSigners();
+      const oracle = await ethers.deployContract("MockSanctionsOracle");
+      const registry = await ethers.deployContract("SanctionsRegistry", [owner.address]);
+      const pm = await ethers.deployContract("PolicyManager", [owner.address]);
+      const mk = async () =>
+        (await ethers.deployContract("SanctionsCheck", [owner.address, await oracle.getAddress(), await registry.getAddress()])).getAddress();
+      return { pm, mk, owner, outsider };
+    }
+
+    it("accepts exactly MAX_CHECKS checks and refuses one more", async () => {
+      const { pm, mk } = await freshManager();
+      const max = await pm.MAX_CHECKS();
+      expect(max).to.equal(16n);
+      for (let i = 0n; i < max; i++) await pm.addCheck(await mk());
+      expect(await pm.checksCount()).to.equal(max);
+      await expect(pm.addCheck(await mk())).to.be.revertedWithCustomError(pm, "TooManyChecks").withArgs(max);
+    });
+
+    it("evaluates a full policy set well inside a block", async () => {
+      const { pm, mk, owner } = await freshManager();
+      for (let i = 0; i < 16; i++) await pm.addCheck(await mk());
+      const ctx = { payer: owner.address, recipient: owner.address, amount: USDC("10"), txId: ethers.ZeroHash };
+      const gas = await pm.evaluate.estimateGas(ctx);
+      expect(gas).to.be.lessThan(1_000_000n);
+    });
+
+    it("refuses a check that is already registered", async () => {
+      const { pm, mk } = await freshManager();
+      const c = await mk();
+      await pm.addCheck(c);
+      await expect(pm.addCheck(c)).to.be.revertedWithCustomError(pm, "DuplicateCheck").withArgs(c);
+    });
+
+    it("frees a slot on removal, and only the owner can add", async () => {
+      const { pm, mk, outsider } = await freshManager();
+      for (let i = 0; i < 16; i++) await pm.addCheck(await mk());
+      await pm.removeCheck(3);
+      await pm.addCheck(await mk());
+      expect(await pm.checksCount()).to.equal(16n);
+      await expect(pm.connect(outsider).addCheck(await mk())).to.be.revertedWithCustomError(pm, "OwnableUnauthorizedAccount");
+    });
+  });
 });
