@@ -257,6 +257,12 @@ const PUBLIC_API_PREFIXES = [
   "/api/onchain", // public /onchain aggregates — IP rate-limited, one shared 60 s build per (range, chain)
   "/api/docs/feedback", // anonymous docs page feedback counters (IP rate-limited)
   "/api/transfers/gasless", // Smart Gas: GET quote is public; POST enforces its own session via requireUser
+  // One-click "lock my account" link from security emails (lib/lockLink.ts).
+  // Session-less BY DESIGN: it is for the victim of a takeover, who cannot sign
+  // in. Auth is the HMAC over (userId, expiry) in the URL, checked in constant
+  // time; the route is rate-limited and can only restrict an account. Until
+  // this entry existed the middleware answered 401 to exactly that person.
+  "/api/security/lock",
   "/api/payments/fees", // public fee estimator — merchants compare vs card interchange
   "/api/discord", // Discord interactions — auth IS the Ed25519 signature (401 otherwise)
   "/api/check", // public FurlPay Wallet handle availability check (IP rate-limited)
