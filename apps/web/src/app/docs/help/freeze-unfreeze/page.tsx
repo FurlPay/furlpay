@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DocTitle, Lead, H2, P, Callout, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
@@ -22,7 +23,7 @@ export default function FreezeHelp() {
       <P>
         If you think your FurlPay account or device is compromised, use the account security
         controls in FurlPay and contact{" "}
-        <a href="/support" className="text-neon hover:underline">FurlPay Support</a>. Never send a
+        <Link href="/support" className="text-neon hover:underline">FurlPay Support</Link>. Never send a
         recovery phrase, private key, full card number or API secret in a support request.
       </P>
 

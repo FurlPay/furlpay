@@ -44,6 +44,48 @@ const SERVICES = [
     link: "Check rail status",
   },
   {
+    id: "merchant-payments",
+    name: "Merchant payment links, invoices and hosted checkout",
+    summary: "USDC collection from a payer's own wallet, marked paid only after on-chain verification. Needs provisioned destinations and the payment migration.",
+    href: "/docs/payments/merchant-payments",
+    link: "Merchant payments guide",
+  },
+  {
+    id: "payroll",
+    name: "Contractor payroll",
+    summary: "A contractor roster and wallet-signed USDC pay runs. FurlPay prepares and verifies; the employer's wallet pays.",
+    href: "/docs/payments/payroll",
+    link: "Payroll guide",
+  },
+  {
+    id: "settlement-workspace",
+    name: "Settlement workspace and business onboarding",
+    summary: "A business console with onboarding, document review and screening. Records saved in the workspace are drafts and do not move money.",
+    href: "/docs/settlement/workspace",
+    link: "Workspace guide",
+  },
+  {
+    id: "circle-wallets",
+    name: "Circle user-controlled wallets",
+    summary: "Wallets the user controls with a PIN or biometric in Circle's SDK. FurlPay holds no key share.",
+    href: "/docs/integrations/circle",
+    link: "Circle integration",
+  },
+  {
+    id: "telegram-mini-app",
+    name: "Telegram Mini App",
+    summary: "Sign in to an existing account from Telegram and view balances and activity. It cannot send a payment.",
+    href: "/docs/integrations/telegram",
+    link: "Telegram guide",
+  },
+  {
+    id: "ramps",
+    name: "Buying and selling crypto",
+    summary: "Provider adapters exist, but FurlPay does not operate an on-ramp or off-ramp and no provider is live.",
+    href: "/docs/integrations/ramps",
+    link: "Ramp provider status",
+  },
+  {
     id: "x402-challenge",
     name: "x402 payment challenges",
     summary: "The endpoint currently returns 503 because operational controls are unavailable. Challenge service and settlement must both be checked separately.",
@@ -233,15 +275,18 @@ export default function IntroductionPage() {
         <LI><a href="/docs/integrations/claude-connector" className="text-neon hover:underline">Claude connector</a> — scoped access and human approval for financial actions.</LI>
         <LI><a href="/docs/architecture/authentication" className="text-neon hover:underline">Authentication</a> — sessions, WebAuthn and API access patterns.</LI>
         <LI><a href="/openapi.json" className="text-neon hover:underline">OpenAPI specification</a> — machine-readable route contracts.</LI>
+        <LI><a href="/docs/architecture/configuration" className="text-neon hover:underline">Configuration and setup</a> — credentials, flags, migrations and scheduled jobs.</LI>
+        <LI><a href="/docs/compliance/screening" className="text-neon hover:underline">Screening and cases</a> — address screening, monitoring rules and case management.</LI>
       </UL>
 
       <H2 id="not-live">Services not available as live products</H2>
       <P>
         FurlPay does not currently offer production card issuing, local bank account issuance,
         fiat on-ramp or off-ramp payouts, or live stock and ETF order execution. Travel booking is
-        also not available with production inventory. Batch payouts are also unavailable in production; no batch payout API endpoint is part of this
-        release. Related pages describe integration designs or development work; they are not offers
-        to provide those services today.
+        also not available with production inventory. The batch payout route currently constructs
+        independent intent records only in development; production persistence and settlement are
+        unavailable. Related pages describe integration designs or development work; they are not
+        offers to provide those services today.
       </P>
       <P>
         FurlPay is a software and payment-infrastructure provider, not a bank, card issuer,

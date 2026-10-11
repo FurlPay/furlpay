@@ -1,92 +1,216 @@
-# Furlpay
+# FurlPay
 
-> The on-chain financial operating system — stablecoin payments, travel booking,
-> global local accounts, fractional stock investing, and agentic (AI) payments in
-> one client. Settled on Arbitrum. Phishing-resistant (WebAuthn passkeys), 2-of-2
-> MPC custody, compliance-aware.
+> Stablecoin payment infrastructure and developer tooling: USDC payment APIs,
+> merchant payment links, agent access over MCP, and passkey authentication.
+> FurlPay is a software provider. It is not a bank, card issuer, brokerage or
+> investment adviser.
 
-Furlpay is both a consumer app and developer infrastructure. For AI agents, the
-most relevant surfaces are the x402 facilitator, the travel booking API, and the
-MCP server — an agent can search flights and stays, pay per-request in USDC, and
-receive an on-chain receipt.
+This file is written for AI agents and crawlers. It separates what works in
+production today from what is implemented but not enabled, and from what is
+not offered. Statuses were last checked against https://furlpay.com on 11
+October 2026. Always confirm a payment rail with GET
+https://furlpay.com/api/rails before relying on it. If that endpoint does not
+answer 200, treat every rail as unavailable.
 
-## Capabilities
+## Available in production
 
-- Stablecoin payments (USDC, EURC) — settled on Arbitrum One (0.5% fee), plus Base and Solana
-- Travel booking — 2.2M+ hotels and flights across 230+ countries, pay in USDC, 2% cashback
-- Global local bank accounts (USD, EUR, GBP, INR)
-- Fractional stock investing via Alpaca
-- AI agentic payments via x402 protocol (Arbitrum, Base, Solana)
-- Chain-abstracted intake via Circle CCTP V2 (Ethereum, Base, Polygon, Solana → Arbitrum)
-- Creator Program — up to 10% commission for travel creators, paid weekly in USDC
-- Furlpay Payouts — instant USDC payout rails (B2B, for creator programs and marketplaces)
-- Solana Actions & Blinks
-- Crypto-backed credit lines, rewards & cashback
-- MPC + WebAuthn passkey custody (no seed phrases)
+- Web platform and passkey (WebAuthn) sign-in
+- Developer documentation, OpenAPI spec and published SDKs
+- Payment fee estimates: https://furlpay.com/api/payments/fees/estimate?amount=150
+- Client-signed payment and bridge transaction construction (the user's wallet
+  signs and submits; FurlPay does not hold funds)
+- Market data and charts: https://furlpay.com/markets
+- Hotel discovery map (discovery only, not booking): https://furlpay.com/hotels/map
 
-## Products (landing pages)
+## Implemented, not enabled in production
 
-- Payments — crypto payment gateway, USDC on Arbitrum at 0.5%: https://furlpay.com/products/payments
-- Merchant — accept stablecoin payments, hosted checkout, no chargebacks: https://furlpay.com/products/merchant
-- Travel — book 2.2M+ hotels and flights, pay in USDC: https://furlpay.com/products/travel
-- Investing — fractional US stocks, ETFs, and crypto: https://furlpay.com/products/investing
-- Wallet — passkey MPC wallet, no seed phrase: https://furlpay.com/products/wallet
-- x402 — payments for AI agents over HTTP: https://furlpay.com/products/x402
-- Wallet names — reserve a human-readable payment handle (yourname.furlpay.com) for
-  your account and the AI agents you run: https://furlpay.com/wallet
+Each of these exists in code and stops at a named gate. None should be
+described as available.
 
-## Wallet names (payment handles)
+- x402 payment challenges — GET /api/x402/fx returned 503 controls_unavailable
+  on 11 October 2026
+- x402 and MPP settlement — no production facilitator signer is configured
+- Gasless USDC transfers — the relayer is not configured or funded
+- AI agent payment execution — MCP, agent keys and spend policies work, but an
+  agent cannot complete a payment while settlement is unconfigured
+- Merchant payment links, invoices and hosted checkout — not in the production
+  build on 11 October 2026; needs migrations and provisioned destinations
+- Contractor payroll — needs an approved router deployment and a provider
+- Settlement workspace and business onboarding — production state not verified
+- Circle user-controlled wallets — needs Circle Wallets credentials
+- Telegram Mini App — the page loads; sign-in returned 503 on 11 October 2026
+- Travel booking — the production inventory provider is on a test credential
+- Stock and ETF orders — not routed to a brokerage
+- Mobile and desktop apps — built, not distributed through the app stores
 
-A FurlPay Wallet name is a human-readable payment handle — yourname.furlpay.com —
-that an account and its AI agents present when paying over the web. It replaces a
-long hexadecimal address with a name a person can read, verify and type.
+## Not offered
 
-- Free to reserve; 3–32 characters, letters/digits/hyphens, normalized to lowercase.
-- Reserving requires signing in, so every handle is bound to exactly one verified
-  account. Anonymous reservation is not possible.
-- The reservation grants READ-ONLY permissions (profile, balances, transaction
-  history). Reserving a name can never move money; payments require a separate,
-  stronger authorization that an AI agent never receives implicitly.
-- Settlement is USDC over the open x402 standard, across Arbitrum, Base, Ethereum,
-  Solana, Optimism, Polygon, Avalanche and Gnosis.
-- Reserve at: https://furlpay.com/wallet
-- Launch post: https://furlpay.com/blog/furlpay-wallet-names-are-live-claim-your-payment-handle
+- Card issuing
+- Bank accounts, local account details or bank payouts
+- Fiat on-ramp or off-ramp operated by FurlPay (third-party provider adapters
+  exist; no provider is live)
+- Tokenized equities
+- Credit lines, bill payment, rewards or cashback payouts
+- Peer-to-peer marketplace
 
-## Solutions (by audience)
+## For AI agents
 
-- E-commerce — crypto payments for online stores: https://furlpay.com/solutions/ecommerce
-- SaaS — stablecoin subscription and usage billing: https://furlpay.com/solutions/saas
-- Freelancers — get paid in USDC globally: https://furlpay.com/solutions/freelancers
-- Enterprise — 24/7 USDC settlement with compliance: https://furlpay.com/solutions/enterprise
-- AI agents — x402 + MCP payment infrastructure: https://furlpay.com/solutions/ai-agents
-- Travel agencies — white-label crypto travel booking: https://furlpay.com/solutions/travel-agencies
-- Hotels — accept USDC at 0.5%, no chargebacks, runs beside your PMS: https://furlpay.com/solutions/hotels
-- Airlines — USDC ticket settlement, no FX loss on cross-border fares: https://furlpay.com/solutions/airlines
+- MCP connectivity and scoped account tools: https://furlpay.com/docs/agents
+- Claude connector: https://furlpay.com/docs/integrations/claude-connector
+- Rail map (protocol, chains, fees, caps, live status): https://furlpay.com/api/rails
+- x402 guide and current status: https://furlpay.com/docs/payments/agentic-x402
+- A quote, a challenge or a prepared transaction is not proof that funds moved.
+  Financial actions require the account holder's authorization.
 
-## United Kingdom (en-GB)
+## Custody model
 
-- UK hub — USDC payment gateway for UK business: https://furlpay.com/uk
-- UK payments — accept USDC at 0.5%: https://furlpay.com/uk/products/payments
-- UK hotels — crypto payments for UK hotels: https://furlpay.com/uk/solutions/hotels
-- UK airlines — USDC ticket settlement: https://furlpay.com/uk/solutions/airlines
-- UK pricing (GBP): https://furlpay.com/uk/pricing
-- UK trust & FCA status (not yet FCA authorised; gateway opens 30 Sep 2026): https://furlpay.com/uk/trust
-- UK vs Stripe: https://furlpay.com/uk/compare/stripe
+- Client-signed flows: the payer's own wallet signs. FurlPay builds transaction
+  data and never holds the key.
+- Circle user-controlled wallets: key shares are held by Circle and the user.
+- Remote signing through an enclave provider is custodial and is not a
+  threshold scheme. See https://furlpay.com/docs/security/mpc-webauthn
+- Passkeys authenticate the web account. They are not wallet keys.
 
-## United Arab Emirates (en-AE)
+## Networks referenced in the code
 
-- UAE hub — USDC payment gateway for Dubai business: https://furlpay.com/ae
-- UAE payments — accept USDC at 0.5%: https://furlpay.com/ae/products/payments
-- UAE hotels — crypto payments for Dubai hotels: https://furlpay.com/ae/solutions/hotels
-- UAE airlines — USDC ticket settlement: https://furlpay.com/ae/solutions/airlines
-- UAE pricing (AED): https://furlpay.com/ae/pricing
-- UAE trust & VARA status (not VARA-licensed; evaluating): https://furlpay.com/ae/trust
-- UAE vs Stripe: https://furlpay.com/ae/compare/stripe
+Native Circle-issued USDC on Arbitrum One, Base, Ethereum, Polygon, Solana, OP
+Mainnet and Avalanche. Which networks a given flow accepts is listed on that
+flow's documentation page. Confirmation time depends on the network and the
+required depth; no settlement time is guaranteed.
 
-## Crypto hotels (city guides)
+## Developer platform (open source: https://github.com/FurlPay)
 
-- All cities: https://furlpay.com/hotels
-- Pay for hotels with crypto in Miami / New York / Las Vegas / Austin / San Francisco / Los Angeles / Orlando / Chicago / Seattle / Denver / London / Dubai — e.g. https://furlpay.com/hotels/miami and https://furlpay.com/hotels/dubai
+- Node SDK: @furlpay/furlpay-node
+- CLI with MCP server mode: @furlpay/cli
+- MCP server: @furlpay/mcp-server
+- React elements: @furlpay/elements
+- Account kit (Safe / ERC-4337 bindings): @furlpay/account-kit
+- x402 gateway and guard: @furlpay/gateway, @furlpay/x402-guard
+- Agent framework adapters: @furlpay/vercel-ai, furlpay-langchain,
+  furlpay-llamaindex, furlpay-crewai, furlpay-openai-agents, furlpay-pydanticai,
+  furlpay-mastra
+- OpenAPI 3.1 spec: https://furlpay.com/openapi.json
+
+The SDKs and adapters run in a demo mode without an API key. Demo mode does not
+move money.
+
+## Solana Actions
+
+- Discovery: https://furlpay.com/actions.json
+- Docs: https://furlpay.com/docs/payments/solana-actions
+
+## Documentation
+
+- Getting Started — Services & Availability: https://furlpay.com/docs
+  FurlPay service catalog with production, in-development and planned capability status.
+- Getting Started — Quickstart: https://furlpay.com/docs/quickstart
+  Check payment-rail availability, request a fee estimate, and choose the right API flow.
+- Getting Started — For AI Agents: https://furlpay.com/docs/agents
+  MCP connectivity, scoped agent access and spend controls; payment settlement depends on rail status.
+- Architecture — Monorepo: https://furlpay.com/docs/architecture/monorepo
+  Turborepo layout: apps, packages, SDKs, and how they depend on each other.
+- Architecture — API Routes: https://furlpay.com/docs/architecture/api-routes
+  REST route groups, authentication, request handling and current rail-availability boundaries.
+- Architecture — Authentication: https://furlpay.com/docs/architecture/authentication
+  Sessions, WebAuthn passkeys, agent request signatures, scoped MCP access and the current x402 availability boundary.
+- Architecture — Webhook Events: https://furlpay.com/docs/architecture/webhooks
+  Provider-specific inbound webhooks and signed merchant payment-event delivery.
+- Architecture — Error Codes: https://furlpay.com/docs/architecture/errors
+  Error response shapes, HTTP status conventions, and how to handle unavailable rail controls.
+- Architecture — Rate Limits: https://furlpay.com/docs/architecture/rate-limits
+  The baseline per-IP budget, per-route limits, and how to handle 429 responses.
+- Architecture — Configuration & Setup: https://furlpay.com/docs/architecture/configuration
+  Environment variables by area, money flags, database migrations and scheduled jobs a deployment needs.
+- Payments — Merchant Payments: https://furlpay.com/docs/payments/merchant-payments
+  USDC payment links, invoices and hosted checkout verified on-chain; requires provisioned destinations and the payment migration.
+- Payments — Payroll & Payouts: https://furlpay.com/docs/payments/payroll
+  Contractor roster and wallet-signed USDC pay runs; execution requires an approved router deployment and a contracted provider for documents.
+- Payments — Agentic Payments (x402): https://furlpay.com/docs/payments/agentic-x402
+  x402 endpoint currently returns 503 controls_unavailable; production x402 and MPP settlement are also gated.
+- Payments — Agent Trust & Mandates (TAP): https://furlpay.com/docs/payments/agent-trust
+  Developer library patterns for agent identity, signed mandates and scoped capabilities; these do not enable production settlement.
+- Payments — CCTP Cross-Chain: https://furlpay.com/docs/payments/cctp
+  Client-signed Circle CCTP V2 transaction construction; check network and rail status before signing.
+- Payments — LI.FI Swaps: https://furlpay.com/docs/payments/lifi-swaps
+  Quote LI.FI routes and prepare wallet-signed swaps; a quote is not an executed swap.
+- Payments — FurlPay Travels (Travel MCP): https://furlpay.com/docs/payments/travels-mcp
+  Development integration for agent-assisted travel; production inventory, booking and payment are unavailable.
+- Payments — Solana Actions & Blinks: https://furlpay.com/docs/payments/solana-actions
+  Solana Actions transaction construction; verify asset configuration and wallet signature requirements before use.
+- Business — Settlement Workspace: https://furlpay.com/docs/settlement/workspace
+  Business console and seven-step onboarding with document review and screening; workspace records are drafts and do not move money.
+- Tokens — FURL Token: https://furlpay.com/docs/tokens/furl
+  FURL's mint address, Token-2022 handling, payment integration, allocation model, and the disclosures — no peg, no reserves, no redemption.
+- Integrations — Claude Connector: https://furlpay.com/docs/integrations/claude-connector
+  Connect FurlPay to Claude over MCP with scoped account tools; prepared actions do not guarantee production settlement.
+- Integrations — AI Assistants: https://furlpay.com/docs/integrations/ai-assistants
+  FurlPay MCP connectivity and human-approved agent actions; live payment execution depends on rail status.
+- Integrations — Circle: https://furlpay.com/docs/integrations/circle
+  Circle user-controlled wallets, Compliance Engine screening, CCTP V2 and the USDC issuer blocklist; each needs its own credentials.
+- Integrations — Ramp Providers: https://furlpay.com/docs/integrations/ramps
+  Coinbase and Transak adapters for buying and selling crypto; FurlPay does not operate an on-ramp or off-ramp.
+- Integrations — Telegram Mini App: https://furlpay.com/docs/integrations/telegram
+  Sign in to an existing FurlPay account from Telegram; read-only view of balances and activity.
+- Integrations — Stripe Crypto: https://furlpay.com/docs/integrations/stripe-crypto
+  Optional Stripe PaymentIntent and webhook integration; provider approval and deployment configuration required.
+- Integrations — Persona KYC: https://furlpay.com/docs/integrations/persona-kyc
+  Persona webhook integration; user verification availability depends on provider setup and region.
+- Legal & Compliance — Regulatory status: https://furlpay.com/docs/compliance/mica
+  Jurisdiction and licensing boundaries; no authorization or regulated-service availability is implied.
+- Legal & Compliance — Screening & Cases: https://furlpay.com/docs/compliance/screening
+  Address and name screening, transaction monitoring rules, compliance case management and report exports.
+- Security & Crypto — Security Posture: https://furlpay.com/docs/security/posture
+  Security controls, client-signed payment boundaries, gated production settlement and audit status.
+- Security & Crypto — Signing & WebAuthn: https://furlpay.com/docs/security/mpc-webauthn
+  Passkey authentication, remote signing boundaries and what is not threshold signing.
+- Help Center — Help Center: https://furlpay.com/docs/help
+  Account security, payment status and service-availability guidance.
+- Help Center — Getting Started: https://furlpay.com/docs/help/getting-started
+  Access your account, secure sign-in and check current product availability before using a payment flow.
+- Help Center — KYC Verification: https://furlpay.com/docs/help/kyc-verification
+  Follow identity-check requirements shown in your account; provider and regional availability varies.
+- Help Center — Passkeys & Biometrics: https://furlpay.com/docs/help/passkeys-biometrics
+  How WebAuthn passkeys authenticate your web account, recovery steps, and how passkeys differ from wallet keys.
+- Help Center — Privacy & Data Protection: https://furlpay.com/docs/help/privacy-gdpr
+  What FurlPay stores, how support tickets are redacted, and how to exercise GDPR rights including deletion.
+- Help Center — Transaction Statuses: https://furlpay.com/docs/help/transaction-statuses
+  Common payment states, on-chain verification and safe retry guidance.
+- Help Center — Gasless Transfers: https://furlpay.com/docs/help/gasless-transfers
+  EIP-3009 transfer design and the current production relayer status.
+- Help Center — Deposits & Withdrawals: https://furlpay.com/docs/help/deposits-withdrawals
+  Current funding limits; local accounts and fiat on/off-ramp are not live FurlPay services.
+- Help Center — Managing Virtual Cards: https://furlpay.com/docs/help/managing-cards
+  Card issuing is planned; FurlPay does not currently offer production cards.
+- Help Center — Freezing & Unfreezing Cards: https://furlpay.com/docs/help/freeze-unfreeze
+  FurlPay has no production card program; contact the issuing provider for a third-party card.
+- Help Center — Declined Transactions: https://furlpay.com/docs/help/declined-transactions
+  FurlPay does not process card authorizations; contact the card's issuer for decline support.
+- Help Center — SDK & API Support: https://furlpay.com/docs/help/sdk-integration
+  Where to start as a developer: SDK packages, webhook verification, and how to get integration help.
+- Help Center — x402 Monetization Basics: https://furlpay.com/docs/help/x402-basics
+  A plain-language introduction to x402 challenges and the separate settlement-availability gate.
+- Help Center — Booking Travel: https://furlpay.com/docs/help/travel-booking
+  Hotel discovery is available; production travel booking and payment are not currently available.
+- Help Center — Travel Refunds & Cancellations: https://furlpay.com/docs/help/travel-refunds
+  Where to get help for third-party reservations; FurlPay does not currently operate travel bookings.
+
+## Product and audience pages
+
+These pages describe products and plans. Where a page and the status lists above
+disagree, the status lists and https://furlpay.com/docs are authoritative.
+
+- Products: https://furlpay.com/products/payments, /products/merchant,
+  /products/travel, /products/investing, /products/wallet, /products/x402
+- Solutions: https://furlpay.com/solutions/ecommerce, /solutions/saas,
+  /solutions/freelancers, /solutions/enterprise, /solutions/ai-agents,
+  /solutions/travel-agencies, /solutions/hotels, /solutions/airlines
+- United Kingdom: https://furlpay.com/uk — FurlPay is not FCA authorised:
+  https://furlpay.com/uk/trust
+- United Arab Emirates: https://furlpay.com/ae — FurlPay is not VARA licensed:
+  https://furlpay.com/ae/trust
+- Regulatory status: https://furlpay.com/docs/compliance/mica
+- Pricing: https://furlpay.com/pricing
+- Trust and security: https://furlpay.com/trust
 
 ## Tools
 
@@ -95,162 +219,16 @@ long hexadecimal address with a name a person can read, verify and type.
 - Gas cost estimator (Arbitrum vs Ethereum vs Base vs Polygon vs Solana): https://furlpay.com/resources/tools/gas-estimator
 - Stablecoin comparison (USDC vs USDT vs EURC vs DAI): https://furlpay.com/resources/tools/stablecoin-comparison
 
-## Comparisons
-
-- Furlpay vs Stripe (2.9%+30c cards vs 0.5% USDC): https://furlpay.com/compare/stripe
-- Furlpay vs BitPay: https://furlpay.com/compare/bitpay
-- Furlpay vs Coinbase Commerce (0.5% vs 1%): https://furlpay.com/compare/coinbase-commerce
-- Furlpay vs Travala (crypto travel): https://furlpay.com/compare/travala
-
 ## Guides (blog)
 
 - Crypto vs card fees, the real math: https://furlpay.com/blog/crypto-vs-card-fees-the-real-math
 - How crypto payments work (business primer): https://furlpay.com/blog/how-crypto-payments-work
 - USDC vs USDT for payments: https://furlpay.com/blog/usdc-vs-usdt-for-payments
 
-## Trust
-
-- Trust & security center: https://furlpay.com/trust
-- Contact: https://furlpay.com/contact
-
-## Travel booking (agent-bookable)
-
-- Search + book 2.2M+ stays and flights; pay in USDC on Arbitrum, earn 2% cashback
-- On-chain booking escrow with oracle release; ERC-721 booking receipts
-- Agent flow: discover via MCP → pay via x402 → escrow releases on-chain → receipt mints
-- Travel hub: https://furlpay.com/travel
-
-## Creator Program (travel creators)
-
-- Up to 10% commission, paid weekly in USDC — no 60-150 day holds, no bank minimums
-- 90-day cookie window; followers earn 2% USDC cashback
-- Apply: https://furlpay.com/ambassadors
-
-## Furlpay Payouts (B2B)
-
-- Instant USDC payouts for creator programs, OTAs and marketplaces — global, $0 minimum
-- https://furlpay.com/payouts
-
 ## Community
 
 - Discord: https://furlpay.com/discord
-- Telegram bot: https://t.me/FurlpayBot (also https://furlpay.com/telegram)
-
-## Agentic payments (x402)
-
-- x402 facilitator API: https://furlpay.com/api/x402/facilitator
-  - GET  /supported  — scheme/network kinds (arbitrum, arbitrum-sepolia, base, solana)
-  - POST /verify     — validate a payment payload against requirements
-  - POST /settle     — verify + settle on-chain (single-use nonce, replay-safe)
-- x402 resource catalog: https://furlpay.com/api/x402/resources (agent-discoverable)
-- Payment-rail map: https://furlpay.com/api/rails (all rails: protocol, chains, fees, caps, live status)
-- Gasless USDC transfers: https://furlpay.com/api/transfers/gasless (EIP-3009 relay, fees in USDC, gas sponsored)
-- Payment fee estimate: https://furlpay.com/api/payments/fees/estimate?amount=150
-- Chain status: https://furlpay.com/api/chain/status
-- Pay-per-call demo endpoint: https://furlpay.com/api/x402/fx (402 → quote)
-- Open-source middleware: https://github.com/FurlPay/furlpay-x402 (@furlpay/x402)
-- Docs: https://furlpay.com/docs/payments/agentic-x402
-
-## Solana Actions & Blinks
-
-- Discovery: https://furlpay.com/actions.json
-- Action API: https://furlpay.com/api/actions/pay/{orderId}
-- Docs: https://furlpay.com/docs/payments/solana-actions
-- Template: https://github.com/FurlPay/furlpay-solana-actions-template
-
-## Developer platform (open source: https://github.com/FurlPay)
-
-- Node SDK: https://github.com/FurlPay/furlpay-node (@furlpay/furlpay-node)
-- CLI: https://github.com/FurlPay/furlpay-cli (@furlpay/cli) — terminal client + `furlpay mcp` server mode (18 tools); listed on the official MCP Registry as io.github.FurlPay/furlpay-cli
-- MCP server: https://github.com/FurlPay/furlpay-mcp-server (@furlpay/mcp-server)
-- Elements (React): https://github.com/FurlPay/furlpay-elements
-- Account Kit (Safe/ERC-4337): https://github.com/FurlPay/furlpay-account-kit
-- OpenAPI 3.1 spec: https://furlpay.com/openapi.json
-- Postman collection: https://github.com/FurlPay/furlpay-openapi (collections/)
-
-## Integrations — add FurlPay to any agent framework
-
-Each page is an answer-first quickstart (install command + runnable snippet);
-all packages are MIT and run in demo mode without an API key.
-
-- Vercel AI SDK (@furlpay/vercel-ai, npm): https://furlpay.com/integrations/vercel-ai
-- LangChain (furlpay-langchain, PyPI): https://furlpay.com/integrations/langchain
-- LlamaIndex (furlpay-llamaindex, PyPI): https://furlpay.com/integrations/llamaindex
-- CrewAI (furlpay-crewai): https://furlpay.com/integrations/crewai
-- OpenAI Agents SDK (furlpay-openai-agents): https://furlpay.com/integrations/openai-agents
-- Pydantic AI (furlpay-pydanticai): https://furlpay.com/integrations/pydantic-ai
-- Claude / MCP clients (@furlpay/cli mcp): https://furlpay.com/integrations/claude-mcp
-- OpenBB Workspace (furlpay-openbb-plugin): https://furlpay.com/integrations/openbb
-- Node.js SDK: https://furlpay.com/integrations/node
-- Python SDK: https://furlpay.com/integrations/python
-
-## Supported networks
-
-| Network      | Token | Settlement | Role                    |
-|--------------|-------|------------|-------------------------|
-| Arbitrum One | USDC  | ~250ms     | Primary settlement rail |
-| Base         | USDC  | ~2s        | x402 + bridge source    |
-| Solana       | USDC  | ~400ms     | x402 + payments         |
-| Ethereum     | USDC  | ~12s       | Bridge source (CCTP V2) |
-| Polygon      | USDC  | ~2s        | Bridge source (CCTP V2) |
-
-## Docs — Documentation pages
-
-- Docs hub: https://furlpay.com/docs
-  Overview of all Furlpay developer documentation and guides.
-- Quickstart: https://furlpay.com/docs/quickstart
-  Step-by-step guide to integrate Furlpay payments in your app.
-- For AI Agents: https://furlpay.com/docs/agents
-  MCP server, LangChain / OpenAI / CrewAI adapters, and paying for APIs over x402.
-- Payments — Agent Trust & Mandates (TAP): https://furlpay.com/docs/payments/agent-trust
-  Owned agent keys, enforced spending policies, and cryptographic mandates.
-- Payments — FurlPay Travels (Travel MCP): https://furlpay.com/docs/payments/travels-mcp
-  Flight search, reprice, and booking for agents via the Travel MCP server.
-- Integrations — AI Assistants: https://furlpay.com/docs/integrations/ai-assistants
-  Wire FurlPay into Claude, ChatGPT, and agent frameworks via MCP and native adapters.
-- Architecture — Monorepo: https://furlpay.com/docs/architecture/monorepo
-  How the Furlpay codebase is structured as a Turborepo monorepo.
-- Architecture — API routes: https://furlpay.com/docs/architecture/api-routes
-  Overview of all API route handlers and their responsibilities.
-- Architecture — Authentication: https://furlpay.com/docs/architecture/authentication
-  Passkey sessions, roles, RFC 9421 agent signatures, and x402 payment-as-auth.
-- Architecture — Webhook Events: https://furlpay.com/docs/architecture/webhooks
-  Every inbound webhook handler, its signature scheme, and verifying Furlpay-Signature.
-- Architecture — Error Codes: https://furlpay.com/docs/architecture/errors
-  Error shapes, status conventions, and machine-readable codes with retry guidance.
-- Architecture — Rate Limits: https://furlpay.com/docs/architecture/rate-limits
-  Baseline and per-route budgets; honoring Retry-After on 429.
-- Payments — CCTP Cross-Chain: https://furlpay.com/docs/payments/cctp
-  Non-custodial CCTP V2 burn-and-mint USDC with Fast Transfer attestation.
-- Payments — LI.FI Swaps: https://furlpay.com/docs/payments/lifi-swaps
-  Client-signed cross-chain swaps via LI.FI routing with the 0.5% integrator fee.
-- Integrations — Stripe Crypto Onramp: https://furlpay.com/docs/integrations/stripe-crypto
-  Guide to the Stripe crypto onramp integration for fiat-to-crypto.
-- Integrations — Persona KYC: https://furlpay.com/docs/integrations/persona-kyc
-  Identity verification flow using Persona for KYC/AML compliance.
-- Payments — Agentic x402: https://furlpay.com/docs/payments/agentic-x402
-  How AI agents can make HTTP 402-based payments using x402 protocol.
-- Payments — Solana Actions: https://furlpay.com/docs/payments/solana-actions
-  Solana Actions & Blinks integration for shareable payment links.
-- Security — MPC + WebAuthn: https://furlpay.com/docs/security/mpc-webauthn
-  Passkey-based authentication and 2-of-2 MPC key custody model.
-- Security — Posture: https://furlpay.com/docs/security/posture
-  Layer-by-layer security guarantees with honest audit status; verifiable against the open-source repo.
-- Compliance — MiCA: https://furlpay.com/docs/compliance/mica
-  EU Markets in Crypto-Assets regulation compliance details.
-
-## Marketing — Public pages
-
-- Homepage: https://furlpay.com/
-  Main landing page for Furlpay — one app for payments, banking, investing.
-- Pricing: https://furlpay.com/pricing
-  Pricing tiers, fee schedules, and plan comparison for Furlpay.
-- About: https://furlpay.com/about
-  Company mission, vision, and team information.
-- Developer: https://furlpay.com/developer
-  Developer landing page with SDKs, APIs, and integration resources.
-- Blog: https://furlpay.com/blog
-  Articles on fintech, crypto payments, and Furlpay product updates.
+- Telegram: https://furlpay.com/telegram
 
 ## Legal — Policies and disclosures
 

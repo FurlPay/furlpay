@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DocTitle, Lead, H2, P, Code, Callout, ParameterTable, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
@@ -41,7 +42,7 @@ export default function TxStatusHelp() {
         Do not submit a second payment while the first one is pending or its status is unknown.
         Check the original payment ID and transaction hash first. Use the documented idempotency
         behavior for that route, and contact{" "}
-        <a href="/support" className="text-neon hover:underline">FurlPay Support</a> if the API
+        <Link href="/support" className="text-neon hover:underline">FurlPay Support</Link> if the API
         status and chain evidence disagree.
       </P>
 

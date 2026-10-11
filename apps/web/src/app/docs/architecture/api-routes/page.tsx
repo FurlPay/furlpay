@@ -51,6 +51,7 @@ export default function ApiRoutesPage() {
           { method: "POST", path: "/api/payments/execute", desc: "Submit the user's signature to the configured payment flow" },
           { method: "GET", path: "/api/payments/[id]", desc: "Read the payment's current status" },
           { method: "POST", path: "/api/payments/refund", desc: "Request a refund where the payment and rail support it" },
+          { method: "POST", path: "/api/payouts/batch", desc: "Create up to 100 independent USDC payment intents; production persistence is not configured and the route returns 503" },
         ]}
       />
       <P>
@@ -58,6 +59,12 @@ export default function ApiRoutesPage() {
         FurlPay-operated production settlement is listed separately and remains gated. The create
         route requires an authenticated user session and may require a step-up proof; an API key
         alone does not satisfy that requirement.
+      </P>
+      <P>
+        <Code>POST /api/payouts/batch</Code> is a development-stage intent-construction route, not
+        a live mass-payout service. It accepts up to 100 Arbitrum USDC recipients as independent
+        lines; the batch is not atomic, and production returns <Code>503</Code> until durable intent
+        persistence is implemented. A created line still requires separate signing and settlement.
       </P>
       <UL>
         <LI>A created payment ID is not a transaction hash.</LI>
@@ -115,6 +122,31 @@ export default function ApiRoutesPage() {
         Money-moving tools can prepare an action for approval; the available settlement path still
         depends on the selected rail.
       </P>
+
+      <H2 id="business">Business, compliance and integration routes</H2>
+      <P>
+        These route groups have their own guides. Each guide states what the deployment must
+        configure before the group does anything.
+      </P>
+      <EndpointTable
+        rows={[
+          { method: "—", path: "/api/merchant/payments, /api/checkout/merchant/[slug]", desc: "Payment links, invoices and hosted checkout — see Merchant Payments" },
+          { method: "—", path: "/api/merchant/webhook", desc: "Merchant webhook endpoint — see Webhook Events" },
+          { method: "—", path: "/api/merchant/payroll, /api/payouts/payroll/*", desc: "Contractor roster and pay runs — see Payroll & Payouts" },
+          { method: "—", path: "/api/banking/virtual-accounts", desc: "Account requests only; nothing is issued without a provider — see Payroll & Payouts" },
+          { method: "—", path: "/api/settlement/*", desc: "Workspace drafts and business onboarding — see Settlement Workspace" },
+          { method: "—", path: "/api/compliance/*", desc: "Screening, cases, monitoring and reports — see Screening & Cases" },
+          { method: "—", path: "/api/wallets/circle/*", desc: "Circle user-controlled wallets — see Circle" },
+          { method: "—", path: "/api/onramp/*, /api/offramp/*, /api/ramp/orders", desc: "Third-party ramp providers — see Ramp Providers" },
+          { method: "—", path: "/api/auth/telegram, /api/miniapp/*", desc: "Telegram sign-in and account view — see Telegram Mini App" },
+        ]}
+      />
+      <UL>
+        <LI><a href="/docs/payments/merchant-payments" className="text-neon hover:underline">Merchant Payments</a> and <a href="/docs/payments/payroll" className="text-neon hover:underline">Payroll &amp; Payouts</a></LI>
+        <LI><a href="/docs/settlement/workspace" className="text-neon hover:underline">Settlement Workspace</a> and <a href="/docs/compliance/screening" className="text-neon hover:underline">Screening &amp; Cases</a></LI>
+        <LI><a href="/docs/integrations/circle" className="text-neon hover:underline">Circle</a>, <a href="/docs/integrations/ramps" className="text-neon hover:underline">Ramp Providers</a> and <a href="/docs/integrations/telegram" className="text-neon hover:underline">Telegram Mini App</a></LI>
+        <LI><a href="/docs/architecture/configuration" className="text-neon hover:underline">Configuration &amp; Setup</a> for credentials, flags, migrations and scheduled jobs</LI>
+      </UL>
 
       <H2 id="not-live">Routes that are not live products</H2>
       <P>
