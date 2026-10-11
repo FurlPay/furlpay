@@ -62,3 +62,12 @@ describe("payroll_schedules (0051)", () => {
     expect(roles.has("service_role")).toBe(true);
   });
 });
+
+describe("payroll_schedules cancellation (0051)", () => {
+  it("refuses a cancelled schedule that is still active", async () => {
+    const id = randomUUID();
+    await insert({ id });
+    await db.query("update payroll_schedules set active=false, cancelled_at=now() where id=$1", [id]);
+    await expect(db.query("update payroll_schedules set active=true where id=$1", [id])).rejects.toThrow();
+  });
+});

@@ -17,7 +17,9 @@ const fail = (e: unknown) => {
 // employer still reviews, submits and signs it. Nothing is paid automatically.
 //   GET                                  — this employer's schedules
 //   POST  { requestId, name, chain, cadence, startOn, dayOfMonth?, lines }
-//   PATCH { id, action: "pause" | "resume" } | { id, action: "update", name?, lines? }
+//   PATCH { id, action: "pause" | "resume" | "cancel" } | { id, action: "update", name?, lines? }
+// Cancel is terminal. Drafts a schedule already prepared are ordinary batches:
+// cancelling the schedule does not touch them.
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req); if (!auth.ok) return auth.res;
   const limited = await rateLimitOr429(req, "payroll.schedules.read", { limit: 60, windowMs: 60_000 }, auth.account.user.id); if (limited) return limited;

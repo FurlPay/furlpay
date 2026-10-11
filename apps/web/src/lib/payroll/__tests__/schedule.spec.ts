@@ -34,7 +34,9 @@ vi.mock("@/lib/supabase", () => {
       if (h.failUpdate) return [];
       const id = val(param(q, "id"));
       const runOn = param(q, "next_run_on") ? val(param(q, "next_run_on")) : null;
-      const row = h.schedules.find((s) => s.id === id && (runOn === null || s.next_run_on === runOn));
+      const owner = param(q, "merchant_id") ? val(param(q, "merchant_id")) : null;
+      const mustBeLive = param(q, "cancelled_at") === "is.null";
+      const row = h.schedules.find((s) => s.id === id && (runOn === null || s.next_run_on === runOn) && (owner === null || s.merchant_id === owner) && (!mustBeLive || !s.cancelled_at));
       if (!row) return [];
       Object.assign(row, patch);
       return [{ ...row }];
@@ -184,5 +186,56 @@ describe("the runner", () => {
     await seeded("weekly");
     expect(await runDueSchedules({ now: at("2026-11-30"), expired: () => true })).toEqual([]);
     expect(h.createBatch).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancelling and tenant isolation", () => {
+  const OTHER = "55555555-5555-4555-8555-555555555555";
+
+  it("cancel is terminal: the schedule never runs and cannot be resumed, paused or edited", async () => {
+    await createSchedule(OWNER, input(), at("2026-10-11"));
+    const c = await updateSchedule(OWNER, { id: S1, action: "cancel" }, at("2026-10-12"));
+    expect(c).toMatchObject({ active: false, cancelled_at: new Date(at("2026-10-12")).toISOString() });
+    expect(await runDueSchedules({ now: at("2026-12-31") })).toEqual([]);
+    for (const action of ["resume", "pause", "cancel"] as const) {
+      await expect(updateSchedule(OWNER, { id: S1, action }, at("2026-10-13"))).rejects.toThrow(/cancelled/);
+    }
+    await expect(updateSchedule(OWNER, { id: S1, action: "update", name: "x" }, at("2026-10-13"))).rejects.toThrow(/cancelled/);
+  });
+
+  it("a resume that races a cancel cannot reactivate it (compare-and-set on cancelled_at)", async () => {
+    await createSchedule(OWNER, input(), at("2026-10-11"));
+    // The resume read the row before the cancel landed...
+    h.schedules[0].cancelled_at = new Date(at("2026-10-12")).toISOString();
+    h.schedules[0].active = false;
+    const { sbUpdate } = await import("@/lib/supabase");
+    const res = await (sbUpdate as unknown as (t: string, q: string, p: object) => Promise<unknown[]>)(
+      "payroll_schedules", `id=eq.${S1}&merchant_id=eq.${OWNER}&cancelled_at=is.null`, { active: true });
+    expect(res).toEqual([]);
+    expect(h.schedules[0].active).toBe(false);
+  });
+
+  it("another employer can neither read, pause, resume, cancel nor edit a schedule", async () => {
+    await createSchedule(OWNER, input(), at("2026-10-11"));
+    const { listSchedules } = await import("../schedule");
+    expect(await listSchedules(OTHER)).toEqual([]);
+    for (const action of ["pause", "resume", "cancel"] as const) {
+      expect(await updateSchedule(OTHER, { id: S1, action }, at("2026-10-12"))).toBeNull();
+    }
+    expect(await updateSchedule(OTHER, { id: S1, action: "update", name: "hijack" }, at("2026-10-12"))).toBeNull();
+    expect(h.schedules[0]).toMatchObject({ active: true, name: "Monthly team", cancelled_at: null });
+  });
+
+  it("another employer cannot reuse a schedule's request id to read it", async () => {
+    await createSchedule(OWNER, input(), at("2026-10-11"));
+    await expect(createSchedule(OTHER, input(), at("2026-10-11"))).rejects.toThrow(/not found|already in use/);
+    expect(h.schedules).toHaveLength(1);
+    expect(h.schedules[0].merchant_id).toBe(OWNER);
+  });
+
+  it("a run prepares the batch for the schedule's own employer only", async () => {
+    await createSchedule(OWNER, input(), at("2026-10-11"));
+    await runDueSchedules({ now: at("2026-10-25") });
+    expect(h.createBatch.mock.calls.every((c) => c[0] === OWNER)).toBe(true);
   });
 });

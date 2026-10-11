@@ -120,7 +120,7 @@ export default function PayrollPage() {
         <LI>Recipients and default amounts are read when the run happens, so a contractor&apos;s current verified address is used.</LI>
         <LI>A run that cannot be prepared, for example because a contractor was deactivated or moved to another network, is recorded on the schedule as failed with the reason, and the schedule moves on to its next date.</LI>
         <LI>Each run has a fixed batch ID derived from the schedule and the run date, so a retried or doubled run creates one batch.</LI>
-        <LI>If the job was not running, missed periods are prepared on the next pass, up to six per schedule. Resuming a paused schedule does not prepare the periods it was paused for.</LI>
+        <LI>If the job was not running, missed periods are prepared on the next pass, up to six per schedule. Resuming a paused schedule does not prepare the periods it was paused for. Cancelling is final: a cancelled schedule cannot be resumed, and drafts it already prepared are left as they are.</LI>
       </UL>
 
       <H2 id="analytics">Analytics</H2>
@@ -143,7 +143,7 @@ export default function PayrollPage() {
           { method: "GET / PATCH", path: "/api/payouts/payroll/me", desc: "Contractor side: own profiles; set the payout address with a signature" },
           { method: "GET / POST / PATCH", path: "/api/payouts/payroll/batches", desc: "List runs; create a draft; submit, sign, cancel, reissue, exclude unscreened, record execution" },
           { method: "GET", path: "/api/payouts/payroll/tax-summary?year=", desc: "1099-NEC threshold watch" },
-          { method: "GET / POST / PATCH", path: "/api/payouts/payroll/schedules", desc: "List, create, pause, resume or edit recurring schedules" },
+          { method: "GET / POST / PATCH", path: "/api/payouts/payroll/schedules", desc: "List, create, pause, resume, cancel or edit recurring schedules" },
           { method: "GET", path: "/api/payouts/payroll/analytics?months=", desc: "Paid, pending and prepared totals by month, status, network and contractor" },
           { method: "GET / POST", path: "/api/payouts/payroll", desc: "Saved roster; run payroll for a roster in the request body" },
         ]}

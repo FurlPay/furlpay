@@ -27,6 +27,8 @@ create table payroll_schedules (
   day_of_month smallint check (day_of_month between 1 and 28),
   lines jsonb not null check (jsonb_typeof(lines) = 'array' and jsonb_array_length(lines) between 1 and 100),
   active boolean not null default true,
+  -- Cancelling is terminal: a cancelled schedule never runs and cannot be resumed.
+  cancelled_at timestamptz,
   next_run_on date not null,
   last_run_on date,
   last_batch_id uuid references payroll_batches(id) on delete set null,
@@ -34,7 +36,8 @@ create table payroll_schedules (
   last_error text check (char_length(last_error) <= 500),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  check ((cadence = 'monthly') = (day_of_month is not null))
+  check ((cadence = 'monthly') = (day_of_month is not null)),
+  check (cancelled_at is null or not active)
 );
 create index payroll_schedules_merchant on payroll_schedules(merchant_id, created_at desc);
 -- The runner's query: active schedules that are due.

@@ -42,7 +42,7 @@ export const scheduleSchema = z.object({
 });
 
 export const scheduleActionSchema = z.discriminatedUnion("action", [
-  z.object({ id: z.string().uuid(), action: z.enum(["pause", "resume"]) }).strict(),
+  z.object({ id: z.string().uuid(), action: z.enum(["pause", "resume", "cancel"]) }).strict(),
   z.object({ id: z.string().uuid(), action: z.literal("update"), name: z.string().trim().min(1).max(120).optional(), lines: lines.optional() }).strict(),
 ]);
 
@@ -50,7 +50,7 @@ export type ScheduleInput = z.infer<typeof scheduleSchema>;
 export type ScheduleLine = { contractorId: string; amount?: string };
 export type Schedule = {
   id: string; merchant_id: string; name: string; chain: PayrollChain; cadence: Cadence; day_of_month: number | null;
-  lines: ScheduleLine[]; active: boolean; next_run_on: string; last_run_on: string | null; last_batch_id: string | null;
+  lines: ScheduleLine[]; active: boolean; cancelled_at: string | null; next_run_on: string; last_run_on: string | null; last_batch_id: string | null;
   last_status: "created" | "failed" | null; last_error: string | null; created_at: string; updated_at: string;
 };
 
@@ -126,7 +126,7 @@ export async function createSchedule(owner: string, input: ScheduleInput, now = 
   const stamp = new Date(now).toISOString();
   const row: Schedule = {
     id: input.requestId, merchant_id: owner, name: input.name, chain: input.chain, cadence: input.cadence,
-    day_of_month: input.dayOfMonth ?? null, lines: input.lines, active: true,
+    day_of_month: input.dayOfMonth ?? null, lines: input.lines, active: true, cancelled_at: null,
     next_run_on: firstRunOn(input.cadence, input.startOn, input.dayOfMonth),
     last_run_on: null, last_batch_id: null, last_status: null, last_error: null, created_at: stamp, updated_at: stamp,
   };
@@ -140,8 +140,14 @@ export async function updateSchedule(owner: string, input: z.infer<typeof schedu
   requireStorage();
   const current = (await sbSelect<Schedule>("payroll_schedules", `id=eq.${eq(input.id)}&merchant_id=eq.${eq(owner)}&limit=1`))[0];
   if (!current) return null;
+  // Cancelled is terminal: nothing can pause, resume or edit it back to life.
+  if (current.cancelled_at) throw new PayrollConflict("This schedule was cancelled");
   const patch: Partial<Schedule> = { updated_at: new Date(now).toISOString() };
   if (input.action === "pause") patch.active = false;
+  if (input.action === "cancel") {
+    patch.active = false;
+    patch.cancelled_at = new Date(now).toISOString();
+  }
   if (input.action === "resume") {
     patch.active = true;
     // Resuming does not back-fill the periods it was paused for: the next run
@@ -158,7 +164,9 @@ export async function updateSchedule(owner: string, input: z.infer<typeof schedu
       patch.lines = input.lines;
     }
   }
-  return (await sbUpdate<Schedule>("payroll_schedules", `id=eq.${eq(input.id)}&merchant_id=eq.${eq(owner)}`, patch))[0] ?? null;
+  // cancelled_at=is.null makes the terminal state a compare-and-set: a resume
+  // racing a cancel cannot reactivate it.
+  return (await sbUpdate<Schedule>("payroll_schedules", `id=eq.${eq(input.id)}&merchant_id=eq.${eq(owner)}&cancelled_at=is.null`, patch))[0] ?? null;
 }
 
 // ── the runner ────────────────────────────────────────────────────────────────
