@@ -42,7 +42,8 @@ describe("bvnk_records (0052)", () => {
     expect(await upsert({ ...base, status: "COMPLETED", provider_updated_at: at(60_000) })).toBe("updated");
     // A late PROCESSING delivery after COMPLETED must not regress the status.
     expect(await upsert({ ...base, status: "PROCESSING", provider_updated_at: at(30_000) })).toBe("stale");
-    expect(await upsert({ ...base, status: "FAILED", provider_updated_at: at(60_000) })).toBe("stale");
+    // Same timestamp, different status: a contradiction, recorded — not silently ignored.
+    expect(await upsert({ ...base, status: "FAILED", provider_updated_at: at(60_000) })).toBe("conflict");
     expect((await get("payout", base.provider_id, base.direction)).status).toBe("COMPLETED");
   });
 
@@ -84,5 +85,68 @@ describe("bvnk_records (0052)", () => {
   it("customer status events carry no recordable money state", () => {
     const raw = fixture("platform-customer-status-change");
     expect(recordFromEvent(parseBvnkEvent(raw, Date.parse(JSON.parse(raw).timestamp) + 1000))).toBeNull();
+  });
+
+
+  const exceptions = async (id: string) =>
+    (await db.query<{ reason: string; stored_status: string; reported_status: string }>("select reason, stored_status, reported_status from bvnk_exceptions where provider_id=$1 order by id", [id])).rows;
+
+  it("never moves a final status, even for a newer report, and records the contradiction", async () => {
+    const t = { ...rowOf("payment-transfer-status-change-v-3"), provider_id: "final-1", status: "COMPLETED", provider_updated_at: "2026-05-14T10:00:00Z" };
+    await upsert(t);
+    expect(await upsert({ ...t, status: "PROCESSING", provider_updated_at: "2026-05-14T11:00:00Z" })).toBe("conflict");
+    expect(await upsert({ ...t, status: "FAILED", provider_updated_at: "2026-05-14T12:00:00Z" })).toBe("conflict");
+    expect((await get("transfer", "final-1", t.direction)).status).toBe("COMPLETED");
+    expect(await exceptions("final-1")).toEqual([
+      { reason: "final_status_contradicted", stored_status: "COMPLETED", reported_status: "PROCESSING" },
+      { reason: "final_status_contradicted", stored_status: "COMPLETED", reported_status: "FAILED" },
+    ]);
+  });
+
+  it("allows the one documented move out of a final status: a completed payout RETURNED", async () => {
+    const p = { ...rowOf("payment-payout-status-change-v-2"), provider_id: "ret-1", status: "COMPLETED", provider_updated_at: "2026-05-14T10:00:00Z" };
+    await upsert(p);
+    expect(await upsert({ ...p, status: "RETURNED", provider_updated_at: "2026-05-15T10:00:00Z" })).toBe("updated");
+    expect(await upsert({ ...p, status: "COMPLETED", provider_updated_at: "2026-05-16T10:00:00Z" })).toBe("conflict");
+    expect((await get("payout", "ret-1", p.direction)).status).toBe("RETURNED");
+  });
+
+  it("lets a non-final record move forward normally", async () => {
+    const p = { ...rowOf("payment-payout-status-change-v-2"), provider_id: "fwd-1", status: "PENDING", provider_updated_at: "2026-05-14T10:00:00Z" };
+    await upsert(p);
+    for (const [i, status] of ["PROCESSING", "ON_HOLD", "PROCESSING", "COMPLETED"].entries()) {
+      expect(await upsert({ ...p, status, provider_updated_at: `2026-05-14T1${i + 1}:00:00Z` })).toBe("updated");
+    }
+  });
+
+  it("concurrent reports for one record apply consistently: the newest wins exactly once", async () => {
+    const base = { ...rowOf("payment-payout-status-change-v-2"), provider_id: "race-1", status: "PENDING" };
+    const reports = ["PENDING", "PROCESSING", "ON_HOLD", "COMPLETED"].map((status, i) => ({ ...base, status, provider_updated_at: `2026-05-14T10:0${i}:00Z` }));
+    const results = await Promise.all([...reports].reverse().map(upsert));
+    expect(results.filter((r) => r === "inserted")).toHaveLength(1);
+    expect((await get("payout", "race-1", base.direction)).status).toBe("COMPLETED");
+  });
+
+  it("records a record missing at BVNK once while unresolved, and stamps it checked", async () => {
+    const p = { ...rowOf("payment-payout-status-change-v-2"), provider_id: "miss-1" };
+    await upsert(p);
+    await db.query("select bvnk_record_missing('payout','miss-1',$1)", [p.direction]);
+    await db.query("select bvnk_record_missing('payout','miss-1',$1)", [p.direction]);
+    expect(await exceptions("miss-1")).toHaveLength(1);
+    expect((await get("payout", "miss-1", p.direction)).reconciled_at).toBeTruthy();
+  });
+
+  it("stamps reconciled_at on API reports, not on webhook reports", async () => {
+    const w = { ...rowOf("payment-payout-status-change-v-2"), provider_id: "stamp-1" };
+    await upsert(w);
+    expect((await get("payout", "stamp-1", w.direction)).reconciled_at).toBeNull();
+    await upsert({ ...w, source: "api" });
+    expect((await get("payout", "stamp-1", w.direction)).reconciled_at).toBeTruthy();
+  });
+
+  it("keeps the exceptions table closed to anon and authenticated", async () => {
+    const g = await db.query<{ grantee: string }>("select grantee from information_schema.role_table_grants where table_name='bvnk_exceptions'");
+    const roles = new Set(g.rows.map((r) => r.grantee));
+    expect(roles.has("anon") || roles.has("authenticated")).toBe(false);
   });
 });

@@ -74,9 +74,21 @@ export function recordFromTransfer(t: BvnkTransfer, now = new Date().toISOString
   return fromTransfer(t, "api", null, now);
 }
 
-/** Apply one report; returns whether it was new, newer, or older than what is stored. */
-export async function upsertBvnkRecord(row: BvnkRecordRow): Promise<"inserted" | "updated" | "stale"> {
-  return sbRpc<"inserted" | "updated" | "stale">("bvnk_record_upsert", { p: row });
+export type UpsertOutcome = "inserted" | "updated" | "stale" | "conflict";
+
+/**
+ * Apply one report (migration 0052). "stale": older than, or identical to, what
+ * is stored. "conflict": not applied, because it contradicts a final status or
+ * disagrees with the stored report at the same timestamp; the database has
+ * written a bvnk_exceptions row and the caller raises an alert.
+ */
+export async function upsertBvnkRecord(row: BvnkRecordRow): Promise<UpsertOutcome> {
+  return sbRpc<UpsertOutcome>("bvnk_record_upsert", { p: row });
+}
+
+/** BVNK answered 404 for a record we hold: recorded once as an exception. */
+export async function markBvnkRecordMissing(row: Pick<BvnkRecordRow, "kind" | "provider_id" | "direction">): Promise<void> {
+  await sbRpc("bvnk_record_missing", { p_kind: row.kind, p_provider_id: row.provider_id, p_direction: row.direction });
 }
 
 /** States BVNK documents as final; anything else stays open for reconciliation. */
