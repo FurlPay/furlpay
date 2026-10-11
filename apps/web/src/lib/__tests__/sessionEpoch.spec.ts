@@ -215,7 +215,9 @@ describe("disabling MFA ends sessions elsewhere", () => {
   it("re-issues a cookie so the acting device stays signed in", () => {
     // Otherwise the tab that just proved possession of the second factor is
     // logged out — no security gain, and it reads as a crash.
-    expect(route).toContain("setSessionCookie(res, token)");
+    // d3d7422e moved this to the request-aware helper (embedded Telegram
+    // sessions need different cookie attributes); the re-issue itself stands.
+    expect(route).toContain("setSessionCookieForRequest(req, res, token)");
   });
 
   it("does not extend auth_time when re-issuing", () => {
