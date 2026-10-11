@@ -89,15 +89,42 @@ export const NETWORK_XSGD: Record<string, string> = {
   solana: "71S9cppWipeUEQDFngYwxjoxB6Sz1MUqX72byLsVYJqy",
 };
 export const XSGD_ASSET = process.env.X402_XSGD_ADDRESS || NETWORK_XSGD[NETWORK] || "";
-// Mock mid-market USD/SGD; a live deployment prices from an FX oracle.
-export const XSGD_USD_RATE = Number(process.env.X402_XSGD_USD_RATE || 0.78);
+/**
+ * USD per SGD used to price an XSGD payment, or null when XSGD must not be
+ * offered.
+ *
+ * This was `Number(process.env.X402_XSGD_USD_RATE || 0.78)` — a hardcoded
+ * "mock mid-market" rate that priced every XSGD payment in production whenever
+ * the variable was unset (audit F-32). There is no default now: XSGD is
+ * advertised and accepted only with an operator-configured rate, and only
+ * inside a sanity band (AGENTS rule 8). SGD has traded around 0.7-0.8 USD for
+ * decades; a value outside 0.5-1.0 is a misconfiguration, not a market move.
+ * USDC is unaffected: with no usable rate the 402 simply offers USDC alone.
+ */
+export const XSGD_RATE_BOUNDS = { min: 0.5, max: 1.0 } as const;
+export function xsgdUsdRate(env: NodeJS.ProcessEnv = process.env): number | null {
+  const raw = (env.X402_XSGD_USD_RATE ?? "").trim();
+  if (!raw) return null;
+  const rate = Number(raw);
+  if (!Number.isFinite(rate) || rate < XSGD_RATE_BOUNDS.min || rate > XSGD_RATE_BOUNDS.max) return null;
+  return rate;
+}
+
+/** XSGD is offered only when the network has a deployment AND a rate is configured. */
+export function xsgdOffered(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(XSGD_ASSET) && xsgdUsdRate(env) !== null;
+}
 
 export type X402Asset = "USDC" | "XSGD";
 
 /** Price in atomic units (both assets are 6-decimal) for the given asset. */
 function atomicAmount(priceUsd: number, asset: X402Asset): string {
-  const units = asset === "XSGD" ? priceUsd / XSGD_USD_RATE : priceUsd;
-  return String(Math.round(units * 1e6));
+  if (asset === "XSGD") {
+    const rate = xsgdUsdRate();
+    if (rate === null) throw new Error("XSGD pricing requested without a configured X402_XSGD_USD_RATE");
+    return String(Math.round((priceUsd / rate) * 1e6));
+  }
+  return String(Math.round(priceUsd * 1e6));
 }
 // Treasury receiving per-call payments.
 export const PAY_TO =
@@ -279,7 +306,7 @@ export function acceptedRequirements(opts: {
   mimeType?: string;
 }): PaymentRequirements[] {
   const accepts = [buildRequirements(opts)];
-  if (XSGD_ASSET) accepts.push(buildRequirements({ ...opts, asset: "XSGD" }));
+  if (xsgdOffered()) accepts.push(buildRequirements({ ...opts, asset: "XSGD" }));
   return accepts;
 }
 
@@ -438,9 +465,10 @@ export async function verifyPayment(opts: {
   const { headers, resource, method } = opts;
   // Every advertised requirement is a distinct (asset, amount) pair; the
   // authorized amount identifies which one the agent chose to pay.
-  const expectedByAsset: Record<X402Asset, string> = {
+  const xsgd = xsgdOffered();
+  const expectedByAsset: Partial<Record<X402Asset, string>> = {
     USDC: atomicAmount(opts.priceUsd, "USDC"),
-    XSGD: atomicAmount(opts.priceUsd, "XSGD"),
+    ...(xsgd ? { XSGD: atomicAmount(opts.priceUsd, "XSGD") } : {}),
   };
 
   // ── web-layer hardening ──
@@ -492,17 +520,17 @@ export async function verifyPayment(opts: {
   const asset: X402Asset | undefined =
     auth.value === expectedByAsset.USDC
       ? "USDC"
-      : XSGD_ASSET && auth.value === expectedByAsset.XSGD
+      : xsgd && auth.value === expectedByAsset.XSGD
         ? "XSGD"
         : undefined;
   if (!asset) {
     return {
       ok: false,
       status: 402,
-      error: `Wrong amount (expected ${expectedByAsset.USDC} atomic USDC${XSGD_ASSET ? ` or ${expectedByAsset.XSGD} atomic XSGD` : ""})`,
+      error: `Wrong amount (expected ${expectedByAsset.USDC} atomic USDC${xsgd ? ` or ${expectedByAsset.XSGD} atomic XSGD` : ""})`,
     };
   }
-  const expectedAmount = expectedByAsset[asset];
+  const expectedAmount = expectedByAsset[asset] as string;
 
   // ── binding hardening: payment must reference an untampered quote for THIS resource ──
   const quoteId = p.extra?.quoteId;
