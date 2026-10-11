@@ -34,6 +34,7 @@
         "apps/web/src/lib/auth/google.ts",
         "apps/web/src/lib/auth/otp.ts",
         "apps/web/src/lib/authz.ts",
+        "apps/web/src/lib/compliance/caseStore.ts",
         "apps/web/src/lib/demoGate.ts",
         "apps/web/src/lib/devAutoLogin.ts",
         "apps/web/src/lib/discord.ts",
@@ -42,17 +43,23 @@
         "apps/web/src/lib/kv.ts",
         "apps/web/src/lib/log.ts",
         "apps/web/src/lib/ops/buildInfo.ts",
+        "apps/web/src/lib/payroll/repository.ts",
         "apps/web/src/lib/rails/singapore/straitsx.ts",
         "apps/web/src/lib/ramp/partnerAuth.ts",
+        "apps/web/src/lib/rateLimit.ts",
         "apps/web/src/lib/services/p2pSettlement.ts",
         "apps/web/src/lib/services/payments.ts",
         "apps/web/src/lib/session.ts",
+        "apps/web/src/lib/settlement/environment.ts",
+        "apps/web/src/lib/settlement/onboardingStore.ts",
         "apps/web/src/lib/signature.ts",
         "apps/web/src/lib/store.ts",
+        "apps/web/src/lib/telegram-mini-app/auth.ts",
         "apps/web/src/lib/telegram.ts",
         "apps/web/src/lib/travel/duffel.ts",
         "apps/web/src/lib/travel/store.ts",
-        "apps/web/src/lib/webhookGuard.ts"
+        "apps/web/src/lib/webhookGuard.ts",
+        "apps/web/src/lib/x402QuoteSecret.ts"
       ]
     },
     {
@@ -66,7 +73,8 @@
         "apps/web/src/lib/cards/rainAdapter.ts",
         "apps/web/src/lib/cards/rainNetwork.ts",
         "apps/web/src/lib/env.ts",
-        "apps/web/src/lib/flags.ts"
+        "apps/web/src/lib/flags.ts",
+        "apps/web/src/lib/payments/merchant/registry.ts"
       ]
     },
     {
@@ -170,6 +178,7 @@
       "secrets_manager_name": "furlpay/<env>/ORIGIN_VERIFY_SECRET",
       "runtime_consumer": "lib/originVerify.ts (paired with the ALB listener rule)",
       "read_in": [
+        "apps/web/src/lib/env.ts",
         "apps/web/src/lib/originVerify.ts"
       ]
     },
@@ -225,11 +234,10 @@
       "read_in": [
         "apps/web/src/app/api/ops/readiness/route.ts",
         "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/dataPlane.ts",
         "apps/web/src/lib/env.ts",
         "apps/web/src/lib/ops/overview.ts",
-        "apps/web/src/lib/research/storage.ts",
-        "apps/web/src/lib/services/notifications.ts",
-        "apps/web/src/lib/supabase.ts"
+        "apps/web/src/lib/research/storage.ts"
       ]
     },
     {
@@ -242,10 +250,9 @@
       "read_in": [
         "apps/web/src/app/api/ops/readiness/route.ts",
         "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/dataPlane.ts",
         "apps/web/src/lib/env.ts",
-        "apps/web/src/lib/research/storage.ts",
-        "apps/web/src/lib/services/notifications.ts",
-        "apps/web/src/lib/supabase.ts"
+        "apps/web/src/lib/research/storage.ts"
       ]
     },
     {
@@ -257,9 +264,8 @@
       "runtime_consumer": "lib/kv.ts — production refuses the in-memory fallback",
       "read_in": [
         "apps/web/src/lib/bootConfig.ts",
+        "apps/web/src/lib/dataPlane.ts",
         "apps/web/src/lib/env.ts",
-        "apps/web/src/lib/kv.ts",
-        "apps/web/src/lib/locks.ts",
         "apps/web/src/lib/ops/overview.ts"
       ]
     },
@@ -272,9 +278,8 @@
       "runtime_consumer": "lib/kv.ts",
       "read_in": [
         "apps/web/src/lib/bootConfig.ts",
-        "apps/web/src/lib/env.ts",
-        "apps/web/src/lib/kv.ts",
-        "apps/web/src/lib/locks.ts"
+        "apps/web/src/lib/dataPlane.ts",
+        "apps/web/src/lib/env.ts"
       ]
     },
     {
@@ -286,7 +291,6 @@
       "runtime_consumer": "lib/payments/stripe.ts",
       "read_in": [
         "apps/web/src/app/api/billing/checkout/route.ts",
-        "apps/web/src/app/docs/integrations/stripe-crypto/page.tsx",
         "apps/web/src/lib/env.ts",
         "apps/web/src/lib/payments/stripe.ts",
         "apps/web/src/lib/services/applePay.ts"
@@ -315,7 +319,8 @@
         "apps/web/src/lib/auth/otp.ts",
         "apps/web/src/lib/email.ts",
         "apps/web/src/lib/env.ts",
-        "apps/web/src/lib/ops/overview.ts"
+        "apps/web/src/lib/ops/overview.ts",
+        "apps/web/src/lib/partnerships/repository.ts"
       ]
     },
     {
