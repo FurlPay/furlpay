@@ -6,7 +6,13 @@
 // URL; the only output is a signed URL that expires in SIGNED_URL_TTL_SECONDS.
 // A missing configuration is reported as unavailable, never papered over with
 // a public link.
+//
+// Credentials are resolved through lib/dataPlane.ts, like every other backend:
+// a preview deployment without its own data plane gets none, so it cannot mint
+// signed URLs for the production bucket.
 // ---------------------------------------------------------------------------
+
+import { resolveDataPlane } from "@/lib/dataPlane";
 
 export const SIGNED_URL_TTL_SECONDS = 60;
 const SAFE_KEY = /^[a-z0-9][a-z0-9._/-]{0,200}\.pdf$/;
@@ -14,7 +20,8 @@ const SAFE_KEY = /^[a-z0-9][a-z0-9._/-]{0,200}\.pdf$/;
 export type SignResult = { ok: true; url: string } | { ok: false; reason: "not_configured" | "unavailable" };
 
 export function storageConfigured(env: NodeJS.ProcessEnv = process.env): boolean {
-  return !!(env.SUPABASE_URL && env.SUPABASE_SERVICE_ROLE_KEY && env.RESEARCH_PDF_BUCKET);
+  const plane = resolveDataPlane(env);
+  return !!(plane.supabaseUrl && plane.supabaseKey && env.RESEARCH_PDF_BUCKET);
 }
 
 /**
@@ -25,15 +32,16 @@ export function storageConfigured(env: NodeJS.ProcessEnv = process.env): boolean
 export async function signedPdfUrl(objectKey: string, env: NodeJS.ProcessEnv = process.env): Promise<SignResult> {
   if (!storageConfigured(env)) return { ok: false, reason: "not_configured" };
   if (!SAFE_KEY.test(objectKey) || objectKey.includes("..")) return { ok: false, reason: "unavailable" };
-  const base = env.SUPABASE_URL!.replace(/\/$/, "");
+  const plane = resolveDataPlane(env);
+  const base = plane.supabaseUrl!.replace(/\/$/, "");
   const bucket = encodeURIComponent(env.RESEARCH_PDF_BUCKET!);
   const path = objectKey.split("/").map(encodeURIComponent).join("/");
   try {
     const res = await fetch(`${base}/storage/v1/object/sign/${bucket}/${path}`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
-        apikey: env.SUPABASE_SERVICE_ROLE_KEY!,
+        Authorization: `Bearer ${plane.supabaseKey}`,
+        apikey: plane.supabaseKey!,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ expiresIn: SIGNED_URL_TTL_SECONDS }),

@@ -179,8 +179,20 @@ export function getPayment(id: string): PaymentRecord | undefined {
   return p;
 }
 
-export function listPayments(limit = 50): PaymentRecord[] {
+/**
+ * One account's payments, newest first: the ones it created and the ones its
+ * signed authorization paid.
+ *
+ * The owner is REQUIRED and has no default. This used to take only a limit and
+ * return every account's records, and both callers (the session history route
+ * and the API-key /v1 route) handed that list to whoever asked — including the
+ * payer address and the merchant's free-form metadata. A list function that
+ * cannot be called without saying whose list it is cannot leak that way again.
+ */
+export function listPayments(ownerUserId: string, limit = 50): PaymentRecord[] {
+  if (!ownerUserId) return [];
   return [...payments.values()]
+    .filter((p) => p.createdByUserId === ownerUserId || p.payerUserId === ownerUserId)
     .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
     .slice(0, limit);
 }

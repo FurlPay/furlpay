@@ -1,6 +1,7 @@
 import { sbInsertIgnoreDuplicates, sbSelect, sbUpdate, supabaseBackend } from "@/lib/supabase";
 import { DOCUMENT_MAX_BYTES, emptyState, type DocumentRecord, type OnboardingState } from "./onboarding";
 import { readBoundedBody } from "./boundedBody";
+import { dataPlane } from "@/lib/dataPlane";
 
 // Persistence for business onboarding.
 //
@@ -17,8 +18,8 @@ export class OnboardingUnavailable extends Error {}
 
 const TABLE = "settlement_onboarding";
 const BUCKET = "kyb-documents";
-const SB_URL = process.env.SUPABASE_URL;
-const SB_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SB_URL = dataPlane.supabaseUrl;
+const SB_KEY = dataPlane.supabaseKey;
 
 export type Backend = "supabase" | "development" | "none";
 export function backend(env: Record<string, string | undefined> = process.env): Backend {

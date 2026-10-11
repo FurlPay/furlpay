@@ -1,10 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { issueCredential, verifyCredential } from "@furlpay/compliance";
 import { requireUser } from "@/lib/authz";
+import { validateBody } from "@/lib/validate";
+import { credentialSecret } from "@/lib/compliance/credentialSecret";
 
 export const dynamic = "force-dynamic";
 
-const SECRET = process.env.FURLPAY_CREDENTIAL_SECRET || "furlpay_credential_issuer_sandbox";
+const Body = z.discriminatedUnion("action", [
+  // Unknown fields are stripped, not rejected: a client trying to supply its own
+  // attributes gets a credential with the server's attributes (tested).
+  z.object({ action: z.literal("issue") }),
+  z.object({
+    action: z.literal("verify"),
+    credential: z
+      .object({
+        id: z.string().max(64),
+        subject: z.string().max(128),
+        attributes: z.record(z.unknown()),
+        issuedAt: z.number().int().nonnegative(),
+        expiresAt: z.number().int().nonnegative(),
+        signature: z.string().max(256),
+      })
+      .passthrough(),
+  }).strict(),
+]);
 
 // POST /api/compliance/credential — issue or verify a reusable KYC credential.
 // body: { action: "issue" } | { action: "verify", credential }
@@ -16,8 +36,15 @@ const SECRET = process.env.FURLPAY_CREDENTIAL_SECRET || "furlpay_credential_issu
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
+
+  const secret = credentialSecret();
+  if (!secret) {
+    return NextResponse.json({ error: "credentials_unavailable", detail: "Credential signing is not configured on this deployment." }, { status: 503 });
+  }
+
+  const body = await validateBody(req, Body);
+  if (body instanceof NextResponse) return body;
   const user = auth.account.user;
-  const body = await req.json().catch(() => ({}));
 
   if (body.action === "issue") {
     if (user.kycStatus !== "verified") {
@@ -31,17 +58,13 @@ export async function POST(req: NextRequest) {
         sanctionsClear: true,
         tier: user.kycTier,
       },
-      SECRET
+      secret
     );
     // "Verify once, use everywhere": the credential is reusable across actions.
     return NextResponse.json({ credential });
   }
 
-  if (body.action === "verify") {
-    if (!body.credential) return NextResponse.json({ error: "credential required" }, { status: 400 });
-    const check = verifyCredential(body.credential, SECRET);
-    return NextResponse.json({ check, attributes: check.valid ? body.credential.attributes : null });
-  }
-
-  return NextResponse.json({ error: "Unknown action" }, { status: 400 });
+  const credential = body.credential as unknown as Parameters<typeof verifyCredential>[0];
+  const check = verifyCredential(credential, secret);
+  return NextResponse.json({ check, attributes: check.valid ? credential.attributes : null });
 }
