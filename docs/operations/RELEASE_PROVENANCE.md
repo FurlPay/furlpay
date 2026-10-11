@@ -31,7 +31,9 @@ vercel deploy --prod \
   --build-env FURLPAY_BUILD_BRANCH=$(git rev-parse --abbrev-ref HEAD) \
   --build-env FURLPAY_BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 ```
-> Not baked into `deploy:prod` yet: `$(…)` is cross-platform-fragile on the Windows host and `deploy:prod` is the production ship script — apply and verify against one real deploy first.
+**Baked into `deploy:prod` (11 Oct 2026):** `npm run deploy:prod` now runs `apps/web/scripts/deploy-prod.mjs`, a Node wrapper (no shell `$(…)`, so it works under cmd.exe). It runs the deploy gate, then `vercel deploy --prod` with `FURLPAY_BUILD_SHA`, `FURLPAY_BUILD_BRANCH` and `FURLPAY_BUILD_TIME` passed as both `--build-env` and `--env` — `--build-env` alone is visible only while building, and `buildInfo()` reads `process.env` at runtime — plus `--meta gitCommitSha=… gitCommitRef=…` so `vercel inspect --json` shows the commit. Verify on the first real deploy: `/api/ops/health` (admin) `build.commitSha` and `vercel inspect <url> --json` `meta.gitCommitSha` must both equal the released SHA.
+
+**11 Oct 2026 production (`dpl_31mdtjFARgnr16CqtpxFVfhL6po9`):** no metadata (pre-wrapper CLI deploy). Identified by content instead: `/llms.txt` is byte-identical to `0dce509b` (and differs from the previous `d3d7422e`), `/api/security/lock` serves the `0dce509b` link page, and `/api/agents/ap2` answers with `0dce509b`’s validation message rather than #115’s. Confidence high, but by fingerprint, not metadata.
 
 ## Recommended release discipline
 ```
