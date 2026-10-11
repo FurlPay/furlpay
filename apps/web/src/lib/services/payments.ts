@@ -8,6 +8,8 @@ import { sendEmail } from "@/lib/email";
 import { mockAllowed, IntegrationNotConfiguredError } from "@/lib/integrations";
 import { audit } from "@/lib/audit";
 import { log } from "@/lib/log";
+import { ROUTER_CHAINS, configuredRouter, routerEnvName, type RouterChain } from "./routerConfig";
+export { ROUTER_CHAINS, configuredRouter, routerEnvName, type RouterChain };
 
 // ---------------------------------------------------------------------------
 // Unified USDC payment service — the chain-native counterpart to the Stripe
@@ -56,6 +58,9 @@ export interface PaymentRecord {
   status: PaymentStatus;
   amountUsdc: number;
   feeUsdc: number;
+  /** Exact micro-units when the caller supplied them (payroll); else derived from the USD numbers. */
+  amountUnits?: string;
+  feeUnits?: string;
   sourceChain: string;
   settlementChain: string;
   recipient: string;
@@ -189,6 +194,12 @@ export interface CreateParams {
   idempotencyKey?: string;
   /** Acting user (from session) — scopes idempotency and attribution. */
   userId: string;
+  /** Chain whose FurlPayRouter executes this authorization. Default: Arbitrum. */
+  settlementChain?: RouterChain;
+  /** Exact micro-unit terms (payroll). `amount` is what the router debits from
+   *  the payer; the recipient receives `amount - fee`. When absent, the
+   *  platform fee is taken out of `params.amount` as before. */
+  units?: { amount: bigint; fee: bigint };
 }
 
 /** The deployed FurlPayRouter the payer's wallet signs against.
@@ -200,19 +211,20 @@ export interface CreateParams {
  *  silently differs from the real contract's — exactly the kind of "looks
  *  settled, signed nothing" state a payments API must never produce. Dev and
  *  preview keep the placeholder so the flow stays clickable without a deploy. */
-function routerAddress(): string {
-  const configured = process.env.FURLPAY_ROUTER_ADDRESS;
+function routerAddress(chain: RouterChain = SETTLEMENT_CHAIN): string {
+  const configured = configuredRouter(chain);
   if (configured) return configured;
   if (process.env.NODE_ENV === "production") {
-    throw new IntegrationNotConfiguredError("FurlPayRouter (FURLPAY_ROUTER_ADDRESS)");
+    throw new IntegrationNotConfiguredError(`FurlPayRouter on ${chain} (${routerEnvName(chain)})`);
   }
   return "0xFurlPayRouterPendingDeployment";
 }
 
 /** Build the create-intent response (quote + EIP-712 sign data) for a record. */
 async function buildCreateResponse(record: PaymentRecord, replayed: boolean) {
-  const chain = getChain(SETTLEMENT_CHAIN)!;
-  const router = routerAddress();
+  const settlement = (ROUTER_CHAINS as readonly string[]).includes(record.settlementChain) ? record.settlementChain as RouterChain : SETTLEMENT_CHAIN;
+  const chain = getChain(settlement)!;
+  const router = routerAddress(settlement);
   const gas = await gasQuote(chain);
   return {
     record,
@@ -238,8 +250,8 @@ async function buildCreateResponse(record: PaymentRecord, replayed: boolean) {
       message: {
         paymentId: record.id,
         recipient: record.recipient,
-        amount: atomic(record.amountUsdc),
-        fee: atomic(record.feeUsdc),
+        amount: record.amountUnits ?? atomic(record.amountUsdc),
+        fee: record.feeUnits ?? atomic(record.feeUsdc),
         nonce: record.nonce,
         deadline: Math.floor(Date.parse(record.expiresAt) / 1000),
       },
@@ -262,15 +274,24 @@ export async function createPayment(params: CreateParams) {
     }
   }
 
-  const fee = round(params.amount * FEE_RATE);
+  const settlementChain = params.settlementChain ?? SETTLEMENT_CHAIN;
+  if (!(ROUTER_CHAINS as readonly string[]).includes(settlementChain)) throw new Error("unsupported_settlement_chain");
+  if (params.units && (params.units.fee < 0n || params.units.amount <= params.units.fee || params.units.fee * 100n > params.units.amount)) {
+    // FurlPayRouter.MAX_FEE_BPS = 100: an authorization above 1% would revert on-chain.
+    throw new Error("invalid_payment_terms");
+  }
+  // Fail before minting a record when this chain has no router in production.
+  routerAddress(settlementChain);
+  const fee = params.units ? unitsToNumber(params.units.fee) : round(params.amount * FEE_RATE);
   const now = Date.now();
   const record: PaymentRecord = {
     id: `pay_${crypto.randomBytes(12).toString("hex")}`,
     status: "pending_signature",
-    amountUsdc: params.amount,
+    amountUsdc: params.units ? unitsToNumber(params.units.amount) : params.amount,
     feeUsdc: fee,
+    ...(params.units ? { amountUnits: params.units.amount.toString(), feeUnits: params.units.fee.toString() } : {}),
     sourceChain: params.sourceChain,
-    settlementChain: SETTLEMENT_CHAIN,
+    settlementChain,
     recipient: params.recipient,
     createdByUserId: params.userId,
     metadata: params.metadata,
@@ -622,6 +643,11 @@ export async function estimateFees(amount: number, sourceChain: string) {
     cardInterchangeComparisonUsd: cardFee,
     savingsVsCardsUsd: round(cardFee - fee - gas.transferCostUsd),
   };
+}
+
+/** Exact micro-units → the display number on the record, via the decimal string (no float division). */
+function unitsToNumber(units: bigint): number {
+  return Number(`${units / 1_000_000n}.${(units % 1_000_000n).toString().padStart(USDC_DECIMALS, "0")}`);
 }
 
 function atomic(usdc: number): string {

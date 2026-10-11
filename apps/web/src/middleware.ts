@@ -57,6 +57,9 @@ const PUBLIC_PAGES = new Set([
   "/careers",
   "/ambassadors",
   "/ambassadors/dashboard", // per-creator dashboard, reached via emailed ?email= link
+  // Payroll invite: the token is in the URL fragment, which a login redirect
+  // would drop. The page keeps it and calls an authenticated API (401 → /login).
+  "/payroll/join",
   "/payouts",
   "/status",
   "/press",
@@ -95,6 +98,7 @@ const PUBLIC_PAGE_PREFIXES = [
   "/docs",
   "/blog",
   "/.well-known", // OAuth 2.1 discovery metadata (RFC 8414 / 9728) + assetlinks
+  "/p/", // hosted merchant checkout: payers are anonymous; the page reads only the public link/intent views
   "/l/", // verified app links: redirect to the same path (app/l/[...path]); the target gates itself
 
   "/investing/insights", // FurlPay Research portal — public content, like /blog
@@ -136,7 +140,10 @@ const PUBLIC_PAGE_PREFIXES = [
   "/newsletter", // subscribe / manage preferences (public)
   "/early-access", // early-access signup landing (public)
   "/developer", // public developer portal + Agent Console demo
-  "/pay", // shareable Solana Blink checkout links (unauthenticated by design)
+  // Shareable checkout links (/pay/x402…), unauthenticated by design. WITH the
+  // trailing slash: a bare "/pay" prefix also matched /payroll/*, /payments and
+  // /paynow, silently making every "pay…" page public.
+  "/pay/",
   "/travel", // FurlPay Travels — public discovery & booking funnel (SEO + conversion)
   "/trips", // FurlPay Trips product page — marketing composition, no user data
   "/onchain", // Onchain Intelligence — public aggregates from /api/onchain (no user ids, truncated addresses)

@@ -142,6 +142,12 @@ describe("the gate actually uses it", () => {
     expect(GATE).toMatch(/const FORCED = process\.env\.FURLPAY_DEPLOY_FORCE === "1";/);
   });
 
+  it("only a forced deploy WITH a written reason can skip the branch check", () => {
+    expect(GATE).toMatch(/if \(FORCED && FORCE_REASON\.length < 15\) \{\s*fail\(/);
+    // The reason check runs before the branch check can be skipped.
+    expect(GATE.indexOf("FORCE_REASON.length < 15")).toBeLessThan(GATE.indexOf("checkReleaseBranch(branch)"));
+  });
+
   it("checks the branch BEFORE the network calls", () => {
     // The cheapest no. Querying the remote and GitHub Actions for a deploy that
     // was never allowed wastes time and, on a rate-limited token, can fail for

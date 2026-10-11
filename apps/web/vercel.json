@@ -7,7 +7,9 @@
     { "path": "/api/cron/market-brief", "schedule": "30 21 * * *" },
     { "path": "/api/cron/price-cards", "schedule": "5 13 * * *" },
     { "path": "/api/cron/discord-welcome", "schedule": "20 6 * * *" },
-    { "path": "/api/cron/onchain-reconcile", "schedule": "40 6 * * *" }
+    { "path": "/api/cron/onchain-reconcile", "schedule": "40 6 * * *" },
+    { "path": "/api/cron/merchant-payments", "schedule": "*/2 * * * *" },
+    { "path": "/api/cron/merchant-reconcile", "schedule": "*/10 * * * *" }
   ],
   "functions": {
     "src/app/api/markets/perps/**": { "regions": ["fra1"] }

@@ -1,3 +1,4 @@
+import { arcRailAdapter } from "@/lib/chains/arcExecutionAdapter";
 import { financialEnvironment } from "@/lib/flags";
 
 // ---------------------------------------------------------------------------
@@ -106,14 +107,36 @@ export function unregisterRailAdapter(railId: string): void {
   adapters.delete(railId);
 }
 
+// Rails whose adapters decide for themselves whether they may connect (flag, environment,
+// endpoint, KMS signer). ARC-P1-004: the Arc adapter existed but nothing ever registered it, so
+// /api/v1/payments/execute could not reach Arc even with every condition met. Each factory returns
+// null when any condition fails, which keeps the rail unregistered (503) — never half-connected.
+let configuredOnce = false;
+const autoConnected = new Set<string>();
+function connectConfiguredRails(): void {
+  if (configuredOnce) return;
+  configuredOnce = true;
+  const arc = arcRailAdapter();
+  if (arc && !adapters.has(arc.railId)) { registerRailAdapter(arc); autoConnected.add(arc.railId); }
+}
+
 /** Null when nothing is connected — the production case. */
 export function railAdapterFor(railId: string): RailAdapter | null {
+  connectConfiguredRails();
   return adapters.get(railId) ?? null;
 }
 
 /** Which rails have an adapter at all. Empty in production, by design. */
 export function connectedRails(): string[] {
+  connectConfiguredRails();
   return [...adapters.keys()].sort();
+}
+
+/** Tests only: forget that configured rails were connected (environment changed). */
+export function resetConfiguredRailsForTests(): void {
+  configuredOnce = false;
+  for (const railId of autoConnected) adapters.delete(railId);
+  autoConnected.clear();
 }
 
 /**

@@ -52,6 +52,7 @@ const MAIN = [
 ] as const;
 
 const ACCOUNT = [
+  { href: "/dashboard/payments", label: "Merchant payments", Icon: Receipt },
   { href: "/transactions", label: "Transactions", Icon: Receipt },
   { href: "/spending", label: "Reports", Icon: FileText },
   { href: "/profile", label: "Settings", Icon: Settings },

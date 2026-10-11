@@ -11,6 +11,11 @@ import { enqueueAudit } from "@/lib/auditDb";
 // ---------------------------------------------------------------------------
 
 export type AuditEvent =
+  // Merchant webhook endpoint changes (lib/payments/merchant/webhooks.ts).
+  | "merchant.webhook.set"
+  | "merchant.webhook.deleted"
+  // A payment link created with an API key (app/api/v1/payment-links); records the key id.
+  | "merchant.link.api_created"
   | "auth.login"
   | "auth.logout"
   | "auth.logout.epoch_fallback"

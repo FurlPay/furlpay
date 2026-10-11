@@ -4,8 +4,11 @@ Arc becomes a live FurlPay rail when **every box below is ticked** — not when
 the code compiles, not when the tests pass, and not when a testnet transaction
 succeeds.
 
-**Current state: `access: "sandbox"`. Zero boxes ticked. Arc has never been
-contacted from this repository.**
+**Current state (2026-10-09): `access: "sandbox"`.** Boxes ticked below are
+ticked by code and tests in this repository plus read-only checks against Arc —
+**not** by a transaction. No FurlPay transaction has been sent on Arc testnet or
+mainnet, no KMS key is provisioned, and the deployment, audit and last-box items
+are open. Ticked ≠ live.
 
 ---
 
@@ -36,28 +39,34 @@ document says so.
 - [ ] The same, repeated for **Arc mainnet**
 
 ### Signer
-- [ ] `arcSigner()` returns a real KMS-backed signer (today: returns `null`)
-- [ ] The signing key is held in the same KMS the x402 settler requires — Arc
-      does not get a weaker signing story than the rail that already exists
-- [ ] No raw-key fallback exists on the Arc path, in any environment
-- [ ] Signer failure is proven to fail closed (rail unregisters → 503)
+- [x] `arcSigner()` returns a KMS-backed signer — code only (`36e2b149`):
+      `createKmsAccount({keyId:"furlpay-settlement", purpose:"settlement"})`;
+      `null` without a KMS. **The key itself is not provisioned.**
+- [x] The signing key is held in the same KMS the x402 settler requires
+      (`lib/kmsAccount.ts`, purpose `settlement`)
+- [x] No raw-key fallback exists on the Arc path — `arcSigner.spec.ts`
+      "is null without a KMS — there is no raw-key path"
+- [x] Signer failure fails closed: without a signer the rail is never
+      registered, so `railAdapterFor("arc_usdc_transfer")` is `null` (tested)
 
 ### Network configuration
-- [ ] `ARC_RPC_URL` set to an endpoint **independently verified** to be Arc
-      mainnet. The mainnet RPC constant in this repository is **NOT verified** —
-      see `ARC_DEPENDENCIES.md` §1
-- [ ] Secondary RPC configured and failover tested
-- [ ] `eth_chainId` returns **5042** from every configured endpoint
-- [ ] Arc's documented finality behaviour read from Circle's own material, and
-      `ARC_CONFIRMATIONS` set from it. **Do not inherit "instant finality" from
-      a launch blog** — see `ARC_DEPENDENCIES.md` §4
+- [x] `rpc.mainnet.arc.io` independently verified to be Arc mainnet
+      (2026-10-09, `ARC_DEPENDENCIES.md` §1). Setting `ARC_RPC_URL` in the
+      hosted environment is still an ops step.
+- [ ] Secondary RPC configured — **failover is code-complete and tested**
+      (`33ade752`, `proxyFailover.spec.ts`, `rpcFailover.spec.ts`); no second
+      provider is configured (ARC-P5-001)
+- [x] `eth_chainId` is proven per endpoint before use (`proveChain` in
+      `lib/payments/merchant/rpc.ts`; the signer refuses a mismatch)
+- [x] Finality read from Arc's own docs (ARC-Pn-003); deposit policy is
+      1 confirmation with bounded finality
 - [ ] `ARC_RECEIPT_TIMEOUT_MS` reviewed against observed Arc block times
 
 ### USDC
-- [ ] `ARC_USDC_ERC20` (`0x3600…0000`) confirmed against Circle's own Arc
-      documentation for **mainnet**
-- [ ] The 18-decimal native / 6-decimal ERC-20 split re-confirmed on mainnet —
-      a chain upgrade that changed it would be silent and cost a factor of 10¹²
+- [x] `0x3600…0000` has code on Arc mainnet (1,798 bytes) and answers the
+      ERC-20 interface (approve/allowance/transferFrom simulated, ARC-Pn-002)
+- [x] The 18/6 split re-confirmed on mainnet 2026-10-09: 477 of 477 ERC-20
+      Transfer logs paired with a system-emitter log at exactly 10¹²
 - [ ] A read-only `balanceOf` against the production signer address returns a
       plausible value
 
@@ -67,9 +76,9 @@ document says so.
 - [ ] Crash recovery: process killed after submission, recovered from the hash
 - [ ] Reconciliation compares FurlPay state against Arc on-chain state and
       reports discrepancies
-- [ ] The **dual Transfer emitter** is handled in reconciliation — a single
-      ERC-20 transfer emits two logs (18dp system + 6dp ERC-20) and counting
-      both double-counts every payment
+- [x] The **dual Transfer emitter** is handled in collection and
+      reconciliation, and native-only sends are credited (`e82e7f0f`;
+      `arcCollection.spec.ts`: credited once, never twice; dust held)
 - [ ] Nonce management tested with concurrent submissions from multiple workers
 
 ### Security
@@ -82,8 +91,9 @@ document says so.
 - [ ] Agent blast radius re-measured with Arc reachable
 
 ### Operations
-- [ ] Arc rail health exposed separately from FurlPay overall health — an Arc
-      RPC outage must not take the control plane down
+- [x] Arc chain health exposed separately (`0654d326`): head age, height and
+      per-endpoint state in the operations console; stale head or unreachable
+      RPC raises a fingerprinted alert (`faa83c5f`)
 - [ ] Arc metrics emitting (submissions, settlements, indeterminate, gas cost,
       RPC latency, reconciliation discrepancies)
 - [ ] Alerting on `INDETERMINATE` — that state means money may be in flight
@@ -128,6 +138,6 @@ Circle's own Paymaster supported-chain list does not include Arc. Recorded as
 **CCTP on Arc.** A separate gate. CCTP is how USDC *arrives* on Arc from another
 chain; this document is about FurlPay *paying* on Arc. They share a signer and
 nothing else. CCTP has its own additional requirement: **Arc rejects CCTP V1
-selectors** — only V2 works (`circlefin/arc-node` #110) — and the CCTP contract
-addresses currently recorded in `ARC_DEPENDENCIES.md` §3 describe **testnet**
-and must be re-read from Circle's official reference before mainnet.
+selectors** — only V2 works (`circlefin/arc-node` #110). The mainnet and testnet
+CCTP V2 addresses were verified on-chain on 2026-10-09 (`ARC_DEPENDENCIES.md`
+§3); a round trip has not been executed.

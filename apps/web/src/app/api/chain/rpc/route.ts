@@ -4,6 +4,8 @@ import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
 import { CHAIN_REGISTRY } from "@/lib/services/chainRegistry";
+import { PAYMENT_CHAINS } from "@/lib/payments/merchant/registry";
+import { proxyRpc } from "@/lib/payments/merchant/rpc";
 
 export const dynamic = "force-dynamic";
 
@@ -93,6 +95,20 @@ export async function POST(req: NextRequest) {
   const chain = CHAIN_REGISTRY.find((c) => c.id === body.chain);
   if (!chain) {
     return NextResponse.json({ error: "unsupported_chain" }, { status: 400 });
+  }
+
+  // Mainnet payment chains go through the failover reader: several endpoints (env list + public),
+  // each PROVEN to serve this chain before its answer is used (ARC-P3-002 / ARC-P5-001).
+  const proven = PAYMENT_CHAINS.find((c) => c.id === body.chain && c.family === "evm");
+  if (proven) {
+    try {
+      const out = await proxyRpc(proven.id, body.method, body.params ?? []);
+      if ("rpcError" in out) return NextResponse.json({ error: "rpc_error", detail: out.rpcError }, { status: 400 });
+      return NextResponse.json({ result: out.result }, { headers: { "Cache-Control": "no-store" } });
+    } catch (e) {
+      const wrong = /Wrong network/.test((e as Error).message);
+      return NextResponse.json({ error: wrong ? "rpc_misconfigured" : "upstream_unreachable", detail: wrong ? "No configured node serves this chain." : "No node answered." }, { status: wrong ? 503 : 504 });
+    }
   }
 
   const controller = new AbortController();

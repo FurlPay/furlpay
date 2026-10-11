@@ -279,6 +279,7 @@ function AppShell() {
               <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
               <Stack.Screen name="transaction/[id]" options={{ title: tr("nav.transaction") }} />
               <Stack.Screen name="receive" options={{ title: tr("nav.receive") }} />
+              <Stack.Screen name="arc-send" options={{ title: "Send on Arc" }} />
               <Stack.Screen name="scan" options={{ title: tr("nav.scan") }} />
               <Stack.Screen name="transactions" options={{ title: tr("nav.transactions") }} />
               {/* The address book. /contacts is the list; /contacts/new is a

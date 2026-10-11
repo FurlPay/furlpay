@@ -147,6 +147,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // AES-256-GCM key (base64, 32 bytes) sealing partner webhook signing
       // secrets (lib/ramp/partnerConfig.ts). Unset => partners cannot set a callback.
       v("FURLPAY_PARTNER_WEBHOOK_KEY"),
+      // AES-256-GCM key (base64, 32 bytes) sealing payroll TINs, legal names and
+      // addresses from W-9/W-8BEN forms (lib/payroll/taxForms.ts). Unset => 503.
+      v("FURLPAY_TAX_ENCRYPTION_KEY"),
       // Cannot be enabled: no lender and no biller network is contracted
       // (flags.ts `unimplemented`). Registered so the names exist.
       v("CREDIT_LIVE"),
@@ -395,6 +398,12 @@ export const ENV_REGISTRY: EnvGroup[] = [
       // The payer's wallet signs EIP-712 data bound to this address; a live
       // deployment without it fails closed in services/payments.ts.
       v("FURLPAY_ROUTER_ADDRESS", true),
+      // Per-chain FurlPayRouter (lib/services/routerConfig.ts). The bare name above
+      // is Arbitrum's; a router is never assumed to exist on another chain.
+      v("FURLPAY_ROUTER_ADDRESS_ARBITRUM"),
+      v("FURLPAY_ROUTER_ADDRESS_ARC"),
+      v("FURLPAY_ROUTER_ADDRESS_BASE"),
+      v("FURLPAY_ROUTER_ADDRESS_POLYGON"),
       v("TREASURY_ADDRESS_BSC"),
     ],
   },
@@ -569,6 +578,12 @@ export const ENV_REGISTRY: EnvGroup[] = [
     group: "Chain RPC endpoints",
     vars: [
       v("SOLANA_RPC_URL"),
+      // Sui GraphQL endpoint for merchant collection (JSON-RPC was retired on
+      // mainnet in July 2026). Unset => the public Foundation endpoint, rate limited.
+      v("SUI_GRAPHQL_URL"),
+      // Lets a NON-production deployment collect on Arc testnet (lib/payments/merchant/registry.ts
+      // testnetCollectionEnabled). ARC_TESTNET_RPC_URL (below) accepts a comma-separated failover list.
+      v("FURLPAY_TESTNET_COLLECTION"),
       v("SOLANA_DEVNET_RPC_URL"),
       v("HELIUS_RPC_URL"),
       v("ETHEREUM_SEPOLIA_RPC_URL"),
@@ -585,6 +600,9 @@ export const ENV_REGISTRY: EnvGroup[] = [
     group: "Arc rail and x402 tuning",
     vars: [
       v("ARC_RAIL_LIVE"),
+      // Public address of the KMS key "furlpay-settlement" that signs Arc rail transfers
+      // (lib/chains/arcExecutionAdapter.ts arcSigner). Not a secret; the key stays in the KMS.
+      v("ARC_SETTLEMENT_ADDRESS"),
       v("ARC_MAINNET_ACTIVATED"),
       v("ARC_CONFIRMATIONS"),
       v("ARC_RECEIPT_TIMEOUT_MS"),
