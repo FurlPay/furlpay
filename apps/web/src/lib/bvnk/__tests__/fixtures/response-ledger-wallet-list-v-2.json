@@ -1,0 +1,80 @@
+{
+  "content": [
+    {
+      "id": "a:25031472839104:kR7mHxQ:1",
+      "name": "EUR Operations",
+      "status": "ACTIVE",
+      "balance": {
+        "amount": 48250.75,
+        "currency": "EUR"
+      },
+      "createdAt": "2025-03-14T09:12:33.104Z",
+      "updatedAt": "2025-06-02T11:45:07.346Z"
+    },
+    {
+      "id": "a:25041855293741:pWnL4vB:1",
+      "name": "USD Payroll",
+      "customer": {
+        "id": "c7a91d3e-48f2-4b76-a835-2e6d09f1c4b8",
+        "name": "Greenfield Logistics"
+      },
+      "status": "ACTIVE",
+      "balance": {
+        "amount": 125400,
+        "currency": "USD"
+      },
+      "createdAt": "2025-04-18T08:30:30.565Z",
+      "updatedAt": "2025-06-10T14:22:19.873Z"
+    },
+    {
+      "id": "a:25041855367892:xNcD8kT:1",
+      "name": "GBP Collections",
+      "customer": {
+        "id": "c7a91d3e-48f2-4b76-a835-2e6d09f1c4b8",
+        "name": "Greenfield Logistics"
+      },
+      "status": "ACTIVE",
+      "balance": {
+        "amount": 8730.5,
+        "currency": "GBP"
+      },
+      "createdAt": "2025-04-18T08:31:07.892Z",
+      "updatedAt": "2025-06-08T16:05:43.291Z"
+    },
+    {
+      "id": "a:25052061784520:mVeJ2rA:1",
+      "name": "USD Disbursements",
+      "customer": {
+        "id": "a1f84b6c-9e23-4d17-b590-7c4a83de2f10",
+        "name": "Meridian Healthcare"
+      },
+      "status": "ACTIVE",
+      "balance": {
+        "amount": 52080,
+        "currency": "USD"
+      },
+      "createdAt": "2025-05-20T12:16:24.520Z",
+      "updatedAt": "2025-06-11T09:40:51.684Z"
+    },
+    {
+      "id": "a:25052061801337:hQwP5nF:1",
+      "name": "EUR Supplier Payments",
+      "customer": {
+        "id": "a1f84b6c-9e23-4d17-b590-7c4a83de2f10",
+        "name": "Meridian Healthcare"
+      },
+      "status": "INACTIVE",
+      "balance": {
+        "amount": 0,
+        "currency": "EUR"
+      },
+      "createdAt": "2025-05-20T12:16:41.337Z",
+      "updatedAt": "2025-05-28T10:02:15.904Z"
+    }
+  ],
+  "pageable": {
+    "pageNumber": 0,
+    "pageSize": 50
+  },
+  "hasNext": true
+}

@@ -1,0 +1,26 @@
+{
+  "id": "a:25031472839104:kR7mHxQ:1",
+  "name": "USD ACH",
+  "status": "ACTIVE",
+  "balance": {
+    "amount": 48250.75,
+    "currency": "USD"
+  },
+  "paymentInstruments": [
+    {
+      "type": "FIAT",
+      "accountHolderName": "Greenfield Logistics Ltd",
+      "accountNumber": "846203917458",
+      "bankDetails": {
+        "name": "Atlantic Federal Bank",
+        "bic": "ATFEUS33",
+        "nid": {
+          "value": "621353",
+          "type": "SORT_CODE"
+        }
+      }
+    }
+  ],
+  "createdAt": "2025-03-14T09:12:33.104Z",
+  "updatedAt": "2025-06-02T11:45:07.463Z"
+}

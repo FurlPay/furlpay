@@ -1,0 +1,54 @@
+{
+  "event": "ledger:v2:wallet:status-change",
+  "eventId": "0193ba8c-74f4-7bd3-a2fb-00e43851577c",
+  "timestamp": "2024-12-12T11:06:27.444216650Z",
+  "data": {
+    "id": "a:24121851098381:mohEmnT:1",
+    "name": "Main USD Business Wallet",
+    "customer": {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Acme Corporation"
+    },
+    "status": "ACTIVE",
+    "balance": {
+      "amount": 1000.5,
+      "currency": "USD"
+    },
+    "paymentInstruments": [
+      {
+        "type": "FIAT",
+        "accountHolderName": "Acme Corporation",
+        "accountHolderAddress": {
+          "addressLine1": "C/ Sancho de Avila 105",
+          "addressLine2": "string",
+          "city": "Barcelona",
+          "region": "string",
+          "country": "ES",
+          "postCode": "08018"
+        },
+        "accountNumber": "1234567890",
+        "accountNumberFormat": "IBAN",
+        "remittanceInformationPrefix": "ACME-",
+        "bankDetails": {
+          "name": "JPMorgan Chase Bank",
+          "address": {
+            "addressLine1": "123 Main Street",
+            "addressLine2": "string",
+            "city": "New York",
+            "countryCode": "US",
+            "stateCode": "NY",
+            "postalCode": "10001",
+            "fullAddress": "string"
+          },
+          "bic": "CHASUS33",
+          "nid": {
+            "value": "CHASUS33",
+            "type": "OTHER"
+          }
+        }
+      }
+    ],
+    "createdAt": "2024-12-18T10:00:00.000Z",
+    "updatedAt": "2024-12-18T14:12:11.743Z"
+  }
+}

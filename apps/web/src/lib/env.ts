@@ -699,6 +699,20 @@ export const ENV_REGISTRY: EnvGroup[] = [
       v("CIRCLE_W3S_APP_ID"),
     ],
   },
+  {
+    // BVNK (lib/bvnk). Hawk credentials sign API requests; the webhook secret
+    // verifies x-signature. BVNK_ENVIRONMENT picks the base URL (sandbox |
+    // production) and has no default, so nothing calls BVNK by accident.
+    // Money-moving calls stay refused unless BVNK_MONEY_MOVEMENT_ENABLED=1.
+    group: "BVNK",
+    vars: [
+      v("BVNK_ENVIRONMENT"),
+      v("BVNK_HAWK_AUTH_ID"),
+      v("BVNK_HAWK_AUTH_KEY"),
+      v("BVNK_WEBHOOK_SECRET"),
+      v("BVNK_MONEY_MOVEMENT_ENABLED"),
+    ],
+  },
 ];
 
 export interface EnvVarStatus extends EnvVar {
