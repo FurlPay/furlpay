@@ -13,7 +13,7 @@ registry). Names set on Vercel were read as names only; no value was read.
 | Read by the web app at runtime | 250 | 250 |
 | Documented, read by nothing | 9 | 0 |
 | Read by the web app, not registered | 1 | 0 |
-| Read by the web app, not documented | 58 | 42 |
+| Read by the web app, not documented | 58 | 0 (3 names appear only in code samples) |
 
 ## Removed — commit `50f13f48`
 
@@ -119,15 +119,15 @@ are documented and read by name but absent from the registry.
 - Production secrets must not be copied into the preview scope: the bot token, webhook secrets, `X402_QUOTE_SECRET`, `FURLPAY_SESSION_SECRET`. A preview that shares the session secret accepts production session cookies.
 - No secret value was read, logged or committed during this audit. Whether any secret needs rotating cannot be judged from names alone.
 
-## Still undocumented (42)
+## Documented in the second pass
 
-Read by the web app and registered in `lib/env.ts`, but with no entry in
-`.env.example`. Left for a follow-up because each needs its purpose written
-from the code, not guessed:
-
-`AMBASSADORS_INBOX`, `ANDROID_PACKAGE_NAME`, `ANTHROPIC_API_KEY`, `APPLE_APP_ATTEST_BUNDLE_ID`, `APPLE_APP_ATTEST_ENVIRONMENT`, `APPLE_CLIENT_ID`, `APPLE_TEAM_ID`, `ARBITRUM_SEPOLIA_RPC_URL`, `BLOCKAID_API_KEY`, `CAREERS_INBOX`, `COPILOT_MODEL`, `DISCORD_PUBLIC_KEY`, `DUFFEL_API_BASE`, `FURLPAY_ALERT_WEBHOOK`, `FURLPAY_ALERT_WEBHOOK_SECRET`, `FURLPAY_API_KEY`, `FURLPAY_BUILD_BRANCH`, `FURLPAY_BUILD_ID`, `FURLPAY_BUILD_SHA`, `FURLPAY_BUILD_TIME`, `FURLPAY_COMPLIANCE_INBOX`, `FURLPAY_COMPLIANCE_OPERATOR_TOKEN`, `FURLPAY_CREDENTIAL_SECRET`, `FURLPAY_GEO_ANOMALY_MINUTES`, `FURLPAY_HIGH_RISK_JURISDICTIONS`, `FURLPAY_HITL_THRESHOLD_USD`, `FURLPAY_KEY`, `FURLPAY_OFFHOURS_UTC`, `FURLPAY_REQUIRE_AGENT_SIG`, `FURLPAY_SECRET_KEY`, `HACKATHON_INBOX`, `IG_ACCESS_TOKEN`, `IG_USER_ID`, `KV_REST_API_TOKEN`, `KV_REST_API_URL`, `MORPHO_API_URL`, `MORPHO_USDC_VAULT`, `PLAY_INTEGRITY_SERVICE_ACCOUNT`, `ROBINHOOD_RPC_URL`, `SWAG_INBOX`, `X402_NETWORK`, `X402_USDC_ADDRESS`.
+Thirty-nine further variables were documented in `.env.example` (commit
+`cbc06eec`). Three names remain without an entry on purpose: `FURLPAY_API_KEY`,
+`FURLPAY_KEY` and `FURLPAY_SECRET_KEY` appear only inside code samples shown to
+users (integration quickstarts and blog snippets). The application never reads
+them.
 
 Not required in production but missing there, which disables a feature or a
 control: `FURLPAY_ENV`, `FURLPAY_ADMIN_EMAIL`, `FURLPAY_ALERT_SLACK_WEBHOOK` /
 `FURLPAY_ALERT_WEBHOOK_URL` (alerts are delivered nowhere),
-`FURLPAY_PARTNER_WEBHOOK_KEY`, `FURLPAY_ROUTER_ADDRESS_*`, `CIRCLE_*`.
+`FURLPAY_PARTNER_WEBHOOK_KEY`, `FURLPAY_ROUTER_ADDRESS_*`, `CIRCLE_*`, `PROD_KV_HOSTS`. `FURLPAY_CREDENTIAL_SECRET` was set in production on 11 October.

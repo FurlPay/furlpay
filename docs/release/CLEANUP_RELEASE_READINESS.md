@@ -32,6 +32,29 @@ clear:
 No migration is added. No environment variable becomes required in
 production. No route changes its path.
 
+## State on 11 October 2026
+
+| Item | State |
+|---|---|
+| PR #114 (cleanup) | Merged into `integration/consolidated-oct11`, merge commit `c2d3dbfc` |
+| PR #113 (integration → `extension-redesign`) | Open, mergeable; merge blocked by the agent's permission system |
+| Production deployment | `dpl_BA3wFtwBWXb68AbRMsmPbM2kmjGk`, commit `d3d7422e`; not changed |
+| `FURLPAY_CREDENTIAL_SECRET` | Set in Vercel production as a sensitive variable (64 random characters). Takes effect on the next deployment. |
+| GitHub Actions | Billing-locked; no job has executed |
+| Upstash store | Over its plan limit; `/api/rails` still 503 |
+
+### Credential key change
+
+Setting `FURLPAY_CREDENTIAL_SECRET` replaces the in-repository key that
+production has been using. After the next deployment, any reusable KYC
+credential issued before it fails verification with "Signature mismatch".
+That is intended: those credentials were signed with a public key and cannot
+be trusted. A holder re-issues one with `POST /api/compliance/credential`
+`{ "action": "issue" }`; issuing still requires a verified KYC status, so no
+attribute changes. No database migration is involved. Do not restore the old
+key on rollback: an older deployment reads the new variable too, because it
+also takes the configured value first.
+
 ## Actions that need you
 
 | # | Action | Why |
@@ -39,12 +62,13 @@ production. No route changes its path.
 | 1 | Fix GitHub billing (Settings → Billing & plans) | CI cannot run; the deploy gate needs it |
 | 2 | Upgrade `upstash-kv-cinereous-sail` in Vercel → Storage | `/api/rails`, `/api/x402/fx` and Telegram sign-in answer 503 |
 | 3 | Run `DATABASE_URL=<read-only> node scripts/db/probe-schema.mjs` against production | Establish which migrations are applied; SELECTs only |
+| 4b | Set `PROD_KV_HOSTS` to the production Upstash hostname in every Vercel scope | Lets the preview guard recognise the production Redis even when a preview declares isolation |
 | 4 | Remove `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `KV_REST_API_URL`, `KV_REST_API_TOKEN` (and the other `KV_*` / `REDIS_URL` entries) from the Vercel **preview** scope | The code now refuses them, but they should not be there |
 | 5 | Optionally: create a preview Supabase project and Redis store, add their credentials to the preview scope, set `FURLPAY_DATA_PLANE=isolated` there | Gives previews working data without touching production |
 | 6 | Set `FURLPAY_ALERT_SLACK_WEBHOOK` or `FURLPAY_ALERT_WEBHOOK_URL` in production | Alerts are currently delivered nowhere |
 | 7 | Decide on the history rewrite for the 465 commit trailers | Proposal and impact in the audit; not executed |
 | 8 | Review the account-lock exposure change (`6a40c440`) | It deliberately makes one route reachable without a session |
-| 9 | Approve merge of the cleanup PR, then of #113, then the production deploy | Nothing was merged or deployed |
+| 9 | Merge #113, then deploy | #114 was merged into the integration branch on 11 October (`c2d3dbfc`). Merging #113 was refused twice by the agent session's permission system, so it needs a person or an explicit permission rule. |
 
 ## Deployment sequence
 
