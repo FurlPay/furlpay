@@ -76,7 +76,7 @@ and, signed in as admin, `/api/ops/health` → `build.commitSha` equals it.
 |---|---|---|
 | all | `GET /`, `/docs`, `/api/health` | 200 |
 | #115 | `POST /api/agents/ap2` with body `{not json` | 400 `Invalid JSON body` |
-| #115 | `/api/x402/price` without `X402_XSGD_USD_RATE` | 402s offer USDC only |
+| #115 | an x402-paid endpoint, unpaid, with `X402_XSGD_USD_RATE` unset | its 402 `accepts` lists USDC only |
 | #116 | `GET /api/payouts/payroll/schedules` signed out | 401 |
 | #116 | same, signed in | 200 `{ schedules: [] }` (proves 0051 is applied) |
 | #117 | `POST /api/webhooks/bvnk` | 503 `bvnk_webhook_not_configured` (BVNK unset) |
