@@ -22,6 +22,10 @@ const PLATFORM = new Set([
   "VERCEL_ENV",
   "VERCEL_URL",
   "VERCEL_REGION",
+  // Set by AWS Lambda / ECS; lib/session.ts reads them to detect a hosted runtime.
+  "AWS_LAMBDA_FUNCTION_NAME",
+  "AWS_EXECUTION_ENV",
+  "ECS_CONTAINER_METADATA_URI_V4",
   "CI",
   "NEXT_RUNTIME",
   "NEXT_PHASE",

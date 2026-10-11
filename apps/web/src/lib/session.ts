@@ -24,6 +24,22 @@ const TELEGRAM_CONTEXT_TTL_SECONDS = 30 * 24 * 60 * 60;
 
 const DEV_FALLBACK_SECRET = "furlpay_dev_session_secret_change_me_32bytes";
 
+/**
+ * True when running on a hosted platform rather than a developer machine.
+ *
+ * The fallback secret above is public — it is in this file. Gating it on
+ * NODE_ENV alone (audit F-7) trusted every hosted environment to set
+ * NODE_ENV=production; a staging or preview deploy started with
+ * NODE_ENV=development would have signed sessions anyone can forge. These
+ * variables are set by the platform itself, not by FurlPay configuration, so a
+ * hosted runtime refuses the fallback whatever NODE_ENV says.
+ */
+export function isHostedRuntime(env: NodeJS.ProcessEnv = process.env): boolean {
+  return Boolean(
+    env.VERCEL_ENV || env.AWS_LAMBDA_FUNCTION_NAME || env.AWS_EXECUTION_ENV || env.ECS_CONTAINER_METADATA_URI_V4
+  );
+}
+
 export type Role = "user" | "compliance_officer" | "admin";
 
 function secretKey(): Uint8Array {
@@ -31,9 +47,9 @@ function secretKey(): Uint8Array {
   // In production, refuse to sign/verify with a missing or weak secret — a
   // predictable key lets anyone forge a valid session cookie.
   if (!secret || secret.length < 32 || secret === DEV_FALLBACK_SECRET) {
-    if (process.env.NODE_ENV === "production") {
+    if (process.env.NODE_ENV === "production" || isHostedRuntime()) {
       throw new Error(
-        "FURLPAY_SESSION_SECRET must be set to a strong value (>= 32 chars) in production."
+        "FURLPAY_SESSION_SECRET must be set to a strong value (>= 32 chars) in production and on any hosted runtime."
       );
     }
     return new TextEncoder().encode(DEV_FALLBACK_SECRET);
