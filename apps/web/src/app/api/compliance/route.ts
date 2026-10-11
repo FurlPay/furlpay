@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { screenAddress } from "@/lib/services/compliance";
 import { routeInboundDeposit } from "@/lib/services/compliance-routing";
@@ -30,7 +31,7 @@ export async function POST(req: NextRequest) {
   const rl = await rateLimitOr429(req, "compliance.deposit", { limit: 20, windowMs: 60_000 });
   if (rl) return rl;
 
-  const parsed = DepositBody.safeParse(await req.json());
+  const parsed = DepositBody.safeParse(await readJsonBody(req));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid body", details: parsed.error.errors }, { status: 400 });
   }

@@ -1,4 +1,5 @@
 import { currentEpoch } from "@/lib/sessionEpoch";
+import { readJsonBody } from "@/lib/validate";
 import { recordProductEvent } from "@/lib/analytics/events";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -25,7 +26,7 @@ const Body = z.object({
 // the account for the now-VERIFIED phone/email and issue a session bound to
 // that user (unless login=false).
 export async function POST(req: NextRequest) {
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  const parsed = Body.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }

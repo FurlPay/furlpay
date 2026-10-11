@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { parse } from "@/lib/schemas";
 import { addSubmission, listSubmissions, isTrack, trackLabel, type TrackId } from "@/lib/hackathon";
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "hackathon.submissions", { limit: 5, windowMs: 60_000 });
   if (limited) return limited;
 
-  const parsed = parse(SubmissionSchema, await req.json().catch(() => ({})));
+  const parsed = parse(SubmissionSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const d = parsed.data;
 

@@ -1,4 +1,5 @@
 import { publicRequestUrl } from "@/lib/publicOrigin";
+import { readFormBody } from "@/lib/validate";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "oauth.token", { limit: 30, windowMs: 10 * 60_000 });
   if (limited) return limited;
 
-  const form = await req.formData().catch(() => null);
+  const form = await readFormBody(req).catch(() => null);
   const get = (k: string) => {
     const v = form?.get(k);
     return typeof v === "string" ? v : "";

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { sendEmail } from "@/lib/email";
 import { supportChatNotification } from "@/lib/emailTemplates";
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "support.message", { limit: 5, windowMs: 10 * 60_000 });
   if (limited) return limited;
 
-  const parsed = Body.safeParse(await req.json().catch(() => null));
+  const parsed = Body.safeParse(await readJsonBody(req).catch(() => null));
   if (!parsed.success) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }

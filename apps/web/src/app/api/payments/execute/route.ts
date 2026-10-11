@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { PaymentExecuteSchema, parse } from "@/lib/schemas";
 import { executePayment } from "@/lib/services/payments";
 import { requireUser } from "@/lib/authz";
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "payments.execute", { limit: 60, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const parsed = parse(PaymentExecuteSchema, await req.json().catch(() => ({})));
+  const parsed = parse(PaymentExecuteSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { paymentId, payer, signature } = parsed.data;
 

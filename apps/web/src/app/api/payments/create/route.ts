@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { PaymentCreateSchema, parse } from "@/lib/schemas";
 import { createPayment } from "@/lib/services/payments";
 import { IntegrationNotConfiguredError } from "@/lib/integrations";
@@ -18,7 +19,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "payments.create", { limit: 60, windowMs: 60_000 }, auth.account.user.id);
   if (limited) return limited;
 
-  const raw = await req.json().catch(() => ({}));
+  const raw = await readJsonBody(req).catch(() => ({}));
   const parsed = parse(PaymentCreateSchema, raw);
   if (!parsed.ok) return parsed.res;
   const body = parsed.data;

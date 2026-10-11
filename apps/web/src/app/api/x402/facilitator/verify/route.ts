@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { verify, type AnyFacilitatorRequest } from "@/lib/x402Facilitator";
 
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   let body: AnyFacilitatorRequest;
   try {
-    body = await req.json();
+    body = await readJsonBody(req);
   } catch {
     return NextResponse.json({ isValid: false, invalidReason: "invalid_json" }, { status: 400 });
   }

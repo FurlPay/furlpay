@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 
 export const dynamic = "force-dynamic";
@@ -83,7 +84,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const s = state();
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   const { id, action, txId } = body as { id?: string; action?: string; txId?: string };
 
   if (action === "approve" || action === "deny") {

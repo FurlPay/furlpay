@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { sendEmail } from "@/lib/email";
 
@@ -24,7 +25,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "careers", { limit: 5, windowMs: 600_000 });
   if (limited) return limited;
 
-  const body = await req.json().catch(() => ({}));
+  const body = await readJsonBody(req).catch(() => ({}));
   const name = str(body.name);
   const email = str(body.email);
   const role = str(body.role);

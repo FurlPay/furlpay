@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFormBody } from "@/lib/validate";
 export const dynamic = "force-dynamic";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { revokeRefreshToken, verifyAccessToken } from "@/lib/mcp/oauth";
@@ -20,7 +21,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "oauth.revoke", { limit: 30, windowMs: 10 * 60_000 });
   if (limited) return limited;
 
-  const form = await req.formData().catch(() => null);
+  const form = await readFormBody(req).catch(() => null);
   const token = typeof form?.get("token") === "string" ? (form.get("token") as string) : "";
   if (!token) return NextResponse.json({ error: "invalid_request" }, { status: 400 });
 

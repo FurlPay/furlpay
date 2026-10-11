@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { captureLead } from "@/lib/leads/capture";
 import { getPublishedReport } from "@/lib/content";
@@ -38,7 +39,7 @@ async function requestVerifiedDownload(
   // Peek at the address before the lead is stored, so a throwaway mailbox is
   // refused without creating a contact record. captureLead re-validates the
   // full body with the shared schema.
-  const peek = (await req.clone().json().catch(() => null)) as { email?: unknown } | null;
+  const peek = (await readJsonBody(req.clone()).catch(() => null)) as { email?: unknown } | null;
   const email = typeof peek?.email === "string" ? peek.email.trim().toLowerCase() : "";
   if (email && isDisposableEmail(email)) {
     return NextResponse.json(
@@ -163,7 +164,7 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ slug: stri
   // The download form asks for a business email and nothing else. A consumer
   // or throwaway mailbox is refused before a contact record is created, with
   // the same wording the form shows inline.
-  const peek = (await req.clone().json().catch(() => null)) as { email?: unknown } | null;
+  const peek = (await readJsonBody(req.clone()).catch(() => null)) as { email?: unknown } | null;
   const peeked = typeof peek?.email === "string" ? peek.email.trim().toLowerCase() : "";
   if (peeked && (classifyEmail(peeked) === "consumer" || isDisposableEmail(peeked))) {
     return NextResponse.json(

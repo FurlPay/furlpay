@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import crypto from "crypto";
 import { newTx, persistAccount, recordTransaction, type UserAccount } from "@/lib/store";
 import { withIdempotency } from "@/lib/idempotency";
@@ -66,7 +67,7 @@ export async function POST(req: NextRequest) {
   // the client SENT, and Zod applies defaults and coercions. Re-deriving from
   // `parsed.data` would hash a body the client never had, and every proof would
   // be rejected as tampering.
-  const rawBody = await req.json().catch(() => ({}));
+  const rawBody = await readJsonBody(req).catch(() => ({}));
   const parsed = parse(OrderSchema, rawBody);
   if (!parsed.ok) return parsed.res;
 

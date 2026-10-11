@@ -1,4 +1,5 @@
 import { publicOrigin } from "@/lib/publicOrigin";
+import { readJsonBody } from "@/lib/validate";
 import {
   ActionGetResponse,
   ActionPostRequest,
@@ -80,7 +81,7 @@ export const POST = async (req: Request, props: { params: Promise<{ orderId: str
   if (gate) return gate;
   const params = await props.params;
   try {
-    const body: ActionPostRequest = await req.json();
+    const body: ActionPostRequest = await readJsonBody(req);
 
     let payer: PublicKey;
     try {

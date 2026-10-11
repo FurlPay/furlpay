@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readTextBody } from "@/lib/validate";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { log } from "@/lib/log";
 import {
@@ -26,7 +27,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "discord.interactions", { limit: 30, windowMs: 60_000 });
   if (limited) return limited;
 
-  const rawBody = await req.text();
+  const rawBody = await readTextBody(req);
   const ok = verifyDiscordSignature(
     rawBody,
     req.headers.get("x-signature-ed25519"),

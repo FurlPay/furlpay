@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { TIERS, gateByTier } from "@furlpay/compliance";
 import { requireUser } from "@/lib/authz";
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const parsed = TierCheckBody.safeParse(await req.json());
+  const parsed = TierCheckBody.safeParse(await readJsonBody(req));
   if (!parsed.success) {
     return NextResponse.json(
       { error: "Invalid request", details: parsed.error.errors },

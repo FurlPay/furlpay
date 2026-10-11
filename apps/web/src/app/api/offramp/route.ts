@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { trustedClientIp } from "@/lib/clientIp";
 import { quoteFx } from "@/lib/services/fx";
 import { newTx, recordTransaction } from "@/lib/store";
@@ -53,7 +54,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "offramp", { limit: 30, windowMs: 60_000 });
   if (limited) return limited;
 
-  const parsed = parse(OfframpSchema, await req.json().catch(() => ({})));
+  const parsed = parse(OfframpSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
   const { fromCurrency, toCurrency, amount, execute, beneficiaryId } = parsed.data;
 

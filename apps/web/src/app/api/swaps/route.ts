@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { getSwapQuote, isTokenOnChain, usdPrice } from "@/lib/services/swap";
 import {
   MAX_SLIPPAGE_PCT,
@@ -56,7 +57,7 @@ export async function POST(req: NextRequest) {
   // Kept alongside the parsed copy: the step-up digest is committed over what the
   // client SENT, and Zod applies defaults and coercions. Re-deriving from
   // `parsed.data` would hash a body the client never had.
-  const rawBody = await req.json().catch(() => ({}));
+  const rawBody = await readJsonBody(req).catch(() => ({}));
   const parsed = parse(SwapSchema, rawBody);
   if (!parsed.ok) return parsed.res;
   const body = parsed.data;

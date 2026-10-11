@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { DocumentDeleteSchema, DocumentUpdateSchema, parse } from "@/lib/schemas";
@@ -30,7 +31,7 @@ export async function PATCH(req: NextRequest, props: { params: Promise<{ id: str
   const auth = await requireUser(req);
   if (!auth.ok) return auth.res;
 
-  const parsed = parse(DocumentUpdateSchema, await req.json().catch(() => ({})));
+  const parsed = parse(DocumentUpdateSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
   // Only label and isPrimary are forwarded. The verified fields — country,
@@ -59,7 +60,7 @@ export async function DELETE(req: NextRequest, props: { params: Promise<{ id: st
   );
   if (limited) return limited;
 
-  const parsed = parse(DocumentDeleteSchema, await req.json().catch(() => ({})));
+  const parsed = parse(DocumentDeleteSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
   const removed = deleteDocument(userId, params.id);

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { z } from "zod";
 import { parse } from "@/lib/schemas";
 import { registerResource } from "@/lib/x402Registry";
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, "x402.register", { limit: 10, windowMs: 60_000 });
   if (limited) return limited;
 
-  const parsed = parse(RegisterSchema, await req.json().catch(() => ({})));
+  const parsed = parse(RegisterSchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
   const result = registerResource(parsed.data);

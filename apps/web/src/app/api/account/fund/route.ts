@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { settle, type FacilitatorRequest } from "@/lib/x402Facilitator";
 import { PAY_TO } from "@/lib/x402";
 import { creditAccount } from "@/lib/services/account";
@@ -46,7 +47,7 @@ export async function POST(req: NextRequest) {
 
   let body: FacilitatorRequest & { destinationUserId?: string };
   try {
-    body = await req.json();
+    body = await readJsonBody(req);
   } catch {
     return NextResponse.json({ funded: false, error: "invalid_json" }, { status: 400 });
   }

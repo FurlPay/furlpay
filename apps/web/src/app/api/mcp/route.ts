@@ -1,4 +1,5 @@
 import { publicOrigin, publicRequestUrl } from "@/lib/publicOrigin";
+import { readJsonBody } from "@/lib/validate";
 import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 import { rateLimitOr429 } from "@/lib/rateLimit";
@@ -88,7 +89,7 @@ export async function POST(req: NextRequest) {
   const limited = await rateLimitOr429(req, `mcp.${claims.sub}`, { limit: 120, windowMs: 60_000 });
   if (limited) return limited;
 
-  const body = (await req.json().catch(() => null)) as JsonRpcRequest | JsonRpcRequest[] | null;
+  const body = (await readJsonBody(req).catch(() => null)) as JsonRpcRequest | JsonRpcRequest[] | null;
   if (!body || Array.isArray(body)) {
     // Batching is out of spec for this transport version; reject rather than
     // half-support it.

@@ -6,6 +6,7 @@ import {
   createPostResponse,
 } from "@solana/actions";
 import { PublicKey } from "@solana/web3.js";
+import { readJsonBody } from "@/lib/validate";
 import { buildPaymentTransaction, MerchantWalletNotConfiguredError } from "@/lib/actions/solana";
 import { demoOnlyUnavailableWithHeaders } from "@/lib/demoGate";
 import { authorizeBooking, generateCars, MCC, type CarRental } from "@/lib/travel/data";
@@ -137,7 +138,7 @@ export const POST = async (req: Request) => {
       );
     }
 
-    const body: ActionPostRequest = await req.json();
+    const body: ActionPostRequest = await readJsonBody(req);
     let payer: PublicKey;
     try {
       payer = new PublicKey(body.account);

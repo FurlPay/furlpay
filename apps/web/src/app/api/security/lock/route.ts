@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readFormBody } from "@/lib/validate";
 import { z } from "zod";
 import { getAccountDurable, persistAccount } from "@/lib/store";
 import { verifyLockToken } from "@/lib/lockLink";
@@ -95,7 +96,7 @@ export async function POST(req: NextRequest) {
 
   let form: FormData;
   try {
-    form = await req.formData();
+    form = await readFormBody(req);
   } catch {
     return INVALID();
   }

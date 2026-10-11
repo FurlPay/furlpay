@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { readJsonBody } from "@/lib/validate";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { DocumentVerifySchema, parse } from "@/lib/schemas";
@@ -37,7 +38,7 @@ export async function POST(req: NextRequest) {
   );
   if (limited) return limited;
 
-  const parsed = parse(DocumentVerifySchema, await req.json().catch(() => ({})));
+  const parsed = parse(DocumentVerifySchema, await readJsonBody(req).catch(() => ({})));
   if (!parsed.ok) return parsed.res;
 
   const doc = findBySession(parsed.data.sessionId);

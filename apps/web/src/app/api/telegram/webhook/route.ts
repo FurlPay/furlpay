@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "crypto";
+import { readJsonBody } from "@/lib/validate";
 import { NextRequest, NextResponse } from "next/server";
 import { handleUpdate, type TgUpdate } from "@/lib/telegram";
 
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
 
   let update: TgUpdate;
   try {
-    update = await req.json();
+    update = await readJsonBody(req);
   } catch {
     return NextResponse.json({ ok: true }); // ignore malformed, don't retry
   }
