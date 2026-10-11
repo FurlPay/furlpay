@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { DocTitle, Lead, H2, P, UL, LI, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, Callout, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/help/travel-booking");
@@ -7,38 +6,42 @@ export const metadata = docMeta("/docs/help/travel-booking");
 export default function TravelBookingHelp() {
   return (
     <article>
-      <DocTitle eyebrow="Help Center">Booking Travel with Stablecoins</DocTitle>
+      <DocTitle eyebrow="Help Center">Travel search and booking availability</DocTitle>
       <Lead>
-        FurlPay Travels books hotels and flights paid in USDC, SOL, or BTC — with cashback on
-        stays — from the web funnel or the mobile app.
+        FurlPay hotel discovery is available, but production travel inventory, booking and payment
+        are not currently available.
       </Lead>
 
-      <H2 id="web">Booking on the web</H2>
-      <UL>
-        <LI>Start at <Link href="/travel" className="text-neon">furlpay.com/travel</Link> — search a city, filter, pick a stay or flight.</LI>
-        <LI>Checkout shows the total in your chosen pay token at the current rate before you confirm.</LI>
-        <LI>Confirm with your fingerprint like any other payment; the itinerary lands in <b>Trips</b> and your email.</LI>
-      </UL>
+      <Callout type="warning" title="Do not pay for a booking through a demo flow">
+        A property shown in a map or a test search result is not a confirmed reservation. Do not
+        submit payment or promise a booking, card authorization or refund based on a test or demo
+        result.
+      </Callout>
 
-      <H2 id="mobile">Booking from the Android app</H2>
+      <H2 id="discovery">Hotel discovery</H2>
       <P>
-        The app shows deals and your trips natively; tapping through to search and checkout opens
-        the full funnel in a secure in-app browser, already signed in. The handoff uses a 60-second
-        single-use code rather than your session token — your spend authority never appears in a
-        URL where history or logs could capture it.
+        You can explore the hotel discovery map at{" "}
+        <a href="/hotels/map" className="text-neon hover:underline">furlpay.com/hotels/map</a>.
+        Discovery results do not confirm live room inventory, a final rate or a reservation.
       </P>
 
-      <H2 id="pricing">How pricing works</H2>
-      <UL>
-        <LI>Rates are quoted in USD and converted to your pay token at confirmation time — the exact token amount is on the confirm screen.</LI>
-        <LI>Stays earn cashback, credited to your rewards balance after checkout.</LI>
-        <LI>Some rates are non-refundable in exchange for a lower price — the rate card says which, before you pay. It matters later: see <Link href="/docs/help/travel-refunds" className="text-neon">Refunds &amp; Cancellations</Link>.</LI>
-      </UL>
+      <H2 id="booking">Booking status</H2>
+      <P>
+        FurlPay does not currently provide production hotel or flight booking. The Travel MCP page
+        describes a development integration and sample flows; its test credentials and demo
+        inventory are not bookable.
+      </P>
 
-      <Callout type="info" title="Book with the balance, not a card">
-        Travel checkout spends your FurlPay balance directly — no card in the middle means no
-        card declines mid-checkout and no foreign-transaction fees on top.
-      </Callout>
+      <H2 id="external">Bookings made elsewhere</H2>
+      <P>
+        For a reservation made through another website, contact the merchant or booking provider
+        shown on your confirmation. FurlPay cannot cancel that reservation or issue its refund.
+      </P>
+
+      <P>
+        Check the <a href="/docs" className="text-neon hover:underline">service availability overview</a>{" "}
+        for current product status.
+      </P>
 
       <DocPager pathname="/docs/help/travel-booking" />
     </article>

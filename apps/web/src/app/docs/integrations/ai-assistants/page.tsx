@@ -1,4 +1,4 @@
-import { DocTitle, Lead, H2, H3, P, UL, LI, Code, CodeBlock, Callout } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Code, Callout, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/integrations/ai-assistants");
@@ -6,74 +6,59 @@ export const metadata = docMeta("/docs/integrations/ai-assistants");
 export default function AiAssistantsPage() {
   return (
     <article>
-      <DocTitle eyebrow="Integrations">ChatGPT &amp; Claude</DocTitle>
+      <DocTitle eyebrow="Integrations">AI assistants and MCP</DocTitle>
       <Lead>
-        Connect FurlPay to an AI assistant so users can pay in stablecoins, book travel and invest from
-        chat. FurlPay ships both surfaces: an OpenAI <b>GPT Action</b> (OpenAPI) and a <b>Model Context
-        Protocol</b> (MCP) server for Claude.
+        FurlPay provides an MCP endpoint for connecting compatible assistants and agent clients to
+        scoped account tools. Tool availability depends on the user&apos;s consent and the status
+        of any service the tool uses.
       </Lead>
 
-      <Callout>
-        FurlPay never lets an assistant move money unattended. Every payment, trade or swap returns
-        EIP-712 sign data or a confirmation the human approves before it settles (human-in-the-loop).
+      <Callout type="warning" title="An assistant cannot bypass payment controls">
+        FurlPay&apos;s Claude connector can read authorized data and prepare certain actions for
+        human approval. It cannot settle a payment from a chat message. x402, MPP and gasless
+        production settlement remain gated. The x402 endpoint returned 503 controls_unavailable
+        on 11 October 2026, so its challenge flow is currently unavailable as well.
       </Callout>
 
-      <H2 id="chatgpt">1. ChatGPT — GPT Action</H2>
+      <H2 id="mcp">Connect through MCP</H2>
       <P>
-        FurlPay serves a plugin manifest and an OpenAPI 3.1 spec. In the GPT builder, add an Action and
-        import the schema URL:
+        The FurlPay MCP endpoint is <Code>https://furlpay.com/api/mcp</Code>. Claude and other
+        compatible clients can use the endpoint&apos;s authorization flow and request only the
+        scopes the user approves.
       </P>
-      <UL>
-        <LI>Manifest: <Code>https://furlpay.com/.well-known/ai-plugin.json</Code></LI>
-        <LI>OpenAPI schema: <Code>https://furlpay.com/openapi.json</Code></LI>
-        <LI>Auth: Bearer API key (create one at <Code>/developer</Code>).</LI>
-      </UL>
       <P>
-        The model then calls tools like <Code>get_wallet_balances</Code>, <Code>quote_swap</Code>,{" "}
-        <Code>place_investment_order</Code> and <Code>search_stays</Code> directly. Example prompt:{" "}
-        <i>&ldquo;Book a hotel in Tokyo under $200/night and pay with USDC.&rdquo;</i>
-      </P>
-
-      <H2 id="claude">2. Claude — MCP server</H2>
-      <P>
-        FurlPay ships a stdio MCP server (<Code>@furlpay/mcp-server</Code>). Add it to Claude Desktop&rsquo;s
-        config so Claude can build on the FurlPay Core API:
-      </P>
-      <CodeBlock lang="json">{`{
-  "mcpServers": {
-    "furlpay": {
-      "command": "npx",
-      "args": ["-y", "@furlpay/mcp-server"],
-      "env": {
-        "FURLPAY_BASE_URL": "https://api.furlpay.com",
-        "FURLPAY_API_KEY": "sk_live_..."
-      }
-    }
-  }
-}`}</CodeBlock>
-      <P>
-        For local development point <Code>FURLPAY_BASE_URL</Code> at{" "}
-        <Code>http://localhost:3000</Code> and use a <Code>sk_sandbox_</Code> key. Restart Claude Desktop
-        and the FurlPay tools appear in the tool menu.
+        For client-specific setup, available tools, permission scopes and the exact human-approval
+        boundary, use the{" "}
+        <a href="/docs/integrations/claude-connector" className="text-neon hover:underline">
+          Claude connector guide
+        </a>
+        .
       </P>
 
-      <H3 id="tools">Available tools</H3>
+      <H2 id="agent-keys">Registering your own agent</H2>
+      <P>
+        An application can register an agent&apos;s public key through{" "}
+        <Code>POST /api/agents/keys</Code>. Authenticated registration binds that key to the
+        account and can attach per-transaction limits, a daily budget and allowed categories.
+        These controls limit authorized actions; they do not enable a disabled payment rail.
+      </P>
+
+      <H2 id="tool-boundaries">Read, prepare and execute are different</H2>
       <UL>
-        <LI><Code>get_wallet_balances</Code> — Safe smart-account stablecoin balances.</LI>
-        <LI><Code>quote_swap</Code> — cheapest cross-chain stablecoin route (CCTP V2 / Li.Fi).</LI>
-        <LI><Code>place_investment_order</Code> — fractional stock/ETF order.</LI>
-        <LI><Code>screen_wallet_risk</Code> — AML screen an address.</LI>
-        <LI><Code>verify_identity</Code> — KYC identity check.</LI>
+        <LI>Read tools return information covered by the granted scope.</LI>
+        <LI>Prepare tools can create a quote, intent or approval link without moving funds.</LI>
+        <LI>Execution requires the applicable user authorization and a currently enabled rail.</LI>
+        <LI>Travel search and market data do not imply live booking or brokerage execution.</LI>
       </UL>
 
-      <H2 id="own-copilot">3. Or use the built-in Co-Pilot</H2>
+      <H2 id="availability">Check service availability</H2>
       <P>
-        FurlPay also ships its own assistant at <Code>/chat</Code>, backed by{" "}
-        <Code>POST /api/chat</Code>. It runs the same tool surface, is grounded on the user&rsquo;s real
-        account state, and returns a confirmation for any money movement. Set{" "}
-        <Code>ANTHROPIC_API_KEY</Code> to have Claude phrase replies over the grounded facts; without a
-        key it falls back to a deterministic responder.
+        Before exposing an agent tool that may move funds, check <Code>/api/rails</Code> and the{" "}
+        <a href="/docs" className="text-neon hover:underline">service availability overview</a>.
+        Treat an unavailable or unknown status as a reason to stop, not as permission to proceed.
       </P>
+
+      <DocPager pathname="/docs/integrations/ai-assistants" />
     </article>
   );
 }

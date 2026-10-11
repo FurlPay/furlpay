@@ -1,139 +1,257 @@
-import { DocTitle, Lead, H2, P, UL, LI, Code, CodeBlock, Callout, DocPager, Mermaid } from "@/components/docs/prose";
+import {
+  DocTitle,
+  Lead,
+  H2,
+  P,
+  UL,
+  LI,
+  Code,
+  Callout,
+  DocPager,
+} from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
+import { capability, STATUS_LABEL } from "@/lib/productionStatus";
 
 export const metadata = docMeta("/docs");
+
+const SERVICES = [
+  {
+    id: "developer-platform",
+    name: "Developer APIs, SDKs and documentation",
+    summary: "REST APIs, SDKs, OpenAPI docs and MCP connectivity; each money-moving route still depends on rail availability.",
+    href: "/docs/quickstart",
+    link: "Start here",
+  },
+  {
+    id: "passkeys",
+    name: "Passkey authentication",
+    summary: "WebAuthn sign-in and step-up authentication for protected account actions.",
+    href: "/docs/architecture/authentication",
+    link: "Authentication guide",
+  },
+  {
+    id: "payment-apis",
+    name: "Stablecoin payment APIs",
+    summary: "Fee estimates and non-custodial payment or bridge data for a user's wallet to review and sign. This does not mean FurlPay has settled the payment.",
+    href: "/docs/architecture/api-routes",
+    link: "API routes",
+  },
+  {
+    id: "relayed-settlement",
+    name: "FurlPay-operated settlement",
+    summary: "Broadcasting a signed payment through a FurlPay-operated production signer.",
+    href: "/api/rails",
+    link: "Check rail status",
+  },
+  {
+    id: "x402-challenge",
+    name: "x402 payment challenges",
+    summary: "The endpoint currently returns 503 because operational controls are unavailable. Challenge service and settlement must both be checked separately.",
+    href: "/docs/payments/agentic-x402",
+    link: "x402 guide",
+  },
+  {
+    id: "x402-settlement",
+    name: "x402 and MPP settlement",
+    summary: "The agent payment protocols have separate settlement gates; do not treat an issued challenge as a completed payment.",
+    href: "/docs/payments/agentic-x402",
+    link: "x402 and MPP guide",
+  },
+  {
+    id: "agent-payments",
+    name: "AI agent access and payment execution",
+    summary: "MCP connectivity, scoped access and spend policies are available; FurlPay agent payment settlement is pending production rail configuration.",
+    href: "/docs/agents",
+    link: "Agent guide",
+  },
+  {
+    id: "gasless",
+    name: "Gasless USDC transfers",
+    summary: "A relayed EIP-3009 transfer flow; production sponsorship is not enabled until its rail is configured.",
+    href: "/docs/help/gasless-transfers",
+    link: "Transfer status",
+  },
+  {
+    id: "market-data",
+    name: "Market data",
+    summary: "Market quotes, charts and related read-only data. Brokerage execution is a separate service.",
+    href: "/markets",
+    link: "Open markets",
+  },
+  {
+    id: "hotel-map",
+    name: "Hotel discovery",
+    summary: "Hotel search and map discovery. Finding a property does not mean a booking or payment can be completed.",
+    href: "/hotels/map",
+    link: "Explore hotels",
+  },
+  {
+    id: "travel-search",
+    name: "Travel booking",
+    summary: "Production booking inventory and payment are not currently available.",
+    href: "/docs/payments/travels-mcp",
+    link: "Travel integration status",
+  },
+  {
+    id: "trading",
+    name: "Stock and ETF orders",
+    summary: "Order submission is not currently routed to a live brokerage.",
+    href: "/products/investing",
+    link: "Investing product status",
+  },
+  {
+    id: "cards",
+    name: "Card issuing",
+    summary: "No production card program is available.",
+    href: "/docs/help/managing-cards",
+    link: "Card availability",
+  },
+  {
+    id: "banking",
+    name: "Local bank accounts and banking rails",
+    summary: "FurlPay does not currently provide local account issuance or bank payouts.",
+    href: "/docs/help/deposits-withdrawals",
+    link: "Funding availability",
+  },
+  {
+    id: "mobile",
+    name: "FurlPay mobile apps",
+    summary: "Mobile clients are not currently distributed through the app stores.",
+    href: "/docs/help/passkeys-biometrics",
+    link: "Passkey and device guidance",
+  },
+  {
+    id: "desktop",
+    name: "FurlPay desktop app",
+    summary: "A signed desktop release is not currently available to users.",
+    href: "/docs/architecture/monorepo",
+    link: "Repository layout",
+  },
+  {
+    id: "tokenized-stocks",
+    name: "Tokenized equities",
+    summary: "A verified production token registry and trading path are not available.",
+    href: "/products/investing",
+    link: "Investing product status",
+  },
+] as const;
+
+function statusTone(status: string) {
+  if (status === "live") return "border-emerald-400/30 bg-emerald-400/10 text-emerald-300";
+  if (status === "pending") return "border-amber-400/30 bg-amber-400/10 text-amber-300";
+  if (status === "internal") return "border-sky-400/30 bg-sky-400/10 text-sky-300";
+  return "border-white/15 bg-white/[0.04] text-[var(--muted)]";
+}
 
 export default function IntroductionPage() {
   return (
     <article>
-      <DocTitle eyebrow="Getting Started">Furlpay Developer Quickstart</DocTitle>
+      <DocTitle eyebrow="Getting Started">FurlPay services and developer docs</DocTitle>
       <Lead>
-        Welcome to the Furlpay API. Integrate stablecoin payments, passkey authentication and AI
-        agent tooling with a few lines of code — on a compliance-aware, phishing-resistant rail.
+        Build stablecoin payment and agent workflows with FurlPay&apos;s APIs, SDKs and wallet
+        security tools. This page separates production services from integrations that are still
+        being prepared.
       </Lead>
 
-      <P>
-        Furlpay is on-chain financial infrastructure: stablecoin payment construction, balances,
-        passkey security and an x402 endpoint for agents, behind one API and a set of typed SDKs.
-        Everything you can do in the app, you can do programmatically.
-      </P>
-
-      {/* Developer docs are read by people about to spend a day integrating,
-          so the availability boundary belongs at the top rather than
-          discovered at the first 503. The endpoints below all exist and
-          respond; what differs is whether money can complete a round trip. */}
-      <Callout type="warning" title="What is live today">
-        <P>
-          Payment construction, fee quotes, the x402 402-challenge endpoint, balances, passkey
-          auth and the MCP server run in production. Settlement — Furlpay broadcasting a
-          transaction on your behalf — is not yet enabled: the production signer, fee payer and
-          RPC endpoint are unconfigured, so <Code>/api/rails</Code> reports those rails as{" "}
-          <Code>NOT_CONFIGURED</Code>. Card issuing, local bank accounts, stock orders and travel
-          booking are in development; their routes exist and fail closed rather than simulating
-          success. Build against the request shapes now — they are stable.
-        </P>
+      <Callout type="warning" title="Check availability before handling money">
+        A route or SDK existing does not mean its payment rail is enabled. Check{" "}
+        <a href="/api/rails" className="text-neon hover:underline">
+          <Code>GET /api/rails</Code>
+        </a>{" "}
+        before building a live flow. If that endpoint cannot return a current status, treat the
+        rail as unavailable until its status can be verified. A quote, challenge or payment intent
+        is not proof that funds moved.
       </Callout>
 
-      <CodeBlock lang="typescript">{`import { Furlpay } from '@furlpay/node';
-
-const client = new Furlpay('sk_test_123');
-
-const card = await client.cards.issue({
-  holder: 'usr_9f2c31',
-  currency: 'USDC',
-  spendLimit: 500_00, // minor units
-});`}</CodeBlock>
-
-      <H2 id="system">The system at a glance</H2>
+      <H2 id="services">Services and current availability</H2>
       <P>
-        Every client — human or agent — hits the same Next.js API surface; payments settle
-        non-custodially on public chains, with durable state split between Postgres and Redis:
+        Status labels come from FurlPay&apos;s production capability registry. <b>Live</b> means
+        observed working in production; <b>In development</b> means the flow is implemented but a
+        production gate remains; <b>Planned</b> means the production service is not implemented.
+        Most configuration observations were recorded on 21 September 2026. On 11 October 2026,
+        <Code>/api/rails</Code> returned <Code>503 controls_unavailable</Code> with reason{" "}
+        <Code>plan_limit</Code>, and <Code>/api/x402/fx</Code> also returned 503. Treat all payment
+        rail status as unknown until the registry responds successfully; these labels are not a
+        current availability guarantee.
       </P>
-      <Mermaid
-        caption="System context: clients, payment rails, platform services, state, and external networks."
-        chart={`graph TB
-    subgraph Clients
-        AGENT[AI Agent]
-        EXT[Browser Extension]
-        WEB[Web App / Mobile]
-    end
+      <div className="mt-5 space-y-3">
+        {SERVICES.map((service) => {
+          const current = capability(service.id);
+          return (
+            <section
+              key={service.id}
+              className="rounded-xl border border-[var(--border)] bg-[var(--panel)] p-4 sm:p-5"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-[15px] font-semibold">{service.name}</h3>
+                <span
+                  className={`rounded-full border px-2.5 py-1 text-[11px] font-semibold ${statusTone(current.status)}`}
+                >
+                  {STATUS_LABEL[current.status]}
+                </span>
+              </div>
+              <p className="mt-2 text-[13.5px] leading-relaxed text-[var(--muted)]">
+                {service.summary}
+              </p>
+              {current.gate && (
+                <p className="mt-2 text-[12px] leading-relaxed text-amber-200/80">
+                  Current gate: {current.gate}
+                </p>
+              )}
+              <a href={service.href} className="mt-3 inline-block text-[13px] text-neon hover:underline">
+                {service.link} →
+              </a>
+            </section>
+          );
+        })}
+      </div>
 
-    subgraph Platform[Furlpay Platform]
-        GW[API Gateway - Next.js + middleware]
-        subgraph Rails[Payment rails]
-            X402[x402 Facilitator - EIP-3009]
-            MPP[MPP Handler]
-            CCTP[CCTP V2 cross-chain]
-            LIFI[LI.FI swaps]
-        end
-        subgraph Services
-            AUTH[Auth - WebAuthn + sessions]
-            OPS[Ops control plane + event ledger]
-            TRUST[Agent trust and spend mandates]
-        end
-        SUPA[(Supabase Postgres)]
-        REDIS[(Upstash Redis)]
-    end
-
-    subgraph Networks[External networks]
-        ARB[Arbitrum One]
-        BASE[Base]
-        SOL[Solana]
-        CIRCLE[Circle attestation]
-    end
-
-    AGENT --> GW
-    EXT --> GW
-    WEB --> GW
-    GW --> X402
-    GW --> MPP
-    GW --> CCTP
-    GW --> LIFI
-    GW --> AUTH
-    GW --> OPS
-    GW --> TRUST
-    X402 --> ARB
-    MPP --> ARB
-    LIFI --> BASE
-    LIFI --> SOL
-    CCTP --> CIRCLE
-    Rails --> SUPA
-    Rails --> REDIS`}
-      />
-
-      <H2 id="what">What you can build</H2>
+      <H2 id="payment-rails">Payment rails</H2>
+      <P>
+        The API includes non-custodial transaction-building and payment protocol integrations. The
+        payer signs with their own wallet where a route is client-signed. FurlPay-operated relaying
+        is a separate capability and is currently in development. Individual rails can be paused,
+        unconfigured or unavailable; read their current status and the linked route guide before
+        sending a transaction.
+      </P>
       <UL>
-        <LI>Accept stablecoin checkouts with the <Code>FurlpayCheckoutButton</Code> React Element.</LI>
-        <LI>
-          Issue virtual cards and control them via <Code>POST /api/cards/settings</Code> —{" "}
-          <em>in development, no card program is live</em>.
-        </LI>
-        <LI>
-          Open local IBAN / routing accounts and move money across rails —{" "}
-          <em>in development</em>.
-        </LI>
-        <LI>
-          Place fractional stock &amp; ETF orders via <Code>POST /api/investing/order</Code> —{" "}
-          <em>in development; orders do not reach a market</em>.
-        </LI>
-        <LI>
-          Give an AI agent a wallet — MCP server, LangChain tools, x402 pay-per-call and TAP-style spend
-          mandates. Start at{" "}
-          <a href="/docs/agents" className="text-neon hover:underline">For AI Agents</a>.
-        </LI>
+        <LI><b>USDC payment APIs:</b> fee estimates, payment intents and signing data for supported flows.</LI>
+        <LI><b>Agent protocols:</b> x402 and MPP challenge flows; the x402 endpoint is currently unavailable and settlement readiness is separate.</LI>
+        <LI><b>Cross-chain tools:</b> Circle CCTP and LI.FI route construction, subject to rail status.</LI>
+        <LI><b>Solana Actions:</b> transaction construction for supported checkout assets.</LI>
       </UL>
 
-      <H2 id="keys">API keys</H2>
+      <H2 id="agent-services">Agent and developer services</H2>
       <P>
-        Test keys are prefixed <Code>sk_test_</Code> and live keys <Code>sk_live_</Code>. Keep secret keys
-        server-side only; the browser never sees them. Publishable keys (<Code>pk_</Code>) render Elements
-        and are safe to expose.
+        FurlPay also provides an MCP endpoint, agent key and spend-policy management, passkey
+        authentication, developer documentation and typed SDKs. Connector tools may read data or
+        prepare an action; financial settlement remains subject to the user&apos;s authorization and
+        the live status of the selected rail.
+      </P>
+      <UL>
+        <LI><a href="/docs/agents" className="text-neon hover:underline">For AI agents</a> — MCP, agent access and spend controls.</LI>
+        <LI><a href="/docs/integrations/claude-connector" className="text-neon hover:underline">Claude connector</a> — scoped access and human approval for financial actions.</LI>
+        <LI><a href="/docs/architecture/authentication" className="text-neon hover:underline">Authentication</a> — sessions, WebAuthn and API access patterns.</LI>
+        <LI><a href="/openapi.json" className="text-neon hover:underline">OpenAPI specification</a> — machine-readable route contracts.</LI>
+      </UL>
+
+      <H2 id="not-live">Services not available as live products</H2>
+      <P>
+        FurlPay does not currently offer production card issuing, local bank account issuance,
+        fiat on-ramp or off-ramp payouts, or live stock and ETF order execution. Travel booking is
+        also not available with production inventory. Batch payouts are also unavailable in production; no batch payout API endpoint is part of this
+        release. Related pages describe integration designs or development work; they are not offers
+        to provide those services today.
+      </P>
+      <P>
+        FurlPay is a software and payment-infrastructure provider, not a bank, card issuer,
+        brokerage or investment adviser. Availability, supported assets, networks and limits are
+        deployment-specific.
       </P>
 
-      <Callout title="Next: install the CLI">
-        The fastest path from zero to a live webhook is the Furlpay CLI. Head to the{" "}
-        <a href="/docs/quickstart" className="text-neon hover:underline">Quickstart</a> to scaffold a
-        project and forward events to localhost.
+      <Callout title="Next: verify a rail and request a quote">
+        Follow the <a href="/docs/quickstart" className="text-neon hover:underline">Quickstart</a>{" "}
+        to inspect rail status and request a fee estimate before you implement a payment flow.
       </Callout>
 
       <DocPager pathname="/docs" />

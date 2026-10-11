@@ -24,10 +24,10 @@ export default function RateLimitsPage() {
       <H2 id="routes">Per-route budgets</H2>
       <ParameterTable
         params={[
-          { name: "POST /api/transfers/gasless", type: "12 / min / IP", required: true, desc: "Gasless relay — each call can submit an on-chain transaction." },
+          { name: "POST /api/transfers/gasless", type: "12 / min / IP", required: true, desc: "Gasless relay route; production sponsorship is not currently enabled." },
           { name: "GET /api/rails", type: "60 / min / IP", required: true, desc: "Public rail discovery." },
           { name: "POST /api/docs/feedback", type: "10 / min / IP", required: true, desc: "Anonymous docs feedback counters." },
-          { name: "GET /api/x402/fx", type: "quote-gated", required: true, desc: "Unpaid requests get quotes; each paid call is naturally metered by the payment itself." },
+          { name: "GET /api/x402/fx", type: "quote-gated", required: true, desc: "When controls are available, unpaid requests get a quote; on 11 Oct 2026 production returned 503 controls_unavailable." },
           { name: "OTP / email routes", type: "tight per-route", required: true, desc: "SMS/email-sending endpoints carry the strictest budgets to prevent pumping." },
         ]}
       />
@@ -43,7 +43,7 @@ if (res.status === 429) {
       <UL>
         <LI>Respect <Code>Retry-After</Code> exactly — retrying earlier just resets your window.</LI>
         <LI>For agents: budget your call rate below the limit rather than treating 429 as flow control.</LI>
-        <LI>x402 flows should reuse the pending-settlement poll path instead of re-requesting quotes in a loop.</LI>
+        <LI>When x402 is available, use its pending-settlement poll path instead of requesting new quotes in a loop. A 503 means availability is unknown.</LI>
       </UL>
 
       <Callout type="info" title="Limits are per deployment configuration">

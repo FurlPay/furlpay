@@ -13,16 +13,15 @@ export default function ClaudeConnectorPage() {
     <article>
       <DocTitle eyebrow="Integrations">FurlPay connector for Claude</DocTitle>
       <Lead>
-        Connect your FurlPay account to Claude and ask about your money in plain language — balances across
-        chains, spending, transactions, travel. Claude can also <b>prepare</b> payments and bookings, but it can
-        never send money on its own: every financial action produces an approval link that <b>you</b> confirm
-        with your passkey.
+        Connect your FurlPay account to Claude over MCP and grant access to specific account tools.
+        Claude can read authorized account data and prepare some actions for review. Payment settlement
+        still depends on rail availability, and production travel booking is unavailable.
       </Lead>
 
       <Callout type="info" title="The one thing to know">
-        <b>Claude cannot autonomously move money through FurlPay.</b> Money-moving tools create an intent and
-        return a secure approval link. Settlement happens only after a human authenticates with a passkey in
-        FurlPay. There is no tool, and no scope, that settles funds from a chat message.
+        <b>A tool call is not proof that money moved.</b> Payment tools can prepare an intent or request
+        for user review. Production settlement depends on the selected rail being enabled and confirmed.
+        Travel links open discovery; FurlPay production travel booking is not currently available.
       </Callout>
 
       <H2 id="connect">Connect FurlPay to Claude</H2>
@@ -36,19 +35,27 @@ export default function ClaudeConnectorPage() {
       </P>
       <CodeBlock lang="bash">{`claude mcp add --transport http furlpay https://furlpay.com/api/mcp`}</CodeBlock>
 
-      <H2 id="tools">What Claude can do (12 tools)</H2>
+      <H2 id="tools">Tools currently defined by the connector</H2>
+      <P>
+        The MCP server defines the tools below. Claude sees only tools allowed by the scopes you grant,
+        and a tool result can still be limited by account data, provider configuration or payment-rail
+        availability.
+      </P>
       <P>
         <b>Read-only</b> — answer questions, never change anything:
       </P>
       <UL>
         <LI>
-          <Code>get_financial_overview</Code> — balances, recent transactions and cards in one summary.
+          <Code>get_financial_overview</Code> — account overview data returned by the API.
         </LI>
         <LI>
           <Code>get_wallet_balances</Code> — stablecoin balances per token and chain, with USD values.
         </LI>
         <LI>
           <Code>list_transactions</Code> — recent transactions, filterable by category.
+        </LI>
+        <LI>
+          <Code>get_portfolio</Code> — read-only portfolio data when available; this tool does not place trades.
         </LI>
         <LI>
           <Code>get_treasury_insights</Code> — spending by category over a period (burn rate, budgets).
@@ -60,10 +67,10 @@ export default function ClaudeConnectorPage() {
           <Code>get_swap_quote</Code> — best cross-chain stablecoin route and price (quoting moves nothing).
         </LI>
         <LI>
-          <Code>search_travel</Code> — stays payable in stablecoins.
+          <Code>search_travel</Code> — hotel discovery results when a provider returns them; results are not bookable inventory.
         </LI>
         <LI>
-          <Code>list_trips</Code> — your upcoming, past and cancelled trips.
+          <Code>list_trips</Code> — trip records returned for your account; this does not indicate that FurlPay booking is available.
         </LI>
       </UL>
       <P>
@@ -71,16 +78,16 @@ export default function ClaudeConnectorPage() {
       </P>
       <UL>
         <LI>
-          <Code>prepare_payment</Code> — drafts a USDC payment and returns an approval link. Capped at $10,000
-          per action through the connector. <b>Does not send.</b>
+          <Code>prepare_payment</Code> — prepares a USDC payment for review, subject to the route&apos;s limits
+          and authentication. <b>Does not settle by itself.</b>
         </LI>
         <LI>
-          <Code>book_travel_link</Code> — returns a link where you complete and pay for a booking yourself.{" "}
-          <b>Does not book or charge.</b>
+          <Code>book_travel_link</Code> — opens a travel discovery page. FurlPay production booking and
+          payment are unavailable.
         </LI>
         <LI>
-          <Code>create_invoice</Code> — creates a payment request others can pay you. Receives money; never
-          sends it.
+          <Code>create_invoice</Code> — creates a payment request. It does not mean a recipient can
+          complete settlement through FurlPay.
         </LI>
         <LI>
           <Code>open_support_ticket</Code> — files a support ticket. Seed phrases, private keys and card numbers
@@ -100,13 +107,13 @@ export default function ClaudeConnectorPage() {
           <Code>transactions:read</Code> — transaction history and spending analytics.
         </LI>
         <LI>
-          <Code>travel:read</Code> — your trips and available stays.
+          <Code>travel:read</Code> — trip records and travel discovery data when available.
         </LI>
         <LI>
           <Code>payments:write</Code> — <b>prepare</b> payments and invoices for your approval. Not settlement.
         </LI>
         <LI>
-          <Code>travel:write</Code> — <b>prepare</b> bookings for your approval. Not booking or charging.
+          <Code>travel:write</Code> — opens the travel discovery flow; it does not book or charge.
         </LI>
       </UL>
       <P>
@@ -126,13 +133,12 @@ export default function ClaudeConnectorPage() {
           loopback address (for CLI clients, whose port is assigned at runtime). Nothing else.
         </LI>
         <LI>
-          <b>Human-in-the-loop for money.</b> Financial tools return an approval link, never a settlement.
-          Approval requires a passkey/biometric on your device.
+          <b>User review for financial actions.</b> Tools can return an approval link or request, but
+          settlement still depends on rail status and the route&apos;s confirmation flow.
         </LI>
         <LI>
-          <b>Same guardrails as the apps.</b> The connector calls FurlPay&apos;s own API routes as you — the
-          same validation, rate limits, ownership checks and audit trail as the web and mobile apps. Every
-          consent grant and token issue is audited.
+          <b>API route checks apply.</b> The connector calls FurlPay's API as the signed-in account
+          and is subject to route validation, authorization and rate limits.
         </LI>
         <LI>
           <b>Scoped, short-lived tokens.</b> Connector tokens are distinct from browser sessions: a stolen web
@@ -142,10 +148,10 @@ export default function ClaudeConnectorPage() {
 
       <H2 id="disconnect">Disconnect and revoke</H2>
       <P>
-        Remove the connector in Claude (<b>Settings → Connectors → FurlPay → Remove</b>). Access tokens are
-        short-lived and expire on their own; removing the connector stops new ones from being issued. To cut
-        access immediately from FurlPay&apos;s side, change your password or lock your account in{" "}
-        <b>Settings → Security</b>, which invalidates existing sessions and connector tokens.
+        Remove the connector in Claude (<b>Settings → Connectors → FurlPay → Remove</b>). To revoke
+        authorization from FurlPay, use the account's connected-app or security controls if shown,
+        or contact support. Do not assume removing a client-side connector instantly revokes every
+        previously issued token.
       </P>
 
       <H2 id="privacy">Privacy, terms and contact</H2>

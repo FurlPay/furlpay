@@ -12,18 +12,22 @@ export default function SecurityPosturePage() {
     <article>
       <DocTitle eyebrow="Security &amp; Crypto">Security Posture</DocTitle>
       <Lead>
-        What protects your money at each layer — and the exact status of each guarantee. Everything
-        here is verifiable: the code is open-source, settlements are on public chains, and the parts
-        that are still pending are labeled pending.
+        What protects a payment request at each layer, and which controls are available in
+        production. The code describes more routes than are currently enabled for live settlement;
+        the status of each rail must be checked separately.
       </Lead>
 
-      <H2 id="custody">Non-custodial by construction</H2>
+      <H2 id="custody">Client-signed payment flows</H2>
       <P>
-        Furlpay never holds user funds in the payment path. x402 and gasless transfers move value with
-        EIP-3009 <Code>transferWithAuthorization</Code> — the signed message itself fixes the payer,
-        recipient, and amount, and the token contract re-verifies the signature on-chain. Our relayer
-        pays gas; it cannot redirect a cent. CCTP bundles and LI.FI swaps are built server-side but{" "}
-        <b>signed and submitted by the client</b>.
+        In routes that return wallet-signable transaction data, the connected wallet reviews,
+        signs and submits the transaction. Those specific flows do not use FurlPay custody. This
+        statement does not describe every wallet action; see the{" "}
+        <a href="/docs/security/mpc-webauthn" className="text-neon hover:underline">signing disclosure</a>
+        {" "}for the web signing model. EIP-3009{" "}
+        <Code>transferWithAuthorization</Code> binds the payer, recipient and amount to the signed
+        authorization. The production relayer-dependent x402 and gasless transfer rails are not
+        currently enabled. CCTP bundles and LI.FI routes are prepared by the service but{" "}
+        <b>signed and submitted by the client</b> when that route is available.
       </P>
       <UL>
         <LI><Badge>LIVE</Badge> EIP-712 signature recovery (ECDSA + ERC-1271 smart wallets), fail-closed.</LI>
@@ -60,10 +64,10 @@ export default function SecurityPosturePage() {
       <Callout title="Current status — stated plainly">
         The smart contracts (<Code>X402Facilitator.sol</Code> and related) are{" "}
         <b>not yet externally audited</b>. Mainnet deployment of the contracts is paused until an audit
-        engagement completes, and the live settlement path runs with conservative per-transaction caps.
-        When reports are published they will be linked on this page. Internal review, the CI pipeline
-        above, and adversarial end-to-end tests (replay, bad-signature, pending-settlement recovery)
-        are in place today.
+        engagement completes. FurlPay-operated production settlement is not currently enabled.
+        When audit reports are published they will be linked on this page. Internal review, the CI
+        pipeline above, and adversarial tests for replay, invalid signatures and pending-settlement
+        recovery are maintained in the repository.
       </Callout>
 
       <H2 id="disclosure">Responsible disclosure</H2>

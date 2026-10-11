@@ -51,9 +51,9 @@ export interface CapabilityRecord {
 }
 
 /**
- * Observed on 21 Sep 2026 against https://furlpay.com with the production
- * environment variable inventory (`vercel env ls production`) as the
- * corroborating source for every "absent" claim below.
+ * Baseline observations were recorded on 21 Sep 2026 against https://furlpay.com
+ * and the production environment variable inventory. Later production checks
+ * are dated in the relevant capability's evidence string.
  */
 export const CAPABILITIES: readonly CapabilityRecord[] = [
   {
@@ -78,43 +78,46 @@ export const CAPABILITIES: readonly CapabilityRecord[] = [
   {
     id: "x402-challenge",
     label: "x402 payment challenge",
-    status: "live",
+    status: "pending",
     evidence:
-      "GET /api/x402/fx returns a real HTTP 402 with an EIP-3009 `accepts` block, USDC on Arbitrum and a live payTo address.",
+      "On 11 Oct 2026, GET /api/x402/fx returned 503 controls_unavailable with reason plan_limit; the endpoint was not serving challenges.",
+    gate: "Restore operational-control availability; the x402 endpoint must return a current challenge before it is advertised as available.",
   },
   {
     // Deliberately separate from "x402-settlement". These are two different
     // questions and collapsing them is what produced the original overclaim.
-    // Constructing a payment — quoting the fee, issuing the 402 challenge,
-    // building the transfer or bridge calldata for the user's own wallet to
-    // sign — is non-custodial and needs no FurlPay signer. SETTLING on the
-    // user's behalf needs a funded relayer, which production does not have.
+    // Fee estimates and client-signable transfer/bridge data are distinct
+    // from FurlPay-operated settlement. The x402 challenge endpoint is tracked
+    // separately because operational controls currently make it unavailable.
     id: "payment-apis",
     label: "Stablecoin payment APIs",
     status: "live",
     evidence:
-      "Fee quotes, the 402 challenge and non-custodial transfer/bridge calldata are served in production; the user's own wallet signs and broadcasts.",
+      "GET /api/payments/fees/estimate returned 200 on 11 Oct 2026; client-signable transfer/bridge construction was last observed on 21 Sep 2026. x402 is tracked separately and currently returns 503.",
   },
   {
     id: "relayed-settlement",
     label: "Furlpay-operated settlement",
     status: "pending",
-    evidence: "/api/rails reports every Furlpay-signed rail NOT_CONFIGURED.",
-    gate: "No production signer, fee payer or Arbitrum RPC endpoint is configured.",
+    evidence:
+      "The last readable rail registry reported FurlPay-signed rails NOT_CONFIGURED; on 11 Oct 2026 GET /api/rails returned 503 controls_unavailable with reason plan_limit.",
+    gate: "No production signer, fee payer or Arbitrum RPC endpoint is configured, and rail controls must be readable.",
   },
   {
     id: "x402-settlement",
     label: "x402 settlement",
     status: "pending",
-    evidence: "/api/rails reports the x402 rail NOT_CONFIGURED.",
-    gate: "A production facilitator signer and an Arbitrum RPC endpoint are not configured.",
+    evidence:
+      "The last readable rail registry reported x402 NOT_CONFIGURED; on 11 Oct 2026 the x402 endpoint returned 503 controls_unavailable with reason plan_limit.",
+    gate: "A production facilitator signer, Arbitrum RPC endpoint and readable operational controls are required.",
   },
   {
     id: "mpp",
     label: "Machine Payments Protocol",
     status: "pending",
-    evidence: "/api/rails reports the mpp rail NOT_CONFIGURED — it shares the x402 settlement engine.",
-    gate: "Blocked on the same facilitator configuration as x402 settlement.",
+    evidence:
+      "The last readable rail registry reported mpp NOT_CONFIGURED; on 11 Oct 2026 GET /api/rails returned 503 controls_unavailable with reason plan_limit.",
+    gate: "Blocked on the x402 facilitator configuration and readable operational controls.",
   },
   {
     id: "agent-payments",

@@ -21,24 +21,35 @@ export default function AgenticX402Page() {
     <article>
       <DocTitle eyebrow="Payments">Agentic Payments (x402)</DocTitle>
       <Lead>
-        The most interesting payments customer of 2026 is an AI agent. Furlpay speaks <b>x402</b> — the
-        HTTP 402 &quot;Payment Required&quot; protocol — so any agent or client can pay per request in USDC
-        with no account, no API key, and no card on file.
+        FurlPay implements <b>x402</b> and the Machine Payments Protocol (MPP) for HTTP
+        &quot;Payment Required&quot; challenges. On 11 October 2026, the production x402 endpoint
+        returned <Code>503 controls_unavailable</Code> with reason <Code>plan_limit</Code>. x402 and
+        MPP settlement are also not currently enabled for production payments.
       </Lead>
+
+      <Callout type="warning" title="Protocol support is not settlement availability">
+        This guide describes protocol shapes and request formats. The FurlPay x402 endpoint is
+        currently unavailable, and no sample exchange is evidence that an agent can pay for a
+        resource in production. Check the{" "}
+        <a href="/api/rails" className="text-neon hover:underline">live rail registry</a>; if a
+        settlement rail is not healthy or its status is unavailable, do not release a paid
+        resource.
+      </Callout>
 
       <H2 id="flow">The flow</H2>
       <DepGraph
-        caption="Request → 402 quote → sign → retry with payment → resource + receipt."
+        caption="Protocol flow. Production settlement is currently gated, so the final paid response is not available as a live FurlPay service."
         layers={[
           { label: "1 · Request", nodes: [{ name: "GET /api/x402/fx", sub: "no payment yet" }] },
           { label: "2 · Quote", accent: true, nodes: [{ name: "402 Payment Required", sub: "signed requirements" }] },
-          { label: "3 · Pay & retry", nodes: [{ name: "X-PAYMENT", sub: "EIP-3009 authorization" }] },
-          { label: "4 · Deliver", nodes: [{ name: "200 OK", sub: "+ X-PAYMENT-RESPONSE receipt" }] },
+          { label: "3 · Pay & retry", nodes: [{ name: "X-PAYMENT", sub: "sample EIP-3009 authorization" }] },
+          { label: "4 · Deliver", nodes: [{ name: "Settlement gated", sub: "not live in production" }] },
         ]}
       />
       <P>
-        End to end, one settlement runs through the facilitator&apos;s verification guards and lands
-        on-chain before the resource is served:
+        When a settlement rail is enabled, the intended sequence runs through the facilitator&apos;s
+        verification guards before the resource is served. The diagram documents that flow; it is
+        not evidence that production settlement is configured:
       </P>
       <Mermaid
         caption="Full x402 settlement sequence: quote binding, atomic nonce claim, EIP-3009 transfer on-chain, confirmation gate, receipt."
@@ -63,7 +74,12 @@ export default function AgenticX402Page() {
       />
 
       <H2 id="quote">1. Request the resource</H2>
-      <P>An unpaid request returns <Code>402</Code> with a machine-readable payment quote:</P>
+      <P>
+        When operational controls are available, an unpaid request is intended to return{" "}
+        <Code>402</Code> with a machine-readable payment quote. The production endpoint currently
+        returns <Code>503</Code>. Any quote fields below are illustrative; use values returned by a
+        healthy endpoint and never hardcode a recipient or network:
+      </P>
       <CodeBlock lang="bash">{`curl -i "https://furlpay.com/api/x402/fx?from=USD&to=EUR&amount=100"
 
 HTTP/1.1 402 Payment Required
@@ -71,10 +87,10 @@ HTTP/1.1 402 Payment Required
   "x402Version": 1,
   "accepts": [{
     "scheme": "exact",
-    "network": "base",
+    "network": "<network-from-current-challenge>",
     "maxAmountRequired": "10000",        // 0.01 USDC (6 decimals)
-    "asset": "0x833589fCD6…2913",        // USDC on Base
-    "payTo": "0x2096…287C",
+    "asset": "<asset-from-current-challenge>",
+    "payTo": "<payTo-from-current-challenge>",
     "resource": "https://furlpay.com/api/x402/fx",
     "extra": { "quoteId": "…", "expiresAt": 1782943200, "binding": "…" }
   }]
@@ -82,9 +98,10 @@ HTTP/1.1 402 Payment Required
 
       <H2 id="pay">2. Pay and retry</H2>
       <P>
-        The client signs an EIP-3009 <Code>transferWithAuthorization</Code> for the quoted amount and
-        retries with the base64 payload in the <Code>X-PAYMENT</Code> header. On success the resource is
-        returned with an <Code>X-PAYMENT-RESPONSE</Code> settlement receipt.
+        The protocol client signs an EIP-3009 <Code>transferWithAuthorization</Code> for the quoted
+        amount and retries with the base64 payload in the <Code>X-PAYMENT</Code> header. A live
+        paid response requires a configured settlement rail; do not treat the example below as a
+        response that is available in production today.
       </P>
       <CodeBlock lang="bash">{`curl "https://furlpay.com/api/x402/fx?from=USD&to=EUR&amount=100" \\
   -H "X-PAYMENT: $(base64_signed_payload)"
@@ -106,14 +123,12 @@ X-PAYMENT-RESPONSE: eyJzdWNjZXNzIjp0cnVl…
         <LI><b>Web-layer</b> — the header is size-capped and strictly parsed; malformed input returns 400, never a free resource.</LI>
       </UL>
 
-      <Callout title="Standards landscape">
-        x402 (Coinbase / Cloudflare, Linux Foundation since April 2026) has by far the most deployed
-        traffic, alongside AP2 (Google), MPP (Stripe / Tempo), and TAP (Visa, production-live July 2026).
-        Furlpay implements x402 today on Base and Solana, and ships a TAP-aligned trust layer — see{" "}
+      <Callout title="Related agent controls">
+        Protocol settlement is separate from agent identity and spending policies. See{" "}
         <a href="/docs/payments/agent-trust" className="text-neon underline underline-offset-2">
           Agent Trust &amp; Mandates
         </a>
-        .
+        {" "}for the controls that apply before a payment action is prepared.
       </Callout>
 
       <DocPager pathname="/docs/payments/agentic-x402" />

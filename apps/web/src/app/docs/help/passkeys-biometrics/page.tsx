@@ -9,33 +9,29 @@ export default function PasskeysHelp() {
     <article>
       <DocTitle eyebrow="Help Center">Securing Your Account with Passkeys &amp; Biometrics</DocTitle>
       <Lead>
-        A passkey is a cryptographic key that lives in your device&apos;s secure hardware and is
-        unlocked by your fingerprint or face. There is nothing to remember, nothing to type, and
-        nothing a phishing site can steal.
+        A passkey is a WebAuthn credential created by your authenticator and unlocked using the
+        method configured on your device. It lets you sign in without typing a password.
       </Lead>
 
       <H2 id="how-it-works">How it actually works</H2>
       <P>
-        When you enroll, your phone or laptop generates a key pair inside its secure element
-        (Android Keystore / Apple Secure Enclave). FurlPay stores only the public half. Signing in
-        means your device signs a one-time challenge after your biometric check passes — the
-        private key never leaves the hardware, and the signature only works for{" "}
-        <b>furlpay.com</b>, so a look-alike phishing domain gets nothing.
+        When you enroll, your authenticator creates a public-key credential and FurlPay stores the
+        public credential data used to verify sign-in. The authenticator signs a one-time challenge.
+        WebAuthn binds the credential to the relying-party domain, which helps prevent a look-alike
+        site from using it. The exact authenticator and unlock method depend on your device.
       </P>
 
       <H2 id="enroll">Enrolling</H2>
       <UL>
         <LI><b>Web:</b> Settings → Security → Add passkey, then follow your browser&apos;s prompt.</LI>
-        <LI><b>Android app:</b> the login screen offers fingerprint sign-in; enrolling also signs you in, since creating the key proves it&apos;s you.</LI>
+        <LI><b>Mobile app:</b> a production Android or iOS app is not currently distributed. Use the web sign-in flow.</LI>
       </UL>
 
       <H2 id="where-used">Where biometrics gate actions</H2>
       <UL>
         <LI>Signing in (one touch, replaces the email code).</LI>
-        <LI>Unlocking the mobile app after it has been backgrounded.</LI>
-        <LI>Confirming money movement — sends, swaps, and staking ask again per action.</LI>
-        <LI>Approving 3-D Secure card challenges — the approval signature is bound to that specific purchase and cannot be replayed for another.</LI>
-        <LI>Revealing full card details.</LI>
+        <LI>Additional account actions may request step-up authentication where the route requires it.</LI>
+        <LI>A passkey does not enable a payment rail or replace wallet review and transaction confirmation.</LI>
       </UL>
 
       <H2 id="lost-device">If you lose a device</H2>
@@ -48,13 +44,15 @@ export default function PasskeysHelp() {
 
       <Callout type="info" title="Passkeys and your wallet keys are different things">
         The passkey authenticates you to FurlPay. It is not your wallet&apos;s recovery phrase, and
-        FurlPay never has either one. Never type a recovery phrase anywhere in FurlPay — nothing in
-        the product asks for it.
+        you should never share a recovery phrase with anyone. The web signing path for some wallet
+        actions uses a remote signing service; see{" "}
+        <Link href="/docs/security/mpc-webauthn" className="text-neon">Signing &amp; WebAuthn</Link>{" "}
+        for the custody boundary. Never type a recovery phrase into a FurlPay form.
       </Callout>
 
       <P>
         Deeper technical detail lives in{" "}
-        <Link href="/docs/security/mpc-webauthn" className="text-neon">MPC &amp; WebAuthn</Link>.
+        <Link href="/docs/security/mpc-webauthn" className="text-neon">Signing &amp; WebAuthn</Link>.
       </P>
 
       <DocPager pathname="/docs/help/passkeys-biometrics" />

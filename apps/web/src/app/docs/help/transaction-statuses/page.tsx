@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { DocTitle, Lead, H2, P, Code, Callout, ParameterTable, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
@@ -7,49 +6,49 @@ export const metadata = docMeta("/docs/help/transaction-statuses");
 export default function TxStatusHelp() {
   return (
     <article>
-      <DocTitle eyebrow="Help Center">Understanding Transaction Statuses</DocTitle>
+      <DocTitle eyebrow="Help Center">Understanding payment statuses</DocTitle>
       <Lead>
-        Every payment moves through a small, fixed set of states. Knowing what each one means tells
-        you whether to wait, retry, or contact support.
+        Status names and transitions vary by API and rail. Read the response for the specific
+        route; a prepared request, payment ID or accepted HTTP response is not proof that funds
+        settled.
       </Lead>
 
-      <H2 id="states">The states</H2>
+      <H2 id="common">Common status meanings</H2>
       <ParameterTable
         params={[
-          { name: "prepared", type: "transient", required: false, desc: "The payment is built and signed but not yet submitted to the network or rail." },
-          { name: "pending", type: "in flight", required: false, desc: "Submitted and waiting for on-chain confirmations or rail settlement. On-chain USDC usually settles within minutes; cross-chain transfers can take longer." },
-          { name: "settled", type: "final", required: false, desc: "Confirmed and irreversible. The money moved." },
-          { name: "failed", type: "final", required: false, desc: "The rail or network rejected it after submission — funds do not leave your balance." },
-          { name: "rejected", type: "final", required: false, desc: "Refused before submission: a policy, limit, or validation check said no. The response says which." },
+          { name: "prepared", type: "not submitted", required: false, desc: "The route built an intent or transaction data. No chain transaction is implied." },
+          { name: "pending", type: "in progress", required: false, desc: "A request was submitted or accepted and is awaiting a later confirmation or review." },
+          { name: "pending_review", type: "manual review", required: false, desc: "A policy requires a human decision before a payment can proceed." },
+          { name: "settled", type: "confirmed", required: false, desc: "The route reports successful settlement. Verify the transaction reference on the stated network." },
+          { name: "failed", type: "unsuccessful", required: false, desc: "The route did not report successful settlement. Inspect the error and check the chain before retrying." },
+          { name: "rejected", type: "not accepted", required: false, desc: "Validation, policy, availability or authorization checks refused the request." },
         ]}
       />
       <P>
-        Card purchases additionally show <Code>declined</Code> when the card itself refuses — see{" "}
-        <Link href="/docs/help/declined-transactions" className="text-neon">Declined Transactions</Link>.
+        A <Code>202 Accepted</Code> response means processing is pending; it is not a settlement
+        receipt. A <Code>503</Code> or missing status means the service cannot confirm availability.
       </P>
 
-      <H2 id="explorer">Checking a transaction on-chain</H2>
+      <H2 id="verify">Verify an on-chain transaction</H2>
       <P>
-        On-chain payments carry a transaction hash (<Code>0x…</Code> on EVM chains, a base58
-        signature on Solana). Open the transaction in the app and tap the hash to view it on the
-        network&apos;s block explorer — if the explorer shows it confirmed but FurlPay still says
-        pending, give it a minute for confirmations to reach our required depth; the depth scales
-        with the amount.
+        When the API returns a transaction hash, check it on the explorer for the exact network in
+        the response. Compare the sender, recipient, token and amount. Wait for the chain&apos;s
+        required confirmations before treating the transfer as complete.
       </P>
 
-      <H2 id="stuck">When to worry</H2>
+      <H2 id="retry">Before retrying</H2>
       <P>
-        A <Code>pending</Code> deposit past 30 minutes is worth a look. First ask the co-pilot
-        &quot;where is my deposit?&quot; — it checks your pending transactions directly. If the
-        sender&apos;s explorer link shows a different network than you selected on the deposit
-        screen, that is the usual cause; open a ticket in the stablecoins category with the tx
-        hash (safe to share — a hash reveals nothing secret).
+        Do not submit a second payment while the first one is pending or its status is unknown.
+        Check the original payment ID and transaction hash first. Use the documented idempotency
+        behavior for that route, and contact{" "}
+        <a href="/support" className="text-neon hover:underline">FurlPay Support</a> if the API
+        status and chain evidence disagree.
       </P>
 
-      <Callout type="info" title="Deposits credit at network speed, not FurlPay speed">
-        FurlPay detects deposits by watching the chain. The wait is the network&apos;s
-        confirmation time plus a safety margin that scales with the amount — small deposits
-        credit fastest.
+      <Callout type="warning" title="Availability is separate from status">
+        A route may prepare an intent while its settlement rail is unavailable. Check{" "}
+        <Code>/api/rails</Code> before creating a payment, and never interpret a quote or challenge
+        as a completed transfer.
       </Callout>
 
       <DocPager pathname="/docs/help/transaction-statuses" />

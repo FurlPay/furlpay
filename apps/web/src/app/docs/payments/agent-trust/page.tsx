@@ -22,11 +22,17 @@ export default function AgentTrustPage() {
       <DocTitle eyebrow="Payments">Agent Trust &amp; Mandates (TAP)</DocTitle>
       <Lead>
         An AI agent that can spend money needs more than a payment rail — it needs <b>provable
-        permission</b>. <Code>@furlpay/agent-trust</Code> implements the trust chain behind Visa&apos;s
-        Trusted Agent Protocol (production-live since July 2026): every agent-initiated payment carries
-        cryptographic proof of <b>who</b> the agent is, <b>that</b> the user consented, and <b>what</b>{" "}
-        exactly it is allowed to do.
+        permission</b>. <Code>@furlpay/agent-trust</Code> is a developer library for agent identity,
+        signed spending mandates, replay-aware intent tokens and request signatures. It supplies
+        controls for an integration to evaluate; it does not itself execute or settle payments.
       </Lead>
+
+      <Callout type="warning" title="Library support does not enable a FurlPay payment rail">
+        FurlPay agent payment settlement is currently in development. The travel and card examples
+        below illustrate how a developer might bind an action to a mandate; production travel booking
+        and card issuing are unavailable. Check the service overview and package release notes before
+        relying on an API shown here.
+      </Callout>
 
       <H2 id="chain">The trust chain</H2>
       <DepGraph
@@ -44,10 +50,11 @@ export default function AgentTrustPage() {
         differ — even by one cent or one merchant-category code — from what the agent signed.
       </P>
 
-      <H2 id="decision">How a booking token is judged</H2>
+      <H2 id="decision">How an intent token is judged</H2>
       <P>
-        Verification is a strict decision tree — the first failed check refuses the execution, and
-        nothing later can override it:
+        Verification is a strict decision tree — the first failed check refuses the token. A valid
+        token is evidence for an integrating service; it is not a payment, booking confirmation or
+        settlement receipt:
       </P>
       <Mermaid
         caption="Mandate evaluation: every gate must pass before a single-use credential is issued."
@@ -130,16 +137,16 @@ const decision = await trust.verifyBookingToken(token, { amountUsd: 320, mcc: "7
       </P>
       <CodeBlock lang="typescript">{`import { signRequest } from "@furlpay/agent-trust";
 
-const body = JSON.stringify({ action: "create", cardId: "card_x", merchant: "Estadio Azteca", amount: 180 });
+const body = JSON.stringify({ action: "prepare", amountUsd: 180, purpose: "example only" });
 const headers = signRequest({
   method: "POST",
-  url: "https://furlpay.com/api/escrow",
+  url: "https://merchant.example/api/agent-actions",
   body,
   keyId: agent.keyId,
   privateKeyPem: agent.privateKeyPem,
 });
 
-await fetch("https://furlpay.com/api/escrow", {
+await fetch("https://merchant.example/api/agent-actions", {
   method: "POST",
   headers: { "content-type": "application/json", ...headers },
   body,
@@ -158,16 +165,16 @@ await fetch("https://furlpay.com/api/escrow", {
 const cap = mintCapability({
   agentPrivateKeyPem: agent.privateKeyPem,
   agentPublicKeyPem:  agent.publicKeyPem,
-  audience: "https://travel-mcp.furlpay.com",   // valid at this server only
-  action:   "pay:travala",
+  audience: "https://your-tool-server.example", // valid at this server only
+  action:   "prepare:payment",
   maxUsd:   400,
   ttlSeconds: 120,                               // minted per call, not held
 });
 
 // Tool-server side — accepts the token only when every check passes:
 const d = await trust.verifyCapability(cap, {
-  audience: "https://travel-mcp.furlpay.com",    // must be THIS server
-  action:   "pay:travala",
+  audience: "https://your-tool-server.example", // must be THIS server
+  action:   "prepare:payment",
   presenterKeyId: verified.keyId,                // PoP: same key that minted it
   maxUsd:   1000,                                // server ceiling
 });
@@ -184,58 +191,33 @@ const d = await trust.verifyCapability(cap, {
         (who is calling now) → <b>capability</b> (this call, this server, once).
       </P>
 
-      <H2 id="escrow">Live in the Furlpay API</H2>
-      <P>Two production routes speak this protocol today:</P>
+      <H2 id="escrow">FurlPay agent route boundaries</H2>
+      <P>
+        FurlPay exposes agent-key management and an escrow-hold route in the codebase. These routes
+        do not establish a live card or payment product, and the escrow route can return{" "}
+        <Code>503 service_unavailable</Code> when durable hold storage is not configured:
+      </P>
       <UL>
         <LI>
           <Code>POST /api/agents/keys</Code> — register an agent&apos;s Ed25519 public key (SPKI PEM).
-          Returns the <Code>ak_…</Code> key id the agent uses as its RFC 9421 <Code>keyid</Code>.
-          Registered <b>with a session</b>, the key is bound to your account and carries a{" "}
-          <b>spend policy</b>: per-transaction limit, daily budget, and a category allowlist. The agent
-          then acts on <i>your</i> account — never anyone else&apos;s — and every spend is checked against
-          the policy first. <Code>GET</Code> lists your keys; <Code>DELETE</Code> revokes one, effective
-          immediately on every instance.
+          Returns a key identifier for the agent&apos;s public key. When registered to an account,
+          the key can carry a spend policy with a transaction limit, daily budget and category allowlist.
+          Requests to guarded endpoints may be checked against that policy. <Code>GET</Code> lists
+          owned keys; <Code>DELETE</Code> revokes a key. Check each route response for the result.
         </LI>
         <LI>
-          <Code>POST /api/escrow</Code> — signed agent requests create/capture/release pre-auth holds
-          without a session cookie. A tampered body (content-digest mismatch), an unknown key, a revoked
-          key, or an expired signature returns <Code>401</Code> before any hold is touched. A spend outside
-          the key&apos;s policy returns <Code>403</Code> with the reason (<Code>per_tx_limit_exceeded</Code>,{" "}
-          <Code>daily_budget_exceeded</Code>, <Code>category_not_allowed</Code>) — and both allows and
-          denies land in the audit trail.
+          <Code>POST /api/escrow</Code> — an implementation of create/capture/release hold operations.
+          It is not a card authorization or an on-chain settlement service. Its backing store must be
+          durable for the route to work; check the response and do not promise a hold from a successful
+          signature alone.
         </LI>
       </UL>
-      <CodeBlock lang="bash">{`# 1. Register the agent key under your account, with a spend policy
-curl -X POST https://furlpay.com/api/agents/keys \\
-  -H "content-type: application/json" -b "furlpay_session=…" \\
-  -d '{"publicKeyPem": "-----BEGIN PUBLIC KEY-----\\n…",
-       "name": "travel-booker",
-       "policy": {"perTxLimitUsd": 400, "dailyBudgetUsd": 1000, "allowedCategories": ["escrow", "travel"]}}'
-# → { "keyId": "ak_tWLNNMkyM5S6PM…", "owned": true, "key": { "policy": { … }, "status": "active" } }
 
-# 2. Signed escrow hold (headers from signRequest)
-curl -X POST https://furlpay.com/api/escrow \\
-  -H "content-type: application/json" \\
-  -H "content-digest: sha-256=:…:" \\
-  -H "signature-input: furlpay=(\\"@method\\" \\"@target-uri\\" \\"content-digest\\");…" \\
-  -H "signature: furlpay=:…:" \\
-  -d '{"action":"create","cardId":"card_x","merchant":"Estadio Azteca","amount":180}'
-# → { "hold": { … }, "agentKeyId": "ak_tWLNNMkyM5S6PM…" }
-
-# 3. Over policy? Denied before any money moves, with the reason:
-# → 403 { "error": "agent_spend_denied", "reason": "daily_budget_exceeded", "policy": { … } }
-
-# 4. Revoke the key — immediate everywhere
-curl -X DELETE https://furlpay.com/api/agents/keys \\
-  -H "content-type: application/json" -b "furlpay_session=…" \\
-  -d '{"keyId": "ak_tWLNNMkyM5S6PM…"}'`}</CodeBlock>
-
-      <Callout title="Why this matters in 2026">
-        Visa&apos;s TAP executed its first live agentic transactions at European merchants in July 2026;
-        Mastercard Agent Pay and the x402 Foundation (Linux Foundation — Visa, Mastercard, Amex, Stripe
-        members) all converge on the same idea: signed agent identity + user mandates. Furlpay ships an
-        MIT-licensed implementation you can run today — zero dependencies, Ed25519 via node:crypto,
-        30-test suite (mandates, capability tokens, RFC 9421). <Code>npm i @furlpay/agent-trust</Code>
+      <Callout title="Package and integration status">
+        The repository may contain APIs that are newer than the public npm release. Check the
+        package&apos;s published version and changelog before importing a method shown here. Review
+        settlement status separately in the{" "}
+        <a href="/docs" className="text-neon hover:underline">service overview</a>.
       </Callout>
 
       <DocPager pathname="/docs/payments/agent-trust" />

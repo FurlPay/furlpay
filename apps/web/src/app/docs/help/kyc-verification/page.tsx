@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DocTitle, Lead, H2, P, UL, LI, Callout, ParameterTable, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Callout, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/help/kyc-verification");
@@ -7,48 +7,38 @@ export const metadata = docMeta("/docs/help/kyc-verification");
 export default function KycHelp() {
   return (
     <article>
-      <DocTitle eyebrow="Help Center">Identity Verification (KYC) Guide</DocTitle>
+      <DocTitle eyebrow="Help Center">Identity verification</DocTitle>
       <Lead>
-        Verification is progressive: you verify exactly as much as the limits you need, and no
-        more. Each tier unlocks higher balances and more rails.
+        Verification requirements depend on the service, provider, account and region. FurlPay
+        does not publish a universal tier-to-limit schedule.
       </Lead>
 
-      <H2 id="tiers">The tiers</H2>
-      <ParameterTable
-        params={[
-          { name: "Tier 0", type: "no documents", required: false, desc: "Explore the app, hold small balances, receive deposits." },
-          { name: "Tier 1", type: "government ID", required: false, desc: "Standard sending limits and card creation." },
-          { name: "Tier 2", type: "ID + proof of address", required: false, desc: "Full limits, bank virtual accounts, off-ramping to fiat." },
-          { name: "Tier 3", type: "enhanced review", required: false, desc: "Business and high-volume accounts; assigned by the compliance team, not self-service." },
-        ]}
-      />
+      <Callout type="warning" title="Follow only the instructions in your account">
+        If identity verification is available for your account, the signed-in product will show
+        the supported provider and required steps. Do not email identity documents or use a
+        verification link sent outside FurlPay&apos;s official product.
+      </Callout>
 
-      <H2 id="documents">Accepted documents</H2>
-      <UL>
-        <LI><b>Identity:</b> passport, national ID card, or driver&apos;s license — photographed, all corners visible, not expired.</LI>
-        <LI><b>Proof of address:</b> utility bill, bank statement, or government letter from the last 3 months showing your name and address.</LI>
-      </UL>
-
-      <H2 id="status">Checking your status</H2>
+      <H2 id="documents">Prepare documents only when requested</H2>
       <P>
-        Your current tier and status (<b>unverified</b>, <b>pending</b>, or <b>verified</b>) show
-        in <b>Profile → Verification</b>. You can also ask the in-app co-pilot — &quot;what&apos;s
-        my KYC status?&quot; returns your tier and any outstanding documents.
+        The provider and jurisdiction determine which documents are accepted. Follow the exact
+        instructions in the verification flow; this guide does not establish eligibility,
+        verification limits or approval timeframes.
       </P>
 
-      <H2 id="troubleshooting">Fixing a failed or stuck verification</H2>
+      <H2 id="status">Check a pending review</H2>
       <UL>
-        <LI><b>Blurry or cropped photo</b> — the most common rejection. Retake in daylight, on a dark background, with all four corners in frame.</LI>
-        <LI><b>Name mismatch</b> — the name on the document must match your profile exactly. Fix the profile first, then resubmit.</LI>
-        <LI><b>Stuck in pending over 24 hours</b> — open a ticket in the KYC category from the <Link href="/support" className="text-neon">Support Center</Link>. KYC tickets route to the compliance queue directly.</LI>
-        <LI><b>Country restrictions</b> — some regions cannot access all rails. If verification is refused for your region, the refusal screen says so explicitly; support cannot override it.</LI>
+        <LI>Use the verification status shown in your signed-in account.</LI>
+        <LI>If the flow shows an inquiry or case reference, include that reference in a support request.</LI>
+        <LI>Do not submit the same document through another provider unless the account flow asks you to.</LI>
       </UL>
 
-      <Callout type="warning" title="FurlPay never asks for documents by email">
-        Uploads happen only inside the app or web dashboard. Anyone emailing you for a passport
-        photo or a video call to &quot;verify your account&quot; is not FurlPay — report it from
-        the Support Center.
-      </Callout>
+      <H2 id="help">Get help safely</H2>
+      <P>
+        For help with a verification request, contact{" "}
+        <Link href="/support" className="text-neon">FurlPay Support</Link> from the official site.
+        Never send a recovery phrase, private key, one-time code or API secret.
+      </P>
 
       <DocPager pathname="/docs/help/kyc-verification" />
     </article>

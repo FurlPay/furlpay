@@ -1,4 +1,4 @@
-import { DocTitle, Lead, H2, H3, P, UL, LI, Code, CodeBlock, Callout, DocPager } from "@/components/docs/prose";
+import { DocTitle, Lead, H2, P, UL, LI, Code, Callout, EndpointTable, DocPager } from "@/components/docs/prose";
 import { docMeta } from "@/lib/docs/meta";
 
 export const metadata = docMeta("/docs/integrations/persona-kyc");
@@ -6,110 +6,47 @@ export const metadata = docMeta("/docs/integrations/persona-kyc");
 export default function PersonaKycPage() {
   return (
     <article>
-      <DocTitle eyebrow="Integrations">Persona KYC &amp; Biometric Liveness</DocTitle>
+      <DocTitle eyebrow="Integrations">Persona verification integration</DocTitle>
       <Lead>
-        Identity and selfie verification with Persona — embedded in-domain during signup and high-limit
-        upgrades. In Furlpay this is wired through <Code>components/PersonaKycButton.tsx</Code>,{" "}
-        <Code>lib/kyc/persona.ts</Code> and the webhook route.
+        FurlPay contains a Persona webhook integration for processing verification outcomes.
+        Provider credentials and an approved Persona configuration are required; this technical
+        integration page is not an offer of identity verification in every account or region.
       </Lead>
 
-      <H2 id="frontend">1. Frontend embed flow</H2>
-      <P>
-        Launch a Persona Inquiry using a configured <Code>Template ID</Code> (Selfie + Government ID). The
-        embedded flow keeps the user within the Furlpay domain.
-      </P>
-      <CodeBlock lang="tsx">{`// components/PersonaKycButton.tsx
-const client = new window.Persona.Client({
-  templateId: process.env.NEXT_PUBLIC_PERSONA_TEMPLATE_ID!,
-  referenceId: userId,          // maps the Furlpay user id to the inquiry
-  environment: 'sandbox',       // 'production' for live verification
-  onComplete: ({ inquiryId }) => onSuccess(inquiryId),
-  onCancel: () => onCancel(),
-  onError: (error) => console.error('Persona error:', error),
-});
-client.open();`}</CodeBlock>
-      <Callout title="Load the SDK once">
-        The reference snippet removed the Persona script on unmount, which breaks a re-open. Furlpay loads
-        <Code>persona-v4.js</Code> once and caches it across mounts.
+      <Callout type="warning" title="Availability is account and provider dependent">
+        Users should start verification only from a flow shown inside their signed-in FurlPay
+        account. Do not create a separate Persona inquiry or send documents based on a code sample
+        on this page.
       </Callout>
 
-      <H2 id="webhooks">2. Backend webhooks</H2>
+      <H2 id="handler">Webhook handling</H2>
+      <EndpointTable
+        rows={[
+          { method: "POST", path: "/api/webhooks/persona", desc: "Verifies Persona's signature over the raw request body and processes a bound inquiry outcome" },
+        ]}
+      />
       <P>
-        Persona processes liveness asynchronously. Verify the <Code>persona-signature</Code> header before
-        updating the user&rsquo;s account. Persona sends a hex HMAC-SHA256 over the <b>raw</b> body; during
-        secret rotation the header carries multiple space-separated signature sets — so use a constant-time,
-        rotation-aware comparison (never a plain <Code>!==</Code>).
-      </P>
-      <CodeBlock lang="typescript">{`// lib/kyc/persona.ts
-import crypto from 'crypto';
-import { docMeta } from "@/lib/docs/meta";
-
-export function verifyPersonaSignature(rawBody: string, header: string | null, secret: string) {
-  if (!header || !secret) return false;
-  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
-  for (const segment of header.trim().split(/\\s+/)) {
-    const v1 = Object.fromEntries(segment.split(',').map(kv => kv.split('=')))['v1'] ?? segment;
-    if (v1.length === expected.length &&
-        crypto.timingSafeEqual(Buffer.from(v1, 'hex'), Buffer.from(expected, 'hex'))) {
-      return true;
-    }
-  }
-  return false;
-}`}</CodeBlock>
-      <CodeBlock lang="typescript">{`// app/api/webhooks/persona/route.ts
-export async function POST(request: Request) {
-  const payload = await request.text();
-  const sig = request.headers.get('persona-signature');
-  if (!verifyPersonaSignature(payload, sig, process.env.PERSONA_WEBHOOK_SECRET!)) {
-    return Response.json({ error: 'Signature verification failed' }, { status: 401 });
-  }
-  const event = JSON.parse(payload);
-  if (event.eventType === 'inquiry.completed') {
-    // UPDATE furlpay_database SET kyc_status = 'verified' WHERE user_id = referenceId
-  }
-  return Response.json({ received: true });
-}`}</CodeBlock>
-
-      <H2 id="advanced">3. Advanced 2026 API features</H2>
-      <H3>Inquiry Search</H3>
-      <P>
-        Instead of paginating the list endpoint, filter registrations dynamically with the June 2026
-        Inquiry Search API (requires <Code>Persona-Version: 2026-06-09</Code>).
-      </P>
-      <CodeBlock lang="typescript">{`await fetch('https://withpersona.com/api/v1/inquiries/search', {
-  method: 'POST',
-  headers: {
-    Authorization: \`Bearer \${process.env.PERSONA_API_KEY}\`,
-    'Content-Type': 'application/json',
-    'Persona-Version': '2026-06-09',
-  },
-  body: JSON.stringify({
-    query: 'reference_id:"USER_ID" AND status:"completed" AND tags:"high_velocity"',
-  }),
-});`}</CodeBlock>
-      <H3>KYB — Business Associated Persons</H3>
-      <P>
-        For corporate merchants, the Business Associated Persons report returns an
-        <Code>ownership_information</Code> object listing ultimate beneficial owners (UBOs). Furlpay screens
-        every owner against TRM Labs / sanctions databases automatically.
+        The handler verifies the <Code>persona-signature</Code> header before parsing JSON. It
+        requires <Code>PERSONA_WEBHOOK_SECRET</Code>, rejects an invalid or missing signature,
+        de-duplicates deliveries and checks the inquiry&apos;s server-side user binding before
+        changing a verification status. Missing configuration fails closed.
       </P>
 
-      <H2 id="security">4. Biometric security best practices</H2>
+      <H2 id="deployment">Deployment requirements</H2>
       <UL>
-        <LI>
-          <b>Presentation Attack Detection (PAD):</b> run active &amp; passive liveness side-by-side to
-          block deepfakes, screen replays and printed-mask attacks.
-        </LI>
-        <LI>
-          <b>Strict device binding:</b> match device telemetry against historical signatures via the
-          Sardine SDK to defeat virtual-camera injection.
-        </LI>
-        <LI>
-          <b>Data segregation (GDPR):</b> Furlpay never stores biometric data, selfie streams or raw IDs —
-          they stay encrypted in Persona&rsquo;s SOC2/ISO vaults. We retain only the{" "}
-          <Code>inquiryId</Code> and a boolean <Code>verified</Code> for audit trails.
-        </LI>
+        <LI>Configure the Persona account and server-side credentials through the deployment's approved secret-management process.</LI>
+        <LI>Register the exact production webhook URL with Persona and use the matching webhook secret.</LI>
+        <LI>Exercise inquiry binding, duplicate delivery, failure and out-of-order events in a non-production environment first.</LI>
+        <LI>Do not treat a webhook acknowledgement as proof that a user passed verification; inspect the account's recorded status.</LI>
       </UL>
+
+      <H2 id="user-guidance">User-facing guidance</H2>
+      <P>
+        The supported verification provider, required documents and current status should be
+        displayed by the authenticated product. See the{" "}
+        <a href="/docs/help/kyc-verification" className="text-neon hover:underline">identity verification help page</a>{" "}
+        for safe user guidance.
+      </P>
 
       <DocPager pathname="/docs/integrations/persona-kyc" />
     </article>
