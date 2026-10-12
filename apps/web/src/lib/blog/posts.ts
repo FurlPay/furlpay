@@ -2519,7 +2519,7 @@ GET /api/check?tag=support
       },
       {
         type: "p",
-        text: `Third, the center of gravity keeps rising. In July 2026, Stripe reportedly [bid roughly $53 billion for PayPal](https://www.coindesk.com/business/2026/07/16/stripe-s-usd53-billion-paypal-bid-is-a-high-stakes-play-to-own-the-future-of-digital-payments) in a play to own the future of digital payments end to end. Whatever the outcome, the direction is unambiguous: programmable dollars are now a strategic asset that the largest payment companies are willing to reshape themselves around.`,
+        text: `Third, the center of gravity keeps rising. In July 2026, Stripe reportedly [bid roughly $53 billion for PayPal](https://www.coindesk.com/business/2026/07/16/stripe-s-usd53-billion-paypal-bid-is-a-high-stakes-play-to-own-the-future-of-digital-payments) in a play to own the future of digital payments end to end. (Update, October 2026: the bid, made jointly with Advent at $60.50 a share, was rejected by PayPal's board as inadequate, and the consortium ended its pursuit in late August 2026.) The deal did not happen, but the direction is unambiguous: programmable dollars are now a strategic asset that the largest payment companies are willing to reshape themselves around.`,
       },
       { type: "h2", text: "Where a layer like FurlPay actually fits" },
       {
@@ -4544,7 +4544,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
       {
         type: "p",
-        text: `This article is information, not legal advice. The GENIUS Act was signed 18 July 2025 and its implementing rules continue to develop; consult qualified counsel about your specific situation.`,
+        text: `This article is information, not legal advice. The GENIUS Act was signed 18 July 2025. Status as of 12 October 2026: the agencies did not finish their implementing rules by the Act's 18 July 2026 deadline; the OCC and Treasury have published proposed rules, the comment period on Treasury's proposal closes 19 October 2026, and the OCC has said it intends to finalise its rule by November 2026. The Act takes effect on 18 January 2027 or 120 days after final regulations, whichever comes first. Consult qualified counsel about your specific situation.`,
       },
     ],
   },
@@ -4748,7 +4748,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
     body: [
       {
         type: "p",
-        text: `For years, using a dollar stablecoin to pay in Japan sat in a grey zone. That changed in June 2026. Under an update to the Payment Services Act effective 1 June 2026, qualifying foreign stablecoins can now be distributed in Japan through licensed intermediaries, regulated by the Financial Services Agency (JFSA) as Electronic Payment Instruments (EPI). For a business deciding whether to accept USDC, that is the legal clarity that was missing.`,
+        text: `For years, using a dollar stablecoin to pay in Japan sat in a grey zone. The first opening came in March 2025, when SBI VC Trade registered to handle USDC; the general rule followed in June 2026. Under an amended Cabinet Office Ordinance under the Payment Services Act, effective 1 June 2026, qualifying foreign stablecoins can now be distributed in Japan through licensed intermediaries, regulated by the Financial Services Agency (JFSA) as Electronic Payment Instruments (EPI). For a business deciding whether to accept USDC, that is the legal clarity that was missing.`,
       },
       { type: "h2", text: "What actually changed" },
       {
@@ -4768,7 +4768,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
       {
         type: "p",
-        text: `Two nuances the headlines flatten. First, USDC's route to market is its distribution partnership with SBI VC Trade, which registered as an EPIESP — the token is usable, but through that regulated channel rather than freely. Second, Ripple's RLUSD was actually the first foreign-issued stablecoin to formally clear the JFSA equivalence test in June 2026, also via SBI. USDT, by contrast, has no licensed distributor and remains effectively unavailable on regulated Japanese platforms.`,
+        text: `Two nuances the headlines flatten. First, USDC's route to market is its distribution partnership with SBI VC Trade, which registered as an EPIESP — the token is usable, but through that regulated channel rather than freely. Second, Ripple's RLUSD was the first foreign-issued stablecoin to formally clear the JFSA equivalence test under the new rules, launching on 25 June 2026, also via SBI; USDC had been available through SBI VC Trade since March 2025 under the earlier registration. USDT, by contrast, has no licensed distributor and remains effectively unavailable on regulated Japanese platforms.`,
       },
       { type: "h2", text: "Why it matters for hotels and merchants" },
       {
