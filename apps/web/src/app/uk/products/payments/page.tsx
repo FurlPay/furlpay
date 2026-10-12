@@ -48,7 +48,7 @@ export default function UkPaymentsPage() {
       secondary={{ href: "/uk/pricing", label: "GBP pricing" }}
       faq={[
         { q: "How do UK businesses accept crypto payments?", a: "A UK business adds Furlpay's hosted checkout or API alongside its existing processor. Customers pay in USDC on Arbitrum, the business receives a signed receipt, and funds settle in about a second for 0.5% — with no card form and no chargebacks." },
-        { q: "Is Furlpay authorised by the FCA?", a: "Not yet. The FCA cryptoasset authorisation gateway opens on 30 September 2026 and the regime becomes mandatory on 25 October 2027; Furlpay is preparing for it. Cryptoassets are not covered by the Financial Services Compensation Scheme and can lose value." },
+        { q: "Is Furlpay authorised by the FCA?", a: "Not yet. The FCA cryptoasset authorisation gateway opened on 30 September 2026 and the regime becomes mandatory on 25 October 2027; Furlpay is preparing for it. Cryptoassets are not covered by the Financial Services Compensation Scheme and can lose value." },
         { q: "How much can a UK merchant save versus cards?", a: "Moving eligible payments from 2.9–3.5% card fees to a flat 0.5% saves roughly 80–85% on processing. A business with £1m of annual card volume keeps about £30,000. Use the calculator on this page to model your figure." },
       ]}
       cta={{ title: "Add USDC payments to your UK business", subtitle: "Request a demo or model your savings.", primary: { href: "/talk-to-us", label: "Request a demo" }, secondary: { href: "/uk/pricing", label: "See pricing" } }}

@@ -3,7 +3,7 @@ import Link from "next/link";
 // UK financial-promotions compliance blocks. Marketing qualifying cryptoassets
 // to UK consumers requires the FCA-prescribed risk warning (COBS 4). We show it
 // on every /uk page that touches crypto. We do NOT claim FCA authorisation —
-// the authorisation gateway opens 30 Sep 2026 and the regime is mandatory from
+// the authorisation gateway opened 30 Sep 2026 and the regime is mandatory from
 // 25 Oct 2027; we state that timeline factually.
 
 // The FCA-prescribed risk warning for Restricted Mass Market Investments
@@ -32,7 +32,7 @@ export function FcaStatusNote() {
   return (
     <p className="mt-6 text-[11px] leading-relaxed text-textMuted">
       Furlpay is not currently authorised by the Financial Conduct Authority. The FCA cryptoasset
-      authorisation gateway opens on 30 September 2026, and the new regime becomes mandatory on 25
+      authorisation gateway opened on 30 September 2026, and the new regime becomes mandatory on 25
       October 2027; Furlpay is preparing for it. Cryptoassets are not regulated deposits, are not
       covered by the Financial Services Compensation Scheme, and can lose value.
     </p>

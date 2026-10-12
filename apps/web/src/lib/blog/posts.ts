@@ -80,15 +80,19 @@ export const POSTS: Post[] = [
     slug: "solana-infrastructure-2026",
     title: "Solana Is Being Rebuilt Around Latency, Not Throughput",
     seoTitle:
-      "Solana 2026: 300ms Slots, 100M CU Blocks and Alpenglow Finality Explained",
+      "Solana 2026: 200ms Slots, 100M CU Blocks and Alpenglow Finality Explained",
     excerpt:
-      "In August 2026 Solana cut its slot time below 400ms for the first time since genesis, and block capacity had already risen 66% to 100M compute units. But finality still takes 12.8 seconds \u2014 the upgrade that changes that is scheduled, not shipped. What is actually live, what is not, and why the roadmap is a latency story rather than a TPS one.",
+      "Updated 12 October: slot times reached 200ms in October, and Alpenglow is still not live on mainnet. In August 2026 Solana cut its slot time below 400ms for the first time since genesis, and block capacity had already risen 66% to 100M compute units. But finality still takes 12.8 seconds \u2014 the upgrade that changes that is scheduled, not shipped. What is actually live, what is not, and why the roadmap is a latency story rather than a TPS one.",
     category: "engineering",
     date: "2026-09-07",
     readMins: 15,
     cover: "/blog/solana-2026.svg",
     author: "Ashutosh Kumar Singh",
     body: [
+      {
+        type: "quote",
+        text: "UPDATE — 12 October 2026. Two things in the original 7 September version have moved. Slot times continued down and reached 200ms in October 2026, completing the four-stage reduction from 400ms (Solana's Alpenglow upgrade page). Alpenglow did NOT activate on mainnet on 28 September: Anza's research lead said it was not ready, it went live on the public testnet on 24 September and on devnet on 25 September (as reported), and mainnet activation remains targeted for October 2026 with no fixed date. The status table below reflects this; the rest of the analysis is as published.",
+      },
       {
         type: "p",
         text: "On 21 August 2026, at epoch 1020, Solana reduced its target slot time below 400 milliseconds for the first time since the network launched. A week later it went lower again. Neither change added a feature, and neither shows up in a throughput chart.",
@@ -101,7 +105,7 @@ export const POSTS: Post[] = [
         type: "p",
         text: "Four things changed or are changing at once: block production got faster, block capacity got larger, transactions got bigger, and the consensus algorithm that decides finality is being replaced outright. This is what each one actually does, what is live today, and what is still scheduled.",
       },
-      { type: "h2", text: "What is live, and what is not, as of 7 September 2026" },
+      { type: "h2", text: "What is live, and what is not, as of 12 October 2026" },
       {
         type: "p",
         text: "Coverage of this roadmap mixes shipped upgrades with announced ones fairly freely, so it is worth separating them before anything else.",
@@ -114,8 +118,8 @@ export const POSTS: Post[] = [
           ["350ms slot time (SIMD-0525 phase 1)", "LIVE on mainnet", "21 August 2026, epoch 1020"],
           ["300ms slot time (SIMD-0525 phase 2)", "LIVE on mainnet", "~28 August 2026, epoch 1024"],
           ["4,096-byte transactions (v1 format)", "Shipped in Agave 4.2", "August 2026"],
-          ["250ms and 200ms slot times", "Scheduled, gated on safety metrics", "Not yet activated"],
-          ["Alpenglow consensus (Votor)", "SCHEDULED, not active", "Targeted 28 September 2026 with Agave 4.3"],
+          ["250ms and 200ms slot times", "LIVE on mainnet", "200ms reached October 2026"],
+          ["Alpenglow consensus (Votor)", "Testnet and devnet only; NOT on mainnet", "Testnet 24 Sept, devnet 25 Sept 2026; mainnet targeted October 2026, no fixed date"],
           ["Rotor propagation layer", "Later phase, separate proposal", "Not scheduled"],
         ],
         highlightCol: 1,
@@ -164,7 +168,7 @@ export const POSTS: Post[] = [
       },
       {
         type: "p",
-        text: "So a 300ms slot time and a 12.8-second finality are both true statements about Solana today. An application that waits for rooted finality waits nearly thirteen seconds no matter how fast blocks are produced. Most Solana applications do not wait — they act on optimistic confirmation — but the distinction is exactly what a payment processor or an exchange has to reason about.",
+        text: "So a 200ms slot time (300ms when this was first published) and a 12.8-second finality are both true statements about Solana today. An application that waits for rooted finality waits nearly thirteen seconds no matter how fast blocks are produced. Most Solana applications do not wait — they act on optimistic confirmation — but the distinction is exactly what a payment processor or an exchange has to reason about.",
       },
       {
         type: "p",
@@ -196,7 +200,7 @@ export const POSTS: Post[] = [
       },
       {
         type: "p",
-        text: "On timing, the sources genuinely disagree and it is worth saying so rather than picking. Anza's Agave 4.3 release schedule, published 12 August, names 28 September 2026 as the start of feature activation on mainnet. Earlier Solana Foundation guidance pointed at October 2026. Either way, as of 7 September the algorithm is not live, and a scheduled activation date is a plan rather than an event.",
+        text: "On timing, the sources genuinely disagree and it is worth saying so rather than picking. Anza's Agave 4.3 release schedule, published 12 August, names 28 September 2026 as the start of feature activation on mainnet. Earlier Solana Foundation guidance pointed at October 2026. The 28 September date passed without a mainnet activation: Alpenglow reached the public testnet on 24 September and devnet on 25 September, and Anza's research lead said mainnet was not ready. As of 12 October the algorithm is still not live on mainnet, and October remains a target rather than an event.",
       },
       { type: "h2", text: "100M compute-unit blocks, and the limit that did not move" },
       {
@@ -269,7 +273,7 @@ export const POSTS: Post[] = [
       },
       {
         type: "p",
-        text: "The combination that matters for payments is 300ms slots plus 100M-CU blocks plus faster finality. Shorter slots reduce the wait for inclusion. Larger blocks reduce the chance of being crowded out during a spike. And if Alpenglow lands as designed, the wait for irreversibility drops from something a merchant cannot build around to something they need not think about.",
+        text: "The combination that matters for payments is short slots (200ms since October) plus 100M-CU blocks plus faster finality. Shorter slots reduce the wait for inclusion. Larger blocks reduce the chance of being crowded out during a spike. And if Alpenglow lands as designed, the wait for irreversibility drops from something a merchant cannot build around to something they need not think about.",
       },
       {
         type: "p",
@@ -354,7 +358,7 @@ export const POSTS: Post[] = [
       { type: "h2", text: "Is Alpenglow live on Solana mainnet?" },
       {
         type: "p",
-        text: "No, not as of 7 September 2026. The complete Alpenglow codebase including Votor shipped in Agave 4.2, but mainnet activation was withheld pending hardening and a 50,000 SOL bug bounty. Anza's Agave 4.3 release schedule targets 28 September 2026 for the start of feature activation; earlier Solana Foundation guidance indicated October 2026. Prerequisites such as BLS key registration are already active, which is not the same as the consensus algorithm being live.",
+        text: "No, not as of 12 October 2026. The complete Alpenglow codebase including Votor shipped in Agave 4.2, but mainnet activation was withheld pending hardening and a 50,000 SOL bug bounty. It activated on the public testnet on 24 September and on devnet on 25 September. Anza's Agave 4.3 schedule had named 28 September for the start of mainnet feature activation; that did not happen, and Solana Foundation guidance still targets October 2026 with no fixed date. Prerequisites such as BLS key registration are already active, which is not the same as the consensus algorithm being live.",
       },
       { type: "h2", text: "How fast will Solana finality be with Alpenglow?" },
       {
@@ -409,7 +413,7 @@ export const POSTS: Post[] = [
         type: "ul",
         items: [
           "The block compute limit before SIMD-0286 was 60M CUs, not 48M. The 48M figure circulates but the proposal and Solana's own announcement both describe 60M to 100M as a 66% increase, which is arithmetically consistent with 60M and not with 48M.",
-          "Alpenglow's activation date is reported as both 28 September 2026 (Anza's Agave 4.3 release schedule, published 12 August) and October 2026 (earlier Solana Foundation guidance). Both are plans, and neither has occurred as of publication.",
+          "Alpenglow's mainnet activation was reported as both 28 September 2026 (Anza's Agave 4.3 release schedule, published 12 August) and October 2026 (Solana Foundation guidance). The September date passed without activation; as of the 12 October update it is live on testnet and devnet only.",
           "Epoch numbering for the 300ms activation is given as epoch 1024 in reporting and appears differently in at least one implementation pull request. The activation date of late August is consistent across sources; the exact epoch is not, so the date is what this article relies on.",
         ],
       },
@@ -880,7 +884,7 @@ export const POSTS: Post[] = [
     title: "The CLARITY Act Is Not Dead. It Is Running Out of Calendar.",
     seoTitle: "CLARITY Act 2026: What the September 15 Senate Vote Means for Tokenized Equities",
     excerpt:
-      "Prediction markets give the CLARITY Act a 15% chance of becoming law in 2026 — and 50% by January 2028. The bill is late, not dead. Meanwhile JPMorgan settles more than $7bn a day in tokenized deposits without waiting for it. What the 15 September Senate vote actually decides, what atomic settlement does and does not fix, and why the strongest objections come from the people who understand market structure best.",
+      "Updated 12 October: the 15 September cloture vote failed 49–50. Before it, prediction markets gave the CLARITY Act a 15% chance of becoming law in 2026 — and 50% by January 2028. The bill is late, not dead. Meanwhile JPMorgan settles more than $7bn a day in tokenized deposits without waiting for it. What the 15 September Senate vote decided, what atomic settlement does and does not fix, and why the strongest objections come from the people who understand market structure best.",
     category: "compliance",
     date: "2026-09-07",
     readMins: 23,
@@ -890,7 +894,7 @@ export const POSTS: Post[] = [
     body: [
       {
         type: "quote",
-        text: "STATUS — last checked 7 September 2026. The cloture vote on the motion to proceed is scheduled for 2:15 p.m. ET on Tuesday 15 September 2026 and has not yet taken place. This page is updated in place after the vote rather than replaced, so the analysis below is what we published beforehand.",
+        text: "UPDATE — 12 October 2026. The cloture vote on the motion to proceed took place on 15 September 2026 and failed 49 to 50, eleven votes short of the 60 required, so the Senate did not begin debating the bill. Reporting attributes the defeat to the ethics provisions on officials' crypto holdings rather than to the SEC/CFTC market-structure framework, which never reached the floor. The bill is not dead, since it can return to the calendar, but it did not advance in September. The analysis below is what we published beforehand, on 7 September, and its prediction-market figures are as of 6 September; they are not current. Sources for the result: Paul Hastings and Troutman Pepper Locke crypto-policy updates, September 2026.",
       },
       {
         type: "p",
@@ -1386,7 +1390,7 @@ export const POSTS: Post[] = [
       },
       {
         type: "p",
-        text: "Legislative status: House passage July 2025; Senate Banking Committee report 1 June 2026; cloture filed 8 August 2026; cloture motion ripening 2:15 p.m. ET 15 September 2026; 60-vote threshold against 53 Republican seats. GENIUS Act signed 18 July 2025. Market-size figures are attributed and dated in the tables above. Kinexys figures are from 2026 reporting on JPMorgan's platform.",
+        text: "Legislative status: House passage July 2025; Senate Banking Committee report 1 June 2026; cloture filed 8 August 2026; cloture on the motion to proceed failed 49–50 on 15 September 2026 against a 60-vote threshold (53 Republican seats). GENIUS Act signed 18 July 2025. Market-size figures are attributed and dated in the tables above. Kinexys figures are from 2026 reporting on JPMorgan's platform.",
       },
       {
         type: "p",
@@ -1402,10 +1406,10 @@ export const POSTS: Post[] = [
         type: "p",
         text: "The Digital Asset Market Clarity Act (H.R. 3633) is US legislation that would define which digital assets are securities, which are commodities, and which are payment stablecoins, and allocate regulatory authority between the SEC and the CFTC accordingly. It passed the House of Representatives in July 2025 and was reported out of the Senate Banking Committee on 1 June 2026.",
       },
-      { type: "h2", text: "What does the 15 September 2026 Senate vote decide?" },
+      { type: "h2", text: "What did the 15 September 2026 Senate vote decide?" },
       {
         type: "p",
-        text: "It is a cloture vote on the motion to proceed, scheduled for 2:15 p.m. Eastern. It decides only whether the Senate may begin formal debate on the bill. It requires 60 of 100 votes. Republicans hold 53 seats, so at least seven Democrats must vote in favour for debate to open.",
+        text: "It was a cloture vote on the motion to proceed, held on 15 September. It decided only whether the Senate could begin formal debate on the bill, which required 60 of 100 votes. It failed 49 to 50, so debate did not open and the bill did not advance in September. It can return to the floor; failing cloture does not kill a bill.",
       },
       { type: "h2", text: "Does the 15 September vote mean the CLARITY Act becomes law?" },
       {
@@ -2515,7 +2519,7 @@ GET /api/check?tag=support
       },
       {
         type: "p",
-        text: `Third, the center of gravity keeps rising. In July 2026, Stripe reportedly [bid roughly $53 billion for PayPal](https://www.coindesk.com/business/2026/07/16/stripe-s-usd53-billion-paypal-bid-is-a-high-stakes-play-to-own-the-future-of-digital-payments) in a play to own the future of digital payments end to end. Whatever the outcome, the direction is unambiguous: programmable dollars are now a strategic asset that the largest payment companies are willing to reshape themselves around.`,
+        text: `Third, the center of gravity keeps rising. In July 2026, Stripe reportedly [bid roughly $53 billion for PayPal](https://www.coindesk.com/business/2026/07/16/stripe-s-usd53-billion-paypal-bid-is-a-high-stakes-play-to-own-the-future-of-digital-payments) in a play to own the future of digital payments end to end. (Update, October 2026: the bid, made jointly with Advent at $60.50 a share, was rejected by PayPal's board as inadequate, and the consortium ended its pursuit in late August 2026.) The deal did not happen, but the direction is unambiguous: programmable dollars are now a strategic asset that the largest payment companies are willing to reshape themselves around.`,
       },
       { type: "h2", text: "Where a layer like FurlPay actually fits" },
       {
@@ -4418,7 +4422,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
     slug: "fca-crypto-regulations-2026",
     title: "FCA Crypto Regulations 2026: What UK Businesses Need to Know",
     excerpt:
-      "The FCA published final crypto rules on 30 June 2026. The authorisation gateway opens 30 September 2026 and the regime becomes mandatory on 25 October 2027. Here is what UK businesses should understand — plainly.",
+      "The FCA published final crypto rules on 30 June 2026. The authorisation gateway opened on 30 September 2026, applications run until 28 February 2027, and the regime becomes mandatory on 25 October 2027. Here is what UK businesses should understand — plainly.",
     category: "compliance",
     date: "2026-07-06",
     readMins: 7,
@@ -4427,7 +4431,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
     body: [
       {
         type: "p",
-        text: `The UK is building one of the world's clearest crypto regimes, and 2026 is the pivotal year. The FCA published its final core rules on 30 June 2026, the authorisation gateway opens on 30 September 2026, and the new regime becomes mandatory on 25 October 2027. This is a plain-English summary for UK businesses — not legal advice.`,
+        text: `The UK is building one of the world's clearest crypto regimes, and 2026 is the pivotal year. The FCA published its final core rules on 30 June 2026, the authorisation gateway opened on 30 September 2026 with an application window to 28 February 2027, and the new regime becomes mandatory on 25 October 2027. This is a plain-English summary for UK businesses — not legal advice.`,
       },
       { type: "h2", text: "The timeline that matters" },
       {
@@ -4466,7 +4470,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       { type: "h2", text: "How Furlpay approaches it" },
       {
         type: "p",
-        text: `We state our position honestly: Furlpay is not yet FCA authorised, because the gateway does not open until 30 September 2026. Our UK pages carry the prescribed risk warning and an accurate status, and we are preparing for the regime. You can read our current position on the [UK trust page](/uk/trust).`,
+        text: `We state our position honestly: Furlpay is not FCA authorised. The gateway opened on 30 September 2026 and no firm is authorised under the new regime until its application is determined. Our UK pages carry the prescribed risk warning and an accurate status, and we are preparing for the regime. You can read our current position on the [UK trust page](/uk/trust).`,
       },
       {
         type: "quote",
@@ -4540,7 +4544,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
       {
         type: "p",
-        text: `This article is information, not legal advice. The GENIUS Act was signed 18 July 2025 and its implementing rules continue to develop; consult qualified counsel about your specific situation.`,
+        text: `This article is information, not legal advice. The GENIUS Act was signed 18 July 2025. Status as of 12 October 2026: the agencies did not finish their implementing rules by the Act's 18 July 2026 deadline; the OCC and Treasury have published proposed rules, the comment period on Treasury's proposal closes 19 October 2026, and the OCC has said it intends to finalise its rule by November 2026. The Act takes effect on 18 January 2027 or 120 days after final regulations, whichever comes first. Consult qualified counsel about your specific situation.`,
       },
     ],
   },
@@ -4744,7 +4748,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
     body: [
       {
         type: "p",
-        text: `For years, using a dollar stablecoin to pay in Japan sat in a grey zone. That changed in June 2026. Under an update to the Payment Services Act effective 1 June 2026, qualifying foreign stablecoins can now be distributed in Japan through licensed intermediaries, regulated by the Financial Services Agency (JFSA) as Electronic Payment Instruments (EPI). For a business deciding whether to accept USDC, that is the legal clarity that was missing.`,
+        text: `For years, using a dollar stablecoin to pay in Japan sat in a grey zone. The first opening came in March 2025, when SBI VC Trade registered to handle USDC; the general rule followed in June 2026. Under an amended Cabinet Office Ordinance under the Payment Services Act, effective 1 June 2026, qualifying foreign stablecoins can now be distributed in Japan through licensed intermediaries, regulated by the Financial Services Agency (JFSA) as Electronic Payment Instruments (EPI). For a business deciding whether to accept USDC, that is the legal clarity that was missing.`,
       },
       { type: "h2", text: "What actually changed" },
       {
@@ -4764,7 +4768,7 @@ if (quote.isValid && quote.amount <= maxBudgetLimit) {
       },
       {
         type: "p",
-        text: `Two nuances the headlines flatten. First, USDC's route to market is its distribution partnership with SBI VC Trade, which registered as an EPIESP — the token is usable, but through that regulated channel rather than freely. Second, Ripple's RLUSD was actually the first foreign-issued stablecoin to formally clear the JFSA equivalence test in June 2026, also via SBI. USDT, by contrast, has no licensed distributor and remains effectively unavailable on regulated Japanese platforms.`,
+        text: `Two nuances the headlines flatten. First, USDC's route to market is its distribution partnership with SBI VC Trade, which registered as an EPIESP — the token is usable, but through that regulated channel rather than freely. Second, Ripple's RLUSD was the first foreign-issued stablecoin to formally clear the JFSA equivalence test under the new rules, launching on 25 June 2026, also via SBI; USDC had been available through SBI VC Trade since March 2025 under the earlier registration. USDT, by contrast, has no licensed distributor and remains effectively unavailable on regulated Japanese platforms.`,
       },
       { type: "h2", text: "Why it matters for hotels and merchants" },
       {

@@ -47,7 +47,7 @@ export default function Page() {
       faq={[
         { q: "Is Furlpay cheaper than Stripe in the UK?", a: "For payments a customer can make in USDC, usually yes: Furlpay is 0.5% versus Stripe's roughly 1.5% + 20p on UK cards and 2.9% + 30p plus FX on international cards, with instant settlement and no chargebacks. Stripe remains better for broad UK card and bank-debit acceptance." },
         { q: "Should a UK business replace Stripe with Furlpay?", a: "Usually not entirely. Many UK businesses keep Stripe for cards and add Furlpay for cheaper USDC payments, especially on international bookings. Use each rail where it is strongest." },
-        { q: "Is Furlpay FCA authorised?", a: "Not yet. The FCA cryptoasset authorisation gateway opens on 30 September 2026 and the regime is mandatory from 25 October 2027; Furlpay is preparing for it. Cryptoassets are not covered by the FSCS and can lose value." },
+        { q: "Is Furlpay FCA authorised?", a: "Not yet. The FCA cryptoasset authorisation gateway opened on 30 September 2026 and the regime is mandatory from 25 October 2027; Furlpay is preparing for it. Cryptoassets are not covered by the FSCS and can lose value." },
       ]}
       disclaimer="Comparison based on publicly available information as of July 2026 and may change. Stripe is a trademark of Stripe, Inc. Stripe UK card fees shown are standard published rates and vary by method and region. Furlpay is not currently FCA authorised; cryptoassets are high risk and not FSCS-protected."
     />

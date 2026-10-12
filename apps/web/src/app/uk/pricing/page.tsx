@@ -25,7 +25,7 @@ const FAQ = [
   { q: "What does Furlpay charge UK merchants?", a: "Merchant payments are a flat 0.5% per transaction settled in USDC on Arbitrum, with no monthly or setup fee. That is roughly 80–85% cheaper than the 2.9–3.5% typical of UK card processing." },
   { q: "Is the pricing really in GBP?", a: "Yes. Consumer plans are billed in pounds and you can hold a local GBP account. Merchant settlement is in USDC, which you can convert to GBP or hold as a dollar-stable balance." },
   { q: "Is there volume pricing for businesses?", a: "Yes. At higher volume the Enterprise plan offers custom rates below 0.5%, a settlement and uptime SLA, a dedicated account manager, per-transaction audit trails, and reconciliation exports. Contact sales for a quote." },
-  { q: "Is Furlpay authorised by the FCA?", a: "Not yet. The FCA cryptoasset authorisation gateway opens on 30 September 2026 and the regime becomes mandatory on 25 October 2027; Furlpay is preparing for it. Cryptoassets are not covered by the Financial Services Compensation Scheme and can lose value." },
+  { q: "Is Furlpay authorised by the FCA?", a: "Not yet. The FCA cryptoasset authorisation gateway opened on 30 September 2026 and the regime becomes mandatory on 25 October 2027; Furlpay is preparing for it. Cryptoassets are not covered by the Financial Services Compensation Scheme and can lose value." },
 ];
 
 export default function UkPricingPage() {
