@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { CardFace, StatusChip } from "@/components/cards/CardFace";
+import { CardDetailsReveal } from "@/components/cards/CardDetailsReveal";
 import { EMPTY_SHIPPING, ShippingForm, isShippingComplete, shippingError, type ShippingDraft } from "@/components/cards/ShippingForm";
 import { Button, EmptyState, ErrorNote, Field, Screen, Sheet } from "@/components/ui";
 import { authenticateDeviceOwner } from "@/lib/biometrics";
@@ -69,7 +70,7 @@ export default function CardDetail() {
 
   const card = cardsResult?.data.find((c) => c.id === id) ?? null;
 
-  const [sheet, setSheet] = useState<"activate" | "pin" | "design" | "reissue" | "shipping" | null>(null);
+  const [sheet, setSheet] = useState<"activate" | "pin" | "design" | "details" | "reissue" | "shipping" | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   /** Run a mutation with the offline guard and consistent error surfacing.
@@ -173,9 +174,18 @@ export default function CardDetail() {
             network={card.network}
             kind={card.kind}
             gradient={lifecycle.theme.gradient}
+            themeId={lifecycle.theme.id}
             settlementCurrency={card.settlementCurrency}
             frozen={card.frozen}
             status={lifecycle.status}
+          />
+        ) : null}
+
+        {card && !terminal ? (
+          <Button
+            title="Card number, expiry and CVV"
+            variant="secondary"
+            onPress={() => setSheet("details")}
           />
         ) : null}
 
@@ -418,6 +428,24 @@ export default function CardDetail() {
           return ok;
         }}
       />
+
+      <Sheet open={sheet === "details"} title="Card details" onClose={() => setSheet(null)}>
+        {card && sheet === "details" ? (
+          <CardDetailsReveal
+            card={{
+              label: card.label,
+              last4: card.last4,
+              network: card.network,
+              kind: card.kind,
+              gradient: lifecycle.theme.gradient,
+              themeId: lifecycle.theme.id,
+              settlementCurrency: card.settlementCurrency,
+              frozen: card.frozen,
+              status: lifecycle.status,
+            }}
+          />
+        ) : null}
+      </Sheet>
 
       <Sheet open={sheet === "design"} title="Card design" onClose={() => setSheet(null)}>
         <View style={{ gap: spacing.sm }}>

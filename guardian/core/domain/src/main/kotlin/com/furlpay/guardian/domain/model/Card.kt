@@ -11,9 +11,8 @@ data class CardLimits(
 )
 
 /**
- * A FurlPay card as the watch sees it — mirrors the server's PaymentCard
- * minus presentation-only fields (gradient). Card numbers never leave the
- * server; only `last4` exists on-device.
+ * A FurlPay card as the watch sees it: it mirrors the server's PaymentCard.
+ * Card numbers never leave the server; only `last4` exists on-device.
  */
 data class Card(
     val id: String,
@@ -26,4 +25,9 @@ data class Card(
     /** Display label ("Metal Physical"); falls back to network + last4 in UI. */
     val label: String? = null,
     val limits: CardLimits? = null,
-)
+    /** The card's two theme colours ("#RRGGBB"); see [CardDesign.from]. */
+    val gradient: List<String>? = null,
+) {
+    /** Which of the three FurlPay designs this card wears, if any. */
+    val design: CardDesign? get() = CardDesign.from(gradient)
+}

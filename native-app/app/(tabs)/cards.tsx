@@ -19,15 +19,16 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, ApiError, NetworkError } from "@/lib/api";
-import { authenticateDeviceOwner } from "@/lib/biometrics";
 import { OFFLINE_MUTATION_MESSAGE, useIsOffline } from "@/lib/net";
 import { useCards } from "@/lib/queries";
 import { usd } from "@/lib/format";
 import { colors, radius, spacing, type } from "@/lib/theme";
-import { Button, EmptyState, ErrorNote, PreviewBanner, Screen, Surface } from "@/components/ui";
-import { useSecureScreen } from "@/lib/secureScreen";
+import { Button, EmptyState, ErrorNote, Screen, Surface } from "@/components/ui";
 import { useTheme } from "@/lib/design/theme";
 import { AddMoneySheet } from "@/components/AddMoneySheet";
+import { CardDetailsReveal } from "@/components/cards/CardDetailsReveal";
+import { CardFrontContent, CardSurface } from "@/components/cards/CardArt";
+import { designFor } from "@/lib/cards/designs";
 import type { PaymentCard } from "@/lib/types";
 
 /** Maximum tilt, in degrees, at the far edge of the card. Small on purpose:
@@ -55,6 +56,7 @@ const MAX_TILT_DEG = 6;
  */
 function CardVisual({ card }: { card: PaymentCard }) {
   const [c1, c2] = card.gradient ?? [colors.surfaceRaised, colors.surface];
+  const design = designFor({ gradient: card.gradient });
   const { reduceMotion } = useTheme();
 
   // -1..1 per axis, derived from where the finger is within the card.
@@ -134,6 +136,28 @@ function CardVisual({ card }: { card: PaymentCard }) {
       onLayout={(e) => setSize({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
       {...(reduceMotion ? {} : responder.panHandlers)}
     >
+      {design ? (
+        <CardSurface design={design} style={styles.card}>
+          {reduceMotion ? null : (
+            <Animated.View pointerEvents="none" style={[styles.specular, specularStyle]} />
+          )}
+          <CardFrontContent
+            design={design}
+            label={card.label}
+            kind={card.kind}
+            last4={card.last4}
+            network={card.network}
+            settlementCurrency={card.settlementCurrency}
+          />
+          {card.frozen ? (
+            <View style={styles.frozenOverlay}>
+              <View style={styles.frozenPill}>
+                <Text style={{ color: colors.text, fontWeight: "700", fontSize: 13 }}>Frozen</Text>
+              </View>
+            </View>
+          ) : null}
+        </CardSurface>
+      ) : (
       <LinearGradient
         colors={[c1, c2]}
         start={{ x: 0, y: 0 }}
@@ -167,6 +191,7 @@ function CardVisual({ card }: { card: PaymentCard }) {
           </View>
         ) : null}
       </LinearGradient>
+      )}
     </Animated.View>
   );
 }
@@ -251,59 +276,11 @@ function SheetModal({
  *  sensitive-data ACCESS, not an action approval, so it stays gated even when
  *  the user turns "Biometric approvals" off (the same norm as Google Wallet). */
 function DetailsModal({ card, onClose }: { card: PaymentCard; onClose: () => void }) {
-  const [authed, setAuthed] = useState(false);
-  const [denial, setDenial] = useState<"rejected" | "no_device_lock" | null>(null);
-  // Card PAN/CVV must not land in a screenshot or the recents thumbnail.
-  useSecureScreen("card-details");
-
-  const authenticate = async () => {
-    // Device-owner proof, not "biometrics if you happen to have them". This
-    // used to reveal on an un-enrolled device: hasHardware/isEnrolled came
-    // back false and the handler set authed and returned, so switching
-    // fingerprint off in system Settings was enough to walk straight past the
-    // gate. authenticateDeviceOwner falls back to the device PIN/passcode
-    // instead, and reports the no-lock case rather than passing it.
-    const res = await authenticateDeviceOwner("Reveal full card details");
-    if (res.ok) {
-      setDenial(null);
-      setAuthed(true);
-    } else {
-      setDenial(res.reason);
-    }
-  };
-
-  // Nothing on this device can prove ownership — there is no honest way to
-  // show card credentials, so the reveal control goes away entirely.
-  const lockless = denial === "no_device_lock";
-
   return (
     <SheetModal title="Card details" visible onClose={onClose}>
-      {!authed ? (
-        <View style={{ gap: spacing.md, paddingVertical: spacing.md }}>
-          <Text style={[type.dim, { textAlign: "center" }]}>
-            {lockless
-              ? "Set a screen lock (PIN, pattern, or biometrics) on this device to view full card details."
-              : denial === "rejected"
-                ? "Authentication failed — try again."
-                : "Revealing full card details requires your fingerprint, face, or device PIN."}
-          </Text>
-          {!lockless ? (
-            <Button title="Authenticate to reveal" onPress={() => void authenticate()} />
-          ) : null}
-        </View>
-      ) : (
-        <View style={{ gap: spacing.sm, paddingVertical: spacing.sm }}>
-          <PreviewBanner text="Full card number, expiry and CVV come from the card issuer's secure vault, which isn't connected yet. No card details are available to show." />
-          <View style={styles.detailField}>
-            <Text style={type.dim}>Card number</Text>
-            <Text style={styles.detailMono}>•••• •••• •••• {card.last4}</Text>
-          </View>
-          <View style={styles.detailField}>
-            <Text style={type.dim}>Network</Text>
-            <Text style={type.body}>{card.network}</Text>
-          </View>
-        </View>
-      )}
+      <View style={{ paddingVertical: spacing.sm }}>
+        <CardDetailsReveal card={card} />
+      </View>
     </SheetModal>
   );
 }

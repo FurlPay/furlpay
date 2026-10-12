@@ -74,10 +74,16 @@ public struct Card: Identifiable, Codable, Sendable, Hashable {
     public var frozen: Bool
     public let label: String
     public let limits: CardLimits?
+    /// The card's two theme colours ("#RRGGBB"). Optional: it also rides the
+    /// watch snapshot, and one written by an older build will not carry it.
+    public let gradient: [String]?
+
+    /// Which of the three FurlPay designs this card wears, if any.
+    public var design: CardDesign? { CardDesign(gradient: gradient) }
 
     public init(
         id: String, last4: String, kind: CardKind, network: CardNetwork,
-        frozen: Bool, label: String, limits: CardLimits?
+        frozen: Bool, label: String, limits: CardLimits?, gradient: [String]? = nil
     ) {
         self.id = id
         self.last4 = last4
@@ -86,13 +92,14 @@ public struct Card: Identifiable, Codable, Sendable, Hashable {
         self.frozen = frozen
         self.label = label
         self.limits = limits
+        self.gradient = gradient
     }
 
     /// Unknown kinds/networks decode to `.unknown` rather than throwing, so a
     /// server that adds "amex" tomorrow does not blank the user's card list on
     /// an app version shipped today.
     private enum CodingKeys: String, CodingKey {
-        case id, last4, kind, network, frozen, label, limits
+        case id, last4, kind, network, frozen, label, limits, gradient
     }
 
     public init(from decoder: Decoder) throws {
@@ -104,6 +111,8 @@ public struct Card: Identifiable, Codable, Sendable, Hashable {
         frozen = try c.decodeIfPresent(Bool.self, forKey: .frozen) ?? false
         label = try c.decodeIfPresent(String.self, forKey: .label) ?? "Card"
         limits = try c.decodeIfPresent(CardLimits.self, forKey: .limits)
+        // Presentation only: a malformed gradient must not cost the user their card list.
+        gradient = try? c.decodeIfPresent([String].self, forKey: .gradient)
     }
 }
 

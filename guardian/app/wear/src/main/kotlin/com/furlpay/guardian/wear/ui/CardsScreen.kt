@@ -1,10 +1,23 @@
 package com.furlpay.guardian.wear.ui
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -17,6 +30,7 @@ import androidx.wear.compose.material3.SurfaceTransformation
 import androidx.wear.compose.material3.Text
 import androidx.wear.compose.material3.lazy.rememberTransformationSpec
 import androidx.wear.compose.material3.lazy.transformedHeight
+import com.furlpay.guardian.domain.model.CardDesign
 import com.furlpay.guardian.wear.viewmodel.CardsViewModel
 
 /**
@@ -78,6 +92,7 @@ fun CardsScreen(viewModel: CardsViewModel = viewModel()) {
                         .fillMaxWidth()
                         .transformedHeight(this, transformationSpec),
                 ) {
+                    card.design?.let { CardDesignStrip(it, card.network, card.last4) }
                     Text(
                         text = (card.label ?: card.kind) + " …" + card.last4,
                         style = MaterialTheme.typography.labelMedium,
@@ -99,5 +114,40 @@ fun CardsScreen(viewModel: CardsViewModel = viewModel()) {
                 }
             }
         }
+    }
+}
+
+/**
+ * The card's artwork, as much of it as a watch row has room for: the design's
+ * gradient with the wordmark and the last four. Decoration only, so it is
+ * hidden from TalkBack; the row's own text already says which card this is.
+ */
+@Composable
+private fun CardDesignStrip(design: CardDesign, network: String?, last4: String) {
+    val shape = RoundedCornerShape(10.dp)
+    val ink = Color(design.ink)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 6.dp)
+            .clip(shape)
+            .background(Brush.linearGradient(design.colors.map { Color(it) }))
+            .border(1.dp, Color(design.border), shape)
+            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .clearAndSetSemantics { },
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "FurlPay",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = ink,
+        )
+        Text(
+            text = listOfNotNull(network?.uppercase(), "•••• $last4").joinToString("  "),
+            style = MaterialTheme.typography.labelSmall,
+            color = ink,
+        )
     }
 }
