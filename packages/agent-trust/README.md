@@ -6,17 +6,29 @@ Visa [introduced the Trusted Agent Protocol](https://usa.visa.com/about-visa/new
 
 ## Status
 
-**Published on npm: `0.1.0`.**
+**Current release: `0.2.0`.** `0.1.0` is affected by the two defects below; upgrade.
 
-`0.2.0` is prepared but **not released**. It adds the `/approval` and `/spend`
-entry points, and fixes a packaging bug in which the approval API shipped inside
-the tarball but could not be imported by any published path. Until `0.2.0` is on
-npm, `@furlpay/agent-trust/approval` resolves from the repository, not from an
-installed `0.1.0`.
+`0.2.0` adds the `/approval` and `/spend` entry points, fixes a packaging bug in
+which the approval API shipped inside the tarball but could not be imported, and
+fixes two spend-cap defects in `verifyBookingToken`:
+
+- **Float arithmetic in spend caps.** Caps and running totals were IEEE-754
+  doubles, so a $0.30 mandate refused $0.20 after $0.10 (`0.1 + 0.2 > 0.3`).
+  Limits are now checked in exact integer micro-dollars; see [Amounts](#amounts).
+- **Concurrent overspend.** The cap and single-use checks read state before an
+  `await` and wrote it after, so concurrent bookings could together exceed a
+  mandate's cap (three $60 bookings cleared a $100 cap) and spend a single-use
+  mandate twice. The check and the reservation are now atomic.
+
+Upgrading: the signed mandate and token format is unchanged. Amounts that are
+not exactly representable (more than 6 decimal places, exponent form,
+non-finite, negative, or at least $1,000,000,000) are now refused, at issue and
+at verification, where 0.1.0 accepted them.
 
 No third-party security audit has been performed. What exists is the test suite:
-**73 tests, 73 passing, 0 failing**, covering the approval binding, domain
-separation, and each distinct verification failure.
+**95 tests, 95 passing, 0 failing**, covering the approval binding, domain
+separation, each distinct verification failure, exact spend accounting at the
+cap boundary, and randomized concurrency properties.
 
 ## Install
 
