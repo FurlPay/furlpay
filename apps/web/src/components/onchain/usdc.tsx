@@ -64,10 +64,15 @@ export function UsdcNetworkPanel() {
   useTick(5_000);
   const data = live.data;
   const T = data?.totals;
-  const winLabel = win === 60 ? "last 1 min" : "last 5 min";
   const net = T ? Number(T.netSupplyChange) : 0;
   /** At least one chain actually read live activity; otherwise activity metrics are unavailable, not zero. */
   const act = Boolean(T && T.windowChains.length > 0);
+  // The totals add up only the chains that read a live window. Say which, so a
+  // one-chain, one-minute sample is not read as a network-wide figure.
+  const covered = T?.windowChains ?? [];
+  const tracked = data?.chains.length ?? 0;
+  const coverage = !act ? "" : covered.length === 1 ? ` · ${chainName(covered[0])} only` : covered.length < tracked ? ` · ${covered.length} of ${tracked} chains` : "";
+  const winLabel = `${win === 60 ? "last 1 min" : "last 5 min"}${coverage}`;
   const noAct = "no chain reads live activity";
   const states = data ? Object.values(data.health) : [];
   const liveCount = states.filter((s) => s.state === "LIVE").length;

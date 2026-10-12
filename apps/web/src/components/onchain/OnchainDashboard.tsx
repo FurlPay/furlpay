@@ -14,6 +14,9 @@ import { UsdcNetworkPanel } from "./usdc";
 import { CctpPanel } from "./cctp";
 import { UsdcIndexPanel } from "./usdcIndex";
 import { ChainLookup, isChainQuery } from "./lookup";
+import { ExportMenu, SystemStatusPill, VolumeLayers } from "./viewBar";
+import { MarketOverview } from "./MarketOverview";
+import { viewParams, viewQuery } from "@/lib/onchain/dashboardView";
 import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 
 // ---------------------------------------------------------------------------
@@ -25,12 +28,14 @@ import type { FeedEvent, LiveSnapshot } from "@/lib/onchain/live";
 
 /** Sidebar item lit for the section nearest the top of the viewport. */
 const SECTION_NAV: [string, string][] = [
+  ["flows", "Geography"],
+  ["market-overview", "Stablecoins"],
   ["payments", "Payments"],
-  ["chains", "Chain Analytics"],
-  ["categories", "Merchants"],
-  ["counterparties", "Counterparties"],
-  ["risk", "Risk"],
-  ["market", "Stablecoin Market"],
+  ["counterparties", "Wallets"],
+  ["chains", "Chains"],
+  ["risk", "Risk & Compliance"],
+  ["market", "Market Insights"],
+  ["cctp", "Cross-chain"],
 ];
 
 function useActiveSection(ready: boolean) {
@@ -56,6 +61,21 @@ function useActiveSection(ready: boolean) {
 export default function OnchainDashboard({ operatorSection = null }: { operatorSection?: ReactNode }) {
   const [range, setRange] = useState<OnchainRange>("30d");
   const [chain, setChain] = useState("all");
+  // ?range=&chain= make a view shareable. Read once after mount (the server
+  // render has no URL state) and written back with replaceState, so filters
+  // do not pile up browser history.
+  const [urlReady, setUrlReady] = useState(false);
+  useEffect(() => {
+    const v = viewParams(window.location.search);
+    setRange(v.range);
+    setChain(v.chain);
+    setUrlReady(true);
+  }, []);
+  useEffect(() => {
+    if (!urlReady) return;
+    const next = `${window.location.pathname}${viewQuery(range, chain)}${window.location.hash}`;
+    if (next !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(null, "", next);
+  }, [range, chain, urlReady]);
   const [query, setQuery] = useState("");
   const [drawer, setDrawer] = useState(false);
   const { data, error, reload } = useOnchain(range, chain);
@@ -110,16 +130,6 @@ export default function OnchainDashboard({ operatorSection = null }: { operatorS
           <main id="overview" className="px-4 pb-8 pt-[18px] sm:px-[20px]">
             <TitleRow data={data} snap={live.snap} conn={live.conn} />
             {search && <SearchPanel s={search} onClose={() => setSearch(null)} onOpen={setOpenEv} />}
-            {/* Network-wide USDC straight from the chain nodes; loads independently of the ledger cards below. */}
-            <div className="mt-[18px]">
-              <UsdcIndexPanel />
-            </div>
-            <div className="mt-[14px]">
-              <UsdcNetworkPanel />
-            </div>
-            <div className="mt-[14px]">
-              <CctpPanel />
-            </div>
             {error && (
               <p role="alert" className="mt-3 rounded-lg border border-[#FF4D6D]/30 bg-[#FF4D6D]/[0.06] px-3 py-2 text-[13px] text-[#FFB3C1]">
                 {error}
@@ -137,20 +147,25 @@ export default function OnchainDashboard({ operatorSection = null }: { operatorS
                 <KpiRow data={data} />
                 {data.ledger.status === "unavailable" && <p className="text-[12.5px] text-[#F5B83D]">FurlPay ledger unavailable: {data.ledger.reason}</p>}
                 {data.ledger.status === "ok" && data.ledger.note && <p className="text-[12.5px] text-[#F5B83D]">{data.ledger.note}</p>}
-                <div className="grid grid-cols-1 gap-[14px] xl:min-h-[238px] xl:grid-cols-[472fr_352fr_442fr]">
-                  <PaymentVolume data={data} chain={chain} setChain={setChain} rangeKey={range} />
-                  <ChainDonut data={data} />
-                  <StablecoinFlows data={data} />
-                </div>
-                <div className="grid grid-cols-1 gap-[14px] xl:min-h-[242px] xl:grid-cols-[428fr_410fr_442fr]">
+                {/* Same order as the reference design: flows, market and classification, volume, rankings, then chain data. */}
+                <StablecoinFlows data={data} />
+                <div className="grid grid-cols-1 gap-[14px] xl:grid-cols-[6fr_4fr]">
+                  <MarketOverview data={data} />
                   <Categories data={data} />
-                  <Counterparties data={data} query={query} />
-                  <Activity data={data} query={query} live={live.snap} onOpen={setOpenEv} />
                 </div>
-                <div className="grid grid-cols-1 gap-[14px] xl:min-h-[234px] xl:grid-cols-[404fr_436fr_442fr]">
-                  <Risk data={data} />
+                <VolumeLayers data={data} />
+                <div className="grid grid-cols-1 gap-[14px] xl:min-h-[238px] xl:grid-cols-[7fr_3fr]">
+                  <PaymentVolume data={data} chain={chain} setChain={setChain} rangeKey={range} />
+                  <Counterparties data={data} query={query} />
+                </div>
+                <div className="grid grid-cols-1 gap-[14px] xl:min-h-[234px] xl:grid-cols-3">
+                  <ChainDonut data={data} />
                   <Flow data={data} chain={chain} setChain={setChain} />
                   <MarketInsights data={data} />
+                </div>
+                <div className="grid grid-cols-1 gap-[14px] xl:min-h-[234px] xl:grid-cols-2">
+                  <Risk data={data} />
+                  <Activity data={data} query={query} live={live.snap} onOpen={setOpenEv} />
                 </div>
                 {operatorSection && <div className="mt-6 border-t border-white/[0.07] pt-6">{operatorSection}</div>}
                 <p className="pt-1 text-[11px] text-white/35">
@@ -158,6 +173,13 @@ export default function OnchainDashboard({ operatorSection = null }: { operatorS
                 </p>
               </div>
             )}
+            {/* Network-wide USDC read from FurlPay's chain nodes, and cross-chain CCTP.
+                These load on their own, so they render even when the ledger API fails. */}
+            <div className="mt-[14px] space-y-[14px]">
+              <UsdcIndexPanel />
+              <UsdcNetworkPanel />
+              <CctpPanel />
+            </div>
           </main>
         </div>
       </div>
@@ -216,7 +238,7 @@ function TitleRow({ data, snap, conn }: { data: Data | null; snap: LiveSnapshot 
           {data?.alliumConfigured ? "Blockchain data, analytics and insights from Allium, the FurlPay ledger and FurlPay's chain nodes; each card shows its source and freshness." : "Payment analytics from the FurlPay ledger, USDC read from FurlPay's chain nodes, and stablecoin market data; each card shows its source and freshness."}
         </p>
       </div>
-      <div className="flex items-center gap-5 lg:ml-auto">
+      <div className="flex flex-wrap items-center gap-3 lg:ml-auto lg:gap-5">
         {data?.alliumConfigured && (
           <div className="hidden items-center gap-2.5 sm:flex" aria-label="FurlPay × Allium">
             <FurlPayMark size={27} />
@@ -228,6 +250,12 @@ function TitleRow({ data, snap, conn }: { data: Data | null; snap: LiveSnapshot 
         )}
         {data?.alliumConfigured && <span className="hidden h-8 w-px bg-white/[0.1] sm:block" />}
         <LiveBadge snap={snap} conn={conn} />
+        {data && (
+          <div className="flex items-center gap-2">
+            <SystemStatusPill data={data} />
+            <ExportMenu data={data} />
+          </div>
+        )}
       </div>
     </div>
   );
