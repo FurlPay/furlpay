@@ -1,10 +1,10 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { ArrowRight, ArrowLeft, Send, Globe2, CreditCard, ShieldCheck, ExternalLink, Clock3 } from "lucide-react";
+import { ArrowRight, ArrowLeft, Send, Globe2, CreditCard, ShieldCheck, ExternalLink, Clock3, ScanLine } from "lucide-react";
 import Select, { type SelectClasses } from "@/components/form/Select";
 import { useMiniApp } from "./TelegramProvider";
-import { checkoutPath, TransferDraftSchema, type TransferDraft } from "@/lib/telegram-mini-app/contracts";
+import { addressFromQr, checkoutPath, TransferDraftSchema, type TransferDraft } from "@/lib/telegram-mini-app/contracts";
 import { PAYMENT_LINKS_AVAILABLE } from "@/lib/telegram-mini-app/config";
 import { PageHeading, DetailSheet } from "./shared";
 
@@ -45,6 +45,25 @@ export default function PayScreen() {
     haptic();
   }, [draft, haptic]);
 
+  // Telegram's own camera scanner (Bot API 6.4+), offered only where it
+  // exists. It fills in the recipient and nothing else: the address is then
+  // validated and reviewed exactly like a typed one.
+  const canScan = Boolean(app?.showScanQrPopup && app.isVersionAtLeast("6.4"));
+  const scanRecipient = useCallback(() => {
+    if (!app?.showScanQrPopup) return;
+    app.showScanQrPopup({ text: "Scan the recipient's wallet QR code" }, (text) => {
+      const address = addressFromQr(text);
+      if (address) {
+        setDraft((d) => ({ ...d, destination: address }));
+        setError("");
+        haptic();
+      } else {
+        setError("That QR code is not an EVM wallet address.");
+      }
+      return true;
+    });
+  }, [app, haptic]);
+
   // Telegram's native MainButton mirrors "Review transfer" while the form is
   // showing. It only opens the review — it never signs or submits anything.
   useEffect(() => {
@@ -84,6 +103,11 @@ export default function PayScreen() {
               <label>Recipient wallet
                 <input autoComplete="off" spellCheck={false} placeholder="0x…" value={draft.destination} onChange={(e) => setDraft({ ...draft, destination: e.target.value })} />
               </label>
+              {canScan && (
+                <button type="button" className="mini-text-link" onClick={scanRecipient}>
+                  <ScanLine size={16} /> Scan a wallet QR code
+                </button>
+              )}
               <label>Amount
                 <div className="mini-amount-input">
                   <input inputMode="decimal" autoComplete="off" placeholder="0.00" value={draft.amount} onChange={(e) => setDraft({ ...draft, amount: e.target.value })} />
@@ -116,11 +140,11 @@ export default function PayScreen() {
           <form onSubmit={(e) => {
             e.preventDefault();
             const path = checkoutPath(paymentLink.trim());
-            if (!path) { setError("Enter a valid https://furlpay.com/p/ payment link."); return; }
+            if (!path) { setError("Enter a valid furlpay.com/p/ payment link."); return; }
             setError("");
             setCheckout(path);
           }}>
-            <label>Payment link<input type="url" placeholder="https://furlpay.com/p/…" value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} /></label>
+            <label>Payment link<input type="text" inputMode="url" autoComplete="off" autoCapitalize="none" spellCheck={false} placeholder="https://furlpay.com/p/…" value={paymentLink} onChange={(e) => setPaymentLink(e.target.value)} /></label>
             {error && <p className="mini-error" role="alert">{error}</p>}
             <button className="mini-primary" type="submit">Review payment link <ArrowRight size={18} /></button>
           </form>

@@ -20,6 +20,9 @@ export interface TelegramWebApp {
   BackButton: { show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void };
   MainButton: { setParams(params: { text: string; color: string; text_color: string; is_active: boolean; is_visible: boolean }): void; show(): void; hide(): void; onClick(fn: () => void): void; offClick(fn: () => void): void };
   HapticFeedback?: { selectionChanged(): void };
+  /** Bot API 6.4+. The callback returns true to close the scanner. */
+  showScanQrPopup?(params: { text?: string }, callback?: (text: string) => boolean | void): void;
+  closeScanQrPopup?(): void;
   /** Bot API 7.7+ */
   disableVerticalSwipes?(): void;
   enableVerticalSwipes?(): void;

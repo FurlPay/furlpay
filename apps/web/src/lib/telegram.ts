@@ -5,6 +5,7 @@ import { bySymbol } from "@/lib/markets/catalog";
 import { getQuotes } from "@/lib/markets/quotes";
 import { generateFlights } from "@/lib/travel/data";
 import { searchDocs } from "@/lib/docs/search";
+import { telegramLaunchUrl } from "@/lib/telegram-mini-app/config";
 
 // ---------------------------------------------------------------------------
 // Telegram bot for Furlpay — the same command surface as the Discord bot,
@@ -24,9 +25,19 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-interface Button {
-  text: string;
-  url: string;
+type Button =
+  | { text: string; url: string }
+  // Opens the Mini App inside Telegram. Telegram only accepts this button in
+  // a private chat with the bot; in a group it rejects the whole message.
+  | { text: string; web_app: { url: string } };
+
+const MINI_APP_URL = `${SITE}/telegram`;
+
+/** The "open the app" button for this chat: in-Telegram where Telegram allows
+ *  it, otherwise the t.me launch link, otherwise the web page. */
+function appButton(chatType: string, text = "Open FurlPay"): Button {
+  if (chatType === "private") return { text, web_app: { url: MINI_APP_URL } };
+  return { text, url: telegramLaunchUrl() ?? MINI_APP_URL };
 }
 function keyboard(...rows: Button[][]) {
   return { inline_keyboard: rows };
@@ -94,12 +105,19 @@ export async function handleUpdate(update: TgUpdate): Promise<TgReply | null> {
   const name = msg.from?.first_name || "there";
 
   switch (cmd) {
+    case "app":
+      return sendMessage(
+        chatId,
+        "<b>FurlPay in Telegram</b>\n\nYour balance, activity, cards and payment links, without leaving the chat.",
+        keyboard([appButton(msg.chat.type)])
+      );
+
     case "start":
       return sendMessage(
         chatId,
-        `<b>Welcome to Furlpay, ${esc(name)}</b>\n\nThe on-chain financial operating system — stablecoin payments, travel and investing in one app.\n\nTry <b>/flights</b>, <b>/ask</b>, <b>/quote</b>, <b>/fees</b>, or <b>/help</b> for everything.`,
+        `<b>Welcome to Furlpay, ${esc(name)}</b>\n\nThe on-chain financial operating system — stablecoin payments, travel and investing in one app.\n\nTry <b>/app</b>, <b>/flights</b>, <b>/ask</b>, <b>/quote</b>, <b>/fees</b>, or <b>/help</b> for everything.`,
         keyboard(
-          [{ text: "Open App", url: `${SITE}/dashboard` }, { text: "Developer Docs", url: `${SITE}/docs` }],
+          [appButton(msg.chat.type), { text: "Developer Docs", url: `${SITE}/docs` }],
           [{ text: "GitHub", url: "https://github.com/Ashutosh0x/furlpay" }]
         )
       );
@@ -109,6 +127,7 @@ export async function handleUpdate(update: TgUpdate): Promise<TgReply | null> {
         chatId,
         [
           "<b>Furlpay commands</b>",
+          "/app — open FurlPay inside Telegram",
           "/flights LHR JFK — search flights, pay in USDC",
           "/ask &lt;question&gt; — ask the docs",
           "/quote BTC — live crypto price",
