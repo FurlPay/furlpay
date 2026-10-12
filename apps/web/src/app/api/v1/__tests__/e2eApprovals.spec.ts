@@ -193,6 +193,7 @@ describe("a payment that needs a human", () => {
     const entry = queue.find((q) => q.authorizationId === authorizationId);
     expect(entry).toBeDefined();
     expect(entry!.payment.amount).toBe("1000000");
+    expect(entry!.payment.amountMajor).toBe("1.000000");
     approvalId = entry!.id;
   });
 
@@ -211,6 +212,17 @@ describe("a payment that needs a human", () => {
     expect(status, JSON.stringify(body)).toBe(200);
     expect(body).toMatchObject({ phase: "APPROVED", replayed: false });
     expect(await recentStepUp(USER, JTI)).toBe(false);
+  });
+
+  it("one step-up decides once, even when requests race", async () => {
+    // Under check-then-consume both requests passed the step-up read before
+    // either deleted it, so one ceremony could decide several payments.
+    const { recordStepUp } = await import("@/lib/stepup");
+    await recordStepUp(USER, JTI, "passkey");
+    const results = await Promise.all([decide("APPROVE"), decide("APPROVE")]);
+    const statuses = results.map((r) => r.status).sort();
+    expect(statuses, JSON.stringify(results)).toEqual([200, 401]);
+    expect(results.find((r) => r.status === 401)!.body.error).toBe("step_up_required");
   });
 
   it("then passes the approval guard and stops only at the absent rail", async () => {

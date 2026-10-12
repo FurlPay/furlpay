@@ -109,13 +109,14 @@ describe("the approval routes are human-only", () => {
     });
   }
 
-  it("deciding requires a fresh step-up and consumes it", () => {
+  it("deciding requires a fresh step-up and claims it atomically first", () => {
     const route = readFileSync(join(API, "[id]", "route.ts"), "utf8");
-    const stepAt = route.indexOf("recentStepUp(");
+    const claimAt = route.indexOf("claimStepUp(");
     const decideAt = route.indexOf("decideApproval(");
-    expect(stepAt).toBeGreaterThan(-1);
-    expect(stepAt).toBeLessThan(decideAt);
-    expect(route).toContain("consumeStepUp(");
+    expect(claimAt).toBeGreaterThan(-1);
+    expect(claimAt).toBeLessThan(decideAt);
+    // check-then-delete let concurrent requests share one step-up
+    expect(route).not.toContain("consumeStepUp(");
   });
 });
 

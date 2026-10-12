@@ -3,7 +3,7 @@ import { createHash, randomUUID } from "crypto";
 import { z } from "zod";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { validateBody } from "@/lib/validate";
-import { recentStepUp, consumeStepUp } from "@/lib/stepup";
+import { recentStepUp, claimStepUp } from "@/lib/stepup";
 import { audit } from "@/lib/audit";
 import { requireHumanTenant, ok, problem, notFound } from "@/lib/controlPlane/tenancy";
 import { decideApproval } from "@/lib/controlPlane/approvals";
@@ -18,7 +18,8 @@ export const dynamic = "force-dynamic";
 //   1. A signed-in human, never an API key (requireHumanTenant).
 //   2. A fresh step-up on THIS session. A stolen session cookie alone must not
 //      be enough to release money; the step-up is bound to the session's jti
-//      and consumed on success, so one ceremony approves one payment.
+//      and claimed atomically before deciding, so one ceremony decides one
+//      payment.
 //   3. The pure rules agree (resolveApprovalDecision): not already answered,
 //      still waiting, and not an APPROVE after a DENY-on-timeout deadline.
 //
@@ -57,6 +58,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     });
   }
 
+  // Claim the step-up atomically BEFORE deciding. recentStepUp() above only
+  // gives a clean 401 to a session that never stepped up; it is a read, so two
+  // concurrent requests both pass it. Consuming after the decision let one
+  // ceremony release several held payments in parallel. claimStepUp is a
+  // SET NX: exactly one request wins, the rest are told to step up again.
+  //
+  // The cost: a decision that then fails or turns out to be a replay still
+  // spends the step-up. Re-verifying is the safe direction for money.
+  if (!(await claimStepUp(userId, jti, STEP_UP_WINDOW_MS))) {
+    return problem(401, "step_up_required", {
+      message: "That verification was already used. Re-verify to decide this payment.",
+      action: { type: "step_up", methods: ["passkey", "otp"] },
+    });
+  }
+
   const requestId = req.headers.get("x-request-id") ?? randomUUID();
   const outcome = await decideApproval({
     organizationId,
@@ -83,9 +99,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         return problem(503, outcome.code, { message: outcome.detail });
     }
   }
-
-  // One step-up, one decision. A replay changed nothing, so it consumes nothing.
-  if (!outcome.replayed) await consumeStepUp(userId, jti);
 
   audit(body.decision === "APPROVE" ? "control_plane.approval.approved" : "control_plane.approval.denied", userId, {
     approvalId: id,
