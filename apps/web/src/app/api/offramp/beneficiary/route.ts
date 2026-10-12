@@ -12,7 +12,7 @@ import {
   getUserBeneficiaries,
 } from "@/lib/ramp/beneficiary";
 import { checkFeature } from "@/lib/kycTiers";
-import { recentStepUp } from "@/lib/stepup";
+import { claimStepUp } from "@/lib/stepup";
 
 export const dynamic = "force-dynamic";
 
@@ -66,8 +66,12 @@ export async function POST(req: NextRequest) {
   });
   if (!guard.pass) return guard.response;
 
-  // Changing where money goes is the account-takeover move; always stepped up.
-  if (!(await recentStepUp(account.user.id, auth.claims.jti, STEP_UP_WINDOW_MS))) {
+  // Changing where money goes is the account-takeover move; always stepped up,
+  // and one step-up adds ONE account. This used to be recentStepUp(), a read:
+  // a single verification stayed good for every bank account added in the
+  // next fifteen minutes, concurrently or not. The claim is atomic and
+  // single-use.
+  if (!(await claimStepUp(account.user.id, auth.claims.jti, STEP_UP_WINDOW_MS))) {
     return NextResponse.json(
       {
         error: "step_up_required",

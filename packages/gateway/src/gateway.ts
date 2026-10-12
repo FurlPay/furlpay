@@ -7,6 +7,7 @@ import {
   LATEST_X402_VERSION,
   NETWORK_USDC,
   REPLAY_CLAIM_TTL_SECONDS,
+  canonicalNonce,
   USDC_DECIMALS,
   atomicAmount,
   b64encode,
@@ -583,14 +584,29 @@ export class Gateway {
     // ── freshness ──
     const now = Math.floor(Date.now() / 1000);
     if (now > expiresAt) return fail("Quote expired (re-request the 402 quote)");
+    // Both bounds must be plain integers. They were compared only when
+    // Number() happened to parse them, so "abc" skipped the expiry check.
+    if (!/^\d{1,15}$/.test(auth.validAfter) || !/^\d{1,15}$/.test(auth.validBefore)) {
+      return fail("Malformed authorization validity window");
+    }
     const validAfter = Number(auth.validAfter);
     const validBefore = Number(auth.validBefore);
-    if (Number.isFinite(validAfter) && now < validAfter) return fail("Authorization not yet valid");
-    if (Number.isFinite(validBefore) && now > validBefore) return fail("Authorization expired");
+    if (now < validAfter) return fail("Authorization not yet valid");
+    if (now > validBefore) return fail("Authorization expired");
+    // The replay claim is remembered for REPLAY_CLAIM_TTL_SECONDS. An
+    // authorization that stays valid longer than that could be presented again
+    // after its claim has expired, so it is not accepted in the first place.
+    if (validBefore > now + REPLAY_CLAIM_TTL_SECONDS - 600) {
+      return fail("Authorization validity window is too long");
+    }
+    const nonce = canonicalNonce(this.network, auth.nonce);
+    if (!nonce) return fail("Malformed authorization nonce");
 
     // ── single-use. Nonce first: it is the money-level token, so burning it
     // before the quote means a racing replay never reaches settlement. ──
-    if (!(await this.claims.claim(`x402:nonce:${auth.nonce}`, REPLAY_CLAIM_TTL_SECONDS))) {
+    // Key shape is shared with apps/web's gasless transfer route, which claims
+    // the same nonce in the same namespace. Keep the two in step.
+    if (!(await this.claims.claim(`x402:nonce:${nonce}`, REPLAY_CLAIM_TTL_SECONDS))) {
       return fail("Authorization already used (replay)");
     }
     if (!(await this.claims.claim(`x402:quote:${quoteId}`, REPLAY_CLAIM_TTL_SECONDS))) {

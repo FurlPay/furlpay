@@ -21,7 +21,13 @@ export async function createCryptoPaymentIntent(amountInCents: number, currency 
   const paymentIntent = await getStripe().paymentIntents.create({
     amount: amountInCents,
     currency,
-    automatic_payment_methods: { enabled: true },
+    // Stablecoin only, named explicitly. This intent is created by a PUBLIC
+    // route; with automatic_payment_methods Stripe attached every method the
+    // dashboard had on, cards included, which made an unauthenticated endpoint
+    // a place to test stolen card numbers against FurlPay's account. A crypto
+    // intent cannot be confirmed with a card. If crypto is not enabled on the
+    // account the create call fails and the route answers 502.
+    payment_method_types: ["crypto"],
     metadata: { integration: "furlpay_connect_stablecoin" },
   });
   return { clientSecret: paymentIntent.client_secret, id: paymentIntent.id };

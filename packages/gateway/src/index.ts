@@ -8,6 +8,7 @@ export {
   MAX_HEADER_BYTES,
   DEFAULT_QUOTE_TTL_SECONDS,
   REPLAY_CLAIM_TTL_SECONDS,
+  canonicalNonce,
   NETWORK_USDC,
   USDC_DECIMALS,
   noStoreHeaders,

@@ -31,7 +31,7 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test test/protocol.test.js test/gateway.test.js test/policy.test.js test/asset-binding.test.js"
+    "test": "npm run build && node --test test/protocol.test.js test/gateway.test.js test/policy.test.js test/asset-binding.test.js test/nonce-canonical.test.js"
   },
   "keywords": [
     "x402",

@@ -7,8 +7,8 @@ import { recordMovement } from "@/lib/ledger";
 import { requireUser } from "@/lib/authz";
 import { rateLimitOr429 } from "@/lib/rateLimit";
 import { OfframpSchema, parse } from "@/lib/schemas";
-import { rampGuard, rampCommit, STEP_UP_THRESHOLD_USD, type RampAuth } from "@/lib/ramp/rampGuard";
-import { consumeStepUp } from "@/lib/stepup";
+import { rampGuard, rampCommit, STEP_UP_WINDOW_MS, type RampAuth } from "@/lib/ramp/rampGuard";
+import { claimStepUp } from "@/lib/stepup";
 import { recordRampAudit } from "@/lib/ramp/rampAudit";
 import { flagEnabled } from "@/lib/flags";
 import { selectProvider } from "@/lib/providers/router";
@@ -69,6 +69,26 @@ export async function POST(req: NextRequest) {
   }
   const guardMeta = guard?.pass ? guard.meta : null;
 
+  // One re-authentication authorizes ONE payout. rampGuard only read the
+  // step-up, so two concurrent requests both got this far on a single OTP or
+  // passkey; the route used to delete the record after the provider order
+  // existed, which is too late to stop the second. The claim is atomic (SET
+  // NX) and is taken immediately before the first irreversible step. It also
+  // covers a velocity "review" below the amount threshold, which the old
+  // amount-only consume left reusable.
+  const claimPayoutStepUp = async (): Promise<NextResponse | null> => {
+    if (!guardMeta?.stepUpRequired) return null;
+    if (await claimStepUp(account.user.id, auth.claims.jti, STEP_UP_WINDOW_MS)) return null;
+    return NextResponse.json(
+      {
+        error: "step_up_required",
+        message: "This payout needs a fresh verification. Verify again and retry.",
+        action: { type: "step_up", methods: ["otp", "passkey"] },
+      },
+      { status: 401 }
+    );
+  };
+
   // ── Audit: quote requested ───────────────────────────────────────────
   recordRampAudit({
     userId: account.user.id,
@@ -82,7 +102,15 @@ export async function POST(req: NextRequest) {
     velocityFlags: guardMeta?.velocityFlags,
   }).catch(() => {});
 
-  const quote = await quoteFx(fromCurrency, toCurrency, amount);
+  // quoteFx throws on a pair it has no rate for. The schema only bounds the
+  // length of a currency code, so that is reachable with any two strings, and
+  // it surfaced as an unhandled 500.
+  let quote: Awaited<ReturnType<typeof quoteFx>>;
+  try {
+    quote = await quoteFx(fromCurrency, toCurrency, amount);
+  } catch {
+    return NextResponse.json({ error: "unsupported_currency_pair" }, { status: 400 });
+  }
 
   // ── Provider router path (when OFFRAMP_LIVE and execute) ──────────────
   if (execute && flagEnabled("OFFRAMP_LIVE")) {
@@ -140,6 +168,9 @@ export async function POST(req: NextRequest) {
     // partner reference. The beneficiary travels as OUR reference only: bank
     // details are not sent to an adapter whose API is unverified, and a
     // provider that needs them collects them itself.
+    const stepUpDenied = await claimPayoutStepUp();
+    if (stepUpDenied) return stepUpDenied;
+
     const rampOrder = await createRampOrder({
       providerId: adapter.id as RampProviderId,
       direction: "offramp",
@@ -199,8 +230,6 @@ export async function POST(req: NextRequest) {
     // Counted at order creation: the user is about to send funds, and a
     // velocity limit that waits for settlement can be outrun.
     rampCommit({ auth: rampAuth, amountUsd: amount, country }).catch(() => {});
-    // Step-up is single-use: one ceremony, one payout.
-    if (amount >= STEP_UP_THRESHOLD_USD) await consumeStepUp(account.user.id, auth.claims.jti);
 
     return NextResponse.json(
       {
@@ -230,6 +259,9 @@ export async function POST(req: NextRequest) {
   }
 
   if (execute) {
+    const stepUpDenied = await claimPayoutStepUp();
+    if (stepUpDenied) return stepUpDenied;
+
     // LEDGER FIRST — demo path.
     await recordMovement("out", amount, `Off-ramp to ${toCurrency} via ${quote.rail}`, account.user.id);
 

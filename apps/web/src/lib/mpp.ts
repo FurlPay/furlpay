@@ -215,10 +215,17 @@ export async function verifyMppPayment(opts: {
     return fail("payment-insufficient", `Wrong amount (expected ${expected.request.maxAmountRequired} atomic)`);
   }
 
+  // The nonce is 32 bytes; anything else is not an EIP-3009 authorization. It
+  // was used as a key unchecked, so a missing nonce claimed "mpp:nonce:undefined"
+  // and a re-cased one claimed a key of its own.
+  const nonceHex = typeof auth.nonce === "string" ? /^(?:0[xX])?([0-9a-fA-F]{64})$/.exec(auth.nonce) : null;
+  if (!nonceHex) return fail("malformed-credential", "Authorization nonce must be 32 bytes of hex");
+  const nonce = `0x${nonceHex[1].toLowerCase()}`;
+
   // Single-use claims (cross-instance, Redis SET NX): the challenge id AND the
   // EIP-3009 nonce, so neither a replayed credential nor a replayed nonce can
   // settle twice.
-  if (!(await kvSetNx(`mpp:nonce:${auth.nonce}`, 1, CLAIM_TTL_SECONDS))) {
+  if (!(await kvSetNx(`mpp:nonce:${nonce}`, 1, CLAIM_TTL_SECONDS))) {
     return fail("verification-failed", "Authorization nonce already used (replay rejected)");
   }
   if (!(await kvSetNx(`mpp:challenge:${ch.id}`, 1, CLAIM_TTL_SECONDS))) {

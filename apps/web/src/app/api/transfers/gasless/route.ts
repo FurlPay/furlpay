@@ -141,7 +141,10 @@ export async function POST(req: NextRequest) {
 
   // Atomic single-use claim — same namespace as x402 payments, so this nonce
   // is burned across BOTH relay routes and every serverless instance.
-  const claimed = await kvSetNx(`x402:nonce:${a.nonce}`, now, 86_400);
+  // Lowercased: the schema accepts either case, and "0xAB.." and "0xab.." are
+  // one authorization. Keyed as typed, a re-cased replay took a fresh key.
+  // Same canonical form as @furlpay/gateway's canonicalNonce().
+  const claimed = await kvSetNx(`x402:nonce:${a.nonce.toLowerCase()}`, now, 86_400);
   if (!claimed) {
     await recordSecurityEvent({ rail: "transfers", kind: "replay_rejected", severity: "medium", detail: "gasless nonce already used", actor: auth.account.user.id });
     return NextResponse.json({ error: "replay_rejected", detail: "authorization nonce already used" }, { status: 409 });
