@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { CHAIN_FILTERS, type OnchainDashboard } from "../dashboard";
 import type { SectionFreshness } from "../freshness";
-import { VIEW_CHAINS, exportCsv, exportJson, systemStatus, viewParams, viewQuery, volumeLayers } from "../dashboardView";
+import { VIEW_CHAINS, exportCsv, exportJson, supplyBreakdown, systemStatus, viewParams, viewQuery, volumeLayers } from "../dashboardView";
 
 const f = (state: SectionFreshness["state"], reason?: string): SectionFreshness => ({ state, source: "s", asOf: "2026-10-12T00:00:00Z", cadence: "c", ...(reason ? { reason } : {}) });
 const fresh = (over: Partial<OnchainDashboard["freshness"]> = {}): OnchainDashboard["freshness"] => ({
@@ -77,10 +77,12 @@ describe("systemStatus", () => {
 
 describe("volumeLayers", () => {
   it("never invents an adjusted series and says why a layer is missing", () => {
-    const [raw, adjusted, ledger] = volumeLayers(dash());
+    const [raw, adjusted, economic, ledger] = volumeLayers(dash());
     expect(raw.value).toBeNull();
     expect(raw.unavailable).toMatch(/ALLIUM_API_KEY/);
     expect(adjusted.value).toBeNull();
+    expect(economic.value).toBeNull();
+    expect(adjusted.label).not.toEqual(economic.label);
     expect(ledger.value).toBe(1250.5);
   });
 
@@ -121,12 +123,34 @@ describe("export", () => {
     expect(csv).toContain("ledger_kpi,volume,1250.5,30d");
     expect(csv).toContain(`"'=HYPERLINK(""x"")"`);
     expect(csv).not.toMatch(/(^|,)=HYPERLINK/m);
-    expect(csv).toMatch(/Adjusted \/ economic,,,.*unavailable/);
+    expect(csv).toMatch(/Adjusted volume,,,.*unavailable/);
+    expect(csv).toMatch(/Economic payments,,,.*unavailable/);
   });
   it("JSON carries the status and layers alongside the data", () => {
     const j = JSON.parse(exportJson(dash()));
     expect(j.status.level).toBe("operational");
-    expect(j.volumeLayers).toHaveLength(3);
+    expect(j.volumeLayers).toHaveLength(4);
     expect(j.dashboard.chain).toBe("all");
+  });
+});
+
+describe("supplyBreakdown", () => {
+  const m = {
+    totalSupplyUsd: 300,
+    topCoins: [{ symbol: "USDT", supplyUsd: 180 }, { symbol: "USDC", supplyUsd: 75 }, { symbol: "ZERO", supplyUsd: 0 }],
+    topChains: [{ chain: "Ethereum", supplyUsd: 170 }],
+  };
+  it("adds the unlisted remainder as Others, so shares sum to one", () => {
+    const s = supplyBreakdown(m, "asset");
+    expect(s.map((x) => x.label)).toEqual(["USDT", "USDC", "Others"]);
+    expect(s.at(-1)!.supplyUsd).toBe(45);
+    expect(s.reduce((n, x) => n + x.share, 0)).toBeCloseTo(1, 10);
+  });
+  it("works by chain and returns nothing for an empty market", () => {
+    expect(supplyBreakdown(m, "chain").map((x) => x.supplyUsd)).toEqual([170, 130]);
+    expect(supplyBreakdown({ ...m, totalSupplyUsd: 0 }, "asset")).toEqual([]);
+  });
+  it("adds no Others slice when the listed rows are the whole total", () => {
+    expect(supplyBreakdown({ totalSupplyUsd: 10, topCoins: [{ symbol: "A", supplyUsd: 10 }], topChains: [] }, "asset").map((x) => x.label)).toEqual(["A"]);
   });
 });

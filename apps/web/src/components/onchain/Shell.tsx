@@ -7,14 +7,12 @@ import {
   IconAnalytics,
   IconApi,
   IconBell,
-  IconCard,
+  IconCctp,
   IconChainAnalytics,
-  IconCompliance,
   IconCounterparties,
   IconDocs,
   IconIntegrations,
   IconMenu,
-  IconMerchant,
   IconOverview,
   IconPayments,
   IconProfile,
@@ -22,9 +20,9 @@ import {
   IconRisk,
   IconSearch,
   IconSettings,
+  IconStablecoinFlows,
   IconStablecoinMarket,
   IconTokenizedAssets,
-  IconTravel,
   IconWallet,
   type FurlIcon,
 } from "@/components/furlicons";
@@ -37,21 +35,22 @@ import type { OnchainRange } from "./useOnchain";
 export const RANGE_LABEL: Record<OnchainRange, string> = { "24h": "Last 24 hours", "7d": "Last 7 days", "30d": "Last 30 days", "90d": "Last 90 days" };
 export const CHAINS = ["all", "ethereum", "base", "arbitrum", "solana", "polygon", "optimism", "avalanche"] as const;
 
-/** Section anchors on this page, or real public pages. No dead links. */
+/** Section anchors on this page, or real pages. No dead links: the reference
+ *  design's "Entities" and "Investigations" have no destination yet, so they
+ *  are not listed; Admin is added for operators only (see Sidebar). */
 const NAV: { label: string; href: string; Icon: FurlIcon }[] = [
   { label: "Overview", href: "#overview", Icon: IconOverview },
   { label: "Payments", href: "#payments", Icon: IconPayments },
-  { label: "Wallets", href: "/dashboard", Icon: IconWallet },
-  { label: "Cards", href: "/cards", Icon: IconCard },
-  { label: "Travel", href: "/travel", Icon: IconTravel },
-  { label: "Cross-chain", href: "#cctp", Icon: IconChainAnalytics },
-  { label: "Merchants", href: "#categories", Icon: IconMerchant },
-  { label: "Compliance", href: "#risk", Icon: IconCompliance },
-  { label: "Risk", href: "#risk", Icon: IconRisk },
-  { label: "Counterparties", href: "#counterparties", Icon: IconCounterparties },
-  { label: "Chain Analytics", href: "#chains", Icon: IconChainAnalytics },
-  { label: "Stablecoin Market", href: "#market", Icon: IconStablecoinMarket },
+  { label: "Wallets", href: "#counterparties", Icon: IconWallet },
+  { label: "Stablecoins", href: "#market-overview", Icon: IconStablecoinMarket },
+  { label: "Chains", href: "#chains", Icon: IconChainAnalytics },
+  { label: "Geography", href: "#flows", Icon: IconStablecoinFlows },
+  { label: "Cross-chain", href: "#cctp", Icon: IconCctp },
+  { label: "Agent Payments", href: "/developer/agents", Icon: IconApi },
+  { label: "Risk & Compliance", href: "#risk", Icon: IconRisk },
+  { label: "Market Insights", href: "#market", Icon: IconTokenizedAssets },
   { label: "Reports", href: "/reports", Icon: IconReports },
+  { label: "Webhooks", href: "/developer/webhooks", Icon: IconCounterparties },
 ];
 
 /** A plain ring glyph standing in for the Allium wordmark (not their trademarked logo). */
@@ -86,7 +85,7 @@ const initialOf = (me: Me | null | undefined) => (me?.initials || me?.name?.[0] 
 
 export function Sidebar({ active, onNavigate, alliumConfigured, operator = false }: { active: string; onNavigate?: () => void; alliumConfigured: boolean; operator?: boolean }) {
   // The Tokenized Assets section exists on the page only for the operator.
-  const nav = operator ? [...NAV.slice(0, 12), { label: "Tokenized Assets", href: "#rwa", Icon: IconTokenizedAssets }, ...NAV.slice(12)] : NAV;
+  const nav = operator ? [...NAV, { label: "Tokenized Assets", href: "#rwa", Icon: IconTokenizedAssets }, { label: "Admin", href: "/ops", Icon: IconSettings }] : NAV;
   const me = useMe();
   const row = "flex h-[35px] items-center gap-3 rounded-lg border px-3 text-[13px] transition-colors";
   return (

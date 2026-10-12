@@ -127,13 +127,13 @@ export function ExportMenu({ data }: { data: Data }) {
   );
 }
 
-const LAYER_TONE: Record<string, string> = { raw: "#3B82F6", adjusted: "#A855F7", ledger: "#14B8A6" };
+const LAYER_TONE: Record<string, string> = { raw: "#347DFF", adjusted: "#A65CF5", economic: "#FFD66B", ledger: "#12C9BC" };
 
 export function VolumeLayers({ data }: { data: Data }) {
   const layers = volumeLayers(data);
   return (
     <Card title="Transaction Volume — Layered View" id="volume-layers" source="Allium (raw), FurlPay ledger">
-      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
         {layers.map((l) => (
           <div key={l.key} className="rounded-lg border border-white/[0.07] bg-white/[0.015] px-3 py-2.5">
             <p className="flex items-center gap-1.5 text-[12px] text-white/70">

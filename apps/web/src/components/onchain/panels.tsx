@@ -232,7 +232,7 @@ export function StablecoinFlows({ data }: { data: Data }) {
   const byChainMode = corr.status === "unavailable" && chains.length > 0;
   const source = byChainMode ? data.alliumChains.source : corr.source;
   return (
-    <Card icon={IconStablecoinFlows} title="Stablecoin Flows (Global)" source={source} freshness={byChainMode ? data.freshness?.alliumChains : data.freshness?.corridors} action={
+    <Card icon={IconStablecoinFlows} id="flows" title="Global Stablecoin Flows" source={source} freshness={byChainMode ? data.freshness?.alliumChains : data.freshness?.corridors} action={
         all.length > 0 ? (
           <GhostButton onClick={() => setExploring(true)}>Explore</GhostButton>
         ) : null
@@ -241,7 +241,7 @@ export function StablecoinFlows({ data }: { data: Data }) {
       <div className={`grid flex-1 items-center gap-3 ${byChainMode ? "sm:grid-cols-[1fr_1.15fr]" : "sm:grid-cols-[1.9fr_1fr]"}`}>
         <div className="relative">
           <div className="pointer-events-none absolute inset-0 rounded-full bg-[radial-gradient(ellipse_at_center,rgba(0,229,153,0.10),transparent_65%)]" />
-          <svg viewBox={`8 6 ${WORLD.width - 16} ${WORLD.height - 30}`} preserveAspectRatio="xMidYMid slice" className="relative h-[168px] w-full" role="img" aria-label="World map of stablecoin corridors">
+          <svg viewBox={`8 6 ${WORLD.width - 16} ${WORLD.height - 30}`} preserveAspectRatio="xMidYMid slice" className="relative h-[168px] w-full sm:h-[240px]" role="img" aria-label="World map of stablecoin corridors">
             {WORLD.dots.map(([x, y], i) => (
               <circle key={i} cx={x} cy={y} r={1.15} fill="#1F6B52" fillOpacity={0.55} />
             ))}
